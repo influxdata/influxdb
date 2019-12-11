@@ -30,40 +30,36 @@ class AccountNavSubItem extends PureComponent<Props> {
     }
 
     return (
-      <>
-        <CloudExclude key="feature-flag">
-          {orgs.length > 1 && (
-            <NavMenu.SubItem
-              titleLink={className => (
-                <div onClick={showOrganizationsView} className={className}>
-                  Switch Organizations
-                </div>
-              )}
-              active={false}
-              key="switch-orgs"
-            />
-          )}
-
+      <CloudExclude key="feature-flag">
+        {orgs.length > 1 && (
           <NavMenu.SubItem
             titleLink={className => (
-              <Link to="/orgs/new" className={className}>
-                Create Organization
-              </Link>
+              <div onClick={showOrganizationsView} className={className}>
+                Switch Organizations
+              </div>
             )}
             active={false}
+            key="switch-orgs"
           />
-        </CloudExclude>
-
-        <NavMenu.SubItem
-          titleLink={className => (
-            <Link to="/logout" className={className}>
-              Logout
-            </Link>
-          )}
-          active={false}
-          key="logout"
+        )}
+      <NavMenu.SubItem
+        titleLink={className => (
+          <Link to="/orgs/new" className={className}>
+            Create Organization
+          </Link>
+        )}
+        active={false}
+      />
+      <NavMenu.SubItem
+        titleLink={className => (
+          <Link to="/logout" className={className}>
+            Logout
+          </Link>
+        )}
+        active={false}
+        key="logout"
         />
-      </>
+      </CloudExclude>
     )
   }
 
