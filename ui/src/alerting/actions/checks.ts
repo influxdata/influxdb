@@ -149,16 +149,25 @@ export const saveCheckFromTimeMachine = () => async (
 
   const {
     draftQueries,
-    alerting: {check},
+    alerting: {check, isCheckCustomized},
   } = getActiveTimeMachine(state)
 
   const labels = get(check, 'labels', []) as Label[]
-  const checkWithOrg = {
+
+  let checkWithOrg = {
     ...check,
     query: draftQueries[0],
     orgID,
     labels: labels.map(l => l.id),
   } as PostCheck
+
+  if (isCheckCustomized) {
+    checkWithOrg = {
+      type: 'custom',
+      query: draftQueries[0],
+      orgID,
+    }
+  }
 
   const resp = check.id
     ? await api.patchCheck({checkID: check.id, data: checkWithOrg})

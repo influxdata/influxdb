@@ -101,6 +101,7 @@ export type Action =
   | ReturnType<typeof changeCheckType>
   | ReturnType<typeof updateCheckThreshold>
   | ReturnType<typeof removeCheckThreshold>
+  | ReturnType<typeof setIsCheckCustomized>
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -678,6 +679,11 @@ export const removeCheckThreshold = (level: CheckStatusLevel) => ({
   payload: {level},
 })
 
+export const setIsCheckCustomized = (isIt: boolean) => ({
+  type: 'SET_IS_CHECK_CUSTOMIZED' as 'SET_IS_CHECK_CUSTOMIZED',
+  payload: {isIt},
+})
+
 export const loadNewVEO = (dashboardID: string) => (
   dispatch: Dispatch<Action>,
   getState: GetState
@@ -713,6 +719,9 @@ export const loadCustomQueryState = () => (
   const {builderConfig} = getActiveQuery(state)
 
   dispatch(setActiveQueryText(createCheckQueryFromParams(builderConfig, check)))
+
+  dispatch(setIsCheckCustomized(true))
+  // change check type here?
 
   dispatch(setActiveTab('customCheckQuery'))
 }

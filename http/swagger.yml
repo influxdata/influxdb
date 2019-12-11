@@ -10106,11 +10106,13 @@ components:
       oneOf:
         - $ref: "#/components/schemas/DeadmanCheck"
         - $ref: "#/components/schemas/ThresholdCheck"
+        - $ref: "#/components/schemas/CustomCheck"
       discriminator:
         propertyName: type
         mapping:
           deadman:  "#/components/schemas/DeadmanCheck"
           threshold: "#/components/schemas/ThresholdCheck"
+          custom: "#/components/schemas/CustomCheck"
     Check:
       allOf:
         - $ref: "#/components/schemas/CheckDiscriminator"
@@ -10243,6 +10245,37 @@ components:
               type: boolean
             level:
               $ref: "#/components/schemas/CheckStatusLevel"
+    CustomCheck:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [custom]
+          required: true
+        id:
+          readOnly: true
+          type: string
+        name:
+          readOnly: true
+          type: string
+        orgID:
+          description: The ID of the organization that owns this check.
+          type: string
+        ownerID:
+          description: The ID of creator used to create this check.
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        query:
+          $ref: "#/components/schemas/DashboardQuery"
+      required: [type, query, orgID]
     ThresholdBase:
       properties:
         level:

@@ -85,6 +85,7 @@ export {
   RangeThreshold,
   ThresholdCheck,
   DeadmanCheck,
+  CustomCheck,
   NotificationEndpoint,
   PostNotificationEndpoint,
   NotificationRuleBase,

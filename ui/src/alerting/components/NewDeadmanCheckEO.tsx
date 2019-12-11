@@ -59,6 +59,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
       alerting: {
         checkStatus: RemoteDataState.Done,
         check: DEFAULT_DEADMAN_CHECK,
+        isCheckCustomized: false,
       },
     })
   }, [])

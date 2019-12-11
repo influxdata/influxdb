@@ -73,6 +73,7 @@ interface QueryResultsState {
 interface AlertingState {
   check: Partial<Check>
   checkStatus: RemoteDataState
+  isCheckCustomized: boolean
 }
 
 export interface TimeMachineState {
@@ -105,6 +106,7 @@ export const initialStateHelper = (): TimeMachineState => ({
   alerting: {
     check: DEFAULT_THRESHOLD_CHECK,
     checkStatus: RemoteDataState.NotStarted,
+    isCheckCustomized: false,
   },
   draftQueries: [{...defaultViewQuery(), hidden: false}],
   isViewingRawData: false,
@@ -957,26 +959,29 @@ export const timeMachineReducer = (
       const alerting = {
         check: action.payload.check,
         checkStatus: action.payload.checkStatus,
+        isCheckCustomized: false,
       }
       return {...state, alerting}
 
     case 'UPDATE_TIME_MACHINE_CHECK':
       return produce(state, draftState => {
+        const {checkUpdate} = action.payload
+
         draftState.alerting.check = {
           ...draftState.alerting.check,
-          ...action.payload.checkUpdate,
+          ...checkUpdate,
         } as Check
 
-        const every = action.payload.checkUpdate.every
+        if (checkUpdate.type !== 'custom') {
+          if (checkUpdate.every) {
+            const {activeQueryIndex, draftQueries} = draftState
 
-        if (every) {
-          const {activeQueryIndex, draftQueries} = draftState
+            draftQueries[activeQueryIndex].builderConfig.aggregateWindow = {
+              period: checkUpdate.every,
+            }
 
-          draftQueries[activeQueryIndex].builderConfig.aggregateWindow = {
-            period: every,
+            buildActiveQuery(draftState)
           }
-
-          buildActiveQuery(draftState)
         }
       })
 
