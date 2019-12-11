@@ -1,43 +1,37 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FunctionComponent, useEffect} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import {Overlay} from '@influxdata/clockface'
 import {get} from 'lodash'
 
 // Components
+import {Overlay} from '@influxdata/clockface'
 import DeleteDataForm from 'src/shared/components/DeleteDataForm/DeleteDataForm'
 import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {convertTimeRangeToCustom} from 'src/shared/utils/duration'
 
 // Types
 import {AppState, TimeRange} from 'src/types'
 
 // Actions
-import {resetPredicateState} from 'src/shared/actions/predicates'
-
-const resolveTimeRange = (timeRange: TimeRange): [number, number] | null => {
-  const [lower, upper] = [
-    Date.parse(timeRange.lower),
-    Date.parse(timeRange.upper),
-  ]
-
-  if (!isNaN(lower) && !isNaN(upper)) {
-    return [lower, upper]
-  }
-
-  return null
-}
+import {
+  resetPredicateState,
+  setTimeRange,
+  setBucketAndKeys,
+} from 'src/shared/actions/predicates'
 
 interface StateProps {
-  selectedBucketName?: string
-  selectedTimeRange?: [number, number]
+  bucketNameFromDE: string
+  timeRangeFromDE: TimeRange
 }
 
 interface DispatchProps {
-  resetPredicateState: () => void
+  resetPredicateState: typeof resetPredicateState
+  setTimeRange: typeof setTimeRange
+  setBucketAndKeys: typeof setBucketAndKeys
 }
 
 type Props = StateProps & WithRouterProps & DispatchProps
@@ -45,10 +39,24 @@ type Props = StateProps & WithRouterProps & DispatchProps
 const DeleteDataOverlay: FunctionComponent<Props> = ({
   router,
   params: {orgID},
-  selectedBucketName,
-  selectedTimeRange,
+  bucketNameFromDE,
+  timeRangeFromDE,
   resetPredicateState,
+  setTimeRange,
+  setBucketAndKeys,
 }) => {
+  useEffect(() => {
+    if (bucketNameFromDE) {
+      setBucketAndKeys(bucketNameFromDE)
+    }
+  }, [bucketNameFromDE])
+
+  useEffect(() => {
+    if (timeRangeFromDE) {
+      setTimeRange(convertTimeRangeToCustom(timeRangeFromDE))
+    }
+  }, [timeRangeFromDE])
+
   const handleDismiss = () => {
     resetPredicateState()
     router.push(`/orgs/${orgID}/data-explorer`)
@@ -60,12 +68,7 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
         <Overlay.Header title="Delete Data" onDismiss={handleDismiss} />
         <Overlay.Body>
           <GetResources resources={[ResourceType.Buckets]}>
-            <DeleteDataForm
-              handleDismiss={handleDismiss}
-              initialBucketName={selectedBucketName}
-              initialTimeRange={selectedTimeRange}
-              orgID={orgID}
-            />
+            <DeleteDataForm handleDismiss={handleDismiss} />
           </GetResources>
         </Overlay.Body>
       </Overlay.Container>
@@ -75,19 +78,20 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState): StateProps => {
   const activeQuery = getActiveQuery(state)
-  const selectedBucketName = get(activeQuery, 'builderConfig.buckets.0')
+  const bucketNameFromDE = get(activeQuery, 'builderConfig.buckets.0')
 
   const {timeRange} = getActiveTimeMachine(state)
-  const selectedTimeRange = resolveTimeRange(timeRange)
 
   return {
-    selectedBucketName,
-    selectedTimeRange,
+    bucketNameFromDE,
+    timeRangeFromDE: timeRange,
   }
 }
 
 const mdtp: DispatchProps = {
   resetPredicateState,
+  setTimeRange,
+  setBucketAndKeys,
 }
 
 export default connect<StateProps, DispatchProps>(

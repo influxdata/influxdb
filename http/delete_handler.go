@@ -52,7 +52,7 @@ type DeleteHandler struct {
 }
 
 const (
-	deletePath = "/api/v2/delete"
+	prefixDelete = "/api/v2/delete"
 )
 
 // NewDeleteHandler creates a new handler at /api/v2/delete to recieve delete requests.
@@ -67,7 +67,7 @@ func NewDeleteHandler(log *zap.Logger, b *DeleteBackend) *DeleteHandler {
 		OrganizationService: b.OrganizationService,
 	}
 
-	h.HandlerFunc("POST", deletePath, h.handleDelete)
+	h.HandlerFunc("POST", prefixDelete, h.handleDelete)
 	return h
 }
 
@@ -225,7 +225,7 @@ type DeleteService struct {
 
 // DeleteBucketRangePredicate send delete request over http to delete points.
 func (s *DeleteService) DeleteBucketRangePredicate(ctx context.Context, dr DeleteRequest) error {
-	u, err := NewURL(s.Addr, deletePath)
+	u, err := NewURL(s.Addr, prefixDelete)
 	if err != nil {
 		return err
 	}

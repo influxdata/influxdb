@@ -1,20 +1,17 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
-	"path"
 	"strings"
 
 	"github.com/golang/gddo/httputil"
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/pkg/httpc"
 	"github.com/influxdata/influxdb/telegraf/plugins"
 	"go.uber.org/zap"
 )
@@ -69,6 +66,7 @@ const (
 	telegrafsIDLabelsPath    = "/api/v2/telegrafs/:id/labels"
 	telegrafsIDLabelsIDPath  = "/api/v2/telegrafs/:id/labels/:lid"
 
+	prefixTelegraf      = "api/v2/telegraf"
 	telegrafPluginsPath = "/api/v2/telegraf/plugins"
 )
 
@@ -409,22 +407,16 @@ func (h *TelegrafHandler) handleDeleteTelegraf(w http.ResponseWriter, r *http.Re
 
 // TelegrafService is an http client that speaks to the telegraf service via HTTP.
 type TelegrafService struct {
-	client C
+	client *httpc.Client
 	*UserResourceMappingService
 }
 
 // NewTelegrafService is a constructor for a telegraf service.
-func NewTelegrafService(addr, token string, insecureSkipVerify bool) *TelegrafService {
+func NewTelegrafService(httpClient *httpc.Client) *TelegrafService {
 	return &TelegrafService{
-		client: C{
-			Addr:               addr,
-			Token:              token,
-			InsecureSkipVerify: insecureSkipVerify,
-		},
+		client: httpClient,
 		UserResourceMappingService: &UserResourceMappingService{
-			Addr:               addr,
-			Token:              token,
-			InsecureSkipVerify: insecureSkipVerify,
+			Client: httpClient,
 		},
 	}
 }
@@ -434,7 +426,8 @@ var _ platform.TelegrafConfigStore = (*TelegrafService)(nil)
 // FindTelegrafConfigByID returns a single telegraf config by ID.
 func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
 	var cfg platform.TelegrafConfig
-	err := s.client.get(path.Join(telegrafsPath, id.String())).
+	err := s.client.
+		Get(telegrafsPath, id.String()).
 		Header("Accept", "application/json").
 		DecodeJSON(&cfg).
 		Do(ctx)
@@ -447,37 +440,26 @@ func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id platfor
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 // Additional options provide pagination & sorting.
 func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
-	var queryPairs []queryPair
+	params := findOptionParams(opt...)
 	if f.OrgID != nil {
-		queryPairs = append(queryPairs, queryPair{
-			k: "orgID",
-			v: f.OrgID.String(),
-		})
+		params = append(params, [2]string{"orgID", f.OrgID.String()})
 	}
 	if f.Organization != nil {
-		queryPairs = append(queryPairs, queryPair{
-			k: "organization",
-			v: *f.Organization,
-		})
+		params = append(params, [2]string{"organization", *f.Organization})
 	}
 	if f.ResourceID != 0 {
-		queryPairs = append(queryPairs, queryPair{
-			k: "resourceID",
-			v: f.ResourceID.String(),
-		})
+		params = append(params, [2]string{"resourceID", f.ResourceID.String()})
 	}
 	if f.UserID != 0 {
-		queryPairs = append(queryPairs, queryPair{
-			k: "userID",
-			v: f.UserID.String(),
-		})
+		params = append(params, [2]string{"userID", f.UserID.String()})
 	}
 
 	var resp struct {
 		Configs []*platform.TelegrafConfig `json:"configurations"`
 	}
-	err := s.client.get(telegrafsPath).
-		Queries(queryPairs...).
+	err := s.client.
+		Get(telegrafsPath).
+		QueryParams(params...).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
@@ -489,13 +471,9 @@ func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.Te
 
 // CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
 func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *platform.TelegrafConfig, userID platform.ID) error {
-	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(tc); err != nil {
-		return err
-	}
-
 	var teleResp platform.TelegrafConfig
-	err := s.client.post(telegrafsPath, &body).
+	err := s.client.
+		Post(httpc.BodyJSON(tc), telegrafsPath).
 		DecodeJSON(&teleResp).
 		Do(ctx)
 	if err != nil {
@@ -513,115 +491,7 @@ func (s *TelegrafService) UpdateTelegrafConfig(ctx context.Context, id platform.
 
 // DeleteTelegrafConfig removes a telegraf config by ID.
 func (s *TelegrafService) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error {
-	return s.client.delete(path.Join(telegrafsPath, id.String())).Do(ctx)
-}
-
-// C is a basic http client that can make cReqs with out having to juggle
-// the token and so forth. It provides sane defaults for checking response
-// statuses, sets auth token when provided, and sets the content type to
-// application/json for each request. The token, response checker, and
-// content type can be overidden on the cReq as well.
-type C struct {
-	Addr               string
-	Token              string
-	InsecureSkipVerify bool
-}
-
-func (c *C) delete(urlPath string) *cReq {
-	return c.newClientReq(http.MethodDelete, urlPath, nil)
-}
-
-func (c *C) get(urlPath string) *cReq {
-	return c.newClientReq(http.MethodGet, urlPath, nil)
-}
-
-func (c *C) post(urlPath string, body io.Reader) *cReq {
-	return c.newClientReq(http.MethodPost, urlPath, body)
-}
-
-func (c *C) newClientReq(method, urlPath string, body io.Reader) *cReq {
-	u, err := NewURL(c.Addr, urlPath)
-	if err != nil {
-		return &cReq{err: err}
-	}
-
-	req, err := http.NewRequest(method, u.String(), body)
-	if err != nil {
-		return &cReq{err: err}
-	}
-	if c.Token != "" {
-		SetToken(c.Token, req)
-	}
-
-	cr := &cReq{
-		insecureSkip: c.InsecureSkipVerify,
-		req:          req,
-		respFn:       CheckError,
-	}
-	return cr.ContentType("application/json")
-}
-
-type cReq struct {
-	req          *http.Request
-	insecureSkip bool
-	respFn       func(*http.Response) error
-
-	err error
-}
-
-func (r *cReq) Header(k, v string) *cReq {
-	if r.err != nil {
-		return r
-	}
-	r.req.Header.Add(k, v)
-	return r
-}
-
-type queryPair struct {
-	k, v string
-}
-
-func (r *cReq) Queries(pairs ...queryPair) *cReq {
-	if r.err != nil || len(pairs) == 0 {
-		return r
-	}
-	params := r.req.URL.Query()
-	for _, p := range pairs {
-		params.Add(p.k, p.v)
-	}
-	r.req.URL.RawQuery = params.Encode()
-	return r
-}
-
-func (r *cReq) ContentType(ct string) *cReq {
-	return r.Header("Content-Type", ct)
-}
-
-func (r *cReq) DecodeJSON(v interface{}) *cReq {
-	return r.RespFn(func(resp *http.Response) error {
-		return json.NewDecoder(resp.Body).Decode(v)
-	})
-}
-
-func (r *cReq) RespFn(fn func(*http.Response) error) *cReq {
-	r.respFn = fn
-	return r
-}
-
-func (r *cReq) Do(ctx context.Context) error {
-	if r.err != nil {
-		return r.err
-	}
-	r.req = r.req.WithContext(ctx)
-
-	resp, err := NewClient(r.req.URL.Scheme, r.insecureSkip).Do(r.req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		io.Copy(ioutil.Discard, resp.Body) // drain body completely
-		resp.Body.Close()
-	}()
-
-	return r.respFn(resp)
+	return s.client.
+		Delete(telegrafsPath, id.String()).
+		Do(ctx)
 }

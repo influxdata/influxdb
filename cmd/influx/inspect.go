@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -18,8 +19,8 @@ type InspectReportTSMFlags struct {
 	exact    bool
 	detailed bool
 
-	orgID, bucketID string
-	dataDir         string
+	orgID, org, bucketID string
+	dataDir              string
 }
 
 var inspectReportTSMFlags InspectReportTSMFlags
@@ -63,6 +64,7 @@ in the following ways:
 	inspectReportTSMCommand.Flags().BoolVarP(&inspectReportTSMFlags.detailed, "detailed", "", false, "emit series cardinality segmented by measurements, tag keys and fields. Warning, may take a while.")
 
 	inspectReportTSMCommand.Flags().StringVarP(&inspectReportTSMFlags.orgID, "org-id", "", "", "process only data belonging to organization ID.")
+	inspectReportTSMCommand.Flags().StringVarP(&inspectReportTSMFlags.org, "org", "o", "", "process only data belonging to organization name.")
 	inspectReportTSMCommand.Flags().StringVarP(&inspectReportTSMFlags.bucketID, "bucket-id", "", "", "process only data belonging to bucket ID. Requires org flag to be set.")
 
 	dir, err := fs.InfluxDir()
@@ -75,6 +77,11 @@ in the following ways:
 
 // inspectReportTSMF runs the report-tsm tool.
 func inspectReportTSMF(cmd *cobra.Command, args []string) error {
+	if inspectReportTSMFlags.orgID == "" && inspectReportTSMFlags.org == "" {
+		return fmt.Errorf("must specify org-id, or org name")
+	} else if inspectReportTSMFlags.orgID != "" && inspectReportTSMFlags.org != "" {
+		return fmt.Errorf("must specify org-id, or org name not both")
+	}
 	report := &tsm1.Report{
 		Stderr:   os.Stderr,
 		Stdout:   os.Stdout,
@@ -84,16 +91,28 @@ func inspectReportTSMF(cmd *cobra.Command, args []string) error {
 		Exact:    inspectReportTSMFlags.exact,
 	}
 
-	if inspectReportTSMFlags.orgID == "" && inspectReportTSMFlags.bucketID != "" {
+	if (inspectReportTSMFlags.org == "" || inspectReportTSMFlags.orgID == "") && inspectReportTSMFlags.bucketID != "" {
 		return errors.New("org-id must be set for non-empty bucket-id")
 	}
 
 	if inspectReportTSMFlags.orgID != "" {
-		orgID, err := influxdb.IDFromString(inspectReportTSMFlags.orgID)
+		var err error
+		report.OrgID, err = influxdb.IDFromString(inspectReportTSMFlags.orgID)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid org ID provided: %s", err.Error())
 		}
-		report.OrgID = orgID
+	} else if inspectReportTSMFlags.org != "" {
+		orgSvc, err := newOrganizationService()
+		if err != nil {
+			return fmt.Errorf("failed to initialize organization service client: %v", err)
+		}
+
+		filter := influxdb.OrganizationFilter{Name: &inspectReportTSMFlags.org}
+		org, err := orgSvc.FindOrganization(context.Background(), filter)
+		if err != nil {
+			return fmt.Errorf("%v", err)
+		}
+		report.OrgID = &org.ID
 	}
 
 	if inspectReportTSMFlags.bucketID != "" {

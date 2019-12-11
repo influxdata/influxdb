@@ -1,16 +1,17 @@
 // Libraries
-import _ from 'lodash'
+import {isString, isNull, isObject} from 'lodash'
+
+// Utils
+import {validateAndTypeRange} from 'src/dashboards/utils/time'
 
 // Types
-import {Range} from 'src/dashboards/reducers/ranges'
+import {RangeState} from 'src/dashboards/reducers/ranges'
 
-export const normalizeRanges = (ranges: Range[]): Range[] => {
-  if (!Array.isArray(ranges)) {
-    return []
-  }
+const isCorrectType = (bound: any) => isString(bound) || isNull(bound)
 
-  const normalized = ranges.filter(r => {
-    if (!_.isObject(r)) {
+export const getLocalStateRangesAsArray = (ranges: any[]): RangeState => {
+  const normalizedRanges = ranges.filter(r => {
+    if (!isObject(r)) {
       return false
     }
 
@@ -33,9 +34,6 @@ export const normalizeRanges = (ranges: Range[]): Range[] => {
       return false
     }
 
-    const isCorrectType = bound =>
-      _.isString(bound) || _.isNull(bound) || _.isInteger(bound)
-
     if (!isCorrectType(lower) || !isCorrectType(upper)) {
       return false
     }
@@ -43,5 +41,52 @@ export const normalizeRanges = (ranges: Range[]): Range[] => {
     return true
   })
 
+  const rangesObject: RangeState = {}
+
+  normalizedRanges.forEach(
+    (range: {dashboardID: string; lower: string; upper: string}) => {
+      const {dashboardID, lower, upper} = range
+
+      const timeRange = validateAndTypeRange({lower, upper})
+      if (timeRange) {
+        rangesObject[dashboardID] = timeRange
+      }
+    }
+  )
+  return rangesObject
+}
+
+const normalizeRangesState = (ranges: RangeState): RangeState => {
+  const normalized = {}
+
+  for (const key in ranges) {
+    if (
+      isObject(ranges[key]) &&
+      ranges[key].hasOwnProperty('upper') &&
+      ranges[key].hasOwnProperty('lower') &&
+      isCorrectType(ranges[key].lower) &&
+      isCorrectType(ranges[key].upper)
+    ) {
+      const typedRange = validateAndTypeRange(ranges[key])
+      if (typedRange) {
+        normalized[key] = typedRange
+      }
+    }
+  }
+
   return normalized
+}
+
+export const getLocalStateRanges = (ranges: RangeState | any[]) => {
+  if (Array.isArray(ranges)) {
+    return getLocalStateRangesAsArray(ranges)
+  } else if (isObject(ranges)) {
+    return normalizeRangesState(ranges)
+  } else {
+    return {}
+  }
+}
+
+export const setLocalStateRanges = (ranges: RangeState) => {
+  return normalizeRangesState(ranges)
 }

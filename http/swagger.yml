@@ -3231,6 +3231,11 @@ paths:
                     enum:
                     - gzip
                     - identity
+              Trace-Id:
+                description: The Trace-Id header reports the request's trace ID, if one was generated.
+                schema:
+                  type: string
+                  description: Specifies the request's trace ID.
             content:
               text/csv:
                 schema:
@@ -6352,9 +6357,11 @@ components:
         start:
           description: RFC3339Nano
           type: string
+          format: date-time
         stop:
           description: RFC3339Nano
           type: string
+          format: date-time
         predicate:
           description: InfluxQL-like delete statement
           example: tag1="value1" and (tag2="value2" and tag3!="value3")
@@ -6892,22 +6899,7 @@ components:
         rp:
           type: string
         retentionRules:
-          type: array
-          description: Rules to expire or retain data.  No rules means data never expires.
-          items:
-            type: object
-            properties:
-              type:
-                type: string
-                default: expire
-                enum:
-                  - expire
-              everySeconds:
-                type: integer
-                description: Duration in seconds for how long data will be kept in the database.
-                example: 86400
-                minimum: 1
-            required: [type, everySeconds]
+          $ref: "#/components/schemas/RetentionRules"
       required: [name, retentionRules]
     Bucket:
       properties:
@@ -6972,22 +6964,6 @@ components:
           readOnly: true
         retentionRules:
           $ref: "#/components/schemas/RetentionRules"
-          type: array
-          description: Rules to expire or retain data.  No rules means data never expires.
-          items:
-            type: object
-            properties:
-              type:
-                type: string
-                default: expire
-                enum:
-                  - expire
-              everySeconds:
-                type: integer
-                description: Duration in seconds for how long data will be kept in the database.
-                example: 86400
-                minimum: 1
-            required: [type, everySeconds]
         labels:
           $ref: "#/components/schemas/Labels"
       required: [name, retentionRules]
@@ -7005,19 +6981,21 @@ components:
       type: array
       description: Rules to expire or retain data.  No rules means data never expires.
       items:
-        type: object
-        properties:
-          type:
-            type: string
-            default: expire
-            enum:
-              - expire
-          everySeconds:
-            type: integer
-            description: Duration in seconds for how long data will be kept in the database.
-            example: 86400
-            minimum: 1
-        required: [type, everySeconds]
+        $ref: "#/components/schemas/RetentionRule"
+    RetentionRule:
+      type: object
+      properties:
+        type:
+          type: string
+          default: expire
+          enum:
+            - expire
+        everySeconds:
+          type: integer
+          description: Duration in seconds for how long data will be kept in the database.
+          example: 86400
+          minimum: 1
+      required: [type, everySeconds]
     Link:
       type: string
       format: uri
@@ -9965,25 +9943,9 @@ components:
     Check:
       allOf:
         - $ref: "#/components/schemas/CheckDiscriminator"
-        - type: object
-          properties:
-            labels:
-              $ref: "#/components/schemas/Labels"
     PostCheck:
       allOf:
         - $ref: "#/components/schemas/CheckDiscriminator"
-        - type: object
-          properties:
-            status:
-              type: string
-              enum:
-                - active
-                - inactive
-            labels:
-              type: array
-              description: List of label ids to associate with check
-              items:
-                type: string
     Checks:
       properties:
         checks:
@@ -10040,6 +10002,8 @@ components:
         statusMessageTemplate:
           description: The template used to generate and write a status message.
           type: string
+        labels:
+          $ref: "#/components/schemas/Labels"
         links:
           type: object
           readOnly: true
@@ -10061,6 +10025,9 @@ components:
               $ref: "#/components/schemas/Link"
             owners:
               description: URL to retrieve owners for this check
+              $ref: "#/components/schemas/Link"
+            query:
+              description: URL to retrieve flux script for this check
               $ref: "#/components/schemas/Link"
       required: [name, type, orgID, query]
     ThresholdCheck:
@@ -10189,25 +10156,9 @@ components:
     NotificationRule:
       allOf:
         - $ref: "#/components/schemas/NotificationRuleDiscriminator"
-        - type: object
-          properties:
-            labels:
-              $ref: "#/components/schemas/Labels"
     PostNotificationRule:
       allOf:
         - $ref: "#/components/schemas/NotificationRuleDiscriminator"
-        - type: object
-          properties:
-            status:
-              type: string
-              enum:
-                - active
-                - inactive
-            labels:
-              type: array
-              description: List of label IDs to associate with notification rule.
-              items:
-                type: string
     NotificationRules:
       properties:
         notificationRules:
@@ -10282,6 +10233,8 @@ components:
           minItems: 1
           items:
             $ref: "#/components/schemas/StatusRule"
+        labels:
+          $ref: "#/components/schemas/Labels"
         links:
           type: object
           readOnly: true
@@ -10303,6 +10256,9 @@ components:
               $ref: "#/components/schemas/Link"
             owners:
               description: URL to retrieve owners for this notification rule.
+              $ref: "#/components/schemas/Link"
+            query:
+              description: URL to retrieve flux script for this notification rule.
               $ref: "#/components/schemas/Link"
     TagRule:
       type: object
@@ -10409,25 +10365,9 @@ components:
     NotificationEndpoint:
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
-        - type: object
-          properties:
-            labels:
-              $ref: "#/components/schemas/Labels"
     PostNotificationEndpoint:
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
-        - type: object
-          properties:
-            status:
-              type: string
-              enum:
-                - active
-                - inactive
-            labels:
-              type: array
-              description: List of label IDs to associate with check.
-              items:
-                type: string
     NotificationEndpoints:
       properties:
         notificationEndpoints:
@@ -10464,6 +10404,8 @@ components:
           default: active
           type: string
           enum: ["active", "inactive"]
+        labels:
+          $ref: "#/components/schemas/Labels"
         links:
           type: object
           readOnly: true

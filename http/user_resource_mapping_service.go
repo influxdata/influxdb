@@ -1,25 +1,17 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"path"
 
-	"go.uber.org/zap"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/pkg/httpc"
+	"go.uber.org/zap"
 )
-
-// UserResourceMappingService is the struct of urm service
-type UserResourceMappingService struct {
-	Addr               string
-	Token              string
-	InsecureSkipVerify bool
-}
 
 type resourceUserResponse struct {
 	Role influxdb.UserType `json:"role"`
@@ -270,41 +262,27 @@ func decodeDeleteMemberRequest(ctx context.Context, r *http.Request) (*deleteMem
 	}, nil
 }
 
+// UserResourceMappingService is the struct of urm service
+type UserResourceMappingService struct {
+	Client *httpc.Client
+}
+
 // FindUserResourceMappings returns the user resource mappings
-func (s *UserResourceMappingService) FindUserResourceMappings(ctx context.Context, filter influxdb.UserResourceMappingFilter, opt ...influxdb.FindOptions) ([]*influxdb.UserResourceMapping, int, error) {
-	url, err := NewURL(s.Addr, resourceIDPath(filter.ResourceType, filter.ResourceID, string(filter.UserType)+"s"))
+func (s *UserResourceMappingService) FindUserResourceMappings(ctx context.Context, f influxdb.UserResourceMappingFilter, opt ...influxdb.FindOptions) ([]*influxdb.UserResourceMapping, int, error) {
+	var results resourceUsersResponse
+	err := s.Client.
+		Get(resourceIDPath(f.ResourceType, f.ResourceID, string(f.UserType)+"s")).
+		DecodeJSON(&results).
+		Do(ctx)
 	if err != nil {
-		return nil, 0, err
-	}
-
-	req, err := http.NewRequest("GET", url.String(), nil)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	SetToken(s.Token, req)
-
-	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, 0, err
-	}
-
-	results := new(resourceUsersResponse)
-	if err := json.NewDecoder(resp.Body).Decode(results); err != nil {
 		return nil, 0, err
 	}
 
 	urs := make([]*influxdb.UserResourceMapping, len(results.Users))
 	for k, item := range results.Users {
 		urs[k] = &influxdb.UserResourceMapping{
-			ResourceID:   filter.ResourceID,
-			ResourceType: filter.ResourceType,
+			ResourceID:   f.ResourceID,
+			ResourceType: f.ResourceType,
 			UserID:       item.User.ID,
 			UserType:     item.Role,
 		}
@@ -318,66 +296,19 @@ func (s *UserResourceMappingService) CreateUserResourceMapping(ctx context.Conte
 		return err
 	}
 
-	url, err := NewURL(s.Addr, resourceIDPath(m.ResourceType, m.ResourceID, string(m.UserType)+"s"))
-	if err != nil {
-		return err
-	}
-
-	octets, err := json.Marshal(influxdb.User{ID: m.UserID})
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("POST", url.String(), bytes.NewReader(octets))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(s.Token, req)
-
-	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp); err != nil {
-		return err
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(m); err != nil {
-		return err
-	}
-
-	return nil
+	urlPath := resourceIDPath(m.ResourceType, m.ResourceID, string(m.UserType)+"s")
+	return s.Client.
+		Post(httpc.BodyJSON(influxdb.User{ID: m.UserID}), urlPath).
+		DecodeJSON(m).
+		Do(ctx)
 }
 
 // DeleteUserResourceMapping will delete user resource mapping based in criteria.
 func (s *UserResourceMappingService) DeleteUserResourceMapping(ctx context.Context, resourceID influxdb.ID, userID influxdb.ID) error {
-	// default to use org resource type, and member resource type since it doesn't matter.
-	url, err := NewURL(s.Addr, resourceIDUserPath(influxdb.OrgsResourceType, resourceID, influxdb.Member, userID))
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("DELETE", url.String(), nil)
-	if err != nil {
-		return err
-	}
-	SetToken(s.Token, req)
-
-	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return CheckError(resp)
+	urlPath := resourceIDUserPath(influxdb.OrgsResourceType, resourceID, influxdb.Member, userID)
+	return s.Client.
+		Delete(urlPath).
+		Do(ctx)
 }
 
 func resourceIDPath(resourceType influxdb.ResourceType, resourceID influxdb.ID, p string) string {

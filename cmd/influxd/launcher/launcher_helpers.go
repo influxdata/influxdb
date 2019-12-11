@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/pkg/httpc"
 	"github.com/influxdata/influxdb/query"
 )
 
@@ -36,6 +37,8 @@ type TestLauncher struct {
 	Org    *platform.Organization
 	Bucket *platform.Bucket
 	Auth   *platform.Authorization
+
+	httpClient *httpc.Client
 
 	// Standard in/out/err buffers.
 	Stdin  bytes.Buffer
@@ -66,6 +69,7 @@ func NewTestLauncher() *TestLauncher {
 func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, args ...string) *TestLauncher {
 	tb.Helper()
 	l := NewTestLauncher()
+
 	if err := l.Run(ctx, args...); err != nil {
 		tb.Fatal(err)
 	}
@@ -325,24 +329,29 @@ func (tl *TestLauncher) FluxQueryService() *http.FluxQueryService {
 	return &http.FluxQueryService{Addr: tl.URL(), Token: tl.Auth.Token}
 }
 
-func (tl *TestLauncher) BucketService() *http.BucketService {
-	return &http.BucketService{Addr: tl.URL(), Token: tl.Auth.Token, OpPrefix: kv.OpPrefix}
+func (tl *TestLauncher) BucketService(tb testing.TB) *http.BucketService {
+	tb.Helper()
+	return &http.BucketService{Client: tl.HTTPClient(tb), OpPrefix: kv.OpPrefix}
 }
 
-func (tl *TestLauncher) DashboardService() *http.DashboardService {
-	return &http.DashboardService{Addr: tl.URL(), Token: tl.Auth.Token}
+func (tl *TestLauncher) DashboardService(tb testing.TB) *http.DashboardService {
+	tb.Helper()
+	return &http.DashboardService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) LabelService() *http.LabelService {
-	return &http.LabelService{Addr: tl.URL(), Token: tl.Auth.Token}
+func (tl *TestLauncher) LabelService(tb testing.TB) *http.LabelService {
+	tb.Helper()
+	return &http.LabelService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) TelegrafService() *http.TelegrafService {
-	return http.NewTelegrafService(tl.URL(), tl.Auth.Token, false)
+func (tl *TestLauncher) TelegrafService(tb testing.TB) *http.TelegrafService {
+	tb.Helper()
+	return http.NewTelegrafService(tl.HTTPClient(tb))
 }
 
-func (tl *TestLauncher) VariableService() *http.VariableService {
-	return &http.VariableService{Addr: tl.URL(), Token: tl.Auth.Token}
+func (tl *TestLauncher) VariableService(tb testing.TB) *http.VariableService {
+	tb.Helper()
+	return &http.VariableService{Client: tl.HTTPClient(tb)}
 }
 
 func (tl *TestLauncher) AuthorizationService() *http.AuthorizationService {
@@ -351,6 +360,23 @@ func (tl *TestLauncher) AuthorizationService() *http.AuthorizationService {
 
 func (tl *TestLauncher) TaskService() *http.TaskService {
 	return &http.TaskService{Addr: tl.URL(), Token: tl.Auth.Token}
+}
+
+func (tl *TestLauncher) HTTPClient(tb testing.TB) *httpc.Client {
+	tb.Helper()
+
+	if tl.httpClient == nil {
+		token := ""
+		if tl.Auth != nil {
+			token = tl.Auth.Token
+		}
+		client, err := http.NewHTTPClient(tl.URL(), token, false)
+		if err != nil {
+			tb.Fatal(err)
+		}
+		tl.httpClient = client
+	}
+	return tl.httpClient
 }
 
 // QueryResult wraps a single flux.Result with some helper methods.

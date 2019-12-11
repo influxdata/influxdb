@@ -4,7 +4,7 @@ import {parse} from '@influxdata/flux-parser'
 // Utils
 import {getMinDurationFromAST} from 'src/shared/utils/getMinDurationFromAST'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
-
+import {reportError} from 'src/shared/utils/errors'
 // Constants
 import {WINDOW_PERIOD} from 'src/variables/constants'
 
@@ -64,6 +64,7 @@ export const getWindowPeriod = (
 
     return Math.round(queryDuration / DESIRED_POINTS_PER_GRAPH)
   } catch (error) {
+    reportError(error)
     return null
   }
 }

@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/kit/tracing"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
@@ -243,7 +245,7 @@ func TestFluxHandler_postFluxAST(t *testing.T) {
 			name: "get ast from()",
 			w:    httptest.NewRecorder(),
 			r:    httptest.NewRequest("POST", "/api/v2/query/ast", bytes.NewBufferString(`{"query": "from()"}`)),
-			want: `{"ast":{"type":"Package","package":"main","files":[{"type":"File","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"package":null,"imports":null,"body":[{"type":"ExpressionStatement","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"expression":{"type":"CallExpression","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"callee":{"type":"Identifier","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":5},"source":"from"},"name":"from"}}}]}]}}
+			want: `{"ast":{"type":"Package","package":"main","files":[{"type":"File","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"metadata":"parser-type=go","package":null,"imports":null,"body":[{"type":"ExpressionStatement","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"expression":{"type":"CallExpression","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"callee":{"type":"Identifier","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":5},"source":"from"},"name":"from"}}}]}]}}
 `,
 			status: http.StatusOK,
 		},
@@ -321,6 +323,8 @@ var _ metric.EventRecorder = noopEventRecorder{}
 
 // Certain error cases must be encoded as influxdb.Error so they can be properly decoded clientside.
 func TestFluxHandler_PostQuery_Errors(t *testing.T) {
+	defer tracing.JaegerTestSetupAndTeardown(t.Name())()
+
 	i := inmem.NewService()
 	b := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
@@ -348,6 +352,10 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 		}
 
 		defer resp.Body.Close()
+
+		if actual := resp.Header.Get("Trace-Id"); actual == "" {
+			t.Error("expected trace ID header")
+		}
 
 		if resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("expected unauthorized status, got %d", resp.StatusCode)
@@ -379,6 +387,10 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 		req = req.WithContext(icontext.SetAuthorizer(req.Context(), authz))
 
 		h.handleQuery(w, req)
+
+		if actual := w.Header().Get("Trace-Id"); actual == "" {
+			t.Error("expected trace ID header")
+		}
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected bad request status, got %d", w.Code)
@@ -412,6 +424,10 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 
 		w := httptest.NewRecorder()
 		h.handleQuery(w, req)
+
+		if actual := w.Header().Get("Trace-Id"); actual == "" {
+			t.Error("expected trace ID header")
+		}
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected bad request status, got %d", w.Code)

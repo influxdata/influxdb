@@ -27,6 +27,7 @@ func bucketF(cmd *cobra.Command, args []string) {
 type BucketCreateFlags struct {
 	name      string
 	orgID     string
+	org       string
 	retention time.Duration
 }
 
@@ -42,6 +43,7 @@ func init() {
 	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.name, "name", "n", "", "Name of bucket that will be created")
 	bucketCreateCmd.Flags().DurationVarP(&bucketCreateFlags.retention, "retention", "r", 0, "Duration in nanoseconds data will live in bucket")
 	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.orgID, "org-id", "", "", "The ID of the organization that owns the bucket")
+	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.org, "org", "o", "", "The org name")
 	bucketCreateCmd.MarkFlagRequired("name")
 
 	bucketCmd.AddCommand(bucketCreateCmd)
@@ -51,16 +53,22 @@ func newBucketService(f Flags) (platform.BucketService, error) {
 	if f.local {
 		return newLocalKVService()
 	}
+
+	client, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+
 	return &http.BucketService{
-		Addr:               f.host,
-		Token:              f.token,
-		InsecureSkipVerify: f.skipVerify,
+		Client: client,
 	}, nil
 }
 
 func bucketCreateF(cmd *cobra.Command, args []string) error {
-	if bucketCreateFlags.orgID == "" {
-		return fmt.Errorf("must specify org-id")
+	if bucketCreateFlags.orgID == "" && bucketCreateFlags.org == "" {
+		return fmt.Errorf("must specify org-id, or org name")
+	} else if bucketCreateFlags.orgID != "" && bucketCreateFlags.org != "" {
+		return fmt.Errorf("must specify org-id, or org name not both")
 	}
 
 	s, err := newBucketService(flags)
@@ -79,6 +87,19 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to decode org id %q: %v", bucketCreateFlags.orgID, err)
 		}
 		b.OrgID = *id
+	} else if bucketCreateFlags.org != "" {
+		orgSvc, err := newOrganizationService()
+		if err != nil {
+			return fmt.Errorf("failed to initialize organization service client: %v", err)
+		}
+
+		filter := platform.OrganizationFilter{Name: &bucketCreateFlags.org}
+		org, err := orgSvc.FindOrganization(context.Background(), filter)
+		if err != nil {
+			return err
+		}
+
+		b.OrgID = org.ID
 	}
 
 	if err := s.CreateBucket(context.Background(), b); err != nil {

@@ -12,8 +12,9 @@ import {formatExpression} from 'src/variables/utils/formatExpression'
 // Types
 import {TimeRange, BuilderConfig} from 'src/types'
 import {CancelBox} from 'src/types/promises'
+import {pastThirtyDaysTimeRange} from 'src/shared/constants/timeRanges'
 
-const DEFAULT_TIME_RANGE: TimeRange = {lower: 'now() - 30d'}
+const DEFAULT_TIME_RANGE: TimeRange = pastThirtyDaysTimeRange
 const DEFAULT_LIMIT = 200
 
 export interface FindBucketsOptions {

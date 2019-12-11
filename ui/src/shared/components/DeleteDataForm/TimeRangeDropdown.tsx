@@ -1,6 +1,7 @@
 // Libraries
 import React, {useRef, useState, FC} from 'react'
-import moment from 'moment'
+
+// Components
 import {
   Dropdown,
   Popover,
@@ -8,30 +9,40 @@ import {
   PopoverInteraction,
   Appearance,
 } from '@influxdata/clockface'
-
-// Components
 import DateRangePicker from 'src/shared/components/dateRangePicker/DateRangePicker'
 
+// Types
+import {CustomTimeRange} from 'src/types'
+import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
+import {
+  convertTimeRangeToCustom,
+  getTimeRangeLabel,
+} from 'src/shared/utils/duration'
+
 interface Props {
-  timeRange: [number, number]
-  onSetTimeRange: (timeRange: [number, number]) => any
+  timeRange: CustomTimeRange
+  onSetTimeRange: (timeRange: CustomTimeRange) => void
 }
 
 const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
   const [pickerActive, setPickerActive] = useState(false)
   const buttonRef = useRef<HTMLDivElement>(null)
 
-  const lower = moment(timeRange[0]).format('YYYY-MM-DD HH:mm:ss')
-  const upper = moment(timeRange[1]).format('YYYY-MM-DD HH:mm:ss')
+  let dropdownLabel = 'Select a Time Range'
 
-  const handleApplyTimeRange = (lower, upper) => {
-    onSetTimeRange([Date.parse(lower), Date.parse(upper)])
+  if (timeRange) {
+    dropdownLabel = getTimeRangeLabel(timeRange)
+  }
+
+  const handleApplyTimeRange = (timeRange: CustomTimeRange) => {
+    onSetTimeRange(timeRange)
     setPickerActive(false)
   }
+
   return (
     <div ref={buttonRef}>
       <Dropdown.Button onClick={() => setPickerActive(!pickerActive)}>
-        {lower} - {upper}
+        {dropdownLabel}
       </Dropdown.Button>
       <Popover
         appearance={Appearance.Outline}
@@ -45,10 +56,8 @@ const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
         enableDefaultStyles={false}
         contents={() => (
           <DateRangePicker
-            timeRange={{lower, upper}}
-            onSetTimeRange={({lower, upper}) =>
-              handleApplyTimeRange(lower, upper)
-            }
+            timeRange={timeRange || convertTimeRangeToCustom(pastHourTimeRange)}
+            onSetTimeRange={handleApplyTimeRange}
             onClose={() => setPickerActive(false)}
             position={{position: 'relative'}}
           />

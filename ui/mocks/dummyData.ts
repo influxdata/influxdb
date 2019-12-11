@@ -113,11 +113,6 @@ export const source: Source = {
   telegraf: 'telegraf',
 }
 
-export const timeRange = {
-  lower: 'now() - 15m',
-  upper: null,
-}
-
 export const query = {
   id: '0',
   database: 'db1',

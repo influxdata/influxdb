@@ -6,14 +6,14 @@ import {
 
 export type PluginAction = ReturnType<typeof setPlugins>
 
-const setPlugins = (plugins: TelegrafEditorPluginState) => ({
+export const setPlugins = (plugins: TelegrafEditorPluginState) => ({
   type: 'SET_TELEGRAF_EDITOR_PLUGINS' as 'SET_TELEGRAF_EDITOR_PLUGINS',
   payload: plugins,
 })
 
 export type ActivePluginAction = ReturnType<typeof setActivePlugins>
 
-const setActivePlugins = (plugins: TelegrafEditorActivePluginState) => ({
+export const setActivePlugins = (plugins: TelegrafEditorActivePluginState) => ({
   type: 'SET_TELEGRAF_EDITOR_ACTIVE_PLUGINS' as 'SET_TELEGRAF_EDITOR_ACTIVE_PLUGINS',
   payload: plugins,
 })

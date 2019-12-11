@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
+	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,11 +22,11 @@ func TestLauncher_Pkger(t *testing.T) {
 	defer l.ShutdownOrFail(t, ctx)
 
 	svc := pkger.NewService(
-		pkger.WithBucketSVC(l.BucketService()),
-		pkger.WithDashboardSVC(l.DashboardService()),
-		pkger.WithLabelSVC(l.LabelService()),
-		pkger.WithTelegrafSVC(l.TelegrafService()),
-		pkger.WithVariableSVC(l.VariableService()),
+		pkger.WithBucketSVC(l.BucketService(t)),
+		pkger.WithDashboardSVC(l.DashboardService(t)),
+		pkger.WithLabelSVC(l.LabelService(t)),
+		pkger.WithTelegrafSVC(l.TelegrafService(t)),
+		pkger.WithVariableSVC(l.VariableService(t)),
 	)
 
 	t.Run("create a new package", func(t *testing.T) {
@@ -44,20 +46,20 @@ func TestLauncher_Pkger(t *testing.T) {
 
 	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {
 		svc := pkger.NewService(
-			pkger.WithBucketSVC(l.BucketService()),
-			pkger.WithDashboardSVC(l.DashboardService()),
+			pkger.WithBucketSVC(l.BucketService(t)),
+			pkger.WithDashboardSVC(l.DashboardService(t)),
 			pkger.WithLabelSVC(&fakeLabelSVC{
-				LabelService: l.LabelService(),
+				LabelService: l.LabelService(t),
 				killCount:    2, // hits error on 3rd attempt at creating a mapping
 			}),
-			pkger.WithTelegrafSVC(l.TelegrafService()),
-			pkger.WithVariableSVC(l.VariableService()),
+			pkger.WithTelegrafSVC(l.TelegrafService(t)),
+			pkger.WithVariableSVC(l.VariableService(t)),
 		)
 
 		_, err := svc.Apply(ctx, l.Org.ID, newPkg(t))
 		require.Error(t, err)
 
-		bkts, _, err := l.BucketService().FindBuckets(ctx, influxdb.BucketFilter{OrganizationID: &l.Org.ID})
+		bkts, _, err := l.BucketService(t).FindBuckets(ctx, influxdb.BucketFilter{OrganizationID: &l.Org.ID})
 		require.NoError(t, err)
 		for _, b := range bkts {
 			if influxdb.BucketTypeSystem == b.Type {
@@ -67,17 +69,17 @@ func TestLauncher_Pkger(t *testing.T) {
 			assert.Equal(t, l.Bucket.Name, b.Name)
 		}
 
-		labels, err := l.LabelService().FindLabels(ctx, influxdb.LabelFilter{OrgID: &l.Org.ID})
+		labels, err := l.LabelService(t).FindLabels(ctx, influxdb.LabelFilter{OrgID: &l.Org.ID})
 		require.NoError(t, err)
 		assert.Empty(t, labels)
 
-		dashs, _, err := l.DashboardService().FindDashboards(ctx, influxdb.DashboardFilter{
+		dashs, _, err := l.DashboardService(t).FindDashboards(ctx, influxdb.DashboardFilter{
 			OrganizationID: &l.Org.ID,
 		}, influxdb.DefaultDashboardFindOptions)
 		require.NoError(t, err)
 		assert.Empty(t, dashs)
 
-		vars, err := l.VariableService().FindVariables(ctx, influxdb.VariableFilter{OrganizationID: &l.Org.ID})
+		vars, err := l.VariableService(t).FindVariables(ctx, influxdb.VariableFilter{OrganizationID: &l.Org.ID})
 		require.NoError(t, err)
 		assert.Empty(t, vars)
 	})
@@ -322,28 +324,28 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			svc := pkger.NewService(
 				pkger.WithBucketSVC(&fakeBucketSVC{
-					BucketService: l.BucketService(),
+					BucketService: l.BucketService(t),
 					killCount:     0, // kill on first update for bucket
 				}),
-				pkger.WithDashboardSVC(l.DashboardService()),
-				pkger.WithLabelSVC(l.LabelService()),
-				pkger.WithTelegrafSVC(l.TelegrafService()),
-				pkger.WithVariableSVC(l.VariableService()),
+				pkger.WithDashboardSVC(l.DashboardService(t)),
+				pkger.WithLabelSVC(l.LabelService(t)),
+				pkger.WithTelegrafSVC(l.TelegrafService(t)),
+				pkger.WithVariableSVC(l.VariableService(t)),
 			)
 
 			_, err = svc.Apply(ctx, l.Org.ID, updatePkg)
 			require.Error(t, err)
 
-			bkt, err := l.BucketService().FindBucketByID(ctx, bkts[0].ID)
+			bkt, err := l.BucketService(t).FindBucketByID(ctx, bkts[0].ID)
 			require.NoError(t, err)
 			// make sure the desc change is not applied and is rolled back to prev desc
 			assert.Equal(t, bkt.Description, bkts[0].Description)
 
-			label, err := l.LabelService().FindLabelByID(ctx, labels[0].ID)
+			label, err := l.LabelService(t).FindLabelByID(ctx, labels[0].ID)
 			require.NoError(t, err)
 			assert.Equal(t, label.Properties["description"], labels[0].Properties["description"])
 
-			v, err := l.VariableService().FindVariableByID(ctx, vars[0].ID)
+			v, err := l.VariableService(t).FindVariableByID(ctx, vars[0].ID)
 			require.NoError(t, err)
 			assert.Equal(t, v.Description, vars[0].Description)
 		})
@@ -464,28 +466,32 @@ spec:
 
 type fakeBucketSVC struct {
 	influxdb.BucketService
-	callCount int
-	killCount int
+	updateCallCount mock.SafeCount
+	killCount       int
 }
 
 func (f *fakeBucketSVC) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
-	if f.callCount == f.killCount {
+	if f.updateCallCount.Count() == f.killCount {
 		return nil, errors.New("reached kill count")
 	}
-	f.callCount++
+	defer f.updateCallCount.IncrFn()()
 	return f.BucketService.UpdateBucket(ctx, id, upd)
 }
 
 type fakeLabelSVC struct {
 	influxdb.LabelService
+	countMu   sync.Mutex
 	callCount int
 	killCount int
 }
 
 func (f *fakeLabelSVC) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
+	f.countMu.Lock()
 	if f.callCount == f.killCount {
+		f.countMu.Unlock()
 		return errors.New("reached kill count")
 	}
 	f.callCount++
+	f.countMu.Unlock()
 	return f.LabelService.CreateLabelMapping(ctx, m)
 }

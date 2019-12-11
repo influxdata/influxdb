@@ -70,7 +70,7 @@ func init() {
 		RunE:  wrapCheckSetup(taskCreateF),
 	}
 
-	taskCreateCmd.Flags().StringVarP(&taskCreateFlags.org, "org", "", "", "organization name")
+	taskCreateCmd.Flags().StringVarP(&taskCreateFlags.org, "org", "o", "", "organization name")
 	taskCreateCmd.Flags().StringVarP(&taskCreateFlags.orgID, "org-id", "", "", "id of the organization that owns the task")
 	taskCreateCmd.MarkFlagRequired("flux")
 
@@ -155,7 +155,7 @@ func init() {
 
 	taskFindCmd.Flags().StringVarP(&taskFindFlags.id, "id", "i", "", "task ID")
 	taskFindCmd.Flags().StringVarP(&taskFindFlags.user, "user-id", "n", "", "task owner ID")
-	taskFindCmd.Flags().StringVarP(&taskFindFlags.org, "org", "", "", "task organization name")
+	taskFindCmd.Flags().StringVarP(&taskFindFlags.org, "org", "o", "", "task organization name")
 	taskFindCmd.Flags().StringVarP(&taskFindFlags.orgID, "org-id", "", "", "task organization ID")
 	taskFindCmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", platform.TaskDefaultPageSize, "the number of tasks to find")
 
@@ -163,6 +163,11 @@ func init() {
 }
 
 func taskFindF(cmd *cobra.Command, args []string) error {
+	if taskFindFlags.orgID == "" && taskFindFlags.org == "" {
+		return fmt.Errorf("must specify org-id, or org name")
+	} else if taskFindFlags.orgID != "" && taskFindFlags.org != "" {
+		return fmt.Errorf("must specify org-id, or org name not both")
+	}
 	s := &http.TaskService{
 		Addr:               flags.host,
 		Token:              flags.token,

@@ -1,7 +1,6 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,10 +8,10 @@ import (
 	"path"
 
 	"github.com/influxdata/httprouter"
-	"go.uber.org/zap"
-
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/pkg/httpc"
+	"go.uber.org/zap"
 )
 
 // OrgBackend is all services and associated parameters required to construct
@@ -59,7 +58,7 @@ type OrgHandler struct {
 }
 
 const (
-	organizationsPath            = "/api/v2/orgs"
+	prefixOrganizations          = "/api/v2/orgs"
 	organizationsIDPath          = "/api/v2/orgs/:id"
 	organizationsIDLogPath       = "/api/v2/orgs/:id/logs"
 	organizationsIDMembersPath   = "/api/v2/orgs/:id/members"
@@ -110,8 +109,8 @@ func NewOrgHandler(log *zap.Logger, b *OrgBackend) *OrgHandler {
 		UserService:                     b.UserService,
 	}
 
-	h.HandlerFunc("POST", organizationsPath, h.handlePostOrg)
-	h.HandlerFunc("GET", organizationsPath, h.handleGetOrgs)
+	h.HandlerFunc("POST", prefixOrganizations, h.handlePostOrg)
+	h.HandlerFunc("GET", prefixOrganizations, h.handleGetOrgs)
 	h.HandlerFunc("GET", organizationsIDPath, h.handleGetOrg)
 	h.HandlerFunc("GET", organizationsIDLogPath, h.handleGetOrgLog)
 	h.HandlerFunc("PATCH", organizationsIDPath, h.handlePatchOrg)
@@ -598,9 +597,7 @@ const (
 
 // OrganizationService connects to Influx via HTTP using tokens to manage organizations.
 type OrganizationService struct {
-	Addr               string
-	Token              string
-	InsecureSkipVerify bool
+	Client *httpc.Client
 	// OpPrefix is for not found errors.
 	OpPrefix string
 }
@@ -647,11 +644,14 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
+	params := findOptionParams(opt...)
 	if filter.Name != nil {
 		span.LogKV("org", *filter.Name)
+		params = append(params, [2]string{"org", *filter.Name})
 	}
 	if filter.ID != nil {
 		span.LogKV("org-id", *filter.ID)
+		params = append(params, [2]string{"orgID", filter.ID.String()})
 	}
 	for _, o := range opt {
 		if o.Offset != 0 {
@@ -666,41 +666,14 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 		}
 	}
 
-	url, err := NewURL(s.Addr, organizationPath)
-	if err != nil {
-		return nil, 0, tracing.LogError(span, err)
-	}
-	qp := url.Query()
-
-	if filter.Name != nil {
-		qp.Add(Org, *filter.Name)
-	}
-	if filter.ID != nil {
-		qp.Add(OrgID, filter.ID.String())
-	}
-	url.RawQuery = qp.Encode()
-
-	req, err := http.NewRequest("GET", url.String(), nil)
-	if err != nil {
-		return nil, 0, tracing.LogError(span, err)
-	}
-
-	SetToken(s.Token, req)
-	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, 0, tracing.LogError(span, err)
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, 0, tracing.LogError(span, err)
-	}
-
 	var os orgsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&os); err != nil {
-		return nil, 0, tracing.LogError(span, err)
+	err := s.Client.
+		Get(organizationPath).
+		QueryParams(params...).
+		DecodeJSON(&os).
+		Do(ctx)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	orgs := os.Toinfluxdb()
@@ -709,7 +682,6 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 
 // CreateOrganization creates an organization.
 func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxdb.Organization) error {
-
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -720,42 +692,10 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxd
 		span.LogKV("org-id", o.ID)
 	}
 
-	url, err := NewURL(s.Addr, organizationPath)
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	octets, err := json.Marshal(o)
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	req, err := http.NewRequest("POST", url.String(), bytes.NewReader(octets))
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(s.Token, req)
-
-	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-	defer resp.Body.Close()
-
-	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp); err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(o); err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	return nil
+	return s.Client.
+		Post(httpc.BodyJSON(o), organizationPath).
+		DecodeJSON(o).
+		Do(ctx)
 }
 
 // UpdateOrganization updates the organization over HTTP.
@@ -766,38 +706,12 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id influxd
 	span.LogKV("org-id", id)
 	span.LogKV("name", upd.Name)
 
-	u, err := NewURL(s.Addr, organizationIDPath(id))
-	if err != nil {
-		return nil, tracing.LogError(span, err)
-	}
-
-	octets, err := json.Marshal(upd)
-	if err != nil {
-		return nil, tracing.LogError(span, err)
-	}
-
-	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(octets))
-	if err != nil {
-		return nil, tracing.LogError(span, err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, tracing.LogError(span, err)
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, tracing.LogError(span, err)
-	}
-
 	var o influxdb.Organization
-	if err := json.NewDecoder(resp.Body).Decode(&o); err != nil {
+	err := s.Client.
+		Patch(httpc.BodyJSON(upd), organizationPath, id.String()).
+		DecodeJSON(&o).
+		Do(ctx)
+	if err != nil {
 		return nil, tracing.LogError(span, err)
 	}
 
@@ -809,31 +723,9 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id influxd
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := NewURL(s.Addr, organizationIDPath(id))
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	req, err := http.NewRequest("DELETE", u.String(), nil)
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-	defer resp.Body.Close()
-
-	err = CheckErrorStatus(http.StatusNoContent, resp)
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	return nil
+	return s.Client.
+		Delete(organizationPath, id.String()).
+		Do(ctx)
 }
 
 func organizationIDPath(id influxdb.ID) string {

@@ -1,13 +1,11 @@
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
-import {TimeRange} from 'src/types'
+import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
+
+const custom = 'custom' as 'custom'
 
 describe('getTimeRangeVars', () => {
   test('should handle relative lower dates', () => {
-    const timeRange: TimeRange = {
-      lower: 'now() - 1h',
-    }
-
-    const actual = getTimeRangeVars(timeRange)
+    const actual = getTimeRangeVars(pastHourTimeRange)
 
     const init = actual[0].init as any
 
@@ -17,9 +15,11 @@ describe('getTimeRangeVars', () => {
     expect(init.argument.values).toEqual([{magnitude: 1, unit: 'h'}])
   })
 
-  test('should handle absolute lower dates', () => {
-    const timeRange: TimeRange = {
+  test('should handle custom lower dates', () => {
+    const timeRange = {
+      type: custom,
       lower: '2019-02-28T15:00:00Z',
+      upper: '2019-03-28T15:00:00Z',
     }
 
     const actual = getTimeRangeVars(timeRange)
@@ -29,7 +29,8 @@ describe('getTimeRangeVars', () => {
   })
 
   test('should handle absolute upper dates', () => {
-    const timeRange: TimeRange = {
+    const timeRange = {
+      type: custom,
       lower: '2019-02-26T15:00:00Z',
       upper: '2019-02-27T15:00:00Z',
     }
@@ -40,12 +41,8 @@ describe('getTimeRangeVars', () => {
     expect((actual[1].init as any).value).toEqual('2019-02-27T15:00:00.000Z')
   })
 
-  test('should handle non-existant upper dates', () => {
-    const timeRange: TimeRange = {
-      lower: 'now() - 1h',
-    }
-
-    const actual = getTimeRangeVars(timeRange)
+  test('should set non-existent upper dates to now', () => {
+    const actual = getTimeRangeVars(pastHourTimeRange)
 
     expect(actual[1].init).toEqual({
       type: 'CallExpression',

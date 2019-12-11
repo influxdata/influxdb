@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/pkg/httpc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -26,6 +27,24 @@ func main() {
 	if err := influxCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+var (
+	httpClient *httpc.Client
+)
+
+func newHTTPClient() (*httpc.Client, error) {
+	if httpClient != nil {
+		return httpClient, nil
+	}
+
+	c, err := http.NewHTTPClient(flags.host, flags.token, flags.skipVerify)
+	if err != nil {
+		return nil, err
+	}
+
+	httpClient = c
+	return httpClient, nil
 }
 
 type httpClientOpts struct {
@@ -73,7 +92,7 @@ func influxCmd() *cobra.Command {
 		authCmd(),
 		bucketCmd,
 		deleteCmd,
-		organizationCmd,
+		organizationCmd(),
 		pingCmd,
 		cmdPkg(newPkgerSVC),
 		queryCmd,

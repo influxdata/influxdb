@@ -17,6 +17,8 @@ import (
 	platcontext "github.com/influxdata/influxdb/context"
 )
 
+const prefixAuthorization = "/api/v2/authorizations"
+
 // AuthorizationBackend is all services and associated parameters required to construct
 // the AuthorizationHandler.
 type AuthorizationBackend struct {

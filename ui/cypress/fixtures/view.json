@@ -8,13 +8,11 @@
     "shape": "chronograf-v2",
     "queries": [
       {
-        "text": "from(bucket: v.mapTypeVar)|> range(start: -15m, stop: now())",
-        "editMode": "advanced",
+        "text": "",
+        "editMode": "builder",
         "name": "",
         "builderConfig": {
-          "buckets": [
-            "defbuck"
-          ],
+          "buckets": ["defbuck"],
           "tags": [
             {
               "key": "",
@@ -30,10 +28,7 @@
     ],
     "axes": {
       "x": {
-        "bounds": [
-          "",
-          ""
-        ],
+        "bounds": ["", ""],
         "label": "",
         "prefix": "",
         "suffix": "",
@@ -41,10 +36,7 @@
         "scale": "linear"
       },
       "y": {
-        "bounds": [
-          "",
-          ""
-        ],
+        "bounds": ["", ""],
         "label": "",
         "prefix": "",
         "suffix": "",

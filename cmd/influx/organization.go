@@ -11,12 +11,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Organization Command
-var organizationCmd = &cobra.Command{
-	Use:     "org",
-	Aliases: []string{"organization"},
-	Short:   "Organization management commands",
-	Run:     organizationF,
+func organizationCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "org",
+		Aliases: []string{"organization"},
+		Short:   "Organization management commands",
+		Run:     organizationF,
+	}
+
+	cmd.AddCommand(
+		orgCreateCmd(),
+		orgDeleteCmd(),
+		orgFindCmd(),
+		orgMembersCmd(),
+		orgUpdateCmd(),
+	)
+
+	return cmd
 }
 
 func organizationF(cmd *cobra.Command, args []string) {
@@ -30,32 +41,36 @@ type OrganizationCreateFlags struct {
 
 var organizationCreateFlags OrganizationCreateFlags
 
-func init() {
-	organizationCreateCmd := &cobra.Command{
+func orgCreateCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create organization",
 		RunE:  wrapCheckSetup(organizationCreateF),
 	}
 
-	organizationCreateCmd.Flags().StringVarP(&organizationCreateFlags.name, "name", "n", "", "The name of organization that will be created")
-	organizationCreateCmd.MarkFlagRequired("name")
+	cmd.Flags().StringVarP(&organizationCreateFlags.name, "name", "n", "", "The name of organization that will be created")
+	cmd.MarkFlagRequired("name")
 
-	organizationCmd.AddCommand(organizationCreateCmd)
+	return cmd
 }
 
-func newOrganizationService(f Flags) (platform.OrganizationService, error) {
+func newOrganizationService() (platform.OrganizationService, error) {
 	if flags.local {
 		return newLocalKVService()
 	}
+
+	client, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+
 	return &http.OrganizationService{
-		Addr:               flags.host,
-		Token:              flags.token,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: client,
 	}, nil
 }
 
 func organizationCreateF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService(flags)
+	orgSvc, err := newOrganizationService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
@@ -90,21 +105,21 @@ type OrganizationFindFlags struct {
 
 var organizationFindFlags OrganizationFindFlags
 
-func init() {
-	organizationFindCmd := &cobra.Command{
+func orgFindCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "find",
 		Short: "Find organizations",
 		RunE:  wrapCheckSetup(organizationFindF),
 	}
 
-	organizationFindCmd.Flags().StringVarP(&organizationFindFlags.name, "name", "n", "", "The organization name")
-	organizationFindCmd.Flags().StringVarP(&organizationFindFlags.id, "id", "i", "", "The organization ID")
+	cmd.Flags().StringVarP(&organizationFindFlags.name, "name", "n", "", "The organization name")
+	cmd.Flags().StringVarP(&organizationFindFlags.id, "id", "i", "", "The organization ID")
 
-	organizationCmd.AddCommand(organizationFindCmd)
+	return cmd
 }
 
 func organizationFindF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService(flags)
+	orgSvc, err := newOrganizationService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
@@ -151,22 +166,22 @@ type OrganizationUpdateFlags struct {
 
 var organizationUpdateFlags OrganizationUpdateFlags
 
-func init() {
-	organizationUpdateCmd := &cobra.Command{
+func orgUpdateCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update organization",
 		RunE:  wrapCheckSetup(organizationUpdateF),
 	}
 
-	organizationUpdateCmd.Flags().StringVarP(&organizationUpdateFlags.id, "id", "i", "", "The organization ID (required)")
-	organizationUpdateCmd.Flags().StringVarP(&organizationUpdateFlags.name, "name", "n", "", "The organization name")
-	organizationUpdateCmd.MarkFlagRequired("id")
+	cmd.Flags().StringVarP(&organizationUpdateFlags.id, "id", "i", "", "The organization ID (required)")
+	cmd.Flags().StringVarP(&organizationUpdateFlags.name, "name", "n", "", "The organization name")
+	cmd.MarkFlagRequired("id")
 
-	organizationCmd.AddCommand(organizationUpdateCmd)
+	return cmd
 }
 
 func organizationUpdateF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService(flags)
+	orgSvc, err := newOrganizationService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
@@ -208,7 +223,7 @@ type OrganizationDeleteFlags struct {
 var organizationDeleteFlags OrganizationDeleteFlags
 
 func organizationDeleteF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService(flags)
+	orgSvc, err := newOrganizationService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
@@ -244,28 +259,33 @@ func organizationDeleteF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func init() {
-	organizationDeleteCmd := &cobra.Command{
+func orgDeleteCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete organization",
 		RunE:  wrapCheckSetup(organizationDeleteF),
 	}
 
-	organizationDeleteCmd.Flags().StringVarP(&organizationDeleteFlags.id, "id", "i", "", "The organization ID (required)")
-	organizationDeleteCmd.MarkFlagRequired("id")
+	cmd.Flags().StringVarP(&organizationDeleteFlags.id, "id", "i", "", "The organization ID (required)")
+	cmd.MarkFlagRequired("id")
 
-	organizationCmd.AddCommand(organizationDeleteCmd)
+	return cmd
 }
 
-// Member management
-var organizationMembersCmd = &cobra.Command{
-	Use:   "members",
-	Short: "Organization membership commands",
-	Run:   organizationF,
-}
+func orgMembersCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "members",
+		Short: "Organization membership commands",
+		Run:   organizationF,
+	}
 
-func init() {
-	organizationCmd.AddCommand(organizationMembersCmd)
+	cmd.AddCommand(
+		orgMembersAddCmd(),
+		orgMembersListCmd(),
+		orgMembersRemoveCmd(),
+	)
+
+	return cmd
 }
 
 // List Members
@@ -277,7 +297,7 @@ type OrganizationMembersListFlags struct {
 var organizationMembersListFlags OrganizationMembersListFlags
 
 func organizationMembersListF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService(flags)
+	orgSvc, err := newOrganizationService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
@@ -312,17 +332,17 @@ func organizationMembersListF(cmd *cobra.Command, args []string) error {
 	})
 }
 
-func init() {
-	organizationMembersListCmd := &cobra.Command{
+func orgMembersListCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List organization members",
 		RunE:  wrapCheckSetup(organizationMembersListF),
 	}
 
-	organizationMembersListCmd.Flags().StringVarP(&organizationMembersListFlags.id, "id", "i", "", "The organization ID")
-	organizationMembersListCmd.Flags().StringVarP(&organizationMembersListFlags.name, "name", "n", "", "The organization name")
+	cmd.Flags().StringVarP(&organizationMembersListFlags.id, "id", "i", "", "The organization ID")
+	cmd.Flags().StringVarP(&organizationMembersListFlags.name, "name", "n", "", "The organization name")
 
-	organizationMembersCmd.AddCommand(organizationMembersListCmd)
+	return cmd
 }
 
 // OrganizationMembersAddFlags includes flags to add a member
@@ -343,7 +363,7 @@ func organizationMembersAddF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("must specify exactly one of id and name")
 	}
 
-	orgSvc, err := newOrganizationService(flags)
+	orgSvc, err := newOrganizationService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
@@ -383,19 +403,19 @@ func organizationMembersAddF(cmd *cobra.Command, args []string) error {
 	})
 }
 
-func init() {
-	organizationMembersAddCmd := &cobra.Command{
+func orgMembersAddCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "add",
 		Short: "Add organization member",
 		RunE:  wrapCheckSetup(organizationMembersAddF),
 	}
 
-	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.id, "id", "i", "", "The organization ID")
-	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.name, "name", "n", "", "The organization name")
-	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.memberID, "member", "o", "", "The member ID")
-	organizationMembersAddCmd.MarkFlagRequired("member")
+	cmd.Flags().StringVarP(&organizationMembersAddFlags.id, "id", "i", "", "The organization ID")
+	cmd.Flags().StringVarP(&organizationMembersAddFlags.name, "name", "n", "", "The organization name")
+	cmd.Flags().StringVarP(&organizationMembersAddFlags.memberID, "member", "o", "", "The member ID")
+	cmd.MarkFlagRequired("member")
 
-	organizationMembersCmd.AddCommand(organizationMembersAddCmd)
+	return cmd
 }
 
 // OrganizationMembersRemoveFlags includes flags to remove a Member
@@ -416,7 +436,7 @@ func organizationMembersRemoveF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("must specify exactly one of id and name")
 	}
 
-	orgSvc, err := newOrganizationService(flags)
+	orgSvc, err := newOrganizationService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
@@ -450,17 +470,17 @@ func organizationMembersRemoveF(cmd *cobra.Command, args []string) error {
 	return membersRemoveF(ctx, organization.ID, memberID)
 }
 
-func init() {
-	organizationMembersRemoveCmd := &cobra.Command{
+func orgMembersRemoveCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "remove",
 		Short: "Remove organization member",
 		RunE:  wrapCheckSetup(organizationMembersRemoveF),
 	}
 
-	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.id, "id", "i", "", "The organization ID")
-	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.name, "name", "n", "", "The organization name")
-	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.memberID, "member", "o", "", "The member ID")
-	organizationMembersRemoveCmd.MarkFlagRequired("member")
+	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.id, "id", "i", "", "The organization ID")
+	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.name, "name", "n", "", "The organization name")
+	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.memberID, "member", "o", "", "The member ID")
+	cmd.MarkFlagRequired("member")
 
-	organizationMembersCmd.AddCommand(organizationMembersRemoveCmd)
+	return cmd
 }

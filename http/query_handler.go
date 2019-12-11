@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/http/metric"
 	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
 	"github.com/pkg/errors"
 	prom "github.com/prometheus/client_golang/prometheus"
@@ -31,7 +32,8 @@ import (
 )
 
 const (
-	fluxPath = "/api/v2/query"
+	prefixQuery   = "/api/v2/query"
+	traceIDHeader = "Trace-Id"
 )
 
 // FluxBackend is all services and associated parameters required to construct
@@ -75,6 +77,11 @@ type FluxHandler struct {
 	EventRecorder metric.EventRecorder
 }
 
+// Prefix provides the route prefix.
+func (*FluxHandler) Prefix() string {
+	return prefixQuery
+}
+
 // NewFluxHandler returns a new handler at /api/v2/query for flux queries.
 func NewFluxHandler(log *zap.Logger, b *FluxBackend) *FluxHandler {
 	h := &FluxHandler{
@@ -90,7 +97,7 @@ func NewFluxHandler(log *zap.Logger, b *FluxBackend) *FluxHandler {
 
 	// query reponses can optionally be gzip encoded
 	qh := gziphandler.GzipHandler(http.HandlerFunc(h.handleQuery))
-	h.Handler("POST", fluxPath, qh)
+	h.Handler("POST", prefixQuery, qh)
 	h.HandlerFunc("POST", "/api/v2/query/ast", h.postFluxAST)
 	h.HandlerFunc("POST", "/api/v2/query/analyze", h.postQueryAnalyze)
 	h.HandlerFunc("GET", "/api/v2/query/suggestions", h.getFluxSuggestions)
@@ -104,6 +111,10 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	defer span.Finish()
 
 	ctx := r.Context()
+	log := h.log.With(logger.TraceFields(ctx)...)
+	if id, _, found := logger.TraceInfo(ctx); found {
+		w.Header().Set(traceIDHeader, id)
+	}
 
 	// TODO(desa): I really don't like how we're recording the usage metrics here
 	// Ideally this will be moved when we solve https://github.com/influxdata/influxdb/issues/13403
@@ -169,7 +180,8 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 			h.HandleHTTPError(ctx, err, w)
 			return
 		}
-		h.log.Info("Error writing response to client",
+		_ = tracing.LogError(span, err)
+		log.Info("Error writing response to client",
 			zap.String("handler", "flux"),
 			zap.Error(err),
 		)
@@ -345,7 +357,7 @@ type FluxService struct {
 func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequest) (flux.Statistics, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-	u, err := NewURL(s.Addr, fluxPath)
+	u, err := NewURL(s.Addr, prefixQuery)
 	if err != nil {
 		return flux.Statistics{}, tracing.LogError(span, err)
 	}
@@ -408,7 +420,7 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := NewURL(s.Addr, fluxPath)
+	u, err := NewURL(s.Addr, prefixQuery)
 	if err != nil {
 		return nil, tracing.LogError(span, err)
 	}
@@ -466,7 +478,7 @@ func (s FluxQueryService) Check(ctx context.Context) check.Response {
 
 // SimpleQuery runs a flux query with common parameters and returns CSV results.
 func SimpleQuery(addr, flux, org, token string) ([]byte, error) {
-	u, err := NewURL(addr, fluxPath)
+	u, err := NewURL(addr, prefixQuery)
 	if err != nil {
 		return nil, err
 	}

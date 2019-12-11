@@ -67,6 +67,18 @@ func decodeFindOptions(ctx context.Context, r *http.Request) (*platform.FindOpti
 	return opts, nil
 }
 
+func findOptionParams(opts ...platform.FindOptions) [][2]string {
+	var out [][2]string
+	for _, o := range opts {
+		for k, vals := range o.QueryParams() {
+			for _, v := range vals {
+				out = append(out, [2]string{k, v})
+			}
+		}
+	}
+	return out
+}
+
 // newPagingLinks returns a PagingLinks.
 // num is the number of returned results.
 func newPagingLinks(basePath string, opts platform.FindOptions, f platform.PagingFilter, num int) *platform.PagingLinks {

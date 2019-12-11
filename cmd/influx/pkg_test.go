@@ -21,7 +21,7 @@ import (
 
 func Test_Pkg(t *testing.T) {
 	fakeSVCFn := func(svc pkger.SVC) pkgSVCFn {
-		return func(opts httpClientOpts) (pkger.SVC, error) {
+		return func(opts httpClientOpts, _ ...pkger.ServiceSetterFn) (pkger.SVC, error) {
 			return svc, nil
 		}
 	}

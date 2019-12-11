@@ -215,12 +215,6 @@ export const invalidTimeRangeValueInURLQuery = (): Notification => ({
   message: `Invalid URL query value supplied for lower or upper time range.`,
 })
 
-export const invalidZoomedTimeRangeValueInURLQuery = (): Notification => ({
-  ...defaultErrorNotification,
-  icon: 'cube',
-  message: `Invalid URL query value supplied for zoomed lower or zoomed upper time range.`,
-})
-
 export const getVariablesFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to fetch variables',

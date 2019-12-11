@@ -71,6 +71,9 @@ export const generateThresholdsListHexs = ({
   )
 
   if (shouldColorizeText && colors.length === 1 && baseColor) {
+    if (cellType === 'table') {
+      return {textColor: '#000', bgColor: baseColor.hex}
+    }
     return {bgColor: null, textColor: baseColor.hex}
   }
 
@@ -84,6 +87,10 @@ export const generateThresholdsListHexs = ({
       colors,
       lastValueNumber
     )
+
+    if (cellType === 'table') {
+      return {textColor: '#000', bgColor: nearestCrossedThreshold.hex}
+    }
 
     return {bgColor: null, textColor: nearestCrossedThreshold.hex}
   }
