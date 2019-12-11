@@ -16,12 +16,16 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, HeatmapViewProperties, TimeZone} from 'src/types'
+import {
+  RemoteDataState,
+  HeatmapViewProperties,
+  TimeZone,
+  TimeRange,
+} from 'src/types'
 
 interface Props {
-  endTime: number
   loading: RemoteDataState
-  startTime: number
+  timeRange: TimeRange | null
   table: Table
   timeZone: TimeZone
   viewProperties: HeatmapViewProperties
@@ -29,9 +33,8 @@ interface Props {
 }
 
 const HeatmapPlot: FunctionComponent<Props> = ({
-  endTime,
   loading,
-  startTime,
+  timeRange,
   table,
   timeZone,
   viewProperties: {
@@ -56,8 +59,7 @@ const HeatmapPlot: FunctionComponent<Props> = ({
   const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
     storedXDomain,
     table.getColumn(xColumn, 'number'),
-    startTime,
-    endTime
+    timeRange
   )
 
   const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(

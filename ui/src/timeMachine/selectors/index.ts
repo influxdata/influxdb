@@ -290,3 +290,21 @@ export const getEndTime = (timeRange: TimeRange): number => {
   }
   return moment().valueOf()
 }
+
+export const getActiveTimeRange = (
+  timeRange: TimeRange,
+  queries: any = null
+) => {
+  if (!queries) {
+    return timeRange
+  }
+  const hasVariableTimes = queries.some(
+    query =>
+      query.text.includes('v.timeRangeStart') ||
+      query.text.includes('v.timeRangeStop')
+  )
+  if (hasVariableTimes) {
+    return timeRange
+  }
+  return null
+}
