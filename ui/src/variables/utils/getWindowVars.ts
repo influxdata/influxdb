@@ -4,7 +4,7 @@ import {parse} from '@influxdata/flux-parser'
 // Utils
 import {getMinDurationFromAST} from 'src/shared/utils/getMinDurationFromAST'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
-import {reportError, parseComponentName} from 'src/shared/utils/errors'
+import {reportError} from 'src/shared/utils/errors'
 // Constants
 import {WINDOW_PERIOD} from 'src/variables/constants'
 
