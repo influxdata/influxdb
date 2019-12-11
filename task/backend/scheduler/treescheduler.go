@@ -78,7 +78,7 @@ type TreeScheduler struct {
 }
 
 // ErrorFunc is a function for error handling.  It is a good way to inject logging into a TreeScheduler.
-type ErrorFunc func(ctx context.Context, taskID ID, scheduledAt time.Time, err error)
+type ErrorFunc func(ctx context.Context, taskID ID, scheduledFor time.Time, err error)
 
 type treeSchedulerOptFunc func(t *TreeScheduler) error
 
@@ -318,7 +318,7 @@ func (s *TreeScheduler) work(ctx context.Context, ch chan Item) {
 			s.sm.reportScheduleDelay(time.Since(it.Next()))
 			preExec := time.Now()
 			// execute
-			err = s.executor.Execute(ctx, it.id, t)
+			err = s.executor.Execute(ctx, it.id, t, it.when())
 			// report how long execution took
 			s.sm.reportExecution(err, time.Since(preExec))
 			return err
