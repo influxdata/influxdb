@@ -1432,6 +1432,62 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/hourselection/',
   },
   {
+    name: 'http.get',
+    args: [
+      {
+        name: 'url',
+        desc: 'The URL to send the GET request to.',
+        type: 'String',
+      },
+      {
+        name: 'headers',
+        desc: 'Headers to include with the GET request.',
+        type: 'Object',
+      },
+      {
+        name: 'timeout',
+        desc: 'Timeout for the GET request. Default is `30s`.',
+        type: 'Duration',
+      }
+    ],
+    package: 'experimental/http',
+    desc:
+      'Submits an HTTP GET request to the specified URL and returns the HTTP status code, response body, and response headers.',
+    example:
+      'http.get(url: "https://v2.docs.influxdata.com/v2.0/", headers: {foo: "bar"})',
+    category: 'Miscellaneous',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/http/get/',
+  },
+  {
+    name: 'http.post',
+    args: [
+      {
+        name: 'url',
+        desc: 'The URL to POST to.',
+        type: 'String',
+      },
+      {
+        name: 'headers',
+        desc: 'Headers to include with the POST request.',
+        type: 'Object',
+      },
+      {
+        name: 'data',
+        desc: 'The data body to include with the POST request.',
+        type: 'Bytes',
+      },
+    ],
+    package: 'http',
+    desc:
+      'Submits an HTTP POST request to the specified URL with headers and data and returns the HTTP status code.',
+    example:
+      'http.post(url: "http://localhost:9999/", headers: {x:"a", y:"b"}, data: bytes(v: "body"))',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/http/post/',
+  },
+  {
     name: 'increase',
     args: [
       {
@@ -3546,6 +3602,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         desc: 'The destination table.',
         type: 'String',
       },
+      {
+        name: 'batchSize',
+        desc:
+          'The number of parameters or columns that can be queued within each call to `Exec`. Defaults to `10000`.',
+        type: 'Integer',
+      },
     ],
     package: 'sql',
     desc: 'Writes data to a SQL database.',
@@ -4947,8 +5009,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc:
       'Groups records based on a time value. New columns are added to uniquely identify each window. Those columns are added to the group key of the output tables. A single input record will be placed into zero or more output tables, depending on the specific windowing function.',
-    example:
-      'window(every: 5m, period: 5m, offset: 12h, timeColumn: "_time", startColumn: "_start", stopColumn: "_stop")',
+    example: 'window(every: v.windowPeriod)',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/window/',
