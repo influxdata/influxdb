@@ -16,6 +16,11 @@ import {
 import {getVariableAssignments as getVariableAssignmentsForContext} from 'src/variables/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {getWindowPeriod} from 'src/variables/utils/getWindowVars'
+import {
+  timeRangeToDuration,
+  parseDuration,
+  durationToMilliseconds,
+} from 'src/shared/utils/duration'
 
 // Types
 import {
@@ -251,50 +256,28 @@ export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
   return saveableView
 }
 
-export const getStartTime = (timeRange: TimeRange): number => {
+export const getStartTime = (timeRange: TimeRange) => {
   if (!timeRange) {
     return Infinity
   }
-  const {lower} = timeRange
-  switch (lower) {
-    case 'now() - 30d':
+  switch (timeRange.type) {
+    case 'custom':
+      return moment(timeRange.lower).valueOf()
+    case 'selectable-duration':
       return moment()
-        .subtract(30, 'days')
+        .subtract(timeRange.seconds, 'seconds')
         .valueOf()
-    case 'now() - 7d':
+    case 'duration':
+      const millisecondDuration = durationToMilliseconds(
+        parseDuration(timeRangeToDuration(timeRange))
+      )
       return moment()
-        .subtract(7, 'days')
-        .valueOf()
-    case 'now() - 2d':
-      return moment()
-        .subtract(2, 'days')
-        .valueOf()
-    case 'now() - 24h':
-      return moment()
-        .subtract(24, 'hours')
-        .valueOf()
-    case 'now() - 12h':
-      return moment()
-        .subtract(12, 'hours')
-        .valueOf()
-    case 'now() - 6h':
-      return moment()
-        .subtract(6, 'hours')
-        .valueOf()
-    case 'now() - 1h':
-      return moment()
-        .subtract(1, 'hours')
-        .valueOf()
-    case 'now() - 15m':
-      return moment()
-        .subtract(15, 'minutes')
-        .valueOf()
-    case 'now() - 5m':
-      return moment()
-        .subtract(5, 'minutes')
+        .subtract(millisecondDuration, 'milliseconds')
         .valueOf()
     default:
-      return moment(lower).valueOf()
+      throw new Error(
+        'unknown timeRange type ${timeRange.type} provided to getStartTime'
+      )
   }
 }
 
@@ -302,12 +285,8 @@ export const getEndTime = (timeRange: TimeRange): number => {
   if (!timeRange) {
     return null
   }
-  const {lower, upper} = timeRange
-  if (upper) {
-    return moment(upper).valueOf()
+  if (timeRange.type === 'custom') {
+    return moment(timeRange.upper).valueOf()
   }
-  if (lower.includes('now()')) {
-    return moment().valueOf()
-  }
-  return null
+  return moment().valueOf()
 }

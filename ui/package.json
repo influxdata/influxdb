@@ -168,6 +168,7 @@
     "react-dnd-html5-backend": "^2.6.0",
     "react-dom": "^16.8.2",
     "react-grid-layout": "^0.16.6",
+    "react-loadable": "^5.5.0",
     "react-markdown": "^4.0.3",
     "react-monaco-editor": "^0.32.1",
     "react-redux": "^5.1.2",

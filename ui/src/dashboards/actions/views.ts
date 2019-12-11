@@ -108,7 +108,7 @@ export const getViewForTimeMachine = (
     const state = getState()
     let view = getViewFromState(state, cellID) as QueryView
 
-    const timeRange = getTimeRangeByDashboardID(state.ranges, dashboardID)
+    const timeRange = getTimeRangeByDashboardID(state, dashboardID)
 
     if (!view) {
       dispatch(setView(cellID, null, RemoteDataState.Loading))

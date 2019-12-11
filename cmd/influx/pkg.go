@@ -44,6 +44,7 @@ type cmdPkgBuilder struct {
 	hasTableBorders bool
 	meta            pkger.Metadata
 	orgID           string
+	org             string
 	quiet           bool
 
 	applyOpts struct {
@@ -95,8 +96,8 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.Flags().IntVarP(&b.applyReqLimit, "req-limit", "r", 0, "Request limit for applying a pkg, defaults to 5(recommended for OSS).")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true".`)
 
-	cmd.Flags().StringVarP(&b.orgID, "org-id", "o", "", "The ID of the organization that owns the bucket")
-	cmd.MarkFlagRequired("org-id")
+	cmd.Flags().StringVarP(&b.orgID, "org-id", "", "", "The ID of the organization that owns the bucket")
+	cmd.Flags().StringVarP(&b.org, "org", "o", "", "The name of the organization that owns the bucket")
 
 	cmd.Flags().BoolVarP(&b.hasColor, "color", "c", true, "Enable color in output, defaults true")
 	cmd.Flags().BoolVar(&b.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
@@ -108,11 +109,32 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 
 func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
+		if b.orgID == "" && b.org == "" {
+			return fmt.Errorf("must specify org-id, or org name")
+		} else if b.orgID != "" && b.org != "" {
+			return fmt.Errorf("must specify org-id, or org name not both")
+		}
 		color.NoColor = !b.hasColor
+		var influxOrgID *influxdb.ID
 
-		influxOrgID, err := influxdb.IDFromString(b.orgID)
-		if err != nil {
-			return fmt.Errorf("invalid org ID provided: %s", err.Error())
+		if b.orgID != "" {
+			var err error
+			influxOrgID, err = influxdb.IDFromString(b.orgID)
+			if err != nil {
+				return fmt.Errorf("invalid org ID provided: %s", err.Error())
+			}
+		} else if b.org != "" {
+			orgSvc, err := newOrganizationService()
+			if err != nil {
+				return fmt.Errorf("failed to initialize organization service client: %v", err)
+			}
+
+			filter := influxdb.OrganizationFilter{Name: &b.org}
+			org, err := orgSvc.FindOrganization(context.Background(), filter)
+			if err != nil {
+				return fmt.Errorf("%v", err)
+			}
+			influxOrgID = &org.ID
 		}
 
 		svc, err := b.svcFn(flags.httpClientOpts(), pkger.WithApplyReqLimit(b.applyReqLimit))

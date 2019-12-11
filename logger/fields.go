@@ -33,6 +33,12 @@ const (
 
 	// DBShardIDKey is the logging context key used for identifying name of the relevant shard number.
 	DBShardIDKey = "db_shard_id"
+
+	// TraceIDKey is the logging context key used for identifying the current trace.
+	TraceIDKey = "ot_trace_id"
+
+	// TraceSampledKey is the logging context key used for determining whether the current trace will be sampled.
+	TraceSampledKey = "ot_trace_sampled"
 )
 const (
 	eventStart = "start"
@@ -88,7 +94,7 @@ func Shard(id uint64) zapcore.Field {
 }
 
 // TraceInfo returns the traceID and if it was sampled from the Jaeger span
-// found in the given context. It returns if a span associated to the context has been found.
+// found in the given context. It returns whether a span associated to the context has been found.
 func TraceInfo(ctx context.Context) (traceID string, sampled bool, found bool) {
 	if span := opentracing.SpanFromContext(ctx); span != nil {
 		if spanContext, ok := span.Context().(jaeger.SpanContext); ok {
@@ -98,6 +104,16 @@ func TraceInfo(ctx context.Context) (traceID string, sampled bool, found bool) {
 		}
 	}
 	return "", false, false
+}
+
+// TraceFields returns a fields "ot_trace_id" and "ot_trace_sampled", values pulled from the (Jaeger) trace ID
+// found in the given context. Returns nil if the context doesn't have a trace ID.
+func TraceFields(ctx context.Context) []zap.Field {
+	id, sampled, found := TraceInfo(ctx)
+	if !found {
+		return nil
+	}
+	return []zap.Field{zap.String(TraceIDKey, id), zap.Bool(TraceSampledKey, sampled)}
 }
 
 // TraceID returns a field "trace_id", value pulled from the (Jaeger) trace ID found in the given context.

@@ -69,6 +69,13 @@ const CellContext: FunctionComponent<Props> = ({
             onHide={onHide}
             testID="cell-context--note"
           />
+          <CellContextDangerItem
+            label="Delete"
+            onClick={handleDeleteCell}
+            icon={IconFont.Trash}
+            onHide={onHide}
+            testID="cell-context--delete"
+          />
         </div>
       )
     }

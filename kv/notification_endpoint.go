@@ -104,11 +104,9 @@ func (s *Service) createNotificationEndpoint(ctx context.Context, tx Tx, edp inf
 	}
 	// notification endpoint name unique
 	if _, err := s.findNotificationEndpointByName(ctx, tx, edp.GetOrgID(), edp.GetName()); err == nil {
-		if err == nil {
-			return &influxdb.Error{
-				Code: influxdb.EConflict,
-				Msg:  fmt.Sprintf("notification endpoint with name %s already exists", edp.GetName()),
-			}
+		return &influxdb.Error{
+			Code: influxdb.EConflict,
+			Msg:  fmt.Sprintf("notification endpoint with name %s already exists", edp.GetName()),
 		}
 	}
 	id := s.IDGenerator.ID()

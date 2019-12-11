@@ -33,6 +33,7 @@ import (
 	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/tracing"
+	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -313,6 +314,8 @@ func (c *Controller) countQueryRequest(q *Query, result requestsLabel) {
 }
 
 func (c *Controller) compileQuery(q *Query, compiler flux.Compiler) (err error) {
+	log := c.log.With(influxlogger.TraceFields(q.parentCtx)...)
+
 	defer func() {
 		if e := recover(); e != nil {
 			var ok bool
@@ -320,7 +323,7 @@ func (c *Controller) compileQuery(q *Query, compiler flux.Compiler) (err error) 
 			if !ok {
 				err = fmt.Errorf("panic: %v", e)
 			}
-			if entry := c.log.Check(zapcore.InfoLevel, "panic during compile"); entry != nil {
+			if entry := log.Check(zapcore.InfoLevel, "panic during compile"); entry != nil {
 				entry.Stack = string(debug.Stack())
 				entry.Write(zap.Error(err))
 			}
@@ -344,7 +347,7 @@ func (c *Controller) compileQuery(q *Query, compiler flux.Compiler) (err error) 
 	}
 
 	if p, ok := prog.(lang.LoggingProgram); ok {
-		p.SetLogger(c.log)
+		p.SetLogger(log)
 	}
 
 	q.program = prog
@@ -384,6 +387,7 @@ func (c *Controller) processQueryQueue() {
 
 // executeQuery will execute a compiled program and wait for its completion.
 func (c *Controller) executeQuery(q *Query) {
+
 	defer c.waitForQuery(q)
 	defer func() {
 		if e := recover(); e != nil {
@@ -393,7 +397,8 @@ func (c *Controller) executeQuery(q *Query) {
 				err = fmt.Errorf("panic: %v", e)
 			}
 			q.setErr(err)
-			if entry := c.log.Check(zapcore.InfoLevel, "panic during program start"); entry != nil {
+			if entry := c.log.With(influxlogger.TraceFields(q.parentCtx)...).
+				Check(zapcore.InfoLevel, "panic during program start"); entry != nil {
 				entry.Stack = string(debug.Stack())
 				entry.Write(zap.Error(err))
 			}

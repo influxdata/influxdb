@@ -1,13 +1,24 @@
 // Libraries
-import React, {PureComponent, Suspense} from 'react'
+import React, {PureComponent} from 'react'
+import Loadable from 'react-loadable'
 import {connect} from 'react-redux'
 import {Position} from 'codemirror'
 
 // Components
-const FluxEditor = React.lazy(() => import('src/shared/components/FluxEditor'))
-const FluxMonacoEditor = React.lazy(() =>
-  import('src/shared/components/FluxMonacoEditor')
-)
+const spinner = <div className="time-machine-editor--loading" />
+
+const FluxEditor = Loadable({
+  loader: () => import('src/shared/components/FluxEditor'),
+  loading() {
+    return spinner
+  },
+})
+const FluxMonacoEditor = Loadable({
+  loader: () => import('src/shared/components/FluxMonacoEditor'),
+  loading() {
+    return spinner
+  },
+})
 import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
 import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
@@ -44,8 +55,6 @@ interface State {
 
 type Props = StateProps & DispatchProps
 
-const spinner = <div className="time-machine-editor--loading" />
-
 class TimeMachineFluxEditor extends PureComponent<Props, State> {
   private cursorPosition: Position = {line: 0, ch: 0}
 
@@ -63,26 +72,24 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
         render: () => {
           return (
             <>
-              <Suspense fallback={spinner}>
-                <FeatureFlag name="monacoEditor">
-                  <FluxMonacoEditor
-                    script={activeQueryText}
-                    onChangeScript={onSetActiveQueryText}
-                    onSubmitScript={onSubmitQueries}
-                    onCursorChange={this.handleCursorPosition}
-                  />
-                </FeatureFlag>
-                <FeatureFlag name="monacoEditor" equals={false}>
-                  <FluxEditor
-                    script={activeQueryText}
-                    status={{type: '', text: ''}}
-                    onChangeScript={onSetActiveQueryText}
-                    onSubmitScript={onSubmitQueries}
-                    suggestions={[]}
-                    onCursorChange={this.handleCursorPosition}
-                  />
-                </FeatureFlag>
-              </Suspense>
+              <FeatureFlag name="monacoEditor">
+                <FluxMonacoEditor
+                  script={activeQueryText}
+                  onChangeScript={onSetActiveQueryText}
+                  onSubmitScript={onSubmitQueries}
+                  onCursorChange={this.handleCursorPosition}
+                />
+              </FeatureFlag>
+              <FeatureFlag name="monacoEditor" equals={false}>
+                <FluxEditor
+                  script={activeQueryText}
+                  status={{type: '', text: ''}}
+                  onChangeScript={onSetActiveQueryText}
+                  onSubmitScript={onSubmitQueries}
+                  suggestions={[]}
+                  onCursorChange={this.handleCursorPosition}
+                />
+              </FeatureFlag>
             </>
           )
         },

@@ -72,7 +72,7 @@ func NewVariableHandler(log *zap.Logger, b *VariableBackend) *VariableHandler {
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
-		ResourceType:     platform.DashboardsResourceType,
+		ResourceType:     platform.VariablesResourceType,
 	}
 	h.HandlerFunc("GET", entityLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", entityLabelsPath, newPostLabelHandler(labelBackend))
@@ -115,16 +115,15 @@ type getVariablesRequest struct {
 }
 
 func decodeGetVariablesRequest(ctx context.Context, r *http.Request) (*getVariablesRequest, error) {
-	qp := r.URL.Query()
-	req := &getVariablesRequest{}
-
 	opts, err := decodeFindOptions(ctx, r)
 	if err != nil {
 		return nil, err
 	}
 
-	req.opts = *opts
-
+	req := &getVariablesRequest{
+		opts: *opts,
+	}
+	qp := r.URL.Query()
 	if orgID := qp.Get("orgID"); orgID != "" {
 		id, err := platform.IDFromString(orgID)
 		if err != nil {
@@ -458,21 +457,21 @@ func (s *VariableService) FindVariableByID(ctx context.Context, id platform.ID) 
 // FindVariables returns a list of variables that match filter.
 // Additional options provide pagination & sorting.
 func (s *VariableService) FindVariables(ctx context.Context, filter platform.VariableFilter, opts ...platform.FindOptions) ([]*platform.Variable, error) {
-	var queryPairs [][2]string
+	params := findOptionParams(opts...)
 	if filter.OrganizationID != nil {
-		queryPairs = append(queryPairs, [2]string{"orgID", filter.OrganizationID.String()})
+		params = append(params, [2]string{"orgID", filter.OrganizationID.String()})
 	}
 	if filter.Organization != nil {
-		queryPairs = append(queryPairs, [2]string{"org", *filter.Organization})
+		params = append(params, [2]string{"org", *filter.Organization})
 	}
 	if filter.ID != nil {
-		queryPairs = append(queryPairs, [2]string{"id", filter.ID.String()})
+		params = append(params, [2]string{"id", filter.ID.String()})
 	}
 
 	var ms getVariablesResponse
 	err := s.Client.
 		Get(variablePath).
-		QueryParams(queryPairs...).
+		QueryParams(params...).
 		DecodeJSON(&ms).
 		Do(ctx)
 	if err != nil {

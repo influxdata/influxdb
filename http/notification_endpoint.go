@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/notification/endpoint"
+	"github.com/influxdata/influxdb/pkg/httpc"
 	"go.uber.org/zap"
 )
 
@@ -137,15 +138,15 @@ type notificationEndpointLinks struct {
 	Owners  string `json:"owners"`
 }
 
+type postNotificationEndpointRequest struct {
+	influxdb.NotificationEndpoint
+	Labels []string `json:"labels"`
+}
+
 type notificationEndpointResponse struct {
 	influxdb.NotificationEndpoint
 	Labels []influxdb.Label          `json:"labels"`
 	Links  notificationEndpointLinks `json:"links"`
-}
-
-type postNotificationEndpointRequest struct {
-	influxdb.NotificationEndpoint
-	Labels []string `json:"labels"`
 }
 
 func (resp notificationEndpointResponse) MarshalJSON() ([]byte, error) {
@@ -169,12 +170,12 @@ func (resp notificationEndpointResponse) MarshalJSON() ([]byte, error) {
 }
 
 type notificationEndpointsResponse struct {
-	NotificationEndpoints []*notificationEndpointResponse `json:"notificationEndpoints"`
-	Links                 *influxdb.PagingLinks           `json:"links"`
+	NotificationEndpoints []notificationEndpointResponse `json:"notificationEndpoints"`
+	Links                 *influxdb.PagingLinks          `json:"links"`
 }
 
-func newNotificationEndpointResponse(edp influxdb.NotificationEndpoint, labels []*influxdb.Label) *notificationEndpointResponse {
-	res := &notificationEndpointResponse{
+func newNotificationEndpointResponse(edp influxdb.NotificationEndpoint, labels []*influxdb.Label) notificationEndpointResponse {
+	res := notificationEndpointResponse{
 		NotificationEndpoint: edp,
 		Links: notificationEndpointLinks{
 			Self:    fmt.Sprintf("/api/v2/notificationEndpoints/%s", edp.GetID()),
@@ -194,7 +195,7 @@ func newNotificationEndpointResponse(edp influxdb.NotificationEndpoint, labels [
 
 func newNotificationEndpointsResponse(ctx context.Context, edps []influxdb.NotificationEndpoint, labelService influxdb.LabelService, f influxdb.PagingFilter, opts influxdb.FindOptions) *notificationEndpointsResponse {
 	resp := &notificationEndpointsResponse{
-		NotificationEndpoints: make([]*notificationEndpointResponse, len(edps)),
+		NotificationEndpoints: make([]notificationEndpointResponse, len(edps)),
 		Links:                 newPagingLinks(notificationEndpointsPath, opts, f, len(edps)),
 	}
 	for i, edp := range edps {
@@ -204,7 +205,7 @@ func newNotificationEndpointsResponse(ctx context.Context, edps []influxdb.Notif
 	return resp
 }
 
-func decodeGetNotificationEndpointRequest(ctx context.Context, r *http.Request) (i influxdb.ID, err error) {
+func decodeGetNotificationEndpointRequest(ctx context.Context) (i influxdb.ID, err error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
@@ -228,14 +229,14 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoints(w http.Resp
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	edps, _, err := h.NotificationEndpointService.FindNotificationEndpoints(ctx, *filter, *opts)
+	edps, _, err := h.NotificationEndpointService.FindNotificationEndpoints(ctx, filter, opts)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 	h.log.Debug("NotificationEndpoints retrieved", zap.String("notificationEndpoints", fmt.Sprint(edps)))
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newNotificationEndpointsResponse(ctx, edps, h.LabelService, filter, *opts)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newNotificationEndpointsResponse(ctx, edps, h.LabelService, filter, opts)); err != nil {
 		logEncodingError(h.log, r, err)
 		return
 	}
@@ -243,7 +244,7 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoints(w http.Resp
 
 func (h *NotificationEndpointHandler) handleGetNotificationEndpoint(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	id, err := decodeGetNotificationEndpointRequest(ctx, r)
+	id, err := decodeGetNotificationEndpointRequest(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -267,8 +268,8 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoint(w http.Respo
 	}
 }
 
-func decodeNotificationEndpointFilter(ctx context.Context, r *http.Request) (*influxdb.NotificationEndpointFilter, *influxdb.FindOptions, error) {
-	f := &influxdb.NotificationEndpointFilter{
+func decodeNotificationEndpointFilter(ctx context.Context, r *http.Request) (influxdb.NotificationEndpointFilter, influxdb.FindOptions, error) {
+	f := influxdb.NotificationEndpointFilter{
 		UserResourceMappingFilter: influxdb.UserResourceMappingFilter{
 			ResourceType: influxdb.NotificationEndpointResourceType,
 		},
@@ -276,14 +277,14 @@ func decodeNotificationEndpointFilter(ctx context.Context, r *http.Request) (*in
 
 	opts, err := decodeFindOptions(ctx, r)
 	if err != nil {
-		return f, nil, err
+		return influxdb.NotificationEndpointFilter{}, influxdb.FindOptions{}, err
 	}
 
 	q := r.URL.Query()
 	if orgIDStr := q.Get("orgID"); orgIDStr != "" {
 		orgID, err := influxdb.IDFromString(orgIDStr)
 		if err != nil {
-			return f, opts, &influxdb.Error{
+			return influxdb.NotificationEndpointFilter{}, influxdb.FindOptions{}, &influxdb.Error{
 				Code: influxdb.EInvalid,
 				Msg:  "orgID is invalid",
 				Err:  err,
@@ -297,15 +298,15 @@ func decodeNotificationEndpointFilter(ctx context.Context, r *http.Request) (*in
 	if userID := q.Get("user"); userID != "" {
 		id, err := influxdb.IDFromString(userID)
 		if err != nil {
-			return f, opts, err
+			return influxdb.NotificationEndpointFilter{}, influxdb.FindOptions{}, err
 		}
 		f.UserID = *id
 	}
 
-	return f, opts, err
+	return f, *opts, err
 }
 
-func decodePostNotificationEndpointRequest(ctx context.Context, r *http.Request) (postNotificationEndpointRequest, error) {
+func decodePostNotificationEndpointRequest(r *http.Request) (postNotificationEndpointRequest, error) {
 	var req postNotificationEndpointRequest
 	buf := new(bytes.Buffer)
 	_, err := buf.ReadFrom(r.Body)
@@ -340,14 +341,14 @@ func decodePostNotificationEndpointRequest(ctx context.Context, r *http.Request)
 
 func decodePutNotificationEndpointRequest(ctx context.Context, r *http.Request) (influxdb.NotificationEndpoint, error) {
 	buf := new(bytes.Buffer)
-	_, err := buf.ReadFrom(r.Body)
-	if err != nil {
+	if _, err := buf.ReadFrom(r.Body); err != nil {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,
 		}
 	}
 	defer r.Body.Close()
+
 	edp, err := endpoint.UnmarshalJSON(buf.Bytes())
 	if err != nil {
 		return nil, &influxdb.Error{
@@ -355,16 +356,10 @@ func decodePutNotificationEndpointRequest(ctx context.Context, r *http.Request) 
 			Err:  err,
 		}
 	}
+
 	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
-	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "url missing id",
-		}
-	}
-	i := new(influxdb.ID)
-	if err := i.DecodeFromString(id); err != nil {
+	i, err := influxdb.IDFromString(params.ByName("id"))
+	if err != nil {
 		return nil, err
 	}
 	edp.SetID(*i)
@@ -376,45 +371,38 @@ type patchNotificationEndpointRequest struct {
 	Update influxdb.NotificationEndpointUpdate
 }
 
-func decodePatchNotificationEndpointRequest(ctx context.Context, r *http.Request) (*patchNotificationEndpointRequest, error) {
-	req := &patchNotificationEndpointRequest{}
+func decodePatchNotificationEndpointRequest(ctx context.Context, r *http.Request) (patchNotificationEndpointRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
-	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "url missing id",
-		}
+	id, err := influxdb.IDFromString(params.ByName("id"))
+	if err != nil {
+		return patchNotificationEndpointRequest{}, err
+	}
+	req := patchNotificationEndpointRequest{
+		ID: *id,
 	}
 
-	var i influxdb.ID
-	if err := i.DecodeFromString(id); err != nil {
-		return nil, err
-	}
-	req.ID = i
-
-	upd := &influxdb.NotificationEndpointUpdate{}
-	if err := json.NewDecoder(r.Body).Decode(upd); err != nil {
-		return nil, &influxdb.Error{
+	var upd influxdb.NotificationEndpointUpdate
+	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
+		return patchNotificationEndpointRequest{}, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
 	if err := upd.Valid(); err != nil {
-		return nil, &influxdb.Error{
+		return patchNotificationEndpointRequest{}, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
 
-	req.Update = *upd
+	req.Update = upd
 	return req, nil
 }
 
 // handlePostNotificationEndpoint is the HTTP handler for the POST /api/v2/notificationEndpoints route.
 func (h *NotificationEndpointHandler) handlePostNotificationEndpoint(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	edp, err := decodePostNotificationEndpointRequest(ctx, r)
+	edp, err := decodePostNotificationEndpointRequest(r)
 	if err != nil {
 		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
@@ -563,7 +551,7 @@ func (h *NotificationEndpointHandler) handlePatchNotificationEndpoint(w http.Res
 
 func (h *NotificationEndpointHandler) handleDeleteNotificationEndpoint(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	i, err := decodeGetNotificationEndpointRequest(ctx, r)
+	i, err := decodeGetNotificationEndpointRequest(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -595,4 +583,128 @@ func (h *NotificationEndpointHandler) handleDeleteNotificationEndpoint(w http.Re
 	h.log.Debug("NotificationEndpoint deleted", zap.String("notificationEndpointID", fmt.Sprint(i)))
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// NotificationEndpointService is an http client for the influxdb.NotificationEndpointService server implementation.
+type NotificationEndpointService struct {
+	Client *httpc.Client
+	*UserResourceMappingService
+	*OrganizationService
+}
+
+// NewNotificationEndpointService constructs a new http NotificationEndpointService.
+func NewNotificationEndpointService(client *httpc.Client) *NotificationEndpointService {
+	return &NotificationEndpointService{
+		Client: client,
+		UserResourceMappingService: &UserResourceMappingService{
+			Client: client,
+		},
+		OrganizationService: &OrganizationService{
+			Client: client,
+		},
+	}
+}
+
+var _ influxdb.NotificationEndpointService = (*NotificationEndpointService)(nil)
+
+// FindNotificationEndpointByID returns a single notification endpoint by ID.
+func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+	var resp notificationEndpointResponse
+	err := s.Client.
+		Get(notificationEndpointsPath, id.String()).
+		DecodeJSON(&resp).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return resp.NotificationEndpoint, nil
+}
+
+// FindNotificationEndpoints returns a list of notification endpoints that match filter and the total count of matching notification endpoints.
+// Additional options provide pagination & sorting.
+func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+	params := findOptionParams(opt...)
+	if filter.ID != nil {
+		params = append(params, [2]string{"id", filter.ID.String()})
+	}
+	if filter.OrgID != nil {
+		params = append(params, [2]string{"orgID", filter.OrgID.String()})
+	}
+	if filter.Org != nil {
+		params = append(params, [2]string{"org", *filter.Org})
+	}
+
+	var resp notificationEndpointsResponse
+	err := s.Client.
+		Get(notificationEndpointsPath).
+		QueryParams(params...).
+		DecodeJSON(&resp).
+		Do(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var endpoints []influxdb.NotificationEndpoint
+	for _, e := range resp.NotificationEndpoints {
+		endpoints = append(endpoints, e.NotificationEndpoint)
+	}
+
+	return endpoints, len(resp.NotificationEndpoints), nil
+}
+
+// CreateNotificationEndpoint creates a new notification endpoint and sets b.ID with the new identifier.
+// TODO(@jsteenb2): this is unsatisfactory, we have no way of grabbing the new notification endpoint without
+//  serious hacky hackertoning. Put it on the list...
+func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Context, ne influxdb.NotificationEndpoint, userID influxdb.ID) error {
+	// userID is ignored here since server reads it off
+	// the token/auth. its a nothing burger here
+	var resp notificationEndpointResponse
+	err := s.Client.
+		Post(httpc.BodyJSON(ne), notificationEndpointsPath).
+		DecodeJSON(&resp).
+		Do(ctx)
+	if err != nil {
+		return err
+	}
+	// :sadpanda:
+	ne.SetID(resp.GetID())
+	ne.SetOrgID(resp.GetOrgID())
+	return nil
+}
+
+// UpdateNotificationEndpoint updates a single notification endpoint.
+// Returns the new notification endpoint after update.
+func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID, nr influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
+	var resp notificationEndpointResponse
+	err := s.Client.
+		Put(httpc.BodyJSON(nr), notificationEndpointsPath, id.String()).
+		DecodeJSON(&resp).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return resp.NotificationEndpoint, nil
+}
+
+// PatchNotificationEndpoint updates a single  notification endpoint with changeset.
+// Returns the new notification endpoint state after update.
+func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
+	if err := upd.Valid(); err != nil {
+		return nil, err
+	}
+
+	var resp notificationEndpointResponse
+	err := s.Client.
+		Patch(httpc.BodyJSON(upd), notificationEndpointsPath, id.String()).
+		DecodeJSON(&resp).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return resp.NotificationEndpoint, nil
+}
+
+// DeleteNotificationEndpoint removes a notification endpoint by ID, returns secret fields, orgID for further deletion.
+func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) (flds []influxdb.SecretField, orgID influxdb.ID, err error) {
+	panic("not implemented")
 }

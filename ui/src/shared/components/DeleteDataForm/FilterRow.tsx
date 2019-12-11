@@ -24,13 +24,12 @@ interface Props {
   keys: string[]
   onChange: (filter: Filter) => any
   onDelete: () => any
-  orgID: string
   shouldValidate: boolean
   values: (string | number)[]
 }
 
 interface DispatchProps {
-  setValuesByKey: (orgID: string, bucketName: string, keyName: string) => void
+  setValuesByKey: typeof setValuesByKey
 }
 
 const FilterRow: FC<Props & DispatchProps> = ({
@@ -39,7 +38,6 @@ const FilterRow: FC<Props & DispatchProps> = ({
   keys,
   onChange,
   onDelete,
-  orgID,
   setValuesByKey,
   shouldValidate,
   values,
@@ -51,13 +49,15 @@ const FilterRow: FC<Props & DispatchProps> = ({
   const valueErrorMessage =
     shouldValidate && value.trim() === '' ? 'Value cannot be empty' : null
 
-  const onChangeKey = input => onChange({key: input, equality, value})
-  const onKeySelect = input => {
-    setValuesByKey(orgID, bucket, input)
+  const onChangeKey = (input: string) => onChange({key: input, equality, value})
+  const onKeySelect = (input: string) => {
+    setValuesByKey(bucket, input)
     onChange({key: input, equality, value})
   }
-  const onChangeValue = input => onChange({key, equality, value: input})
-  const onChangeEquality = e => onChange({key, equality: e, value})
+  const onChangeValue = (input: string) =>
+    onChange({key, equality, value: input})
+
+  const onChangeEquality = (e: string) => onChange({key, equality: e, value})
 
   return (
     <div className="delete-data-filter">

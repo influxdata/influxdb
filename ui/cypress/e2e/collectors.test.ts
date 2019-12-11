@@ -176,7 +176,7 @@ describe('Collectors', () => {
         cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
       })
       // filter by name
-      it('can filter telegraf configs and sort by bucket and name', () => {
+      it('can filter telegraf configs and sort by name', () => {
         // fixes https://github.com/influxdata/influxdb/issues/15246
         cy.getByTestID('search-widget').type(firstTelegraf)
         cy.getByTestID('resource-card').should('have.length', 1)
@@ -210,37 +210,6 @@ describe('Collectors', () => {
 
         // sort by buckets test here
         cy.reload() // clear out filtering state from the previous test
-        cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
-
-        cy.getByTestID('bucket-sorter')
-          .click()
-          .then(() => {
-            // NOTE: this then is just here to let me scope this variable (alex)
-            const testBucket = bucketz.slice(0).sort()
-            cy.getByTestID('bucket-name')
-              .should('have.length', 3)
-              .each((val, index) => {
-                const text = val.text()
-                expect(text).to.include(testBucket[index])
-              })
-          })
-
-        cy.getByTestID('bucket-sorter')
-          .click()
-          .then(() => {
-            // NOTE: this then is just here to let me scope this variable (alex)
-            const testBucket = bucketz
-              .slice(0)
-              .sort()
-              .reverse()
-            cy.getByTestID('bucket-name').each((val, index) => {
-              const text = val.text()
-              expect(text).to.include(testBucket[index])
-            })
-          })
-
-        // sort by name test here
-        cy.reload() // clear out sorting state from previous test
         cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
 
         cy.getByTestID('collector-card--name').should('have.length', 3)

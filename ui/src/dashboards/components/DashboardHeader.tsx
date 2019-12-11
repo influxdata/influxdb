@@ -4,9 +4,7 @@ import _ from 'lodash'
 
 // Components
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
-import TimeRangeDropdown, {
-  RangeType,
-} from 'src/shared/components/TimeRangeDropdown'
+import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
@@ -26,17 +24,21 @@ import {
 
 // Types
 import * as AppActions from 'src/types/actions/app'
-import * as QueriesModels from 'src/types/queries'
-import {Dashboard} from '@influxdata/influx'
-import {AutoRefresh, AutoRefreshStatus, Organization} from 'src/types'
+import {
+  Dashboard,
+  AutoRefresh,
+  AutoRefreshStatus,
+  Organization,
+  TimeRange,
+} from 'src/types'
 
 interface Props {
   org: Organization
   activeDashboard: string
   dashboard: Dashboard
-  timeRange: QueriesModels.TimeRange
+  timeRange: TimeRange
   autoRefresh: AutoRefresh
-  handleChooseTimeRange: (timeRange: QueriesModels.TimeRange) => void
+  handleChooseTimeRange: (timeRange: TimeRange) => void
   handleChooseAutoRefresh: (autoRefreshInterval: number) => void
   onSetAutoRefreshStatus: (status: AutoRefreshStatus) => void
   onManualRefresh: () => void
@@ -46,31 +48,21 @@ interface Props {
   toggleVariablesControlBar: () => void
   isShowingVariablesControlBar: boolean
   onAddNote: () => void
-  zoomedTimeRange: QueriesModels.TimeRange
 }
 
 export default class DashboardHeader extends Component<Props> {
-  public static defaultProps = {
-    zoomedTimeRange: {
-      upper: null,
-      lower: null,
-    },
-  }
-
   public render() {
     const {
       org,
       handleChooseAutoRefresh,
       onManualRefresh,
-      timeRange,
-      timeRange: {upper, lower},
-      zoomedTimeRange: {upper: zoomedUpper, lower: zoomedLower},
       toggleVariablesControlBar,
       isShowingVariablesControlBar,
       onRenameDashboard,
       onAddCell,
       activeDashboard,
       autoRefresh,
+      timeRange,
     } = this.props
 
     return (
@@ -106,11 +98,7 @@ export default class DashboardHeader extends Component<Props> {
           />
           <TimeRangeDropdown
             onSetTimeRange={this.handleChooseTimeRange}
-            timeRange={{
-              ...timeRange,
-              upper: zoomedUpper || upper,
-              lower: zoomedLower || lower,
-            }}
+            timeRange={timeRange}
           />
           <Button
             icon={IconFont.Cube}
@@ -140,10 +128,7 @@ export default class DashboardHeader extends Component<Props> {
     this.props.handleClickPresentationButton()
   }
 
-  private handleChooseTimeRange = (
-    timeRange: QueriesModels.TimeRange,
-    rangeType: RangeType = RangeType.Relative
-  ) => {
+  private handleChooseTimeRange = (timeRange: TimeRange) => {
     const {
       autoRefresh,
       onSetAutoRefreshStatus,
@@ -152,7 +137,7 @@ export default class DashboardHeader extends Component<Props> {
 
     handleChooseTimeRange(timeRange)
 
-    if (rangeType === RangeType.Absolute) {
+    if (timeRange.type === 'custom') {
       onSetAutoRefreshStatus(AutoRefreshStatus.Disabled)
       return
     }

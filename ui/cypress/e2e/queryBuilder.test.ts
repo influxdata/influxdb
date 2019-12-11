@@ -1,4 +1,9 @@
 import {Organization} from '../../src/types'
+interface ResourceIDs {
+  orgID: string
+  dbID: string
+  cellID: string
+}
 
 const generateRandomSixDigitNumber = () => {
   const digits = []
@@ -25,7 +30,7 @@ describe('The Query Builder', () => {
     ])
   })
 
-  describe('from the data explorer screen', () => {
+  describe('from the Data Explorer', () => {
     it('creates a query, edits it to add another field, then views its results with pride and satisfaction', () => {
       cy.get('@org').then((org: Organization) => {
         cy.visit(`orgs/${org.id}/data-explorer`)
@@ -83,21 +88,27 @@ describe('The Query Builder', () => {
     })
   })
 
-  describe('from the Dashboard screen', () => {
-    it("creates a query, edits the query, edits the cell's default name, edits it again, submits with the keyboard, then chills", () => {
+  describe('from the Dashboard view', () => {
+    beforeEach(() => {
       cy.get('@org').then((org: Organization) => {
-        cy.visit(`orgs/${org.id}/dashboards`)
+        cy.createDashboard(org.id).then(({body}) => {
+          cy.createCell(body.id).then(cellResp => {
+            const dbID = body.id
+            const orgID = org.id
+            const cellID = cellResp.body.id
+            cy.createView(dbID, cellID)
+            cy.wrap({orgID, dbID, cellID}).as('resourceIDs')
+          })
+        })
+      })
+    })
+
+    it("creates a query, edits the query, edits the cell's default name, edits it again, submits with the keyboard, then chills", () => {
+      cy.get<ResourceIDs>('@resourceIDs').then(({orgID, dbID, cellID}) => {
+        cy.visit(`orgs/${orgID}/dashboards/${dbID}/cells/${cellID}/edit`)
       })
 
-      cy.getByTestID('empty-dashboards-list')
-        .contains('Create Dashboard')
-        .click()
-      cy.contains('New Dashboard').click()
-
-      cy.get('.dashboard-empty')
-        .contains('Add Cell')
-        .click()
-
+      // build query
       cy.contains('mem').click('topLeft') // users sometimes click in random spots
       cy.contains('cached').click('bottomLeft')
       cy.contains('thrillbo-swaggins').click('left')
@@ -105,20 +116,7 @@ describe('The Query Builder', () => {
 
       cy.getByTestID('empty-graph--no-queries').should('exist')
       cy.contains('Submit').click()
-      cy.getByTestID('empty-graph--no-queries').should('not.exist')
-
-      cy.getByTestID('save-cell--button').click()
-
-      cy.getByTestID('cell-context--toggle').click()
-      cy.contains('Configure').click()
-
-      cy.contains('active').click()
-
-      cy.contains('Submit').click()
-      cy.getByTestID('save-cell--button').click()
-
-      cy.getByTestID('cell-context--toggle').click()
-      cy.contains('Configure').click()
+      cy.getByTestID('giraffe-layer-line').should('exist')
       cy.getByTestID('overlay')
         .contains('Name this Cell')
         .click()
@@ -126,11 +124,20 @@ describe('The Query Builder', () => {
       cy.get('.veo-contents').click() // click out of inline editor
       cy.getByTestID('save-cell--button').click()
 
-      cy.getByTestID('cell-context--toggle').click()
-      cy.contains('Configure').click()
+      // A race condition exists between saving the cell's updated name and re-opening the cell.
+      // Will replace this with a cy.wait(@updateCell) when Cypress supports
+      // waiting on window.fetch responses: https://github.com/cypress-io/cypress/issues/95
+      // resolves: https://github.com/influxdata/influxdb/issues/16141
+
+      cy.get<ResourceIDs>('@resourceIDs').then(({orgID, dbID, cellID}) => {
+        cy.visit(`orgs/${orgID}/dashboards/${dbID}/cells/${cellID}/edit`)
+      })
+
+      cy.getByTestID('giraffe-layer-line').should('exist')
       cy.getByTestID('overlay')
         .contains('A better name!')
         .click()
+
       cy.get('[placeholder="Name this Cell"]').type(
         "Uncle Moe's Family Feedbag{enter}"
       )
