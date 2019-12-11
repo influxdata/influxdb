@@ -356,6 +356,30 @@ describe('Collectors', () => {
           })
       })
     })
+
+    // fix for https://github.com/influxdata/influxdb/issues/15730
+    it('creates a configuration with a unique label', () => {
+      cy.contains('Create Configuration').click()
+
+      cy.contains('Docker').click()
+
+      cy.contains('Continue').click()
+
+      cy.contains('docker').click()
+
+      cy.get('[name="endpoint"]').type('http://localhost')
+
+      cy.contains('Done').click()
+      cy.get('input[title="Telegraf Configuration Name"]').type('Label 1')
+      cy.get('input[title="Telegraf Configuration Description"]').type(
+        'Description 1'
+      )
+
+      cy.contains('Create and Verify').click()
+
+      cy.contains('Your configurations have been saved')
+    })
+
     describe('Label creation and searching', () => {
       beforeEach(() => {
         const description = 'Config Description'

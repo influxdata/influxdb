@@ -1448,7 +1448,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         name: 'timeout',
         desc: 'Timeout for the GET request. Default is `30s`.',
         type: 'Duration',
-      }
+      },
     ],
     package: 'experimental/http',
     desc:

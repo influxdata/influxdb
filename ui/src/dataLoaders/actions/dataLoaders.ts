@@ -454,7 +454,7 @@ const createTelegraf = async (dispatch, getState, plugins) => {
 
     const createdLabel = await client.labels.create({
       orgID: org.id,
-      name: '@influxdata.token',
+      name: `@influxdata.token-${new Date().getTime()}`, // fix for https://github.com/influxdata/influxdb/issues/15730
       properties,
     })
 
