@@ -8,8 +8,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 const spinner = <div className="time-machine-editor--loading" />
 const Editor = Loadable({
-  loader: () =>
-    import('react-codemirror2').then(module => ({default: module.Controlled})),
+  loader: () => import('react-codemirror2').then(module => module.Controlled),
   loading() {
     return spinner
   },
