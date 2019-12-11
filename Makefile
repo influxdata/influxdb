@@ -1,7 +1,7 @@
 # Top level Makefile for the entire project
 #
-# This Makefile encodes the "go generate" prerequeisites ensuring that the proper tooling is installed and
-# that the generate steps are executed when their prerequeisites files change.
+# This Makefile encodes the "go generate" prerequisites ensuring that the proper tooling is installed and
+# that the generate steps are executed when their prerequisite files change.
 #
 # This Makefile follows a few conventions:
 #
@@ -12,18 +12,20 @@
 #
 
 # SUBDIRS are directories that have their own Makefile.
-# It is required that all subdirs have the `all` and `clean` targets.
+# It is required that all SUBDIRS have the `all` and `clean` targets.
 SUBDIRS := http ui chronograf query storage
+# The 'libflux' tag is required for instructing the flux to be compiled with the Rust parser
+GO_TAGS=libflux
 GO_ARGS=-tags '$(GO_TAGS)'
 
 # Test vars can be used by all recursive Makefiles
 export GOOS=$(shell go env GOOS)
-export GO_BUILD=env GO111MODULE=on go build $(GO_ARGS)
-export GO_INSTALL=env GO111MODULE=on go install $(GO_ARGS)
-export GO_TEST=env GOTRACEBACK=all GO111MODULE=on go test $(GO_ARGS)
+export GO_BUILD=env GO111MODULE=on CGO_LDFLAGS="$$(cat .cgo_ldflags)" go build $(GO_ARGS)
+export GO_INSTALL=env GO111MODULE=on CGO_LDFLAGS="$$(cat .cgo_ldflags)" go install $(GO_ARGS)
+export GO_TEST=env FLUX_PARSER_TYPE=rust GOTRACEBACK=all GO111MODULE=on CGO_LDFLAGS="$$(cat .cgo_ldflags)" go test $(GO_ARGS)
 # Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.
 export GO_GENERATE=go generate $(GO_ARGS)
-export GO_VET=env GO111MODULE=on go vet $(GO_ARGS)
+export GO_VET=env GO111MODULE=on CGO_LDFLAGS="$$(cat .cgo_ldflags)" go vet $(GO_ARGS)
 export GO_RUN=env GO111MODULE=on go run $(GO_ARGS)
 export PATH := $(PWD)/bin/$(GOOS):$(PATH)
 
@@ -50,7 +52,7 @@ CMDS := \
 # This target sets up the dependencies to correctly build all go commands.
 # Other targets must depend on this target to correctly builds CMDS.
 ifeq ($(GOARCH), arm64)
-    all: GO_ARGS=-tags ' assets noasm $(GO_TAGS)'
+    all: GO_ARGS=-tags 'assets noasm $(GO_TAGS)'
 else
     all: GO_ARGS=-tags 'assets $(GO_TAGS)'
 endif
@@ -64,7 +66,7 @@ subdirs: $(SUBDIRS)
 #
 # Define targets for commands
 #
-$(CMDS): $(SOURCES)
+$(CMDS): $(SOURCES) libflux
 	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
 
 # Ease of use build for just the go binary
@@ -96,6 +98,12 @@ ui_client:
 # Define action only targets
 #
 
+libflux: .cgo_ldflags
+
+.cgo_ldflags: go.mod
+	$(GO_RUN) github.com/influxdata/flux/internal/cmd/flux-config --libs --verbose > .cgo_ldflags.tmp
+	mv .cgo_ldflags.tmp .cgo_ldflags
+
 fmt: $(SOURCES_NO_VENDOR)
 	gofmt -w -s $^
 
@@ -120,7 +128,7 @@ generate: subdirs
 test-js: node_modules
 	make -C ui test
 
-test-go:
+test-go: libflux
 	$(GO_TEST) ./...
 
 test-promql-e2e:
@@ -132,13 +140,13 @@ test-integration:
 
 test: test-go test-js
 
-test-go-race:
+test-go-race: libflux
 	$(GO_TEST) -v -race -count=1 ./...
 
-vet:
+vet: libflux
 	$(GO_VET) -v ./...
 
-bench:
+bench: libflux
 	$(GO_TEST) -bench=. -run=^$$ ./...
 
 build: all
@@ -158,6 +166,7 @@ clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
 	$(RM) -r bin
 	$(RM) -r dist
+	$(RM) .cgo_ldflags
 
 define CHRONOGIRAFFE
              ._ o o
@@ -186,4 +195,4 @@ protoc:
 	chmod +x /go/bin/protoc
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd
+.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux
