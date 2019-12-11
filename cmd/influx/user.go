@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 
 	platform "github.com/influxdata/influxdb"
@@ -170,36 +169,27 @@ func userCreateF(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	var orgIDStr string
-
-	if userCreateFlags.orgID != "" {
-		orgIDStr = userCreateFlags.orgID
-	} else if userCreateFlags.org != "" {
-		orgSvc, err := newOrganizationService()
-		if err != nil {
-			return fmt.Errorf("failed to initialize organization service client: %v", err)
-		}
-
-		filter := platform.OrganizationFilter{Name: &bucketCreateFlags.org}
-		org, err := orgSvc.FindOrganization(context.Background(), filter)
-		if err != nil {
-			return fmt.Errorf("%v", err)
-		}
-
-		orgIDStr = org.ID.GoString()
+	orgSVC, err := newOrganizationService()
+	if err != nil {
+		return err
 	}
+
+	orgID, err := getOrgID(orgSVC, userCreateFlags.orgID, userCreateFlags.org)
+	if err != nil {
+		return err
+	}
+
 	pass := userCreateFlags.password
-	if orgIDStr == "" && pass == "" {
+	if orgID == 0 && pass == "" {
 		return writeOutput([]string{"ID", "Name"}, user.ID.String(), user.Name)
 	}
 
-	if pass != "" && orgIDStr == "" {
+	if pass != "" && orgID == 0 {
 		return errors.New("an org id is required when providing a user password")
 	}
 
-	orgID, err := platform.IDFromString(orgIDStr)
 	if err != nil {
-		return errors.New("an invalid org ID provided: " + orgIDStr)
+		return errors.New("an invalid org ID provided: " + orgID.GoString())
 	}
 
 	c, err := newHTTPClient()
@@ -215,7 +205,7 @@ func userCreateF(cmd *cobra.Command, args []string) error {
 		UserID:       user.ID,
 		UserType:     platform.Member,
 		ResourceType: platform.OrgsResourceType,
-		ResourceID:   *orgID,
+		ResourceID:   orgID,
 	})
 	if err != nil {
 		return err
