@@ -1,9 +1,19 @@
 // Libraries
 import React, {FC} from 'react'
-import {FunnelPage, Button} from '@influxdata/clockface'
+import {FunnelPage, Button, ComponentColor} from '@influxdata/clockface'
 import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 
-const NoOrgsPage: FC<WithRouterProps> = ({router}) => {
+// Types
+import {AppState} from 'src/types'
+
+interface DispatchProps {
+  me: AppState['me']
+}
+
+type Props = DispatchProps & WithRouterProps
+
+const NoOrgsPage: FC<Props> = ({router, me}) => {
   const handleClick = () => {
     router.push('/signin')
   }
@@ -16,11 +26,24 @@ const NoOrgsPage: FC<WithRouterProps> = ({router}) => {
           width="170"
         />
       </div>
-      <h1 className="cf-funnel-page--title">Whoops, no orgs!</h1>
-      <p>Add this user to an organization to continue</p>
-      <Button text="Sign In" onClick={handleClick} />
+      <h1 className="cf-funnel-page--title">Whoops!</h1>
+      <p className="cf-funnel-page--subtitle">
+        You don't belong to an organization.
+        <br />
+        Add user <strong>{`"${me.name}"`}</strong> to an organization to
+        continue
+      </p>
+      <Button
+        text="Sign In"
+        color={ComponentColor.Primary}
+        onClick={handleClick}
+      />
     </FunnelPage>
   )
 }
 
-export default withRouter(NoOrgsPage)
+const mstp = ({me}: AppState) => {
+  return {me}
+}
+
+export default connect(mstp)(withRouter(NoOrgsPage))
