@@ -693,7 +693,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxd
 	}
 
 	return s.Client.
-		Post(httpc.BodyJSON(o), organizationPath).
+		PostJSON(o, organizationPath).
 		DecodeJSON(o).
 		Do(ctx)
 }
@@ -708,7 +708,7 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id influxd
 
 	var o influxdb.Organization
 	err := s.Client.
-		Patch(httpc.BodyJSON(upd), organizationPath, id.String()).
+		PatchJSON(upd, organizationPath, id.String()).
 		DecodeJSON(&o).
 		Do(ctx)
 	if err != nil {

@@ -852,7 +852,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 
 	var br bucketResponse
 	err := s.Client.
-		Post(httpc.BodyJSON(newBucket(b)), prefixBuckets).
+		PostJSON(newBucket(b), prefixBuckets).
 		DecodeJSON(&br).
 		Do(ctx)
 	if err != nil {
@@ -872,7 +872,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 	var br bucketResponse
 	err := s.Client.
-		Patch(httpc.BodyJSON(newBucketUpdate(&upd)), bucketIDPath(id)).
+		PatchJSON(newBucketUpdate(&upd), bucketIDPath(id)).
 		DecodeJSON(&br).
 		Do(ctx)
 	if err != nil {

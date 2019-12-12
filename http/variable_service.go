@@ -491,7 +491,7 @@ func (s *VariableService) CreateVariable(ctx context.Context, m *platform.Variab
 	}
 
 	return s.Client.
-		Post(httpc.BodyJSON(m), prefixVariables).
+		PostJSON(m, prefixVariables).
 		DecodeJSON(m).
 		Do(ctx)
 }
@@ -500,7 +500,7 @@ func (s *VariableService) CreateVariable(ctx context.Context, m *platform.Variab
 func (s *VariableService) UpdateVariable(ctx context.Context, id platform.ID, update *platform.VariableUpdate) (*platform.Variable, error) {
 	var m platform.Variable
 	err := s.Client.
-		Patch(httpc.BodyJSON(update), prefixVariables, id.String()).
+		PatchJSON(update, prefixVariables, id.String()).
 		DecodeJSON(&m).
 		Do(ctx)
 	if err != nil {
@@ -513,7 +513,7 @@ func (s *VariableService) UpdateVariable(ctx context.Context, id platform.ID, up
 // ReplaceVariable replaces a single variable
 func (s *VariableService) ReplaceVariable(ctx context.Context, variable *platform.Variable) error {
 	return s.Client.
-		Put(httpc.BodyJSON(variable), prefixVariables, variable.ID.String()).
+		PutJSON(variable, prefixVariables, variable.ID.String()).
 		DecodeJSON(variable).
 		Do(ctx)
 }
