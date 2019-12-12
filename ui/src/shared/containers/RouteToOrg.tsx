@@ -5,9 +5,6 @@ import {WithRouterProps} from 'react-router'
 
 // Types
 import {AppState, Organization} from 'src/types'
-import organizations from '@influxdata/influx/dist/wrappers/organizations'
-
-// Decorators
 
 interface StateProps {
   orgs: Organization[]
