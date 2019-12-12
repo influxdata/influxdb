@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import { findIndex } from 'lodash'
+import {findIndex} from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'

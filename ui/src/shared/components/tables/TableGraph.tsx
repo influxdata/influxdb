@@ -25,10 +25,7 @@ interface State {
 class TableGraph extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
-    const sortField = get(
-      props,
-      'properties.tableOptions.sortBy.internalName'
-    )
+    const sortField = get(props, 'properties.tableOptions.sortBy.internalName')
 
     this.state = {
       sortOptions: {

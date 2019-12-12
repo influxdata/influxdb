@@ -6,7 +6,7 @@ export const getReadWriteCardinalityLimits = async (
 ): Promise<LimitsStatus> => {
   const resp = await request(
     'GET',
-    `/api/v2private/orgs/${orgID}/limits/status`,
+    `/api/v2private/orgs/${orgID}/limits/status`
   )
 
   if (resp.status !== 200) {
@@ -17,10 +17,7 @@ export const getReadWriteCardinalityLimits = async (
 }
 
 export const getLimits = async (orgID: string): Promise<Limits> => {
-  const resp = await request(
-    'GET',
-    `/api/v2private/orgs/${orgID}/limits`,
-  )
+  const resp = await request('GET', `/api/v2private/orgs/${orgID}/limits`)
 
   if (resp.status !== 200) {
     throw new Error(resp.data.message)

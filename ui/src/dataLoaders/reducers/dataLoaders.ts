@@ -138,11 +138,7 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
           if (tp.name === action.payload.pluginName) {
             const plugin = get(tp, 'plugin', createNewPlugin(tp.name))
 
-            const config = get(
-              plugin,
-              ['config', action.payload.fieldName],
-              []
-            )
+            const config = get(plugin, ['config', action.payload.fieldName], [])
 
             const updatedConfigFieldValue: string[] = [
               ...config,

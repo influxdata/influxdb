@@ -1,9 +1,5 @@
 // Libraries
-import {
-  get,
-  set,
-  omit,
-} from 'lodash'
+import {get} from 'lodash'
 
 // API
 import * as api from 'src/client'

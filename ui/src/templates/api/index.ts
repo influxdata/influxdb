@@ -1,8 +1,4 @@
-import {
-  isEmpty,
-  flatMap,
-  get
-} from 'lodash'
+import {isEmpty, flatMap, get} from 'lodash'
 import {
   DashboardTemplate,
   TemplateType,

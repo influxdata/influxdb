@@ -1,5 +1,5 @@
 // Libraries
-import { get } from 'lodash'
+import {get} from 'lodash'
 import {ThunkAction} from 'redux-thunk'
 
 // Constants

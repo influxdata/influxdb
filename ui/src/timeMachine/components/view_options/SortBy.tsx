@@ -36,8 +36,7 @@ const SortBy = ({fieldOptions, onChange, selected}: Props) => {
                     value={field}
                     onClick={onChange}
                     selected={
-                      field.internalName ===
-                      get(selected, 'internalName', null)
+                      field.internalName === get(selected, 'internalName', null)
                     }
                   >
                     {field.displayName}

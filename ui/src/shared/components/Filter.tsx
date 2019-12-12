@@ -1,5 +1,14 @@
 import {PureComponent} from 'react'
-import {sortBy, get, flatMap, isEmpty, isString, isObject, isArray, sortedIndex} from 'lodash'
+import {
+  sortBy,
+  get,
+  flatMap,
+  isEmpty,
+  isString,
+  isObject,
+  isArray,
+  sortedIndex,
+} from 'lodash'
 
 // searchKeys: the keys whose values you want to filter on
 // if the values are nested use dot notation i.e. tasks.org.name

@@ -1,7 +1,4 @@
-import {
-  trimEnd,
-  get
-} from 'lodash'
+import {trimEnd, get} from 'lodash'
 import Papa from 'papaparse'
 
 interface MapResult {

@@ -93,10 +93,7 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
 
   // Group rows by their table id
   const tablesData = Object.values(
-    groupBy<TableGroup[]>(
-      nonAnnotationData.slice(1),
-      row => row[tableColIndex]
-    )
+    groupBy<TableGroup[]>(nonAnnotationData.slice(1), row => row[tableColIndex])
   )
 
   const groupRow = annotationData.find(row => row[0] === '#group')
@@ -116,8 +113,7 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
     const dataRow = get(tableData, '0', defaultsRow)
 
     const result: string =
-      get(dataRow, resultColIndex, '') ||
-      get(defaultsRow, resultColIndex, '')
+      get(dataRow, resultColIndex, '') || get(defaultsRow, resultColIndex, '')
 
     const groupKey = groupKeyIndices.reduce((acc, i) => {
       return {...acc, [headerRow[i]]: get(dataRow, i, '')}

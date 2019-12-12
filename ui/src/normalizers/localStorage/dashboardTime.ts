@@ -1,5 +1,5 @@
 // Libraries
-import {isString, isNull, isObject} from 'lodash'
+import {isString, isNull, isObject, isInteger} from 'lodash'
 
 // Utils
 import {validateAndTypeRange} from 'src/dashboards/utils/time'

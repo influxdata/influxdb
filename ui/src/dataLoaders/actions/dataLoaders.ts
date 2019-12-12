@@ -46,7 +46,7 @@ import {
   TelegrafConfigCreationSuccess,
   readWriteCardinalityLimitReached,
 } from 'src/shared/copy/notifications'
-import { Authorization } from 'src/client'
+import {Authorization} from 'src/client'
 
 type GetState = () => AppState
 
@@ -436,7 +436,7 @@ const createTelegraf = async (dispatch, getState, plugins) => {
     }
 
     // create token
-    const response = await postAuthorization({ data: token })
+    const response = await postAuthorization({data: token})
     if (response.status !== 201) {
       throw new Error(response.data.message)
     }

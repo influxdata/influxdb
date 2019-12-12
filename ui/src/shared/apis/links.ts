@@ -1,4 +1,4 @@
-import { request } from 'src/client'
+import {request} from 'src/client'
 import {Links} from 'src/types/links'
 
 export const getLinks = async (): Promise<Links> => {

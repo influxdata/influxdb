@@ -1,10 +1,6 @@
 // Libraries
 import React, {PureComponent, CSSProperties} from 'react'
-import {
-  reduce,
-  find,
-  range
-} from 'lodash'
+import {reduce, find, range} from 'lodash'
 import {Grid} from 'react-virtualized'
 
 const ROW_HEIGHT = 27

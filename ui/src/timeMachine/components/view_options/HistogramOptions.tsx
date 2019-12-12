@@ -1,9 +1,7 @@
 // Libraries
 import React, {SFC} from 'react'
 import {connect} from 'react-redux'
-import {
-  capitalize
-} from 'lodash'
+import {capitalize} from 'lodash'
 
 // Components
 import {

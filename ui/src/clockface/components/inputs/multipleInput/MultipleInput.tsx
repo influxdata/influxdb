@@ -1,9 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {
-  debounce,
-  isEmpty
-} from 'lodash'
+import {debounce, isEmpty} from 'lodash'
 
 // Components
 import {Button, Form, Input, Grid} from '@influxdata/clockface'

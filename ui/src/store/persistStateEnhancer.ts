@@ -1,6 +1,4 @@
-import {
-  throttle
-} from 'lodash'
+import {throttle} from 'lodash'
 import {saveToLocalStorage} from '../localStorage'
 
 // Types
