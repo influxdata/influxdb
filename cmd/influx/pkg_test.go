@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/errors"
+	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -20,9 +21,13 @@ import (
 )
 
 func Test_Pkg(t *testing.T) {
-	fakeSVCFn := func(svc pkger.SVC) pkgSVCFn {
-		return func(opts httpClientOpts, _ ...pkger.ServiceSetterFn) (pkger.SVC, error) {
-			return svc, nil
+	fakeSVCFn := func(svc pkger.SVC) pkgSVCsFn {
+		return func(opts httpClientOpts, _ ...pkger.ServiceSetterFn) (pkger.SVC, influxdb.OrganizationService, error) {
+			return svc, &mock.OrganizationService{
+				FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+					return &influxdb.Organization{ID: influxdb.ID(9000), Name: "influxdata"}, nil
+				},
+			}, nil
 		}
 	}
 
@@ -118,6 +123,24 @@ func Test_Pkg(t *testing.T) {
 						{name: "description", val: "new desc"},
 						{name: "version", val: "new version"},
 						{name: "org-id", val: expectedOrgID.String()},
+					},
+				},
+				expectedMeta: pkger.Metadata{
+					Name:        "new name",
+					Description: "new desc",
+					Version:     "new version",
+				},
+			},
+			{
+				pkgFileArgs: pkgFileArgs{
+					name:     "yaml out",
+					encoding: pkger.EncodingYAML,
+					filename: "pkg_0.yml",
+					flags: []flagArg{
+						{name: "name", val: "new name"},
+						{name: "description", val: "new desc"},
+						{name: "version", val: "new version"},
+						{name: "org", val: "influxdata"},
 					},
 				},
 				expectedMeta: pkger.Metadata{

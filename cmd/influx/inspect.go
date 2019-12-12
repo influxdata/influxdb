@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -95,25 +94,15 @@ func inspectReportTSMF(cmd *cobra.Command, args []string) error {
 		return errors.New("org-id must be set for non-empty bucket-id")
 	}
 
-	if inspectReportTSMFlags.orgID != "" {
-		var err error
-		report.OrgID, err = influxdb.IDFromString(inspectReportTSMFlags.orgID)
-		if err != nil {
-			return fmt.Errorf("invalid org ID provided: %s", err.Error())
-		}
-	} else if inspectReportTSMFlags.org != "" {
-		orgSvc, err := newOrganizationService()
-		if err != nil {
-			return fmt.Errorf("failed to initialize organization service client: %v", err)
-		}
-
-		filter := influxdb.OrganizationFilter{Name: &inspectReportTSMFlags.org}
-		org, err := orgSvc.FindOrganization(context.Background(), filter)
-		if err != nil {
-			return fmt.Errorf("%v", err)
-		}
-		report.OrgID = &org.ID
+	orgSvc, err := newOrganizationService()
+	if err != nil {
+		return nil
 	}
+	id, err := getOrgID(orgSvc, bucketCreateFlags.orgID, bucketCreateFlags.org)
+	if err != nil {
+		return nil
+	}
+	report.OrgID = &id
 
 	if inspectReportTSMFlags.bucketID != "" {
 		bucketID, err := influxdb.IDFromString(inspectReportTSMFlags.bucketID)
@@ -123,7 +112,7 @@ func inspectReportTSMF(cmd *cobra.Command, args []string) error {
 		report.BucketID = bucketID
 	}
 
-	_, err := report.Run(true)
+	_, err = report.Run(true)
 	if err != nil {
 		panic(err)
 	}
