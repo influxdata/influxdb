@@ -67,18 +67,18 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 						return []influxdb.NotificationEndpoint{
 							&endpoint.Slack{
 								Base: endpoint.Base{
-									ID:     influxTesting.MustIDBase16("0b501e7e557ab1ed"),
+									ID:     influxTesting.MustIDBase16Ptr("0b501e7e557ab1ed"),
 									Name:   "hello",
-									OrgID:  influxTesting.MustIDBase16("50f7ba1150f7ba11"),
+									OrgID:  influxTesting.MustIDBase16Ptr("50f7ba1150f7ba11"),
 									Status: influxdb.Active,
 								},
 								URL: "http://example.com",
 							},
 							&endpoint.HTTP{
 								Base: endpoint.Base{
-									ID:     influxTesting.MustIDBase16("c0175f0077a77005"),
+									ID:     influxTesting.MustIDBase16Ptr("c0175f0077a77005"),
 									Name:   "example",
-									OrgID:  influxTesting.MustIDBase16("7e55e118dbabb1ed"),
+									OrgID:  influxTesting.MustIDBase16Ptr("7e55e118dbabb1ed"),
 									Status: influxdb.Inactive,
 								},
 								URL:             "example.com",
@@ -285,8 +285,8 @@ func TestService_handleGetNotificationEndpoint(t *testing.T) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							return &endpoint.HTTP{
 								Base: endpoint.Base{
-									ID:     influxTesting.MustIDBase16("020f755c3c082000"),
-									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
+									ID:     influxTesting.MustIDBase16Ptr("020f755c3c082000"),
+									OrgID:  influxTesting.MustIDBase16Ptr("020f755c3c082000"),
 									Name:   "hello",
 									Status: influxdb.Active,
 								},
@@ -705,9 +705,9 @@ func TestService_handlePatchNotificationEndpoint(t *testing.T) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							d := &endpoint.Slack{
 								Base: endpoint.Base{
-									ID:     influxTesting.MustIDBase16("020f755c3c082000"),
+									ID:     influxTesting.MustIDBase16Ptr("020f755c3c082000"),
 									Name:   "hello",
-									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
+									OrgID:  influxTesting.MustIDBase16Ptr("020f755c3c082000"),
 									Status: influxdb.Active,
 								},
 								URL: "http://example.com",

@@ -57,3 +57,9 @@ func MustIDBase16(s string) platform.ID {
 	}
 	return *id
 }
+
+// MustIDBase16Ptr is an helper to ensure a correct ID ptr ref is built during testing.
+func MustIDBase16Ptr(s string) *platform.ID {
+	id := MustIDBase16(s)
+	return &id
+}

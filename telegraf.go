@@ -136,7 +136,7 @@ func (tc TelegrafConfig) TOML() string {
 // telegrafConfigEncode is the helper struct for json encoding.
 type telegrafConfigEncode struct {
 	ID          *ID    `json:"id"`
-	OrgID       ID     `json:"orgID,omitempty"`
+	OrgID       *ID    `json:"orgID,omitempty"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 
@@ -156,9 +156,9 @@ type telegrafPluginEncode struct {
 
 // telegrafConfigDecode is the helper struct for json decoding.
 type telegrafConfigDecode struct {
-	ID             ID     `json:"id"`
-	OrganizationID ID     `json:"organizationID,omitempty"`
-	OrgID          ID     `json:"orgID,omitempty"`
+	ID             *ID    `json:"id,omitempty"`
+	OrganizationID *ID    `json:"organizationID,omitempty"`
+	OrgID          *ID    `json:"orgID,omitempty"`
 	Name           string `json:"name"`
 	Description    string `json:"description"`
 
@@ -199,11 +199,13 @@ const (
 // MarshalJSON implement the json.Marshaler interface.
 func (tc *TelegrafConfig) MarshalJSON() ([]byte, error) {
 	tce := &telegrafConfigEncode{
-		OrgID:       tc.OrgID,
 		Name:        tc.Name,
 		Description: tc.Description,
 		Agent:       tc.Agent,
 		Plugins:     make([]telegrafPluginEncode, len(tc.Plugins)),
+	}
+	if tc.OrgID != 0 {
+		tce.OrgID = &tc.OrgID
 	}
 	if tc.ID != 0 {
 		tce.ID = &tc.ID
@@ -307,17 +309,19 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, tcd); err != nil {
 		return err
 	}
-	orgID := tcd.OrgID
-	if !orgID.Valid() {
-		orgID = tcd.OrganizationID
-	}
 	*tc = TelegrafConfig{
-		ID:          tcd.ID,
-		OrgID:       orgID,
 		Name:        tcd.Name,
 		Description: tcd.Description,
 		Agent:       tcd.Agent,
 		Plugins:     make([]TelegrafPlugin, len(tcd.Plugins)),
+	}
+	if tcd.ID != nil {
+		tc.ID = *tcd.ID
+	}
+	if orgID := tcd.OrgID; orgID != nil && orgID.Valid() {
+		tc.OrgID = *orgID
+	} else if tcd.OrganizationID != nil {
+		tc.OrgID = *tcd.OrganizationID
 	}
 	return decodePluginRaw(tcd, tc)
 }
