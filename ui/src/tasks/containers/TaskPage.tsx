@@ -1,5 +1,4 @@
 // Libraries
-import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 import Loadable from 'react-loadable'
 import {InjectedRouter} from 'react-router'
@@ -19,6 +18,7 @@ const FluxEditor = Loadable({
     return spinner
   },
 })
+
 const FluxMonacoEditor = Loadable({
   loader: () => import('src/shared/components/FluxMonacoEditor'),
   loading() {
