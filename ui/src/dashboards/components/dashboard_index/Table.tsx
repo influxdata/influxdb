@@ -31,7 +31,7 @@ interface State {
   sortType: SortTypes
 }
 
-type SortKey = keyof Dashboard | 'modified'
+type SortKey = keyof Dashboard | 'meta.updatedAt'
 
 type Props = OwnProps & WithRouterProps
 
@@ -58,13 +58,13 @@ class DashboardsTable extends PureComponent<Props, State> {
       <ResourceList>
         <ResourceList.Header filterComponent={filterComponent}>
           <ResourceList.Sorter
-            name={this.headerKeys[0]}
+            name="name"
             sortKey={this.headerKeys[0]}
             sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
           <ResourceList.Sorter
-            name={this.headerKeys[1]}
+            name="modified"
             sortKey={this.headerKeys[1]}
             sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
@@ -92,13 +92,12 @@ class DashboardsTable extends PureComponent<Props, State> {
   }
 
   private get headerKeys(): SortKey[] {
-    return ['name', 'modified']
+    return ['name', 'meta.updatedAt']
   }
 
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
     let sortType = SortTypes.String
-
-    if (sortKey === 'modified') {
+    if (sortKey === 'meta.updatedAt') {
       sortType = SortTypes.Date
     }
 

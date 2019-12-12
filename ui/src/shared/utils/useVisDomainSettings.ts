@@ -1,6 +1,7 @@
 // Libraries
 import {useMemo} from 'react'
 import {NumericColumnData} from '@influxdata/giraffe'
+import {isNull} from 'lodash'
 
 // Utils
 import {useOneWayState} from 'src/shared/utils/useOneWayState'
@@ -22,7 +23,7 @@ export const getValidRange = (
   timeRange: TimeRange | null
 ) => {
   const range = extent((data as number[]) || [])
-  if (!timeRange) {
+  if (isNull(timeRange)) {
     return range
   }
   if (range && range.length >= 2) {
