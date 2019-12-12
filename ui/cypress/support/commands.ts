@@ -123,6 +123,13 @@ export const createOrg = (): Cypress.Chainable<Cypress.Response> => {
   })
 }
 
+export const deleteOrg = (id: string): Cypress.Chainable<Cypress.Response> => {
+  return cy.request({
+    method: 'DELETE',
+    url: `/api/v2/orgs/${id}`,
+  })
+}
+
 export const createBucket = (
   orgID?: string,
   organization?: string,
@@ -452,6 +459,7 @@ Cypress.Commands.add('createView', createView)
 
 // orgs
 Cypress.Commands.add('createOrg', createOrg)
+Cypress.Commands.add('deleteOrg', deleteOrg)
 
 // buckets
 Cypress.Commands.add('createBucket', createBucket)
