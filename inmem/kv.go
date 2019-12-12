@@ -13,6 +13,10 @@ import (
 // ensure *KVStore implement kv.Store interface
 var _ kv.Store = (*KVStore)(nil)
 
+// cursorBatchSize is the size of a batch sent by a forward cursors
+// tree iterator
+const cursorBatchSize = 1000
+
 // KVStore is an in memory btree backed kv.Store.
 type KVStore struct {
 	mu      sync.RWMutex
@@ -231,7 +235,7 @@ func (b *Bucket) getAll(o *kv.CursorHints) ([]kv.Pair, error) {
 
 // ForwardCursor returns a directional cursor which starts at the provided seeked key
 func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.ForwardCursor, error) {
-	pairs := make(chan kv.Pair)
+	pairs := make(chan []kv.Pair)
 	go func() {
 		defer close(pairs)
 
@@ -249,20 +253,35 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 			}
 		}
 
+		var batch []kv.Pair
+
 		iterate(func(i btree.Item) bool {
 			j, ok := i.(*item)
 			if !ok {
-				pairs <- kv.Pair{Err: fmt.Errorf("error item is type %T not *item", i)}
+				batch = append(batch, kv.Pair{Err: fmt.Errorf("error item is type %T not *item", i)})
 
 				return false
 			}
 
 			if fn == nil || fn(j.key, j.value) {
-				pairs <- kv.Pair{Key: j.key, Value: j.value}
+				batch = append(batch, kv.Pair{Key: j.key, Value: j.value})
 			}
+
+			if len(batch) < cursorBatchSize {
+				return true
+			}
+
+			pairs <- batch
+
+			batch = nil
 
 			return true
 		})
+
+		// send if any left in batch
+		if len(batch) > 0 {
+			pairs <- batch
+		}
 	}()
 
 	return &ForwardCursor{pairs: pairs}, nil
@@ -270,7 +289,10 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 
 // ForwardCursor is a kv.ForwardCursor which iterates over an in-memory btree
 type ForwardCursor struct {
-	pairs <-chan kv.Pair
+	pairs <-chan []kv.Pair
+
+	cur []kv.Pair
+	n   int
 
 	// error found during iteration
 	err error
@@ -283,12 +305,19 @@ func (c *ForwardCursor) Err() error {
 
 // Next returns the next key/value pair in the cursor
 func (c *ForwardCursor) Next() ([]byte, []byte) {
-	pair, ok := <-c.pairs
-	if !ok {
-		return nil, nil
+	if c.n >= len(c.cur) {
+		var ok bool
+		c.cur, ok = <-c.pairs
+		if !ok {
+			return nil, nil
+		}
+
+		c.n = 0
 	}
 
+	pair := c.cur[c.n]
 	c.err = pair.Err
+	c.n++
 
 	return pair.Key, pair.Value
 }
