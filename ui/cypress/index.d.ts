@@ -8,6 +8,7 @@ import {
   createCell,
   createOrg,
   createSource,
+  deleteOrg,
   flush,
   getByTestID,
   getByInputName,
@@ -48,6 +49,7 @@ declare global {
       createDashWithViewAndVar: typeof createDashWithViewAndVar
       createView: typeof createView
       createOrg: typeof createOrg
+      deleteOrg: typeof deleteOrg
       flush: typeof flush
       getByTestID: typeof getByTestID
       getByInputName: typeof getByInputName
