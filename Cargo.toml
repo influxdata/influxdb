@@ -8,14 +8,24 @@ edition = "2018"
 
 [dependencies]
 bytes = "0.4.12"
-futures = "0.1"
-prost = "0.5.0"
 rand = "0.7.2"
-tokio = "0.1.22"
-tower-grpc = "0.1.1"
-tower-hyper = "0.1.1"
-tower-util = "0.1.0"
 integer-encoding = "1.0.7"
 
+# actix 2.0 should release around 12/20
+actix-rt = "1.0.0-alpha.3"
+actix-web = "2.0.0-alpha.4"
+
+dotenv = "0.10"
+env_logger = "0.6"
+failure = "0.1.1"
+futures = "0.3.1"
+
+serde_json = "1.0.44"
+rocksdb = "0.13"
+byteorder = "0.3"
+
+# waiting for tonic to bump up to use newest tokio
+#tonic = "0.1.0-alpha.6"
+
 [build-dependencies]
-tower-grpc-build = { git = "https://github.com/tower-rs/tower-grpc" }
+#tonic-build = "0.1.0-alpha.6"
