@@ -5,7 +5,10 @@ import {NumericColumnData} from '@influxdata/giraffe'
 // Utils
 import {useOneWayState} from 'src/shared/utils/useOneWayState'
 import {extent} from 'src/shared/utils/vis'
+import {getStartTime, getEndTime} from 'src/timeMachine/selectors/index'
 
+// Types
+import {TimeRange} from 'src/types'
 /*
   This hook helps map the domain setting stored for line graph to the
   appropriate settings on a @influxdata/giraffe `Config` object.
@@ -16,11 +19,15 @@ import {extent} from 'src/shared/utils/vis'
 */
 export const getValidRange = (
   data: NumericColumnData = [],
-  startTime: number = Infinity,
-  endTime: number = -Infinity
+  timeRange: TimeRange | null
 ) => {
   const range = extent((data as number[]) || [])
+  if (!timeRange) {
+    return range
+  }
   if (range && range.length >= 2) {
+    const startTime = getStartTime(timeRange)
+    const endTime = getEndTime(timeRange)
     const start = Math.min(startTime, range[0])
     const end = Math.max(endTime, range[1])
     return [start, end]
@@ -31,15 +38,14 @@ export const getValidRange = (
 export const useVisDomainSettings = (
   storedDomain: number[],
   data: NumericColumnData,
-  startTime: number = Infinity,
-  endTime: number = -Infinity
+  timeRange: TimeRange | null = null
 ) => {
   const initialDomain = useMemo(() => {
     if (storedDomain) {
       return storedDomain
     }
 
-    return getValidRange(data, startTime, endTime)
+    return getValidRange(data, timeRange)
   }, [storedDomain, data])
 
   const [domain, setDomain] = useOneWayState(initialDomain)
