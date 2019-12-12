@@ -18,11 +18,7 @@ import {
   Input,
   IconFont,
   FormElement,
-  Grid,
-  Columns,
-  Tabs,
   ComponentSize,
-  Orientation,
 } from '@influxdata/clockface'
 
 interface PluginStateProps {
@@ -69,7 +65,6 @@ interface StateProps {
   buckets: Bucket[]
   bucket: Bucket
   filter: string
-  mode: 'adding' | 'indexing'
 }
 
 interface DispatchProps {
@@ -91,70 +86,52 @@ class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
       bucket,
       buckets,
       filter,
-      mode,
       onAdd,
-      onJump,
-      onSetMode,
       onSetBucket,
       onSetFilter,
     } = this.props
     return (
-      <Grid.Column widthXS={Columns.Three} style={{height: '100%'}}>
-        <FormElement label="Bucket">
+      <div className="telegraf-editor--left-column">
+        <div className="telegraf-editor--title">Browse & Add Plugins</div>
+        {/* <FormElement label="Bucket">
           <BucketDropdown
             buckets={buckets}
             selectedBucketID={bucket.id}
             onSelectBucket={onSetBucket}
           />
-        </FormElement>
+        </FormElement> */}
+        {/* <div className="telegraf-editor--column-section">
+          <p>Want access to all 200+ plugins?<br/>
+          <a
+            href="https://v2.docs.influxdata.com/v2.0/reference/telegraf-plugins/#input-plugins"
+            target="_blank"
+          >
+            See the full list
+            </a>{' '}and add them manually
+          </p>
+        </div> */}
         <Input
-          className="wizard-step--filter"
+          className="telegraf-editor--filter"
           size={ComponentSize.Small}
           icon={IconFont.Search}
           value={filter}
           onBlur={(evt: SyntheticEvent<any>) => {
             onSetFilter((evt.target as any).value)
           }}
+          style={{}}
           onChange={(evt: ChangeEvent<any>) => {
             onSetFilter(evt.target.value)
           }}
           placeholder="Filter Plugins..."
         />
-        <Tabs.Container
-          orientation={Orientation.Horizontal}
-          style={{height: 'calc(100% - 114px)', marginTop: '18px'}}
-        >
-          <Tabs>
-            <Tabs.Tab
-              id="lookup"
-              text="Plugin Lookup"
-              active={mode === 'indexing'}
-              onClick={() => {
-                onSetMode('indexing')
-              }}
-            />
-            <Tabs.Tab
-              id="add"
-              text="Add Plugins"
-              active={mode === 'adding'}
-              onClick={() => {
-                onSetMode('adding')
-              }}
-            />
-          </Tabs>
-          <Tabs.TabContents padding={ComponentSize.Small}>
-            {mode === 'indexing' && <ActivePluginList onClick={onJump} />}
-            {mode === 'adding' && <AllPluginList onClick={onAdd} />}
-          </Tabs.TabContents>
-        </Tabs.Container>
-      </Grid.Column>
+        <AllPluginList onClick={onAdd} />
+      </div>
     )
   }
 }
 
 const mstp_3 = (state: AppState): StateProps => {
   const filter = state.telegrafEditor.filter
-  const mode = state.telegrafEditor.mode
   const buckets = state.buckets.list || []
   const bucket =
     state.telegrafEditor.bucket || buckets.length
@@ -164,7 +141,6 @@ const mstp_3 = (state: AppState): StateProps => {
   return {
     buckets,
     bucket,
-    mode,
     filter,
   }
 }

@@ -32,11 +32,15 @@ class TelegrafEditorMonaco extends PureComponent<Props> {
     const {script} = this.props
 
     return (
-      <Editor
-        script={script}
-        onChangeScript={this.handleChange}
-        willMount={this.connect}
-      />
+      <div className="telegraf-editor--middle-column">
+        <div className="telegraf-editor--title">Configuration File</div>
+        <Editor
+          className="telegraf-editor--monaco"
+          script={script}
+          onChangeScript={this.handleChange}
+          willMount={this.connect}
+        />
+      </div>
     )
   }
 
