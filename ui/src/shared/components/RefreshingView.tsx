@@ -132,10 +132,6 @@ class RefreshingView extends PureComponent<Props, State> {
   private get variableAssignments(): VariableAssignment[] {
     const {timeRange, variableAssignments} = this.props
 
-    if (!timeRange) {
-      return [...variableAssignments]
-    }
-
     return [...variableAssignments, ...getTimeRangeVars(timeRange)]
   }
 
