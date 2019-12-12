@@ -118,7 +118,7 @@ func CreateNotificationRule(
 							Value: strPtr("abc123"),
 						},
 						Base: endpoint.Base{
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Name:   "foo",
 							Status: influxdb.Active,
 						},
@@ -1776,7 +1776,7 @@ func UpdateNotificationRule(
 							Value: strPtr("abc123"),
 						},
 						Base: endpoint.Base{
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Name:   "foo",
 							Status: influxdb.Active,
 						},
@@ -2039,7 +2039,7 @@ func PatchNotificationRule(
 							Value: strPtr("abc123"),
 						},
 						Base: endpoint.Base{
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Name:   "foo",
 							Status: influxdb.Active,
 						},
