@@ -137,6 +137,16 @@ type CursorConfig struct {
 	Hints     CursorHints
 }
 
+// NewCursorConfig constructs and configures a CursorConfig used to configure
+// a forward cursor.
+func NewCursorConfig(opts ...CursorOption) CursorConfig {
+	conf := CursorConfig{}
+	for _, opt := range opts {
+		opt(&conf)
+	}
+	return conf
+}
+
 // CursorOption is a functional option for configuring a forward cursor
 type CursorOption func(*CursorConfig)
 

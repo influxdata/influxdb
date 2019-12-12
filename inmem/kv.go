@@ -10,6 +10,9 @@ import (
 	"github.com/influxdata/influxdb/kv"
 )
 
+// ensure *KVStore implement kv.Store interface
+var _ kv.Store = (*KVStore)(nil)
+
 // KVStore is an in memory btree backed kv.Store.
 type KVStore struct {
 	mu      sync.RWMutex
@@ -224,4 +227,57 @@ func (b *Bucket) getAll(o *kv.CursorHints) ([]kv.Pair, error) {
 	}
 
 	return pairs, nil
+}
+
+// ForwardCursor returns a directional cursor which starts at the provided seeked key
+func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.ForwardCursor, error) {
+	pairs := make(chan kv.Pair)
+	go func() {
+		defer close(pairs)
+
+		var (
+			config  = kv.NewCursorConfig(opts...)
+			fn      = config.Hints.PredicateFn
+			iterate = func(it btree.ItemIterator) {
+				b.btree.AscendGreaterOrEqual(&item{key: seek}, it)
+			}
+		)
+
+		if config.Direction == kv.CursorDescending {
+			iterate = func(it btree.ItemIterator) {
+				b.btree.DescendLessOrEqual(&item{key: seek}, it)
+			}
+		}
+
+		iterate(func(i btree.Item) bool {
+			j, ok := i.(*item)
+			if !ok {
+				// this shouldn't happen
+				return false
+			}
+
+			if fn == nil || fn(j.key, j.value) {
+				pairs <- kv.Pair{Key: j.key, Value: j.value}
+			}
+
+			return true
+		})
+	}()
+
+	return &ForwardCursor{pairs}, nil
+}
+
+// ForwardCursor is a kv.ForwardCursor which iterates over an in-memory btree
+type ForwardCursor struct {
+	pairs <-chan kv.Pair
+}
+
+// Next returns the next key/value pair in the cursor
+func (c *ForwardCursor) Next() ([]byte, []byte) {
+	pair, ok := <-c.pairs
+	if !ok {
+		return nil, nil
+	}
+
+	return pair.Key, pair.Value
 }

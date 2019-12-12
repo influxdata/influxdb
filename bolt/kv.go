@@ -191,6 +191,17 @@ func (b *Bucket) Delete(key []byte) error {
 	return err
 }
 
+// ForwardCursor retrieves a cursor for iterating through the entries
+// in the key value store in a given direction (ascending / descending).
+func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.ForwardCursor, error) {
+	cursor := b.bucket.Cursor()
+	cursor.Seek(seek)
+	return &Cursor{
+		cursor: cursor,
+		config: kv.NewCursorConfig(opts...),
+	}, nil
+}
+
 // Cursor retrieves a cursor for iterating through the entries
 // in the key value store.
 func (b *Bucket) Cursor(opts ...kv.CursorHint) (kv.Cursor, error) {
@@ -203,6 +214,8 @@ func (b *Bucket) Cursor(opts ...kv.CursorHint) (kv.Cursor, error) {
 // in the key value store.
 type Cursor struct {
 	cursor *bolt.Cursor
+
+	config kv.CursorConfig
 }
 
 // Seek seeks for the first key that matches the prefix provided.
@@ -234,7 +247,12 @@ func (c *Cursor) Last() ([]byte, []byte) {
 
 // Next retrieves the next key in the bucket.
 func (c *Cursor) Next() ([]byte, []byte) {
-	k, v := c.cursor.Next()
+	next := c.cursor.Next
+	if c.config.Direction == kv.CursorDescending {
+		next = c.cursor.Prev
+	}
+
+	k, v := next()
 	if len(k) == 0 && len(v) == 0 {
 		return nil, nil
 	}
@@ -243,7 +261,12 @@ func (c *Cursor) Next() ([]byte, []byte) {
 
 // Prev retrieves the previous key in the bucket.
 func (c *Cursor) Prev() ([]byte, []byte) {
-	k, v := c.cursor.Prev()
+	prev := c.cursor.Prev
+	if c.config.Direction == kv.CursorDescending {
+		prev = c.cursor.Next
+	}
+
+	k, v := prev()
 	if len(k) == 0 && len(v) == 0 {
 		return nil, nil
 	}
