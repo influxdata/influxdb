@@ -113,7 +113,7 @@ type Cursor interface {
 	Prev() (k []byte, v []byte)
 }
 
-// ForwardCursor is an abstraction for interating/ranging through data in one direction.
+// ForwardCursor is an abstraction for interacting/ranging through data in one direction.
 type ForwardCursor interface {
 	// Next moves the cursor to the next key in the bucket.
 	Next() (k, v []byte)
