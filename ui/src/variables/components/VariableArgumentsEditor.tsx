@@ -2,7 +2,6 @@ import React, {PureComponent} from 'react'
 import Loadable from 'react-loadable'
 
 // Components
-import FluxEditor from 'src/shared/components/FluxEditor'
 import MapVariableBuilder from 'src/variables/components/MapVariableBuilder'
 import CSVVariableBuilder from 'src/variables/components/CSVVariableBuilder'
 import {Form, Grid} from '@influxdata/clockface'
