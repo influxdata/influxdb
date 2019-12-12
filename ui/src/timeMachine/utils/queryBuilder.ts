@@ -200,7 +200,7 @@ export function createCheckQueryFromParams(
         .filter(t => t.key && t.value)
         .map(t => `${t.key}: \"${t.value}\"`)
         .join(',')
-    : '{}'
+    : ''
 
   const checkStatement = [
     'check = {',
