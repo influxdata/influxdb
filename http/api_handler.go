@@ -2,7 +2,6 @@ package http
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb"
@@ -18,32 +17,7 @@ import (
 
 // APIHandler is a collection of all the service handlers.
 type APIHandler struct {
-	influxdb.HTTPErrorHandler
-	AssetHandler                *AssetHandler
-	AuthorizationHandler        *AuthorizationHandler
-	BucketHandler               *BucketHandler
-	CheckHandler                *CheckHandler
-	ChronografHandler           *ChronografHandler
-	DashboardHandler            *DashboardHandler
-	DeleteHandler               *DeleteHandler
-	DocumentHandler             *DocumentHandler
-	LabelHandler                *LabelHandler
-	NotificationEndpointHandler *NotificationEndpointHandler
-	NotificationRuleHandler     *NotificationRuleHandler
-	OrgHandler                  *OrgHandler
-	QueryHandler                *FluxHandler
-	ScraperHandler              *ScraperHandler
-	SessionHandler              *SessionHandler
-	SetupHandler                *SetupHandler
-	SourceHandler               *SourceHandler
-	SwaggerHandler              http.Handler
-	TaskHandler                 *TaskHandler
-	TelegrafHandler             *TelegrafHandler
-	UserHandler                 *UserHandler
-	VariableHandler             *VariableHandler
-	WriteHandler                *WriteHandler
-
-	Gateway chi.Router
+	chi.Router
 }
 
 // APIBackend is all services and associated parameters required to construct
@@ -118,108 +92,117 @@ type ResourceHandler interface {
 
 // APIHandlerOptFn is a functional input param to set parameters on
 // the APIHandler.
-type APIHandlerOptFn func(*APIHandler)
+type APIHandlerOptFn func(chi.Router)
 
 // WithResourceHandler registers a resource handler on the APIHandler.
 func WithResourceHandler(resHandler ResourceHandler) APIHandlerOptFn {
-	return func(h *APIHandler) {
-		h.Gateway.Mount(resHandler.Prefix(), resHandler)
+	return func(h chi.Router) {
+		h.Mount(resHandler.Prefix(), resHandler)
 	}
 }
 
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
 func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h := &APIHandler{
-		HTTPErrorHandler: b.HTTPErrorHandler,
-		Gateway:          newBaseChiRouter(b.HTTPErrorHandler),
-	}
-	for _, o := range opts {
-		o(h)
+		Router: newBaseChiRouter(b.HTTPErrorHandler),
 	}
 
 	internalURM := b.UserResourceMappingService
 	b.UserResourceMappingService = authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
 
-	documentBackend := NewDocumentBackend(b)
-	h.DocumentHandler = NewDocumentHandler(documentBackend)
+	h.Mount("/api/v2", serveLinksHandler(b.HTTPErrorHandler))
 
-	sessionBackend := NewSessionBackend(b)
-	h.SessionHandler = NewSessionHandler(sessionBackend)
-
-	bucketBackend := NewBucketBackend(b)
-	bucketBackend.BucketService = authorizer.NewBucketService(b.BucketService)
-	h.BucketHandler = NewBucketHandler(bucketBackend)
-
-	orgBackend := NewOrgBackend(b)
-	orgBackend.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
-	h.OrgHandler = NewOrgHandler(orgBackend)
-
-	userBackend := NewUserBackend(b)
-	userBackend.UserService = authorizer.NewUserService(b.UserService)
-	h.UserHandler = NewUserHandler(userBackend)
-
-	dashboardBackend := NewDashboardBackend(b)
-	dashboardBackend.DashboardService = authorizer.NewDashboardService(b.DashboardService)
-	h.DashboardHandler = NewDashboardHandler(dashboardBackend)
-
-	variableBackend := NewVariableBackend(b)
-	variableBackend.VariableService = authorizer.NewVariableService(b.VariableService)
-	h.VariableHandler = NewVariableHandler(variableBackend)
-
-	authorizationBackend := NewAuthorizationBackend(b)
+	authorizationBackend := NewAuthorizationBackend(b.Logger.With(zap.String("handler", "authorization")), b)
 	authorizationBackend.AuthorizationService = authorizer.NewAuthorizationService(b.AuthorizationService)
-	h.AuthorizationHandler = NewAuthorizationHandler(authorizationBackend)
+	h.Mount(prefixAuthorization, NewAuthorizationHandler(b.Logger, authorizationBackend))
 
-	scraperBackend := NewScraperBackend(b)
+	bucketBackend := NewBucketBackend(b.Logger.With(zap.String("handler", "bucket")), b)
+	bucketBackend.BucketService = authorizer.NewBucketService(b.BucketService)
+	h.Mount(prefixBuckets, NewBucketHandler(b.Logger, bucketBackend))
+
+	checkBackend := NewCheckBackend(b.Logger.With(zap.String("handler", "check")), b)
+	checkBackend.CheckService = authorizer.NewCheckService(b.CheckService,
+		b.UserResourceMappingService, b.OrganizationService)
+	h.Mount(prefixChecks, NewCheckHandler(b.Logger, checkBackend))
+
+	h.Mount(prefixChronograf, NewChronografHandler(b.ChronografService, b.HTTPErrorHandler))
+
+	dashboardBackend := NewDashboardBackend(b.Logger.With(zap.String("handler", "dashboard")), b)
+	dashboardBackend.DashboardService = authorizer.NewDashboardService(b.DashboardService)
+	h.Mount(prefixDashboards, NewDashboardHandler(b.Logger, dashboardBackend))
+
+	deleteBackend := NewDeleteBackend(b.Logger.With(zap.String("handler", "delete")), b)
+	h.Mount(prefixDelete, NewDeleteHandler(b.Logger, deleteBackend))
+
+	documentBackend := NewDocumentBackend(b.Logger.With(zap.String("handler", "document")), b)
+	h.Mount(prefixDocuments, NewDocumentHandler(documentBackend))
+
+	fluxBackend := NewFluxBackend(b.Logger.With(zap.String("handler", "query")), b)
+	h.Mount(prefixQuery, NewFluxHandler(b.Logger, fluxBackend))
+
+	h.Mount(prefixLabels, NewLabelHandler(b.Logger, authorizer.NewLabelService(b.LabelService), b.HTTPErrorHandler))
+
+	notificationEndpointBackend := NewNotificationEndpointBackend(b.Logger.With(zap.String("handler", "notificationEndpoint")), b)
+	notificationEndpointBackend.NotificationEndpointService = authorizer.NewNotificationEndpointService(b.NotificationEndpointService,
+		b.UserResourceMappingService, b.OrganizationService)
+	h.Mount(prefixNotificationEndpoints, NewNotificationEndpointHandler(notificationEndpointBackend.Logger(), notificationEndpointBackend))
+
+	notificationRuleBackend := NewNotificationRuleBackend(b.Logger.With(zap.String("handler", "notification_rule")), b)
+	notificationRuleBackend.NotificationRuleStore = authorizer.NewNotificationRuleStore(b.NotificationRuleStore,
+		b.UserResourceMappingService, b.OrganizationService)
+	h.Mount(prefixNotificationRules, NewNotificationRuleHandler(b.Logger, notificationRuleBackend))
+
+	orgBackend := NewOrgBackend(b.Logger.With(zap.String("handler", "org")), b)
+	orgBackend.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
+	h.Mount(prefixOrganizations, NewOrgHandler(b.Logger, orgBackend))
+
+	scraperBackend := NewScraperBackend(b.Logger.With(zap.String("handler", "scraper")), b)
 	scraperBackend.ScraperStorageService = authorizer.NewScraperTargetStoreService(b.ScraperTargetStoreService,
 		b.UserResourceMappingService,
 		b.OrganizationService)
-	h.ScraperHandler = NewScraperHandler(scraperBackend)
+	h.Mount(prefixTargets, NewScraperHandler(b.Logger, scraperBackend))
 
-	sourceBackend := NewSourceBackend(b)
+	sessionBackend := newSessionBackend(b.Logger.With(zap.String("handler", "session")), b)
+	sessionHandler := NewSessionHandler(b.Logger, sessionBackend)
+	h.Mount(prefixSignIn, sessionHandler)
+	h.Mount(prefixSignOut, sessionHandler)
+
+	setupBackend := NewSetupBackend(b.Logger.With(zap.String("handler", "setup")), b)
+	h.Mount(prefixSetup, NewSetupHandler(b.Logger, setupBackend))
+
+	sourceBackend := NewSourceBackend(b.Logger.With(zap.String("handler", "source")), b)
 	sourceBackend.SourceService = authorizer.NewSourceService(b.SourceService)
 	sourceBackend.BucketService = authorizer.NewBucketService(b.BucketService)
-	h.SourceHandler = NewSourceHandler(sourceBackend)
+	h.Mount(prefixSources, NewSourceHandler(b.Logger, sourceBackend))
 
-	setupBackend := NewSetupBackend(b)
-	h.SetupHandler = NewSetupHandler(setupBackend)
+	h.Mount("/api/v2/swagger.json", newSwaggerLoader(b.Logger.With(zap.String("service", "swagger-loader")), b.HTTPErrorHandler))
 
-	taskBackend := NewTaskBackend(b)
-	h.TaskHandler = NewTaskHandler(taskBackend)
-	h.TaskHandler.UserResourceMappingService = internalURM
+	taskBackend := NewTaskBackend(b.Logger.With(zap.String("handler", "task")), b)
+	taskHandler := NewTaskHandler(b.Logger, taskBackend)
+	taskHandler.UserResourceMappingService = internalURM
+	h.Mount(prefixTasks, taskHandler)
 
-	telegrafBackend := NewTelegrafBackend(b)
+	telegrafBackend := NewTelegrafBackend(b.Logger.With(zap.String("handler", "telegraf")), b)
 	telegrafBackend.TelegrafService = authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)
-	h.TelegrafHandler = NewTelegrafHandler(telegrafBackend)
+	h.Mount(prefixTelegraf, NewTelegrafHandler(b.Logger, telegrafBackend))
 
-	notificationRuleBackend := NewNotificationRuleBackend(b)
-	notificationRuleBackend.NotificationRuleStore = authorizer.NewNotificationRuleStore(b.NotificationRuleStore,
-		b.UserResourceMappingService, b.OrganizationService)
-	h.NotificationRuleHandler = NewNotificationRuleHandler(notificationRuleBackend)
+	userBackend := NewUserBackend(b.Logger.With(zap.String("handler", "user")), b)
+	userBackend.UserService = authorizer.NewUserService(b.UserService)
+	userBackend.PasswordsService = authorizer.NewPasswordService(b.PasswordsService)
+	userHandler := NewUserHandler(b.Logger, userBackend)
+	h.Mount(prefixMe, userHandler)
+	h.Mount(prefixUsers, userHandler)
 
-	notificationEndpointBackend := NewNotificationEndpointBackend(b)
-	notificationEndpointBackend.NotificationEndpointService = authorizer.NewNotificationEndpointService(b.NotificationEndpointService,
-		b.UserResourceMappingService, b.OrganizationService)
-	h.NotificationEndpointHandler = NewNotificationEndpointHandler(notificationEndpointBackend)
+	variableBackend := NewVariableBackend(b.Logger.With(zap.String("handler", "variable")), b)
+	variableBackend.VariableService = authorizer.NewVariableService(b.VariableService)
+	h.Mount(prefixVariables, NewVariableHandler(b.Logger, variableBackend))
 
-	checkBackend := NewCheckBackend(b)
-	checkBackend.CheckService = authorizer.NewCheckService(b.CheckService,
-		b.UserResourceMappingService, b.OrganizationService)
-	h.CheckHandler = NewCheckHandler(checkBackend)
+	writeBackend := NewWriteBackend(b.Logger.With(zap.String("handler", "write")), b)
+	h.Mount(prefixWrite, NewWriteHandler(b.Logger, writeBackend))
 
-	writeBackend := NewWriteBackend(b)
-	h.WriteHandler = NewWriteHandler(writeBackend)
-
-	deleteBackend := NewDeleteBackend(b)
-	h.DeleteHandler = NewDeleteHandler(deleteBackend)
-
-	fluxBackend := NewFluxBackend(b)
-	h.QueryHandler = NewFluxHandler(fluxBackend)
-
-	h.ChronografHandler = NewChronografHandler(b.ChronografService, b.HTTPErrorHandler)
-	h.SwaggerHandler = newSwaggerLoader(b.Logger.With(zap.String("service", "swagger-loader")), b.HTTPErrorHandler)
-	h.LabelHandler = NewLabelHandler(authorizer.NewLabelService(b.LabelService), b.HTTPErrorHandler)
-
+	for _, o := range opts {
+		o(h)
+	}
 	return h
 }
 
@@ -263,144 +246,12 @@ var apiLinks = map[string]interface{}{
 	"delete":    "/api/v2/delete",
 }
 
-func (h *APIHandler) serveLinks(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if err := encodeResponse(ctx, w, http.StatusOK, apiLinks); err != nil {
-		h.HandleHTTPError(ctx, err, w)
+func serveLinksHandler(errorHandler influxdb.HTTPErrorHandler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		if err := encodeResponse(ctx, w, http.StatusOK, apiLinks); err != nil {
+			errorHandler.HandleHTTPError(ctx, err, w)
+		}
 	}
-}
-
-// ServeHTTP delegates a request to the appropriate subhandler.
-func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	setCORSResponseHeaders(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
-
-	// Serve the links base links for the API.
-	if r.URL.Path == "/api/v2/" || r.URL.Path == "/api/v2" {
-		h.serveLinks(w, r)
-		return
-	}
-
-	if r.URL.Path == "/api/v2/signin" || r.URL.Path == "/api/v2/signout" {
-		h.SessionHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/setup") {
-		h.SetupHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/write") {
-		h.WriteHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/delete") {
-		h.DeleteHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/query") {
-		h.QueryHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/buckets") {
-		h.BucketHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/labels") {
-		h.LabelHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/users") {
-		h.UserHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/me") {
-		h.UserHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/orgs") {
-		h.OrgHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/authorizations") {
-		h.AuthorizationHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/dashboards") {
-		h.DashboardHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/sources") {
-		h.SourceHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/scrapers") {
-		h.ScraperHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/tasks") {
-		h.TaskHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/checks") {
-		h.CheckHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/telegrafs") {
-		h.TelegrafHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/notificationRules") {
-		h.NotificationRuleHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/notificationEndpoints") {
-		h.NotificationEndpointHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/variables") {
-		h.VariableHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/documents") {
-		h.DocumentHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/chronograf/") {
-		h.ChronografHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if r.URL.Path == "/api/v2/swagger.json" {
-		h.SwaggerHandler.ServeHTTP(w, r)
-		return
-	}
-
-	// router has not found route registered on it directly
-	// if a route slips through, then the same 404 as before
-	// if a route matches on the gateway router, it will use
-	// whatever handler that matches the router in question.
-	h.Gateway.ServeHTTP(w, r)
+	return http.HandlerFunc(fn)
 }

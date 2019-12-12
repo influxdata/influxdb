@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -345,6 +344,14 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 		return nil
 	})
 
+	// Don't append system buckets if Name is set. Users who don't have real
+	// system buckets won't get mocked buckets if they query for a bucket by name
+	// without the orgID, but this is a vanishing small number of users and has
+	// limited utility anyways. Can be removed once mock system code is ripped out.
+	if filter.Name != nil {
+		return bs, len(bs), nil
+	}
+
 	needsSystemBuckets := true
 	for _, b := range bs {
 		if b.Type == influxdb.BucketTypeSystem {
@@ -640,11 +647,6 @@ func (s *Service) validBucketName(ctx context.Context, tx Tx, b *influxdb.Bucket
 		return BucketAlreadyExistsError(b)
 	}
 
-	// names starting with an underscore are reserved for system buckets
-	if strings.HasPrefix(b.Name, "_") && b.Type != influxdb.BucketTypeSystem {
-		return ReservedBucketNameError(b)
-	}
-
 	return err
 }
 
@@ -901,15 +903,5 @@ func BucketAlreadyExistsError(b *influxdb.Bucket) error {
 		Code: influxdb.EConflict,
 		Op:   "kv/bucket",
 		Msg:  fmt.Sprintf("bucket with name %s already exists", b.Name),
-	}
-}
-
-// ReservedBucketNameError is used when creating a bucket with a name that
-// starts with an underscore.
-func ReservedBucketNameError(b *influxdb.Bucket) error {
-	return &influxdb.Error{
-		Code: influxdb.EInvalid,
-		Op:   "kv/bucket",
-		Msg:  fmt.Sprintf("bucket name %s is invalid. Buckets may not start with underscore", b.Name),
 	}
 }

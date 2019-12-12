@@ -32,20 +32,22 @@ class ViewComponent extends Component<Props> {
     const {view, timeRange, manualRefresh, check} = this.props
     const {dashboardID} = this.props.params
 
-    switch (view.properties.type) {
-      case 'markdown':
+    if (view && view.properties) {
+      if (view.properties.type === 'markdown') {
         return <Markdown text={view.properties.note} />
-      default:
-        return (
-          <RefreshingView
-            timeRange={timeRange}
-            check={check}
-            properties={view.properties}
-            manualRefresh={manualRefresh}
-            dashboardID={dashboardID}
-          />
-        )
+      }
+      return (
+        <RefreshingView
+          timeRange={timeRange}
+          check={check}
+          properties={view.properties}
+          manualRefresh={manualRefresh}
+          dashboardID={dashboardID}
+        />
+      )
     }
+
+    return null
   }
 }
 

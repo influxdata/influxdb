@@ -72,6 +72,7 @@ const (
 	JaegerTracing = "jaeger"
 )
 
+// NewCommand creates the command to run influxdb.
 func NewCommand() *cobra.Command {
 	l := NewLauncher()
 	cmd := &cobra.Command{
@@ -91,9 +92,8 @@ func NewCommand() *cobra.Command {
 
 			var wg sync.WaitGroup
 			if !l.ReportingDisabled() {
-				reporter := telemetry.NewReporter(l.Registry())
+				reporter := telemetry.NewReporter(l.Log(), l.Registry())
 				reporter.Interval = 8 * time.Hour
-				reporter.Logger = l.Logger()
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
@@ -247,13 +247,13 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Desc:  "vault authentication token",
 		},
 		{
-			DestP:   &l.httpTlsCert,
+			DestP:   &l.httpTLSCert,
 			Flag:    "tls-cert",
 			Default: "",
 			Desc:    "TLS certificate for HTTPs",
 		},
 		{
-			DestP:   &l.httpTlsKey,
+			DestP:   &l.httpTLSKey,
 			Flag:    "tls-key",
 			Default: "",
 			Desc:    "TLS key for HTTPs",
@@ -294,15 +294,15 @@ type Launcher struct {
 
 	boltClient    *bolt.Client
 	kvService     *kv.Service
-	engine        *storage.Engine
+	engine        Engine
 	StorageConfig storage.Config
 
 	queryController *control.Controller
 
 	httpPort    int
 	httpServer  *nethttp.Server
-	httpTlsCert string
-	httpTlsKey  string
+	httpTLSCert string
+	httpTLSKey  string
 
 	natsServer *nats.Server
 	natsPort   int
@@ -313,7 +313,7 @@ type Launcher struct {
 	taskControlService taskbackend.TaskControlService
 
 	jaegerTracerCloser io.Closer
-	logger             *zap.Logger
+	log                *zap.Logger
 	reg                *prom.Registry
 
 	Stdin      io.Reader
@@ -347,9 +347,9 @@ func (m *Launcher) Registry() *prom.Registry {
 	return m.reg
 }
 
-// Logger returns the launchers logger.
-func (m *Launcher) Logger() *zap.Logger {
-	return m.logger
+// Log returns the launchers logger.
+func (m *Launcher) Log() *zap.Logger {
+	return m.log
 }
 
 // URL returns the URL to connect to the HTTP server.
@@ -364,7 +364,7 @@ func (m *Launcher) NatsURL() string {
 
 // Engine returns a reference to the storage engine. It should only be called
 // for end-to-end testing purposes.
-func (m *Launcher) Engine() *storage.Engine {
+func (m *Launcher) Engine() Engine {
 	return m.engine
 }
 
@@ -372,40 +372,40 @@ func (m *Launcher) Engine() *storage.Engine {
 func (m *Launcher) Shutdown(ctx context.Context) {
 	m.httpServer.Shutdown(ctx)
 
-	m.logger.Info("Stopping", zap.String("service", "task"))
+	m.log.Info("Stopping", zap.String("service", "task"))
 	if m.EnableNewScheduler {
 		m.treeScheduler.Stop()
 	} else {
 		m.scheduler.Stop()
 	}
 
-	m.logger.Info("Stopping", zap.String("service", "nats"))
+	m.log.Info("Stopping", zap.String("service", "nats"))
 	m.natsServer.Close()
 
-	m.logger.Info("Stopping", zap.String("service", "bolt"))
+	m.log.Info("Stopping", zap.String("service", "bolt"))
 	if err := m.boltClient.Close(); err != nil {
-		m.logger.Info("failed closing bolt", zap.Error(err))
+		m.log.Info("Failed closing bolt", zap.Error(err))
 	}
 
-	m.logger.Info("Stopping", zap.String("service", "query"))
+	m.log.Info("Stopping", zap.String("service", "query"))
 	if err := m.queryController.Shutdown(ctx); err != nil && err != context.Canceled {
-		m.logger.Info("Failed closing query service", zap.Error(err))
+		m.log.Info("Failed closing query service", zap.Error(err))
 	}
 
-	m.logger.Info("Stopping", zap.String("service", "storage-engine"))
+	m.log.Info("Stopping", zap.String("service", "storage-engine"))
 	if err := m.engine.Close(); err != nil {
-		m.logger.Error("failed to close engine", zap.Error(err))
+		m.log.Error("Failed to close engine", zap.Error(err))
 	}
 
 	m.wg.Wait()
 
 	if m.jaegerTracerCloser != nil {
 		if err := m.jaegerTracerCloser.Close(); err != nil {
-			m.logger.Warn("failed to closer Jaeger tracer", zap.Error(err))
+			m.log.Warn("Failed to closer Jaeger tracer", zap.Error(err))
 		}
 	}
 
-	m.logger.Sync()
+	m.log.Sync()
 }
 
 // Cancel executes the context cancel on the program. Used for testing.
@@ -444,13 +444,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		Format: "auto",
 		Level:  lvl,
 	}
-	m.logger, err = logconf.New(m.Stdout)
+	m.log, err = logconf.New(m.Stdout)
 	if err != nil {
 		return err
 	}
 
 	info := platform.GetBuildInfo()
-	m.logger.Info("Welcome to InfluxDB",
+	m.log.Info("Welcome to InfluxDB",
 		zap.String("version", info.Version),
 		zap.String("commit", info.Commit),
 		zap.String("build_date", info.Date),
@@ -458,34 +458,31 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	switch m.tracingType {
 	case LogTracing:
-		m.logger.Info("tracing via zap logging")
-		tracer := new(pzap.Tracer)
-		tracer.Logger = m.logger
-		tracer.IDGenerator = snowflake.NewIDGenerator()
+		m.log.Info("Tracing via zap logging")
+		tracer := pzap.NewTracer(m.log, snowflake.NewIDGenerator())
 		opentracing.SetGlobalTracer(tracer)
 
 	case JaegerTracing:
-		m.logger.Info("tracing via Jaeger")
+		m.log.Info("Tracing via Jaeger")
 		cfg, err := jaegerconfig.FromEnv()
 		if err != nil {
-			m.logger.Error("failed to get Jaeger client config from environment variables", zap.Error(err))
+			m.log.Error("Failed to get Jaeger client config from environment variables", zap.Error(err))
 			break
 		}
 		tracer, closer, err := cfg.NewTracer()
 		if err != nil {
-			m.logger.Error("failed to instantiate Jaeger tracer", zap.Error(err))
+			m.log.Error("Failed to instantiate Jaeger tracer", zap.Error(err))
 			break
 		}
 		opentracing.SetGlobalTracer(tracer)
 		m.jaegerTracerCloser = closer
 	}
 
-	m.boltClient = bolt.NewClient()
+	m.boltClient = bolt.NewClient(m.log.With(zap.String("service", "bolt")))
 	m.boltClient.Path = m.boltPath
-	m.boltClient.WithLogger(m.logger.With(zap.String("service", "bolt")))
 
 	if err := m.boltClient.Open(ctx); err != nil {
-		m.logger.Error("failed opening bolt", zap.Error(err))
+		m.log.Error("Failed opening bolt", zap.Error(err))
 		return err
 	}
 
@@ -493,39 +490,37 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		SessionLength: time.Duration(m.sessionLength) * time.Minute,
 	}
 
-	var flusher http.Flusher
+	flushers := flushers{}
 	switch m.storeType {
 	case BoltStore:
-		store := bolt.NewKVStore(m.boltPath)
+		store := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), m.boltPath)
 		store.WithDB(m.boltClient.DB())
-		m.kvService = kv.NewService(store, serviceConfig)
+		m.kvService = kv.NewService(m.log.With(zap.String("store", "kv")), store, serviceConfig)
 		if m.testing {
-			flusher = store
+			flushers = append(flushers, store)
 		}
 	case MemoryStore:
 		store := inmem.NewKVStore()
-		m.kvService = kv.NewService(store, serviceConfig)
+		m.kvService = kv.NewService(m.log.With(zap.String("store", "kv")), store, serviceConfig)
 		if m.testing {
-			flusher = store
+			flushers = append(flushers, store)
 		}
 	default:
 		err := fmt.Errorf("unknown store type %s; expected bolt or memory", m.storeType)
-		m.logger.Error("failed opening bolt", zap.Error(err))
+		m.log.Error("Failed opening bolt", zap.Error(err))
 		return err
 	}
 
-	m.kvService.Logger = m.logger.With(zap.String("store", "kv"))
 	if err := m.kvService.Initialize(ctx); err != nil {
-		m.logger.Error("failed to initialize kv service", zap.Error(err))
+		m.log.Error("Failed to initialize kv service", zap.Error(err))
 		return err
 	}
 
-	m.reg = prom.NewRegistry()
+	m.reg = prom.NewRegistry(m.log.With(zap.String("service", "prom_registry")))
 	m.reg.MustRegister(
 		prometheus.NewGoCollector(),
 		infprom.NewInfluxCollector(m.boltClient, info),
 	)
-	m.reg.WithLogger(m.logger)
 	m.reg.MustRegister(m.boltClient)
 
 	var (
@@ -560,107 +555,112 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		// https://www.vaultproject.io/docs/commands/index.html#environment-variables
 		svc, err := vault.NewSecretService(vault.WithConfig(vaultConfig))
 		if err != nil {
-			m.logger.Error("failed initializing vault secret service", zap.Error(err))
+			m.log.Error("Failed initializing vault secret service", zap.Error(err))
 			return err
 		}
 		secretSvc = svc
 	default:
 		err := fmt.Errorf("unknown secret service %q, expected \"bolt\" or \"vault\"", m.secretStore)
-		m.logger.Error("failed setting secret service", zap.Error(err))
+		m.log.Error("Failed setting secret service", zap.Error(err))
 		return err
 	}
 
 	chronografSvc, err := server.NewServiceV2(ctx, m.boltClient.DB())
 	if err != nil {
-		m.logger.Error("failed creating chronograf service", zap.Error(err))
+		m.log.Error("Failed creating chronograf service", zap.Error(err))
 		return err
 	}
 
-	var deleteService platform.DeleteService
-	var pointsWriter storage.PointsWriter
-	{
+	if m.testing {
+		// the testing engine will write/read into a temporary directory
+		engine := NewTemporaryEngine(m.StorageConfig, storage.WithRetentionEnforcer(bucketSvc))
+		flushers = append(flushers, engine)
+		m.engine = engine
+	} else {
 		m.engine = storage.NewEngine(m.enginePath, m.StorageConfig, storage.WithRetentionEnforcer(bucketSvc))
-		m.engine.WithLogger(m.logger)
-
-		if err := m.engine.Open(ctx); err != nil {
-			m.logger.Error("failed to open engine", zap.Error(err))
-			return err
-		}
-		// The Engine's metrics must be registered after it opens.
-		m.reg.MustRegister(m.engine.PrometheusCollectors()...)
-
-		pointsWriter = m.engine
-		deleteService = m.engine
-
-		// TODO(cwolff): Figure out a good default per-query memory limit:
-		//   https://github.com/influxdata/influxdb/issues/13642
-		const (
-			concurrencyQuota         = 10
-			memoryBytesQuotaPerQuery = math.MaxInt64
-			QueueSize                = 10
-		)
-
-		cc := control.Config{
-			ConcurrencyQuota:         concurrencyQuota,
-			MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
-			QueueSize:                QueueSize,
-			Logger:                   m.logger.With(zap.String("service", "storage-reads")),
-		}
-
-		authBucketSvc := authorizer.NewBucketService(bucketSvc)
-		authOrgSvc := authorizer.NewOrgService(orgSvc)
-		authSecretSvc := authorizer.NewSecretService(secretSvc)
-		reader := reads.NewReader(readservice.NewStore(m.engine))
-		deps, err := influxdb.NewDependencies(reader, m.engine, authBucketSvc, authOrgSvc, authSecretSvc, cc.MetricLabelKeys)
-		if err != nil {
-			m.logger.Error("Failed to get query controller dependencies", zap.Error(err))
-			return err
-		}
-		cc.ExecutorDependencies = []flux.Dependency{deps}
-
-		c, err := control.New(cc)
-		if err != nil {
-			m.logger.Error("Failed to create query controller", zap.Error(err))
-			return err
-		}
-		m.queryController = c
-		m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 	}
+	m.engine.WithLogger(m.log)
+	if err := m.engine.Open(ctx); err != nil {
+		m.log.Error("Failed to open engine", zap.Error(err))
+		return err
+	}
+	// The Engine's metrics must be registered after it opens.
+	m.reg.MustRegister(m.engine.PrometheusCollectors()...)
+
+	var (
+		deleteService platform.DeleteService = m.engine
+		pointsWriter  storage.PointsWriter   = m.engine
+	)
+
+	// TODO(cwolff): Figure out a good default per-query memory limit:
+	//   https://github.com/influxdata/influxdb/issues/13642
+	const (
+		concurrencyQuota         = 10
+		memoryBytesQuotaPerQuery = math.MaxInt64
+		QueueSize                = 10
+	)
+
+	deps, err := influxdb.NewDependencies(
+		reads.NewReader(readservice.NewStore(m.engine)),
+		m.engine,
+		authorizer.NewBucketService(bucketSvc),
+		authorizer.NewOrgService(orgSvc),
+		authorizer.NewSecretService(secretSvc),
+		nil,
+	)
+	if err != nil {
+		m.log.Error("Failed to get query controller dependencies", zap.Error(err))
+		return err
+	}
+
+	m.queryController, err = control.New(control.Config{
+		ConcurrencyQuota:         concurrencyQuota,
+		MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
+		QueueSize:                QueueSize,
+		Logger:                   m.log.With(zap.String("service", "storage-reads")),
+		ExecutorDependencies:     []flux.Dependency{deps},
+	})
+	if err != nil {
+		m.log.Error("Failed to create query controller", zap.Error(err))
+		return err
+	}
+
+	m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
 	var taskSvc platform.TaskService
 	{
 		// create the task stack:
 		// validation(coordinator(analyticalstore(kv.Service)))
-		combinedTaskService := taskbackend.NewAnalyticalStorage(m.logger.With(zap.String("service", "task-analytical-store")), m.kvService, m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
+		combinedTaskService := taskbackend.NewAnalyticalStorage(m.log.With(zap.String("service", "task-analytical-store")), m.kvService, m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
 		if m.EnableNewScheduler {
 			executor, executorMetrics := taskexecutor.NewExecutor(
-				m.logger.With(zap.String("service", "task-executor")),
+				m.log.With(zap.String("service", "task-executor")),
 				query.QueryServiceBridge{AsyncQueryService: m.queryController},
 				authSvc,
 				combinedTaskService,
 				combinedTaskService,
 			)
 			m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)
-			schLogger := m.logger.With(zap.String("service", "task-scheduler"))
+			schLogger := m.log.With(zap.String("service", "task-scheduler"))
 
 			sch, sm, err := scheduler.NewScheduler(
 				executor,
 				taskbackend.NewSchedulableTaskService(m.kvService),
-				scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledAt time.Time, err error) {
+				scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledFor time.Time, err error) {
 					schLogger.Info(
 						"error in scheduler run",
 						zap.String("taskID", platform.ID(taskID).String()),
-						zap.Time("scheduledAt", scheduledAt),
+						zap.Time("scheduledFor", scheduledFor),
 						zap.Error(err))
 				}),
 			)
 			if err != nil {
-				m.logger.Fatal("could not start task scheduler", zap.Error(err))
+				m.log.Fatal("could not start task scheduler", zap.Error(err))
 			}
 			m.treeScheduler = sch
 			m.reg.MustRegister(sm.PrometheusCollectors()...)
-			coordLogger := m.logger.With(zap.String("service", "task-coordinator"))
+			coordLogger := m.log.With(zap.String("service", "task-coordinator"))
 			taskCoord := coordinator.NewCoordinator(
 				coordLogger,
 				sch,
@@ -678,28 +678,28 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 					return err
 				},
 				coordLogger); err != nil {
-				m.logger.Error("failed to resume existing tasks", zap.Error(err))
+				m.log.Error("Failed to resume existing tasks", zap.Error(err))
 			}
 		} else {
 
 			// define the executor and build analytical storage middleware
-			executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, combinedTaskService)
+			executor := taskexecutor.NewAsyncQueryServiceExecutor(m.log.With(zap.String("service", "task-executor")), m.queryController, authSvc, combinedTaskService)
 
 			// create the scheduler
-			m.scheduler = taskbackend.NewScheduler(combinedTaskService, executor, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
+			m.scheduler = taskbackend.NewScheduler(m.log.With(zap.String("svc", "taskd/scheduler")), combinedTaskService, executor, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond))
 			m.scheduler.Start(ctx)
 			m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
-			logger := m.logger.With(zap.String("service", "task-coordinator"))
+			logger := m.log.With(zap.String("service", "task-coordinator"))
 			coordinator := coordinator.New(logger, m.scheduler)
 
 			// resume existing task claims from task service
-			if err := taskbackend.NotifyCoordinatorOfExisting(ctx, combinedTaskService, coordinator, logger); err != nil {
-				logger.Error("failed to resume existing tasks", zap.Error(err))
+			if err := taskbackend.NotifyCoordinatorOfExisting(ctx, logger, combinedTaskService, coordinator); err != nil {
+				logger.Error("Failed to resume existing tasks", zap.Error(err))
 			}
 
 			taskSvc = middleware.New(combinedTaskService, coordinator)
-			taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc)
+			taskSvc = authorizer.NewTaskService(m.log.With(zap.String("service", "task-authz-validator")), taskSvc)
 			m.taskControlService = combinedTaskService
 		}
 
@@ -707,13 +707,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	var checkSvc platform.CheckService
 	{
-		coordinator := coordinator.New(m.logger, m.scheduler)
+		coordinator := coordinator.New(m.log, m.scheduler)
 		checkSvc = middleware.NewCheckService(m.kvService, m.kvService, coordinator)
 	}
 
 	var notificationRuleSvc platform.NotificationRuleStore
 	{
-		coordinator := coordinator.New(m.logger, m.scheduler)
+		coordinator := coordinator.New(m.log, m.scheduler)
 		notificationRuleSvc = middleware.NewNotificationRuleStore(m.kvService, m.kvService, coordinator)
 	}
 
@@ -749,44 +749,39 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.natsPort = int(nextPort)
 
 	if err := m.natsServer.Open(); err != nil {
-		m.logger.Error("failed to start nats streaming server", zap.Error(err))
+		m.log.Error("Failed to start nats streaming server", zap.Error(err))
 		return err
 	}
 
-	publisher := nats.NewAsyncPublisher(fmt.Sprintf("nats-publisher-%d", m.natsPort), m.NatsURL())
+	publisher := nats.NewAsyncPublisher(m.log, fmt.Sprintf("nats-publisher-%d", m.natsPort), m.NatsURL())
 	if err := publisher.Open(); err != nil {
-		m.logger.Error("failed to connect to streaming server", zap.Error(err))
+		m.log.Error("Failed to connect to streaming server", zap.Error(err))
 		return err
 	}
 
 	// TODO(jm): this is an example of using a subscriber to consume from the channel. It should be removed.
 	subscriber := nats.NewQueueSubscriber(fmt.Sprintf("nats-subscriber-%d", m.natsPort), m.NatsURL())
 	if err := subscriber.Open(); err != nil {
-		m.logger.Error("failed to connect to streaming server", zap.Error(err))
+		m.log.Error("Failed to connect to streaming server", zap.Error(err))
 		return err
 	}
 
-	subscriber.Subscribe(gather.MetricsSubject, "metrics", &gather.RecorderHandler{
-		Logger: m.logger,
-		Recorder: gather.PointWriter{
-			Writer: pointsWriter,
-		},
-	})
-	scraperScheduler, err := gather.NewScheduler(10, m.logger, scraperTargetSvc, publisher, subscriber, 10*time.Second, 30*time.Second)
+	subscriber.Subscribe(gather.MetricsSubject, "metrics", gather.NewRecorderHandler(m.log, gather.PointWriter{Writer: pointsWriter}))
+	scraperScheduler, err := gather.NewScheduler(m.log, 10, scraperTargetSvc, publisher, subscriber, 10*time.Second, 30*time.Second)
 	if err != nil {
-		m.logger.Error("failed to create scraper subscriber", zap.Error(err))
+		m.log.Error("Failed to create scraper subscriber", zap.Error(err))
 		return err
 	}
 
 	m.wg.Add(1)
-	go func(logger *zap.Logger) {
+	go func(log *zap.Logger) {
 		defer m.wg.Done()
-		logger = logger.With(zap.String("service", "scraper"))
+		log = log.With(zap.String("service", "scraper"))
 		if err := scraperScheduler.Run(ctx); err != nil {
-			logger.Error("failed scraper service", zap.Error(err))
+			log.Error("Failed scraper service", zap.Error(err))
 		}
-		logger.Info("Stopping")
-	}(m.logger)
+		log.Info("Stopping")
+	}(m.log)
 
 	m.httpServer = &nethttp.Server{
 		Addr: m.httpBindAddress,
@@ -795,7 +790,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
 		HTTPErrorHandler:     http.ErrorHandler(0),
-		Logger:               m.logger,
+		Logger:               m.log,
 		SessionRenewDisabled: m.sessionRenewDisabled,
 		NewBucketService:     source.NewBucketService,
 		NewQueryService:      source.NewQueryService,
@@ -841,11 +836,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	{
 		b := m.apibackend
 		pkgSVC = pkger.NewService(
-			pkger.WithLogger(m.logger.With(zap.String("service", "pkger"))),
-			pkger.WithBucketSVC(b.BucketService),
-			pkger.WithDashboardSVC(b.DashboardService),
-			pkger.WithLabelSVC(b.LabelService),
-			pkger.WithVariableSVC(b.VariableService),
+			pkger.WithLogger(m.log.With(zap.String("service", "pkger"))),
+			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService)),
+			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
+			pkger.WithLabelSVC(authorizer.NewLabelService(b.LabelService)),
+			pkger.WithNoticationEndpointSVC(authorizer.NewNotificationEndpointService(b.NotificationEndpointService, b.UserResourceMappingService, b.OrganizationService)),
+			pkger.WithTelegrafSVC(authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)),
+			pkger.WithVariableSVC(authorizer.NewVariableService(b.VariableService)),
 		)
 	}
 
@@ -855,21 +852,20 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	// HTTP server
-	platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer))
-	m.reg.MustRegister(platformHandler.PrometheusCollectors()...)
-
-	h := http.NewHandlerFromRegistry("platform", m.reg)
-	h.Handler = platformHandler
-	httpLogger := m.logger.With(zap.String("service", "http"))
+	var platformHandler nethttp.Handler = http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer))
+	m.reg.MustRegister(platformHandler.(*http.PlatformHandler).PrometheusCollectors()...)
+	httpLogger := m.log.With(zap.String("service", "http"))
 	if logconf.Level == zap.DebugLevel {
-		h.Handler = http.LoggingMW(httpLogger)(h.Handler)
+		platformHandler = http.LoggingMW(httpLogger)(platformHandler)
 	}
-	h.Logger = httpLogger
 
-	m.httpServer.Handler = h
+	handler := http.NewHandlerFromRegistry(httpLogger, "platform", m.reg)
+	handler.Handler = platformHandler
+
+	m.httpServer.Handler = handler
 	// If we are in testing mode we allow all data to be flushed and removed.
 	if m.testing {
-		m.httpServer.Handler = http.DebugFlush(ctx, h, flusher)
+		m.httpServer.Handler = http.DebugFlush(ctx, handler, flushers)
 	}
 
 	ln, err := net.Listen("tcp", m.httpBindAddress)
@@ -882,9 +878,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var cer tls.Certificate
 	transport := "http"
 
-	if m.httpTlsCert != "" && m.httpTlsKey != "" {
+	if m.httpTLSCert != "" && m.httpTLSKey != "" {
 		var err error
-		cer, err = tls.LoadX509KeyPair(m.httpTlsCert, m.httpTlsKey)
+		cer, err = tls.LoadX509KeyPair(m.httpTLSCert, m.httpTLSKey)
 
 		if err != nil {
 			httpLogger.Error("failed to load x509 key pair", zap.Error(err))
@@ -901,20 +897,20 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	m.wg.Add(1)
-	go func(logger *zap.Logger) {
+	go func(log *zap.Logger) {
 		defer m.wg.Done()
-		logger.Info("Listening", zap.String("transport", transport), zap.String("addr", m.httpBindAddress), zap.Int("port", m.httpPort))
+		log.Info("Listening", zap.String("transport", transport), zap.String("addr", m.httpBindAddress), zap.Int("port", m.httpPort))
 
 		if cer.Certificate != nil {
-			if err := m.httpServer.ServeTLS(ln, m.httpTlsCert, m.httpTlsKey); err != nethttp.ErrServerClosed {
-				logger.Error("failed https service", zap.Error(err))
+			if err := m.httpServer.ServeTLS(ln, m.httpTLSCert, m.httpTLSKey); err != nethttp.ErrServerClosed {
+				log.Error("Failed https service", zap.Error(err))
 			}
 		} else {
 			if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
-				logger.Error("failed http service", zap.Error(err))
+				log.Error("Failed http service", zap.Error(err))
 			}
 		}
-		logger.Info("Stopping")
+		log.Info("Stopping")
 	}(httpLogger)
 
 	return nil

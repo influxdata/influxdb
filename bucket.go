@@ -153,8 +153,3 @@ func (f BucketFilter) String() string {
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
 }
-
-// FindSystemBucket finds the system bucket with a given name
-func FindSystemBucket(ctx context.Context, bs BucketService, orgID ID, name string) (*Bucket, error) {
-	return bs.FindBucketByName(ctx, orgID, name)
-}

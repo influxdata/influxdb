@@ -8,18 +8,18 @@ import (
 	http "net/http"
 	"time"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/predicate"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 
 // DeleteBackend is all services and associated parameters required to construct
 // the DeleteHandler.
 type DeleteBackend struct {
-	Logger *zap.Logger
+	log *zap.Logger
 	influxdb.HTTPErrorHandler
 
 	DeleteService       influxdb.DeleteService
@@ -28,9 +28,9 @@ type DeleteBackend struct {
 }
 
 // NewDeleteBackend returns a new instance of DeleteBackend
-func NewDeleteBackend(b *APIBackend) *DeleteBackend {
+func NewDeleteBackend(log *zap.Logger, b *APIBackend) *DeleteBackend {
 	return &DeleteBackend{
-		Logger: b.Logger.With(zap.String("handler", "delete")),
+		log: log,
 
 		HTTPErrorHandler:    b.HTTPErrorHandler,
 		DeleteService:       b.DeleteService,
@@ -44,7 +44,7 @@ type DeleteHandler struct {
 	influxdb.HTTPErrorHandler
 	*httprouter.Router
 
-	Logger *zap.Logger
+	log *zap.Logger
 
 	DeleteService       influxdb.DeleteService
 	BucketService       influxdb.BucketService
@@ -52,22 +52,22 @@ type DeleteHandler struct {
 }
 
 const (
-	deletePath = "/api/v2/delete"
+	prefixDelete = "/api/v2/delete"
 )
 
 // NewDeleteHandler creates a new handler at /api/v2/delete to recieve delete requests.
-func NewDeleteHandler(b *DeleteBackend) *DeleteHandler {
+func NewDeleteHandler(log *zap.Logger, b *DeleteBackend) *DeleteHandler {
 	h := &DeleteHandler{
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		Router:           NewRouter(b.HTTPErrorHandler),
-		Logger:           b.Logger,
+		log:              log,
 
 		BucketService:       b.BucketService,
 		DeleteService:       b.DeleteService,
 		OrganizationService: b.OrganizationService,
 	}
 
-	h.HandlerFunc("POST", deletePath, h.handleDelete)
+	h.HandlerFunc("POST", prefixDelete, h.handleDelete)
 	return h
 }
 
@@ -126,7 +126,7 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("deleted",
+	h.log.Debug("Deleted",
 		zap.String("orgID", fmt.Sprint(dr.Org.ID.String())),
 		zap.String("buketID", fmt.Sprint(dr.Bucket.ID.String())),
 	)
@@ -225,7 +225,7 @@ type DeleteService struct {
 
 // DeleteBucketRangePredicate send delete request over http to delete points.
 func (s *DeleteService) DeleteBucketRangePredicate(ctx context.Context, dr DeleteRequest) error {
-	u, err := NewURL(s.Addr, deletePath)
+	u, err := NewURL(s.Addr, prefixDelete)
 	if err != nil {
 		return err
 	}

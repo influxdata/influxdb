@@ -27,6 +27,7 @@ func bucketF(cmd *cobra.Command, args []string) {
 type BucketCreateFlags struct {
 	name      string
 	orgID     string
+	org       string
 	retention time.Duration
 }
 
@@ -42,6 +43,7 @@ func init() {
 	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.name, "name", "n", "", "Name of bucket that will be created")
 	bucketCreateCmd.Flags().DurationVarP(&bucketCreateFlags.retention, "retention", "r", 0, "Duration in nanoseconds data will live in bucket")
 	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.orgID, "org-id", "", "", "The ID of the organization that owns the bucket")
+	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.org, "org", "o", "", "The org name")
 	bucketCreateCmd.MarkFlagRequired("name")
 
 	bucketCmd.AddCommand(bucketCreateCmd)
@@ -51,16 +53,22 @@ func newBucketService(f Flags) (platform.BucketService, error) {
 	if f.local {
 		return newLocalKVService()
 	}
+
+	client, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+
 	return &http.BucketService{
-		Addr:               f.host,
-		Token:              f.token,
-		InsecureSkipVerify: f.skipVerify,
+		Client: client,
 	}, nil
 }
 
 func bucketCreateF(cmd *cobra.Command, args []string) error {
-	if bucketCreateFlags.orgID == "" {
-		return fmt.Errorf("must specify org-id")
+	if bucketCreateFlags.orgID == "" && bucketCreateFlags.org == "" {
+		return fmt.Errorf("must specify org-id, or org name")
+	} else if bucketCreateFlags.orgID != "" && bucketCreateFlags.org != "" {
+		return fmt.Errorf("must specify org-id, or org name not both")
 	}
 
 	s, err := newBucketService(flags)
@@ -73,12 +81,14 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 		RetentionPeriod: bucketCreateFlags.retention,
 	}
 
-	if bucketCreateFlags.orgID != "" {
-		id, err := platform.IDFromString(bucketCreateFlags.orgID)
-		if err != nil {
-			return fmt.Errorf("failed to decode org id %q: %v", bucketCreateFlags.orgID, err)
-		}
-		b.OrgID = *id
+	orgSvc, err := newOrganizationService()
+	if err != nil {
+		return nil
+	}
+
+	b.OrgID, err = getOrgID(orgSvc, bucketCreateFlags.orgID, bucketCreateFlags.org)
+	if err != nil {
+		return err
 	}
 
 	if err := s.CreateBucket(context.Background(), b); err != nil {
@@ -105,10 +115,11 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 
 // BucketFindFlags define the Find Command
 type BucketFindFlags struct {
-	name  string
-	id    string
-	org   string
-	orgID string
+	name    string
+	id      string
+	org     string
+	orgID   string
+	headers bool
 }
 
 var bucketFindFlags BucketFindFlags
@@ -124,6 +135,7 @@ func init() {
 	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.id, "id", "i", "", "The bucket ID")
 	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.orgID, "org-id", "", "", "The bucket organization ID")
 	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.org, "org", "o", "", "The bucket organization name")
+	bucketFindCmd.Flags().BoolVar(&bucketFindFlags.headers, "headers", true, "To print the table headers; defaults true")
 
 	bucketCmd.AddCommand(bucketFindCmd)
 }
@@ -169,6 +181,7 @@ func bucketFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
+	w.HideHeaders(!bucketFindFlags.headers)
 	w.WriteHeaders(
 		"ID",
 		"Name",

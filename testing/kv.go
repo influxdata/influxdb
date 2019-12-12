@@ -590,6 +590,44 @@ func KVCursorWithHints(
 			},
 			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03", "bbb/00"},
 		},
+		{
+			name: "predicate for key",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa",
+				until: "aaa/03",
+				hints: []kv.CursorHint{
+					kv.WithCursorHintPredicate(func(key, _ []byte) bool {
+						return len(key) < 3 || string(key[:3]) == "aaa"
+					})},
+			},
+			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03"},
+		},
+		{
+			name: "predicate for value",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "",
+				until: "aa/01",
+				hints: []kv.CursorHint{
+					kv.WithCursorHintPredicate(func(_, val []byte) bool {
+						return len(val) < 7 || string(val[:7]) == "val:aa/"
+					})},
+			},
+			exp: []string{"aa/00", "aa/01"},
+		},
 	}
 
 	for _, tt := range tests {

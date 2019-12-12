@@ -7,9 +7,11 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb"
+	ierrors "github.com/influxdata/influxdb/kit/errors"
 	"go.uber.org/zap"
 )
 
@@ -24,21 +26,24 @@ type SVC interface {
 }
 
 type serviceOpt struct {
-	logger *zap.Logger
+	logger      *zap.Logger
+	labelSVC    influxdb.LabelService
+	bucketSVC   influxdb.BucketService
+	dashSVC     influxdb.DashboardService
+	endpointSVC influxdb.NotificationEndpointService
+	teleSVC     influxdb.TelegrafConfigStore
+	varSVC      influxdb.VariableService
 
-	labelSVC  influxdb.LabelService
-	bucketSVC influxdb.BucketService
-	dashSVC   influxdb.DashboardService
-	varSVC    influxdb.VariableService
+	applyReqLimit int
 }
 
 // ServiceSetterFn is a means of setting dependencies on the Service type.
 type ServiceSetterFn func(opt *serviceOpt)
 
-// WithLogger sets the service logger.
-func WithLogger(logger *zap.Logger) ServiceSetterFn {
-	return func(opt *serviceOpt) {
-		opt.logger = logger
+// WithLogger sets the logger for the service.
+func WithLogger(log *zap.Logger) ServiceSetterFn {
+	return func(o *serviceOpt) {
+		o.logger = log
 	}
 }
 
@@ -56,10 +61,24 @@ func WithDashboardSVC(dashSVC influxdb.DashboardService) ServiceSetterFn {
 	}
 }
 
+// WithNoticationEndpointSVC sets the endpoint notification service.
+func WithNoticationEndpointSVC(endpointSVC influxdb.NotificationEndpointService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.endpointSVC = endpointSVC
+	}
+}
+
 // WithLabelSVC sets the label service.
 func WithLabelSVC(labelSVC influxdb.LabelService) ServiceSetterFn {
 	return func(opt *serviceOpt) {
 		opt.labelSVC = labelSVC
+	}
+}
+
+// WithTelegrafSVC sets the telegraf service.
+func WithTelegrafSVC(telegrafSVC influxdb.TelegrafConfigStore) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.teleSVC = telegrafSVC
 	}
 }
 
@@ -70,68 +89,102 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 	}
 }
 
+// WithApplyReqLimit sets the concurrency request limit.
+func WithApplyReqLimit(limit int) ServiceSetterFn {
+	return func(o *serviceOpt) {
+		if limit > 0 {
+			o.applyReqLimit = limit
+		}
+	}
+}
+
 // Service provides the pkger business logic including all the dependencies to make
 // this resource sausage.
 type Service struct {
-	logger *zap.Logger
+	log *zap.Logger
 
-	labelSVC  influxdb.LabelService
-	bucketSVC influxdb.BucketService
-	dashSVC   influxdb.DashboardService
-	varSVC    influxdb.VariableService
+	labelSVC    influxdb.LabelService
+	bucketSVC   influxdb.BucketService
+	dashSVC     influxdb.DashboardService
+	endpointSVC influxdb.NotificationEndpointService
+	teleSVC     influxdb.TelegrafConfigStore
+	varSVC      influxdb.VariableService
+
+	applyReqLimit int
 }
 
 // NewService is a constructor for a pkger Service.
 func NewService(opts ...ServiceSetterFn) *Service {
 	opt := &serviceOpt{
-		logger: zap.NewNop(),
+		logger:        zap.NewNop(),
+		applyReqLimit: 5,
 	}
 	for _, o := range opts {
 		o(opt)
 	}
 
 	return &Service{
-		logger:    opt.logger,
-		bucketSVC: opt.bucketSVC,
-		labelSVC:  opt.labelSVC,
-		dashSVC:   opt.dashSVC,
-		varSVC:    opt.varSVC,
+		log:           opt.logger,
+		bucketSVC:     opt.bucketSVC,
+		labelSVC:      opt.labelSVC,
+		dashSVC:       opt.dashSVC,
+		endpointSVC:   opt.endpointSVC,
+		teleSVC:       opt.teleSVC,
+		varSVC:        opt.varSVC,
+		applyReqLimit: opt.applyReqLimit,
 	}
 }
 
 // CreatePkgSetFn is a functional input for setting the pkg fields.
-type CreatePkgSetFn func(opt *createOpt) error
+type CreatePkgSetFn func(opt *CreateOpt) error
 
-type createOpt struct {
-	metadata  Metadata
-	resources []ResourceToClone
+// CreateOpt are the options for creating a new package.
+type CreateOpt struct {
+	Metadata  Metadata
+	OrgIDs    map[influxdb.ID]bool
+	Resources []ResourceToClone
 }
 
 // CreateWithMetadata sets the metadata on the pkg in a CreatePkg call.
 func CreateWithMetadata(meta Metadata) CreatePkgSetFn {
-	return func(opt *createOpt) error {
-		opt.metadata = meta
+	return func(opt *CreateOpt) error {
+		opt.Metadata = meta
 		return nil
 	}
 }
 
 // CreateWithExistingResources allows the create method to clone existing resources.
 func CreateWithExistingResources(resources ...ResourceToClone) CreatePkgSetFn {
-	return func(opt *createOpt) error {
+	return func(opt *CreateOpt) error {
 		for _, r := range resources {
 			if err := r.OK(); err != nil {
 				return err
 			}
-			r.Kind = newKind(string(r.Kind))
+			r.Kind = NewKind(string(r.Kind))
 		}
-		opt.resources = append(opt.resources, resources...)
+		opt.Resources = append(opt.Resources, resources...)
+		return nil
+	}
+}
+
+// CreateWithAllOrgResources allows the create method to clone all existing resources
+// for the given organization.
+func CreateWithAllOrgResources(orgID influxdb.ID) CreatePkgSetFn {
+	return func(opt *CreateOpt) error {
+		if orgID == 0 {
+			return errors.New("orgID provided must not be zero")
+		}
+		if opt.OrgIDs == nil {
+			opt.OrgIDs = make(map[influxdb.ID]bool)
+		}
+		opt.OrgIDs[orgID] = true
 		return nil
 	}
 }
 
 // CreatePkg will produce a pkg from the parameters provided.
 func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
-	opt := new(createOpt)
+	opt := new(CreateOpt)
 	for _, setter := range setters {
 		if err := setter(opt); err != nil {
 			return nil, err
@@ -140,12 +193,12 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 
 	pkg := &Pkg{
 		APIVersion: APIVersion,
-		Kind:       KindPackage.String(),
-		Metadata:   opt.metadata,
+		Kind:       KindPackage,
+		Metadata:   opt.Metadata,
 		Spec: struct {
 			Resources []Resource `yaml:"resources" json:"resources"`
 		}{
-			Resources: make([]Resource, 0, len(opt.resources)),
+			Resources: make([]Resource, 0, len(opt.Resources)),
 		},
 	}
 	if pkg.Metadata.Name == "" {
@@ -158,7 +211,15 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	}
 
 	cloneAssFn := s.resourceCloneAssociationsGen()
-	for _, r := range opt.resources {
+	for orgID := range opt.OrgIDs {
+		resourcesToClone, err := s.cloneOrgResources(ctx, orgID)
+		if err != nil {
+			return nil, err
+		}
+		opt.Resources = append(opt.Resources, resourcesToClone...)
+	}
+
+	for _, r := range uniqResourcesToClone(opt.Resources) {
 		newResources, err := s.resourceCloneToResource(ctx, r, cloneAssFn)
 		if err != nil {
 			return nil, err
@@ -193,7 +254,142 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	return pkg, nil
 }
 
-func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) ([]Resource, error) {
+func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	resourceTypeGens := []struct {
+		resType influxdb.ResourceType
+		cloneFn func(context.Context, influxdb.ID) ([]ResourceToClone, error)
+	}{
+		{
+			resType: KindBucket.ResourceType(),
+			cloneFn: s.cloneOrgBuckets,
+		},
+		{
+			resType: KindDashboard.ResourceType(),
+			cloneFn: s.cloneOrgDashboards,
+		},
+		{
+			resType: KindLabel.ResourceType(),
+			cloneFn: s.cloneOrgLabels,
+		},
+		{
+			resType: KindTelegraf.ResourceType(),
+			cloneFn: s.cloneTelegrafs,
+		},
+		{
+			resType: KindVariable.ResourceType(),
+			cloneFn: s.cloneOrgVariables,
+		},
+	}
+
+	var resources []ResourceToClone
+	for _, resGen := range resourceTypeGens {
+		existingResources, err := resGen.cloneFn(ctx, orgID)
+		if err != nil {
+			return nil, ierrors.Wrap(err, "finding "+string(resGen.resType))
+		}
+		resources = append(resources, existingResources...)
+	}
+
+	return resources, nil
+}
+
+func (s *Service) cloneOrgBuckets(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	buckets, _, err := s.bucketSVC.FindBuckets(ctx, influxdb.BucketFilter{
+		OrganizationID: &orgID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resources := make([]ResourceToClone, 0, len(buckets))
+	for _, b := range buckets {
+		if b.Type == influxdb.BucketTypeSystem {
+			continue
+		}
+		resources = append(resources, ResourceToClone{
+			Kind: KindBucket,
+			ID:   b.ID,
+		})
+	}
+	return resources, nil
+}
+
+func (s *Service) cloneOrgDashboards(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	dashs, _, err := s.dashSVC.FindDashboards(ctx, influxdb.DashboardFilter{
+		OrganizationID: &orgID,
+	}, influxdb.FindOptions{Limit: 100})
+	if err != nil {
+		return nil, err
+	}
+
+	resources := make([]ResourceToClone, 0, len(dashs))
+	for _, d := range dashs {
+		resources = append(resources, ResourceToClone{
+			Kind: KindDashboard,
+			ID:   d.ID,
+		})
+	}
+	return resources, nil
+}
+
+func (s *Service) cloneOrgLabels(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	labels, err := s.labelSVC.FindLabels(ctx, influxdb.LabelFilter{
+		OrgID: &orgID,
+	}, influxdb.FindOptions{Limit: 10000})
+	if err != nil {
+		return nil, ierrors.Wrap(err, "finding labels")
+	}
+
+	resources := make([]ResourceToClone, 0, len(labels))
+	for _, l := range labels {
+		resources = append(resources, ResourceToClone{
+			Kind: KindLabel,
+			ID:   l.ID,
+		})
+	}
+	return resources, nil
+}
+
+func (s *Service) cloneTelegrafs(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	teles, _, err := s.teleSVC.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{OrgID: &orgID})
+	if err != nil {
+		return nil, err
+	}
+	resources := make([]ResourceToClone, 0, len(teles))
+	for _, t := range teles {
+		resources = append(resources, ResourceToClone{
+			Kind: KindTelegraf,
+			ID:   t.ID,
+		})
+	}
+	return resources, nil
+}
+
+func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	vars, err := s.varSVC.FindVariables(ctx, influxdb.VariableFilter{
+		OrganizationID: &orgID,
+	}, influxdb.FindOptions{Limit: 10000})
+	if err != nil {
+		return nil, err
+	}
+
+	resources := make([]ResourceToClone, 0, len(vars))
+	for _, v := range vars {
+		resources = append(resources, ResourceToClone{
+			Kind: KindVariable,
+			ID:   v.ID,
+		})
+	}
+
+	return resources, nil
+}
+
+func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) (newResources []Resource, e error) {
+	defer func() {
+		if e != nil {
+			e = ierrors.Wrap(e, "cloning resource")
+		}
+	}()
 	var newResource Resource
 	switch {
 	case r.Kind.is(KindBucket):
@@ -207,21 +403,20 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 		if err != nil {
 			return nil, err
 		}
-		var cellViews []cellView
-		for _, cell := range dash.Cells {
-			v, err := s.dashSVC.GetDashboardCellView(ctx, r.ID, cell.ID)
-			if err != nil {
-				return nil, err
-			}
-			cellViews = append(cellViews, cellView{c: *cell, v: *v})
-		}
-		newResource = dashboardToResource(*dash, cellViews, r.Name)
+
+		newResource = dashboardToResource(*dash, r.Name)
 	case r.Kind.is(KindLabel):
 		l, err := s.labelSVC.FindLabelByID(ctx, r.ID)
 		if err != nil {
 			return nil, err
 		}
 		newResource = labelToResource(*l, r.Name)
+	case r.Kind.is(KindTelegraf):
+		t, err := s.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
+		if err != nil {
+			return nil, err
+		}
+		newResource = telegrafToResource(*t, r.Name)
 	case r.Kind.is(KindVariable):
 		v, err := s.varSVC.FindVariableByID(ctx, r.ID)
 		if err != nil {
@@ -260,24 +455,16 @@ func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
 	// memoize the labels so we dont' create duplicates
 	m := make(map[key]bool)
 	return func(ctx context.Context, r ResourceToClone) (associations, error) {
-		var iResType influxdb.ResourceType
-		switch {
-		case r.Kind.is(KindBucket):
-			iResType = influxdb.BucketsResourceType
-		case r.Kind.is(KindDashboard):
-			iResType = influxdb.DashboardsResourceType
-		case r.Kind.is(KindVariable):
-			iResType = influxdb.VariablesResourceType
-		default:
+		if r.Kind.is(KindUnknown, KindLabel) {
 			return associations{}, nil
 		}
 
 		labels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
 			ResourceID:   r.ID,
-			ResourceType: iResType,
+			ResourceType: r.Kind.ResourceType(),
 		})
 		if err != nil {
-			return associations{}, err
+			return associations{}, ierrors.Wrap(err, "finding resource labels")
 		}
 
 		var ass associations
@@ -319,12 +506,12 @@ func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summ
 		return Summary{}, Diff{}, err
 	}
 
-	diffDashes, err := s.dryRunDashboards(ctx, orgID, pkg)
+	diffLabels, err := s.dryRunLabels(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
 	}
 
-	diffLabels, err := s.dryRunLabels(ctx, orgID, pkg)
+	diffEndpoints, err := s.dryRunNotificationEndpoints(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
 	}
@@ -345,11 +532,13 @@ func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summ
 	pkg.isVerified = true
 
 	diff := Diff{
-		Buckets:       diffBuckets,
-		Dashboards:    diffDashes,
-		Labels:        diffLabels,
-		LabelMappings: diffLabelMappings,
-		Variables:     diffVars,
+		Buckets:               diffBuckets,
+		Dashboards:            s.dryRunDashboards(pkg),
+		Labels:                diffLabels,
+		LabelMappings:         diffLabelMappings,
+		NotificationEndpoints: diffEndpoints,
+		Telegrafs:             s.dryRunTelegraf(pkg),
+		Variables:             diffVars,
 	}
 	return pkg.Summary(), diff, parseErr
 }
@@ -359,15 +548,15 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 	bkts := pkg.buckets()
 	for i := range bkts {
 		b := bkts[i]
-		existingBkt, err := s.bucketSVC.FindBucketByName(ctx, orgID, b.Name)
+		existingBkt, err := s.bucketSVC.FindBucketByName(ctx, orgID, b.Name())
 		switch err {
 		// TODO: case for err not found here and another case handle where
 		//  err isn't a not found (some other error)
 		case nil:
 			b.existing = existingBkt
-			mExistingBkts[b.Name] = newDiffBucket(b, *existingBkt)
+			mExistingBkts[b.Name()] = newDiffBucket(b, existingBkt)
 		default:
-			mExistingBkts[b.Name] = newDiffBucket(b, influxdb.Bucket{})
+			mExistingBkts[b.Name()] = newDiffBucket(b, nil)
 		}
 	}
 
@@ -382,17 +571,12 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 	return diffs, nil
 }
 
-func (s *Service) dryRunDashboards(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffDashboard, error) {
+func (s *Service) dryRunDashboards(pkg *Pkg) []DiffDashboard {
 	var diffs []DiffDashboard
 	for _, d := range pkg.dashboards() {
 		diffs = append(diffs, newDiffDashboard(d))
 	}
-
-	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].Name < diffs[j].Name
-	})
-
-	return diffs, nil
+	return diffs
 }
 
 func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffLabel, error) {
@@ -401,7 +585,7 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 	for i := range labels {
 		pkgLabel := labels[i]
 		existingLabels, err := s.labelSVC.FindLabels(ctx, influxdb.LabelFilter{
-			Name:  pkgLabel.Name,
+			Name:  pkgLabel.Name(),
 			OrgID: &orgID,
 		}, influxdb.FindOptions{Limit: 1})
 		switch {
@@ -410,9 +594,9 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 		case err == nil && len(existingLabels) > 0:
 			existingLabel := existingLabels[0]
 			pkgLabel.existing = existingLabel
-			mExistingLabels[pkgLabel.Name] = newDiffLabel(pkgLabel, *existingLabel)
+			mExistingLabels[pkgLabel.Name()] = newDiffLabel(pkgLabel, existingLabel)
 		default:
-			mExistingLabels[pkgLabel.Name] = newDiffLabel(pkgLabel, influxdb.Label{})
+			mExistingLabels[pkgLabel.Name()] = newDiffLabel(pkgLabel, nil)
 		}
 	}
 
@@ -427,6 +611,52 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 	return diffs, nil
 }
 
+func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffNotificationEndpoint, error) {
+	existingEndpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
+		OrgID: &orgID,
+	}) // grab em all
+	if err != nil {
+		return nil, err
+	}
+
+	mExisting := make(map[string]influxdb.NotificationEndpoint)
+	for i := range existingEndpoints {
+		e := existingEndpoints[i]
+		mExisting[e.GetName()] = e
+	}
+
+	mExistingToNew := make(map[string]DiffNotificationEndpoint)
+	endpoints := pkg.notificationEndpoints()
+	for i := range endpoints {
+		newEndpoint := endpoints[i]
+
+		var existing influxdb.NotificationEndpoint
+		if iExisting, ok := mExisting[newEndpoint.Name()]; ok {
+			newEndpoint.existing = iExisting
+			existing = iExisting
+		}
+		mExistingToNew[newEndpoint.Name()] = newDiffNotificationEndpoint(newEndpoint, existing)
+	}
+
+	var diffs []DiffNotificationEndpoint
+	for _, diff := range mExistingToNew {
+		diffs = append(diffs, diff)
+	}
+	sort.Slice(diffs, func(i, j int) bool {
+		return diffs[i].Name < diffs[j].Name
+	})
+
+	return diffs, nil
+}
+
+func (s *Service) dryRunTelegraf(pkg *Pkg) []DiffTelegraf {
+	var diffs []DiffTelegraf
+	for _, t := range pkg.telegrafs() {
+		diffs = append(diffs, newDiffTelegraf(t))
+	}
+	return diffs
+}
+
 func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffVariable, error) {
 	mExistingLabels := make(map[string]DiffVariable)
 	variables := pkg.variables()
@@ -439,23 +669,23 @@ VarLoop:
 			// TODO: would be ideal to extend find variables to allow for a name matcher
 			//  since names are unique for vars within an org, meanwhile, make large limit
 			// 	returned vars, should be more than enough for the time being.
-		}, influxdb.FindOptions{Limit: 10000})
+		}, influxdb.FindOptions{Limit: 100})
 		switch {
 		case err == nil && len(existingLabels) > 0:
 			for i := range existingLabels {
 				existingVar := existingLabels[i]
-				if existingVar.Name != pkgVar.Name {
+				if existingVar.Name != pkgVar.Name() {
 					continue
 				}
 				pkgVar.existing = existingVar
-				mExistingLabels[pkgVar.Name] = newDiffVariable(pkgVar, *existingVar)
+				mExistingLabels[pkgVar.Name()] = newDiffVariable(pkgVar, existingVar)
 				continue VarLoop
 			}
 			// fallthrough here for when the variable is not found, it'll fall to the
 			// default case and add it as new.
 			fallthrough
 		default:
-			mExistingLabels[pkgVar.Name] = newDiffVariable(pkgVar, influxdb.Variable{})
+			mExistingLabels[pkgVar.Name()] = newDiffVariable(pkgVar, nil)
 		}
 	}
 
@@ -473,65 +703,47 @@ VarLoop:
 type (
 	labelMappingDiffFn func(labelID influxdb.ID, labelName string, isNew bool)
 
+	labelMappers interface {
+		Association(i int) labelAssociater
+		Len() int
+	}
+
 	labelAssociater interface {
 		ID() influxdb.ID
+		Name() string
+		Labels() []*label
 		ResourceType() influxdb.ResourceType
 		Exists() bool
 	}
 )
 
 func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabelMapping, error) {
+	mappers := []labelMappers{
+		mapperBuckets(pkg.buckets()),
+		mapperDashboards(pkg.mDashboards),
+		mapperNotificationEndpoints(pkg.notificationEndpoints()),
+		mapperTelegrafs(pkg.mTelegrafs),
+		mapperVariables(pkg.variables()),
+	}
+
 	var diffs []DiffLabelMapping
-	for _, b := range pkg.buckets() {
-		err := s.dryRunResourceLabelMapping(ctx, b, b.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
-			if l, ok := pkg.mLabels[labelName]; ok {
-				l.setBucketMapping(b, !isNew)
+	for _, mapper := range mappers {
+		for i := 0; i < mapper.Len(); i++ {
+			la := mapper.Association(i)
+			err := s.dryRunResourceLabelMapping(ctx, la, func(labelID influxdb.ID, labelName string, isNew bool) {
+				pkg.mLabels[labelName].setMapping(la, !isNew)
+				diffs = append(diffs, DiffLabelMapping{
+					IsNew:     isNew,
+					ResType:   la.ResourceType(),
+					ResID:     SafeID(la.ID()),
+					ResName:   la.Name(),
+					LabelID:   SafeID(labelID),
+					LabelName: labelName,
+				})
+			})
+			if err != nil {
+				return nil, err
 			}
-			diffs = append(diffs, DiffLabelMapping{
-				IsNew:     isNew,
-				ResType:   b.ResourceType(),
-				ResID:     SafeID(b.ID()),
-				ResName:   b.Name,
-				LabelID:   SafeID(labelID),
-				LabelName: labelName,
-			})
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	for _, d := range pkg.dashboards() {
-		err := s.dryRunResourceLabelMapping(ctx, d, d.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
-			pkg.mLabels[labelName].setDashboardMapping(d)
-			diffs = append(diffs, DiffLabelMapping{
-				IsNew:     isNew,
-				ResType:   d.ResourceType(),
-				ResID:     SafeID(d.ID()),
-				ResName:   d.Name,
-				LabelID:   SafeID(labelID),
-				LabelName: labelName,
-			})
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	for _, v := range pkg.variables() {
-		err := s.dryRunResourceLabelMapping(ctx, v, v.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
-			pkg.mLabels[labelName].setVariableMapping(v, !isNew)
-			diffs = append(diffs, DiffLabelMapping{
-				IsNew:     isNew,
-				ResType:   v.ResourceType(),
-				ResID:     SafeID(v.ID()),
-				ResName:   v.Name,
-				LabelID:   SafeID(labelID),
-				LabelName: labelName,
-			})
-		})
-		if err != nil {
-			return nil, err
 		}
 	}
 
@@ -556,10 +768,10 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 	return diffs, nil
 }
 
-func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssociater, labels []*label, mappingFn labelMappingDiffFn) error {
+func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssociater, mappingFn labelMappingDiffFn) error {
 	if !la.Exists() {
-		for _, l := range labels {
-			mappingFn(l.ID(), l.Name, true)
+		for _, l := range la.Labels() {
+			mappingFn(l.ID(), l.Name(), true)
 		}
 		return nil
 	}
@@ -577,7 +789,7 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 		return err
 	}
 
-	pkgLabels := labelSlcToMap(labels)
+	pkgLabels := labelSlcToMap(la.Labels())
 	for _, l := range existingLabels {
 		// should ignore any labels that are not specified in pkg
 		mappingFn(l.ID, l.Name, false)
@@ -586,17 +798,9 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 
 	// now we add labels that were not apart of the existing labels
 	for _, l := range pkgLabels {
-		mappingFn(l.ID(), l.Name, true)
+		mappingFn(l.ID(), l.Name(), true)
 	}
 	return nil
-}
-
-func labelSlcToMap(labels []*label) map[string]*label {
-	m := make(map[string]*label)
-	for i := range labels {
-		m[labels[i].Name] = labels[i]
-	}
-	return m
 }
 
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
@@ -616,36 +820,46 @@ func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum S
 		}
 	}
 
-	coordinator := new(rollbackCoordinator)
-	defer coordinator.rollback(s.logger, &e)
+	coordinator := &rollbackCoordinator{sem: make(chan struct{}, s.applyReqLimit)}
+	defer coordinator.rollback(s.log, &e)
 
-	runners := [][]applier{
-		// each grouping here runs for its entirety, then returns an error that
-		// is indicative of running all appliers provided. For instance, the labels
-		// may have 1 label fail and one of the buckets fails. The errors aggregate so
-		// the caller will be informed of both the failed label and the failed bucket.
-		// the groupings here allow for steps to occur before exiting. The first step is
-		// adding the primary resources. Here we get all the errors associated with them.
-		// If those are all good, then we run the secondary(dependent) resources which
-		// rely on the primary resources having been created.
+	// each grouping here runs for its entirety, then returns an error that
+	// is indicative of running all appliers provided. For instance, the labels
+	// may have 1 variable fail and one of the buckets fails. The errors aggregate so
+	// the caller will be informed of both the failed label variable the failed bucket.
+	// the groupings here allow for steps to occur before exiting. The first step is
+	// adding the dependencies, resources that are associated by other resources. Then the
+	// primary resources. Here we get all the errors associated with them.
+	// If those are all good, then we run the secondary(dependent) resources which
+	// rely on the primary resources having been created.
+	appliers := [][]applier{
+		// want to make all dependencies for belwo donezo before moving on to resources
+		// that have dependencies on lables
+		{
+			// deps for primary resources
+			s.applyLabels(pkg.labels()),
+		},
 		{
 			// primary resources
-			s.applyLabels(pkg.labels()),
 			s.applyVariables(pkg.variables()),
 			s.applyBuckets(pkg.buckets()),
 			s.applyDashboards(pkg.dashboards()),
-		},
-		{
-			// secondary (dependent) resources
-			s.applyLabelMappings(pkg),
+			s.applyNotificationEndpoints(pkg.notificationEndpoints()),
+			s.applyTelegrafs(pkg.telegrafs()),
 		},
 	}
 
-	for _, appliers := range runners {
-		err := coordinator.runTilEnd(ctx, orgID, appliers...)
-		if err != nil {
+	for _, group := range appliers {
+		if err := coordinator.runTilEnd(ctx, orgID, group...); err != nil {
 			return Summary{}, err
 		}
+	}
+
+	// secondary resources
+	// this last grouping relies on the above 2 steps having completely successfully
+	secondary := []applier{s.applyLabelMappings(pkg.labelMappings())}
+	if err := coordinator.runTilEnd(ctx, orgID, secondary...); err != nil {
+		return Summary{}, err
 	}
 
 	return pkg.Summary(), nil
@@ -654,34 +868,40 @@ func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum S
 func (s *Service) applyBuckets(buckets []*bucket) applier {
 	const resource = "bucket"
 
+	mutex := new(doMutex)
 	rollbackBuckets := make([]*bucket, 0, len(buckets))
-	createFn := func(ctx context.Context, orgID influxdb.ID) error {
-		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-		defer cancel()
 
-		var errs applyErrs
-		for i, b := range buckets {
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var b bucket
+		mutex.Do(func() {
 			buckets[i].OrgID = orgID
-			if !b.shouldApply() {
-				continue
-			}
-			influxBucket, err := s.applyBucket(ctx, b)
-			if err != nil {
-				errs = append(errs, applyErrBody{
-					name: b.Name,
-					msg:  err.Error(),
-				})
-				continue
-			}
-			buckets[i].id = influxBucket.ID
-			rollbackBuckets = append(rollbackBuckets, buckets[i])
+			b = *buckets[i]
+		})
+		if !b.shouldApply() {
+			return nil
 		}
 
-		return errs.toError(resource, "failed to create bucket")
+		influxBucket, err := s.applyBucket(ctx, b)
+		if err != nil {
+			return &applyErrBody{
+				name: b.Name(),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			buckets[i].id = influxBucket.ID
+			rollbackBuckets = append(rollbackBuckets, buckets[i])
+		})
+
+		return nil
 	}
 
 	return applier{
-		creater: createFn,
+		creater: creater{
+			entries: len(buckets),
+			fn:      createFn,
+		},
 		rollbacker: rollbacker{
 			resource: resource,
 			fn:       func() error { return s.rollbackBuckets(rollbackBuckets) },
@@ -700,9 +920,10 @@ func (s *Service) rollbackBuckets(buckets []*bucket) error {
 			continue
 		}
 
+		rp := b.RetentionRules.RP()
 		_, err := s.bucketSVC.UpdateBucket(context.Background(), b.ID(), influxdb.BucketUpdate{
 			Description:     &b.Description,
-			RetentionPeriod: &b.RetentionPeriod,
+			RetentionPeriod: &rp,
 		})
 		if err != nil {
 			errs = append(errs, b.ID().String())
@@ -717,11 +938,12 @@ func (s *Service) rollbackBuckets(buckets []*bucket) error {
 	return nil
 }
 
-func (s *Service) applyBucket(ctx context.Context, b *bucket) (influxdb.Bucket, error) {
+func (s *Service) applyBucket(ctx context.Context, b bucket) (influxdb.Bucket, error) {
+	rp := b.RetentionRules.RP()
 	if b.existing != nil {
 		influxBucket, err := s.bucketSVC.UpdateBucket(ctx, b.ID(), influxdb.BucketUpdate{
 			Description:     &b.Description,
-			RetentionPeriod: &b.RetentionPeriod,
+			RetentionPeriod: &rp,
 		})
 		if err != nil {
 			return influxdb.Bucket{}, err
@@ -732,8 +954,8 @@ func (s *Service) applyBucket(ctx context.Context, b *bucket) (influxdb.Bucket, 
 	influxBucket := influxdb.Bucket{
 		OrgID:           b.OrgID,
 		Description:     b.Description,
-		Name:            b.Name,
-		RetentionPeriod: b.RetentionPeriod,
+		Name:            b.Name(),
+		RetentionPeriod: rp,
 	}
 	err := s.bucketSVC.CreateBucket(ctx, &influxBucket)
 	if err != nil {
@@ -746,62 +968,53 @@ func (s *Service) applyBucket(ctx context.Context, b *bucket) (influxdb.Bucket, 
 func (s *Service) applyDashboards(dashboards []*dashboard) applier {
 	const resource = "dashboard"
 
+	mutex := new(doMutex)
 	rollbackDashboards := make([]*dashboard, 0, len(dashboards))
-	createFn := func(ctx context.Context, orgID influxdb.ID) error {
-		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-		defer cancel()
 
-		var errs applyErrs
-		for i := range dashboards {
-			d := dashboards[i]
-			d.OrgID = orgID
-			influxBucket, err := s.applyDashboard(ctx, d)
-			if err != nil {
-				errs = append(errs, applyErrBody{
-					name: d.Name,
-					msg:  err.Error(),
-				})
-				continue
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var d dashboard
+		mutex.Do(func() {
+			dashboards[i].OrgID = orgID
+			d = *dashboards[i]
+		})
+
+		influxBucket, err := s.applyDashboard(ctx, d)
+		if err != nil {
+			return &applyErrBody{
+				name: d.Name(),
+				msg:  err.Error(),
 			}
-			d.id = influxBucket.ID
-			rollbackDashboards = append(rollbackDashboards, d)
 		}
 
-		return errs.toError(resource, "failed to create bucket")
+		mutex.Do(func() {
+			dashboards[i].id = influxBucket.ID
+			rollbackDashboards = append(rollbackDashboards, dashboards[i])
+		})
+		return nil
 	}
 
 	return applier{
-		creater: createFn,
+		creater: creater{
+			entries: len(dashboards),
+			fn:      createFn,
+		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func() error { return s.rollbackDashboards(rollbackDashboards) },
+			fn: func() error {
+				return s.deleteByIDs("dashboard", len(rollbackDashboards), s.dashSVC.DeleteDashboard, func(i int) influxdb.ID {
+					return rollbackDashboards[i].ID()
+				})
+			},
 		},
 	}
 }
 
-func (s *Service) rollbackDashboards(dashboards []*dashboard) error {
-	var errs []string
-	for _, d := range dashboards {
-		err := s.dashSVC.DeleteDashboard(context.Background(), d.ID())
-		if err != nil {
-			errs = append(errs, d.ID().String())
-		}
-	}
-
-	if len(errs) > 0 {
-		// TODO: fixup error
-		return fmt.Errorf(`dashboard_ids=[%s] err="unable to delete dashboard"`, strings.Join(errs, ", "))
-	}
-
-	return nil
-}
-
-func (s *Service) applyDashboard(ctx context.Context, d *dashboard) (influxdb.Dashboard, error) {
-	cells, cellChartMap := convertChartsToCells(d.Charts)
+func (s *Service) applyDashboard(ctx context.Context, d dashboard) (influxdb.Dashboard, error) {
+	cells := convertChartsToCells(d.Charts)
 	influxDashboard := influxdb.Dashboard{
 		OrganizationID: d.OrgID,
 		Description:    d.Description,
-		Name:           d.Name,
+		Name:           d.Name(),
 		Cells:          cells,
 	}
 	err := s.dashSVC.CreateDashboard(ctx, &influxDashboard)
@@ -809,27 +1022,12 @@ func (s *Service) applyDashboard(ctx context.Context, d *dashboard) (influxdb.Da
 		return influxdb.Dashboard{}, err
 	}
 
-	for cell, i := range cellChartMap {
-		ch := d.Charts[i]
-
-		_, err := s.dashSVC.UpdateDashboardCellView(ctx, influxDashboard.ID, cell.ID, influxdb.ViewUpdate{
-			ViewContentsUpdate: influxdb.ViewContentsUpdate{
-				Name: &ch.Name,
-			},
-			Properties: ch.properties(),
-		})
-		if err != nil {
-			return influxdb.Dashboard{}, err
-		}
-	}
-
 	return influxDashboard, nil
 }
 
-func convertChartsToCells(ch []chart) ([]*influxdb.Cell, map[*influxdb.Cell]int) {
-	cellChartMap := make(map[*influxdb.Cell]int)
+func convertChartsToCells(ch []chart) []*influxdb.Cell {
 	icells := make([]*influxdb.Cell, 0, len(ch))
-	for i, c := range ch {
+	for _, c := range ch {
 		icell := &influxdb.Cell{
 			CellProperty: influxdb.CellProperty{
 				X: int32(c.XPos),
@@ -837,44 +1035,53 @@ func convertChartsToCells(ch []chart) ([]*influxdb.Cell, map[*influxdb.Cell]int)
 				H: int32(c.Height),
 				W: int32(c.Width),
 			},
+			View: &influxdb.View{
+				ViewContents: influxdb.ViewContents{Name: c.Name},
+				Properties:   c.properties(),
+			},
 		}
-		cellChartMap[icell] = i
 		icells = append(icells, icell)
 	}
-	return icells, cellChartMap
+	return icells
 }
 
 func (s *Service) applyLabels(labels []*label) applier {
 	const resource = "label"
 
+	mutex := new(doMutex)
 	rollBackLabels := make([]*label, 0, len(labels))
-	createFn := func(ctx context.Context, orgID influxdb.ID) error {
-		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-		defer cancel()
 
-		var errs applyErrs
-		for i, l := range labels {
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var l label
+		mutex.Do(func() {
 			labels[i].OrgID = orgID
-			if !l.shouldApply() {
-				continue
-			}
-			influxLabel, err := s.applyLabel(ctx, l)
-			if err != nil {
-				errs = append(errs, applyErrBody{
-					name: l.Name,
-					msg:  err.Error(),
-				})
-				continue
-			}
-			labels[i].id = influxLabel.ID
-			rollBackLabels = append(rollBackLabels, labels[i])
+			l = *labels[i]
+		})
+		if !l.shouldApply() {
+			return nil
 		}
 
-		return errs.toError(resource, "failed to create label")
+		influxLabel, err := s.applyLabel(ctx, l)
+		if err != nil {
+			return &applyErrBody{
+				name: l.Name(),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			labels[i].id = influxLabel.ID
+			rollBackLabels = append(rollBackLabels, labels[i])
+		})
+
+		return nil
 	}
 
 	return applier{
-		creater: createFn,
+		creater: creater{
+			entries: len(labels),
+			fn:      createFn,
+		},
 		rollbacker: rollbacker{
 			resource: resource,
 			fn:       func() error { return s.rollbackLabels(rollBackLabels) },
@@ -908,7 +1115,7 @@ func (s *Service) rollbackLabels(labels []*label) error {
 	return nil
 }
 
-func (s *Service) applyLabel(ctx context.Context, l *label) (influxdb.Label, error) {
+func (s *Service) applyLabel(ctx context.Context, l label) (influxdb.Label, error) {
 	if l.existing != nil {
 		updatedlabel, err := s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
 			Properties: l.properties(),
@@ -919,11 +1126,7 @@ func (s *Service) applyLabel(ctx context.Context, l *label) (influxdb.Label, err
 		return *updatedlabel, nil
 	}
 
-	influxLabel := influxdb.Label{
-		OrgID:      l.OrgID,
-		Name:       l.Name,
-		Properties: l.properties(),
-	}
+	influxLabel := l.toInfluxLabel()
 	err := s.labelSVC.CreateLabel(ctx, &influxLabel)
 	if err != nil {
 		return influxdb.Label{}, err
@@ -932,37 +1135,174 @@ func (s *Service) applyLabel(ctx context.Context, l *label) (influxdb.Label, err
 	return influxLabel, nil
 }
 
-func (s *Service) applyVariables(vars []*variable) applier {
-	const resource = "variable"
+func (s *Service) applyNotificationEndpoints(endpoints []*notificationEndpoint) applier {
+	const resource = "notification_endpoints"
 
-	rollBackVars := make([]*variable, 0, len(vars))
-	createFn := func(ctx context.Context, orgID influxdb.ID) error {
-		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-		defer cancel()
+	mutex := new(doMutex)
+	rollbackEndpoints := make([]*notificationEndpoint, 0, len(endpoints))
 
-		var errs applyErrs
-		for i, v := range vars {
-			vars[i].OrgID = orgID
-			if !v.shouldApply() {
-				continue
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var endpoint notificationEndpoint
+		mutex.Do(func() {
+			endpoints[i].OrgID = orgID
+			endpoint = *endpoints[i]
+		})
+
+		influxEndpoint, err := s.applyNotificationEndpoint(ctx, endpoint)
+		if err != nil {
+			return &applyErrBody{
+				name: endpoint.Name(),
+				msg:  err.Error(),
 			}
-			influxVar, err := s.applyVariable(ctx, v)
-			if err != nil {
-				errs = append(errs, applyErrBody{
-					name: v.Name,
-					msg:  err.Error(),
-				})
-				continue
-			}
-			vars[i].id = influxVar.ID
-			rollBackVars = append(rollBackVars, vars[i])
 		}
 
-		return errs.toError(resource, "failed to create variable")
+		mutex.Do(func() {
+			endpoints[i].id = influxEndpoint.GetID()
+			rollbackEndpoints = append(rollbackEndpoints, endpoints[i])
+		})
+
+		return nil
 	}
 
 	return applier{
-		creater: createFn,
+		creater: creater{
+			entries: len(endpoints),
+			fn:      createFn,
+		},
+		rollbacker: rollbacker{
+			resource: resource,
+			fn: func() error {
+				return s.rollbackNotificationEndpoints(rollbackEndpoints)
+			},
+		},
+	}
+}
+
+func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationEndpoint) (influxdb.NotificationEndpoint, error) {
+	if e.existing != nil {
+		// stub out userID since we're always using hte http client which will fill it in for us with the token
+		// feels a bit broken that is required.
+		// TODO: look into this userID requirement
+		updatedEndpoint, err := s.endpointSVC.UpdateNotificationEndpoint(ctx, e.ID(), e.existing, 0)
+		if err != nil {
+			return nil, err
+		}
+		return updatedEndpoint, nil
+	}
+
+	actual := e.summarize().NotificationEndpoint
+	err := s.endpointSVC.CreateNotificationEndpoint(ctx, actual, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	return actual, nil
+}
+
+func (s *Service) rollbackNotificationEndpoints(endpoints []*notificationEndpoint) error {
+	var errs []string
+	for _, e := range endpoints {
+		if e.existing == nil {
+			_, _, err := s.endpointSVC.DeleteNotificationEndpoint(context.Background(), e.ID())
+			if err != nil {
+				errs = append(errs, e.ID().String())
+			}
+			continue
+		}
+
+		_, err := s.endpointSVC.UpdateNotificationEndpoint(context.Background(), e.ID(), e.existing, 0)
+		if err != nil {
+			errs = append(errs, e.ID().String())
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf(`notication_endpoint_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
+func (s *Service) applyTelegrafs(teles []*telegraf) applier {
+	const resource = "telegrafs"
+
+	mutex := new(doMutex)
+	rollbackTelegrafs := make([]*telegraf, 0, len(teles))
+
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var cfg influxdb.TelegrafConfig
+		mutex.Do(func() {
+			teles[i].config.OrgID = orgID
+			cfg = teles[i].config
+		})
+
+		err := s.teleSVC.CreateTelegrafConfig(ctx, &cfg, 0)
+		if err != nil {
+			return &applyErrBody{
+				name: cfg.Name,
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			teles[i].config = cfg
+			rollbackTelegrafs = append(rollbackTelegrafs, teles[i])
+		})
+
+		return nil
+	}
+
+	return applier{
+		creater: creater{
+			entries: len(teles),
+			fn:      createFn,
+		},
+		rollbacker: rollbacker{
+			resource: resource,
+			fn: func() error {
+				return s.deleteByIDs("telegraf", len(rollbackTelegrafs), s.teleSVC.DeleteTelegrafConfig, func(i int) influxdb.ID {
+					return rollbackTelegrafs[i].ID()
+				})
+			},
+		},
+	}
+}
+
+func (s *Service) applyVariables(vars []*variable) applier {
+	const resource = "variable"
+
+	mutex := new(doMutex)
+	rollBackVars := make([]*variable, 0, len(vars))
+
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var v variable
+		mutex.Do(func() {
+			vars[i].OrgID = orgID
+			v = *vars[i]
+		})
+		if !v.shouldApply() {
+			return nil
+		}
+		influxVar, err := s.applyVariable(ctx, v)
+		if err != nil {
+			return &applyErrBody{
+				name: v.Name(),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			vars[i].id = influxVar.ID
+			rollBackVars = append(rollBackVars, vars[i])
+		})
+		return nil
+	}
+
+	return applier{
+		creater: creater{
+			entries: len(vars),
+			fn:      createFn,
+		},
 		rollbacker: rollbacker{
 			resource: resource,
 			fn:       func() error { return s.rollbackVariables(rollBackVars) },
@@ -997,7 +1337,7 @@ func (s *Service) rollbackVariables(variables []*variable) error {
 	return nil
 }
 
-func (s *Service) applyVariable(ctx context.Context, v *variable) (influxdb.Variable, error) {
+func (s *Service) applyVariable(ctx context.Context, v variable) (influxdb.Variable, error) {
 	if v.existing != nil {
 		updatedVar, err := s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
 			Description: v.Description,
@@ -1011,7 +1351,7 @@ func (s *Service) applyVariable(ctx context.Context, v *variable) (influxdb.Vari
 
 	influxVar := influxdb.Variable{
 		OrganizationID: v.OrgID,
-		Name:           v.Name,
+		Name:           v.Name(),
 		Description:    v.Description,
 		Arguments:      v.influxVarArgs(),
 	}
@@ -1023,39 +1363,51 @@ func (s *Service) applyVariable(ctx context.Context, v *variable) (influxdb.Vari
 	return influxVar, nil
 }
 
-func (s *Service) applyLabelMappings(pkg *Pkg) applier {
-	var mappings []influxdb.LabelMapping
-	createFn := func(ctx context.Context, orgID influxdb.ID) error {
-		ctx, cancel := context.WithTimeout(ctx, time.Minute)
-		defer cancel()
+func (s *Service) applyLabelMappings(labelMappings []SummaryLabelMapping) applier {
+	const resource = "label_mapping"
 
-		labelMappings := pkg.labelMappings()
-		for i := range labelMappings {
-			mapping := labelMappings[i]
-			if mapping.exists {
-				// this block here does 2 things, it does note write a
-				// mapping when one exists. it also avoids having to worry
-				// about deleting an existing mapping since it will not be
-				// passed to the delete function below b/c it is never added
-				// to the list of mappings that is referenced in the delete
-				// call.
-				continue
-			}
-			err := s.labelSVC.CreateLabelMapping(ctx, &mapping.LabelMapping)
-			if err != nil {
-				return err
-			}
-			mappings = append(mappings, mapping.LabelMapping)
+	mutex := new(doMutex)
+	rollbackMappings := make([]influxdb.LabelMapping, 0, len(labelMappings))
+
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var mapping SummaryLabelMapping
+		mutex.Do(func() {
+			mapping = labelMappings[i]
+		})
+		if mapping.exists {
+			// this block here does 2 things, it does not write a
+			// mapping when one exists. it also avoids having to worry
+			// about deleting an existing mapping since it will not be
+			// passed to the delete function below b/c it is never added
+			// to the list of mappings that is referenced in the delete
+			// call.
+			return nil
 		}
+
+		err := s.labelSVC.CreateLabelMapping(ctx, &mapping.LabelMapping)
+		if err != nil {
+			return &applyErrBody{
+				name: fmt.Sprintf("%s:%s:%s", mapping.ResourceType, mapping.ResourceID, mapping.LabelID),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			labelMappings[i].LabelMapping = mapping.LabelMapping
+			rollbackMappings = append(rollbackMappings, mapping.LabelMapping)
+		})
 
 		return nil
 	}
 
 	return applier{
-		creater: createFn,
+		creater: creater{
+			entries: len(labelMappings),
+			fn:      createFn,
+		},
 		rollbacker: rollbacker{
-			resource: "label_mapping",
-			fn:       func() error { return s.rollbackLabelMappings(mappings) },
+			resource: resource,
+			fn:       func() error { return s.rollbackLabelMappings(rollbackMappings) },
 		},
 	}
 }
@@ -1077,6 +1429,33 @@ func (s *Service) rollbackLabelMappings(mappings []influxdb.LabelMapping) error 
 	return nil
 }
 
+func (s *Service) deleteByIDs(resource string, numIDs int, deleteFn func(context.Context, influxdb.ID) error, iterFn func(int) influxdb.ID) error {
+	var errs []string
+	for i := range make([]struct{}, numIDs) {
+		id := iterFn(i)
+		err := deleteFn(context.Background(), id)
+		if err != nil {
+			errs = append(errs, id.String())
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf(`%s_ids=[%s] err="unable to delete"`, resource, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
+type doMutex struct {
+	sync.Mutex
+}
+
+func (m *doMutex) Do(fn func()) {
+	m.Lock()
+	defer m.Unlock()
+	fn()
+}
+
 type (
 	applier struct {
 		creater    creater
@@ -1088,27 +1467,49 @@ type (
 		fn       func() error
 	}
 
-	creater func(ctx context.Context, orgID influxdb.ID) error
+	creater struct {
+		entries int
+		fn      func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody
+	}
 )
 
 type rollbackCoordinator struct {
 	rollbacks []rollbacker
+
+	sem chan struct{}
 }
 
 func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID influxdb.ID, appliers ...applier) error {
-	var errs []string
-	for _, app := range appliers {
+	errStr := newErrStream(ctx)
+
+	wg := new(sync.WaitGroup)
+	for i := range appliers {
+		// cannot reuse the shared variable from for loop since we're using concurrency b/c
+		// that temp var gets recycled between iterations
+		app := appliers[i]
 		r.rollbacks = append(r.rollbacks, app.rollbacker)
-		if err := app.creater(ctx, orgID); err != nil {
-			errs = append(errs, fmt.Sprintf("failed %s create: %s", app.rollbacker.resource, err.Error()))
+		for idx := range make([]struct{}, app.creater.entries) {
+			r.sem <- struct{}{}
+			wg.Add(1)
+
+			go func(i int, resource string) {
+				defer func() {
+					wg.Done()
+					<-r.sem
+				}()
+
+				ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				defer cancel()
+
+				if err := app.creater.fn(ctx, i, orgID); err != nil {
+					errStr.add(errMsg{resource: resource, err: *err})
+				}
+			}(idx, app.rollbacker.resource)
 		}
 	}
+	wg.Wait()
 
-	if len(errs) > 0 {
-		// TODO: fix error up to be more actionable
-		return errors.New(strings.Join(errs, "\n"))
-	}
-	return nil
+	return errStr.close()
 }
 
 func (r *rollbackCoordinator) rollback(l *zap.Logger, err *error) {
@@ -1123,13 +1524,76 @@ func (r *rollbackCoordinator) rollback(l *zap.Logger, err *error) {
 	}
 }
 
+type errMsg struct {
+	resource string
+	err      applyErrBody
+}
+
+type errStream struct {
+	msgStream chan errMsg
+	err       chan error
+	done      <-chan struct{}
+}
+
+func newErrStream(ctx context.Context) *errStream {
+	e := &errStream{
+		msgStream: make(chan errMsg),
+		err:       make(chan error),
+		done:      ctx.Done(),
+	}
+	e.do()
+	return e
+}
+
+func (e *errStream) do() {
+	go func() {
+		mErrs := func() map[string]applyErrs {
+			mErrs := make(map[string]applyErrs)
+			for {
+				select {
+				case <-e.done:
+					return nil
+				case msg, ok := <-e.msgStream:
+					if !ok {
+						return mErrs
+					}
+					mErrs[msg.resource] = append(mErrs[msg.resource], &msg.err)
+				}
+			}
+		}()
+
+		if len(mErrs) == 0 {
+			e.err <- nil
+			return
+		}
+
+		var errs []string
+		for resource, err := range mErrs {
+			errs = append(errs, err.toError(resource, "failed to create").Error())
+		}
+		e.err <- errors.New(strings.Join(errs, "\n"))
+	}()
+}
+
+func (e *errStream) close() error {
+	close(e.msgStream)
+	return <-e.err
+}
+
+func (e *errStream) add(msg errMsg) {
+	select {
+	case <-e.done:
+	case e.msgStream <- msg:
+	}
+}
+
 // TODO: clean up apply errors to inform the user in an actionable way
 type applyErrBody struct {
 	name string
 	msg  string
 }
 
-type applyErrs []applyErrBody
+type applyErrs []*applyErrBody
 
 func (a applyErrs) toError(resType, msg string) error {
 	if len(a) == 0 {
@@ -1140,4 +1604,12 @@ func (a applyErrs) toError(resType, msg string) error {
 		errMsg += fmt.Sprintf("\n\tname=%q err_msg=%q", e.name, e.msg)
 	}
 	return errors.New(errMsg)
+}
+
+func labelSlcToMap(labels []*label) map[string]*label {
+	m := make(map[string]*label)
+	for i := range labels {
+		m[labels[i].Name()] = labels[i]
+	}
+	return m
 }

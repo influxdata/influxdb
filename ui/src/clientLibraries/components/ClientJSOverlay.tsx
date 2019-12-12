@@ -1,5 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOverlay'
@@ -8,7 +9,16 @@ import TemplatedCodeSnippet from 'src/shared/components/TemplatedCodeSnippet'
 // Constants
 import {clientJSLibrary} from 'src/clientLibraries/constants'
 
-const ClientJSOverlay: FunctionComponent<{}> = () => {
+// Types
+import {AppState} from 'src/types'
+
+interface StateProps {
+  org: string
+}
+
+type Props = StateProps
+
+const ClientJSOverlay: FunctionComponent<Props> = props => {
   const {
     name,
     url,
@@ -16,6 +26,8 @@ const ClientJSOverlay: FunctionComponent<{}> = () => {
     executeQueryCodeSnippet,
     writingDataLineProtocolCodeSnippet,
   } = clientJSLibrary
+  const {org} = props
+  const server = window.location.origin
 
   return (
     <ClientLibraryOverlay title={`${name} Client Library`}>
@@ -34,6 +46,9 @@ const ClientJSOverlay: FunctionComponent<{}> = () => {
           server: 'server',
           token: 'token',
         }}
+        values={{
+          server,
+        }}
       />
       <h5>Write Data</h5>
       <TemplatedCodeSnippet
@@ -43,6 +58,9 @@ const ClientJSOverlay: FunctionComponent<{}> = () => {
           org: 'orgID',
           bucket: 'bucketID',
         }}
+        values={{
+          org,
+        }}
       />
       <h5>Execute a Flux query</h5>
       <TemplatedCodeSnippet
@@ -51,9 +69,24 @@ const ClientJSOverlay: FunctionComponent<{}> = () => {
         defaults={{
           org: 'orgID',
         }}
+        values={{
+          org,
+        }}
       />
     </ClientLibraryOverlay>
   )
 }
 
-export default ClientJSOverlay
+const mstp = (state: AppState): StateProps => {
+  const org = state.orgs.org.id
+
+  return {
+    org,
+  }
+}
+
+export {ClientJSOverlay}
+export default connect<StateProps, {}, Props>(
+  mstp,
+  null
+)(ClientJSOverlay)

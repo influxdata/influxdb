@@ -135,7 +135,7 @@ func (tc TelegrafConfig) TOML() string {
 
 // telegrafConfigEncode is the helper struct for json encoding.
 type telegrafConfigEncode struct {
-	ID          ID     `json:"id"`
+	ID          *ID    `json:"id"`
 	OrgID       ID     `json:"orgID,omitempty"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
@@ -198,14 +198,15 @@ const (
 
 // MarshalJSON implement the json.Marshaler interface.
 func (tc *TelegrafConfig) MarshalJSON() ([]byte, error) {
-	tce := new(telegrafConfigEncode)
-	*tce = telegrafConfigEncode{
-		ID:          tc.ID,
+	tce := &telegrafConfigEncode{
 		OrgID:       tc.OrgID,
 		Name:        tc.Name,
 		Description: tc.Description,
 		Agent:       tc.Agent,
 		Plugins:     make([]telegrafPluginEncode, len(tc.Plugins)),
+	}
+	if tc.ID != 0 {
+		tce.ID = &tc.ID
 	}
 	for k, p := range tc.Plugins {
 		tce.Plugins[k] = telegrafPluginEncode{

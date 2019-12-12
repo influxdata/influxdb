@@ -27,11 +27,16 @@ import {
   AppState,
   QueryViewProperties,
   TimeZone,
+  TimeRange,
   Check,
   StatusRow,
 } from 'src/types'
 
+// Selectors
+import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
+
 interface StateProps {
+  timeRange: TimeRange | null
   loading: RemoteDataState
   errorMessage: string
   files: string[]
@@ -53,6 +58,7 @@ type Props = StateProps
 const TimeMachineVis: SFC<Props> = ({
   loading,
   errorMessage,
+  timeRange,
   isInitialFetch,
   isViewingRawData,
   files,
@@ -106,6 +112,7 @@ const TimeMachineVis: SFC<Props> = ({
           ) : (
             <ViewSwitcher
               giraffeResult={giraffeResult}
+              timeRange={timeRange}
               files={files}
               loading={loading}
               properties={resolvedViewProperties}
@@ -132,6 +139,7 @@ const mstp = (state: AppState): StateProps => {
       statuses,
     },
     alerting: {check},
+    timeRange,
   } = getActiveTimeMachine(state)
 
   const giraffeResult = getVisTable(state)
@@ -156,6 +164,7 @@ const mstp = (state: AppState): StateProps => {
     fillColumns,
     symbolColumns,
     timeZone,
+    timeRange: getActiveTimeRange(timeRange, viewProperties.queries),
     statuses,
   }
 }

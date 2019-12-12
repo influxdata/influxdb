@@ -19,7 +19,7 @@ type Executor interface {
 	// Errors returned from the execute request imply that this attempt has failed and
 	// should be put back in scheduler and re executed at a alter time. We will add scheduler specific errors
 	// so the time can be configurable.
-	Execute(ctx context.Context, id ID, scheduledAt time.Time) error
+	Execute(ctx context.Context, id ID, scheduledFor time.Time, runAt time.Time) error
 }
 
 // Schedulable is the interface that encapsulates work that

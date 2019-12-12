@@ -63,6 +63,7 @@ class SigninForm extends PureComponent<Props, State> {
                   onChange={this.handleUsername}
                   size={ComponentSize.Medium}
                   autoFocus={true}
+                  testID="username"
                 />
               </Form.Element>
             </Grid.Column>
@@ -74,6 +75,7 @@ class SigninForm extends PureComponent<Props, State> {
                   onChange={this.handlePassword}
                   size={ComponentSize.Medium}
                   type={InputType.Password}
+                  testID="password"
                 />
               </Form.Element>
             </Grid.Column>

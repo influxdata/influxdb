@@ -12,7 +12,7 @@ import {
   Overlay,
 } from '@influxdata/clockface'
 import TemplateBrowser from 'src/templates/components/createFromTemplateOverlay/TemplateBrowser'
-import TemplateBrowserEmpty from 'src/templates/components/createFromTemplateOverlay/TemplateBrowserEmpty'
+import TemplateBrowserEmpty from 'src/tasks/components/TemplateBrowserEmpty'
 
 // Actions
 import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/tasks/actions'
@@ -59,8 +59,8 @@ class TaskImportFromTemplateOverlay extends PureComponent<
 
   render() {
     return (
-      <GetResources resources={[ResourceType.Templates]}>
-        <Overlay visible={true}>
+      <Overlay visible={true}>
+        <GetResources resources={[ResourceType.Templates]}>
           <Overlay.Container maxWidth={900}>
             <Overlay.Header
               title="Create Task from a Template"
@@ -83,8 +83,8 @@ class TaskImportFromTemplateOverlay extends PureComponent<
               />
             </Overlay.Footer>
           </Overlay.Container>
-        </Overlay>
-      </GetResources>
+        </GetResources>
+      </Overlay>
     )
   }
 

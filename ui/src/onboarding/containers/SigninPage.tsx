@@ -13,7 +13,12 @@ import {dismissAllNotifications} from 'src/shared/actions/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SplashPage from 'src/shared/components/splash_page/SplashPage'
 import SigninForm from 'src/onboarding/components/SigninForm'
-import {SpinnerContainer, TechnoSpinner, Panel} from '@influxdata/clockface'
+import {
+  SpinnerContainer,
+  TechnoSpinner,
+  Panel,
+  AlignItems,
+} from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
 import VersionInfo from 'src/shared/components/VersionInfo'
 
@@ -63,7 +68,7 @@ class SigninPage extends PureComponent<Props, State> {
       >
         <SplashPage>
           <Panel className="signin-panel">
-            <Panel.Body>
+            <Panel.Body alignItems={AlignItems.Center}>
               <SplashPage.Logo />
               <SplashPage.Header title="InfluxData" />
               <SigninForm />

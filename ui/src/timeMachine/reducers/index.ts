@@ -12,6 +12,7 @@ import {
   THRESHOLD_TYPE_TEXT,
   THRESHOLD_TYPE_BG,
 } from 'src/shared/constants/thresholds'
+import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
 import {
   DEFAULT_THRESHOLD_CHECK,
   DEFAULT_DEADMAN_CHECK,
@@ -41,6 +42,7 @@ import {Action} from 'src/timeMachine/actions'
 import {TimeMachineTab} from 'src/types/timeMachine'
 import {RemoteDataState, TimeMachineID} from 'src/types'
 import {Color} from 'src/types/colors'
+import {BuilderAggregateFunctionType} from 'src/client/generatedRoutes'
 
 interface QueryBuilderState {
   buckets: string[]
@@ -48,6 +50,7 @@ interface QueryBuilderState {
   functions: Array<[{name: string}]>
   aggregateWindow: BuilderConfigAggregateWindow
   tags: Array<{
+    aggregateFunctionType: BuilderAggregateFunctionType
     valuesSearchTerm: string
     keysSearchTerm: string
     keys: string[]
@@ -95,7 +98,7 @@ export interface TimeMachinesState {
 }
 
 export const initialStateHelper = (): TimeMachineState => ({
-  timeRange: {lower: 'now() - 1h'},
+  timeRange: pastHourTimeRange,
   autoRefresh: AUTOREFRESH_DEFAULT,
   view: createView(),
   alerting: {
@@ -115,11 +118,12 @@ export const initialStateHelper = (): TimeMachineState => ({
     functions: [],
     tags: [
       {
-        valuesSearchTerm: '',
-        keysSearchTerm: '',
+        aggregateFunctionType: 'filter',
         keys: [],
+        keysSearchTerm: '',
         keysStatus: RemoteDataState.NotStarted,
         values: [],
+        valuesSearchTerm: '',
         valuesStatus: RemoteDataState.NotStarted,
       },
     ],
@@ -136,6 +140,9 @@ export const initialState = (): TimeMachinesState => ({
 })
 
 const getTableProperties = (view, files) => {
+  if (!files || !files[0]) {
+    return {...view.properties, fieldOptions: []}
+  }
   const csv = files[0]
   let pointer = 0,
     ni
@@ -259,7 +266,6 @@ export const timeMachineReducer = (
 
     case 'SET_VIEW_TYPE': {
       const {type} = action.payload
-
       const view = convertView(state.view, state.queryResults.files, type)
 
       return {...state, view}
@@ -291,7 +297,11 @@ export const timeMachineReducer = (
         draftState.queryResults.errorMessage = errorMessage
 
         if (files) {
-          if (state.view.properties.type === 'table') {
+          if (
+            state.view &&
+            state.view.properties &&
+            state.view.properties.type === 'table'
+          ) {
             const properties = getTableProperties(state.view, files)
             draftState.view = {...state.view, properties}
           }
@@ -436,6 +446,12 @@ export const timeMachineReducer = (
       return setViewProperties(state, {position})
     }
 
+    case 'SET_LINE_POSITION': {
+      const {position} = action.payload
+
+      return setViewProperties(state, {position})
+    }
+
     case 'SET_BIN_COUNT': {
       const {binCount} = action.payload
 
@@ -503,6 +519,7 @@ export const timeMachineReducer = (
 
       switch (state.view.properties.type) {
         case 'gauge':
+        case 'table':
         case 'single-stat':
         case 'scatter':
         case 'check':
@@ -649,6 +666,23 @@ export const timeMachineReducer = (
       })
     }
 
+    case 'SET_BUILDER_AGGREGATE_FUNCTION_TYPE': {
+      return produce(state, draftState => {
+        const {index, builderAggregateFunctionType} = action.payload
+        const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
+
+        if (
+          draftQuery &&
+          draftQuery.builderConfig &&
+          draftQuery.builderConfig.tags[index]
+        ) {
+          draftQuery.builderConfig.tags[
+            index
+          ].aggregateFunctionType = builderAggregateFunctionType
+        }
+      })
+    }
+
     case 'SET_BUILDER_BUCKET_SELECTION': {
       return produce(state, draftState => {
         const builderConfig =
@@ -657,7 +691,16 @@ export const timeMachineReducer = (
         builderConfig.buckets = [action.payload.bucket]
 
         if (action.payload.resetSelections) {
-          builderConfig.tags = [{key: '', values: []}]
+          const defaultAggregateFunctionType = initialStateHelper().queryBuilder
+            .tags[0].aggregateFunctionType
+
+          builderConfig.tags = [
+            {
+              key: '',
+              values: [],
+              aggregateFunctionType: defaultAggregateFunctionType,
+            },
+          ]
           buildActiveQuery(draftState)
         }
       })
@@ -770,16 +813,14 @@ export const timeMachineReducer = (
     case 'ADD_TAG_SELECTOR': {
       return produce(state, draftState => {
         const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
+        const [initialTags] = initialStateHelper().queryBuilder.tags
 
-        draftQuery.builderConfig.tags.push({key: '', values: []})
-        draftState.queryBuilder.tags.push({
-          valuesSearchTerm: '',
-          keysSearchTerm: '',
-          keys: [],
-          keysStatus: RemoteDataState.NotStarted,
+        draftQuery.builderConfig.tags.push({
+          key: '',
           values: [],
-          valuesStatus: RemoteDataState.NotStarted,
+          aggregateFunctionType: initialTags.aggregateFunctionType,
         })
+        draftState.queryBuilder.tags.push(initialTags)
       })
     }
 
@@ -1066,14 +1107,10 @@ const initialQueryBuilderState = (
     bucketsStatus: RemoteDataState.NotStarted,
     functions: [],
     aggregateWindow: {period: 'auto'},
-    tags: builderConfig.tags.map(_ => ({
-      valuesSearchTerm: '',
-      keysSearchTerm: '',
-      keys: [],
-      keysStatus: RemoteDataState.NotStarted,
-      values: [],
-      valuesStatus: RemoteDataState.NotStarted,
-    })),
+    tags: builderConfig.tags.map(() => {
+      const [defaultTag] = initialStateHelper().queryBuilder.tags
+      return defaultTag
+    }),
   }
 }
 

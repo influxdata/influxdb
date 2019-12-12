@@ -56,7 +56,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 					pkg := resp.Pkg
 					require.NoError(t, pkg.Validate())
 					assert.Equal(t, pkger.APIVersion, pkg.APIVersion)
-					assert.Equal(t, "package", pkg.Kind)
+					assert.Equal(t, pkger.KindPackage, pkg.Kind)
 
 					meta := pkg.Metadata
 					assert.Equal(t, "name1", meta.Name)

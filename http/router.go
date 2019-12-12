@@ -8,9 +8,10 @@ import (
 	"sync"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	influxlogger "github.com/influxdata/influxdb/logger"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -22,6 +23,7 @@ func NewRouter(h platform.HTTPErrorHandler) *httprouter.Router {
 	router.NotFound = http.HandlerFunc(b.notFound)
 	router.MethodNotAllowed = http.HandlerFunc(b.methodNotAllowed)
 	router.PanicHandler = b.panic
+	router.AddMatchedRouteToContext = true
 	return router
 }
 
@@ -30,6 +32,9 @@ func newBaseChiRouter(errorHandler platform.HTTPErrorHandler) chi.Router {
 	bh := baseHandler{HTTPErrorHandler: errorHandler}
 	router.NotFound(bh.notFound)
 	router.MethodNotAllowed(bh.methodNotAllowed)
+	router.Use(skipOptionsMW)
+	router.Use(middleware.StripSlashes)
+	router.Use(setCORSResponseHeaders)
 	return router
 }
 

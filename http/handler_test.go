@@ -9,13 +9,14 @@ import (
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
 	type fields struct {
 		name    string
-		Handler http.Handler
-		Logger  *zap.Logger
+		handler http.Handler
+		log     *zap.Logger
 	}
 	type args struct {
 		w *httptest.ResponseRecorder
@@ -30,8 +31,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			name: "should record metrics when http handling",
 			fields: fields{
 				name:    "test",
-				Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
-				Logger:  zap.NewNop(),
+				handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+				log:     zaptest.NewLogger(t),
 			},
 			args: args{
 				r: httptest.NewRequest(http.MethodGet, "/", nil),
@@ -43,11 +44,11 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &Handler{
 				name:    tt.fields.name,
-				Handler: tt.fields.Handler,
-				Logger:  tt.fields.Logger,
+				Handler: tt.fields.handler,
+				log:     tt.fields.log,
 			}
 			h.initMetrics()
-			reg := prom.NewRegistry()
+			reg := prom.NewRegistry(zaptest.NewLogger(t))
 			reg.MustRegister(h.PrometheusCollectors()...)
 
 			tt.args.r.Header.Set("User-Agent", "ua1")

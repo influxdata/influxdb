@@ -40,7 +40,6 @@ class TableGraph extends PureComponent<Props, State> {
 
   public render() {
     const {table, properties, timeZone} = this.props
-
     return (
       <TableGraphTransform
         data={table.data}

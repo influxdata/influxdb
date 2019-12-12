@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/task/backend"
-	"go.uber.org/zap"
 )
 
 // Scheduler is a mock implementation of a task scheduler.
@@ -41,8 +40,6 @@ func (s *Scheduler) Tick(now int64) {
 
 	s.lastTick = now
 }
-
-func (s *Scheduler) WithLogger(l *zap.Logger) {}
 
 func (s *Scheduler) Start(context.Context) {}
 

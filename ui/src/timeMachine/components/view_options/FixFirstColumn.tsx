@@ -2,7 +2,13 @@
 import React, {SFC} from 'react'
 
 // Components
-import {Form, SlideToggle, FlexBox, Grid} from '@influxdata/clockface'
+import {
+  Form,
+  InputLabel,
+  SlideToggle,
+  FlexBox,
+  Grid,
+} from '@influxdata/clockface'
 
 // Types
 import {Columns, FlexDirection, ComponentSize} from '@influxdata/clockface'
@@ -20,13 +26,13 @@ const GraphOptionsFixFirstColumn: SFC<Props> = ({
     <Form.Element label="First Column">
       <Form.Box>
         <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
-          <SlideToggle.Label text="Scroll with table" />
+          <InputLabel>Scroll with table</InputLabel>
           <SlideToggle
             active={fixed}
             onChange={onToggleFixFirstColumn}
             size={ComponentSize.ExtraSmall}
           />
-          <SlideToggle.Label text="Fixed" />
+          <InputLabel>Fixed</InputLabel>
         </FlexBox>
       </Form.Box>
     </Form.Element>

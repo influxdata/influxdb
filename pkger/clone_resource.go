@@ -25,30 +25,58 @@ func (r ResourceToClone) OK() error {
 	return nil
 }
 
+func uniqResourcesToClone(resources []ResourceToClone) []ResourceToClone {
+	type key struct {
+		kind Kind
+		id   influxdb.ID
+	}
+	m := make(map[key]ResourceToClone)
+
+	for i := range resources {
+		r := resources[i]
+		rKey := key{kind: r.Kind, id: r.ID}
+		kr, ok := m[rKey]
+		switch {
+		case ok && kr.Name == r.Name:
+		case ok && kr.Name != "" && r.Name == "":
+		default:
+			m[rKey] = r
+		}
+	}
+
+	out := make([]ResourceToClone, 0, len(resources))
+	for _, r := range m {
+		out = append(out, r)
+	}
+	return out
+}
+
 func bucketToResource(bkt influxdb.Bucket, name string) Resource {
 	if name == "" {
 		name = bkt.Name
 	}
-	return Resource{
-		fieldKind:                  KindBucket.title(),
-		fieldName:                  name,
-		fieldDescription:           bkt.Description,
-		fieldBucketRetentionPeriod: bkt.RetentionPeriod.String(),
+	r := Resource{
+		fieldKind: KindBucket.title(),
+		fieldName: name,
 	}
+	assignNonZeroStrings(r, map[string]string{fieldDescription: bkt.Description})
+	if bkt.RetentionPeriod != 0 {
+		r[fieldBucketRetentionRules] = retentionRules{newRetentionRule(bkt.RetentionPeriod)}
+	}
+	return r
 }
 
-type cellView struct {
-	c influxdb.Cell
-	v influxdb.View
-}
-
-func convertCellView(cv cellView) chart {
+func convertCellView(cell influxdb.Cell) chart {
+	var name string
+	if cell.View != nil {
+		name = cell.View.Name
+	}
 	ch := chart{
-		Name:   cv.v.Name,
-		Height: int(cv.c.H),
-		Width:  int(cv.c.W),
-		XPos:   int(cv.c.X),
-		YPos:   int(cv.c.Y),
+		Name:   name,
+		Height: int(cell.H),
+		Width:  int(cell.W),
+		XPos:   int(cell.X),
+		YPos:   int(cell.Y),
 	}
 
 	setCommon := func(k chartKind, iColors []influxdb.ViewColor, dec influxdb.DecimalPlaces, iQueries []influxdb.DashboardQuery) {
@@ -71,7 +99,7 @@ func convertCellView(cv cellView) chart {
 		ch.Legend.Type = l.Type
 	}
 
-	props := cv.v.Properties
+	props := cell.View.Properties
 	switch p := props.(type) {
 	case influxdb.GaugeViewProperties:
 		setCommon(chartKindGauge, p.ViewColors, p.DecimalPlaces, p.Queries)
@@ -110,6 +138,7 @@ func convertCellView(cv cellView) chart {
 		ch.Shade = p.ShadeBelow
 		ch.XCol = p.XColumn
 		ch.YCol = p.YColumn
+		ch.Position = p.Position
 	case influxdb.SingleStatViewProperties:
 		setCommon(chartKindSingleStat, p.ViewColors, p.DecimalPlaces, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, p.Prefix, p.Suffix)
@@ -134,6 +163,7 @@ func convertCellView(cv cellView) chart {
 		ch.Shade = p.ShadeBelow
 		ch.XCol = p.XColumn
 		ch.YCol = p.YColumn
+		ch.Position = p.Position
 	}
 
 	return ch
@@ -161,17 +191,12 @@ func convertChartToResource(ch chart) Resource {
 		r[fieldChartLegend] = ch.Legend
 	}
 
-	ignoreFalseBools := map[string]bool{
+	assignNonZeroBools(r, map[string]bool{
 		fieldChartNoteOnEmpty: ch.NoteOnEmpty,
 		fieldChartShade:       ch.Shade,
-	}
-	for k, v := range ignoreFalseBools {
-		if v {
-			r[k] = v
-		}
-	}
+	})
 
-	ignoreEmptyStrPairs := map[string]string{
+	assignNonZeroStrings(r, map[string]string{
 		fieldChartNote:     ch.Note,
 		fieldPrefix:        ch.Prefix,
 		fieldSuffix:        ch.Suffix,
@@ -179,24 +204,14 @@ func convertChartToResource(ch chart) Resource {
 		fieldChartXCol:     ch.XCol,
 		fieldChartYCol:     ch.YCol,
 		fieldChartPosition: ch.Position,
-	}
-	for k, v := range ignoreEmptyStrPairs {
-		if v != "" {
-			r[k] = v
-		}
-	}
+	})
 
-	ignoreEmptyIntPairs := map[string]int{
+	assignNonZeroInts(r, map[string]int{
 		fieldChartXPos:     ch.XPos,
 		fieldChartYPos:     ch.YPos,
 		fieldChartBinCount: ch.BinCount,
 		fieldChartBinSize:  ch.BinSize,
-	}
-	for k, v := range ignoreEmptyIntPairs {
-		if v != 0 {
-			r[k] = v
-		}
-	}
+	})
 
 	return r
 }
@@ -237,25 +252,25 @@ func convertQueries(iQueries []influxdb.DashboardQuery) queries {
 	return out
 }
 
-func dashboardToResource(dash influxdb.Dashboard, cellViews []cellView, name string) Resource {
+func dashboardToResource(dash influxdb.Dashboard, name string) Resource {
 	if name == "" {
 		name = dash.Name
 	}
 
-	sort.Slice(cellViews, func(i, j int) bool {
-		ic, jc := cellViews[i].c, cellViews[j].c
+	sort.Slice(dash.Cells, func(i, j int) bool {
+		ic, jc := dash.Cells[i], dash.Cells[j]
 		if ic.X == jc.X {
 			return ic.Y < jc.Y
 		}
 		return ic.X < jc.X
 	})
 
-	charts := make([]Resource, 0, len(cellViews))
-	for _, cv := range cellViews {
-		if cv.c.ID == influxdb.ID(0) {
+	charts := make([]Resource, 0, len(dash.Cells))
+	for _, cell := range dash.Cells {
+		if cell.ID == influxdb.ID(0) {
 			continue
 		}
-		ch := convertCellView(cv)
+		ch := convertCellView(*cell)
 		if !ch.Kind.ok() {
 			continue
 		}
@@ -274,12 +289,31 @@ func labelToResource(l influxdb.Label, name string) Resource {
 	if name == "" {
 		name = l.Name
 	}
-	return Resource{
-		fieldKind:        KindLabel.title(),
-		fieldName:        name,
-		fieldLabelColor:  l.Properties["color"],
-		fieldDescription: l.Properties["description"],
+	r := Resource{
+		fieldKind: KindLabel.title(),
+		fieldName: name,
 	}
+
+	assignNonZeroStrings(r, map[string]string{
+		fieldDescription: l.Properties["description"],
+		fieldLabelColor:  l.Properties["color"],
+	})
+	return r
+}
+
+func telegrafToResource(t influxdb.TelegrafConfig, name string) Resource {
+	if name == "" {
+		name = t.Name
+	}
+	r := Resource{
+		fieldKind:           KindTelegraf.title(),
+		fieldName:           name,
+		fieldTelegrafConfig: t.TOML(),
+	}
+	assignNonZeroStrings(r, map[string]string{
+		fieldDescription: t.Description,
+	})
+	return r
 }
 
 func variableToResource(v influxdb.Variable, name string) Resource {
@@ -288,10 +322,11 @@ func variableToResource(v influxdb.Variable, name string) Resource {
 	}
 
 	r := Resource{
-		fieldKind:        KindVariable.title(),
-		fieldName:        name,
-		fieldDescription: v.Description,
+		fieldKind: KindVariable.title(),
+		fieldName: name,
 	}
+	assignNonZeroStrings(r, map[string]string{fieldDescription: v.Description})
+
 	args := v.Arguments
 	if args == nil {
 		return r
@@ -312,12 +347,36 @@ func variableToResource(v influxdb.Variable, name string) Resource {
 	case fieldArgTypeQuery:
 		vals, ok := args.Values.(influxdb.VariableQueryValues)
 		if ok {
-			r[fieldVarLanguage] = vals.Language
+			r[fieldLanguage] = vals.Language
 			r[fieldQuery] = vals.Query
 		}
 	}
 
 	return r
+}
+
+func assignNonZeroBools(r Resource, m map[string]bool) {
+	for k, v := range m {
+		if v {
+			r[k] = v
+		}
+	}
+}
+
+func assignNonZeroInts(r Resource, m map[string]int) {
+	for k, v := range m {
+		if v != 0 {
+			r[k] = v
+		}
+	}
+}
+
+func assignNonZeroStrings(r Resource, m map[string]string) {
+	for k, v := range m {
+		if v != "" {
+			r[k] = v
+		}
+	}
 }
 
 func stringsToColors(clrs []string) colors {

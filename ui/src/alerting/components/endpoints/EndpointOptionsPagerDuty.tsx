@@ -18,7 +18,7 @@ const EndpointOptionsPagerDuty: FC<Props> = ({
   return (
     <Panel>
       <Panel.Header>
-        <Panel.Title>Pagerduty Options</Panel.Title>
+        <h4>Pagerduty Options</h4>
       </Panel.Header>
       <Panel.Body>
         <Grid>

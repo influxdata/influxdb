@@ -18,6 +18,7 @@ import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+import 'intersection-observer'
 
 // Constants
 import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'

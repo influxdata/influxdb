@@ -9,7 +9,7 @@ import {
   PopoverInteraction,
   Icon,
   IconFont,
-  PopoverType,
+  Appearance,
   DapperScrollbars,
 } from '@influxdata/clockface'
 
@@ -49,7 +49,7 @@ const CellHeaderNote: FunctionComponent<Props> = ({note}) => {
       </div>
       <Popover
         triggerRef={triggerRef}
-        type={PopoverType.Outline}
+        appearance={Appearance.Outline}
         showEvent={PopoverInteraction.Click}
         hideEvent={PopoverInteraction.Click}
         onShow={handlePopoverShow}

@@ -12,8 +12,8 @@ import (
 var _ middleware.Coordinator = (*Coordinator)(nil)
 
 type Coordinator struct {
-	logger *zap.Logger
-	sch    backend.Scheduler
+	log *zap.Logger
+	sch backend.Scheduler
 
 	limit int
 }
@@ -26,11 +26,11 @@ func WithLimit(i int) Option {
 	}
 }
 
-func New(logger *zap.Logger, scheduler backend.Scheduler, opts ...Option) *Coordinator {
+func New(log *zap.Logger, scheduler backend.Scheduler, opts ...Option) *Coordinator {
 	c := &Coordinator{
-		logger: logger,
-		sch:    scheduler,
-		limit:  1000,
+		log:   log,
+		sch:   scheduler,
+		limit: 1000,
 	}
 
 	for _, opt := range opts {

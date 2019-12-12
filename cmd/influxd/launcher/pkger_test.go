@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
+	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,10 +20,12 @@ func TestLauncher_Pkger(t *testing.T) {
 	defer l.ShutdownOrFail(t, ctx)
 
 	svc := pkger.NewService(
-		pkger.WithBucketSVC(l.BucketService()),
-		pkger.WithDashboardSVC(l.DashboardService()),
-		pkger.WithLabelSVC(l.LabelService()),
-		pkger.WithVariableSVC(l.VariableService()),
+		pkger.WithBucketSVC(l.BucketService(t)),
+		pkger.WithDashboardSVC(l.DashboardService(t)),
+		pkger.WithLabelSVC(l.LabelService(t)),
+		pkger.WithNoticationEndpointSVC(l.NotificationEndpointService(t)),
+		pkger.WithTelegrafSVC(l.TelegrafService(t)),
+		pkger.WithVariableSVC(l.VariableService(t)),
 	)
 
 	t.Run("create a new package", func(t *testing.T) {
@@ -42,19 +45,21 @@ func TestLauncher_Pkger(t *testing.T) {
 
 	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {
 		svc := pkger.NewService(
-			pkger.WithBucketSVC(l.BucketService()),
-			pkger.WithDashboardSVC(l.DashboardService()),
+			pkger.WithBucketSVC(l.BucketService(t)),
+			pkger.WithDashboardSVC(l.DashboardService(t)),
 			pkger.WithLabelSVC(&fakeLabelSVC{
-				LabelService: l.LabelService(),
+				LabelService: l.LabelService(t),
 				killCount:    2, // hits error on 3rd attempt at creating a mapping
 			}),
-			pkger.WithVariableSVC(l.VariableService()),
+			pkger.WithNoticationEndpointSVC(l.NotificationEndpointService(t)),
+			pkger.WithTelegrafSVC(l.TelegrafService(t)),
+			pkger.WithVariableSVC(l.VariableService(t)),
 		)
 
 		_, err := svc.Apply(ctx, l.Org.ID, newPkg(t))
 		require.Error(t, err)
 
-		bkts, _, err := l.BucketService().FindBuckets(ctx, influxdb.BucketFilter{OrganizationID: &l.Org.ID})
+		bkts, _, err := l.BucketService(t).FindBuckets(ctx, influxdb.BucketFilter{OrganizationID: &l.Org.ID})
 		require.NoError(t, err)
 		for _, b := range bkts {
 			if influxdb.BucketTypeSystem == b.Type {
@@ -64,17 +69,29 @@ func TestLauncher_Pkger(t *testing.T) {
 			assert.Equal(t, l.Bucket.Name, b.Name)
 		}
 
-		labels, err := l.LabelService().FindLabels(ctx, influxdb.LabelFilter{OrgID: &l.Org.ID})
+		labels, err := l.LabelService(t).FindLabels(ctx, influxdb.LabelFilter{OrgID: &l.Org.ID})
 		require.NoError(t, err)
 		assert.Empty(t, labels)
 
-		dashs, _, err := l.DashboardService().FindDashboards(ctx, influxdb.DashboardFilter{
+		dashs, _, err := l.DashboardService(t).FindDashboards(ctx, influxdb.DashboardFilter{
 			OrganizationID: &l.Org.ID,
 		}, influxdb.DefaultDashboardFindOptions)
 		require.NoError(t, err)
 		assert.Empty(t, dashs)
 
-		vars, err := l.VariableService().FindVariables(ctx, influxdb.VariableFilter{OrganizationID: &l.Org.ID})
+		endpoints, _, err := l.NotificationEndpointService(t).FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
+			OrgID: &l.Org.ID,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, endpoints)
+
+		teles, _, err := l.TelegrafService(t).FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{
+			OrgID: &l.Org.ID,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, teles)
+
+		vars, err := l.VariableService(t).FindVariables(ctx, influxdb.VariableFilter{OrganizationID: &l.Org.ID})
 		require.NoError(t, err)
 		assert.Empty(t, vars)
 	})
@@ -127,6 +144,8 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.True(t, diffVars[0].IsNew())
 
 		require.Len(t, diff.Dashboards, 1)
+		require.Len(t, diff.NotificationEndpoints, 1)
+		require.Len(t, diff.Telegrafs, 1)
 
 		labels := sum.Labels
 		require.Len(t, labels, 1)
@@ -142,6 +161,18 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, "dash_1", dashs[0].Name)
 		assert.Equal(t, "desc1", dashs[0].Description)
 		hasLabelAssociations(t, dashs[0].LabelAssociations, 1, "label_1")
+
+		endpoints := sum.NotificationEndpoints
+		require.Len(t, endpoints, 1)
+		assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].GetName())
+		assert.Equal(t, "http none auth desc", endpoints[0].GetDescription())
+		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
+
+		teles := sum.TelegrafConfigs
+		require.Len(t, teles, 1)
+		assert.Equal(t, "first_tele_config", teles[0].Name)
+		assert.Equal(t, "desc", teles[0].Description)
+		hasLabelAssociations(t, teles[0].LabelAssociations, 1, "label_1")
 
 		vars := sum.Variables
 		require.Len(t, vars, 1)
@@ -163,25 +194,41 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		labels := sum1.Labels
 		require.Len(t, labels, 1)
-		assert.NotEqual(t, influxdb.ID(0), labels[0].ID)
+		assert.NotZero(t, labels[0].ID)
 		assert.Equal(t, "label_1", labels[0].Name)
 
 		bkts := sum1.Buckets
 		require.Len(t, bkts, 1)
-		assert.NotEqual(t, influxdb.ID(0), bkts[0].ID)
+		assert.NotZero(t, bkts[0].ID)
 		assert.Equal(t, "rucket_1", bkts[0].Name)
 		hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
 
 		dashs := sum1.Dashboards
 		require.Len(t, dashs, 1)
-		assert.NotEqual(t, influxdb.ID(0), dashs[0].ID)
+		assert.NotZero(t, dashs[0].ID)
 		assert.Equal(t, "dash_1", dashs[0].Name)
 		assert.Equal(t, "desc1", dashs[0].Description)
 		hasLabelAssociations(t, dashs[0].LabelAssociations, 1, "label_1")
 
+		endpoints := sum1.NotificationEndpoints
+		require.Len(t, endpoints, 1)
+		assert.NotZero(t, endpoints[0].GetID())
+		assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].GetName())
+		assert.Equal(t, "http none auth desc", endpoints[0].GetDescription())
+		assert.Equal(t, influxdb.TaskStatusInactive, string(endpoints[0].GetStatus()))
+		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
+
+		teles := sum1.TelegrafConfigs
+		require.Len(t, teles, 1)
+		assert.NotZero(t, teles[0].ID)
+		assert.Equal(t, l.Org.ID, teles[0].OrgID)
+		assert.Equal(t, "first_tele_config", teles[0].Name)
+		assert.Equal(t, "desc", teles[0].Description)
+		assert.Len(t, teles[0].Plugins, 2)
+
 		vars := sum1.Variables
 		require.Len(t, vars, 1)
-		assert.NotEqual(t, influxdb.ID(0), vars[0].ID)
+		assert.NotZero(t, vars[0].ID)
 		assert.Equal(t, "var_query_1", vars[0].Name)
 		hasLabelAssociations(t, vars[0].LabelAssociations, 1, "label_1")
 		varArgs := vars[0].Arguments
@@ -205,10 +252,11 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 
 		mappings := sum1.LabelMappings
-		require.Len(t, mappings, 3)
+		require.Len(t, mappings, 5)
 		hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
 		hasMapping(t, mappings, newSumMapping(influxdb.ID(dashs[0].ID), dashs[0].Name, influxdb.DashboardsResourceType))
 		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
+		hasMapping(t, mappings, newSumMapping(teles[0].ID, teles[0].Name, influxdb.TelegrafsResourceType))
 
 		t.Run("pkg with same bkt-var-label does nto create new resources for them", func(t *testing.T) {
 			// validate the new package doesn't create new resources for bkts/labels/vars
@@ -218,6 +266,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			require.Equal(t, sum1.Buckets, sum2.Buckets)
 			require.Equal(t, sum1.Labels, sum2.Labels)
+			require.Equal(t, sum1.NotificationEndpoints, sum2.NotificationEndpoints)
 			require.Equal(t, sum1.Variables, sum2.Variables)
 
 			// dashboards should be new
@@ -237,6 +286,10 @@ func TestLauncher_Pkger(t *testing.T) {
 				{
 					Kind: pkger.KindLabel,
 					ID:   labels[0].ID,
+				},
+				{
+					Kind: pkger.KindTelegraf,
+					ID:   teles[0].ID,
 				},
 			}
 
@@ -282,6 +335,10 @@ func TestLauncher_Pkger(t *testing.T) {
 			assert.Equal(t, "desc1", dashs[0].Description)
 			hasLabelAssociations(t, dashs[0].LabelAssociations, 1, "label_1")
 
+			require.Len(t, newSum.TelegrafConfigs, 1)
+			assert.Equal(t, teles[0].Name, newSum.TelegrafConfigs[0].Name)
+			assert.Equal(t, teles[0].Description, newSum.TelegrafConfigs[0].Description)
+
 			vars := newSum.Variables
 			require.Len(t, vars, 1)
 			assert.Zero(t, vars[0].ID)
@@ -302,27 +359,29 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			svc := pkger.NewService(
 				pkger.WithBucketSVC(&fakeBucketSVC{
-					BucketService: l.BucketService(),
+					BucketService: l.BucketService(t),
 					killCount:     0, // kill on first update for bucket
 				}),
-				pkger.WithDashboardSVC(l.DashboardService()),
-				pkger.WithLabelSVC(l.LabelService()),
-				pkger.WithVariableSVC(l.VariableService()),
+				pkger.WithDashboardSVC(l.DashboardService(t)),
+				pkger.WithLabelSVC(l.LabelService(t)),
+				pkger.WithNoticationEndpointSVC(l.NotificationEndpointService(t)),
+				pkger.WithTelegrafSVC(l.TelegrafService(t)),
+				pkger.WithVariableSVC(l.VariableService(t)),
 			)
 
 			_, err = svc.Apply(ctx, l.Org.ID, updatePkg)
 			require.Error(t, err)
 
-			bkt, err := l.BucketService().FindBucketByID(ctx, bkts[0].ID)
+			bkt, err := l.BucketService(t).FindBucketByID(ctx, bkts[0].ID)
 			require.NoError(t, err)
 			// make sure the desc change is not applied and is rolled back to prev desc
 			assert.Equal(t, bkt.Description, bkts[0].Description)
 
-			label, err := l.LabelService().FindLabelByID(ctx, labels[0].ID)
+			label, err := l.LabelService(t).FindLabelByID(ctx, labels[0].ID)
 			require.NoError(t, err)
 			assert.Equal(t, label.Properties["description"], labels[0].Properties["description"])
 
-			v, err := l.VariableService().FindVariableByID(ctx, vars[0].ID)
+			v, err := l.VariableService(t).FindVariableByID(ctx, vars[0].ID)
 			require.NoError(t, err)
 			assert.Equal(t, v.Description, vars[0].Description)
 		})
@@ -387,7 +446,38 @@ spec:
         buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])
       associations:
         - kind: Label
-          name: label_1`
+          name: label_1
+    - kind: Telegraf
+      name: first_tele_config
+      description: desc
+      associations:
+        - kind: Label
+          name: label_1
+      config: |
+        [agent]
+          interval = "10s"
+          metric_batch_size = 1000
+          metric_buffer_limit = 10000
+          collection_jitter = "0s"
+          flush_interval = "10s"
+        [[outputs.influxdb_v2]]
+          urls = ["http://localhost:9999"]
+          token = "$INFLUX_TOKEN"
+          organization = "rg"
+          bucket = "rucket_3"
+        [[inputs.cpu]]
+          percpu = true
+    - kind: NotificationEndpointHTTP
+      name: http_none_auth_notification_endpoint
+      type: none
+      description: http none auth desc
+      method: GET
+      url:  https://www.example.com/endpoint/noneauth
+      status: inactive
+      associations:
+        - kind: Label
+          name: label_1
+`
 
 const updatePkgYMLStr = `apiVersion: 0.1.0
 kind: Package
@@ -415,32 +505,33 @@ spec:
         buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])
       associations:
         - kind: Label
-          name: label_1`
+          name: label_1
+`
 
 type fakeBucketSVC struct {
 	influxdb.BucketService
-	callCount int
-	killCount int
+	updateCallCount mock.SafeCount
+	killCount       int
 }
 
 func (f *fakeBucketSVC) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
-	if f.callCount == f.killCount {
+	if f.updateCallCount.Count() == f.killCount {
 		return nil, errors.New("reached kill count")
 	}
-	f.callCount++
+	defer f.updateCallCount.IncrFn()()
 	return f.BucketService.UpdateBucket(ctx, id, upd)
 }
 
 type fakeLabelSVC struct {
 	influxdb.LabelService
-	callCount int
+	callCount mock.SafeCount
 	killCount int
 }
 
 func (f *fakeLabelSVC) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	if f.callCount == f.killCount {
+	defer f.callCount.IncrFn()()
+	if f.callCount.Count() == f.killCount {
 		return errors.New("reached kill count")
 	}
-	f.callCount++
 	return f.LabelService.CreateLabelMapping(ctx, m)
 }

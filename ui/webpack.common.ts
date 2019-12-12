@@ -32,8 +32,13 @@ module.exports = {
   module: {
     rules: [
       {
-        test: /\.wasm$/,
+        test: /\flux_parser_bg.wasm$/,
         type: 'webassembly/experimental',
+      },
+      {
+        test: /^((?!flux_parser_bg).)*.wasm$/,
+        loader: 'file-loader',
+        type: 'javascript/auto',
       },
       {
         test: /\.tsx?$/,
@@ -62,21 +67,25 @@ module.exports = {
       },
       {
         test: /\.(png|svg|jpg|gif)$/,
-        use: [{
-          loader: 'file-loader',
-          options: {
-            name: `${STATIC_DIRECTORY}[contenthash:10].[ext]`
-          }
-        }],
+        use: [
+          {
+            loader: 'file-loader',
+            options: {
+              name: `${STATIC_DIRECTORY}[contenthash:10].[ext]`,
+            },
+          },
+        ],
       },
       {
         test: /\.(woff|woff2|eot|ttf|otf)$/,
-        use: [{
-          loader: 'file-loader',
-          options: {
-            name: `${STATIC_DIRECTORY}[contenthash:10].[ext]`
-          }
-        }],
+        use: [
+          {
+            loader: 'file-loader',
+            options: {
+              name: `${STATIC_DIRECTORY}[contenthash:10].[ext]`,
+            },
+          },
+        ],
       },
     ],
   },
@@ -105,10 +114,12 @@ module.exports = {
     }),
     new ForkTsCheckerWebpackPlugin(),
     new webpack.ProgressPlugin(),
-    new webpack.DefinePlugin({
-      ENABLE_MONACO: JSON.stringify(false)
+    new webpack.EnvironmentPlugin({
+      ...process.env,
+      GIT_SHA,
+      API_PREFIX: API_BASE_PATH,
+      STATIC_PREFIX: BASE_PATH,
     }),
-    new webpack.EnvironmentPlugin({...process.env, GIT_SHA, API_PREFIX: API_BASE_PATH, STATIC_PREFIX: BASE_PATH}),
   ],
   stats: {
     colors: true,

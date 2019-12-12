@@ -36,7 +36,7 @@ func taskExecutorSystem(t *testing.T) tes {
 		AsyncQueryService: aqs,
 	}
 
-	i := kv.NewService(inmem.NewKVStore())
+	i := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
 
 	ex, metrics := NewExecutor(zaptest.NewLogger(t), qs, i, i, taskControlService{i})
 	return tes{
@@ -71,7 +71,7 @@ func testQuerySuccess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +84,10 @@ func testQuerySuccess(t *testing.T) {
 
 	if run.ID != promiseID {
 		t.Fatal("promise and run dont match")
+	}
+
+	if run.RunAt != time.Unix(126, 0).UTC() {
+		t.Fatalf("did not correctly set RunAt value, got: %v", run.RunAt)
 	}
 
 	tes.svc.WaitForQueryLive(t, script)
@@ -113,7 +117,7 @@ func testQueryFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +200,7 @@ func testResumingRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	stalledRun, err := tes.i.CreateRun(ctx, task.ID, time.Unix(123, 0))
+	stalledRun, err := tes.i.CreateRun(ctx, task.ID, time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +243,7 @@ func testWorkerLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +285,7 @@ func testLimitFunc(t *testing.T) {
 		return nil
 	})
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +305,7 @@ func testMetrics(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
 	metrics := tes.metrics
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	reg.MustRegister(metrics.PrometheusCollectors()...)
 
 	mg := promtest.MustGather(t, reg)
@@ -317,7 +321,7 @@ func testMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,6 +387,15 @@ func testMetrics(t *testing.T) {
 		t.Fatalf("expected 1 manual run, got %v", got)
 	}
 
+	m = promtest.MustFindMetric(t, mg, "task_executor_run_latency_seconds", map[string]string{"task_type": ""})
+	if got := *m.Histogram.SampleCount; got != 1 {
+		t.Fatalf("expected to count 1 run latency metric, got %v", got)
+	}
+
+	if got := *m.Histogram.SampleSum; got <= 100 {
+		t.Fatalf("expected run latency metric to be very large, got %v", got)
+	}
+
 }
 
 func testIteratorFailure(t *testing.T) {
@@ -403,7 +416,7 @@ func testIteratorFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,7 +446,7 @@ func testErrorHandling(t *testing.T) {
 	tes := taskExecutorSystem(t)
 
 	metrics := tes.metrics
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	reg.MustRegister(metrics.PrometheusCollectors()...)
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
@@ -447,7 +460,7 @@ func testErrorHandling(t *testing.T) {
 	forcedErr := errors.New("could not find bucket")
 	tes.svc.FailNextQuery(forcedErr)
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}

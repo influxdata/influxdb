@@ -6,7 +6,7 @@ import classnames from 'classnames'
 // Components
 import {
   Popover,
-  PopoverType,
+  Appearance,
   Icon,
   IconFont,
   PopoverInteraction,
@@ -69,6 +69,13 @@ const CellContext: FunctionComponent<Props> = ({
             onHide={onHide}
             testID="cell-context--note"
           />
+          <CellContextDangerItem
+            label="Delete"
+            onClick={handleDeleteCell}
+            icon={IconFont.Trash}
+            onHide={onHide}
+            testID="cell-context--delete"
+          />
         </div>
       )
     }
@@ -126,7 +133,7 @@ const CellContext: FunctionComponent<Props> = ({
         <Icon glyph={IconFont.CogThick} />
       </button>
       <Popover
-        type={PopoverType.Outline}
+        appearance={Appearance.Outline}
         enableDefaultStyles={false}
         showEvent={PopoverInteraction.Click}
         hideEvent={PopoverInteraction.Click}

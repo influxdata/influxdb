@@ -3,7 +3,13 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Form, Radio, Button, TextArea, Overlay} from '@influxdata/clockface'
+import {
+  Form,
+  SelectGroup,
+  Button,
+  TextArea,
+  Overlay,
+} from '@influxdata/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 
 // Types
@@ -56,8 +62,9 @@ class ImportOverlay extends PureComponent<Props, State> {
             />
             <Overlay.Body>
               <div className="import--options">
-                <Radio>
-                  <Radio.Button
+                <SelectGroup>
+                  <SelectGroup.Option
+                    name="import-mode"
                     id={ImportOption.Upload}
                     active={selectedImportOption === ImportOption.Upload}
                     value={ImportOption.Upload}
@@ -65,8 +72,9 @@ class ImportOverlay extends PureComponent<Props, State> {
                     titleText="Upload"
                   >
                     Upload File
-                  </Radio.Button>
-                  <Radio.Button
+                  </SelectGroup.Option>
+                  <SelectGroup.Option
+                    name="import-mode"
                     id={ImportOption.Paste}
                     active={selectedImportOption === ImportOption.Paste}
                     value={ImportOption.Paste}
@@ -74,8 +82,8 @@ class ImportOverlay extends PureComponent<Props, State> {
                     titleText="Paste"
                   >
                     Paste JSON
-                  </Radio.Button>
-                </Radio>
+                  </SelectGroup.Option>
+                </SelectGroup>
               </div>
               {this.importBody}
             </Overlay.Body>

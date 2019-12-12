@@ -133,7 +133,7 @@ func (s *Service) Generate(ctx context.Context, req *influxdb.OnboardingRequest)
 			return err
 		}
 
-		if err := s.setPassword(ctx, tx, u.Name, req.Password); err != nil {
+		if err := s.setPassword(ctx, tx, u.ID, req.Password); err != nil {
 			return err
 		}
 

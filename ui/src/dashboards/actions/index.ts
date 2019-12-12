@@ -368,6 +368,7 @@ export const getDashboardAsync = (dashboardID: string) => async (
 
     // Now that all the necessary state has been loaded, set the dashboard
     dispatch(setDashboard(dashboard))
+    dispatch(updateTimeRangeFromQueryParams(dashboardID))
   } catch (error) {
     const {
       orgs: {org},
@@ -376,8 +377,6 @@ export const getDashboardAsync = (dashboardID: string) => async (
     dispatch(notify(copy.dashboardGetFailed(dashboardID, error.message)))
     return
   }
-
-  dispatch(updateTimeRangeFromQueryParams(dashboardID))
 }
 
 export const updateDashboardAsync = (dashboard: Dashboard) => async (

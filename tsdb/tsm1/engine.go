@@ -1164,7 +1164,7 @@ func (e *Engine) compactFull(ctx context.Context, grp CompactionGroup, wg *sync.
 func (e *Engine) keepLeaseAlive(ctx context.Context, lease influxdb.Lease) {
 	ttl, err := lease.TTL(ctx)
 	if err != nil {
-		e.logger.Warn("unable to get TTL for lease on semaphore", zap.Error(err))
+		e.logger.Warn("Unable to get TTL for lease on semaphore", zap.Error(err))
 		ttl = influxdb.DefaultLeaseTTL // This is probably a reasonable fallback.
 	}
 

@@ -41,7 +41,7 @@ export default class EmptyTasksLists extends PureComponent<Props> {
             Looks like you don't have any <b>Tasks</b>, why not create one?"
           </EmptyState.Text>
           <AddResourceDropdown
-            canImportFromTemplate={true}
+            canImportFromTemplate
             onSelectNew={onCreate}
             onSelectImport={onImportTask}
             onSelectTemplate={onImportFromTemplate}

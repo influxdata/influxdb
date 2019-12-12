@@ -1,0 +1,61 @@
+apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Label
+      name: label_1
+    - kind: NotificationEndpointSlack
+      name: slack_notification_endpoint
+      description: slack desc
+      url: https://hooks.slack.com/services/bip/piddy/boppidy
+      status: active
+      token: tokenval
+      associations:
+        - kind: Label
+          name: label_1
+    - kind: NotificationEndpointHTTP
+      name: http_none_auth_notification_endpoint
+      type: none
+      description: http none auth desc
+      method: get
+      url:  https://www.example.com/endpoint/noneauth
+      status: active
+      associations:
+        - kind: Label
+          name: label_1
+    - kind: NotificationEndpointHTTP
+      name: http_basic_auth_notification_endpoint
+      description: http basic auth desc
+      type: basic
+      method: pOsT
+      url:  https://www.example.com/endpoint/basicauth
+      username: "secret username"
+      password: "secret password"
+      status: inactive
+      associations:
+        - kind: Label
+          name: label_1
+    - kind: NotificationEndpointHTTP
+      name: http_bearer_auth_notification_endpoint
+      description: http bearer auth desc
+      type: bearer
+      method: puT
+      url:  https://www.example.com/endpoint/bearerauth
+      token: "secret token"
+      associations:
+        - kind: Label
+          name: label_1
+    - kind: NotificationEndpointPagerDuty
+      name: pager_duty_notification_endpoint
+      description: pager duty desc
+      url:  http://localhost:8080/orgs/7167eb6719fa34e5/alert-history
+      routingKey: "secret routing-key"
+      status: active
+      associations:
+        - kind: Label
+          name: label_1
+

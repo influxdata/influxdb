@@ -6,16 +6,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/http"
+	ihttp "github.com/influxdata/influxdb/http"
+	ierror "github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -23,223 +27,518 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func pkgCmd() *cobra.Command {
-	cmd := pkgApplyCmd()
-	cmd.AddCommand(
-		pkgCreateCmd(),
-	)
+type pkgSVCsFn func(cliReq httpClientOpts, opts ...pkger.ServiceSetterFn) (pkger.SVC, influxdb.OrganizationService, error)
 
-	return cmd
+func cmdPkg(svcFn pkgSVCsFn, opts ...genericCLIOptfn) *cobra.Command {
+	return newCmdPkgBuilder(svcFn, opts...).cmdPkg()
 }
 
-func pkgApplyCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "pkg",
-		Short: "Apply a pkg to create resources",
+type cmdPkgBuilder struct {
+	genericCLIOpts
+
+	svcFn pkgSVCsFn
+
+	applyReqLimit   int
+	file            string
+	hasColor        bool
+	hasTableBorders bool
+	meta            pkger.Metadata
+	orgID           string
+	org             string
+	quiet           bool
+
+	applyOpts struct {
+		force string
+	}
+	exportOpts struct {
+		resourceType string
+		buckets      string
+		dashboards   string
+		labels       string
+		telegrafs    string
+		variables    string
+	}
+}
+
+func newCmdPkgBuilder(svcFn pkgSVCsFn, opts ...genericCLIOptfn) *cmdPkgBuilder {
+	opt := genericCLIOpts{
+		in: os.Stdin,
+		w:  os.Stdout,
+	}
+	for _, o := range opts {
+		o(&opt)
 	}
 
-	path := cmd.Flags().StringP("path", "p", "", "path to manifest file")
-	cmd.MarkFlagFilename("path", "yaml", "yml", "json")
-	cmd.MarkFlagRequired("path")
+	return &cmdPkgBuilder{
+		genericCLIOpts: opt,
+		svcFn:          svcFn,
+	}
+}
 
-	orgID := cmd.Flags().StringP("org-id", "o", "", "The ID of the organization that owns the bucket")
-	cmd.MarkFlagRequired("org-id")
+func (b *cmdPkgBuilder) cmdPkg() *cobra.Command {
+	cmd := b.cmdPkgApply()
+	cmd.AddCommand(
+		b.cmdPkgNew(),
+		b.cmdPkgExport(),
+		b.cmdPkgSummary(),
+		b.cmdPkgValidate(),
+	)
+	return cmd
+}
 
-	hasColor := cmd.Flags().BoolP("color", "c", true, "Enable color in output, defaults true")
-	hasTableBorders := cmd.Flags().Bool("table-borders", true, "Enable table borders, defaults true")
+func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
+	cmd := b.newCmd("pkg")
+	cmd.Short = "Apply a pkg to create resources"
 
-	cmd.RunE = pkgApplyRunEFn(orgID, path, hasColor, hasTableBorders)
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Path to package file")
+	cmd.MarkFlagFilename("file", "yaml", "yml", "json")
+	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "disable output printing")
+	cmd.Flags().IntVarP(&b.applyReqLimit, "req-limit", "r", 0, "Request limit for applying a pkg, defaults to 5(recommended for OSS).")
+	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true".`)
+
+	cmd.Flags().StringVarP(&b.orgID, "org-id", "", "", "The ID of the organization that owns the bucket")
+	cmd.Flags().StringVarP(&b.org, "org", "o", "", "The name of the organization that owns the bucket")
+
+	cmd.Flags().BoolVarP(&b.hasColor, "color", "c", true, "Enable color in output, defaults true")
+	cmd.Flags().BoolVar(&b.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
+
+	cmd.RunE = b.pkgApplyRunEFn()
 
 	return cmd
 }
 
-func pkgApplyRunEFn(orgID, path *string, hasColor, hasTableBorders *bool) func(*cobra.Command, []string) error {
+func (b *cmdPkgBuilder) validOrgFlags() error {
+	if b.orgID == "" && b.org == "" {
+		return fmt.Errorf("must specify org-id, or org name")
+	} else if b.orgID != "" && b.org != "" {
+		return fmt.Errorf("must specify org-id, or org name not both")
+	}
+	return nil
+}
+
+func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
-		if !*hasColor {
-			color.NoColor = true
+		if err := b.validOrgFlags(); err != nil {
+			return err
 		}
+		color.NoColor = !b.hasColor
 
-		influxOrgID, err := influxdb.IDFromString(*orgID)
+		svc, orgSVC, err := b.svcFn(flags.httpClientOpts(), pkger.WithApplyReqLimit(b.applyReqLimit))
 		if err != nil {
 			return err
 		}
 
-		svc, err := newPkgerSVC(flags)
+		influxOrgID, err := getOrgID(orgSVC, b.orgID, b.org)
 		if err != nil {
-			return err
-		}
-
-		pkg, err := pkgFromFile(*path)
-		if err != nil {
-			return err
-		}
-
-		_, diff, err := svc.DryRun(context.Background(), *influxOrgID, pkg)
-		if err != nil {
-			return err
-		}
-
-		printPkgDiff(*hasColor, *hasTableBorders, diff)
-
-		ui := &input.UI{
-			Writer: os.Stdout,
-			Reader: os.Stdin,
-		}
-
-		confirm := getInput(ui, "Confirm application of the above resources (y/n)", "n")
-		if strings.ToLower(confirm) != "y" {
-			fmt.Fprintln(os.Stdout, "aborted application of package")
 			return nil
 		}
 
-		summary, err := svc.Apply(context.Background(), *influxOrgID, pkg)
+		pkg, isTTY, err := b.readPkgStdInOrFile(b.file)
 		if err != nil {
 			return err
 		}
 
-		printPkgSummary(*hasColor, *hasTableBorders, summary)
+		_, diff, err := svc.DryRun(context.Background(), influxOrgID, pkg)
+		if err != nil {
+			return err
+		}
 
-		return nil
-	}
-}
+		if !b.quiet {
+			b.printPkgDiff(diff)
+		}
 
-func pkgCreateCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "new",
-		Short: "Create a reusable pkg to create resources in a declarative manner",
-	}
-
-	wd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-
-	var opts pkgCreateRunOpts
-	cmd.Flags().StringVarP(&opts.outPath, "out", "o", filepath.Join(wd, "pkg.json"), "output file for created pkg; defaults to pkg.json; the extension of provided file (.yml/.json) will dictate encoding")
-	cmd.Flags().BoolVarP(&opts.quiet, "quiet", "q", false, "skip interactive mode")
-	cmd.Flags().StringVarP(&opts.meta.Name, "name", "n", "", "name for new pkg")
-	cmd.Flags().StringVarP(&opts.meta.Description, "description", "d", "", "description for new pkg")
-	cmd.Flags().StringVarP(&opts.meta.Version, "version", "v", "", "version for new pkg")
-
-	cmd.RunE = pkgCreateRunEFn(&opts)
-
-	return cmd
-}
-
-type pkgCreateRunOpts struct {
-	quiet   bool
-	outPath string
-	meta    pkger.Metadata
-}
-
-func pkgCreateRunEFn(opt *pkgCreateRunOpts) func(*cobra.Command, []string) error {
-	return func(cmd *cobra.Command, args []string) error {
-		if !opt.quiet {
+		isForced, _ := strconv.ParseBool(b.applyOpts.force)
+		if !isTTY && !isForced && b.applyOpts.force != "conflict" {
 			ui := &input.UI{
 				Writer: os.Stdout,
 				Reader: os.Stdin,
 			}
 
-			if opt.meta.Name == "" {
-				opt.meta.Name = getInput(ui, "pkg name:", "")
-			}
-			if opt.meta.Description == "" {
-				opt.meta.Description = getInput(ui, "pkg description:", opt.meta.Description)
-			}
-			if opt.meta.Version == "" {
-				opt.meta.Version = getInput(ui, "pkg version:", opt.meta.Version)
+			confirm := getInput(ui, "Confirm application of the above resources (y/n)", "n")
+			if strings.ToLower(confirm) != "y" {
+				fmt.Fprintln(os.Stdout, "aborted application of package")
+				return nil
 			}
 		}
 
-		pkgSVC := pkger.NewService()
-		newPkg, err := pkgSVC.CreatePkg(context.Background(), pkger.CreateWithMetadata(opt.meta))
+		if b.applyOpts.force != "conflict" && isTTY && diff.HasConflicts() {
+			return errors.New("package has conflicts with existing resources and cannot safely apply")
+		}
+
+		summary, err := svc.Apply(context.Background(), influxOrgID, pkg)
 		if err != nil {
 			return err
 		}
 
-		var (
-			buf bytes.Buffer
-			enc interface {
-				Encode(interface{}) error
-			}
-		)
-
-		switch ext := filepath.Ext(opt.outPath); ext {
-		case ".yml":
-			enc = yaml.NewEncoder(&buf)
-		default:
-			jsonEnc := json.NewEncoder(&buf)
-			jsonEnc.SetIndent("", "\t")
-			enc = jsonEnc
+		if !b.quiet {
+			b.printPkgSummary(summary)
 		}
-		if err := enc.Encode(newPkg); err != nil {
+
+		return nil
+	}
+}
+
+func (b *cmdPkgBuilder) cmdPkgNew() *cobra.Command {
+	cmd := b.newCmd("new")
+	cmd.Short = "Create a reusable pkg to create resources in a declarative manner"
+
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "skip interactive mode")
+	cmd.Flags().StringVarP(&b.meta.Name, "name", "n", "", "name for new pkg")
+	cmd.Flags().StringVarP(&b.meta.Description, "description", "d", "", "description for new pkg")
+	cmd.Flags().StringVarP(&b.meta.Version, "version", "v", "", "version for new pkg")
+
+	cmd.RunE = b.pkgNewRunEFn()
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) pkgNewRunEFn() func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		if !b.quiet {
+			ui := &input.UI{
+				Writer: b.w,
+				Reader: b.in,
+			}
+
+			if b.meta.Name == "" {
+				b.meta.Name = getInput(ui, "pkg name", "")
+			}
+			if b.meta.Description == "" {
+				b.meta.Description = getInput(ui, "pkg description", "")
+			}
+			if b.meta.Version == "" {
+				b.meta.Version = getInput(ui, "pkg version", "")
+			}
+		}
+
+		pkgSVC, _, err := b.svcFn(flags.httpClientOpts())
+		if err != nil {
 			return err
 		}
 
-		return ioutil.WriteFile(opt.outPath, buf.Bytes(), os.ModePerm)
+		return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, pkger.CreateWithMetadata(b.meta))
 	}
 }
 
-func newPkgerSVC(f Flags) (*pkger.Service, error) {
-	bucketSVC, err := newBucketService(f)
+func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
+	cmd := b.newCmd("export")
+	cmd.Short = "Export existing resources as a package"
+	cmd.AddCommand(b.cmdPkgExportAll())
+
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().StringVarP(&b.meta.Name, "name", "n", "", "name for new pkg")
+	cmd.Flags().StringVarP(&b.meta.Description, "description", "d", "", "description for new pkg")
+	cmd.Flags().StringVarP(&b.meta.Version, "version", "v", "", "version for new pkg")
+	cmd.Flags().StringVar(&b.exportOpts.resourceType, "resource-type", "", "The resource type provided will be associated with all IDs via stdin.")
+	cmd.Flags().StringVar(&b.exportOpts.buckets, "buckets", "", "List of bucket ids comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.dashboards, "dashboards", "", "List of dashboard ids comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.labels, "labels", "", "List of label ids comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.telegrafs, "telegraf-configs", "", "List of telegraf config ids comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.variables, "variables", "", "List of variable ids comma separated")
+
+	cmd.RunE = b.pkgExportRunEFn()
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) pkgExportRunEFn() func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		pkgSVC, _, err := b.svcFn(flags.httpClientOpts())
+		if err != nil {
+			return err
+		}
+
+		opts := []pkger.CreatePkgSetFn{pkger.CreateWithMetadata(b.meta)}
+
+		resTypes := []struct {
+			kind   pkger.Kind
+			idStrs []string
+		}{
+			{kind: pkger.KindBucket, idStrs: strings.Split(b.exportOpts.buckets, ",")},
+			{kind: pkger.KindDashboard, idStrs: strings.Split(b.exportOpts.dashboards, ",")},
+			{kind: pkger.KindLabel, idStrs: strings.Split(b.exportOpts.labels, ",")},
+			{kind: pkger.KindTelegraf, idStrs: strings.Split(b.exportOpts.telegrafs, ",")},
+			{kind: pkger.KindVariable, idStrs: strings.Split(b.exportOpts.variables, ",")},
+		}
+		for _, rt := range resTypes {
+			newOpt, err := newResourcesToClone(rt.kind, rt.idStrs)
+			if err != nil {
+				return ierror.Wrap(err, rt.kind.String())
+			}
+			opts = append(opts, newOpt)
+		}
+
+		if b.exportOpts.resourceType == "" {
+			return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
+		}
+
+		kind := pkger.NewKind(b.exportOpts.resourceType)
+		if err := kind.OK(); err != nil {
+			return errors.New("resource type must be one of bucket|dashboard|label|variable; got: " + b.exportOpts.resourceType)
+		}
+
+		if stdin, err := b.inStdIn(); err == nil {
+			stdinInpt, _ := b.readLines(stdin)
+			if len(stdinInpt) > 0 {
+				args = stdinInpt
+			}
+		}
+
+		resTypeOpt, err := newResourcesToClone(kind, args)
+		if err != nil {
+			return err
+		}
+
+		return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, append(opts, resTypeOpt)...)
+	}
+}
+
+func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
+	cmd := b.newCmd("all")
+	cmd.Short = "Export all existing resources for an organization as a package"
+
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().StringVarP(&b.orgID, "org-id", "", "", "organization id")
+	cmd.Flags().StringVarP(&b.org, "org", "o", "", "The name of the organization that owns the bucket")
+	cmd.Flags().StringVarP(&b.meta.Name, "name", "n", "", "name for new pkg")
+	cmd.Flags().StringVarP(&b.meta.Description, "description", "d", "", "description for new pkg")
+	cmd.Flags().StringVarP(&b.meta.Version, "version", "v", "", "version for new pkg")
+
+	cmd.RunE = b.pkgExportAllRunEFn()
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) pkgExportAllRunEFn() func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		if err := b.validOrgFlags(); err != nil {
+			return err
+		}
+
+		pkgSVC, orgSVC, err := b.svcFn(flags.httpClientOpts())
+		if err != nil {
+			return err
+		}
+
+		opts := []pkger.CreatePkgSetFn{pkger.CreateWithMetadata(b.meta)}
+
+		orgID, err := getOrgID(orgSVC, b.orgID, b.org)
+		if err != nil {
+			return err
+		}
+		opts = append(opts, pkger.CreateWithAllOrgResources(orgID))
+
+		return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
+	}
+}
+
+func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
+	cmd := b.newCmd("summary")
+	cmd.Short = "Summarize the provided package"
+
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "input file for pkg; if none provided will use TTY input")
+	cmd.Flags().BoolVarP(&b.hasColor, "color", "c", true, "Enable color in output, defaults true")
+	cmd.Flags().BoolVar(&b.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
+
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		pkg, _, err := b.readPkgStdInOrFile(b.file)
+		if err != nil {
+			return err
+		}
+
+		b.printPkgSummary(pkg.Summary())
+		return nil
+	}
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
+	cmd := b.newCmd("validate")
+	cmd.Short = "Validate the provided package"
+
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "input file for pkg; if none provided will use TTY input")
+
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		pkg, _, err := b.readPkgStdInOrFile(b.file)
+		if err != nil {
+			return err
+		}
+		return pkg.Validate()
+	}
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) writePkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.CreatePkgSetFn) error {
+	pkg, err := pkgSVC.CreatePkg(context.Background(), opts...)
+	if err != nil {
+		return err
+	}
+
+	buf, err := createPkgBuf(pkg, outPath)
+	if err != nil {
+		return err
+	}
+
+	if outPath == "" {
+		_, err := io.Copy(w, buf)
+		return err
+	}
+
+	return ioutil.WriteFile(outPath, buf.Bytes(), os.ModePerm)
+}
+
+func (b *cmdPkgBuilder) readPkgStdInOrFile(file string) (*pkger.Pkg, bool, error) {
+	if file != "" {
+		pkg, err := pkgFromFile(file)
+		return pkg, false, err
+	}
+
+	var isTTY bool
+
+	if _, err := b.inStdIn(); err == nil {
+		isTTY = true
+	}
+
+	pkg, err := pkgFromReader(b.in)
+	return pkg, isTTY, err
+}
+
+func (b *cmdPkgBuilder) inStdIn() (*os.File, error) {
+	stdin, _ := b.in.(*os.File)
+	if stdin != os.Stdin {
+		return nil, errors.New("input not stdIn")
+	}
+
+	info, err := stdin.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if (info.Mode() & os.ModeCharDevice) == os.ModeCharDevice {
+		return nil, errors.New("input not stdIn")
+	}
+	return stdin, nil
+}
+
+func (b *cmdPkgBuilder) readLines(r io.Reader) ([]string, error) {
+	bb, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
 
-	labelSVC, err := newLabelService(f)
+	var stdinInput []string
+	for _, bs := range bytes.Split(bb, []byte("\n")) {
+		trimmed := bytes.TrimSpace(bs)
+		if len(trimmed) == 0 {
+			continue
+		}
+		stdinInput = append(stdinInput, string(trimmed))
+	}
+	return stdinInput, nil
+}
+
+func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn, error) {
+	ids, err := toInfluxIDs(idStrs)
 	if err != nil {
 		return nil, err
 	}
 
-	dashSVC, err := newDashboardService(f)
-	if err != nil {
+	var resources []pkger.ResourceToClone
+	for _, id := range ids {
+		resources = append(resources, pkger.ResourceToClone{
+			Kind: kind,
+			ID:   id,
+		})
+	}
+	return pkger.CreateWithExistingResources(resources...), nil
+}
+
+func toInfluxIDs(args []string) ([]influxdb.ID, error) {
+	var (
+		ids  []influxdb.ID
+		errs []string
+	)
+	for _, arg := range args {
+		normedArg := strings.TrimSpace(strings.ToLower(arg))
+		if normedArg == "" {
+			continue
+		}
+
+		id, err := influxdb.IDFromString(normedArg)
+		if err != nil {
+			errs = append(errs, "arg must provide a valid 16 length ID; got: "+arg)
+			continue
+		}
+		ids = append(ids, *id)
+	}
+	if len(errs) > 0 {
+		return nil, errors.New(strings.Join(errs, "\n\t"))
+	}
+
+	return ids, nil
+}
+
+func createPkgBuf(pkg *pkger.Pkg, outPath string) (*bytes.Buffer, error) {
+	var (
+		buf bytes.Buffer
+		enc interface {
+			Encode(interface{}) error
+		}
+	)
+
+	switch ext := filepath.Ext(outPath); ext {
+	case ".json":
+		jsonEnc := json.NewEncoder(&buf)
+		jsonEnc.SetIndent("", "\t")
+		enc = jsonEnc
+	default:
+		enc = yaml.NewEncoder(&buf)
+	}
+	if err := enc.Encode(pkg); err != nil {
 		return nil, err
 	}
 
-	varSVC, err := newVariableService(f)
+	return &buf, nil
+}
+
+func newPkgerSVC(cliReqOpts httpClientOpts, opts ...pkger.ServiceSetterFn) (pkger.SVC, influxdb.OrganizationService, error) {
+	httpClient, err := newHTTPClient()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	orgSvc := &ihttp.OrganizationService{
+		Client: httpClient,
 	}
 
 	return pkger.NewService(
-		pkger.WithBucketSVC(bucketSVC),
-		pkger.WithDashboardSVC(dashSVC),
-		pkger.WithLabelSVC(labelSVC),
-		pkger.WithVariableSVC(varSVC),
-	), nil
+		append(opts,
+			pkger.WithBucketSVC(&ihttp.BucketService{Client: httpClient}),
+			pkger.WithDashboardSVC(&ihttp.DashboardService{Client: httpClient}),
+			pkger.WithLabelSVC(&ihttp.LabelService{Client: httpClient}),
+			pkger.WithNoticationEndpointSVC(ihttp.NewNotificationEndpointService(httpClient)),
+			pkger.WithTelegrafSVC(ihttp.NewTelegrafService(httpClient)),
+			pkger.WithVariableSVC(&ihttp.VariableService{Client: httpClient}),
+		)...,
+	), orgSvc, nil
 }
 
-func newDashboardService(f Flags) (influxdb.DashboardService, error) {
-	if f.local {
-		return newLocalKVService()
+func pkgFromReader(stdin io.Reader) (*pkger.Pkg, error) {
+	b, err := ioutil.ReadAll(stdin)
+	if err != nil {
+		return nil, err
 	}
-	return &http.DashboardService{
-		Addr:               f.host,
-		Token:              f.token,
-		InsecureSkipVerify: flags.skipVerify,
-	}, nil
-}
 
-func newLabelService(f Flags) (influxdb.LabelService, error) {
-	if f.local {
-		return newLocalKVService()
+	var enc pkger.Encoding
+	switch http.DetectContentType(b[0:512]) {
+	case "application/json":
+		enc = pkger.EncodingJSON
+	default:
+		enc = pkger.EncodingYAML
 	}
-	return &http.LabelService{
-		Addr:               f.host,
-		Token:              f.token,
-		InsecureSkipVerify: flags.skipVerify,
-	}, nil
-}
-
-func newVariableService(f Flags) (influxdb.VariableService, error) {
-	if f.local {
-		return newLocalKVService()
-	}
-	return &http.VariableService{
-		Addr:               f.host,
-		Token:              f.token,
-		InsecureSkipVerify: flags.skipVerify,
-	}, nil
+	return pkger.Parse(enc, pkger.FromString(string(b)))
 }
 
 func pkgFromFile(path string) (*pkger.Pkg, error) {
@@ -256,18 +555,18 @@ func pkgFromFile(path string) (*pkger.Pkg, error) {
 	return pkger.Parse(enc, pkger.FromFile(path))
 }
 
-func printPkgDiff(hasColor, hasTableBorders bool, diff pkger.Diff) {
-	red := color.New(color.FgRed).SprintfFunc()
-	green := color.New(color.FgHiGreen, color.Bold).SprintfFunc()
+func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
+	red := color.New(color.FgRed).SprintFunc()
+	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
 
-	strDiff := func(isNew bool, old, new string) string {
+	diffLn := func(isNew bool, old, new interface{}) string {
 		if isNew {
 			return green(new)
 		}
-		if old == new {
-			return new
+		if reflect.DeepEqual(old, new) {
+			return fmt.Sprint(new)
 		}
-		return fmt.Sprintf("%s\n%s", red("%q", old), green("%q", new))
+		return fmt.Sprintf("%s\n%s", red(old), green(new))
 	}
 
 	boolDiff := func(b bool) string {
@@ -278,108 +577,263 @@ func printPkgDiff(hasColor, hasTableBorders bool, diff pkger.Diff) {
 		return bb
 	}
 
-	durDiff := func(isNew bool, oldDur, newDur time.Duration) string {
-		o := oldDur.String()
-		if oldDur == 0 {
-			o = "inf"
-		}
-		n := newDur.String()
-		if newDur == 0 {
-			n = "inf"
-		}
-		if isNew {
-			return green(n)
-		}
-		if oldDur == newDur {
-			return n
-		}
-		return fmt.Sprintf("%s\n%s", red(o), green(n))
-	}
-
-	tablePrintFn := tablePrinterGen(hasColor, hasTableBorders)
+	tablePrintFn := b.tablePrinterGen()
 	if labels := diff.Labels; len(labels) > 0 {
 		headers := []string{"New", "ID", "Name", "Color", "Description"}
-		tablePrintFn("LABELS", headers, len(labels), func(w *tablewriter.Table) {
-			for _, l := range labels {
-				w.Append([]string{
-					boolDiff(l.IsNew()),
-					l.ID.String(),
-					l.Name,
-					strDiff(l.IsNew(), l.OldColor, l.NewColor),
-					strDiff(l.IsNew(), l.OldDesc, l.NewDesc),
-				})
+		tablePrintFn("LABELS", headers, len(labels), func(i int) []string {
+			l := labels[i]
+			var old pkger.DiffLabelValues
+			if l.Old != nil {
+				old = *l.Old
+			}
+
+			return []string{
+				boolDiff(l.IsNew()),
+				l.ID.String(),
+				l.Name,
+				diffLn(l.IsNew(), old.Color, l.New.Color),
+				diffLn(l.IsNew(), old.Description, l.New.Description),
 			}
 		})
 	}
 
 	if bkts := diff.Buckets; len(bkts) > 0 {
 		headers := []string{"New", "ID", "Name", "Retention Period", "Description"}
-		tablePrintFn("BUCKETS", headers, len(bkts), func(w *tablewriter.Table) {
-			for _, b := range bkts {
-				w.Append([]string{
-					boolDiff(b.IsNew()),
-					b.ID.String(),
-					b.Name,
-					durDiff(b.IsNew(), b.OldRetention, b.NewRetention),
-					strDiff(b.IsNew(), b.OldDesc, b.NewDesc),
-				})
+		tablePrintFn("BUCKETS", headers, len(bkts), func(i int) []string {
+			b := bkts[i]
+			var old pkger.DiffBucketValues
+			if b.Old != nil {
+				old = *b.Old
+			}
+			return []string{
+				boolDiff(b.IsNew()),
+				b.ID.String(),
+				b.Name,
+				diffLn(b.IsNew(), old.RetentionRules.RP().String(), b.New.RetentionRules.RP().String()),
+				diffLn(b.IsNew(), old.Description, b.New.Description),
 			}
 		})
 	}
 
 	if dashes := diff.Dashboards; len(dashes) > 0 {
 		headers := []string{"New", "Name", "Description", "Num Charts"}
-		tablePrintFn("DASHBOARDS", headers, len(dashes), func(w *tablewriter.Table) {
-			for _, d := range dashes {
-				w.Append([]string{
-					boolDiff(true),
-					d.Name,
-					green(d.Desc),
-					green(strconv.Itoa(len(d.Charts))),
-				})
+		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {
+			d := dashes[i]
+			return []string{
+				boolDiff(true),
+				d.Name,
+				green(d.Desc),
+				green(strconv.Itoa(len(d.Charts))),
 			}
 		})
 	}
 
 	if vars := diff.Variables; len(vars) > 0 {
 		headers := []string{"New", "ID", "Name", "Description", "Arg Type", "Arg Values"}
-		tablePrintFn("VARIABLES", headers, len(vars), func(w *tablewriter.Table) {
-			for _, v := range vars {
-				var oldArgType string
-				if v.OldArgs != nil {
-					oldArgType = v.OldArgs.Type
-				}
-				var newArgType string
-				if v.NewArgs != nil {
-					newArgType = v.NewArgs.Type
-				}
-				w.Append([]string{
-					boolDiff(v.IsNew()),
-					v.ID.String(),
-					v.Name,
-					strDiff(v.IsNew(), v.OldDesc, v.NewDesc),
-					strDiff(v.IsNew(), oldArgType, newArgType),
-					strDiff(v.IsNew(), printVarArgs(v.OldArgs), printVarArgs(v.NewArgs)),
-				})
+		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
+			v := vars[i]
+			var old pkger.DiffVariableValues
+			if v.Old != nil {
+				old = *v.Old
+			}
+			var oldArgType string
+			if old.Args != nil {
+				oldArgType = old.Args.Type
+			}
+			var newArgType string
+			if v.New.Args != nil {
+				newArgType = v.New.Args.Type
+			}
+			return []string{
+				boolDiff(v.IsNew()),
+				v.ID.String(),
+				v.Name,
+				diffLn(v.IsNew(), old.Description, v.New.Description),
+				diffLn(v.IsNew(), oldArgType, newArgType),
+				diffLn(v.IsNew(), printVarArgs(old.Args), printVarArgs(v.New.Args)),
+			}
+		})
+	}
+
+	if endpoints := diff.NotificationEndpoints; len(endpoints) > 0 {
+		headers := []string{"New", "ID", "Name"}
+		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
+			v := endpoints[i]
+			return []string{
+				boolDiff(v.IsNew()),
+				v.ID.String(),
+				v.Name,
+			}
+		})
+	}
+
+	if teles := diff.Telegrafs; len(diff.Telegrafs) > 0 {
+		headers := []string{"New", "Name", "Description"}
+		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
+			t := teles[i]
+			return []string{
+				boolDiff(true),
+				t.Name,
+				green(t.Description),
 			}
 		})
 	}
 
 	if len(diff.LabelMappings) > 0 {
 		headers := []string{"New", "Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrintFn("LABEL MAPPINGS", headers, len(diff.LabelMappings), func(w *tablewriter.Table) {
-			for _, m := range diff.LabelMappings {
-				w.Append([]string{
-					boolDiff(m.IsNew),
-					string(m.ResType),
-					m.ResName,
-					m.ResID.String(),
-					m.LabelName,
-					m.LabelID.String(),
-				})
+		tablePrintFn("LABEL MAPPINGS", headers, len(diff.LabelMappings), func(i int) []string {
+			m := diff.LabelMappings[i]
+			return []string{
+				boolDiff(m.IsNew),
+				string(m.ResType),
+				m.ResName,
+				m.ResID.String(),
+				m.LabelName,
+				m.LabelID.String(),
 			}
 		})
 	}
+}
+
+func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
+	tablePrintFn := b.tablePrinterGen()
+	if labels := sum.Labels; len(labels) > 0 {
+		headers := []string{"ID", "Name", "Description", "Color"}
+		tablePrintFn("LABELS", headers, len(labels), func(i int) []string {
+			l := labels[i]
+			return []string{
+				l.ID.String(),
+				l.Name,
+				l.Properties["description"],
+				l.Properties["color"],
+			}
+		})
+	}
+
+	if buckets := sum.Buckets; len(buckets) > 0 {
+		headers := []string{"ID", "Name", "Retention", "Description"}
+		tablePrintFn("BUCKETS", headers, len(buckets), func(i int) []string {
+			bucket := buckets[i]
+			return []string{
+				bucket.ID.String(),
+				bucket.Name,
+				formatDuration(bucket.RetentionPeriod),
+				bucket.Description,
+			}
+		})
+	}
+
+	if dashes := sum.Dashboards; len(dashes) > 0 {
+		headers := []string{"ID", "Name", "Description"}
+		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {
+			d := dashes[i]
+			return []string{d.ID.String(), d.Name, d.Description}
+		})
+	}
+
+	if vars := sum.Variables; len(vars) > 0 {
+		headers := []string{"ID", "Name", "Description", "Arg Type", "Arg Values"}
+		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
+			v := vars[i]
+			args := v.Arguments
+			return []string{
+				v.ID.String(),
+				v.Name,
+				v.Description,
+				args.Type,
+				printVarArgs(args),
+			}
+		})
+	}
+
+	if endpoints := sum.NotificationEndpoints; len(endpoints) > 0 {
+		headers := []string{"ID", "Name", "Description", "Status"}
+		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
+			v := endpoints[i]
+			return []string{
+				v.GetID().String(),
+				v.GetName(),
+				v.GetDescription(),
+				string(v.GetStatus()),
+			}
+		})
+	}
+
+	if teles := sum.TelegrafConfigs; len(teles) > 0 {
+		headers := []string{"ID", "Name", "Description"}
+		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
+			t := teles[i]
+			return []string{
+				t.ID.String(),
+				t.Name,
+				t.Description,
+			}
+		})
+	}
+
+	if mappings := sum.LabelMappings; len(mappings) > 0 {
+		headers := []string{"Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
+		tablePrintFn("LABEL MAPPINGS", headers, len(mappings), func(i int) []string {
+			m := mappings[i]
+			return []string{
+				string(m.ResourceType),
+				m.ResourceName,
+				m.ResourceID.String(),
+				m.LabelName,
+				m.LabelID.String(),
+			}
+		})
+	}
+}
+
+func (b *cmdPkgBuilder) tablePrinterGen() func(table string, headers []string, count int, rowFn func(i int) []string) {
+	return func(table string, headers []string, count int, rowFn func(i int) []string) {
+		tablePrinter(b.w, table, headers, count, b.hasColor, b.hasTableBorders, rowFn)
+	}
+}
+
+func tablePrinter(wr io.Writer, table string, headers []string, count int, hasColor, hasTableBorders bool, rowFn func(i int) []string) {
+	color.New(color.FgYellow, color.Bold).Fprintln(os.Stdout, strings.ToUpper(table))
+
+	w := tablewriter.NewWriter(wr)
+	w.SetBorder(hasTableBorders)
+	w.SetRowLine(hasTableBorders)
+
+	var alignments []int
+	for range headers {
+		alignments = append(alignments, tablewriter.ALIGN_CENTER)
+	}
+
+	descrCol := find("description", headers)
+	if descrCol != -1 {
+		w.SetColMinWidth(descrCol, 30)
+		alignments[descrCol] = tablewriter.ALIGN_LEFT
+	}
+
+	w.SetHeader(headers)
+	w.SetColumnAlignment(alignments)
+
+	for i := range make([]struct{}, count) {
+		w.Append(rowFn(i))
+	}
+
+	footers := make([]string, len(headers))
+	footers[len(footers)-2] = "TOTAL"
+	footers[len(footers)-1] = strconv.Itoa(count)
+	w.SetFooter(footers)
+	if hasColor {
+		var colors []tablewriter.Colors
+		for i := 0; i < len(headers); i++ {
+			colors = append(colors, tablewriter.Color(tablewriter.FgHiCyanColor))
+		}
+		w.SetHeaderColor(colors...)
+		colors[len(colors)-2] = tablewriter.Color(tablewriter.FgHiBlueColor)
+		colors[len(colors)-1] = tablewriter.Color(tablewriter.FgHiBlueColor)
+		w.SetFooterColor(colors...)
+	}
+
+	w.Render()
+	fmt.Fprintln(os.Stdout)
 }
 
 func printVarArgs(a *influxdb.VariableArguments) string {
@@ -414,137 +868,18 @@ func printVarArgs(a *influxdb.VariableArguments) string {
 	return "unknown variable argument"
 }
 
-func printPkgSummary(hasColor, hasTableBorders bool, sum pkger.Summary) {
-	tablePrintFn := tablePrinterGen(hasColor, hasTableBorders)
-	if labels := sum.Labels; len(labels) > 0 {
-		headers := []string{"ID", "Name", "Description", "Color"}
-		tablePrintFn("LABELS", headers, len(labels), func(w *tablewriter.Table) {
-			for _, l := range labels {
-				w.Append([]string{
-					l.ID.String(),
-					l.Name,
-					l.Properties["description"],
-					l.Properties["color"],
-				})
-			}
-		})
-	}
-
-	if buckets := sum.Buckets; len(buckets) > 0 {
-		headers := []string{"ID", "Name", "Retention", "Description"}
-		tablePrintFn("BUCKETS", headers, len(buckets), func(w *tablewriter.Table) {
-			for _, bucket := range buckets {
-				w.Append([]string{
-					bucket.ID.String(),
-					bucket.Name,
-					formatDuration(bucket.RetentionPeriod),
-					bucket.Description,
-				})
-			}
-		})
-	}
-
-	if dashes := sum.Dashboards; len(dashes) > 0 {
-		headers := []string{"ID", "Name", "Description"}
-		tablePrintFn("DASHBOARDS", headers, len(dashes), func(w *tablewriter.Table) {
-			for _, d := range dashes {
-				w.Append([]string{
-					d.ID.String(),
-					d.Name,
-					d.Description,
-				})
-			}
-		})
-	}
-
-	if vars := sum.Variables; len(vars) > 0 {
-		headers := []string{"ID", "Name", "Description", "Arg Type", "Arg Values"}
-		tablePrintFn("VARIABLES", headers, len(vars), func(w *tablewriter.Table) {
-			for _, v := range vars {
-				args := v.Arguments
-				w.Append([]string{
-					v.ID.String(),
-					v.Name,
-					v.Description,
-					args.Type,
-					printVarArgs(args),
-				})
-			}
-		})
-	}
-
-	if mappings := sum.LabelMappings; len(mappings) > 0 {
-		headers := []string{"Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrintFn("LABEL MAPPINGS", headers, len(mappings), func(w *tablewriter.Table) {
-			for _, m := range mappings {
-				w.Append([]string{
-					string(m.ResourceType),
-					m.ResourceName,
-					m.ResourceID.String(),
-					m.LabelName,
-					m.LabelID.String(),
-				})
-			}
-		})
-	}
-}
-
-func tablePrinterGen(hasColor, hasTableBorder bool) func(table string, headers []string, count int, appendFn func(w *tablewriter.Table)) {
-	return func(table string, headers []string, count int, appendFn func(w *tablewriter.Table)) {
-		tablePrinter(table, headers, count, hasColor, hasTableBorder, appendFn)
-	}
-}
-
-func tablePrinter(table string, headers []string, count int, hasColor, hasTableBorders bool, appendFn func(w *tablewriter.Table)) {
-	descrCol := -1
-	for i, h := range headers {
-		if strings.ToLower(h) == "description" {
-			descrCol = i
-			break
-		}
-	}
-
-	w := tablewriter.NewWriter(os.Stdout)
-	w.SetBorder(hasTableBorders)
-	w.SetRowLine(hasTableBorders)
-
-	var alignments []int
-	for range headers {
-		alignments = append(alignments, tablewriter.ALIGN_CENTER)
-	}
-	if descrCol != -1 {
-		w.SetColMinWidth(descrCol, 30)
-		alignments[descrCol] = tablewriter.ALIGN_LEFT
-	}
-
-	color.New(color.FgYellow, color.Bold).Fprintln(os.Stdout, strings.ToUpper(table))
-	w.SetHeader(headers)
-	w.SetColumnAlignment(alignments)
-
-	appendFn(w)
-
-	footers := make([]string, len(headers))
-	footers[len(footers)-2] = "TOTAL"
-	footers[len(footers)-1] = strconv.Itoa(count)
-	w.SetFooter(footers)
-	if hasColor {
-		var colors []tablewriter.Colors
-		for i := 0; i < len(headers); i++ {
-			colors = append(colors, tablewriter.Color(tablewriter.FgHiCyanColor))
-		}
-		w.SetHeaderColor(colors...)
-		colors[len(colors)-2] = tablewriter.Color(tablewriter.FgHiBlueColor)
-		colors[len(colors)-1] = tablewriter.Color(tablewriter.FgHiBlueColor)
-		w.SetFooterColor(colors...)
-	}
-
-	w.Render()
-	fmt.Fprintln(os.Stdout)
-}
-
 func formatDuration(d time.Duration) string {
 	if d == 0 {
 		return "inf"
 	}
 	return d.String()
+}
+
+func find(needle string, haystack []string) int {
+	for i, h := range haystack {
+		if strings.ToLower(h) == needle {
+			return i
+		}
+	}
+	return -1
 }

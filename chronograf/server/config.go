@@ -12,6 +12,10 @@ type configLinks struct {
 	Auth string `json:"auth"` // Auth link to the auth config endpoint
 }
 
+type selfLinks struct {
+	Self string `json:"self"` // Self link mapping to this resource
+}
+
 type configResponse struct {
 	Links configLinks `json:"links"`
 	chronograf.Config

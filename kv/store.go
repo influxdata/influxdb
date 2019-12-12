@@ -38,9 +38,12 @@ type Tx interface {
 	WithContext(ctx context.Context)
 }
 
+type CursorPredicateFunc func(key, value []byte) bool
+
 type CursorHints struct {
-	KeyPrefix *string
-	KeyStart  *string
+	KeyPrefix   *string
+	KeyStart    *string
+	PredicateFn CursorPredicateFunc
 }
 
 // CursorHint configures CursorHints
@@ -61,6 +64,20 @@ func WithCursorHintPrefix(prefix string) CursorHint {
 func WithCursorHintKeyStart(start string) CursorHint {
 	return func(o *CursorHints) {
 		o.KeyStart = &start
+	}
+}
+
+// WithCursorHintPredicate is a hint to the store
+// to return only key / values which return true for the
+// f.
+//
+// The primary concern of the predicate is to improve performance.
+// Therefore, it should perform tests on the data at minimal cost.
+// If the predicate has no meaningful impact on reducing memory or
+// CPU usage, there is no benefit to using it.
+func WithCursorHintPredicate(f CursorPredicateFunc) CursorHint {
+	return func(o *CursorHints) {
+		o.PredicateFn = f
 	}
 }
 

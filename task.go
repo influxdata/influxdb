@@ -27,6 +27,18 @@ var (
 	TaskSystemType = "system"
 )
 
+// TODO: these are temporary functions until we can work through optimizing auth
+// FindTaskWithAuth adds a auth hint for lookup of tasks
+func FindTaskWithoutAuth(ctx context.Context) context.Context {
+	return context.WithValue(ctx, "taskAuth", "omit")
+}
+
+// FindTaskAuthRequired retrieves the taskAuth hint
+func FindTaskAuthRequired(ctx context.Context) bool {
+	val, ok := ctx.Value("taskAuth").(string)
+	return !(ok && val == "omit")
+}
+
 // Task is a task. 🎊
 type Task struct {
 	ID              ID                     `json:"id"`
@@ -72,7 +84,8 @@ type Run struct {
 	ID           ID        `json:"id,omitempty"`
 	TaskID       ID        `json:"taskID"`
 	Status       string    `json:"status"`
-	ScheduledFor time.Time `json:"scheduledFor"`          // ScheduledFor is the time the task is scheduled to run at
+	ScheduledFor time.Time `json:"scheduledFor"`          // ScheduledFor is the Now time used in the task's query
+	RunAt        time.Time `json:"runAt"`                 // RunAt is the time the task is scheduled to be run, which is ScheduledFor + Offset
 	StartedAt    time.Time `json:"startedAt,omitempty"`   // StartedAt is the time the executor begins running the task
 	FinishedAt   time.Time `json:"finishedAt,omitempty"`  // FinishedAt is the time the executor finishes running the task
 	RequestedAt  time.Time `json:"requestedAt,omitempty"` // RequestedAt is the time the coordinator told the scheduler to schedule the task
@@ -402,6 +415,7 @@ type TaskFilter struct {
 	Organization   string
 	User           *ID
 	Limit          int
+	Status         *string
 }
 
 // QueryParams Converts TaskFilter fields to url query params.

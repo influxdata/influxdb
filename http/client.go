@@ -1,11 +1,37 @@
 package http
 
 import (
+	"crypto/tls"
+	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/pkg/httpc"
 )
+
+// NewHTTPClient creates a new httpc.Client type. This call sets all
+// the options that are important to the http pkg on the httpc client.
+// The default status fn and so forth will all be set for the caller.
+func NewHTTPClient(addr, token string, insecureSkipVerify bool) (*httpc.Client, error) {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := []httpc.ClientOptFn{
+		httpc.WithAddr(addr),
+		httpc.WithContentType("application/json"),
+		httpc.WithHTTPClient(NewClient(u.Scheme, insecureSkipVerify)),
+		httpc.WithInsecureSkipVerify(insecureSkipVerify),
+		httpc.WithStatusFn(CheckError),
+	}
+	if token != "" {
+		opts = append(opts, httpc.WithAuthToken(token))
+	}
+	return httpc.New(opts...)
+}
 
 // Service connects to an InfluxDB via HTTP.
 type Service struct {
@@ -14,16 +40,22 @@ type Service struct {
 	InsecureSkipVerify bool
 
 	*AuthorizationService
+	*BucketService
+	*DashboardService
 	*OrganizationService
 	*UserService
-	*BucketService
 	*VariableService
-	*DashboardService
+	*WriteService
 }
 
 // NewService returns a service that is an HTTP
 // client to a remote
-func NewService(addr, token string) *Service {
+func NewService(addr, token string) (*Service, error) {
+	httpClient, err := NewHTTPClient(addr, token, false)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Service{
 		Addr:  addr,
 		Token: token,
@@ -31,27 +63,19 @@ func NewService(addr, token string) *Service {
 			Addr:  addr,
 			Token: token,
 		},
-		OrganizationService: &OrganizationService{
-			Addr:  addr,
-			Token: token,
-		},
+		BucketService:       &BucketService{Client: httpClient},
+		DashboardService:    &DashboardService{Client: httpClient},
+		OrganizationService: &OrganizationService{Client: httpClient},
 		UserService: &UserService{
 			Addr:  addr,
 			Token: token,
 		},
-		BucketService: &BucketService{
+		VariableService: &VariableService{Client: httpClient},
+		WriteService: &WriteService{
 			Addr:  addr,
 			Token: token,
 		},
-		DashboardService: &DashboardService{
-			Addr:  addr,
-			Token: token,
-		},
-		VariableService: &VariableService{
-			Addr:  addr,
-			Token: token,
-		},
-	}
+	}, nil
 }
 
 // NewURL concats addr and path.
@@ -65,28 +89,44 @@ func NewURL(addr, path string) (*url.URL, error) {
 }
 
 // NewClient returns an http.Client that pools connections and injects a span.
-func NewClient(scheme string, insecure bool) *traceClient {
-	hc := &traceClient{
-		Client: http.Client{
-			Transport: defaultTransport,
-		},
-	}
-	if scheme == "https" && insecure {
-		hc.Transport = skipVerifyTransport
-	}
-
-	return hc
+func NewClient(scheme string, insecure bool) *http.Client {
+	return httpClient(scheme, insecure)
 }
 
-// traceClient always injects any opentracing trace into the client requests.
-type traceClient struct {
-	http.Client
+// SpanTransport injects the http.RoundTripper.RoundTrip() request
+// with a span.
+type SpanTransport struct {
+	base http.RoundTripper
 }
 
-// Do injects the trace and then performs the request.
-func (c *traceClient) Do(r *http.Request) (*http.Response, error) {
+// RoundTrip implements the http.RoundTripper, intercepting the base
+// round trippers call and injecting a span.
+func (s *SpanTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	span, _ := tracing.StartSpanFromContext(r.Context())
 	defer span.Finish()
 	tracing.InjectToHTTPRequest(span, r)
-	return c.Client.Do(r)
+	return s.base.RoundTrip(r)
+}
+
+func httpClient(scheme string, insecure bool) *http.Client {
+	tr := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	if scheme == "https" && insecure {
+		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	return &http.Client{
+		Transport: &SpanTransport{
+			base: tr,
+		},
+	}
 }

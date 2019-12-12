@@ -101,9 +101,9 @@ $ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup
 Welcome to InfluxDB 2.0!
 Please type your primary username: user
 
-Please type your password: hunter2
+Please type your password: my-password
 
-Please type your password again: hunter2
+Please type your password again: my-password
 
 Please type your primary organization name.: my-org
 
@@ -128,7 +128,7 @@ Your token has been stored in /Users/you/.influxdbv2/credentials
 You may get into a development loop where `influx setup` becomes tedious.
 Some added flags can help:
 ```
-$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup --username user --password hunter2 --org my-org --bucket my-bucket --retention 168 --token my-token --force
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup --username user --password my-password --org my-org --bucket my-bucket --retention 168 --token my-token --force
 ```
 
 `~/.influxdbv2/credentials` contains your auth token.

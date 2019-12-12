@@ -33,13 +33,13 @@ class ResourceLists extends PureComponent<Props> {
       >
         <Panel>
           <Panel.Header>
-            <Panel.Title>Account</Panel.Title>
+            <h4>Account</h4>
             <LogoutButton />
           </Panel.Header>
         </Panel>
         <Panel>
           <Panel.Header>
-            <Panel.Title>Dashboards</Panel.Title>
+            <h4>Dashboards</h4>
           </Panel.Header>
           <Panel.Body>
             <GetResources resources={[ResourceType.Dashboards]}>
@@ -49,7 +49,7 @@ class ResourceLists extends PureComponent<Props> {
         </Panel>
         <Panel>
           <Panel.Header>
-            <Panel.Title>Useful Links</Panel.Title>
+            <h4>Useful Links</h4>
           </Panel.Header>
           <Panel.Body>
             <Support />

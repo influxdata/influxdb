@@ -35,6 +35,11 @@ import {limitsReducer, LimitsState} from 'src/cloud/reducers/limits'
 import checksReducer from 'src/alerting/reducers/checks'
 import rulesReducer from 'src/alerting/reducers/notifications/rules'
 import endpointsReducer from 'src/alerting/reducers/notifications/endpoints'
+import {
+  pluginsReducer,
+  activePluginsReducer,
+  editorReducer,
+} from 'src/dataLoaders/reducers/telegrafEditor'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -61,6 +66,9 @@ export const rootReducer = combineReducers<ReducerState>({
   variableEditor: variableEditorReducer,
   labels: labelsReducer,
   buckets: bucketsReducer,
+  telegrafEditorPlugins: pluginsReducer,
+  telegrafEditorActivePlugins: activePluginsReducer,
+  telegrafEditor: editorReducer,
   telegrafs: telegrafsReducer,
   tokens: authorizationsReducer,
   scrapers: scrapersReducer,

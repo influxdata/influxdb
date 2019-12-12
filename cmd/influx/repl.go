@@ -17,7 +17,7 @@ import (
 
 var replCmd = &cobra.Command{
 	Use:   "repl",
-	Short: "Interactive REPL (read-eval-print-loop)",
+	Short: "Interactive Flux REPL (read-eval-print-loop)",
 	Args:  cobra.NoArgs,
 	RunE:  wrapCheckSetup(replF),
 }
@@ -83,10 +83,12 @@ func replF(cmd *cobra.Command, args []string) error {
 }
 
 func findOrgID(ctx context.Context, org string) (platform.ID, error) {
+	client, err := newHTTPClient()
+	if err != nil {
+		return 0, err
+	}
 	svc := &http.OrganizationService{
-		Addr:               flags.host,
-		Token:              flags.token,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: client,
 	}
 
 	o, err := svc.FindOrganization(ctx, platform.OrganizationFilter{

@@ -70,6 +70,22 @@ export class SelectCollectorsStep extends PureComponent<Props> {
               onSelectBucket={this.handleSelectBucket}
             />
           )}
+          <h5 className="wizard-step--sub-title">
+            Looking for other things to monitor? Check out our 200+ other &nbsp;
+            <a
+              href="https://v2.docs.influxdata.com/v2.0/reference/telegraf-plugins/#input-plugins"
+              target="_blank"
+            >
+              Telegraf Plugins
+            </a>
+            &nbsp; and how to &nbsp;
+            <a
+              href="https://v2.docs.influxdata.com/v2.0/write-data/use-telegraf/manual-config/"
+              target="_blank"
+            >
+              Configure these Plugins
+            </a>
+          </h5>
         </FancyScrollbar>
         <OnboardingButtons
           autoFocusNext={true}

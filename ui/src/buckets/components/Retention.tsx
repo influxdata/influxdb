@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Radio, ButtonShape} from '@influxdata/clockface'
+import {SelectGroup, ButtonShape} from '@influxdata/clockface'
 import DurationSelector, {
   DurationOption,
 } from 'src/shared/components/DurationSelector'
@@ -50,8 +50,12 @@ class Retention extends PureComponent<Props> {
 
     return (
       <>
-        <Radio shape={ButtonShape.StretchToFit} className="retention--radio">
-          <Radio.Button
+        <SelectGroup
+          shape={ButtonShape.StretchToFit}
+          className="retention--radio"
+        >
+          <SelectGroup.Option
+            name="bucket-retention"
             id="never"
             testID="retention-never--button"
             active={type === null}
@@ -61,8 +65,9 @@ class Retention extends PureComponent<Props> {
             disabled={!!maxRetentionSeconds}
           >
             Never
-          </Radio.Button>
-          <Radio.Button
+          </SelectGroup.Option>
+          <SelectGroup.Option
+            name="bucket-retention"
             id="intervals"
             active={type === 'expire'}
             onClick={this.handleRadioClick}
@@ -71,8 +76,8 @@ class Retention extends PureComponent<Props> {
             titleText="Delete data older than a duration"
           >
             Older Than
-          </Radio.Button>
-        </Radio>
+          </SelectGroup.Option>
+        </SelectGroup>
         {type === 'expire' && (
           <DurationSelector
             selectedDuration={`${retentionSeconds}s`}

@@ -1,12 +1,26 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import Loadable from 'react-loadable'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Controlled as ReactCodeMirror} from 'react-codemirror2'
+const spinner = <div className="time-machine-editor--loading" />
+const Editor = Loadable({
+  loader: () => import('react-codemirror2').then(module => module.Controlled),
+  loading() {
+    return spinner
+  },
+})
+const MonacoEditor = Loadable({
+  loader: () => import('src/shared/components/TomlMonacoEditor'),
+  loading() {
+    return spinner
+  },
+})
 import {RemoteDataState} from '@influxdata/clockface'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {getTelegrafConfigToml} from 'src/telegrafs/actions'
@@ -43,25 +57,29 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
   private onTouchStart = () => {}
 
   private get overlayBody(): JSX.Element {
-    const options = {
-      tabIndex: 1,
-      mode: 'toml',
-      readonly: true,
-      lineNumbers: true,
-      autoRefresh: true,
-      theme: 'time-machine',
-      completeSingle: false,
-    }
     const {telegrafConfig} = this.props
     return (
-      <ReactCodeMirror
-        autoFocus={true}
-        autoCursor={true}
-        value={telegrafConfig}
-        options={options}
-        onBeforeChange={this.onBeforeChange}
-        onTouchStart={this.onTouchStart}
-      />
+      <>
+        <FeatureFlag name="monacoEditor">
+          <MonacoEditor script={telegrafConfig} readOnly />
+        </FeatureFlag>
+        <FeatureFlag name="monacoEditor" equals={false}>
+          <Editor
+            autoFocus={true}
+            autoCursor={true}
+            value={telegrafConfig}
+            options={{
+              tabindex: 1,
+              mode: 'toml',
+              readOnly: true,
+              lineNumbers: true,
+              theme: 'time-machine',
+            }}
+            onBeforeChange={this.onBeforeChange}
+            onTouchStart={this.onTouchStart}
+          />
+        </FeatureFlag>
+      </>
     )
   }
 }

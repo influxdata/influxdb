@@ -1,17 +1,24 @@
 // Libraries
 import {get, isEmpty} from 'lodash'
+import {Dispatch} from 'redux-thunk'
 
 // Actions
 import {loadBuckets} from 'src/timeMachine/actions/queryBuilder'
 import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
-
-// Types
-import {Dispatch} from 'redux-thunk'
-import {TimeMachineState} from 'src/timeMachine/reducers'
 import {
   reloadTagSelectors,
   Action as QueryBuilderAction,
 } from 'src/timeMachine/actions/queryBuilder'
+import {setValues} from 'src/variables/actions'
+
+// Selectors
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+
+// Utils
+import {createView} from 'src/shared/utils/view'
+
+// Types
+import {TimeMachineState} from 'src/timeMachine/reducers'
 import {Action as QueryResultsAction} from 'src/timeMachine/actions/queries'
 import {
   TimeRange,
@@ -30,12 +37,10 @@ import {
   CheckStatusLevel,
   XYViewProperties,
   GetState,
+  RemoteDataState,
 } from 'src/types'
 import {Color} from 'src/types/colors'
-import {HistogramPosition} from '@influxdata/giraffe'
-import {RemoteDataState} from '@influxdata/clockface'
-import {createView} from 'src/shared/utils/view'
-import {setValues} from 'src/variables/actions'
+import {HistogramPosition, LinePosition} from '@influxdata/giraffe'
 
 export type Action =
   | QueryBuilderAction
@@ -82,6 +87,7 @@ export type Action =
   | SetSymbolColumnsAction
   | SetBinCountAction
   | SetHistogramPositionAction
+  | ReturnType<typeof setLinePosition>
   | SetXDomainAction
   | SetYDomainAction
   | SetXAxisLabelAction
@@ -602,6 +608,11 @@ export const setHistogramPosition = (
   payload: {position},
 })
 
+export const setLinePosition = (position: LinePosition) => ({
+  type: 'SET_LINE_POSITION' as 'SET_LINE_POSITION',
+  payload: {position},
+})
+
 interface SetXDomainAction {
   type: 'SET_VIEW_X_DOMAIN'
   payload: {xDomain: [number, number]}
@@ -665,15 +676,21 @@ export const removeCheckThreshold = (level: CheckStatusLevel) => ({
   payload: {level},
 })
 
-export const loadNewVEO = (fromContextID: string) => (
+export const loadNewVEO = (dashboardID: string) => (
   dispatch: Dispatch<Action>,
   getState: GetState
 ): void => {
+  const state = getState()
+  const timeRange = getTimeRangeByDashboardID(state, dashboardID)
+
   dispatch(
-    setActiveTimeMachine('veo', {view: createView<XYViewProperties>('xy')})
+    setActiveTimeMachine('veo', {
+      view: createView<XYViewProperties>('xy'),
+      timeRange,
+    })
   )
 
-  const values = get(getState(), `variables.values.${fromContextID}.values`, {})
+  const values = get(getState(), `variables.values.${dashboardID}.values`, {})
 
   if (!isEmpty(values)) {
     dispatch(setValues('veo', RemoteDataState.Done, values))

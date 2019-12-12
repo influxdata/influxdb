@@ -1,6 +1,6 @@
 // Types
 import {PredicatesState, RemoteDataState} from 'src/types'
-import {TestState} from './canDelete.test'
+import {TestState} from 'src/shared/selectors/canDelete.test'
 
 export const setCanDelete = (state: PredicatesState | TestState): boolean =>
   state.isSerious &&
