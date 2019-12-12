@@ -27,7 +27,7 @@ type Slack struct {
 // if value of that secret field is not nil.
 func (s *Slack) BackfillSecretKeys() {
 	if s.Token.Key == "" && s.Token.Value != nil {
-		s.Token.Key = s.ID.String() + slackTokenSuffix
+		s.Token.Key = s.idStr() + slackTokenSuffix
 	}
 }
 

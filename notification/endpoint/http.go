@@ -37,13 +37,13 @@ type HTTP struct {
 // if value of that secret field is not nil.
 func (s *HTTP) BackfillSecretKeys() {
 	if s.Token.Key == "" && s.Token.Value != nil {
-		s.Token.Key = s.ID.String() + httpTokenSuffix
+		s.Token.Key = s.idStr() + httpTokenSuffix
 	}
 	if s.Username.Key == "" && s.Username.Value != nil {
-		s.Username.Key = s.ID.String() + httpUsernameSuffix
+		s.Username.Key = s.idStr() + httpUsernameSuffix
 	}
 	if s.Password.Key == "" && s.Password.Value != nil {
-		s.Password.Key = s.ID.String() + httpPasswordSuffix
+		s.Password.Key = s.idStr() + httpPasswordSuffix
 	}
 }
 

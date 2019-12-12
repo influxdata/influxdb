@@ -109,9 +109,9 @@ func CreateNotificationEndpoint(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -138,7 +138,7 @@ func CreateNotificationEndpoint(
 				notificationEndpoint: &endpoint.PagerDuty{
 					Base: endpoint.Base{
 						Name:   "name2",
-						OrgID:  MustIDBase16(fourID),
+						OrgID:  MustIDBase16Ptr(fourID),
 						Status: influxdb.Active,
 					},
 					ClientURL: "example-pagerduty.com",
@@ -151,9 +151,9 @@ func CreateNotificationEndpoint(
 				notificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -165,9 +165,9 @@ func CreateNotificationEndpoint(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: fakeDate,
@@ -268,9 +268,9 @@ func FindNotificationEndpointByID(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -282,9 +282,9 @@ func FindNotificationEndpointByID(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -326,9 +326,9 @@ func FindNotificationEndpointByID(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -340,9 +340,9 @@ func FindNotificationEndpointByID(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -384,9 +384,9 @@ func FindNotificationEndpointByID(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -398,9 +398,9 @@ func FindNotificationEndpointByID(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -418,9 +418,9 @@ func FindNotificationEndpointByID(
 			wants: wants{
 				notificationEndpoint: &endpoint.PagerDuty{
 					Base: endpoint.Base{
-						ID:     MustIDBase16(twoID),
+						ID:     MustIDBase16Ptr(twoID),
 						Name:   "name2",
-						OrgID:  MustIDBase16(fourID),
+						OrgID:  MustIDBase16Ptr(fourID),
 						Status: influxdb.Active,
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: timeGen1.Now(),
@@ -500,9 +500,9 @@ func FindNotificationEndpoints(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -514,9 +514,9 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -540,9 +540,9 @@ func FindNotificationEndpoints(
 				notificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -554,9 +554,9 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -605,8 +605,8 @@ func FindNotificationEndpoints(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(oneID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp1",
 						},
@@ -615,8 +615,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(twoID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp2",
 						},
@@ -625,8 +625,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(fourID),
-							OrgID:  MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(fourID),
+							OrgID:  MustIDBase16Ptr(oneID),
 							Status: influxdb.Active,
 							Name:   "edp3",
 						},
@@ -648,8 +648,8 @@ func FindNotificationEndpoints(
 				notificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(fourID),
-							OrgID:  MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(fourID),
+							OrgID:  MustIDBase16Ptr(oneID),
 							Status: influxdb.Active,
 							Name:   "edp3",
 						},
@@ -689,8 +689,8 @@ func FindNotificationEndpoints(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(oneID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp1",
 						},
@@ -699,8 +699,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.HTTP{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(twoID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp2",
 						},
@@ -710,8 +710,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(fourID),
-							OrgID:  MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(fourID),
+							OrgID:  MustIDBase16Ptr(oneID),
 							Status: influxdb.Active,
 							Name:   "edp3",
 						},
@@ -733,8 +733,8 @@ func FindNotificationEndpoints(
 				notificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(oneID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp1",
 						},
@@ -743,8 +743,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.HTTP{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(twoID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp2",
 						},
@@ -785,8 +785,8 @@ func FindNotificationEndpoints(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(oneID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp1",
 						},
@@ -795,8 +795,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.HTTP{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(twoID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp2",
 						},
@@ -806,8 +806,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(fourID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp3",
 						},
@@ -832,8 +832,8 @@ func FindNotificationEndpoints(
 				notificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(oneID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp1",
 						},
@@ -842,8 +842,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.HTTP{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(twoID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp2",
 						},
@@ -891,8 +891,8 @@ func FindNotificationEndpoints(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(oneID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp1",
 						},
@@ -901,8 +901,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.HTTP{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(twoID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp2",
 						},
@@ -912,8 +912,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(fourID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp3",
 						},
@@ -938,8 +938,8 @@ func FindNotificationEndpoints(
 				notificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.HTTP{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(twoID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp2",
 						},
@@ -949,8 +949,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(fourID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp3",
 						},
@@ -996,8 +996,8 @@ func FindNotificationEndpoints(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(oneID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp1",
 						},
@@ -1006,8 +1006,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.HTTP{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(twoID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp2",
 						},
@@ -1017,8 +1017,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(fourID),
-							OrgID:  MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(fourID),
+							OrgID:  MustIDBase16Ptr(oneID),
 							Status: influxdb.Active,
 							Name:   "edp3",
 						},
@@ -1040,8 +1040,8 @@ func FindNotificationEndpoints(
 				notificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(fourID),
-							OrgID:  MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(fourID),
+							OrgID:  MustIDBase16Ptr(oneID),
 							Status: influxdb.Active,
 							Name:   "edp3",
 						},
@@ -1087,8 +1087,8 @@ func FindNotificationEndpoints(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(oneID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp1",
 						},
@@ -1097,8 +1097,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.HTTP{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(twoID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp2",
 						},
@@ -1108,8 +1108,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(threeID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(threeID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp3",
 						},
@@ -1160,8 +1160,8 @@ func FindNotificationEndpoints(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(oneID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp1",
 						},
@@ -1170,8 +1170,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.HTTP{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(twoID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp2",
 						},
@@ -1181,8 +1181,8 @@ func FindNotificationEndpoints(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(threeID),
-							OrgID:  MustIDBase16(fourID),
+							ID:     MustIDBase16Ptr(threeID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							Name:   "edp3",
 						},
@@ -1265,9 +1265,9 @@ func UpdateNotificationEndpoint(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1279,9 +1279,9 @@ func UpdateNotificationEndpoint(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1298,9 +1298,9 @@ func UpdateNotificationEndpoint(
 				orgID:  MustIDBase16(fourID),
 				notificationEndpoint: &endpoint.PagerDuty{
 					Base: endpoint.Base{
-						ID:     MustIDBase16(twoID),
+						ID:     MustIDBase16Ptr(twoID),
 						Name:   "name2",
-						OrgID:  MustIDBase16(fourID),
+						OrgID:  MustIDBase16Ptr(fourID),
 						Status: influxdb.Inactive,
 					},
 					ClientURL:  "example-pagerduty.com",
@@ -1335,9 +1335,9 @@ func UpdateNotificationEndpoint(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1349,9 +1349,9 @@ func UpdateNotificationEndpoint(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1369,7 +1369,7 @@ func UpdateNotificationEndpoint(
 				notificationEndpoint: &endpoint.PagerDuty{
 					Base: endpoint.Base{
 						Name:   "name3",
-						OrgID:  MustIDBase16(fourID),
+						OrgID:  MustIDBase16Ptr(fourID),
 						Status: influxdb.Inactive,
 					},
 					ClientURL:  "example-pagerduty2.com",
@@ -1379,9 +1379,9 @@ func UpdateNotificationEndpoint(
 			wants: wants{
 				notificationEndpoint: &endpoint.PagerDuty{
 					Base: endpoint.Base{
-						ID:     MustIDBase16(twoID),
+						ID:     MustIDBase16Ptr(twoID),
 						Name:   "name3",
-						OrgID:  MustIDBase16(fourID),
+						OrgID:  MustIDBase16Ptr(fourID),
 						Status: influxdb.Inactive,
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: timeGen1.Now(),
@@ -1414,9 +1414,9 @@ func UpdateNotificationEndpoint(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1428,9 +1428,9 @@ func UpdateNotificationEndpoint(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1449,7 +1449,7 @@ func UpdateNotificationEndpoint(
 				notificationEndpoint: &endpoint.PagerDuty{
 					Base: endpoint.Base{
 						Name:   "name3",
-						OrgID:  MustIDBase16(fourID),
+						OrgID:  MustIDBase16Ptr(fourID),
 						Status: influxdb.Inactive,
 					},
 					ClientURL: "example-pagerduty2.com",
@@ -1462,9 +1462,9 @@ func UpdateNotificationEndpoint(
 			wants: wants{
 				notificationEndpoint: &endpoint.PagerDuty{
 					Base: endpoint.Base{
-						ID:     MustIDBase16(twoID),
+						ID:     MustIDBase16Ptr(twoID),
 						Name:   "name3",
-						OrgID:  MustIDBase16(fourID),
+						OrgID:  MustIDBase16Ptr(fourID),
 						Status: influxdb.Inactive,
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: timeGen1.Now(),
@@ -1545,9 +1545,9 @@ func PatchNotificationEndpoint(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1559,9 +1559,9 @@ func PatchNotificationEndpoint(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1608,10 +1608,10 @@ func PatchNotificationEndpoint(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
 							Status: influxdb.Active,
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
 								UpdatedAt: timeGen2.Now(),
@@ -1622,10 +1622,10 @@ func PatchNotificationEndpoint(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
 							Status: influxdb.Active,
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
 								UpdatedAt: timeGen2.Now(),
@@ -1646,10 +1646,10 @@ func PatchNotificationEndpoint(
 			wants: wants{
 				notificationEndpoint: &endpoint.PagerDuty{
 					Base: endpoint.Base{
-						ID:     MustIDBase16(twoID),
+						ID:     MustIDBase16Ptr(twoID),
 						Name:   name3,
 						Status: status3,
-						OrgID:  MustIDBase16(fourID),
+						OrgID:  MustIDBase16Ptr(fourID),
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: timeGen1.Now(),
 							UpdatedAt: fakeDate,
@@ -1720,9 +1720,9 @@ func DeleteNotificationEndpoint(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1734,9 +1734,9 @@ func DeleteNotificationEndpoint(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1775,9 +1775,9 @@ func DeleteNotificationEndpoint(
 				notificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1789,9 +1789,9 @@ func DeleteNotificationEndpoint(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1823,9 +1823,9 @@ func DeleteNotificationEndpoint(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1837,9 +1837,9 @@ func DeleteNotificationEndpoint(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1877,9 +1877,9 @@ func DeleteNotificationEndpoint(
 				notificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1891,9 +1891,9 @@ func DeleteNotificationEndpoint(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1926,9 +1926,9 @@ func DeleteNotificationEndpoint(
 				NotificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1940,9 +1940,9 @@ func DeleteNotificationEndpoint(
 					},
 					&endpoint.PagerDuty{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(twoID),
+							ID:     MustIDBase16Ptr(twoID),
 							Name:   "name2",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
@@ -1975,9 +1975,9 @@ func DeleteNotificationEndpoint(
 				notificationEndpoints: []influxdb.NotificationEndpoint{
 					&endpoint.Slack{
 						Base: endpoint.Base{
-							ID:     MustIDBase16(oneID),
+							ID:     MustIDBase16Ptr(oneID),
 							Name:   "name1",
-							OrgID:  MustIDBase16(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
 							Status: influxdb.Active,
 							CRUDLog: influxdb.CRUDLog{
 								CreatedAt: timeGen1.Now(),
