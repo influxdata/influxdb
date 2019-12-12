@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
+import Loadable from 'react-loadable'
 import {InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
 
