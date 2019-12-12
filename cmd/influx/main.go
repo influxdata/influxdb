@@ -47,11 +47,6 @@ func newHTTPClient() (*httpc.Client, error) {
 	return httpClient, nil
 }
 
-type httpClientOpts struct {
-	token, addr string
-	skipVerify  bool
-}
-
 type genericCLIOptfn func(*genericCLIOpts)
 
 type genericCLIOpts struct {
@@ -138,14 +133,6 @@ type Flags struct {
 	host       string
 	local      bool
 	skipVerify bool
-}
-
-func (f Flags) httpClientOpts() httpClientOpts {
-	return httpClientOpts{
-		addr:       f.host,
-		token:      f.token,
-		skipVerify: f.skipVerify,
-	}
 }
 
 var flags Flags

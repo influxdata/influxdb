@@ -22,7 +22,7 @@ import (
 
 func Test_Pkg(t *testing.T) {
 	fakeSVCFn := func(svc pkger.SVC) pkgSVCsFn {
-		return func(opts httpClientOpts, _ ...pkger.ServiceSetterFn) (pkger.SVC, influxdb.OrganizationService, error) {
+		return func() (pkger.SVC, influxdb.OrganizationService, error) {
 			return svc, &mock.OrganizationService{
 				FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 					return &influxdb.Organization{ID: influxdb.ID(9000), Name: "influxdata"}, nil
@@ -481,8 +481,8 @@ func testPkgWritesToBuffer(newCmdFn func() *cobra.Command, args pkgFileArgs, ass
 
 type fakePkgSVC struct {
 	createFn func(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error)
-	dryRunFn func(ctx context.Context, orgID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error)
-	applyFn  func(ctx context.Context, orgID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, error)
+	dryRunFn func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error)
+	applyFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, error)
 }
 
 func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
@@ -492,16 +492,16 @@ func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSe
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) DryRun(ctx context.Context, orgID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error) {
+func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error) {
 	if f.dryRunFn != nil {
-		return f.dryRunFn(ctx, orgID, pkg)
+		return f.dryRunFn(ctx, orgID, userID, pkg)
 	}
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) Apply(ctx context.Context, orgID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, error) {
+func (f *fakePkgSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, error) {
 	if f.applyFn != nil {
-		return f.applyFn(ctx, orgID, pkg)
+		return f.applyFn(ctx, orgID, userID, pkg)
 	}
 	panic("not implemented")
 }

@@ -21,8 +21,8 @@ const APIVersion = "0.1.0"
 // SVC is the packages service interface.
 type SVC interface {
 	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
-	DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, Diff, error)
-	Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, error)
+	DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (Summary, Diff, error)
+	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (Summary, error)
 }
 
 type serviceOpt struct {
@@ -89,15 +89,6 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 	}
 }
 
-// WithApplyReqLimit sets the concurrency request limit.
-func WithApplyReqLimit(limit int) ServiceSetterFn {
-	return func(o *serviceOpt) {
-		if limit > 0 {
-			o.applyReqLimit = limit
-		}
-	}
-}
-
 // Service provides the pkger business logic including all the dependencies to make
 // this resource sausage.
 type Service struct {
@@ -112,6 +103,8 @@ type Service struct {
 
 	applyReqLimit int
 }
+
+var _ SVC = (*Service)(nil)
 
 // NewService is a constructor for a pkger Service.
 func NewService(opts ...ServiceSetterFn) *Service {
@@ -399,11 +392,10 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 		}
 		newResource = bucketToResource(*bkt, r.Name)
 	case r.Kind.is(KindDashboard):
-		dash, err := s.dashSVC.FindDashboardByID(ctx, r.ID)
+		dash, err := s.findDashboardByIDFull(ctx, r.ID)
 		if err != nil {
 			return nil, err
 		}
-
 		newResource = dashboardToResource(*dash, r.Name)
 	case r.Kind.is(KindLabel):
 		l, err := s.labelSVC.FindLabelByID(ctx, r.ID)
@@ -487,7 +479,7 @@ func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
-func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, Diff, error) {
+func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (Summary, Diff, error) {
 	// so here's the deal, when we have issues with the parsing validation, we
 	// continue to do the diff anyhow. any resource that does not have a name
 	// will be skipped, and won't bleed into the dry run here. We can now return
@@ -806,7 +798,7 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg were applied.
-func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum Summary, e error) {
+func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (sum Summary, e error) {
 	if !pkg.isParsed {
 		if err := pkg.Validate(); err != nil {
 			return Summary{}, err
@@ -814,7 +806,7 @@ func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum S
 	}
 
 	if !pkg.isVerified {
-		_, _, err := s.DryRun(ctx, orgID, pkg)
+		_, _, err := s.DryRun(ctx, orgID, userID, pkg)
 		if err != nil {
 			return Summary{}, err
 		}
@@ -850,7 +842,7 @@ func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum S
 	}
 
 	for _, group := range appliers {
-		if err := coordinator.runTilEnd(ctx, orgID, group...); err != nil {
+		if err := coordinator.runTilEnd(ctx, orgID, userID, group...); err != nil {
 			return Summary{}, err
 		}
 	}
@@ -858,7 +850,7 @@ func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum S
 	// secondary resources
 	// this last grouping relies on the above 2 steps having completely successfully
 	secondary := []applier{s.applyLabelMappings(pkg.labelMappings())}
-	if err := coordinator.runTilEnd(ctx, orgID, secondary...); err != nil {
+	if err := coordinator.runTilEnd(ctx, orgID, userID, secondary...); err != nil {
 		return Summary{}, err
 	}
 
@@ -871,7 +863,7 @@ func (s *Service) applyBuckets(buckets []*bucket) applier {
 	mutex := new(doMutex)
 	rollbackBuckets := make([]*bucket, 0, len(buckets))
 
-	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
 		var b bucket
 		mutex.Do(func() {
 			buckets[i].OrgID = orgID
@@ -971,7 +963,7 @@ func (s *Service) applyDashboards(dashboards []*dashboard) applier {
 	mutex := new(doMutex)
 	rollbackDashboards := make([]*dashboard, 0, len(dashboards))
 
-	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
 		var d dashboard
 		mutex.Do(func() {
 			dashboards[i].OrgID = orgID
@@ -1051,7 +1043,7 @@ func (s *Service) applyLabels(labels []*label) applier {
 	mutex := new(doMutex)
 	rollBackLabels := make([]*label, 0, len(labels))
 
-	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
 		var l label
 		mutex.Do(func() {
 			labels[i].OrgID = orgID
@@ -1141,14 +1133,14 @@ func (s *Service) applyNotificationEndpoints(endpoints []*notificationEndpoint) 
 	mutex := new(doMutex)
 	rollbackEndpoints := make([]*notificationEndpoint, 0, len(endpoints))
 
-	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
 		var endpoint notificationEndpoint
 		mutex.Do(func() {
 			endpoints[i].OrgID = orgID
 			endpoint = *endpoints[i]
 		})
 
-		influxEndpoint, err := s.applyNotificationEndpoint(ctx, endpoint)
+		influxEndpoint, err := s.applyNotificationEndpoint(ctx, endpoint, userID)
 		if err != nil {
 			return &applyErrBody{
 				name: endpoint.Name(),
@@ -1178,7 +1170,7 @@ func (s *Service) applyNotificationEndpoints(endpoints []*notificationEndpoint) 
 	}
 }
 
-func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationEndpoint) (influxdb.NotificationEndpoint, error) {
+func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
 	if e.existing != nil {
 		// stub out userID since we're always using hte http client which will fill it in for us with the token
 		// feels a bit broken that is required.
@@ -1191,7 +1183,7 @@ func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationE
 	}
 
 	actual := e.summarize().NotificationEndpoint
-	err := s.endpointSVC.CreateNotificationEndpoint(ctx, actual, 0)
+	err := s.endpointSVC.CreateNotificationEndpoint(ctx, actual, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1229,14 +1221,14 @@ func (s *Service) applyTelegrafs(teles []*telegraf) applier {
 	mutex := new(doMutex)
 	rollbackTelegrafs := make([]*telegraf, 0, len(teles))
 
-	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
 		var cfg influxdb.TelegrafConfig
 		mutex.Do(func() {
 			teles[i].config.OrgID = orgID
 			cfg = teles[i].config
 		})
 
-		err := s.teleSVC.CreateTelegrafConfig(ctx, &cfg, 0)
+		err := s.teleSVC.CreateTelegrafConfig(ctx, &cfg, userID)
 		if err != nil {
 			return &applyErrBody{
 				name: cfg.Name,
@@ -1274,7 +1266,7 @@ func (s *Service) applyVariables(vars []*variable) applier {
 	mutex := new(doMutex)
 	rollBackVars := make([]*variable, 0, len(vars))
 
-	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
 		var v variable
 		mutex.Do(func() {
 			vars[i].OrgID = orgID
@@ -1369,7 +1361,7 @@ func (s *Service) applyLabelMappings(labelMappings []SummaryLabelMapping) applie
 	mutex := new(doMutex)
 	rollbackMappings := make([]influxdb.LabelMapping, 0, len(labelMappings))
 
-	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
 		var mapping SummaryLabelMapping
 		mutex.Do(func() {
 			mapping = labelMappings[i]
@@ -1384,7 +1376,12 @@ func (s *Service) applyLabelMappings(labelMappings []SummaryLabelMapping) applie
 			return nil
 		}
 
-		err := s.labelSVC.CreateLabelMapping(ctx, &mapping.LabelMapping)
+		m := influxdb.LabelMapping{
+			LabelID:      influxdb.ID(mapping.LabelID),
+			ResourceID:   influxdb.ID(mapping.ResourceID),
+			ResourceType: mapping.ResourceType,
+		}
+		err := s.labelSVC.CreateLabelMapping(ctx, &m)
 		if err != nil {
 			return &applyErrBody{
 				name: fmt.Sprintf("%s:%s:%s", mapping.ResourceType, mapping.ResourceID, mapping.LabelID),
@@ -1393,8 +1390,7 @@ func (s *Service) applyLabelMappings(labelMappings []SummaryLabelMapping) applie
 		}
 
 		mutex.Do(func() {
-			labelMappings[i].LabelMapping = mapping.LabelMapping
-			rollbackMappings = append(rollbackMappings, mapping.LabelMapping)
+			rollbackMappings = append(rollbackMappings, m)
 		})
 
 		return nil
@@ -1446,6 +1442,21 @@ func (s *Service) deleteByIDs(resource string, numIDs int, deleteFn func(context
 	return nil
 }
 
+func (s *Service) findDashboardByIDFull(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+	dash, err := s.dashSVC.FindDashboardByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	for _, cell := range dash.Cells {
+		v, err := s.dashSVC.GetDashboardCellView(ctx, id, cell.ID)
+		if err != nil {
+			return nil, err
+		}
+		cell.View = v
+	}
+	return dash, nil
+}
+
 type doMutex struct {
 	sync.Mutex
 }
@@ -1469,7 +1480,7 @@ type (
 
 	creater struct {
 		entries int
-		fn      func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody
+		fn      func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody
 	}
 )
 
@@ -1479,7 +1490,7 @@ type rollbackCoordinator struct {
 	sem chan struct{}
 }
 
-func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID influxdb.ID, appliers ...applier) error {
+func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID, userID influxdb.ID, appliers ...applier) error {
 	errStr := newErrStream(ctx)
 
 	wg := new(sync.WaitGroup)
@@ -1501,7 +1512,7 @@ func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID influxdb.ID, 
 				ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 				defer cancel()
 
-				if err := app.creater.fn(ctx, i, orgID); err != nil {
+				if err := app.creater.fn(ctx, i, orgID, userID); err != nil {
 					errStr.add(errMsg{resource: resource, err: *err})
 				}
 			}(idx, app.rollbacker.resource)
