@@ -1,7 +1,14 @@
+// Libraries
 import React, {FC} from 'react'
 import {connect} from 'react-redux'
+import classnames from 'classnames'
+
+// Components
 import PluginList from 'src/dataLoaders/components/TelegrafEditorPluginList'
 import {AppState} from 'src/types'
+import {SquareButton, IconFont, ComponentSize} from '@influxdata/clockface'
+
+// Types
 import {
   TelegrafEditorActivePluginState,
   TelegrafEditorActivePlugin,
@@ -18,10 +25,18 @@ interface OwnProps {
 type Props = OwnProps & PluginStateProps
 
 const TelegrafEditorSideBar: FC<Props> = ({plugins, onJump}) => {
+  // This is the new version of "mode"
+  const collapsed = true
+  const columnClassName = classnames('telegraf-editor--right-column', {'telegraf-editor--column__collapsed': collapsed})
+  const icon = collapsed ? IconFont.EyeClosed : IconFont.EyeOpen
+
   return (
-    <div className="telegraf-editor--right-column">
-<div className="telegraf-editor--title">{' '}</div>
-      <PluginList plugins={plugins} filter="" onClick={onJump} />
+    <div className={columnClassName}>
+      <div className="telegraf-editor--column-heading">
+        <span className="telegraf-editor--title">Title?</span>
+        <SquareButton icon={icon} size={ComponentSize.ExtraSmall} />
+      </div>
+      {!collapsed && <PluginList plugins={plugins} filter="" onClick={onJump} />}
     </div>
   )
 }

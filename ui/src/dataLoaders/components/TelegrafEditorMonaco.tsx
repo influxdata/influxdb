@@ -33,7 +33,9 @@ class TelegrafEditorMonaco extends PureComponent<Props> {
 
     return (
       <div className="telegraf-editor--middle-column">
-        <div className="telegraf-editor--title">Configuration File</div>
+        <div className="telegraf-editor--column-heading">
+          <span className="telegraf-editor--title">Configuration File</span>
+        </div>
         <Editor
           className="telegraf-editor--monaco"
           script={script}

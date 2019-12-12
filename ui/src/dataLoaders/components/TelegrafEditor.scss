@@ -21,17 +21,31 @@
   height: 100%;
 }
 
-.telegraf-editor--title {
-  user-select: none;
-  font-size: 13px;
+.telegraf-editor--column-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0 12px;
   height: 30px;
-  line-height: 32px;
-  font-weight: 600;
   background-color: $g4-onyx;
   color: $g15-platinum;
-  white-space: nowrap;
   border-radius: $ix-radius $ix-radius 0 0;
+
+  .telegraf-editor--column__collapsed & {
+    padding: $ix-marg-a;
+  }
+}
+
+.telegraf-editor--title {
+  font-size: 13px;
+  white-space: nowrap;
+  user-select: none;
+  line-height: 32px;
+  font-weight: 600;
+
+  .telegraf-editor--column__collapsed & {
+    display: none;
+  }
 }
 
 // Column Layout
@@ -68,6 +82,11 @@
   p {
     margin: 0;
   }
+}
+
+.telegraf-editor--column__collapsed {
+  flex-basis: 30px;
+  overflow: hidden;
 }
 
 // Monaco Editor
