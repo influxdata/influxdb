@@ -12,19 +12,21 @@ import (
 
 // Base will embed inside a check.
 type Base struct {
-	ID                    influxdb.ID             `json:"id,omitempty"`
-	Name                  string                  `json:"name"`
-	Description           string                  `json:"description,omitempty"`
-	OwnerID               influxdb.ID             `json:"ownerID,omitempty"`
-	OrgID                 influxdb.ID             `json:"orgID,omitempty"`
-	Query                 influxdb.DashboardQuery `json:"query"`
-	StatusMessageTemplate string                  `json:"statusMessageTemplate"`
+	ID          influxdb.ID             `json:"id,omitempty"`
+	Name        string                  `json:"name"`
+	Description string                  `json:"description,omitempty"`
+	OwnerID     influxdb.ID             `json:"ownerID,omitempty"`
+	OrgID       influxdb.ID             `json:"orgID,omitempty"`
+	Query       influxdb.DashboardQuery `json:"query"`
 
 	// Care should be taken to prevent TaskID from being exposed publicly.
 	TaskID influxdb.ID `json:"taskID,omitempty"`
-
-	Cron  string                 `json:"cron,omitempty"`
-	Every *notification.Duration `json:"every,omitempty"`
+	// } todo: separate these
+	// NonCustomCheckBase will embed inside non-custom checks.
+	// type NonCustomCheckBase struct {
+	StatusMessageTemplate string                 `json:"statusMessageTemplate"`
+	Cron                  string                 `json:"cron,omitempty"`
+	Every                 *notification.Duration `json:"every,omitempty"`
 	// Offset represents a delay before execution.
 	// It gets marshalled from a string duration, i.e.: "10s" is 10 seconds
 	Offset *notification.Duration `json:"offset,omitempty"`
@@ -184,6 +186,7 @@ func (b *Base) SetDescription(description string) {
 var typeToCheck = map[string](func() influxdb.Check){
 	"deadman":   func() influxdb.Check { return &Deadman{} },
 	"threshold": func() influxdb.Check { return &Threshold{} },
+	"custom":    func() influxdb.Check { return &Custom{} },
 }
 
 // UnmarshalJSON will convert
