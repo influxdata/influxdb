@@ -298,7 +298,7 @@ func (s *UserResourceMappingService) CreateUserResourceMapping(ctx context.Conte
 
 	urlPath := resourceIDPath(m.ResourceType, m.ResourceID, string(m.UserType)+"s")
 	return s.Client.
-		Post(httpc.BodyJSON(influxdb.User{ID: m.UserID}), urlPath).
+		PostJSON(influxdb.User{ID: m.UserID}, urlPath).
 		DecodeJSON(m).
 		Do(ctx)
 }

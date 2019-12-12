@@ -90,14 +90,33 @@ func (c *Client) Patch(bFn BodyFn, urlPath string, rest ...string) *Req {
 	return c.Req(http.MethodPatch, bFn, urlPath, rest...)
 }
 
+// PatchJSON generates a PATCH request. This is to be used with value or pointer to value type.
+// Providing a stream/reader will result in disappointment.
+func (c *Client) PatchJSON(v interface{}, urlPath string, rest ...string) *Req {
+	return c.Patch(BodyJSON(v), urlPath, rest...)
+}
+
 // Post generates a POST request.
 func (c *Client) Post(bFn BodyFn, urlPath string, rest ...string) *Req {
 	return c.Req(http.MethodPost, bFn, urlPath, rest...)
 }
 
+// PostJSON generates a POST request and json encodes the body. This is to be
+// used with value or pointer to value type. Providing a stream/reader will result
+// in disappointment.
+func (c *Client) PostJSON(v interface{}, urlPath string, rest ...string) *Req {
+	return c.Post(BodyJSON(v), urlPath, rest...)
+}
+
 // Put generates a PUT request.
 func (c *Client) Put(bFn BodyFn, urlPath string, rest ...string) *Req {
 	return c.Req(http.MethodPut, bFn, urlPath, rest...)
+}
+
+// PutJSON generates a PUT request. This is to be used with value or pointer to value type.
+// Providing a stream/reader will result in disappointment.
+func (c *Client) PutJSON(v interface{}, urlPath string, rest ...string) *Req {
+	return c.Put(BodyJSON(v), urlPath, rest...)
 }
 
 // Req constructs a request.

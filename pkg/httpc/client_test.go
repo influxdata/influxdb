@@ -116,8 +116,11 @@ func TestClient(t *testing.T) {
 
 			for _, encTest := range encodingTests {
 				t.Run(encTest.name, func(t *testing.T) {
+					t.Helper()
+
 					for _, authTest := range authTests {
 						fn := func(t *testing.T) {
+							t.Helper()
 							client, fakeDoer := authTest.clientFn(tt.status, encTest.respFn, tt.clientOpts...)
 
 							req := tt.reqFn(client, "/new/path/heres", tt.reqBody).
@@ -269,6 +272,61 @@ func TestClient(t *testing.T) {
 							},
 							reqBody: reqBody{
 								Foo: "foo",
+								Bar: 31,
+							},
+						},
+					},
+				}
+
+				for _, tt := range tests {
+					tt.method = method.name
+
+					t.Run(tt.name, testWithRespBody(tt.testCase))
+				}
+			})
+		}
+	})
+
+	t.Run("PatchJSON PostJSON PutJSON with request bodies", func(t *testing.T) {
+		methods := []struct {
+			name         string
+			methodCallFn func(client *Client, urlPath string, v interface{}) *Req
+		}{
+			{
+				name: "PATCH",
+				methodCallFn: func(client *Client, urlPath string, v interface{}) *Req {
+					return client.PatchJSON(v, urlPath)
+				},
+			},
+			{
+				name: "POST",
+				methodCallFn: func(client *Client, urlPath string, v interface{}) *Req {
+					return client.PostJSON(v, urlPath)
+				},
+			},
+			{
+				name: "PUT",
+				methodCallFn: func(client *Client, urlPath string, v interface{}) *Req {
+					return client.PutJSON(v, urlPath)
+				},
+			},
+		}
+
+		for _, method := range methods {
+			t.Run(method.name, func(t *testing.T) {
+				tests := []struct {
+					name string
+					testCase
+				}{
+					{
+						name: "handles json req body",
+						testCase: testCase{
+							status: 200,
+							reqFn: func(client *Client, urlPath string, body reqBody) *Req {
+								return method.methodCallFn(client, urlPath, body)
+							},
+							reqBody: reqBody{
+								Foo: "foo 1",
 								Bar: 31,
 							},
 						},

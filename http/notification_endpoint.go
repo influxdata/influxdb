@@ -661,7 +661,7 @@ func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Con
 	// the token/auth. its a nothing burger here
 	var resp notificationEndpointDecoder
 	err := s.Client.
-		Post(httpc.BodyJSON(&notificationEndpointEncoder{ne: ne}), prefixNotificationEndpoints).
+		PostJSON(&notificationEndpointEncoder{ne: ne}, prefixNotificationEndpoints).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
@@ -679,7 +679,7 @@ func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Con
 	// userID is ignored since userID is grabbed off the http auth set on the client
 	var resp notificationEndpointDecoder
 	err := s.Client.
-		Put(httpc.BodyJSON(&notificationEndpointEncoder{ne: ne}), prefixNotificationEndpoints, id.String()).
+		PutJSON(&notificationEndpointEncoder{ne: ne}, prefixNotificationEndpoints, id.String()).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
@@ -697,7 +697,7 @@ func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Cont
 
 	var resp notificationEndpointDecoder
 	err := s.Client.
-		Patch(httpc.BodyJSON(upd), prefixNotificationEndpoints, id.String()).
+		PatchJSON(upd, prefixNotificationEndpoints, id.String()).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {

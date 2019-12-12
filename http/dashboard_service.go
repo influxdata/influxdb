@@ -1129,7 +1129,7 @@ func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.D
 // CreateDashboard creates a new dashboard and sets b.ID with the new identifier.
 func (s *DashboardService) CreateDashboard(ctx context.Context, d *platform.Dashboard) error {
 	return s.Client.
-		Post(httpc.BodyJSON(d), prefixDashboards).
+		PostJSON(d, prefixDashboards).
 		DecodeJSON(d).
 		Do(ctx)
 }
@@ -1139,7 +1139,7 @@ func (s *DashboardService) CreateDashboard(ctx context.Context, d *platform.Dash
 func (s *DashboardService) UpdateDashboard(ctx context.Context, id platform.ID, upd platform.DashboardUpdate) (*platform.Dashboard, error) {
 	var d platform.Dashboard
 	err := s.Client.
-		Patch(httpc.BodyJSON(upd), prefixDashboards, id.String()).
+		PatchJSON(upd, prefixDashboards, id.String()).
 		DecodeJSON(&d).
 		Do(ctx)
 	if err != nil {
@@ -1164,7 +1164,7 @@ func (s *DashboardService) DeleteDashboard(ctx context.Context, id platform.ID) 
 // AddDashboardCell adds a cell to a dashboard.
 func (s *DashboardService) AddDashboardCell(ctx context.Context, id platform.ID, c *platform.Cell, opts platform.AddDashboardCellOptions) error {
 	return s.Client.
-		Post(httpc.BodyJSON(c), cellPath(id)).
+		PostJSON(c, cellPath(id)).
 		DecodeJSON(c).
 		Do(ctx)
 }
@@ -1186,7 +1186,7 @@ func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID,
 
 	var c platform.Cell
 	err := s.Client.
-		Patch(httpc.BodyJSON(upd), dashboardCellIDPath(dashboardID, cellID)).
+		PatchJSON(upd, dashboardCellIDPath(dashboardID, cellID)).
 		DecodeJSON(&c).
 		Do(ctx)
 	if err != nil {
@@ -1214,7 +1214,7 @@ func (s *DashboardService) GetDashboardCellView(ctx context.Context, dashboardID
 func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboardID, cellID platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
 	var dcv dashboardCellViewResponse
 	err := s.Client.
-		Patch(httpc.BodyJSON(upd), cellViewPath(dashboardID, cellID)).
+		PatchJSON(upd, cellViewPath(dashboardID, cellID)).
 		DecodeJSON(&dcv).
 		Do(ctx)
 	if err != nil {
@@ -1226,7 +1226,7 @@ func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboar
 // ReplaceDashboardCells replaces all cells in a dashboard
 func (s *DashboardService) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs []*platform.Cell) error {
 	return s.Client.
-		Put(httpc.BodyJSON(cs), cellPath(id)).
+		PutJSON(cs, cellPath(id)).
 		// TODO: previous implementation did not do anything with the response except validate it is valid json.
 		//  seems likely we should have to overwrite (:sadpanda:) the incoming cs...
 		DecodeJSON(&dashboardCellsResponse{}).
