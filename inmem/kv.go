@@ -252,7 +252,8 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 		iterate(func(i btree.Item) bool {
 			j, ok := i.(*item)
 			if !ok {
-				// this shouldn't happen
+				pairs <- kv.Pair{Err: fmt.Errorf("error item is type %T not *item", i)}
+
 				return false
 			}
 
@@ -264,12 +265,20 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 		})
 	}()
 
-	return &ForwardCursor{pairs}, nil
+	return &ForwardCursor{pairs: pairs}, nil
 }
 
 // ForwardCursor is a kv.ForwardCursor which iterates over an in-memory btree
 type ForwardCursor struct {
 	pairs <-chan kv.Pair
+
+	// error found during iteration
+	err error
+}
+
+// Err returns a non-nil error when an error occurred during cursor iteration.
+func (c *ForwardCursor) Err() error {
+	return c.err
 }
 
 // Next returns the next key/value pair in the cursor
@@ -278,6 +287,8 @@ func (c *ForwardCursor) Next() ([]byte, []byte) {
 	if !ok {
 		return nil, nil
 	}
+
+	c.err = pair.Err
 
 	return pair.Key, pair.Value
 }

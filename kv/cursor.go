@@ -13,9 +13,12 @@ type staticCursor struct {
 }
 
 // Pair is a struct for key value pairs.
+// It also includes an error which should only be non-nil
+// when the Key and Value are nil.
 type Pair struct {
 	Key   []byte
 	Value []byte
+	Err   error
 }
 
 // NewStaticCursor returns an instance of a StaticCursor. It

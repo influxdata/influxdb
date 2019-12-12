@@ -292,3 +292,8 @@ func (c *Cursor) Prev() (k []byte, v []byte) {
 	}
 	return k, v
 }
+
+// Err always returns nil as nothing can go wrong™ during iteration
+func (c *Cursor) Err() error {
+	return nil
+}
