@@ -242,3 +242,23 @@ func newLocalKVService() (*kv.Service, error) {
 
 	return kv.NewService(zap.NewNop(), store), nil
 }
+
+func getOrgID(orgSVC influxdb.OrganizationService, id string, name string) (influxdb.ID, error) {
+	if id != "" {
+		influxOrgID, err := influxdb.IDFromString(id)
+		if err != nil {
+			return 0, fmt.Errorf("invalid org ID provided: %s", err.Error())
+		}
+		return *influxOrgID, nil
+	} else if name != "" {
+		org, err := orgSVC.FindOrganization(context.Background(), influxdb.OrganizationFilter{
+			Name: &name,
+		})
+		if err != nil {
+			return 0, fmt.Errorf("%v", err)
+		}
+		return org.ID, nil
+	}
+
+	return 0, fmt.Errorf("")
+}

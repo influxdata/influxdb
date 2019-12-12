@@ -81,25 +81,14 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 		RetentionPeriod: bucketCreateFlags.retention,
 	}
 
-	if bucketCreateFlags.orgID != "" {
-		id, err := platform.IDFromString(bucketCreateFlags.orgID)
-		if err != nil {
-			return fmt.Errorf("failed to decode org id %q: %v", bucketCreateFlags.orgID, err)
-		}
-		b.OrgID = *id
-	} else if bucketCreateFlags.org != "" {
-		orgSvc, err := newOrganizationService()
-		if err != nil {
-			return fmt.Errorf("failed to initialize organization service client: %v", err)
-		}
+	orgSvc, err := newOrganizationService()
+	if err != nil {
+		return nil
+	}
 
-		filter := platform.OrganizationFilter{Name: &bucketCreateFlags.org}
-		org, err := orgSvc.FindOrganization(context.Background(), filter)
-		if err != nil {
-			return err
-		}
-
-		b.OrgID = org.ID
+	b.OrgID, err = getOrgID(orgSvc, bucketCreateFlags.orgID, bucketCreateFlags.org)
+	if err != nil {
+		return err
 	}
 
 	if err := s.CreateBucket(context.Background(), b); err != nil {
