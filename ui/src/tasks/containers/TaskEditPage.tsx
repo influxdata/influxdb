@@ -124,8 +124,7 @@ class TaskEditPage extends PureComponent<Props> {
                   suggestions={[]}
                 />
               </FeatureFlag>
-              <FluxEditor
-              />
+              <FluxEditor />
             </div>
           </div>
         </Page.Contents>
