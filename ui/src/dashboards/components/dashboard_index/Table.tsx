@@ -59,14 +59,14 @@ class DashboardsTable extends PureComponent<Props, State> {
         <ResourceList.Header filterComponent={filterComponent}>
           <ResourceList.Sorter
             name="name"
-            sortKey={this.headerKeys[0]}
-            sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
+            sortKey="name"
+            sort={sortKey === 'name' ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
           <ResourceList.Sorter
             name="modified"
-            sortKey={this.headerKeys[1]}
-            sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
+            sortKey="meta.updatedAt"
+            sort={sortKey === 'meta.updatedAt' ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
         </ResourceList.Header>
@@ -89,10 +89,6 @@ class DashboardsTable extends PureComponent<Props, State> {
         </ResourceList.Body>
       </ResourceList>
     )
-  }
-
-  private get headerKeys(): SortKey[] {
-    return ['name', 'meta.updatedAt']
   }
 
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
