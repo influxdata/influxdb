@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/pkg/httpc"
+	"github.com/influxdata/influxdb/pkger"
 	"github.com/influxdata/influxdb/query"
 )
 
@@ -347,6 +348,10 @@ func (tl *TestLauncher) LabelService(tb testing.TB) *http.LabelService {
 func (tl *TestLauncher) NotificationEndpointService(tb testing.TB) *http.NotificationEndpointService {
 	tb.Helper()
 	return http.NewNotificationEndpointService(tl.HTTPClient(tb))
+}
+
+func (tl *TestLauncher) PkgerService(tb testing.TB) pkger.SVC {
+	return &http.PkgerService{Client: tl.HTTPClient(tb)}
 }
 
 func (tl *TestLauncher) TelegrafService(tb testing.TB) *http.TelegrafService {
