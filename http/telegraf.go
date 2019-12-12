@@ -494,7 +494,7 @@ func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.Te
 func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *platform.TelegrafConfig, userID platform.ID) error {
 	var teleResp platform.TelegrafConfig
 	err := s.client.
-		Post(httpc.BodyJSON(tc), prefixTelegraf).
+		PostJSON(tc, prefixTelegraf).
 		DecodeJSON(&teleResp).
 		Do(ctx)
 	if err != nil {
