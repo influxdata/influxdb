@@ -164,18 +164,20 @@ export const setDashboards = (
   status: RemoteDataState,
   list?: Dashboard[]
 ): SetDashboardsAction => {
-  list = list.map(obj => {
-    if (obj.name !== undefined) {
-      obj.name = ''
-    }
-    if (obj.meta !== undefined) {
-      obj.meta = {}
-    }
-    if (obj.meta.updatedAt !== undefined) {
-      obj.meta.updatedAt = new Date().toDateString()
-    }
-    return obj
-  })
+  if (list) {
+    list = list.map(obj => {
+      if (obj.name === undefined) {
+        obj.name = ''
+      }
+      if (obj.meta === undefined) {
+        obj.meta = {}
+      }
+      if (obj.meta.updatedAt === undefined) {
+        obj.meta.updatedAt = new Date().toDateString()
+      }
+      return obj
+    })
+  }
 
   return {
     type: ActionTypes.SetDashboards,
