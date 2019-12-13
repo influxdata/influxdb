@@ -1,9 +1,7 @@
 package http
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +13,6 @@ import (
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/pkg/testttp"
 	platformtesting "github.com/influxdata/influxdb/testing"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -80,18 +77,10 @@ func TestUserHandler_SettingPassword(t *testing.T) {
 
 	h := NewUserHandler(zaptest.NewLogger(t), be)
 
-	body := newReqBody(t, passwordSetRequest{Password: "newpassword"})
 	addr := path.Join("/api/v2/users", userID.String(), "/password")
 
-	testttp.Post(addr, body).Do(h).ExpectStatus(t, http.StatusNoContent)
-}
-
-func newReqBody(t *testing.T, v interface{}) *bytes.Buffer {
-	t.Helper()
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(v); err != nil {
-		require.FailNow(t, "unexpected json encoding error", err)
-	}
-	return &buf
+	testttp.
+		PostJSON(t, addr, passwordSetRequest{Password: "newpassword"}).
+		Do(h).
+		ExpectStatus(http.StatusNoContent)
 }

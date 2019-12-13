@@ -34,23 +34,22 @@ func TestPkgerHTTPServer(t *testing.T) {
 			pkgHandler := fluxTTP.NewHandlerPkg(zap.NewNop(), fluxTTP.ErrorHandler(0), svc)
 			svr := newMountedHandler(pkgHandler, 1)
 
-			body := newReqBody(t, fluxTTP.ReqCreatePkg{
-				PkgName:        "name1",
-				PkgDescription: "desc1",
-				PkgVersion:     "v1",
-				Resources: []pkger.ResourceToClone{
-					{
-						Kind: pkger.KindLabel,
-						ID:   1,
-						Name: "new name",
+			testttp.
+				PostJSON(t, "/api/v2/packages", fluxTTP.ReqCreatePkg{
+					PkgName:        "name1",
+					PkgDescription: "desc1",
+					PkgVersion:     "v1",
+					Resources: []pkger.ResourceToClone{
+						{
+							Kind: pkger.KindLabel,
+							ID:   1,
+							Name: "new name",
+						},
 					},
-				},
-			})
-
-			testttp.Post("/api/v2/packages", body).
+				}).
 				Headers("Content-Type", "application/json").
 				Do(svr).
-				ExpectStatus(t, http.StatusOK).
+				ExpectStatus(http.StatusOK).
 				ExpectBody(func(buf *bytes.Buffer) {
 					var resp fluxTTP.RespCreatePkg
 					decodeBody(t, buf, &resp)
@@ -108,16 +107,15 @@ func TestPkgerHTTPServer(t *testing.T) {
 					pkgHandler := fluxTTP.NewHandlerPkg(zap.NewNop(), fluxTTP.ErrorHandler(0), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
-					body := newReqBody(t, fluxTTP.ReqApplyPkg{
-						DryRun: true,
-						OrgID:  influxdb.ID(9000).String(),
-						Pkg:    bucketPkg(t, pkger.EncodingJSON),
-					})
-
-					testttp.Post("/api/v2/packages/apply", body).
+					testttp.
+						PostJSON(t, "/api/v2/packages/apply", fluxTTP.ReqApplyPkg{
+							DryRun: true,
+							OrgID:  influxdb.ID(9000).String(),
+							Pkg:    bucketPkg(t, pkger.EncodingJSON),
+						}).
 						Headers("Content-Type", tt.contentType).
 						Do(svr).
-						ExpectStatus(t, http.StatusOK).
+						ExpectStatus(http.StatusOK).
 						ExpectBody(func(buf *bytes.Buffer) {
 							var resp fluxTTP.RespApplyPkg
 							decodeBody(t, buf, &resp)
@@ -169,10 +167,11 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 					body := newReqApplyYMLBody(t, influxdb.ID(9000), true)
 
-					testttp.Post("/api/v2/packages/apply", body).
+					testttp.
+						Post(t, "/api/v2/packages/apply", body).
 						Headers("Content-Type", tt.contentType).
 						Do(svr).
-						ExpectStatus(t, http.StatusOK).
+						ExpectStatus(http.StatusOK).
 						ExpectBody(func(buf *bytes.Buffer) {
 							var resp fluxTTP.RespApplyPkg
 							decodeBody(t, buf, &resp)
@@ -210,14 +209,13 @@ func TestPkgerHTTPServer(t *testing.T) {
 		pkgHandler := fluxTTP.NewHandlerPkg(zap.NewNop(), fluxTTP.ErrorHandler(0), svc)
 		svr := newMountedHandler(pkgHandler, 1)
 
-		body := newReqBody(t, fluxTTP.ReqApplyPkg{
-			OrgID: influxdb.ID(9000).String(),
-			Pkg:   bucketPkg(t, pkger.EncodingJSON),
-		})
-
-		testttp.Post("/api/v2/packages/apply", body).
+		testttp.
+			PostJSON(t, "/api/v2/packages/apply", fluxTTP.ReqApplyPkg{
+				OrgID: influxdb.ID(9000).String(),
+				Pkg:   bucketPkg(t, pkger.EncodingJSON),
+			}).
 			Do(svr).
-			ExpectStatus(t, http.StatusCreated).
+			ExpectStatus(http.StatusCreated).
 			ExpectBody(func(buf *bytes.Buffer) {
 				var resp fluxTTP.RespApplyPkg
 				decodeBody(t, buf, &resp)
@@ -298,16 +296,6 @@ func decodeBody(t *testing.T, r io.Reader, v interface{}) {
 	if err := json.NewDecoder(r).Decode(v); err != nil {
 		require.FailNow(t, err.Error())
 	}
-}
-
-func newReqBody(t *testing.T, v interface{}) *bytes.Buffer {
-	t.Helper()
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(v); err != nil {
-		require.FailNow(t, "unexpected json encoding error", err)
-	}
-	return &buf
 }
 
 type fakeSVC struct {
