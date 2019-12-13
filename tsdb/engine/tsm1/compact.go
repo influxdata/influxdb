@@ -68,6 +68,18 @@ func (e errCompactionAborted) Error() string {
 	return "compaction aborted"
 }
 
+type errBlockRead struct {
+	file string
+	err  error
+}
+
+func (e errBlockRead) Error() string {
+	if e.err != nil {
+		return fmt.Sprintf("block read error on %s: %s", e.file, e.err)
+	}
+	return fmt.Sprintf("block read error on %s", e.file)
+}
+
 // CompactionGroup represents a list of files eligible to be compacted together.
 type CompactionGroup []string
 
@@ -932,7 +944,7 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 		return nil, nil
 	}
 
-	tsm, err := NewTSMBatchKeyIterator(size, fast, intC, trs...)
+	tsm, err := NewTSMBatchKeyIterator(size, fast, intC, tsmFiles, trs...)
 	if err != nil {
 		return nil, err
 	}
@@ -1593,6 +1605,12 @@ type tsmBatchKeyIterator struct {
 	key []byte
 	typ byte
 
+	// tsmFiles are the string names of the files for use in tracking errors, ordered the same
+	// as iterators and buf
+	tsmFiles []string
+	// currentTsm is the current TSM file being iterated over
+	currentTsm string
+
 	iterators []*BlockIterator
 	blocks    blocks
 
@@ -1613,7 +1631,7 @@ type tsmBatchKeyIterator struct {
 
 // NewTSMBatchKeyIterator returns a new TSM key iterator from readers.
 // size indicates the maximum number of values to encode in a single block.
-func NewTSMBatchKeyIterator(size int, fast bool, interrupt chan struct{}, readers ...*TSMReader) (KeyIterator, error) {
+func NewTSMBatchKeyIterator(size int, fast bool, interrupt chan struct{}, tsmFiles []string, readers ...*TSMReader) (KeyIterator, error) {
 	var iter []*BlockIterator
 	for _, r := range readers {
 		iter = append(iter, r.BlockIterator())
@@ -1626,6 +1644,7 @@ func NewTSMBatchKeyIterator(size int, fast bool, interrupt chan struct{}, reader
 		size:                 size,
 		iterators:            iter,
 		fast:                 fast,
+		tsmFiles:             tsmFiles,
 		buf:                  make([]blocks, len(iter)),
 		mergedFloatValues:    &tsdb.FloatArray{},
 		mergedIntegerValues:  &tsdb.IntegerArray{},
@@ -1686,10 +1705,11 @@ RETRY:
 		}
 
 		iter := k.iterators[i]
+		k.currentTsm = k.tsmFiles[i]
 		if iter.Next() {
 			key, minTime, maxTime, typ, _, b, err := iter.Read()
 			if err != nil {
-				k.err = err
+				k.err = errBlockRead{k.currentTsm, err}
 			}
 
 			// This block may have ranges of time removed from it that would
@@ -1722,7 +1742,7 @@ RETRY:
 				iter.Next()
 				key, minTime, maxTime, typ, _, b, err := iter.Read()
 				if err != nil {
-					k.err = err
+					k.err = errBlockRead{k.currentTsm, err}
 				}
 
 				tombstones := iter.r.TombstoneRange(key)
@@ -1752,7 +1772,7 @@ RETRY:
 		}
 
 		if iter.Err() != nil {
-			k.err = iter.Err()
+			k.err = errBlockRead{k.currentTsm, iter.Err()}
 		}
 	}
 
@@ -1814,16 +1834,16 @@ func (k *tsmBatchKeyIterator) merge() {
 	case BlockString:
 		k.mergeString()
 	default:
-		k.err = fmt.Errorf("unknown block type: %v", k.typ)
+		k.err = errBlockRead{k.currentTsm, fmt.Errorf("unknown block type: %v", k.typ)}
 	}
 }
 
 func (k *tsmBatchKeyIterator) handleEncodeError(err error, typ string) {
-	k.err = fmt.Errorf("encode error: unable to compress block type %s for key '%s': %v", typ, k.key, err)
+	k.err = errBlockRead{k.currentTsm, fmt.Errorf("encode error: unable to compress block type %s for key '%s': %v", typ, k.key, err)}
 }
 
 func (k *tsmBatchKeyIterator) handleDecodeError(err error, typ string) {
-	k.err = fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %v", typ, k.key, err)
+	k.err = errBlockRead{k.currentTsm, fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %v", typ, k.key, err)}
 }
 
 func (k *tsmBatchKeyIterator) Read() ([]byte, int64, int64, []byte, error) {

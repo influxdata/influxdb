@@ -2207,6 +2207,18 @@ func (s *compactionStrategy) compactGroup() {
 		}
 
 		log.Info("Error compacting TSM files", zap.Error(err))
+
+		// We hit a bad TSM file - rename so the next compaction can proceed.
+		if _, ok := err.(errBlockRead); ok {
+			path := err.(errBlockRead).file
+			log.Info("Renaming a corrupt TSM file due to compaction error", zap.Error(err))
+			if err := s.fileStore.ReplaceWithCallback([]string{path}, nil, nil); err != nil {
+				log.Info("Error removing bad TSM file", zap.Error(err))
+			} else if e := os.Rename(path, path+"."+BadTSMFileExtension); e != nil {
+				log.Info("Error renaming corrupt TSM file", zap.Error((err)))
+			}
+		}
+
 		atomic.AddInt64(s.errorStat, 1)
 		time.Sleep(time.Second)
 		return
