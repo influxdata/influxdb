@@ -1773,7 +1773,6 @@ RETRY:
 
 		if iter.Err() != nil {
 			k.err = errBlockRead{k.currentTsm, iter.Err()}
-			panic("block read")
 		}
 	}
 
