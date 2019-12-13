@@ -7,6 +7,7 @@ import classnames from 'classnames'
 import PluginList from 'src/dataLoaders/components/TelegrafEditorPluginList'
 import {AppState} from 'src/types'
 import {SquareButton, IconFont, ComponentSize} from '@influxdata/clockface'
+import { setLookup } from 'src/dataLoaders/actions/telegrafEditor'
 
 // Types
 import {
@@ -16,38 +17,48 @@ import {
 
 interface PluginStateProps {
   plugins: TelegrafEditorActivePluginState
+  show: boolean
 }
 
 interface OwnProps {
   onJump: (which: TelegrafEditorActivePlugin) => void
 }
 
-type Props = OwnProps & PluginStateProps
+interface PluginDispatchProps {
+  onChangeLookup: typeof setLookup
+}
 
-const TelegrafEditorSideBar: FC<Props> = ({plugins, onJump}) => {
-  // This is the new version of "mode"
-  const collapsed = true
-  const columnClassName = classnames('telegraf-editor--right-column', {'telegraf-editor--column__collapsed': collapsed})
-  const icon = collapsed ? IconFont.EyeClosed : IconFont.EyeOpen
+type Props = OwnProps & PluginStateProps & PluginDispatchProps
+
+const TelegrafEditorSideBar: FC<Props> = ({plugins, onJump, show, onChangeLookup}) => {
+  const columnClassName = classnames('telegraf-editor--right-column', {'telegraf-editor--column__collapsed': !show})
+  const icon = show ? IconFont.EyeOpen : IconFont.EyeClosed
+  const header = 'Plugins'
 
   return (
     <div className={columnClassName}>
       <div className="telegraf-editor--column-heading">
-        <span className="telegraf-editor--title">Title?</span>
-        <SquareButton icon={icon} size={ComponentSize.ExtraSmall} />
+        <span className="telegraf-editor--title">{ header }</span>
+        <SquareButton icon={icon} size={ComponentSize.ExtraSmall} onClick={ () => onChangeLookup(!show) }/>
       </div>
-      {!collapsed && <PluginList plugins={plugins} filter="" onClick={onJump} />}
+      {show && <PluginList plugins={plugins} filter="" onClick={onJump} />}
+      { !show && <span className="telegraf-editor--title__collapsed">{ header } </span> }
     </div>
   )
 }
 
 const mstp = (state: AppState): PluginStateProps => {
   const plugins = state.telegrafEditorActivePlugins || []
+  const show = state.telegrafEditor.showLookup
 
-  return {plugins}
+  return {plugins, show}
 }
 
-export default connect<PluginStateProps, {}>(
+const mdtp: PluginDispatchProps = {
+  onChangeLookup: setLookup,
+}
+
+export default connect<PluginStateProps, PluginDispatchProps>(
   mstp,
-  null
+  mdtp
 )(TelegrafEditorSideBar)

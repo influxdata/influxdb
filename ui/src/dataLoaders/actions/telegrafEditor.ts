@@ -19,15 +19,21 @@ export const setActivePlugins = (plugins: TelegrafEditorActivePluginState) => ({
 })
 
 export type EditorAction =
-  | ReturnType<typeof setMode>
+  | ReturnType<typeof setLookup>
+  | ReturnType<typeof setList>
   | ReturnType<typeof setText>
   | ReturnType<typeof setBucket>
   | ReturnType<typeof setFilter>
   | ReturnType<typeof reset>
 
-export const setMode = (mode: 'adding' | 'indexing') => ({
-  type: 'SET_TELEGRAF_EDITOR_MODE' as 'SET_TELEGRAF_EDITOR_MODE',
-  payload: mode,
+export const setLookup = (show: boolean) => ({
+  type: 'SET_TELEGRAF_EDITOR_LOOKUP' as 'SET_TELEGRAF_EDITOR_LOOKUP',
+  payload: show,
+})
+
+export const setList = (show: boolean) => ({
+  type: 'SET_TELEGRAF_EDITOR_LIST' as 'SET_TELEGRAF_EDITOR_LIST',
+  payload: show,
 })
 
 export const setText = (text: string) => ({

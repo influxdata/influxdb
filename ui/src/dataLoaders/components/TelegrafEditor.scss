@@ -48,6 +48,19 @@
   }
 }
 
+.telegraf-editor--title__collapsed {
+  font-size: 13px;
+  white-space: nowrap;
+  user-select: none;
+  line-height: 32px;
+  font-weight: 600;
+  transform-origin: bottom left;
+  transform: rotate(90deg);
+  position: absolute;
+  left: -2px;
+  top: 8px;
+}
+
 // Column Layout
 .telegraf-editor--left-column,
 .telegraf-editor--middle-column,
@@ -62,17 +75,20 @@
 .telegraf-editor--left-column {
   flex: 0 0 180px;
   margin-right: $ix-marg-a;
+  position: relative;
 }
 
 .telegraf-editor--middle-column {
   flex: 1 0 0;
   border-radius: $ix-radius 0 0 $ix-radius;
+  overflow: hidden;
 }
 
 .telegraf-editor--right-column {
   flex: 0 0 180px;
   border-left: 0;
   border-radius: 0 $ix-radius $ix-radius 0;
+  position: relative;
 }
 
 .telegraf-editor--column-section {
@@ -132,7 +148,7 @@
 .telegraf-plugins--plugin {
   background-color: $g2-kevlar;
   transition: background-color 0.25s ease, color 0.25s ease;
-  
+
   &:hover {
     cursor: pointer;
     color: $g18-cloud;
