@@ -1,4 +1,4 @@
-use super::{rle, simple8b};
+use super::simple8b;
 use integer_encoding::*;
 use std::error::Error;
 
@@ -141,21 +141,6 @@ fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
     dst.truncate(n);
 }
 
-// /// encode_all_signed encodes the value v, delta and count into dst using
-// /// zig-zag encoding to ensure all signed values can be mapped to unsigned
-// /// values for better variable-length encoding.
-// ///
-// /// v should be the first element of a sequence, delta the difference that each
-// /// value in the sequence differs by, and count the total number of values in the
-// /// sequence.
-// pub fn encode_all_signed(v: i64, delta: i64, count: u64, dst: &mut Vec<u8>) {
-//     encode_all_unsigned(
-//         super::zig_zag_encode(v),
-//         super::zig_zag_encode(delta),
-//         count,
-//         dst,
-//     )
-// }
 pub fn decode_all<'a>(src: &[u8], dst: &'a mut Vec<i64>) -> Result<(), Box<Error>> {
     if src.len() == 0 {
         return Ok(());
@@ -269,7 +254,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_encode_all_no_values() {
+    fn encode_all_no_values() {
         let mut src: Vec<i64> = vec![];
         let mut dst = vec![];
 
@@ -281,7 +266,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encode_all_uncompressed() {
+    fn encode_all_uncompressed() {
         let mut src: Vec<i64> = vec![-1000, 0, simple8b::MAX_VALUE as i64, 213123421];
         let mut dst = vec![];
 
@@ -299,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encode_all_rle() {
+    fn encode_all_rle() {
         struct Test {
             name: String,
             input: Vec<i64>,
@@ -357,7 +342,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encode_all_simple8b() {
+    fn encode_all_simple8b() {
         struct Test {
             name: String,
             input: Vec<i64>,
