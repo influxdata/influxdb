@@ -233,9 +233,14 @@ func (b *Bucket) getAll(o *kv.CursorHints) ([]kv.Pair, error) {
 	return pairs, nil
 }
 
+type pair struct {
+	kv.Pair
+	err error
+}
+
 // ForwardCursor returns a directional cursor which starts at the provided seeked key
 func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.ForwardCursor, error) {
-	pairs := make(chan []kv.Pair)
+	pairs := make(chan []pair)
 	go func() {
 		defer close(pairs)
 
@@ -253,18 +258,18 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 			}
 		}
 
-		var batch []kv.Pair
+		var batch []pair
 
 		iterate(func(i btree.Item) bool {
 			j, ok := i.(*item)
 			if !ok {
-				batch = append(batch, kv.Pair{Err: fmt.Errorf("error item is type %T not *item", i)})
+				batch = append(batch, pair{err: fmt.Errorf("error item is type %T not *item", i)})
 
 				return false
 			}
 
 			if fn == nil || fn(j.key, j.value) {
-				batch = append(batch, kv.Pair{Key: j.key, Value: j.value})
+				batch = append(batch, pair{Pair: kv.Pair{Key: j.key, Value: j.value}})
 			}
 
 			if len(batch) < cursorBatchSize {
@@ -289,9 +294,9 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 
 // ForwardCursor is a kv.ForwardCursor which iterates over an in-memory btree
 type ForwardCursor struct {
-	pairs <-chan []kv.Pair
+	pairs <-chan []pair
 
-	cur []kv.Pair
+	cur []pair
 	n   int
 
 	// error found during iteration
@@ -305,6 +310,10 @@ func (c *ForwardCursor) Err() error {
 
 // Next returns the next key/value pair in the cursor
 func (c *ForwardCursor) Next() ([]byte, []byte) {
+	if c.err != nil {
+		return nil, nil
+	}
+
 	if c.n >= len(c.cur) {
 		var ok bool
 		c.cur, ok = <-c.pairs
@@ -316,7 +325,7 @@ func (c *ForwardCursor) Next() ([]byte, []byte) {
 	}
 
 	pair := c.cur[c.n]
-	c.err = pair.Err
+	c.err = pair.err
 	c.n++
 
 	return pair.Key, pair.Value

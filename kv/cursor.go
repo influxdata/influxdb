@@ -18,7 +18,6 @@ type staticCursor struct {
 type Pair struct {
 	Key   []byte
 	Value []byte
-	Err   error
 }
 
 // NewStaticCursor returns an instance of a StaticCursor. It
