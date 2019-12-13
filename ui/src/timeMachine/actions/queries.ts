@@ -34,7 +34,6 @@ import {
 } from 'src/variables/selectors'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
 import {CancelBox} from 'src/types/promises'
@@ -145,7 +144,7 @@ export const executeQueries = (dashboardID?: string) => async (
     const duration = Date.now() - startTime
 
     let statuses = [[]] as StatusRow[][]
-    if (check && isFlagEnabled('eventMarkers')) {
+    if (check) {
       const extern = buildVarsOption(variableAssignments)
       pendingCheckStatuses = runStatusesQuery(orgID, check.id, extern)
       statuses = await pendingCheckStatuses.promise // TODO handle errors
