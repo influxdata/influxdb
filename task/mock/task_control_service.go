@@ -155,7 +155,7 @@ func (t *TaskControlService) createNextRun(task *influxdb.Task, now int64) (back
 	}, nil
 }
 
-func (t *TaskControlService) CreateRun(_ context.Context, taskID influxdb.ID, scheduledFor time.Time) (*influxdb.Run, error) {
+func (t *TaskControlService) CreateRun(_ context.Context, taskID influxdb.ID, scheduledFor time.Time, runAt time.Time) (*influxdb.Run, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 

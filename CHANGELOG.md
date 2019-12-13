@@ -25,6 +25,8 @@
 1. [16175](https://github.com/influxdata/influxdb/pull/16175): Added delete functionality to note cells so that they can be deleted
 1. [16204](https://github.com/influxdata/influxdb/pull/16204): Fix failure to create labels when creating telegraf configs
 1. [16207](https://github.com/influxdata/influxdb/pull/16207): Fix crash when editing a Telegraf config
+1. [16201](https://github.com/influxdata/influxdb/pull/16201): Updated start/endtime functionality so that custom script timeranges overwrite dropdown selections
+1. [16217](https://github.com/influxdata/influxdb/pull/16217): Fix 12-hour time format to use consistent formatting and number of time ticks
 
 ### UI Improvements
 

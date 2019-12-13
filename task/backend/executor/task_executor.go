@@ -97,20 +97,20 @@ func (e *TaskExecutor) SetLimitFunc(l LimitFunc) {
 }
 
 // Execute is a executor to satisfy the needs of tasks
-func (e *TaskExecutor) Execute(ctx context.Context, id scheduler.ID, scheduledAt time.Time) error {
-	_, err := e.PromisedExecute(ctx, id, scheduledAt)
+func (e *TaskExecutor) Execute(ctx context.Context, id scheduler.ID, scheduledFor time.Time, runAt time.Time) error {
+	_, err := e.PromisedExecute(ctx, id, scheduledFor, runAt)
 	return err
 }
 
-// PromisedExecute begins execution for the tasks id with a specific scheduledAt time.
-// When we execute we will first build a run for the scheduledAt time,
+// PromisedExecute begins execution for the tasks id with a specific scheduledFor time.
+// When we execute we will first build a run for the scheduledFor time,
 // We then want to add to the queue anything that was manually queued to run.
 // If the queue is full the call to execute should hang and apply back pressure to the caller
 // We then start a worker to work the newly queued jobs.
-func (e *TaskExecutor) PromisedExecute(ctx context.Context, id scheduler.ID, scheduledAt time.Time) (Promise, error) {
+func (e *TaskExecutor) PromisedExecute(ctx context.Context, id scheduler.ID, scheduledFor time.Time, runAt time.Time) (Promise, error) {
 	iid := influxdb.ID(id)
 	// create a run
-	p, err := e.createRun(ctx, iid, scheduledAt)
+	p, err := e.createRun(ctx, iid, scheduledFor, runAt)
 	if err != nil {
 		return nil, err
 	}
@@ -154,8 +154,8 @@ func (e *TaskExecutor) ResumeCurrentRun(ctx context.Context, id influxdb.ID, run
 	return nil, influxdb.ErrRunNotFound
 }
 
-func (e *TaskExecutor) createRun(ctx context.Context, id influxdb.ID, scheduledAt time.Time) (*promise, error) {
-	r, err := e.tcs.CreateRun(ctx, id, scheduledAt.UTC())
+func (e *TaskExecutor) createRun(ctx context.Context, id influxdb.ID, scheduledFor time.Time, runAt time.Time) (*promise, error) {
+	r, err := e.tcs.CreateRun(ctx, id, scheduledFor.UTC(), runAt.UTC())
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +310,7 @@ func (w *worker) start(p *promise) {
 	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now().UTC(), backend.RunStarted)
 
 	// add to metrics
-	w.te.metrics.StartRun(p.task, time.Since(p.createdAt))
+	w.te.metrics.StartRun(p.task, time.Since(p.createdAt), time.Since(p.run.RunAt))
 	p.startedAt = time.Now()
 }
 

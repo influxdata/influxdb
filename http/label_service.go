@@ -582,7 +582,7 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.L
 func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 	var lr labelResponse
 	err := s.Client.
-		Post(httpc.BodyJSON(l), prefixLabels).
+		PostJSON(l, prefixLabels).
 		DecodeJSON(&lr).
 		Do(ctx)
 	if err != nil {
@@ -598,7 +598,7 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error
 func (s *LabelService) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 	var lr labelResponse
 	err := s.Client.
-		Patch(httpc.BodyJSON(upd), labelIDPath(id)).
+		PatchJSON(upd, labelIDPath(id)).
 		DecodeJSON(&lr).
 		Do(ctx)
 	if err != nil {
@@ -622,7 +622,7 @@ func (s *LabelService) CreateLabelMapping(ctx context.Context, m *influxdb.Label
 
 	urlPath := resourceIDPath(m.ResourceType, m.ResourceID, "labels")
 	return s.Client.
-		Post(httpc.BodyJSON(m), urlPath).
+		PostJSON(m, urlPath).
 		DecodeJSON(m).
 		Do(ctx)
 }

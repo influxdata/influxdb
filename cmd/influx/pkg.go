@@ -27,16 +27,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type pkgSVCFn func(cliReq httpClientOpts, opts ...pkger.ServiceSetterFn) (pkger.SVC, error)
+type pkgSVCsFn func(cliReq httpClientOpts, opts ...pkger.ServiceSetterFn) (pkger.SVC, influxdb.OrganizationService, error)
 
-func cmdPkg(svcFn pkgSVCFn, opts ...genericCLIOptfn) *cobra.Command {
+func cmdPkg(svcFn pkgSVCsFn, opts ...genericCLIOptfn) *cobra.Command {
 	return newCmdPkgBuilder(svcFn, opts...).cmdPkg()
 }
 
 type cmdPkgBuilder struct {
 	genericCLIOpts
 
-	svcFn pkgSVCFn
+	svcFn pkgSVCsFn
 
 	applyReqLimit   int
 	file            string
@@ -60,7 +60,7 @@ type cmdPkgBuilder struct {
 	}
 }
 
-func newCmdPkgBuilder(svcFn pkgSVCFn, opts ...genericCLIOptfn) *cmdPkgBuilder {
+func newCmdPkgBuilder(svcFn pkgSVCsFn, opts ...genericCLIOptfn) *cmdPkgBuilder {
 	opt := genericCLIOpts{
 		in: os.Stdin,
 		w:  os.Stdout,
@@ -107,39 +107,30 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	return cmd
 }
 
+func (b *cmdPkgBuilder) validOrgFlags() error {
+	if b.orgID == "" && b.org == "" {
+		return fmt.Errorf("must specify org-id, or org name")
+	} else if b.orgID != "" && b.org != "" {
+		return fmt.Errorf("must specify org-id, or org name not both")
+	}
+	return nil
+}
+
 func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
-		if b.orgID == "" && b.org == "" {
-			return fmt.Errorf("must specify org-id, or org name")
-		} else if b.orgID != "" && b.org != "" {
-			return fmt.Errorf("must specify org-id, or org name not both")
+		if err := b.validOrgFlags(); err != nil {
+			return err
 		}
 		color.NoColor = !b.hasColor
-		var influxOrgID *influxdb.ID
 
-		if b.orgID != "" {
-			var err error
-			influxOrgID, err = influxdb.IDFromString(b.orgID)
-			if err != nil {
-				return fmt.Errorf("invalid org ID provided: %s", err.Error())
-			}
-		} else if b.org != "" {
-			orgSvc, err := newOrganizationService()
-			if err != nil {
-				return fmt.Errorf("failed to initialize organization service client: %v", err)
-			}
-
-			filter := influxdb.OrganizationFilter{Name: &b.org}
-			org, err := orgSvc.FindOrganization(context.Background(), filter)
-			if err != nil {
-				return fmt.Errorf("%v", err)
-			}
-			influxOrgID = &org.ID
-		}
-
-		svc, err := b.svcFn(flags.httpClientOpts(), pkger.WithApplyReqLimit(b.applyReqLimit))
+		svc, orgSVC, err := b.svcFn(flags.httpClientOpts(), pkger.WithApplyReqLimit(b.applyReqLimit))
 		if err != nil {
 			return err
+		}
+
+		influxOrgID, err := getOrgID(orgSVC, b.orgID, b.org)
+		if err != nil {
+			return nil
 		}
 
 		pkg, isTTY, err := b.readPkgStdInOrFile(b.file)
@@ -147,7 +138,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 			return err
 		}
 
-		_, diff, err := svc.DryRun(context.Background(), *influxOrgID, pkg)
+		_, diff, err := svc.DryRun(context.Background(), influxOrgID, pkg)
 		if err != nil {
 			return err
 		}
@@ -174,7 +165,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 			return errors.New("package has conflicts with existing resources and cannot safely apply")
 		}
 
-		summary, err := svc.Apply(context.Background(), *influxOrgID, pkg)
+		summary, err := svc.Apply(context.Background(), influxOrgID, pkg)
 		if err != nil {
 			return err
 		}
@@ -221,7 +212,7 @@ func (b *cmdPkgBuilder) pkgNewRunEFn() func(*cobra.Command, []string) error {
 			}
 		}
 
-		pkgSVC, err := b.svcFn(flags.httpClientOpts())
+		pkgSVC, _, err := b.svcFn(flags.httpClientOpts())
 		if err != nil {
 			return err
 		}
@@ -253,7 +244,7 @@ func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 
 func (b *cmdPkgBuilder) pkgExportRunEFn() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		pkgSVC, err := b.svcFn(flags.httpClientOpts())
+		pkgSVC, _, err := b.svcFn(flags.httpClientOpts())
 		if err != nil {
 			return err
 		}
@@ -308,7 +299,8 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 	cmd.Short = "Export all existing resources for an organization as a package"
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
-	cmd.Flags().StringVarP(&b.orgID, "org-id", "o", "", "organization id")
+	cmd.Flags().StringVarP(&b.orgID, "org-id", "", "", "organization id")
+	cmd.Flags().StringVarP(&b.org, "org", "o", "", "The name of the organization that owns the bucket")
 	cmd.Flags().StringVarP(&b.meta.Name, "name", "n", "", "name for new pkg")
 	cmd.Flags().StringVarP(&b.meta.Description, "description", "d", "", "description for new pkg")
 	cmd.Flags().StringVarP(&b.meta.Version, "version", "v", "", "version for new pkg")
@@ -320,18 +312,22 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 
 func (b *cmdPkgBuilder) pkgExportAllRunEFn() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		pkgSVC, err := b.svcFn(flags.httpClientOpts())
+		if err := b.validOrgFlags(); err != nil {
+			return err
+		}
+
+		pkgSVC, orgSVC, err := b.svcFn(flags.httpClientOpts())
 		if err != nil {
 			return err
 		}
 
 		opts := []pkger.CreatePkgSetFn{pkger.CreateWithMetadata(b.meta)}
 
-		orgID, err := influxdb.IDFromString(b.orgID)
+		orgID, err := getOrgID(orgSVC, b.orgID, b.org)
 		if err != nil {
 			return err
 		}
-		opts = append(opts, pkger.CreateWithAllOrgResources(*orgID))
+		opts = append(opts, pkger.CreateWithAllOrgResources(orgID))
 
 		return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
 	}
@@ -507,10 +503,14 @@ func createPkgBuf(pkg *pkger.Pkg, outPath string) (*bytes.Buffer, error) {
 	return &buf, nil
 }
 
-func newPkgerSVC(cliReqOpts httpClientOpts, opts ...pkger.ServiceSetterFn) (pkger.SVC, error) {
+func newPkgerSVC(cliReqOpts httpClientOpts, opts ...pkger.ServiceSetterFn) (pkger.SVC, influxdb.OrganizationService, error) {
 	httpClient, err := newHTTPClient()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	orgSvc := &ihttp.OrganizationService{
+		Client: httpClient,
 	}
 
 	return pkger.NewService(
@@ -518,10 +518,11 @@ func newPkgerSVC(cliReqOpts httpClientOpts, opts ...pkger.ServiceSetterFn) (pkge
 			pkger.WithBucketSVC(&ihttp.BucketService{Client: httpClient}),
 			pkger.WithDashboardSVC(&ihttp.DashboardService{Client: httpClient}),
 			pkger.WithLabelSVC(&ihttp.LabelService{Client: httpClient}),
+			pkger.WithNoticationEndpointSVC(ihttp.NewNotificationEndpointService(httpClient)),
 			pkger.WithTelegrafSVC(ihttp.NewTelegrafService(httpClient)),
 			pkger.WithVariableSVC(&ihttp.VariableService{Client: httpClient}),
 		)...,
-	), nil
+	), orgSvc, nil
 }
 
 func pkgFromReader(stdin io.Reader) (*pkger.Pkg, error) {
@@ -654,6 +655,18 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 		})
 	}
 
+	if endpoints := diff.NotificationEndpoints; len(endpoints) > 0 {
+		headers := []string{"New", "ID", "Name"}
+		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
+			v := endpoints[i]
+			return []string{
+				boolDiff(v.IsNew()),
+				v.ID.String(),
+				v.Name,
+			}
+		})
+	}
+
 	if teles := diff.Telegrafs; len(diff.Telegrafs) > 0 {
 		headers := []string{"New", "Name", "Description"}
 		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
@@ -729,6 +742,19 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 				v.Description,
 				args.Type,
 				printVarArgs(args),
+			}
+		})
+	}
+
+	if endpoints := sum.NotificationEndpoints; len(endpoints) > 0 {
+		headers := []string{"ID", "Name", "Description", "Status"}
+		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
+			v := endpoints[i]
+			return []string{
+				v.GetID().String(),
+				v.GetName(),
+				v.GetDescription(),
+				string(v.GetStatus()),
 			}
 		})
 	}

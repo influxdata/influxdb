@@ -19,6 +19,7 @@ const (
 	KindBucket                        Kind = "bucket"
 	KindDashboard                     Kind = "dashboard"
 	KindLabel                         Kind = "label"
+	KindNotificationEndpoint          Kind = "notificationendpoint"
 	KindNotificationEndpointPagerDuty Kind = "notificationendpointpagerduty"
 	KindNotificationEndpointHTTP      Kind = "notificationendpointhttp"
 	KindNotificationEndpointSlack     Kind = "notificationendpointslack"
@@ -44,7 +45,7 @@ type Kind string
 
 // NewKind returns the kind parsed from the provided string.
 func NewKind(s string) Kind {
-	return Kind(strings.TrimSpace(strings.ToLower(s)))
+	return Kind(normStr(s))
 }
 
 // String provides the kind in human readable form.
@@ -79,7 +80,8 @@ func (k Kind) ResourceType() influxdb.ResourceType {
 		return influxdb.DashboardsResourceType
 	case KindLabel:
 		return influxdb.LabelsResourceType
-	case KindNotificationEndpointHTTP,
+	case KindNotificationEndpoint,
+		KindNotificationEndpointHTTP,
 		KindNotificationEndpointPagerDuty,
 		KindNotificationEndpointSlack:
 		return influxdb.NotificationEndpointResourceType
@@ -133,12 +135,13 @@ type Metadata struct {
 // Diff is the result of a service DryRun call. The diff outlines
 // what is new and or updated from the current state of the platform.
 type Diff struct {
-	Buckets       []DiffBucket       `json:"buckets"`
-	Dashboards    []DiffDashboard    `json:"dashboards"`
-	Labels        []DiffLabel        `json:"labels"`
-	LabelMappings []DiffLabelMapping `json:"labelMappings"`
-	Telegrafs     []DiffTelegraf     `json:"telegrafConfigs"`
-	Variables     []DiffVariable     `json:"variables"`
+	Buckets               []DiffBucket               `json:"buckets"`
+	Dashboards            []DiffDashboard            `json:"dashboards"`
+	Labels                []DiffLabel                `json:"labels"`
+	LabelMappings         []DiffLabelMapping         `json:"labelMappings"`
+	NotificationEndpoints []DiffNotificationEndpoint `json:"notificationEndpoints"`
+	Telegrafs             []DiffTelegraf             `json:"telegrafConfigs"`
+	Variables             []DiffVariable             `json:"variables"`
 }
 
 // HasConflicts provides a binary t/f if there are any changes within package
@@ -289,6 +292,41 @@ type DiffLabelMapping struct {
 
 	LabelID   SafeID `json:"labelID"`
 	LabelName string `json:"labelName"`
+}
+
+// DiffNotificationEndpointValues are the varying values for a notification endpoint.
+type DiffNotificationEndpointValues struct {
+	influxdb.NotificationEndpoint
+}
+
+// DiffNotificationEndpoint is a diff of an individual notification endpoint.
+type DiffNotificationEndpoint struct {
+	ID   SafeID                          `json:"id"`
+	Name string                          `json:"name"`
+	New  DiffNotificationEndpointValues  `json:"new"`
+	Old  *DiffNotificationEndpointValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+}
+
+func newDiffNotificationEndpoint(ne *notificationEndpoint, i influxdb.NotificationEndpoint) DiffNotificationEndpoint {
+	diff := DiffNotificationEndpoint{
+		Name: ne.Name(),
+		New: DiffNotificationEndpointValues{
+			NotificationEndpoint: ne.summarize().NotificationEndpoint,
+		},
+	}
+	if i != nil {
+		diff.ID = SafeID(i.GetID())
+		diff.Old = &DiffNotificationEndpointValues{
+			NotificationEndpoint: i,
+		}
+	}
+	return diff
+}
+
+// IsNew indicates if the resource will be new to the platform or if it edits
+// an existing resource.
+func (d DiffNotificationEndpoint) IsNew() bool {
+	return d.Old == nil
 }
 
 // DiffTelegraf is a diff of an individual telegraf.
@@ -488,6 +526,10 @@ func (b *bucket) ID() influxdb.ID {
 	return b.id
 }
 
+func (b *bucket) Labels() []*label {
+	return b.labels
+}
+
 func (b *bucket) Name() string {
 	return b.name
 }
@@ -522,6 +564,16 @@ func (b *bucket) shouldApply() bool {
 		b.Description != b.existing.Description ||
 		b.Name() != b.existing.Name ||
 		b.RetentionRules.RP() != b.existing.RetentionPeriod
+}
+
+type mapperBuckets []*bucket
+
+func (b mapperBuckets) Association(i int) labelAssociater {
+	return b[i]
+}
+
+func (b mapperBuckets) Len() int {
+	return len(b)
 }
 
 const (
@@ -714,15 +766,19 @@ func (l *label) properties() map[string]string {
 	}
 }
 
+func (l *label) toInfluxLabel() influxdb.Label {
+	return influxdb.Label{
+		ID:         l.ID(),
+		OrgID:      l.OrgID,
+		Name:       l.Name(),
+		Properties: l.properties(),
+	}
+}
+
 func toInfluxLabels(labels ...*label) []influxdb.Label {
 	var iLabels []influxdb.Label
 	for _, l := range labels {
-		iLabels = append(iLabels, influxdb.Label{
-			ID:         l.ID(),
-			OrgID:      l.OrgID,
-			Name:       l.Name(),
-			Properties: l.properties(),
-		})
+		iLabels = append(iLabels, l.toInfluxLabel())
 	}
 	return iLabels
 }
@@ -756,6 +812,7 @@ const (
 )
 
 const (
+	fieldNotificationEndpointHTTPMethod = "method"
 	fieldNotificationEndpointPassword   = "password"
 	fieldNotificationEndpointRoutingKey = "routingKey"
 	fieldNotificationEndpointToken      = "token"
@@ -765,8 +822,11 @@ const (
 
 type notificationEndpoint struct {
 	kind        notificationKind
+	id          influxdb.ID
+	OrgID       influxdb.ID
 	name        string
 	description string
+	method      string
 	password    string
 	routingKey  string
 	status      string
@@ -776,6 +836,23 @@ type notificationEndpoint struct {
 	username    string
 
 	labels sortedLabels
+
+	existing influxdb.NotificationEndpoint
+}
+
+func (n *notificationEndpoint) Exists() bool {
+	return n.existing != nil
+}
+
+func (n *notificationEndpoint) ID() influxdb.ID {
+	if n.existing != nil {
+		return n.existing.GetID()
+	}
+	return n.id
+}
+
+func (n *notificationEndpoint) Labels() []*label {
+	return n.labels
 }
 
 func (n *notificationEndpoint) Name() string {
@@ -786,46 +863,72 @@ func (n *notificationEndpoint) ResourceType() influxdb.ResourceType {
 	return KindNotificationEndpointSlack.ResourceType()
 }
 
-func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
-	base := endpoint.Base{
+func (n *notificationEndpoint) base() endpoint.Base {
+	return endpoint.Base{
+		ID:          n.ID(),
+		OrgID:       n.OrgID,
 		Name:        n.Name(),
 		Description: n.description,
 		Status:      influxdb.TaskStatusActive,
 	}
+}
+
+func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
+	base := n.base()
 	if n.status != "" {
 		base.Status = influxdb.Status(n.status)
 	}
 	sum := SummaryNotificationEndpoint{
 		LabelAssociations: toInfluxLabels(n.labels...),
 	}
+
 	switch n.kind {
 	case notificationKindHTTP:
 		e := &endpoint.HTTP{
 			Base:   base,
 			URL:    n.url,
-			Method: "POST",
+			Method: n.method,
 		}
-		switch {
-		case n.password == "" && n.username == "" && n.token == "":
+		switch n.httpType {
+		case notificationHTTPAuthTypeNone:
 			e.AuthMethod = notificationHTTPAuthTypeNone
-		case n.token != "":
+		case notificationHTTPAuthTypeBearer:
 			e.AuthMethod = notificationHTTPAuthTypeBearer
+			e.Token = influxdb.SecretField{Value: &n.token}
 		default:
 			e.AuthMethod = notificationHTTPAuthTypeBasic
+			e.Password = influxdb.SecretField{Value: &n.password}
+			e.Username = influxdb.SecretField{Value: &n.username}
 		}
 		sum.NotificationEndpoint = e
 	case notificationKindPagerDuty:
 		sum.NotificationEndpoint = &endpoint.PagerDuty{
-			Base:      base,
-			ClientURL: n.url,
+			Base:       base,
+			ClientURL:  n.url,
+			RoutingKey: influxdb.SecretField{Value: &n.routingKey},
 		}
 	case notificationKindSlack:
-		sum.NotificationEndpoint = &endpoint.Slack{
+		e := &endpoint.Slack{
 			Base: base,
 			URL:  n.url,
 		}
+		if n.token != "" {
+			e.Token = influxdb.SecretField{Value: &n.token}
+		}
+		sum.NotificationEndpoint = e
 	}
+	sum.NotificationEndpoint.BackfillSecretKeys()
 	return sum
+}
+
+var validHTTPMethods = map[string]bool{
+	"DELETE":  true,
+	"GET":     true,
+	"HEAD":    true,
+	"OPTIONS": true,
+	"PATCH":   true,
+	"POST":    true,
+	"PUT":     true,
 }
 
 func (n *notificationEndpoint) valid() []validationErr {
@@ -853,6 +956,13 @@ func (n *notificationEndpoint) valid() []validationErr {
 			})
 		}
 	case notificationKindHTTP:
+		if !validHTTPMethods[n.method] {
+			failures = append(failures, validationErr{
+				Field: fieldNotificationEndpointHTTPMethod,
+				Msg:   "http method must be a valid HTTP verb",
+			})
+		}
+
 		switch n.httpType {
 		case notificationHTTPAuthTypeBasic:
 			if n.password == "" {
@@ -891,6 +1001,16 @@ func (n *notificationEndpoint) valid() []validationErr {
 	return failures
 }
 
+type mapperNotificationEndpoints []*notificationEndpoint
+
+func (n mapperNotificationEndpoints) Association(i int) labelAssociater {
+	return n[i]
+}
+
+func (n mapperNotificationEndpoints) Len() int {
+	return len(n)
+}
+
 const (
 	fieldTelegrafConfig = "config"
 )
@@ -903,6 +1023,10 @@ type telegraf struct {
 
 func (t *telegraf) ID() influxdb.ID {
 	return t.config.ID
+}
+
+func (t *telegraf) Labels() []*label {
+	return t.labels
 }
 
 func (t *telegraf) Name() string {
@@ -922,6 +1046,16 @@ func (t *telegraf) summarize() SummaryTelegraf {
 		TelegrafConfig:    t.config,
 		LabelAssociations: toInfluxLabels(t.labels...),
 	}
+}
+
+type mapperTelegrafs []*telegraf
+
+func (m mapperTelegrafs) Association(i int) labelAssociater {
+	return m[i]
+}
+
+func (m mapperTelegrafs) Len() int {
+	return len(m)
 }
 
 const (
@@ -957,6 +1091,10 @@ func (v *variable) Exists() bool {
 	return v.existing != nil
 }
 
+func (v *variable) Labels() []*label {
+	return v.labels
+}
+
 func (v *variable) Name() string {
 	return v.name
 }
@@ -969,7 +1107,7 @@ func (v *variable) shouldApply() bool {
 	return v.existing == nil ||
 		v.existing.Description != v.Description ||
 		v.existing.Arguments == nil ||
-		v.existing.Arguments.Type != v.Type
+		!reflect.DeepEqual(v.existing.Arguments, v.influxVarArgs())
 }
 
 func (v *variable) summarize() SummaryVariable {
@@ -1037,6 +1175,16 @@ func (v *variable) valid() []validationErr {
 	return failures
 }
 
+type mapperVariables []*variable
+
+func (m mapperVariables) Association(i int) labelAssociater {
+	return m[i]
+}
+
+func (m mapperVariables) Len() int {
+	return len(m)
+}
+
 const (
 	fieldDashCharts = "charts"
 )
@@ -1053,6 +1201,10 @@ type dashboard struct {
 
 func (d *dashboard) ID() influxdb.ID {
 	return d.id
+}
+
+func (d *dashboard) Labels() []*label {
+	return d.labels
 }
 
 func (d *dashboard) Name() string {
@@ -1085,6 +1237,16 @@ func (d *dashboard) summarize() SummaryDashboard {
 		})
 	}
 	return iDash
+}
+
+type mapperDashboards []*dashboard
+
+func (m mapperDashboards) Association(i int) labelAssociater {
+	return m[i]
+}
+
+func (m mapperDashboards) Len() int {
+	return len(m)
 }
 
 const (

@@ -7240,6 +7240,17 @@ components:
                     type: string
                   labelID:
                     type: string
+            notificationEndpoints:
+              type: array
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+                  - type: object
+                    properties:
+                      labelAssociations:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Label"
             telegrafConfigs:
               type: array
               items:
@@ -7341,6 +7352,19 @@ components:
                     type: string
                   labelName:
                     type: string
+            notificationEndpoints:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  new:
+                    $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+                  old:
+                    $ref: "#/components/schemas/NotificationEndpointDiscrimator"
             telegrafConfigs:
               type: array
               items:
@@ -10341,6 +10365,7 @@ components:
           type: string
     NotificationEndpointUpdate:
       type: object
+
       properties:
         name:
           type: string

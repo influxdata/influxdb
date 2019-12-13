@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/notification/endpoint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -18,11 +19,12 @@ import (
 func TestService(t *testing.T) {
 	newTestService := func(opts ...ServiceSetterFn) *Service {
 		opt := serviceOpt{
-			bucketSVC: mock.NewBucketService(),
-			dashSVC:   mock.NewDashboardService(),
-			labelSVC:  mock.NewLabelService(),
-			teleSVC:   mock.NewTelegrafConfigStore(),
-			varSVC:    mock.NewVariableService(),
+			bucketSVC:   mock.NewBucketService(),
+			dashSVC:     mock.NewDashboardService(),
+			labelSVC:    mock.NewLabelService(),
+			endpointSVC: mock.NewNotificationEndpointService(),
+			teleSVC:     mock.NewTelegrafConfigStore(),
+			varSVC:      mock.NewVariableService(),
 		}
 		for _, o := range opts {
 			o(&opt)
@@ -32,6 +34,7 @@ func TestService(t *testing.T) {
 			WithBucketSVC(opt.bucketSVC),
 			WithDashboardSVC(opt.dashSVC),
 			WithLabelSVC(opt.labelSVC),
+			WithNoticationEndpointSVC(opt.endpointSVC),
 			WithTelegrafSVC(opt.teleSVC),
 			WithVariableSVC(opt.varSVC),
 		)
@@ -40,7 +43,7 @@ func TestService(t *testing.T) {
 	t.Run("DryRun", func(t *testing.T) {
 		t.Run("buckets", func(t *testing.T) {
 			t.Run("single bucket updated", func(t *testing.T) {
-				testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
+				testfileRunner(t, "testdata/bucket.yml", func(t *testing.T, pkg *Pkg) {
 					fakeBktSVC := mock.NewBucketService()
 					fakeBktSVC.FindBucketByNameFn = func(_ context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
@@ -51,7 +54,7 @@ func TestService(t *testing.T) {
 							RetentionPeriod: 30 * time.Hour,
 						}, nil
 					}
-					svc := newTestService(WithBucketSVC(fakeBktSVC), WithLabelSVC(mock.NewLabelService()))
+					svc := newTestService(WithBucketSVC(fakeBktSVC))
 
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
 					require.NoError(t, err)
@@ -75,12 +78,12 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("single bucket new", func(t *testing.T) {
-				testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
+				testfileRunner(t, "testdata/bucket.json", func(t *testing.T, pkg *Pkg) {
 					fakeBktSVC := mock.NewBucketService()
 					fakeBktSVC.FindBucketByNameFn = func(_ context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
 						return nil, errors.New("not found")
 					}
-					svc := newTestService(WithBucketSVC(fakeBktSVC), WithLabelSVC(mock.NewLabelService()))
+					svc := newTestService(WithBucketSVC(fakeBktSVC))
 
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
 					require.NoError(t, err)
@@ -101,7 +104,7 @@ func TestService(t *testing.T) {
 
 		t.Run("labels", func(t *testing.T) {
 			t.Run("two labels updated", func(t *testing.T) {
-				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
+				testfileRunner(t, "testdata/label.json", func(t *testing.T, pkg *Pkg) {
 					fakeLabelSVC := mock.NewLabelService()
 					fakeLabelSVC.FindLabelsFn = func(_ context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
@@ -144,7 +147,7 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("two labels created", func(t *testing.T) {
-				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
+				testfileRunner(t, "testdata/label.yml", func(t *testing.T, pkg *Pkg) {
 					fakeLabelSVC := mock.NewLabelService()
 					fakeLabelSVC.FindLabelsFn = func(_ context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
 						return nil, errors.New("no labels found")
@@ -173,6 +176,69 @@ func TestService(t *testing.T) {
 			})
 		})
 
+		t.Run("notification endpoints", func(t *testing.T) {
+			testfileRunner(t, "testdata/notification_endpoint.yml", func(t *testing.T, pkg *Pkg) {
+				fakeEndpointSVC := mock.NewNotificationEndpointService()
+				existing := &endpoint.HTTP{
+					Base: endpoint.Base{
+						ID:          1,
+						Name:        "http_none_auth_notification_endpoint",
+						Description: "old desc",
+						Status:      influxdb.TaskStatusInactive,
+					},
+					Method:     "POST",
+					AuthMethod: "none",
+					URL:        "https://www.example.com/endpoint/old",
+				}
+				fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+					return []influxdb.NotificationEndpoint{existing}, 1, nil
+				}
+
+				svc := newTestService(WithNoticationEndpointSVC(fakeEndpointSVC))
+
+				_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
+				require.NoError(t, err)
+
+				require.Len(t, diff.NotificationEndpoints, 5)
+
+				var (
+					newEndpoints      []DiffNotificationEndpoint
+					existingEndpoints []DiffNotificationEndpoint
+				)
+				for _, e := range diff.NotificationEndpoints {
+					if e.Old != nil {
+						existingEndpoints = append(existingEndpoints, e)
+						continue
+					}
+					newEndpoints = append(newEndpoints, e)
+				}
+				require.Len(t, newEndpoints, 4)
+				require.Len(t, existingEndpoints, 1)
+
+				expected := DiffNotificationEndpoint{
+					ID:   SafeID(1),
+					Name: "http_none_auth_notification_endpoint",
+					Old: &DiffNotificationEndpointValues{
+						NotificationEndpoint: existing,
+					},
+					New: DiffNotificationEndpointValues{
+						NotificationEndpoint: &endpoint.HTTP{
+							Base: endpoint.Base{
+								ID:          1,
+								Name:        "http_none_auth_notification_endpoint",
+								Description: "http none auth desc",
+								Status:      influxdb.TaskStatusActive,
+							},
+							AuthMethod: "none",
+							Method:     "GET",
+							URL:        "https://www.example.com/endpoint/noneauth",
+						},
+					},
+				}
+				assert.Equal(t, expected, existingEndpoints[0])
+			})
+		})
+
 		t.Run("variables", func(t *testing.T) {
 			testfileRunner(t, "testdata/variables", func(t *testing.T, pkg *Pkg) {
 				fakeVarSVC := mock.NewVariableService()
@@ -185,8 +251,7 @@ func TestService(t *testing.T) {
 						},
 					}, nil
 				}
-				fakeLabelSVC := mock.NewLabelService() // ignore mappings for now
-				svc := newTestService(WithLabelSVC(fakeLabelSVC), WithVariableSVC(fakeVarSVC))
+				svc := newTestService(WithVariableSVC(fakeVarSVC))
 
 				_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
 				require.NoError(t, err)
@@ -646,6 +711,77 @@ func TestService(t *testing.T) {
 				)
 			})
 
+		})
+
+		t.Run("notification endpoints", func(t *testing.T) {
+			t.Run("successfully creates pkg of endpoints", func(t *testing.T) {
+				testfileRunner(t, "testdata/notification_endpoint.yml", func(t *testing.T, pkg *Pkg) {
+					fakeEndpointSVC := mock.NewNotificationEndpointService()
+					fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
+						nr.SetID(influxdb.ID(fakeEndpointSVC.CreateNotificationEndpointCalls.Count() + 1))
+						return nil
+					}
+
+					svc := newTestService(WithNoticationEndpointSVC(fakeEndpointSVC))
+
+					orgID := influxdb.ID(9000)
+
+					sum, err := svc.Apply(context.TODO(), orgID, pkg)
+					require.NoError(t, err)
+
+					require.Len(t, sum.NotificationEndpoints, 5)
+
+					containsWithID := func(t *testing.T, name string) {
+						for _, actual := range sum.NotificationEndpoints {
+							if actual.GetID() == 0 {
+								assert.NotZero(t, actual.GetID())
+							}
+							if actual.GetName() == name {
+								return
+							}
+						}
+						assert.Fail(t, "did not find notification by name: "+name)
+					}
+
+					expectedNames := []string{
+						"http_basic_auth_notification_endpoint",
+						"http_bearer_auth_notification_endpoint",
+						"http_none_auth_notification_endpoint",
+						"pager_duty_notification_endpoint",
+						"slack_notification_endpoint",
+					}
+					for _, expectedName := range expectedNames {
+						containsWithID(t, expectedName)
+					}
+				})
+			})
+
+			t.Run("rolls back all created notifications on an error", func(t *testing.T) {
+				testfileRunner(t, "testdata/notification_endpoint.yml", func(t *testing.T, pkg *Pkg) {
+					fakeEndpointSVC := mock.NewNotificationEndpointService()
+					fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
+						nr.SetID(influxdb.ID(fakeEndpointSVC.CreateNotificationEndpointCalls.Count() + 1))
+						if fakeEndpointSVC.CreateNotificationEndpointCalls.Count() == 5 {
+							return errors.New("hit that kill count")
+						}
+						return nil
+					}
+
+					// create some dupes
+					for name, endpoint := range pkg.mNotificationEndpoints {
+						pkg.mNotificationEndpoints["copy"+name] = endpoint
+					}
+
+					svc := newTestService(WithNoticationEndpointSVC(fakeEndpointSVC))
+
+					orgID := influxdb.ID(9000)
+
+					_, err := svc.Apply(context.TODO(), orgID, pkg)
+					require.Error(t, err)
+
+					assert.GreaterOrEqual(t, fakeEndpointSVC.DeleteNotificationEndpointCalls.Count(), 5)
+				})
+			})
 		})
 
 		t.Run("telegrafs", func(t *testing.T) {

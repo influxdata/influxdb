@@ -21,6 +21,7 @@ spec:
       name: http_none_auth_notification_endpoint
       type: none
       description: http none auth desc
+      method: get
       url:  https://www.example.com/endpoint/noneauth
       status: active
       associations:
@@ -30,6 +31,7 @@ spec:
       name: http_basic_auth_notification_endpoint
       description: http basic auth desc
       type: basic
+      method: pOsT
       url:  https://www.example.com/endpoint/basicauth
       username: "secret username"
       password: "secret password"
@@ -41,6 +43,7 @@ spec:
       name: http_bearer_auth_notification_endpoint
       description: http bearer auth desc
       type: bearer
+      method: puT
       url:  https://www.example.com/endpoint/bearerauth
       token: "secret token"
       associations:

@@ -88,6 +88,7 @@ import NewRuleOverlay from 'src/alerting/components/notifications/NewRuleOverlay
 import EditRuleOverlay from 'src/alerting/components/notifications/EditRuleOverlay'
 import NewEndpointOverlay from 'src/alerting/components/endpoints/NewEndpointOverlay'
 import EditEndpointOverlay from 'src/alerting/components/endpoints/EditEndpointOverlay'
+import NoOrgsPage from 'src/organizations/containers/NoOrgsPage'
 
 // Overlays
 import OverlayHandler, {
@@ -196,6 +197,7 @@ class Root extends PureComponent {
                 <Route component={GetMe}>
                   <Route component={GetOrganizations}>
                     <Route path="/">
+                      <Route path="no-orgs" component={NoOrgsPage} />
                       <IndexRoute component={RouteToOrg} />
                       <Route path="orgs" component={App}>
                         <Route path="new" component={CreateOrgOverlay} />
