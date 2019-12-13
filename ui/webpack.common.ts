@@ -44,6 +44,10 @@ module.exports = {
         test: /\.tsx?$/,
         use: [
           {
+            loader: 'istanbul-instrumenter-loader',
+            options: {esModules: true},
+          },
+          {
             loader: 'ts-loader',
             options: {
               transpileOnly: true,

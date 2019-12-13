@@ -4,8 +4,9 @@ const wp = require('@cypress/webpack-preprocessor')
 
 module.exports = on => {
   const options = {
-    webpackOptions: require('../webpack.config.js')
+    webpackOptions: require('../webpack.config.js'),
   }
 
   on('file:preprocessor', wp(options))
+  on('task', require('@cypress/code-coverage/task'))
 }
