@@ -91,9 +91,16 @@ func (r *Req) Headers(k, v string, rest ...string) *Req {
 	return r
 }
 
+// WithCtx sets the ctx on the request.
 func (r *Req) WithCtx(ctx context.Context) *Req {
 	r.req = r.req.WithContext(ctx)
 	return r
+}
+
+// WrapCtx provides means to wrap a request context. This is useful for stuffing in the
+// auth stuffs that are required at times.
+func (r *Req) WrapCtx(fn func(ctx context.Context) context.Context) *Req {
+	return r.WithCtx(fn(r.req.Context()))
 }
 
 // Resp is a http recorder wrapper.
@@ -121,7 +128,7 @@ func (r *Resp) ExpectStatus(code int) *Resp {
 }
 
 // ExpectBody provides an assertion against the recorder body.
-func (r *Resp) ExpectBody(fn func(*bytes.Buffer)) *Resp {
+func (r *Resp) ExpectBody(fn func(body *bytes.Buffer)) *Resp {
 	fn(r.Rec.Body)
 	return r
 }

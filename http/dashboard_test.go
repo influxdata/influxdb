@@ -1882,7 +1882,6 @@ func TestService_handlePostDashboardLabel(t *testing.T) {
 }
 
 func jsonEqual(s1, s2 string) (eq bool, diff string, err error) {
-	var o1, o2 interface{}
 	if s1 == s2 {
 		return true, "", nil
 	}
@@ -1895,10 +1894,12 @@ func jsonEqual(s1, s2 string) (eq bool, diff string, err error) {
 		return false, s1, fmt.Errorf("s2 is empty")
 	}
 
+	var o1 interface{}
 	if err = json.Unmarshal([]byte(s1), &o1); err != nil {
 		return
 	}
 
+	var o2 interface{}
 	if err = json.Unmarshal([]byte(s2), &o2); err != nil {
 		return
 	}
