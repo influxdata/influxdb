@@ -97,7 +97,7 @@ jobs:
           path: ui/cypress/screenshots
           destination: screenshots
       - store_artifacts:
-          path: ui/coverage/lcov-report/index.html
+          path: ui/coverage
           destination: coverage
   selenium_accept:
     docker:
