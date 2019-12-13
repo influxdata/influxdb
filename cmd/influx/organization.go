@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func organizationCmd() *cobra.Command {
@@ -113,7 +114,15 @@ func orgFindCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&organizationFindFlags.name, "name", "n", "", "The organization name")
+	viper.BindEnv("ORG")
+	if h := viper.GetString("ORG"); h != "" {
+		organizationFindFlags.name = h
+	}
 	cmd.Flags().StringVarP(&organizationFindFlags.id, "id", "i", "", "The organization ID")
+	viper.BindEnv("ORG_ID")
+	if h := viper.GetString("ORG_ID"); h != "" {
+		organizationFindFlags.id = h
+	}
 
 	return cmd
 }
@@ -174,8 +183,17 @@ func orgUpdateCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&organizationUpdateFlags.id, "id", "i", "", "The organization ID (required)")
-	cmd.Flags().StringVarP(&organizationUpdateFlags.name, "name", "n", "", "The organization name")
 	cmd.MarkFlagRequired("id")
+	viper.BindEnv("ORG_ID")
+	if h := viper.GetString("ORG_ID"); h != "" {
+		organizationUpdateFlags.id = h
+	}
+
+	cmd.Flags().StringVarP(&organizationUpdateFlags.name, "name", "n", "", "The organization name")
+	viper.BindEnv("ORG")
+	if h := viper.GetString("ORG"); h != "" {
+		organizationUpdateFlags.name = h
+	}
 
 	return cmd
 }
@@ -268,6 +286,10 @@ func orgDeleteCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&organizationDeleteFlags.id, "id", "i", "", "The organization ID (required)")
 	cmd.MarkFlagRequired("id")
+	viper.BindEnv("ORG_ID")
+	if h := viper.GetString("ORG_ID"); h != "" {
+		organizationUpdateFlags.id = h
+	}
 
 	return cmd
 }
@@ -340,7 +362,15 @@ func orgMembersListCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&organizationMembersListFlags.id, "id", "i", "", "The organization ID")
+	viper.BindEnv("ORG_ID")
+	if h := viper.GetString("ORG_ID"); h != "" {
+		organizationMembersListFlags.id = h
+	}
 	cmd.Flags().StringVarP(&organizationMembersListFlags.name, "name", "n", "", "The organization name")
+	viper.BindEnv("ORG")
+	if h := viper.GetString("ORG"); h != "" {
+		organizationMembersListFlags.name = h
+	}
 
 	return cmd
 }
@@ -411,7 +441,16 @@ func orgMembersAddCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&organizationMembersAddFlags.id, "id", "i", "", "The organization ID")
+	viper.BindEnv("ORG_ID")
+	if h := viper.GetString("ORG_ID"); h != "" {
+		organizationMembersAddFlags.id = h
+	}
 	cmd.Flags().StringVarP(&organizationMembersAddFlags.name, "name", "n", "", "The organization name")
+	viper.BindEnv("ORG")
+	if h := viper.GetString("ORG"); h != "" {
+		organizationMembersAddFlags.name = h
+	}
+
 	cmd.Flags().StringVarP(&organizationMembersAddFlags.memberID, "member", "o", "", "The member ID")
 	cmd.MarkFlagRequired("member")
 
@@ -478,7 +517,15 @@ func orgMembersRemoveCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.id, "id", "i", "", "The organization ID")
+	viper.BindEnv("ORG_ID")
+	if h := viper.GetString("ORG_ID"); h != "" {
+		organizationMembersAddFlags.id = h
+	}
 	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.name, "name", "n", "", "The organization name")
+	viper.BindEnv("ORG")
+	if h := viper.GetString("ORG"); h != "" {
+		organizationMembersRemoveFlags.name = h
+	}
 	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.memberID, "member", "o", "", "The member ID")
 	cmd.MarkFlagRequired("member")
 

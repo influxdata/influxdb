@@ -42,8 +42,7 @@ type cmdPkgBuilder struct {
 	hasColor        bool
 	hasTableBorders bool
 	meta            pkger.Metadata
-	orgID           string
-	org             string
+	org             organization
 	quiet           bool
 
 	applyOpts struct {
@@ -94,8 +93,7 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true".`)
 
-	cmd.Flags().StringVarP(&b.orgID, "org-id", "", "", "The ID of the organization that owns the bucket")
-	cmd.Flags().StringVarP(&b.org, "org", "o", "", "The name of the organization that owns the bucket")
+	b.org.register(cmd)
 
 	cmd.Flags().BoolVarP(&b.hasColor, "color", "c", true, "Enable color in output, defaults true")
 	cmd.Flags().BoolVar(&b.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
@@ -105,18 +103,9 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	return cmd
 }
 
-func (b *cmdPkgBuilder) validOrgFlags() error {
-	if b.orgID == "" && b.org == "" {
-		return fmt.Errorf("must specify org-id, or org name")
-	} else if b.orgID != "" && b.org != "" {
-		return fmt.Errorf("must specify org-id, or org name not both")
-	}
-	return nil
-}
-
 func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
-		if err := b.validOrgFlags(); err != nil {
+		if err := b.org.validOrgFlags(); err != nil {
 			return err
 		}
 		color.NoColor = !b.hasColor
@@ -126,7 +115,11 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 			return err
 		}
 
-		influxOrgID, err := getOrgID(orgSVC, b.orgID, b.org)
+		if err := b.org.validOrgFlags(); err != nil {
+			return err
+		}
+
+		influxOrgID, err := b.org.getID(orgSVC)
 		if err != nil {
 			return nil
 		}
@@ -297,8 +290,9 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 	cmd.Short = "Export all existing resources for an organization as a package"
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
-	cmd.Flags().StringVarP(&b.orgID, "org-id", "", "", "organization id")
-	cmd.Flags().StringVarP(&b.org, "org", "o", "", "The name of the organization that owns the bucket")
+
+	b.org.register(cmd)
+
 	cmd.Flags().StringVarP(&b.meta.Name, "name", "n", "", "name for new pkg")
 	cmd.Flags().StringVarP(&b.meta.Description, "description", "d", "", "description for new pkg")
 	cmd.Flags().StringVarP(&b.meta.Version, "version", "v", "", "version for new pkg")
@@ -317,7 +311,7 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn() func(*cobra.Command, []string) erro
 
 		opts := []pkger.CreatePkgSetFn{pkger.CreateWithMetadata(b.meta)}
 
-		orgID, err := getOrgID(orgSVC, b.orgID, b.org)
+		orgID, err := b.org.getID(orgSVC)
 		if err != nil {
 			return err
 		}
