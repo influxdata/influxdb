@@ -1,4 +1,5 @@
 use super::{rle, simple8b};
+use integer_encoding::*;
 use std::error::Error;
 
 /// Encoding describes the type of encoding used by an encoded timestamp block.
@@ -8,7 +9,7 @@ enum Encoding {
     Rle = 2,
 }
 
-fn encode_all<'a>(src: &mut Vec<i64>, dst: &'a mut Vec<u8>) -> Result<(), Box<Error>> {
+pub fn encode_all<'a>(src: &mut Vec<i64>, dst: &'a mut Vec<u8>) -> Result<(), Box<Error>> {
     dst.truncate(0); // reset buffer.
     if src.len() == 0 {
         return Ok(());
@@ -33,7 +34,7 @@ fn encode_all<'a>(src: &mut Vec<i64>, dst: &'a mut Vec<u8>) -> Result<(), Box<Er
 
         // Encode with RLE if possible.
         if use_rle {
-            rle::encode_all(deltas[0], deltas[1], deltas.len() as u64, dst);
+            encode_rle(deltas[0], deltas[1], deltas.len() as u64, dst);
             // 4 high bits of first byte used for the encoding type
             dst[0] |= (Encoding::Rle as u8) << 4;
             return Ok(());
@@ -94,7 +95,68 @@ fn u64_to_i64_vector(src: &[u64]) -> Vec<i64> {
     src.into_iter().map(|x| *x as i64).collect::<Vec<i64>>()
 }
 
-fn decode_all<'a>(src: &[u8], dst: &'a mut Vec<i64>) -> Result<(), Box<Error>> {
+// encode_rle encodes the value v, delta and count into dst.
+///
+/// v should be the first element of a sequence, delta the difference that each
+/// value in the sequence differs by, and count the total number of values in the
+/// sequence.
+fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
+    let max_var_int_size = 10; // max number of bytes needed to store var int
+
+    // Keep a byte back for the scaler.
+    dst.push(0);
+    let mut n = 1;
+    // write the first value in as a byte array.
+    dst.extend_from_slice(&v.to_be_bytes());
+    n += 8;
+
+    // check delta's divisor
+    let mut div: u64 = 1_000_000_000_000;
+    while div > 1 && delta % div != 0 {
+        div /= 10;
+    }
+
+    if dst.len() <= n + max_var_int_size {
+        dst.resize(n + max_var_int_size, 0);
+    }
+
+    // 4 low bits are the log10 divisor.
+    if div > 1 {
+        // calculate and store the number of trailing 0s in the divisor.
+        // e.g., 100_000 would be stored as 5.
+        let scaler = ((div as f64).log10()) as u8;
+        assert!(scaler <= 15);
+
+        dst[0] |= scaler; // Set the scaler on low 4 bits of first byte.
+        n += (delta / div).encode_var(&mut dst[n..]);
+    } else {
+        n += delta.encode_var(&mut dst[n..]);
+    }
+
+    if dst.len() - n <= max_var_int_size {
+        dst.resize(n + max_var_int_size, 0);
+    }
+    // finally, encode the number of times the delta is repeated.
+    n += count.encode_var(&mut dst[n..]);
+    dst.truncate(n);
+}
+
+// /// encode_all_signed encodes the value v, delta and count into dst using
+// /// zig-zag encoding to ensure all signed values can be mapped to unsigned
+// /// values for better variable-length encoding.
+// ///
+// /// v should be the first element of a sequence, delta the difference that each
+// /// value in the sequence differs by, and count the total number of values in the
+// /// sequence.
+// pub fn encode_all_signed(v: i64, delta: i64, count: u64, dst: &mut Vec<u8>) {
+//     encode_all_unsigned(
+//         super::zig_zag_encode(v),
+//         super::zig_zag_encode(delta),
+//         count,
+//         dst,
+//     )
+// }
+pub fn decode_all<'a>(src: &[u8], dst: &'a mut Vec<i64>) -> Result<(), Box<Error>> {
     if src.len() == 0 {
         return Ok(());
     }
@@ -109,6 +171,7 @@ fn decode_all<'a>(src: &[u8], dst: &'a mut Vec<i64>) -> Result<(), Box<Error>> {
     }
 }
 
+/// decode_uncompressed writes the binary encoded values in src into dst.
 fn decode_uncompressed(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<Error>> {
     if src.len() == 0 || src.len() & 0x7 != 0 {
         return Err(From::from("invalid uncompressed block length"));
@@ -130,14 +193,41 @@ fn decode_uncompressed(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<Error>>
     Ok(())
 }
 
+/// decode_rle decodes an RLE encoded slice containing only unsigned into the
+/// destination vector.
 fn decode_rle(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<Error>> {
-    let mut res = vec![];
-    if let Err(e) = rle::decode_all(&src, &mut res) {
-        return Err(e);
+    if src.len() < 9 {
+        return Err(From::from("not enough data to decode using RLE"));
     }
-    // TODO(edd): fix this. It's copying, which is slowwwwwwwww.
-    for v in res.iter() {
-        dst.push(*v as i64);
+
+    // calculate the scaler from the lower 4 bits of the first byte.
+    let scaler = 10_u64.pow((src[0] & 0b00001111) as u32);
+    let mut i = 1;
+
+    // TODO(edd): this should be possible to do in-place without copy.
+    let mut a: [u8; 8] = [0; 8];
+    a.copy_from_slice(&src[i..i + 8]);
+    i += 8;
+    let (mut delta, n) = u64::decode_var(&src[i..]);
+    if n <= 0 {
+        return Err(From::from("unable to decode delta"));
+    }
+    i += n;
+    delta *= scaler;
+
+    let (count, n) = usize::decode_var(&src[i..]);
+    if n <= 0 {
+        return Err(From::from("unable to decode count"));
+    }
+
+    if dst.capacity() < count {
+        dst.reserve_exact(count - dst.capacity());
+    }
+
+    let mut first = i64::from_be_bytes(a);
+    for _ in 0..count {
+        dst.push(first);
+        first = first.wrapping_add(delta as i64);
     }
     Ok(())
 }
@@ -222,11 +312,19 @@ mod tests {
             },
             Test {
                 name: String::from("no delta negative"),
+                input: vec![-2398749823764923; 10000],
+            },
+            Test {
+                name: String::from("no delta negative"),
                 input: vec![-345632452354; 1000],
             },
             Test {
-                name: String::from("delta positive"),
+                name: String::from("delta positive 1"),
                 input: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            },
+            Test {
+                name: String::from("delta positive 2000"),
+                input: vec![100, 2100, 4100, 6100, 8100, 10100, 12100, 14100],
             },
             Test {
                 name: String::from("delta negative"),
