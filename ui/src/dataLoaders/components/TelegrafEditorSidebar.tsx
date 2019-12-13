@@ -9,10 +9,7 @@ import {
   TelegrafEditorPlugin,
   TelegrafEditorActivePlugin,
 } from 'src/dataLoaders/reducers/telegrafEditor'
-import {
-  setFilter,
-  setList,
-} from 'src/dataLoaders/actions/telegrafEditor'
+import {setFilter, setList} from 'src/dataLoaders/actions/telegrafEditor'
 import {
   Input,
   IconFont,
@@ -59,24 +56,24 @@ type TelegrafEditorSidebarProps = StateProps & DispatchProps & OwnProps
 
 class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
   render() {
-    const {
-      filter,
-      show,
-      onAdd,
-      onSetList,
-      onSetFilter,
-    } = this.props
-    const columnClassName = classnames('telegraf-editor--left-column', { 'telegraf-editor--column__collapsed': !show })
+    const {filter, show, onAdd, onSetList, onSetFilter} = this.props
+    const columnClassName = classnames('telegraf-editor--left-column', {
+      'telegraf-editor--column__collapsed': !show,
+    })
     const icon = show ? IconFont.EyeOpen : IconFont.EyeClosed
     const header = 'Browse & Add Plugins'
 
     return (
       <div className={columnClassName}>
         <div className="telegraf-editor--column-heading">
-          <span className="telegraf-editor--title">{ header }</span>
-          <SquareButton icon={icon} size={ComponentSize.ExtraSmall} onClick={ () => onSetList(!show) }/>
+          <span className="telegraf-editor--title">{header}</span>
+          <SquareButton
+            icon={icon}
+            size={ComponentSize.ExtraSmall}
+            onClick={() => onSetList(!show)}
+          />
         </div>
-        { show &&
+        {show && (
           <Input
             className="telegraf-editor--filter"
             size={ComponentSize.Small}
@@ -91,9 +88,11 @@ class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
             }}
             placeholder="Filter Plugins..."
           />
-        }
-        { show && <AllPluginList onClick={onAdd} /> }
-        { !show && <div className="telegraf-editor--title__collapsed">{ header }</div> }
+        )}
+        {show && <AllPluginList onClick={onAdd} />}
+        {!show && (
+          <div className="telegraf-editor--title__collapsed">{header}</div>
+        )}
       </div>
     )
   }

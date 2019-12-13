@@ -39,7 +39,9 @@ class TelegrafEditor extends PureComponent<Props> {
       <div className="telegraf-editor">
         <div className="telegraf-editor--heading">
           <Alert color={ComponentColor.Default}>
-            This tool will help create a configuration file for Telegraf, but you will have to download and run Telegraf externally to get data into your bucket.
+            This tool will help create a configuration file for Telegraf, but
+            you will have to download and run Telegraf externally to get data
+            into your bucket.
           </Alert>
         </div>
         <div className="telegraf-editor--body">

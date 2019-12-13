@@ -75,7 +75,10 @@ class PluginList extends PureComponent<PluginProps> {
     const list = groupPlugins(plugins, filter).map((k: ListPlugin) => {
       if (k.type === 'display') {
         return (
-          <div className="telegraf-plugins--item telegraf-plugins--divider" key={`_plugin_${k.type}.${k.name}`}>
+          <div
+            className="telegraf-plugins--item telegraf-plugins--divider"
+            key={`_plugin_${k.type}.${k.name}`}
+          >
             {k.name}s
           </div>
         )
@@ -85,7 +88,11 @@ class PluginList extends PureComponent<PluginProps> {
 
       // NOTE: written this way to bypass typescript: alex
       if (k['description']) {
-        description = <dd className="telegraf-plugins--item-description">{k['description']}</dd>
+        description = (
+          <dd className="telegraf-plugins--item-description">
+            {k['description']}
+          </dd>
+        )
       }
 
       return (
@@ -102,9 +109,7 @@ class PluginList extends PureComponent<PluginProps> {
 
     return (
       <DapperScrollbars autoHide={false} className="telegraf-plugins">
-        <dl className="telegraf-plugins--list">
-          {list}
-        </dl>
+        <dl className="telegraf-plugins--list">{list}</dl>
       </DapperScrollbars>
     )
   }
