@@ -1,4 +1,4 @@
-## v2.0.0-alpha.21 [unreleased]
+## v2.0.0-alpha.21 [2019-12-13]
 
 ### Features
 
