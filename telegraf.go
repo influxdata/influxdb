@@ -98,12 +98,12 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 	if tcd.Plugins != nil {
 		// legacy, remove after some moons. or a migration.
 		if len(*tcd.Plugins) > 0 {
-			bkt, conf, err := decodePluginRaw(tcd)
+			bkts, conf, err := decodePluginRaw(tcd)
 			if err != nil {
 				return err
 			}
 			tc.Config = plugins.AgentConfig + conf
-			tc.Metadata = map[string]interface{}{"buckets": []string{bkt}}
+			tc.Metadata = map[string]interface{}{"buckets": bkts}
 		} else if c, ok := plugins.GetPlugin("output", "influxdb_v2"); ok {
 			// Handles legacy adding of default plugins (agent and output).
 			tc.Config = plugins.AgentConfig + c.Config
@@ -111,7 +111,7 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 				"buckets": []string{},
 			}
 		}
-	} else if tcd.Metadata == nil {
+	} else if tcd.Metadata == nil || len(tcd.Metadata) == 0 {
 		// Get buckets from the config.
 		m, err := parseMetadata(tc.Config)
 		if err != nil {
@@ -153,11 +153,11 @@ func (t *buckets) UnmarshalTOML(data interface{}) error {
 			config, ok := configDataArray.([]map[string]interface{})
 			if !ok {
 				return &Error{
-					Msg: fmt.Sprintf("%T - cant thing, %+v", configDataArray, configDataArray),
+					Msg: "influxdb_v2 output has no config",
 				}
 			}
 			for i := range config {
-				if b, ok := config[i]["buckets"]; ok {
+				if b, ok := config[i]["bucket"]; ok {
 					bkts = append(bkts, b.(string))
 				}
 			}
@@ -165,6 +165,7 @@ func (t *buckets) UnmarshalTOML(data interface{}) error {
 	}
 
 	*t = buckets(bkts)
+
 	return nil
 }
 
@@ -178,17 +179,19 @@ func parseMetadata(cfg string) (map[string]interface{}, error) {
 	}
 
 	for _, i := range *this {
-		bs = append(bs, i)
+		if i != "" {
+			bs = append(bs, i)
+		}
 	}
 
 	return map[string]interface{}{"buckets": bs}, nil
 }
 
 // return bucket, config, error
-func decodePluginRaw(tcd *telegrafConfigDecode) (string, string, error) {
+func decodePluginRaw(tcd *telegrafConfigDecode) ([]string, string, error) {
 	op := "unmarshal telegraf config raw plugin"
 	ps := ""
-	bucket := ""
+	bucket := []string{}
 
 	for _, pr := range *tcd.Plugins {
 		var tpFn func() plugins.Config
@@ -200,7 +203,7 @@ func decodePluginRaw(tcd *telegrafConfigDecode) (string, string, error) {
 		case "output":
 			tpFn, ok = availableOutputPlugins[pr.Name]
 		default:
-			return "", "", &Error{
+			return nil, "", &Error{
 				Code: EInvalid,
 				Op:   op,
 				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginType, pr.Type),
@@ -208,7 +211,7 @@ func decodePluginRaw(tcd *telegrafConfigDecode) (string, string, error) {
 		}
 
 		if !ok {
-			return "", "", &Error{
+			return nil, "", &Error{
 				Code: EInvalid,
 				Op:   op,
 				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginName, pr.Name, pr.Type),
@@ -223,7 +226,7 @@ func decodePluginRaw(tcd *telegrafConfigDecode) (string, string, error) {
 		}
 
 		if err := json.Unmarshal(pr.Config, config); err != nil {
-			return "", "", &Error{
+			return nil, "", &Error{
 				Code: EInvalid,
 				Err:  err,
 				Op:   op,
@@ -231,7 +234,9 @@ func decodePluginRaw(tcd *telegrafConfigDecode) (string, string, error) {
 		}
 
 		if pr.Name == "influxdb_v2" {
-			bucket = config.(*outputs.InfluxDBV2).Bucket
+			if b := config.(*outputs.InfluxDBV2).Bucket; b != "" {
+				bucket = []string{b}
+			}
 		}
 
 		ps += config.TOML()
