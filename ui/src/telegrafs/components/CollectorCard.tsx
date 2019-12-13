@@ -24,7 +24,8 @@ import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
 // Types
 import {AppState, Organization} from 'src/types'
-import {ILabel, ITelegraf as Telegraf} from '@influxdata/influx'
+import {Telegraf} from 'src/client/generatedRoutes'
+import {ILabel} from '@influxdata/influx'
 
 interface OwnProps {
   collector: Telegraf
@@ -75,7 +76,7 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
         labels={this.labels}
         metaData={[
           <span key={`bucket-key--${collector.id}`} data-testid="bucket-name">
-            {/* todo(glinton): verify what sets this. It seems like it is using the 'config' section of 'influxdb_v2' output?? */}
+            {}
             Bucket: {collector.metadata.buckets.join(", ")}
           </span>,
           <>

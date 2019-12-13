@@ -9208,15 +9208,15 @@ components:
           type: string
         description:
           type: string
-        agent:
+        config:
+          type: string
+        metadata:
           type: object
           properties:
-            collectionInterval:
-              type: integer
-        plugins:
-          type: array
-          items:
-            $ref: "#/components/schemas/TelegrafRequestPlugin"
+            buckets:
+              type: array
+              items:
+                type: string
         orgID:
           type: string
     TelegrafRequestPlugin:

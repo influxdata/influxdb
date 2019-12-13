@@ -60,7 +60,7 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {CreateCell, ILabel} from '@influxdata/influx'
+import {CreateCell, Label} from 'src/client/generatedRoutes'
 import {
   Dashboard,
   NewView,
@@ -141,7 +141,7 @@ interface AddDashboardLabelsAction {
   type: ActionTypes.AddDashboardLabels
   payload: {
     dashboardID: string
-    labels: ILabel[]
+    labels: Label[]
   }
 }
 
@@ -149,7 +149,7 @@ interface RemoveDashboardLabelsAction {
   type: ActionTypes.RemoveDashboardLabels
   payload: {
     dashboardID: string
-    labels: ILabel[]
+    labels: Label[]
   }
 }
 
@@ -215,7 +215,7 @@ export const removeCell = (
 
 export const addDashboardLabels = (
   dashboardID: string,
-  labels: ILabel[]
+  labels: Label[]
 ): AddDashboardLabelsAction => ({
   type: ActionTypes.AddDashboardLabels,
   payload: {dashboardID, labels},
@@ -223,7 +223,7 @@ export const addDashboardLabels = (
 
 export const removeDashboardLabels = (
   dashboardID: string,
-  labels: ILabel[]
+  labels: Label[]
 ): RemoveDashboardLabelsAction => ({
   type: ActionTypes.RemoveDashboardLabels,
   payload: {dashboardID, labels},
@@ -527,7 +527,7 @@ export const copyDashboardCellAsync = (dashboard: Dashboard, cell: Cell) => (
 
 export const addDashboardLabelsAsync = (
   dashboardID: string,
-  labels: ILabel[]
+  labels: Label[]
 ) => async (dispatch: Dispatch<Action | PublishNotificationAction>) => {
   try {
     const newLabels = await client.dashboards.addLabels(
@@ -544,7 +544,7 @@ export const addDashboardLabelsAsync = (
 
 export const removeDashboardLabelsAsync = (
   dashboardID: string,
-  labels: ILabel[]
+  labels: Label[]
 ) => async (dispatch: Dispatch<Action | PublishNotificationAction>) => {
   try {
     await client.dashboards.removeLabels(dashboardID, labels.map(l => l.id))

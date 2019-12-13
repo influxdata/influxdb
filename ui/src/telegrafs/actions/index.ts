@@ -3,7 +3,8 @@ import {client} from 'src/utils/api'
 
 // Types
 import {RemoteDataState, GetState} from 'src/types'
-import {ITelegraf as Telegraf, ILabel as Label} from '@influxdata/influx'
+import {Telegraf} from 'src/client/generatedRoutes'
+import {ILabel as Label} from '@influxdata/influx'
 import {Dispatch, ThunkAction} from 'redux-thunk'
 
 // Actions

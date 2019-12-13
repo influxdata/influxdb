@@ -32,7 +32,8 @@ import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {ITelegraf as Telegraf} from '@influxdata/influx'
+import {Telegraf} from 'src/client/generatedRoutes' // from `import {ITelegraf as Telegraf} from '@influxdata/influx'`
+
 import {OverlayState, AppState, Bucket} from 'src/types'
 import {
   setDataLoadersType,
