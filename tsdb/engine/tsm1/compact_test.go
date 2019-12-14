@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -296,7 +297,8 @@ func TestCompactor_DecodeError(t *testing.T) {
 	compactor.Open()
 
 	files, err = compactor.CompactFull([]string{f1, f2, f3})
-	if err == nil || err.Error() != "decode error: unable to decompress block type float for key 'cpu,host=A#!~#value': unpackBlock: not enough data for timestamp" {
+	if err == nil ||
+		!strings.Contains(err.Error(), "decode error: unable to decompress block type float for key 'cpu,host=A#!~#value': unpackBlock: not enough data for timestamp") {
 		t.Fatalf("expected error writing snapshot: %v", err)
 	}
 }
