@@ -2715,8 +2715,8 @@ spec:
 						URL:        "https://www.example.com/endpoint/basicauth",
 						AuthMethod: "basic",
 						Method:     "POST",
-						Username:   influxdb.SecretField{Key: "-username", Value: strPtr("secret username")},
-						Password:   influxdb.SecretField{Key: "-password", Value: strPtr("secret password")},
+						Username:   influxdb.SecretField{Value: strPtr("secret username")},
+						Password:   influxdb.SecretField{Value: strPtr("secret password")},
 					},
 				},
 				{
@@ -2729,7 +2729,7 @@ spec:
 						URL:        "https://www.example.com/endpoint/bearerauth",
 						AuthMethod: "bearer",
 						Method:     "PUT",
-						Token:      influxdb.SecretField{Key: "-token", Value: strPtr("secret token")},
+						Token:      influxdb.SecretField{Value: strPtr("secret token")},
 					},
 				},
 				{
@@ -2752,7 +2752,7 @@ spec:
 							Status:      influxdb.TaskStatusActive,
 						},
 						ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
-						RoutingKey: influxdb.SecretField{Key: "-routing-key", Value: strPtr("secret routing-key")},
+						RoutingKey: influxdb.SecretField{Value: strPtr("secret routing-key")},
 					},
 				},
 				{
@@ -2763,7 +2763,7 @@ spec:
 							Status:      influxdb.TaskStatusActive,
 						},
 						URL:   "https://hooks.slack.com/services/bip/piddy/boppidy",
-						Token: influxdb.SecretField{Key: "-token", Value: strPtr("tokenval")},
+						Token: influxdb.SecretField{Value: strPtr("tokenval")},
 					},
 				},
 			}
@@ -3363,6 +3363,32 @@ spec:
 				expected.ResourceType = influxdb.VariablesResourceType
 				assert.Equal(t, expected, sum.LabelMappings[i])
 			}
+		})
+	})
+
+	t.Run("referencing secrets", func(t *testing.T) {
+		testfileRunner(t, "testdata/notification_endpoint_secrets.yml", func(t *testing.T, pkg *Pkg) {
+			sum := pkg.Summary()
+
+			endpoints := sum.NotificationEndpoints
+			require.Len(t, endpoints, 1)
+
+			expected := &endpoint.PagerDuty{
+				Base: endpoint.Base{
+					Name:   "pager_duty_notification_endpoint",
+					Status: influxdb.TaskStatusActive,
+				},
+				ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
+				RoutingKey: influxdb.SecretField{Key: "-routing-key", Value: strPtr("not emtpy")},
+			}
+			actual, ok := endpoints[0].NotificationEndpoint.(*endpoint.PagerDuty)
+			require.True(t, ok)
+			assert.Equal(t, expected.Base.Name, actual.Name)
+			require.Nil(t, actual.RoutingKey.Value)
+			assert.Equal(t, "routing-key", actual.RoutingKey.Key)
+
+			_, ok = pkg.mSecrets["routing-key"]
+			require.True(t, ok)
 		})
 	})
 }

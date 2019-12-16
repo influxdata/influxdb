@@ -573,6 +573,7 @@ type SummaryVariable struct {
 const (
 	fieldAssociations = "associations"
 	fieldDescription  = "description"
+	fieldKey          = "key"
 	fieldKind         = "kind"
 	fieldLanguage     = "language"
 	fieldName         = "name"
@@ -911,13 +912,13 @@ type notificationEndpoint struct {
 	name        string
 	description string
 	method      string
-	password    string
-	routingKey  string
+	password    references
+	routingKey  references
 	status      string
-	token       string
+	token       references
 	httpType    string
 	url         string
-	username    string
+	username    references
 
 	labels sortedLabels
 
@@ -979,34 +980,30 @@ func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 			Method: n.method,
 		}
 		switch n.httpType {
-		case notificationHTTPAuthTypeNone:
-			e.AuthMethod = notificationHTTPAuthTypeNone
+		case notificationHTTPAuthTypeBasic:
+			e.AuthMethod = notificationHTTPAuthTypeBasic
+			e.Password = n.password.SecretField()
+			e.Username = n.username.SecretField()
 		case notificationHTTPAuthTypeBearer:
 			e.AuthMethod = notificationHTTPAuthTypeBearer
-			e.Token = influxdb.SecretField{Value: &n.token}
-		default:
-			e.AuthMethod = notificationHTTPAuthTypeBasic
-			e.Password = influxdb.SecretField{Value: &n.password}
-			e.Username = influxdb.SecretField{Value: &n.username}
+			e.Token = n.token.SecretField()
+		case notificationHTTPAuthTypeNone:
+			e.AuthMethod = notificationHTTPAuthTypeNone
 		}
 		sum.NotificationEndpoint = e
 	case notificationKindPagerDuty:
 		sum.NotificationEndpoint = &endpoint.PagerDuty{
 			Base:       base,
 			ClientURL:  n.url,
-			RoutingKey: influxdb.SecretField{Value: &n.routingKey},
+			RoutingKey: n.routingKey.SecretField(),
 		}
 	case notificationKindSlack:
-		e := &endpoint.Slack{
-			Base: base,
-			URL:  n.url,
+		sum.NotificationEndpoint = &endpoint.Slack{
+			Base:  base,
+			URL:   n.url,
+			Token: n.token.SecretField(),
 		}
-		if n.token != "" {
-			e.Token = influxdb.SecretField{Value: &n.token}
-		}
-		sum.NotificationEndpoint = e
 	}
-	sum.NotificationEndpoint.BackfillSecretKeys()
 	return sum
 }
 
@@ -1038,7 +1035,7 @@ func (n *notificationEndpoint) valid() []validationErr {
 
 	switch n.kind {
 	case notificationKindPagerDuty:
-		if n.routingKey == "" {
+		if !n.routingKey.hasValue() {
 			failures = append(failures, validationErr{
 				Field: fieldNotificationEndpointRoutingKey,
 				Msg:   "must be provide",
@@ -1054,20 +1051,20 @@ func (n *notificationEndpoint) valid() []validationErr {
 
 		switch n.httpType {
 		case notificationHTTPAuthTypeBasic:
-			if n.password == "" {
+			if !n.password.hasValue() {
 				failures = append(failures, validationErr{
 					Field: fieldNotificationEndpointPassword,
 					Msg:   "must provide non empty string",
 				})
 			}
-			if n.username == "" {
+			if !n.username.hasValue() {
 				failures = append(failures, validationErr{
 					Field: fieldNotificationEndpointUsername,
 					Msg:   "must provide non empty string",
 				})
 			}
 		case notificationHTTPAuthTypeBearer:
-			if n.token == "" {
+			if !n.token.hasValue() {
 				failures = append(failures, validationErr{
 					Field: fieldNotificationEndpointToken,
 					Msg:   "must provide non empty string",
@@ -1831,6 +1828,37 @@ func (l legend) influxLegend() influxdb.Legend {
 		Type:        l.Type,
 		Orientation: l.Orientation,
 	}
+}
+
+const (
+	fieldReferencesSecret = "secretRef"
+)
+
+type references struct {
+	val    interface{}
+	Secret string `json:"secretRef"`
+}
+
+func (r references) hasValue() bool {
+	return r.Secret != "" || r.val != nil
+}
+
+func (r references) String() string {
+	if r.val != nil {
+		s, _ := r.val.(string)
+		return s
+	}
+	return ""
+}
+
+func (r references) SecretField() influxdb.SecretField {
+	if secret := r.Secret; secret != "" {
+		return influxdb.SecretField{Key: secret}
+	}
+	if str := r.String(); str != "" {
+		return influxdb.SecretField{Value: &str}
+	}
+	return influxdb.SecretField{}
 }
 
 func flt64Ptr(f float64) *float64 {

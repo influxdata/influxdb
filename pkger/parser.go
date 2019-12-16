@@ -140,6 +140,8 @@ type Pkg struct {
 	mTelegrafs             []*telegraf
 	mVariables             map[string]*variable
 
+	mSecrets map[string]struct{}
+
 	isVerified bool // dry run has verified pkg resources with existing resources
 	isParsed   bool // indicates the pkg has been parsed and all resources graphed accordingly
 }
@@ -273,6 +275,15 @@ func (p *Pkg) notificationEndpoints() []*notificationEndpoint {
 	return endpoints
 }
 
+func (p *Pkg) secrets() map[string]bool {
+	// copies the secrets map so we can destroy this one without concern
+	secrets := make(map[string]bool, len(p.mSecrets))
+	for secret := range p.mSecrets {
+		secrets[secret] = true
+	}
+	return secrets
+}
+
 func (p *Pkg) telegrafs() []*telegraf {
 	teles := p.mTelegrafs[:]
 	sort.Slice(teles, func(i, j int) bool { return teles[i].Name() < teles[j].Name() })
@@ -389,6 +400,8 @@ func (p *Pkg) validResources() error {
 }
 
 func (p *Pkg) graphResources() error {
+	p.mSecrets = make(map[string]struct{})
+
 	graphFns := []func() *parseErr{
 		// labels are first, this is to validate associations with other resources
 		p.graphLabels,
@@ -545,12 +558,12 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 				description: r.stringShort(fieldDescription),
 				method:      strings.TrimSpace(strings.ToUpper(r.stringShort(fieldNotificationEndpointHTTPMethod))),
 				httpType:    normStr(r.stringShort(fieldType)),
-				password:    r.stringShort(fieldNotificationEndpointPassword),
-				routingKey:  r.stringShort(fieldNotificationEndpointRoutingKey),
+				password:    r.references(fieldNotificationEndpointPassword),
+				routingKey:  r.references(fieldNotificationEndpointRoutingKey),
 				status:      normStr(r.stringShort(fieldStatus)),
-				token:       r.stringShort(fieldNotificationEndpointToken),
+				token:       r.references(fieldNotificationEndpointToken),
 				url:         r.stringShort(fieldNotificationEndpointURL),
-				username:    r.stringShort(fieldNotificationEndpointUsername),
+				username:    r.references(fieldNotificationEndpointUsername),
 			}
 			failures := p.parseNestedLabels(r, func(l *label) error {
 				endpoint.labels = append(endpoint.labels, l)
@@ -558,6 +571,13 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 				return nil
 			})
 			sort.Sort(endpoint.labels)
+
+			refs := []references{endpoint.password, endpoint.routingKey, endpoint.token, endpoint.username}
+			for _, ref := range refs {
+				if secret := ref.Secret; secret != "" {
+					p.mSecrets[secret] = struct{}{}
+				}
+			}
 
 			p.mNotificationEndpoints[endpoint.Name()] = endpoint
 			return append(failures, endpoint.valid()...)
@@ -936,6 +956,29 @@ func (r Resource) int(key string) (int, bool) {
 func (r Resource) intShort(key string) int {
 	i, _ := r.int(key)
 	return i
+}
+
+func (r Resource) references(key string) references {
+	v, ok := r[key]
+	if !ok {
+		return references{}
+	}
+
+	var ref references
+	for _, f := range []string{fieldReferencesSecret} {
+		resBody, ok := ifaceToResource(v)
+		if !ok {
+			continue
+		}
+		if keyRes, ok := ifaceToResource(resBody[f]); ok {
+			ref.Secret = keyRes.stringShort(fieldKey)
+		}
+	}
+	if ref.Secret != "" {
+		return ref
+	}
+
+	return references{val: v}
 }
 
 func (r Resource) string(key string) (string, bool) {
