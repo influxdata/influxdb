@@ -1,5 +1,8 @@
+// Libraries
 import React, {PureComponent} from 'react'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+
+// Components
+import {DapperScrollbars} from '@influxdata/clockface'
 import {
   TelegrafEditorPluginState,
   TelegrafEditorActivePluginState,
@@ -47,7 +50,7 @@ function groupPlugins(plugins: Array<ListPlugin>, pluginFilter: string) {
     .reduce((prev, curr) => {
       prev.push({
         type: 'display',
-        name: '-- ' + curr.category + ' --',
+        name: curr.category,
       })
 
       const items = curr.items.slice(0).sort((a: ListPlugin, b: ListPlugin) => {
@@ -72,8 +75,11 @@ class PluginList extends PureComponent<PluginProps> {
     const list = groupPlugins(plugins, filter).map((k: ListPlugin) => {
       if (k.type === 'display') {
         return (
-          <div className={k.type} key={`_plugin_${k.type}.${k.name}`}>
-            {k.name}
+          <div
+            className="telegraf-plugins--item telegraf-plugins--divider"
+            key={`_plugin_${k.type}.${k.name}`}
+          >
+            {k.name}s
           </div>
         )
       }
@@ -82,25 +88,29 @@ class PluginList extends PureComponent<PluginProps> {
 
       // NOTE: written this way to bypass typescript: alex
       if (k['description']) {
-        description = <label>{k['description']}</label>
+        description = (
+          <dd className="telegraf-plugins--item-description">
+            {k['description']}
+          </dd>
+        )
       }
 
       return (
         <div
-          className={k.type}
+          className="telegraf-plugins--item telegraf-plugins--plugin"
           key={`_plugin_${k.type}.${k.name}`}
           onClick={() => onClick(k)}
         >
-          {k.name}
+          <dt className="telegraf-plugins--item-name">{k.name}</dt>
           {description}
         </div>
       )
     })
 
     return (
-      <FancyScrollbar autoHide={false} className="telegraf-editor--plugins">
-        {list}
-      </FancyScrollbar>
+      <DapperScrollbars autoHide={false} className="telegraf-plugins">
+        <dl className="telegraf-plugins--list">{list}</dl>
+      </DapperScrollbars>
     )
   }
 }
