@@ -410,7 +410,8 @@ func (h *NotificationEndpointHandler) handlePostNotificationEndpoint(w http.Resp
 		return
 	}
 
-	if err := h.NotificationEndpointService.CreateNotificationEndpoint(ctx, edp.NotificationEndpoint, auth.GetUserID()); err != nil {
+	err = h.NotificationEndpointService.CreateNotificationEndpoint(ctx, edp.NotificationEndpoint, auth.GetUserID())
+	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}

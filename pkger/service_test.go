@@ -35,6 +35,7 @@ func TestService(t *testing.T) {
 			WithDashboardSVC(opt.dashSVC),
 			WithLabelSVC(opt.labelSVC),
 			WithNoticationEndpointSVC(opt.endpointSVC),
+			WithSecretSVC(opt.secretSVC),
 			WithTelegrafSVC(opt.teleSVC),
 			WithVariableSVC(opt.varSVC),
 		)
@@ -237,6 +238,19 @@ func TestService(t *testing.T) {
 					},
 				}
 				assert.Equal(t, expected, existingEndpoints[0])
+			})
+		})
+
+		t.Run("secrets not found returns error", func(t *testing.T) {
+			testfileRunner(t, "testdata/notification_endpoint_secrets.yml", func(t *testing.T, pkg *Pkg) {
+				fakeSecretSVC := mock.NewSecretService()
+				fakeSecretSVC.GetSecretKeysFn = func(ctx context.Context, orgID influxdb.ID) ([]string, error) {
+					return []string{"rando-1", "rando-2"}, nil
+				}
+				svc := newTestService(WithSecretSVC(fakeSecretSVC))
+
+				_, _, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+				require.Error(t, err)
 			})
 		})
 
