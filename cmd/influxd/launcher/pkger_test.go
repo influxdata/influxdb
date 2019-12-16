@@ -286,7 +286,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointPagerDuty
+    - kind: Notification_Endpoint_Pager_Duty
       name: pager_duty_notification_endpoint
       url:  http://localhost:8080/orgs/7167eb6719fa34e5/alert-history
       routingKey: secret-sauce
@@ -310,7 +310,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointPagerDuty
+    - kind: Notification_Endpoint_Pager_Duty
       name: pager_duty_notification_endpoint
       url:  http://localhost:8080/orgs/7167eb6719fa34e5/alert-history
       routingKey:
@@ -341,6 +341,10 @@ spec:
 				{
 					Kind: pkger.KindLabel,
 					ID:   influxdb.ID(labels[0].ID),
+				},
+				{
+					Kind: pkger.KindNotificationEndpoint,
+					ID:   endpoints[0].NotificationEndpoint.GetID(),
 				},
 				{
 					Kind: pkger.KindTelegraf,
@@ -392,9 +396,16 @@ spec:
 			require.Len(t, dashs[0].Charts, 1)
 			assert.Equal(t, influxdb.ViewPropertyTypeSingleStat, dashs[0].Charts[0].Properties.GetType())
 
+			newEndpoints := newSum.NotificationEndpoints
+			require.Len(t, newEndpoints, 1)
+			assert.Equal(t, endpoints[0].NotificationEndpoint.GetName(), newEndpoints[0].NotificationEndpoint.GetName())
+			assert.Equal(t, endpoints[0].NotificationEndpoint.GetDescription(), newEndpoints[0].NotificationEndpoint.GetDescription())
+			hasLabelAssociations(t, newEndpoints[0].LabelAssociations, 1, "label_1")
+
 			require.Len(t, newSum.TelegrafConfigs, 1)
 			assert.Equal(t, teles[0].TelegrafConfig.Name, newSum.TelegrafConfigs[0].TelegrafConfig.Name)
 			assert.Equal(t, teles[0].TelegrafConfig.Description, newSum.TelegrafConfigs[0].TelegrafConfig.Description)
+			hasLabelAssociations(t, newSum.TelegrafConfigs[0].LabelAssociations, 1, "label_1")
 
 			vars := newSum.Variables
 			require.Len(t, vars, 1)
@@ -528,7 +539,7 @@ spec:
           bucket = "rucket_3"
         [[inputs.cpu]]
           percpu = true
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: http_none_auth_notification_endpoint
       type: none
       description: http none auth desc
@@ -567,7 +578,7 @@ spec:
       associations:
         - kind: Label
           name: label_1
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: http_none_auth_notification_endpoint
       type: none
       description: new desc

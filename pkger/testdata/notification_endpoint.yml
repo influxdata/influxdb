@@ -8,7 +8,7 @@ spec:
   resources:
     - kind: Label
       name: label_1
-    - kind: NotificationEndpointSlack
+    - kind: Notification_Endpoint_Slack
       name: slack_notification_endpoint
       description: slack desc
       url: https://hooks.slack.com/services/bip/piddy/boppidy
@@ -17,7 +17,7 @@ spec:
       associations:
         - kind: Label
           name: label_1
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: http_none_auth_notification_endpoint
       type: none
       description: http none auth desc
@@ -27,7 +27,7 @@ spec:
       associations:
         - kind: Label
           name: label_1
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: http_basic_auth_notification_endpoint
       description: http basic auth desc
       type: basic
@@ -39,7 +39,7 @@ spec:
       associations:
         - kind: Label
           name: label_1
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: http_bearer_auth_notification_endpoint
       description: http bearer auth desc
       type: bearer
@@ -49,7 +49,7 @@ spec:
       associations:
         - kind: Label
           name: label_1
-    - kind: NotificationEndpointPagerDuty
+    - kind: Notification_Endpoint_Pager_Duty
       name: pager_duty_notification_endpoint
       description: pager duty desc
       url:  http://localhost:8080/orgs/7167eb6719fa34e5/alert-history

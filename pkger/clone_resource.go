@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/notification/endpoint"
 )
 
 // ResourceToClone is a resource that will be cloned.
@@ -301,6 +302,46 @@ func labelToResource(l influxdb.Label, name string) Resource {
 	return r
 }
 
+func endpointToResource(e influxdb.NotificationEndpoint, name string) Resource {
+	if name == "" {
+		name = e.GetName()
+	}
+	r := Resource{
+		fieldName: name,
+	}
+	assignNonZeroStrings(r, map[string]string{
+		fieldDescription: e.GetDescription(),
+		fieldStatus:      string(e.GetStatus()),
+	})
+
+	switch actual := e.(type) {
+	case *endpoint.HTTP:
+		r[fieldKind] = KindNotificationEndpointHTTP.title()
+		r[fieldNotificationEndpointHTTPMethod] = actual.Method
+		r[fieldNotificationEndpointURL] = actual.URL
+		r[fieldType] = actual.AuthMethod
+		assignNonZeroSecrets(r, map[string]influxdb.SecretField{
+			fieldNotificationEndpointPassword: actual.Password,
+			fieldNotificationEndpointToken:    actual.Token,
+			fieldNotificationEndpointUsername: actual.Username,
+		})
+	case *endpoint.PagerDuty:
+		r[fieldKind] = KindNotificationEndpointPagerDuty.title()
+		r[fieldNotificationEndpointURL] = actual.ClientURL
+		assignNonZeroSecrets(r, map[string]influxdb.SecretField{
+			fieldNotificationEndpointRoutingKey: actual.RoutingKey,
+		})
+	case *endpoint.Slack:
+		r[fieldKind] = KindNotificationEndpointSlack.title()
+		r[fieldNotificationEndpointURL] = actual.URL
+		assignNonZeroSecrets(r, map[string]influxdb.SecretField{
+			fieldNotificationEndpointToken: actual.Token,
+		})
+	}
+
+	return r
+}
+
 func telegrafToResource(t influxdb.TelegrafConfig, name string) Resource {
 	if name == "" {
 		name = t.Name
@@ -375,6 +416,19 @@ func assignNonZeroStrings(r Resource, m map[string]string) {
 	for k, v := range m {
 		if v != "" {
 			r[k] = v
+		}
+	}
+}
+
+func assignNonZeroSecrets(r Resource, m map[string]influxdb.SecretField) {
+	for field, secret := range m {
+		if secret.Key == "" {
+			continue
+		}
+		r[field] = Resource{
+			fieldReferencesSecret: Resource{
+				fieldKey: secret.Key,
+			},
 		}
 	}
 }
