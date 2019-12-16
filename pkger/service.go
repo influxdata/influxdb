@@ -275,8 +275,12 @@ func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID) ([]R
 			cloneFn: s.cloneOrgLabels,
 		},
 		{
+			resType: KindNotificationEndpoint.ResourceType(),
+			cloneFn: s.cloneOrgNotificationEndpoints,
+		},
+		{
 			resType: KindTelegraf.ResourceType(),
-			cloneFn: s.cloneTelegrafs,
+			cloneFn: s.cloneOrgTelegrafs,
 		},
 		{
 			resType: KindVariable.ResourceType(),
@@ -353,11 +357,30 @@ func (s *Service) cloneOrgLabels(ctx context.Context, orgID influxdb.ID) ([]Reso
 	return resources, nil
 }
 
-func (s *Service) cloneTelegrafs(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+func (s *Service) cloneOrgNotificationEndpoints(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	endpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
+		OrgID: &orgID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resources := make([]ResourceToClone, 0, len(endpoints))
+	for _, e := range endpoints {
+		resources = append(resources, ResourceToClone{
+			Kind: KindNotificationEndpoint,
+			ID:   e.GetID(),
+		})
+	}
+	return resources, nil
+}
+
+func (s *Service) cloneOrgTelegrafs(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
 	teles, _, err := s.teleSVC.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{OrgID: &orgID})
 	if err != nil {
 		return nil, err
 	}
+
 	resources := make([]ResourceToClone, 0, len(teles))
 	for _, t := range teles {
 		resources = append(resources, ResourceToClone{
@@ -413,6 +436,15 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 			return nil, err
 		}
 		newResource = labelToResource(*l, r.Name)
+	case r.Kind.is(KindNotificationEndpoint),
+		r.Kind.is(KindNotificationEndpointHTTP),
+		r.Kind.is(KindNotificationEndpointPagerDuty),
+		r.Kind.is(KindNotificationEndpointSlack):
+		e, err := s.endpointSVC.FindNotificationEndpointByID(ctx, r.ID)
+		if err != nil {
+			return nil, err
+		}
+		newResource = endpointToResource(e, r.Name)
 	case r.Kind.is(KindTelegraf):
 		t, err := s.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
 		if err != nil {

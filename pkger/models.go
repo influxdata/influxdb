@@ -20,10 +20,10 @@ const (
 	KindBucket                        Kind = "bucket"
 	KindDashboard                     Kind = "dashboard"
 	KindLabel                         Kind = "label"
-	KindNotificationEndpoint          Kind = "notificationendpoint"
-	KindNotificationEndpointPagerDuty Kind = "notificationendpointpagerduty"
-	KindNotificationEndpointHTTP      Kind = "notificationendpointhttp"
-	KindNotificationEndpointSlack     Kind = "notificationendpointslack"
+	KindNotificationEndpoint          Kind = "notification_endpoint"
+	KindNotificationEndpointPagerDuty Kind = "notification_endpoint_pager_duty"
+	KindNotificationEndpointHTTP      Kind = "notification_endpoint_http"
+	KindNotificationEndpointSlack     Kind = "notification_endpoint_slack"
 	KindPackage                       Kind = "package"
 	KindTelegraf                      Kind = "telegraf"
 	KindVariable                      Kind = "variable"
@@ -33,6 +33,7 @@ var kinds = map[Kind]bool{
 	KindBucket:                        true,
 	KindDashboard:                     true,
 	KindLabel:                         true,
+	KindNotificationEndpoint:          true,
 	KindNotificationEndpointHTTP:      true,
 	KindNotificationEndpointPagerDuty: true,
 	KindNotificationEndpointSlack:     true,

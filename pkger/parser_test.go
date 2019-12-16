@@ -2807,7 +2807,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointSlack
+    - kind: Notification_Endpoint_Slack
       name: name1
 `,
 					},
@@ -2826,7 +2826,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointPagerDuty
+    - kind: Notification_Endpoint_Pager_Duty
       name: name1
 `,
 					},
@@ -2845,7 +2845,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       method: GET
 `,
@@ -2865,7 +2865,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: none
       method: POST
@@ -2887,7 +2887,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: none
       url: http://example.com
@@ -2908,7 +2908,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: none
       method: GUT
@@ -2930,7 +2930,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: basic
       url: example.com
@@ -2953,7 +2953,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: basic
       method: POST
@@ -2976,7 +2976,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: basic
       method: POST
@@ -2998,7 +2998,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: bearer
       method: GET
@@ -3020,7 +3020,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: threeve
       method: GET
@@ -3042,10 +3042,10 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointSlack
+    - kind: Notification_Endpoint_Slack
       name: dupe
       url: example.com
-    - kind: NotificationEndpointSlack
+    - kind: Notification_Endpoint_Slack
       name: dupe
       url: example.com
 `,
@@ -3065,7 +3065,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointSlack
+    - kind: Notification_Endpoint_Slack
       name: dupe
       url: example.com
       status: rando bad status

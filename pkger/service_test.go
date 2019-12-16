@@ -1399,6 +1399,133 @@ func TestService(t *testing.T) {
 				}
 			})
 
+			t.Run("notification endpoints", func(t *testing.T) {
+				tests := []struct {
+					name     string
+					newName  string
+					expected influxdb.NotificationEndpoint
+				}{
+					{
+						name: "pager duty",
+						expected: &endpoint.PagerDuty{
+							Base: endpoint.Base{
+								Name:        "pd-endpoint",
+								Description: "desc",
+								Status:      influxdb.TaskStatusActive,
+							},
+							ClientURL:  "http://example.com",
+							RoutingKey: influxdb.SecretField{Key: "-routing-key"},
+						},
+					},
+					{
+						name:    "pager duty with new name",
+						newName: "new name",
+						expected: &endpoint.PagerDuty{
+							Base: endpoint.Base{
+								Name:        "pd-endpoint",
+								Description: "desc",
+								Status:      influxdb.TaskStatusActive,
+							},
+							ClientURL:  "http://example.com",
+							RoutingKey: influxdb.SecretField{Key: "-routing-key"},
+						},
+					},
+					{
+						name: "slack",
+						expected: &endpoint.Slack{
+							Base: endpoint.Base{
+								Name:        "pd-endpoint",
+								Description: "desc",
+								Status:      influxdb.TaskStatusInactive,
+							},
+							URL:   "http://example.com",
+							Token: influxdb.SecretField{Key: "tokne"},
+						},
+					},
+					{
+						name: "http basic",
+						expected: &endpoint.HTTP{
+							Base: endpoint.Base{
+								Name:        "pd-endpoint",
+								Description: "desc",
+								Status:      influxdb.TaskStatusInactive,
+							},
+							AuthMethod: "basic",
+							Method:     "POST",
+							URL:        "http://example.com",
+							Password:   influxdb.SecretField{Key: "password"},
+							Username:   influxdb.SecretField{Key: "username"},
+						},
+					},
+					{
+						name: "http bearer",
+						expected: &endpoint.HTTP{
+							Base: endpoint.Base{
+								Name:        "pd-endpoint",
+								Description: "desc",
+								Status:      influxdb.TaskStatusInactive,
+							},
+							AuthMethod: "bearer",
+							Method:     "GET",
+							URL:        "http://example.com",
+							Token:      influxdb.SecretField{Key: "token"},
+						},
+					},
+					{
+						name: "http none",
+						expected: &endpoint.HTTP{
+							Base: endpoint.Base{
+								Name:        "pd-endpoint",
+								Description: "desc",
+								Status:      influxdb.TaskStatusInactive,
+							},
+							AuthMethod: "none",
+							Method:     "GET",
+							URL:        "http://example.com",
+						},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						id := influxdb.ID(1)
+						tt.expected.SetID(id)
+
+						endpointSVC := mock.NewNotificationEndpointService()
+						endpointSVC.FindNotificationEndpointByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+							if id != tt.expected.GetID() {
+								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+							}
+							return tt.expected, nil
+						}
+
+						svc := newTestService(WithNoticationEndpointSVC(endpointSVC))
+
+						resToClone := ResourceToClone{
+							Kind: KindNotificationEndpoint,
+							ID:   tt.expected.GetID(),
+							Name: tt.newName,
+						}
+						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+						require.NoError(t, err)
+
+						endpoints := pkg.Summary().NotificationEndpoints
+						require.Len(t, endpoints, 1)
+
+						actual := endpoints[0].NotificationEndpoint
+						expectedName := tt.expected.GetName()
+						if tt.newName != "" {
+							expectedName = tt.newName
+						}
+						assert.Equal(t, expectedName, actual.GetName())
+						assert.Equal(t, tt.expected.GetDescription(), actual.GetDescription())
+						assert.Equal(t, tt.expected.GetStatus(), actual.GetStatus())
+						assert.Equal(t, tt.expected.SecretFields(), actual.SecretFields())
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+
 			t.Run("variable", func(t *testing.T) {
 				tests := []struct {
 					name        string
@@ -1653,6 +1780,28 @@ func TestService(t *testing.T) {
 				}, nil
 			}
 
+			endpointSVC := mock.NewNotificationEndpointService()
+			endpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+				id := influxdb.ID(2)
+				endpoints := []influxdb.NotificationEndpoint{
+					&endpoint.HTTP{Base: endpoint.Base{ID: &id}},
+				}
+				return endpoints, len(endpoints), nil
+			}
+			endpointSVC.FindNotificationEndpointByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+				return &endpoint.HTTP{
+					Base: endpoint.Base{
+						ID:   &id,
+						Name: "http",
+					},
+					URL:        "http://example.com",
+					Username:   influxdb.SecretField{Key: id.String() + "-username"},
+					Password:   influxdb.SecretField{Key: id.String() + "-password"},
+					AuthMethod: "basic",
+					Method:     "POST",
+				}, nil
+			}
+
 			labelSVC := mock.NewLabelService()
 			labelSVC.FindLabelsFn = func(_ context.Context, f influxdb.LabelFilter) ([]*influxdb.Label, error) {
 				if f.OrgID == nil || *f.OrgID != orgID {
@@ -1685,25 +1834,31 @@ func TestService(t *testing.T) {
 				WithBucketSVC(bktSVC),
 				WithDashboardSVC(dashSVC),
 				WithLabelSVC(labelSVC),
+				WithNoticationEndpointSVC(endpointSVC),
 				WithVariableSVC(varSVC),
 			)
 
 			pkg, err := svc.CreatePkg(context.TODO(), CreateWithAllOrgResources(orgID))
 			require.NoError(t, err)
 
-			bkts := pkg.Summary().Buckets
+			summary := pkg.Summary()
+			bkts := summary.Buckets
 			require.Len(t, bkts, 1)
 			assert.Equal(t, "bucket", bkts[0].Name)
 
-			dashs := pkg.Summary().Dashboards
+			dashs := summary.Dashboards
 			require.Len(t, dashs, 1)
 			assert.Equal(t, "dashboard", dashs[0].Name)
 
-			labels := pkg.Summary().Labels
+			labels := summary.Labels
 			require.Len(t, labels, 1)
 			assert.Equal(t, "label", labels[0].Name)
 
-			vars := pkg.Summary().Variables
+			endpoints := summary.NotificationEndpoints
+			require.Len(t, endpoints, 1)
+			assert.Equal(t, "http", endpoints[0].NotificationEndpoint.GetName())
+
+			vars := summary.Variables
 			require.Len(t, vars, 1)
 			assert.Equal(t, "variable", vars[0].Name)
 		})
