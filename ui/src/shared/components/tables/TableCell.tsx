@@ -33,7 +33,23 @@ interface Props extends CellRendererProps {
 
 class TableCell extends PureComponent<Props> {
   public render() {
-    const {rowIndex, columnIndex, onHover} = this.props
+    const {data, rowIndex, columnIndex, onHover} = this.props
+    if (rowIndex === 0) {
+      return (
+        <div
+          style={this.style}
+          className={this.class}
+          onClick={this.handleClick}
+          data-column-index={columnIndex}
+          data-row-index={rowIndex}
+          data-testID={`${data}-table-header`}
+          onMouseOver={onHover}
+          title={this.contents}
+        >
+          {this.contents}
+        </div>
+      )
+    }
     return (
       <div
         style={this.style}

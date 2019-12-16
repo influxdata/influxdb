@@ -40,12 +40,13 @@ class TableGraph extends PureComponent<Props, State> {
 
   public render() {
     const {table, properties, timeZone} = this.props
+    const {sortOptions} = this.state
     return (
       <TableGraphTransform
         data={table.data}
         properties={properties}
         dataTypes={table.dataTypes}
-        sortOptions={this.sortOptions}
+        sortOptions={sortOptions}
       >
         {transformedDataBundle => (
           <TableGraphTable
@@ -72,25 +73,6 @@ class TableGraph extends PureComponent<Props, State> {
       }
       return {sortOptions: newSortOptions}
     })
-  }
-
-  private get sortOptions(): SortOptions {
-    const {sortOptions} = this.state
-    const {table} = this.props
-    const headerSet = new Set(table.data[0])
-
-    if (headerSet.has(sortOptions.field)) {
-      return sortOptions
-    } else if (headerSet.has('_time')) {
-      return {...sortOptions, field: '_time'}
-    } else if (headerSet.has('_start')) {
-      return {...sortOptions, field: '_start'}
-    } else if (headerSet.has('_stop')) {
-      return {...sortOptions, field: '_stop'}
-    } else {
-      const headers = table.data[0]
-      return {...sortOptions, field: headers[0]}
-    }
   }
 }
 
