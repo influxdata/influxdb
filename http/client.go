@@ -65,8 +65,8 @@ func NewService(addr, token string) (*Service, error) {
 			Token: token,
 		},
 		BackupService: &BackupService{
-			Addr:addr,
-			Token:token,
+			Addr:  addr,
+			Token: token,
 		},
 		BucketService:       &BucketService{Client: httpClient},
 		DashboardService:    &DashboardService{Client: httpClient},
