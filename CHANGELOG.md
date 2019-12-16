@@ -4,6 +4,8 @@
 
 ### Bug Fixes
 
+1. [16235](https://github.com/influxdata/influxdb/pull/16235): Removed default frontend sorting when flux queries specify sorting
+
 ### UI Improvements
 
 ## v2.0.0-alpha.21 [2019-12-13]
