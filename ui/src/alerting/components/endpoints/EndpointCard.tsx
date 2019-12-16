@@ -30,11 +30,11 @@ import {
 // Types
 import {
   NotificationEndpoint,
-  Label,
   AppState,
   AlertHistoryType,
 } from 'src/types'
 import {Action} from 'src/alerting/actions/notifications/endpoints'
+import {Label} from 'src/client/generatedRoutes'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'

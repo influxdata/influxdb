@@ -38,7 +38,8 @@ import {
   CSVArguments,
 } from 'src/types'
 import {GetState, VariableArgumentType} from 'src/types'
-import {IVariable as Variable, ILabel as Label} from '@influxdata/influx'
+import {IVariable as Variable} from '@influxdata/influx'
+import {Label} from 'src/client/generatedRoutes'
 import {VariableValuesByID} from 'src/variables/types'
 import {
   addVariableLabelFailed,

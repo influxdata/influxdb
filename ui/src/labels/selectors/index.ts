@@ -1,4 +1,4 @@
-import {Label} from 'src/types'
+import {Label} from 'src/client/generatedRoutes'
 import {INFLUX_LABEL_PREFIX} from 'src/labels/constants'
 
 export const viewableLabels = (labels: Label[]) =>

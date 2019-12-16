@@ -33,10 +33,10 @@ import {
   GetState,
   RemoteDataState,
   CheckViewProperties,
-  Label,
   PostCheck,
 } from 'src/types'
 import {createView} from 'src/shared/utils/view'
+import {Label} from 'src/client/generatedRoutes'
 
 export type Action =
   | ReturnType<typeof setAllChecks>

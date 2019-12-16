@@ -3,8 +3,7 @@ import {client} from 'src/utils/api'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {ILabel, ILabelProperties} from '@influxdata/influx'
-import {LabelProperties} from 'src/types/labels'
+import {Label, LabelProperties} from 'src/client/generatedRoutes'
 import {Dispatch, ThunkAction} from 'redux-thunk'
 
 // Actions
@@ -23,13 +22,13 @@ interface SetLabels {
   type: 'SET_LABELS'
   payload: {
     status: RemoteDataState
-    list: ILabel[]
+    list: Label[]
   }
 }
 
 export const setLabels = (
   status: RemoteDataState,
-  list?: ILabel[]
+  list?: Label[]
 ): SetLabels => ({
   type: 'SET_LABELS',
   payload: {status, list},
@@ -38,11 +37,11 @@ export const setLabels = (
 interface AddLabel {
   type: 'ADD_LABEL'
   payload: {
-    label: ILabel
+    label: Label
   }
 }
 
-export const addLabel = (label: ILabel): AddLabel => ({
+export const addLabel = (label: Label): AddLabel => ({
   type: 'ADD_LABEL',
   payload: {label},
 })
@@ -52,7 +51,7 @@ interface EditLabel {
   payload: {label}
 }
 
-export const editLabel = (label: ILabel): EditLabel => ({
+export const editLabel = (label: Label): EditLabel => ({
   type: 'EDIT_LABEL',
   payload: {label},
 })
@@ -102,7 +101,7 @@ export const createLabel = (
     const createdLabel = await client.labels.create({
       orgID: org.id,
       name,
-      properties: properties as ILabelProperties,
+      properties: properties as LabelProperties,
     })
 
     dispatch(addLabel(createdLabel))
@@ -112,7 +111,7 @@ export const createLabel = (
   }
 }
 
-export const updateLabel = (id: string, l: ILabel) => async (
+export const updateLabel = (id: string, l: Label) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {

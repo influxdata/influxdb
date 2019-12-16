@@ -7,7 +7,7 @@ import {Label as LabelComponent} from '@influxdata/clockface'
 import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsEditor'
 
 // Types
-import {Label} from 'src/types'
+import {Label} from 'src/client/generatedRoutes'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

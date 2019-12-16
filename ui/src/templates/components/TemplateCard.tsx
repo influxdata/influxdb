@@ -31,7 +31,8 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Types
-import {TemplateSummary, ILabel} from '@influxdata/influx'
+import {TemplateSummary} from '@influxdata/influx'
+import {Label} from 'src/client/generatedRoutes'
 import {ComponentColor} from '@influxdata/clockface'
 import {AppState, Organization} from 'src/types'
 
@@ -54,7 +55,7 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  labels: ILabel[]
+  labels: Label[]
   org: Organization
 }
 
@@ -203,19 +204,19 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     router.push(`/orgs/${org.id}/settings/templates/${template.id}/view`)
   }
 
-  private handleAddLabel = (label: ILabel): void => {
+  private handleAddLabel = (label: Label): void => {
     const {template, onAddTemplateLabels} = this.props
 
     onAddTemplateLabels(template.id, [label])
   }
 
-  private handleRemoveLabel = (label: ILabel): void => {
+  private handleRemoveLabel = (label: Label): void => {
     const {template, onRemoveTemplateLabels} = this.props
 
     onRemoveTemplateLabels(template.id, [label])
   }
 
-  private handleCreateLabel = (label: ILabel) => {
+  private handleCreateLabel = (label: Label) => {
     this.props.onCreateLabel(label.name, label.properties)
   }
 }

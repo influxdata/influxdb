@@ -29,7 +29,8 @@ import {notify} from 'src/shared/actions/notifications'
 import {updateCheckFailed} from 'src/shared/copy/notifications'
 
 // Types
-import {Check, Label, AppState, AlertHistoryType} from 'src/types'
+import {Check, AppState, AlertHistoryType} from 'src/types'
+import {Label} from 'src/client/generatedRoutes'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'

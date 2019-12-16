@@ -24,8 +24,7 @@ import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
 // Types
 import {AppState, Organization} from 'src/types'
-import {Telegraf} from 'src/client/generatedRoutes'
-import {ILabel} from '@influxdata/influx'
+import {Telegraf, Label} from 'src/client/generatedRoutes'
 
 interface OwnProps {
   collector: Telegraf
@@ -35,7 +34,7 @@ interface OwnProps {
 }
 
 interface StateProps {
-  labels: ILabel[]
+  labels: Label[]
   org: Organization
 }
 
@@ -133,19 +132,19 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleAddLabel = async (label: ILabel) => {
+  private handleAddLabel = async (label: Label) => {
     const {collector, onAddLabels} = this.props
 
     await onAddLabels(collector.id, [label])
   }
 
-  private handleRemoveLabel = async (label: ILabel) => {
+  private handleRemoveLabel = async (label: Label) => {
     const {collector, onRemoveLabels} = this.props
 
     await onRemoveLabels(collector.id, [label])
   }
 
-  private handleCreateLabel = async (label: ILabel) => {
+  private handleCreateLabel = async (label: Label) => {
     const {name, properties} = label
     await this.props.onCreateLabel(name, properties)
   }

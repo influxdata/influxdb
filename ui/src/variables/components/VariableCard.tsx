@@ -9,7 +9,8 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import VariableContextMenu from 'src/variables/components/VariableContextMenu'
 
 // Types
-import {IVariable as Variable, ILabel} from '@influxdata/influx'
+import {IVariable as Variable} from '@influxdata/influx'
+import {Label} from 'src/client/generatedRoutes'
 import {AppState} from 'src/types'
 
 // Selectors
@@ -31,7 +32,7 @@ interface OwnProps {
 }
 
 interface StateProps {
-  labels: ILabel[]
+  labels: Label[]
 }
 
 interface DispatchProps {
@@ -95,19 +96,19 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleAddLabel = (label: ILabel): void => {
+  private handleAddLabel = (label: Label): void => {
     const {variable, onAddVariableLabels} = this.props
 
     onAddVariableLabels(variable.id, [label])
   }
 
-  private handleRemoveLabel = (label: ILabel): void => {
+  private handleRemoveLabel = (label: Label): void => {
     const {variable, onRemoveVariableLabels} = this.props
 
     onRemoveVariableLabels(variable.id, [label])
   }
 
-  private handleCreateLabel = (label: ILabel): void => {
+  private handleCreateLabel = (label: Label): void => {
     const {name, properties} = label
     this.props.onCreateLabel(name, properties)
   }
@@ -134,7 +135,7 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
 
 const mstp = ({labels}: AppState): StateProps => {
   return {
-    labels: viewableLabels(labels.list as ILabel[]),
+    labels: viewableLabels(labels.list as Label[]),
   }
 }
 
