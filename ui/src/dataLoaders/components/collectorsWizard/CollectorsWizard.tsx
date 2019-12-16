@@ -7,6 +7,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
+import TelegrafEditorFooter from 'src/dataLoaders/components/TelegrafEditorFooter'
 
 const spinner = <div />
 const TelegrafEditor = Loadable({
@@ -23,7 +24,6 @@ const CollectorsStepSwitcher = Loadable({
   },
 })
 import {isFlagEnabled, FeatureFlag} from 'src/shared/utils/featureFlag'
-import {ComponentColor, Button} from '@influxdata/clockface'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -46,7 +46,6 @@ import {reset} from 'src/dataLoaders/actions/telegrafEditor'
 import {Links} from 'src/types/links'
 import {Substep, TelegrafPlugin} from 'src/types/dataLoaders'
 import {AppState, Bucket, Organization} from 'src/types'
-import {downloadTextFile} from 'src/shared/utils/download'
 
 export interface CollectorsStepProps {
   currentStepIndex: number
@@ -96,6 +95,7 @@ class CollectorsWizard extends PureComponent<AllProps, State> {
       buckets: [],
     }
   }
+
   public componentDidMount() {
     this.handleSetBucketInfo()
     this.props.onSetCurrentStepIndex(0)
@@ -108,20 +108,7 @@ class CollectorsWizard extends PureComponent<AllProps, State> {
       <WizardOverlay
         title="Create a Telegraf Config"
         onDismiss={this.handleDismiss}
-        footer={
-          <FeatureFlag name="telegrafEditor">
-            <Button
-              color={ComponentColor.Secondary}
-              text="Download Config"
-              onClick={this.handleDownloadConfig}
-            />
-            <Button
-              color={ComponentColor.Primary}
-              text="Save Config"
-              onClick={this.handleSaveConfig}
-            />
-          </FeatureFlag>
-        }
+        footer={<TelegrafEditorFooter onDismiss={this.handleDismiss} />}
       >
         <FeatureFlag name="telegrafEditor">
           <TelegrafEditor />
@@ -143,14 +130,6 @@ class CollectorsWizard extends PureComponent<AllProps, State> {
 
       this.props.onSetBucketInfo(orgID, name, id)
     }
-  }
-
-  private handleDownloadConfig = () => {
-    downloadTextFile(this.props.text, 'telegraf', '.conf')
-  }
-
-  private handleSaveConfig = () => {
-    this.handleDismiss()
   }
 
   private handleDismiss = () => {

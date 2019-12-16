@@ -40,10 +40,9 @@ export interface TelegrafEditorActivePlugin {
 
 export type TelegrafEditorActivePluginState = Array<TelegrafEditorActivePlugin>
 
-type TelegrafEditorMode = 'adding' | 'indexing'
-
 export interface TelegrafEditorState {
-  mode: TelegrafEditorMode
+  showLookup: boolean
+  showList: boolean
   bucket: Bucket | null
   text: string
   filter: string
@@ -212,7 +211,8 @@ bucket = "aboatwright's Bucket"
 ]
 
 const INITIAL_EDITOR: TelegrafEditorState = {
-  mode: 'adding',
+  showLookup: true,
+  showList: true,
   bucket: null,
   text: '',
   filter: '',
@@ -247,8 +247,10 @@ export function editorReducer(
   action: EditorAction
 ): TelegrafEditorState {
   switch (action.type) {
-    case 'SET_TELEGRAF_EDITOR_MODE':
-      return {...state, mode: action.payload}
+    case 'SET_TELEGRAF_EDITOR_LOOKUP':
+      return {...state, showLookup: action.payload}
+    case 'SET_TELEGRAF_EDITOR_LIST':
+      return {...state, showList: action.payload}
     case 'SET_TELEGRAF_EDITOR_TEXT':
       return {...state, text: action.payload}
     case 'SET_TELEGRAF_EDITOR_ACTIVE_BUCKET':
