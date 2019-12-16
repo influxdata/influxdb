@@ -3,6 +3,7 @@ package launcher_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -264,6 +265,67 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			// dashboards should be new
 			require.NotEqual(t, sum1.Dashboards, sum2.Dashboards)
+		})
+
+		t.Run("referenced secret values provided do not create new secrets", func(t *testing.T) {
+			applyPkgStr := func(t *testing.T, pkgStr string) pkger.Summary {
+				t.Helper()
+				pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
+				require.NoError(t, err)
+
+				sum, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg)
+				require.NoError(t, err)
+				return sum
+			}
+
+			const pkgWithSecretRaw = `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointPagerDuty
+      name: pager_duty_notification_endpoint
+      url:  http://localhost:8080/orgs/7167eb6719fa34e5/alert-history
+      routingKey: secret-sauce
+`
+			secretSum := applyPkgStr(t, pkgWithSecretRaw)
+			require.Len(t, secretSum.NotificationEndpoints, 1)
+
+			id := secretSum.NotificationEndpoints[0].NotificationEndpoint.GetID()
+			expected := influxdb.SecretField{
+				Key: id.String() + "-routing-key",
+			}
+			secrets := secretSum.NotificationEndpoints[0].NotificationEndpoint.SecretFields()
+			require.Len(t, secrets, 1)
+			assert.Equal(t, expected, secrets[0])
+
+			const pkgWithSecretRef = `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointPagerDuty
+      name: pager_duty_notification_endpoint
+      url:  http://localhost:8080/orgs/7167eb6719fa34e5/alert-history
+      routingKey:
+        secretRef:
+          key: %s-routing-key
+`
+			secretSum = applyPkgStr(t, fmt.Sprintf(pkgWithSecretRef, id.String()))
+			require.Len(t, secretSum.NotificationEndpoints, 1)
+
+			expected = influxdb.SecretField{
+				Key: id.String() + "-routing-key",
+			}
+			secrets = secretSum.NotificationEndpoints[0].NotificationEndpoint.SecretFields()
+			require.Len(t, secrets, 1)
+			assert.Equal(t, expected, secrets[0])
 		})
 
 		t.Run("exporting resources with existing ids should return a valid pkg", func(t *testing.T) {

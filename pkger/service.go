@@ -31,6 +31,7 @@ type serviceOpt struct {
 	bucketSVC   influxdb.BucketService
 	dashSVC     influxdb.DashboardService
 	endpointSVC influxdb.NotificationEndpointService
+	secretSVC   influxdb.SecretService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
 
@@ -75,6 +76,13 @@ func WithLabelSVC(labelSVC influxdb.LabelService) ServiceSetterFn {
 	}
 }
 
+// WithSecretSVC sets the secret service.
+func WithSecretSVC(secretSVC influxdb.SecretService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.secretSVC = secretSVC
+	}
+}
+
 // WithTelegrafSVC sets the telegraf service.
 func WithTelegrafSVC(telegrafSVC influxdb.TelegrafConfigStore) ServiceSetterFn {
 	return func(opt *serviceOpt) {
@@ -98,6 +106,7 @@ type Service struct {
 	bucketSVC   influxdb.BucketService
 	dashSVC     influxdb.DashboardService
 	endpointSVC influxdb.NotificationEndpointService
+	secretSVC   influxdb.SecretService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
 
@@ -122,6 +131,7 @@ func NewService(opts ...ServiceSetterFn) *Service {
 		labelSVC:      opt.labelSVC,
 		dashSVC:       opt.dashSVC,
 		endpointSVC:   opt.endpointSVC,
+		secretSVC:     opt.secretSVC,
 		teleSVC:       opt.teleSVC,
 		varSVC:        opt.varSVC,
 		applyReqLimit: opt.applyReqLimit,
@@ -493,6 +503,10 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 		parseErr = err
 	}
 
+	if err := s.dryRunSecrets(ctx, orgID, pkg); err != nil {
+		return Summary{}, Diff{}, err
+	}
+
 	diffBuckets, err := s.dryRunBuckets(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
@@ -639,6 +653,33 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 	})
 
 	return diffs, nil
+}
+
+func (s *Service) dryRunSecrets(ctx context.Context, orgID influxdb.ID, pkg *Pkg) error {
+	secrets := pkg.secrets()
+	if len(secrets) == 0 {
+		return nil
+	}
+
+	existingSecrets, err := s.secretSVC.GetSecretKeys(ctx, orgID)
+	if err != nil {
+		return err
+	}
+
+	for _, secret := range existingSecrets {
+		delete(secrets, secret)
+	}
+
+	if len(secrets) == 0 {
+		return nil
+	}
+
+	missing := make([]string, 0, len(secrets))
+	for secret := range secrets {
+		missing = append(missing, secret)
+	}
+	sort.Strings(missing)
+	return fmt.Errorf("secrets to not exist for secret reference keys: %s", strings.Join(missing, ", "))
 }
 
 func (s *Service) dryRunTelegraf(pkg *Pkg) []DiffTelegraf {
@@ -1150,6 +1191,20 @@ func (s *Service) applyNotificationEndpoints(endpoints []*notificationEndpoint) 
 
 		mutex.Do(func() {
 			endpoints[i].id = influxEndpoint.GetID()
+			for _, secret := range influxEndpoint.SecretFields() {
+				switch {
+				case strings.HasSuffix(secret.Key, "-routing-key"):
+					endpoints[i].routingKey.Secret = secret.Key
+				case strings.HasSuffix(secret.Key, "-token"):
+					endpoints[i].token.Secret = secret.Key
+				case strings.HasSuffix(secret.Key, "-username"):
+					endpoints[i].username.Secret = secret.Key
+				case strings.HasSuffix(secret.Key, "-password"):
+					endpoints[i].password.Secret = secret.Key
+				default:
+					fmt.Println("no match for key: ", secret.Key)
+				}
+			}
 			rollbackEndpoints = append(rollbackEndpoints, endpoints[i])
 		})
 
@@ -1175,7 +1230,7 @@ func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationE
 		// stub out userID since we're always using hte http client which will fill it in for us with the token
 		// feels a bit broken that is required.
 		// TODO: look into this userID requirement
-		updatedEndpoint, err := s.endpointSVC.UpdateNotificationEndpoint(ctx, e.ID(), e.existing, 0)
+		updatedEndpoint, err := s.endpointSVC.UpdateNotificationEndpoint(ctx, e.ID(), e.existing, userID)
 		if err != nil {
 			return nil, err
 		}
