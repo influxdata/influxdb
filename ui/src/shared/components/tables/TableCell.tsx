@@ -34,6 +34,22 @@ interface Props extends CellRendererProps {
 class TableCell extends PureComponent<Props> {
   public render() {
     const {data, rowIndex, columnIndex, onHover} = this.props
+    if (rowIndex === 0) {
+      return (
+        <div
+          style={this.style}
+          className={this.class}
+          onClick={this.handleClick}
+          data-column-index={columnIndex}
+          data-row-index={rowIndex}
+          data-testID={`${data}-table-header`}
+          onMouseOver={onHover}
+          title={this.contents}
+        >
+          {this.contents}
+        </div>
+      )
+    }
     return (
       <div
         style={this.style}
@@ -41,7 +57,6 @@ class TableCell extends PureComponent<Props> {
         onClick={this.handleClick}
         data-column-index={columnIndex}
         data-row-index={rowIndex}
-        {...(rowIndex === 0 ? {'data-testID': `${data}-table-header`} : {})} // conditionally adds test-ID for tableCell header
         onMouseOver={onHover}
         title={this.contents}
       >
