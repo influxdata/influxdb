@@ -447,7 +447,7 @@ class Root extends PureComponent {
                             component={AlertHistoryIndex}
                           />
                           <Route
-                            path="alerting/checks/:checkID"
+                            path="checks/:checkID"
                             component={CheckHistory}
                           />
                         </Route>

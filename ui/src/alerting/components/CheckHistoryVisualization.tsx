@@ -28,7 +28,6 @@ interface OwnProps {
 }
 
 type Props = OwnProps
-//TODO maybe update submitToken when we know how
 
 const CheckHistoryVisualization: FC<Props> = ({check, timeZone}) => {
   const view = createView<CheckViewProperties>(get(check, 'type', 'threshold'))
@@ -66,7 +65,6 @@ const CheckHistoryVisualization: FC<Props> = ({check, timeZone}) => {
             >
               {config => <Plot config={config} />}
             </CheckPlot>
-            {/* {<CheckHistoryStatuses .../>} */}
           </EmptyQueryView>
         )
       }}

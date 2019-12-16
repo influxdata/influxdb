@@ -106,14 +106,12 @@ const CheckCard: FunctionComponent<Props> = ({
   }
 
   const onView = () => {
-    const historyType: AlertHistoryType = 'statuses'
 
     const queryParams = new URLSearchParams({
-      [HISTORY_TYPE_QUERY_PARAM]: historyType,
       [SEARCH_QUERY_PARAM]: `"checkID" == "${check.id}"`,
     })
 
-    router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
+    router.push(`/orgs/${orgID}/checks/${check.id}/?${queryParams}`)
   }
 
   const handleAddCheckLabel = (label: Label) => {
