@@ -81,16 +81,9 @@ class TableGraph extends PureComponent<Props, State> {
 
     if (headerSet.has(sortOptions.field)) {
       return sortOptions
-    } else if (headerSet.has('_time')) {
-      return {...sortOptions, field: '_time'}
-    } else if (headerSet.has('_start')) {
-      return {...sortOptions, field: '_start'}
-    } else if (headerSet.has('_stop')) {
-      return {...sortOptions, field: '_stop'}
-    } else {
-      const headers = table.data[0]
-      return {...sortOptions, field: headers[0]}
     }
+    const headers = table.data[0]
+    return {...sortOptions, field: headers[0]}
   }
 }
 
