@@ -7131,6 +7131,7 @@ components:
                 - bucket
                 - dashboard
                 - label
+                - notification_endpoint
                 - variable
             name:
               type: string
