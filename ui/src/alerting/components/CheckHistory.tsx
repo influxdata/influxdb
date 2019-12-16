@@ -39,7 +39,6 @@ interface StateProps {
 }
 
 type Props = OwnProps & StateProps
-//TODO maybe update submitToken when we know how
 
 const CheckHistory: FC<Props> = ({
   params: {orgID},
@@ -47,7 +46,6 @@ const CheckHistory: FC<Props> = ({
   timeZone,
   resourceIDs,
 }) => {
-  const historyType = 'statuses'
 
   const loadRows = useMemo(() => options => loadStatuses(orgID, options), [
     orgID,
@@ -71,9 +69,8 @@ const CheckHistory: FC<Props> = ({
                   />
                   <AlertHistoryQueryParams
                     searchInput={props.state.searchInput}
-                    historyType={historyType}
                   />
-                  <CheckHistoryControls eventViewerProps={props} />
+                  {/* <CheckHistoryControls eventViewerProps={props} /> */}
                 </div>
               </Page.Header>
               <Page.Contents
@@ -81,15 +78,7 @@ const CheckHistory: FC<Props> = ({
                 scrollable={false}
                 className="alert-history-page--contents"
               >
-                <div
-                  className="zoescool"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: '100%',
-                    width: '100%',
-                  }}
-                >
+                <div className="alert-history-contents">
                   <CheckHistoryVisualization
                     check={check}
                     timeZone={timeZone}

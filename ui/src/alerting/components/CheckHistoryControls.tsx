@@ -19,7 +19,7 @@ const CheckHistoryControls: FC<Props> = ({eventViewerProps}) => {
   return (
     <div className="alert-history-controls">
       <div className="alert-history-controls--right">
-        <BackToTopButton {...eventViewerProps} />
+        {/* <BackToTopButton {...eventViewerProps} /> */}
         <SearchBar
           {...eventViewerProps}
           placeholder="Search statuses..."
