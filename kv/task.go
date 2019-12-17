@@ -1051,7 +1051,7 @@ func (s *Service) cancelRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 	run.Status = "canceled"
 
 	// save
-	bucket, err := tx.Bucket(taskBucket)
+	bucket, err := tx.Bucket(taskRunBucket)
 	if err != nil {
 		return influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
