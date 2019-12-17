@@ -2222,7 +2222,7 @@ func (m *CapabilitiesResponse) MarshalTo(dAtA []byte) (int, error) {
 	var l int
 	_ = l
 	if len(m.Caps) > 0 {
-		for k, _ := range m.Caps {
+		for k := range m.Caps {
 			dAtA[i] = 0xa
 			i++
 			v := m.Caps[k]
