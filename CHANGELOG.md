@@ -5,6 +5,7 @@
 ### Bug Fixes
 
 1. [16235](https://github.com/influxdata/influxdb/pull/16235): Removed default frontend sorting when flux queries specify sorting
+1. [16238](https://github.com/influxdata/influxdb/pull/16238): Store canceled task runs in the correct bucket
 
 ### UI Improvements
 
