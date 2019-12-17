@@ -19,11 +19,9 @@ export default function loader() {
 
     loading = true
 
-    loadWASM(require(`onigasm/lib/onigasm.wasm`))
-      .then(() => {
-        wasm = true
-        queue.forEach((c) => c())
-      })
+    loadWASM(require(`onigasm/lib/onigasm.wasm`)).then(() => {
+      wasm = true
+      queue.forEach(c => c())
+    })
   })
 }
-
