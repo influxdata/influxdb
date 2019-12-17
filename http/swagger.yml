@@ -9680,6 +9680,28 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Telegraf"
+    TelegrafPlugin:
+      type: object
+      properties:
+        type:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        config:
+          type: string
+    TelegrafPlugins:
+      type: object
+      properties:
+        version:
+          type: string
+        os:
+          type: string
+        plugins:
+          type: array
+          items:
+            $ref: "#/components/schemas/TelegrafPlugin"
     TelegrafPluginInputDockerConfig:
       type: object
       required:
