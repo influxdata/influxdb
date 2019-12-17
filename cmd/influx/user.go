@@ -52,10 +52,13 @@ func newUserService() (platform.UserService, error) {
 	if flags.local {
 		return newLocalKVService()
 	}
+
+	client, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
 	return &http.UserService{
-		Addr:               flags.host,
-		Token:              flags.token,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: client,
 	}, nil
 }
 
@@ -207,11 +210,7 @@ func userCreateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	passSVC := &http.PasswordService{
-		Addr:               flags.host,
-		Token:              flags.token,
-		InsecureSkipVerify: flags.skipVerify,
-	}
+	passSVC := &http.PasswordService{Client: c}
 
 	ctx := context.Background()
 	if err := passSVC.SetPassword(ctx, user.ID, pass); err != nil {

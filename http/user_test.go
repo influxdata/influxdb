@@ -44,14 +44,18 @@ func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserS
 	userBackend.UserService = svc
 	handler := NewUserHandler(zaptest.NewLogger(t), userBackend)
 	server := httptest.NewServer(handler)
+
+	httpClient, err := NewHTTPClient(server.URL, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	client := UserService{
-		Addr:     server.URL,
+		Client:   httpClient,
 		OpPrefix: inmem.OpPrefix,
 	}
 
-	done := server.Close
-
-	return &client, inmem.OpPrefix, done
+	return &client, inmem.OpPrefix, server.Close
 }
 
 func TestUserService(t *testing.T) {
