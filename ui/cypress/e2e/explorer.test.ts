@@ -623,7 +623,7 @@ describe('DataExplorer', () => {
         })
       })
 
-      it('can view table data', () => {
+      it('can view table data & sort values numerically', () => {
         // build the query to return data from beforeEach
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
@@ -654,8 +654,23 @@ describe('DataExplorer', () => {
           })
         cy.getByTestID('_value-table-header').click()
         cy.get('.table-graph-cell__sort-asc').should('exist')
-        // TODO: complete testing when FE sorting functionality is sorted
-        // https://github.com/influxdata/influxdb/issues/16200
+        cy.getByTestID('_value-table-header').click()
+        cy.get('.table-graph-cell__sort-desc').should('exist')
+        cy.getByTestID('_value-table-header')
+          .should('exist')
+          .then(el => {
+            // get the column index
+            const columnIndex = el[0].getAttribute('data-column-index')
+            let prev = Infinity
+            // get all the column values for that one and see if they are in order
+            cy.get(`[data-column-index="${columnIndex}"]`).each(val => {
+              const num = Number(val.text())
+              if (isNaN(num) === false) {
+                expect(num < prev).to.equal(true)
+                prev = num
+              }
+            })
+          })
       })
     })
   })
