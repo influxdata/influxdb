@@ -927,13 +927,15 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	authN.UserService = mus
 
 	server := httptest.NewServer(authN)
-	client := AuthorizationService{
-		Addr:  server.URL,
-		Token: token,
+
+	httpClient, err := NewHTTPClient(server.URL, token, false)
+	if err != nil {
+		t.Fatal(err)
 	}
+
 	done := server.Close
 
-	return &client, inmem.OpPrefix, done
+	return &AuthorizationService{Client: httpClient}, inmem.OpPrefix, done
 }
 
 func TestAuthorizationService_CreateAuthorization(t *testing.T) {
