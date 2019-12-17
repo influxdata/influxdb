@@ -24,7 +24,7 @@ import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
 // Types
 import {AppState, Organization} from 'src/types'
-import {Telegraf, Label} from 'src/client/generatedRoutes'
+import {ILabel, ITelegraf as Telegraf} from '@influxdata/influx'
 
 interface OwnProps {
   collector: Telegraf
@@ -34,7 +34,7 @@ interface OwnProps {
 }
 
 interface StateProps {
-  labels: Label[]
+  labels: ILabel[]
   org: Organization
 }
 
@@ -75,7 +75,7 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
         labels={this.labels}
         metaData={[
           <span key={`bucket-key--${collector.id}`} data-testid="bucket-name">
-            {}
+            {/* todo(glinton): verify what sets this. It seems like it is using the 'config' section of 'influxdb_v2' output?? */}
             Bucket: {collector.metadata.buckets.join(", ")}
           </span>,
           <>
@@ -132,19 +132,19 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleAddLabel = async (label: Label) => {
+  private handleAddLabel = async (label: ILabel) => {
     const {collector, onAddLabels} = this.props
 
     await onAddLabels(collector.id, [label])
   }
 
-  private handleRemoveLabel = async (label: Label) => {
+  private handleRemoveLabel = async (label: ILabel) => {
     const {collector, onRemoveLabels} = this.props
 
     await onRemoveLabels(collector.id, [label])
   }
 
-  private handleCreateLabel = async (label: Label) => {
+  private handleCreateLabel = async (label: ILabel) => {
     const {name, properties} = label
     await this.props.onCreateLabel(name, properties)
   }

@@ -5,8 +5,7 @@ import {
   Relationships,
   LabelRelationship,
 } from 'src/types'
-import {IVariable as Variable} from '@influxdata/influx'
-import {Label} from 'src/client/generatedRoutes'
+import {ILabel, IVariable as Variable} from '@influxdata/influx'
 
 export function findIncludedsFromRelationships<
   T extends {id: string; type: TemplateType}
@@ -34,7 +33,7 @@ export function findIncludedFromRelationship<
 }
 
 export const findLabelsToCreate = (
-  currentLabels: Label[],
+  currentLabels: ILabel[],
   labels: LabelIncluded[]
 ): LabelIncluded[] => {
   return labels.filter(

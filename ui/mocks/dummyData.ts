@@ -5,6 +5,7 @@ import {WithRouterProps} from 'react-router'
 import {NumericColumnData} from '@influxdata/giraffe'
 import {
   Source,
+  ILabel,
   TelegrafPluginInputCpu,
   TelegrafPluginInputRedis,
   TelegrafPluginInputDisk,
@@ -24,7 +25,6 @@ import {
   Permission,
   PermissionResource,
 } from '@influxdata/influx'
-import {Label} from 'src/client/generatedRoutes'
 
 export const links: Links = {
   authorizations: '/api/v2/authorizations',
@@ -157,7 +157,7 @@ export const dashboard: Dashboard = {
   labels: [],
 }
 
-export const labels: Label[] = [
+export const labels: ILabel[] = [
   {
     id: '0001',
     name: 'Trogdor',

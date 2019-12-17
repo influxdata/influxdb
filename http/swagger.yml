@@ -9208,15 +9208,15 @@ components:
           type: string
         description:
           type: string
-        config:
-          type: string
-        metadata:
+        agent:
           type: object
           properties:
-            buckets:
-              type: array
-              items:
-                type: string
+            collectionInterval:
+              type: integer
+        plugins:
+          type: array
+          items:
+            $ref: "#/components/schemas/TelegrafRequestPlugin"
         orgID:
           type: string
     TelegrafRequestPlugin:
@@ -9837,16 +9837,11 @@ components:
         name:
           type: string
         properties:
-          $ref: "#/components/schemas/LabelProperties"
-    LabelProperties:
-      type: object
-      description: Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
-      example: {"color": "ffb3b3", "description": "this is a description"}
-      properties:
-        color:
-          type: string
-        description:
-          type: string
+          type: object
+          additionalProperties:
+            type: string
+          description: Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
+          example: {"color": "ffb3b3", "description": "this is a description"}
     LabelCreateRequest:
       type: object
       required: [orgID]

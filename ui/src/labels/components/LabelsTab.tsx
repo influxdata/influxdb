@@ -20,8 +20,8 @@ import {viewableLabels} from 'src/labels/selectors'
 import {validateLabelUniqueness} from 'src/labels/utils/'
 
 // Types
-import {AppState} from 'src/types'
-import {Label} from 'src/client/generatedRoutes'
+import {AppState, Label} from 'src/types'
+import {ILabel} from '@influxdata/influx'
 import {
   IconFont,
   ComponentSize,
@@ -145,7 +145,7 @@ class Labels extends PureComponent<Props, State> {
   }
 
   private handleUpdateLabel = (label: Label) => {
-    this.props.updateLabel(label.id, label as Label)
+    this.props.updateLabel(label.id, label as ILabel)
   }
 
   private handleDelete = (id: string) => {

@@ -26,8 +26,8 @@ import {
   NotificationRuleUpdate,
   GetState,
   NotificationRuleDraft,
+  Label,
 } from 'src/types'
-import {Label} from 'src/client/generatedRoutes'
 import {incrementCloneName} from 'src/utils/naming'
 
 export type Action =

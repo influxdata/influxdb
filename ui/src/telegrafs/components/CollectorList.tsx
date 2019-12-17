@@ -9,7 +9,7 @@ import {ResourceList} from '@influxdata/clockface'
 import CollectorRow from 'src/telegrafs/components/CollectorCard'
 
 // Types
-import {Telegraf} from 'src/client/generatedRoutes'
+import {ITelegraf as Telegraf} from '@influxdata/influx'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes, getSortedResources} from 'src/shared/utils/sort'
 import {AppState} from 'src/types'

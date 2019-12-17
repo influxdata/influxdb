@@ -7,7 +7,7 @@ import LabelOverlayForm from 'src/labels/components/LabelOverlayForm'
 import {Overlay, ComponentStatus} from '@influxdata/clockface'
 
 // Types
-import {Label} from 'src/client/generatedRoutes'
+import {ILabel} from '@influxdata/influx'
 
 // Constants
 import {EMPTY_LABEL} from 'src/labels/constants'
@@ -18,12 +18,12 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   isVisible: boolean
   onDismiss: () => void
-  onCreateLabel: (label: Label) => void
+  onCreateLabel: (label: ILabel) => void
   onNameValidation: (name: string) => string | null
   overrideDefaultName?: string
 }
 interface State {
-  label: Label
+  label: ILabel
   colorStatus: ComponentStatus
 }
 

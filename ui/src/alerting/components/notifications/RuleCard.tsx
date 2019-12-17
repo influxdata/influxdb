@@ -30,9 +30,9 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {
   NotificationRuleDraft,
   AppState,
+  Label,
   AlertHistoryType,
 } from 'src/types'
-import {Label} from 'src/client/generatedRoutes'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'

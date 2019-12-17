@@ -11,8 +11,7 @@ import {validateLabelUniqueness} from 'src/labels/utils/'
 import memoizeOne from 'memoize-one'
 
 // Types
-import {OverlayState} from 'src/types'
-import {Label} from 'src/client/generatedRoutes'
+import {OverlayState, Label} from 'src/types'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 

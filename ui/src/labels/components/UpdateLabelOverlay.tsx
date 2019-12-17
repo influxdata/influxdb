@@ -6,7 +6,7 @@ import LabelOverlayForm from 'src/labels/components/LabelOverlayForm'
 import {ComponentStatus, Overlay} from '@influxdata/clockface'
 
 // Types
-import {Label} from 'src/client/generatedRoutes'
+import {Label} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

@@ -17,8 +17,7 @@ import {viewableLabels} from 'src/labels/selectors'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {ITask as Task} from '@influxdata/influx'
-import {Label} from 'src/client/generatedRoutes'
+import {ITask as Task, ILabel} from '@influxdata/influx'
 import {AppState, TaskStatus} from 'src/types'
 
 // Constants
@@ -37,7 +36,7 @@ interface PassedProps {
 }
 
 interface StateProps {
-  labels: Label[]
+  labels: ILabel[]
 }
 
 interface DispatchProps {
@@ -161,19 +160,19 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleAddLabel = (label: Label) => {
+  private handleAddLabel = (label: ILabel) => {
     const {task, onAddTaskLabels} = this.props
 
     onAddTaskLabels(task.id, [label])
   }
 
-  private handleRemoveLabel = (label: Label) => {
+  private handleRemoveLabel = (label: ILabel) => {
     const {task, onRemoveTaskLabels} = this.props
 
     onRemoveTaskLabels(task.id, [label])
   }
 
-  private handleCreateLabel = (label: Label) => {
+  private handleCreateLabel = (label: ILabel) => {
     this.props.onCreateLabel(label.name, label.properties)
   }
 

@@ -1,11 +1,11 @@
 import {
+  ILabel,
   IVariable as Variable,
   IDashboard,
   DocumentListEntry,
   Document,
   DocumentMeta,
 } from '@influxdata/influx'
-import {Label} from 'src/client/generatedRoutes'
 import {View, Cell} from './index'
 
 export enum TemplateType {
@@ -29,7 +29,7 @@ interface DocumentMetaWithTemplateID extends DocumentMeta {
 export interface TemplateBase extends Document {
   meta: DocumentMetaWithTemplateID
   content: {data: TemplateData; included: TemplateIncluded[]}
-  labels: Label[]
+  labels: ILabel[]
 }
 
 // TODO: be more specific about what attributes can be
@@ -98,7 +98,7 @@ export interface CellIncluded extends TemplateIncluded {
 
 export interface LabelIncluded extends TemplateIncluded {
   type: TemplateType.Label
-  attributes: Label
+  attributes: ILabel
 }
 
 export interface VariableIncluded extends TemplateIncluded {
@@ -172,5 +172,5 @@ export interface VariableTemplate extends TemplateBase {
 export type Template = TaskTemplate | DashboardTemplate | VariableTemplate
 
 export interface TemplateSummary extends DocumentListEntry {
-  labels: Label[]
+  labels: ILabel[]
 }

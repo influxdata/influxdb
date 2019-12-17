@@ -19,8 +19,7 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Types
-import {AppState, Dashboard} from 'src/types'
-import {Label} from 'src/client/generatedRoutes'
+import {AppState, Dashboard, Label} from 'src/types'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'

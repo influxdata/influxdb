@@ -12,6 +12,7 @@ import {
   ITaskTemplate,
   TemplateType,
   ITemplate,
+  ILabel as Label,
 } from '@influxdata/influx'
 import {
   RemoteDataState,
@@ -20,7 +21,7 @@ import {
   VariableTemplate,
   Template,
 } from 'src/types'
-import {Label} from 'src/client/generatedRoutes'
+
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 
