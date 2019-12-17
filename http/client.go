@@ -63,11 +63,8 @@ func NewService(addr, token string) (*Service, error) {
 		BucketService:        &BucketService{Client: httpClient},
 		DashboardService:     &DashboardService{Client: httpClient},
 		OrganizationService:  &OrganizationService{Client: httpClient},
-		UserService: &UserService{
-			Addr:  addr,
-			Token: token,
-		},
-		VariableService: &VariableService{Client: httpClient},
+		UserService:          &UserService{Client: httpClient},
+		VariableService:      &VariableService{Client: httpClient},
 		WriteService: &WriteService{
 			Addr:  addr,
 			Token: token,
