@@ -5,19 +5,19 @@ use std::sync::Arc;
 
 use actix_web::{App, middleware, HttpServer, web, HttpResponse, Error as AWError, guard, error};
 use serde_json;
-use actix_web::web::{Bytes, BytesMut};
-use futures::{Future, Stream, StreamExt};
+use actix_web::web::{BytesMut};
+use futures::StreamExt;
 use delorean::{line_parser, storage};
 
 
-struct server {
+struct Server {
     db: Database,
 }
 
 const MAX_SIZE: usize = 1_048_576; // max write request size of 1MB
 
 // TODO: write end to end test of write
-async fn write(mut payload: web::Payload, s: web::Data<Arc<server>>) -> Result<HttpResponse, AWError> {
+async fn write(mut payload: web::Payload, s: web::Data<Arc<Server>>) -> Result<HttpResponse, AWError> {
     let mut body = BytesMut::new();
     while let Some(chunk) = payload.next().await {
         let chunk = chunk?;
@@ -56,8 +56,8 @@ async fn main() -> io::Result<()> {
     env_logger::init();
 
     let db_dir = std::env::var("DELOREAN_DB_DIR").expect("DELOREAN_DB_DIR must be set");
-    let db = storage::Database::new(db_dir);
-    let s = Arc::new(server{db});
+    let db = storage::Database::new(&db_dir);
+    let s = Arc::new(Server {db});
 
     HttpServer::new(move || {
         App::new()
