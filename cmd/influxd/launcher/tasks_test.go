@@ -60,7 +60,7 @@ func TestLauncher_Task(t *testing.T) {
 	ctx = pctx.SetAuthorizer(context.Background(), be.Auth)
 
 	a := &influxdb.Authorization{UserID: u.ID, OrgID: org.ID, Permissions: []influxdb.Permission{*writeBIn, *writeBOut, *writeT, *readT}}
-	if err := be.AuthorizationService().CreateAuthorization(context.Background(), a); err != nil {
+	if err := be.AuthorizationService(t).CreateAuthorization(context.Background(), a); err != nil {
 		t.Fatal(err)
 	}
 	if !be.Org.ID.Valid() {

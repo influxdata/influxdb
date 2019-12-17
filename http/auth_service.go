@@ -1,20 +1,18 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"path"
 	"time"
-
-	"go.uber.org/zap"
 
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/pkg/httpc"
+	"go.uber.org/zap"
 )
 
 const prefixAuthorization = "/api/v2/authorizations"
@@ -633,42 +631,21 @@ func getAuthorizedUser(r *http.Request, svc platform.UserService) (*platform.Use
 
 // AuthorizationService connects to Influx via HTTP using tokens to manage authorizations
 type AuthorizationService struct {
-	Addr               string
-	Token              string
-	InsecureSkipVerify bool
+	Client *httpc.Client
 }
 
 var _ platform.AuthorizationService = (*AuthorizationService)(nil)
 
 // FindAuthorizationByID finds the authorization against a remote influx server.
 func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
-	u, err := NewURL(s.Addr, authorizationIDPath(id))
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, err
-	}
-
 	var b platform.Authorization
-	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
+	err := s.Client.
+		Get(prefixAuthorization, id.String()).
+		DecodeJSON(&b).
+		Do(ctx)
+	if err != nil {
 		return nil, err
 	}
-
 	return &b, nil
 }
 
@@ -680,54 +657,30 @@ func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, tok
 // FindAuthorizations returns a list of authorizations that match filter and the total count of matching authorizations.
 // Additional options provide pagination & sorting.
 func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter platform.AuthorizationFilter, opt ...platform.FindOptions) ([]*platform.Authorization, int, error) {
-	u, err := NewURL(s.Addr, authorizationPath)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	query := u.Query()
-
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, 0, err
-	}
-
+	params := findOptionParams(opt...)
 	if filter.ID != nil {
-		query.Add("id", filter.ID.String())
+		params = append(params, [2]string{"id", filter.ID.String()})
 	}
-
 	if filter.UserID != nil {
-		query.Add("userID", filter.UserID.String())
+		params = append(params, [2]string{"userID", filter.UserID.String()})
 	}
-
 	if filter.User != nil {
-		query.Add("user", *filter.User)
+		params = append(params, [2]string{"user", *filter.User})
 	}
-
 	if filter.OrgID != nil {
-		query.Add("orgID", filter.OrgID.String())
+		params = append(params, [2]string{"orgID", filter.OrgID.String()})
 	}
-
 	if filter.Org != nil {
-		query.Add("org", *filter.Org)
-	}
-
-	req.URL.RawQuery = query.Encode()
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, 0, err
+		params = append(params, [2]string{"org", *filter.Org})
 	}
 
 	var as authsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&as); err != nil {
+	err := s.Client.
+		Get(prefixAuthorization).
+		QueryParams(params...).
+		DecodeJSON(&as).
+		Do(ctx)
+	if err != nil {
 		return nil, 0, err
 	}
 
@@ -739,91 +692,27 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 	return auths, len(auths), nil
 }
 
-const (
-	authorizationPath = "/api/v2/authorizations"
-)
-
 // CreateAuthorization creates a new authorization and sets b.ID with the new identifier.
 func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platform.Authorization) error {
-	u, err := NewURL(s.Addr, authorizationPath)
-	if err != nil {
-		return err
-	}
-	if err != nil {
-		return err
-	}
-
 	newAuth, err := newPostAuthorizationRequest(a)
 	if err != nil {
 		return err
 	}
-	octets, err := json.Marshal(newAuth)
-	if err != nil {
-		return err
-	}
 
-	req, err := http.NewRequest("POST", u.String(), bytes.NewReader(octets))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp); err != nil {
-		return err
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(a); err != nil {
-		return err
-	}
-
-	return nil
+	return s.Client.
+		PostJSON(newAuth, prefixAuthorization).
+		DecodeJSON(a).
+		Do(ctx)
 }
 
 // UpdateAuthorization updates the status and description if available.
 func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (*platform.Authorization, error) {
-	u, err := NewURL(s.Addr, authorizationIDPath(id))
-	if err != nil {
-		return nil, err
-	}
-
-	b, err := json.Marshal(upd)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(b))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, err
-	}
-
 	var res authResponse
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+	err := s.Client.
+		PatchJSON(upd, prefixAuthorization, id.String()).
+		DecodeJSON(&res).
+		Do(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -832,27 +721,7 @@ func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platf
 
 // DeleteAuthorization removes a authorization by id.
 func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) error {
-	u, err := NewURL(s.Addr, authorizationIDPath(id))
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("DELETE", u.String(), nil)
-	if err != nil {
-		return err
-	}
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return CheckError(resp)
-}
-
-func authorizationIDPath(id platform.ID) string {
-	return path.Join(authorizationPath, id.String())
+	return s.Client.
+		Delete(prefixAuthorization, id.String()).
+		Do(ctx)
 }

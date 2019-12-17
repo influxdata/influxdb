@@ -57,15 +57,12 @@ func NewService(addr, token string) (*Service, error) {
 	}
 
 	return &Service{
-		Addr:  addr,
-		Token: token,
-		AuthorizationService: &AuthorizationService{
-			Addr:  addr,
-			Token: token,
-		},
-		BucketService:       &BucketService{Client: httpClient},
-		DashboardService:    &DashboardService{Client: httpClient},
-		OrganizationService: &OrganizationService{Client: httpClient},
+		Addr:                 addr,
+		Token:                token,
+		AuthorizationService: &AuthorizationService{Client: httpClient},
+		BucketService:        &BucketService{Client: httpClient},
+		DashboardService:     &DashboardService{Client: httpClient},
+		OrganizationService:  &OrganizationService{Client: httpClient},
 		UserService: &UserService{
 			Addr:  addr,
 			Token: token,

@@ -307,10 +307,14 @@ func newAuthorizationService(f Flags) (platform.AuthorizationService, error) {
 	if flags.local {
 		return newLocalKVService()
 	}
+
+	httpClient, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+
 	return &http.AuthorizationService{
-		Addr:               flags.host,
-		Token:              flags.token,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: httpClient,
 	}, nil
 }
 
