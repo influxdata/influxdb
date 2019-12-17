@@ -194,8 +194,7 @@ type telegrafResponses struct {
 	TelegrafConfigs []*telegrafResponse `json:"configurations"`
 }
 
-func decodeGetTelegrafPluginRequest(ctx context.Context, r *http.Request) (*plugins.TelegrafPlugins, error) {
-	t := r.URL.Query().Get("type")
+func getTelegrafPlugins(t string) (*plugins.TelegrafPlugins, error) {
 	if len(t) == 0 {
 		return plugins.AvailablePlugins()
 	}
@@ -206,7 +205,7 @@ func decodeGetTelegrafPluginRequest(ctx context.Context, r *http.Request) (*plug
 func (h *TelegrafHandler) handleGetTelegrafPlugins(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	telPlugins, err := decodeGetTelegrafPluginRequest(ctx, r)
+	telPlugins, err := getTelegrafPlugins(r.URL.Query().Get("type"))
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return

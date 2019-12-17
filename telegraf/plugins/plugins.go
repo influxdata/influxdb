@@ -3,6 +3,7 @@ package plugins
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 )
 
 // Plugin defines a Telegraf plugin.
@@ -114,6 +115,14 @@ func AvailablePlugins() (*TelegrafPlugins, error) {
 	return all, nil
 }
 
+func sortPlugins(t *TelegrafPlugins) *TelegrafPlugins {
+	sort.Slice(t.Plugins, func(i, j int) bool {
+		return t.Plugins[i].Name < t.Plugins[j].Name
+	})
+
+	return t
+}
+
 // AvailableInputs returns the base list of available input plugins.
 func AvailableInputs() (*TelegrafPlugins, error) {
 	t := &TelegrafPlugins{}
@@ -121,7 +130,7 @@ func AvailableInputs() (*TelegrafPlugins, error) {
 	if err != nil {
 		return nil, err
 	}
-	return t, nil
+	return sortPlugins(t), nil
 }
 
 // AvailableOutputs returns the base list of available output plugins.
@@ -131,7 +140,7 @@ func AvailableOutputs() (*TelegrafPlugins, error) {
 	if err != nil {
 		return nil, err
 	}
-	return t, nil
+	return sortPlugins(t), nil
 }
 
 // AvailableProcessors returns the base list of available processor plugins.
@@ -141,7 +150,7 @@ func AvailableProcessors() (*TelegrafPlugins, error) {
 	if err != nil {
 		return nil, err
 	}
-	return t, nil
+	return sortPlugins(t), nil
 }
 
 // AvailableAggregators returns the base list of available aggregator plugins.
@@ -151,9 +160,10 @@ func AvailableAggregators() (*TelegrafPlugins, error) {
 	if err != nil {
 		return nil, err
 	}
-	return t, nil
+	return sortPlugins(t), nil
 }
 
+// AvailableBundles returns the base list of available bundled plugins.
 func AvailableBundles() (*TelegrafPlugins, error) {
 	return &TelegrafPlugins{
 		Version: "1.13.0",
@@ -163,12 +173,11 @@ func AvailableBundles() (*TelegrafPlugins, error) {
 				Type:        "bundle",
 				Name:        "System Bundle",
 				Description: "Collection of system related inputs",
-				Config: `
-# Read metrics about cpu usage\n[[inputs.cpu]]\n  # alias=\"cpu\"\n  ## Whether to report per-cpu stats or not\n  percpu = true\n  ## Whether to report total system cpu stats or not\n  totalcpu = true\n  ## If true, collect raw CPU time metrics.\n  collect_cpu_time = false\n  ## If true, compute and report the sum of all non-idle CPU states.\n  report_active = false\n
-# Read metrics about swap memory usage\n[[inputs.swap]]\n  # alias=\"swap\"\n
-# Read metrics about disk usage by mount point\n[[inputs.disk]]\n  # alias=\"disk\"\n  ## By default stats will be gathered for all mount points.\n  ## Set mount_points will restrict the stats to only the specified mount points.\n  # mount_points = [\"/\"]\n\n  ## Ignore mount points by filesystem type.\n  ignore_fs = [\"tmpfs\", \"devtmpfs\", \"devfs\", \"iso9660\", \"overlay\", \"aufs\", \"squashfs\"]\n
-# Read metrics about memory usage\n[[inputs.mem]]\n  # alias=\"mem\"\n
-`,
+				Config: "" +
+					"# Read metrics about cpu usage\n[[inputs.cpu]]\n  # alias=\"cpu\"\n  ## Whether to report per-cpu stats or not\n  percpu = true\n  ## Whether to report total system cpu stats or not\n  totalcpu = true\n  ## If true, collect raw CPU time metrics.\n  collect_cpu_time = false\n  ## If true, compute and report the sum of all non-idle CPU states.\n  report_active = false\n" +
+					"# Read metrics about swap memory usage\n[[inputs.swap]]\n  # alias=\"swap\"\n" +
+					"# Read metrics about disk usage by mount point\n[[inputs.disk]]\n  # alias=\"disk\"\n  ## By default stats will be gathered for all mount points.\n  ## Set mount_points will restrict the stats to only the specified mount points.\n  # mount_points = [\"/\"]\n\n  ## Ignore mount points by filesystem type.\n  ignore_fs = [\"tmpfs\", \"devtmpfs\", \"devfs\", \"iso9660\", \"overlay\", \"aufs\", \"squashfs\"]\n" +
+					"# Read metrics about memory usage\n[[inputs.mem]]\n  # alias=\"mem\"\n",
 			},
 		},
 	}, nil
