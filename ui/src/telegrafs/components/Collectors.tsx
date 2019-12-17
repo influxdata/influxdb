@@ -32,8 +32,7 @@ import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {ITelegraf as Telegraf} from '@influxdata/influx'
-import {OverlayState, AppState, Bucket} from 'src/types'
+import {Telegraf, OverlayState, AppState, Bucket} from 'src/types'
 import {
   setDataLoadersType,
   setTelegrafConfigID,
@@ -140,7 +139,7 @@ class Collectors extends PureComponent<Props, State> {
                   ]}
                   list={collectors}
                 >
-                  {cs => (
+                  {() => (
                     <CollectorList
                       emptyState={this.emptyState}
                       onFilterChange={this.handleFilterUpdate}
@@ -263,14 +262,6 @@ class Collectors extends PureComponent<Props, State> {
         </EmptyState.Text>
       </EmptyState>
     )
-  }
-
-  private handleDeleteTelegraf = (telegraf: Telegraf) => {
-    this.props.onDeleteTelegraf(telegraf.id, telegraf.name)
-  }
-
-  private handleUpdateTelegraf = (telegraf: Telegraf) => {
-    this.props.onUpdateTelegraf(telegraf)
   }
 
   private handleFilterChange = (searchTerm: string): void => {

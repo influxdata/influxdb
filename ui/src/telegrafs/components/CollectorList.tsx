@@ -9,10 +9,9 @@ import {ResourceList} from '@influxdata/clockface'
 import CollectorRow from 'src/telegrafs/components/CollectorCard'
 
 // Types
-import {ITelegraf as Telegraf} from '@influxdata/influx'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes, getSortedResources} from 'src/shared/utils/sort'
-import {AppState} from 'src/types'
+import {AppState, Telegraf} from 'src/types'
 import { updateTelegraf, deleteTelegraf } from '../actions'
 
 type SortKey = keyof Telegraf

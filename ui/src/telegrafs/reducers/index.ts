@@ -2,9 +2,8 @@
 import {produce} from 'immer'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, Telegraf} from 'src/types'
 import {Action} from 'src/telegrafs/actions'
-import {ITelegraf as Telegraf} from '@influxdata/influx'
 
 const initialState = (): TelegrafsState => ({
   status: RemoteDataState.NotStarted,
