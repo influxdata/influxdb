@@ -599,7 +599,9 @@ describe('DataExplorer', () => {
       })
     })
 
-    describe('visualize tables', () => {
+    // skipping until the sigin flake gets resolve in:
+    // https://github.com/influxdata/influxdb/issues/16253
+    describe.skip('visualize tables', () => {
       const numLines = 360
 
       beforeEach(() => {
