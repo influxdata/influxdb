@@ -5,6 +5,7 @@
 1. [16234](https://github.com/influxdata/influxdb/pull/16234): add support for notification endpoints to influx templates/pkgs. 
 
 ### Bug Fixes
+1. [16225](https://github.com/influxdata/influxdb/pull/16225): Ensures env vars are applied consistently across cmd, and fixes issue where INFLUX_ env var prefix was not set globally.
 
 1. [16235](https://github.com/influxdata/influxdb/pull/16235): Removed default frontend sorting when flux queries specify sorting
 1. [16238](https://github.com/influxdata/influxdb/pull/16238): Store canceled task runs in the correct bucket
