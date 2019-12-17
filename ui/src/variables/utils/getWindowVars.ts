@@ -51,7 +51,7 @@ export const getWindowPeriod = (
   query: string,
   variables: VariableAssignment[]
 ): number | null => {
-  if (query === undefined || query.length === 0) {
+  if (query.length === 0) {
     return null
   }
   try {
