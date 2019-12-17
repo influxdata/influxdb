@@ -52,8 +52,10 @@ describe('The Query Builder', () => {
       cy.contains('Create a New Dashboard').trigger('mousedown')
       cy.getByTestID('overlay--container').click() // close the blast door i mean dropdown
 
-      cy.get('[placeholder="Add dashboard name"]').type('Basic Ole Dashboard')
-      cy.get('[placeholder="Add optional cell name"]').type('Memory Usage')
+      cy.getByTestID('save-as-dashboard-cell--dashboard-name').type(
+        'Basic Ole Dashboard'
+      )
+      cy.getByTestID('save-as-dashboard-cell--cell-name').type('Memory Usage')
       cy.contains('Save as Dashboard Cell').click()
 
       // wait for the notification since it's highly animated

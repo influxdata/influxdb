@@ -98,6 +98,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
                   name="cellName"
                   value={cellName}
                   onChange={this.handleChangeCellName}
+                  testID="save-as-dashboard-cell--cell-name"
                 />
               </Form.Element>
             </Grid.Column>
@@ -139,6 +140,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
             name="dashboardName"
             value={newDashboardName}
             onChange={this.handleChangeDashboardName}
+            testID="save-as-dashboard-cell--dashboard-name"
           />
         </Form.Element>
       </Grid.Column>
