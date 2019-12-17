@@ -57,7 +57,7 @@ type TelegrafHandler struct {
 }
 
 const (
-	prefixTelegraf          = "/api/v2/telegrafs"
+	prefixTelegraf           = "/api/v2/telegrafs"
 	telegrafsIDPath          = "/api/v2/telegrafs/:id"
 	telegrafsIDMembersPath   = "/api/v2/telegrafs/:id/members"
 	telegrafsIDMembersIDPath = "/api/v2/telegrafs/:id/members/:userID"
