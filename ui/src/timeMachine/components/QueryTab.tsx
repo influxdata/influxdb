@@ -168,10 +168,9 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
     return this.props.queryCount > 1
   }
 
-  private handleRemove = (e: MouseEvent): void => {
+  private handleRemove = (): void => {
     const {queryIndex, onRemoveQuery} = this.props
 
-    e.stopPropagation()
     onRemoveQuery(queryIndex)
   }
 
