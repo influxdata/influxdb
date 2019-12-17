@@ -388,8 +388,8 @@ func testMetrics(t *testing.T) {
 	}
 
 	m = promtest.MustFindMetric(t, mg, "task_executor_run_latency_seconds", map[string]string{"task_type": ""})
-	if got := *m.Histogram.SampleCount; got != 1 {
-		t.Fatalf("expected to count 1 run latency metric, got %v", got)
+	if got := *m.Histogram.SampleCount; got < 1 {
+		t.Fatal("expected to find run latency metric")
 	}
 
 	if got := *m.Histogram.SampleSum; got <= 100 {
