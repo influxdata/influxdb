@@ -399,6 +399,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		if err != nil {
 			if err == influxdb.ErrTaskNotFound {
 				// we might have some crufty index's
+				k, v = c.Next()
 				continue
 			}
 			return nil, 0, err
