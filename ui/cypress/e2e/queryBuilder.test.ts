@@ -49,10 +49,8 @@ describe('The Query Builder', () => {
 
       // open the dashboard selector dropdown
       cy.getByTestID('save-as-dashboard-cell--dropdown').click()
-      cy.getByTestID('save-as-dashboard-cell--dropdown-menu').within(() => {
-        cy.contains('Create a New Dashboard').trigger('mousedown')
-      })
-      cy.getByTestID('overlay--container').click() // close the blast door i mean dropdown
+      cy.getByTestID('save-as-dashboard-cell--create-new-dash').click()
+      cy.getByTestID('save-as-overlay--header').click() // close the blast door i mean dropdown
 
       cy.getByTestID('save-as-dashboard-cell--dashboard-name').type(
         'Basic Ole Dashboard'

@@ -98,6 +98,7 @@ class DashboardsDropdown extends PureComponent<Props> {
         type={DropdownItemType.Checkbox}
         onClick={this.handleSelectDashboard}
         selected={selectedIDs.includes(DashboardTemplate.id)}
+        testID="save-as-dashboard-cell--create-new-dash"
       >
         {DashboardTemplate.name}
       </Dropdown.Item>

@@ -35,7 +35,11 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={600}>
-          <Overlay.Header title="Save As" onDismiss={this.handleHideOverlay} />
+          <Overlay.Header
+            title="Save As"
+            onDismiss={this.handleHideOverlay}
+            testID="save-as-overlay--header"
+          />
           <Overlay.Body>
             <Tabs.Container orientation={Orientation.Horizontal}>
               <Tabs alignment={Alignment.Center}>
