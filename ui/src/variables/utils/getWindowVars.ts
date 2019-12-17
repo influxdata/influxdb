@@ -68,7 +68,7 @@ export const getWindowPeriod = (
     return Math.round(queryDuration / DESIRED_POINTS_PER_GRAPH)
   } catch (error) {
     console.error(error)
-    reportError(error, {context: { query }, component: 'getWindowPeriod function'})
+    reportError(error, {component: `getWindowPeriod query: ${query}`})
     return null
   }
 }
