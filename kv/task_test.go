@@ -370,3 +370,73 @@ func TestService_UpdateTask_InactiveToActive(t *testing.T) {
 		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
 	}
 }
+
+func TestTaskRunCancellation(t *testing.T) {
+	store, close, err := NewTestBoltStore(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer close()
+
+	service := kv.NewService(zaptest.NewLogger(t), store)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	if err := service.Initialize(ctx); err != nil {
+		t.Fatalf("error initializing urm service: %v", err)
+	}
+	defer cancelFunc()
+	u := &influxdb.User{Name: t.Name() + "-user"}
+	if err := service.CreateUser(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	o := &influxdb.Organization{Name: t.Name() + "-org"}
+	if err := service.CreateOrganization(ctx, o); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := service.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
+		ResourceType: influxdb.OrgsResourceType,
+		ResourceID:   o.ID,
+		UserID:       u.ID,
+		UserType:     influxdb.Owner,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	authz := influxdb.Authorization{
+		OrgID:       o.ID,
+		UserID:      u.ID,
+		Permissions: influxdb.OperPermissions(),
+	}
+	if err := service.CreateAuthorization(context.Background(), &authz); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx = icontext.SetAuthorizer(ctx, &authz)
+
+	task, err := service.CreateTask(ctx, influxdb.TaskCreate{
+		Flux:           `option task = {name: "a task",cron: "0 * * * *", offset: 20s} from(bucket:"test") |> range(start:-1h)`,
+		OrganizationID: o.ID,
+		OwnerID:        u.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	run, err := service.CreateNextRun(ctx, task.ID, time.Now().Add(time.Hour).Unix())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := service.CancelRun(ctx, run.Created.TaskID, run.Created.RunID); err != nil {
+		t.Fatal(err)
+	}
+
+	canceled, err := service.FindRunByID(ctx, run.Created.TaskID, run.Created.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if canceled.Status != backend.RunCanceled.String() {
+		t.Fatalf("expected task run to be cancelled")
+	}
+}
