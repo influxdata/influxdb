@@ -112,8 +112,7 @@ func userUpdateF(cmd *cobra.Command, args []string) error {
 var userCreateFlags struct {
 	name     string
 	password string
-	orgID    string
-	org      string
+	organization
 }
 
 func userCreateCmd() *cobra.Command {
@@ -126,17 +125,14 @@ func userCreateCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&userCreateFlags.name, "name", "n", "", "The user name (required)")
 	cmd.MarkFlagRequired("name")
 	cmd.Flags().StringVarP(&userCreateFlags.password, "password", "p", "", "The user password")
-	cmd.Flags().StringVarP(&userCreateFlags.orgID, "org-id", "", "", "The organization id the user belongs to. Is required if password provided.")
-	cmd.Flags().StringVarP(&userCreateFlags.org, "org", "o", "", "The organization name the user belongs to. Is required if password provided.")
+	userCreateFlags.organization.register(cmd)
 
 	return cmd
 }
 
 func userCreateF(cmd *cobra.Command, args []string) error {
-	if userCreateFlags.orgID == "" && userCreateFlags.org == "" {
-		return errors.New("must specify org-id, or org name")
-	} else if userCreateFlags.orgID != "" && userCreateFlags.org != "" {
-		return errors.New("must specify org-id, or org name not both")
+	if err := userCreateFlags.organization.validOrgFlags(); err != nil {
+		return err
 	}
 
 	s, err := newUserService()
@@ -174,7 +170,7 @@ func userCreateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	orgID, err := getOrgID(orgSVC, userCreateFlags.orgID, userCreateFlags.org)
+	orgID, err := userCreateFlags.organization.getID(orgSVC)
 	if err != nil {
 		return err
 	}
