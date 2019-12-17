@@ -13,6 +13,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// check that *KVStore implement kv.Store interface.
+var _ (kv.Store) = (*KVStore)(nil)
+
 // KVStore is a kv.Store backed by boltdb.
 type KVStore struct {
 	path string
@@ -224,10 +227,21 @@ type Cursor struct {
 	key, value []byte
 
 	config kv.CursorConfig
+	closed bool
+}
+
+// Close sets the closed to closed
+func (c *Cursor) Close() error {
+	c.closed = true
+
+	return nil
 }
 
 // Seek seeks for the first key that matches the prefix provided.
 func (c *Cursor) Seek(prefix []byte) ([]byte, []byte) {
+	if c.closed {
+		return nil, nil
+	}
 	k, v := c.cursor.Seek(prefix)
 	if len(k) == 0 && len(v) == 0 {
 		return nil, nil
@@ -237,6 +251,9 @@ func (c *Cursor) Seek(prefix []byte) ([]byte, []byte) {
 
 // First retrieves the first key value pair in the bucket.
 func (c *Cursor) First() ([]byte, []byte) {
+	if c.closed {
+		return nil, nil
+	}
 	k, v := c.cursor.First()
 	if len(k) == 0 && len(v) == 0 {
 		return nil, nil
@@ -246,6 +263,9 @@ func (c *Cursor) First() ([]byte, []byte) {
 
 // Last retrieves the last key value pair in the bucket.
 func (c *Cursor) Last() ([]byte, []byte) {
+	if c.closed {
+		return nil, nil
+	}
 	k, v := c.cursor.Last()
 	if len(k) == 0 && len(v) == 0 {
 		return nil, nil
@@ -255,6 +275,9 @@ func (c *Cursor) Last() ([]byte, []byte) {
 
 // Next retrieves the next key in the bucket.
 func (c *Cursor) Next() (k []byte, v []byte) {
+	if c.closed {
+		return nil, nil
+	}
 	// get and unset previously seeked values if they exist
 	k, v, c.key, c.value = c.key, c.value, nil, nil
 	if len(k) > 0 && len(v) > 0 {
@@ -275,6 +298,9 @@ func (c *Cursor) Next() (k []byte, v []byte) {
 
 // Prev retrieves the previous key in the bucket.
 func (c *Cursor) Prev() (k []byte, v []byte) {
+	if c.closed {
+		return nil, nil
+	}
 	// get and unset previously seeked values if they exist
 	k, v, c.key, c.value = c.key, c.value, nil, nil
 	if len(k) > 0 && len(v) > 0 {

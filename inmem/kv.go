@@ -240,11 +240,28 @@ type pair struct {
 
 // ForwardCursor returns a directional cursor which starts at the provided seeked key
 func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.ForwardCursor, error) {
-	pairs := make(chan []pair)
+	var (
+		pairs = make(chan []pair)
+		stop  = make(chan struct{})
+		send  = func(batch []pair) bool {
+			if len(batch) == 0 {
+				return true
+			}
+
+			select {
+			case pairs <- batch:
+				return true
+			case <-stop:
+				return false
+			}
+		}
+	)
+
 	go func() {
 		defer close(pairs)
 
 		var (
+			batch   []pair
 			config  = kv.NewCursorConfig(opts...)
 			fn      = config.Hints.PredicateFn
 			iterate = func(it btree.ItemIterator) {
@@ -258,9 +275,14 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 			}
 		}
 
-		var batch []pair
-
 		iterate(func(i btree.Item) bool {
+			select {
+			case <-stop:
+				// if signalled to stop then exit iteration
+				return false
+			default:
+			}
+
 			j, ok := i.(*item)
 			if !ok {
 				batch = append(batch, pair{err: fmt.Errorf("error item is type %T not *item", i)})
@@ -276,20 +298,23 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 				return true
 			}
 
-			pairs <- batch
+			if send(batch) {
+				// batch flushed successfully so we can
+				// begin a new batch
+				batch = nil
 
-			batch = nil
+				return true
+			}
 
-			return true
+			// we've been signalled to stop
+			return false
 		})
 
 		// send if any left in batch
-		if len(batch) > 0 {
-			pairs <- batch
-		}
+		send(batch)
 	}()
 
-	return &ForwardCursor{pairs: pairs}, nil
+	return &ForwardCursor{pairs: pairs, stop: stop}, nil
 }
 
 // ForwardCursor is a kv.ForwardCursor which iterates over an in-memory btree
@@ -299,6 +324,8 @@ type ForwardCursor struct {
 	cur []pair
 	n   int
 
+	stop   chan struct{}
+	closed bool
 	// error found during iteration
 	err error
 }
@@ -308,9 +335,23 @@ func (c *ForwardCursor) Err() error {
 	return c.err
 }
 
+// Close releases the producing goroutines for the forward cursor.
+// It blocks until the producing goroutine exits.
+func (c *ForwardCursor) Close() error {
+	if c.closed {
+		return nil
+	}
+
+	close(c.stop)
+
+	c.closed = true
+
+	return nil
+}
+
 // Next returns the next key/value pair in the cursor
 func (c *ForwardCursor) Next() ([]byte, []byte) {
-	if c.err != nil {
+	if c.err != nil || c.closed {
 		return nil, nil
 	}
 

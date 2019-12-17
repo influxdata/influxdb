@@ -8,6 +8,7 @@
 4. [16262](https://github.com/influxdata/influxdb/pull/16262): add support for check resource dry run functionality 
 5. [16275](https://github.com/influxdata/influxdb/pull/16275): add support for check resource apply functionality 
 6. [16283](https://github.com/influxdata/influxdb/pull/16283): add support for check resource export functionality 
+1. [16212](https://github.com/influxdata/influxdb/pull/16212): Add new kv.ForwardCursor interface
 
 ### Bug Fixes
 

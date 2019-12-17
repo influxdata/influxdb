@@ -702,6 +702,7 @@ func KVForwardCursor(
 		fields KVStoreFields
 		args   args
 		exp    []string
+		expErr error
 	}{
 		{
 			name: "no hints",
@@ -897,6 +898,14 @@ func KVForwardCursor(
 
 				if exp := tt.exp; !cmp.Equal(got, exp) {
 					t.Errorf("unexpected cursor values: -got/+exp\n%v", cmp.Diff(got, exp))
+				}
+
+				if err := cur.Err(); !cmp.Equal(err, tt.expErr) {
+					t.Errorf("expected error to be %v, got %v", tt.expErr, err)
+				}
+
+				if err := cur.Close(); err != nil {
+					t.Errorf("expected cursor to close with nil error, found %v", err)
 				}
 
 				return nil

@@ -102,14 +102,14 @@ type Bucket interface {
 // Cursor is an abstraction for iterating/ranging through data. A concrete implementation
 // of a cursor can be found in cursor.go.
 type Cursor interface {
-	// Next moves the cursor to the next key in the bucket.
-	Next() (k, v []byte)
 	// Seek moves the cursor forward until reaching prefix in the key name.
 	Seek(prefix []byte) (k []byte, v []byte)
 	// First moves the cursor to the first key in the bucket.
 	First() (k []byte, v []byte)
 	// Last moves the cursor to the last key in the bucket.
 	Last() (k []byte, v []byte)
+	// Next moves the cursor to the next key in the bucket.
+	Next() (k []byte, v []byte)
 	// Prev moves the cursor to the prev key in the bucket.
 	Prev() (k []byte, v []byte)
 }
@@ -121,6 +121,8 @@ type ForwardCursor interface {
 	// Err returns non-nil if an error occurred during cursor iteration.
 	// This should always be checked after Next returns a nil key/value.
 	Err() error
+	// Close is reponsible for freeing any resources created by the cursor.
+	Close() error
 }
 
 // CursorDirection is an integer used to define the direction
