@@ -23,11 +23,19 @@ class DashboardsDropdown extends PureComponent<Props> {
     return (
       <Dropdown
         button={(active, onClick) => (
-          <Dropdown.Button active={active} onClick={onClick}>
+          <Dropdown.Button
+            active={active}
+            onClick={onClick}
+            testID="save-as-dashboard-cell--dropdown"
+          >
             {this.dropdownLabel}
           </Dropdown.Button>
         )}
-        menu={() => <Dropdown.Menu>{this.dropdownItems}</Dropdown.Menu>}
+        menu={() => (
+          <Dropdown.Menu testID="save-as-dashboard-cell--dropdown-menu">
+            {this.dropdownItems}
+          </Dropdown.Menu>
+        )}
       />
     )
   }
