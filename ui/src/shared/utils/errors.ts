@@ -12,6 +12,8 @@ if (CLOUD) {
 
 interface AdditionalOptions {
   component?: string
+  context?: {[key: string]: any}
+  name?: string
 }
 
 export const reportError = (
@@ -26,9 +28,9 @@ export const reportError = (
 /*
   Parse React's error boundary info message to provide the name of the
   component an error occured in.
- 
+
   For example, given the following info message:
- 
+
       The above error occurred in the <MePage> component:
           in MePage (created by ErrorBoundary(MePage))
           in ErrorBoundary (created by ErrorBoundary(MePage))
@@ -36,7 +38,7 @@ export const reportError = (
           in Connect(ErrorBoundary(MePage)) (created by RouterContext)
           in SpinnerContainer (created by SetOrg)
           ...
- 
+
   We will extract "MePage" as the component name.
 */
 export const parseComponentName = (errorInfo: ErrorInfo): string => {
