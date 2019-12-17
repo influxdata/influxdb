@@ -12,7 +12,7 @@ if (CLOUD) {
 
 interface AdditionalOptions {
   component?: string
-  context?: object
+  context?: {[key: string]: any}
   name?: string
 }
 
