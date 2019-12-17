@@ -109,7 +109,7 @@ func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb
 }
 
 func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRuleCreate) (*influxdb.Task, error) {
-	ep, _, _, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
+	ep, _, _, err := s.findNotificationEndpointByID(tx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.
 }
 
 func (s *Service) updateNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRule, status *string) (*influxdb.Task, error) {
-	ep, _, _, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
+	ep, _, _, err := s.findNotificationEndpointByID(tx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
 	}

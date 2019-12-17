@@ -1,4 +1,19 @@
-version: 2
+version: '2.1'
+
+commands:
+  install_rust_compiler:
+    description: >
+      This will install the rust compiler with the rust tools.
+    steps:
+      - run:
+          name: Install clang
+          command: sudo apt-get install -y --no-install-recommends clang
+      - run:
+          name: Install rust compiler
+          command: |
+            curl https://sh.rustup.rs -sSf | \
+            sh -s -- --default-toolchain stable -y
+            echo 'source $HOME/.cargo/env' >> $BASH_ENV
 
 jobs:
   litmus_daily:
@@ -65,6 +80,7 @@ jobs:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
       - run: sudo apt-get install -y netcat-openbsd
       - run: sudo apt-get install -y bzr
+      - install_rust_compiler
       - run: make protoc
       - run: make build
       - run:
@@ -154,6 +170,7 @@ jobs:
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
       - run: sudo apt-get install -y bzr
+      - install_rust_compiler
       - run: mkdir -p $TEST_RESULTS
       - run: make test-go # This uses the test cache so it may succeed or fail quickly.
       - run: make vet
@@ -162,7 +179,7 @@ jobs:
       - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
       - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
       - run: GO111MODULE=on staticcheck ./...
-      - run: GOTRACEBACK=all GO111MODULE=on gotestsum --format standard-verbose --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 ./...
+      - run: GOTRACEBACK=all GO111MODULE=on FLUX_PARSER_TYPE=rust CGO_LDFLAGS="$(cat .cgo_ldflags)" gotestsum --format standard-verbose --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 -tags 'libflux' ./...
       # TODO add these checks to the Makefile
       # - run: go get -v -t -d ./...
 
@@ -193,6 +210,7 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get install -y bzr
+      - install_rust_compiler
       - run: make checkcommit
 
       # Speed up `make build` by restoring caches from previous runs.

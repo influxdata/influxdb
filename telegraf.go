@@ -82,12 +82,18 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 	}
 
 	orgID := tcd.OrgID
-	if !orgID.Valid() {
+	if orgID == nil || !orgID.Valid() {
 		orgID = tcd.OrganizationID
 	}
 
-	tc.ID = tcd.ID
-	tc.OrgID = orgID
+	if tcd.ID != nil {
+		tc.ID = *tcd.ID
+	}
+
+	if orgID != nil {
+		tc.OrgID = *orgID
+	}
+
 	tc.Name = tcd.Name
 	tc.Description = tcd.Description
 
@@ -247,9 +253,9 @@ func decodePluginRaw(tcd *telegrafConfigDecode) ([]string, string, error) {
 
 // telegrafConfigDecode is the helper struct for json decoding. legacy.
 type telegrafConfigDecode struct {
-	ID             ID                      `json:"id,omitempty"`
-	OrganizationID ID                      `json:"organizationID,omitempty"`
-	OrgID          ID                      `json:"orgID,omitempty"`
+	ID             *ID                     `json:"id,omitempty"`
+	OrganizationID *ID                     `json:"organizationID,omitempty"`
+	OrgID          *ID                     `json:"orgID,omitempty"`
 	Name           string                  `json:"name,omitempty"`
 	Description    string                  `json:"description,omitempty"`
 	Config         string                  `json:"config,omitempty"`

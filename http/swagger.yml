@@ -7154,6 +7154,7 @@ components:
                 - bucket
                 - dashboard
                 - label
+                - notification_endpoint
                 - variable
             name:
               type: string
@@ -7192,18 +7193,26 @@ components:
             buckets:
               type: array
               items:
-                allOf:
-                  - $ref: "#/components/schemas/Bucket"
-                  - type: object
-                    properties:
-                      labelAssociations:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  orgID:
+                    type: string
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  retentionPeriod:
+                    type: integer
+                  labelAssociations:
                         type: array
                         items:
-                          $ref: "#/components/schemas/Label"
+                          $ref: "#/components/schemas/PkgSummaryLabel"
             labels:
               type: array
               items:
-                $ref: "#/components/schemas/Label"
+                $ref: "#/components/schemas/PkgSummaryLabel"
             dashboards:
               type: array
               items:
@@ -7265,11 +7274,19 @@ components:
             variables:
               type: array
               items:
-                allOf:
-                  - $ref: "#/components/schemas/Variable"
-                  - type: object
-                    properties:
-                      labelAssociations:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  orgID:
+                    type: string
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  arguments:
+                    $ref: "#/components/schemas/VariableProperties"
+                  labelAssociations:
                         type: array
                         items:
                           $ref: "#/components/schemas/Label"
@@ -7409,6 +7426,19 @@ components:
                 type: array
                 items:
                   type: integer
+    PkgSummaryLabel:
+      type: object
+      properties:
+        id:
+          type: string
+        orgID:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        retentionPeriod:
+          type: string
     PkgChart:
       type: object
       properties:

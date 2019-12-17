@@ -118,11 +118,9 @@ spec:
 
 				actual := buckets[0]
 				expectedBucket := SummaryBucket{
-					Bucket: influxdb.Bucket{
-						Name:            "rucket_11",
-						Description:     "bucket 1 description",
-						RetentionPeriod: time.Hour,
-					},
+					Name:            "rucket_11",
+					Description:     "bucket 1 description",
+					RetentionPeriod: time.Hour,
 				}
 				assert.Equal(t, expectedBucket, actual)
 			})
@@ -345,7 +343,7 @@ spec:
 
 			require.Len(t, sum.LabelMappings, len(expectedMappings))
 			for i, expected := range expectedMappings {
-				expected.LabelMapping.ResourceType = influxdb.BucketsResourceType
+				expected.ResourceType = influxdb.BucketsResourceType
 				assert.Equal(t, expected, sum.LabelMappings[i])
 			}
 		})
@@ -2605,7 +2603,7 @@ spec:
 			require.Len(t, sum.LabelMappings, len(expectedMappings))
 
 			for i, expected := range expectedMappings {
-				expected.LabelMapping.ResourceType = influxdb.DashboardsResourceType
+				expected.ResourceType = influxdb.DashboardsResourceType
 				assert.Equal(t, expected, sum.LabelMappings[i])
 			}
 		})
@@ -2717,8 +2715,8 @@ spec:
 						URL:        "https://www.example.com/endpoint/basicauth",
 						AuthMethod: "basic",
 						Method:     "POST",
-						Username:   influxdb.SecretField{Key: "-username", Value: strPtr("secret username")},
-						Password:   influxdb.SecretField{Key: "-password", Value: strPtr("secret password")},
+						Username:   influxdb.SecretField{Value: strPtr("secret username")},
+						Password:   influxdb.SecretField{Value: strPtr("secret password")},
 					},
 				},
 				{
@@ -2731,7 +2729,7 @@ spec:
 						URL:        "https://www.example.com/endpoint/bearerauth",
 						AuthMethod: "bearer",
 						Method:     "PUT",
-						Token:      influxdb.SecretField{Key: "-token", Value: strPtr("secret token")},
+						Token:      influxdb.SecretField{Value: strPtr("secret token")},
 					},
 				},
 				{
@@ -2754,7 +2752,7 @@ spec:
 							Status:      influxdb.TaskStatusActive,
 						},
 						ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
-						RoutingKey: influxdb.SecretField{Key: "-routing-key", Value: strPtr("secret routing-key")},
+						RoutingKey: influxdb.SecretField{Value: strPtr("secret routing-key")},
 					},
 				},
 				{
@@ -2765,7 +2763,7 @@ spec:
 							Status:      influxdb.TaskStatusActive,
 						},
 						URL:   "https://hooks.slack.com/services/bip/piddy/boppidy",
-						Token: influxdb.SecretField{Key: "-token", Value: strPtr("tokenval")},
+						Token: influxdb.SecretField{Value: strPtr("tokenval")},
 					},
 				},
 			}
@@ -2782,11 +2780,9 @@ spec:
 
 				require.Len(t, sum.LabelMappings, len(expectedEndpoints))
 				expectedMapping := SummaryLabelMapping{
-					ResourceName: expected.GetName(),
+					ResourceName: expected.NotificationEndpoint.GetName(),
 					LabelName:    "label_1",
-					LabelMapping: influxdb.LabelMapping{
-						ResourceType: influxdb.NotificationEndpointResourceType,
-					},
+					ResourceType: influxdb.NotificationEndpointResourceType,
 				}
 				assert.Contains(t, sum.LabelMappings, expectedMapping)
 			}
@@ -2811,7 +2807,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointSlack
+    - kind: Notification_Endpoint_Slack
       name: name1
 `,
 					},
@@ -2830,7 +2826,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointPagerDuty
+    - kind: Notification_Endpoint_Pager_Duty
       name: name1
 `,
 					},
@@ -2849,7 +2845,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       method: GET
 `,
@@ -2869,7 +2865,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: none
       method: POST
@@ -2891,7 +2887,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: none
       url: http://example.com
@@ -2912,7 +2908,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: none
       method: GUT
@@ -2934,7 +2930,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: basic
       url: example.com
@@ -2957,7 +2953,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: basic
       method: POST
@@ -2980,7 +2976,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: basic
       method: POST
@@ -3002,7 +2998,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: bearer
       method: GET
@@ -3024,7 +3020,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: name1
       type: threeve
       method: GET
@@ -3046,10 +3042,10 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointSlack
+    - kind: Notification_Endpoint_Slack
       name: dupe
       url: example.com
-    - kind: NotificationEndpointSlack
+    - kind: Notification_Endpoint_Slack
       name: dupe
       url: example.com
 `,
@@ -3069,7 +3065,7 @@ meta:
   description:  pack description
 spec:
   resources:
-    - kind: NotificationEndpointSlack
+    - kind: Notification_Endpoint_Slack
       name: dupe
       url: example.com
       status: rando bad status
@@ -3091,8 +3087,8 @@ spec:
 				require.Len(t, sum.TelegrafConfigs, 1)
 
 				actual := sum.TelegrafConfigs[0]
-				assert.Equal(t, "first_tele_config", actual.Name)
-				assert.Equal(t, "desc", actual.Description)
+				assert.Equal(t, "first_tele_config", actual.TelegrafConfig.Name)
+				assert.Equal(t, "desc", actual.TelegrafConfig.Description)
 
 				require.Len(t, actual.LabelAssociations, 1)
 				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
@@ -3101,9 +3097,7 @@ spec:
 				expectedMapping := SummaryLabelMapping{
 					ResourceName: "first_tele_config",
 					LabelName:    "label_1",
-					LabelMapping: influxdb.LabelMapping{
-						ResourceType: influxdb.TelegrafsResourceType,
-					},
+					ResourceType: influxdb.TelegrafsResourceType,
 				}
 				assert.Equal(t, expectedMapping, sum.LabelMappings[0])
 			})
@@ -3366,9 +3360,35 @@ spec:
 
 			require.Len(t, sum.LabelMappings, len(expectedMappings))
 			for i, expected := range expectedMappings {
-				expected.LabelMapping.ResourceType = influxdb.VariablesResourceType
+				expected.ResourceType = influxdb.VariablesResourceType
 				assert.Equal(t, expected, sum.LabelMappings[i])
 			}
+		})
+	})
+
+	t.Run("referencing secrets", func(t *testing.T) {
+		testfileRunner(t, "testdata/notification_endpoint_secrets.yml", func(t *testing.T, pkg *Pkg) {
+			sum := pkg.Summary()
+
+			endpoints := sum.NotificationEndpoints
+			require.Len(t, endpoints, 1)
+
+			expected := &endpoint.PagerDuty{
+				Base: endpoint.Base{
+					Name:   "pager_duty_notification_endpoint",
+					Status: influxdb.TaskStatusActive,
+				},
+				ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
+				RoutingKey: influxdb.SecretField{Key: "-routing-key", Value: strPtr("not emtpy")},
+			}
+			actual, ok := endpoints[0].NotificationEndpoint.(*endpoint.PagerDuty)
+			require.True(t, ok)
+			assert.Equal(t, expected.Base.Name, actual.Name)
+			require.Nil(t, actual.RoutingKey.Value)
+			assert.Equal(t, "routing-key", actual.RoutingKey.Key)
+
+			_, ok = pkg.mSecrets["routing-key"]
+			require.True(t, ok)
 		})
 	})
 }

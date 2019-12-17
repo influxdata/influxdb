@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/chronograf/server"
 	"github.com/influxdata/influxdb/cmd/influxd/inspect"
+	"github.com/influxdata/influxdb/endpoints"
 	"github.com/influxdata/influxdb/gather"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/inmem"
@@ -524,27 +525,27 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg.MustRegister(m.boltClient)
 
 	var (
-		orgSvc                  platform.OrganizationService             = m.kvService
-		authSvc                 platform.AuthorizationService            = m.kvService
-		userSvc                 platform.UserService                     = m.kvService
-		variableSvc             platform.VariableService                 = m.kvService
-		bucketSvc               platform.BucketService                   = m.kvService
-		sourceSvc               platform.SourceService                   = m.kvService
-		sessionSvc              platform.SessionService                  = m.kvService
-		passwdsSvc              platform.PasswordsService                = m.kvService
-		dashboardSvc            platform.DashboardService                = m.kvService
-		dashboardLogSvc         platform.DashboardOperationLogService    = m.kvService
-		userLogSvc              platform.UserOperationLogService         = m.kvService
-		bucketLogSvc            platform.BucketOperationLogService       = m.kvService
-		orgLogSvc               platform.OrganizationOperationLogService = m.kvService
-		onboardingSvc           platform.OnboardingService               = m.kvService
-		scraperTargetSvc        platform.ScraperTargetStoreService       = m.kvService
-		telegrafSvc             platform.TelegrafConfigStore             = m.kvService
-		userResourceSvc         platform.UserResourceMappingService      = m.kvService
-		labelSvc                platform.LabelService                    = m.kvService
-		secretSvc               platform.SecretService                   = m.kvService
-		lookupSvc               platform.LookupService                   = m.kvService
-		notificationEndpointSvc platform.NotificationEndpointService     = m.kvService
+		orgSvc                    platform.OrganizationService             = m.kvService
+		authSvc                   platform.AuthorizationService            = m.kvService
+		userSvc                   platform.UserService                     = m.kvService
+		variableSvc               platform.VariableService                 = m.kvService
+		bucketSvc                 platform.BucketService                   = m.kvService
+		sourceSvc                 platform.SourceService                   = m.kvService
+		sessionSvc                platform.SessionService                  = m.kvService
+		passwdsSvc                platform.PasswordsService                = m.kvService
+		dashboardSvc              platform.DashboardService                = m.kvService
+		dashboardLogSvc           platform.DashboardOperationLogService    = m.kvService
+		userLogSvc                platform.UserOperationLogService         = m.kvService
+		bucketLogSvc              platform.BucketOperationLogService       = m.kvService
+		orgLogSvc                 platform.OrganizationOperationLogService = m.kvService
+		onboardingSvc             platform.OnboardingService               = m.kvService
+		scraperTargetSvc          platform.ScraperTargetStoreService       = m.kvService
+		telegrafSvc               platform.TelegrafConfigStore             = m.kvService
+		userResourceSvc           platform.UserResourceMappingService      = m.kvService
+		labelSvc                  platform.LabelService                    = m.kvService
+		secretSvc                 platform.SecretService                   = m.kvService
+		lookupSvc                 platform.LookupService                   = m.kvService
+		notificationEndpointStore platform.NotificationEndpointService     = m.kvService
 	)
 
 	switch m.secretStore {
@@ -818,7 +819,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		TaskService:                     taskSvc,
 		TelegrafService:                 telegrafSvc,
 		NotificationRuleStore:           notificationRuleSvc,
-		NotificationEndpointService:     notificationEndpointSvc,
+		NotificationEndpointService:     endpoints.NewService(notificationEndpointStore, secretSvc, userResourceSvc, orgSvc),
 		CheckService:                    checkSvc,
 		ScraperTargetStoreService:       scraperTargetSvc,
 		ChronografService:               chronografSvc,
@@ -841,6 +842,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
 			pkger.WithLabelSVC(authorizer.NewLabelService(b.LabelService)),
 			pkger.WithNoticationEndpointSVC(authorizer.NewNotificationEndpointService(b.NotificationEndpointService, b.UserResourceMappingService, b.OrganizationService)),
+			pkger.WithSecretSVC(authorizer.NewSecretService(b.SecretService)),
 			pkger.WithTelegrafSVC(authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)),
 			pkger.WithVariableSVC(authorizer.NewVariableService(b.VariableService)),
 		)
@@ -848,7 +850,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	var pkgHTTPServer *http.HandlerPkg
 	{
-		pkgHTTPServer = http.NewHandlerPkg(m.apibackend.HTTPErrorHandler, pkgSVC)
+		pkgServerLogger := m.log.With(zap.String("handler", "pkger"))
+		pkgHTTPServer = http.NewHandlerPkg(pkgServerLogger, m.apibackend.HTTPErrorHandler, pkgSVC)
 	}
 
 	// HTTP server

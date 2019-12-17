@@ -1,9 +1,9 @@
-import {loadWASM} from 'onigasm' // peer dependency of 'monaco-textmate'
+import loader from 'src/external/monaco.onigasm'
 import {Registry} from 'monaco-textmate' // peer dependency
 import {wireTmGrammars} from 'monaco-editor-textmate'
 
 export async function addSyntax(monaco) {
-  await loadWASM(require(`onigasm/lib/onigasm.wasm`))
+  await loader()
 
   monaco.languages.register({id: 'flux'})
 

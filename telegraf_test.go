@@ -320,17 +320,19 @@ func TestTelegrafConfigJSONCompatibleMode(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		got := new(TelegrafConfig)
-		err := json.Unmarshal(c.src, got)
-		if diff := cmp.Diff(err, c.err); diff != "" {
-			t.Fatalf("%s decode failed, got err: %v, should be %v", c.name, err, c.err)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			got := new(TelegrafConfig)
+			err := json.Unmarshal(c.src, got)
+			if diff := cmp.Diff(err, c.err); diff != "" {
+				t.Fatalf("%s decode failed, got err: %v, should be %v", c.name, err, c.err)
+			}
 
-		c.cfg.Metadata = c.expMeta
-		// todo:this might not set buckets but should
-		if diff := cmp.Diff(got, c.cfg, telegrafCmpOptions...); c.err == nil && diff != "" {
-			t.Errorf("failed %s, telegraf configs are different -got/+want\ndiff %s", c.name, diff)
-		}
+			c.cfg.Metadata = c.expMeta
+			// todo:this might not set buckets but should
+			if diff := cmp.Diff(got, c.cfg, telegrafCmpOptions...); c.err == nil && diff != "" {
+				t.Errorf("failed %s, telegraf configs are different -got/+want\ndiff %s", c.name, diff)
+			}
+		})
 	}
 }
 

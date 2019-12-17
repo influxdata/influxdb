@@ -32,7 +32,7 @@ const FluxEditorMonaco: FC<Props> = props => {
       const {position} = evt
       const {onCursorChange} = props
       const pos = {
-        line: position.lineNumber,
+        line: position.lineNumber - 1,
         ch: position.column,
       }
 

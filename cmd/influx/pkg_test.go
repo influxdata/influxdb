@@ -22,7 +22,7 @@ import (
 
 func Test_Pkg(t *testing.T) {
 	fakeSVCFn := func(svc pkger.SVC) pkgSVCsFn {
-		return func(opts httpClientOpts, _ ...pkger.ServiceSetterFn) (pkger.SVC, influxdb.OrganizationService, error) {
+		return func() (pkger.SVC, influxdb.OrganizationService, error) {
 			return svc, &mock.OrganizationService{
 				FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 					return &influxdb.Organization{ID: influxdb.ID(9000), Name: "influxdata"}, nil
@@ -142,6 +142,42 @@ func Test_Pkg(t *testing.T) {
 						{name: "version", val: "new version"},
 						{name: "org", val: "influxdata"},
 					},
+				},
+				expectedMeta: pkger.Metadata{
+					Name:        "new name",
+					Description: "new desc",
+					Version:     "new version",
+				},
+			},
+			{
+				pkgFileArgs: pkgFileArgs{
+					name:     "yaml out",
+					encoding: pkger.EncodingYAML,
+					filename: "pkg_0.yml",
+					flags: []flagArg{
+						{name: "name", val: "new name"},
+						{name: "description", val: "new desc"},
+						{name: "version", val: "new version"},
+					},
+					envVars: []struct{ key, val string }{{key: "ORG", val: "influxdata"}},
+				},
+				expectedMeta: pkger.Metadata{
+					Name:        "new name",
+					Description: "new desc",
+					Version:     "new version",
+				},
+			},
+			{
+				pkgFileArgs: pkgFileArgs{
+					name:     "yaml out",
+					encoding: pkger.EncodingYAML,
+					filename: "pkg_0.yml",
+					flags: []flagArg{
+						{name: "name", val: "new name"},
+						{name: "description", val: "new desc"},
+						{name: "version", val: "new version"},
+					},
+					envVars: []struct{ key, val string }{{key: "ORG_ID", val: expectedOrgID.String()}},
 				},
 				expectedMeta: pkger.Metadata{
 					Name:        "new name",
@@ -294,28 +330,6 @@ func Test_Pkg(t *testing.T) {
 					Version:     "new version",
 				},
 			},
-			{
-				pkgFileArgs: pkgFileArgs{
-					name:     "mixed",
-					encoding: pkger.EncodingYAML,
-					filename: "pkg_0.yml",
-					flags: []flagArg{
-						{name: "name", val: "new name"},
-						{name: "description", val: "new desc"},
-						{name: "version", val: "new version"},
-					},
-				},
-				bucketIDs:   []influxdb.ID{1, 2},
-				dashIDs:     []influxdb.ID{3, 4},
-				labelIDs:    []influxdb.ID{5, 6},
-				varIDs:      []influxdb.ID{7, 8},
-				telegrafIDs: []influxdb.ID{9, 10},
-				expectedMeta: pkger.Metadata{
-					Name:        "new name",
-					Description: "new desc",
-					Version:     "new version",
-				},
-			},
 		}
 
 		cmdFn := func() *cobra.Command {
@@ -418,6 +432,9 @@ type pkgFileArgs struct {
 	filename string
 	encoding pkger.Encoding
 	flags    []flagArg
+	envVars  []struct {
+		key, val string
+	}
 }
 
 func testPkgWrites(t *testing.T, newCmdFn func() *cobra.Command, args pkgFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) {
@@ -427,6 +444,30 @@ func testPkgWrites(t *testing.T, newCmdFn func() *cobra.Command, args pkgFileArg
 		return cmd
 	}
 
+	// we'll memoize the current env vars if defined in args.envVars, then set the env vars defined in each test
+	var initialEnvVars []struct{ key, val string }
+	for _, envVar := range args.envVars {
+		if k := os.Getenv(envVar.key); k != "" {
+			initialEnvVars = append(initialEnvVars, struct{ key, val string }{
+				key: envVar.key,
+				val: k,
+			})
+		}
+
+		require.NoError(t, os.Setenv(envVar.key, envVar.val))
+	}
+
+	defer func() {
+		// unset the env vars set by the test
+		for _, envVar := range args.envVars {
+			require.NoError(t, os.Unsetenv(envVar.key))
+		}
+
+		// set the test env vars back to the initial state
+		for _, envVar := range initialEnvVars {
+			require.NoError(t, os.Setenv(envVar.key, envVar.val))
+		}
+	}()
 	t.Run(path.Join(args.name, "file"), testPkgWritesFile(wrappedCmdFn, args, assertFn))
 	t.Run(path.Join(args.name, "buffer"), testPkgWritesToBuffer(wrappedCmdFn, args, assertFn))
 }
@@ -481,8 +522,8 @@ func testPkgWritesToBuffer(newCmdFn func() *cobra.Command, args pkgFileArgs, ass
 
 type fakePkgSVC struct {
 	createFn func(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error)
-	dryRunFn func(ctx context.Context, orgID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error)
-	applyFn  func(ctx context.Context, orgID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, error)
+	dryRunFn func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error)
+	applyFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, error)
 }
 
 func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
@@ -492,16 +533,16 @@ func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSe
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) DryRun(ctx context.Context, orgID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error) {
+func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error) {
 	if f.dryRunFn != nil {
-		return f.dryRunFn(ctx, orgID, pkg)
+		return f.dryRunFn(ctx, orgID, userID, pkg)
 	}
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) Apply(ctx context.Context, orgID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, error) {
+func (f *fakePkgSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, error) {
 	if f.applyFn != nil {
-		return f.applyFn(ctx, orgID, pkg)
+		return f.applyFn(ctx, orgID, userID, pkg)
 	}
 	panic("not implemented")
 }

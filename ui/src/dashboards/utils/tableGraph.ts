@@ -220,7 +220,17 @@ export const sortTableData = (
   const dataValues = _.drop(data, 1)
   const sortedData = [
     data[0],
-    ..._.orderBy<string[][]>(dataValues, sortIndex, [sort.direction]),
+    ..._.orderBy<string[][]>(
+      dataValues,
+      row => {
+        const sortedValue = row[sortIndex]
+        if (isNaN(Number(sortedValue))) {
+          return sortedValue
+        }
+        return Number(sortedValue)
+      },
+      [sort.direction]
+    ),
   ] as string[][]
 
   const sortedTimeVals = fastMap<string[], string>(

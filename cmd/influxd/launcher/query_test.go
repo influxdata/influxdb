@@ -230,7 +230,7 @@ func TestPipeline_Query_LoadSecret_Forbidden(t *testing.T) {
 			},
 		},
 	}
-	if err := l.AuthorizationService().CreateAuthorization(ctx, auth); err != nil {
+	if err := l.AuthorizationService(t).CreateAuthorization(ctx, auth); err != nil {
 		t.Fatalf("unexpected error creating authorization: %s", err)
 	}
 	l.Auth = auth

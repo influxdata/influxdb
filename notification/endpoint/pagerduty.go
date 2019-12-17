@@ -24,7 +24,7 @@ type PagerDuty struct {
 // if value of that secret field is not nil.
 func (s *PagerDuty) BackfillSecretKeys() {
 	if s.RoutingKey.Key == "" && s.RoutingKey.Value != nil {
-		s.RoutingKey.Key = s.ID.String() + routingKeySuffix
+		s.RoutingKey.Key = s.idStr() + routingKeySuffix
 	}
 }
 
