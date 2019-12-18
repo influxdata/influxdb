@@ -26,6 +26,7 @@ describe('DataExplorer', () => {
     cy.signin().then(({body}) => {
       cy.wrap(body.org).as('org')
       cy.createMapVariable(body.org.id)
+      cy.wrap(body.bucket).as('bucket')
     })
 
     cy.fixture('routes').then(({orgs, explorer}) => {
@@ -551,26 +552,9 @@ describe('DataExplorer', () => {
 
     describe('visualize with 360 lines', () => {
       const numLines = 360
-
       beforeEach(() => {
-        cy.flush()
-
-        cy.signin().then(({body}) => {
-          const {
-            org: {id},
-            bucket,
-          } = body
-          cy.wrap(body.org).as('org')
-          cy.wrap(bucket).as('bucket')
-
-          // POST 360 lines to the server
-          cy.writeData(lines(numLines))
-
-          // start at the data explorer
-          cy.fixture('routes').then(({orgs, explorer}) => {
-            cy.visit(`${orgs}/${id}${explorer}`)
-          })
-        })
+        // POST 360 lines to the server
+        cy.writeData(lines(numLines))
       })
 
       it('can view time-series data', () => {
@@ -596,33 +580,6 @@ describe('DataExplorer', () => {
         cy.getByTestID('raw-data--toggle').click()
         cy.getByTestID('raw-data-table').should('exist')
         cy.getByTestID('raw-data--toggle').click()
-      })
-    })
-
-    // skipping until the sigin flake gets resolve in:
-    // https://github.com/influxdata/influxdb/issues/16253
-    describe.skip('visualize tables', () => {
-      const numLines = 360
-
-      beforeEach(() => {
-        cy.flush()
-
-        cy.signin().then(({body}) => {
-          const {
-            org: {id},
-            bucket,
-          } = body
-          cy.wrap(body.org).as('org')
-          cy.wrap(bucket).as('bucket')
-
-          // POST 360 lines to the server
-          cy.writeData(lines(numLines))
-
-          // start at the data explorer
-          cy.fixture('routes').then(({orgs, explorer}) => {
-            cy.visit(`${orgs}/${id}${explorer}`)
-          })
-        })
       })
 
       it('can view table data & sort values numerically', () => {
@@ -658,21 +615,19 @@ describe('DataExplorer', () => {
         cy.get('.table-graph-cell__sort-asc').should('exist')
         cy.getByTestID('_value-table-header').click()
         cy.get('.table-graph-cell__sort-desc').should('exist')
-        cy.getByTestID('_value-table-header')
-          .should('exist')
-          .then(el => {
-            // get the column index
-            const columnIndex = el[0].getAttribute('data-column-index')
-            let prev = Infinity
-            // get all the column values for that one and see if they are in order
-            cy.get(`[data-column-index="${columnIndex}"]`).each(val => {
-              const num = Number(val.text())
-              if (isNaN(num) === false) {
-                expect(num < prev).to.equal(true)
-                prev = num
-              }
-            })
+        cy.getByTestID('_value-table-header').then(el => {
+          // get the column index
+          const columnIndex = el[0].getAttribute('data-column-index')
+          let prev = Infinity
+          // get all the column values for that one and see if they are in order
+          cy.get(`[data-column-index="${columnIndex}"]`).each(val => {
+            const num = Number(val.text())
+            if (isNaN(num) === false) {
+              expect(num < prev).to.equal(true)
+              prev = num
+            }
           })
+        })
       })
     })
   })
