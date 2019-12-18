@@ -35,8 +35,10 @@ import {LimitsState} from 'src/cloud/reducers/limits'
 import {ChecksState} from 'src/alerting/reducers/checks'
 import {NotificationRulesState} from 'src/alerting/reducers/notifications/rules'
 import {NotificationEndpointsState} from 'src/alerting/reducers/notifications/endpoints'
+import {AlertBuilderState} from 'src/alerting/reducers/alertBuilder'
 
 export interface AppState {
+  alertBuilder: AlertBuilderState
   app: AppPresentationState
   autoRefresh: AutoRefreshState
   buckets: BucketsState
