@@ -4,7 +4,6 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Grid, Columns} from '@influxdata/clockface'
 import PrecisionDropdown from 'src/dataLoaders/components/lineProtocolWizard/configure/PrecisionDropdown'
 import TabSelector from 'src/dataLoaders/components/lineProtocolWizard/configure/TabSelector'
 import TabBody from 'src/dataLoaders/components/lineProtocolWizard/configure/TabBody'
@@ -66,43 +65,27 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
     const {urlInput} = this.state
 
     return (
-      <div>
-        <TabSelector
+      <>
+        <div className="line-protocol--header">
+          <TabSelector
+            activeLPTab={activeLPTab}
+            tabs={tabs}
+            onClick={this.handleTabClick}
+          />
+          <PrecisionDropdown
+            setPrecision={setPrecision}
+            precision={precision}
+          />
+        </div>
+        <TabBody
+          onURLChange={this.handleURLChange}
           activeLPTab={activeLPTab}
-          tabs={tabs}
-          onClick={this.handleTabClick}
+          precision={precision}
+          urlInput={urlInput}
+          lineProtocolBody={lineProtocolBody}
+          setLineProtocolBody={setLineProtocolBody}
         />
-
-        <Grid>
-          <Grid.Row>
-            <Grid.Column
-              widthXS={Columns.Ten}
-              offsetXS={Columns.One}
-              widthMD={Columns.Ten}
-              offsetMD={Columns.One}
-              widthLG={Columns.Eight}
-              offsetLG={Columns.Two}
-            >
-              <div className="onboarding--admin-user-form">
-                <div className="wizard-step--lp-body">
-                  <PrecisionDropdown
-                    setPrecision={setPrecision}
-                    precision={precision}
-                  />
-                  <TabBody
-                    onURLChange={this.handleURLChange}
-                    activeLPTab={activeLPTab}
-                    precision={precision}
-                    urlInput={urlInput}
-                    lineProtocolBody={lineProtocolBody}
-                    setLineProtocolBody={setLineProtocolBody}
-                  />
-                </div>
-              </div>
-            </Grid.Column>
-          </Grid.Row>
-        </Grid>
-      </div>
+      </>
     )
   }
 

@@ -42,3 +42,44 @@
   flex: 1 0 auto;
   padding: $ix-marg-d;
 }
+
+/*
+  Line Protocol Wizard
+  ------------------------------------------------------------------------------
+*/
+
+.line-protocol--header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $ix-marg-b;
+  z-index: 5050;
+  position: relative;
+}
+
+.line-protocol--content {
+  height: 300px;
+}
+
+.line-protocol--status {
+  font-size: 13px;
+  font-weight: 600;
+  user-select: none;
+
+  &.done {
+    color: $c-rainforest;
+  }
+  &.error {
+    color: $c-dreamsicle;
+  }
+}
+
+.line-protocol--spinner {
+  height: 300px + $ix-marg-b + 30px;
+  border: $ix-border solid $g3-castle;
+  border-radius: $ix-radius;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}

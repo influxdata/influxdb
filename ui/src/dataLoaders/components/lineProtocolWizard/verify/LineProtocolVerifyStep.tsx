@@ -3,10 +3,9 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Form} from '@influxdata/clockface'
+import {Form, Overlay} from '@influxdata/clockface'
 import StatusIndicator from 'src/dataLoaders/components/lineProtocolWizard/verify/StatusIndicator'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Types
 import {LineProtocolStepProps} from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
@@ -22,21 +21,24 @@ export class VerifyLineProtocolStep extends PureComponent<Props> {
     const {onDecrementCurrentStepIndex, onExit} = this.props
 
     return (
-      <div className="onboarding-step">
-        <Form onSubmit={onExit}>
-          <div className="wizard-step--scroll-area">
-            <FancyScrollbar autoHide={false}>
-              <div className="wizard-step--scroll-content">
-                <StatusIndicator />
-              </div>
-            </FancyScrollbar>
-          </div>
-          <OnboardingButtons
-            onClickBack={onDecrementCurrentStepIndex}
-            nextButtonText="Finish"
-          />
-        </Form>
-      </div>
+      <Form onSubmit={onExit}>
+        <Overlay.Body style={{textAlign: 'center'}}>
+          <StatusIndicator />
+          <p>
+            Need help writing InfluxDB Line Protocol?{' '}
+            <a
+              href="https://v2.docs.influxdata.com/v2.0/write-data/#write-data-in-the-influxdb-ui"
+              target="_blank"
+            >
+              See Documentation
+            </a>
+          </p>
+        </Overlay.Body>
+        <OnboardingButtons
+          onClickBack={onDecrementCurrentStepIndex}
+          nextButtonText="Finish"
+        />
+      </Form>
     )
   }
 }

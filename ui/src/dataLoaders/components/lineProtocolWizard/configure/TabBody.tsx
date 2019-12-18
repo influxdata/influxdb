@@ -38,6 +38,7 @@ export default class extends PureComponent<Props> {
             handleSubmit={this.handleSetLineProtocol}
             submitOnDrop={true}
             submitOnUpload={true}
+            className="line-protocol--content"
           />
         )
       case LineProtocolTab.EnterManually:
@@ -47,6 +48,7 @@ export default class extends PureComponent<Props> {
             placeholder="Write text here"
             onChange={this.handleTextChange}
             testID="line-protocol--text-area"
+            className="line-protocol--content"
           />
         )
       case LineProtocolTab.EnterURL:
