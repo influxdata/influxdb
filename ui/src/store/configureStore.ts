@@ -42,6 +42,9 @@ import {
   editorReducer,
 } from 'src/dataLoaders/reducers/telegrafEditor'
 
+// v3 reducers
+import nDashboardsReducer from 'src/dashboards/reducers/n.dashboards'
+
 // Types
 import {LocalStorage} from 'src/types/localStorage'
 import {AppState} from 'src/types'
@@ -50,38 +53,41 @@ type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
 export const rootReducer = combineReducers<ReducerState>({
   ...sharedReducers,
-  ranges: rangesReducer,
   autoRefresh: autoRefreshReducer,
+  buckets: bucketsReducer,
+  cloud: combineReducers<{limits: LimitsState}>({limits: limitsReducer}),
+  checks: checksReducer,
   dashboards: dashboardsReducer,
-  timeMachines: timeMachinesReducer,
-  routing: routerReducer,
-  views: viewsReducer,
-  tasks: tasksReducer,
+  dataLoading: dataLoadingReducer,
+  endpoints: endpointsReducer,
+  labels: labelsReducer,
+  me: meReducer,
+  members: membersReducer,
+  noteEditor: noteEditorReducer,
+  onboarding: onboardingReducer,
   orgs: orgsReducer,
   overlays: overlaysReducer,
-  me: meReducer,
-  onboarding: onboardingReducer,
-  noteEditor: noteEditorReducer,
-  dataLoading: dataLoadingReducer,
-  variables: variablesReducer,
-  variableEditor: variableEditorReducer,
-  labels: labelsReducer,
-  buckets: bucketsReducer,
+  ranges: rangesReducer,
+  resources: combineReducers({
+    dashboards: nDashboardsReducer,
+  }),
+  routing: routerReducer,
+  rules: rulesReducer,
+  scrapers: scrapersReducer,
+  tasks: tasksReducer,
   telegrafEditorPlugins: pluginsReducer,
   telegrafEditorActivePlugins: activePluginsReducer,
   telegrafEditor: editorReducer,
   plugins: pluginsResourceReducer,
   telegrafs: telegrafsReducer,
-  tokens: authorizationsReducer,
-  scrapers: scrapersReducer,
   templates: templatesReducer,
+  timeMachines: timeMachinesReducer,
+  tokens: authorizationsReducer,
   userSettings: userSettingsReducer,
-  members: membersReducer,
-  cloud: combineReducers<{limits: LimitsState}>({limits: limitsReducer}),
-  checks: checksReducer,
-  rules: rulesReducer,
-  endpoints: endpointsReducer,
+  variables: variablesReducer,
+  variableEditor: variableEditorReducer,
   VERSION: () => '',
+  views: viewsReducer,
 })
 
 const composeEnhancers =

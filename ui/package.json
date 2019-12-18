@@ -158,6 +158,7 @@
     "monaco-editor-textmate": "^2.2.1",
     "monaco-editor-webpack-plugin": "^1.7.0",
     "monaco-textmate": "^3.0.1",
+    "normalizr": "^3.4.1",
     "onigasm": "^2.2.4",
     "papaparse": "^4.6.3",
     "prop-types": "^15.6.1",
