@@ -10,9 +10,7 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Constants
 import {DEFAULT_CHECK_NAME} from 'src/alerting/constants'
-import {
-  SEARCH_QUERY_PARAM
-} from 'src/alerting/constants/history'
+import {SEARCH_QUERY_PARAM} from 'src/alerting/constants/history'
 
 // Actions and Selectors
 import {
@@ -105,7 +103,6 @@ const CheckCard: FunctionComponent<Props> = ({
   }
 
   const onView = () => {
-
     const queryParams = new URLSearchParams({
       [SEARCH_QUERY_PARAM]: `"checkID" == "${check.id}"`,
     })
