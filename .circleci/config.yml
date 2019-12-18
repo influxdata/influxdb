@@ -1,4 +1,4 @@
-version: '2.1'
+version: "2.1"
 
 commands:
   install_rust_compiler:
@@ -64,7 +64,7 @@ jobs:
       - image: circleci/golang:1.12-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: '-mod=readonly -p=4' # Go on Circle thinks 32 CPUs are available, but there aren't.
+      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -100,37 +100,37 @@ jobs:
     docker:
       - image: circleci/node:13.0.1-stretch-browsers
       - image: quay.io/influxdb/influx:nightly
-        command: [ --e2e-testing=true ]
+        command: [--e2e-testing=true]
     steps:
       - checkout
       - run:
-         name: Environment check
-         command: |
-           git --version
-           node --version && npm --version
-           docker --version
-           google-chrome --version && which google-chrome && chromedriver --version && which chromedriver
-           timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:9999)" != "200" ]]; do sleep 5; done' || false
+          name: Environment check
+          command: |
+            git --version
+            node --version && npm --version
+            docker --version
+            google-chrome --version && which google-chrome && chromedriver --version && which chromedriver
+            timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:9999)" != "200" ]]; do sleep 5; done' || false
       - run:
-         name: Checkout Tests
-         command: git clone --single-branch --branch 2.0-Alpha https://github.com/bonitoo-io/selenium-accept-infl2.git
+          name: Checkout Tests
+          command: git clone --single-branch --branch 2.0-Alpha https://github.com/bonitoo-io/selenium-accept-infl2.git
       - run:
-         name: Selenium tests
-         command: |
-           set +e
-           cd selenium-accept-infl2
-           npm install
-           npm test; TEST_RESULT=$?
-           npm run report:html
-           npm run report:junit
-           mkdir -p ~/test-results/cucumber
-           mkdir -p ~/artifacts/html
-           cp ~/project/selenium-accept-infl2/report/cucumber_report.html ~/artifacts/html/cucumber_report.html
-           cp ~/project/selenium-accept-infl2/report/cucumber_junit.xml ~/test-results/cucumber/report.xml
-           cp ~/project/selenium-accept-infl2/report/cucumber_junit.xml ~/artifacts/report.xml
-           cp -r ~/project/selenium-accept-infl2/screenshots ~/artifacts
-           ls -al
-           exit $TEST_RESULT
+          name: Selenium tests
+          command: |
+            set +e
+            cd selenium-accept-infl2
+            npm install
+            npm test; TEST_RESULT=$?
+            npm run report:html
+            npm run report:junit
+            mkdir -p ~/test-results/cucumber
+            mkdir -p ~/artifacts/html
+            cp ~/project/selenium-accept-infl2/report/cucumber_report.html ~/artifacts/html/cucumber_report.html
+            cp ~/project/selenium-accept-infl2/report/cucumber_junit.xml ~/test-results/cucumber/report.xml
+            cp ~/project/selenium-accept-infl2/report/cucumber_junit.xml ~/artifacts/report.xml
+            cp -r ~/project/selenium-accept-infl2/screenshots ~/artifacts
+            ls -al
+            exit $TEST_RESULT
       - store_test_results:
           path: ~/test-results
       - store_artifacts:
@@ -142,27 +142,70 @@ jobs:
     parallelism: 8
     steps:
       - checkout
-      - run: make node_modules
+      - restore_cache:
+          keys:
+            - 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+          name: "Restore Yarn Package Cache"
+      - run:
+          command: |
+            set +e
+            cd ui
+            yarn install --frozen-lockfile
+          name: "Install Dependencies"
       - run: make ui_client
       - run:
-         name: jest tests
-         command: |
-           set +e
-           cd ui
-           TESTFILES=$(circleci tests glob "src/**/*.test.ts*" | circleci tests split --split-by=timings)
-           yarn test:circleci $TESTFILES
-      - run: make chronograf_lint
+          name: parallel jest tests
+          command: |
+            set +e
+            cd ui
+            TESTFILES=$(circleci tests glob "src/**/*.test.ts*" | circleci tests split --split-by=timings)
+            yarn test:circleci $TESTFILES
       - store_test_results:
           path: coverage
       - store_artifacts:
           path: coverage
           destination: raw-test-output
+      - save_cache:
+          key: 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+          name: "Save Yarn Package Cache"
+          paths:
+            - ~/.cache/yarn
+  jslint:
+    docker:
+      - image: circleci/golang:1.12-node-browsers
+    working_directory: /go/src/github.com/influxdata/influxdb
+    parallelism: 8
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+          name: "Restore Yarn Package Cache"
+      - run:
+          command: |
+            set +e
+            cd ui
+            yarn install --frozen-lockfile
+          name: "Install Dependencies"
+      - run: make ui_client
+      - run:
+          name: parallel eslint
+          command: |
+            set +e
+            cd ui
+            TESTFILES=$(circleci tests glob "src/**/*.ts*" "cypress/**/*.ts*" | circleci tests split --split-by=filesize)
+            yarn eslint:circleci $TESTFILES
+      - save_cache:
+          key: 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+          name: "Save Yarn Package Cache"
+          paths:
+            - ~/.cache/yarn
   gotest:
     docker:
       - image: circleci/golang:1.12
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: '-mod=readonly -p=2' # Go on Circle thinks 32 CPUs are available, but there aren't.
+      GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
       TEST_RESULTS: /tmp/test-results
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
@@ -184,16 +227,7 @@ jobs:
       - install_rust_compiler
       - run: mkdir -p $TEST_RESULTS
       - run: make test-go # This uses the test cache so it may succeed or fail quickly.
-      - run: make vet
-      - run: make checkfmt
-      - run: make checktidy
-      - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
-      - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
-      - run: GO111MODULE=on staticcheck ./...
-      - run: GOTRACEBACK=all GO111MODULE=on FLUX_PARSER_TYPE=rust CGO_LDFLAGS="$(cat .cgo_ldflags)" gotestsum --format standard-verbose --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 -tags 'libflux' ./...
-      # TODO add these checks to the Makefile
-      # - run: go get -v -t -d ./...
-
+      - run: GOTRACEBACK=all GO111MODULE=on FLUX_PARSER_TYPE=rust CGO_LDFLAGS="$(cat .cgo_ldflags)" gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 -tags 'libflux' ./...
       - save_cache:
           name: Saving GOCACHE
           key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
@@ -211,12 +245,61 @@ jobs:
           destination: raw-test-output
       - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
           path: /tmp/test-results
+  golint:
+    docker:
+      - image: circleci/golang:1.12
+    environment:
+      GOCACHE: /tmp/go-cache
+      GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
+      TEST_RESULTS: /tmp/test-results
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+
+      # Populate GOCACHE.
+      - restore_cache:
+          name: Restoring GOCACHE
+          keys:
+            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
+            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
+            - influxdb-gocache- # Matches a new branch.
+      # Populate GOPATH/pkg.
+      - restore_cache:
+          name: Restoring GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
+      - run: sudo apt-get install -y bzr
+      - install_rust_compiler
+      - run: mkdir -p $TEST_RESULTS
+      - run: make vet
+      - run: make checkfmt
+      - run: make checktidy
+      - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
+      - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
+      - run: GO111MODULE=on staticcheck ./...
+      - save_cache:
+          name: Saving GOCACHE
+          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+          when: always
+      - save_cache:
+          name: Saving GOPATH/pkg/mod
+          key: influxdb-gomod-{{ checksum "go.sum" }}
+          paths:
+            - /go/pkg/mod
+          when: always
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
   build:
     docker:
       - image: circleci/golang:1.12-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: '-mod=readonly -p=4' # Go on Circle thinks 32 CPUs are available, but there aren't.
+      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -248,7 +331,7 @@ jobs:
       - image: circleci/golang:1.12-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: '-mod=readonly -p=4' # Go on Circle thinks 32 CPUs are available, but there aren't.
+      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -264,12 +347,12 @@ jobs:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
       - setup_remote_docker
       - run:
-          name: 'Docker Login'
+          name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - run: sudo apt-get install -y bzr
       - run: make protoc # installs protoc
       - run:
-          name: 'Build nightly'
+          name: "Build nightly"
           command: make nightly
       - persist_to_workspace:
           root: .
@@ -282,7 +365,7 @@ jobs:
       - image: circleci/golang:1.12-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: '-mod=readonly -p=4' # Go on Circle thinks 32 CPUs are available, but there aren't.
+      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
       DOCKER_VERSION: 2.0.0-alpha
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
@@ -299,12 +382,12 @@ jobs:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
       - setup_remote_docker
       - run:
-          name: 'Docker Login'
+          name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - run: sudo apt-get install -y bzr
       - run: make protoc # installs protoc
       - run:
-          name: 'Build release'
+          name: "Build release"
           command: make release
 
 workflows:
@@ -312,7 +395,9 @@ workflows:
   build:
     jobs:
       - gotest
+      - golint
       - jstest
+      - jslint
       - build
       - litmus_daily:
           requires:
@@ -326,18 +411,22 @@ workflows:
   nightly:
     triggers:
       - schedule:
-          cron: '0 7 * * *'
+          cron: "0 7 * * *"
           filters:
             branches:
               only:
                 - master
     jobs:
       - gotest
+      - golint
       - jstest
+      - jslint
       - deploy-nightly:
           requires:
             - gotest
+            - golint
             - jstest
+            - jslint
           filters:
             branches:
               only: master
@@ -355,8 +444,19 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
-
+      - golint:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
       - jstest:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
+      - jslint:
           filters:
             branches:
               ignore: /.*/
@@ -365,7 +465,9 @@ workflows:
       - release:
           requires:
             - gotest
+            - golint
             - jstest
+            - jslint
           filters:
             branches:
               ignore: /.*/
