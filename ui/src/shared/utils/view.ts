@@ -292,6 +292,27 @@ const NEW_VIEW_CREATORS = {
       colors: NINETEEN_EIGHTY_FOUR,
     },
   }),
+  custom: (): NewView<CheckViewProperties> => ({
+    name: 'check',
+    properties: {
+      type: 'check',
+      shape: 'chronograf-v2',
+      checkID: '',
+      queries: [
+        {
+          name: '',
+          text: '',
+          editMode: 'builder',
+          builderConfig: {
+            buckets: [],
+            tags: [{key: '_measurement', values: []}],
+            functions: [],
+          },
+        },
+      ],
+      colors: NINETEEN_EIGHTY_FOUR,
+    },
+  }),
 }
 
 type CreateViewType = ViewType | CheckType
