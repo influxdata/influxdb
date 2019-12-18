@@ -168,7 +168,10 @@ jobs:
             - 'yarn-packages-{{ checksum "yarn.lock" }}'
           name: "Restore Yarn Package Cache"
       - run:
-          command: "yarn install --frozen-lockfile"
+          command: |
+            set +e
+            cd ui
+            yarn install --frozen-lockfile
           name: "Install Dependencies"
       - run: make ui_client
       - run:
