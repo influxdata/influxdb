@@ -150,7 +150,7 @@ jobs:
            set +e
            cd ui
            TESTFILES=$(circleci tests glob "src/**/*.test.ts*" | circleci tests split --split-by=timings)
-           yarn test:ci $TESTFILES
+           yarn test:circleci $TESTFILES
       - run: make chronograf_lint
       - store_test_results:
           path: coverage
