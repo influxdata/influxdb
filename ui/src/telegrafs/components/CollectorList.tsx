@@ -13,7 +13,7 @@ import FilterList from 'src/shared/components/Filter'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes, getSortedResources} from 'src/shared/utils/sort'
 import {AppState, Telegraf} from 'src/types'
-import { updateTelegraf, deleteTelegraf } from '../actions'
+import {updateTelegraf, deleteTelegraf} from '../actions'
 
 type SortKey = keyof Telegraf
 
@@ -49,7 +49,7 @@ class CollectorList extends PureComponent<Props> {
       <ResourceList>
         <ResourceList.Header>
           <ResourceList.Sorter
-            sortKey='name'
+            sortKey="name"
             sort={sortKey === 'name' ? sortDirection : Sort.None}
             name="Name"
             onClick={onClickColumn}
@@ -85,7 +85,9 @@ class CollectorList extends PureComponent<Props> {
         <CollectorRow
           key={collector.id}
           collector={collector}
-          onDelete={(telegraf: Telegraf) => onDeleteTelegraf(telegraf.id, telegraf.name)}
+          onDelete={(telegraf: Telegraf) =>
+            onDeleteTelegraf(telegraf.id, telegraf.name)
+          }
           onUpdate={onUpdateTelegraf}
           onFilterChange={onFilterChange}
         />
@@ -114,7 +116,7 @@ type FilteredOwnProps = OwnProps & {
 
 type FilteredProps = Props & FilteredOwnProps
 
-class FilteredCollectorList extends PureComponent<FilteredProps>{
+class FilteredCollectorList extends PureComponent<FilteredProps> {
   render() {
     const {
       searchTerm,
@@ -124,19 +126,17 @@ class FilteredCollectorList extends PureComponent<FilteredProps>{
       sortKey,
       sortDirection,
       sortType,
-      onClickColumn
+      onClickColumn,
+      onUpdateTelegraf,
+      onDeleteTelegraf,
     } = this.props
     return (
       <FilterList<Telegraf>
         searchTerm={searchTerm}
-        searchKeys={[
-          'metadata.buckets[]',
-          'name',
-          'labels[].name',
-        ]}
+        searchKeys={['metadata.buckets[]', 'name', 'labels[].name']}
         list={collectors}
       >
-        {(cs) => (
+        {cs => (
           <CollectorList
             collectors={cs}
             emptyState={emptyState}
@@ -145,6 +145,8 @@ class FilteredCollectorList extends PureComponent<FilteredProps>{
             sortDirection={sortDirection}
             sortType={sortType}
             onClickColumn={onClickColumn}
+            onUpdateTelegraf={onUpdateTelegraf}
+            onDeleteTelegraf={onDeleteTelegraf}
           />
         )}
       </FilterList>
@@ -157,4 +159,4 @@ const FilteredList = connect<StateProps, DispatchProps, FilteredOwnProps>(
   mdtp
 )(FilteredCollectorList)
 
-export { FilteredCollectorList, FilteredList }
+export {FilteredCollectorList, FilteredList}

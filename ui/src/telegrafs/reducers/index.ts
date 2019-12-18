@@ -29,10 +29,10 @@ export const telegrafsReducer = (
         draftState.status = status
 
         if (list) {
-          draftState.list = list.map((l) =>{
+          draftState.list = list.map(l => {
             if (!l.metadata) {
               l.metadata = {
-                buckets: []
+                buckets: [],
               }
             }
             if (!l.metadata.buckets) {

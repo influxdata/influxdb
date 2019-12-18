@@ -18,7 +18,7 @@ import {
 } from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
-import { FilteredList } from 'src/telegrafs/components/CollectorList'
+import {FilteredList} from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
 import GetResources, {ResourceType} from 'src/shared/components/GetResources'
