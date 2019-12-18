@@ -14,7 +14,7 @@ import {SEARCH_QUERY_PARAM} from 'src/alerting/constants/history'
 
 // Actions and Selectors
 import {
-  updateCheck,
+  updateCheckDisplayProperties,
   deleteCheck,
   addCheckLabel,
   deleteCheckLabel,
@@ -32,7 +32,7 @@ import {Check, Label, AppState} from 'src/types'
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
 
 interface DispatchProps {
-  updateCheck: typeof updateCheck
+  onUpdateCheckDisplayProperties: typeof updateCheckDisplayProperties
   deleteCheck: typeof deleteCheck
   onAddCheckLabel: typeof addCheckLabel
   onRemoveCheckLabel: typeof deleteCheckLabel
@@ -58,7 +58,7 @@ const CheckCard: FunctionComponent<Props> = ({
   onCloneCheck,
   onNotify,
   check,
-  updateCheck,
+  onUpdateCheckDisplayProperties,
   deleteCheck,
   params: {orgID},
   labels,
@@ -66,7 +66,7 @@ const CheckCard: FunctionComponent<Props> = ({
 }) => {
   const onUpdateName = (name: string) => {
     try {
-      updateCheck({...check, name})
+      onUpdateCheckDisplayProperties(check.id, {name})
     } catch (e) {
       onNotify(updateCheckFailed(e.message))
     }
@@ -74,7 +74,7 @@ const CheckCard: FunctionComponent<Props> = ({
 
   const onUpdateDescription = (description: string) => {
     try {
-      updateCheck({...check, description})
+      onUpdateCheckDisplayProperties(check.id, {description})
     } catch (e) {
       onNotify(updateCheckFailed(e.message))
     }
@@ -92,7 +92,7 @@ const CheckCard: FunctionComponent<Props> = ({
     const status = check.status === 'active' ? 'inactive' : 'active'
 
     try {
-      updateCheck({...check, status})
+      onUpdateCheckDisplayProperties(check.id, {status})
     } catch (e) {
       onNotify(updateCheckFailed(e.message))
     }
@@ -177,7 +177,7 @@ const CheckCard: FunctionComponent<Props> = ({
 }
 
 const mdtp: DispatchProps = {
-  updateCheck: updateCheck,
+  onUpdateCheckDisplayProperties: updateCheckDisplayProperties,
   deleteCheck: deleteCheck,
   onAddCheckLabel: addCheckLabel,
   onCreateLabel: createLabelAsync,

@@ -145,10 +145,10 @@ export const executeQueries = (dashboardID?: string) => async (
     const duration = Date.now() - startTime
 
     let statuses = [[]] as StatusRow[][]
-    if (check) {
+    if (checkID) {
       const extern = buildVarsOption(variableAssignments)
-      pendingCheckStatuses = runStatusesQuery(orgID, check.id, extern)
-      statuses = await pendingCheckStatuses.promise // TODO handle errors
+      pendingCheckStatuses = runStatusesQuery(orgID, checkID, extern)
+      statuses = await pendingCheckStatuses.promise
     }
 
     for (const result of results) {

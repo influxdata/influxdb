@@ -1,33 +1,28 @@
 // Libraries
 import React, {FunctionComponent, useState, useEffect} from 'react'
 import {connect} from 'react-redux'
-import {get} from 'lodash'
 
 // Components
 import MatchingRuleCard from 'src/alerting/components/builder/MatchingRuleCard'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
-// Actions
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-
 // API
 import * as api from 'src/client'
 
 //Types
-import {NotificationRule, Check, AppState, CheckTagSet} from 'src/types'
+import {NotificationRule, AppState, CheckTagSet} from 'src/types'
 import {EmptyState, ComponentSize, RemoteDataState} from '@influxdata/clockface'
 
 interface StateProps {
-  check: Partial<Check>
+  tags: CheckTagSet[]
   orgID: string
 }
 
 const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
-  check,
   orgID,
+  tags,
 }) => {
   const getMatchingRules = async (): Promise<NotificationRule[]> => {
-    const tags: CheckTagSet[] = get(check, 'tags', [])
     const tagsList = tags.map(t => ['tag', `${t.key}:${t.value}`])
 
     // todo also: get tags from query results
@@ -58,7 +53,7 @@ const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
       status: RemoteDataState.Loading,
     })
     getMatchingRules()
-  }, [check.tags])
+  }, [tags])
 
   const emptyState = (
     <EmptyState
@@ -102,12 +97,10 @@ const mstp = (state: AppState): StateProps => {
     orgs: {
       org: {id: orgID},
     },
+    alertBuilder: {tags},
   } = state
-  const {
-    alerting: {check},
-  } = getActiveTimeMachine(state)
 
-  return {check, orgID}
+  return {tags, orgID}
 }
 
 export default connect<StateProps, {}, {}>(
