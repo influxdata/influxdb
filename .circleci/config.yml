@@ -185,7 +185,7 @@ jobs:
           key: 'yarn-packages-{{ checksum "yarn.lock" }}'
           name: "Save Yarn Package Cache"
           paths:
-            - /go/src/github.com/influxdata/influxdb/ui/.cache/yarn
+            - ~/.cache/yarn
   gotest:
     docker:
       - image: circleci/golang:1.12
