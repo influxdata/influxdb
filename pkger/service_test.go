@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
+	icheck "github.com/influxdata/influxdb/notification/check"
 	"github.com/influxdata/influxdb/notification/endpoint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,7 @@ func TestService(t *testing.T) {
 	newTestService := func(opts ...ServiceSetterFn) *Service {
 		opt := serviceOpt{
 			bucketSVC:   mock.NewBucketService(),
+			checkSVC:    mock.NewCheckService(),
 			dashSVC:     mock.NewDashboardService(),
 			labelSVC:    mock.NewLabelService(),
 			endpointSVC: mock.NewNotificationEndpointService(),
@@ -32,6 +34,7 @@ func TestService(t *testing.T) {
 
 		return NewService(
 			WithBucketSVC(opt.bucketSVC),
+			WithCheckSVC(opt.checkSVC),
 			WithDashboardSVC(opt.dashSVC),
 			WithLabelSVC(opt.labelSVC),
 			WithNoticationEndpointSVC(opt.endpointSVC),
@@ -100,6 +103,45 @@ func TestService(t *testing.T) {
 					}
 					assert.Equal(t, expected, diff.Buckets[0])
 				})
+			})
+		})
+
+		t.Run("checks", func(t *testing.T) {
+			testfileRunner(t, "testdata/checks.yml", func(t *testing.T, pkg *Pkg) {
+				fakeCheckSVC := mock.NewCheckService()
+				id := influxdb.ID(1)
+				existing := &icheck.Deadman{
+					Base: icheck.Base{
+						ID:          id,
+						Name:        "check_1",
+						Description: "old desc",
+					},
+				}
+				fakeCheckSVC.FindCheckFn = func(ctx context.Context, f influxdb.CheckFilter) (influxdb.Check, error) {
+					if f.Name != nil && *f.Name == "check_1" {
+						return existing, nil
+					}
+					return nil, errors.New("not found")
+				}
+
+				svc := newTestService(WithCheckSVC(fakeCheckSVC))
+
+				_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+				require.NoError(t, err)
+
+				checks := diff.Checks
+				require.Len(t, checks, 2)
+				check0 := checks[0]
+				assert.True(t, check0.IsNew())
+				assert.Equal(t, "check_0", check0.Name)
+				assert.Zero(t, check0.ID)
+				assert.Nil(t, check0.Old)
+
+				check1 := checks[1]
+				assert.False(t, check1.IsNew())
+				assert.Equal(t, "check_1", check1.Name)
+				assert.NotZero(t, check1.ID)
+				assert.Equal(t, existing, check1.Old.Check)
 			})
 		})
 
@@ -628,7 +670,7 @@ func TestService(t *testing.T) {
 
 						fakeLabelSVC := mock.NewLabelService()
 						fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
-							l.ID = influxdb.ID(fakeLabelSVC.CreateLabelCalls.Count())
+							l.ID = influxdb.ID(fakeLabelSVC.CreateLabelCalls.Count() + 1)
 							return nil
 						}
 						fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {

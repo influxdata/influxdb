@@ -335,6 +335,10 @@ func (tl *TestLauncher) BucketService(tb testing.TB) *http.BucketService {
 	return &http.BucketService{Client: tl.HTTPClient(tb), OpPrefix: kv.OpPrefix}
 }
 
+func (tl *TestLauncher) CheckService() platform.CheckService {
+	return tl.kvService
+}
+
 func (tl *TestLauncher) DashboardService(tb testing.TB) *http.DashboardService {
 	tb.Helper()
 	return &http.DashboardService{Client: tl.HTTPClient(tb)}

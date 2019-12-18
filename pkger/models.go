@@ -147,6 +147,7 @@ type Metadata struct {
 // what is new and or updated from the current state of the platform.
 type Diff struct {
 	Buckets               []DiffBucket               `json:"buckets"`
+	Checks                []DiffCheck                `json:"checks"`
 	Dashboards            []DiffDashboard            `json:"dashboards"`
 	Labels                []DiffLabel                `json:"labels"`
 	LabelMappings         []DiffLabelMapping         `json:"labelMappings"`
@@ -220,6 +221,46 @@ func (d DiffBucket) IsNew() bool {
 
 func (d DiffBucket) hasConflict() bool {
 	return !d.IsNew() && d.Old != nil && !reflect.DeepEqual(*d.Old, d.New)
+}
+
+// DiffCheckValues are the varying values for a check.
+type DiffCheckValues struct {
+	influxdb.Check
+}
+
+// UnmarshalJSON decodes the check values.
+func (d *DiffCheckValues) UnmarshalJSON(b []byte) (err error) {
+	d.Check, err = icheck.UnmarshalJSON(b)
+	return
+}
+
+// DiffCheck is a diff of an individual check.
+type DiffCheck struct {
+	ID   SafeID           `json:"id"`
+	Name string           `json:"name"`
+	New  DiffCheckValues  `json:"new"`
+	Old  *DiffCheckValues `json:"old"`
+}
+
+func newDiffCheck(c *check, iCheck influxdb.Check) DiffCheck {
+	diff := DiffCheck{
+		Name: c.Name(),
+		New: DiffCheckValues{
+			Check: c.summarize().Check,
+		},
+	}
+	if iCheck != nil {
+		diff.ID = SafeID(iCheck.GetID())
+		diff.Old = &DiffCheckValues{
+			Check: iCheck,
+		}
+	}
+	return diff
+}
+
+// IsNew determines if the check in the pkg is new to the platform.
+func (d DiffCheck) IsNew() bool {
+	return d.Old == nil
 }
 
 // DiffDashboard is a diff of an individual dashboard.
@@ -311,13 +352,9 @@ type DiffNotificationEndpointValues struct {
 }
 
 // UnmarshalJSON decodes the notification endpoint. This is necessary unfortunately.
-func (d *DiffNotificationEndpointValues) UnmarshalJSON(b []byte) error {
-	e, err := endpoint.UnmarshalJSON(b)
-	if err != nil {
-		fmt.Println("broken here")
-	}
-	d.NotificationEndpoint = e
-	return err
+func (d *DiffNotificationEndpointValues) UnmarshalJSON(b []byte) (err error) {
+	d.NotificationEndpoint, err = endpoint.UnmarshalJSON(b)
+	return
 }
 
 // DiffNotificationEndpoint is a diff of an individual notification endpoint.
@@ -325,7 +362,7 @@ type DiffNotificationEndpoint struct {
 	ID   SafeID                          `json:"id"`
 	Name string                          `json:"name"`
 	New  DiffNotificationEndpointValues  `json:"new"`
-	Old  *DiffNotificationEndpointValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+	Old  *DiffNotificationEndpointValues `json:"old"`
 }
 
 func newDiffNotificationEndpoint(ne *notificationEndpoint, i influxdb.NotificationEndpoint) DiffNotificationEndpoint {
@@ -432,6 +469,23 @@ type SummaryCheck struct {
 	Check             influxdb.Check  `json:"check"`
 	Status            influxdb.Status `json:"status"`
 	LabelAssociations []SummaryLabel  `json:"labelAssociations"`
+}
+
+func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
+	var out struct {
+		Status            string          `json:"status"`
+		LabelAssociations []SummaryLabel  `json:"labelAssociations"`
+		Check             json.RawMessage `json:"check"`
+	}
+	if err := json.Unmarshal(b, &out); err != nil {
+		return err
+	}
+	s.Status = influxdb.Status(out.Status)
+	s.LabelAssociations = out.LabelAssociations
+
+	var err error
+	s.Check, err = icheck.UnmarshalJSON(out.Check)
+	return err
 }
 
 // SummaryDashboard provides a summary of a pkg dashboard.
@@ -779,6 +833,8 @@ type check struct {
 	thresholds    []threshold
 
 	labels sortedLabels
+
+	existing influxdb.Check
 }
 
 func (c *check) Name() string {

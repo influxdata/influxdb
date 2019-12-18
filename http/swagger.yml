@@ -7209,6 +7209,17 @@ components:
                         type: array
                         items:
                           $ref: "#/components/schemas/PkgSummaryLabel"
+            checks:
+              type: array
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/CheckDiscriminator"
+                  - type: object
+                    properties:
+                      labelAssociations:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Label"
             labels:
               type: array
               items:
@@ -7316,6 +7327,19 @@ components:
                         type: string
                       retentionRules:
                         $ref: "#/components/schemas/RetentionRules"
+            checks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  new:
+                    $ref: "#/components/schemas/CheckDiscriminator"
+                  old:
+                    $ref: "#/components/schemas/CheckDiscriminator"
             dashboards:
               type: array
               items:
