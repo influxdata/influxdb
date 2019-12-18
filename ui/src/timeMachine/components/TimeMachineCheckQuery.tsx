@@ -5,9 +5,7 @@ import {connect} from 'react-redux'
 // Components
 import TimeMachineFluxEditor from 'src/timeMachine/components/TimeMachineFluxEditor'
 import TimeMachineRefreshDropdown from 'src/timeMachine/components/RefreshDropdown'
-import TimeRangeDropdown, {
-  RangeType,
-} from 'src/shared/components/TimeRangeDropdown'
+import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import SubmitQueryButton from 'src/timeMachine/components/SubmitQueryButton'
 import RawDataToggle from 'src/timeMachine/components/RawDataToggle'
 import QueryTabs from 'src/timeMachine/components/QueryTabs'
@@ -85,15 +83,12 @@ class TimeMachineQueries extends PureComponent<Props> {
     )
   }
 
-  private handleSetTimeRange = (
-    timeRange: TimeRange,
-    rangeType: RangeType = RangeType.Relative
-  ) => {
+  private handleSetTimeRange = (timeRange: TimeRange) => {
     const {autoRefresh, onSetAutoRefresh, onSetTimeRange} = this.props
 
     onSetTimeRange(timeRange)
 
-    if (rangeType === RangeType.Absolute) {
+    if (timeRange.type === 'custom') {
       onSetAutoRefresh({...autoRefresh, status: AutoRefreshStatus.Disabled})
       return
     }
