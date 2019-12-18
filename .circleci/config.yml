@@ -175,7 +175,7 @@ jobs:
           name: "Install Dependencies"
       - run: make ui_client
       - run:
-          name: eslint
+          name: parallel eslint
           command: |
             set +e
             cd ui
