@@ -139,13 +139,24 @@ jobs:
     docker:
       - image: circleci/golang:1.12-node-browsers
     working_directory: /go/src/github.com/influxdata/influxdb
+    parallelism: 8
     steps:
       - checkout
       - run: make node_modules
       - run: make ui_client
-      - run: make test-js
+      - run:
+         name: jest tests
+         command: |
+           set +e
+           cd ui
+           TESTFILES=$(circleci tests glob "src/**/*.test.ts*" | circleci tests split --split-by=timings)
+           yarn test:circleci $TESTFILES
       - run: make chronograf_lint
-
+      - store_test_results:
+          path: coverage
+      - store_artifacts:
+          path: coverage
+          destination: raw-test-output
   gotest:
     docker:
       - image: circleci/golang:1.12

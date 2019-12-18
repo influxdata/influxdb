@@ -168,17 +168,22 @@ func StartSpanFromContextWithOperationName(ctx context.Context, operationName st
 	return span, ctx
 }
 
-// JaegerTestSetupAndTeardown sets the global tracer to an in memory Jaeger instance for testing.
-// The returned function should be deferred by the caller to tear down this setup after testing is complete.
-func JaegerTestSetupAndTeardown(name string) func() {
-	old := opentracing.GlobalTracer()
-	tracer, closer := jaeger.NewTracer(name,
-		jaeger.NewConstSampler(true),
-		jaeger.NewInMemoryReporter(),
-	)
-	opentracing.SetGlobalTracer(tracer)
-	return func() {
-		_ = closer.Close()
-		opentracing.SetGlobalTracer(old)
+// InfoFromSpan returns the traceID and if it was sampled from the span, given it is a jaeger span.
+// It returns whether a span associated to the context has been found.
+func InfoFromSpan(span opentracing.Span) (traceID string, sampled bool, found bool) {
+	if spanContext, ok := span.Context().(jaeger.SpanContext); ok {
+		traceID = spanContext.TraceID().String()
+		sampled = spanContext.IsSampled()
+		return traceID, sampled, true
 	}
+	return "", false, false
+}
+
+// InfoFromContext returns the traceID and if it was sampled from the Jaeger span
+// found in the given context. It returns whether a span associated to the context has been found.
+func InfoFromContext(ctx context.Context) (traceID string, sampled bool, found bool) {
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		return InfoFromSpan(span)
+	}
+	return "", false, false
 }

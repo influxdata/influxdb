@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/pkg/snowflake"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go"
@@ -93,23 +94,10 @@ func Shard(id uint64) zapcore.Field {
 	return zap.Uint64(DBShardIDKey, id)
 }
 
-// TraceInfo returns the traceID and if it was sampled from the Jaeger span
-// found in the given context. It returns whether a span associated to the context has been found.
-func TraceInfo(ctx context.Context) (traceID string, sampled bool, found bool) {
-	if span := opentracing.SpanFromContext(ctx); span != nil {
-		if spanContext, ok := span.Context().(jaeger.SpanContext); ok {
-			traceID = spanContext.TraceID().String()
-			sampled = spanContext.IsSampled()
-			return traceID, sampled, true
-		}
-	}
-	return "", false, false
-}
-
 // TraceFields returns a fields "ot_trace_id" and "ot_trace_sampled", values pulled from the (Jaeger) trace ID
 // found in the given context. Returns nil if the context doesn't have a trace ID.
 func TraceFields(ctx context.Context) []zap.Field {
-	id, sampled, found := TraceInfo(ctx)
+	id, sampled, found := tracing.InfoFromContext(ctx)
 	if !found {
 		return nil
 	}

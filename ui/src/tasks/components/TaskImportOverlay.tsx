@@ -12,6 +12,16 @@ import {invalidJSON} from 'src/shared/copy/notifications'
 import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/tasks/actions/'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
+// Types
+import {ComponentStatus} from '@influxdata/clockface'
+
+// Utils
+import jsonlint from 'jsonlint-mod'
+
+interface State {
+  status: ComponentStatus
+}
+
 interface DispatchProps {
   createTaskFromTemplate: typeof createTaskFromTemplateAction
   notify: typeof notifyAction
@@ -20,12 +30,18 @@ interface DispatchProps {
 type Props = DispatchProps & WithRouterProps
 
 class TaskImportOverlay extends PureComponent<Props> {
+  public state: State = {
+    status: ComponentStatus.Default,
+  }
+
   public render() {
     return (
       <ImportOverlay
         onDismissOverlay={this.onDismiss}
         resourceName="Task"
         onSubmit={this.handleImportTask}
+        status={this.state.status}
+        updateStatus={this.updateOverlayStatus}
       />
     )
   }
@@ -36,13 +52,18 @@ class TaskImportOverlay extends PureComponent<Props> {
     router.goBack()
   }
 
+  private updateOverlayStatus = (status: ComponentStatus) =>
+    this.setState(() => ({status}))
+
   private handleImportTask = (importString: string) => {
     const {createTaskFromTemplate, notify} = this.props
 
     let template
+    this.updateOverlayStatus(ComponentStatus.Default)
     try {
-      template = JSON.parse(importString)
+      template = jsonlint.parse(importString)
     } catch (error) {
+      this.updateOverlayStatus(ComponentStatus.Error)
       notify(invalidJSON(error.message))
       return
     }

@@ -112,7 +112,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	log := h.log.With(logger.TraceFields(ctx)...)
-	if id, _, found := logger.TraceInfo(ctx); found {
+	if id, _, found := tracing.InfoFromContext(ctx); found {
 		w.Header().Set(traceIDHeader, id)
 	}
 

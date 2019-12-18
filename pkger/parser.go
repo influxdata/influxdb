@@ -134,6 +134,7 @@ type Pkg struct {
 
 	mLabels                map[string]*label
 	mBuckets               map[string]*bucket
+	mChecks                map[string]*check
 	mDashboards            []*dashboard
 	mNotificationEndpoints map[string]*notificationEndpoint
 	mTelegrafs             []*telegraf
@@ -153,6 +154,10 @@ func (p *Pkg) Summary() Summary {
 
 	for _, b := range p.buckets() {
 		sum.Buckets = append(sum.Buckets, b.summarize())
+	}
+
+	for _, c := range p.checks() {
+		sum.Checks = append(sum.Checks, c.summarize())
 	}
 
 	for _, d := range p.dashboards() {
@@ -240,6 +245,17 @@ func (p *Pkg) buckets() []*bucket {
 	sort.Slice(buckets, func(i, j int) bool { return buckets[i].name < buckets[j].name })
 
 	return buckets
+}
+
+func (p *Pkg) checks() []*check {
+	checks := make([]*check, 0, len(p.mChecks))
+	for _, c := range p.mChecks {
+		checks = append(checks, c)
+	}
+
+	sort.Slice(checks, func(i, j int) bool { return checks[i].Name() < checks[j].Name() })
+
+	return checks
 }
 
 func (p *Pkg) labels() []*label {
@@ -406,6 +422,7 @@ func (p *Pkg) graphResources() error {
 		p.graphLabels,
 		p.graphVariables,
 		p.graphBuckets,
+		p.graphChecks,
 		p.graphDashboards,
 		p.graphNotificationEndpoints,
 		p.graphTelegrafs,
@@ -484,6 +501,77 @@ func (p *Pkg) graphLabels() *parseErr {
 
 		return nil
 	})
+}
+
+func (p *Pkg) graphChecks() *parseErr {
+	p.mChecks = make(map[string]*check)
+
+	checkKinds := []struct {
+		kind      Kind
+		checkKind checkKind
+	}{
+		{kind: KindCheckThreshold, checkKind: checkKindThreshold},
+		{kind: KindCheckDeadman, checkKind: checkKindDeadman},
+	}
+	var pErr parseErr
+	for _, k := range checkKinds {
+		err := p.eachResource(k.kind, 1, func(r Resource) []validationErr {
+			if _, ok := p.mChecks[r.Name()]; ok {
+				return []validationErr{{
+					Field: "name",
+					Msg:   "duplicate name: " + r.Name(),
+				}}
+			}
+
+			ch := &check{
+				kind:          k.checkKind,
+				name:          r.Name(),
+				description:   r.stringShort(fieldDescription),
+				every:         r.durationShort(fieldCheckEvery),
+				level:         r.stringShort(fieldCheckLevel),
+				offset:        r.durationShort(fieldCheckOffset),
+				query:         strings.TrimSpace(r.stringShort(fieldQuery)),
+				reportZero:    r.boolShort(fieldCheckReportZero),
+				staleTime:     r.durationShort(fieldCheckStaleTime),
+				status:        normStr(r.stringShort(fieldStatus)),
+				statusMessage: r.stringShort(fieldCheckStatusMessageTemplate),
+				timeSince:     r.durationShort(fieldCheckTimeSince),
+			}
+			for _, tagRes := range r.slcResource(fieldCheckTags) {
+				ch.tags = append(ch.tags, struct{ k, v string }{
+					k: tagRes.stringShort(fieldKey),
+					v: tagRes.stringShort(fieldValue),
+				})
+			}
+			for _, th := range r.slcResource(fieldCheckThresholds) {
+				ch.thresholds = append(ch.thresholds, threshold{
+					threshType: thresholdType(normStr(th.stringShort(fieldType))),
+					allVals:    th.boolShort(fieldCheckAllValues),
+					level:      strings.TrimSpace(strings.ToUpper(th.stringShort(fieldCheckLevel))),
+					max:        th.float64Short(fieldMax),
+					min:        th.float64Short(fieldMin),
+					val:        th.float64Short(fieldValue),
+				})
+			}
+
+			failures := p.parseNestedLabels(r, func(l *label) error {
+				ch.labels = append(ch.labels, l)
+				p.mLabels[l.Name()].setMapping(ch, false)
+				return nil
+			})
+			sort.Sort(ch.labels)
+
+			p.mChecks[ch.Name()] = ch
+			return append(failures, ch.valid()...)
+		})
+		if err != nil {
+			pErr.append(err.Resources...)
+		}
+	}
+	if len(pErr.Resources) > 0 {
+		return &pErr
+	}
+	return nil
 }
 
 func (p *Pkg) graphDashboards() *parseErr {
@@ -919,6 +1007,16 @@ func (r Resource) bool(key string) (bool, bool) {
 func (r Resource) boolShort(key string) bool {
 	b, _ := r.bool(key)
 	return b
+}
+
+func (r Resource) duration(key string) (time.Duration, bool) {
+	dur, err := time.ParseDuration(r.stringShort(key))
+	return dur, err == nil
+}
+
+func (r Resource) durationShort(key string) time.Duration {
+	dur, _ := r.duration(key)
+	return dur
 }
 
 func (r Resource) float64(key string) (float64, bool) {

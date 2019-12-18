@@ -3,14 +3,18 @@
 ### Features
 
 1. [16234](https://github.com/influxdata/influxdb/pull/16234): add support for notification endpoints to influx templates/pkgs.
+2. [16242](https://github.com/influxdata/influxdb/pull/16242): drop id prefix for secret key requirement for notification endpoints 
+3. [16259](https://github.com/influxdata/influxdb/pull/16259): add support for check resource to pkger parser 
+4. [16262](https://github.com/influxdata/influxdb/pull/16262): add support for check resource dry run functionality 
 
 ### Bug Fixes
 
 1. [16225](https://github.com/influxdata/influxdb/pull/16225): Ensures env vars are applied consistently across cmd, and fixes issue where INFLUX\_ env var prefix was not set globally.
-
 1. [16235](https://github.com/influxdata/influxdb/pull/16235): Removed default frontend sorting when flux queries specify sorting
 1. [16238](https://github.com/influxdata/influxdb/pull/16238): Store canceled task runs in the correct bucket
 1. [16237](https://github.com/influxdata/influxdb/pull/16237): Updated Sortby functionality for table frontend sorts to sort numbers correctly
+1. [16249](https://github.com/influxdata/influxdb/pull/16249): Prevent potential infinite loop when finding tasks by organization.
+1. [16255](https://github.com/influxdata/influxdb/pull/16255): Retain user input when parsing invalid JSON during import
 
 ### UI Improvements
 
