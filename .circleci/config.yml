@@ -163,6 +163,13 @@ jobs:
     parallelism: 8
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - "yarn-packages-{{ checksum \"yarn.lock\" }}"
+          name: "Restore Yarn Package Cache"
+      - run:
+          command: "yarn install --frozen-lockfile"
+          name: "Install Dependencies"
       - run: make node_modules
       - run: make ui_client
       - run:
@@ -172,6 +179,11 @@ jobs:
            cd ui
            TESTFILES=$(circleci tests glob "src/**/*.ts*" "cypress/**/*.ts*" | circleci tests split --split-by=filesize)
            yarn eslint:circleci $TESTFILES
+      - save_cache:
+         key: "yarn-packages-{{ checksum \"yarn.lock\" }}"
+           name: "Save Yarn Package Cache"
+           paths:
+             -  /go/src/github.com/influxdata/influxdb/ui/.cache/yarn
   gotest:
     docker:
       - image: circleci/golang:1.12
