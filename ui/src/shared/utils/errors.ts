@@ -2,6 +2,8 @@ import {ErrorInfo} from 'react'
 import HoneyBadger from 'honeybadger-js'
 import {CLOUD, GIT_SHA} from 'src/shared/constants'
 
+import {getUserFlags} from 'src/shared/utils/featureFlag'
+
 if (CLOUD) {
   HoneyBadger.configure({
     apiKey: process.env.HONEYBADGER_KEY,
@@ -10,18 +12,44 @@ if (CLOUD) {
   })
 }
 
-interface AdditionalOptions {
+// See https://docs.honeybadger.io/lib/javascript/guides/reporting-errors.html#additional-options
+interface HoneyBadgerAdditionalOptions {
   component?: string
   context?: {[key: string]: any}
+  cookies?: {[key: string]: any}
   name?: string
+  params?: {[key: string]: any}
 }
 
 export const reportError = (
   error: Error,
-  additionalOptions?: AdditionalOptions
+  additionalOptions?: HoneyBadgerAdditionalOptions
 ): void => {
+  let additionalContext = {}
+  if (additionalOptions && additionalOptions.context) {
+    additionalContext = {...additionalOptions.context}
+  }
+
+  const context = {
+    ...additionalContext,
+    ...getUserFlags(),
+  }
+
+  let options: HoneyBadgerAdditionalOptions = {}
+  if (additionalOptions) {
+    options = {...additionalOptions}
+
+    delete options.context // already included in the above context object
+  }
+
   if (CLOUD) {
-    HoneyBadger.notify(error, additionalOptions)
+    HoneyBadger.notify(error, {context, ...options})
+  } else {
+    const honeyBadgerContext = (HoneyBadger as any).context
+    /* eslint-disable no-console */
+    console.log('Context that would have been sent to HoneyBadger:')
+    console.table({...honeyBadgerContext, ...context, ...options})
+    /* eslint-enable no-console */
   }
 }
 
