@@ -214,30 +214,6 @@ func decodeGetTelegrafRequest(ctx context.Context) (i platform.ID, err error) {
 	return i, nil
 }
 
-func decodeGetTelegrafPluginRequest(ctx context.Context, r *http.Request) (*plugins.TelegrafPlugins, error) {
-	t := r.URL.Query().Get("type")
-	if len(t) == 0 {
-		return plugins.AvailablePlugins()
-	}
-
-	return plugins.ListAvailablePlugins(t)
-}
-
-func (h *TelegrafHandler) handleGetTelegrafPlugins(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	telPlugins, err := decodeGetTelegrafPluginRequest(ctx, r)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	if err := encodeResponse(ctx, w, http.StatusOK, telPlugins); err != nil {
-		logEncodingError(h.log, r, err)
-		return
-	}
-}
-
 func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	filter, err := decodeTelegrafConfigFilter(ctx, r)
