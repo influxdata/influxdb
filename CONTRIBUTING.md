@@ -105,38 +105,35 @@ Since we depend on Go modules and use standard Go tooling, you can simply check 
 
 ```bash
     git clone git@github.com:influxdata/influxdb.git
-    cd influxdb
-    go install ./...
-    go test ./...
 ```
 
-Build and Test
+Building, Testing, and Installing
 -----
 
-Make sure you have Go installed and the project structure as shown above. To then get the dependencies for the project, execute the following commands:
+InfluxDB uses the standard Go tooling so the `build`, `install`, and `test` subcommands work as expected. In the root of the InfluxDB git repository, you can simply run the following commands:
+
+Building:
 
 ```bash
-cd $GOPATH/src/github.com/influxdata/influxdb
-make
-```
-The binaries will be located in `$GOPATH/bin`. Please note that the InfluxDB binary is named `influxd`, not `influxdb`.
+    go build ./...
+```		
 
-To run the tests, execute the following command:
+Installing:
 
 ```bash
-cd $GOPATH/src/github.com/influxdata/influxdb
-go test -v ./...
+    go install ./...
+```		
 
-# run tests that match some pattern
-go test -run=TestDatabase . -v
+Testing:
 
-# run tests and show coverage
-go test -coverprofile /tmp/cover . && go tool cover -html /tmp/cover
-```
+```bash
+    go test -v ./...
 
-To install go cover, run the following command:
-```
-go get golang.org/x/tools/cmd/cover
+    # run tests that match some pattern
+    go test -run=TestDatabase . -v
+
+    # run tests and show coverage
+    go test -coverprofile /tmp/cover . && go tool cover -html /tmp/cover
 ```
 
 Generated Google Protobuf code
