@@ -9,6 +9,7 @@ import (
 	"sort"
 	"text/tabwriter"
 
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/value"
 )
@@ -196,7 +197,13 @@ func (w *Dump) process(path string, stdout, stderr io.Writer) (*DumpReport, erro
 			// MarshalSize must always be called to make sure the size of the entry is set
 			sz := entry.MarshalSize()
 			if !w.FindDuplicates {
-				fmt.Fprintf(stdout, "[delete-bucket-range] org=%s bucket=%s min=%d max=%d sz=%d\n", orgID, bucketID, entry.Min, entry.Max, sz)
+				pred := new(datatypes.Predicate)
+				if len(entry.Predicate) > 0 {
+					if err := pred.Unmarshal(entry.Predicate[1:]); err != nil {
+						return nil, fmt.Errorf("invalid predicate on wal entry: %#v\nerr: %v", entry, err)
+					}
+				}
+				fmt.Fprintf(stdout, "[delete-bucket-range] org=%s bucket=%s min=%d max=%d sz=%d pred=%s\n", orgID, bucketID, entry.Min, entry.Max, sz, pred.String())
 			}
 			report.Deletes = append(report.Deletes, entry)
 		default:
