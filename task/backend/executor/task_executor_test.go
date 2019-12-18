@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -19,31 +20,56 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
+	"github.com/opentracing/opentracing-go"
+	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap/zaptest"
 )
+
+func TestMain(m *testing.M) {
+	var code int
+	func() {
+		// backup old tracer
+		oldTracer := opentracing.GlobalTracer()
+		defer opentracing.SetGlobalTracer(oldTracer)
+
+		// setup in-memory tracer for task tests
+		sampler := jaeger.NewConstSampler(true)
+		tracer, closer := jaeger.NewTracer("task_backend_tests", sampler, jaeger.NewInMemoryReporter())
+		defer closer.Close()
+
+		opentracing.SetGlobalTracer(tracer)
+
+		code = m.Run()
+	}()
+
+	os.Exit(code)
+}
 
 type tes struct {
 	svc     *fakeQueryService
 	ex      *TaskExecutor
 	metrics *ExecutorMetrics
 	i       *kv.Service
+	tcs     *taskControlService
 	tc      testCreds
 }
 
 func taskExecutorSystem(t *testing.T) tes {
-	aqs := newFakeQueryService()
-	qs := query.QueryServiceBridge{
-		AsyncQueryService: aqs,
-	}
-
-	i := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
-
-	ex, metrics := NewExecutor(zaptest.NewLogger(t), qs, i, i, taskControlService{i})
+	var (
+		aqs = newFakeQueryService()
+		qs  = query.QueryServiceBridge{
+			AsyncQueryService: aqs,
+		}
+		i           = kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+		tcs         = &taskControlService{TaskControlService: i}
+		ex, metrics = NewExecutor(zaptest.NewLogger(t), qs, i, i, tcs)
+	)
 	return tes{
 		svc:     aqs,
 		ex:      ex,
 		metrics: metrics,
 		i:       i,
+		tcs:     tcs,
 		tc:      createCreds(t, i),
 	}
 }
@@ -62,10 +88,16 @@ func TestTaskExecutor(t *testing.T) {
 
 func testQuerySuccess(t *testing.T) {
 	t.Parallel()
+
 	tes := taskExecutorSystem(t)
 
-	script := fmt.Sprintf(fmtTestScript, t.Name())
-	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+	var (
+		script = fmt.Sprintf(fmtTestScript, t.Name())
+		ctx    = icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+		span   = opentracing.GlobalTracer().StartSpan("test-span")
+	)
+	ctx = opentracing.ContextWithSpan(ctx, span)
+
 	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
@@ -98,12 +130,28 @@ func testQuerySuccess(t *testing.T) {
 	if got := promise.Error(); got != nil {
 		t.Fatal(got)
 	}
+
 	// confirm run is removed from in-mem store
 	run, err = tes.i.FindRunByID(context.Background(), task.ID, run.ID)
 	if run != nil || err == nil || !strings.Contains(err.Error(), "run not found") {
 		t.Fatal("run was returned when it should have been removed from kv")
 	}
 
+	// ensure the run returned by TaskControlService.FinishRun(...)
+	// has run logs formatted as expected
+	if run = tes.tcs.run; run == nil {
+		t.Fatal("expected run returned by FinishRun to not be nil")
+	}
+
+	if len(run.Log) < 3 {
+		t.Fatalf("expected 3 run logs, found %d", len(run.Log))
+	}
+
+	sctx := span.Context().(jaeger.SpanContext)
+	expectedMessage := fmt.Sprintf("trace_id=%s is_sampled=true", sctx.TraceID())
+	if expectedMessage != run.Log[1].Message {
+		t.Errorf("expected %q, found %q", expectedMessage, run.Log[1].Message)
+	}
 }
 
 func testQueryFailure(t *testing.T) {
@@ -490,14 +538,17 @@ func testErrorHandling(t *testing.T) {
 
 type taskControlService struct {
 	backend.TaskControlService
+
+	run *influxdb.Run
 }
 
-func (t taskControlService) FinishRun(ctx context.Context, taskID influxdb.ID, runID influxdb.ID) (*influxdb.Run, error) {
+func (t *taskControlService) FinishRun(ctx context.Context, taskID influxdb.ID, runID influxdb.ID) (*influxdb.Run, error) {
 	// ensure auth set on context
 	_, err := icontext.GetAuthorizer(ctx)
 	if err != nil {
 		panic(err)
 	}
 
-	return t.TaskControlService.FinishRun(ctx, taskID, runID)
+	t.run, err = t.TaskControlService.FinishRun(ctx, taskID, runID)
+	return t.run, err
 }
