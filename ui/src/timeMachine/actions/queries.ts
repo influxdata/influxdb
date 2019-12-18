@@ -110,11 +110,12 @@ export const executeQueries = (dashboardID?: string) => async (
   dispatch,
   getState: GetState
 ) => {
-  const {
-    view,
-    alerting: {check},
-  } = getActiveTimeMachine(getState())
+  const state = getState()
+  const {view} = getActiveTimeMachine(state)
   const queries = view.properties.queries.filter(({text}) => !!text.trim())
+  const {
+    alertBuilder: {id: checkID},
+  } = state
 
   if (!queries.length) {
     dispatch(setQueryResults(RemoteDataState.Done, [], null))

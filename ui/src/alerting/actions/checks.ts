@@ -283,8 +283,3 @@ export const cloneCheck = (check: Check) => async (
     dispatch(notify(copy.createCheckFailed(error.message)))
   }
 }
-
-export const selectCheckEvery = (every: string) => dispatch => {
-  dispatch(updateTimeMachineCheck({every}))
-  dispatch(executeQueries())
-}
