@@ -378,6 +378,7 @@ func decodePostCheckRequest(r *http.Request) (postCheckRequest, error) {
 		}
 	}
 	defer r.Body.Close()
+
 	chk, err := check.UnmarshalJSON(b)
 	if err != nil {
 		return postCheckRequest{}, &influxdb.Error{
@@ -387,8 +388,7 @@ func decodePostCheckRequest(r *http.Request) (postCheckRequest, error) {
 	}
 
 	var ds decodeStatus
-	err = json.Unmarshal(b, &ds)
-	if err != nil {
+	if err := json.Unmarshal(b, &ds); err != nil {
 		return postCheckRequest{}, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,
@@ -396,8 +396,7 @@ func decodePostCheckRequest(r *http.Request) (postCheckRequest, error) {
 	}
 
 	var dl decodeLabels
-	err = json.Unmarshal(b, &dl)
-	if err != nil {
+	if err := json.Unmarshal(b, &dl); err != nil {
 		return postCheckRequest{}, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,

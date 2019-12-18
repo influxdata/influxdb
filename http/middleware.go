@@ -9,11 +9,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"go.uber.org/zap"
 )
 
 // Middleware constructor.
 type Middleware func(http.Handler) http.Handler
+
+func traceMW(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		span, ctx := tracing.StartSpanFromContext(r.Context())
+		defer span.Finish()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	}
+	return http.HandlerFunc(fn)
+}
 
 func skipOptionsMW(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {

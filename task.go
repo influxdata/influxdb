@@ -18,6 +18,8 @@ const (
 	TaskDefaultPageSize = 100
 	TaskMaxPageSize     = 500
 
+	// TODO(jsteenb2): make these constants of type Status
+
 	TaskStatusActive   = "active"
 	TaskStatusInactive = "inactive"
 )

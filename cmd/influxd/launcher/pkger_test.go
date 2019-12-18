@@ -41,6 +41,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		svc := pkger.NewService(
 			pkger.WithBucketSVC(l.BucketService(t)),
 			pkger.WithDashboardSVC(l.DashboardService(t)),
+			pkger.WithCheckSVC(l.CheckService()),
 			pkger.WithLabelSVC(&fakeLabelSVC{
 				LabelService: l.LabelService(t),
 				killCount:    2, // hits error on 3rd attempt at creating a mapping
@@ -92,9 +93,6 @@ func TestLauncher_Pkger(t *testing.T) {
 
 	hasLabelAssociations := func(t *testing.T, associations []pkger.SummaryLabel, numAss int, expectedNames ...string) {
 		t.Helper()
-
-		require.Len(t, associations, numAss)
-
 		hasAss := func(t *testing.T, expected string) {
 			t.Helper()
 			for _, ass := range associations {
@@ -105,6 +103,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			require.FailNow(t, "did not find expected association: "+expected)
 		}
 
+		require.Len(t, associations, numAss)
 		for _, expected := range expectedNames {
 			hasAss(t, expected)
 		}
@@ -137,6 +136,11 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.Len(t, diffVars, 1)
 		assert.True(t, diffVars[0].IsNew())
 
+		require.Len(t, diff.Checks, 2)
+		for _, ch := range diff.Checks {
+			assert.True(t, ch.IsNew())
+		}
+
 		require.Len(t, diff.Dashboards, 1)
 		require.Len(t, diff.NotificationEndpoints, 1)
 		require.Len(t, diff.Telegrafs, 1)
@@ -149,6 +153,13 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.Len(t, bkts, 1)
 		assert.Equal(t, "rucket_1", bkts[0].Name)
 		hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
+
+		checks := sum.Checks
+		require.Len(t, checks, 2)
+		for i, ch := range checks {
+			assert.Equal(t, fmt.Sprintf("check_%d", i), ch.Check.GetName())
+			hasLabelAssociations(t, ch.LabelAssociations, 1, "label_1")
+		}
 
 		dashs := sum.Dashboards
 		require.Len(t, dashs, 1)
@@ -246,7 +257,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 
 		mappings := sum1.LabelMappings
-		require.Len(t, mappings, 5)
+		require.Len(t, mappings, 7)
 		hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
 		hasMapping(t, mappings, newSumMapping(dashs[0].ID, dashs[0].Name, influxdb.DashboardsResourceType))
 		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
@@ -546,6 +557,48 @@ spec:
       method: GET
       url:  https://www.example.com/endpoint/noneauth
       status: inactive
+      associations:
+        - kind: Label
+          name: label_1
+    - kind: Check_Threshold
+      name: check_0
+      every: 1m
+      query:  >
+        from(bucket: "rucket_1")
+          |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+          |> filter(fn: (r) => r._measurement == "cpu")
+          |> filter(fn: (r) => r._field == "usage_idle")
+          |> aggregateWindow(every: 1m, fn: mean)
+          |> yield(name: "mean")
+      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+      tags:
+        - key: tag_1
+          value: val_1
+      thresholds:
+        - type: inside_range
+          level: INfO
+          min: 30.0
+          max: 45.0
+      associations:
+        - kind: Label
+          name: label_1
+    - kind: Check_Deadman
+      name: check_1
+      description: desc_1
+      every: 5m
+      level: cRiT
+      offset: 10s
+      query:  >
+        from(bucket: "rucket_1")
+          |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+          |> filter(fn: (r) => r._measurement == "cpu")
+          |> filter(fn: (r) => r._field == "usage_idle")
+          |> aggregateWindow(every: 1m, fn: mean)
+          |> yield(name: "mean")
+      reportZero: true
+      staleTime: 10m
+      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+      timeSince: 90s
       associations:
         - kind: Label
           name: label_1

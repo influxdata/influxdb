@@ -836,12 +836,15 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var pkgSVC pkger.SVC
 	{
 		b := m.apibackend
+		authedOrgSVC := authorizer.NewOrgService(b.OrganizationService)
+		authedURMSVC := authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
 		pkgSVC = pkger.NewService(
 			pkger.WithLogger(m.log.With(zap.String("service", "pkger"))),
 			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService)),
+			pkger.WithCheckSVC(authorizer.NewCheckService(b.CheckService, authedURMSVC, authedOrgSVC)),
 			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
 			pkger.WithLabelSVC(authorizer.NewLabelService(b.LabelService)),
-			pkger.WithNoticationEndpointSVC(authorizer.NewNotificationEndpointService(b.NotificationEndpointService, b.UserResourceMappingService, b.OrganizationService)),
+			pkger.WithNoticationEndpointSVC(authorizer.NewNotificationEndpointService(b.NotificationEndpointService, authedURMSVC, authedOrgSVC)),
 			pkger.WithSecretSVC(authorizer.NewSecretService(b.SecretService)),
 			pkger.WithTelegrafSVC(authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)),
 			pkger.WithVariableSVC(authorizer.NewVariableService(b.VariableService)),

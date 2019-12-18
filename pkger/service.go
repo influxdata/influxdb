@@ -27,9 +27,10 @@ type SVC interface {
 
 type serviceOpt struct {
 	logger      *zap.Logger
-	labelSVC    influxdb.LabelService
 	bucketSVC   influxdb.BucketService
+	checkSVC    influxdb.CheckService
 	dashSVC     influxdb.DashboardService
+	labelSVC    influxdb.LabelService
 	endpointSVC influxdb.NotificationEndpointService
 	secretSVC   influxdb.SecretService
 	teleSVC     influxdb.TelegrafConfigStore
@@ -52,6 +53,13 @@ func WithLogger(log *zap.Logger) ServiceSetterFn {
 func WithBucketSVC(bktSVC influxdb.BucketService) ServiceSetterFn {
 	return func(opt *serviceOpt) {
 		opt.bucketSVC = bktSVC
+	}
+}
+
+// WithCheckSVC sets the check service.
+func WithCheckSVC(checkSVC influxdb.CheckService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.checkSVC = checkSVC
 	}
 }
 
@@ -102,9 +110,10 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 type Service struct {
 	log *zap.Logger
 
-	labelSVC    influxdb.LabelService
 	bucketSVC   influxdb.BucketService
+	checkSVC    influxdb.CheckService
 	dashSVC     influxdb.DashboardService
+	labelSVC    influxdb.LabelService
 	endpointSVC influxdb.NotificationEndpointService
 	secretSVC   influxdb.SecretService
 	teleSVC     influxdb.TelegrafConfigStore
@@ -128,6 +137,7 @@ func NewService(opts ...ServiceSetterFn) *Service {
 	return &Service{
 		log:           opt.logger,
 		bucketSVC:     opt.bucketSVC,
+		checkSVC:      opt.checkSVC,
 		labelSVC:      opt.labelSVC,
 		dashSVC:       opt.dashSVC,
 		endpointSVC:   opt.endpointSVC,
@@ -544,6 +554,11 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 		return Summary{}, Diff{}, err
 	}
 
+	diffChecks, err := s.dryRunChecks(ctx, orgID, pkg)
+	if err != nil {
+		return Summary{}, Diff{}, err
+	}
+
 	diffLabels, err := s.dryRunLabels(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
@@ -571,6 +586,7 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 
 	diff := Diff{
 		Buckets:               diffBuckets,
+		Checks:                diffChecks,
 		Dashboards:            s.dryRunDashboards(pkg),
 		Labels:                diffLabels,
 		LabelMappings:         diffLabelMappings,
@@ -600,6 +616,36 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 
 	var diffs []DiffBucket
 	for _, diff := range mExistingBkts {
+		diffs = append(diffs, diff)
+	}
+	sort.Slice(diffs, func(i, j int) bool {
+		return diffs[i].Name < diffs[j].Name
+	})
+
+	return diffs, nil
+}
+
+func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffCheck, error) {
+	mExistingChecks := make(map[string]DiffCheck)
+	checks := pkg.checks()
+	for i := range checks {
+		c := checks[i]
+		name := c.Name()
+		existingCheck, err := s.checkSVC.FindCheck(ctx, influxdb.CheckFilter{
+			Name:  &name,
+			OrgID: &orgID,
+		})
+		switch err {
+		case nil:
+			c.existing = existingCheck
+			mExistingChecks[c.Name()] = newDiffCheck(c, existingCheck)
+		default:
+			mExistingChecks[c.Name()] = newDiffCheck(c, nil)
+		}
+	}
+
+	var diffs []DiffCheck
+	for _, diff := range mExistingChecks {
 		diffs = append(diffs, diff)
 	}
 	sort.Slice(diffs, func(i, j int) bool {
@@ -1453,7 +1499,7 @@ func (s *Service) applyLabelMappings(labelMappings []SummaryLabelMapping) applie
 		mutex.Do(func() {
 			mapping = labelMappings[i]
 		})
-		if mapping.exists {
+		if mapping.exists || mapping.LabelID == 0 || mapping.ResourceID == 0 {
 			// this block here does 2 things, it does not write a
 			// mapping when one exists. it also avoids having to worry
 			// about deleting an existing mapping since it will not be
