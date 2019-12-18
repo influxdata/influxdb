@@ -597,6 +597,23 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 		})
 	}
 
+	if checks := diff.Checks; len(checks) > 0 {
+		headers := []string{"New", "ID", "Name", "Description"}
+		tablePrintFn("CHECKS", headers, len(checks), func(i int) []string {
+			c := checks[i]
+			var oldDesc string
+			if c.Old != nil {
+				oldDesc = c.Old.GetDescription()
+			}
+			return []string{
+				boolDiff(c.IsNew()),
+				c.ID.String(),
+				c.Name,
+				diffLn(c.IsNew(), oldDesc, c.New.GetDescription()),
+			}
+		})
+	}
+
 	if dashes := diff.Dashboards; len(dashes) > 0 {
 		headers := []string{"New", "Name", "Description", "Num Charts"}
 		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {
