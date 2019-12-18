@@ -22,7 +22,9 @@ export class StatusIndicator extends PureComponent<Props> {
     const {status} = this.props
     return (
       <div className="line-protocol--spinner">
-        <p className={this.statusClassName}>{this.statusText.status}</p>
+        <p data-testid="line-protocol--status" className={this.statusClassName}>
+          {this.statusText.status}
+        </p>
         <SparkleSpinner loading={status} sizePixels={220} />
         <p className={this.statusClassName}>{this.statusText.message}</p>
       </div>
@@ -46,12 +48,15 @@ export class StatusIndicator extends PureComponent<Props> {
       case RemoteDataState.Loading:
         status = 'Loading...'
         message = 'Just a moment'
+        break
       case RemoteDataState.Done:
         status = 'Data Written Successfully'
         message = 'Hooray!'
+        break
       case RemoteDataState.Error:
         status = 'Unable to Write Data'
         message = `Error: ${this.props.errorMessage}`
+        break
     }
 
     return {
