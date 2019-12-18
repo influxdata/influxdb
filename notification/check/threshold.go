@@ -387,10 +387,9 @@ func (td Lesser) Type() string {
 	return "lesser"
 }
 
-type lesserAlias Lesser
-
 // MarshalJSON implement json.Marshaler interface.
 func (td Lesser) MarshalJSON() ([]byte, error) {
+	type lesserAlias Lesser
 	return json.Marshal(
 		struct {
 			lesserAlias
@@ -412,10 +411,9 @@ func (td Greater) Type() string {
 	return "greater"
 }
 
-type greaterAlias Greater
-
 // MarshalJSON implement json.Marshaler interface.
 func (td Greater) MarshalJSON() ([]byte, error) {
+	type greaterAlias Greater
 	return json.Marshal(
 		struct {
 			greaterAlias
@@ -439,10 +437,9 @@ func (td Range) Type() string {
 	return "range"
 }
 
-type rangeAlias Range
-
 // MarshalJSON implement json.Marshaler interface.
 func (td Range) MarshalJSON() ([]byte, error) {
+	type rangeAlias Range
 	return json.Marshal(
 		struct {
 			rangeAlias
