@@ -340,16 +340,16 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.CheckCreate
 	c.SetCreatedAt(now)
 	c.SetUpdatedAt(now)
 
+	if err := c.Valid(); err != nil {
+		return err
+	}
+
 	t, err := s.createCheckTask(ctx, tx, c)
 	if err != nil {
 		return err
 	}
 
 	c.SetTaskID(t.ID)
-
-	if err := c.Valid(); err != nil {
-		return err
-	}
 
 	if err := c.Status.Valid(); err != nil {
 		return err
