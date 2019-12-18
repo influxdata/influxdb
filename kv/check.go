@@ -302,6 +302,7 @@ func (s *Service) findChecks(ctx context.Context, tx Tx, filter influxdb.CheckFi
 
 // CreateCheck creates a influxdb check and sets ID.
 func (s *Service) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userID influxdb.ID) error {
+	fmt.Println("in kvcheckgo create check")
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -311,6 +312,7 @@ func (s *Service) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userI
 }
 
 func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.CheckCreate, userID influxdb.ID) error {
+	fmt.Println("10")
 	if c.GetOrgID().Valid() {
 		span, ctx := tracing.StartSpanFromContext(ctx)
 		defer span.Finish()
@@ -323,7 +325,7 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.CheckCreate
 			}
 		}
 	}
-
+	fmt.Println("11")
 	// check name unique
 	if _, err := s.findCheckByName(ctx, tx, c.GetOrgID(), c.GetName()); err == nil {
 		if err == nil {
@@ -333,35 +335,36 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.CheckCreate
 			}
 		}
 	}
-
+	fmt.Println("12")
 	c.SetID(s.IDGenerator.ID())
 	c.SetOwnerID(userID)
 	now := s.Now()
 	c.SetCreatedAt(now)
 	c.SetUpdatedAt(now)
-
+	fmt.Println("13")
 	if err := c.Valid(); err != nil {
 		return err
 	}
-
+	fmt.Println("14")
 	t, err := s.createCheckTask(ctx, tx, c)
 	if err != nil {
 		return err
 	}
-
+	fmt.Println("15")
 	c.SetTaskID(t.ID)
-
+	fmt.Println("16")
 	if err := c.Status.Valid(); err != nil {
 		return err
 	}
-
+	fmt.Println("17")
 	if err := s.putCheck(ctx, tx, c); err != nil {
 		return err
 	}
-
+	fmt.Println("18")
 	if err := s.createCheckUserResourceMappings(ctx, tx, c); err != nil {
 		return err
 	}
+	fmt.Println("19")
 	return nil
 }
 

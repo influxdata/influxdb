@@ -10,73 +10,63 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 
 // Actions
 import {saveCheckFromTimeMachine} from 'src/alerting/actions/checks'
-import {
-  setActiveTimeMachine,
-  updateTimeMachineCheck,
-  setTimeMachineCheck,
-} from 'src/timeMachine/actions'
+import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {createCheckFailed} from 'src/shared/copy/notifications'
 import {notify} from 'src/shared/actions/notifications'
+import {
+  resetAlertBuilder,
+  updateName,
+  initializeAlertBuilder,
+} from 'src/alerting/actions/alertBuilder'
 
 // Utils
 import {createView} from 'src/shared/utils/view'
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {Check, AppState, RemoteDataState, CheckViewProperties} from 'src/types'
-import {DEFAULT_THRESHOLD_CHECK} from 'src/alerting/constants'
+import {AppState, RemoteDataState, CheckViewProperties} from 'src/types'
 
 interface DispatchProps {
-  setTimeMachineCheck: typeof setTimeMachineCheck
-  updateTimeMachineCheck: typeof updateTimeMachineCheck
   onSetActiveTimeMachine: typeof setActiveTimeMachine
   saveCheckFromTimeMachine: typeof saveCheckFromTimeMachine
   notify: typeof notify
+  onResetAlertBuilder: typeof resetAlertBuilder
+  onUpdateAlertBuilderName: typeof updateName
+  onInitializeAlertBuilder: typeof initializeAlertBuilder
 }
 
 interface StateProps {
-  check: Partial<Check>
+  checkName: string
   checkStatus: RemoteDataState
 }
 
 type Props = DispatchProps & StateProps & WithRouterProps
 
 const NewCheckOverlay: FunctionComponent<Props> = ({
-  onSetActiveTimeMachine,
-  updateTimeMachineCheck,
-  setTimeMachineCheck,
-  saveCheckFromTimeMachine,
-  params,
+  params: {orgID},
   router,
   checkStatus,
-  check,
+  checkName,
+  onSetActiveTimeMachine,
+  saveCheckFromTimeMachine,
   notify,
+  onResetAlertBuilder,
+  onUpdateAlertBuilderName,
+  onInitializeAlertBuilder,
 }) => {
   useEffect(() => {
     const view = createView<CheckViewProperties>('threshold')
+    onInitializeAlertBuilder('threshold')
     onSetActiveTimeMachine('alerting', {
       view,
-      alerting: {
-        checkStatus: RemoteDataState.Done,
-        check: DEFAULT_THRESHOLD_CHECK,
-        isCheckCustomized: false,
-      },
     })
   }, [])
 
-  const handleUpdateName = (name: string) => {
-    updateTimeMachineCheck({name})
-  }
-
   const handleClose = () => {
-    setTimeMachineCheck(RemoteDataState.NotStarted, null)
-    router.push(`/orgs/${params.orgID}/alerting`)
+    router.push(`/orgs/${orgID}/alerting`)
+    onResetAlertBuilder()
   }
 
   const handleSave = () => {
-    // todo: when check has own view
-    // save view as view
-    // put view.id on check.viewID
     try {
       saveCheckFromTimeMachine()
       handleClose()
@@ -94,9 +84,9 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
           loading={checkStatus || RemoteDataState.Loading}
         >
           <CheckEOHeader
-            key={check && check.name}
-            name={check && check.name}
-            onSetName={handleUpdateName}
+            key={checkName}
+            name={checkName}
+            onSetName={onUpdateAlertBuilderName}
             onCancel={handleClose}
             onSave={handleSave}
           />
@@ -109,20 +99,17 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
-  const {
-    alerting: {check, checkStatus},
-  } = getActiveTimeMachine(state)
-
-  return {check, checkStatus}
+const mstp = ({alertBuilder: {name, checkStatus}}: AppState): StateProps => {
+  return {checkName: name, checkStatus}
 }
 
 const mdtp: DispatchProps = {
-  setTimeMachineCheck: setTimeMachineCheck,
-  updateTimeMachineCheck: updateTimeMachineCheck,
   onSetActiveTimeMachine: setActiveTimeMachine,
   saveCheckFromTimeMachine: saveCheckFromTimeMachine,
   notify: notify,
+  onResetAlertBuilder: resetAlertBuilder,
+  onUpdateAlertBuilderName: updateName,
+  onInitializeAlertBuilder: initializeAlertBuilder,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

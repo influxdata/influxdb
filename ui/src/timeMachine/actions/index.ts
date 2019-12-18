@@ -37,6 +37,9 @@ import {
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition, LinePosition} from '@influxdata/giraffe'
+import {getActiveQuery} from '../selectors'
+import {createCheckQueryFromAlertBuilder} from '../utils/queryBuilder'
+import {initializeAlertBuilder} from 'src/alerting/actions/alertBuilder'
 
 export type Action =
   | QueryBuilderAction
@@ -655,17 +658,23 @@ export const loadNewVEO = (dashboardID: string) => (
   // no need to refresh variable values since there is no query in a new view
 }
 
-// export const loadCustomQueryState = () => (
-//   dispatch: Dispatch<Action>,
-//   getState: GetState
-// ) => {
-//   const state = getState()
-//   const {
-//     alerting: {check},
-//   } = getActiveTimeMachine(state)
-//   const {builderConfig} = getActiveQuery(state)
-//   dispatch(setActiveQueryText(createCheckQueryFromParams(builderConfig, check)))
-//   dispatch(setIsCheckCustomized(true))
-//   // change check type here?
-//   dispatch(setActiveTab('customCheckQuery'))
-// }
+export const loadCustomQueryState = () => (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const state = getState()
+
+  const {alertBuilder} = state
+
+  const {builderConfig} = getActiveQuery(state)
+
+  dispatch(
+    setActiveQueryText(
+      createCheckQueryFromAlertBuilder(builderConfig, alertBuilder)
+    )
+  )
+  dispatch(initializeAlertBuilder('custom'))
+  // need to set check type and re initialize alertBuilder state.
+
+  dispatch(setActiveTab('customCheckQuery'))
+}

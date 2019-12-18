@@ -2,9 +2,10 @@ import {get, isEmpty} from 'lodash'
 import {
   BuilderConfig,
   DashboardDraftQuery,
-  Check,
   CheckType,
   Threshold,
+  DeadmanCheck,
+  ThresholdCheck,
 } from 'src/types'
 import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 import {
@@ -15,6 +16,7 @@ import {
 } from 'src/variables/constants'
 import {AGG_WINDOW_AUTO} from 'src/timeMachine/constants/queryBuilder'
 import {BuilderTagsType} from '@influxdata/influx'
+import {AlertBuilderState} from 'src/alerting/reducers/alertBuilder'
 
 export function isConfigValid(builderConfig: BuilderConfig): boolean {
   const {buckets, tags} = builderConfig
@@ -193,9 +195,21 @@ export function hasQueryBeenEdited(
   return _isQueryDifferent
 }
 
-export function createCheckQueryFromParams(
+export function createCheckQueryFromAlertBuilder(
   builderConfig: BuilderConfig,
-  check: Partial<Check>
+  {
+    statusMessageTemplate,
+    tags,
+    id,
+    name,
+    every,
+    offset,
+    type,
+    staleTime,
+    level,
+    timeSince,
+    thresholds,
+  }: AlertBuilderState
 ): string {
   const dataFrom = `data = from(bucket: \"${builderConfig.buckets[0]}\")`
 
@@ -203,10 +217,10 @@ export function createCheckQueryFromParams(
     .filter(tag => !!tag.values[0])
     .map(tag => `  |> filter(fn: (r) => r.${tag.key} == \"${tag.values[0]}\")`)
 
-  const messageFn = `messageFn = (r) =>(\"${check.statusMessageTemplate}\")`
+  const messageFn = `messageFn = (r) =>(\"${statusMessageTemplate}\")`
 
-  const checkTags = check.tags
-    ? check.tags
+  const checkTags = tags
+    ? tags
         .filter(t => t.key && t.value)
         .map(t => `${t.key}: \"${t.value}\"`)
         .join(',')
@@ -214,22 +228,20 @@ export function createCheckQueryFromParams(
 
   const checkStatement = [
     'check = {',
-    `  _check_id: \"${check.id}\",`, //PROBLEM: WHAT IF CHECK DOES NOT EXIST YET.
-    `  _check_name: \"${check.name}\",`,
-    `  _type: \"${check.type}\",`,
+    `  _check_id: \"${id || ''}\",`, //PROBLEM: WHAT IF CHECK DOES NOT EXIST YET.
+    `  _check_name: \"${name}\",`,
+    `  _type: \"custom\",`,
     `  tags: {${checkTags}}`,
     '}',
   ]
-
   const optionTask = [
     'option task = {',
-    `  name: \"${check.name}\",`,
-    `  every: ${check.every},`,
-    `  offset: ${check.offset}`,
+    `  name: \"${name}\",`,
+    `  every: ${every},`,
+    `  offset: ${offset}`,
     '}',
   ]
-
-  if (check.type === 'deadman') {
+  if (type === 'deadman') {
     const imports = [
       'package main',
       'import "influxdata/influxdb/monitor"',
@@ -237,22 +249,20 @@ export function createCheckQueryFromParams(
       'import "influxdata/influxdb/v1"',
     ]
 
-    const dataRange = `  |> range(start: -${check.staleTime})`
+    const dataRange = `  |> range(start: -${staleTime})`
 
     //insert variable here.
 
     const dataDefinition = [dataFrom, dataRange, ...filterStatements]
 
-    const levelFunction = `${check.level.toLowerCase()} = (r) => (r.dead)`
+    const levelFunction = `${level.toLowerCase()} = (r) => (r.dead)`
 
-    const checkLevel = `${check.level.toLowerCase()}:${check.level.toLowerCase()}`
+    const checkLevel = `${level.toLowerCase()}:${level.toLowerCase()}`
 
     const queryStatement = [
       'data',
       '  |> v1.fieldsAsCols()',
-      `  |> monitor.deadman(t: experimental.subDuration(from: now(), d: ${
-        check.timeSince
-      }))`,
+      `  |> monitor.deadman(t: experimental.subDuration(from: now(), d: ${timeSince}))`,
       `  |> monitor.check(data: check, messageFn: messageFn,${checkLevel})`,
     ]
 
@@ -267,16 +277,17 @@ export function createCheckQueryFromParams(
     ]
     return script.join('\n\n')
   }
-  if (check.type === 'threshold') {
+
+  if (type === 'threshold') {
     const imports = [
       'package main',
       'import "influxdata/influxdb/monitor"',
       'import "influxdata/influxdb/v1"',
     ]
 
-    const dataRange = `  |> range(start: -${check.every})`
+    const dataRange = `  |> range(start: -${every})`
 
-    const aggregateFunction = `  |> aggregateWindow(every: ${check.every} fn: ${
+    const aggregateFunction = `  |> aggregateWindow(every: ${every}, fn: ${
       builderConfig.functions[0].name
     }, createEmpty: false)`
 
@@ -287,7 +298,7 @@ export function createCheckQueryFromParams(
       aggregateFunction,
     ]
 
-    const thresholds = check.thresholds.map(t => {
+    const thresholdExpressions = thresholds.map(t => {
       const fieldTag = builderConfig.tags.find(t => t.key === '_field')
       const fieldSelection = get(fieldTag, 'values.[0]')
 
@@ -307,7 +318,7 @@ export function createCheckQueryFromParams(
       }
     })
 
-    const thresholdsDefined = check.thresholds.map(
+    const thresholdsDefined = thresholds.map(
       t => ` ${t.level.toLowerCase()}:${t.level.toLowerCase()}`
     )
 
@@ -319,11 +330,11 @@ export function createCheckQueryFromParams(
 
     const script: string[] = [
       imports.join('\n'),
-      dataDefinition.join('\n'),
       optionTask.join('\n'),
       checkStatement.join('\n'),
-      thresholds.join('\n'),
+      thresholdExpressions.join('\n'),
       messageFn,
+      dataDefinition.join('\n'),
       queryStatement.join('\n'),
     ]
     return script.join('\n\n')

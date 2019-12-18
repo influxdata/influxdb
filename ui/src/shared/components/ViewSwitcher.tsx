@@ -16,7 +16,6 @@ import CheckPlot from 'src/shared/components/CheckPlot'
 
 // Types
 import {
-  Check,
   CheckViewProperties,
   QueryViewProperties,
   RemoteDataState,
@@ -25,11 +24,14 @@ import {
   TimeZone,
   XYViewProperties,
   TimeRange,
+  CheckType,
+  Threshold,
 } from 'src/types'
 
 interface Props {
   giraffeResult: FromFluxResult
-  check: Partial<Check>
+  checkType: CheckType
+  checkThresholds: Threshold[]
   files: string[]
   loading: RemoteDataState
   properties: QueryViewProperties | CheckViewProperties
@@ -40,7 +42,8 @@ interface Props {
 
 const ViewSwitcher: FunctionComponent<Props> = ({
   properties,
-  check,
+  checkType,
+  checkThresholds,
   loading,
   timeRange,
   files,
@@ -176,7 +179,8 @@ const ViewSwitcher: FunctionComponent<Props> = ({
     case 'check':
       return (
         <CheckPlot
-          check={check}
+          checkType={checkType}
+          thresholds={checkThresholds}
           table={table}
           fluxGroupKeyUnion={fluxGroupKeyUnion}
           loading={loading}

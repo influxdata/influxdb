@@ -153,33 +153,64 @@ export const saveCheckFromTimeMachine = () => async (
     orgs: {
       org: {id: orgID},
     },
+    alertBuilder: {
+      type,
+      id,
+      status,
+      name,
+      every,
+      offset,
+      tags,
+      statusMessageTemplate,
+      timeSince,
+      reportZero,
+      staleTime,
+      level,
+      thresholds,
+    },
   } = state
 
-  const {
-    draftQueries,
-    alerting: {check, isCheckCustomized},
-  } = getActiveTimeMachine(state)
+  const {draftQueries} = getActiveTimeMachine(state)
 
-  const labels = get(check, 'labels', []) as Label[]
+  // const labels = get(check, 'labels', []) as Label[]
 
-  let checkWithOrg = {
-    ...check,
+  let check = {
+    type,
+    status,
+    name,
     query: draftQueries[0],
     orgID,
-    labels: labels.map(l => l.id),
-  } as PostCheck
+    // labels: labels.map(l => l.id),
+  } as Check
 
-  if (isCheckCustomized) {
-    checkWithOrg = {
-      type: 'custom',
-      query: draftQueries[0],
-      orgID,
-    }
+  if (check.type === 'threshold') {
+    check = {
+      ...check,
+      thresholds,
+      every,
+      offset,
+      tags,
+      statusMessageTemplate,
+    } as ThresholdCheck
+  } else if (check.type === 'deadman') {
+    check = {
+      ...check,
+      every,
+      offset,
+      tags,
+      statusMessageTemplate,
+      timeSince,
+      reportZero,
+      staleTime,
+      level,
+    } as DeadmanCheck
+  } else if (check.type === 'custom') {
+    check = {...check} as CustomCheck
   }
 
-  const resp = check.id
-    ? await api.patchCheck({checkID: check.id, data: checkWithOrg})
-    : await api.postCheck({data: checkWithOrg})
+  const resp = id
+    ? await api.putCheck({checkID: id, data: check})
+    : await api.postCheck({data: check})
 
   if (resp.status === 201 || resp.status === 200) {
     dispatch(setCheck(resp.data))

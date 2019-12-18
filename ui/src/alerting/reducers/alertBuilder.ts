@@ -64,7 +64,11 @@ export default (
     }
 
     case 'INIT_ALERT_BUILDER': {
-      return {...initialState(), type: action.payload.type}
+      return {
+        ...initialState(),
+        type: action.payload.type,
+        checkStatus: RemoteDataState.Done,
+      }
     }
 
     case 'SET_ALERT_BUILDER_CHECK': {

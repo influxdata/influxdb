@@ -2,7 +2,6 @@ package check
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/influxdata/flux/ast"
@@ -162,19 +161,34 @@ func (c *Custom) hasRequiredTaskOptions() (err error) {
 		}
 	})
 	if !hasOptionTask {
-		return fmt.Errorf("Custom flux missing task option statement")
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Custom flux missing task option statement",
+		}
 	}
 	if !hasName {
-		return fmt.Errorf("Custom flux missing name parameter from task option statement")
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Custom flux missing name parameter from task option statement",
+		}
 	}
 	if hasName && !nameMatchesCheck {
-		return fmt.Errorf("Name parameter from task option statement must match check name")
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Name parameter from task option statement must match check name",
+		}
 	}
 	if !hasEvery {
-		return fmt.Errorf("Custom flux missing every parameter from task option statement")
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Custom flux missing every parameter from task option statement",
+		}
 	}
 	if !hasOffset {
-		return fmt.Errorf("Custom flux missing offset parameter from task option statement")
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Custom flux missing offset parameter from task option statement",
+		}
 	}
 	return nil
 }
@@ -183,7 +197,6 @@ func (c *Custom) hasRequiredCheckParameters() (err error) {
 	p := parser.ParseSource(c.Query.Text)
 
 	hasCheckObject := false
-	checkIDMatches := false
 	checkNameMatches := false
 	checkTypeIsCustom := false
 
@@ -198,26 +211,28 @@ func (c *Custom) hasRequiredCheckParameters() (err error) {
 					if propertyHasValue(prop, "_type", "custom") {
 						checkTypeIsCustom = true
 					}
-					// if c.ID is zeroValued _check_id should be ""
-					if propertyHasValue(prop, "_check_id", c.ID.String()) {
-						checkIDMatches = true
-					}
 				}
 			}
 		}
 	})
 
 	if !hasCheckObject {
-		return fmt.Errorf("Custom flux must have an object called 'check'")
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Custom flux must have an object called 'check'",
+		}
 	}
 	if !checkNameMatches {
-		return fmt.Errorf("_check_name parameter on check object must match check name")
-	}
-	if !checkIDMatches {
-		return fmt.Errorf("_check_id parameter on check object must match check id")
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "_check_name parameter on check object must match check name",
+		}
 	}
 	if !checkTypeIsCustom {
-		return fmt.Errorf("_type parameter on check object must be set to 'custom'")
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "_type parameter on check object must be set to 'custom'",
+		}
 	}
 	return nil
 }
@@ -317,7 +332,7 @@ func (c *Custom) SetDescription(description string) {
 
 // GetID is GetID
 func (c *Custom) GetID() influxdb.ID {
-	panic("not implemented") // TODO: Implement
+	return c.ID
 }
 
 // GetCRUDLog gets crudLog

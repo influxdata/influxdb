@@ -1,6 +1,8 @@
 package check_test
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/andreyvit/diff"
@@ -34,7 +36,7 @@ data = from(bucket: "_tasks")
 option task = {name: "moo", every: 1m, offset: 0s}
 
 check = {
-		_check_id: "000000000000000a",
+		_check_id: "%s",
 		_check_name: "moo",
 		_type: "custom",
 		tags: {a: "b", c: "d"},
@@ -58,8 +60,6 @@ data
 						info: info,
 		)`
 
-	validQuery = ast.Format(parser.ParseSource(validQuery))
-
 	tests := []struct {
 		name  string
 		args  args
@@ -72,13 +72,44 @@ data
 					ID:   10,
 					Name: "moo",
 					Query: influxdb.DashboardQuery{
-						Text: validQuery,
+						Text: ast.Format(parser.ParseSource(fmt.Sprintf(validQuery, "000000000000000a"))),
 					},
 				},
 			},
 			wants: wants{
 				err:    nil,
-				script: validQuery,
+				script: ast.Format(parser.ParseSource(fmt.Sprintf(validQuery, "000000000000000a"))),
+			},
+		},
+		{
+			name: "valid flux script is valid and unchanged",
+			args: args{
+				custom: &check.Custom{
+					ID:   10,
+					Name: "moo",
+					Query: influxdb.DashboardQuery{
+						Text: ast.Format(parser.ParseSource(fmt.Sprintf(validQuery, "000000000000000b"))),
+					},
+				},
+			},
+			wants: wants{
+				err:    nil,
+				script: ast.Format(parser.ParseSource(fmt.Sprintf(validQuery, "000000000000000a"))),
+			},
+		},
+		{
+			name: "valid flux script is valid and unchanged",
+			args: args{
+				custom: &check.Custom{
+					ID:   10,
+					Name: "moo",
+					Query: influxdb.DashboardQuery{
+						Text: "",
+					},
+				},
+			},
+			wants: wants{
+				err: errors.New("Custom flux missing task option statement"),
 			},
 		},
 	}
@@ -87,7 +118,11 @@ data
 		t.Run(tt.name, func(t *testing.T) {
 
 			err := tt.args.custom.Valid()
-			if exp, got := tt.wants.err, err; exp != got {
+			if exp, got := tt.wants.err, err; exp != nil && got != nil {
+				if exp.Error() != got.Error() {
+					t.Errorf("expected:\n%v\n\ngot:\n%v\n", exp, got)
+				}
+			} else if (exp == nil || got == nil) && got != exp {
 				t.Errorf("expected:\n%v\n\ngot:\n%v\n", exp, got)
 			}
 			if exp, got := tt.wants.script, tt.args.custom.Query.Text; exp != got {
