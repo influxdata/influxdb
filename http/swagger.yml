@@ -10083,7 +10083,7 @@ components:
             query:
               description: URL to retrieve flux script for this check
               $ref: "#/components/schemas/Link"
-      required: [name, type, orgID, query]
+      required: [name, orgID, query]
     ThresholdCheck:
       allOf:
         - $ref: "#/components/schemas/CheckBase"
