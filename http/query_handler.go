@@ -155,6 +155,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	req.Request.Source = r.Header.Get("User-Agent")
 	orgID = req.Request.OrganizationID
 	requestBytes = n
 
@@ -349,6 +350,7 @@ var _ query.ProxyQueryService = (*FluxService)(nil)
 type FluxService struct {
 	Addr               string
 	Token              string
+	Name               string
 	InsecureSkipVerify bool
 }
 
@@ -383,6 +385,11 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/csv")
+	if r.Request.Source != "" {
+		hreq.Header.Add("User-Agent", r.Request.Source)
+	} else if s.Name != "" {
+		hreq.Header.Add("User-Agent", s.Name)
+	}
 	hreq = hreq.WithContext(ctx)
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
@@ -412,6 +419,7 @@ var _ query.QueryService = (*FluxQueryService)(nil)
 type FluxQueryService struct {
 	Addr               string
 	Token              string
+	Name               string
 	InsecureSkipVerify bool
 }
 
@@ -450,6 +458,11 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/csv")
+	if r.Source != "" {
+		hreq.Header.Add("User-Agent", r.Source)
+	} else if s.Name != "" {
+		hreq.Header.Add("User-Agent", s.Name)
+	}
 	hreq = hreq.WithContext(ctx)
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
