@@ -1,5 +1,5 @@
 // Libraries
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // API
 import * as api from 'src/client'
@@ -120,7 +120,7 @@ export const addNewMember = (member: AddResourceMemberRequestBody) => async (
     dispatch(notify(memberAddSuccess(member.name)))
   } catch (e) {
     console.error(e)
-    const message = _.get(e, 'response.data.message', 'Unknown error')
+    const message = get(e, 'response.data.message', 'Unknown error')
     dispatch(notify(memberAddFailed(message)))
     throw e
   }

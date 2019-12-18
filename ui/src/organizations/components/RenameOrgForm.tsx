@@ -3,8 +3,6 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import {WithRouterProps, withRouter} from 'react-router'
 
-import _ from 'lodash'
-
 // Components
 import {
   Form,

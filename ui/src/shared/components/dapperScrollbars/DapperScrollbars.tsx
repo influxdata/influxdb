@@ -1,6 +1,5 @@
 // Libraries
 import React, {Component, CSSProperties, ReactNode} from 'react'
-import _ from 'lodash'
 import classnames from 'classnames'
 import Scrollbar from 'react-scrollbars-custom'
 

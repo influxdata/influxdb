@@ -1,7 +1,6 @@
 // Libraries
 import React, {Component, MouseEvent} from 'react'
 import classnames from 'classnames'
-import _ from 'lodash'
 
 // Components
 import {Label} from '@influxdata/clockface'

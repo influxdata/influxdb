@@ -1,7 +1,6 @@
 // Libraries
 import React from 'react'
 import {render} from 'react-testing-library'
-import _ from 'lodash'
 
 // Components
 import {NavMenu, Icon, IconFont} from '@influxdata/clockface'

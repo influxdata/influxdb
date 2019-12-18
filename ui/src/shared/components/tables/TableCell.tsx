@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
+import {isString, defaultTo} from 'lodash'
 import classnames from 'classnames'
 
 // Constants
@@ -68,7 +68,7 @@ class TableCell extends PureComponent<Props> {
   private handleClick = () => {
     const {data} = this.props
 
-    return this.isFieldName && _.isString(data)
+    return this.isFieldName && isString(data)
       ? this.props.onClickFieldName(data)
       : null
   }
@@ -216,8 +216,8 @@ class TableCell extends PureComponent<Props> {
       return timeFormatter(data)
     }
 
-    if (_.isString(data) && this.isFieldName) {
-      return _.defaultTo(this.fieldName, '').toString()
+    if (isString(data) && this.isFieldName) {
+      return defaultTo(this.fieldName, '').toString()
     }
 
     if (
@@ -228,7 +228,7 @@ class TableCell extends PureComponent<Props> {
       return (+data).toFixed(decimalPlaces.digits)
     }
 
-    return _.defaultTo(data, '').toString()
+    return defaultTo(data, '').toString()
   }
 }
 

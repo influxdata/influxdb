@@ -1,5 +1,4 @@
 // Libraries
-import _ from 'lodash'
 import React, {FunctionComponent, createElement} from 'react'
 import {withRouter, WithRouterProps, Link} from 'react-router'
 

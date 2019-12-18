@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import _ from 'lodash'
+import {debounce, isEmpty} from 'lodash'
 
 // Components
 import {Button, Form, Input, Grid} from '@influxdata/clockface'
@@ -62,7 +62,7 @@ class MultipleInput extends PureComponent<Props, State> {
 
     this.inputRef = React.createRef()
 
-    this.debouncedValidate = _.debounce(
+    this.debouncedValidate = debounce(
       this.handleValidateURI,
       VALIDATE_DEBOUNCE_MS
     )
@@ -160,7 +160,7 @@ class MultipleInput extends PureComponent<Props, State> {
   }
 
   private shouldAddToList(item: Item, tags: Item[]): boolean {
-    return !_.isEmpty(item) && !tags.find(l => l === item)
+    return !isEmpty(item) && !tags.find(l => l === item)
   }
 
   private handleValidateURI = (value: string): void => {

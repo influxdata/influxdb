@@ -1,7 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import Table from 'src/dashboards/components/dashboard_index/Table'

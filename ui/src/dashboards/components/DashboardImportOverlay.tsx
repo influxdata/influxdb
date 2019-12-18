@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
-import _ from 'lodash'
+import {isEmpty} from 'lodash'
 import {connect} from 'react-redux'
 
 // Components
@@ -73,7 +73,7 @@ class DashboardImportOverlay extends PureComponent<Props> {
       return
     }
 
-    if (_.isEmpty(template)) {
+    if (isEmpty(template)) {
       this.onDismiss()
     }
 

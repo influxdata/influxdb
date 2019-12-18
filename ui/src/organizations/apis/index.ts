@@ -1,6 +1,4 @@
 // Libraries
-import _ from 'lodash'
-
 import {client} from 'src/utils/api'
 
 // Types

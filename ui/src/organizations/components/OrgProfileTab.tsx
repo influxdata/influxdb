@@ -2,8 +2,6 @@
 import React, {PureComponent} from 'react'
 import {WithRouterProps, withRouter} from 'react-router'
 
-import _ from 'lodash'
-
 // Components
 import {
   Form,

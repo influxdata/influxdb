@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -82,7 +82,7 @@ class TableGraphs extends PureComponent<Props, State> {
   }
 
   private get defaultTableName() {
-    return _.get(this.props.tables, '0.name', null)
+    return get(this.props.tables, '0.name', null)
   }
 
   private handleSelectTable = (selectedTableName: string): void => {

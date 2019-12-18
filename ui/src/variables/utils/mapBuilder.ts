@@ -1,4 +1,4 @@
-import _ from 'lodash'
+import {get, trimEnd} from 'lodash'
 import Papa from 'papaparse'
 
 interface MapResult {
@@ -8,9 +8,9 @@ interface MapResult {
 
 export const csvToMap = (csv: string): MapResult => {
   let errors = []
-  const trimmed = _.trimEnd(csv, '\n')
+  const trimmed = trimEnd(csv, '\n')
   const parsedTVS = Papa.parse(trimmed)
-  const templateValuesData: string[][] = _.get(parsedTVS, 'data', [[]])
+  const templateValuesData: string[][] = get(parsedTVS, 'data', [[]])
 
   if (templateValuesData.length === 0) {
     return {values: {}, errors}

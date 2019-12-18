@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {startCase} from 'lodash'
 
 // Components
 import {Form} from '@influxdata/clockface'
@@ -46,7 +46,7 @@ export class PluginConfigForm extends PureComponent<Props> {
         >
           <div>
             <h3 className="wizard-step--title">
-              {_.startCase(telegrafPlugin.name)}
+              {startCase(telegrafPlugin.name)}
             </h3>
             <h5 className="wizard-step--sub-title">
               For more information about this plugin, see{' '}

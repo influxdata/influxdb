@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
+import {debounce} from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -39,7 +39,7 @@ class GridSizer extends PureComponent<Props, State> {
       columnStyle: null,
     }
 
-    this.debouncedSizeListener = _.debounce(this.setColumnStyle, 250)
+    this.debouncedSizeListener = debounce(this.setColumnStyle, 250)
   }
 
   public componentDidMount() {

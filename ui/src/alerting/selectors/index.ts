@@ -1,5 +1,5 @@
 import {AppState, Check, ResourceType} from 'src/types'
-import {sortBy, get} from 'lodash'
+import {get, sortBy} from 'lodash'
 
 export const getCheck = (state: AppState, id: string): Check => {
   const checksList = state.checks.list

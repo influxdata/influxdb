@@ -1,8 +1,5 @@
 import React, {PureComponent} from 'react'
 
-// utils
-import _ from 'lodash'
-
 // components
 import {Dropdown, DropdownItemType} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'

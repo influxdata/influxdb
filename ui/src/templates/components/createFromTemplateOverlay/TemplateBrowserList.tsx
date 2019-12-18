@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {get, orderBy} from 'lodash'
+import {orderBy, get} from 'lodash'
 
 // Components
 import {DapperScrollbars} from '@influxdata/clockface'

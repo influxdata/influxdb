@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {isEmpty} from 'lodash'
 
 // Components
 import {Button, EmptyState, Sort} from '@influxdata/clockface'
@@ -142,7 +142,7 @@ class Scrapers extends PureComponent<Props, State> {
     const {org} = this.props
     const {searchTerm} = this.state
 
-    if (_.isEmpty(searchTerm)) {
+    if (isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text>

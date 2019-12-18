@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import {includes, get} from 'lodash'
+import {get, includes} from 'lodash'
 
 // Components
 import {Form, Input} from '@influxdata/clockface'

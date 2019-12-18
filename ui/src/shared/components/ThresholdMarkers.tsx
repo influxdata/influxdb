@@ -1,7 +1,7 @@
 // Libraries
 import React, {useRef, useState, FunctionComponent} from 'react'
 import {Scale} from '@influxdata/giraffe'
-import {debounce, round} from 'lodash'
+import {round, debounce} from 'lodash'
 
 // Components
 import RangeThresholdMarkers from 'src/shared/components/RangeThresholdMarkers'

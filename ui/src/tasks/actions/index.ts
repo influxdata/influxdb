@@ -1,6 +1,5 @@
 // Libraries
 import {push, goBack} from 'react-router-redux'
-import _ from 'lodash'
 
 // APIs
 import {LogEvent, ITask as Task} from '@influxdata/influx'

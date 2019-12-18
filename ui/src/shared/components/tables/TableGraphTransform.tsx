@@ -1,6 +1,6 @@
 // Libraries
 import {PureComponent} from 'react'
-import _ from 'lodash'
+import {isEqual} from 'lodash'
 import memoizeOne from 'memoize-one'
 
 // Utils
@@ -27,7 +27,7 @@ const areFormatPropertiesEqual = (
     return false
   }
   const propsEqual = formatProps.every(k =>
-    _.isEqual(prevProperties.properties[k], newProperties.properties[k])
+    isEqual(prevProperties.properties[k], newProperties.properties[k])
   )
 
   return propsEqual

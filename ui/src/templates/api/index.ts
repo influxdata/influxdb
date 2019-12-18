@@ -1,4 +1,4 @@
-import _ from 'lodash'
+import {get, flatMap, isEmpty} from 'lodash'
 import {
   DashboardTemplate,
   TemplateType,
@@ -87,11 +87,11 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
     hasLabelsRelationships(r)
   )
 
-  if (_.isEmpty(labeledResources)) {
+  if (isEmpty(labeledResources)) {
     return {}
   }
 
-  const labelRelationships = _.flatMap(labeledResources, r =>
+  const labelRelationships = flatMap(labeledResources, r =>
     getLabelRelationships(r)
   )
 
@@ -105,8 +105,8 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
   const labelsToCreate = findLabelsToCreate(existingLabels, includedLabels).map(
     l => ({
       orgID,
-      name: _.get(l, 'attributes.name', ''),
-      properties: _.get(l, 'attributes.properties', {}),
+      name: get(l, 'attributes.name', ''),
+      properties: get(l, 'attributes.properties', {}),
     })
   )
 

@@ -1,5 +1,3 @@
-import _ from 'lodash'
-
 export const MAX_THRESHOLDS = 5
 export const MIN_THRESHOLDS = 2
 

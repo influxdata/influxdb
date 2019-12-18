@@ -2,7 +2,7 @@
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
-import _ from 'lodash'
+import {get, isEqual} from 'lodash'
 
 // Components
 import {Page} from '@influxdata/clockface'
@@ -123,7 +123,7 @@ class DashboardPage extends Component<Props> {
   public componentDidUpdate(prevProps: Props) {
     const {autoRefresh} = this.props
 
-    if (!_.isEqual(autoRefresh, prevProps.autoRefresh)) {
+    if (!isEqual(autoRefresh, prevProps.autoRefresh)) {
       if (autoRefresh.status === AutoRefreshStatus.Active) {
         GlobalAutoRefresher.poll(autoRefresh.interval)
         return
@@ -289,7 +289,7 @@ class DashboardPage extends Component<Props> {
 
   private get pageTitle(): string {
     const {dashboard} = this.props
-    const dashboardName = _.get(dashboard, 'name', 'Loading...')
+    const dashboardName = get(dashboard, 'name', 'Loading...')
 
     return pageTitleSuffixer([dashboardName])
   }

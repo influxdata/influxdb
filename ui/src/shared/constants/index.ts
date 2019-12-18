@@ -1,4 +1,3 @@
-import _ from 'lodash'
 import {
   Config,
   NINETEEN_EIGHTY_FOUR,

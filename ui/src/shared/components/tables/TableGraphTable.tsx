@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
+import {get, find} from 'lodash'
 import {timeFormatter} from '@influxdata/giraffe'
 
 // Components
@@ -147,7 +147,7 @@ class TableGraphTable extends PureComponent<Props, State> {
     const {transformedDataBundle} = this.props
     const {resolvedFieldOptions} = transformedDataBundle
 
-    return _.find(
+    return find(
       resolvedFieldOptions,
       f => f.internalName === DEFAULT_TIME_FIELD.internalName
     )
@@ -183,7 +183,7 @@ class TableGraphTable extends PureComponent<Props, State> {
     const {
       transformedDataBundle: {transformedData},
     } = this.props
-    return _.get(transformedData, ['0', 'length'], 0)
+    return get(transformedData, ['0', 'length'], 0)
   }
 
   private get computedColumnCount(): number {
@@ -235,7 +235,7 @@ class TableGraphTable extends PureComponent<Props, State> {
   }
 
   private get isTimeVisible(): boolean {
-    return _.get(this.timeField, 'visible', false)
+    return get(this.timeField, 'visible', false)
   }
 
   private handleMultiGridMount = (ref: MultiGrid) => {
@@ -333,7 +333,7 @@ class TableGraphTable extends PureComponent<Props, State> {
 
     const columnName = transformedData[0][columnIndex]
 
-    return _.get(dataTypes, columnName, 'n/a')
+    return get(dataTypes, columnName, 'n/a')
   }
 
   private get timeFormatter() {

@@ -1,6 +1,6 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import Papa from 'papaparse'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Component
 import {
@@ -71,9 +71,9 @@ export default class CSVTemplateBuilder extends PureComponent<Props, State> {
 
   private get defaultID(): string {
     const {selected, values} = this.props
-    const firstEntry = _.get(values, '0', 'Enter values above')
+    const firstEntry = get(values, '0', 'Enter values above')
 
-    return _.get(selected, '0', firstEntry)
+    return get(selected, '0', firstEntry)
   }
 
   private handleBlur = (): void => {
@@ -92,7 +92,7 @@ export default class CSVTemplateBuilder extends PureComponent<Props, State> {
 
   private getUniqueValuesFromCSV(csv: string): string[] {
     const parsedTVS = Papa.parse(csv)
-    const templateValuesData: string[][] = _.get(parsedTVS, 'data', [[]])
+    const templateValuesData: string[][] = get(parsedTVS, 'data', [[]])
 
     const valueSet: Set<string> = new Set()
     for (const row of templateValuesData) {

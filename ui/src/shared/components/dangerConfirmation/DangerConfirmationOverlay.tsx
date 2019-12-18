@@ -1,8 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 
-import _ from 'lodash'
-
 // Components
 import {Overlay} from '@influxdata/clockface'
 import DangerConfirmationForm from 'src/shared/components/dangerConfirmation/DangerConfirmationForm'

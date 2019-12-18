@@ -1,5 +1,4 @@
 import {MAX_DECIMAL_PLACES} from 'src/dashboards/constants'
-import {isNumber, isString} from 'lodash'
 
 import {DecimalPlaces} from 'src/types/dashboards'
 
@@ -15,7 +14,7 @@ export const formatStatValue = (
 ): string => {
   let localeFormattedValue = ''
 
-  if (isNumber(value)) {
+  if (typeof value === 'number') {
     let digits: number
 
     if (decimalPlaces && decimalPlaces.isEnforced) {
@@ -29,7 +28,7 @@ export const formatStatValue = (
     localeFormattedValue = Number(roundedValue).toLocaleString(undefined, {
       maximumFractionDigits: MAX_DECIMAL_PLACES,
     })
-  } else if (isString(value)) {
+  } else if (typeof value === 'string') {
     localeFormattedValue = value
   } else {
     return 'Data cannot be displayed'

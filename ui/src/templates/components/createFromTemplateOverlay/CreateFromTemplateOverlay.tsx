@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {sortBy} from 'lodash'
 
 // Components
 import {
@@ -190,7 +190,7 @@ const mstp = ({templates: {items, status}}: AppState): StateProps => {
     t => !t.meta.type || t.meta.type === TemplateType.Dashboard
   )
 
-  const templates = _.sortBy(filteredTemplates, item =>
+  const templates = sortBy(filteredTemplates, item =>
     item.meta.name.toLocaleLowerCase()
   )
 

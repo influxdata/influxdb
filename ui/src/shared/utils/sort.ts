@@ -1,4 +1,4 @@
-import {orderBy, get, toLower} from 'lodash'
+import {get, orderBy, toLower} from 'lodash'
 
 export enum SortTypes {
   String = 'string',
