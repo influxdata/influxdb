@@ -113,16 +113,17 @@ func orgFindCmd() *cobra.Command {
 		RunE:  wrapCheckSetup(organizationFindF),
 	}
 
-	cmd.Flags().StringVarP(&organizationFindFlags.name, "name", "n", "", "The organization name")
 	viper.BindEnv("ORG")
 	if h := viper.GetString("ORG"); h != "" {
 		organizationFindFlags.name = h
 	}
-	cmd.Flags().StringVarP(&organizationFindFlags.id, "id", "i", "", "The organization ID")
+	cmd.Flags().StringVarP(&organizationFindFlags.name, "name", "n", "", "The organization name")
+
 	viper.BindEnv("ORG_ID")
 	if h := viper.GetString("ORG_ID"); h != "" {
 		organizationFindFlags.id = h
 	}
+	cmd.Flags().StringVarP(&organizationFindFlags.id, "id", "i", "", "The organization ID")
 
 	return cmd
 }
@@ -182,18 +183,18 @@ func orgUpdateCmd() *cobra.Command {
 		RunE:  wrapCheckSetup(organizationUpdateF),
 	}
 
-	cmd.Flags().StringVarP(&organizationUpdateFlags.id, "id", "i", "", "The organization ID (required)")
-	cmd.MarkFlagRequired("id")
 	viper.BindEnv("ORG_ID")
 	if h := viper.GetString("ORG_ID"); h != "" {
 		organizationUpdateFlags.id = h
 	}
+	cmd.Flags().StringVarP(&organizationUpdateFlags.id, "id", "i", "", "The organization ID (required)")
+	cmd.MarkFlagRequired("id")
 
-	cmd.Flags().StringVarP(&organizationUpdateFlags.name, "name", "n", "", "The organization name")
 	viper.BindEnv("ORG")
 	if h := viper.GetString("ORG"); h != "" {
 		organizationUpdateFlags.name = h
 	}
+	cmd.Flags().StringVarP(&organizationUpdateFlags.name, "name", "n", "", "The organization name")
 
 	return cmd
 }
@@ -284,12 +285,12 @@ func orgDeleteCmd() *cobra.Command {
 		RunE:  wrapCheckSetup(organizationDeleteF),
 	}
 
-	cmd.Flags().StringVarP(&organizationDeleteFlags.id, "id", "i", "", "The organization ID (required)")
-	cmd.MarkFlagRequired("id")
 	viper.BindEnv("ORG_ID")
 	if h := viper.GetString("ORG_ID"); h != "" {
 		organizationUpdateFlags.id = h
 	}
+	cmd.Flags().StringVarP(&organizationDeleteFlags.id, "id", "i", "", "The organization ID (required)")
+	cmd.MarkFlagRequired("id")
 
 	return cmd
 }
@@ -361,16 +362,17 @@ func orgMembersListCmd() *cobra.Command {
 		RunE:  wrapCheckSetup(organizationMembersListF),
 	}
 
-	cmd.Flags().StringVarP(&organizationMembersListFlags.id, "id", "i", "", "The organization ID")
 	viper.BindEnv("ORG_ID")
 	if h := viper.GetString("ORG_ID"); h != "" {
 		organizationMembersListFlags.id = h
 	}
-	cmd.Flags().StringVarP(&organizationMembersListFlags.name, "name", "n", "", "The organization name")
+	cmd.Flags().StringVarP(&organizationMembersListFlags.id, "id", "i", "", "The organization ID")
+
 	viper.BindEnv("ORG")
 	if h := viper.GetString("ORG"); h != "" {
 		organizationMembersListFlags.name = h
 	}
+	cmd.Flags().StringVarP(&organizationMembersListFlags.name, "name", "n", "", "The organization name")
 
 	return cmd
 }
@@ -440,16 +442,17 @@ func orgMembersAddCmd() *cobra.Command {
 		RunE:  wrapCheckSetup(organizationMembersAddF),
 	}
 
-	cmd.Flags().StringVarP(&organizationMembersAddFlags.id, "id", "i", "", "The organization ID")
 	viper.BindEnv("ORG_ID")
 	if h := viper.GetString("ORG_ID"); h != "" {
 		organizationMembersAddFlags.id = h
 	}
-	cmd.Flags().StringVarP(&organizationMembersAddFlags.name, "name", "n", "", "The organization name")
+	cmd.Flags().StringVarP(&organizationMembersAddFlags.id, "id", "i", "", "The organization ID")
+
 	viper.BindEnv("ORG")
 	if h := viper.GetString("ORG"); h != "" {
 		organizationMembersAddFlags.name = h
 	}
+	cmd.Flags().StringVarP(&organizationMembersAddFlags.name, "name", "n", "", "The organization name")
 
 	cmd.Flags().StringVarP(&organizationMembersAddFlags.memberID, "member", "o", "", "The member ID")
 	cmd.MarkFlagRequired("member")
@@ -516,16 +519,18 @@ func orgMembersRemoveCmd() *cobra.Command {
 		RunE:  wrapCheckSetup(organizationMembersRemoveF),
 	}
 
-	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.id, "id", "i", "", "The organization ID")
 	viper.BindEnv("ORG_ID")
 	if h := viper.GetString("ORG_ID"); h != "" {
 		organizationMembersAddFlags.id = h
 	}
-	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.name, "name", "n", "", "The organization name")
+	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.id, "id", "i", "", "The organization ID")
+
 	viper.BindEnv("ORG")
 	if h := viper.GetString("ORG"); h != "" {
 		organizationMembersRemoveFlags.name = h
 	}
+	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.name, "name", "n", "", "The organization name")
+
 	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.memberID, "member", "o", "", "The member ID")
 	cmd.MarkFlagRequired("member")
 

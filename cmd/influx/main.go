@@ -102,19 +102,19 @@ func influxCmd() *cobra.Command {
 		writeCmd,
 	)
 
-	cmd.PersistentFlags().StringVarP(&flags.token, "token", "t", "", "API token to be used throughout client calls")
 	viper.BindEnv("TOKEN")
 	if h := viper.GetString("TOKEN"); h != "" {
 		flags.token = h
 	} else if tok, err := getTokenFromDefaultPath(); err == nil {
 		flags.token = tok
 	}
+	cmd.PersistentFlags().StringVarP(&flags.token, "token", "t", "", "API token to be used throughout client calls")
 
-	cmd.PersistentFlags().StringVar(&flags.host, "host", "http://localhost:9999", "HTTP address of Influx")
 	viper.BindEnv("HOST")
 	if h := viper.GetString("HOST"); h != "" {
 		flags.host = h
 	}
+	cmd.PersistentFlags().StringVar(&flags.host, "host", "http://localhost:9999", "HTTP address of Influx")
 
 	cmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
 
@@ -236,16 +236,17 @@ type organization struct {
 }
 
 func (org *organization) register(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&org.id, "org-id", "", "", "The ID of the organization that owns the bucket")
 	viper.BindEnv("ORG_ID")
 	if h := viper.GetString("ORG_ID"); h != "" {
 		org.id = h
 	}
-	cmd.Flags().StringVarP(&org.name, "org", "o", "", "The name of the organization that owns the bucket")
+	cmd.Flags().StringVarP(&org.id, "org-id", "", "", "The ID of the organization that owns the bucket")
+
 	viper.BindEnv("ORG")
 	if h := viper.GetString("ORG"); h != "" {
 		org.name = h
 	}
+	cmd.Flags().StringVarP(&org.name, "org", "o", "", "The name of the organization that owns the bucket")
 }
 
 func (org *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, error) {

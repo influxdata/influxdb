@@ -127,11 +127,11 @@ func init() {
 		RunE:  wrapCheckSetup(bucketFindF),
 	}
 
-	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.name, "name", "n", "", "The bucket name")
 	viper.BindEnv("BUCKET_NAME")
 	if h := viper.GetString("BUCKET_NAME"); h != "" {
 		bucketFindFlags.name = h
 	}
+	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.name, "name", "n", "", "The bucket name")
 	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.id, "id", "i", "", "The bucket ID")
 	bucketFindCmd.Flags().BoolVar(&bucketFindFlags.headers, "headers", true, "To print the table headers; defaults true")
 	bucketFindFlags.organization.register(bucketFindCmd)
@@ -217,11 +217,11 @@ func init() {
 	}
 
 	bucketUpdateCmd.Flags().StringVarP(&bucketUpdateFlags.id, "id", "i", "", "The bucket ID (required)")
-	bucketUpdateCmd.Flags().StringVarP(&bucketUpdateFlags.name, "name", "n", "", "New bucket name")
 	viper.BindEnv("BUCKET_NAME")
 	if h := viper.GetString("BUCKET_NAME"); h != "" {
 		bucketFindFlags.name = h
 	}
+	bucketUpdateCmd.Flags().StringVarP(&bucketUpdateFlags.name, "name", "n", "", "New bucket name")
 
 	bucketUpdateCmd.Flags().DurationVarP(&bucketUpdateFlags.retention, "retention", "r", 0, "New duration data will live in bucket")
 	bucketUpdateCmd.MarkFlagRequired("id")

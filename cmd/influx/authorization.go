@@ -76,12 +76,12 @@ func authCreateCmd() *cobra.Command {
 		RunE:  wrapCheckSetup(authorizationCreateF),
 	}
 
-	cmd.Flags().StringVarP(&authCreateFlags.org, "org", "o", "", "The organization name (required)")
-	cmd.MarkFlagRequired("org")
 	viper.BindEnv("ORG")
 	if h := viper.GetString("ORG"); h != "" {
 		authCreateFlags.org = h
 	}
+	cmd.Flags().StringVarP(&authCreateFlags.org, "org", "o", "", "The organization name (required)")
+	cmd.MarkFlagRequired("org")
 
 	cmd.Flags().StringVarP(&authCreateFlags.user, "user", "u", "", "The user name")
 
@@ -285,9 +285,8 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 type AuthorizationFindFlags struct {
 	user   string
 	userID string
-	org    string
-	orgID  string
-	id     string
+	organization
+	id string
 }
 
 var authorizationFindFlags AuthorizationFindFlags
@@ -301,17 +300,8 @@ func authFindCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")
 	cmd.Flags().StringVarP(&authorizationFindFlags.userID, "user-id", "", "", "The user ID")
-	cmd.Flags().StringVarP(&authorizationFindFlags.org, "org", "o", "", "The org")
-	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
-		authorizationFindFlags.org = h
-	}
 
-	cmd.Flags().StringVarP(&authorizationFindFlags.orgID, "org-id", "", "", "The org ID")
-	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
-		authorizationFindFlags.orgID = h
-	}
+	authorizationFindFlags.organization.register(cmd)
 	cmd.Flags().StringVarP(&authorizationFindFlags.id, "id", "i", "", "The authorization ID")
 
 	return cmd
@@ -356,11 +346,11 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 		}
 		filter.UserID = uID
 	}
-	if authorizationFindFlags.org != "" {
-		filter.Org = &authorizationFindFlags.org
+	if authorizationFindFlags.organization.name != "" {
+		filter.Org = &authorizationFindFlags.organization.name
 	}
-	if authorizationFindFlags.orgID != "" {
-		oID, err := platform.IDFromString(authorizationFindFlags.orgID)
+	if authorizationFindFlags.organization.id != "" {
+		oID, err := platform.IDFromString(authorizationFindFlags.organization.id)
 		if err != nil {
 			return err
 		}

@@ -10,7 +10,6 @@ import (
 	platform "github.com/influxdata/influxdb"
 	_ "github.com/influxdata/influxdb/query/stdlib"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var queryCmd = &cobra.Command{
@@ -23,22 +22,11 @@ or execute a literal Flux query contained in a file by specifying the file prefi
 }
 
 var queryFlags struct {
-	OrgID string
-	Org   string
+	organization
 }
 
 func init() {
-	queryCmd.PersistentFlags().StringVar(&queryFlags.OrgID, "org-id", "", "The organization ID")
-	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
-		queryFlags.OrgID = h
-	}
-
-	queryCmd.PersistentFlags().StringVarP(&queryFlags.Org, "org", "o", "", "The organization name")
-	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
-		queryFlags.Org = h
-	}
+	queryFlags.organization.register(queryCmd)
 }
 
 func fluxQueryF(cmd *cobra.Command, args []string) error {
@@ -46,8 +34,8 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("local flag not supported for query command")
 	}
 
-	if (queryFlags.OrgID != "" && queryFlags.Org != "") || (queryFlags.OrgID == "" && queryFlags.Org == "") {
-		return fmt.Errorf("must specify exactly one of org or org-id")
+	if err := queryFlags.organization.validOrgFlags(); err != nil {
+		return err
 	}
 
 	q, err := repl.LoadQuery(args[0])
@@ -57,22 +45,22 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 
 	var orgID platform.ID
 
-	if queryFlags.OrgID != "" {
-		if err := orgID.DecodeFromString(queryFlags.OrgID); err != nil {
+	if queryFlags.organization.id != "" {
+		if err := orgID.DecodeFromString(queryFlags.organization.id); err != nil {
 			return fmt.Errorf("failed to decode org-id: %v", err)
 		}
 	}
 
-	if queryFlags.Org != "" {
+	if queryFlags.organization.name != "" {
 		orgSvc, err := newOrganizationService()
 		if err != nil {
 			return fmt.Errorf("failed to initialized organization service client: %v", err)
 		}
 
-		filter := platform.OrganizationFilter{Name: &queryFlags.Org}
+		filter := platform.OrganizationFilter{Name: &queryFlags.organization.name}
 		o, err := orgSvc.FindOrganization(context.Background(), filter)
 		if err != nil {
-			return fmt.Errorf("failed to retrieve organization %q: %v", queryFlags.Org, err)
+			return fmt.Errorf("failed to retrieve organization %q: %v", queryFlags.organization.name, err)
 		}
 
 		orgID = o.ID

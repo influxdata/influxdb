@@ -12,7 +12,6 @@ import (
 	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/stdlib"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var replCmd = &cobra.Command{
@@ -23,22 +22,11 @@ var replCmd = &cobra.Command{
 }
 
 var replFlags struct {
-	OrgID string
-	Org   string
+	organization
 }
 
 func init() {
-	replCmd.PersistentFlags().StringVar(&replFlags.OrgID, "org-id", "", "The ID of organization to query")
-	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
-		replFlags.OrgID = h
-	}
-
-	replCmd.PersistentFlags().StringVarP(&replFlags.Org, "org", "o", "", "The name of the organization")
-	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
-		replFlags.Org = h
-	}
+	replFlags.organization.register(replCmd)
 }
 
 func replF(cmd *cobra.Command, args []string) error {
@@ -46,26 +34,22 @@ func replF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("local flag not supported for repl command")
 	}
 
-	if replFlags.OrgID == "" && replFlags.Org == "" {
-		return fmt.Errorf("must specify exactly one of org or org-id")
-	}
-
-	if replFlags.OrgID != "" && replFlags.Org != "" {
-		return fmt.Errorf("must specify exactly one of org or org-id")
+	if err := replFlags.organization.validOrgFlags(); err != nil {
+		return err
 	}
 
 	var orgID platform.ID
-	if replFlags.OrgID != "" {
-		err := orgID.DecodeFromString(replFlags.OrgID)
+	if replFlags.organization.id != "" {
+		err := orgID.DecodeFromString(replFlags.organization.id)
 		if err != nil {
 			return fmt.Errorf("invalid org id: %v", err)
 		}
 	}
 
-	if replFlags.Org != "" {
+	if replFlags.organization.name != "" {
 		ctx := context.Background()
 		var err error
-		orgID, err = findOrgID(ctx, replFlags.Org)
+		orgID, err = findOrgID(ctx, replFlags.organization.name)
 		if err != nil {
 			return fmt.Errorf("unable to find organization: %v", err)
 		}

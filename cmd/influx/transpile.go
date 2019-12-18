@@ -30,11 +30,11 @@ var transpileFlags struct {
 }
 
 func init() {
-	transpileCmd.PersistentFlags().StringVar(&transpileFlags.Now, "now", "", "An RFC3339Nano formatted time to use as the now() time. Defaults to the current time.")
 	viper.BindEnv("NOW")
 	if h := viper.GetString("NOW"); h != "" {
 		transpileFlags.Now = h
 	}
+	transpileCmd.PersistentFlags().StringVar(&transpileFlags.Now, "now", "", "An RFC3339Nano formatted time to use as the now() time. Defaults to the current time.")
 }
 
 func transpileF(cmd *cobra.Command, args []string) error {

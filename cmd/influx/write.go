@@ -26,51 +26,40 @@ or add an entire file specified with an @ prefix.`,
 }
 
 var writeFlags struct {
-	OrgID     string
-	Org       string
 	BucketID  string
 	Bucket    string
 	Precision string
+	organization
 }
 
 func init() {
-	writeCmd.PersistentFlags().StringVar(&writeFlags.OrgID, "org-id", "", "The ID of the organization that owns the bucket")
-	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
-		writeFlags.OrgID = h
-	}
+	writeFlags.organization.register(writeCmd)
 
-	writeCmd.PersistentFlags().StringVarP(&writeFlags.Org, "org", "o", "", "The name of the organization that owns the bucket")
-	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
-		writeFlags.Org = h
-	}
-
-	writeCmd.PersistentFlags().StringVar(&writeFlags.BucketID, "bucket-id", "", "The ID of destination bucket")
 	viper.BindEnv("BUCKET_ID")
 	if h := viper.GetString("BUCKET_ID"); h != "" {
 		writeFlags.BucketID = h
 	}
+	writeCmd.PersistentFlags().StringVar(&writeFlags.BucketID, "bucket-id", "", "The ID of destination bucket")
 
-	writeCmd.PersistentFlags().StringVarP(&writeFlags.Bucket, "bucket", "b", "", "The name of destination bucket")
 	viper.BindEnv("BUCKET_NAME")
 	if h := viper.GetString("BUCKET_NAME"); h != "" {
 		writeFlags.Bucket = h
 	}
+	writeCmd.PersistentFlags().StringVarP(&writeFlags.Bucket, "bucket", "b", "", "The name of destination bucket")
 
-	writeCmd.PersistentFlags().StringVarP(&writeFlags.Precision, "precision", "p", "ns", "Precision of the timestamps of the lines")
 	viper.BindEnv("PRECISION")
 	if p := viper.GetString("PRECISION"); p != "" {
 		writeFlags.Precision = p
 	}
+	writeCmd.PersistentFlags().StringVarP(&writeFlags.Precision, "precision", "p", "ns", "Precision of the timestamps of the lines")
 }
 
 func fluxWriteF(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	if writeFlags.Org != "" && writeFlags.OrgID != "" {
+	if err := writeFlags.organization.validOrgFlags(); err != nil {
 		cmd.Usage()
-		return fmt.Errorf("please specify one of org or org-id")
+		return err
 	}
 
 	if writeFlags.Bucket != "" && writeFlags.BucketID != "" {
@@ -103,14 +92,14 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 		filter.Name = &writeFlags.Bucket
 	}
 
-	if writeFlags.OrgID != "" {
-		filter.OrganizationID, err = platform.IDFromString(writeFlags.OrgID)
+	if writeFlags.organization.id != "" {
+		filter.OrganizationID, err = platform.IDFromString(writeFlags.organization.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode org-id id: %v", err)
 		}
 	}
-	if writeFlags.Org != "" {
-		filter.Org = &writeFlags.Org
+	if writeFlags.organization.name != "" {
+		filter.Org = &writeFlags.organization.name
 	}
 
 	buckets, n, err := bs.FindBuckets(ctx, filter)

@@ -18,51 +18,38 @@ var deleteCmd = &cobra.Command{
 	RunE: wrapCheckSetup(fluxDeleteF),
 }
 
-var deleteFlags http.DeleteRequest
+type deleteCmdFlags struct {
+	http.DeleteRequest
+	organization
+}
+
+var deleteFlags deleteCmdFlags
 
 func init() {
-	deleteCmd.PersistentFlags().StringVar(&deleteFlags.OrgID, "org-id", "", "The ID of the organization that owns the bucket")
-	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
-		deleteFlags.OrgID = h
-	}
+	deleteFlags.organization.register(deleteCmd)
 
-	deleteCmd.PersistentFlags().StringVarP(&deleteFlags.Org, "org", "o", "", "The name of the organization that owns the bucket")
-	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
-		deleteFlags.Org = h
-	}
-
-	deleteCmd.PersistentFlags().StringVar(&deleteFlags.BucketID, "bucket-id", "", "The ID of destination bucket")
 	viper.BindEnv("BUCKET_ID")
 	if h := viper.GetString("BUCKET_ID"); h != "" {
 		deleteFlags.BucketID = h
 	}
+	deleteCmd.PersistentFlags().StringVar(&deleteFlags.DeleteRequest.BucketID, "bucket-id", "", "The ID of destination bucket")
 
-	deleteCmd.PersistentFlags().StringVarP(&deleteFlags.Bucket, "bucket", "b", "", "The name of destination bucket")
 	viper.BindEnv("BUCKET_NAME")
 	if h := viper.GetString("BUCKET_NAME"); h != "" {
 		deleteFlags.Bucket = h
 	}
+	deleteCmd.PersistentFlags().StringVarP(&deleteFlags.DeleteRequest.Bucket, "bucket", "b", "", "The name of destination bucket")
 
-	deleteCmd.PersistentFlags().StringVarP(&deleteFlags.Start, "start", "", "", "the start time in RFC3339Nano format, exp 2009-01-02T23:00:00Z")
-	deleteCmd.PersistentFlags().StringVarP(&deleteFlags.Stop, "stop", "", "", "the stop time in RFC3339Nano format, exp 2009-01-02T23:00:00Z")
-	deleteCmd.PersistentFlags().StringVarP(&deleteFlags.Predicate, "predicate", "p", "", "sql like predicate string, exp 'tag1=\"v1\" and (tag2=123)'")
+	deleteCmd.PersistentFlags().StringVarP(&deleteFlags.DeleteRequest.Start, "start", "", "", "the start time in RFC3339Nano format, exp 2009-01-02T23:00:00Z")
+	deleteCmd.PersistentFlags().StringVarP(&deleteFlags.DeleteRequest.Stop, "stop", "", "", "the stop time in RFC3339Nano format, exp 2009-01-02T23:00:00Z")
+	deleteCmd.PersistentFlags().StringVarP(&deleteFlags.DeleteRequest.Predicate, "predicate", "p", "", "sql like predicate string, exp 'tag1=\"v1\" and (tag2=123)'")
 }
 
 func fluxDeleteF(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	if deleteFlags.Org == "" && deleteFlags.OrgID == "" {
-		return fmt.Errorf("please specify one of org or org-id")
-	}
-
-	if deleteFlags.Bucket == "" && deleteFlags.BucketID == "" {
-		return fmt.Errorf("please specify one of bucket or bucket-id")
-	}
-
-	if deleteFlags.Start == "" || deleteFlags.Stop == "" {
-		return fmt.Errorf("both start and stop are required")
+	if err := deleteFlags.organization.validOrgFlags(); err != nil {
+		return err
 	}
 
 	s := &http.DeleteService{
@@ -72,7 +59,7 @@ func fluxDeleteF(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx = signals.WithStandardSignals(ctx)
-	if err := s.DeleteBucketRangePredicate(ctx, deleteFlags); err != nil && err != context.Canceled {
+	if err := s.DeleteBucketRangePredicate(ctx, deleteFlags.DeleteRequest); err != nil && err != context.Canceled {
 		return fmt.Errorf("failed to delete data: %v", err)
 	}
 
