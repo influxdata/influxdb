@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/notification/check"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -207,6 +208,14 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.NotZero(t, bkts[0].ID)
 		assert.Equal(t, "rucket_1", bkts[0].Name)
 		hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
+
+		checks := sum1.Checks
+		require.Len(t, checks, 2)
+		for i, ch := range checks {
+			assert.NotZero(t, ch.Check.GetID())
+			assert.Equal(t, fmt.Sprintf("check_%d", i), ch.Check.GetName())
+			hasLabelAssociations(t, ch.LabelAssociations, 1, "label_1")
+		}
 
 		dashs := sum1.Dashboards
 		require.Len(t, dashs, 1)
@@ -441,6 +450,7 @@ spec:
 					BucketService: l.BucketService(t),
 					killCount:     0, // kill on first update for bucket
 				}),
+				pkger.WithCheckSVC(l.CheckService()),
 				pkger.WithDashboardSVC(l.DashboardService(t)),
 				pkger.WithLabelSVC(l.LabelService(t)),
 				pkger.WithNoticationEndpointSVC(l.NotificationEndpointService(t)),
@@ -455,6 +465,16 @@ spec:
 			require.NoError(t, err)
 			// make sure the desc change is not applied and is rolled back to prev desc
 			assert.Equal(t, bkts[0].Description, bkt.Description)
+
+			ch, err := l.CheckService().FindCheckByID(ctx, checks[0].Check.GetID())
+			require.NoError(t, err)
+			ch.SetOwnerID(0)
+			deadman, ok := ch.(*check.Threshold)
+			require.True(t, ok)
+			// validate the change to query is not persisting returned to previous state.
+			// not checking entire bits, b/c we dont' save userID and so forth and makes a
+			// direct comparison very annoying...
+			assert.Equal(t, checks[0].Check.(*check.Threshold).Query.Text, deadman.Query.Text)
 
 			label, err := l.LabelService(t).FindLabelByID(ctx, influxdb.ID(labels[0].ID))
 			require.NoError(t, err)
@@ -638,6 +658,16 @@ spec:
       method: GET
       url:  https://www.example.com/endpoint/noneauth
       status: active
+    - kind: Check_Threshold
+      name: check_0
+      every: 1m
+      query:  from("rucket1") |> yield()
+      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+      thresholds:
+        - type: inside_range
+          level: INfO
+          min: 30.0
+          max: 45.0
 `
 
 type fakeBucketSVC struct {
