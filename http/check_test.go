@@ -11,15 +11,14 @@ import (
 	"testing"
 
 	"github.com/influxdata/flux/parser"
-	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/notification"
-	"go.uber.org/zap/zaptest"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
+	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/notification"
 	"github.com/influxdata/influxdb/notification/check"
 	influxTesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap/zaptest"
 )
 
 // NewMockCheckBackend returns a CheckBackend with mock services.
@@ -1433,42 +1432,3 @@ func TestService_handlePostCheckOwner(t *testing.T) {
 		})
 	}
 }
-
-// func initCheckService(f influxTesting.CheckFields, t *testing.T) (influxdb.CheckService, string, func()) {
-// 	svc := inmem.NewService()
-// 	svc.IDGenerator = f.IDGenerator
-// 	svc.TimeGenerator = f.TimeGenerator
-// 	if f.TimeGenerator == nil {
-// 		svc.TimeGenerator = influxdb.RealTimeGenerator{}
-// 	}
-
-// 	ctx := context.Background()
-// 	for _, o := range f.Organizations {
-// 		if err := svc.PutOrganization(ctx, o); err != nil {
-// 			t.Fatalf("failed to populate organizations")
-// 		}
-// 	}
-// 	for _, b := range f.Checks {
-// 		if err := svc.PutCheck(ctx, b); err != nil {
-// 			t.Fatalf("failed to populate checks")
-// 		}
-// 	}
-
-// 	checkBackend := NewMockCheckBackend()
-// 	checkBackend.HTTPErrorHandler = ErrorHandler(0)
-// 	checkBackend.CheckService = svc
-// 	checkBackend.OrganizationService = svc
-// 	handler := NewCheckHandler(checkBackend)
-// 	server := httptest.NewServer(handler)
-// 	client := CheckService{
-// 		Addr:     server.URL,
-// 		OpPrefix: inmem.OpPrefix,
-// 	}
-// 	done := server.Close
-
-// 	return &client, inmem.OpPrefix, done
-// }
-
-// func TestCheckService(t *testing.T) {
-// 	influxTestingCheckService(initCheckService, t)
-// }
