@@ -160,11 +160,18 @@ jobs:
     docker:
       - image: circleci/golang:1.12-node-browsers
     working_directory: /go/src/github.com/influxdata/influxdb
+    parallelism: 8
     steps:
       - checkout
       - run: make node_modules
       - run: make ui_client
-      - run: make chronograf_lint
+      - run:
+         name: eslint
+         command: |
+           set +e
+           cd ui
+           TESTFILES=$(circleci tests glob "src/**/*.ts*" "cypress/**/*.ts*" | circleci tests split --split-by=filesize)
+           yarn eslint:circleci $TESTFILES
   gotest:
     docker:
       - image: circleci/golang:1.12
