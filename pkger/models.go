@@ -817,6 +817,8 @@ const (
 )
 
 type check struct {
+	id            influxdb.ID
+	orgID         influxdb.ID
 	kind          checkKind
 	name          string
 	description   string
@@ -837,6 +839,13 @@ type check struct {
 	existing influxdb.Check
 }
 
+func (c *check) ID() influxdb.ID {
+	if c.existing != nil {
+		return c.existing.GetID()
+	}
+	return c.id
+}
+
 func (c *check) Name() string {
 	return c.name
 }
@@ -845,8 +854,18 @@ func (c *check) ResourceType() influxdb.ResourceType {
 	return KindCheck.ResourceType()
 }
 
+func (c *check) Status() influxdb.Status {
+	status := influxdb.Status(c.status)
+	if status == "" {
+		status = influxdb.TaskStatusActive
+	}
+	return status
+}
+
 func (c *check) summarize() SummaryCheck {
 	base := icheck.Base{
+		ID:                    c.ID(),
+		OrgID:                 c.orgID,
 		Name:                  c.Name(),
 		Description:           c.description,
 		Every:                 toNotificationDuration(c.every),
@@ -858,13 +877,8 @@ func (c *check) summarize() SummaryCheck {
 		base.Tags = append(base.Tags, influxdb.Tag{Key: tag.k, Value: tag.v})
 	}
 
-	status := influxdb.Status(c.status)
-	if status == "" {
-		status = influxdb.TaskStatusActive
-	}
-
 	sum := SummaryCheck{
-		Status:            status,
+		Status:            c.Status(),
 		LabelAssociations: toSummaryLabels(c.labels...),
 	}
 	switch c.kind {

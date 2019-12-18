@@ -6,6 +6,7 @@
 2. [16242](https://github.com/influxdata/influxdb/pull/16242): drop id prefix for secret key requirement for notification endpoints 
 3. [16259](https://github.com/influxdata/influxdb/pull/16259): add support for check resource to pkger parser 
 4. [16262](https://github.com/influxdata/influxdb/pull/16262): add support for check resource dry run functionality 
+5. [16275](https://github.com/influxdata/influxdb/pull/16275): add support for check resource apply functionality 
 
 ### Bug Fixes
 

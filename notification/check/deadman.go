@@ -74,8 +74,7 @@ func (c Deadman) generateFluxASTBody() []ast.Statement {
 	statements = append(statements, c.generateFluxASTCheckDefinition("deadman"))
 	statements = append(statements, c.generateLevelFn())
 	statements = append(statements, c.generateFluxASTMessageFunction())
-	statements = append(statements, c.generateFluxASTChecksFunction())
-	return statements
+	return append(statements, c.generateFluxASTChecksFunction())
 }
 
 func (c Deadman) generateLevelFn() ast.Statement {

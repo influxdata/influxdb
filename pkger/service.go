@@ -954,6 +954,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 			// primary resources
 			s.applyVariables(pkg.variables()),
 			s.applyBuckets(pkg.buckets()),
+			s.applyChecks(pkg.checks()),
 			s.applyDashboards(pkg.dashboards()),
 			s.applyNotificationEndpoints(pkg.notificationEndpoints()),
 			s.applyTelegrafs(pkg.telegrafs()),
@@ -1074,6 +1075,98 @@ func (s *Service) applyBucket(ctx context.Context, b bucket) (influxdb.Bucket, e
 	}
 
 	return influxBucket, nil
+}
+
+func (s *Service) applyChecks(checks []*check) applier {
+	const resource = "check"
+
+	mutex := new(doMutex)
+	rollbackChecks := make([]*check, 0, len(checks))
+
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+		var c check
+		mutex.Do(func() {
+			checks[i].orgID = orgID
+			c = *checks[i]
+		})
+
+		influxBucket, err := s.applyCheck(ctx, c, userID)
+		if err != nil {
+			return &applyErrBody{
+				name: c.Name(),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			checks[i].id = influxBucket.GetID()
+			rollbackChecks = append(rollbackChecks, checks[i])
+		})
+
+		return nil
+	}
+
+	return applier{
+		creater: creater{
+			entries: len(checks),
+			fn:      createFn,
+		},
+		rollbacker: rollbacker{
+			resource: resource,
+			fn:       func() error { return s.rollbackChecks(rollbackChecks) },
+		},
+	}
+}
+
+func (s *Service) rollbackChecks(checks []*check) error {
+	var errs []string
+	for _, c := range checks {
+		if c.existing == nil {
+			err := s.checkSVC.DeleteCheck(context.Background(), c.ID())
+			if err != nil {
+				errs = append(errs, c.ID().String())
+			}
+			continue
+		}
+
+		_, err := s.checkSVC.UpdateCheck(context.Background(), c.ID(), influxdb.CheckCreate{
+			Check:  c.summarize().Check,
+			Status: influxdb.Status(c.status),
+		})
+		if err != nil {
+			errs = append(errs, c.ID().String())
+		}
+	}
+
+	if len(errs) > 0 {
+		// TODO: fixup error
+		return fmt.Errorf(`check_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
+func (s *Service) applyCheck(ctx context.Context, c check, userID influxdb.ID) (influxdb.Check, error) {
+	if c.existing != nil {
+		influxCheck, err := s.checkSVC.UpdateCheck(ctx, c.ID(), influxdb.CheckCreate{
+			Check:  c.summarize().Check,
+			Status: c.Status(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return influxCheck, nil
+	}
+
+	checkStub := influxdb.CheckCreate{
+		Check:  c.summarize().Check,
+		Status: c.Status(),
+	}
+	err := s.checkSVC.CreateCheck(ctx, checkStub, userID)
+	if err != nil {
+		return nil, err
+	}
+	return checkStub.Check, nil
 }
 
 func (s *Service) applyDashboards(dashboards []*dashboard) applier {

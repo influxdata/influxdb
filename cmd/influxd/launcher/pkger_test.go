@@ -208,6 +208,14 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, "rucket_1", bkts[0].Name)
 		hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
 
+		checks := sum1.Checks
+		require.Len(t, checks, 2)
+		for i, ch := range checks {
+			assert.NotZero(t, ch.Check.GetID())
+			assert.Equal(t, fmt.Sprintf("check_%d", i), ch.Check.GetName())
+			hasLabelAssociations(t, ch.LabelAssociations, 1, "label_1")
+		}
+
 		dashs := sum1.Dashboards
 		require.Len(t, dashs, 1)
 		assert.NotZero(t, dashs[0].ID)
