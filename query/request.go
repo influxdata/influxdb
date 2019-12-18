@@ -20,6 +20,9 @@ type Request struct {
 	// Compiler converts the query to a specification to run against the data.
 	Compiler flux.Compiler `json:"compiler"`
 
+	// Source represents the ultimate source of the request.
+	Source string `json:"source"`
+
 	// compilerMappings maps compiler types to creation methods
 	compilerMappings flux.CompilerMappings
 }
