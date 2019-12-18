@@ -722,6 +722,18 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 		})
 	}
 
+	if checks := sum.Checks; len(checks) > 0 {
+		headers := []string{"ID", "Name", "Description"}
+		tablePrintFn("CHECKS", headers, len(checks), func(i int) []string {
+			c := checks[i].Check
+			return []string{
+				c.GetID().String(),
+				c.GetName(),
+				c.GetDescription(),
+			}
+		})
+	}
+
 	if dashes := sum.Dashboards; len(dashes) > 0 {
 		headers := []string{"ID", "Name", "Description"}
 		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {

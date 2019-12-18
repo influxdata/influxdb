@@ -11,12 +11,10 @@ import (
 )
 
 func TestBoltCheckService(t *testing.T) {
-	t.Skip("https://github.com/influxdata/influxdb/issues/14799")
 	influxdbtesting.CheckService(initBoltCheckService, t)
 }
 
 func TestInmemCheckService(t *testing.T) {
-	t.Skip("https://github.com/influxdata/influxdb/issues/14799")
 	influxdbtesting.CheckService(initInmemCheckService, t)
 }
 

@@ -447,6 +447,71 @@ func TestService(t *testing.T) {
 			})
 		})
 
+		t.Run("checks", func(t *testing.T) {
+			t.Run("successfully creates pkg of checks", func(t *testing.T) {
+				testfileRunner(t, "testdata/checks.yml", func(t *testing.T, pkg *Pkg) {
+					fakeCheckSVC := mock.NewCheckService()
+					fakeCheckSVC.CreateCheckFn = func(ctx context.Context, c influxdb.CheckCreate, id influxdb.ID) error {
+						c.SetID(influxdb.ID(fakeCheckSVC.CreateCheckCalls.Count() + 1))
+						return nil
+					}
+
+					svc := newTestService(WithCheckSVC(fakeCheckSVC))
+
+					orgID := influxdb.ID(9000)
+
+					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					require.NoError(t, err)
+
+					require.Len(t, sum.Checks, 2)
+
+					containsWithID := func(t *testing.T, name string) {
+						for _, actualNotification := range sum.Checks {
+							actual := actualNotification.Check
+							if actual.GetID() == 0 {
+								assert.NotZero(t, actual.GetID())
+							}
+							if actual.GetName() == name {
+								return
+							}
+						}
+						assert.Fail(t, "did not find notification by name: "+name)
+					}
+
+					for _, expectedName := range []string{"check_0", "check_1"} {
+						containsWithID(t, expectedName)
+					}
+				})
+			})
+
+			t.Run("rolls back all created checks on an error", func(t *testing.T) {
+				testfileRunner(t, "testdata/checks.yml", func(t *testing.T, pkg *Pkg) {
+					fakeCheckSVC := mock.NewCheckService()
+					fakeCheckSVC.CreateCheckFn = func(ctx context.Context, c influxdb.CheckCreate, id influxdb.ID) error {
+						c.SetID(influxdb.ID(fakeCheckSVC.CreateCheckCalls.Count() + 1))
+						if fakeCheckSVC.CreateCheckCalls.Count() == 1 {
+							return errors.New("hit that kill count")
+						}
+						return nil
+					}
+
+					// create some dupes
+					for name, c := range pkg.mChecks {
+						pkg.mChecks["copy"+name] = c
+					}
+
+					svc := newTestService(WithCheckSVC(fakeCheckSVC))
+
+					orgID := influxdb.ID(9000)
+
+					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					require.Error(t, err)
+
+					assert.GreaterOrEqual(t, fakeCheckSVC.DeleteCheckCalls.Count(), 1)
+				})
+			})
+		})
+
 		t.Run("labels", func(t *testing.T) {
 			t.Run("successfully creates pkg of labels", func(t *testing.T) {
 				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
@@ -720,6 +785,26 @@ func TestService(t *testing.T) {
 				)
 			})
 
+			t.Run("maps checks with labels", func(t *testing.T) {
+				testLabelMappingFn(
+					t,
+					"testdata/checks.yml",
+					2, // 1 for each check
+					func() []ServiceSetterFn {
+						fakeCheckSVC := mock.NewCheckService()
+						fakeCheckSVC.CreateCheckFn = func(ctx context.Context, c influxdb.CheckCreate, id influxdb.ID) error {
+							c.Check.SetID(influxdb.ID(rand.Int()))
+							return nil
+						}
+						fakeCheckSVC.FindCheckFn = func(ctx context.Context, f influxdb.CheckFilter) (influxdb.Check, error) {
+							return nil, errors.New("check not found")
+						}
+
+						return []ServiceSetterFn{WithCheckSVC(fakeCheckSVC)}
+					},
+				)
+			})
+
 			t.Run("maps dashboards with labels", func(t *testing.T) {
 				testLabelMappingFn(
 					t,
@@ -732,6 +817,22 @@ func TestService(t *testing.T) {
 							return nil
 						}
 						return []ServiceSetterFn{WithDashboardSVC(fakeDashSVC)}
+					},
+				)
+			})
+
+			t.Run("maps notificaton endpoints with labels", func(t *testing.T) {
+				testLabelMappingFn(
+					t,
+					"testdata/notification_endpoint.yml",
+					5, // 1 for each check
+					func() []ServiceSetterFn {
+						fakeEndpointSVC := mock.NewNotificationEndpointService()
+						fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
+							nr.SetID(influxdb.ID(rand.Int()))
+							return nil
+						}
+						return []ServiceSetterFn{WithNoticationEndpointSVC(fakeEndpointSVC)}
 					},
 				)
 			})

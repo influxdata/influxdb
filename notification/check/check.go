@@ -96,8 +96,7 @@ func (b Base) generateTaskOption() ast.Statement {
 }
 
 func (b Base) generateFluxASTCheckDefinition(checkType string) ast.Statement {
-	props := []*ast.Property{}
-	props = append(props, flux.Property("_check_id", flux.String(b.ID.String())))
+	props := append([]*ast.Property{}, flux.Property("_check_id", flux.String(b.ID.String())))
 	props = append(props, flux.Property("_check_name", flux.String(b.Name)))
 	props = append(props, flux.Property("_type", flux.String(checkType)))
 
