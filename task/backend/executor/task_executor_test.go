@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/prom/promtest"
+	tracetest "github.com/influxdata/influxdb/kit/tracing/testing"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/task/backend"
@@ -28,16 +29,7 @@ import (
 func TestMain(m *testing.M) {
 	var code int
 	func() {
-		// backup old tracer
-		oldTracer := opentracing.GlobalTracer()
-		defer opentracing.SetGlobalTracer(oldTracer)
-
-		// setup in-memory tracer for task tests
-		sampler := jaeger.NewConstSampler(true)
-		tracer, closer := jaeger.NewTracer("task_backend_tests", sampler, jaeger.NewInMemoryReporter())
-		defer closer.Close()
-
-		opentracing.SetGlobalTracer(tracer)
+		defer tracetest.SetupInMemoryTracing("task_backend_tests")()
 
 		code = m.Run()
 	}()

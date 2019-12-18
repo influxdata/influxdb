@@ -11,7 +11,6 @@ import (
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/logger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -51,7 +50,7 @@ func (s *LoggingProxyQueryService) Query(ctx context.Context, w io.Writer, req *
 				entry.Write(zap.Error(err))
 			}
 		}
-		traceID, sampled, _ := logger.TraceInfo(ctx)
+		traceID, sampled, _ := tracing.InfoFromContext(ctx)
 		log := Log{
 			OrganizationID: req.Request.OrganizationID,
 			TraceID:        traceID,

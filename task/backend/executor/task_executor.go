@@ -14,7 +14,6 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
-	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 )
 
@@ -401,8 +400,8 @@ func (w *worker) executeQuery(p *promise) {
 	it.Release()
 
 	// log the trace id and whether or not it was sampled into the run log
-	if sctx, ok := span.Context().(jaeger.SpanContext); ok {
-		msg := fmt.Sprintf("trace_id=%s is_sampled=%t", sctx.TraceID(), sctx.IsSampled())
+	if traceID, isSampled, ok := tracing.InfoFromSpan(span); ok {
+		msg := fmt.Sprintf("trace_id=%s is_sampled=%t", traceID, isSampled)
 		w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now().UTC(), msg)
 	}
 
