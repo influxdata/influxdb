@@ -154,7 +154,7 @@ jobs:
           name: "Install Dependencies"
       - run: make ui_client
       - run:
-          name: jest tests
+          name: parallel jest tests
           command: |
             set +e
             cd ui
