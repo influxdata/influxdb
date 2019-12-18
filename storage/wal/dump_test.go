@@ -118,7 +118,7 @@ func TestWalDumpRun_DeleteRangeEntries(t *testing.T) {
 		BucketID:  influxdb.ID(2),
 		Min:       3,
 		Max:       4,
-		Predicate: []byte("predicate"),
+		Predicate: []byte(nil),
 	}
 
 	if err := w.Write(mustMarshalEntry(entry)); err != nil {
@@ -147,7 +147,7 @@ func TestWalDumpRun_DeleteRangeEntries(t *testing.T) {
 	}
 
 	want := fmt.Sprintf(`File: %s
-[delete-bucket-range] org=0000000000000001 bucket=0000000000000002 min=3 max=4 sz=57
+[delete-bucket-range] org=0000000000000001 bucket=0000000000000002 min=3 max=4 sz=48 pred=
 `, name)
 	got := testOut.String()
 
