@@ -110,19 +110,6 @@ Since we depend on Go modules and use standard Go tooling, you can simply check 
     go test ./...
 ```
 
-Cloning a fork
--------------
-If you wish to work with fork of InfluxDB, your own fork for example, you must still follow the directory structure above. But instead of cloning the main repo, instead clone your fork. Follow the steps below to work with a fork:
-
-```bash
-    export GOPATH=$HOME/go
-    mkdir -p $GOPATH/src/github.com/influxdata
-    cd $GOPATH/src/github.com/influxdata
-    git clone git@github.com:<username>/influxdb
-```
-
-Retaining the directory structure `$GOPATH/src/github.com/influxdata` is necessary so that Go imports work correctly.
-
 Build and Test
 -----
 
