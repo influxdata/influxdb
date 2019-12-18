@@ -98,21 +98,17 @@ Currently the project only depends on `git` and `mercurial`.
 * [Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
 * [Install Mercurial](http://mercurial.selenic.com/wiki/Download)
 
-Getting the source
+Getting & Building From Source
 ------
-Setup the project structure and fetch the repo like so:
+
+Since we depend on Go modules and use standard Go tooling, you can simply check out and build InfluxDB in your preferred location on your filesystem.
 
 ```bash
-    cd $GOPATH/src
     git clone git@github.com:influxdata/influxdb.git
     cd influxdb
-    export  GO111MODULE=on
-    go mod vendor
     go install ./...
     go test ./...
 ```
-
-You can add the line `export GOPATH=$HOME/go` to your bash/zsh file to be set for every shell instead of having to manually run it everytime.
 
 Cloning a fork
 -------------
