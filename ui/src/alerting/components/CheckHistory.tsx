@@ -46,11 +46,10 @@ const CheckHistory: FC<Props> = ({
   timeZone,
   resourceIDs,
 }) => {
-
   const loadRows = useMemo(() => options => loadStatuses(orgID, options), [
     orgID,
   ])
-
+  const historyType = 'statuses'
   const fields = STATUS_FIELDS
   return (
     <GetResources resources={[ResourceType.Checks]}>
@@ -69,6 +68,7 @@ const CheckHistory: FC<Props> = ({
                   />
                   <AlertHistoryQueryParams
                     searchInput={props.state.searchInput}
+                    historyType={historyType}
                   />
                   {/* <CheckHistoryControls eventViewerProps={props} /> */}
                 </div>

@@ -13,6 +13,7 @@ import TimeSeries from 'src/shared/components/TimeSeries'
 import {createView} from 'src/shared/utils/view'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
+import {TimeRange} from 'src/types'
 
 interface ResourceIDs {
   checkIDs: {[x: string]: boolean}
@@ -28,6 +29,7 @@ interface OwnProps {
 }
 
 type Props = OwnProps
+//TODO maybe update submitToken when we know how
 
 const CheckHistoryVisualization: FC<Props> = ({check, timeZone}) => {
   const view = createView<CheckViewProperties>(get(check, 'type', 'threshold'))
@@ -40,7 +42,7 @@ const CheckHistoryVisualization: FC<Props> = ({check, timeZone}) => {
       submitToken={submitToken}
       queries={[check.query]}
       key={manualRefresh}
-      variables={getTimeRangeVars({lower: 'now() - 5m'})}
+      variables={getTimeRangeVars({lower: 'now() - 5m'} as TimeRange)}
       check={check}
     >
       {({giraffeResult, loading, errorMessage, isInitialFetch, statuses}) => {
@@ -65,6 +67,7 @@ const CheckHistoryVisualization: FC<Props> = ({check, timeZone}) => {
             >
               {config => <Plot config={config} />}
             </CheckPlot>
+            {/* {<CheckHistoryStatuses .../>} */}
           </EmptyQueryView>
         )
       }}
