@@ -43,9 +43,9 @@ We really like to receive feature requests as it helps us prioritize our work. P
 Contributing to the source code
 ---------------
 
-InfluxDB follows standard Go project structure. This means that all your Go development is done in `$GOPATH/src`. GOPATH can be any directory under which InfluxDB and all its dependencies will be cloned. For full details on the project structure, follow along below.
+InfluxDB requres Go 1.12 or later and uses Go modules.
 
-You should also read our [coding guide](https://github.com/influxdata/influxdb/blob/master/CODING_GUIDELINES.md), to understand better how to write code for InfluxDB.
+You should read our [coding guide](https://github.com/influxdata/influxdb/blob/master/CODING_GUIDELINES.md), to understand better how to write code for InfluxDB.
 
 Submitting a pull request
 ------------
@@ -116,13 +116,13 @@ Building:
 
 ```bash
     go build ./...
-```		
+```
 
 Installing:
 
 ```bash
     go install ./...
-```		
+```
 
 Testing:
 
