@@ -3,7 +3,7 @@
 ### Features
 
 1. [16234](https://github.com/influxdata/influxdb/pull/16234): add support for notification endpoints to influx templates/pkgs.
-2. [16242](https://github.com/influxdata/influxdb/pull/16242): drop id prefix for secret key requirement for notification endpoints 
+2. [16242](https://github.com/influxdata/influxdb/pull/16242): drop id prefix for secret key requirement for notification endpoints
 
 ### Bug Fixes
 
@@ -13,6 +13,7 @@
 1. [16237](https://github.com/influxdata/influxdb/pull/16237): Updated Sortby functionality for table frontend sorts to sort numbers correctly
 1. [16249](https://github.com/influxdata/influxdb/pull/16249): Prevent potential infinite loop when finding tasks by organization.
 1. [16255](https://github.com/influxdata/influxdb/pull/16255): Retain user input when parsing invalid JSON during import
+1. [16268](https://github.com/influxdata/influxdb/pull/16268): Fixed test flakiness that stemmed from multiple flush/signins being called in the same test suite
 
 ### UI Improvements
 
