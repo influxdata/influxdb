@@ -7,6 +7,7 @@ import memoizeOne from 'memoize-one'
 // Components
 import {ResourceList} from '@influxdata/clockface'
 import CollectorRow from 'src/telegrafs/components/CollectorCard'
+import FilterList from 'src/shared/components/Filter'
 
 // Types
 import {Sort} from '@influxdata/clockface'
@@ -45,22 +46,20 @@ class CollectorList extends PureComponent<Props> {
     const {emptyState, sortKey, sortDirection, onClickColumn} = this.props
 
     return (
-      <>
-        <ResourceList>
-          <ResourceList.Header>
-            <ResourceList.Sorter
-              sortKey='name'
-              sort={sortKey === 'name' ? sortDirection : Sort.None}
-              name="Name"
-              onClick={onClickColumn}
-              testID="name-sorter"
-            />
-          </ResourceList.Header>
-          <ResourceList.Body emptyState={emptyState}>
-            {this.collectorsList}
-          </ResourceList.Body>
-        </ResourceList>
-      </>
+      <ResourceList>
+        <ResourceList.Header>
+          <ResourceList.Sorter
+            sortKey='name'
+            sort={sortKey === 'name' ? sortDirection : Sort.None}
+            name="Name"
+            onClick={onClickColumn}
+            testID="name-sorter"
+          />
+        </ResourceList.Header>
+        <ResourceList.Body emptyState={emptyState}>
+          {this.collectorsList}
+        </ResourceList.Body>
+      </ResourceList>
     )
   }
 
@@ -108,3 +107,54 @@ export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
 )(CollectorList)
+
+type FilteredOwnProps = OwnProps & {
+  searchTerm: string
+}
+
+type FilteredProps = Props & FilteredOwnProps
+
+class FilteredCollectorList extends PureComponent<FilteredProps>{
+  render() {
+    const {
+      searchTerm,
+      collectors,
+      emptyState,
+      onFilterChange,
+      sortKey,
+      sortDirection,
+      sortType,
+      onClickColumn
+    } = this.props
+    return (
+      <FilterList<Telegraf>
+        searchTerm={searchTerm}
+        searchKeys={[
+          'metadata.buckets[]',
+          'name',
+          'labels[].name',
+        ]}
+        list={collectors}
+      >
+        {(cs) => (
+          <CollectorList
+            collectors={cs}
+            emptyState={emptyState}
+            onFilterChange={onFilterChange}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            sortType={sortType}
+            onClickColumn={onClickColumn}
+          />
+        )}
+      </FilterList>
+    )
+  }
+}
+
+const FilteredList = connect<StateProps, DispatchProps, FilteredOwnProps>(
+  mstp,
+  mdtp
+)(FilteredCollectorList)
+
+export { FilteredCollectorList, FilteredList }
