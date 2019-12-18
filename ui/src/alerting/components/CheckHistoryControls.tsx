@@ -2,7 +2,7 @@
 import React, {FC} from 'react'
 
 // Components
-import BackToTopButton from 'src/eventViewer/components/BackToTopButton'
+// import BackToTopButton from 'src/eventViewer/components/BackToTopButton'
 import SearchBar from 'src/alerting/components/SearchBar'
 
 // Types

@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 // Components
 import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'
 import EventViewer from 'src/eventViewer/components/EventViewer'
-import CheckHistoryControls from 'src/alerting/components/CheckHistoryControls'
+// import CheckHistoryControls from 'src/alerting/components/CheckHistoryControls'
 import CheckHistoryVisualization from 'src/alerting/components/CheckHistoryVisualization'
 import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryParams'
 import EventTable from 'src/eventViewer/components/EventTable'
