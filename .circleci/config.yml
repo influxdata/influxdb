@@ -184,16 +184,7 @@ jobs:
       - install_rust_compiler
       - run: mkdir -p $TEST_RESULTS
       - run: make test-go # This uses the test cache so it may succeed or fail quickly.
-      - run: make vet
-      - run: make checkfmt
-      - run: make checktidy
-      - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
-      - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
-      - run: GO111MODULE=on staticcheck ./...
       - run: GOTRACEBACK=all GO111MODULE=on FLUX_PARSER_TYPE=rust CGO_LDFLAGS="$(cat .cgo_ldflags)" gotestsum --format standard-verbose --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 -tags 'libflux' ./...
-      # TODO add these checks to the Makefile
-      # - run: go get -v -t -d ./...
-
       - save_cache:
           name: Saving GOCACHE
           key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
@@ -210,6 +201,55 @@ jobs:
           path: /tmp/test-results
           destination: raw-test-output
       - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
+          path: /tmp/test-results
+  golint:
+    docker:
+      - image: circleci/golang:1.12
+    environment:
+      GOCACHE: /tmp/go-cache
+      GOFLAGS: '-mod=readonly -p=2' # Go on Circle thinks 32 CPUs are available, but there aren't.
+      TEST_RESULTS: /tmp/test-results
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+
+      # Populate GOCACHE.
+      - restore_cache:
+          name: Restoring GOCACHE
+          keys:
+            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
+            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
+            - influxdb-gocache- # Matches a new branch.
+      # Populate GOPATH/pkg.
+      - restore_cache:
+          name: Restoring GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
+      - run: sudo apt-get install -y bzr
+      - install_rust_compiler
+      - run: mkdir -p $TEST_RESULTS
+      - run: make vet
+      - run: make checkfmt
+      - run: make checktidy
+      - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
+      - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
+      - run: GO111MODULE=on staticcheck ./...
+      - save_cache:
+          name: Saving GOCACHE
+          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+          when: always
+      - save_cache:
+          name: Saving GOPATH/pkg/mod
+          key: influxdb-gomod-{{ checksum "go.sum" }}
+          paths:
+            - /go/pkg/mod
+          when: always
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
           path: /tmp/test-results
   build:
     docker:
@@ -312,6 +352,7 @@ workflows:
   build:
     jobs:
       - gotest
+      - golint
       - jstest
       - build
       - litmus_daily:
@@ -333,10 +374,12 @@ workflows:
                 - master
     jobs:
       - gotest
+      - golint
       - jstest
       - deploy-nightly:
           requires:
             - gotest
+            - golint
             - jstest
           filters:
             branches:
@@ -355,7 +398,12 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
-
+      - golint:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
       - jstest:
           filters:
             branches:
@@ -365,6 +413,7 @@ workflows:
       - release:
           requires:
             - gotest
+            - golint
             - jstest
           filters:
             branches:
