@@ -300,11 +300,6 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform
 	return f, err
 }
 
-func decodePostTelegrafRequest(r *http.Request) (*platform.TelegrafConfig, error) {
-	tc := &platform.TelegrafConfig{}
-	return tc, json.NewDecoder(r.Body).Decode(tc)
-}
-
 func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {
 	tc := new(platform.TelegrafConfig)
 	if err := json.NewDecoder(r.Body).Decode(tc); err != nil {
@@ -329,12 +324,14 @@ func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.T
 // handlePostTelegraf is the HTTP handler for the POST /api/v2/telegrafs route.
 func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tc, err := decodePostTelegrafRequest(r)
-	if err != nil {
+
+	tc := new(platform.TelegrafConfig)
+	if err := json.NewDecoder(r.Body).Decode(tc); err != nil {
 		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -356,12 +353,14 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 // handlePutTelegraf is the HTTP handler for the POST /api/v2/telegrafs route.
 func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
 	tc, err := decodePutTelegrafRequest(ctx, r)
 	if err != nil {
 		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
