@@ -25,7 +25,6 @@ import {ResourceIDs} from 'src/alerting/reducers/checks'
 import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import {AppState, Check, TimeZone} from 'src/types'
 
-
 interface OwnProps {
   params: {orgID: string; checkID: string}
 }
