@@ -3,7 +3,6 @@ package influxdb
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/BurntSushi/toml"
@@ -103,7 +102,7 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 
 	if tcd.Plugins != nil {
 		// legacy, remove after some moons. or a migration.
-		if len(*tcd.Plugins) > 0 {
+		if len(tcd.Plugins) > 0 {
 			bkts, conf, err := decodePluginRaw(tcd)
 			if err != nil {
 				return err
@@ -128,7 +127,10 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 	}
 
 	if tc.Config == "" {
-		return errors.New("no config provided")
+		return &Error{
+			Code: EEmptyValue,
+			Msg:  "no config provided",
+		}
 	}
 
 	return nil
@@ -139,7 +141,10 @@ type buckets []string
 func (t *buckets) UnmarshalTOML(data interface{}) error {
 	dataOk, ok := data.(map[string]interface{})
 	if !ok {
-		return errors.New("no config to get buckets")
+		return &Error{
+			Code: EEmptyValue,
+			Msg:  "no config to get buckets",
+		}
 	}
 	bkts := []string{}
 	for tp, ps := range dataOk {
@@ -149,7 +154,8 @@ func (t *buckets) UnmarshalTOML(data interface{}) error {
 		plugins, ok := ps.(map[string]interface{})
 		if !ok {
 			return &Error{
-				Msg: "no plugins in config to get buckets",
+				Code: EEmptyValue,
+				Msg:  "no plugins in config to get buckets",
 			}
 		}
 		for name, configDataArray := range plugins {
@@ -159,7 +165,8 @@ func (t *buckets) UnmarshalTOML(data interface{}) error {
 			config, ok := configDataArray.([]map[string]interface{})
 			if !ok {
 				return &Error{
-					Msg: "influxdb_v2 output has no config",
+					Code: EEmptyValue,
+					Msg:  "influxdb_v2 output has no config",
 				}
 			}
 			for i := range config {
@@ -199,7 +206,7 @@ func decodePluginRaw(tcd *telegrafConfigDecode) ([]string, string, error) {
 	ps := ""
 	bucket := []string{}
 
-	for _, pr := range *tcd.Plugins {
+	for _, pr := range tcd.Plugins {
 		var tpFn func() plugins.Config
 		var ok bool
 
@@ -253,14 +260,14 @@ func decodePluginRaw(tcd *telegrafConfigDecode) ([]string, string, error) {
 
 // telegrafConfigDecode is the helper struct for json decoding. legacy.
 type telegrafConfigDecode struct {
-	ID             *ID                     `json:"id,omitempty"`
-	OrganizationID *ID                     `json:"organizationID,omitempty"`
-	OrgID          *ID                     `json:"orgID,omitempty"`
-	Name           string                  `json:"name,omitempty"`
-	Description    string                  `json:"description,omitempty"`
-	Config         string                  `json:"config,omitempty"`
-	Plugins        *[]telegrafPluginDecode `json:"plugins,omitempty"`
-	Metadata       map[string]interface{}  `json:"metadata,omitempty"`
+	ID             *ID                    `json:"id,omitempty"`
+	OrganizationID *ID                    `json:"organizationID,omitempty"`
+	OrgID          *ID                    `json:"orgID,omitempty"`
+	Name           string                 `json:"name,omitempty"`
+	Description    string                 `json:"description,omitempty"`
+	Config         string                 `json:"config,omitempty"`
+	Plugins        []telegrafPluginDecode `json:"plugins,omitempty"`
+	Metadata       map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // telegrafPluginDecode is the helper struct for json decoding. legacy.

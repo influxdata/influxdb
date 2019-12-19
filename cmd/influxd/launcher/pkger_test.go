@@ -192,7 +192,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		}, varArgs.Values)
 	})
 
-	t.Run("apply a package of all new resource s", func(t *testing.T) {
+	t.Run("apply a package of all new resources", func(t *testing.T) {
 		// this initial test is also setup for the sub tests
 		sum1, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, newPkg(t))
 		require.NoError(t, err)
