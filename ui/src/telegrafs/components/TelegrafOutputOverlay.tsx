@@ -163,9 +163,9 @@ class TelegrafOutputOverlay extends PureComponent<Props> {
     const config = transform(
       TELEGRAF_OUTPUT,
       Object.assign({}, OUTPUT_DEFAULTS, {
-          server,
-          org,
-          bucket: bucket ? bucket.name : OUTPUT_DEFAULTS.bucket,
+        server,
+        org,
+        bucket: bucket ? bucket.name : OUTPUT_DEFAULTS.bucket,
       })
     )
     downloadTextFile(config, 'outputs.influxdb_v2', '.conf')
