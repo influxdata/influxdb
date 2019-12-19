@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
@@ -138,9 +139,13 @@ type checkLinks struct {
 
 type checkResponse struct {
 	influxdb.Check
-	Status string           `json:"status"`
-	Labels []influxdb.Label `json:"labels"`
-	Links  checkLinks       `json:"links"`
+	Status          string           `json:"status"`
+	Labels          []influxdb.Label `json:"labels"`
+	Links           checkLinks       `json:"links"`
+	LatestCompleted string           `json:"latestCompleted,omitempty"`
+	LatestScheduled string           `json:"latestScheduled,omitempty"`
+	LastRunStatus   string           `json:"LastRunStatus,omitempty"`
+	LastRunError    string           `json:"LastRunError,omitempty"`
 }
 
 type postCheckRequest struct {
@@ -159,13 +164,21 @@ func (resp checkResponse) MarshalJSON() ([]byte, error) {
 	}
 
 	b2, err := json.Marshal(struct {
-		Labels []influxdb.Label `json:"labels"`
-		Links  checkLinks       `json:"links"`
-		Status string           `json:"status"`
+		Labels          []influxdb.Label `json:"labels"`
+		Links           checkLinks       `json:"links"`
+		Status          string           `json:"status"`
+		LatestCompleted string           `json:"latestCompleted,omitempty"`
+		LatestScheduled string           `json:"latestScheduled,omitempty"`
+		LastRunStatus   string           `json:"lastRunStatus,omitempty"`
+		LastRunError    string           `json:"lastRunError,omitempty"`
 	}{
-		Links:  resp.Links,
-		Labels: resp.Labels,
-		Status: resp.Status,
+		Links:           resp.Links,
+		Labels:          resp.Labels,
+		Status:          resp.Status,
+		LatestCompleted: resp.LatestCompleted,
+		LatestScheduled: resp.LatestScheduled,
+		LastRunStatus:   resp.LastRunStatus,
+		LastRunError:    resp.LastRunError,
 	})
 	if err != nil {
 		return nil, err
@@ -198,7 +211,11 @@ func (h *CheckHandler) newCheckResponse(ctx context.Context, chk influxdb.Check,
 			Owners:  fmt.Sprintf("/api/v2/checks/%s/owners", chk.GetID()),
 			Query:   fmt.Sprintf("/api/v2/checks/%s/query", chk.GetID()),
 		},
-		Labels: []influxdb.Label{},
+		Labels:          []influxdb.Label{},
+		LatestCompleted: task.LatestCompleted.Format(time.RFC3339),
+		LatestScheduled: task.LatestScheduled.Format(time.RFC3339),
+		LastRunStatus:   task.LastRunStatus,
+		LastRunError:    task.LastRunError,
 	}
 
 	for _, l := range labels {
