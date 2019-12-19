@@ -271,7 +271,7 @@ mod tests {
         encode_all(&mut src, &mut dst).expect("failed to encode src");
 
         // verify encoded no values.
-        assert_eq!(dst.to_vec(), vec![]);
+        assert_eq!(dst.len(), 0);
     }
 
     #[test]

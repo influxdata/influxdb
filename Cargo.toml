@@ -24,8 +24,12 @@ serde_json = "1.0.44"
 rocksdb = "0.13"
 byteorder = "0.3"
 
+num_cpus = "1.11.1"
+
 # waiting for tonic to bump up to use newest tokio
 #tonic = "0.1.0-alpha.6"
+prost = "0.5.0"
 
 [build-dependencies]
 #tonic-build = "0.1.0-alpha.6"
+prost-build = { version = "0.5.0" }

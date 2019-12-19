@@ -29,9 +29,10 @@ message Organization {
 }
 
 message Bucket {
-    uint32 id = 1;
-    string name = 2;
-    string retention = 3;
+    uint32 org_id = 1;
+    uint32 id = 2;
+    string name = 3;
+    string retention = 4;
 }
 
 message S3PartitionRule {
