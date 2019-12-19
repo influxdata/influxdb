@@ -1,9 +1,6 @@
 // Libraries
 import _ from 'lodash'
 
-// Schemas
-// import * as schema from 'src/schema'
-
 // APIs
 import * as api from 'src/client'
 

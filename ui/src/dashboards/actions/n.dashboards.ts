@@ -60,7 +60,7 @@ export const getDashboards = (): AppThunk => async (
       schemas.dashboards,
     ])
 
-    console.log('normalized dashbaords: ', normalized)
+    console.log('normalized dashboards: ', normalized)
 
     dispatch(setDashboards(RemoteDataState.Done, normalized))
   } catch (error) {

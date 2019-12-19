@@ -70,7 +70,7 @@ const cells = new schema.Entity(
 )
 
 // Define label schema
-const labels = new schema.Entity('labels')
+export const labels = new schema.Entity('labels')
 
 // Define dashboard schema
 export const dashboards = new schema.Entity('dashboards', {

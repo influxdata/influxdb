@@ -38,6 +38,7 @@ import {ChecksState} from 'src/alerting/reducers/checks'
 import {NotificationRulesState} from 'src/alerting/reducers/notifications/rules'
 import {NotificationEndpointsState} from 'src/alerting/reducers/notifications/endpoints'
 import {DashboardsState as NDashboardsState} from 'src/dashboards/reducers/n.dashboards'
+import {LabelsState as NLabelsState} from 'src/labels/reducers/n.labels'
 
 export interface AppState {
   app: AppPresentationState
@@ -61,6 +62,7 @@ export interface AppState {
   ranges: RangeState
   resources: {
     dashboards: NDashboardsState
+    labels: NLabelsState
   }
   routing: RouterState
   rules: NotificationRulesState

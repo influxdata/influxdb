@@ -19,6 +19,10 @@ export const getResourcesStatus = (
         return state.resources[resource].status
       }
 
+      case ResourceType.Labels: {
+        return state.resources[resource].status
+      }
+
       default:
         return state[resource].status
     }

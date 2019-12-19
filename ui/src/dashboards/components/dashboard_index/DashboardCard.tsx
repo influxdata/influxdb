@@ -16,10 +16,10 @@ import {
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
+import {viewableLabels, getLabelsByID, getAllLabels} from 'src/labels/selectors'
 
 // Types
-import {AppState, Dashboard, Label} from 'src/types'
+import {AppState, NDashboard as Dashboard, Label} from 'src/types'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
@@ -28,7 +28,7 @@ import {resetViews} from 'src/dashboards/actions/views'
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
 
-interface PassedProps {
+interface OwnProps {
   dashboard: Dashboard
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
@@ -38,6 +38,7 @@ interface PassedProps {
 
 interface StateProps {
   labels: Label[]
+  dashboardLabels: Label[]
 }
 
 interface DispatchProps {
@@ -47,11 +48,11 @@ interface DispatchProps {
   onResetViews: typeof resetViews
 }
 
-type Props = PassedProps & DispatchProps & StateProps & WithRouterProps
+type Props = OwnProps & DispatchProps & StateProps & WithRouterProps
 
 class DashboardCard extends PureComponent<Props> {
   public render() {
-    const {dashboard, onFilterChange, labels} = this.props
+    const {dashboard, onFilterChange, labels, dashboardLabels} = this.props
     const {id} = dashboard
 
     return (
@@ -78,8 +79,8 @@ class DashboardCard extends PureComponent<Props> {
         }
         labels={
           <InlineLabels
-            selectedLabels={dashboard.labels as Label[]}
             labels={labels}
+            selectedLabels={dashboardLabels}
             onFilterChange={onFilterChange}
             onAddLabel={this.handleAddLabel}
             onRemoveLabel={this.handleRemoveLabel}
@@ -188,9 +189,16 @@ class DashboardCard extends PureComponent<Props> {
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
+const mstp = (state: AppState, props: OwnProps): StateProps => {
+  const dashboardLabels = viewableLabels(
+    getLabelsByID(state, props.dashboard.labels)
+  )
+
+  const labels = viewableLabels(getAllLabels(state))
+
   return {
-    labels: viewableLabels(labels.list),
+    labels,
+    dashboardLabels,
   }
 }
 
@@ -201,7 +209,7 @@ const mdtp: DispatchProps = {
   onResetViews: resetViews,
 }
 
-export default connect<StateProps, DispatchProps, PassedProps>(
+export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
 )(withRouter(DashboardCard))

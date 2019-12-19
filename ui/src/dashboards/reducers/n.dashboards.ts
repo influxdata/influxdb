@@ -9,9 +9,8 @@ import {
 } from 'src/dashboards/actions/n.dashboards'
 
 // TODO: port all these actions to normalized actions
-
 // export enum ActionTypes {
-//   SetDashboards = 'SET_DASHBOARDS',
+// √  SetDashboards = 'SET_DASHBOARDS',
 //   SetDashboard = 'SET_DASHBOARD',
 //   RemoveDashboard = 'REMOVE_DASHBOARD',
 //   DeleteDashboardFailed = 'DELETE_DASHBOARD_FAILED',

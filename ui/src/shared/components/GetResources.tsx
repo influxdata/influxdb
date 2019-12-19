@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Actions
-import {getLabels} from 'src/labels/actions'
+import {getLabels} from 'src/labels/actions/n.labels'
 import {getBuckets} from 'src/buckets/actions'
 import {getTelegrafs} from 'src/telegrafs/actions'
 import {getPlugins} from 'src/dataLoaders/actions/telegrafEditor'
