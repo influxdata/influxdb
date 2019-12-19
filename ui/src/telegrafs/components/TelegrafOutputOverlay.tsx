@@ -71,24 +71,38 @@ class TelegrafOutputOverlay extends PureComponent<Props> {
     return <>{this.overlay}</>
   }
 
-  private get overlay(): JSX.Element {
-    const {server, org, orgID, buckets} = this.props
-    const _buckets = (buckets || [])
+  private get buckets() {
+    const {buckets} = this.props
+    return (buckets || [])
       .filter(item => item.type !== 'system')
       .sort((a, b) => {
         const _a = a.name.toLowerCase()
         const _b = b.name.toLowerCase()
         return _a > _b ? 1 : _a < _b ? -1 : 0
       })
+  }
+
+  private get currentBucket() {
+    const _buckets = this.buckets
     const {selectedBucket} = this.state
-    let bucket_dd = null
-    let bucket = null
 
     if (_buckets.length) {
-      bucket = selectedBucket ? selectedBucket : _buckets[0]
+      return selectedBucket ? selectedBucket : _buckets[0]
+    }
+
+    return null
+  }
+
+  private get overlay(): JSX.Element {
+    const {server, org, orgID} = this.props
+    const _buckets = this.buckets
+    const bucket = this.currentBucket
+    let bucket_dd = null
+
+    if (_buckets.length) {
       bucket_dd = (
         <BucketDropdown
-          selectedBucketID={bucket.id}
+          selectedBucketID={this.currentBucket.id}
           buckets={_buckets}
           onSelectBucket={this.handleSelectBucket}
         />
@@ -144,9 +158,15 @@ class TelegrafOutputOverlay extends PureComponent<Props> {
   }
 
   private handleDownloadConfig = () => {
+    const {server, org} = this.props
+    const bucket = this.currentBucket
     const config = transform(
       TELEGRAF_OUTPUT,
-      Object.assign({}, OUTPUT_DEFAULTS, {})
+      Object.assign({}, OUTPUT_DEFAULTS, {
+        server,
+        org,
+        bucket: bucket ? bucket.name : OUTPUT_DEFAULTS.bucket,
+      })
     )
     downloadTextFile(config, 'outputs.influxdb_v2', '.conf')
   }
