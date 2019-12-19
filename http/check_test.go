@@ -168,7 +168,9 @@ func TestService_handleGetChecks(t *testing.T) {
           }
         }
 			],
-			"status": "active"
+			"status": "active",
+			"latestCompleted": "0001-01-01T00:00:00Z",
+			"latestScheduled": "0001-01-01T00:00:00Z"
     },
     {
       "links": {
@@ -230,7 +232,9 @@ func TestService_handleGetChecks(t *testing.T) {
 					}
 				}
 			],
-			"status": "active"
+			"status": "active",
+			"latestCompleted": "0001-01-01T00:00:00Z",
+			"latestScheduled": "0001-01-01T00:00:00Z"
 		}
 	]
 }
@@ -520,7 +524,9 @@ func TestService_handleGetCheck(t *testing.T) {
           "type": "deadman",
 		  "orgID": "020f755c3c082000",
 			"name": "hello",
-			"status": "active"
+			"status": "active",
+			"latestCompleted": "0001-01-01T00:00:00Z",
+			"latestScheduled": "0001-01-01T00:00:00Z"
 		}
 		`,
 			},
@@ -703,7 +709,9 @@ func TestService_handlePostCheck(t *testing.T) {
   "every": "5m",
   "level": "WARN",
 	"labels": [],
-	"status": "active"
+	"status": "active",
+	"latestCompleted": "0001-01-01T00:00:00Z",
+	"latestScheduled": "0001-01-01T00:00:00Z"
 }
 `,
 			},
@@ -949,7 +957,9 @@ func TestService_handlePatchCheck(t *testing.T) {
 			"statusMessageTemplate": "",
 			"tags": null,
 			"type": "deadman",
-			"labels": []
+			"labels": [],
+			"latestCompleted": "0001-01-01T00:00:00Z",
+			"latestScheduled": "0001-01-01T00:00:00Z"
 		}
 		`,
 			},
@@ -1130,7 +1140,9 @@ func TestService_handleUpdateCheck(t *testing.T) {
           "statusMessageTemplate": "",
           "tags": null,
           "type": "deadman",
-		  "labels": []
+			"labels": [],
+			"latestCompleted": "0001-01-01T00:00:00Z",
+			"latestScheduled": "0001-01-01T00:00:00Z"
 		}
 		`,
 			},
