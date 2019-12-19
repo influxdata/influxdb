@@ -1,3 +1,5 @@
+import {Action} from 'redux'
+import {ThunkAction} from 'redux-thunk'
 import {Links} from 'src/types/links'
 import {Notification} from 'src/types'
 import {TimeRange} from 'src/types/queries'
@@ -79,5 +81,12 @@ export interface AppState {
   VERSION: string
   views: ViewsState
 }
+
+export type AppThunk<ReturnType = void> = ThunkAction<
+  ReturnType,
+  AppState,
+  null,
+  Action<string>
+>
 
 export type GetState = () => AppState

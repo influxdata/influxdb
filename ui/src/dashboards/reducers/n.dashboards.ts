@@ -3,14 +3,23 @@ import {combineReducers} from 'redux'
 
 // Types
 import {NDashboard, RemoteDataState} from 'src/types'
+import {
+  SET_DASHBOARDS,
+  DashboardActionTypes,
+} from 'src/dashboards/actions/n.dashboards'
 
-export const SET_DASHBOARDS = 'N_SET_DASHBOARDS'
+// TODO: port all these actions to normalized actions
 
-interface SetDashboardsAction {
-  type: typeof SET_DASHBOARDS
-}
-
-export type Actions = SetDashboardsAction
+// export enum ActionTypes {
+//   SetDashboards = 'SET_DASHBOARDS',
+//   SetDashboard = 'SET_DASHBOARD',
+//   RemoveDashboard = 'REMOVE_DASHBOARD',
+//   DeleteDashboardFailed = 'DELETE_DASHBOARD_FAILED',
+//   EditDashboard = 'EDIT_DASHBOARD',
+//   RemoveCell = 'REMOVE_CELL',
+//   AddDashboardLabels = 'ADD_DASHBOARD_LABELS',
+//   RemoveDashboardLabels = 'REMOVE_DASHBOARD_LABELS',
+// }
 
 export interface DashboardsState {
   byID: {
@@ -22,11 +31,15 @@ export interface DashboardsState {
 
 const byID = (
   state: DashboardsState['byID'] = {},
-  action: Actions
+  action: DashboardActionTypes
 ): DashboardsState['byID'] => {
   switch (action.type) {
     case SET_DASHBOARDS: {
-      return state
+      if (!action.normalized) {
+        return state
+      }
+
+      return {...state, ...action.normalized.entities.dashboards}
     }
 
     default:
@@ -36,11 +49,15 @@ const byID = (
 
 const allIDs = (
   state: string[] = [],
-  action: Actions
+  action: DashboardActionTypes
 ): DashboardsState['allIDs'] => {
   switch (action.type) {
     case SET_DASHBOARDS: {
-      return state
+      if (!action.normalized) {
+        return state
+      }
+
+      return [...action.normalized.result]
     }
 
     default:
@@ -52,7 +69,7 @@ const allIDs = (
 
 const status = (
   state: RemoteDataState = RemoteDataState.NotStarted,
-  action: Actions
+  action: DashboardActionTypes
 ) => {
   switch (action.type) {
     case SET_DASHBOARDS: {
