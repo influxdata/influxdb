@@ -29,6 +29,8 @@ interface OwnProps {
   resourceName: string
   onSubmit: (importString: string, orgID: string) => void
   isVisible?: boolean
+  status?: ComponentStatus
+  updateStatus?: (status: ComponentStatus) => void
 }
 
 interface State {
@@ -96,6 +98,7 @@ class ImportOverlay extends PureComponent<Props, State> {
 
   private get importBody(): JSX.Element {
     const {selectedImportOption, importContent} = this.state
+    const {status = ComponentStatus.Default} = this.props
 
     if (selectedImportOption === ImportOption.Upload) {
       return (
@@ -110,7 +113,12 @@ class ImportOverlay extends PureComponent<Props, State> {
     }
     if (selectedImportOption === ImportOption.Paste) {
       return (
-        <TextArea value={importContent} onChange={this.handleChangeTextArea} />
+        <TextArea
+          status={status}
+          value={importContent}
+          onChange={this.handleChangeTextArea}
+          testID="import-overlay--textarea"
+        />
       )
     }
   }
@@ -118,8 +126,10 @@ class ImportOverlay extends PureComponent<Props, State> {
   private handleChangeTextArea = (
     e: ChangeEvent<HTMLTextAreaElement>
   ): void => {
+    const {updateStatus = () => {}} = this.props
     const importContent = e.target.value
     this.handleSetImportContent(importContent)
+    updateStatus(ComponentStatus.Default)
   }
 
   private get submitButton(): JSX.Element {
@@ -154,7 +164,10 @@ class ImportOverlay extends PureComponent<Props, State> {
   }
 
   private clearImportContent = () => {
-    this.setState({importContent: ''})
+    this.setState((state, props) => {
+      const {status = ComponentStatus.Default} = props
+      return status === ComponentStatus.Error ? {...state} : {importContent: ''}
+    })
   }
 
   private onDismiss = () => {

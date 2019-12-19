@@ -3,12 +3,14 @@ package launcher_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/notification/check"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,6 +42,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		svc := pkger.NewService(
 			pkger.WithBucketSVC(l.BucketService(t)),
 			pkger.WithDashboardSVC(l.DashboardService(t)),
+			pkger.WithCheckSVC(l.CheckService()),
 			pkger.WithLabelSVC(&fakeLabelSVC{
 				LabelService: l.LabelService(t),
 				killCount:    2, // hits error on 3rd attempt at creating a mapping
@@ -91,9 +94,6 @@ func TestLauncher_Pkger(t *testing.T) {
 
 	hasLabelAssociations := func(t *testing.T, associations []pkger.SummaryLabel, numAss int, expectedNames ...string) {
 		t.Helper()
-
-		require.Len(t, associations, numAss)
-
 		hasAss := func(t *testing.T, expected string) {
 			t.Helper()
 			for _, ass := range associations {
@@ -104,6 +104,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			require.FailNow(t, "did not find expected association: "+expected)
 		}
 
+		require.Len(t, associations, numAss)
 		for _, expected := range expectedNames {
 			hasAss(t, expected)
 		}
@@ -136,6 +137,11 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.Len(t, diffVars, 1)
 		assert.True(t, diffVars[0].IsNew())
 
+		require.Len(t, diff.Checks, 2)
+		for _, ch := range diff.Checks {
+			assert.True(t, ch.IsNew())
+		}
+
 		require.Len(t, diff.Dashboards, 1)
 		require.Len(t, diff.NotificationEndpoints, 1)
 		require.Len(t, diff.Telegrafs, 1)
@@ -148,6 +154,13 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.Len(t, bkts, 1)
 		assert.Equal(t, "rucket_1", bkts[0].Name)
 		hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
+
+		checks := sum.Checks
+		require.Len(t, checks, 2)
+		for i, ch := range checks {
+			assert.Equal(t, fmt.Sprintf("check_%d", i), ch.Check.GetName())
+			hasLabelAssociations(t, ch.LabelAssociations, 1, "label_1")
+		}
 
 		dashs := sum.Dashboards
 		require.Len(t, dashs, 1)
@@ -196,6 +209,14 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, "rucket_1", bkts[0].Name)
 		hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
 
+		checks := sum1.Checks
+		require.Len(t, checks, 2)
+		for i, ch := range checks {
+			assert.NotZero(t, ch.Check.GetID())
+			assert.Equal(t, fmt.Sprintf("check_%d", i), ch.Check.GetName())
+			hasLabelAssociations(t, ch.LabelAssociations, 1, "label_1")
+		}
+
 		dashs := sum1.Dashboards
 		require.Len(t, dashs, 1)
 		assert.NotZero(t, dashs[0].ID)
@@ -239,13 +260,13 @@ func TestLauncher_Pkger(t *testing.T) {
 				ResourceName: name,
 				LabelName:    labels[0].Name,
 				LabelID:      labels[0].ID,
-				ResourceID:   pkger.SafeID(id),
+				ResourceID:   id,
 				ResourceType: rt,
 			}
 		}
 
 		mappings := sum1.LabelMappings
-		require.Len(t, mappings, 5)
+		require.Len(t, mappings, 7)
 		hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
 		hasMapping(t, mappings, newSumMapping(dashs[0].ID, dashs[0].Name, influxdb.DashboardsResourceType))
 		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
@@ -266,11 +287,80 @@ func TestLauncher_Pkger(t *testing.T) {
 			require.NotEqual(t, sum1.Dashboards, sum2.Dashboards)
 		})
 
+		t.Run("referenced secret values provided do not create new secrets", func(t *testing.T) {
+			applyPkgStr := func(t *testing.T, pkgStr string) pkger.Summary {
+				t.Helper()
+				pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
+				require.NoError(t, err)
+
+				sum, err := svc.Apply(ctx, l.Org.ID, l.User.ID, pkg)
+				require.NoError(t, err)
+				return sum
+			}
+
+			const pkgWithSecretRaw = `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Notification_Endpoint_Pager_Duty
+      name: pager_duty_notification_endpoint
+      url:  http://localhost:8080/orgs/7167eb6719fa34e5/alert-history
+      routingKey: secret-sauce
+`
+			secretSum := applyPkgStr(t, pkgWithSecretRaw)
+			require.Len(t, secretSum.NotificationEndpoints, 1)
+
+			id := secretSum.NotificationEndpoints[0].NotificationEndpoint.GetID()
+			expected := influxdb.SecretField{
+				Key: id.String() + "-routing-key",
+			}
+			secrets := secretSum.NotificationEndpoints[0].NotificationEndpoint.SecretFields()
+			require.Len(t, secrets, 1)
+			assert.Equal(t, expected, secrets[0])
+
+			const pkgWithSecretRef = `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Notification_Endpoint_Pager_Duty
+      name: pager_duty_notification_endpoint
+      url:  http://localhost:8080/orgs/7167eb6719fa34e5/alert-history
+      routingKey:
+        secretRef:
+          key: %s-routing-key
+`
+			secretSum = applyPkgStr(t, fmt.Sprintf(pkgWithSecretRef, id.String()))
+			require.Len(t, secretSum.NotificationEndpoints, 1)
+
+			expected = influxdb.SecretField{
+				Key: id.String() + "-routing-key",
+			}
+			secrets = secretSum.NotificationEndpoints[0].NotificationEndpoint.SecretFields()
+			require.Len(t, secrets, 1)
+			assert.Equal(t, expected, secrets[0])
+		})
+
 		t.Run("exporting resources with existing ids should return a valid pkg", func(t *testing.T) {
 			resToClone := []pkger.ResourceToClone{
 				{
 					Kind: pkger.KindBucket,
 					ID:   influxdb.ID(bkts[0].ID),
+				},
+				{
+					Kind: pkger.KindCheck,
+					ID:   checks[0].Check.GetID(),
+				},
+				{
+					Kind: pkger.KindCheck,
+					ID:   checks[1].Check.GetID(),
 				},
 				{
 					Kind: pkger.KindDashboard,
@@ -279,6 +369,10 @@ func TestLauncher_Pkger(t *testing.T) {
 				{
 					Kind: pkger.KindLabel,
 					ID:   influxdb.ID(labels[0].ID),
+				},
+				{
+					Kind: pkger.KindNotificationEndpoint,
+					ID:   endpoints[0].NotificationEndpoint.GetID(),
 				},
 				{
 					Kind: pkger.KindTelegraf,
@@ -321,6 +415,14 @@ func TestLauncher_Pkger(t *testing.T) {
 			assert.Equal(t, "rucket_1", bkts[0].Name)
 			hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
 
+			checks := newSum.Checks
+			require.Len(t, checks, 2)
+			for i := range make([]struct{}, 2) {
+				assert.Zero(t, checks[0].Check.GetID())
+				assert.Equal(t, fmt.Sprintf("check_%d", i), checks[i].Check.GetName())
+				hasLabelAssociations(t, checks[i].LabelAssociations, 1, "label_1")
+			}
+
 			dashs := newSum.Dashboards
 			require.Len(t, dashs, 1)
 			assert.Zero(t, dashs[0].ID)
@@ -330,9 +432,16 @@ func TestLauncher_Pkger(t *testing.T) {
 			require.Len(t, dashs[0].Charts, 1)
 			assert.Equal(t, influxdb.ViewPropertyTypeSingleStat, dashs[0].Charts[0].Properties.GetType())
 
+			newEndpoints := newSum.NotificationEndpoints
+			require.Len(t, newEndpoints, 1)
+			assert.Equal(t, endpoints[0].NotificationEndpoint.GetName(), newEndpoints[0].NotificationEndpoint.GetName())
+			assert.Equal(t, endpoints[0].NotificationEndpoint.GetDescription(), newEndpoints[0].NotificationEndpoint.GetDescription())
+			hasLabelAssociations(t, newEndpoints[0].LabelAssociations, 1, "label_1")
+
 			require.Len(t, newSum.TelegrafConfigs, 1)
 			assert.Equal(t, teles[0].TelegrafConfig.Name, newSum.TelegrafConfigs[0].TelegrafConfig.Name)
 			assert.Equal(t, teles[0].TelegrafConfig.Description, newSum.TelegrafConfigs[0].TelegrafConfig.Description)
+			hasLabelAssociations(t, newSum.TelegrafConfigs[0].LabelAssociations, 1, "label_1")
 
 			vars := newSum.Variables
 			require.Len(t, vars, 1)
@@ -357,6 +466,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					BucketService: l.BucketService(t),
 					killCount:     0, // kill on first update for bucket
 				}),
+				pkger.WithCheckSVC(l.CheckService()),
 				pkger.WithDashboardSVC(l.DashboardService(t)),
 				pkger.WithLabelSVC(l.LabelService(t)),
 				pkger.WithNoticationEndpointSVC(l.NotificationEndpointService(t)),
@@ -371,6 +481,16 @@ func TestLauncher_Pkger(t *testing.T) {
 			require.NoError(t, err)
 			// make sure the desc change is not applied and is rolled back to prev desc
 			assert.Equal(t, bkts[0].Description, bkt.Description)
+
+			ch, err := l.CheckService().FindCheckByID(ctx, checks[0].Check.GetID())
+			require.NoError(t, err)
+			ch.SetOwnerID(0)
+			deadman, ok := ch.(*check.Threshold)
+			require.True(t, ok)
+			// validate the change to query is not persisting returned to previous state.
+			// not checking entire bits, b/c we dont' save userID and so forth and makes a
+			// direct comparison very annoying...
+			assert.Equal(t, checks[0].Check.(*check.Threshold).Query.Text, deadman.Query.Text)
 
 			label, err := l.LabelService(t).FindLabelByID(ctx, influxdb.ID(labels[0].ID))
 			require.NoError(t, err)
@@ -466,13 +586,55 @@ spec:
           bucket = "rucket_3"
         [[inputs.cpu]]
           percpu = true
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: http_none_auth_notification_endpoint
       type: none
       description: http none auth desc
       method: GET
       url:  https://www.example.com/endpoint/noneauth
       status: inactive
+      associations:
+        - kind: Label
+          name: label_1
+    - kind: Check_Threshold
+      name: check_0
+      every: 1m
+      query:  >
+        from(bucket: "rucket_1")
+          |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+          |> filter(fn: (r) => r._measurement == "cpu")
+          |> filter(fn: (r) => r._field == "usage_idle")
+          |> aggregateWindow(every: 1m, fn: mean)
+          |> yield(name: "mean")
+      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+      tags:
+        - key: tag_1
+          value: val_1
+      thresholds:
+        - type: inside_range
+          level: INfO
+          min: 30.0
+          max: 45.0
+      associations:
+        - kind: Label
+          name: label_1
+    - kind: Check_Deadman
+      name: check_1
+      description: desc_1
+      every: 5m
+      level: cRiT
+      offset: 10s
+      query:  >
+        from(bucket: "rucket_1")
+          |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+          |> filter(fn: (r) => r._measurement == "cpu")
+          |> filter(fn: (r) => r._field == "usage_idle")
+          |> aggregateWindow(every: 1m, fn: mean)
+          |> yield(name: "mean")
+      reportZero: true
+      staleTime: 10m
+      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+      timeSince: 90s
       associations:
         - kind: Label
           name: label_1
@@ -505,13 +667,23 @@ spec:
       associations:
         - kind: Label
           name: label_1
-    - kind: NotificationEndpointHTTP
+    - kind: Notification_Endpoint_HTTP
       name: http_none_auth_notification_endpoint
       type: none
       description: new desc
       method: GET
       url:  https://www.example.com/endpoint/noneauth
       status: active
+    - kind: Check_Threshold
+      name: check_0
+      every: 1m
+      query:  from("rucket1") |> yield()
+      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+      thresholds:
+        - type: inside_range
+          level: INfO
+          min: 30.0
+          max: 45.0
 `
 
 type fakeBucketSVC struct {

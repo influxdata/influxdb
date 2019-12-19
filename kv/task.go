@@ -399,6 +399,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		if err != nil {
 			if err == influxdb.ErrTaskNotFound {
 				// we might have some crufty index's
+				k, v = c.Next()
 				continue
 			}
 			return nil, 0, err
@@ -1051,7 +1052,7 @@ func (s *Service) cancelRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 	run.Status = "canceled"
 
 	// save
-	bucket, err := tx.Bucket(taskBucket)
+	bucket, err := tx.Bucket(taskRunBucket)
 	if err != nil {
 		return influxdb.ErrUnexpectedTaskBucketErr(err)
 	}

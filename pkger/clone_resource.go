@@ -5,6 +5,9 @@ import (
 	"sort"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/notification"
+	icheck "github.com/influxdata/influxdb/notification/check"
+	"github.com/influxdata/influxdb/notification/endpoint"
 )
 
 // ResourceToClone is a resource that will be cloned.
@@ -64,6 +67,95 @@ func bucketToResource(bkt influxdb.Bucket, name string) Resource {
 		r[fieldBucketRetentionRules] = retentionRules{newRetentionRule(bkt.RetentionPeriod)}
 	}
 	return r
+}
+
+func checkToResource(ch influxdb.Check, name string) Resource {
+	if name == "" {
+		name = ch.GetName()
+	}
+	r := Resource{
+		fieldName:   name,
+		fieldStatus: string(influxdb.TaskStatusActive),
+	}
+	assignNonZeroStrings(r, map[string]string{fieldDescription: ch.GetDescription()})
+
+	assignFluxDur := func(field string, dur *notification.Duration) {
+		if dur == nil {
+			return
+		}
+		r[field] = dur.TimeDuration().String()
+	}
+
+	assignBase := func(base icheck.Base) {
+		r[fieldQuery] = base.Query.Text
+		r[fieldCheckStatusMessageTemplate] = base.StatusMessageTemplate
+		assignFluxDur(fieldEvery, base.Every)
+		assignFluxDur(fieldOffset, base.Offset)
+		var tags []Resource
+		for _, t := range base.Tags {
+			if t.Valid() != nil {
+				continue
+			}
+			tags = append(tags, Resource{
+				fieldKey:   t.Key,
+				fieldValue: t.Value,
+			})
+		}
+		if len(tags) > 0 {
+			r[fieldCheckTags] = tags
+		}
+	}
+
+	switch cT := ch.(type) {
+	case *icheck.Deadman:
+		r[fieldKind] = KindCheckDeadman.title()
+		assignBase(cT.Base)
+		assignFluxDur(fieldCheckTimeSince, cT.TimeSince)
+		assignFluxDur(fieldCheckStaleTime, cT.StaleTime)
+		r[fieldLevel] = cT.Level.String()
+		assignNonZeroBools(r, map[string]bool{fieldCheckReportZero: cT.ReportZero})
+	case *icheck.Threshold:
+		r[fieldKind] = KindCheckThreshold.title()
+		assignBase(cT.Base)
+		var thresholds []Resource
+		for _, th := range cT.Thresholds {
+			thresholds = append(thresholds, convertThreshold(th))
+		}
+		r[fieldCheckThresholds] = thresholds
+	}
+	return r
+}
+
+func convertThreshold(th icheck.ThresholdConfig) Resource {
+	r := Resource{fieldLevel: th.GetLevel().String()}
+
+	switch realType := th.(type) {
+	case icheck.Lesser:
+		r[fieldType] = string(thresholdTypeLesser)
+		assignNonZeroBools(r, map[string]bool{fieldCheckAllValues: realType.AllValues})
+		r[fieldValue] = realType.Value
+	case icheck.Greater:
+		r[fieldType] = string(thresholdTypeGreater)
+		assignNonZeroBools(r, map[string]bool{fieldCheckAllValues: realType.AllValues})
+		r[fieldValue] = realType.Value
+	case icheck.Range:
+		assignRangeThreshold(r, realType)
+	case *icheck.Range:
+		assignRangeThreshold(r, *realType)
+	}
+
+	return r
+}
+
+func assignRangeThreshold(r Resource, rangeThreshold icheck.Range) {
+	thType := thresholdTypeOutsideRange
+	if rangeThreshold.Within {
+		thType = thresholdTypeInsideRange
+	}
+	r[fieldType] = string(thType)
+	assignNonZeroBools(r, map[string]bool{fieldCheckAllValues: rangeThreshold.AllValues})
+	r[fieldMax] = rangeThreshold.Max
+	r[fieldMin] = rangeThreshold.Min
 }
 
 func convertCellView(cell influxdb.Cell) chart {
@@ -301,6 +393,46 @@ func labelToResource(l influxdb.Label, name string) Resource {
 	return r
 }
 
+func endpointToResource(e influxdb.NotificationEndpoint, name string) Resource {
+	if name == "" {
+		name = e.GetName()
+	}
+	r := Resource{
+		fieldName: name,
+	}
+	assignNonZeroStrings(r, map[string]string{
+		fieldDescription: e.GetDescription(),
+		fieldStatus:      string(e.GetStatus()),
+	})
+
+	switch actual := e.(type) {
+	case *endpoint.HTTP:
+		r[fieldKind] = KindNotificationEndpointHTTP.title()
+		r[fieldNotificationEndpointHTTPMethod] = actual.Method
+		r[fieldNotificationEndpointURL] = actual.URL
+		r[fieldType] = actual.AuthMethod
+		assignNonZeroSecrets(r, map[string]influxdb.SecretField{
+			fieldNotificationEndpointPassword: actual.Password,
+			fieldNotificationEndpointToken:    actual.Token,
+			fieldNotificationEndpointUsername: actual.Username,
+		})
+	case *endpoint.PagerDuty:
+		r[fieldKind] = KindNotificationEndpointPagerDuty.title()
+		r[fieldNotificationEndpointURL] = actual.ClientURL
+		assignNonZeroSecrets(r, map[string]influxdb.SecretField{
+			fieldNotificationEndpointRoutingKey: actual.RoutingKey,
+		})
+	case *endpoint.Slack:
+		r[fieldKind] = KindNotificationEndpointSlack.title()
+		r[fieldNotificationEndpointURL] = actual.URL
+		assignNonZeroSecrets(r, map[string]influxdb.SecretField{
+			fieldNotificationEndpointToken: actual.Token,
+		})
+	}
+
+	return r
+}
+
 func telegrafToResource(t influxdb.TelegrafConfig, name string) Resource {
 	if name == "" {
 		name = t.Name
@@ -375,6 +507,19 @@ func assignNonZeroStrings(r Resource, m map[string]string) {
 	for k, v := range m {
 		if v != "" {
 			r[k] = v
+		}
+	}
+}
+
+func assignNonZeroSecrets(r Resource, m map[string]influxdb.SecretField) {
+	for field, secret := range m {
+		if secret.Key == "" {
+			continue
+		}
+		r[field] = Resource{
+			fieldReferencesSecret: Resource{
+				fieldKey: secret.Key,
+			},
 		}
 	}
 }

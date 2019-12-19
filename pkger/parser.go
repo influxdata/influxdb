@@ -135,10 +135,14 @@ type Pkg struct {
 
 	mLabels                map[string]*label
 	mBuckets               map[string]*bucket
+	mChecks                map[string]*check
 	mDashboards            []*dashboard
 	mNotificationEndpoints map[string]*notificationEndpoint
+	mNotificationRules     []*notificationRule
 	mTelegrafs             []*telegraf
 	mVariables             map[string]*variable
+
+	mSecrets map[string]struct{}
 
 	isVerified bool // dry run has verified pkg resources with existing resources
 	isParsed   bool // indicates the pkg has been parsed and all resources graphed accordingly
@@ -154,6 +158,10 @@ func (p *Pkg) Summary() Summary {
 		sum.Buckets = append(sum.Buckets, b.summarize())
 	}
 
+	for _, c := range p.checks() {
+		sum.Checks = append(sum.Checks, c.summarize())
+	}
+
 	for _, d := range p.dashboards() {
 		sum.Dashboards = append(sum.Dashboards, d.summarize())
 	}
@@ -166,6 +174,10 @@ func (p *Pkg) Summary() Summary {
 
 	for _, n := range p.notificationEndpoints() {
 		sum.NotificationEndpoints = append(sum.NotificationEndpoints, n.summarize())
+	}
+
+	for _, r := range p.notificationRules() {
+		sum.NotificationRules = append(sum.NotificationRules, r.summarize())
 	}
 
 	for _, t := range p.telegrafs() {
@@ -241,6 +253,17 @@ func (p *Pkg) buckets() []*bucket {
 	return buckets
 }
 
+func (p *Pkg) checks() []*check {
+	checks := make([]*check, 0, len(p.mChecks))
+	for _, c := range p.mChecks {
+		checks = append(checks, c)
+	}
+
+	sort.Slice(checks, func(i, j int) bool { return checks[i].Name() < checks[j].Name() })
+
+	return checks
+}
+
 func (p *Pkg) labels() []*label {
 	labels := make(sortedLabels, 0, len(p.mLabels))
 	for _, b := range p.mLabels {
@@ -271,6 +294,21 @@ func (p *Pkg) notificationEndpoints() []*notificationEndpoint {
 		return ei.kind < ej.kind
 	})
 	return endpoints
+}
+
+func (p *Pkg) notificationRules() []*notificationRule {
+	rules := p.mNotificationRules[:]
+	sort.Slice(rules, func(i, j int) bool { return rules[i].name < rules[j].name })
+	return rules
+}
+
+func (p *Pkg) secrets() map[string]bool {
+	// copies the secrets map so we can destroy this one without concern
+	secrets := make(map[string]bool, len(p.mSecrets))
+	for secret := range p.mSecrets {
+		secrets[secret] = true
+	}
+	return secrets
 }
 
 func (p *Pkg) telegrafs() []*telegraf {
@@ -389,13 +427,17 @@ func (p *Pkg) validResources() error {
 }
 
 func (p *Pkg) graphResources() error {
+	p.mSecrets = make(map[string]struct{})
+
 	graphFns := []func() *parseErr{
 		// labels are first, this is to validate associations with other resources
 		p.graphLabels,
 		p.graphVariables,
 		p.graphBuckets,
+		p.graphChecks,
 		p.graphDashboards,
 		p.graphNotificationEndpoints,
+		p.graphNotificationRules,
 		p.graphTelegrafs,
 	}
 
@@ -474,6 +516,77 @@ func (p *Pkg) graphLabels() *parseErr {
 	})
 }
 
+func (p *Pkg) graphChecks() *parseErr {
+	p.mChecks = make(map[string]*check)
+
+	checkKinds := []struct {
+		kind      Kind
+		checkKind checkKind
+	}{
+		{kind: KindCheckThreshold, checkKind: checkKindThreshold},
+		{kind: KindCheckDeadman, checkKind: checkKindDeadman},
+	}
+	var pErr parseErr
+	for _, k := range checkKinds {
+		err := p.eachResource(k.kind, 1, func(r Resource) []validationErr {
+			if _, ok := p.mChecks[r.Name()]; ok {
+				return []validationErr{{
+					Field: "name",
+					Msg:   "duplicate name: " + r.Name(),
+				}}
+			}
+
+			ch := &check{
+				kind:          k.checkKind,
+				name:          r.Name(),
+				description:   r.stringShort(fieldDescription),
+				every:         r.durationShort(fieldEvery),
+				level:         r.stringShort(fieldLevel),
+				offset:        r.durationShort(fieldOffset),
+				query:         strings.TrimSpace(r.stringShort(fieldQuery)),
+				reportZero:    r.boolShort(fieldCheckReportZero),
+				staleTime:     r.durationShort(fieldCheckStaleTime),
+				status:        normStr(r.stringShort(fieldStatus)),
+				statusMessage: r.stringShort(fieldCheckStatusMessageTemplate),
+				timeSince:     r.durationShort(fieldCheckTimeSince),
+			}
+			for _, tagRes := range r.slcResource(fieldCheckTags) {
+				ch.tags = append(ch.tags, struct{ k, v string }{
+					k: tagRes.stringShort(fieldKey),
+					v: tagRes.stringShort(fieldValue),
+				})
+			}
+			for _, th := range r.slcResource(fieldCheckThresholds) {
+				ch.thresholds = append(ch.thresholds, threshold{
+					threshType: thresholdType(normStr(th.stringShort(fieldType))),
+					allVals:    th.boolShort(fieldCheckAllValues),
+					level:      strings.TrimSpace(strings.ToUpper(th.stringShort(fieldLevel))),
+					max:        th.float64Short(fieldMax),
+					min:        th.float64Short(fieldMin),
+					val:        th.float64Short(fieldValue),
+				})
+			}
+
+			failures := p.parseNestedLabels(r, func(l *label) error {
+				ch.labels = append(ch.labels, l)
+				p.mLabels[l.Name()].setMapping(ch, false)
+				return nil
+			})
+			sort.Sort(ch.labels)
+
+			p.mChecks[ch.Name()] = ch
+			return append(failures, ch.valid()...)
+		})
+		if err != nil {
+			pErr.append(err.Resources...)
+		}
+	}
+	if len(pErr.Resources) > 0 {
+		return &pErr
+	}
+	return nil
+}
+
 func (p *Pkg) graphDashboards() *parseErr {
 	p.mDashboards = make([]*dashboard, 0)
 	return p.eachResource(KindDashboard, 2, func(r Resource) []validationErr {
@@ -545,12 +658,12 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 				description: r.stringShort(fieldDescription),
 				method:      strings.TrimSpace(strings.ToUpper(r.stringShort(fieldNotificationEndpointHTTPMethod))),
 				httpType:    normStr(r.stringShort(fieldType)),
-				password:    r.stringShort(fieldNotificationEndpointPassword),
-				routingKey:  r.stringShort(fieldNotificationEndpointRoutingKey),
+				password:    r.references(fieldNotificationEndpointPassword),
+				routingKey:  r.references(fieldNotificationEndpointRoutingKey),
 				status:      normStr(r.stringShort(fieldStatus)),
-				token:       r.stringShort(fieldNotificationEndpointToken),
+				token:       r.references(fieldNotificationEndpointToken),
 				url:         r.stringShort(fieldNotificationEndpointURL),
-				username:    r.stringShort(fieldNotificationEndpointUsername),
+				username:    r.references(fieldNotificationEndpointUsername),
 			}
 			failures := p.parseNestedLabels(r, func(l *label) error {
 				endpoint.labels = append(endpoint.labels, l)
@@ -558,6 +671,13 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 				return nil
 			})
 			sort.Sort(endpoint.labels)
+
+			refs := []references{endpoint.password, endpoint.routingKey, endpoint.token, endpoint.username}
+			for _, ref := range refs {
+				if secret := ref.Secret; secret != "" {
+					p.mSecrets[secret] = struct{}{}
+				}
+			}
 
 			p.mNotificationEndpoints[endpoint.Name()] = endpoint
 			return append(failures, endpoint.valid()...)
@@ -570,6 +690,46 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 		return &pErr
 	}
 	return nil
+}
+
+func (p *Pkg) graphNotificationRules() *parseErr {
+	p.mNotificationRules = make([]*notificationRule, 0)
+	return p.eachResource(KindNotificationRule, 1, func(r Resource) []validationErr {
+		rule := &notificationRule{
+			name:         r.Name(),
+			endpointName: r.stringShort(fieldNotificationRuleEndpointName),
+			description:  r.stringShort(fieldDescription),
+			every:        r.durationShort(fieldEvery),
+			msgTemplate:  r.stringShort(fieldNotificationRuleMessageTemplate),
+			offset:       r.durationShort(fieldOffset),
+			status:       normStr(r.stringShort(fieldStatus)),
+		}
+
+		for _, sRule := range r.slcResource(fieldNotificationRuleStatusRules) {
+			rule.statusRules = append(rule.statusRules, struct{ curLvl, prevLvl string }{
+				curLvl:  strings.TrimSpace(strings.ToUpper(sRule.stringShort(fieldNotificationRuleCurrentLevel))),
+				prevLvl: strings.TrimSpace(strings.ToUpper(sRule.stringShort(fieldNotificationRulePreviousLevel))),
+			})
+		}
+
+		for _, tRule := range r.slcResource(fieldNotificationRuleTagRules) {
+			rule.tagRules = append(rule.tagRules, struct{ k, v, op string }{
+				k:  tRule.stringShort(fieldKey),
+				v:  tRule.stringShort(fieldValue),
+				op: normStr(tRule.stringShort(fieldOperator)),
+			})
+		}
+
+		failures := p.parseNestedLabels(r, func(l *label) error {
+			rule.labels = append(rule.labels, l)
+			p.mLabels[l.Name()].setMapping(rule, false)
+			return nil
+		})
+		sort.Sort(rule.labels)
+
+		p.mNotificationRules = append(p.mNotificationRules, rule)
+		return append(failures, rule.valid()...)
+	})
 }
 
 func (p *Pkg) graphVariables() *parseErr {
@@ -902,6 +1062,16 @@ func (r Resource) boolShort(key string) bool {
 	return b
 }
 
+func (r Resource) duration(key string) (time.Duration, bool) {
+	dur, err := time.ParseDuration(r.stringShort(key))
+	return dur, err == nil
+}
+
+func (r Resource) durationShort(key string) time.Duration {
+	dur, _ := r.duration(key)
+	return dur
+}
+
 func (r Resource) float64(key string) (float64, bool) {
 	f, ok := r[key].(float64)
 	if ok {
@@ -936,6 +1106,29 @@ func (r Resource) int(key string) (int, bool) {
 func (r Resource) intShort(key string) int {
 	i, _ := r.int(key)
 	return i
+}
+
+func (r Resource) references(key string) references {
+	v, ok := r[key]
+	if !ok {
+		return references{}
+	}
+
+	var ref references
+	for _, f := range []string{fieldReferencesSecret} {
+		resBody, ok := ifaceToResource(v)
+		if !ok {
+			continue
+		}
+		if keyRes, ok := ifaceToResource(resBody[f]); ok {
+			ref.Secret = keyRes.stringShort(fieldKey)
+		}
+	}
+	if ref.Secret != "" {
+		return ref
+	}
+
+	return references{val: v}
 }
 
 func (r Resource) string(key string) (string, bool) {

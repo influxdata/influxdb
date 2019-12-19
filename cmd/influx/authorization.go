@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // AuthorizationCreateFlags are command line args used when creating a authorization
@@ -77,6 +78,10 @@ func authCreateCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&authCreateFlags.org, "org", "o", "", "The organization name (required)")
 	cmd.MarkFlagRequired("org")
+	viper.BindEnv("ORG")
+	if h := viper.GetString("ORG"); h != "" {
+		authCreateFlags.org = h
+	}
 
 	cmd.Flags().StringVarP(&authCreateFlags.user, "user", "u", "", "The user name")
 
@@ -297,7 +302,16 @@ func authFindCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")
 	cmd.Flags().StringVarP(&authorizationFindFlags.userID, "user-id", "", "", "The user ID")
 	cmd.Flags().StringVarP(&authorizationFindFlags.org, "org", "o", "", "The org")
+	viper.BindEnv("ORG")
+	if h := viper.GetString("ORG"); h != "" {
+		authorizationFindFlags.org = h
+	}
+
 	cmd.Flags().StringVarP(&authorizationFindFlags.orgID, "org-id", "", "", "The org ID")
+	viper.BindEnv("ORG_ID")
+	if h := viper.GetString("ORG_ID"); h != "" {
+		authorizationFindFlags.orgID = h
+	}
 	cmd.Flags().StringVarP(&authorizationFindFlags.id, "id", "i", "", "The authorization ID")
 
 	return cmd
@@ -307,10 +321,14 @@ func newAuthorizationService(f Flags) (platform.AuthorizationService, error) {
 	if flags.local {
 		return newLocalKVService()
 	}
+
+	httpClient, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+
 	return &http.AuthorizationService{
-		Addr:               flags.host,
-		Token:              flags.token,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: httpClient,
 	}, nil
 }
 

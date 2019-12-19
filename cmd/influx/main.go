@@ -83,6 +83,9 @@ func influxCmd() *cobra.Command {
 			cmd.Usage()
 		},
 	}
+
+	viper.SetEnvPrefix("INFLUX")
+
 	cmd.AddCommand(
 		authCmd(),
 		bucketCmd,
@@ -98,8 +101,6 @@ func influxCmd() *cobra.Command {
 		userCmd(),
 		writeCmd,
 	)
-
-	viper.SetEnvPrefix("INFLUX")
 
 	cmd.PersistentFlags().StringVarP(&flags.token, "token", "t", "", "API token to be used throughout client calls")
 	viper.BindEnv("TOKEN")
@@ -119,7 +120,7 @@ func influxCmd() *cobra.Command {
 
 	cmd.PersistentFlags().BoolVar(&flags.skipVerify, "skip-verify", false, "SkipVerify controls whether a client verifies the server's certificate chain and host name.")
 
-	// Override help on all the commands tree
+	// Update help description for all commands in command tree
 	walk(cmd, func(c *cobra.Command) {
 		c.Flags().BoolP("help", "h", false, fmt.Sprintf("Help for the %s command ", c.Name()))
 	})
@@ -230,22 +231,47 @@ func newLocalKVService() (*kv.Service, error) {
 	return kv.NewService(zap.NewNop(), store), nil
 }
 
-func getOrgID(orgSVC influxdb.OrganizationService, id string, name string) (influxdb.ID, error) {
-	if id != "" {
-		influxOrgID, err := influxdb.IDFromString(id)
+type organization struct {
+	id, name string
+}
+
+func (org *organization) register(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&org.id, "org-id", "", "", "The ID of the organization that owns the bucket")
+	viper.BindEnv("ORG_ID")
+	if h := viper.GetString("ORG_ID"); h != "" {
+		org.id = h
+	}
+	cmd.Flags().StringVarP(&org.name, "org", "o", "", "The name of the organization that owns the bucket")
+	viper.BindEnv("ORG")
+	if h := viper.GetString("ORG"); h != "" {
+		org.name = h
+	}
+}
+
+func (org *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, error) {
+	if org.id != "" {
+		influxOrgID, err := influxdb.IDFromString(org.id)
 		if err != nil {
 			return 0, fmt.Errorf("invalid org ID provided: %s", err.Error())
 		}
 		return *influxOrgID, nil
-	} else if name != "" {
+	} else if org.name != "" {
 		org, err := orgSVC.FindOrganization(context.Background(), influxdb.OrganizationFilter{
-			Name: &name,
+			Name: &org.name,
 		})
 		if err != nil {
 			return 0, fmt.Errorf("%v", err)
 		}
 		return org.ID, nil
 	}
+	return 0, fmt.Errorf("failed to locate an organization id")
+}
 
-	return 0, fmt.Errorf("")
+func (org *organization) validOrgFlags() error {
+	if org.id == "" && org.name == "" {
+		return fmt.Errorf("must specify org-id, or org name")
+	} else if org.id != "" && org.name != "" {
+		return fmt.Errorf("must specify org-id, or org name not both")
+	}
+	return nil
 }
