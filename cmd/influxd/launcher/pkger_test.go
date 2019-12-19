@@ -260,7 +260,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				ResourceName: name,
 				LabelName:    labels[0].Name,
 				LabelID:      labels[0].ID,
-				ResourceID:   pkger.SafeID(id),
+				ResourceID:   id,
 				ResourceType: rt,
 			}
 		}
@@ -355,6 +355,14 @@ spec:
 					ID:   influxdb.ID(bkts[0].ID),
 				},
 				{
+					Kind: pkger.KindCheck,
+					ID:   checks[0].Check.GetID(),
+				},
+				{
+					Kind: pkger.KindCheck,
+					ID:   checks[1].Check.GetID(),
+				},
+				{
 					Kind: pkger.KindDashboard,
 					ID:   influxdb.ID(dashs[0].ID),
 				},
@@ -406,6 +414,14 @@ spec:
 			assert.Zero(t, bkts[0].ID)
 			assert.Equal(t, "rucket_1", bkts[0].Name)
 			hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
+
+			checks := newSum.Checks
+			require.Len(t, checks, 2)
+			for i := range make([]struct{}, 2) {
+				assert.Zero(t, checks[0].Check.GetID())
+				assert.Equal(t, fmt.Sprintf("check_%d", i), checks[i].Check.GetName())
+				hasLabelAssociations(t, checks[i].LabelAssociations, 1, "label_1")
+			}
 
 			dashs := newSum.Dashboards
 			require.Len(t, dashs, 1)

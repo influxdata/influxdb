@@ -94,6 +94,9 @@ type Bucket interface {
 	Put(key, value []byte) error
 	// Delete should error if the transaction it was called in is not writable.
 	Delete(key []byte) error
+	// ForwardCursor returns a forward cursor from the seek position provided.
+	// Other options can be supplied to provide direction and hints.
+	ForwardCursor(seek []byte, opts ...CursorOption) (ForwardCursor, error)
 }
 
 // Cursor is an abstraction for iterating/ranging through data. A concrete implementation
@@ -109,4 +112,62 @@ type Cursor interface {
 	Next() (k []byte, v []byte)
 	// Prev moves the cursor to the prev key in the bucket.
 	Prev() (k []byte, v []byte)
+}
+
+// ForwardCursor is an abstraction for interacting/ranging through data in one direction.
+type ForwardCursor interface {
+	// Next moves the cursor to the next key in the bucket.
+	Next() (k, v []byte)
+	// Err returns non-nil if an error occurred during cursor iteration.
+	// This should always be checked after Next returns a nil key/value.
+	Err() error
+	// Close is reponsible for freeing any resources created by the cursor.
+	Close() error
+}
+
+// CursorDirection is an integer used to define the direction
+// a request cursor operates in.
+type CursorDirection int
+
+const (
+	// CursorAscending directs a cursor to range in ascending order
+	CursorAscending CursorDirection = iota
+	// CursorAscending directs a cursor to range in descending order
+	CursorDescending
+)
+
+// CursorConfig is a type used to configure a new forward cursor.
+// It includes a direction and a set of hints
+type CursorConfig struct {
+	Direction CursorDirection
+	Hints     CursorHints
+}
+
+// NewCursorConfig constructs and configures a CursorConfig used to configure
+// a forward cursor.
+func NewCursorConfig(opts ...CursorOption) CursorConfig {
+	conf := CursorConfig{}
+	for _, opt := range opts {
+		opt(&conf)
+	}
+	return conf
+}
+
+// CursorOption is a functional option for configuring a forward cursor
+type CursorOption func(*CursorConfig)
+
+// WithCursorDirection sets the cursor direction on a provided cursor config
+func WithCursorDirection(direction CursorDirection) CursorOption {
+	return func(c *CursorConfig) {
+		c.Direction = direction
+	}
+}
+
+// WithCursorHints configs the provided hints on the cursor config
+func WithCursorHints(hints ...CursorHint) CursorOption {
+	return func(c *CursorConfig) {
+		for _, hint := range hints {
+			hint(&c.Hints)
+		}
+	}
 }

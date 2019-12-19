@@ -120,7 +120,7 @@ func influxCmd() *cobra.Command {
 
 	cmd.PersistentFlags().BoolVar(&flags.skipVerify, "skip-verify", false, "SkipVerify controls whether a client verifies the server's certificate chain and host name.")
 
-	// Override help on all the commands tree
+	// Update help description for all commands in command tree
 	walk(cmd, func(c *cobra.Command) {
 		c.Flags().BoolP("help", "h", false, fmt.Sprintf("Help for the %s command ", c.Name()))
 	})

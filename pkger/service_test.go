@@ -3,6 +3,7 @@ package pkger
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/notification"
 	icheck "github.com/influxdata/influxdb/notification/check"
 	"github.com/influxdata/influxdb/notification/endpoint"
 	"github.com/stretchr/testify/assert"
@@ -1101,6 +1103,24 @@ func TestService(t *testing.T) {
 	})
 
 	t.Run("CreatePkg", func(t *testing.T) {
+		newThresholdBase := func(i int) icheck.Base {
+			return icheck.Base{
+				ID:          influxdb.ID(i),
+				Name:        fmt.Sprintf("check_%d", i),
+				Description: fmt.Sprintf("desc_%d", i),
+				Every:       mustDuration(t, time.Minute),
+				Offset:      mustDuration(t, 15*time.Second),
+				Query: influxdb.DashboardQuery{
+					Text: `from(bucket: "telegraf") |> range(start: -1m) |> filter(fn: (r) => r._field == "usage_user")`,
+				},
+				StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
+				Tags: []influxdb.Tag{
+					{Key: "key_1", Value: "val_1"},
+					{Key: "key_2", Value: "val_2"},
+				},
+			}
+		}
+
 		t.Run("with metadata sets the new pkgs metadata", func(t *testing.T) {
 			svc := newTestService(WithLogger(zaptest.NewLogger(t)))
 
@@ -1170,6 +1190,102 @@ func TestService(t *testing.T) {
 						assert.Equal(t, expectedName, actual.Name)
 						assert.Equal(t, expected.Description, actual.Description)
 						assert.Equal(t, expected.RetentionPeriod, actual.RetentionPeriod)
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+
+			t.Run("checks", func(t *testing.T) {
+				tests := []struct {
+					name     string
+					newName  string
+					expected influxdb.Check
+				}{
+					{
+						name: "threshold",
+						expected: &icheck.Threshold{
+							Base: newThresholdBase(0),
+							Thresholds: []icheck.ThresholdConfig{
+								icheck.Lesser{
+									ThresholdConfigBase: icheck.ThresholdConfigBase{
+										AllValues: true,
+										Level:     notification.Critical,
+									},
+									Value: 20,
+								},
+								icheck.Greater{
+									ThresholdConfigBase: icheck.ThresholdConfigBase{
+										AllValues: true,
+										Level:     notification.Warn,
+									},
+									Value: 30,
+								},
+								icheck.Range{
+									ThresholdConfigBase: icheck.ThresholdConfigBase{
+										AllValues: true,
+										Level:     notification.Info,
+									},
+									Within: false, // outside_range
+									Min:    10,
+									Max:    25,
+								},
+								icheck.Range{
+									ThresholdConfigBase: icheck.ThresholdConfigBase{
+										AllValues: true,
+										Level:     notification.Ok,
+									},
+									Within: true, // inside_range
+									Min:    21,
+									Max:    24,
+								},
+							},
+						},
+					},
+					{
+						name:    "deadman",
+						newName: "new name",
+						expected: &icheck.Deadman{
+							Base:       newThresholdBase(1),
+							TimeSince:  mustDuration(t, time.Hour),
+							StaleTime:  mustDuration(t, 5*time.Hour),
+							ReportZero: true,
+							Level:      notification.Critical,
+						},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						id := influxdb.ID(1)
+						tt.expected.SetID(id)
+
+						checkSVC := mock.NewCheckService()
+						checkSVC.FindCheckByIDFn = func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+							if id != tt.expected.GetID() {
+								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+							}
+							return tt.expected, nil
+						}
+
+						svc := newTestService(WithCheckSVC(checkSVC))
+
+						resToClone := ResourceToClone{
+							Kind: KindCheck,
+							ID:   tt.expected.GetID(),
+							Name: tt.newName,
+						}
+						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+						require.NoError(t, err)
+
+						checks := pkg.Summary().Checks
+						require.Len(t, checks, 1)
+
+						actual := checks[0].Check
+						expectedName := tt.expected.GetName()
+						if tt.newName != "" {
+							expectedName = tt.newName
+						}
+						assert.Equal(t, expectedName, actual.GetName())
 					}
 					t.Run(tt.name, fn)
 				}
@@ -1901,6 +2017,24 @@ func TestService(t *testing.T) {
 				return &influxdb.Bucket{ID: 1, Name: "bucket"}, nil
 			}
 
+			checkSVC := mock.NewCheckService()
+			expectedCheck := &icheck.Deadman{
+				Base:       newThresholdBase(1),
+				TimeSince:  mustDuration(t, time.Hour),
+				StaleTime:  mustDuration(t, 5*time.Hour),
+				ReportZero: true,
+				Level:      notification.Critical,
+			}
+			checkSVC.FindChecksFn = func(ctx context.Context, f influxdb.CheckFilter, _ ...influxdb.FindOptions) ([]influxdb.Check, int, error) {
+				if f.OrgID == nil || *f.OrgID != orgID {
+					return nil, 0, errors.New("not suppose to get here")
+				}
+				return []influxdb.Check{expectedCheck}, 1, nil
+			}
+			checkSVC.FindCheckByIDFn = func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+				return expectedCheck, nil
+			}
+
 			dashSVC := mock.NewDashboardService()
 			dashSVC.FindDashboardsF = func(_ context.Context, f influxdb.DashboardFilter, _ influxdb.FindOptions) ([]*influxdb.Dashboard, int, error) {
 				if f.OrganizationID == nil || *f.OrganizationID != orgID {
@@ -1975,6 +2109,7 @@ func TestService(t *testing.T) {
 
 			svc := newTestService(
 				WithBucketSVC(bktSVC),
+				WithCheckSVC(checkSVC),
 				WithDashboardSVC(dashSVC),
 				WithLabelSVC(labelSVC),
 				WithNoticationEndpointSVC(endpointSVC),
@@ -1988,6 +2123,10 @@ func TestService(t *testing.T) {
 			bkts := summary.Buckets
 			require.Len(t, bkts, 1)
 			assert.Equal(t, "bucket", bkts[0].Name)
+
+			checks := summary.Checks
+			require.Len(t, checks, 1)
+			assert.Equal(t, "check_1", checks[0].Check.GetName())
 
 			dashs := summary.Dashboards
 			require.Len(t, dashs, 1)
