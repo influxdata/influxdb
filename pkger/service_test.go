@@ -3,6 +3,7 @@ package pkger
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/notification"
+	icheck "github.com/influxdata/influxdb/notification/check"
 	"github.com/influxdata/influxdb/notification/endpoint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +23,7 @@ func TestService(t *testing.T) {
 	newTestService := func(opts ...ServiceSetterFn) *Service {
 		opt := serviceOpt{
 			bucketSVC:   mock.NewBucketService(),
+			checkSVC:    mock.NewCheckService(),
 			dashSVC:     mock.NewDashboardService(),
 			labelSVC:    mock.NewLabelService(),
 			endpointSVC: mock.NewNotificationEndpointService(),
@@ -32,6 +36,7 @@ func TestService(t *testing.T) {
 
 		return NewService(
 			WithBucketSVC(opt.bucketSVC),
+			WithCheckSVC(opt.checkSVC),
 			WithDashboardSVC(opt.dashSVC),
 			WithLabelSVC(opt.labelSVC),
 			WithNoticationEndpointSVC(opt.endpointSVC),
@@ -100,6 +105,45 @@ func TestService(t *testing.T) {
 					}
 					assert.Equal(t, expected, diff.Buckets[0])
 				})
+			})
+		})
+
+		t.Run("checks", func(t *testing.T) {
+			testfileRunner(t, "testdata/checks.yml", func(t *testing.T, pkg *Pkg) {
+				fakeCheckSVC := mock.NewCheckService()
+				id := influxdb.ID(1)
+				existing := &icheck.Deadman{
+					Base: icheck.Base{
+						ID:          id,
+						Name:        "check_1",
+						Description: "old desc",
+					},
+				}
+				fakeCheckSVC.FindCheckFn = func(ctx context.Context, f influxdb.CheckFilter) (influxdb.Check, error) {
+					if f.Name != nil && *f.Name == "check_1" {
+						return existing, nil
+					}
+					return nil, errors.New("not found")
+				}
+
+				svc := newTestService(WithCheckSVC(fakeCheckSVC))
+
+				_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+				require.NoError(t, err)
+
+				checks := diff.Checks
+				require.Len(t, checks, 2)
+				check0 := checks[0]
+				assert.True(t, check0.IsNew())
+				assert.Equal(t, "check_0", check0.Name)
+				assert.Zero(t, check0.ID)
+				assert.Nil(t, check0.Old)
+
+				check1 := checks[1]
+				assert.False(t, check1.IsNew())
+				assert.Equal(t, "check_1", check1.Name)
+				assert.NotZero(t, check1.ID)
+				assert.Equal(t, existing, check1.Old.Check)
 			})
 		})
 
@@ -405,6 +449,71 @@ func TestService(t *testing.T) {
 			})
 		})
 
+		t.Run("checks", func(t *testing.T) {
+			t.Run("successfully creates pkg of checks", func(t *testing.T) {
+				testfileRunner(t, "testdata/checks.yml", func(t *testing.T, pkg *Pkg) {
+					fakeCheckSVC := mock.NewCheckService()
+					fakeCheckSVC.CreateCheckFn = func(ctx context.Context, c influxdb.CheckCreate, id influxdb.ID) error {
+						c.SetID(influxdb.ID(fakeCheckSVC.CreateCheckCalls.Count() + 1))
+						return nil
+					}
+
+					svc := newTestService(WithCheckSVC(fakeCheckSVC))
+
+					orgID := influxdb.ID(9000)
+
+					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					require.NoError(t, err)
+
+					require.Len(t, sum.Checks, 2)
+
+					containsWithID := func(t *testing.T, name string) {
+						for _, actualNotification := range sum.Checks {
+							actual := actualNotification.Check
+							if actual.GetID() == 0 {
+								assert.NotZero(t, actual.GetID())
+							}
+							if actual.GetName() == name {
+								return
+							}
+						}
+						assert.Fail(t, "did not find notification by name: "+name)
+					}
+
+					for _, expectedName := range []string{"check_0", "check_1"} {
+						containsWithID(t, expectedName)
+					}
+				})
+			})
+
+			t.Run("rolls back all created checks on an error", func(t *testing.T) {
+				testfileRunner(t, "testdata/checks.yml", func(t *testing.T, pkg *Pkg) {
+					fakeCheckSVC := mock.NewCheckService()
+					fakeCheckSVC.CreateCheckFn = func(ctx context.Context, c influxdb.CheckCreate, id influxdb.ID) error {
+						c.SetID(influxdb.ID(fakeCheckSVC.CreateCheckCalls.Count() + 1))
+						if fakeCheckSVC.CreateCheckCalls.Count() == 1 {
+							return errors.New("hit that kill count")
+						}
+						return nil
+					}
+
+					// create some dupes
+					for name, c := range pkg.mChecks {
+						pkg.mChecks["copy"+name] = c
+					}
+
+					svc := newTestService(WithCheckSVC(fakeCheckSVC))
+
+					orgID := influxdb.ID(9000)
+
+					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					require.Error(t, err)
+
+					assert.GreaterOrEqual(t, fakeCheckSVC.DeleteCheckCalls.Count(), 1)
+				})
+			})
+		})
+
 		t.Run("labels", func(t *testing.T) {
 			t.Run("successfully creates pkg of labels", func(t *testing.T) {
 				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
@@ -628,7 +737,7 @@ func TestService(t *testing.T) {
 
 						fakeLabelSVC := mock.NewLabelService()
 						fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
-							l.ID = influxdb.ID(fakeLabelSVC.CreateLabelCalls.Count())
+							l.ID = influxdb.ID(fakeLabelSVC.CreateLabelCalls.Count() + 1)
 							return nil
 						}
 						fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
@@ -678,6 +787,26 @@ func TestService(t *testing.T) {
 				)
 			})
 
+			t.Run("maps checks with labels", func(t *testing.T) {
+				testLabelMappingFn(
+					t,
+					"testdata/checks.yml",
+					2, // 1 for each check
+					func() []ServiceSetterFn {
+						fakeCheckSVC := mock.NewCheckService()
+						fakeCheckSVC.CreateCheckFn = func(ctx context.Context, c influxdb.CheckCreate, id influxdb.ID) error {
+							c.Check.SetID(influxdb.ID(rand.Int()))
+							return nil
+						}
+						fakeCheckSVC.FindCheckFn = func(ctx context.Context, f influxdb.CheckFilter) (influxdb.Check, error) {
+							return nil, errors.New("check not found")
+						}
+
+						return []ServiceSetterFn{WithCheckSVC(fakeCheckSVC)}
+					},
+				)
+			})
+
 			t.Run("maps dashboards with labels", func(t *testing.T) {
 				testLabelMappingFn(
 					t,
@@ -690,6 +819,22 @@ func TestService(t *testing.T) {
 							return nil
 						}
 						return []ServiceSetterFn{WithDashboardSVC(fakeDashSVC)}
+					},
+				)
+			})
+
+			t.Run("maps notificaton endpoints with labels", func(t *testing.T) {
+				testLabelMappingFn(
+					t,
+					"testdata/notification_endpoint.yml",
+					5, // 1 for each check
+					func() []ServiceSetterFn {
+						fakeEndpointSVC := mock.NewNotificationEndpointService()
+						fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
+							nr.SetID(influxdb.ID(rand.Int()))
+							return nil
+						}
+						return []ServiceSetterFn{WithNoticationEndpointSVC(fakeEndpointSVC)}
 					},
 				)
 			})
@@ -958,6 +1103,24 @@ func TestService(t *testing.T) {
 	})
 
 	t.Run("CreatePkg", func(t *testing.T) {
+		newThresholdBase := func(i int) icheck.Base {
+			return icheck.Base{
+				ID:          influxdb.ID(i),
+				Name:        fmt.Sprintf("check_%d", i),
+				Description: fmt.Sprintf("desc_%d", i),
+				Every:       mustDuration(t, time.Minute),
+				Offset:      mustDuration(t, 15*time.Second),
+				Query: influxdb.DashboardQuery{
+					Text: `from(bucket: "telegraf") |> range(start: -1m) |> filter(fn: (r) => r._field == "usage_user")`,
+				},
+				StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
+				Tags: []influxdb.Tag{
+					{Key: "key_1", Value: "val_1"},
+					{Key: "key_2", Value: "val_2"},
+				},
+			}
+		}
+
 		t.Run("with metadata sets the new pkgs metadata", func(t *testing.T) {
 			svc := newTestService(WithLogger(zaptest.NewLogger(t)))
 
@@ -1027,6 +1190,102 @@ func TestService(t *testing.T) {
 						assert.Equal(t, expectedName, actual.Name)
 						assert.Equal(t, expected.Description, actual.Description)
 						assert.Equal(t, expected.RetentionPeriod, actual.RetentionPeriod)
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+
+			t.Run("checks", func(t *testing.T) {
+				tests := []struct {
+					name     string
+					newName  string
+					expected influxdb.Check
+				}{
+					{
+						name: "threshold",
+						expected: &icheck.Threshold{
+							Base: newThresholdBase(0),
+							Thresholds: []icheck.ThresholdConfig{
+								icheck.Lesser{
+									ThresholdConfigBase: icheck.ThresholdConfigBase{
+										AllValues: true,
+										Level:     notification.Critical,
+									},
+									Value: 20,
+								},
+								icheck.Greater{
+									ThresholdConfigBase: icheck.ThresholdConfigBase{
+										AllValues: true,
+										Level:     notification.Warn,
+									},
+									Value: 30,
+								},
+								icheck.Range{
+									ThresholdConfigBase: icheck.ThresholdConfigBase{
+										AllValues: true,
+										Level:     notification.Info,
+									},
+									Within: false, // outside_range
+									Min:    10,
+									Max:    25,
+								},
+								icheck.Range{
+									ThresholdConfigBase: icheck.ThresholdConfigBase{
+										AllValues: true,
+										Level:     notification.Ok,
+									},
+									Within: true, // inside_range
+									Min:    21,
+									Max:    24,
+								},
+							},
+						},
+					},
+					{
+						name:    "deadman",
+						newName: "new name",
+						expected: &icheck.Deadman{
+							Base:       newThresholdBase(1),
+							TimeSince:  mustDuration(t, time.Hour),
+							StaleTime:  mustDuration(t, 5*time.Hour),
+							ReportZero: true,
+							Level:      notification.Critical,
+						},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						id := influxdb.ID(1)
+						tt.expected.SetID(id)
+
+						checkSVC := mock.NewCheckService()
+						checkSVC.FindCheckByIDFn = func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+							if id != tt.expected.GetID() {
+								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+							}
+							return tt.expected, nil
+						}
+
+						svc := newTestService(WithCheckSVC(checkSVC))
+
+						resToClone := ResourceToClone{
+							Kind: KindCheck,
+							ID:   tt.expected.GetID(),
+							Name: tt.newName,
+						}
+						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+						require.NoError(t, err)
+
+						checks := pkg.Summary().Checks
+						require.Len(t, checks, 1)
+
+						actual := checks[0].Check
+						expectedName := tt.expected.GetName()
+						if tt.newName != "" {
+							expectedName = tt.newName
+						}
+						assert.Equal(t, expectedName, actual.GetName())
 					}
 					t.Run(tt.name, fn)
 				}
@@ -1758,6 +2017,24 @@ func TestService(t *testing.T) {
 				return &influxdb.Bucket{ID: 1, Name: "bucket"}, nil
 			}
 
+			checkSVC := mock.NewCheckService()
+			expectedCheck := &icheck.Deadman{
+				Base:       newThresholdBase(1),
+				TimeSince:  mustDuration(t, time.Hour),
+				StaleTime:  mustDuration(t, 5*time.Hour),
+				ReportZero: true,
+				Level:      notification.Critical,
+			}
+			checkSVC.FindChecksFn = func(ctx context.Context, f influxdb.CheckFilter, _ ...influxdb.FindOptions) ([]influxdb.Check, int, error) {
+				if f.OrgID == nil || *f.OrgID != orgID {
+					return nil, 0, errors.New("not suppose to get here")
+				}
+				return []influxdb.Check{expectedCheck}, 1, nil
+			}
+			checkSVC.FindCheckByIDFn = func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+				return expectedCheck, nil
+			}
+
 			dashSVC := mock.NewDashboardService()
 			dashSVC.FindDashboardsF = func(_ context.Context, f influxdb.DashboardFilter, _ influxdb.FindOptions) ([]*influxdb.Dashboard, int, error) {
 				if f.OrganizationID == nil || *f.OrganizationID != orgID {
@@ -1832,6 +2109,7 @@ func TestService(t *testing.T) {
 
 			svc := newTestService(
 				WithBucketSVC(bktSVC),
+				WithCheckSVC(checkSVC),
 				WithDashboardSVC(dashSVC),
 				WithLabelSVC(labelSVC),
 				WithNoticationEndpointSVC(endpointSVC),
@@ -1845,6 +2123,10 @@ func TestService(t *testing.T) {
 			bkts := summary.Buckets
 			require.Len(t, bkts, 1)
 			assert.Equal(t, "bucket", bkts[0].Name)
+
+			checks := summary.Checks
+			require.Len(t, checks, 1)
+			assert.Equal(t, "check_1", checks[0].Check.GetName())
 
 			dashs := summary.Dashboards
 			require.Len(t, dashs, 1)

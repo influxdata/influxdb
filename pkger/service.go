@@ -27,9 +27,10 @@ type SVC interface {
 
 type serviceOpt struct {
 	logger      *zap.Logger
-	labelSVC    influxdb.LabelService
 	bucketSVC   influxdb.BucketService
+	checkSVC    influxdb.CheckService
 	dashSVC     influxdb.DashboardService
+	labelSVC    influxdb.LabelService
 	endpointSVC influxdb.NotificationEndpointService
 	secretSVC   influxdb.SecretService
 	teleSVC     influxdb.TelegrafConfigStore
@@ -52,6 +53,13 @@ func WithLogger(log *zap.Logger) ServiceSetterFn {
 func WithBucketSVC(bktSVC influxdb.BucketService) ServiceSetterFn {
 	return func(opt *serviceOpt) {
 		opt.bucketSVC = bktSVC
+	}
+}
+
+// WithCheckSVC sets the check service.
+func WithCheckSVC(checkSVC influxdb.CheckService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.checkSVC = checkSVC
 	}
 }
 
@@ -102,9 +110,10 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 type Service struct {
 	log *zap.Logger
 
-	labelSVC    influxdb.LabelService
 	bucketSVC   influxdb.BucketService
+	checkSVC    influxdb.CheckService
 	dashSVC     influxdb.DashboardService
+	labelSVC    influxdb.LabelService
 	endpointSVC influxdb.NotificationEndpointService
 	secretSVC   influxdb.SecretService
 	teleSVC     influxdb.TelegrafConfigStore
@@ -128,6 +137,7 @@ func NewService(opts ...ServiceSetterFn) *Service {
 	return &Service{
 		log:           opt.logger,
 		bucketSVC:     opt.bucketSVC,
+		checkSVC:      opt.checkSVC,
 		labelSVC:      opt.labelSVC,
 		dashSVC:       opt.dashSVC,
 		endpointSVC:   opt.endpointSVC,
@@ -267,6 +277,10 @@ func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID) ([]R
 			cloneFn: s.cloneOrgBuckets,
 		},
 		{
+			resType: KindCheck.ResourceType(),
+			cloneFn: s.cloneOrgChecks,
+		},
+		{
 			resType: KindDashboard.ResourceType(),
 			cloneFn: s.cloneOrgDashboards,
 		},
@@ -316,6 +330,24 @@ func (s *Service) cloneOrgBuckets(ctx context.Context, orgID influxdb.ID) ([]Res
 		resources = append(resources, ResourceToClone{
 			Kind: KindBucket,
 			ID:   b.ID,
+		})
+	}
+	return resources, nil
+}
+
+func (s *Service) cloneOrgChecks(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	checks, _, err := s.checkSVC.FindChecks(ctx, influxdb.CheckFilter{
+		OrgID: &orgID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resources := make([]ResourceToClone, 0, len(checks))
+	for _, c := range checks {
+		resources = append(resources, ResourceToClone{
+			Kind: KindCheck,
+			ID:   c.GetID(),
 		})
 	}
 	return resources, nil
@@ -424,6 +456,14 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 			return nil, err
 		}
 		newResource = bucketToResource(*bkt, r.Name)
+	case r.Kind.is(KindCheck),
+		r.Kind.is(KindCheckDeadman),
+		r.Kind.is(KindCheckThreshold):
+		ch, err := s.checkSVC.FindCheckByID(ctx, r.ID)
+		if err != nil {
+			return nil, err
+		}
+		newResource = checkToResource(ch, r.Name)
 	case r.Kind.is(KindDashboard):
 		dash, err := s.findDashboardByIDFull(ctx, r.ID)
 		if err != nil {
@@ -544,6 +584,11 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 		return Summary{}, Diff{}, err
 	}
 
+	diffChecks, err := s.dryRunChecks(ctx, orgID, pkg)
+	if err != nil {
+		return Summary{}, Diff{}, err
+	}
+
 	diffLabels, err := s.dryRunLabels(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
@@ -571,6 +616,7 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 
 	diff := Diff{
 		Buckets:               diffBuckets,
+		Checks:                diffChecks,
 		Dashboards:            s.dryRunDashboards(pkg),
 		Labels:                diffLabels,
 		LabelMappings:         diffLabelMappings,
@@ -600,6 +646,36 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 
 	var diffs []DiffBucket
 	for _, diff := range mExistingBkts {
+		diffs = append(diffs, diff)
+	}
+	sort.Slice(diffs, func(i, j int) bool {
+		return diffs[i].Name < diffs[j].Name
+	})
+
+	return diffs, nil
+}
+
+func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffCheck, error) {
+	mExistingChecks := make(map[string]DiffCheck)
+	checks := pkg.checks()
+	for i := range checks {
+		c := checks[i]
+		name := c.Name()
+		existingCheck, err := s.checkSVC.FindCheck(ctx, influxdb.CheckFilter{
+			Name:  &name,
+			OrgID: &orgID,
+		})
+		switch err {
+		case nil:
+			c.existing = existingCheck
+			mExistingChecks[c.Name()] = newDiffCheck(c, existingCheck)
+		default:
+			mExistingChecks[c.Name()] = newDiffCheck(c, nil)
+		}
+	}
+
+	var diffs []DiffCheck
+	for _, diff := range mExistingChecks {
 		diffs = append(diffs, diff)
 	}
 	sort.Slice(diffs, func(i, j int) bool {
@@ -785,6 +861,7 @@ type (
 func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabelMapping, error) {
 	mappers := []labelMappers{
 		mapperBuckets(pkg.buckets()),
+		mapperChecks(pkg.checks()),
 		mapperDashboards(pkg.mDashboards),
 		mapperNotificationEndpoints(pkg.notificationEndpoints()),
 		mapperTelegrafs(pkg.mTelegrafs),
@@ -908,6 +985,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 			// primary resources
 			s.applyVariables(pkg.variables()),
 			s.applyBuckets(pkg.buckets()),
+			s.applyChecks(pkg.checks()),
 			s.applyDashboards(pkg.dashboards()),
 			s.applyNotificationEndpoints(pkg.notificationEndpoints()),
 			s.applyTelegrafs(pkg.telegrafs()),
@@ -1028,6 +1106,98 @@ func (s *Service) applyBucket(ctx context.Context, b bucket) (influxdb.Bucket, e
 	}
 
 	return influxBucket, nil
+}
+
+func (s *Service) applyChecks(checks []*check) applier {
+	const resource = "check"
+
+	mutex := new(doMutex)
+	rollbackChecks := make([]*check, 0, len(checks))
+
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+		var c check
+		mutex.Do(func() {
+			checks[i].orgID = orgID
+			c = *checks[i]
+		})
+
+		influxBucket, err := s.applyCheck(ctx, c, userID)
+		if err != nil {
+			return &applyErrBody{
+				name: c.Name(),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			checks[i].id = influxBucket.GetID()
+			rollbackChecks = append(rollbackChecks, checks[i])
+		})
+
+		return nil
+	}
+
+	return applier{
+		creater: creater{
+			entries: len(checks),
+			fn:      createFn,
+		},
+		rollbacker: rollbacker{
+			resource: resource,
+			fn:       func() error { return s.rollbackChecks(rollbackChecks) },
+		},
+	}
+}
+
+func (s *Service) rollbackChecks(checks []*check) error {
+	var errs []string
+	for _, c := range checks {
+		if c.existing == nil {
+			err := s.checkSVC.DeleteCheck(context.Background(), c.ID())
+			if err != nil {
+				errs = append(errs, c.ID().String())
+			}
+			continue
+		}
+
+		_, err := s.checkSVC.UpdateCheck(context.Background(), c.ID(), influxdb.CheckCreate{
+			Check:  c.summarize().Check,
+			Status: influxdb.Status(c.status),
+		})
+		if err != nil {
+			errs = append(errs, c.ID().String())
+		}
+	}
+
+	if len(errs) > 0 {
+		// TODO: fixup error
+		return fmt.Errorf(`check_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
+func (s *Service) applyCheck(ctx context.Context, c check, userID influxdb.ID) (influxdb.Check, error) {
+	if c.existing != nil {
+		influxCheck, err := s.checkSVC.UpdateCheck(ctx, c.ID(), influxdb.CheckCreate{
+			Check:  c.summarize().Check,
+			Status: c.Status(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return influxCheck, nil
+	}
+
+	checkStub := influxdb.CheckCreate{
+		Check:  c.summarize().Check,
+		Status: c.Status(),
+	}
+	err := s.checkSVC.CreateCheck(ctx, checkStub, userID)
+	if err != nil {
+		return nil, err
+	}
+	return checkStub.Check, nil
 }
 
 func (s *Service) applyDashboards(dashboards []*dashboard) applier {
@@ -1233,8 +1403,6 @@ func (s *Service) applyNotificationEndpoints(endpoints []*notificationEndpoint) 
 					endpoints[i].username.Secret = secret.Key
 				case strings.HasSuffix(secret.Key, "-password"):
 					endpoints[i].password.Secret = secret.Key
-				default:
-					fmt.Println("no match for key: ", secret.Key)
 				}
 			}
 			rollbackEndpoints = append(rollbackEndpoints, endpoints[i])
@@ -1453,7 +1621,7 @@ func (s *Service) applyLabelMappings(labelMappings []SummaryLabelMapping) applie
 		mutex.Do(func() {
 			mapping = labelMappings[i]
 		})
-		if mapping.exists {
+		if mapping.exists || mapping.LabelID == 0 || mapping.ResourceID == 0 {
 			// this block here does 2 things, it does not write a
 			// mapping when one exists. it also avoids having to worry
 			// about deleting an existing mapping since it will not be

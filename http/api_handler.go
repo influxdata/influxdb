@@ -184,6 +184,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	telegrafBackend := NewTelegrafBackend(b.Logger.With(zap.String("handler", "telegraf")), b)
 	telegrafBackend.TelegrafService = authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)
+	h.Mount(prefixTelegrafPlugins, NewTelegrafHandler(b.Logger, telegrafBackend))
 	h.Mount(prefixTelegraf, NewTelegrafHandler(b.Logger, telegrafBackend))
 
 	userBackend := NewUserBackend(b.Logger.With(zap.String("handler", "user")), b)
@@ -241,6 +242,7 @@ var apiLinks = map[string]interface{}{
 	"tasks":     "/api/v2/tasks",
 	"checks":    "/api/v2/checks",
 	"telegrafs": "/api/v2/telegrafs",
+	"plugins":   "/api/v2/telegraf/plugins",
 	"users":     "/api/v2/users",
 	"write":     "/api/v2/write",
 	"delete":    "/api/v2/delete",

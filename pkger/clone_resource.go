@@ -5,6 +5,8 @@ import (
 	"sort"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/notification"
+	icheck "github.com/influxdata/influxdb/notification/check"
 	"github.com/influxdata/influxdb/notification/endpoint"
 )
 
@@ -65,6 +67,95 @@ func bucketToResource(bkt influxdb.Bucket, name string) Resource {
 		r[fieldBucketRetentionRules] = retentionRules{newRetentionRule(bkt.RetentionPeriod)}
 	}
 	return r
+}
+
+func checkToResource(ch influxdb.Check, name string) Resource {
+	if name == "" {
+		name = ch.GetName()
+	}
+	r := Resource{
+		fieldName:   name,
+		fieldStatus: string(influxdb.TaskStatusActive),
+	}
+	assignNonZeroStrings(r, map[string]string{fieldDescription: ch.GetDescription()})
+
+	assignFluxDur := func(field string, dur *notification.Duration) {
+		if dur == nil {
+			return
+		}
+		r[field] = dur.TimeDuration().String()
+	}
+
+	assignBase := func(base icheck.Base) {
+		r[fieldQuery] = base.Query.Text
+		r[fieldCheckStatusMessageTemplate] = base.StatusMessageTemplate
+		assignFluxDur(fieldEvery, base.Every)
+		assignFluxDur(fieldOffset, base.Offset)
+		var tags []Resource
+		for _, t := range base.Tags {
+			if t.Valid() != nil {
+				continue
+			}
+			tags = append(tags, Resource{
+				fieldKey:   t.Key,
+				fieldValue: t.Value,
+			})
+		}
+		if len(tags) > 0 {
+			r[fieldCheckTags] = tags
+		}
+	}
+
+	switch cT := ch.(type) {
+	case *icheck.Deadman:
+		r[fieldKind] = KindCheckDeadman.title()
+		assignBase(cT.Base)
+		assignFluxDur(fieldCheckTimeSince, cT.TimeSince)
+		assignFluxDur(fieldCheckStaleTime, cT.StaleTime)
+		r[fieldLevel] = cT.Level.String()
+		assignNonZeroBools(r, map[string]bool{fieldCheckReportZero: cT.ReportZero})
+	case *icheck.Threshold:
+		r[fieldKind] = KindCheckThreshold.title()
+		assignBase(cT.Base)
+		var thresholds []Resource
+		for _, th := range cT.Thresholds {
+			thresholds = append(thresholds, convertThreshold(th))
+		}
+		r[fieldCheckThresholds] = thresholds
+	}
+	return r
+}
+
+func convertThreshold(th icheck.ThresholdConfig) Resource {
+	r := Resource{fieldLevel: th.GetLevel().String()}
+
+	switch realType := th.(type) {
+	case icheck.Lesser:
+		r[fieldType] = string(thresholdTypeLesser)
+		assignNonZeroBools(r, map[string]bool{fieldCheckAllValues: realType.AllValues})
+		r[fieldValue] = realType.Value
+	case icheck.Greater:
+		r[fieldType] = string(thresholdTypeGreater)
+		assignNonZeroBools(r, map[string]bool{fieldCheckAllValues: realType.AllValues})
+		r[fieldValue] = realType.Value
+	case icheck.Range:
+		assignRangeThreshold(r, realType)
+	case *icheck.Range:
+		assignRangeThreshold(r, *realType)
+	}
+
+	return r
+}
+
+func assignRangeThreshold(r Resource, rangeThreshold icheck.Range) {
+	thType := thresholdTypeOutsideRange
+	if rangeThreshold.Within {
+		thType = thresholdTypeInsideRange
+	}
+	r[fieldType] = string(thType)
+	assignNonZeroBools(r, map[string]bool{fieldCheckAllValues: rangeThreshold.AllValues})
+	r[fieldMax] = rangeThreshold.Max
+	r[fieldMin] = rangeThreshold.Min
 }
 
 func convertCellView(cell influxdb.Cell) chart {

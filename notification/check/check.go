@@ -96,8 +96,7 @@ func (b Base) generateTaskOption() ast.Statement {
 }
 
 func (b Base) generateFluxASTCheckDefinition(checkType string) ast.Statement {
-	props := []*ast.Property{}
-	props = append(props, flux.Property("_check_id", flux.String(b.ID.String())))
+	props := append([]*ast.Property{}, flux.Property("_check_id", flux.String(b.ID.String())))
 	props = append(props, flux.Property("_check_name", flux.String(b.Name)))
 	props = append(props, flux.Property("_type", flux.String(checkType)))
 
@@ -187,22 +186,20 @@ var typeToCheck = map[string](func() influxdb.Check){
 	"threshold": func() influxdb.Check { return &Threshold{} },
 }
 
-type rawRuleJSON struct {
-	Typ string `json:"type"`
-}
-
 // UnmarshalJSON will convert
 func UnmarshalJSON(b []byte) (influxdb.Check, error) {
-	var raw rawRuleJSON
+	var raw struct {
+		Type string `json:"type"`
+	}
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return nil, &influxdb.Error{
 			Msg: "unable to detect the check type from json",
 		}
 	}
-	convertedFunc, ok := typeToCheck[raw.Typ]
+	convertedFunc, ok := typeToCheck[raw.Type]
 	if !ok {
 		return nil, &influxdb.Error{
-			Msg: fmt.Sprintf("invalid check type %s", raw.Typ),
+			Msg: fmt.Sprintf("invalid check type %s", raw.Type),
 		}
 	}
 	converted := convertedFunc()

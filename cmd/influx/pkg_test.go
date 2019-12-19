@@ -115,7 +115,7 @@ func Test_Pkg(t *testing.T) {
 		}{
 			{
 				pkgFileArgs: pkgFileArgs{
-					name:     "yaml out",
+					name:     "yaml out with org id",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
 					flags: []flagArg{
@@ -133,7 +133,7 @@ func Test_Pkg(t *testing.T) {
 			},
 			{
 				pkgFileArgs: pkgFileArgs{
-					name:     "yaml out",
+					name:     "yaml out with org name",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
 					flags: []flagArg{
@@ -151,7 +151,7 @@ func Test_Pkg(t *testing.T) {
 			},
 			{
 				pkgFileArgs: pkgFileArgs{
-					name:     "yaml out",
+					name:     "yaml out with org name env var",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
 					flags: []flagArg{
@@ -169,7 +169,7 @@ func Test_Pkg(t *testing.T) {
 			},
 			{
 				pkgFileArgs: pkgFileArgs{
-					name:     "yaml out",
+					name:     "yaml out with org id env var",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
 					flags: []flagArg{
