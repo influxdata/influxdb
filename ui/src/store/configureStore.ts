@@ -35,6 +35,7 @@ import {limitsReducer, LimitsState} from 'src/cloud/reducers/limits'
 import checksReducer from 'src/alerting/reducers/checks'
 import rulesReducer from 'src/alerting/reducers/notifications/rules'
 import endpointsReducer from 'src/alerting/reducers/notifications/endpoints'
+import cellsReducer from 'src/dashboards/reducers/n.cells'
 import {
   pluginsReducer,
   pluginsResourceReducer,
@@ -70,6 +71,7 @@ export const rootReducer = combineReducers<ReducerState>({
   ranges: rangesReducer,
   resources: combineReducers({
     dashboards: nDashboardsReducer,
+    cells: cellsReducer,
   }),
   routing: routerReducer,
   rules: rulesReducer,

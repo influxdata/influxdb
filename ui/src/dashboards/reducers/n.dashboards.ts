@@ -2,7 +2,7 @@
 import {combineReducers} from 'redux'
 
 // Types
-import {NDashboard, RemoteDataState} from 'src/types'
+import {NDashboard, RemoteDataState, AppState} from 'src/types'
 import {
   SET_DASHBOARDS,
   DashboardActionTypes,
@@ -65,21 +65,22 @@ const allIDs = (
   }
 }
 
-// const getAllDashboards = state => state.allIDs.map(id => state.byID[id])
-
 const status = (
   state: RemoteDataState = RemoteDataState.NotStarted,
   action: DashboardActionTypes
 ) => {
   switch (action.type) {
     case SET_DASHBOARDS: {
-      return state
+      return action.status
     }
 
     default:
       return state
   }
 }
+
+export const getAllDashboards = ({resources}: AppState) =>
+  resources.dashboards.allIDs.map(id => resources.dashboards.byID[id])
 
 const dashboards = combineReducers({
   byID,

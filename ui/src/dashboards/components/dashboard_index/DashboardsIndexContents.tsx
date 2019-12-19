@@ -15,7 +15,10 @@ import {checkDashboardLimits as checkDashboardLimitsAction} from 'src/cloud/acti
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Dashboard, AppState, RemoteDataState} from 'src/types'
+import {NDashboard as Dashboard, AppState, RemoteDataState} from 'src/types'
+
+// Selectors
+import {getAllDashboards} from 'src/dashboards/reducers/n.dashboards'
 
 interface OwnProps {
   onCreateDashboard: () => void
@@ -90,14 +93,13 @@ class DashboardsIndexContents extends Component<Props> {
 
 const mstp = (state: AppState): StateProps => {
   const {
-    dashboards: {list: dashboards},
     cloud: {
       limits: {status},
     },
   } = state
 
   return {
-    dashboards,
+    dashboards: getAllDashboards(state),
     limitStatus: status,
   }
 }

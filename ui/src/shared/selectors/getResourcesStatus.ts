@@ -12,7 +12,16 @@ export const getResourcesStatus = (
         `Loading status for resource ${resource} is undefined in getResourcesStatus`
       )
     }
-    return state[resource].status
+
+    // TODO(watts): normalization remove when done
+    switch (resource) {
+      case ResourceType.Dashboards: {
+        return state.resources[resource].status
+      }
+
+      default:
+        return state[resource].status
+    }
   })
 
   let status = RemoteDataState.NotStarted

@@ -105,17 +105,16 @@ export enum ResourceType {
 
 @ErrorHandling
 class GetResources extends PureComponent<Props, StateProps> {
-  public async componentDidMount() {
+  public componentDidMount() {
     const {resources} = this.props
     const promises = []
-    await this.props.getNDashboards()
     resources.forEach(resource => {
       promises.push(this.getResourceDetails(resource))
     })
     Promise.all(promises)
   }
 
-  private getResourceDetails(resource) {
+  private getResourceDetails(resource: ResourceType) {
     switch (resource) {
       case ResourceType.Dashboards: {
         return this.props.getDashboards()
@@ -240,14 +239,13 @@ const mdtp = {
   getVariables: getVariables,
   getScrapers: getScrapers,
   getAuthorizations: getAuthorizations,
-  getDashboards: getDashboardsAsync,
   getTasks: getTasks,
   getTemplates: getTemplates,
   getMembers: getMembers,
   getChecks: getChecks,
   getNotificationRules: getNotificationRules,
   getEndpoints: getEndpoints,
-  getNDashboards: getDashboards,
+  getDashboards: getDashboards,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

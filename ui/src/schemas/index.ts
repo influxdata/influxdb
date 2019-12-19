@@ -26,19 +26,16 @@ export interface NormalizedAppState {
       byID: {
         [uuid: string]: NCell
       }
-      allIds: string[]
     }
     labels: {
       byID: {
         [uuid: string]: Label
       }
-      allIDs: string[]
     }
     views: {
       byID: {
         [uuid: string]: View
       }
-      allIDs: string[]
     }
   }
 }

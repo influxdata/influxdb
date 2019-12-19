@@ -9,7 +9,7 @@ import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
 
 // Types
-import {Dashboard} from 'src/types'
+import {NDashboard as Dashboard} from 'src/types'
 import {Sort, ComponentSize} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 
@@ -74,7 +74,7 @@ class DashboardsTable extends PureComponent<Props, State> {
           emptyState={this.emptyState}
           className={dashboards.length ? 'dashboards-card-grid' : ''}
         >
-          {dashboards.length ? (
+          {!!dashboards.length && (
             <DashboardCards
               dashboards={dashboards}
               sortKey={sortKey}
@@ -85,7 +85,7 @@ class DashboardsTable extends PureComponent<Props, State> {
               onUpdateDashboard={onUpdateDashboard}
               onFilterChange={onFilterChange}
             />
-          ) : null}
+          )}
         </ResourceList.Body>
       </ResourceList>
     )

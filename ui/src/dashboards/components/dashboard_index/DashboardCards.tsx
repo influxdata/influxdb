@@ -9,7 +9,7 @@ import DashboardCard from 'src/dashboards/components/dashboard_index/DashboardCa
 import {getSortedResources, SortTypes} from 'src/shared/utils/sort'
 
 // Types
-import {Dashboard} from 'src/types'
+import {NDashboard as Dashboard} from 'src/types'
 import {Sort} from 'src/clockface'
 
 interface Props {
