@@ -7152,9 +7152,11 @@ components:
               type: string
               enum:
                 - bucket
+                - check
                 - dashboard
                 - label
                 - notification_endpoint
+                - telegraf
                 - variable
             name:
               type: string

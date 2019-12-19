@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/influxdb/notification/flux"
 )
 
-var _ influxdb.Check = &Threshold{}
+var _ influxdb.Check = (*Threshold)(nil)
 
 // Threshold is the threshold check.
 type Threshold struct {
