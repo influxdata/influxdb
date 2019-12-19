@@ -63,6 +63,8 @@
   ------------------------------------------------------------------------------
 */
 
+$line-protocol--content-height: 300px;
+
 .line-protocol--header {
   display: flex;
   align-items: center;
@@ -73,7 +75,7 @@
 }
 
 .line-protocol--content {
-  height: 300px;
+  height: $line-protocol--content-height;
 }
 
 .line-protocol--status {
@@ -90,7 +92,7 @@
 }
 
 .line-protocol--spinner {
-  height: 300px + $ix-marg-b + 30px;
+  height: $line-protocol--content-height + $ix-marg-b + $form-sm-height;
   border: $ix-border solid $g3-castle;
   border-radius: $ix-radius;
   display: flex;
