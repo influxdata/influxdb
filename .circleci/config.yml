@@ -233,6 +233,7 @@ jobs:
           command: |
             set +e
             TESTFILES=$(go list ./... | circleci tests split --split-by=timings)
+            echo $TESTFILES
             GOTRACEBACK=all GO111MODULE=on FLUX_PARSER_TYPE=rust CGO_LDFLAGS="$(cat .cgo_ldflags)" gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 -tags 'libflux' -mod=readonly $TESTFILES
       - save_cache:
           name: Saving GOCACHE
