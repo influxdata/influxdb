@@ -267,7 +267,6 @@ func (org *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID
 		}
 		return org.ID, nil
 	}
-	fmt.Println(org)
 	return 0, fmt.Errorf("failed to locate an organization id")
 }
 

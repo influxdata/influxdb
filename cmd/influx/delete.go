@@ -52,6 +52,14 @@ func fluxDeleteF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if deleteFlags.Bucket == "" && deleteFlags.BucketID == "" {
+		return fmt.Errorf("please specify one of bucket or bucket-id")
+	}
+
+	if deleteFlags.Start == "" || deleteFlags.Stop == "" {
+		return fmt.Errorf("both start and stop are required")
+	}
+
 	s := &http.DeleteService{
 		Addr:               flags.host,
 		Token:              flags.token,
