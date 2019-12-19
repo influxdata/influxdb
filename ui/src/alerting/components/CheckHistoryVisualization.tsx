@@ -16,7 +16,6 @@ import {checkResultsLength} from 'src/shared/utils/vis'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {TimeRange} from 'src/types'
 
-
 export const ResourceIDsContext = createContext<ResourceIDs>(null)
 
 interface OwnProps {
