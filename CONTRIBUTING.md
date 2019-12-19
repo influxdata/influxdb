@@ -16,81 +16,81 @@ Test cases should be in the form of `curl` commands. For example:
 ```bash
 # write data
 curl -XPOST "http://localhost:9999/api/v2/write?org=YOUR_ORG&bucket=YOUR_BUCKET&precision=s" \
-  --header "Authorization: Token YOURAUTHTOKEN" \
-  --data-raw "mem,host=host1 used_percent=23.43234543 1556896326"
+			 --header "Authorization: Token YOURAUTHTOKEN" \
+			 --data-raw "mem,host=host1 used_percent=23.43234543 1556896326"
 
 # query data
 # Bug: expected it to return no data, but data comes back.
-curl http://localhost:9999/api/v2/query?org=my-org -XPOST -sS \
-  -H 'Authorization: Token YOURAUTHTOKEN' \
-  -H 'Accept: application/csv' \
-  -H 'Content-type: application/vnd.flux' \
-  -d 'from(bucket:"example-bucket")
-        |> range(start:-1000h)
-        |> group(columns:["_measurement"], mode:"by")
-        |> sum()'
-```
-**If you don't include a clear test case like this, your issue may not be investigated, and may even be closed**. If writing the data is too difficult, please zip up your data directory and include a link to it in your bug report.
+			 curl http://localhost:9999/api/v2/query?org=my-org -XPOST -sS \
+				 -H 'Authorization: Token YOURAUTHTOKEN' \
+				 -H 'Accept: application/csv' \
+				 -H 'Content-type: application/vnd.flux' \
+	-d 'from(bucket:"example-bucket")
+|> range(start:-1000h)
+	|> group(columns:["_measurement"], mode:"by")
+	|> sum()'
+	```
+	**If you don't include a clear test case like this, your issue may not be investigated, and may even be closed**. If writing the data is too difficult, please zip up your data directory and include a link to it in your bug report.
 
-Please note that issues are *not the place to file general questions* such as "how do I use collectd with InfluxDB?" Questions of this nature should be sent to the [InfluxData Community](https://community.influxdata.com/), not filed as issues. Issues like this will be closed.
+	Please note that issues are *not the place to file general questions* such as "how do I use collectd with InfluxDB?" Questions of this nature should be sent to the [InfluxData Community](https://community.influxdata.com/), not filed as issues. Issues like this will be closed.
 
 ## Feature requests
-We really like to receive feature requests as it helps us prioritize our work. Please be clear about your requirements, as incomplete feature requests may simply be closed if we don't understand what you would like to see added to InfluxDB.  If you find your feature request already exists as a Github issue please indicate your support for that feature by using the "thumbs up" reaction.
+	We really like to receive feature requests as it helps us prioritize our work. Please be clear about your requirements, as incomplete feature requests may simply be closed if we don't understand what you would like to see added to InfluxDB.  If you find your feature request already exists as a Github issue please indicate your support for that feature by using the "thumbs up" reaction.
 
 ## Contributing to the source code
-InfluxDB requres Go 1.12 or later and uses Go modules.
+	InfluxDB requres Go 1.12 or later and uses Go modules.
 
-You should read our [coding guide](https://github.com/influxdata/influxdb/blob/master/CODING_GUIDELINES.md), to understand better how to write code for InfluxDB.
+	You should read our [coding guide](https://github.com/influxdata/influxdb/blob/master/CODING_GUIDELINES.md), to understand better how to write code for InfluxDB.
 
 ## Submitting a pull request
-To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork. Then generate a pull request from your branch against *master* of the InfluxDB repository. Include in your pull request details of your change -- the why *and* the how -- as well as the testing your performed. Also, be sure to run the test suite with your change in place. Changes that cause tests to fail cannot be merged.
+	To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork. Then generate a pull request from your branch against *master* of the InfluxDB repository. Include in your pull request details of your change -- the why *and* the how -- as well as the testing your performed. Also, be sure to run the test suite with your change in place. Changes that cause tests to fail cannot be merged.
 
-There will usually be some back and forth as we finalize the change, but once that completes it may be merged.
+	There will usually be some back and forth as we finalize the change, but once that completes it may be merged.
 
-To assist in review for the PR, please add the following to your pull request comment:
+	To assist in review for the PR, please add the following to your pull request comment:
 
-```md
-- [ ] CHANGELOG.md updated
-- [ ] Rebased/mergable
-- [ ] Tests pass
-- [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)
-```
+	```md
+	- [ ] CHANGELOG.md updated
+	- [ ] Rebased/mergable
+	- [ ] Tests pass
+	- [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)
+	```
 
 ## Security Vulnerability Reporting
-InfluxData takes security and our users' trust very seriously. If you believe you have found a security issue in any of our
-open source projects, please responsibly disclose it by contacting security@influxdata.com. More details about 
-security vulnerability reporting, 
-including our GPG key, [can be found here](https://www.influxdata.com/how-to-report-security-vulnerabilities/).
+	InfluxData takes security and our users' trust very seriously. If you believe you have found a security issue in any of our
+	open source projects, please responsibly disclose it by contacting security@influxdata.com. More details about 
+	security vulnerability reporting, 
+	including our GPG key, [can be found here](https://www.influxdata.com/how-to-report-security-vulnerabilities/).
 
 
 ## Signing the CLA
 
-If you are going to be contributing back to InfluxDB please take a
-second to sign our CLA, which can be found
-[on our website](https://influxdata.com/community/cla/).
+	If you are going to be contributing back to InfluxDB please take a
+	second to sign our CLA, which can be found
+	[on our website](https://influxdata.com/community/cla/).
 
 ## Installing Go
-InfluxDB requires Go 1.12.
+	InfluxDB requires Go 1.12.
 
-At InfluxData we find gvm, a Go version manager, useful for installing Go. For instructions
-on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
+	At InfluxData we find gvm, a Go version manager, useful for installing Go. For instructions
+	on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
 
-After installing gvm you can install and set the default go version by
-running the following:
+	After installing gvm you can install and set the default go version by
+	running the following:
 
-    gvm install go1.11
-    gvm use go1.12 --default
+	gvm install go1.11
+	gvm use go1.12 --default
 
 ## Revision Control Systems
-Go has the ability to import remote packages via revision control systems with the `go get` command.  To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
-Currently the project only depends on `git` and `mercurial`.
+	Go has the ability to import remote packages via revision control systems with the `go get` command.  To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
+	Currently the project only depends on `git` and `mercurial`.
 
-* [Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
-* [Install Mercurial](http://mercurial.selenic.com/wiki/Download)
+	* [Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
+	* [Install Mercurial](http://mercurial.selenic.com/wiki/Download)
 
 ## Getting & Building From Source
 
-Since we depend on Go modules and use standard Go tooling, you can simply check out and build InfluxDB in your preferred location on your filesystem.
+	Since we depend on Go modules and use standard Go tooling, you can simply check out and build InfluxDB at your preferred location on your filesystem.
 
 ```bash
     git clone git@github.com:influxdata/influxdb.git
