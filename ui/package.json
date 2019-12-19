@@ -60,7 +60,7 @@
     "@types/enzyme": "^3.1.14",
     "@types/history": "3.2.2",
     "@types/jest": "^23.3.2",
-    "@types/lodash": "^4.14.116",
+    "@types/lodash": "4.14.116",
     "@types/memoize-one": "^4.0.2",
     "@types/node": "^12.6.8",
     "@types/papaparse": "^4.5.9",
