@@ -54,10 +54,11 @@ var _ (kv.Bucket) = (*Bucket)(nil)
 // Bucket is the abstraction used to perform get/put/delete/get-many operations
 // in a key value store
 type Bucket struct {
-	GetFn    func(key []byte) ([]byte, error)
-	CursorFn func() (kv.Cursor, error)
-	PutFn    func(key, value []byte) error
-	DeleteFn func(key []byte) error
+	GetFn           func(key []byte) ([]byte, error)
+	CursorFn        func() (kv.Cursor, error)
+	PutFn           func(key, value []byte) error
+	DeleteFn        func(key []byte) error
+	ForwardCursorFn func([]byte, ...kv.CursorOption) kv.ForwardCursor
 }
 
 // Get returns a key within this bucket. Errors if key does not exist.
@@ -78,6 +79,11 @@ func (b *Bucket) Put(key, value []byte) error {
 // Delete should error if the transaction it was called in is not writable.
 func (b *Bucket) Delete(key []byte) error {
 	return b.DeleteFn(key)
+}
+
+// ForwardCursor returns a cursor from the seek points in the configured direction.
+func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.ForwardCursor, error) {
+	return b.ForwardCursorFn(seek, opts...), nil
 }
 
 var _ (kv.Cursor) = (*Cursor)(nil)
