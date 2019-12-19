@@ -2,7 +2,6 @@
 import React, {FC} from 'react'
 
 // Components
-// import BackToTopButton from 'src/eventViewer/components/BackToTopButton'
 import SearchBar from 'src/alerting/components/SearchBar'
 
 // Types
@@ -19,7 +18,6 @@ const CheckHistoryControls: FC<Props> = ({eventViewerProps}) => {
   return (
     <div className="alert-history-controls">
       <div className="alert-history-controls--right">
-        {/* <BackToTopButton {...eventViewerProps} /> */}
         <SearchBar
           {...eventViewerProps}
           placeholder="Search statuses..."
