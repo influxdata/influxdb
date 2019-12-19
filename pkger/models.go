@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +30,7 @@ const (
 	KindNotificationEndpointPagerDuty Kind = "notification_endpoint_pager_duty"
 	KindNotificationEndpointHTTP      Kind = "notification_endpoint_http"
 	KindNotificationEndpointSlack     Kind = "notification_endpoint_slack"
+	KindNotificationRule              Kind = "notification_rule"
 	KindPackage                       Kind = "package"
 	KindTelegraf                      Kind = "telegraf"
 	KindVariable                      Kind = "variable"
@@ -45,6 +47,7 @@ var kinds = map[Kind]bool{
 	KindNotificationEndpointHTTP:      true,
 	KindNotificationEndpointPagerDuty: true,
 	KindNotificationEndpointSlack:     true,
+	KindNotificationRule:              true,
 	KindPackage:                       true,
 	KindTelegraf:                      true,
 	KindVariable:                      true,
@@ -97,6 +100,8 @@ func (k Kind) ResourceType() influxdb.ResourceType {
 		KindNotificationEndpointPagerDuty,
 		KindNotificationEndpointSlack:
 		return influxdb.NotificationEndpointResourceType
+	case KindNotificationRule:
+		return influxdb.NotificationRuleResourceType
 	case KindTelegraf:
 		return influxdb.TelegrafsResourceType
 	case KindVariable:
@@ -107,7 +112,11 @@ func (k Kind) ResourceType() influxdb.ResourceType {
 }
 
 func (k Kind) title() string {
-	return strings.Title(k.String())
+	pieces := strings.Split(string(k), "_")
+	for i := range pieces {
+		pieces[i] = strings.Title(pieces[i])
+	}
+	return strings.Join(pieces, "_")
 }
 
 func (k Kind) is(comps ...Kind) bool {
@@ -448,6 +457,7 @@ type Summary struct {
 	Checks                []SummaryCheck                `json:"checks"`
 	Dashboards            []SummaryDashboard            `json:"dashboards"`
 	NotificationEndpoints []SummaryNotificationEndpoint `json:"notificationEndpoints"`
+	NotificationRules     []SummaryNotificationRule     `json:"notificationRules"`
 	Labels                []SummaryLabel                `json:"labels"`
 	LabelMappings         []SummaryLabelMapping         `json:"labelMappings"`
 	TelegrafConfigs       []SummaryTelegraf             `json:"telegrafConfigs"`
@@ -583,7 +593,7 @@ func (s *SummaryChart) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// SummaryNotificationEndpoint provides a summary of a pkg endpoint rule.
+// SummaryNotificationEndpoint provides a summary of a pkg notification endpoint.
 type SummaryNotificationEndpoint struct {
 	NotificationEndpoint influxdb.NotificationEndpoint `json:"notificationEndpoint"`
 	LabelAssociations    []SummaryLabel                `json:"labelAssociations"`
@@ -605,6 +615,33 @@ func (s *SummaryNotificationEndpoint) UnmarshalJSON(b []byte) error {
 	s.NotificationEndpoint = e
 	return err
 }
+
+// Summary types for NotificationRules which provide a summary of a pkg notification rule.
+type (
+	SummaryNotificationRule struct {
+		Name              string              `json:"name"`
+		Description       string              `json:"description"`
+		EndpointName      string              `json:"endpointName"`
+		Every             string              `json:"every"`
+		LabelAssociations []SummaryLabel      `json:"labelAssociations"`
+		Offset            string              `json:"offset"`
+		MessageTemplate   string              `json:"messageTemplate"`
+		Status            influxdb.Status     `json:"status"`
+		StatusRules       []SummaryStatusRule `json:"statusRules"`
+		TagRules          []SummaryTagRule    `json:"tagRules"`
+	}
+
+	SummaryStatusRule struct {
+		CurrentLevel  string `json:"curLvl"`
+		PreviousLevel string `json:"prevLvl"`
+	}
+
+	SummaryTagRule struct {
+		Key      string `json:"key"`
+		Value    string `json:"value"`
+		Operator string `json:"operator"`
+	}
+)
 
 // SummaryLabel provides a summary of a pkg label.
 type SummaryLabel struct {
@@ -646,12 +683,16 @@ type SummaryVariable struct {
 const (
 	fieldAssociations = "associations"
 	fieldDescription  = "description"
+	fieldEvery        = "every"
 	fieldKey          = "key"
 	fieldKind         = "kind"
 	fieldLanguage     = "language"
+	fieldLevel        = "level"
 	fieldMin          = "min"
 	fieldMax          = "max"
 	fieldName         = "name"
+	fieldOffset       = "offset"
+	fieldOperator     = "operator"
 	fieldPrefix       = "prefix"
 	fieldQuery        = "query"
 	fieldSuffix       = "suffix"
@@ -806,9 +847,6 @@ const (
 
 const (
 	fieldCheckAllValues             = "allValues"
-	fieldCheckEvery                 = "every"
-	fieldCheckLevel                 = "level"
-	fieldCheckOffset                = "offset"
 	fieldCheckReportZero            = "reportZero"
 	fieldCheckStaleTime             = "staleTime"
 	fieldCheckStatusMessageTemplate = "statusMessageTemplate"
@@ -866,7 +904,7 @@ func (c *check) ResourceType() influxdb.ResourceType {
 func (c *check) Status() influxdb.Status {
 	status := influxdb.Status(c.status)
 	if status == "" {
-		status = influxdb.TaskStatusActive
+		status = influxdb.Active
 	}
 	return status
 }
@@ -912,7 +950,7 @@ func (c *check) valid() []validationErr {
 	var vErrs []validationErr
 	if c.every == 0 {
 		vErrs = append(vErrs, validationErr{
-			Field: fieldCheckEvery,
+			Field: fieldEvery,
 			Msg:   "duration value must be provided that is >= 5s (seconds)",
 		})
 	}
@@ -922,18 +960,19 @@ func (c *check) valid() []validationErr {
 			Msg:   "must provide a non zero value",
 		})
 	}
-	if c.status != "" && !(c.status == influxdb.TaskStatusActive || c.status == influxdb.TaskStatusInactive) {
-		vErrs = append(vErrs, validationErr{
-			Field: fieldStatus,
-			Msg:   "must be 1 of [active, inactive]",
-		})
-	}
 	if c.statusMessage == "" {
 		vErrs = append(vErrs, validationErr{
 			Field: fieldCheckStatusMessageTemplate,
 			Msg:   `must provide a template; ex. "Check: ${ r._check_name } is: ${ r._level }"`,
 		})
 	}
+	if status := c.Status(); status != influxdb.Active && status != influxdb.Inactive {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldStatus,
+			Msg:   "must be 1 of [active, inactive]",
+		})
+	}
+
 	switch c.kind {
 	case checkKindThreshold:
 		if len(c.thresholds) == 0 {
@@ -990,7 +1029,7 @@ func (t threshold) valid() []validationErr {
 	var vErrs []validationErr
 	if notification.ParseCheckLevel(t.level) == notification.Unknown {
 		vErrs = append(vErrs, validationErr{
-			Field: fieldCheckLevel,
+			Field: fieldLevel,
 			Msg:   fmt.Sprintf("must be 1 in [CRIT, WARN, INFO, OK]; got=%q", t.level),
 		})
 	}
@@ -1270,7 +1309,7 @@ func (n *notificationEndpoint) base() endpoint.Base {
 	e := endpoint.Base{
 		Name:        n.Name(),
 		Description: n.description,
-		Status:      influxdb.TaskStatusActive,
+		Status:      influxdb.Active,
 	}
 	if id := n.ID(); id > 0 {
 		e.ID = &id
@@ -1344,7 +1383,8 @@ func (n *notificationEndpoint) valid() []validationErr {
 		})
 	}
 
-	if n.status != "" && influxdb.TaskStatusInactive != n.status && influxdb.TaskStatusActive != n.status {
+	status := influxdb.Status(n.status)
+	if status != "" && influxdb.Inactive != status && influxdb.Active != status {
 		failures = append(failures, validationErr{
 			Field: fieldStatus,
 			Msg:   "not a valid status; valid statues are one of [active, inactive]",
@@ -1413,6 +1453,163 @@ func (n mapperNotificationEndpoints) Association(i int) labelAssociater {
 
 func (n mapperNotificationEndpoints) Len() int {
 	return len(n)
+}
+
+const (
+	fieldNotificationRuleCurrentLevel    = "currentLevel"
+	fieldNotificationRuleEndpointName    = "endpointName"
+	fieldNotificationRuleMessageTemplate = "messageTemplate"
+	fieldNotificationRulePreviousLevel   = "previousLevel"
+	fieldNotificationRuleStatusRules     = "statusRules"
+	fieldNotificationRuleTagRules        = "tagRules"
+)
+
+type notificationRule struct {
+	name         string
+	description  string
+	endpointName string
+	every        time.Duration
+	msgTemplate  string
+	offset       time.Duration
+	status       string
+	statusRules  []struct{ curLvl, prevLvl string }
+	tagRules     []struct{ k, v, op string }
+
+	labels sortedLabels
+}
+
+func (r *notificationRule) Name() string {
+	return r.name
+}
+
+func (r *notificationRule) ResourceType() influxdb.ResourceType {
+	return KindNotificationRule.ResourceType()
+}
+
+func (r *notificationRule) Status() influxdb.Status {
+	if r.status == "" {
+		return influxdb.Active
+	}
+	return influxdb.Status(r.status)
+}
+
+func (r *notificationRule) summarize() SummaryNotificationRule {
+	sum := SummaryNotificationRule{
+		Name:              r.Name(),
+		EndpointName:      r.endpointName,
+		Description:       r.description,
+		Every:             r.every.String(),
+		LabelAssociations: toSummaryLabels(r.labels...),
+		Offset:            r.offset.String(),
+		MessageTemplate:   r.msgTemplate,
+		Status:            r.Status(),
+	}
+
+	for _, sRule := range r.statusRules {
+		sum.StatusRules = append(sum.StatusRules, SummaryStatusRule{
+			CurrentLevel:  sRule.curLvl,
+			PreviousLevel: sRule.prevLvl,
+		})
+	}
+	sort.Slice(sum.StatusRules, func(i, j int) bool {
+		si, sj := sum.StatusRules[i], sum.StatusRules[j]
+		if si.CurrentLevel == sj.CurrentLevel {
+			return si.PreviousLevel < sj.PreviousLevel
+		}
+		return si.CurrentLevel < sj.CurrentLevel
+	})
+
+	for _, tRule := range r.tagRules {
+		sum.TagRules = append(sum.TagRules, SummaryTagRule{
+			Key:      tRule.k,
+			Value:    tRule.v,
+			Operator: tRule.op,
+		})
+	}
+	sort.Slice(sum.TagRules, func(i, j int) bool {
+		ti, tj := sum.TagRules[i], sum.TagRules[j]
+		if ti.Key == tj.Key && ti.Value == tj.Value {
+			return ti.Operator < tj.Operator
+		}
+		if ti.Key == tj.Key {
+			return ti.Value < tj.Value
+		}
+		return ti.Key < tj.Key
+	})
+
+	return sum
+}
+
+func (r *notificationRule) valid() []validationErr {
+	var vErrs []validationErr
+	if r.endpointName == "" {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldNotificationRuleEndpointName,
+			Msg:   "must be provided",
+		})
+	}
+	if r.every == 0 {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldEvery,
+			Msg:   "must be provided",
+		})
+	}
+	if status := r.Status(); status != influxdb.Active && status != influxdb.Inactive {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldStatus,
+			Msg:   fmt.Sprintf("must be 1 in [active, inactive]; got=%q", r.status),
+		})
+	}
+
+	if len(r.statusRules) == 0 {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldNotificationRuleStatusRules,
+			Msg:   "must provide at least 1",
+		})
+	}
+
+	var sRuleErrs []validationErr
+	for i, sRule := range r.statusRules {
+		if notification.ParseCheckLevel(sRule.curLvl) == notification.Unknown {
+			sRuleErrs = append(sRuleErrs, validationErr{
+				Field: fieldNotificationRuleCurrentLevel,
+				Msg:   fmt.Sprintf("must be 1 in [CRIT, WARN, INFO, OK]; got=%q", sRule.curLvl),
+				Index: intPtr(i),
+			})
+		}
+		if sRule.prevLvl != "" && notification.ParseCheckLevel(sRule.prevLvl) == notification.Unknown {
+			sRuleErrs = append(sRuleErrs, validationErr{
+				Field: fieldNotificationRulePreviousLevel,
+				Msg:   fmt.Sprintf("must be 1 in [CRIT, WARN, INFO, OK]; got=%q", sRule.prevLvl),
+				Index: intPtr(i),
+			})
+		}
+	}
+	if len(sRuleErrs) > 0 {
+		vErrs = append(vErrs, validationErr{
+			Field:  fieldNotificationRuleStatusRules,
+			Nested: sRuleErrs,
+		})
+	}
+
+	var tagErrs []validationErr
+	for i, tRule := range r.tagRules {
+		if tRule.op != "equal" {
+			tagErrs = append(tagErrs, validationErr{
+				Field: fieldOperator,
+				Msg:   fmt.Sprintf("must be 1 in [equal]; got=%q", tRule.op),
+				Index: intPtr(i),
+			})
+		}
+	}
+	if len(tagErrs) > 0 {
+		vErrs = append(vErrs, validationErr{
+			Field:  fieldNotificationRuleTagRules,
+			Nested: tagErrs,
+		})
+	}
+
+	return vErrs
 }
 
 const (
