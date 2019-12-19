@@ -38,7 +38,6 @@ interface Props {
   selectedItemID: string
   onUpdateSelectedItemID: (highlightedID: string) => void
   allLabelsUsed: boolean
-  onDismiss: () => void
   onStartCreatingLabel: () => void
   onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
   filteredLabels: Label[]
@@ -100,15 +99,11 @@ export default class InlineLabelPopover extends PureComponent<Props> {
   private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
     const {
       selectedItemID,
-      onDismiss,
       onAddLabel,
       onStartCreatingLabel,
     } = this.props
 
     switch (e.key) {
-      case 'Escape':
-        onDismiss()
-        break
       case 'Enter':
         e.preventDefault()
         e.stopPropagation()

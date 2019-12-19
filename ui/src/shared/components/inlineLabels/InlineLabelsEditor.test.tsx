@@ -1,11 +1,13 @@
 // Libraries
 import React from 'react'
-import { act } from 'react-dom/test-utils'
+import {act} from 'react-dom/test-utils'
 import {render, fireEvent} from 'react-testing-library'
 import 'intersection-observer'
 
 // Components
-import InlineLabelsEditor,{ADD_NEW_LABEL_ITEM_ID} from 'src/shared/components/inlineLabels/InlineLabelsEditor'
+import InlineLabelsEditor, {
+  ADD_NEW_LABEL_ITEM_ID,
+} from 'src/shared/components/inlineLabels/InlineLabelsEditor'
 
 // Constants
 import {labels} from 'mocks/dummyData'
@@ -32,7 +34,7 @@ const setup = (override = {}) => {
     onAddLabel: jest.fn(),
     onCreateLabel: jest.fn(),
     searchTerm: '',
-    triggerRef: {current:null},
+    triggerRef: {current: null},
     selectedItemID: labels[0].id,
     onUpdateSelectedItemID: jest.fn(),
     allLabelsUsed: false,
@@ -69,13 +71,11 @@ describe('Shared.Components.InlineLabelsEditor', () => {
     it('hovering the plus button opens the popover', () => {
       const {getByTestId, getAllByTestId} = setup()
 
-      
-       const plusButton = getByTestId('inline-labels--add')
+      const plusButton = getByTestId('inline-labels--add')
 
-       act(() => {
+      act(() => {
         fireEvent.mouseOver(plusButton)
-       })
-       
+      })
 
       const popover = getAllByTestId('inline-labels--popover-field')
 
@@ -88,7 +88,7 @@ describe('Shared.Components.InlineLabelsEditor', () => {
       const plusButton = getByTestId('inline-labels--add')
       act(() => {
         fireEvent.mouseOver(plusButton)
-       })
+      })
       const inputValue = 'yodelling is rad'
 
       const input = getByTestId('inline-labels--popover-field')
@@ -112,18 +112,24 @@ describe('Shared.Components.InlineLabelsEditor', () => {
       const onUpdateSelectedItemID = jest.fn()
       const {getByTestId} = setup({onUpdateSelectedItemID})
       const button = getByTestId('inline-labels--add')
-      fireEvent.mouseOver(button)
+      act(() => {
+        fireEvent.mouseOver(button)
+      })
       const secondListItem = getByTestId(`label-list--item ${secondLabel.name}`)
-      fireEvent.mouseOver(secondListItem)
-
+      act(() => {
+        fireEvent.mouseOver(secondListItem)
+      })
       expect(onUpdateSelectedItemID).toHaveBeenCalledWith(secondLabel.id)
     })
 
-    it.only('clicking a list item adds a label and selects the next item on the list', () => {
+    it('clicking a list item adds a label and selects the next item on the list', () => {
       const secondLabel = labels[1]
       const onAddLabel = jest.fn()
       const {getByTestId} = setup({onAddLabel})
-
+      const button = getByTestId('inline-labels--add')
+      act(() => {
+        fireEvent.mouseOver(button)
+      })
       const secondListItem = getByTestId(`label-list--item ${secondLabel.name}`)
       fireEvent.click(secondListItem)
 
@@ -138,20 +144,14 @@ describe('Shared.Components.InlineLabelsEditor', () => {
 
       const testString = 'bananas'
 
+      const button = getByTestId('inline-labels--add')
+      act(() => {
+        fireEvent.mouseOver(button)
+      })
       const input = getByTestId('inline-labels--popover-field')
       fireEvent.change(input, {target: {value: testString}})
 
       expect(onInputChange).toHaveReturnedWith(testString)
-    })
-
-    it('pressing ESCAPE dismisses the popover', () => {
-      const onDismiss = jest.fn()
-      const {getByTestId} = setup({onDismiss})
-
-      const input = getByTestId('inline-labels--popover-field')
-      fireEvent.keyDown(input, {key: 'Escape', code: 27})
-
-      expect(onDismiss).toHaveBeenCalled()
     })
 
     it('pressing ENTER adds the selected item', () => {
@@ -160,6 +160,11 @@ describe('Shared.Components.InlineLabelsEditor', () => {
       const {getByTestId} = setup({
         onAddLabel,
         selectedItemID,
+      })
+
+      const button = getByTestId('inline-labels--add')
+      act(() => {
+        fireEvent.mouseOver(button)
       })
 
       const input = getByTestId('inline-labels--popover-field')
@@ -178,6 +183,11 @@ describe('Shared.Components.InlineLabelsEditor', () => {
         selectedItemID,
       })
 
+      const button = getByTestId('inline-labels--add')
+      act(() => {
+        fireEvent.mouseOver(button)
+      })
+
       const input = getByTestId('inline-labels--popover-field')
       fireEvent.keyDown(input, {key: 'Enter', code: 13})
 
@@ -193,6 +203,11 @@ describe('Shared.Components.InlineLabelsEditor', () => {
         selectedItemID,
       })
 
+      const button = getByTestId('inline-labels--add')
+      act(() => {
+        fireEvent.mouseOver(button)
+      })
+
       const input = getByTestId('inline-labels--popover-field')
       fireEvent.keyDown(input, {key: 'ArrowUp', code: 38})
 
@@ -205,6 +220,10 @@ describe('Shared.Components.InlineLabelsEditor', () => {
       const {getByTestId} = setup({
         onUpdateSelectedItemID,
         selectedItemID,
+      })
+      const button = getByTestId('inline-labels--add')
+      act(() => {
+        fireEvent.mouseOver(button)
       })
 
       const input = getByTestId('inline-labels--popover-field')
@@ -222,6 +241,10 @@ describe('Shared.Components.InlineLabelsEditor', () => {
         selectedItemID,
       })
 
+      const button = getByTestId('inline-labels--add')
+      act(() => {
+        fireEvent.mouseOver(button)
+      })
       const input = getByTestId('inline-labels--popover-field')
       fireEvent.keyDown(input, {key: 'ArrowDown', code: 40})
 
@@ -235,7 +258,10 @@ describe('Shared.Components.InlineLabelsEditor', () => {
         onUpdateSelectedItemID,
         selectedItemID,
       })
-
+      const button = getByTestId('inline-labels--add')
+      act(() => {
+        fireEvent.mouseOver(button)
+      })
       const input = getByTestId('inline-labels--popover-field')
       fireEvent.keyDown(input, {key: 'ArrowDown', code: 40})
 

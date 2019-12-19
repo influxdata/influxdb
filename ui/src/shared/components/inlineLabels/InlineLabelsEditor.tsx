@@ -99,7 +99,6 @@ class InlineLabelsEditor extends Component<Props, State> {
         selectedItemID={selectedItemID}
         onUpdateSelectedItemID={this.handleUpdateSelectedItemID}
         allLabelsUsed={labelsUsed}
-        onDismiss={this.handleDismissPopover}
         onStartCreatingLabel={this.handleStartCreatingLabel}
         onInputChange={this.handleInputChange}
         filteredLabels={this.filterLabels(searchTerm)}
@@ -148,6 +147,8 @@ class InlineLabelsEditor extends Component<Props, State> {
   }
 
   private handleUpdateSelectedItemID = (selectedItemID: string): void => {
+    console.log("hover for function")
+    console.log(selectedItemID)
     this.setState({selectedItemID})
   }
 
@@ -167,14 +168,11 @@ class InlineLabelsEditor extends Component<Props, State> {
     this.setState({isPopoverVisible: true, selectedItemID, searchTerm: ''})
   }
 
-  private handleDismissPopover = () => {
-    this.setState({isPopoverVisible: false})
-  }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
     const searchTerm = e.target.value
     const filteredLabels = this.filterLabels(searchTerm)
-
+    console.log(searchTerm)
     if (filteredLabels.length) {
       const selectedItemID = filteredLabels[0].id
       this.setState({searchTerm, selectedItemID})
@@ -249,7 +247,6 @@ class InlineLabelsEditor extends Component<Props, State> {
 
   private handleStartCreatingLabel = (): void => {
     this.setState({isCreatingLabel: OverlayState.Open})
-    this.handleDismissPopover()
   }
 
   private handleStopCreatingLabel = (): void => {
