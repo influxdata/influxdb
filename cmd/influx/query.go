@@ -34,7 +34,7 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("local flag not supported for query command")
 	}
 
-	if err := queryFlags.organization.validOrgFlags(); err != nil {
+	if err := queryFlags.organization.requireFlags(); err != nil {
 		return err
 	}
 

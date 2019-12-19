@@ -64,7 +64,7 @@ func newBucketService(f Flags) (platform.BucketService, error) {
 }
 
 func bucketCreateF(cmd *cobra.Command, args []string) error {
-	if err := bucketCreateFlags.organization.validOrgFlags(); err != nil {
+	if err := bucketCreateFlags.organization.requireFlagsExclusive(); err != nil {
 		return err
 	}
 
@@ -127,11 +127,11 @@ func init() {
 		RunE:  wrapCheckSetup(bucketFindF),
 	}
 
+	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.name, "name", "n", "", "The bucket name")
 	viper.BindEnv("BUCKET_NAME")
-	if h := viper.GetString("BUCKET_NAME"); h != "" {
+	if h := viper.GetString("BUCKET_NAME"); h != "" && bucketFindFlags.name == "" {
 		bucketFindFlags.name = h
 	}
-	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.name, "name", "n", "", "The bucket name")
 	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.id, "id", "i", "", "The bucket ID")
 	bucketFindCmd.Flags().BoolVar(&bucketFindFlags.headers, "headers", true, "To print the table headers; defaults true")
 	bucketFindFlags.organization.register(bucketFindCmd)
@@ -156,10 +156,6 @@ func bucketFindF(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to decode bucket id %q: %v", bucketFindFlags.id, err)
 		}
 		filter.ID = id
-	}
-
-	if err := bucketFindFlags.organization.validOrgFlags(); err != nil {
-		return err
 	}
 
 	if bucketFindFlags.organization.id != "" {
@@ -217,11 +213,11 @@ func init() {
 	}
 
 	bucketUpdateCmd.Flags().StringVarP(&bucketUpdateFlags.id, "id", "i", "", "The bucket ID (required)")
+	bucketUpdateCmd.Flags().StringVarP(&bucketUpdateFlags.name, "name", "n", "", "New bucket name")
 	viper.BindEnv("BUCKET_NAME")
-	if h := viper.GetString("BUCKET_NAME"); h != "" {
+	if h := viper.GetString("BUCKET_NAME"); h != "" && bucketUpdateFlags.name == "" {
 		bucketFindFlags.name = h
 	}
-	bucketUpdateCmd.Flags().StringVarP(&bucketUpdateFlags.name, "name", "n", "", "New bucket name")
 
 	bucketUpdateCmd.Flags().DurationVarP(&bucketUpdateFlags.retention, "retention", "r", 0, "New duration data will live in bucket")
 	bucketUpdateCmd.MarkFlagRequired("id")

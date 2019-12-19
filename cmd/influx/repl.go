@@ -34,7 +34,7 @@ func replF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("local flag not supported for repl command")
 	}
 
-	if err := replFlags.organization.validOrgFlags(); err != nil {
+	if err := replFlags.organization.requireFlags(); err != nil {
 		return err
 	}
 

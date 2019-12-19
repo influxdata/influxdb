@@ -114,16 +114,16 @@ func orgFindCmd() *cobra.Command {
 	}
 
 	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
+	cmd.Flags().StringVarP(&organizationFindFlags.name, "name", "n", "", "The organization name")
+	if h := viper.GetString("ORG"); h != "" && organizationFindFlags.name == "" {
 		organizationFindFlags.name = h
 	}
-	cmd.Flags().StringVarP(&organizationFindFlags.name, "name", "n", "", "The organization name")
 
 	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
+	cmd.Flags().StringVarP(&organizationFindFlags.id, "id", "i", "", "The organization ID")
+	if h := viper.GetString("ORG_ID"); h != "" && organizationFindFlags.id == "" {
 		organizationFindFlags.id = h
 	}
-	cmd.Flags().StringVarP(&organizationFindFlags.id, "id", "i", "", "The organization ID")
 
 	return cmd
 }

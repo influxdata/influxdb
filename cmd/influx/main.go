@@ -103,18 +103,20 @@ func influxCmd() *cobra.Command {
 	)
 
 	viper.BindEnv("TOKEN")
-	if h := viper.GetString("TOKEN"); h != "" {
-		flags.token = h
-	} else if tok, err := getTokenFromDefaultPath(); err == nil {
-		flags.token = tok
-	}
 	cmd.PersistentFlags().StringVarP(&flags.token, "token", "t", "", "API token to be used throughout client calls")
+	if flags.token == "" {
+		if h := viper.GetString("TOKEN"); h != "" {
+			flags.token = h
+		} else if tok, err := getTokenFromDefaultPath(); err == nil {
+			flags.token = tok
+		}
+	}
 
 	viper.BindEnv("HOST")
-	if h := viper.GetString("HOST"); h != "" {
+	cmd.PersistentFlags().StringVar(&flags.host, "host", "http://localhost:9999", "HTTP address of Influx")
+	if h := viper.GetString("HOST"); h != "" && flags.host == "" {
 		flags.host = h
 	}
-	cmd.PersistentFlags().StringVar(&flags.host, "host", "http://localhost:9999", "HTTP address of Influx")
 
 	cmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
 
@@ -237,16 +239,16 @@ type organization struct {
 
 func (org *organization) register(cmd *cobra.Command) {
 	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
+	cmd.Flags().StringVarP(&org.id, "org-id", "", "", "The ID of the organization that owns the bucket")
+	if h := viper.GetString("ORG_ID"); h != "" && org.id == "" {
 		org.id = h
 	}
-	cmd.Flags().StringVarP(&org.id, "org-id", "", "", "The ID of the organization that owns the bucket")
 
 	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
+	cmd.Flags().StringVarP(&org.name, "org", "o", "", "The name of the organization that owns the bucket")
+	if h := viper.GetString("ORG"); h != "" && org.name == "" {
 		org.name = h
 	}
-	cmd.Flags().StringVarP(&org.name, "org", "o", "", "The name of the organization that owns the bucket")
 }
 
 func (org *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, error) {
@@ -265,14 +267,24 @@ func (org *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID
 		}
 		return org.ID, nil
 	}
+	fmt.Println(org)
 	return 0, fmt.Errorf("failed to locate an organization id")
 }
 
-func (org *organization) validOrgFlags() error {
+func (org *organization) requireFlagsExclusive() error {
+	if org.id != "" && org.name != "" {
+		return fmt.Errorf("must specify an --org-id, or --org flag, but not both")
+	}
+	return nil
+}
+
+func (org *organization) requireFlags() error {
 	if org.id == "" && org.name == "" {
-		return fmt.Errorf("must specify org-id, or org name")
-	} else if org.id != "" && org.name != "" {
-		return fmt.Errorf("must specify org-id, or org name not both")
+		return fmt.Errorf("one of the org flags (--org, or --org-id) are not set")
+	}
+
+	if err := org.requireFlagsExclusive(); err != nil {
+		return err
 	}
 	return nil
 }

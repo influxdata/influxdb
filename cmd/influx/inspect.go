@@ -75,9 +75,6 @@ in the following ways:
 
 // inspectReportTSMF runs the report-tsm tool.
 func inspectReportTSMF(cmd *cobra.Command, args []string) error {
-	if err := inspectReportTSMFlags.organization.validOrgFlags(); err != nil {
-		return err
-	}
 	report := &tsm1.Report{
 		Stderr:   os.Stderr,
 		Stdout:   os.Stdout,
@@ -89,6 +86,10 @@ func inspectReportTSMF(cmd *cobra.Command, args []string) error {
 
 	if (inspectReportTSMFlags.organization.name == "" || inspectReportTSMFlags.organization.id == "") && inspectReportTSMFlags.bucketID != "" {
 		return errors.New("org-id must be set for non-empty bucket-id")
+	}
+
+	if err := inspectReportTSMFlags.organization.requireFlagsExclusive(); err != nil {
+		return err
 	}
 
 	orgSvc, err := newOrganizationService()

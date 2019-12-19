@@ -134,7 +134,7 @@ func userCreateCmd() *cobra.Command {
 }
 
 func userCreateF(cmd *cobra.Command, args []string) error {
-	if err := userCreateFlags.organization.validOrgFlags(); err != nil {
+	if err := userCreateFlags.organization.requireFlagsExclusive(); err != nil {
 		return err
 	}
 

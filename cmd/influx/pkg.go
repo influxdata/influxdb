@@ -107,17 +107,13 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 
 func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
-		if err := b.org.validOrgFlags(); err != nil {
+		if err := b.org.requireFlags(); err != nil {
 			return err
 		}
 		color.NoColor = !b.hasColor
 
 		svc, orgSVC, err := b.svcFn()
 		if err != nil {
-			return err
-		}
-
-		if err := b.org.validOrgFlags(); err != nil {
 			return err
 		}
 
@@ -310,6 +306,9 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 
 func (b *cmdPkgBuilder) pkgExportAllRunEFn() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
+		if err := b.org.requireFlagsExclusive(); err != nil {
+			return err
+		}
 		pkgSVC, orgSVC, err := b.svcFn()
 		if err != nil {
 			return err

@@ -28,17 +28,17 @@ var deleteFlags deleteCmdFlags
 func init() {
 	deleteFlags.organization.register(deleteCmd)
 
+	deleteCmd.PersistentFlags().StringVar(&deleteFlags.DeleteRequest.BucketID, "bucket-id", "", "The ID of destination bucket")
 	viper.BindEnv("BUCKET_ID")
-	if h := viper.GetString("BUCKET_ID"); h != "" {
+	if h := viper.GetString("BUCKET_ID"); h != "" && deleteFlags.DeleteRequest.BucketID == "" {
 		deleteFlags.BucketID = h
 	}
-	deleteCmd.PersistentFlags().StringVar(&deleteFlags.DeleteRequest.BucketID, "bucket-id", "", "The ID of destination bucket")
 
+	deleteCmd.PersistentFlags().StringVarP(&deleteFlags.DeleteRequest.Bucket, "bucket", "b", "", "The name of destination bucket")
 	viper.BindEnv("BUCKET_NAME")
-	if h := viper.GetString("BUCKET_NAME"); h != "" {
+	if h := viper.GetString("BUCKET_NAME"); h != "" && deleteFlags.DeleteRequest.Bucket == "" {
 		deleteFlags.Bucket = h
 	}
-	deleteCmd.PersistentFlags().StringVarP(&deleteFlags.DeleteRequest.Bucket, "bucket", "b", "", "The name of destination bucket")
 
 	deleteCmd.PersistentFlags().StringVarP(&deleteFlags.DeleteRequest.Start, "start", "", "", "the start time in RFC3339Nano format, exp 2009-01-02T23:00:00Z")
 	deleteCmd.PersistentFlags().StringVarP(&deleteFlags.DeleteRequest.Stop, "stop", "", "", "the stop time in RFC3339Nano format, exp 2009-01-02T23:00:00Z")
@@ -48,7 +48,7 @@ func init() {
 func fluxDeleteF(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	if err := deleteFlags.organization.validOrgFlags(); err != nil {
+	if err := deleteFlags.organization.requireFlags(); err != nil {
 		return err
 	}
 

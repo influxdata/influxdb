@@ -36,28 +36,28 @@ func init() {
 	writeFlags.organization.register(writeCmd)
 
 	viper.BindEnv("BUCKET_ID")
-	if h := viper.GetString("BUCKET_ID"); h != "" {
+	writeCmd.PersistentFlags().StringVar(&writeFlags.BucketID, "bucket-id", "", "The ID of destination bucket")
+	if h := viper.GetString("BUCKET_ID"); h != "" && writeFlags.BucketID == "" {
 		writeFlags.BucketID = h
 	}
-	writeCmd.PersistentFlags().StringVar(&writeFlags.BucketID, "bucket-id", "", "The ID of destination bucket")
 
 	viper.BindEnv("BUCKET_NAME")
-	if h := viper.GetString("BUCKET_NAME"); h != "" {
+	writeCmd.PersistentFlags().StringVarP(&writeFlags.Bucket, "bucket", "b", "", "The name of destination bucket")
+	if h := viper.GetString("BUCKET_NAME"); h != "" && writeFlags.Bucket == "" {
 		writeFlags.Bucket = h
 	}
-	writeCmd.PersistentFlags().StringVarP(&writeFlags.Bucket, "bucket", "b", "", "The name of destination bucket")
 
 	viper.BindEnv("PRECISION")
-	if p := viper.GetString("PRECISION"); p != "" {
+	writeCmd.PersistentFlags().StringVarP(&writeFlags.Precision, "precision", "p", "ns", "Precision of the timestamps of the lines")
+	if p := viper.GetString("PRECISION"); p != "" && writeFlags.Precision == "" {
 		writeFlags.Precision = p
 	}
-	writeCmd.PersistentFlags().StringVarP(&writeFlags.Precision, "precision", "p", "ns", "Precision of the timestamps of the lines")
 }
 
 func fluxWriteF(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	if err := writeFlags.organization.validOrgFlags(); err != nil {
+	if err := writeFlags.organization.requireFlagsExclusive(); err != nil {
 		cmd.Usage()
 		return err
 	}

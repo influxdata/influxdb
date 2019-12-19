@@ -76,7 +76,7 @@ func init() {
 }
 
 func taskCreateF(cmd *cobra.Command, args []string) error {
-	if err := taskCreateFlags.organization.validOrgFlags(); err != nil {
+	if err := taskCreateFlags.organization.requireFlagsExclusive(); err != nil {
 		return err
 	}
 
@@ -163,7 +163,7 @@ func init() {
 }
 
 func taskFindF(cmd *cobra.Command, args []string) error {
-	if err := taskFindFlags.organization.validOrgFlags(); err != nil {
+	if err := taskFindFlags.organization.requireFlagsExclusive(); err != nil {
 		return err
 	}
 	s := &http.TaskService{

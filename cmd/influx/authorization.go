@@ -77,10 +77,10 @@ func authCreateCmd() *cobra.Command {
 	}
 
 	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
+	cmd.Flags().StringVarP(&authCreateFlags.org, "org", "o", "", "The organization name (required)")
+	if h := viper.GetString("ORG"); h != "" && authCreateFlags.org == "" {
 		authCreateFlags.org = h
 	}
-	cmd.Flags().StringVarP(&authCreateFlags.org, "org", "o", "", "The organization name (required)")
 	cmd.MarkFlagRequired("org")
 
 	cmd.Flags().StringVarP(&authCreateFlags.user, "user", "u", "", "The user name")
