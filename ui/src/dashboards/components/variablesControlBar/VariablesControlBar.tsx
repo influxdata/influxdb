@@ -166,9 +166,7 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
   return {variables, valuesStatus, variablesStatus, inPresentationMode}
 }
 
-export default withDragDropContext(
-  connect<StateProps, DispatchProps, OwnProps>(
-    mstp,
-    mdtp
-  )(VariablesControlBar)
-)
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(withDragDropContext(VariablesControlBar))
