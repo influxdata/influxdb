@@ -51,6 +51,7 @@ type cmdPkgBuilder struct {
 	exportOpts struct {
 		resourceType string
 		buckets      string
+		checks       string
 		dashboards   string
 		endpoints    string
 		labels       string
@@ -224,6 +225,7 @@ func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 	cmd.Flags().StringVarP(&b.meta.Version, "version", "v", "", "version for new pkg")
 	cmd.Flags().StringVar(&b.exportOpts.resourceType, "resource-type", "", "The resource type provided will be associated with all IDs via stdin.")
 	cmd.Flags().StringVar(&b.exportOpts.buckets, "buckets", "", "List of bucket ids comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.checks, "checks", "", "List of check ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.dashboards, "dashboards", "", "List of dashboard ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.endpoints, "endpoints", "", "List of notification endpoint ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.labels, "labels", "", "List of label ids comma separated")
@@ -249,6 +251,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn() func(*cobra.Command, []string) error {
 			idStrs []string
 		}{
 			{kind: pkger.KindBucket, idStrs: strings.Split(b.exportOpts.buckets, ",")},
+			{kind: pkger.KindCheck, idStrs: strings.Split(b.exportOpts.checks, ",")},
 			{kind: pkger.KindDashboard, idStrs: strings.Split(b.exportOpts.dashboards, ",")},
 			{kind: pkger.KindNotificationEndpoint, idStrs: strings.Split(b.exportOpts.endpoints, ",")},
 			{kind: pkger.KindLabel, idStrs: strings.Split(b.exportOpts.labels, ",")},

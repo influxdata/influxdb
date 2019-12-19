@@ -36,6 +36,7 @@ const (
 
 var kinds = map[Kind]bool{
 	KindBucket:                        true,
+	KindCheck:                         true,
 	KindCheckDeadman:                  true,
 	KindCheckThreshold:                true,
 	KindDashboard:                     true,
@@ -990,13 +991,13 @@ func (t threshold) valid() []validationErr {
 	if notification.ParseCheckLevel(t.level) == notification.Unknown {
 		vErrs = append(vErrs, validationErr{
 			Field: fieldCheckLevel,
-			Msg:   "must be 1 in [CRIT, WARN, INFO, OK]",
+			Msg:   fmt.Sprintf("must be 1 in [CRIT, WARN, INFO, OK]; got=%q", t.level),
 		})
 	}
 	if !thresholdTypes[t.threshType] {
 		vErrs = append(vErrs, validationErr{
 			Field: fieldType,
-			Msg:   "must be 1 in [Lesser, Greater, Inside_Range, Outside_Range]",
+			Msg:   fmt.Sprintf("must be 1 in [Lesser, Greater, Inside_Range, Outside_Range]; got=%q", t.threshType),
 		})
 	}
 	if t.min > t.max {

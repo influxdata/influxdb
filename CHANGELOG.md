@@ -7,6 +7,7 @@
 3. [16259](https://github.com/influxdata/influxdb/pull/16259): add support for check resource to pkger parser 
 4. [16262](https://github.com/influxdata/influxdb/pull/16262): add support for check resource dry run functionality 
 5. [16275](https://github.com/influxdata/influxdb/pull/16275): add support for check resource apply functionality 
+6. [16283](https://github.com/influxdata/influxdb/pull/16283): add support for check resource export functionality 
 
 ### Bug Fixes
 

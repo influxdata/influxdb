@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/influxdb/notification/flux"
 )
 
-var _ influxdb.Check = &Deadman{}
+var _ influxdb.Check = (*Deadman)(nil)
 
 // Deadman is the deadman check.
 type Deadman struct {

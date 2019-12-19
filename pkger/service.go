@@ -277,6 +277,10 @@ func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID) ([]R
 			cloneFn: s.cloneOrgBuckets,
 		},
 		{
+			resType: KindCheck.ResourceType(),
+			cloneFn: s.cloneOrgChecks,
+		},
+		{
 			resType: KindDashboard.ResourceType(),
 			cloneFn: s.cloneOrgDashboards,
 		},
@@ -326,6 +330,24 @@ func (s *Service) cloneOrgBuckets(ctx context.Context, orgID influxdb.ID) ([]Res
 		resources = append(resources, ResourceToClone{
 			Kind: KindBucket,
 			ID:   b.ID,
+		})
+	}
+	return resources, nil
+}
+
+func (s *Service) cloneOrgChecks(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	checks, _, err := s.checkSVC.FindChecks(ctx, influxdb.CheckFilter{
+		OrgID: &orgID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resources := make([]ResourceToClone, 0, len(checks))
+	for _, c := range checks {
+		resources = append(resources, ResourceToClone{
+			Kind: KindCheck,
+			ID:   c.GetID(),
 		})
 	}
 	return resources, nil
@@ -434,6 +456,14 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 			return nil, err
 		}
 		newResource = bucketToResource(*bkt, r.Name)
+	case r.Kind.is(KindCheck),
+		r.Kind.is(KindCheckDeadman),
+		r.Kind.is(KindCheckThreshold):
+		ch, err := s.checkSVC.FindCheckByID(ctx, r.ID)
+		if err != nil {
+			return nil, err
+		}
+		newResource = checkToResource(ch, r.Name)
 	case r.Kind.is(KindDashboard):
 		dash, err := s.findDashboardByIDFull(ctx, r.ID)
 		if err != nil {
