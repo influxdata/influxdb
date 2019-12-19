@@ -21,14 +21,10 @@ import {loadStatuses, getInitialState} from 'src/alerting/utils/history'
 import {getCheckIDs} from 'src/alerting/selectors'
 
 // Types
+import {ResourceIDs} from 'src/alerting/reducers/checks'
 import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import {AppState, Check, TimeZone} from 'src/types'
 
-interface ResourceIDs {
-  checkIDs: {[x: string]: boolean}
-  endpointIDs: {[x: string]: boolean}
-  ruleIDs: {[x: string]: boolean}
-}
 
 interface OwnProps {
   params: {orgID: string; checkID: string}

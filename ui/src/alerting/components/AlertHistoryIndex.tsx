@@ -25,14 +25,9 @@ import {
 import {getCheckIDs, getEndpointIDs, getRuleIDs} from 'src/alerting/selectors'
 
 // Types
+import {ResourceIDs} from 'src/alerting/reducers/checks'
 import {AlertHistoryType, AppState} from 'src/types'
 import GetResources, {ResourceType} from 'src/shared/components/GetResources'
-
-interface ResourceIDs {
-  checkIDs: {[x: string]: boolean}
-  endpointIDs: {[x: string]: boolean}
-  ruleIDs: {[x: string]: boolean}
-}
 
 export const ResourceIDsContext = createContext<ResourceIDs>(null)
 
