@@ -599,6 +599,11 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 		return Summary{}, Diff{}, err
 	}
 
+	diffRules, err := s.dryRunNotificationRules(ctx, orgID, pkg)
+	if err != nil {
+		return Summary{}, Diff{}, err
+	}
+
 	diffVars, err := s.dryRunVariables(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
@@ -621,6 +626,7 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 		Labels:                diffLabels,
 		LabelMappings:         diffLabelMappings,
 		NotificationEndpoints: diffEndpoints,
+		NotificationRules:     diffRules,
 		Telegrafs:             s.dryRunTelegraf(pkg),
 		Variables:             diffVars,
 	}
@@ -760,6 +766,34 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 		return diffs[i].Name < diffs[j].Name
 	})
 
+	return diffs, nil
+}
+
+func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffNotificationRule, error) {
+	iEndpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
+		OrgID: &orgID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	mExisting := make(map[string]influxdb.NotificationEndpoint)
+	for _, e := range iEndpoints {
+		mExisting[e.GetName()] = e
+	}
+
+	var diffs []DiffNotificationRule
+	for _, r := range pkg.notificationRules() {
+		e, ok := mExisting[r.endpointName]
+		if !ok {
+			pkgerEndpoint, ok := pkg.mNotificationEndpoints[r.endpointName]
+			if !ok {
+				return nil, fmt.Errorf("failed to find endpoint by name: %q", r.endpointName)
+			}
+			e = pkgerEndpoint.summarize().NotificationEndpoint
+		}
+		diffs = append(diffs, newDiffNotificationRule(r, e))
+
+	}
 	return diffs, nil
 }
 
