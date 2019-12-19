@@ -89,8 +89,8 @@ func checkToResource(ch influxdb.Check, name string) Resource {
 	assignBase := func(base icheck.Base) {
 		r[fieldQuery] = base.Query.Text
 		r[fieldCheckStatusMessageTemplate] = base.StatusMessageTemplate
-		assignFluxDur(fieldCheckEvery, base.Every)
-		assignFluxDur(fieldCheckOffset, base.Offset)
+		assignFluxDur(fieldEvery, base.Every)
+		assignFluxDur(fieldOffset, base.Offset)
 		var tags []Resource
 		for _, t := range base.Tags {
 			if t.Valid() != nil {
@@ -112,7 +112,7 @@ func checkToResource(ch influxdb.Check, name string) Resource {
 		assignBase(cT.Base)
 		assignFluxDur(fieldCheckTimeSince, cT.TimeSince)
 		assignFluxDur(fieldCheckStaleTime, cT.StaleTime)
-		r[fieldCheckLevel] = cT.Level.String()
+		r[fieldLevel] = cT.Level.String()
 		assignNonZeroBools(r, map[string]bool{fieldCheckReportZero: cT.ReportZero})
 	case *icheck.Threshold:
 		r[fieldKind] = KindCheckThreshold.title()
@@ -127,7 +127,7 @@ func checkToResource(ch influxdb.Check, name string) Resource {
 }
 
 func convertThreshold(th icheck.ThresholdConfig) Resource {
-	r := Resource{fieldCheckLevel: th.GetLevel().String()}
+	r := Resource{fieldLevel: th.GetLevel().String()}
 
 	switch realType := th.(type) {
 	case icheck.Lesser:
