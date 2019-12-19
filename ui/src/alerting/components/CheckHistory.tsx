@@ -1,15 +1,17 @@
 // Libraries
 import React, {useMemo, FC} from 'react'
-import {Page} from '@influxdata/clockface'
 import {connect} from 'react-redux'
 
 // Components
-import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'
+import {Page} from '@influxdata/clockface'
 import EventViewer from 'src/eventViewer/components/EventViewer'
-// import CheckHistoryControls from 'src/alerting/components/CheckHistoryControls'
+import CheckHistoryControls from 'src/alerting/components/CheckHistoryControls'
 import CheckHistoryVisualization from 'src/alerting/components/CheckHistoryVisualization'
 import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryParams'
 import EventTable from 'src/eventViewer/components/EventTable'
+
+//Context
+import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'
 
 // Constants
 import {STATUS_FIELDS} from 'src/alerting/constants/history'
@@ -70,7 +72,7 @@ const CheckHistory: FC<Props> = ({
                     searchInput={props.state.searchInput}
                     historyType={historyType}
                   />
-                  {/* <CheckHistoryControls eventViewerProps={props} /> */}
+                  <CheckHistoryControls eventViewerProps={props} />
                 </div>
               </Page.Header>
               <Page.Contents
