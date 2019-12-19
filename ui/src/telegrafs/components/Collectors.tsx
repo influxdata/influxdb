@@ -257,7 +257,7 @@ class Collectors extends PureComponent<Props, State> {
 }
 const mstp = ({telegrafs, orgs: {org}, buckets}: AppState): StateProps => {
   return {
-    hasTelegrafs: !!telegrafs.list.length,
+    hasTelegrafs: telegrafs.list && telegrafs.list.length > 0,
     orgName: org.name,
     buckets: buckets.list,
   }
