@@ -129,6 +129,11 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.Len(t, diffBkts, 1)
 		assert.True(t, diffBkts[0].IsNew())
 
+		require.Len(t, diff.Checks, 2)
+		for _, ch := range diff.Checks {
+			assert.True(t, ch.IsNew())
+		}
+
 		diffLabels := diff.Labels
 		require.Len(t, diffLabels, 1)
 		assert.True(t, diffLabels[0].IsNew())
@@ -137,10 +142,9 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.Len(t, diffVars, 1)
 		assert.True(t, diffVars[0].IsNew())
 
-		require.Len(t, diff.Checks, 2)
-		for _, ch := range diff.Checks {
-			assert.True(t, ch.IsNew())
-		}
+		require.Len(t, diff.NotificationRules, 1)
+		// the pkg being run here has a relationship with the rule and the endpoint within the pkg.
+		assert.Equal(t, "http", diff.NotificationRules[0].EndpointType)
 
 		require.Len(t, diff.Dashboards, 1)
 		require.Len(t, diff.NotificationEndpoints, 1)
@@ -266,7 +270,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 
 		mappings := sum1.LabelMappings
-		require.Len(t, mappings, 7)
+		require.Len(t, mappings, 8)
 		hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
 		hasMapping(t, mappings, newSumMapping(dashs[0].ID, dashs[0].Name, influxdb.DashboardsResourceType))
 		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
@@ -635,6 +639,28 @@ spec:
       staleTime: 10m
       statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
       timeSince: 90s
+      associations:
+        - kind: Label
+          name: label_1
+    - kind: Notification_Rule
+      name: rule_0
+      description: desc_0
+      endpointName: http_none_auth_notification_endpoint
+      every: 10m
+      offset: 30s
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      status: active
+      statusRules:
+        - currentLevel: WARN
+        - currentLevel: CRIT
+          previousLevel: OK
+      tagRules:
+        - key: k1
+          value: v2
+          operator: eQuAl
+        - key: k1
+          value: v1
+          operator: eQuAl
       associations:
         - kind: Label
           name: label_1

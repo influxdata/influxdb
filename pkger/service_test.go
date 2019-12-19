@@ -285,6 +285,66 @@ func TestService(t *testing.T) {
 			})
 		})
 
+		t.Run("notification rules", func(t *testing.T) {
+			testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
+				fakeEndpointSVC := mock.NewNotificationEndpointService()
+				id := influxdb.ID(1)
+				existing := &endpoint.HTTP{
+					Base: endpoint.Base{
+						ID: &id,
+						// This name here matches the endpoint identified in the pkg notification rule
+						Name:        "endpoint_0",
+						Description: "old desc",
+						Status:      influxdb.TaskStatusInactive,
+					},
+					Method:     "POST",
+					AuthMethod: "none",
+					URL:        "https://www.example.com/endpoint/old",
+				}
+				fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+					return []influxdb.NotificationEndpoint{existing}, 1, nil
+				}
+
+				svc := newTestService(WithNoticationEndpointSVC(fakeEndpointSVC))
+
+				_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+				require.NoError(t, err)
+
+				require.Len(t, diff.NotificationRules, 1)
+
+				actual := diff.NotificationRules[0]
+				assert.Equal(t, "rule_0", actual.Name)
+				assert.Equal(t, "desc_0", actual.Description)
+				assert.Equal(t, "http", actual.EndpointType)
+				assert.Equal(t, existing.Name, actual.EndpointName)
+				assert.Equal(t, SafeID(*existing.ID), actual.EndpointID)
+				assert.Equal(t, influxdb.Active, actual.Status)
+				assert.Equal(t, (10 * time.Minute).String(), actual.Every)
+				assert.Equal(t, (30 * time.Second).String(), actual.Offset)
+
+				expectedStatusRules := []SummaryStatusRule{
+					{CurrentLevel: "CRIT", PreviousLevel: "OK"},
+					{CurrentLevel: "WARN"},
+				}
+				assert.Equal(t, expectedStatusRules, actual.StatusRules)
+
+				expectedTagRules := []SummaryTagRule{
+					{Key: "k1", Value: "v1", Operator: "equal"},
+					{Key: "k1", Value: "v2", Operator: "equal"},
+				}
+				assert.Equal(t, expectedTagRules, actual.TagRules)
+			})
+
+			t.Run("should error if endpoint name is not in pkg or in platform", func(t *testing.T) {
+				testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
+					svc := newTestService()
+
+					_, _, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+					require.Error(t, err)
+				})
+			})
+		})
+
 		t.Run("secrets not found returns error", func(t *testing.T) {
 			testfileRunner(t, "testdata/notification_endpoint_secrets.yml", func(t *testing.T, pkg *Pkg) {
 				fakeSecretSVC := mock.NewSecretService()

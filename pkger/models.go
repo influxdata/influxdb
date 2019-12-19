@@ -162,6 +162,7 @@ type Diff struct {
 	Labels                []DiffLabel                `json:"labels"`
 	LabelMappings         []DiffLabelMapping         `json:"labelMappings"`
 	NotificationEndpoints []DiffNotificationEndpoint `json:"notificationEndpoints"`
+	NotificationRules     []DiffNotificationRule     `json:"notificationRules"`
 	Telegrafs             []DiffTelegraf             `json:"telegrafConfigs"`
 	Variables             []DiffVariable             `json:"variables"`
 }
@@ -273,7 +274,7 @@ func (d DiffCheck) IsNew() bool {
 	return d.Old == nil
 }
 
-// DiffDashboard is a diff of an individual dashboard.
+// DiffDashboard is a diff of an individual dashboard. This resource is always new.
 type DiffDashboard struct {
 	Name   string      `json:"name"`
 	Desc   string      `json:"description"`
@@ -397,7 +398,45 @@ func (d DiffNotificationEndpoint) IsNew() bool {
 	return d.Old == nil
 }
 
-// DiffTelegraf is a diff of an individual telegraf.
+// DiffNotificationRule is a diff of an individual notification rule. This resource is always new.
+type DiffNotificationRule struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+
+	// All these fields represent the relationship of the rule to the endpoint.
+	EndpointName string `json:"endpointName"`
+	EndpointID   SafeID `json:"endpointID"`
+	EndpointType string `json:"endpointType"`
+
+	Every           string              `json:"every"`
+	Offset          string              `json:"offset"`
+	MessageTemplate string              `json:"messageTemplate"`
+	Status          influxdb.Status     `json:"status"`
+	StatusRules     []SummaryStatusRule `json:"statusRules"`
+	TagRules        []SummaryTagRule    `json:"tagRules"`
+}
+
+func newDiffNotificationRule(r *notificationRule, iEndpoint influxdb.NotificationEndpoint) DiffNotificationRule {
+	sum := DiffNotificationRule{
+		Name:            r.Name(),
+		Description:     r.description,
+		EndpointName:    r.endpointName,
+		Every:           r.every.String(),
+		Offset:          r.offset.String(),
+		MessageTemplate: r.msgTemplate,
+		Status:          r.Status(),
+		StatusRules:     toSummaryStatusRules(r.statusRules),
+		TagRules:        toSummaryTagRules(r.tagRules),
+	}
+	if iEndpoint != nil {
+		sum.EndpointID = SafeID(iEndpoint.GetID())
+		sum.EndpointType = iEndpoint.Type()
+	}
+
+	return sum
+}
+
+// DiffTelegraf is a diff of an individual telegraf. This resource is always new.
 type DiffTelegraf struct {
 	influxdb.TelegrafConfig
 }
@@ -632,8 +671,8 @@ type (
 	}
 
 	SummaryStatusRule struct {
-		CurrentLevel  string `json:"curLvl"`
-		PreviousLevel string `json:"prevLvl"`
+		CurrentLevel  string `json:"currentLevel"`
+		PreviousLevel string `json:"previousLevel"`
 	}
 
 	SummaryTagRule struct {
@@ -1494,7 +1533,7 @@ func (r *notificationRule) Status() influxdb.Status {
 }
 
 func (r *notificationRule) summarize() SummaryNotificationRule {
-	sum := SummaryNotificationRule{
+	return SummaryNotificationRule{
 		Name:              r.Name(),
 		EndpointName:      r.endpointName,
 		Description:       r.description,
@@ -1503,41 +1542,9 @@ func (r *notificationRule) summarize() SummaryNotificationRule {
 		Offset:            r.offset.String(),
 		MessageTemplate:   r.msgTemplate,
 		Status:            r.Status(),
+		StatusRules:       toSummaryStatusRules(r.statusRules),
+		TagRules:          toSummaryTagRules(r.tagRules),
 	}
-
-	for _, sRule := range r.statusRules {
-		sum.StatusRules = append(sum.StatusRules, SummaryStatusRule{
-			CurrentLevel:  sRule.curLvl,
-			PreviousLevel: sRule.prevLvl,
-		})
-	}
-	sort.Slice(sum.StatusRules, func(i, j int) bool {
-		si, sj := sum.StatusRules[i], sum.StatusRules[j]
-		if si.CurrentLevel == sj.CurrentLevel {
-			return si.PreviousLevel < sj.PreviousLevel
-		}
-		return si.CurrentLevel < sj.CurrentLevel
-	})
-
-	for _, tRule := range r.tagRules {
-		sum.TagRules = append(sum.TagRules, SummaryTagRule{
-			Key:      tRule.k,
-			Value:    tRule.v,
-			Operator: tRule.op,
-		})
-	}
-	sort.Slice(sum.TagRules, func(i, j int) bool {
-		ti, tj := sum.TagRules[i], sum.TagRules[j]
-		if ti.Key == tj.Key && ti.Value == tj.Value {
-			return ti.Operator < tj.Operator
-		}
-		if ti.Key == tj.Key {
-			return ti.Value < tj.Value
-		}
-		return ti.Key < tj.Key
-	})
-
-	return sum
 }
 
 func (r *notificationRule) valid() []validationErr {
@@ -1610,6 +1617,46 @@ func (r *notificationRule) valid() []validationErr {
 	}
 
 	return vErrs
+}
+
+func toSummaryStatusRules(statusRules []struct{ curLvl, prevLvl string }) []SummaryStatusRule {
+	out := make([]SummaryStatusRule, 0, len(statusRules))
+	for _, sRule := range statusRules {
+		out = append(out, SummaryStatusRule{
+			CurrentLevel:  sRule.curLvl,
+			PreviousLevel: sRule.prevLvl,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		si, sj := out[i], out[j]
+		if si.CurrentLevel == sj.CurrentLevel {
+			return si.PreviousLevel < sj.PreviousLevel
+		}
+		return si.CurrentLevel < sj.CurrentLevel
+	})
+	return out
+}
+
+func toSummaryTagRules(tagRules []struct{ k, v, op string }) []SummaryTagRule {
+	out := make([]SummaryTagRule, 0, len(tagRules))
+	for _, tRule := range tagRules {
+		out = append(out, SummaryTagRule{
+			Key:      tRule.k,
+			Value:    tRule.v,
+			Operator: tRule.op,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		ti, tj := out[i], out[j]
+		if ti.Key == tj.Key && ti.Value == tj.Value {
+			return ti.Operator < tj.Operator
+		}
+		if ti.Key == tj.Key {
+			return ti.Value < tj.Value
+		}
+		return ti.Key < tj.Key
+	})
+	return out
 }
 
 const (
