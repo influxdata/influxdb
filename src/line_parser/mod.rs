@@ -1,6 +1,6 @@
 use std::str::Chars;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Point {
     pub series: String,
     pub time: i64,

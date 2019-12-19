@@ -33,6 +33,19 @@ message Bucket {
     uint32 id = 2;
     string name = 3;
     string retention = 4;
+    // posting_list_rollover specifies how many series can be in a single posting list entry
+    // before the index creates a new entry for it. For example if you have _measurement=cpu and
+    // a rollover of 10, once 10 series are in that list, a new key/value pair is created in the
+    // index for the next list. So you'd have _measurement=cpu<big endian 0> and _measurement=cpu<big endian 10>
+    uint32 posting_list_rollover = 5;
+    repeated IndexLevel index_levels = 6;
+}
+
+message IndexLevel {
+    // duration is the amount of time this level represents. A duration of 0 is a level for an index of anything ever seen
+    uint32 duration_seconds = 1;
+    // timezone is the timezone under which this level should rollover. Only applicable for durations of 1 day or greater
+    string timezone = 2;
 }
 
 message S3PartitionRule {
@@ -43,6 +56,56 @@ service Delorean {
     rpc CreateBucket(CreateBucketRequest) returns (CreateBucketResponse) {}
     rpc DeleteBucket(DeleteBucketRequest) returns (DeleteBucketResponse) {}
     rpc GetBuckets(Organization) returns (GetBucketsResponse) {}
+}
+
+// The following section is taken from InfluxDB so this server can implement the storage RPC. From here:
+// https://github.com/influxdata/influxdb/blob/master/storage/reads/datatypes/predicate.proto
+message Node {
+    enum Type {
+        LOGICAL_EXPRESSION = 0;
+        COMPARISON_EXPRESSION = 1;
+        PAREN_EXPRESSION = 2;
+        TAG_REF = 3;
+        LITERAL = 4;
+        FIELD_REF = 5;
+    }
+
+    enum Comparison {
+        EQUAL = 0;
+        NOT_EQUAL = 1;
+        STARTS_WITH = 2;
+        REGEX = 3;
+        NOT_REGEX = 4;
+        LT = 5;
+        LTE = 6;
+        GT = 7;
+        GTE = 8;
+    }
+
+    // Logical operators apply to boolean values and combine to produce a single boolean result.
+    enum Logical {
+        AND = 0;
+        OR = 1;
+    }
+
+    repeated Node children = 2;
+
+    oneof value {
+        string string_value = 3;
+        bool bool_value = 4;
+        int64 int_value = 5;
+        uint64 uint_value = 6;
+        double float_value = 7;
+        string regex_value = 8;
+        string tag_ref_value = 9;
+        string field_ref_value = 10;
+        Logical logical = 11;
+        Comparison comparison = 12;
+    }
+}
+
+message Predicate {
+    Node root = 1;
 }
 
 /*
