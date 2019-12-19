@@ -6,6 +6,7 @@ import _ from 'lodash'
 import {Form, Overlay} from '@influxdata/clockface'
 import StatusIndicator from 'src/dataLoaders/components/lineProtocolWizard/verify/StatusIndicator'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
+import LineProtocolHelperText from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolHelperText'
 
 // Types
 import {LineProtocolStepProps} from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
@@ -24,15 +25,7 @@ export class VerifyLineProtocolStep extends PureComponent<Props> {
       <Form onSubmit={onExit}>
         <Overlay.Body style={{textAlign: 'center'}}>
           <StatusIndicator />
-          <p>
-            Need help writing InfluxDB Line Protocol?{' '}
-            <a
-              href="https://v2.docs.influxdata.com/v2.0/write-data/#write-data-in-the-influxdb-ui"
-              target="_blank"
-            >
-              See Documentation
-            </a>
-          </p>
+          <LineProtocolHelperText />
         </Overlay.Body>
         <OnboardingButtons
           onClickBack={onDecrementCurrentStepIndex}

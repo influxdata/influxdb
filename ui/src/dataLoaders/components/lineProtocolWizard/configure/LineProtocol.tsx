@@ -8,6 +8,7 @@ import _ from 'lodash'
 import {Form, Overlay} from '@influxdata/clockface'
 import LineProtocolTabs from 'src/dataLoaders/components/lineProtocolWizard/configure/LineProtocolTabs'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
+import LineProtocolHelperText from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolHelperText'
 
 // Actions
 import {
@@ -59,15 +60,7 @@ export class LineProtocol extends PureComponent<Props> {
             bucket={bucket}
             org={org}
           />
-          <p>
-            Need help writing InfluxDB Line Protocol?{' '}
-            <a
-              href="https://v2.docs.influxdata.com/v2.0/write-data/#write-data-in-the-influxdb-ui"
-              target="_blank"
-            >
-              See Documentation
-            </a>
-          </p>
+          <LineProtocolHelperText />
         </Overlay.Body>
         <OnboardingButtons autoFocusNext={true} nextButtonText="Write Data" />
       </Form>
