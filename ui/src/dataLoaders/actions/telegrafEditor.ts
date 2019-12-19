@@ -25,7 +25,7 @@ export const getPlugins = () => async (
     dispatch(setPlugins(plugins))
   }
 
-  dispatch(setPluginLoadingState(RemoteDataState.Loading))
+  dispatch(setPluginLoadingState(RemoteDataState.Done))
 }
 
 export const setPluginLoadingState = (state: RemoteDataState) => ({
