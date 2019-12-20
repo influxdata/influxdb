@@ -1,10 +1,37 @@
 import {Bucket} from 'src/types'
+import {getTelegrafPlugins} from 'src/client'
+import {RemoteDataState} from 'src/types'
+import {Dispatch} from 'redux-thunk'
 import {
   TelegrafEditorPluginState,
   TelegrafEditorActivePluginState,
+  TelegrafEditorBasicPlugin,
 } from 'src/dataLoaders/reducers/telegrafEditor'
 
-export type PluginAction = ReturnType<typeof setPlugins>
+export type PluginResourceAction =
+  | ReturnType<typeof setPlugins>
+  | ReturnType<typeof setPluginLoadingState>
+
+export const getPlugins = () => async (
+  dispatch: Dispatch<PluginResourceAction>
+) => {
+  dispatch(setPluginLoadingState(RemoteDataState.Loading))
+
+  const result = await getTelegrafPlugins({}, {})
+
+  if (result.status === 200) {
+    const plugins = result.data.plugins as TelegrafEditorBasicPlugin[]
+
+    dispatch(setPlugins(plugins))
+  }
+
+  dispatch(setPluginLoadingState(RemoteDataState.Done))
+}
+
+export const setPluginLoadingState = (state: RemoteDataState) => ({
+  type: 'SET_TELEGRAF_EDITOR_PLUGINS_LOADING_STATE' as 'SET_TELEGRAF_EDITOR_PLUGINS_LOADING_STATE',
+  payload: state,
+})
 
 export const setPlugins = (plugins: TelegrafEditorPluginState) => ({
   type: 'SET_TELEGRAF_EDITOR_PLUGINS' as 'SET_TELEGRAF_EDITOR_PLUGINS',

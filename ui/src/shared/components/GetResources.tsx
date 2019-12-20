@@ -7,6 +7,7 @@ import _ from 'lodash'
 import {getLabels} from 'src/labels/actions'
 import {getBuckets} from 'src/buckets/actions'
 import {getTelegrafs} from 'src/telegrafs/actions'
+import {getPlugins} from 'src/dataLoaders/actions/telegrafEditor'
 import {getVariables} from 'src/variables/actions'
 import {getScrapers} from 'src/scrapers/actions'
 import {getDashboardsAsync} from 'src/dashboards/actions'
@@ -23,6 +24,7 @@ import {AppState, RemoteDataState} from 'src/types'
 import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
 import {TelegrafsState} from 'src/telegrafs/reducers'
+import {PluginResourceState} from 'src/dataLoaders/reducers/telegrafEditor'
 import {ScrapersState} from 'src/scrapers/reducers'
 import {TasksState} from 'src/tasks/reducers/'
 import {DashboardsState} from 'src/dashboards/reducers/dashboards'
@@ -46,6 +48,7 @@ interface StateProps {
   labels: LabelsState
   buckets: BucketsState
   telegrafs: TelegrafsState
+  plugins: PluginResourceState
   variables: VariablesState
   scrapers: ScrapersState
   tokens: AuthorizationsState
@@ -62,6 +65,7 @@ interface DispatchProps {
   getLabels: typeof getLabels
   getBuckets: typeof getBuckets
   getTelegrafs: typeof getTelegrafs
+  getPlugins: typeof getPlugins
   getVariables: typeof getVariables
   getScrapers: typeof getScrapers
   getAuthorizations: typeof getAuthorizations
@@ -84,6 +88,7 @@ export enum ResourceType {
   Labels = 'labels',
   Buckets = 'buckets',
   Telegrafs = 'telegrafs',
+  Plugins = 'plugins',
   Variables = 'variables',
   Authorizations = 'tokens',
   Scrapers = 'scrapers',
@@ -123,6 +128,10 @@ class GetResources extends PureComponent<Props, StateProps> {
 
       case ResourceType.Telegrafs: {
         return this.props.getTelegrafs()
+      }
+
+      case ResourceType.Plugins: {
+        return this.props.getPlugins()
       }
 
       case ResourceType.Scrapers: {
@@ -186,6 +195,7 @@ const mstp = (state: AppState, {resources}: Props): StateProps => {
     labels,
     buckets,
     telegrafs,
+    plugins,
     variables,
     scrapers,
     tokens,
@@ -204,6 +214,7 @@ const mstp = (state: AppState, {resources}: Props): StateProps => {
     labels,
     buckets,
     telegrafs,
+    plugins,
     dashboards,
     variables,
     scrapers,
@@ -222,6 +233,7 @@ const mdtp = {
   getLabels: getLabels,
   getBuckets: getBuckets,
   getTelegrafs: getTelegrafs,
+  getPlugins: getPlugins,
   getVariables: getVariables,
   getScrapers: getScrapers,
   getAuthorizations: getAuthorizations,

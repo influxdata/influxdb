@@ -10,6 +10,7 @@ import {
   TelegrafEditorActivePlugin,
 } from 'src/dataLoaders/reducers/telegrafEditor'
 import {setFilter, setList} from 'src/dataLoaders/actions/telegrafEditor'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import {
   Input,
   IconFont,
@@ -55,8 +56,21 @@ interface OwnProps {
 type TelegrafEditorSidebarProps = StateProps & DispatchProps & OwnProps
 
 class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
+  private renderPlugins() {
+    const {show, onAdd} = this.props
+    if (!show) {
+      return false
+    }
+
+    return (
+      <GetResources resources={[ResourceType.Plugins]}>
+        <AllPluginList onClick={onAdd} />
+      </GetResources>
+    )
+  }
+
   render() {
-    const {filter, show, onAdd, onSetList, onSetFilter} = this.props
+    const {filter, show, onSetList, onSetFilter} = this.props
     const columnClassName = classnames('telegraf-editor--left-column', {
       'telegraf-editor--column__collapsed': !show,
     })
@@ -89,7 +103,7 @@ class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
             placeholder="Filter Plugins..."
           />
         )}
-        {show && <AllPluginList onClick={onAdd} />}
+        {this.renderPlugins()}
         {!show && (
           <div className="telegraf-editor--title__collapsed">{header}</div>
         )}

@@ -18,8 +18,8 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {AppState} from 'src/types'
 import {
   TelegrafEditorActivePlugin,
-  TelegrafEditorPlugin,
   TelegrafEditorBasicPlugin,
+  TelegrafEditorPlugin,
 } from 'src/dataLoaders/reducers/telegrafEditor'
 
 type AllPlugin = TelegrafEditorPlugin | TelegrafEditorActivePlugin
@@ -80,7 +80,7 @@ class TelegrafEditor extends PureComponent<Props> {
             (
               (this.props.pluginHashMap[item] as TelegrafEditorBasicPlugin) ||
               {}
-            ).code
+            ).config
         )
         .filter(i => !!i)
         .reverse()
@@ -88,7 +88,7 @@ class TelegrafEditor extends PureComponent<Props> {
           editor.insert(item, line)
         })
     } else {
-      editor.insert(which.code || '', line)
+      editor.insert(which.config || '', line)
     }
 
     editor.jump(line)

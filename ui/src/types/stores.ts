@@ -15,6 +15,7 @@ import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
 import {
   TelegrafEditorPluginState,
+  PluginResourceState,
   TelegrafEditorActivePluginState,
   TelegrafEditorState,
 } from 'src/dataLoaders/reducers/telegrafEditor'
@@ -61,6 +62,7 @@ export interface AppState {
   tasks: TasksState
   telegrafEditorPlugins: TelegrafEditorPluginState
   telegrafEditorActivePlugins: TelegrafEditorActivePluginState
+  plugins: PluginResourceState
   telegrafEditor: TelegrafEditorState
   telegrafs: TelegrafsState
   templates: TemplatesState
