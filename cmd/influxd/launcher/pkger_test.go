@@ -401,6 +401,11 @@ spec:
 
 			resWithNewName := []pkger.ResourceToClone{
 				{
+					Kind: pkger.KindNotificationRule,
+					Name: "new rule name",
+					ID:   influxdb.ID(rule.ID),
+				},
+				{
 					Kind: pkger.KindVariable,
 					Name: "new name",
 					ID:   influxdb.ID(vars[0].ID),
@@ -456,6 +461,13 @@ spec:
 			assert.Equal(t, endpoints[0].NotificationEndpoint.GetName(), newEndpoints[0].NotificationEndpoint.GetName())
 			assert.Equal(t, endpoints[0].NotificationEndpoint.GetDescription(), newEndpoints[0].NotificationEndpoint.GetDescription())
 			hasLabelAssociations(t, newEndpoints[0].LabelAssociations, 1, "label_1")
+
+			require.Len(t, newSum.NotificationRules, 1)
+			newRule := newSum.NotificationRules[0]
+			assert.Equal(t, "new rule name", newRule.Name)
+			assert.Zero(t, newRule.EndpointID)
+			assert.Equal(t, rule.EndpointName, newRule.EndpointName)
+			hasLabelAssociations(t, newRule.LabelAssociations, 1, "label_1")
 
 			require.Len(t, newSum.TelegrafConfigs, 1)
 			assert.Equal(t, teles[0].TelegrafConfig.Name, newSum.TelegrafConfigs[0].TelegrafConfig.Name)
@@ -636,6 +648,16 @@ spec:
           level: INfO
           min: 30.0
           max: 45.0
+        - type: outside_range
+          level: WARN
+          min: 60.0
+          max: 70.0
+        - type: greater
+          level: CRIT
+          val: 80
+        - type: lesser
+          level: OK
+          val: 30
       associations:
         - kind: Label
           name: label_1

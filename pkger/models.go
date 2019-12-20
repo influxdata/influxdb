@@ -54,6 +54,19 @@ var kinds = map[Kind]bool{
 	KindVariable:                      true,
 }
 
+var kindsUniqByName = map[Kind]bool{
+	KindBucket:                        true,
+	KindCheck:                         true,
+	KindCheckDeadman:                  true,
+	KindCheckThreshold:                true,
+	KindLabel:                         true,
+	KindNotificationEndpoint:          true,
+	KindNotificationEndpointHTTP:      true,
+	KindNotificationEndpointPagerDuty: true,
+	KindNotificationEndpointSlack:     true,
+	KindVariable:                      true,
+}
+
 // Kind is a resource kind.
 type Kind string
 
