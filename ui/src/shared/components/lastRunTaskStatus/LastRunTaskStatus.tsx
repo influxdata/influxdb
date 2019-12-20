@@ -45,7 +45,12 @@ const LastRunTaskStatus: FC<PassedProps> = ({lastRunError, lastRunStatus}) => {
     'last-run-task-status__highlight': highlight,
   })
 
-  const popoverContents = () => <><h6>Last Run Status:</h6><p>{text}</p></>
+  const popoverContents = () => (
+    <>
+      <h6>Last Run Status:</h6>
+      <p>{text}</p>
+    </>
+  )
 
   return (
     <>
