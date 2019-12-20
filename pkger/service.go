@@ -257,10 +257,17 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	}
 
 	var kindPriorities = map[Kind]int{
-		KindLabel:     1,
-		KindBucket:    2,
-		KindVariable:  3,
-		KindDashboard: 4,
+		KindLabel:                         1,
+		KindBucket:                        2,
+		KindCheckDeadman:                  3,
+		KindCheckThreshold:                4,
+		KindNotificationEndpointHTTP:      5,
+		KindNotificationEndpointPagerDuty: 6,
+		KindNotificationEndpointSlack:     7,
+		KindNotificationRule:              8,
+		KindVariable:                      9,
+		KindTelegraf:                      10,
+		KindDashboard:                     11,
 	}
 
 	sort.Slice(pkg.Spec.Resources, func(i, j int) bool {
@@ -301,6 +308,10 @@ func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID) ([]R
 		{
 			resType: KindNotificationEndpoint.ResourceType(),
 			cloneFn: s.cloneOrgNotificationEndpoints,
+		},
+		{
+			resType: KindNotificationRule.ResourceType(),
+			cloneFn: s.cloneOrgNotificationRules,
 		},
 		{
 			resType: KindTelegraf.ResourceType(),
@@ -417,6 +428,24 @@ func (s *Service) cloneOrgNotificationEndpoints(ctx context.Context, orgID influ
 	return resources, nil
 }
 
+func (s *Service) cloneOrgNotificationRules(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	rules, _, err := s.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
+		OrgID: &orgID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resources := make([]ResourceToClone, 0, len(rules))
+	for _, r := range rules {
+		resources = append(resources, ResourceToClone{
+			Kind: KindNotificationRule,
+			ID:   r.GetID(),
+		})
+	}
+	return resources, nil
+}
+
 func (s *Service) cloneOrgTelegrafs(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
 	teles, _, err := s.teleSVC.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{OrgID: &orgID})
 	if err != nil {
@@ -458,7 +487,11 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 			e = ierrors.Wrap(e, "cloning resource")
 		}
 	}()
-	var newResource Resource
+
+	var (
+		newResource      Resource
+		sidecarResources []Resource
+	)
 	switch {
 	case r.Kind.is(KindBucket):
 		bkt, err := s.bucketSVC.FindBucketByID(ctx, r.ID)
@@ -495,6 +528,12 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 			return nil, err
 		}
 		newResource = endpointToResource(e, r.Name)
+	case r.Kind.is(KindNotificationRule):
+		ruleRes, endpointRes, err := s.exportNotificationRule(ctx, r)
+		if err != nil {
+			return nil, err
+		}
+		newResource, sidecarResources = ruleRes, append(sidecarResources, endpointRes)
 	case r.Kind.is(KindTelegraf):
 		t, err := s.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
 		if err != nil {
@@ -519,7 +558,21 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 		newResource[fieldAssociations] = ass.associations
 	}
 
-	return append([]Resource{newResource}, ass.newLableResources...), nil
+	return append(ass.newLableResources, append(sidecarResources, newResource)...), nil
+}
+
+func (s *Service) exportNotificationRule(ctx context.Context, r ResourceToClone) (Resource, Resource, error) {
+	rule, err := s.ruleSVC.FindNotificationRuleByID(ctx, r.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ruleEndpoint, err := s.endpointSVC.FindNotificationEndpointByID(ctx, rule.GetEndpointID())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return ruleToResource(rule, ruleEndpoint.GetName(), r.Name), endpointToResource(ruleEndpoint, ""), nil
 }
 
 type (
@@ -1043,10 +1096,8 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		}
 	}
 
-	// this is required after first primary run and before secondary run, b/c this has dependencies
-	// on the notification endpoints being live in the source of truth (store). Hence we break
-	// it up after the 1st group and before the 2nd. The 2nd group needs these done first so the
-	// label mappings are accurate.
+	// this has to be run after the above primary resources, because it relies on
+	// notification endpoints already being applied.
 	app, err := s.applyNotificationRulesGenerator(ctx, orgID, pkg.notificationRules())
 	if err != nil {
 		return Summary{}, err

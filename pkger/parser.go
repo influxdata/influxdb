@@ -1274,7 +1274,13 @@ func uniqResources(resources []Resource) []Resource {
 		kind Kind
 		name string
 	}
+
+	// these 2 maps are used to eliminate duplicates that come
+	// from dependencies while keeping the Resource that has any
+	// associations. If there are no associations, then the resources
+	// are no different from one another.
 	m := make(map[key]bool)
+	res := make(map[key]Resource)
 
 	out := make([]Resource, 0, len(resources))
 	for _, r := range resources {
@@ -1285,18 +1291,22 @@ func uniqResources(resources []Resource) []Resource {
 		if err := k.OK(); err != nil {
 			continue
 		}
-		switch k {
-		// these 3 kinds are unique, have existing state identifiable by name
-		case KindBucket, KindLabel, KindVariable:
+
+		if kindsUniqByName[k] {
 			rKey := key{kind: k, name: r.Name()}
-			if m[rKey] {
+			if hasAssociations, ok := m[rKey]; ok && hasAssociations {
 				continue
 			}
-			m[rKey] = true
-			fallthrough
-		default:
-			out = append(out, r)
+			_, hasAssociations := r[fieldAssociations]
+			m[rKey] = hasAssociations
+			res[rKey] = r
+			continue
 		}
+		out = append(out, r)
+	}
+
+	for _, r := range res {
+		out = append(out, r)
 	}
 	return out
 }

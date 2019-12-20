@@ -12,6 +12,7 @@
 1. [16297](https://github.com/influxdata/influxdb/pull/16297): Add support for notification rule to pkger parser
 1. [16298](https://github.com/influxdata/influxdb/pull/16298): Add support for notification rule pkger dry run functionality
 1. [16305](https://github.com/influxdata/influxdb/pull/16305): Add support for notification rule pkger apply functionality
+1. [16312](https://github.com/influxdata/influxdb/pull/16312): Add support for notification rule pkger export functionality
 
 ### Bug Fixes
 

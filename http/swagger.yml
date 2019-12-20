@@ -7156,6 +7156,7 @@ components:
                 - dashboard
                 - label
                 - notification_endpoint
+                - notification_rule
                 - telegraf
                 - variable
             name:
