@@ -187,8 +187,9 @@ func TestClient_Name(t *testing.T) {
 				},
 				init: func(ctx context.Context, s *bolt.Client) error {
 					return s.CreateTelegrafConfig(ctx, &platform.TelegrafConfig{
-						OrgID: platformtesting.MustIDBase16("0000000000000009"),
-						Name:  "telegraf1",
+						OrgID:  platformtesting.MustIDBase16("0000000000000009"),
+						Name:   "telegraf1",
+						Config: "[agent]",
 					}, testID)
 				},
 			},

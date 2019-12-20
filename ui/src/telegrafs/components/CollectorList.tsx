@@ -1,35 +1,43 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import {connect} from 'react-redux'
 import memoizeOne from 'memoize-one'
 
 // Components
 import {ResourceList} from '@influxdata/clockface'
 import CollectorRow from 'src/telegrafs/components/CollectorCard'
+import FilterList from 'src/shared/components/Filter'
 
 // Types
-import {ITelegraf as Telegraf} from '@influxdata/influx'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes, getSortedResources} from 'src/shared/utils/sort'
+import {AppState, Telegraf} from 'src/types'
+import {updateTelegraf, deleteTelegraf} from '../actions'
 
-//Utils
-import {getDeep} from 'src/utils/wrappers'
+type SortKey = keyof Telegraf
 
-type SortKey = keyof Telegraf | 'plugins.0.config.bucket'
-
-interface Props {
-  collectors: Telegraf[]
+interface OwnProps {
   emptyState: JSX.Element
-  onDelete: (telegraf: Telegraf) => void
-  onUpdate: (telegraf: Telegraf) => void
-  onFilterChange: (searchTerm: string) => void
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
   onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
+  onFilterChange: (searchTerm: string) => void
 }
 
-export default class CollectorList extends PureComponent<Props> {
+interface StateProps {
+  collectors: Telegraf[]
+}
+
+interface DispatchProps {
+  onUpdateTelegraf: typeof updateTelegraf
+  onDeleteTelegraf: typeof deleteTelegraf
+}
+
+type Props = OwnProps & StateProps & DispatchProps
+
+class CollectorList extends PureComponent<Props> {
   private memGetSortedResources = memoizeOne<typeof getSortedResources>(
     getSortedResources
   )
@@ -38,27 +46,21 @@ export default class CollectorList extends PureComponent<Props> {
     const {emptyState, sortKey, sortDirection, onClickColumn} = this.props
 
     return (
-      <>
-        <ResourceList>
-          <ResourceList.Header>
-            <ResourceList.Sorter
-              sortKey={this.headerKeys[0]}
-              sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
-              name="Name"
-              onClick={onClickColumn}
-              testID="name-sorter"
-            />
-          </ResourceList.Header>
-          <ResourceList.Body emptyState={emptyState}>
-            {this.collectorsList}
-          </ResourceList.Body>
-        </ResourceList>
-      </>
+      <ResourceList>
+        <ResourceList.Header>
+          <ResourceList.Sorter
+            sortKey="name"
+            sort={sortKey === 'name' ? sortDirection : Sort.None}
+            name="Name"
+            onClick={onClickColumn}
+            testID="name-sorter"
+          />
+        </ResourceList.Header>
+        <ResourceList.Body emptyState={emptyState}>
+          {this.collectorsList}
+        </ResourceList.Body>
+      </ResourceList>
     )
-  }
-
-  private get headerKeys(): SortKey[] {
-    return ['name', 'plugins.0.config.bucket']
   }
 
   public get collectorsList(): JSX.Element[] {
@@ -67,8 +69,8 @@ export default class CollectorList extends PureComponent<Props> {
       sortKey,
       sortDirection,
       sortType,
-      onDelete,
-      onUpdate,
+      onDeleteTelegraf,
+      onUpdateTelegraf,
       onFilterChange,
     } = this.props
     const sortedCollectors = this.memGetSortedResources(
@@ -83,12 +85,78 @@ export default class CollectorList extends PureComponent<Props> {
         <CollectorRow
           key={collector.id}
           collector={collector}
-          bucket={getDeep<string>(collector, 'plugins.0.config.bucket', '')}
-          onDelete={onDelete}
-          onUpdate={onUpdate}
+          onDelete={(telegraf: Telegraf) =>
+            onDeleteTelegraf(telegraf.id, telegraf.name)
+          }
+          onUpdate={onUpdateTelegraf}
           onFilterChange={onFilterChange}
         />
       ))
     }
   }
 }
+
+const mstp = (state: AppState): StateProps => ({
+  collectors: state.telegrafs.list,
+})
+
+const mdtp: DispatchProps = {
+  onUpdateTelegraf: updateTelegraf,
+  onDeleteTelegraf: deleteTelegraf,
+}
+
+connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(CollectorList)
+
+type FilteredOwnProps = OwnProps & {
+  searchTerm: string
+}
+
+type FilteredProps = Props & FilteredOwnProps
+
+class FilteredCollectorList extends PureComponent<FilteredProps> {
+  render() {
+    const {
+      searchTerm,
+      collectors,
+      emptyState,
+      onFilterChange,
+      sortKey,
+      sortDirection,
+      sortType,
+      onClickColumn,
+      onUpdateTelegraf,
+      onDeleteTelegraf,
+    } = this.props
+    return (
+      <FilterList<Telegraf>
+        searchTerm={searchTerm}
+        searchKeys={['metadata.buckets[]', 'name', 'labels[].name']}
+        list={collectors}
+      >
+        {cs => (
+          <CollectorList
+            collectors={cs}
+            emptyState={emptyState}
+            onFilterChange={onFilterChange}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            sortType={sortType}
+            onClickColumn={onClickColumn}
+            onUpdateTelegraf={onUpdateTelegraf}
+            onDeleteTelegraf={onDeleteTelegraf}
+          />
+        )}
+      </FilterList>
+    )
+  }
+}
+
+const FilteredList = connect<StateProps, DispatchProps, FilteredOwnProps>(
+  mstp,
+  mdtp
+)(FilteredCollectorList)
+
+export {FilteredCollectorList, FilteredList}

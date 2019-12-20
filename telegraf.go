@@ -3,20 +3,22 @@ package influxdb
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/telegraf/plugins"
 	"github.com/influxdata/influxdb/telegraf/plugins/inputs"
 	"github.com/influxdata/influxdb/telegraf/plugins/outputs"
 )
 
-// ErrTelegrafConfigInvalidOrgID is the error message for a missing or invalid organization ID.
-const ErrTelegrafConfigInvalidOrgID = "invalid org ID"
-
-// ErrTelegrafConfigNotFound is the error message for a missing telegraf config.
-const ErrTelegrafConfigNotFound = "telegraf configuration not found"
+const (
+	ErrTelegrafConfigInvalidOrgID  = "invalid org ID"                   // ErrTelegrafConfigInvalidOrgID is the error message for a missing or invalid organization ID.
+	ErrTelegrafConfigNotFound      = "telegraf configuration not found" // ErrTelegrafConfigNotFound is the error message for a missing telegraf config.
+	ErrTelegrafPluginNameUnmatch   = "the telegraf plugin is name %s doesn't match the config %s"
+	ErrNoTelegrafPlugins           = "there is no telegraf plugin in the config"
+	ErrUnsupportTelegrafPluginType = "unsupported telegraf plugin type %s"
+	ErrUnsupportTelegrafPluginName = "unsupported telegraf plugin %s, type %s"
+)
 
 // ops for buckets error and buckets op logs.
 var (
@@ -60,318 +62,221 @@ type TelegrafConfigFilter struct {
 
 // TelegrafConfig stores telegraf config for one telegraf instance.
 type TelegrafConfig struct {
-	ID          ID
-	OrgID       ID
-	Name        string
-	Description string
-
-	Agent   TelegrafAgentConfig
-	Plugins []TelegrafPlugin
+	ID          ID                     `json:"id,omitempty"`          // ID of this config object.
+	OrgID       ID                     `json:"orgID,omitempty"`       // OrgID is the id of the owning organization.
+	Name        string                 `json:"name,omitempty"`        // Name of this config object.
+	Description string                 `json:"description,omitempty"` // Decription of this config object.
+	Config      string                 `json:"config,omitempty"`      // ConfigTOML contains the raw toml config.
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`    // Metadata for the config.
 }
 
-// TOML returns the telegraf toml config string.
-func (tc TelegrafConfig) TOML() string {
-	plugins := ""
-	for _, p := range tc.Plugins {
-		plugins += p.Config.TOML()
-	}
-	interval := time.Duration(tc.Agent.Interval * 1000000)
-	return fmt.Sprintf(`# Configuration for telegraf agent
-[agent]
-  ## Default data collection interval for all inputs
-  interval = "%s"
-  ## Rounds collection interval to 'interval'
-  ## ie, if interval="10s" then always collect on :00, :10, :20, etc.
-  round_interval = true
+// UnmarshalJSON implement the json.Unmarshaler interface.
+// Gets called when reading from the kv db. mostly legacy so loading old/stored configs still work.
+// May not remove for a while. Primarily will get hit when user views/downloads config.
+func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
+	tcd := new(telegrafConfigDecode)
 
-  ## Telegraf will send metrics to outputs in batches of at most
-  ## metric_batch_size metrics.
-  ## This controls the size of writes that Telegraf sends to output plugins.
-  metric_batch_size = 1000
-
-  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each
-  ## output, and will flush this buffer on a successful write. Oldest metrics
-  ## are dropped first when this buffer fills.
-  ## This buffer only fills when writes fail to output plugin(s).
-  metric_buffer_limit = 10000
-
-  ## Collection jitter is used to jitter the collection by a random amount.
-  ## Each plugin will sleep for a random time within jitter before collecting.
-  ## This can be used to avoid many plugins querying things like sysfs at the
-  ## same time, which can have a measurable effect on the system.
-  collection_jitter = "0s"
-
-  ## Default flushing interval for all outputs. Maximum flush_interval will be
-  ## flush_interval + flush_jitter
-  flush_interval = "10s"
-  ## Jitter the flush interval by a random amount. This is primarily to avoid
-  ## large write spikes for users running a large number of telegraf instances.
-  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s
-  flush_jitter = "0s"
-
-  ## By default or when set to "0s", precision will be set to the same
-  ## timestamp order as the collection interval, with the maximum being 1s.
-  ##   ie, when interval = "10s", precision will be "1s"
-  ##       when interval = "250ms", precision will be "1ms"
-  ## Precision will NOT be used for service inputs. It is up to each individual
-  ## service input to set the timestamp at the appropriate precision.
-  ## Valid time units are "ns", "us" (or "µs"), "ms", "s".
-  precision = ""
-
-  ## Logging configuration:
-  ## Run telegraf with debug log messages.
-  debug = false
-  ## Run telegraf in quiet mode (error log messages only).
-  quiet = false
-  ## Specify the log file name. The empty string means to log to stderr.
-  logfile = ""
-
-  ## Override default hostname, if empty use os.Hostname()
-  hostname = ""
-  ## If set to true, do no set the "host" tag in the telegraf agent.
-  omit_hostname = false
-%s`, interval.String(), plugins)
-}
-
-// telegrafConfigEncode is the helper struct for json encoding.
-type telegrafConfigEncode struct {
-	ID          *ID    `json:"id"`
-	OrgID       *ID    `json:"orgID,omitempty"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-
-	Agent TelegrafAgentConfig `json:"agent"`
-
-	Plugins []telegrafPluginEncode `json:"plugins"`
-}
-
-// telegrafPluginEncode is the helper struct for json encoding.
-type telegrafPluginEncode struct {
-	// Name of the telegraf plugin, exp "docker"
-	Name    string         `json:"name"`
-	Type    plugins.Type   `json:"type"`
-	Comment string         `json:"comment,omitempty"`
-	Config  plugins.Config `json:"config,omitempty"`
-}
-
-// telegrafConfigDecode is the helper struct for json decoding.
-type telegrafConfigDecode struct {
-	ID             *ID    `json:"id,omitempty"`
-	OrganizationID *ID    `json:"organizationID,omitempty"`
-	OrgID          *ID    `json:"orgID,omitempty"`
-	Name           string `json:"name"`
-	Description    string `json:"description"`
-
-	Agent TelegrafAgentConfig `json:"agent"`
-
-	Plugins []telegrafPluginDecode `json:"plugins"`
-}
-
-// telegrafPluginDecode is the helper struct for json decoding.
-type telegrafPluginDecode struct {
-	// Name of the telegraf plugin, exp "docker"
-	Name    string          `json:"name"`
-	Type    plugins.Type    `json:"type"`
-	Comment string          `json:"comment,omitempty"`
-	Config  json.RawMessage `json:"config,omitempty"`
-}
-
-// TelegrafPlugin is the general wrapper of the telegraf plugin config
-type TelegrafPlugin struct {
-	Comment string         `json:"comment,omitempty"`
-	Config  plugins.Config `json:"config,omitempty"`
-}
-
-// TelegrafAgentConfig is based telegraf/internal/config AgentConfig.
-type TelegrafAgentConfig struct {
-	// Interval at which to gather information in miliseconds.
-	Interval int64 `json:"collectionInterval"`
-}
-
-// errors
-const (
-	ErrTelegrafPluginNameUnmatch   = "the telegraf plugin is name %s doesn't match the config %s"
-	ErrNoTelegrafPlugins           = "there is no telegraf plugin in the config"
-	ErrUnsupportTelegrafPluginType = "unsupported telegraf plugin type %s"
-	ErrUnsupportTelegrafPluginName = "unsupported telegraf plugin %s, type %s"
-)
-
-// MarshalJSON implement the json.Marshaler interface.
-func (tc *TelegrafConfig) MarshalJSON() ([]byte, error) {
-	tce := &telegrafConfigEncode{
-		Name:        tc.Name,
-		Description: tc.Description,
-		Agent:       tc.Agent,
-		Plugins:     make([]telegrafPluginEncode, len(tc.Plugins)),
-	}
-	if tc.OrgID != 0 {
-		tce.OrgID = &tc.OrgID
-	}
-	if tc.ID != 0 {
-		tce.ID = &tc.ID
-	}
-	for k, p := range tc.Plugins {
-		tce.Plugins[k] = telegrafPluginEncode{
-			Name:    p.Config.PluginName(),
-			Type:    p.Config.Type(),
-			Comment: p.Comment,
-			Config:  p.Config,
-		}
-	}
-	return json.Marshal(tce)
-}
-
-// UnmarshalTOML implements toml.Unmarshaler interface.
-func (tc *TelegrafConfig) UnmarshalTOML(data interface{}) error {
-	dataOk, ok := data.(map[string]interface{})
-	if !ok {
-		return errors.New("blank string")
-	}
-	agent, ok := dataOk["agent"].(map[string]interface{})
-	if !ok {
-		return errors.New("agent is missing")
-	}
-
-	intervalStr, ok := agent["interval"].(string)
-	if !ok {
-		return errors.New("agent interval is not string")
-	}
-
-	interval, err := time.ParseDuration(intervalStr)
-	if err != nil {
+	if err := json.Unmarshal(b, tcd); err != nil {
 		return err
 	}
-	tc.Agent = TelegrafAgentConfig{
-		Interval: interval.Nanoseconds() / 1000000,
+
+	orgID := tcd.OrgID
+	if orgID == nil || !orgID.Valid() {
+		orgID = tcd.OrganizationID
 	}
 
+	if tcd.ID != nil {
+		tc.ID = *tcd.ID
+	}
+
+	if orgID != nil {
+		tc.OrgID = *orgID
+	}
+
+	tc.Name = tcd.Name
+	tc.Description = tcd.Description
+
+	// Prefer new structure; use full toml config.
+	tc.Config = tcd.Config
+	tc.Metadata = tcd.Metadata
+
+	if tcd.Plugins != nil {
+		// legacy, remove after some moons. or a migration.
+		if len(tcd.Plugins) > 0 {
+			bkts, conf, err := decodePluginRaw(tcd)
+			if err != nil {
+				return err
+			}
+			tc.Config = plugins.AgentConfig + conf
+			tc.Metadata = map[string]interface{}{"buckets": bkts}
+		} else if c, ok := plugins.GetPlugin("output", "influxdb_v2"); ok {
+			// Handles legacy adding of default plugins (agent and output).
+			tc.Config = plugins.AgentConfig + c.Config
+			tc.Metadata = map[string]interface{}{
+				"buckets": []string{},
+			}
+		}
+	} else if tcd.Metadata == nil || len(tcd.Metadata) == 0 {
+		// Get buckets from the config.
+		m, err := parseMetadata(tc.Config)
+		if err != nil {
+			return err
+		}
+
+		tc.Metadata = m
+	}
+
+	if tc.Config == "" {
+		return &Error{
+			Code: EEmptyValue,
+			Msg:  "no config provided",
+		}
+	}
+
+	return nil
+}
+
+type buckets []string
+
+func (t *buckets) UnmarshalTOML(data interface{}) error {
+	dataOk, ok := data.(map[string]interface{})
+	if !ok {
+		return &Error{
+			Code: EEmptyValue,
+			Msg:  "no config to get buckets",
+		}
+	}
+	bkts := []string{}
 	for tp, ps := range dataOk {
-		if tp == "agent" {
+		if tp != "outputs" {
 			continue
 		}
 		plugins, ok := ps.(map[string]interface{})
 		if !ok {
 			return &Error{
-				Msg: "bad plugin type",
+				Code: EEmptyValue,
+				Msg:  "no plugins in config to get buckets",
 			}
 		}
 		for name, configDataArray := range plugins {
-			if configDataArray == nil {
-				if err := tc.parseTOMLPluginConfig(tp, name, configDataArray); err != nil {
-					return err
-				}
+			if name != "influxdb_v2" {
 				continue
 			}
-			for _, configData := range configDataArray.([]map[string]interface{}) {
-				if err := tc.parseTOMLPluginConfig(tp, name, configData); err != nil {
-					return err
+			config, ok := configDataArray.([]map[string]interface{})
+			if !ok {
+				return &Error{
+					Code: EEmptyValue,
+					Msg:  "influxdb_v2 output has no config",
+				}
+			}
+			for i := range config {
+				if b, ok := config[i]["bucket"]; ok {
+					bkts = append(bkts, b.(string))
 				}
 			}
 		}
 	}
 
+	*t = buckets(bkts)
+
 	return nil
 }
 
-func (tc *TelegrafConfig) parseTOMLPluginConfig(typ, name string, configData interface{}) error {
-	var ok bool
-	var tpFn func() plugins.Config
-	switch typ {
-	case "inputs":
-		tpFn, ok = availableInputPlugins[name]
-	case "outputs":
-		tpFn, ok = availableOutputPlugins[name]
-	default:
-		return &Error{
-			Msg: fmt.Sprintf(ErrUnsupportTelegrafPluginType, typ),
+func parseMetadata(cfg string) (map[string]interface{}, error) {
+	bs := []string{}
+
+	this := &buckets{}
+	_, err := toml.Decode(cfg, this)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, i := range *this {
+		if i != "" {
+			bs = append(bs, i)
 		}
 	}
 
-	if !ok {
-		return &Error{
-			Msg: fmt.Sprintf(ErrUnsupportTelegrafPluginName, name, typ),
-		}
-	}
-	p := tpFn()
-
-	if err := p.UnmarshalTOML(configData); err != nil {
-		return err
-	}
-	tc.Plugins = append(tc.Plugins, TelegrafPlugin{
-		Config: p,
-	})
-	return nil
+	return map[string]interface{}{"buckets": bs}, nil
 }
 
-// UnmarshalJSON implement the json.Unmarshaler interface.
-func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
-	tcd := new(telegrafConfigDecode)
-	if err := json.Unmarshal(b, tcd); err != nil {
-		return err
-	}
-	*tc = TelegrafConfig{
-		Name:        tcd.Name,
-		Description: tcd.Description,
-		Agent:       tcd.Agent,
-		Plugins:     make([]TelegrafPlugin, len(tcd.Plugins)),
-	}
-	if tcd.ID != nil {
-		tc.ID = *tcd.ID
-	}
-	if orgID := tcd.OrgID; orgID != nil && orgID.Valid() {
-		tc.OrgID = *orgID
-	} else if tcd.OrganizationID != nil {
-		tc.OrgID = *tcd.OrganizationID
-	}
-	return decodePluginRaw(tcd, tc)
-}
-
-func decodePluginRaw(tcd *telegrafConfigDecode, tc *TelegrafConfig) (err error) {
+// return bucket, config, error
+func decodePluginRaw(tcd *telegrafConfigDecode) ([]string, string, error) {
 	op := "unmarshal telegraf config raw plugin"
-	for k, pr := range tcd.Plugins {
+	ps := ""
+	bucket := []string{}
+
+	for _, pr := range tcd.Plugins {
 		var tpFn func() plugins.Config
-		var config plugins.Config
 		var ok bool
+
 		switch pr.Type {
-		case plugins.Input:
+		case "input":
 			tpFn, ok = availableInputPlugins[pr.Name]
-		case plugins.Output:
+		case "output":
 			tpFn, ok = availableOutputPlugins[pr.Name]
 		default:
-			return &Error{
+			return nil, "", &Error{
 				Code: EInvalid,
+				Op:   op,
 				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginType, pr.Type),
+			}
+		}
+
+		if !ok {
+			return nil, "", &Error{
+				Code: EInvalid,
+				Op:   op,
+				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginName, pr.Name, pr.Type),
+			}
+		}
+
+		config := tpFn()
+		// if pr.Config if empty, make it a blank obj,
+		// so it will still go to the unmarshalling process to validate.
+		if len(string(pr.Config)) == 0 {
+			pr.Config = []byte("{}")
+		}
+
+		if err := json.Unmarshal(pr.Config, config); err != nil {
+			return nil, "", &Error{
+				Code: EInvalid,
+				Err:  err,
 				Op:   op,
 			}
 		}
-		if ok {
-			config = tpFn()
-			// if pr.Config if empty, make it a blank obj,
-			// so it will still go to the unmarshalling process to validate.
-			if len(string(pr.Config)) == 0 {
-				pr.Config = []byte("{}")
+
+		if pr.Name == "influxdb_v2" {
+			if b := config.(*outputs.InfluxDBV2).Bucket; b != "" {
+				bucket = []string{b}
 			}
-			if err = json.Unmarshal(pr.Config, config); err != nil {
-				return &Error{
-					Code: EInvalid,
-					Err:  err,
-					Op:   op,
-				}
-			}
-			tc.Plugins[k] = TelegrafPlugin{
-				Comment: pr.Comment,
-				Config:  config,
-			}
-			continue
-		}
-		return &Error{
-			Code: EInvalid,
-			Op:   op,
-			Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginName, pr.Name, pr.Type),
 		}
 
+		ps += config.TOML()
 	}
-	return nil
+
+	return bucket, ps, nil
+}
+
+// telegrafConfigDecode is the helper struct for json decoding. legacy.
+type telegrafConfigDecode struct {
+	ID             *ID                    `json:"id,omitempty"`
+	OrganizationID *ID                    `json:"organizationID,omitempty"`
+	OrgID          *ID                    `json:"orgID,omitempty"`
+	Name           string                 `json:"name,omitempty"`
+	Description    string                 `json:"description,omitempty"`
+	Config         string                 `json:"config,omitempty"`
+	Plugins        []telegrafPluginDecode `json:"plugins,omitempty"`
+	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// telegrafPluginDecode is the helper struct for json decoding. legacy.
+type telegrafPluginDecode struct {
+	Type        string          `json:"type,omitempty"`        // Type of the plugin.
+	Name        string          `json:"name,omitempty"`        // Name of the plugin.
+	Alias       string          `json:"alias,omitempty"`       // Alias of the plugin.
+	Description string          `json:"description,omitempty"` // Description of the plugin.
+	Config      json.RawMessage `json:"config,omitempty"`      // Config is the currently stored plugin configuration.
 }
 
 var availableInputPlugins = map[string](func() plugins.Config){

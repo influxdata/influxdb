@@ -440,7 +440,7 @@ func telegrafToResource(t influxdb.TelegrafConfig, name string) Resource {
 	r := Resource{
 		fieldKind:           KindTelegraf.title(),
 		fieldName:           name,
-		fieldTelegrafConfig: t.TOML(),
+		fieldTelegrafConfig: t.Config,
 	}
 	assignNonZeroStrings(r, map[string]string{
 		fieldDescription: t.Description,

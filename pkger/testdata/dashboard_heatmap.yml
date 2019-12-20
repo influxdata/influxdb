@@ -38,17 +38,17 @@ spec:
             - hex: "#fbb61a"
             - hex: "#f4df53"
           axes:
-            - name: x
-              label: x_label
-              prefix: x_prefix
-              suffix: x_suffix
+            - name: "x"
+              label: "x_label"
+              prefix: "x_prefix"
+              suffix: "x_suffix"
               domain:
                 - 0
                 - 10
-            - name: y
-              label: y_label
-              prefix: y_prefix
-              suffix: y_suffix
+            - name: "y"
+              label: "y_label"
+              prefix: "y_prefix"
+              suffix: "y_suffix"
               domain:
                 - 0
                 - 100

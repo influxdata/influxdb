@@ -2,9 +2,8 @@
 import {produce} from 'immer'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, Telegraf} from 'src/types'
 import {Action} from 'src/telegrafs/actions'
-import {ITelegraf as Telegraf} from '@influxdata/influx'
 
 const initialState = (): TelegrafsState => ({
   status: RemoteDataState.NotStarted,
@@ -30,7 +29,18 @@ export const telegrafsReducer = (
         draftState.status = status
 
         if (list) {
-          draftState.list = list
+          draftState.list = list.map(telegraf => {
+            if (!telegraf.metadata) {
+              telegraf.metadata = {
+                buckets: [],
+              }
+            }
+            if (!telegraf.metadata.buckets) {
+              telegraf.metadata.buckets = []
+            }
+
+            return telegraf
+          })
         }
 
         return

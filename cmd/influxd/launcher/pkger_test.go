@@ -259,7 +259,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, l.Org.ID, teles[0].TelegrafConfig.OrgID)
 		assert.Equal(t, "first_tele_config", teles[0].TelegrafConfig.Name)
 		assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
-		assert.Len(t, teles[0].TelegrafConfig.Plugins, 2)
+		assert.Equal(t, telConf, teles[0].TelegrafConfig.Config)
 
 		vars := sum1.Variables
 		require.Len(t, vars, 1)
@@ -540,7 +540,22 @@ func newPkg(t *testing.T) *pkger.Pkg {
 	return pkg
 }
 
-const pkgYMLStr = `apiVersion: 0.1.0
+const telConf = `[agent]
+  interval = "10s"
+  metric_batch_size = 1000
+  metric_buffer_limit = 10000
+  collection_jitter = "0s"
+  flush_interval = "10s"
+[[outputs.influxdb_v2]]
+  urls = ["http://localhost:9999"]
+  token = "$INFLUX_TOKEN"
+  organization = "rg"
+  bucket = "rucket_3"
+[[inputs.cpu]]
+  percpu = true
+`
+
+var pkgYMLStr = fmt.Sprintf(`apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -591,20 +606,7 @@ spec:
       associations:
         - kind: Label
           name: label_1
-      config: |
-        [agent]
-          interval = "10s"
-          metric_batch_size = 1000
-          metric_buffer_limit = 10000
-          collection_jitter = "0s"
-          flush_interval = "10s"
-        [[outputs.influxdb_v2]]
-          urls = ["http://localhost:9999"]
-          token = "$INFLUX_TOKEN"
-          organization = "rg"
-          bucket = "rucket_3"
-        [[inputs.cpu]]
-          percpu = true
+      config: %+q
     - kind: Notification_Endpoint_HTTP
       name: http_none_auth_notification_endpoint
       type: none
@@ -613,8 +615,8 @@ spec:
       url:  https://www.example.com/endpoint/noneauth
       status: inactive
       associations:
-        - kind: Label
-          name: label_1
+      - kind: Label
+        name: label_1
     - kind: Check_Threshold
       name: check_0
       every: 1m
@@ -679,7 +681,7 @@ spec:
       associations:
         - kind: Label
           name: label_1
-`
+`, telConf)
 
 const updatePkgYMLStr = `apiVersion: 0.1.0
 kind: Package
