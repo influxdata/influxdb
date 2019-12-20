@@ -4,7 +4,6 @@ import {CLOUD, CLOUD_BILLING_VISIBLE} from 'src/shared/constants'
 export const OSS_FLAGS = {
   alerting: false,
   deleteWithPredicate: false,
-  monacoEditor: false,
   downloadCellCSV: false,
   telegrafEditor: false,
 }
@@ -12,7 +11,6 @@ export const OSS_FLAGS = {
 export const CLOUD_FLAGS = {
   alerting: true,
   deleteWithPredicate: false,
-  monacoEditor: false,
   cloudBilling: CLOUD_BILLING_VISIBLE, // should be visible in dev and acceptance, but not in cloud
   downloadCellCSV: false,
   telegrafEditor: false,
