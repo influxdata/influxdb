@@ -4,9 +4,15 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
+import {
+  SlideToggle,
+  ComponentSize,
+  ResourceCard,
+  IconFont,
+} from '@influxdata/clockface'
 import {Context} from 'src/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+import LastRunTaskStatus from 'src/shared/components/lastRunTaskStatus/LastRunTaskStatus'
 
 // Actions
 import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions'
@@ -22,7 +28,6 @@ import {AppState, TaskStatus} from 'src/types'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
-import {IconFont} from 'src/clockface/types/index'
 
 interface PassedProps {
   task: Task
@@ -71,6 +76,10 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
         metaData={[
           <>Last completed at {task.latestCompleted}</>,
           <>{`Scheduled to run ${this.schedule}`}</>,
+          <LastRunTaskStatus
+            lastRunError={task.lastRunError}
+            lastRunStatus={task.lastRunStatus}
+          />,
         ]}
         toggle={
           <SlideToggle
