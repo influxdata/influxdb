@@ -105,7 +105,7 @@ const mdtp: DispatchProps = {
   onDeleteTelegraf: deleteTelegraf,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
 )(CollectorList)
