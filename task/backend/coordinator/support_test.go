@@ -3,8 +3,8 @@ package coordinator
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/task/backend"
 )
 
 type (

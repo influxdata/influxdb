@@ -1,6 +1,6 @@
 package tsdb
 
-import "github.com/influxdata/influxdb/tsdb/cursors"
+import "github.com/influxdata/influxdb/v2/tsdb/cursors"
 
 // These aliases exist to maintain api compatibility when they were moved
 // into their own package to avoid having a heavy dependency in order to

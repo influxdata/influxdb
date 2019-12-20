@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/pkg/fs"
-	"github.com/influxdata/influxdb/tsdb/cursors"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 )
 
 //  Tests compacting a Cache snapshot into a single TSM file

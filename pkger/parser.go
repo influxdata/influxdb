@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 	"gopkg.in/yaml.v3"
 )
 

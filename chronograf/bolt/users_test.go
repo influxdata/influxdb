@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf"
 )
 
 // IgnoreFields is used because ID is created by BoltDB and cannot be predicted reliably

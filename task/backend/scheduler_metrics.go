@@ -3,7 +3,7 @@ package backend
 import (
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

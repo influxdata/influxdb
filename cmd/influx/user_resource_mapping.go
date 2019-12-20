@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 )
 
 func membersListF(ctx context.Context, filter influxdb.UserResourceMappingFilter) error {

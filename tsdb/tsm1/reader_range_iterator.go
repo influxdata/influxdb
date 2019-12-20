@@ -1,8 +1,8 @@
 package tsm1
 
 import (
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 // TimeRangeIterator will iterate over the keys of a TSM file, starting at

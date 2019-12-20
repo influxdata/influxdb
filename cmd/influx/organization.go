@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
-	"github.com/influxdata/influxdb/http"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
+	"github.com/influxdata/influxdb/v2/http"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/prom/promtest"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/toml"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/toml"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )

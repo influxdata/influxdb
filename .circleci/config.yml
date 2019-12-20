@@ -206,6 +206,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
+      GO111MODULE: 'on'
       TEST_RESULTS: /tmp/test-results
     working_directory: /go/src/github.com/influxdata/influxdb
     parallelism: 8

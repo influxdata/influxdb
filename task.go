@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
-	"github.com/influxdata/influxdb/task/options"
+	"github.com/influxdata/influxdb/v2/task/options"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/influxdb/v2/toml"
 )
 
 var up = time.Now()

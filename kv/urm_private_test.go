@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 func Test_userResourceMappingPredicate(t *testing.T) {

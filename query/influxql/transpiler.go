@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxql"
 )
 

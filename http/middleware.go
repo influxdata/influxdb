@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"go.uber.org/zap"
 )
 

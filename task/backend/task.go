@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // TaskControlService is a low-level controller interface, intended to be passed to

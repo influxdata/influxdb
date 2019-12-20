@@ -3,9 +3,9 @@ package check_test
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification"
-	"github.com/influxdata/influxdb/notification/check"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification"
+	"github.com/influxdata/influxdb/v2/notification/check"
 )
 
 func TestDeadman_GenerateFlux(t *testing.T) {

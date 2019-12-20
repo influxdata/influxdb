@@ -3,8 +3,8 @@ package mock
 import (
 	"net/http"
 
-	"github.com/influxdata/influxdb"
-	platcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/v2"
+	platcontext "github.com/influxdata/influxdb/v2/context"
 )
 
 // NewAuthMiddlewareHandler create a mocked middleware handler.

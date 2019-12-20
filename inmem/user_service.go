@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 var _ platform.UserService = (*Service)(nil)

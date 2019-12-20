@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/v2/models"
 )
 
 var (

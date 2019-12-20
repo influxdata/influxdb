@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf"
 )
 
 // Permissions returns all possible permissions for this source.

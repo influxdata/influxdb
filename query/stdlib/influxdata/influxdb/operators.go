@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 const (

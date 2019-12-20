@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 	"github.com/pkg/errors"
 )
 

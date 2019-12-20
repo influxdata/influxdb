@@ -10,8 +10,8 @@ import (
 	"time"
 
 	bolt "github.com/coreos/bbolt"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 
 var (

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf"
 )
 
 //go:generate env GO111MODULE=on go run github.com/kevinburke/go-bindata/go-bindata -o bin_gen.go -tags assets -ignore README|apps|.sh|go -pkg canned .

@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/pkg/fs"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 )
 
 func TestFileStore_Read(t *testing.T) {

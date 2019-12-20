@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // PasswordsService is a mock implementation of a retention.PasswordsService, which

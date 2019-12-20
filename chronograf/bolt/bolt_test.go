@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/influxdata/influxdb/chronograf"
-	"github.com/influxdata/influxdb/chronograf/bolt"
-	"github.com/influxdata/influxdb/chronograf/mocks"
+	"github.com/influxdata/influxdb/v2/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf/bolt"
+	"github.com/influxdata/influxdb/v2/chronograf/mocks"
 )
 
 // TestNow is a set time for testing.

@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 func TestOrgBucketID_ID(t *testing.T) {

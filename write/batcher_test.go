@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 )
 
 func TestScanLines(t *testing.T) {

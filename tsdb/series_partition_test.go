@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 func BenchmarkSeriesPartition_CreateSeriesListIfNotExists(b *testing.B) {

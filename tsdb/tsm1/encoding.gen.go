@@ -9,7 +9,7 @@ package tsm1
 import (
 	"sort"
 
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 // Values represents a slice of  values.

@@ -3,8 +3,8 @@ package reads
 import (
 	"container/heap"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 type sequenceResultSet struct {

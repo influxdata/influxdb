@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
-	"github.com/influxdata/influxdb/mock"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/mock"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 var (

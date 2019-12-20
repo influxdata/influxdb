@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	ierrors "github.com/influxdata/influxdb/kit/errors"
+	"github.com/influxdata/influxdb/v2"
+	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
 	"go.uber.org/zap"
 )
 

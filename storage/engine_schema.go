@@ -3,8 +3,8 @@ package storage
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/influxdata/influxql"
 )
 

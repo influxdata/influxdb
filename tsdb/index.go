@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/influxdata/influxdb/pkg/lifecycle"
-	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
+	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxql"
 )
 

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/influxdata/influxdb/pkg/fs"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
 )
 
 func TestRenameFileWithReplacement(t *testing.T) {

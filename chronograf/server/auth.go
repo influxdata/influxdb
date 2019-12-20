@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/influxdata/influxdb/chronograf"
-	"github.com/influxdata/influxdb/chronograf/oauth2"
-	"github.com/influxdata/influxdb/chronograf/organizations"
-	"github.com/influxdata/influxdb/chronograf/roles"
+	"github.com/influxdata/influxdb/v2/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf/oauth2"
+	"github.com/influxdata/influxdb/v2/chronograf/organizations"
+	"github.com/influxdata/influxdb/v2/chronograf/roles"
 )
 
 // HasAuthorizedToken extracts the token from a request and validates it using the authenticator.

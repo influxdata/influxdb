@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification"
-	"github.com/influxdata/influxdb/notification/check"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification"
+	"github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/stretchr/testify/assert"
 )
 

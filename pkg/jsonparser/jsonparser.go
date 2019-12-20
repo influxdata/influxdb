@@ -2,7 +2,7 @@ package jsonparser
 
 import (
 	"github.com/buger/jsonparser"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // GetID returns an influxdb.ID for the specified keys path or an error if

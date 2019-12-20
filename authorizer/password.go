@@ -3,7 +3,7 @@ package authorizer
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // PasswordService is a new authorization middleware for a password service.

@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/pkg/httpc"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"go.uber.org/zap"
 )
 

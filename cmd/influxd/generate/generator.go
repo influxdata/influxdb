@@ -8,15 +8,15 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/influxdata/influxdb/cmd/influxd/generate/internal/shard"
-	"github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/data/gen"
-	"github.com/influxdata/influxdb/pkg/limiter"
-	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/generate/internal/shard"
+	"github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/data/gen"
+	"github.com/influxdata/influxdb/v2/pkg/limiter"
+	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 )
 
 type Generator struct {

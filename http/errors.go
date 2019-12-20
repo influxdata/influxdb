@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"strings"
 
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 	"github.com/pkg/errors"
 )
 

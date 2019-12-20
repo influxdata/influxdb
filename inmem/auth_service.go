@@ -3,7 +3,7 @@ package inmem
 import (
 	"context"
 
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 func (s *Service) loadAuthorization(ctx context.Context, id platform.ID) (*platform.Authorization, *platform.Error) {

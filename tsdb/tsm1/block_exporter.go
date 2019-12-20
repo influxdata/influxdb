@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 // BlockExporter writes all blocks in a file to a given format.

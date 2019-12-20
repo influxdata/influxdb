@@ -17,10 +17,10 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/repl"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/query"
-	_ "github.com/influxdata/influxdb/query/builtin"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/query"
+	_ "github.com/influxdata/influxdb/v2/query/builtin"
 )
 
 var cmpOptions = cmp.Options{

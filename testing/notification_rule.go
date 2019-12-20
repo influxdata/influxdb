@@ -7,11 +7,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/notification"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	"github.com/influxdata/influxdb/notification/rule"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/notification"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/rule"
 )
 
 // NotificationRuleFields includes prepopulated data for mapping tests.

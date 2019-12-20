@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 // KVStoreFields are background data that has to be set before

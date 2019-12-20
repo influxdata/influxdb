@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"go.uber.org/zap/zaptest"
 )
 

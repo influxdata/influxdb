@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"errors"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/lifecycle"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
 	"github.com/influxdata/influxql"
 )
 

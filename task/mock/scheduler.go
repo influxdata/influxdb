@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/task/backend"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/task/backend"
 )
 
 // Scheduler is a mock implementation of a task scheduler.

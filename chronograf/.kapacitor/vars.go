@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf"
 )
 
 var (

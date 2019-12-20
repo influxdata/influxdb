@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/slices"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/slices"
 )
 
 // groupNoneMergedGroupResultSet produces a single GroupCursor, merging all

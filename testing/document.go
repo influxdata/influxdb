@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
 	"go.uber.org/zap"
 )
 

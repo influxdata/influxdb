@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 

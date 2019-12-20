@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T) (influxdb.ScraperTargetStoreService, string, func()) {

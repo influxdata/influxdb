@@ -5,9 +5,9 @@ import (
 	"math"
 
 	bolt "github.com/coreos/bbolt"
-	"github.com/influxdata/influxdb/chronograf"
-	"github.com/influxdata/influxdb/chronograf/bolt/internal"
-	"github.com/influxdata/influxdb/chronograf/roles"
+	"github.com/influxdata/influxdb/v2/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf/bolt/internal"
+	"github.com/influxdata/influxdb/v2/chronograf/roles"
 )
 
 // Ensure SourcesStore implements chronograf.SourcesStore.

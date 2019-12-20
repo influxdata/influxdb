@@ -9,10 +9,10 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/influxdata/influxdb"
-	pctx "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/pkg/httpc"
-	"github.com/influxdata/influxdb/pkger"
+	"github.com/influxdata/influxdb/v2"
+	pctx "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
+	"github.com/influxdata/influxdb/v2/pkger"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )

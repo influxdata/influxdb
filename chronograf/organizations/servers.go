@@ -3,7 +3,7 @@ package organizations
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf"
 )
 
 // ensure that ServersStore implements chronograf.ServerStore

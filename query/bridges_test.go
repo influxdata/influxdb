@@ -10,8 +10,8 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/execute/executetest"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/query/mock"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/mock"
 )
 
 type failWriter struct {

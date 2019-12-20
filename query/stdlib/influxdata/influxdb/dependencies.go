@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/prom"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

@@ -3,8 +3,8 @@ package querytest
 import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb/v1"
-	"github.com/influxdata/influxdb/query/influxql"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/query/influxql"
+	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 )
 
 // MakeFromInfluxJSONCompiler returns a compiler that replaces all From operations with FromJSON.

@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 
-	"github.com/influxdata/influxdb/pkg/fs"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
 )
 
 type Config struct {

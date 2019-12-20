@@ -2,8 +2,8 @@ package inspect
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/internal/fs"
-	"github.com/influxdata/influxdb/storage/wal"
+	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/storage/wal"
 	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"

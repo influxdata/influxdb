@@ -1,7 +1,7 @@
 package kapacitor
 
 import "testing"
-import "github.com/influxdata/influxdb/chronograf"
+import "github.com/influxdata/influxdb/v2/chronograf"
 
 func TestInfluxOut(t *testing.T) {
 	tests := []struct {

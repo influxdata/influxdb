@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	pr "github.com/influxdata/influxdb/prometheus"
+	pr "github.com/influxdata/influxdb/v2/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 )

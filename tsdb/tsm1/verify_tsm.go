@@ -7,9 +7,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 type VerifyTSM struct {

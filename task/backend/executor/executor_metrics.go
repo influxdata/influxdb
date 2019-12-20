@@ -3,8 +3,8 @@ package executor
 import (
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

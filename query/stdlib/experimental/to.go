@@ -11,12 +11,12 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/experimental"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
-	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/tsdb"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 // ToKind is the kind for the `to` flux function

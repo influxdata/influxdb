@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/influxdb/chronograf"
-	"github.com/influxdata/influxdb/chronograf/bolt"
-	"github.com/influxdata/influxdb/chronograf/roles"
+	"github.com/influxdata/influxdb/v2/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf/bolt"
+	"github.com/influxdata/influxdb/v2/chronograf/roles"
 )
 
 var orgCmpOptions = cmp.Options{

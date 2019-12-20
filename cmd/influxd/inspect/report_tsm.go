@@ -2,10 +2,10 @@ package inspect
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/internal/fs"
-	"github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"

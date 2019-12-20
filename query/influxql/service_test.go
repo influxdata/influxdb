@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/query/influxql"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/influxql"
 )
 
 func TestService(t *testing.T) {

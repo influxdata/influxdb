@@ -4,8 +4,8 @@ import (
 	"context"
 
 	bolt "github.com/coreos/bbolt"
-	"github.com/influxdata/influxdb/chronograf"
-	"github.com/influxdata/influxdb/chronograf/bolt/internal"
+	"github.com/influxdata/influxdb/v2/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf/bolt/internal"
 )
 
 // Ensure ServersStore implements chronograf.ServersStore.

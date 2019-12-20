@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sort"
 
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 var (

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb"
-	influxdbcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/v2"
+	influxdbcontext "github.com/influxdata/influxdb/v2/context"
 )
 
 // IsAllowed checks to see if an action is authorized by retrieving the authorizer

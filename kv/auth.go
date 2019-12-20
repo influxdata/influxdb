@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/buger/jsonparser"
-	influxdb "github.com/influxdata/influxdb"
-	jsonp "github.com/influxdata/influxdb/pkg/jsonparser"
+	influxdb "github.com/influxdata/influxdb/v2"
+	jsonp "github.com/influxdata/influxdb/v2/pkg/jsonparser"
 )
 
 var (

@@ -7,9 +7,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/mmap"
-	"github.com/influxdata/influxdb/pkg/rhh"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/mmap"
+	"github.com/influxdata/influxdb/v2/pkg/rhh"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

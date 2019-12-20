@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/storage/reads"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/storage/reads"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 func newStreamSeries(v ...string) *sliceStreamReader {

@@ -11,11 +11,11 @@ import (
 	"testing"
 
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/mock"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 

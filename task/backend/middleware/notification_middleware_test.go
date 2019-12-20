@@ -6,11 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/task/backend"
-
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification/rule"
-	"github.com/influxdata/influxdb/task/backend/middleware"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/task/backend"
+	"github.com/influxdata/influxdb/v2/task/backend/middleware"
 )
 
 func newNotificationRuleSvcStack() (mockedSvc, *middleware.CoordinatingNotificationRuleStore) {

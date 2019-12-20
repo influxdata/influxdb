@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification"
-	icheck "github.com/influxdata/influxdb/notification/check"
-	"github.com/influxdata/influxdb/notification/endpoint"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification"
+	icheck "github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
 )
 
 // Package kinds.

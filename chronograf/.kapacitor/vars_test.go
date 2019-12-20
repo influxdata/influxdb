@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf"
 )
 
 func TestVarsCritStringEqual(t *testing.T) {

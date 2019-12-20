@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/http"
 	"github.com/pkg/errors"
 )
 

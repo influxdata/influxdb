@@ -4,8 +4,8 @@ import (
 	"context"
 	"sort"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/task/options"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/task/options"
 )
 
 // ConcurrencyLimit creates a concurrency limit func that uses the executor to determine

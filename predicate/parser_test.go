@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	influxtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	influxtesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/influxdata/influxql"
 )
 

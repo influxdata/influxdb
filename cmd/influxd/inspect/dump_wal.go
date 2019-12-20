@@ -3,8 +3,8 @@ package inspect
 import (
 	"os"
 
-	"github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/storage/wal"
+	"github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/storage/wal"
 	"github.com/spf13/cobra"
 )
 

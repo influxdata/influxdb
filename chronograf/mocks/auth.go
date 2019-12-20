@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/influxdata/influxdb/chronograf/oauth2"
+	"github.com/influxdata/influxdb/v2/chronograf/oauth2"
 )
 
 // Authenticator implements a OAuth2 authenticator

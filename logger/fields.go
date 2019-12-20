@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/pkg/snowflake"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/pkg/snowflake"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"

@@ -3,7 +3,7 @@ package wal
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb/kit/prom/promtest"
+	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

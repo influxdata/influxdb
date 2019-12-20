@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/influxdb/chronograf"
-	"github.com/influxdata/influxdb/chronograf/mocks"
-	"github.com/influxdata/influxdb/chronograf/roles"
+	"github.com/influxdata/influxdb/v2/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf/mocks"
+	"github.com/influxdata/influxdb/v2/chronograf/roles"
 )
 
 func TestMappings_All(t *testing.T) {

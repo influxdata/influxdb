@@ -9,8 +9,8 @@ import (
 	"sort"
 	"text/tabwriter"
 
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/value"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/value"
 )
 
 // Command represents the program execution for "influxd inspect dumpmwal

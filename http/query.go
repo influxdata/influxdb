@@ -20,9 +20,9 @@ import (
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/repl"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/jsonweb"
-	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/jsonweb"
+	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxql"
 )
 

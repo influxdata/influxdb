@@ -8,7 +8,7 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf"
 )
 
 // SrcExt is the the file extension searched for in the directory for source files

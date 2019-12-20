@@ -6,7 +6,7 @@ import (
 	"errors"
 
 	bolt "github.com/coreos/bbolt"
-	influxdb "github.com/influxdata/influxdb"
+	influxdb "github.com/influxdata/influxdb/v2"
 )
 
 var (

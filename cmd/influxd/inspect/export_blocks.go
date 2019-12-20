@@ -3,7 +3,7 @@ package inspect
 import (
 	"os"
 
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 	"github.com/spf13/cobra"
 )
 

@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/ghodss/yaml"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 

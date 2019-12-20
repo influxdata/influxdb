@@ -3,11 +3,11 @@ package reads_test
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/data/gen"
-	"github.com/influxdata/influxdb/storage/reads"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/data/gen"
+	"github.com/influxdata/influxdb/v2/storage/reads"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 type seriesGeneratorCursorIterator struct {

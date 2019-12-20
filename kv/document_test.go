@@ -3,7 +3,7 @@ package kv_test
 import (
 	"testing"
 
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func TestBoltDocumentStore(t *testing.T) {

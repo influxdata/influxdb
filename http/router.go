@@ -10,8 +10,8 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
-	influxlogger "github.com/influxdata/influxdb/logger"
+	platform "github.com/influxdata/influxdb/v2"
+	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

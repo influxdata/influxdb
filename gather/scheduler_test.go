@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	influxlogger "github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/mock"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	influxlogger "github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/mock"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func TestScheduler(t *testing.T) {

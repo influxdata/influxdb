@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/storage/reads"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/tsdb"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/storage/reads"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxql"
 )
 

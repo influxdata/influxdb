@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/v2/mock"
 )
 
 func TestID(t *testing.T) {

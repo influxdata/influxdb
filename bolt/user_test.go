@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func initUserService(f influxdbtesting.UserFields, t *testing.T) (influxdb.UserService, string, func()) {

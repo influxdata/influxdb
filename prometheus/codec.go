@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/v2/models"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 )

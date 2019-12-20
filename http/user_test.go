@@ -8,11 +8,11 @@ import (
 	"path"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/pkg/testttp"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/pkg/testttp"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 

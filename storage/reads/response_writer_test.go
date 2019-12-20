@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/pkg/data/gen"
-	"github.com/influxdata/influxdb/pkg/testing/assert"
-	"github.com/influxdata/influxdb/storage/reads"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/pkg/data/gen"
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
+	"github.com/influxdata/influxdb/v2/storage/reads"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"google.golang.org/grpc/metadata"
 )
 

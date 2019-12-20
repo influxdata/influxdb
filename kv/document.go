@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 const (

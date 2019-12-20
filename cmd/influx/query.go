@@ -7,8 +7,8 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/repl"
 	_ "github.com/influxdata/flux/stdlib"
-	platform "github.com/influxdata/influxdb"
-	_ "github.com/influxdata/influxdb/query/stdlib"
+	platform "github.com/influxdata/influxdb/v2"
+	_ "github.com/influxdata/influxdb/v2/query/stdlib"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

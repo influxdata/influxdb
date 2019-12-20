@@ -6,7 +6,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/lang"
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 // BucketAwareOperationSpec specifies an operation that reads or writes buckets

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/influxdata/influxdb/kit/check"
+	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/spf13/cobra"
 )
 

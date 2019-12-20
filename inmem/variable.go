@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 func (s *Service) loadVariable(ctx context.Context, id platform.ID) (*platform.Variable, *platform.Error) {

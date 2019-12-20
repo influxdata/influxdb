@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
-	influxtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	influxtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func TestDataTypeConversion(t *testing.T) {

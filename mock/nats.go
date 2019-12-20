@@ -5,7 +5,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/influxdata/influxdb/nats"
+	"github.com/influxdata/influxdb/v2/nats"
 )
 
 // NatsServer is the mocked nats server based buffered channel.

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/influxdata/influxdb/internal/fs"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )

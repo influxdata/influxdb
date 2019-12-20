@@ -7,8 +7,8 @@ import (
 	"net/http"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	pcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/v2"
+	pcontext "github.com/influxdata/influxdb/v2/context"
 	"go.uber.org/zap"
 )
 

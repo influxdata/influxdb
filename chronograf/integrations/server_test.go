@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/chronograf"
-	"github.com/influxdata/influxdb/chronograf/bolt"
-	"github.com/influxdata/influxdb/chronograf/oauth2"
-	"github.com/influxdata/influxdb/chronograf/server"
+	"github.com/influxdata/influxdb/v2/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf/bolt"
+	"github.com/influxdata/influxdb/v2/chronograf/oauth2"
+	"github.com/influxdata/influxdb/v2/chronograf/server"
 )
 
 func TestServer(t *testing.T) {

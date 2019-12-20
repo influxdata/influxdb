@@ -15,7 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/influxdata/influxdb/pkg/escape"
+	"github.com/influxdata/influxdb/v2/pkg/escape"
 )
 
 // Values used to store the field key and measurement name as special internal tags.

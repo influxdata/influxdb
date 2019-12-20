@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/pkg/jsonparser"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/pkg/jsonparser"
 )
 
 func TestGetID(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 func (s *Service) loadLabel(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {

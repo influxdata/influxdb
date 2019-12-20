@@ -8,9 +8,9 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/semantic"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/prom"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )

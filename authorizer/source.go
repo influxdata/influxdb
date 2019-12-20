@@ -3,8 +3,8 @@ package authorizer
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/bolt"
 )
 
 var _ influxdb.SourceService = (*SourceService)(nil)

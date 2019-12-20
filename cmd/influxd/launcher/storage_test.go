@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influxd/launcher"
-	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/toml"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
+	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/toml"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 )
 
 func TestStorage_WriteAndQuery(t *testing.T) {

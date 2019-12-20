@@ -9,8 +9,8 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/iocounter"
-	"github.com/influxdata/influxdb/kit/check"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/v2/kit/check"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

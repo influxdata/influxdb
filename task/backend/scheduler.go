@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/task/options"
+	"github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/task/options"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )

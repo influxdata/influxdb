@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/kit/prom"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

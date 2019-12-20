@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/query"
 )
 
 func TestSecretLookup(t *testing.T) {

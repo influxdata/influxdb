@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 // Value represents a TSM-encoded value.

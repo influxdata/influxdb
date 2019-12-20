@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	platform "github.com/influxdata/influxdb/v2"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func initUserResourceMappingService(f platformtesting.UserResourceFields, t *testing.T) (platform.UserResourceMappingService, func()) {

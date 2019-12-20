@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/influxdata/influxdb/kit/cli"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/kit/cli"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 	"github.com/spf13/cobra"
 )
 

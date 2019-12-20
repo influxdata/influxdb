@@ -7,9 +7,9 @@ import (
 	"time"
 
 	bolt "github.com/coreos/bbolt"
-	influxdb "github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
-	platformcontext "github.com/influxdata/influxdb/context"
+	influxdb "github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
+	platformcontext "github.com/influxdata/influxdb/v2/context"
 )
 
 var (

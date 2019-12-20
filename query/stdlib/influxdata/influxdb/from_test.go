@@ -11,9 +11,9 @@ import (
 	"github.com/influxdata/flux/plan/plantest"
 	"github.com/influxdata/flux/querytest"
 	"github.com/influxdata/flux/stdlib/universe"
-	platform "github.com/influxdata/influxdb"
-	pquerytest "github.com/influxdata/influxdb/query/querytest"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
+	pquerytest "github.com/influxdata/influxdb/v2/query/querytest"
+	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 )
 
 func TestFrom_NewQuery(t *testing.T) {

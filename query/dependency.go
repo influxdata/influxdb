@@ -5,7 +5,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 // FromBucketService wraps an platform.BucketService in the BucketLookup interface.

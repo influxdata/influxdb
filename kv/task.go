@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/task/backend"
-	"github.com/influxdata/influxdb/task/options"
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/task/backend"
+	"github.com/influxdata/influxdb/v2/task/options"
 	"go.uber.org/zap"
 	cron "gopkg.in/robfig/cron.v2"
 )

@@ -8,8 +8,8 @@ import (
 	"path"
 
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/pkg/httpc"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"go.uber.org/zap"
 )
 
