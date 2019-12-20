@@ -7152,9 +7152,11 @@ components:
               type: string
               enum:
                 - bucket
+                - check
                 - dashboard
                 - label
                 - notification_endpoint
+                - telegraf
                 - variable
             name:
               type: string
@@ -7406,6 +7408,49 @@ components:
                     $ref: "#/components/schemas/NotificationEndpointDiscrimator"
                   old:
                     $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+            notificationRules:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  endpointName:
+                    type: string
+                  endpointID:
+                    type: string
+                  endpointType:
+                    type: string
+                  every:
+                    type: string
+                  offset:
+                    type: string
+                  messageTemplate:
+                    type: string
+                  status:
+                    type: string
+                  statusRules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        currentLevel:
+                          type: string
+                        previousLevel:
+                          type: string
+                  tagRules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        value:
+                          type: string
+                        operator:
+                          type: string
             telegrafConfigs:
               type: array
               items:

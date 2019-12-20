@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/notification/check"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -128,6 +129,11 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.Len(t, diffBkts, 1)
 		assert.True(t, diffBkts[0].IsNew())
 
+		require.Len(t, diff.Checks, 2)
+		for _, ch := range diff.Checks {
+			assert.True(t, ch.IsNew())
+		}
+
 		diffLabels := diff.Labels
 		require.Len(t, diffLabels, 1)
 		assert.True(t, diffLabels[0].IsNew())
@@ -136,10 +142,9 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.Len(t, diffVars, 1)
 		assert.True(t, diffVars[0].IsNew())
 
-		require.Len(t, diff.Checks, 2)
-		for _, ch := range diff.Checks {
-			assert.True(t, ch.IsNew())
-		}
+		require.Len(t, diff.NotificationRules, 1)
+		// the pkg being run here has a relationship with the rule and the endpoint within the pkg.
+		assert.Equal(t, "http", diff.NotificationRules[0].EndpointType)
 
 		require.Len(t, diff.Dashboards, 1)
 		require.Len(t, diff.NotificationEndpoints, 1)
@@ -208,6 +213,14 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, "rucket_1", bkts[0].Name)
 		hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
 
+		checks := sum1.Checks
+		require.Len(t, checks, 2)
+		for i, ch := range checks {
+			assert.NotZero(t, ch.Check.GetID())
+			assert.Equal(t, fmt.Sprintf("check_%d", i), ch.Check.GetName())
+			hasLabelAssociations(t, ch.LabelAssociations, 1, "label_1")
+		}
+
 		dashs := sum1.Dashboards
 		require.Len(t, dashs, 1)
 		assert.NotZero(t, dashs[0].ID)
@@ -251,13 +264,13 @@ func TestLauncher_Pkger(t *testing.T) {
 				ResourceName: name,
 				LabelName:    labels[0].Name,
 				LabelID:      labels[0].ID,
-				ResourceID:   pkger.SafeID(id),
+				ResourceID:   id,
 				ResourceType: rt,
 			}
 		}
 
 		mappings := sum1.LabelMappings
-		require.Len(t, mappings, 7)
+		require.Len(t, mappings, 8)
 		hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
 		hasMapping(t, mappings, newSumMapping(dashs[0].ID, dashs[0].Name, influxdb.DashboardsResourceType))
 		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
@@ -346,6 +359,14 @@ spec:
 					ID:   influxdb.ID(bkts[0].ID),
 				},
 				{
+					Kind: pkger.KindCheck,
+					ID:   checks[0].Check.GetID(),
+				},
+				{
+					Kind: pkger.KindCheck,
+					ID:   checks[1].Check.GetID(),
+				},
+				{
 					Kind: pkger.KindDashboard,
 					ID:   influxdb.ID(dashs[0].ID),
 				},
@@ -398,6 +419,14 @@ spec:
 			assert.Equal(t, "rucket_1", bkts[0].Name)
 			hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
 
+			checks := newSum.Checks
+			require.Len(t, checks, 2)
+			for i := range make([]struct{}, 2) {
+				assert.Zero(t, checks[0].Check.GetID())
+				assert.Equal(t, fmt.Sprintf("check_%d", i), checks[i].Check.GetName())
+				hasLabelAssociations(t, checks[i].LabelAssociations, 1, "label_1")
+			}
+
 			dashs := newSum.Dashboards
 			require.Len(t, dashs, 1)
 			assert.Zero(t, dashs[0].ID)
@@ -441,6 +470,7 @@ spec:
 					BucketService: l.BucketService(t),
 					killCount:     0, // kill on first update for bucket
 				}),
+				pkger.WithCheckSVC(l.CheckService()),
 				pkger.WithDashboardSVC(l.DashboardService(t)),
 				pkger.WithLabelSVC(l.LabelService(t)),
 				pkger.WithNoticationEndpointSVC(l.NotificationEndpointService(t)),
@@ -455,6 +485,16 @@ spec:
 			require.NoError(t, err)
 			// make sure the desc change is not applied and is rolled back to prev desc
 			assert.Equal(t, bkts[0].Description, bkt.Description)
+
+			ch, err := l.CheckService().FindCheckByID(ctx, checks[0].Check.GetID())
+			require.NoError(t, err)
+			ch.SetOwnerID(0)
+			deadman, ok := ch.(*check.Threshold)
+			require.True(t, ok)
+			// validate the change to query is not persisting returned to previous state.
+			// not checking entire bits, b/c we dont' save userID and so forth and makes a
+			// direct comparison very annoying...
+			assert.Equal(t, checks[0].Check.(*check.Threshold).Query.Text, deadman.Query.Text)
 
 			label, err := l.LabelService(t).FindLabelByID(ctx, influxdb.ID(labels[0].ID))
 			require.NoError(t, err)
@@ -604,6 +644,28 @@ spec:
       associations:
         - kind: Label
           name: label_1
+    - kind: Notification_Rule
+      name: rule_0
+      description: desc_0
+      endpointName: http_none_auth_notification_endpoint
+      every: 10m
+      offset: 30s
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      status: active
+      statusRules:
+        - currentLevel: WARN
+        - currentLevel: CRIT
+          previousLevel: OK
+      tagRules:
+        - key: k1
+          value: v2
+          operator: eQuAl
+        - key: k1
+          value: v1
+          operator: eQuAl
+      associations:
+        - kind: Label
+          name: label_1
 `, telConf)
 
 const updatePkgYMLStr = `apiVersion: 0.1.0
@@ -640,6 +702,16 @@ spec:
       method: GET
       url:  https://www.example.com/endpoint/noneauth
       status: active
+    - kind: Check_Threshold
+      name: check_0
+      every: 1m
+      query:  from("rucket1") |> yield()
+      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+      thresholds:
+        - type: inside_range
+          level: INfO
+          min: 30.0
+          max: 45.0
 `
 
 type fakeBucketSVC struct {

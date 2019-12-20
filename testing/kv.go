@@ -51,6 +51,10 @@ func KVStore(
 			fn:   KVCursorWithHints,
 		},
 		{
+			name: "ForwardCursor",
+			fn:   KVForwardCursor,
+		},
+		{
 			name: "View",
 			fn:   KVView,
 		},
@@ -660,6 +664,248 @@ func KVCursorWithHints(
 
 				if exp := tt.exp; !cmp.Equal(got, exp) {
 					t.Errorf("unexpected cursor values: -got/+exp\n%v", cmp.Diff(got, exp))
+				}
+
+				return nil
+			})
+
+			if err != nil {
+				t.Fatalf("error during view transaction: %v", err)
+			}
+		})
+	}
+}
+
+// KVForwardCursor tests the forward cursor contract for the key value store.
+func KVForwardCursor(
+	init func(KVStoreFields, *testing.T) (kv.Store, func()),
+	t *testing.T,
+) {
+	type args struct {
+		seek      string
+		direction kv.CursorDirection
+		until     string
+		hints     []kv.CursorHint
+	}
+
+	pairs := func(keys ...string) []kv.Pair {
+		p := make([]kv.Pair, len(keys))
+		for i, k := range keys {
+			p[i].Key = []byte(k)
+			p[i].Value = []byte("val:" + k)
+		}
+		return p
+	}
+
+	tests := []struct {
+		name   string
+		fields KVStoreFields
+		args   args
+		exp    []string
+		expErr error
+	}{
+		{
+			name: "no hints",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa",
+				until: "bbb/00",
+			},
+			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03", "bbb/00"},
+		},
+		{
+			name: "prefix hint",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa",
+				until: "aaa/03",
+				hints: []kv.CursorHint{kv.WithCursorHintPrefix("aaa/")},
+			},
+			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03"},
+		},
+		{
+			name: "start hint",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa",
+				until: "bbb/00",
+				hints: []kv.CursorHint{kv.WithCursorHintKeyStart("aaa/")},
+			},
+			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03", "bbb/00"},
+		},
+		{
+			name: "predicate for key",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa",
+				until: "aaa/03",
+				hints: []kv.CursorHint{
+					kv.WithCursorHintPredicate(func(key, _ []byte) bool {
+						return len(key) < 3 || string(key[:3]) == "aaa"
+					})},
+			},
+			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03"},
+		},
+		{
+			name: "predicate for value",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "",
+				until: "aa/01",
+				hints: []kv.CursorHint{
+					kv.WithCursorHintPredicate(func(_, val []byte) bool {
+						return len(val) < 7 || string(val[:7]) == "val:aa/"
+					})},
+			},
+			exp: []string{"aa/00", "aa/01"},
+		},
+		{
+			name: "no hints - descending",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:      "bbb/00",
+				until:     "aaa/00",
+				direction: kv.CursorDescending,
+			},
+			exp: []string{"bbb/00", "aaa/03", "aaa/02", "aaa/01", "aaa/00"},
+		},
+		{
+			name: "start hint - descending",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:      "bbb/00",
+				until:     "aaa/00",
+				direction: kv.CursorDescending,
+				hints:     []kv.CursorHint{kv.WithCursorHintKeyStart("aaa/")},
+			},
+			exp: []string{"bbb/00", "aaa/03", "aaa/02", "aaa/01", "aaa/00"},
+		},
+		{
+			name: "predicate for key - descending",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:      "aaa/03",
+				until:     "aaa/00",
+				direction: kv.CursorDescending,
+				hints: []kv.CursorHint{
+					kv.WithCursorHintPredicate(func(key, _ []byte) bool {
+						return len(key) < 3 || string(key[:3]) == "aaa"
+					})},
+			},
+			exp: []string{"aaa/03", "aaa/02", "aaa/01", "aaa/00"},
+		},
+		{
+			name: "predicate for value - descending",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:      "aa/01",
+				until:     "aa/00",
+				direction: kv.CursorDescending,
+				hints: []kv.CursorHint{
+					kv.WithCursorHintPredicate(func(_, val []byte) bool {
+						return len(val) >= 7 && string(val[:7]) == "val:aa/"
+					})},
+			},
+			exp: []string{"aa/01", "aa/00"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, fin := init(tt.fields, t)
+			defer fin()
+
+			err := s.View(context.Background(), func(tx kv.Tx) error {
+				b, err := tx.Bucket([]byte("bucket"))
+				if err != nil {
+					t.Errorf("unexpected error retrieving bucket: %v", err)
+					return err
+				}
+
+				cur, err := b.ForwardCursor([]byte(tt.args.seek),
+					kv.WithCursorDirection(tt.args.direction),
+					kv.WithCursorHints(tt.args.hints...))
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+					return err
+				}
+
+				var got []string
+
+				k, _ := cur.Next()
+				for len(k) > 0 {
+					got = append(got, string(k))
+					if string(k) == tt.args.until {
+						break
+					}
+
+					k, _ = cur.Next()
+				}
+
+				if exp := tt.exp; !cmp.Equal(got, exp) {
+					t.Errorf("unexpected cursor values: -got/+exp\n%v", cmp.Diff(got, exp))
+				}
+
+				if err := cur.Err(); !cmp.Equal(err, tt.expErr) {
+					t.Errorf("expected error to be %v, got %v", tt.expErr, err)
+				}
+
+				if err := cur.Close(); err != nil {
+					t.Errorf("expected cursor to close with nil error, found %v", err)
 				}
 
 				return nil

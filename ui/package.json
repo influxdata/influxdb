@@ -37,6 +37,7 @@
     "test:ci": "JEST_JUNIT_OUTPUT_DIR=\"./coverage\" jest --ci --coverage",
     "lint": "yarn tsc && yarn prettier && yarn eslint",
     "eslint": "eslint '{src,cypress}/**/*.{ts,tsx}'",
+    "eslint:circleci": "eslint",
     "eslint:fix": "eslint --fix '{src,cypress}/**/*.{ts,tsx}'",
     "prettier": "prettier --config .prettierrc.json --check '{src,cypress}/**/*.{ts,tsx}'",
     "prettier:fix": "prettier --config .prettierrc.json --write '{src,cypress}/**/*.{ts,tsx}'",

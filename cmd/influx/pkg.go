@@ -51,6 +51,7 @@ type cmdPkgBuilder struct {
 	exportOpts struct {
 		resourceType string
 		buckets      string
+		checks       string
 		dashboards   string
 		endpoints    string
 		labels       string
@@ -224,6 +225,7 @@ func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 	cmd.Flags().StringVarP(&b.meta.Version, "version", "v", "", "version for new pkg")
 	cmd.Flags().StringVar(&b.exportOpts.resourceType, "resource-type", "", "The resource type provided will be associated with all IDs via stdin.")
 	cmd.Flags().StringVar(&b.exportOpts.buckets, "buckets", "", "List of bucket ids comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.checks, "checks", "", "List of check ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.dashboards, "dashboards", "", "List of dashboard ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.endpoints, "endpoints", "", "List of notification endpoint ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.labels, "labels", "", "List of label ids comma separated")
@@ -249,6 +251,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn() func(*cobra.Command, []string) error {
 			idStrs []string
 		}{
 			{kind: pkger.KindBucket, idStrs: strings.Split(b.exportOpts.buckets, ",")},
+			{kind: pkger.KindCheck, idStrs: strings.Split(b.exportOpts.checks, ",")},
 			{kind: pkger.KindDashboard, idStrs: strings.Split(b.exportOpts.dashboards, ",")},
 			{kind: pkger.KindNotificationEndpoint, idStrs: strings.Split(b.exportOpts.endpoints, ",")},
 			{kind: pkger.KindLabel, idStrs: strings.Split(b.exportOpts.labels, ",")},
@@ -666,6 +669,23 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 		})
 	}
 
+	if rules := diff.NotificationRules; len(rules) > 0 {
+		headers := []string{"New", "Name", "Description", "Every", "Offset", "Endpoint Name", "Endpoint ID", "Endpoint Type"}
+		tablePrintFn("NOTIFICATION RULES", headers, len(rules), func(i int) []string {
+			v := rules[i]
+			return []string{
+				green(true),
+				v.Name,
+				v.Description,
+				v.Every,
+				v.Offset,
+				v.EndpointName,
+				v.EndpointID.String(),
+				v.EndpointType,
+			}
+		})
+	}
+
 	if teles := diff.Telegrafs; len(diff.Telegrafs) > 0 {
 		headers := []string{"New", "Name", "Description"}
 		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
@@ -718,6 +738,18 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 				bucket.Name,
 				formatDuration(bucket.RetentionPeriod),
 				bucket.Description,
+			}
+		})
+	}
+
+	if checks := sum.Checks; len(checks) > 0 {
+		headers := []string{"ID", "Name", "Description"}
+		tablePrintFn("CHECKS", headers, len(checks), func(i int) []string {
+			c := checks[i].Check
+			return []string{
+				c.GetID().String(),
+				c.GetName(),
+				c.GetDescription(),
 			}
 		})
 	}

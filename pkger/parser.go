@@ -137,6 +137,7 @@ type Pkg struct {
 	mChecks                map[string]*check
 	mDashboards            []*dashboard
 	mNotificationEndpoints map[string]*notificationEndpoint
+	mNotificationRules     []*notificationRule
 	mTelegrafs             []*telegraf
 	mVariables             map[string]*variable
 
@@ -172,6 +173,10 @@ func (p *Pkg) Summary() Summary {
 
 	for _, n := range p.notificationEndpoints() {
 		sum.NotificationEndpoints = append(sum.NotificationEndpoints, n.summarize())
+	}
+
+	for _, r := range p.notificationRules() {
+		sum.NotificationRules = append(sum.NotificationRules, r.summarize())
 	}
 
 	for _, t := range p.telegrafs() {
@@ -288,6 +293,12 @@ func (p *Pkg) notificationEndpoints() []*notificationEndpoint {
 		return ei.kind < ej.kind
 	})
 	return endpoints
+}
+
+func (p *Pkg) notificationRules() []*notificationRule {
+	rules := p.mNotificationRules[:]
+	sort.Slice(rules, func(i, j int) bool { return rules[i].name < rules[j].name })
+	return rules
 }
 
 func (p *Pkg) secrets() map[string]bool {
@@ -425,6 +436,7 @@ func (p *Pkg) graphResources() error {
 		p.graphChecks,
 		p.graphDashboards,
 		p.graphNotificationEndpoints,
+		p.graphNotificationRules,
 		p.graphTelegrafs,
 	}
 
@@ -527,9 +539,9 @@ func (p *Pkg) graphChecks() *parseErr {
 				kind:          k.checkKind,
 				name:          r.Name(),
 				description:   r.stringShort(fieldDescription),
-				every:         r.durationShort(fieldCheckEvery),
-				level:         r.stringShort(fieldCheckLevel),
-				offset:        r.durationShort(fieldCheckOffset),
+				every:         r.durationShort(fieldEvery),
+				level:         r.stringShort(fieldLevel),
+				offset:        r.durationShort(fieldOffset),
 				query:         strings.TrimSpace(r.stringShort(fieldQuery)),
 				reportZero:    r.boolShort(fieldCheckReportZero),
 				staleTime:     r.durationShort(fieldCheckStaleTime),
@@ -547,7 +559,7 @@ func (p *Pkg) graphChecks() *parseErr {
 				ch.thresholds = append(ch.thresholds, threshold{
 					threshType: thresholdType(normStr(th.stringShort(fieldType))),
 					allVals:    th.boolShort(fieldCheckAllValues),
-					level:      strings.TrimSpace(strings.ToUpper(th.stringShort(fieldCheckLevel))),
+					level:      strings.TrimSpace(strings.ToUpper(th.stringShort(fieldLevel))),
 					max:        th.float64Short(fieldMax),
 					min:        th.float64Short(fieldMin),
 					val:        th.float64Short(fieldValue),
@@ -677,6 +689,46 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 		return &pErr
 	}
 	return nil
+}
+
+func (p *Pkg) graphNotificationRules() *parseErr {
+	p.mNotificationRules = make([]*notificationRule, 0)
+	return p.eachResource(KindNotificationRule, 1, func(r Resource) []validationErr {
+		rule := &notificationRule{
+			name:         r.Name(),
+			endpointName: r.stringShort(fieldNotificationRuleEndpointName),
+			description:  r.stringShort(fieldDescription),
+			every:        r.durationShort(fieldEvery),
+			msgTemplate:  r.stringShort(fieldNotificationRuleMessageTemplate),
+			offset:       r.durationShort(fieldOffset),
+			status:       normStr(r.stringShort(fieldStatus)),
+		}
+
+		for _, sRule := range r.slcResource(fieldNotificationRuleStatusRules) {
+			rule.statusRules = append(rule.statusRules, struct{ curLvl, prevLvl string }{
+				curLvl:  strings.TrimSpace(strings.ToUpper(sRule.stringShort(fieldNotificationRuleCurrentLevel))),
+				prevLvl: strings.TrimSpace(strings.ToUpper(sRule.stringShort(fieldNotificationRulePreviousLevel))),
+			})
+		}
+
+		for _, tRule := range r.slcResource(fieldNotificationRuleTagRules) {
+			rule.tagRules = append(rule.tagRules, struct{ k, v, op string }{
+				k:  tRule.stringShort(fieldKey),
+				v:  tRule.stringShort(fieldValue),
+				op: normStr(tRule.stringShort(fieldOperator)),
+			})
+		}
+
+		failures := p.parseNestedLabels(r, func(l *label) error {
+			rule.labels = append(rule.labels, l)
+			p.mLabels[l.Name()].setMapping(rule, false)
+			return nil
+		})
+		sort.Sort(rule.labels)
+
+		p.mNotificationRules = append(p.mNotificationRules, rule)
+		return append(failures, rule.valid()...)
+	})
 }
 
 func (p *Pkg) graphVariables() *parseErr {

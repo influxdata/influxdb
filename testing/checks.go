@@ -31,7 +31,7 @@ const (
 	checkTwoID = "020f755c3c082001"
 )
 
-var script = `data = from(bucket: "telegraf") |> range(start: -1m)`
+var script = `data = from(bucket: "telegraf") |> range(start: -1m) |> filter(fn: (r) => r._field == "usage_user")`
 
 var deadman1 = &check.Deadman{
 	Base: check.Base{
@@ -43,17 +43,6 @@ var deadman1 = &check.Deadman{
 		TaskID:      1,
 		Query: influxdb.DashboardQuery{
 			Text: script,
-			BuilderConfig: influxdb.BuilderConfig{
-				Tags: []struct {
-					Key    string   `json:"key"`
-					Values []string `json:"values"`
-				}{
-					{
-						Key:    "_field",
-						Values: []string{"usage_user"},
-					},
-				},
-			},
 		},
 		Every:                 mustDuration("1m"),
 		StatusMessageTemplate: "msg1",
@@ -84,17 +73,6 @@ var threshold1 = &check.Threshold{
 		Every:                 mustDuration("1m"),
 		Query: influxdb.DashboardQuery{
 			Text: script,
-			BuilderConfig: influxdb.BuilderConfig{
-				Tags: []struct {
-					Key    string   `json:"key"`
-					Values []string `json:"values"`
-				}{
-					{
-						Key:    "_field",
-						Values: []string{"usage_user"},
-					},
-				},
-			},
 		},
 		Tags: []influxdb.Tag{
 			{Key: "k11", Value: "v11"},
@@ -407,17 +385,6 @@ func CreateCheck(
 						Every:                 mustDuration("1m"),
 						Query: influxdb.DashboardQuery{
 							Text: script,
-							BuilderConfig: influxdb.BuilderConfig{
-								Tags: []struct {
-									Key    string   `json:"key"`
-									Values []string `json:"values"`
-								}{
-									{
-										Key:    "_field",
-										Values: []string{"usage_user"},
-									},
-								},
-							},
 						},
 						Tags: []influxdb.Tag{
 							{Key: "k11", Value: "v11"},
@@ -1760,17 +1727,6 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 						Description: "desc changed",
 						Query: influxdb.DashboardQuery{
 							Text: script,
-							BuilderConfig: influxdb.BuilderConfig{
-								Tags: []struct {
-									Key    string   `json:"key"`
-									Values []string `json:"values"`
-								}{
-									{
-										Key:    "_field",
-										Values: []string{"usage_user"},
-									},
-								},
-							},
 						},
 						StatusMessageTemplate: "msg1",
 						Tags: []influxdb.Tag{
