@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/influxdb/notification"
 	icheck "github.com/influxdata/influxdb/notification/check"
 	"github.com/influxdata/influxdb/notification/endpoint"
+	"github.com/influxdata/influxdb/notification/rule"
 )
 
 // ResourceToClone is a resource that will be cloned.
@@ -79,18 +80,14 @@ func checkToResource(ch influxdb.Check, name string) Resource {
 	}
 	assignNonZeroStrings(r, map[string]string{fieldDescription: ch.GetDescription()})
 
-	assignFluxDur := func(field string, dur *notification.Duration) {
-		if dur == nil {
-			return
-		}
-		r[field] = dur.TimeDuration().String()
-	}
-
 	assignBase := func(base icheck.Base) {
 		r[fieldQuery] = base.Query.Text
 		r[fieldCheckStatusMessageTemplate] = base.StatusMessageTemplate
-		assignFluxDur(fieldEvery, base.Every)
-		assignFluxDur(fieldOffset, base.Offset)
+		assignNonZeroFluxDurs(r, map[string]*notification.Duration{
+			fieldEvery:  base.Every,
+			fieldOffset: base.Offset,
+		})
+
 		var tags []Resource
 		for _, t := range base.Tags {
 			if t.Valid() != nil {
@@ -110,8 +107,10 @@ func checkToResource(ch influxdb.Check, name string) Resource {
 	case *icheck.Deadman:
 		r[fieldKind] = KindCheckDeadman.title()
 		assignBase(cT.Base)
-		assignFluxDur(fieldCheckTimeSince, cT.TimeSince)
-		assignFluxDur(fieldCheckStaleTime, cT.StaleTime)
+		assignNonZeroFluxDurs(r, map[string]*notification.Duration{
+			fieldCheckTimeSince: cT.TimeSince,
+			fieldCheckStaleTime: cT.StaleTime,
+		})
 		r[fieldLevel] = cT.Level.String()
 		assignNonZeroBools(r, map[string]bool{fieldCheckReportZero: cT.ReportZero})
 	case *icheck.Threshold:
@@ -129,15 +128,21 @@ func checkToResource(ch influxdb.Check, name string) Resource {
 func convertThreshold(th icheck.ThresholdConfig) Resource {
 	r := Resource{fieldLevel: th.GetLevel().String()}
 
+	assignLesser := func(threshType thresholdType, allValues bool, val float64) {
+		r[fieldType] = string(threshType)
+		assignNonZeroBools(r, map[string]bool{fieldCheckAllValues: allValues})
+		r[fieldValue] = val
+	}
+
 	switch realType := th.(type) {
 	case icheck.Lesser:
-		r[fieldType] = string(thresholdTypeLesser)
-		assignNonZeroBools(r, map[string]bool{fieldCheckAllValues: realType.AllValues})
-		r[fieldValue] = realType.Value
+		assignLesser(thresholdTypeLesser, realType.AllValues, realType.Value)
+	case *icheck.Lesser:
+		assignLesser(thresholdTypeLesser, realType.AllValues, realType.Value)
 	case icheck.Greater:
-		r[fieldType] = string(thresholdTypeGreater)
-		assignNonZeroBools(r, map[string]bool{fieldCheckAllValues: realType.AllValues})
-		r[fieldValue] = realType.Value
+		assignLesser(thresholdTypeGreater, realType.AllValues, realType.Value)
+	case *icheck.Greater:
+		assignLesser(thresholdTypeGreater, realType.AllValues, realType.Value)
 	case icheck.Range:
 		assignRangeThreshold(r, realType)
 	case *icheck.Range:
@@ -433,6 +438,67 @@ func endpointToResource(e influxdb.NotificationEndpoint, name string) Resource {
 	return r
 }
 
+func ruleToResource(iRule influxdb.NotificationRule, endpointName, name string) Resource {
+	if name == "" {
+		name = iRule.GetName()
+	}
+	r := Resource{
+		fieldKind:                         KindNotificationRule.title(),
+		fieldName:                         name,
+		fieldNotificationRuleEndpointName: endpointName,
+	}
+	assignNonZeroStrings(r, map[string]string{
+		fieldDescription: iRule.GetDescription(),
+	})
+
+	assignBase := func(base rule.Base) {
+		assignNonZeroFluxDurs(r, map[string]*notification.Duration{
+			fieldEvery:  base.Every,
+			fieldOffset: base.Offset,
+		})
+
+		var tagRes []Resource
+		for _, tRule := range base.TagRules {
+			tagRes = append(tagRes, Resource{
+				fieldKey:      tRule.Key,
+				fieldValue:    tRule.Value,
+				fieldOperator: tRule.Operator.String(),
+			})
+		}
+		if len(tagRes) > 0 {
+			r[fieldNotificationRuleTagRules] = tagRes
+		}
+
+		var statusRuleRes []Resource
+		for _, sRule := range base.StatusRules {
+			sRes := Resource{
+				fieldNotificationRuleCurrentLevel: sRule.CurrentLevel.String(),
+			}
+			if sRule.PreviousLevel != nil {
+				sRes[fieldNotificationRulePreviousLevel] = sRule.PreviousLevel.String()
+			}
+			statusRuleRes = append(statusRuleRes, sRes)
+		}
+		if len(statusRuleRes) > 0 {
+			r[fieldNotificationRuleStatusRules] = statusRuleRes
+		}
+	}
+
+	switch t := iRule.(type) {
+	case *rule.HTTP:
+		assignBase(t.Base)
+	case *rule.PagerDuty:
+		assignBase(t.Base)
+		r[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
+	case *rule.Slack:
+		assignBase(t.Base)
+		r[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
+		assignNonZeroStrings(r, map[string]string{fieldNotificationRuleChannel: t.Channel})
+	}
+
+	return r
+}
+
 func telegrafToResource(t influxdb.TelegrafConfig, name string) Resource {
 	if name == "" {
 		name = t.Name
@@ -485,6 +551,18 @@ func variableToResource(v influxdb.Variable, name string) Resource {
 	}
 
 	return r
+}
+
+func assignNonZeroFluxDurs(r Resource, m map[string]*notification.Duration) {
+	for field, dur := range m {
+		if dur == nil {
+			continue
+		}
+		if dur.TimeDuration() == 0 {
+			continue
+		}
+		r[field] = dur.TimeDuration().String()
+	}
 }
 
 func assignNonZeroBools(r Resource, m map[string]bool) {
