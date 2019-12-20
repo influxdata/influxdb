@@ -14,6 +14,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	DefaultFilename = "influxd.bolt"
+)
+
 // Client is a client for the boltDB data store.
 type Client struct {
 	Path string
