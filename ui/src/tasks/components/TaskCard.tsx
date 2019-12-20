@@ -9,6 +9,8 @@ import {
   ComponentSize,
   ResourceCard,
   IconFont,
+  InputLabel,
+  FlexBox,
 } from '@influxdata/clockface'
 import {Context} from 'src/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
@@ -73,6 +75,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
           />
         }
         metaData={[
+          this.activeToggle,
           <>Last completed at {task.latestCompleted}</>,
           <>{`Scheduled to run ${this.schedule}`}</>,
         ]}
@@ -83,6 +86,21 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
           />
         }
       />
+    )
+  }
+
+  private get activeToggle(): JSX.Element {
+    const labelText = this.isTaskActive ? 'Active' : 'Inactive'
+    return (
+      <FlexBox margin={ComponentSize.Small}>
+        <SlideToggle
+          active={this.isTaskActive}
+          size={ComponentSize.ExtraSmall}
+          onChange={this.changeToggle}
+          testID="task-card--slide-toggle"
+        />
+        <InputLabel active={this.isTaskActive}>{labelText}</InputLabel>
+      </FlexBox>
     )
   }
 
