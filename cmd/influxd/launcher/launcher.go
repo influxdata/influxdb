@@ -720,7 +720,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	// NATS streaming server
 	natsOpts := nats.NewDefaultServerOptions()
-	nextPort := int64(4222)
 
 	// Welcome to ghetto land. It doesn't seem possible to tell NATS to initialise
 	// a random port. In some integration-style tests, this launcher gets initialised
@@ -731,23 +730,31 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	// next one.
 	var total int
 	for {
-		l, err := net.Listen("tcp", fmt.Sprintf(":%d", nextPort))
-		if err == nil {
-			if err := l.Close(); err != nil {
+		portAvailable, err := isAddressPortAvailable(natsOpts.Host, natsOpts.Port)
+		if err != nil {
+			return err
+		}
+		if portAvailable && natsOpts.Host == "" {
+			// Double-check localhost to accommodate tests
+			time.Sleep(100 * time.Millisecond)
+			portAvailable, err = isAddressPortAvailable("localhost", natsOpts.Port)
+			if err != nil {
 				return err
 			}
+		}
+		if portAvailable {
 			break
 		}
-		time.Sleep(time.Second)
-		nextPort++
+
+		time.Sleep(100 * time.Millisecond)
+		natsOpts.Port++
 		total++
 		if total > 50 {
 			return errors.New("unable to find free port for Nats server")
 		}
 	}
-	natsOpts.Port = int(nextPort)
 	m.natsServer = nats.NewServer(&natsOpts)
-	m.natsPort = int(nextPort)
+	m.natsPort = natsOpts.Port
 
 	if err := m.natsServer.Open(); err != nil {
 		m.log.Error("Failed to start nats streaming server", zap.Error(err))
@@ -923,6 +930,18 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}(httpLogger)
 
 	return nil
+}
+
+// isAddressPortAvailable checks whether the address:port is available to listen,
+// by using net.Listen to verify that the port opens successfully, then closes the listener.
+func isAddressPortAvailable(address string, port int) (bool, error) {
+	if l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", address, port)); err == nil {
+		if err := l.Close(); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 // OrganizationService returns the internal organization service.
