@@ -1,5 +1,5 @@
 use crate::line_parser::Point;
-use crate::delorean::{Bucket, IndexLevel};
+use crate::delorean::{Bucket, IndexLevel, Predicate};
 
 use rocksdb::{DB, IteratorMode, WriteBatch, Options, ColumnFamilyDescriptor, Direction, ColumnFamily};
 use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
@@ -193,12 +193,52 @@ impl Database {
         let mut series = points.into_iter().map(|p| {
             let mut series = Series{id: None, point: p};
             let level = &bucket.index_levels[0];
-            let cf_name = index_cf_name(org_id, bucket.id,level.duration_seconds, now);
+            let cf_name = index_cf_name(bucket.id,level.duration_seconds, now);
             series.id = self.get_series_id(&cf_name, &series.point.series);
             series
         }).collect();
 
         series
+    }
+
+    // TODO: create test with different data and predicates loaded to ensure it hits the index properly
+    pub fn get_series_filters(&self, bucket: &Bucket, _predicate: Option<&Predicate>, range: &Range) -> Vec<SeriesFilter> {
+        vec![]
+    }
+
+    // TODO: handle predicate
+    pub fn get_tag_keys(&self, bucket: &Bucket, _predicate: Option<&Predicate>, range: &Range) -> Vec<String> {
+        let index_level = bucket.index_levels.get(0).unwrap(); // TODO: find the right index based on range
+        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+        let cf_name = index_cf_name(bucket.id, index_level.duration_seconds, now);
+
+        let mut keys = vec![];
+
+        match self.db.cf_handle(&cf_name) {
+            Some(index) => {
+                let prefix = index_tag_key_prefix(bucket.id);
+                let mode = IteratorMode::From(&prefix, Direction::Forward);
+                let mut iter = self.db.iterator_cf(index, mode)
+                    .expect("unexpected rocksdb error getting iterator for index");
+
+                for (key, value) in iter {
+                    match index_entry_type_from_byte(key[0]) {
+                        IndexEntryType::KeyList => {
+                            let k = std::str::from_utf8(&key[prefix.len()..]).unwrap(); // TODO: determine what we want to do with errors
+                            keys.push(k.to_string());
+                        },
+                        _ => break
+                    }
+                }
+            },
+            None => (),
+        }
+
+        keys
+    }
+
+    pub fn get_tag_values(&self, bucket: &Bucket, tag: &str, _predicate: Option<&Predicate>, range: &Range) -> Vec<String> {
+        vec![]
     }
 
     // ensure_series_mutex_exists makes sure that the passed in bucket id has a mutex, which is used
@@ -235,7 +275,7 @@ impl Database {
 
         // create the column family to store the index if it doesn't exist
         let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
-        let cf_name = index_cf_name(org_id, bucket.id, bucket.index_levels[0].duration_seconds, now);
+        let cf_name = index_cf_name(bucket.id, bucket.index_levels[0].duration_seconds, now);
         let index_cf = match self.db.cf_handle(&cf_name) {
             Some(cf) => cf,
             None => {
@@ -252,12 +292,23 @@ impl Database {
             }
 
             // now that we have the mutex on series, make sure these weren't inserted in some other thread
-            if let None = self.get_series_id(&cf_name, &series.point.series) {
-                series.id = Some(*next_id);
-                let mut series_id = Vec::with_capacity(8);
-                series_id.write_u64::<BigEndian>(*next_id).unwrap();
-                batch.put_cf(index_cf, index_series_key_id(&series.point.series), series_id);
-                *next_id += 1;
+            if let Some(_) = self.get_series_id(&cf_name, &series.point.series) {
+                continue;
+            }
+
+            series.id = Some(*next_id);
+            let mut series_id = Vec::with_capacity(8);
+            series_id.write_u64::<BigEndian>(*next_id).unwrap();
+            batch.put_cf(index_cf, index_series_key_id(&series.point.series), series_id);
+            *next_id += 1;
+
+            // insert the index entries
+            // TODO: do the error handling bits, but how to handle? Should all series be validated before
+            //       and fail the whole write if any one is bad, or insert the ones we can and ignore and log the bad?
+            let pairs = series.point.index_pairs().unwrap();
+            for pair in pairs {
+                // insert the tag key index
+                batch.put_cf(index_cf, index_tag_key(bucket.id, &pair.key), vec![0 as u8]);
             }
         }
 
@@ -325,9 +376,12 @@ Index keeps the following entries (entry type is the first part). So key:value
 
 series key to ID: <SeriesKeyToID><key>:<id>
 ID to series key: <IDToSeriesKey><BigEndian u64 ID>:<key>
+
 key posting list: <KeyPostingList><tag key><big endian collection number>:<roaring bitmap>
 key/value posting list: <KeyValuePostingList><tag key><0x0><tag value><big endian collection number>:<roaring bitmap>
-tag value map: <TagValueMap><tag key><0x0><tag value>:<BigEndian created unix seconds epoch>
+
+this one is for show keys or show values where key = value queries
+tag value map: <TagValueMap><tag key><0x0><tag value><0x0><tag key 2><0x0><tag value 2>:<BigEndian created unix seconds epoch>
 */
 
 // IndexEntryType is used as a u8 prefix for any key in rocks for these different index entries
@@ -336,7 +390,8 @@ enum IndexEntryType {
     IDToSeriesKey,
     KeyPostingList,
     KeyValuePostingList,
-    TagValueMap,
+    KeyList,
+    KeyValueList,
 }
 
 fn index_cf_options() -> Options {
@@ -346,14 +401,14 @@ fn index_cf_options() -> Options {
 }
 
 // index_cf_name returns the name of the column family for the given index duration at a given epoch time (in seconds)
-fn index_cf_name(org_id: u32, bucket_id: u32, duration: u32, epoch: u64) -> String {
+fn index_cf_name(bucket_id: u32, duration: u32, epoch: u64) -> String {
     if duration == 0 {
-        return format!("index_{}_{}_{}", org_id, bucket_id, "0");
+        return format!("index_{}_{}", bucket_id, "0");
     }
 
     let duration = duration as u64;
 
-    format!("index_{}_{}_{}_{}", org_id, bucket_id, duration, epoch / duration * duration)
+    format!("index_{}_{}_{}", bucket_id, duration, epoch / duration * duration)
 }
 
 fn index_series_key_id(series_key: &str) -> Vec<u8> {
@@ -361,6 +416,25 @@ fn index_series_key_id(series_key: &str) -> Vec<u8> {
     v.push(IndexEntryType::SeriesKeyToID as u8);
     v.append(&mut series_key.as_bytes().to_vec());
     v
+}
+
+fn index_tag_key(bucket_id: u32, key: &str) -> Vec<u8> {
+    let mut v = Vec::with_capacity(key.len() + 5);
+    v.push(IndexEntryType::KeyList as u8);
+    v.write_u32::<BigEndian>(bucket_id).unwrap();
+    v.append(&mut key.as_bytes().to_vec());
+    v
+}
+
+fn index_tag_key_prefix(bucket_id: u32) -> Vec<u8> {
+    let mut v = Vec::with_capacity(5);
+    v.push(IndexEntryType::KeyList as u8);
+    v.write_u32::<BigEndian>(bucket_id).unwrap();
+    v
+}
+
+fn index_entry_type_from_byte(b: u8) -> IndexEntryType {
+    unsafe { ::std::mem::transmute(b) }
 }
 
 // next_series_id_key gives the key in the buckets CF in rocks that holds the value for the next series ID
@@ -430,6 +504,16 @@ impl Bucket {
             ],
         }
     }
+}
+
+pub struct SeriesFilter {
+    id: u64,
+    value_predicate: Option<Predicate>,
+}
+
+pub struct Range {
+    start: i64,
+    stop: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -587,6 +671,23 @@ mod tests {
                 ],
             );
         }
+    }
+
+    #[test]
+    fn series_metadata_indexing() {
+        let mut bucket = Bucket::new(1, "foo".to_string());
+        let mut db = test_database("series_metadata_indexing", true);
+        let p1 = Point{series: "cpu,host=a,region=west\tusage_system".to_string(), value: 1, time: 0};
+        let p2 = Point{series: "cpu,host=b,region=west\tusage_system".to_string(), value: 1, time: 0};
+        let p3 = Point{series: "cpu,host=b,region=west\tusage_user".to_string(), value: 1, time: 0};
+        let p4 = Point{series: "mem,host=a,region=west\tfree".to_string(), value: 1, time: 0};
+
+        bucket.id = db.create_bucket_if_not_exists(bucket.org_id, &bucket).unwrap();
+        let mut series = db.get_series_ids(bucket.org_id, &bucket, vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()]);
+        db.insert_series_without_ids(bucket.org_id, &bucket, &mut series);
+
+        let tag_keys = db.get_tag_keys(&bucket, None, &Range{start:0, stop: std::i64::MAX});
+        assert_eq!(tag_keys, vec!["_f", "_m", "host", "region"]);
     }
 
     // Test helpers
