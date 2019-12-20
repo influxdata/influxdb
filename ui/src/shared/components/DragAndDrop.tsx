@@ -16,6 +16,7 @@ interface Props {
   submitOnUpload: boolean
   compact: boolean
   onCancel?: () => void
+  className?: string
 }
 
 interface State {
@@ -32,6 +33,7 @@ class DragAndDrop extends PureComponent<Props, State> {
     submitOnDrop: false,
     submitOnUpload: false,
     compact: false,
+    className: '',
   }
 
   private fileInput: HTMLInputElement
@@ -96,9 +98,13 @@ class DragAndDrop extends PureComponent<Props, State> {
 
   private get containerClass(): string {
     const {dragClass} = this.state
-    const {compact} = this.props
+    const {compact, className} = this.props
 
-    return classnames('drag-and-drop', {compact, [dragClass]: true})
+    return classnames('drag-and-drop', {
+      compact,
+      [dragClass]: true,
+      [className]: className,
+    })
   }
 
   private get infoClass(): string {
