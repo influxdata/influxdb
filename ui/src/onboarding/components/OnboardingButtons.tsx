@@ -6,6 +6,7 @@ import {
   ComponentSize,
   ButtonType,
   ComponentStatus,
+  Overlay,
 } from '@influxdata/clockface'
 
 interface Props {
@@ -51,29 +52,22 @@ class OnboardingButtons extends PureComponent<Props> {
   }
 
   public render() {
-    const {nextButtonText, nextButtonStatus} = this.props
+    const {nextButtonText, nextButtonStatus, className} = this.props
     return (
-      <div className={this.className}>
-        <div className="wizard--button-bar">
-          {this.backButton}
-          <Button
-            color={ComponentColor.Primary}
-            text={nextButtonText}
-            size={ComponentSize.Medium}
-            type={ButtonType.Submit}
-            testID="next"
-            ref={this.submitRef}
-            status={nextButtonStatus}
-            tabIndex={0}
-          />
-        </div>
+      <Overlay.Footer className={className}>
+        {this.backButton}
+        <Button
+          color={ComponentColor.Primary}
+          text={nextButtonText}
+          type={ButtonType.Submit}
+          testID="next"
+          ref={this.submitRef}
+          status={nextButtonStatus}
+          tabIndex={0}
+        />
         {this.skipButton}
-      </div>
+      </Overlay.Footer>
     )
-  }
-
-  private get className(): string {
-    return this.props.className || ''
   }
 
   private get backButton(): JSX.Element {
@@ -87,7 +81,6 @@ class OnboardingButtons extends PureComponent<Props> {
       <Button
         color={ComponentColor.Default}
         text={backButtonText}
-        size={ComponentSize.Medium}
         onClick={onClickBack}
         testID="back"
         tabIndex={1}
