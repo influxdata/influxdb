@@ -75,17 +75,11 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
         metaData={[
           <>Last completed at {task.latestCompleted}</>,
           <>{`Scheduled to run ${this.schedule}`}</>,
+        ]}
+        toggle={
           <LastRunTaskStatus
             lastRunError={task.lastRunError}
             lastRunStatus={task.lastRunStatus}
-          />,
-        ]}
-        toggle={
-          <SlideToggle
-            active={this.isTaskActive}
-            size={ComponentSize.ExtraSmall}
-            onChange={this.changeToggle}
-            testID="task-card--slide-toggle"
           />
         }
       />
