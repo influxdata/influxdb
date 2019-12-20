@@ -32,6 +32,7 @@ type serviceOpt struct {
 	dashSVC     influxdb.DashboardService
 	labelSVC    influxdb.LabelService
 	endpointSVC influxdb.NotificationEndpointService
+	ruleSVC     influxdb.NotificationRuleStore
 	secretSVC   influxdb.SecretService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
@@ -70,10 +71,17 @@ func WithDashboardSVC(dashSVC influxdb.DashboardService) ServiceSetterFn {
 	}
 }
 
-// WithNoticationEndpointSVC sets the endpoint notification service.
-func WithNoticationEndpointSVC(endpointSVC influxdb.NotificationEndpointService) ServiceSetterFn {
+// WithNotificationEndpointSVC sets the endpoint notification service.
+func WithNotificationEndpointSVC(endpointSVC influxdb.NotificationEndpointService) ServiceSetterFn {
 	return func(opt *serviceOpt) {
 		opt.endpointSVC = endpointSVC
+	}
+}
+
+// WithNotificationRuleSVC sets the endpoint rule service.
+func WithNotificationRuleSVC(ruleSVC influxdb.NotificationRuleStore) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.ruleSVC = ruleSVC
 	}
 }
 
@@ -115,6 +123,7 @@ type Service struct {
 	dashSVC     influxdb.DashboardService
 	labelSVC    influxdb.LabelService
 	endpointSVC influxdb.NotificationEndpointService
+	ruleSVC     influxdb.NotificationRuleStore
 	secretSVC   influxdb.SecretService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
@@ -141,6 +150,7 @@ func NewService(opts ...ServiceSetterFn) *Service {
 		labelSVC:      opt.labelSVC,
 		dashSVC:       opt.dashSVC,
 		endpointSVC:   opt.endpointSVC,
+		ruleSVC:       opt.ruleSVC,
 		secretSVC:     opt.secretSVC,
 		teleSVC:       opt.teleSVC,
 		varSVC:        opt.varSVC,
@@ -898,6 +908,7 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 		mapperChecks(pkg.checks()),
 		mapperDashboards(pkg.mDashboards),
 		mapperNotificationEndpoints(pkg.notificationEndpoints()),
+		mapperNotificationRules(pkg.mNotificationRules),
 		mapperTelegrafs(pkg.mTelegrafs),
 		mapperVariables(pkg.variables()),
 	}
@@ -1030,6 +1041,18 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		if err := coordinator.runTilEnd(ctx, orgID, userID, group...); err != nil {
 			return Summary{}, err
 		}
+	}
+
+	// this is required after first primary run and before secondary run, b/c this has dependencies
+	// on the notification endpoints being live in the source of truth (store). Hence we break
+	// it up after the 1st group and before the 2nd. The 2nd group needs these done first so the
+	// label mappings are accurate.
+	app, err := s.applyNotificationRulesGenerator(ctx, orgID, pkg.notificationRules())
+	if err != nil {
+		return Summary{}, err
+	}
+	if err := coordinator.runTilEnd(ctx, orgID, userID, app); err != nil {
+		return Summary{}, err
 	}
 
 	// secondary resources
@@ -1501,6 +1524,119 @@ func (s *Service) rollbackNotificationEndpoints(endpoints []*notificationEndpoin
 		return fmt.Errorf(`notication_endpoint_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
 	}
 
+	return nil
+}
+
+func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID influxdb.ID, rules []*notificationRule) (applier, error) {
+	endpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
+		OrgID: &orgID,
+	})
+	if err != nil {
+		return applier{}, err
+	}
+
+	type mVal struct {
+		id    influxdb.ID
+		eType string
+	}
+	mEndpoints := make(map[string]mVal)
+	for _, e := range endpoints {
+		mEndpoints[e.GetName()] = mVal{
+			id:    e.GetID(),
+			eType: e.Type(),
+		}
+	}
+
+	var errs applyErrs
+	for _, r := range rules {
+		v, ok := mEndpoints[r.endpointName]
+		if !ok {
+			errs = append(errs, &applyErrBody{
+				name: r.Name(),
+				msg:  fmt.Sprintf("endpoint dependency does not exist; endpointName=%q", r.endpointName),
+			})
+			continue
+		}
+		r.endpointID = v.id
+		r.endpointType = v.eType
+	}
+
+	err = errs.toError("notification_rules", "failed to find dependency")
+	if err != nil {
+		return applier{}, err
+	}
+
+	return s.applyNotificationRules(rules), nil
+}
+
+func (s *Service) applyNotificationRules(rules []*notificationRule) applier {
+	const resource = "notification_rules"
+
+	mutex := new(doMutex)
+	rollbackEndpoints := make([]*notificationRule, 0, len(rules))
+
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+		var rule notificationRule
+		mutex.Do(func() {
+			rules[i].orgID = orgID
+			rule = *rules[i]
+		})
+
+		influxRule, err := s.applyNotificationRule(ctx, rule, userID)
+		if err != nil {
+			return &applyErrBody{
+				name: rule.Name(),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			rules[i].id = influxRule.GetID()
+			rollbackEndpoints = append(rollbackEndpoints, rules[i])
+		})
+
+		return nil
+	}
+
+	return applier{
+		creater: creater{
+			entries: len(rules),
+			fn:      createFn,
+		},
+		rollbacker: rollbacker{
+			resource: resource,
+			fn: func() error {
+				return s.rollbackNotificationRules(rollbackEndpoints)
+			},
+		},
+	}
+}
+
+func (s *Service) applyNotificationRule(ctx context.Context, e notificationRule, userID influxdb.ID) (influxdb.NotificationRule, error) {
+	actual := influxdb.NotificationRuleCreate{
+		NotificationRule: e.toInfluxRule(),
+		Status:           e.Status(),
+	}
+	err := s.ruleSVC.CreateNotificationRule(ctx, actual, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return actual, nil
+}
+
+func (s *Service) rollbackNotificationRules(rules []*notificationRule) error {
+	var errs []string
+	for _, e := range rules {
+		err := s.ruleSVC.DeleteNotificationRule(context.Background(), e.ID())
+		if err != nil {
+			errs = append(errs, e.ID().String())
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf(`notication_rule_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
+	}
 	return nil
 }
 

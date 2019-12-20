@@ -11,6 +11,7 @@
 1. [16212](https://github.com/influxdata/influxdb/pull/16212): Add new kv.ForwardCursor interface
 1. [16297](https://github.com/influxdata/influxdb/pull/16297): Add support for notification rule to pkger parser
 1. [16298](https://github.com/influxdata/influxdb/pull/16298): Add support for notification rule pkger dry run functionality
+1. [16305](https://github.com/influxdata/influxdb/pull/16305): Add support for notification rule pkger apply functionality
 
 ### Bug Fixes
 
