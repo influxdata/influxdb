@@ -1,0 +1,83 @@
+apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Label
+      name: label_1
+    - kind: Label
+      name: label_2
+    - kind: Notification_Rule
+      name: slack_rule
+      description: desc_0
+      channel: "#tool-team"
+      endpointName: slack_notification_endpoint
+      every: 10m
+      offset: 30s
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      statusRules:
+        - currentLevel: WARN
+        - currentLevel: CRIT
+          previousLevel: OK
+      associations:
+        - kind: Label
+          name: label_1
+        - kind: Label
+          name: label_2
+    - kind: Notification_Endpoint_Slack
+      name: slack_notification_endpoint
+      description: slack desc
+      url: https://hooks.slack.com/services/bip/piddy/boppidy
+      status: active
+      associations:
+        - kind: Label
+          name: label_1
+        - kind: Label
+          name: label_2
+    - kind: Notification_Rule
+      name: http_rule
+      endpointName: http_none_auth_notification_endpoint
+      every: 10m
+      offset: 30s
+      statusRules:
+        - currentLevel: INFO
+      associations:
+        - kind: Label
+          name: label_1
+        - kind: Label
+          name: label_2
+    - kind: Notification_Endpoint_HTTP
+      name: http_none_auth_notification_endpoint
+      type: none
+      description: http none auth desc
+      method: get
+      url:  https://www.example.com/endpoint/noneauth
+      status: active
+      associations:
+        - kind: Label
+          name: label_1
+    - kind: Notification_Rule
+      name: pagerduty_rule
+      endpointName: pager_duty_notification_endpoint
+      every: 10m
+      offset: 30s
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      statusRules:
+        - currentLevel: INFO
+      associations:
+        - kind: Label
+          name: label_1
+        - kind: Label
+          name: label_2
+    - kind: Notification_Endpoint_Pager_Duty
+      name: pager_duty_notification_endpoint
+      description: pager duty desc
+      url:  http://localhost:8080/orgs/7167eb6719fa34e5/alert-history
+      routingKey: "secret routing-key"
+      status: active
+      associations:
+        - kind: Label
+          name: label_1

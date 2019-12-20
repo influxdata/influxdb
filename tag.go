@@ -42,6 +42,15 @@ var opStrMap = map[string]Operator{
 	"notequalregex": NotRegexEqual,
 }
 
+// ToOperator converts a string into its equivalent Operator.
+func ToOperator(s string) (Operator, bool) {
+	s = strings.ToLower(s)
+	if op, ok := opStrMap[s]; ok {
+		return op, true
+	}
+	return -1, false
+}
+
 // String returns the string value of the operator.
 func (op Operator) String() string {
 	if err := op.Valid(); err != nil {

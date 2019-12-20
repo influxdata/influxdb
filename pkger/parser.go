@@ -699,6 +699,7 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 			name:         r.Name(),
 			endpointName: r.stringShort(fieldNotificationRuleEndpointName),
 			description:  r.stringShort(fieldDescription),
+			channel:      r.stringShort(fieldNotificationRuleChannel),
 			every:        r.durationShort(fieldEvery),
 			msgTemplate:  r.stringShort(fieldNotificationRuleMessageTemplate),
 			offset:       r.durationShort(fieldOffset),

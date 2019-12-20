@@ -11,6 +11,7 @@ spec:
     - kind: Notification_Rule
       name: rule_0
       description: desc_0
+      channel: "#two-fer-one"
       endpointName: endpoint_0
       every: 10m
       offset: 30s

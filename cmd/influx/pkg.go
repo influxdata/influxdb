@@ -790,6 +790,23 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 		})
 	}
 
+	if rules := sum.NotificationRules; len(rules) > 0 {
+		headers := []string{"ID", "Name", "Description", "Every", "Offset", "Endpoint Name", "Endpoint ID", "Endpoint Type"}
+		tablePrintFn("NOTIFICATION RULES", headers, len(rules), func(i int) []string {
+			v := rules[i]
+			return []string{
+				v.ID.String(),
+				v.Name,
+				v.Description,
+				v.Every,
+				v.Offset,
+				v.EndpointName,
+				v.EndpointID.String(),
+				v.EndpointType,
+			}
+		})
+	}
+
 	if teles := sum.TelegrafConfigs; len(teles) > 0 {
 		headers := []string{"ID", "Name", "Description"}
 		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
