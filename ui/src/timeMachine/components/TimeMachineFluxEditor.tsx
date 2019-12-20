@@ -56,12 +56,12 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
         handleDisplay: HANDLE_NONE,
         render: () => {
           return (
-                <FluxEditor
-                  script={activeQueryText}
-                  onChangeScript={onSetActiveQueryText}
-                  onSubmitScript={onSubmitQueries}
-                  onCursorChange={this.handleCursorPosition}
-                />
+            <FluxEditor
+              script={activeQueryText}
+              onChangeScript={onSetActiveQueryText}
+              onSubmitScript={onSubmitQueries}
+              onCursorChange={this.handleCursorPosition}
+            />
           )
         },
       },

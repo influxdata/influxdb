@@ -41,9 +41,7 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
 
   private get overlayBody(): JSX.Element {
     const {telegrafConfig} = this.props
-    return (
-      <Editor script={telegrafConfig} readOnly />
-    )
+    return <Editor script={telegrafConfig} readOnly />
   }
 }
 
