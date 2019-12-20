@@ -47,7 +47,8 @@ func TestLauncher_Pkger(t *testing.T) {
 				LabelService: l.LabelService(t),
 				killCount:    2, // hits error on 3rd attempt at creating a mapping
 			}),
-			pkger.WithNoticationEndpointSVC(l.NotificationEndpointService(t)),
+			pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
+			pkger.WithNotificationRuleSVC(l.NotificationRuleService()),
 			pkger.WithTelegrafSVC(l.TelegrafService(t)),
 			pkger.WithVariableSVC(l.VariableService(t)),
 		)
@@ -80,6 +81,12 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Empty(t, endpoints)
+
+		rules, _, err := l.NotificationRuleService().FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
+			OrgID: &l.Org.ID,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, rules)
 
 		teles, _, err := l.TelegrafService(t).FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{
 			OrgID: &l.Org.ID,
@@ -237,6 +244,14 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
 		assert.Equal(t, influxdb.TaskStatusInactive, string(endpoints[0].NotificationEndpoint.GetStatus()))
 		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
+
+		require.Len(t, sum1.NotificationRules, 1)
+		rule := sum1.NotificationRules[0]
+		assert.NotZero(t, rule.ID)
+		assert.Equal(t, "rule_0", rule.Name)
+		assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
+		assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointName)
+		assert.Equal(t, "http", rule.EndpointType)
 
 		teles := sum1.TelegrafConfigs
 		require.Len(t, teles, 1)
@@ -473,7 +488,7 @@ spec:
 				pkger.WithCheckSVC(l.CheckService()),
 				pkger.WithDashboardSVC(l.DashboardService(t)),
 				pkger.WithLabelSVC(l.LabelService(t)),
-				pkger.WithNoticationEndpointSVC(l.NotificationEndpointService(t)),
+				pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
 				pkger.WithTelegrafSVC(l.TelegrafService(t)),
 				pkger.WithVariableSVC(l.VariableService(t)),
 			)
