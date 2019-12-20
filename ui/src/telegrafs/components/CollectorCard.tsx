@@ -23,19 +23,17 @@ import {viewableLabels} from 'src/labels/selectors'
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
 // Types
-import {AppState, Organization} from 'src/types'
-import {ILabel, ITelegraf as Telegraf} from '@influxdata/influx'
+import {AppState, Organization, Label, Telegraf} from 'src/types'
 
 interface OwnProps {
   collector: Telegraf
-  bucket: string
   onDelete: (telegraf: Telegraf) => void
   onUpdate: (telegraf: Telegraf) => void
   onFilterChange: (searchTerm: string) => void
 }
 
 interface StateProps {
-  labels: ILabel[]
+  labels: Label[]
   org: Organization
 }
 
@@ -49,7 +47,7 @@ type Props = OwnProps & StateProps & DispatchProps
 
 class CollectorRow extends PureComponent<Props & WithRouterProps> {
   public render() {
-    const {collector, bucket, org} = this.props
+    const {collector, org} = this.props
 
     return (
       <ResourceCard
@@ -76,7 +74,8 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
         labels={this.labels}
         metaData={[
           <span key={`bucket-key--${collector.id}`} data-testid="bucket-name">
-            Bucket: {bucket}
+            {/* todo(glinton): verify what sets this. It seems like it is using the 'config' section of 'influxdb_v2' output?? */}
+            Bucket: {collector.metadata.buckets.join(', ')}
           </span>,
           <>
             <Link
@@ -118,7 +117,8 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
 
   private get labels(): JSX.Element {
     const {collector, labels, onFilterChange} = this.props
-    const collectorLabels = viewableLabels(collector.labels)
+    // todo(glinton): track down `Label` drift and remove `as Label[]`
+    const collectorLabels = viewableLabels(collector.labels as Label[])
 
     return (
       <InlineLabels
@@ -132,19 +132,19 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleAddLabel = async (label: ILabel) => {
+  private handleAddLabel = async (label: Label) => {
     const {collector, onAddLabels} = this.props
 
     await onAddLabels(collector.id, [label])
   }
 
-  private handleRemoveLabel = async (label: ILabel) => {
+  private handleRemoveLabel = async (label: Label) => {
     const {collector, onRemoveLabels} = this.props
 
     await onRemoveLabels(collector.id, [label])
   }
 
-  private handleCreateLabel = async (label: ILabel) => {
+  private handleCreateLabel = async (label: Label) => {
     const {name, properties} = label
     await this.props.onCreateLabel(name, properties)
   }

@@ -195,8 +195,9 @@ func testLookupName(newStore StoreFn, t *testing.T) {
 				},
 				init: func(ctx context.Context, s *kv.Service) error {
 					return s.CreateTelegrafConfig(ctx, &influxdb.TelegrafConfig{
-						OrgID: influxdbtesting.MustIDBase16("0000000000000009"),
-						Name:  "telegraf1",
+						OrgID:  influxdbtesting.MustIDBase16("0000000000000009"),
+						Name:   "telegraf1",
+						Config: "[agent]",
 					}, existingBucketID)
 				},
 			},

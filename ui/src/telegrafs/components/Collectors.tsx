@@ -18,9 +18,8 @@ import {
 } from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
-import CollectorList from 'src/telegrafs/components/CollectorList'
+import {FilteredList} from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
-import FilterList from 'src/shared/components/Filter'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
 import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
@@ -32,8 +31,7 @@ import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {ITelegraf as Telegraf} from '@influxdata/influx'
-import {OverlayState, AppState, Bucket} from 'src/types'
+import {Telegraf, OverlayState, AppState, Bucket} from 'src/types'
 import {
   setDataLoadersType,
   setTelegrafConfigID,
@@ -44,7 +42,7 @@ import {DataLoaderType} from 'src/types/dataLoaders'
 import {SortTypes} from 'src/shared/utils/sort'
 
 interface StateProps {
-  collectors: Telegraf[]
+  hasTelegrafs: boolean
   orgName: string
   buckets: Bucket[]
 }
@@ -89,14 +87,9 @@ class Collectors extends PureComponent<Props, State> {
     }
   }
 
-  public static defaultProps = {
-    collectors: [],
-  }
-
   public render() {
-    const {collectors} = this.props
+    const {hasTelegrafs} = this.props
     const {searchTerm, sortKey, sortDirection, sortType} = this.state
-    const hasTelegrafs = collectors && collectors.length > 0
     return (
       <>
         <NoBucketsWarning
@@ -131,29 +124,15 @@ class Collectors extends PureComponent<Props, State> {
               widthMD={hasTelegrafs ? Columns.Ten : Columns.Twelve}
             >
               <GetResources resources={[ResourceType.Labels]}>
-                <FilterList<Telegraf>
+                <FilteredList
                   searchTerm={searchTerm}
-                  searchKeys={[
-                    'plugins.0.config.bucket',
-                    'name',
-                    'labels[].name',
-                  ]}
-                  list={collectors}
-                >
-                  {cs => (
-                    <CollectorList
-                      collectors={cs}
-                      emptyState={this.emptyState}
-                      onDelete={this.handleDeleteTelegraf}
-                      onUpdate={this.handleUpdateTelegraf}
-                      onFilterChange={this.handleFilterUpdate}
-                      sortKey={sortKey}
-                      sortDirection={sortDirection}
-                      sortType={sortType}
-                      onClickColumn={this.handleClickColumn}
-                    />
-                  )}
-                </FilterList>
+                  emptyState={this.emptyState}
+                  onFilterChange={this.handleFilterUpdate}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  sortType={sortType}
+                  onClickColumn={this.handleClickColumn}
+                />
               </GetResources>
             </Grid.Column>
             {hasTelegrafs && (
@@ -268,14 +247,6 @@ class Collectors extends PureComponent<Props, State> {
     )
   }
 
-  private handleDeleteTelegraf = (telegraf: Telegraf) => {
-    this.props.onDeleteTelegraf(telegraf.id, telegraf.name)
-  }
-
-  private handleUpdateTelegraf = (telegraf: Telegraf) => {
-    this.props.onUpdateTelegraf(telegraf)
-  }
-
   private handleFilterChange = (searchTerm: string): void => {
     this.handleFilterUpdate(searchTerm)
   }
@@ -286,7 +257,7 @@ class Collectors extends PureComponent<Props, State> {
 }
 const mstp = ({telegrafs, orgs: {org}, buckets}: AppState): StateProps => {
   return {
-    collectors: telegrafs.list,
+    hasTelegrafs: telegrafs.list && telegrafs.list.length > 0,
     orgName: org.name,
     buckets: buckets.list,
   }

@@ -135,55 +135,6 @@ type telegrafLinks struct {
 	Owners  string `json:"owners"`
 }
 
-// MarshalJSON implement the json.Marshaler interface.
-// TODO: remove this hack and make labels and links return.
-// see: https://github.com/influxdata/influxdb/issues/12457
-func (r *telegrafResponse) MarshalJSON() ([]byte, error) {
-	// telegrafPluginEncode is the helper struct for json encoding.
-	type telegrafPluginEncode struct {
-		// Name of the telegraf plugin, exp "docker"
-		Name    string         `json:"name"`
-		Type    plugins.Type   `json:"type"`
-		Comment string         `json:"comment"`
-		Config  plugins.Config `json:"config"`
-	}
-
-	// telegrafConfigEncode is the helper struct for json encoding.
-	type telegrafConfigEncode struct {
-		ID          platform.ID                  `json:"id"`
-		OrgID       platform.ID                  `json:"orgID,omitempty"`
-		Name        string                       `json:"name"`
-		Description string                       `json:"description"`
-		Agent       platform.TelegrafAgentConfig `json:"agent"`
-		Plugins     []telegrafPluginEncode       `json:"plugins"`
-		Labels      []platform.Label             `json:"labels"`
-		Links       telegrafLinks                `json:"links"`
-	}
-
-	tce := new(telegrafConfigEncode)
-	*tce = telegrafConfigEncode{
-		ID:          r.ID,
-		OrgID:       r.OrgID,
-		Name:        r.Name,
-		Description: r.Description,
-		Agent:       r.Agent,
-		Plugins:     make([]telegrafPluginEncode, len(r.Plugins)),
-		Labels:      r.Labels,
-		Links:       r.Links,
-	}
-
-	for k, p := range r.Plugins {
-		tce.Plugins[k] = telegrafPluginEncode{
-			Name:    p.Config.PluginName(),
-			Type:    p.Config.Type(),
-			Comment: p.Comment,
-			Config:  p.Config,
-		}
-	}
-
-	return json.Marshal(tce)
-}
-
 type telegrafResponse struct {
 	*platform.TelegrafConfig
 	Labels []platform.Label `json:"labels"`
@@ -306,7 +257,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.toml\"", strings.Replace(strings.TrimSpace(tc.Name), " ", "_", -1)))
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(tc.TOML()))
+		w.Write([]byte(tc.Config))
 	case "application/json":
 		labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: tc.ID})
 		if err != nil {
@@ -321,7 +272,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 	case "application/toml":
 		w.Header().Set("Content-Type", "application/toml; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(tc.TOML()))
+		w.Write([]byte(tc.Config))
 	}
 }
 
@@ -349,12 +300,6 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform
 	return f, err
 }
 
-func decodePostTelegrafRequest(r *http.Request) (*platform.TelegrafConfig, error) {
-	var tc platform.TelegrafConfig
-	err := json.NewDecoder(r.Body).Decode(&tc)
-	return &tc, err
-}
-
 func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {
 	tc := new(platform.TelegrafConfig)
 	if err := json.NewDecoder(r.Body).Decode(tc); err != nil {
@@ -379,12 +324,14 @@ func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.T
 // handlePostTelegraf is the HTTP handler for the POST /api/v2/telegrafs route.
 func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tc, err := decodePostTelegrafRequest(r)
-	if err != nil {
+
+	tc := new(platform.TelegrafConfig)
+	if err := json.NewDecoder(r.Body).Decode(tc); err != nil {
 		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -406,12 +353,14 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 // handlePutTelegraf is the HTTP handler for the POST /api/v2/telegrafs route.
 func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
 	tc, err := decodePutTelegrafRequest(ctx, r)
 	if err != nil {
 		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
