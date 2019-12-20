@@ -1,4 +1,6 @@
-import {Task as TaskAPI, ITask} from '@influxdata/influx'
+import {Task as TaskAPI} from '@influxdata/influx'
+import {Task as TaskBase} from 'src/client'
 
 export const TaskStatus = TaskAPI.StatusEnum
-export interface Task extends ITask {}
+
+export interface Task extends TaskBase {}

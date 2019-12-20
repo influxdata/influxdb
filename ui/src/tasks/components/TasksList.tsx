@@ -9,7 +9,7 @@ import TaskCard from 'src/tasks/components/TaskCard'
 
 // Types
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
-import {ITask as Task} from '@influxdata/influx'
+import {Task} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
 

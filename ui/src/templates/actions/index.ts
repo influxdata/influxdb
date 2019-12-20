@@ -6,21 +6,19 @@ import {templateToExport} from 'src/shared/utils/resourceToTemplate'
 import {staticTemplates} from 'src/templates/constants/defaultTemplates'
 
 // Types
-import {
-  TemplateSummary,
-  DocumentCreate,
-  ITaskTemplate,
-  TemplateType,
-  ITemplate,
-  ILabel as Label,
-} from '@influxdata/influx'
+import {DocumentCreate} from '@influxdata/influx'
 import {
   RemoteDataState,
   GetState,
   DashboardTemplate,
   VariableTemplate,
   Template,
+  TemplateSummary,
+  TaskTemplate,
+  Label,
+  TemplateType,
 } from 'src/types'
+import {GetDocumentsTemplateResult} from 'src/client'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -30,6 +28,7 @@ import * as copy from 'src/shared/copy/notifications'
 
 // API
 import {client} from 'src/utils/api'
+import * as api from 'src/client'
 import {createDashboardFromTemplate} from 'src/dashboards/actions'
 import {createVariableFromTemplate} from 'src/variables/actions'
 import {createTaskFromTemplate} from 'src/tasks/actions'
@@ -112,7 +111,9 @@ const removeTemplateSummary = (templateID: string): RemoveTemplateSummary => ({
 })
 
 export const getTemplateByID = async (id: string) => {
-  const template = (await client.templates.get(id)) as Template
+  const template = (await api.getDocumentsTemplate({
+    templateID: id,
+  })) as GetDocumentsTemplateResult
   return template
 }
 
@@ -121,7 +122,7 @@ export const getTemplates = () => async (dispatch, getState: GetState) => {
     orgs: {org},
   } = getState()
   dispatch(setTemplatesStatus(RemoteDataState.Loading))
-  const items = await client.templates.getAll(org.id)
+  const items = await api.getDocumentsTemplates({query: {orgID: org.id}})
   dispatch(populateTemplateSummaries(items))
 }
 
@@ -176,7 +177,10 @@ export const updateTemplate = (id: string, props: TemplateSummary) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const {meta} = await client.templates.update(id, props)
+    const {meta} = await api.putDocumentsTemplate({
+      templateID: id,
+      data: props,
+    })
 
     dispatch(setTemplateSummary(id, {...props, meta}))
     dispatch(notify(copy.updateTemplateSucceeded()))
@@ -192,7 +196,9 @@ export const convertToTemplate = (id: string) => async (
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
 
-    const templateDocument = await client.templates.get(id)
+    const templateDocument = await api.getDocumentsTemplate({
+      templateID: id,
+    })
     const template = templateToExport(templateDocument)
 
     dispatch(setExportTemplate(RemoteDataState.Done, template))
@@ -210,7 +216,7 @@ export const deleteTemplate = (templateID: string) => async (
   dispatch
 ): Promise<void> => {
   try {
-    await client.templates.delete(templateID)
+    await api.deleteDocumentsTemplate({templateID})
     dispatch(removeTemplateSummary(templateID))
     dispatch(notify(copy.deleteTemplateSuccess()))
   } catch (e) {
@@ -257,7 +263,7 @@ const createFromTemplate = template => dispatch => {
           createDashboardFromTemplate(template as DashboardTemplate)
         )
       case TemplateType.Task:
-        return dispatch(createTaskFromTemplate(template as ITaskTemplate))
+        return dispatch(createTaskFromTemplate(template as TaskTemplate))
       case TemplateType.Variable:
         return dispatch(
           createVariableFromTemplate(template as VariableTemplate)
@@ -279,7 +285,9 @@ export const createResourceFromStaticTemplate = (name: string) => dispatch => {
 export const createResourceFromTemplate = (templateID: string) => async (
   dispatch
 ): Promise<void> => {
-  const template = await client.templates.get(templateID)
+  const template = await api.getDocumentsTemplate({
+    templateID,
+  })
   dispatch(createFromTemplate(template))
 }
 
@@ -289,7 +297,9 @@ export const addTemplateLabelsAsync = (
 ) => async (dispatch): Promise<void> => {
   try {
     await client.templates.addLabels(templateID, labels.map(l => l.id))
-    const template = await client.templates.get(templateID)
+    const template = await api.getDocumentsTemplate({
+      templateID,
+    })
 
     dispatch(setTemplateSummary(templateID, templateToSummary(template)))
   } catch (error) {
@@ -304,7 +314,9 @@ export const removeTemplateLabelsAsync = (
 ) => async (dispatch): Promise<void> => {
   try {
     await client.templates.removeLabels(templateID, labels.map(l => l.id))
-    const template = await client.templates.get(templateID)
+    const template = await api.getDocumentsTemplate({
+      templateID,
+    })
 
     dispatch(setTemplateSummary(templateID, templateToSummary(template)))
   } catch (error) {
@@ -313,7 +325,7 @@ export const removeTemplateLabelsAsync = (
   }
 }
 
-const templateToSummary = (template: ITemplate): TemplateSummary => ({
+const templateToSummary = (template: Template): TemplateSummary => ({
   id: template.id,
   meta: template.meta,
   labels: template.labels,

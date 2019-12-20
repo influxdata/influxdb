@@ -7,7 +7,7 @@ import {Label as LabelComponent} from '@influxdata/clockface'
 import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsEditor'
 
 // Types
-import {Label} from 'src/types'
+import {Label, Labels} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -19,8 +19,8 @@ export enum LabelsEditMode {
 
 interface Props {
   editMode?: LabelsEditMode // temporary for displaying labels
-  selectedLabels: Label[]
-  labels: Label[]
+  selectedLabels: Labels
+  labels: Labels
   onRemoveLabel?: (label: Label) => void
   onAddLabel?: (label: Label) => void
   onCreateLabel?: (label: Label) => void
