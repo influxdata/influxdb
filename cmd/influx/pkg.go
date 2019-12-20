@@ -669,6 +669,23 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 		})
 	}
 
+	if rules := diff.NotificationRules; len(rules) > 0 {
+		headers := []string{"New", "Name", "Description", "Every", "Offset", "Endpoint Name", "Endpoint ID", "Endpoint Type"}
+		tablePrintFn("NOTIFICATION RULES", headers, len(rules), func(i int) []string {
+			v := rules[i]
+			return []string{
+				green(true),
+				v.Name,
+				v.Description,
+				v.Every,
+				v.Offset,
+				v.EndpointName,
+				v.EndpointID.String(),
+				v.EndpointType,
+			}
+		})
+	}
+
 	if teles := diff.Telegrafs; len(diff.Telegrafs) > 0 {
 		headers := []string{"New", "Name", "Description"}
 		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
@@ -769,6 +786,23 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 				v.NotificationEndpoint.GetName(),
 				v.NotificationEndpoint.GetDescription(),
 				string(v.NotificationEndpoint.GetStatus()),
+			}
+		})
+	}
+
+	if rules := sum.NotificationRules; len(rules) > 0 {
+		headers := []string{"ID", "Name", "Description", "Every", "Offset", "Endpoint Name", "Endpoint ID", "Endpoint Type"}
+		tablePrintFn("NOTIFICATION RULES", headers, len(rules), func(i int) []string {
+			v := rules[i]
+			return []string{
+				v.ID.String(),
+				v.Name,
+				v.Description,
+				v.Every,
+				v.Offset,
+				v.EndpointName,
+				v.EndpointID.String(),
+				v.EndpointType,
 			}
 		})
 	}

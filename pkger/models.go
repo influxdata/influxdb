@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/notification"
 	icheck "github.com/influxdata/influxdb/notification/check"
 	"github.com/influxdata/influxdb/notification/endpoint"
+	"github.com/influxdata/influxdb/notification/rule"
 )
 
 // Package kinds.
@@ -162,6 +163,7 @@ type Diff struct {
 	Labels                []DiffLabel                `json:"labels"`
 	LabelMappings         []DiffLabelMapping         `json:"labelMappings"`
 	NotificationEndpoints []DiffNotificationEndpoint `json:"notificationEndpoints"`
+	NotificationRules     []DiffNotificationRule     `json:"notificationRules"`
 	Telegrafs             []DiffTelegraf             `json:"telegrafConfigs"`
 	Variables             []DiffVariable             `json:"variables"`
 }
@@ -273,7 +275,7 @@ func (d DiffCheck) IsNew() bool {
 	return d.Old == nil
 }
 
-// DiffDashboard is a diff of an individual dashboard.
+// DiffDashboard is a diff of an individual dashboard. This resource is always new.
 type DiffDashboard struct {
 	Name   string      `json:"name"`
 	Desc   string      `json:"description"`
@@ -397,7 +399,45 @@ func (d DiffNotificationEndpoint) IsNew() bool {
 	return d.Old == nil
 }
 
-// DiffTelegraf is a diff of an individual telegraf.
+// DiffNotificationRule is a diff of an individual notification rule. This resource is always new.
+type DiffNotificationRule struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+
+	// These 3 fields represent the relationship of the rule to the endpoint.
+	EndpointID   SafeID `json:"endpointID"`
+	EndpointName string `json:"endpointName"`
+	EndpointType string `json:"endpointType"`
+
+	Every           string              `json:"every"`
+	Offset          string              `json:"offset"`
+	MessageTemplate string              `json:"messageTemplate"`
+	Status          influxdb.Status     `json:"status"`
+	StatusRules     []SummaryStatusRule `json:"statusRules"`
+	TagRules        []SummaryTagRule    `json:"tagRules"`
+}
+
+func newDiffNotificationRule(r *notificationRule, iEndpoint influxdb.NotificationEndpoint) DiffNotificationRule {
+	sum := DiffNotificationRule{
+		Name:            r.Name(),
+		Description:     r.description,
+		EndpointName:    r.endpointName,
+		Every:           r.every.String(),
+		Offset:          r.offset.String(),
+		MessageTemplate: r.msgTemplate,
+		Status:          r.Status(),
+		StatusRules:     toSummaryStatusRules(r.statusRules),
+		TagRules:        toSummaryTagRules(r.tagRules),
+	}
+	if iEndpoint != nil {
+		sum.EndpointID = SafeID(iEndpoint.GetID())
+		sum.EndpointType = iEndpoint.Type()
+	}
+
+	return sum
+}
+
+// DiffTelegraf is a diff of an individual telegraf. This resource is always new.
 type DiffTelegraf struct {
 	influxdb.TelegrafConfig
 }
@@ -619,9 +659,15 @@ func (s *SummaryNotificationEndpoint) UnmarshalJSON(b []byte) error {
 // Summary types for NotificationRules which provide a summary of a pkg notification rule.
 type (
 	SummaryNotificationRule struct {
-		Name              string              `json:"name"`
-		Description       string              `json:"description"`
-		EndpointName      string              `json:"endpointName"`
+		ID          SafeID `json:"id"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+
+		// These 3 fields represent the relationship of the rule to the endpoint.
+		EndpointID   SafeID `json:"endpointID"`
+		EndpointName string `json:"endpointName"`
+		EndpointType string `json:"endpointType"`
+
 		Every             string              `json:"every"`
 		LabelAssociations []SummaryLabel      `json:"labelAssociations"`
 		Offset            string              `json:"offset"`
@@ -632,8 +678,8 @@ type (
 	}
 
 	SummaryStatusRule struct {
-		CurrentLevel  string `json:"curLvl"`
-		PreviousLevel string `json:"prevLvl"`
+		CurrentLevel  string `json:"currentLevel"`
+		PreviousLevel string `json:"previousLevel"`
 	}
 
 	SummaryTagRule struct {
@@ -1456,6 +1502,7 @@ func (n mapperNotificationEndpoints) Len() int {
 }
 
 const (
+	fieldNotificationRuleChannel         = "channel"
 	fieldNotificationRuleCurrentLevel    = "currentLevel"
 	fieldNotificationRuleEndpointName    = "endpointName"
 	fieldNotificationRuleMessageTemplate = "messageTemplate"
@@ -1465,17 +1512,36 @@ const (
 )
 
 type notificationRule struct {
-	name         string
-	description  string
+	id    influxdb.ID
+	orgID influxdb.ID
+	name  string
+
+	channel     string
+	description string
+	every       time.Duration
+	msgTemplate string
+	offset      time.Duration
+	status      string
+	statusRules []struct{ curLvl, prevLvl string }
+	tagRules    []struct{ k, v, op string }
+
+	endpointID   influxdb.ID
 	endpointName string
-	every        time.Duration
-	msgTemplate  string
-	offset       time.Duration
-	status       string
-	statusRules  []struct{ curLvl, prevLvl string }
-	tagRules     []struct{ k, v, op string }
+	endpointType string
 
 	labels sortedLabels
+}
+
+func (r *notificationRule) Exists() bool {
+	return false
+}
+
+func (r *notificationRule) ID() influxdb.ID {
+	return r.id
+}
+
+func (r *notificationRule) Labels() []*label {
+	return r.labels
 }
 
 func (r *notificationRule) Name() string {
@@ -1494,50 +1560,70 @@ func (r *notificationRule) Status() influxdb.Status {
 }
 
 func (r *notificationRule) summarize() SummaryNotificationRule {
-	sum := SummaryNotificationRule{
+	return SummaryNotificationRule{
+		ID:                SafeID(r.ID()),
 		Name:              r.Name(),
+		EndpointID:        SafeID(r.endpointID),
 		EndpointName:      r.endpointName,
+		EndpointType:      r.endpointType,
 		Description:       r.description,
 		Every:             r.every.String(),
 		LabelAssociations: toSummaryLabels(r.labels...),
 		Offset:            r.offset.String(),
 		MessageTemplate:   r.msgTemplate,
 		Status:            r.Status(),
+		StatusRules:       toSummaryStatusRules(r.statusRules),
+		TagRules:          toSummaryTagRules(r.tagRules),
 	}
+}
 
-	for _, sRule := range r.statusRules {
-		sum.StatusRules = append(sum.StatusRules, SummaryStatusRule{
-			CurrentLevel:  sRule.curLvl,
-			PreviousLevel: sRule.prevLvl,
+func (r *notificationRule) toInfluxRule() influxdb.NotificationRule {
+	base := rule.Base{
+		ID:          r.ID(),
+		Name:        r.Name(),
+		Description: r.description,
+		EndpointID:  r.endpointID,
+		OrgID:       r.orgID,
+		Every:       toNotificationDuration(r.every),
+		Offset:      toNotificationDuration(r.offset),
+	}
+	for _, sr := range r.statusRules {
+		var prevLvl *notification.CheckLevel
+		if lvl := notification.ParseCheckLevel(sr.prevLvl); lvl != notification.Unknown {
+			prevLvl = &lvl
+		}
+		base.StatusRules = append(base.StatusRules, notification.StatusRule{
+			CurrentLevel:  notification.ParseCheckLevel(sr.curLvl),
+			PreviousLevel: prevLvl,
 		})
 	}
-	sort.Slice(sum.StatusRules, func(i, j int) bool {
-		si, sj := sum.StatusRules[i], sum.StatusRules[j]
-		if si.CurrentLevel == sj.CurrentLevel {
-			return si.PreviousLevel < sj.PreviousLevel
-		}
-		return si.CurrentLevel < sj.CurrentLevel
-	})
-
-	for _, tRule := range r.tagRules {
-		sum.TagRules = append(sum.TagRules, SummaryTagRule{
-			Key:      tRule.k,
-			Value:    tRule.v,
-			Operator: tRule.op,
+	for _, tr := range r.tagRules {
+		op, _ := influxdb.ToOperator(tr.op)
+		base.TagRules = append(base.TagRules, notification.TagRule{
+			Tag: influxdb.Tag{
+				Key:   tr.k,
+				Value: tr.v,
+			},
+			Operator: op,
 		})
 	}
-	sort.Slice(sum.TagRules, func(i, j int) bool {
-		ti, tj := sum.TagRules[i], sum.TagRules[j]
-		if ti.Key == tj.Key && ti.Value == tj.Value {
-			return ti.Operator < tj.Operator
-		}
-		if ti.Key == tj.Key {
-			return ti.Value < tj.Value
-		}
-		return ti.Key < tj.Key
-	})
 
-	return sum
+	switch r.endpointType {
+	case "http":
+		return &rule.HTTP{Base: base}
+	case "pagerduty":
+		return &rule.PagerDuty{
+			Base:            base,
+			MessageTemplate: r.msgTemplate,
+		}
+	case "slack":
+		return &rule.Slack{
+			Base:            base,
+			Channel:         r.channel,
+			MessageTemplate: r.msgTemplate,
+		}
+	}
+	return nil
 }
 
 func (r *notificationRule) valid() []validationErr {
@@ -1594,7 +1680,7 @@ func (r *notificationRule) valid() []validationErr {
 
 	var tagErrs []validationErr
 	for i, tRule := range r.tagRules {
-		if tRule.op != "equal" {
+		if _, ok := influxdb.ToOperator(tRule.op); !ok {
 			tagErrs = append(tagErrs, validationErr{
 				Field: fieldOperator,
 				Msg:   fmt.Sprintf("must be 1 in [equal]; got=%q", tRule.op),
@@ -1610,6 +1696,56 @@ func (r *notificationRule) valid() []validationErr {
 	}
 
 	return vErrs
+}
+
+func toSummaryStatusRules(statusRules []struct{ curLvl, prevLvl string }) []SummaryStatusRule {
+	out := make([]SummaryStatusRule, 0, len(statusRules))
+	for _, sRule := range statusRules {
+		out = append(out, SummaryStatusRule{
+			CurrentLevel:  sRule.curLvl,
+			PreviousLevel: sRule.prevLvl,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		si, sj := out[i], out[j]
+		if si.CurrentLevel == sj.CurrentLevel {
+			return si.PreviousLevel < sj.PreviousLevel
+		}
+		return si.CurrentLevel < sj.CurrentLevel
+	})
+	return out
+}
+
+func toSummaryTagRules(tagRules []struct{ k, v, op string }) []SummaryTagRule {
+	out := make([]SummaryTagRule, 0, len(tagRules))
+	for _, tRule := range tagRules {
+		out = append(out, SummaryTagRule{
+			Key:      tRule.k,
+			Value:    tRule.v,
+			Operator: tRule.op,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		ti, tj := out[i], out[j]
+		if ti.Key == tj.Key && ti.Value == tj.Value {
+			return ti.Operator < tj.Operator
+		}
+		if ti.Key == tj.Key {
+			return ti.Value < tj.Value
+		}
+		return ti.Key < tj.Key
+	})
+	return out
+}
+
+type mapperNotificationRules []*notificationRule
+
+func (r mapperNotificationRules) Association(i int) labelAssociater {
+	return r[i]
+}
+
+func (r mapperNotificationRules) Len() int {
+	return len(r)
 }
 
 const (

@@ -4,8 +4,12 @@ import React, {FunctionComponent, createElement} from 'react'
 import {withRouter, WithRouterProps, Link} from 'react-router'
 
 // Components
-import {Grid, SelectableCard} from '@influxdata/clockface'
-import {ResponsiveGridSizer} from 'src/clockface'
+import {
+  Grid,
+  SelectableCard,
+  SquareGrid,
+  ComponentSize,
+} from '@influxdata/clockface'
 import CodeSnippet from 'src/shared/components/CodeSnippet'
 
 // Mocks
@@ -18,7 +22,6 @@ interface OwnProps {
 type Props = OwnProps & WithRouterProps
 
 const ClientLibraries: FunctionComponent<Props> = ({orgID, router}) => {
-  const clientLibrariesCount = clientLibraries.length
   return (
     <Grid>
       <Grid.Row>
@@ -34,7 +37,7 @@ const ClientLibraries: FunctionComponent<Props> = ({orgID, router}) => {
       </Grid.Row>
       <Grid.Row>
         <Grid.Column>
-          <ResponsiveGridSizer columns={clientLibrariesCount}>
+          <SquareGrid cardSize="200px" gutter={ComponentSize.Small}>
             {clientLibraries.map(cl => {
               const handleClick = (): void => {
                 router.push(
@@ -43,20 +46,21 @@ const ClientLibraries: FunctionComponent<Props> = ({orgID, router}) => {
               }
 
               return (
-                <SelectableCard
-                  key={cl.id}
-                  id={cl.id}
-                  formName="client-libraries-cards"
-                  label={cl.name}
-                  testID={`client-libraries-cards--${cl.id}`}
-                  selected={false}
-                  onClick={handleClick}
-                >
-                  {createElement(cl.image)}
-                </SelectableCard>
+                <SquareGrid.Card key={cl.id}>
+                  <SelectableCard
+                    id={cl.id}
+                    formName="client-libraries-cards"
+                    label={cl.name}
+                    testID={`client-libraries-cards--${cl.id}`}
+                    selected={false}
+                    onClick={handleClick}
+                  >
+                    {createElement(cl.image)}
+                  </SelectableCard>
+                </SquareGrid.Card>
               )
             })}
-          </ResponsiveGridSizer>
+          </SquareGrid>
         </Grid.Column>
       </Grid.Row>
     </Grid>

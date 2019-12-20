@@ -11,8 +11,8 @@ import {
   Grid,
   SelectableCard,
   IconFont,
+  SquareGrid,
 } from '@influxdata/clockface'
-import {ResponsiveGridSizer} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Constants
@@ -70,6 +70,8 @@ class StreamingSelector extends PureComponent<Props, State> {
     const {buckets} = this.props
     const {searchTerm} = this.state
 
+    const cardSize = `${100 / (this.filteredBundles.length + 1)}%`
+
     return (
       <div className="wizard-step--grid-container">
         <Grid.Row>
@@ -96,24 +98,25 @@ class StreamingSelector extends PureComponent<Props, State> {
             </FormElement>
           </Grid.Column>
         </Grid.Row>
-        <ResponsiveGridSizer columns={5}>
+        <SquareGrid cardSize={cardSize} gutter={ComponentSize.Small}>
           {this.filteredBundles.map(b => {
             return (
-              <SelectableCard
-                key={b}
-                id={b}
-                formName="telegraf-plugins"
-                label={b}
-                testID={`telegraf-plugins--${b}`}
-                selected={this.isCardChecked(b)}
-                onClick={this.handleToggle}
-                icon={IconFont.Checkmark}
-              >
-                {createElement(BUNDLE_LOGOS[b])}
-              </SelectableCard>
+              <SquareGrid.Card key={b}>
+                <SelectableCard
+                  id={b}
+                  formName="telegraf-plugins"
+                  label={b}
+                  testID={`telegraf-plugins--${b}`}
+                  selected={this.isCardChecked(b)}
+                  onClick={this.handleToggle}
+                  icon={IconFont.Checkmark}
+                >
+                  {createElement(BUNDLE_LOGOS[b])}
+                </SelectableCard>
+              </SquareGrid.Card>
             )
           })}
-        </ResponsiveGridSizer>
+        </SquareGrid>
         {this.emptyState}
       </div>
     )

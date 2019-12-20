@@ -11,6 +11,19 @@ import (
 	platform "github.com/influxdata/influxdb"
 )
 
+var userResourceMappingCmpOptions = cmp.Options{
+	cmp.Comparer(func(x, y []byte) bool {
+		return bytes.Equal(x, y)
+	}),
+	cmp.Transformer("Sort", func(in []*platform.UserResourceMapping) []*platform.UserResourceMapping {
+		out := append([]*platform.UserResourceMapping(nil), in...)
+		sort.Slice(out, func(i, j int) bool {
+			return out[i].ResourceID.String() > out[j].ResourceID.String()
+		})
+		return out
+	}),
+}
+
 var mappingCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)

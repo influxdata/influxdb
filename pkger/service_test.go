@@ -27,6 +27,7 @@ func TestService(t *testing.T) {
 			dashSVC:     mock.NewDashboardService(),
 			labelSVC:    mock.NewLabelService(),
 			endpointSVC: mock.NewNotificationEndpointService(),
+			ruleSVC:     mock.NewNotificationRuleStore(),
 			teleSVC:     mock.NewTelegrafConfigStore(),
 			varSVC:      mock.NewVariableService(),
 		}
@@ -39,7 +40,8 @@ func TestService(t *testing.T) {
 			WithCheckSVC(opt.checkSVC),
 			WithDashboardSVC(opt.dashSVC),
 			WithLabelSVC(opt.labelSVC),
-			WithNoticationEndpointSVC(opt.endpointSVC),
+			WithNotificationEndpointSVC(opt.endpointSVC),
+			WithNotificationRuleSVC(opt.ruleSVC),
 			WithSecretSVC(opt.secretSVC),
 			WithTelegrafSVC(opt.teleSVC),
 			WithVariableSVC(opt.varSVC),
@@ -240,7 +242,7 @@ func TestService(t *testing.T) {
 					return []influxdb.NotificationEndpoint{existing}, 1, nil
 				}
 
-				svc := newTestService(WithNoticationEndpointSVC(fakeEndpointSVC))
+				svc := newTestService(WithNotificationEndpointSVC(fakeEndpointSVC))
 
 				_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
 				require.NoError(t, err)
@@ -282,6 +284,66 @@ func TestService(t *testing.T) {
 					},
 				}
 				assert.Equal(t, expected, existingEndpoints[0])
+			})
+		})
+
+		t.Run("notification rules", func(t *testing.T) {
+			testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
+				fakeEndpointSVC := mock.NewNotificationEndpointService()
+				id := influxdb.ID(1)
+				existing := &endpoint.HTTP{
+					Base: endpoint.Base{
+						ID: &id,
+						// This name here matches the endpoint identified in the pkg notification rule
+						Name:        "endpoint_0",
+						Description: "old desc",
+						Status:      influxdb.TaskStatusInactive,
+					},
+					Method:     "POST",
+					AuthMethod: "none",
+					URL:        "https://www.example.com/endpoint/old",
+				}
+				fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+					return []influxdb.NotificationEndpoint{existing}, 1, nil
+				}
+
+				svc := newTestService(WithNotificationEndpointSVC(fakeEndpointSVC))
+
+				_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+				require.NoError(t, err)
+
+				require.Len(t, diff.NotificationRules, 1)
+
+				actual := diff.NotificationRules[0]
+				assert.Equal(t, "rule_0", actual.Name)
+				assert.Equal(t, "desc_0", actual.Description)
+				assert.Equal(t, "http", actual.EndpointType)
+				assert.Equal(t, existing.Name, actual.EndpointName)
+				assert.Equal(t, SafeID(*existing.ID), actual.EndpointID)
+				assert.Equal(t, influxdb.Active, actual.Status)
+				assert.Equal(t, (10 * time.Minute).String(), actual.Every)
+				assert.Equal(t, (30 * time.Second).String(), actual.Offset)
+
+				expectedStatusRules := []SummaryStatusRule{
+					{CurrentLevel: "CRIT", PreviousLevel: "OK"},
+					{CurrentLevel: "WARN"},
+				}
+				assert.Equal(t, expectedStatusRules, actual.StatusRules)
+
+				expectedTagRules := []SummaryTagRule{
+					{Key: "k1", Value: "v1", Operator: "equal"},
+					{Key: "k1", Value: "v2", Operator: "equal"},
+				}
+				assert.Equal(t, expectedTagRules, actual.TagRules)
+			})
+
+			t.Run("should error if endpoint name is not in pkg or in platform", func(t *testing.T) {
+				testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
+					svc := newTestService()
+
+					_, _, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+					require.Error(t, err)
+				})
 			})
 		})
 
@@ -823,18 +885,50 @@ func TestService(t *testing.T) {
 				)
 			})
 
-			t.Run("maps notificaton endpoints with labels", func(t *testing.T) {
+			t.Run("maps notification endpoints with labels", func(t *testing.T) {
 				testLabelMappingFn(
 					t,
 					"testdata/notification_endpoint.yml",
-					5, // 1 for each check
+					5,
 					func() []ServiceSetterFn {
 						fakeEndpointSVC := mock.NewNotificationEndpointService()
 						fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
 							nr.SetID(influxdb.ID(rand.Int()))
 							return nil
 						}
-						return []ServiceSetterFn{WithNoticationEndpointSVC(fakeEndpointSVC)}
+						return []ServiceSetterFn{WithNotificationEndpointSVC(fakeEndpointSVC)}
+					},
+				)
+			})
+
+			t.Run("maps notification rules with labels", func(t *testing.T) {
+				testLabelMappingFn(
+					t,
+					"testdata/notification_rule.yml",
+					1,
+					func() []ServiceSetterFn {
+						fakeEndpointSVC := mock.NewNotificationEndpointService()
+						fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+							id := influxdb.ID(9)
+							return []influxdb.NotificationEndpoint{
+								&endpoint.HTTP{
+									Base: endpoint.Base{
+										ID:   &id,
+										Name: "endpoint_0",
+									},
+									AuthMethod: "none",
+								},
+							}, 1, nil
+						}
+						fakeRuleStore := mock.NewNotificationRuleStore()
+						fakeRuleStore.CreateNotificationRuleF = func(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
+							nr.SetID(influxdb.ID(fakeRuleStore.CreateNotificationRuleCalls.Count() + 1))
+							return nil
+						}
+						return []ServiceSetterFn{
+							WithNotificationEndpointSVC(fakeEndpointSVC),
+							WithNotificationRuleSVC(fakeRuleStore),
+						}
 					},
 				)
 			})
@@ -882,7 +976,7 @@ func TestService(t *testing.T) {
 						return nil
 					}
 
-					svc := newTestService(WithNoticationEndpointSVC(fakeEndpointSVC))
+					svc := newTestService(WithNotificationEndpointSVC(fakeEndpointSVC))
 
 					orgID := influxdb.ID(9000)
 
@@ -933,7 +1027,7 @@ func TestService(t *testing.T) {
 						pkg.mNotificationEndpoints["copy"+name] = endpoint
 					}
 
-					svc := newTestService(WithNoticationEndpointSVC(fakeEndpointSVC))
+					svc := newTestService(WithNotificationEndpointSVC(fakeEndpointSVC))
 
 					orgID := influxdb.ID(9000)
 
@@ -941,6 +1035,93 @@ func TestService(t *testing.T) {
 					require.Error(t, err)
 
 					assert.GreaterOrEqual(t, fakeEndpointSVC.DeleteNotificationEndpointCalls.Count(), 5)
+				})
+			})
+		})
+
+		t.Run("notification rules", func(t *testing.T) {
+			t.Run("successfuly creates", func(t *testing.T) {
+				testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
+					fakeEndpointSVC := mock.NewNotificationEndpointService()
+					fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+						id := influxdb.ID(9)
+						return []influxdb.NotificationEndpoint{
+							&endpoint.HTTP{
+								Base: endpoint.Base{
+									ID:   &id,
+									Name: "endpoint_0",
+								},
+							},
+						}, 1, nil
+					}
+					fakeRuleStore := mock.NewNotificationRuleStore()
+					fakeRuleStore.CreateNotificationRuleF = func(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
+						nr.SetID(influxdb.ID(fakeRuleStore.CreateNotificationRuleCalls.Count() + 1))
+						return nil
+					}
+
+					svc := newTestService(
+						WithNotificationEndpointSVC(fakeEndpointSVC),
+						WithNotificationRuleSVC(fakeRuleStore),
+					)
+
+					orgID := influxdb.ID(9000)
+
+					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					require.NoError(t, err)
+
+					require.Len(t, sum.NotificationRules, 1)
+					assert.Equal(t, "rule_0", sum.NotificationRules[0].Name)
+					assert.Equal(t, "desc_0", sum.NotificationRules[0].Description)
+					assert.Equal(t, SafeID(9), sum.NotificationRules[0].EndpointID)
+					assert.Equal(t, "endpoint_0", sum.NotificationRules[0].EndpointName)
+					assert.Equal(t, "http", sum.NotificationRules[0].EndpointType)
+				})
+			})
+
+			t.Run("rolls back all created notification rules on an error", func(t *testing.T) {
+				testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
+					fakeEndpointSVC := mock.NewNotificationEndpointService()
+					fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+						id := influxdb.ID(9)
+						return []influxdb.NotificationEndpoint{
+							&endpoint.HTTP{
+								Base: endpoint.Base{
+									ID:   &id,
+									Name: "endpoint_0",
+								},
+								AuthMethod: "none",
+							},
+						}, 1, nil
+					}
+					fakeRuleStore := mock.NewNotificationRuleStore()
+					fakeRuleStore.CreateNotificationRuleF = func(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
+						if fakeRuleStore.CreateNotificationRuleCalls.Count() == 1 {
+							return errors.New("limit hit")
+						}
+						nr.SetID(1)
+						return nil
+					}
+					fakeRuleStore.DeleteNotificationRuleF = func(ctx context.Context, id influxdb.ID) error {
+						if id != 1 {
+							return errors.New("wrong id here")
+						}
+						return nil
+					}
+
+					pkg.mNotificationRules = append(pkg.mNotificationRules, pkg.mNotificationRules[0])
+
+					svc := newTestService(
+						WithNotificationEndpointSVC(fakeEndpointSVC),
+						WithNotificationRuleSVC(fakeRuleStore),
+					)
+
+					orgID := influxdb.ID(9000)
+
+					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					require.Error(t, err)
+
+					assert.Equal(t, 1, fakeRuleStore.DeleteNotificationRuleCalls.Count())
 				})
 			})
 		})
@@ -1758,7 +1939,7 @@ func TestService(t *testing.T) {
 							return tt.expected, nil
 						}
 
-						svc := newTestService(WithNoticationEndpointSVC(endpointSVC))
+						svc := newTestService(WithNotificationEndpointSVC(endpointSVC))
 
 						resToClone := ResourceToClone{
 							Kind: KindNotificationEndpoint,
@@ -2112,7 +2293,7 @@ func TestService(t *testing.T) {
 				WithCheckSVC(checkSVC),
 				WithDashboardSVC(dashSVC),
 				WithLabelSVC(labelSVC),
-				WithNoticationEndpointSVC(endpointSVC),
+				WithNotificationEndpointSVC(endpointSVC),
 				WithVariableSVC(varSVC),
 			)
 

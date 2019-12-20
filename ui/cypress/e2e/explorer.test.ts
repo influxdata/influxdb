@@ -482,7 +482,7 @@ describe('DataExplorer', () => {
       })
 
       cy.getByTestID('save-query-as').click()
-      cy.get('label[for="save-as-task"]').click()
+      cy.getByTestID('task--radio-button').click()
       cy.getByTestID('task-form-name').type(taskName)
       cy.getByTestID('task-form-schedule-input').type('4h')
       cy.getByTestID('task-form-save').click()
@@ -518,7 +518,10 @@ describe('DataExplorer', () => {
 
     it('can remove a second query using tab context menu', () => {
       cy.get('.query-tab').trigger('contextmenu')
-      cy.getByTestID('right-click--remove-tab').should('have.class', 'disabled')
+      cy.getByTestID('right-click--remove-tab').should(
+        'have.class',
+        'cf-right-click--menu-item__disabled'
+      )
 
       cy.get('.time-machine-queries--new').click()
       cy.get('.query-tab').should('have.length', 2)
