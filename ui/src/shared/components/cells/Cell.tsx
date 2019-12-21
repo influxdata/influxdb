@@ -12,22 +12,14 @@ import {SpinnerContainer} from '@influxdata/clockface'
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 
 // Utils
-import {getView, getCheckForView, getViewStatus} from 'src/dashboards/selectors'
+import {getView, getViewStatus} from 'src/dashboards/selectors'
 
 // Types
-import {
-  AppState,
-  View,
-  Cell,
-  TimeRange,
-  RemoteDataState,
-  Check,
-} from 'src/types'
+import {AppState, View, Cell, TimeRange, RemoteDataState} from 'src/types'
 
 interface StateProps {
   viewsStatus: RemoteDataState
   view: View
-  check: Partial<Check>
 }
 
 interface OwnProps {
@@ -111,7 +103,6 @@ class CellComponent extends Component<Props, State> {
     const {
       timeRange,
       manualRefresh,
-      check,
       view,
       onEditCell,
       viewsStatus,
@@ -124,7 +115,6 @@ class CellComponent extends Component<Props, State> {
       >
         <ViewComponent
           view={view}
-          check={check}
           timeRange={timeRange}
           manualRefresh={manualRefresh}
           onEditCell={onEditCell}
@@ -143,9 +133,7 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
 
   const status = getViewStatus(state, ownProps.cell.id)
 
-  const check = getCheckForView(state, view)
-
-  return {view, viewsStatus: status, check}
+  return {view, viewsStatus: status}
 }
 
 export default connect<StateProps, {}, OwnProps>(

@@ -30,26 +30,26 @@ import {
 
 interface Props {
   giraffeResult: FromFluxResult
-  checkType: CheckType
-  checkThresholds: Threshold[]
   files: string[]
   loading: RemoteDataState
   properties: QueryViewProperties | CheckViewProperties
   timeZone: TimeZone
   statuses: StatusRow[][]
   timeRange: TimeRange | null
+  checkType?: CheckType
+  checkThresholds?: Threshold[]
 }
 
 const ViewSwitcher: FunctionComponent<Props> = ({
   properties,
-  checkType,
-  checkThresholds,
   loading,
   timeRange,
   files,
   giraffeResult: {table, fluxGroupKeyUnion},
   timeZone,
   statuses,
+  checkType = null,
+  checkThresholds = [],
 }) => {
   switch (properties.type) {
     case 'single-stat':
