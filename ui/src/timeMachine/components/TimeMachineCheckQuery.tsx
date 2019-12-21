@@ -1,15 +1,11 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 
 // Components
 import TimeMachineFluxEditor from 'src/timeMachine/components/TimeMachineFluxEditor'
-import TimeMachineRefreshDropdown from 'src/timeMachine/components/RefreshDropdown'
-import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import SubmitQueryButton from 'src/timeMachine/components/SubmitQueryButton'
 import RawDataToggle from 'src/timeMachine/components/RawDataToggle'
 import QueryTabs from 'src/timeMachine/components/QueryTabs'
-import SwitchToAlertBuilderButton from './SwitchToAlertBuilderButton'
 import {
   ComponentSize,
   FlexBox,
@@ -17,44 +13,8 @@ import {
   JustifyContent,
 } from '@influxdata/clockface'
 
-// Actions
-import {setAutoRefresh} from 'src/timeMachine/actions'
-import {setTimeRange} from 'src/timeMachine/actions'
-
-// Utils
-import {
-  getActiveTimeMachine,
-  getIsInCheckOverlay,
-  getActiveQuery,
-} from 'src/timeMachine/selectors'
-
-// Types
-import {
-  AppState,
-  DashboardQuery,
-  TimeRange,
-  AutoRefresh,
-  AutoRefreshStatus,
-} from 'src/types'
-
-interface StateProps {
-  activeQuery: DashboardQuery
-  timeRange: TimeRange
-  autoRefresh: AutoRefresh
-  isInCheckOverlay: boolean
-}
-
-interface DispatchProps {
-  onSetTimeRange: typeof setTimeRange
-  onSetAutoRefresh: typeof setAutoRefresh
-}
-
-type Props = StateProps & DispatchProps
-
-class TimeMachineQueries extends PureComponent<Props> {
+class TimeMachineQueries extends PureComponent<> {
   public render() {
-    const {timeRange} = this.props
-
     return (
       <div className="time-machine-queries">
         <div className="time-machine-queries--controls">
@@ -65,13 +25,7 @@ class TimeMachineQueries extends PureComponent<Props> {
               justifyContent={JustifyContent.FlexEnd}
               margin={ComponentSize.Small}
             >
-              <SwitchToAlertBuilderButton />
               <RawDataToggle />
-              <TimeMachineRefreshDropdown />
-              <TimeRangeDropdown
-                timeRange={timeRange}
-                onSetTimeRange={this.handleSetTimeRange}
-              />
               <SubmitQueryButton />
             </FlexBox>
           </div>
@@ -82,47 +36,6 @@ class TimeMachineQueries extends PureComponent<Props> {
       </div>
     )
   }
-
-  private handleSetTimeRange = (timeRange: TimeRange) => {
-    const {autoRefresh, onSetAutoRefresh, onSetTimeRange} = this.props
-
-    onSetTimeRange(timeRange)
-
-    if (timeRange.type === 'custom') {
-      onSetAutoRefresh({...autoRefresh, status: AutoRefreshStatus.Disabled})
-      return
-    }
-
-    if (autoRefresh.status === AutoRefreshStatus.Disabled) {
-      if (autoRefresh.interval === 0) {
-        onSetAutoRefresh({...autoRefresh, status: AutoRefreshStatus.Paused})
-        return
-      }
-
-      onSetAutoRefresh({...autoRefresh, status: AutoRefreshStatus.Active})
-    }
-  }
 }
 
-const mstp = (state: AppState) => {
-  const {timeRange, autoRefresh} = getActiveTimeMachine(state)
-
-  const activeQuery = getActiveQuery(state)
-
-  return {
-    timeRange,
-    activeQuery,
-    autoRefresh,
-    isInCheckOverlay: getIsInCheckOverlay(state),
-  }
-}
-
-const mdtp = {
-  onSetTimeRange: setTimeRange,
-  onSetAutoRefresh: setAutoRefresh,
-}
-
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(TimeMachineQueries)
+export default TimeMachineQueries
