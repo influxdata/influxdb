@@ -172,15 +172,12 @@ export const saveCheckFromTimeMachine = () => async (
 
   const {draftQueries} = getActiveTimeMachine(state)
 
-  // const labels = get(check, 'labels', []) as Label[]
-
   let check = {
     type,
     status,
     name,
     query: draftQueries[0],
     orgID,
-    // labels: labels.map(l => l.id),
   } as Check
 
   if (check.type === 'threshold') {

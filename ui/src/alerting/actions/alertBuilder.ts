@@ -4,12 +4,11 @@ import {executeQueries} from 'src/timeMachine/actions/queries'
 // Types
 import {
   RemoteDataState,
-  ThresholdCheck,
-  DeadmanCheck,
   CheckTagSet,
   Threshold,
   CheckStatusLevel,
   CheckType,
+  Check,
 } from 'src/types'
 
 export type Action =
@@ -40,7 +39,7 @@ export const initializeAlertBuilder = (type: CheckType) => ({
   payload: {type},
 })
 
-export const setAlertBuilderCheck = (check: ThresholdCheck | DeadmanCheck) => ({
+export const setAlertBuilderCheck = (check: Check) => ({
   type: 'SET_ALERT_BUILDER_CHECK' as 'SET_ALERT_BUILDER_CHECK',
   payload: {check},
 })

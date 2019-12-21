@@ -4,8 +4,6 @@ import {
   DashboardDraftQuery,
   CheckType,
   Threshold,
-  DeadmanCheck,
-  ThresholdCheck,
 } from 'src/types'
 import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 import {

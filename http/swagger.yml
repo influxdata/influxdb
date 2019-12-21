@@ -10188,6 +10188,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/CheckBase"
         - type: object
+          required: [type]
           properties:
             type:
               type: string
@@ -10230,6 +10231,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/CheckBase"
         - type: object
+          required: [type]
           properties:
             type:
               type: string
@@ -10272,7 +10274,7 @@ components:
             type:
               type: string
               enum: [custom]
-              required: true
+          required: [type]
     ThresholdBase:
       properties:
         level:

@@ -100,13 +100,7 @@ class CellComponent extends Component<Props, State> {
   }
 
   private get view(): JSX.Element {
-    const {
-      timeRange,
-      manualRefresh,
-      view,
-      onEditCell,
-      viewsStatus,
-    } = this.props
+    const {timeRange, manualRefresh, view, onEditCell, viewsStatus} = this.props
 
     return (
       <SpinnerContainer

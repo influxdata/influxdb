@@ -1,9 +1,6 @@
 import {DURATIONS} from 'src/timeMachine/constants/queryBuilder'
 
-import {
-  ThresholdCheck,
-  TagRuleDraft,
-} from 'src/types'
+import {ThresholdCheck, TagRuleDraft} from 'src/types'
 import {NotificationEndpoint, CheckStatusLevel} from 'src/client'
 import {ComponentColor, InfluxColors} from '@influxdata/clockface'
 import {DurationOption} from 'src/shared/components/DurationSelector'
