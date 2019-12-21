@@ -72,40 +72,61 @@ export default (
     }
 
     case 'SET_ALERT_BUILDER_CHECK': {
-      const {
-        id,
-        type,
-        name,
-        every,
-        offset,
-        tags,
-        statusMessageTemplate,
-      } = action.payload.check
+      const {id, type, name, query} = action.payload.check
 
       const newState = {
         ...initialState(),
         id,
         type,
         name,
-        every,
-        offset,
-        tags: tags || DEFAULT_CHECK_TAGS,
-        statusMessageTemplate,
         checkStatus: RemoteDataState.Done,
+        query,
       }
 
-      if (action.payload.check.type === 'threshold') {
-        const {thresholds} = action.payload.check
+      if (action.payload.check.type === 'custom') {
+        return newState
+      } else if (action.payload.check.type === 'threshold') {
+        const {
+          thresholds,
+          every,
+          offset,
+          tags,
+          statusMessageTemplate,
+        } = action.payload.check
 
-        return {...newState, thresholds}
-      }
-      if (action.payload.check.type === 'deadman') {
-        const {timeSince, staleTime, reportZero, level} = action.payload.check
+        return {
+          ...newState,
+          thresholds,
+          every,
+          offset,
+          tags,
+          statusMessageTemplate,
+        }
+      } else if (action.payload.check.type === 'deadman') {
+        const {
+          timeSince,
+          staleTime,
+          reportZero,
+          level,
+          every,
+          offset,
+          tags,
+          statusMessageTemplate,
+        } = action.payload.check
 
-        return {...newState, timeSince, staleTime, reportZero, level}
-      } else {
-        throw new Error('set check not implemented for custom type check')
+        return {
+          ...newState,
+          timeSince,
+          staleTime,
+          reportZero,
+          level,
+          every,
+          offset,
+          tags,
+          statusMessageTemplate,
+        }
       }
+      return
     }
 
     case 'SET_ALERT_BUILER_CHECK_STATUS': {
