@@ -1,6 +1,7 @@
 package pkger
 
 import (
+	"errors"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -4336,6 +4337,60 @@ spec:
 			require.True(t, ok)
 		})
 	})
+}
+
+func Test_IsParseError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "base case",
+			err:      &parseErr{},
+			expected: true,
+		},
+		{
+			name: "wrapped by influxdb error",
+			err: &influxdb.Error{
+				Err: &parseErr{},
+			},
+			expected: true,
+		},
+		{
+			name: "deeply nested in influxdb error",
+			err: &influxdb.Error{
+				Err: &influxdb.Error{
+					Err: &influxdb.Error{
+						Err: &influxdb.Error{
+							Err: &parseErr{},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "influxdb error without nested parse err",
+			err: &influxdb.Error{
+				Err: errors.New("nope"),
+			},
+			expected: false,
+		},
+		{
+			name:     "plain error",
+			err:      errors.New("nope"),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		fn := func(t *testing.T) {
+			isParseErr := IsParseErr(tt.err)
+			assert.Equal(t, tt.expected, isParseErr)
+		}
+		t.Run(tt.name, fn)
+	}
 }
 
 func Test_PkgValidationErr(t *testing.T) {

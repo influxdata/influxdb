@@ -237,7 +237,7 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	for orgID := range opt.OrgIDs {
 		resourcesToClone, err := s.cloneOrgResources(ctx, orgID)
 		if err != nil {
-			return nil, err
+			return nil, internalErr(err)
 		}
 		opt.Resources = append(opt.Resources, resourcesToClone...)
 	}
@@ -245,7 +245,7 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	for _, r := range uniqResourcesToClone(opt.Resources) {
 		newResources, err := s.resourceCloneToResource(ctx, r, cloneAssFn)
 		if err != nil {
-			return nil, err
+			return nil, internalErr(err)
 		}
 		pkg.Spec.Resources = append(pkg.Spec.Resources, newResources...)
 	}
@@ -253,7 +253,7 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	pkg.Spec.Resources = uniqResources(pkg.Spec.Resources)
 
 	if err := pkg.Validate(ValidWithoutResources()); err != nil {
-		return nil, err
+		return nil, failedValidationErr(err)
 	}
 
 	var kindPriorities = map[Kind]int{
@@ -633,7 +633,7 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 	if !pkg.isParsed {
 		err := pkg.Validate()
 		if err != nil && !IsParseErr(err) {
-			return Summary{}, Diff{}, err
+			return Summary{}, Diff{}, internalErr(err)
 		}
 		parseErr = err
 	}
@@ -642,61 +642,41 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 		return Summary{}, Diff{}, err
 	}
 
-	diffBuckets, err := s.dryRunBuckets(ctx, orgID, pkg)
-	if err != nil {
-		return Summary{}, Diff{}, err
-	}
-
-	diffChecks, err := s.dryRunChecks(ctx, orgID, pkg)
-	if err != nil {
-		return Summary{}, Diff{}, err
-	}
-
-	diffLabels, err := s.dryRunLabels(ctx, orgID, pkg)
-	if err != nil {
-		return Summary{}, Diff{}, err
+	diff := Diff{
+		Buckets:    s.dryRunBuckets(ctx, orgID, pkg),
+		Checks:     s.dryRunChecks(ctx, orgID, pkg),
+		Dashboards: s.dryRunDashboards(pkg),
+		Labels:     s.dryRunLabels(ctx, orgID, pkg),
+		Telegrafs:  s.dryRunTelegraf(pkg),
+		Variables:  s.dryRunVariables(ctx, orgID, pkg),
 	}
 
 	diffEndpoints, err := s.dryRunNotificationEndpoints(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
 	}
+	diff.NotificationEndpoints = diffEndpoints
 
 	diffRules, err := s.dryRunNotificationRules(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
 	}
-
-	diffVars, err := s.dryRunVariables(ctx, orgID, pkg)
-	if err != nil {
-		return Summary{}, Diff{}, err
-	}
+	diff.NotificationRules = diffRules
 
 	diffLabelMappings, err := s.dryRunLabelMappings(ctx, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
 	}
+	diff.LabelMappings = diffLabelMappings
 
 	// verify the pkg is verified by a dry run. when calling Service.Apply this
 	// is required to have been run. if it is not true, then apply runs
 	// the Dry run.
 	pkg.isVerified = true
-
-	diff := Diff{
-		Buckets:               diffBuckets,
-		Checks:                diffChecks,
-		Dashboards:            s.dryRunDashboards(pkg),
-		Labels:                diffLabels,
-		LabelMappings:         diffLabelMappings,
-		NotificationEndpoints: diffEndpoints,
-		NotificationRules:     diffRules,
-		Telegrafs:             s.dryRunTelegraf(pkg),
-		Variables:             diffVars,
-	}
 	return pkg.Summary(), diff, parseErr
 }
 
-func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffBucket, error) {
+func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffBucket {
 	mExistingBkts := make(map[string]DiffBucket)
 	bkts := pkg.buckets()
 	for i := range bkts {
@@ -721,10 +701,10 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 		return diffs[i].Name < diffs[j].Name
 	})
 
-	return diffs, nil
+	return diffs
 }
 
-func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffCheck, error) {
+func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffCheck {
 	mExistingChecks := make(map[string]DiffCheck)
 	checks := pkg.checks()
 	for i := range checks {
@@ -751,7 +731,7 @@ func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 		return diffs[i].Name < diffs[j].Name
 	})
 
-	return diffs, nil
+	return diffs
 }
 
 func (s *Service) dryRunDashboards(pkg *Pkg) []DiffDashboard {
@@ -762,7 +742,7 @@ func (s *Service) dryRunDashboards(pkg *Pkg) []DiffDashboard {
 	return diffs
 }
 
-func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffLabel, error) {
+func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffLabel {
 	mExistingLabels := make(map[string]DiffLabel)
 	labels := pkg.labels()
 	for i := range labels {
@@ -791,7 +771,7 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 		return diffs[i].Name < diffs[j].Name
 	})
 
-	return diffs, nil
+	return diffs
 }
 
 func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffNotificationEndpoint, error) {
@@ -799,7 +779,7 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 		OrgID: &orgID,
 	}) // grab em all
 	if err != nil {
-		return nil, err
+		return nil, internalErr(err)
 	}
 
 	mExisting := make(map[string]influxdb.NotificationEndpoint)
@@ -837,7 +817,7 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 		OrgID: &orgID,
 	})
 	if err != nil {
-		return nil, err
+		return nil, internalErr(err)
 	}
 	mExisting := make(map[string]influxdb.NotificationEndpoint)
 	for _, e := range iEndpoints {
@@ -850,7 +830,8 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 		if !ok {
 			pkgerEndpoint, ok := pkg.mNotificationEndpoints[r.endpointName]
 			if !ok {
-				return nil, fmt.Errorf("failed to find endpoint by name: %q", r.endpointName)
+				err := fmt.Errorf("failed to find endpoint by name: %q", r.endpointName)
+				return nil, &influxdb.Error{Code: influxdb.EUnprocessableEntity, Err: err}
 			}
 			e = pkgerEndpoint.summarize().NotificationEndpoint
 		}
@@ -861,30 +842,31 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 }
 
 func (s *Service) dryRunSecrets(ctx context.Context, orgID influxdb.ID, pkg *Pkg) error {
-	secrets := pkg.secrets()
-	if len(secrets) == 0 {
+	pkgSecrets := pkg.secrets()
+	if len(pkgSecrets) == 0 {
 		return nil
 	}
 
 	existingSecrets, err := s.secretSVC.GetSecretKeys(ctx, orgID)
 	if err != nil {
-		return err
+		return &influxdb.Error{Code: influxdb.EInternal, Err: err}
 	}
 
 	for _, secret := range existingSecrets {
-		delete(secrets, secret)
+		delete(pkgSecrets, secret)
 	}
 
-	if len(secrets) == 0 {
+	if len(pkgSecrets) == 0 {
 		return nil
 	}
 
-	missing := make([]string, 0, len(secrets))
-	for secret := range secrets {
+	missing := make([]string, 0, len(pkgSecrets))
+	for secret := range pkgSecrets {
 		missing = append(missing, secret)
 	}
 	sort.Strings(missing)
-	return fmt.Errorf("secrets to not exist for secret reference keys: %s", strings.Join(missing, ", "))
+	err = fmt.Errorf("secrets to not exist for secret reference keys: %s", strings.Join(missing, ", "))
+	return &influxdb.Error{Code: influxdb.EUnprocessableEntity, Err: err}
 }
 
 func (s *Service) dryRunTelegraf(pkg *Pkg) []DiffTelegraf {
@@ -895,7 +877,7 @@ func (s *Service) dryRunTelegraf(pkg *Pkg) []DiffTelegraf {
 	return diffs
 }
 
-func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffVariable, error) {
+func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffVariable {
 	mExistingLabels := make(map[string]DiffVariable)
 	variables := pkg.variables()
 
@@ -935,7 +917,7 @@ VarLoop:
 		return diffs[i].Name < diffs[j].Name
 	})
 
-	return diffs, nil
+	return diffs
 }
 
 type (
@@ -982,7 +964,7 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 				})
 			})
 			if err != nil {
-				return nil, err
+				return nil, internalErr(err)
 			}
 		}
 	}
@@ -1049,13 +1031,12 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (sum Summary, e error) {
 	if !pkg.isParsed {
 		if err := pkg.Validate(); err != nil {
-			return Summary{}, err
+			return Summary{}, failedValidationErr(err)
 		}
 	}
 
 	if !pkg.isVerified {
-		_, _, err := s.DryRun(ctx, orgID, userID, pkg)
-		if err != nil {
+		if _, _, err := s.DryRun(ctx, orgID, userID, pkg); err != nil {
 			return Summary{}, err
 		}
 	}
@@ -1092,7 +1073,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 
 	for _, group := range appliers {
 		if err := coordinator.runTilEnd(ctx, orgID, userID, group...); err != nil {
-			return Summary{}, err
+			return Summary{}, internalErr(err)
 		}
 	}
 
@@ -1110,7 +1091,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 	// this last grouping relies on the above 2 steps having completely successfully
 	secondary := []applier{s.applyLabelMappings(pkg.labelMappings())}
 	if err := coordinator.runTilEnd(ctx, orgID, userID, secondary...); err != nil {
-		return Summary{}, err
+		return Summary{}, internalErr(err)
 	}
 
 	return pkg.Summary(), nil
@@ -1583,7 +1564,7 @@ func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID inf
 		OrgID: &orgID,
 	})
 	if err != nil {
-		return applier{}, err
+		return applier{}, internalErr(err)
 	}
 
 	type mVal struct {
@@ -2099,4 +2080,18 @@ func labelSlcToMap(labels []*label) map[string]*label {
 		m[labels[i].Name()] = labels[i]
 	}
 	return m
+}
+
+func failedValidationErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &influxdb.Error{Code: influxdb.EUnprocessableEntity, Err: err}
+}
+
+func internalErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &influxdb.Error{Code: influxdb.EInternal, Err: err}
 }

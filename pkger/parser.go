@@ -1421,7 +1421,40 @@ func (e *parseErr) ValidationErrs() []ValidationErr {
 			errs = append(errs, traverseErrs(rootErr, v)...)
 		}
 	}
-	return errs
+
+	// used to provide a means to == or != in the map lookup
+	// to remove duplicate errors
+	type key struct {
+		kind    string
+		fields  string
+		indexes string
+		reason  string
+	}
+
+	m := make(map[key]bool)
+	var out []ValidationErr
+	for _, verr := range errs {
+		k := key{
+			kind:   verr.Kind,
+			fields: strings.Join(verr.Fields, ":"),
+			reason: verr.Reason,
+		}
+		var indexes []string
+		for _, idx := range verr.Indexes {
+			if idx == nil {
+				continue
+			}
+			indexes = append(indexes, strconv.Itoa(*idx))
+		}
+		k.indexes = strings.Join(indexes, ":")
+		if m[k] {
+			continue
+		}
+		m[k] = true
+		out = append(out, verr)
+	}
+
+	return out
 }
 
 // ValidationErr represents an error during the parsing of a package.
@@ -1471,8 +1504,15 @@ func (e *parseErr) append(errs ...resourceErr) {
 // it will return nil values for the parseErr, making it unsafe
 // to use.
 func IsParseErr(err error) bool {
-	_, ok := err.(*parseErr)
-	return ok
+	if _, ok := err.(*parseErr); ok {
+		return true
+	}
+
+	iErr, ok := err.(*influxdb.Error)
+	if !ok {
+		return false
+	}
+	return IsParseErr(iErr.Err)
 }
 
 func normStr(s string) string {
