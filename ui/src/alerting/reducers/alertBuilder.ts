@@ -71,6 +71,10 @@ export default (
       }
     }
 
+    case 'CONVERT_CHECK_TO_CUSTOM': {
+      return {...state, type: 'custom'}
+    }
+
     case 'SET_ALERT_BUILDER_CHECK': {
       const {id, type, name, query} = action.payload.check
 

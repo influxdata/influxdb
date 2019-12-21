@@ -14,6 +14,7 @@ import {
 export type Action =
   | ReturnType<typeof resetAlertBuilder>
   | ReturnType<typeof initializeAlertBuilder>
+  | ReturnType<typeof convertCheckToCustom>
   | ReturnType<typeof setAlertBuilderCheck>
   | ReturnType<typeof setAlertBuilderCheckStatus>
   | ReturnType<typeof changeCheckType>
@@ -37,6 +38,10 @@ export const resetAlertBuilder = () => ({
 export const initializeAlertBuilder = (type: CheckType) => ({
   type: 'INIT_ALERT_BUILDER' as 'INIT_ALERT_BUILDER',
   payload: {type},
+})
+
+export const convertCheckToCustom = () => ({
+  type: 'CONVERT_CHECK_TO_CUSTOM' as 'CONVERT_CHECK_TO_CUSTOM',
 })
 
 export const setAlertBuilderCheck = (check: Check) => ({

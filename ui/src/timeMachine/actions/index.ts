@@ -10,12 +10,15 @@ import {
   Action as QueryBuilderAction,
 } from 'src/timeMachine/actions/queryBuilder'
 import {setValues} from 'src/variables/actions'
+import {convertCheckToCustom} from 'src/alerting/actions/alertBuilder'
 
 // Selectors
 import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+import {getActiveQuery} from 'src/timeMachine/selectors'
 
 // Utils
 import {createView} from 'src/shared/utils/view'
+import {createCheckQueryFromAlertBuilder} from 'src/timeMachine/utils/queryBuilder'
 
 // Types
 import {TimeMachineState} from 'src/timeMachine/reducers'
@@ -37,9 +40,6 @@ import {
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition, LinePosition} from '@influxdata/giraffe'
-import {getActiveQuery} from '../selectors'
-import {createCheckQueryFromAlertBuilder} from '../utils/queryBuilder'
-import {initializeAlertBuilder} from 'src/alerting/actions/alertBuilder'
 
 export type Action =
   | QueryBuilderAction
@@ -673,8 +673,8 @@ export const loadCustomQueryState = () => (
       createCheckQueryFromAlertBuilder(builderConfig, alertBuilder)
     )
   )
-  dispatch(initializeAlertBuilder('custom'))
-  // need to set check type and re initialize alertBuilder state.
+
+  dispatch(convertCheckToCustom())
 
   dispatch(setActiveTab('customCheckQuery'))
 }
