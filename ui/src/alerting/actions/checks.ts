@@ -205,11 +205,29 @@ export const saveCheckFromTimeMachine = () => async (
     check = {...check} as CustomCheck
   }
 
-  const resp = id
-    ? await api.putCheck({checkID: id, data: check})
-    : await api.postCheck({data: check})
+  if (id) {
+    // update Check
+    // todo: refactor after https://github.com/influxdata/influxdb/issues/16317
+    const getCheckResponse = await api.getCheck({checkID: id})
+    if (getCheckResponse.status !== 200) {
+      throw new Error(getCheckResponse.data.message)
+    }
+    const resp = await api.putCheck({
+      checkID: id,
+      data: {...check, ownerID: getCheckResponse.data.ownerID},
+    })
+    if (resp.status === 200) {
+      dispatch(setCheck(resp.data))
+      dispatch(checkChecksLimits())
+    } else {
+      throw new Error(resp.data.message)
+    }
+    return
+  }
 
-  if (resp.status === 201 || resp.status === 200) {
+  // create check
+  const resp = await api.postCheck({data: check})
+  if (resp.status === 201) {
     dispatch(setCheck(resp.data))
     dispatch(checkChecksLimits())
   } else {
