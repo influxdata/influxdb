@@ -66,9 +66,9 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
     onResetAlertBuilder()
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     try {
-      saveCheckFromTimeMachine()
+      await saveCheckFromTimeMachine()
       handleClose()
     } catch (e) {
       console.error(e)

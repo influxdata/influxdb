@@ -78,9 +78,9 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
     onResetAlertBuilder()
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     try {
-      onSaveCheckFromTimeMachine()
+      await onSaveCheckFromTimeMachine()
       handleClose()
     } catch (e) {
       console.error(e)
