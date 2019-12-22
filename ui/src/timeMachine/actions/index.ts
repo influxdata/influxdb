@@ -674,6 +674,8 @@ export const loadCustomQueryState = () => (
     )
   )
 
+  dispatch(setType('table'))
+
   dispatch(convertCheckToCustom())
 
   dispatch(setActiveTab('customCheckQuery'))
