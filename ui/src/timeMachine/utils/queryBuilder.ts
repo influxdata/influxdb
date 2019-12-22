@@ -226,19 +226,22 @@ export function createCheckQueryFromAlertBuilder(
 
   const checkStatement = [
     'check = {',
-    `  _check_id: \"${id || ''}\",`, //PROBLEM: WHAT IF CHECK DOES NOT EXIST YET.
+    `  _check_id: \"${id || ''}\",`,
     `  _check_name: \"${name}\",`,
     `  _type: \"custom\",`,
-    `  tags: {${checkTags}}`,
+    `  tags: {${checkTags}},`,
+    `  every: ${every}`,
     '}',
   ]
+
   const optionTask = [
     'option task = {',
     `  name: \"${name}\",`,
-    `  every: ${every},`,
+    `  every: check.every,`,
     `  offset: ${offset}`,
     '}',
   ]
+
   if (type === 'deadman') {
     const imports = [
       'package main',
@@ -248,8 +251,6 @@ export function createCheckQueryFromAlertBuilder(
     ]
 
     const dataRange = `  |> range(start: -${staleTime})`
-
-    //insert variable here.
 
     const dataDefinition = [dataFrom, dataRange, ...filterStatements]
 
@@ -266,11 +267,11 @@ export function createCheckQueryFromAlertBuilder(
 
     const script: string[] = [
       imports.join('\n'),
-      dataDefinition.join('\n'),
-      optionTask.join('\n'),
       checkStatement.join('\n'),
+      optionTask.join('\n'),
       levelFunction,
       messageFn,
+      dataDefinition.join('\n'),
       queryStatement.join('\n'),
     ]
     return script.join('\n\n')
@@ -283,9 +284,9 @@ export function createCheckQueryFromAlertBuilder(
       'import "influxdata/influxdb/v1"',
     ]
 
-    const dataRange = `  |> range(start: -${every})`
+    const dataRange = `  |> range(start: -check.every)`
 
-    const aggregateFunction = `  |> aggregateWindow(every: ${every}, fn: ${
+    const aggregateFunction = `  |> aggregateWindow(every: check.every, fn: ${
       builderConfig.functions[0].name
     }, createEmpty: false)`
 
@@ -328,13 +329,14 @@ export function createCheckQueryFromAlertBuilder(
 
     const script: string[] = [
       imports.join('\n'),
-      optionTask.join('\n'),
       checkStatement.join('\n'),
+      optionTask.join('\n'),
       thresholdExpressions.join('\n'),
       messageFn,
       dataDefinition.join('\n'),
       queryStatement.join('\n'),
     ]
+
     return script.join('\n\n')
   }
 }

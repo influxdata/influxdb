@@ -1,4 +1,5 @@
 // Libraries
+import {parse} from '@influxdata/flux-parser'
 import {get, isEmpty} from 'lodash'
 
 // API
@@ -24,6 +25,7 @@ import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 import {
   getActiveTimeMachine,
   getVariableAssignments,
+  getActiveQuery,
 } from 'src/timeMachine/selectors'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
@@ -115,6 +117,9 @@ export const executeQueries = (dashboardID?: string) => async (
   const queries = view.properties.queries.filter(({text}) => !!text.trim())
   const {
     alertBuilder: {id: checkID},
+    orgs: {
+      org: {id: orgID},
+    },
   } = state
 
   if (!queries.length) {
@@ -126,9 +131,7 @@ export const executeQueries = (dashboardID?: string) => async (
 
     await dispatch(refreshTimeMachineVariableValues(dashboardID))
 
-    const orgID = getState().orgs.org.id
-
-    const variableAssignments = getVariableAssignments(getState())
+    const variableAssignments = getVariableAssignments(state)
 
     const startTime = Date.now()
 
@@ -194,6 +197,61 @@ const saveDraftQueries = (): SaveDraftQueriesAction => ({
 export const saveAndExecuteQueries = () => dispatch => {
   dispatch(saveDraftQueries())
   dispatch(executeQueries())
+}
+
+export const executeCheckQuery = () => async (dispatch, getState: GetState) => {
+  const state = getState()
+  const {text} = getActiveQuery(state)
+
+  const {
+    orgs: {
+      org: {id: orgID},
+    },
+  } = state
+
+  if (text == '') {
+    dispatch(setQueryResults(RemoteDataState.Done, [], null))
+  }
+
+  try {
+    dispatch(setQueryResults(RemoteDataState.Loading, null, null, null))
+
+    const startTime = Date.now()
+
+    const extern = parse(
+      'import "influxdata/influxdb/monitor"\noption monitor.write = yield'
+    )
+
+    const result = await runQuery(orgID, text, extern).promise
+    const duration = Date.now() - startTime
+
+    if (result.type === 'UNKNOWN_ERROR') {
+      throw new Error(result.message)
+    }
+
+    if (result.type === 'RATE_LIMIT_ERROR') {
+      dispatch(notify(rateLimitReached(result.retryAfter)))
+
+      throw new Error(result.message)
+    }
+
+    if (result.didTruncate) {
+      dispatch(notify(resultTooLarge(result.bytesRead)))
+    }
+
+    checkQueryResult(result.csv)
+
+    const file = result.csv
+    console.log(file)
+    dispatch(setQueryResults(RemoteDataState.Done, [file], duration, null))
+  } catch (e) {
+    if (e.name === 'CancellationError') {
+      return
+    }
+
+    console.error(e)
+    dispatch(setQueryResults(RemoteDataState.Error, null, null, e.message))
+  }
 }
 
 export const addVariableToTimeMachine = (variableID: string) => async (

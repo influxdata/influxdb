@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Components
 import TimeMachineFluxEditor from 'src/timeMachine/components/TimeMachineFluxEditor'
-import SubmitQueryButton from 'src/timeMachine/components/SubmitQueryButton'
+import SubmitCheckQueryButton from 'src/timeMachine/components/SubmitCheckQueryButton'
 import RawDataToggle from 'src/timeMachine/components/RawDataToggle'
 import QueryTabs from 'src/timeMachine/components/QueryTabs'
 import {
@@ -26,7 +26,7 @@ class TimeMachineQueries extends PureComponent<> {
               margin={ComponentSize.Small}
             >
               <RawDataToggle />
-              <SubmitQueryButton />
+              <SubmitCheckQueryButton />
             </FlexBox>
           </div>
         </div>
