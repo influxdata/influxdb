@@ -138,6 +138,7 @@ type Pkg struct {
 	mDashboards            []*dashboard
 	mNotificationEndpoints map[string]*notificationEndpoint
 	mNotificationRules     []*notificationRule
+	mTasks                 map[string]*task
 	mTelegrafs             []*telegraf
 	mVariables             map[string]*variable
 
@@ -177,6 +178,10 @@ func (p *Pkg) Summary() Summary {
 
 	for _, r := range p.notificationRules() {
 		sum.NotificationRules = append(sum.NotificationRules, r.summarize())
+	}
+
+	for _, t := range p.tasks() {
+		sum.Tasks = append(sum.Tasks, t.summarize())
 	}
 
 	for _, t := range p.telegrafs() {
@@ -310,6 +315,17 @@ func (p *Pkg) secrets() map[string]bool {
 	return secrets
 }
 
+func (p *Pkg) tasks() []*task {
+	tasks := make([]*task, 0, len(p.mTasks))
+	for _, t := range p.mTasks {
+		tasks = append(tasks, t)
+	}
+
+	sort.Slice(tasks, func(i, j int) bool { return tasks[i].Name() < tasks[j].Name() })
+
+	return tasks
+}
+
 func (p *Pkg) telegrafs() []*telegraf {
 	teles := p.mTelegrafs[:]
 	sort.Slice(teles, func(i, j int) bool { return teles[i].Name() < teles[j].Name() })
@@ -437,6 +453,7 @@ func (p *Pkg) graphResources() error {
 		p.graphDashboards,
 		p.graphNotificationEndpoints,
 		p.graphNotificationRules,
+		p.graphTasks,
 		p.graphTelegrafs,
 	}
 
@@ -732,6 +749,59 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 	})
 }
 
+func (p *Pkg) graphTasks() *parseErr {
+	p.mTasks = make(map[string]*task)
+	return p.eachResource(KindTask, 1, func(r Resource) []validationErr {
+		t := &task{
+			name:        r.Name(),
+			cron:        r.stringShort(fieldTaskCron),
+			description: r.stringShort(fieldDescription),
+			every:       r.durationShort(fieldEvery),
+			offset:      r.durationShort(fieldOffset),
+			query:       strings.TrimSpace(r.stringShort(fieldQuery)),
+			status:      normStr(r.stringShort(fieldStatus)),
+		}
+
+		failures := p.parseNestedLabels(r, func(l *label) error {
+			t.labels = append(t.labels, l)
+			p.mLabels[l.Name()].setMapping(t, false)
+			return nil
+		})
+		sort.Sort(t.labels)
+
+		p.mTasks[r.Name()] = t
+		return append(failures, t.valid()...)
+	})
+}
+
+func (p *Pkg) graphTelegrafs() *parseErr {
+	p.mTelegrafs = make([]*telegraf, 0)
+	return p.eachResource(KindTelegraf, 0, func(r Resource) []validationErr {
+		tele := new(telegraf)
+		tele.config.Name = r.Name()
+		tele.config.Description = r.stringShort(fieldDescription)
+
+		failures := p.parseNestedLabels(r, func(l *label) error {
+			tele.labels = append(tele.labels, l)
+			p.mLabels[l.Name()].setMapping(tele, false)
+			return nil
+		})
+		sort.Sort(tele.labels)
+
+		tele.config.Config = r.stringShort(fieldTelegrafConfig)
+		if tele.config.Config == "" {
+			failures = append(failures, validationErr{
+				Field: fieldTelegrafConfig,
+				Msg:   "no config provided",
+			})
+		}
+
+		p.mTelegrafs = append(p.mTelegrafs, tele)
+
+		return failures
+	})
+}
+
 func (p *Pkg) graphVariables() *parseErr {
 	p.mVariables = make(map[string]*variable)
 	return p.eachResource(KindVariable, 1, func(r Resource) []validationErr {
@@ -763,34 +833,6 @@ func (p *Pkg) graphVariables() *parseErr {
 		p.mVariables[r.Name()] = newVar
 
 		return append(failures, newVar.valid()...)
-	})
-}
-
-func (p *Pkg) graphTelegrafs() *parseErr {
-	p.mTelegrafs = make([]*telegraf, 0)
-	return p.eachResource(KindTelegraf, 0, func(r Resource) []validationErr {
-		tele := new(telegraf)
-		tele.config.Name = r.Name()
-		tele.config.Description = r.stringShort(fieldDescription)
-
-		failures := p.parseNestedLabels(r, func(l *label) error {
-			tele.labels = append(tele.labels, l)
-			p.mLabels[l.Name()].setMapping(tele, false)
-			return nil
-		})
-		sort.Sort(tele.labels)
-
-		tele.config.Config = r.stringShort(fieldTelegrafConfig)
-		if tele.config.Config == "" {
-			failures = append(failures, validationErr{
-				Field: fieldTelegrafConfig,
-				Msg:   "no config provided",
-			})
-		}
-
-		p.mTelegrafs = append(p.mTelegrafs, tele)
-
-		return failures
 	})
 }
 
