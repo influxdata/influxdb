@@ -124,8 +124,10 @@ Considerations:
   Some things we'd want to query:
   measurement = cpu and host = serverA
   tag keys where host = server a
+  tag keys where (app = foo and app = bar)
   hosts where measurement = redis
   fields where measurement = redis
+  hosts where (app = foo AND app = bar)
   hosts
 
   group data by measurement_range, time, size limit. Roll over to next measurement range when we hit either time or size

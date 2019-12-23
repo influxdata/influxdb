@@ -1,9 +1,6 @@
 use crate::line_parser::Point;
-use crate::delorean::{Bucket, IndexLevel, Predicate};
-
-use rocksdb::{DB, IteratorMode, WriteBatch, Options, ColumnFamilyDescriptor, Direction, ColumnFamily};
-use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
-use prost::Message;
+use crate::delorean::{Bucket, IndexLevel, Predicate, Node, node};
+use crate::delorean::node::{Value, Comparison};
 
 use bytes::BufMut;
 use std::{error, fmt};
@@ -11,8 +8,13 @@ use std::sync::{Arc, RwLock, Mutex, MutexGuard};
 use std::collections::HashMap;
 use std::time::SystemTime;
 use std::io::Cursor;
+use std::str::Chars;
+use std::iter::Peekable;
+
+use rocksdb::{DB, IteratorMode, WriteBatch, Options, ColumnFamilyDescriptor, Direction, ColumnFamily};
 use rocksdb::MemtableFactory::{Vector, HashLinkList};
-use crate::storage::IndexEntryType::SeriesKeyToID;
+use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
+use prost::Message;
 use futures::AsyncWriteExt;
 
 /// Database wraps a RocksDB database for storing the raw series data, an inverted index of the
@@ -364,8 +366,6 @@ impl Database {
     fn load_bucket_map(&mut self) {
         let buckets = self.db.cf_handle(BUCKET_CF).unwrap();
         let prefix = &[BucketEntryType::Bucket as u8];
-        println!("prefix: {:?}", prefix);
-        println!("series one: {:?}", BucketEntryType::NextSeriesID as u8);
         let mut iter = self.db.iterator_cf(&buckets, IteratorMode::From(prefix, Direction::Forward)).unwrap();
 
         let mut id_mutex_map = HashMap::new();
@@ -394,6 +394,169 @@ impl Database {
         self.series_insert_lock = Arc::new(RwLock::new(id_mutex_map));
     }
 }
+
+pub fn parse_predicate(val: &str) -> Result<Predicate, StorageError> {
+    let mut chars = val.chars().peekable();
+
+    let mut predicate = Predicate{root: None};
+    let node = parse_node(&mut chars)?;
+    predicate.root = Some(node);
+
+    // Err(StorageError{description: "couldn't parse".to_string()})
+    Ok(predicate)
+}
+
+fn parse_node(chars: &mut Peekable<Chars>) -> Result<Node, StorageError> {
+    eat_whitespace(chars);
+
+    let left = parse_key(chars)?;
+    eat_whitespace(chars);
+
+    let comparison = parse_comparison(chars)?;
+    let right = parse_value(chars)?;
+
+    let mut node = Node{
+        children: vec![
+            Node{value: Some(node::Value::TagRefValue(left)), children: vec![]},
+            Node{value: Some(right), children: vec![]},
+        ],
+        value: Some(node::Value::Comparison(comparison as i32)),
+    };
+
+    if let Some(logical) = parse_logical(chars)? {
+        let right = parse_node(chars)?;
+        node = Node{
+            children: vec![
+                node,
+                right,
+            ],
+            value: Some(Value::Logical(logical as i32)),
+        }
+    }
+
+    Ok(node)
+}
+
+fn parse_key(chars: &mut Peekable<Chars>) -> Result<String, StorageError> {
+    let mut key = String::new();
+
+    loop {
+        let ch = chars.peek();
+        if ch == None {
+            break;
+        }
+        let ch = ch.unwrap();
+
+        if ch.is_alphanumeric() || *ch == '_' || *ch == '-' {
+            key.push(chars.next().unwrap());
+        } else {
+            return Ok(key);
+        }
+    }
+
+    Err(StorageError{description: "reached end of predicate without a comparison operator".to_string()})
+}
+
+fn parse_comparison(chars: &mut Peekable<Chars>) -> Result<Comparison, StorageError> {
+    if let Some(ch) = chars.next() {
+        let comp = match ch {
+            '>' => {
+                match chars.peek() {
+                    Some('=') => {
+                        chars.next();
+                        node::Comparison::Gte
+                    },
+                    _ => node::Comparison::Gt,
+                }
+            },
+            '<' => {
+                match chars.peek() {
+                    Some('=') => {
+                        chars.next();
+                        node::Comparison::Lte
+                    },
+                    _ => node::Comparison::Lt,
+                }
+            },
+            '=' => node::Comparison::Equal,
+            '!' => {
+                match chars.next() {
+                    Some('=') => Comparison::NotEqual,
+                    Some(ch) => return Err(StorageError{description: format!("unhandled comparator !{}", ch)}),
+                    None => return Err(StorageError{description: "reached end of string without finishing not equals comparator".to_string()}),
+                }
+            }
+            _ => return Err(StorageError{description: format!("unhandled comparator {}", ch)}),
+        };
+
+        return Ok(comp);
+    }
+    Err(StorageError{description: "reached end of string without finding a comparison operator".to_string()})
+}
+
+fn parse_value(chars: &mut Peekable<Chars>) -> Result<Value, StorageError> {
+    eat_whitespace(chars);
+    let mut val = String::new();
+
+    match chars.next() {
+        Some('"') => {
+            for ch in chars {
+                if ch == '"' {
+                    return Ok(Value::StringValue(val));
+                }
+                val.push(ch);
+            }
+        },
+        Some(ch) => return Err(StorageError{description: "unable to parse non-string values".to_string()}),
+        None => (),
+    }
+
+    Err(StorageError{description: "reached end of predicate without a closing quote for the string value".to_string()})
+}
+
+fn parse_logical(chars: &mut Peekable<Chars>) -> Result<Option<node::Logical>, StorageError> {
+    eat_whitespace(chars);
+
+
+    if let Some(ch) = chars.next() {
+        match ch {
+            'a'|'A' => {
+                match chars.next() {
+                    Some('n') | Some('N') => (),
+                    Some(ch) => return Err(StorageError{description: format!("expected \"and\" but found a{}", ch)}),
+                    _ => return Err(StorageError{description: "unexpectedly reached end of string".to_string()}),
+                }
+                match chars.next() {
+                    Some('d') | Some('D') => (),
+                    Some(ch) => return Err(StorageError{description: format!("expected \"and\" but found an{}", ch)}),
+                    _ => return Err(StorageError{description: "unexpectedly reached end of string".to_string()}),
+                }
+                return Ok(Some(node::Logical::And));
+            }
+            'o'|'O' => {
+                match chars.next() {
+                    Some('r') | Some('R') => return Ok(Some(node::Logical::Or)),
+                    Some(ch) => return Err(StorageError{description: format!("expected \"or\" but found o{}", ch)}),
+                    _ => return Err(StorageError{description: "unexpectedly reached end of string".to_string()}),
+                }
+            },
+            _ => return Err(StorageError{description: format!("unexpected character {} trying parse logical expression", ch)}),
+        }
+    }
+
+    Ok(None)
+}
+
+fn eat_whitespace(chars: &mut Peekable<Chars>) {
+    while let Some(&ch) = chars.peek() {
+        if ch.is_whitespace() {
+            let _ = chars.next();
+        } else {
+            break;
+        }
+    }
+}
+
 
 /*
 Index entries all have the prefix:
@@ -552,6 +715,10 @@ impl Bucket {
     }
 }
 
+/*
+
+host = a AND (region = west OR _value = 23)
+*/
 pub struct SeriesFilter {
     id: u64,
     value_predicate: Option<Predicate>,
@@ -732,11 +899,67 @@ mod tests {
         let mut series = db.get_series_ids(bucket.org_id, &bucket, vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()]);
         db.insert_series_without_ids(bucket.org_id, &bucket, &mut series);
 
-        let tag_keys = db.get_tag_keys(&bucket, None, &Range{start:0, stop: std::i64::MAX});
+        let range = Range{start:0, stop: std::i64::MAX};
+        let tag_keys = db.get_tag_keys(&bucket, None, &range);
         assert_eq!(tag_keys, vec!["_f", "_m", "host", "region"]);
 
-        let tag_values = db.get_tag_values(&bucket, "host", None, &Range{start: 0, stop: std::i64::MAX});
+        let tag_values = db.get_tag_values(&bucket, "host", None, &range);
         assert_eq!(tag_values, vec!["a", "b"]);
+
+        // get all series
+
+        // get series with measurement = mem
+//        let series = db.get_series_filters(&bucket, None, &range);
+//        let predicate = Predicate{
+//            root: Some(Node{
+//                value: Some(node::Comparison::Equal),
+//                children: vec![
+//                    Node{value: Some(node::Tag)}
+//                ],
+//            }),
+//        };
+//        let found = db.get_series_filters(&bucket, Some(predicate), &range);
+
+        // get series with host = a
+
+        // get series with measurement = cpu and host = b
+    }
+
+    #[test]
+    fn parse_predicate() {
+        let pred = super::parse_predicate("host = \"foo\"").unwrap();
+        assert_eq!(pred, Predicate{root:Some(
+            Node{
+                value: Some(node::Value::Comparison(node::Comparison::Equal as i32)),
+                children: vec![
+                    Node{value: Some(node::Value::TagRefValue("host".to_string())), children: vec![]},
+                    Node{value: Some(node::Value::StringValue("foo".to_string())), children: vec![]},
+                ],
+            },
+        )});
+
+        let pred = super::parse_predicate("host != \"serverA\" AND region=\"west\"").unwrap();
+        assert_eq!(pred, Predicate{root:Some(
+            Node{
+                value: Some(Value::Logical(node::Logical::And as i32)),
+                children: vec![
+                    Node{
+                        value: Some(Value::Comparison(Comparison::NotEqual as i32)),
+                        children: vec![
+                            Node{value: Some(Value::TagRefValue("host".to_string())), children: vec![]},
+                            Node{value: Some(Value::StringValue("serverA".to_string())), children: vec![]},
+                        ],
+                    },
+                    Node{
+                        value: Some(Value::Comparison(Comparison::Equal as i32)),
+                        children: vec![
+                            Node{value: Some(Value::TagRefValue("region".to_string())), children: vec![]},
+                            Node{value: Some(Value::StringValue("west".to_string())), children: vec![]},
+                        ],
+                    }
+                ],
+            },
+        )});
     }
 
     // Test helpers
