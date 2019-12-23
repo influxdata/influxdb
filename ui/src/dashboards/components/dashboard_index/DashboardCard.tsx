@@ -19,7 +19,8 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Types
-import {AppState, Dashboard, Label} from 'src/types'
+import {AppState, Dashboard} from 'src/types'
+import {Label} from 'src/client'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
@@ -78,7 +79,7 @@ class DashboardCard extends PureComponent<Props> {
         }
         labels={
           <InlineLabels
-            selectedLabels={dashboard.labels as Label[]}
+            selectedLabels={dashboard.labels}
             labels={labels}
             onFilterChange={onFilterChange}
             onAddLabel={this.handleAddLabel}

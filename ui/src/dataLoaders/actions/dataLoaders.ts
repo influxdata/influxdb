@@ -3,13 +3,13 @@ import _ from 'lodash'
 
 // Apis
 import {client} from 'src/utils/api'
+import * as api from 'src/client'
 import {
   ScraperTargetRequest,
   PermissionResource,
   ILabelProperties,
 } from '@influxdata/influx'
 import {createAuthorization} from 'src/authorizations/apis'
-import {postWrite} from 'src/client'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
@@ -30,8 +30,7 @@ import {
   BundleName,
   ConfigurationState,
 } from 'src/types/dataLoaders'
-import {AppState} from 'src/types'
-import {RemoteDataState} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 import {
   WritePrecision,
   TelegrafRequest,
@@ -47,6 +46,7 @@ import {
   TelegrafConfigCreationSuccess,
   readWriteCardinalityLimitReached,
 } from 'src/shared/copy/notifications'
+import {Telegraf, TelegrafRequestPlugin} from 'src/client'
 
 type GetState = () => AppState
 
@@ -376,12 +376,19 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
   )
 
   if (telegrafConfigID) {
-    const telegraf = await client.telegrafConfigs.update(telegrafConfigID, {
-      name: telegrafConfigName,
-      description: telegrafConfigDescription,
-      plugins,
+    const resp = await api.putTelegraf({
+      telegrafID: telegrafConfigID,
+      data: {
+        name: telegrafConfigName,
+        description: telegrafConfigDescription,
+        plugins: plugins as TelegrafRequestPlugin[],
+      },
     })
-    dispatch(editTelegraf(telegraf))
+
+    if (resp.status !== 200) {
+      throw new Error('Failed to update the telegraf config')
+    }
+    dispatch(editTelegraf(resp.data))
     dispatch(setTelegrafConfigID(telegrafConfigID))
     return
   }
@@ -452,19 +459,36 @@ const createTelegraf = async (dispatch, getState, plugins) => {
       tokenID: createdToken.id,
     } as ILabelProperties // hack to make compiler work
 
-    const createdLabel = await client.labels.create({
-      orgID: org.id,
-      name: `@influxdata.token-${new Date().getTime()}`, // fix for https://github.com/influxdata/influxdb/issues/15730
-      properties,
+    const createdLabel = await api.postLabel({
+      data: {
+        orgID: org.id,
+        name: `@influxdata.token-${new Date().getTime()}`, // fix for https://github.com/influxdata/influxdb/issues/15730
+        properties,
+      },
     })
 
+    if (createdLabel.status !== 201) {
+      throw new Error('An Error occurred trying to add the label')
+    }
+
+    const labelID = createdLabel.data.label.id
+
     // add label to telegraf config
-    const label = await client.telegrafConfigs.addLabel(tc.id, createdLabel)
+    const resp = await api.postTelegrafsLabel({
+      telegrafID: tc.id,
+      data: {labelID},
+    })
+
+    if (resp.status !== 201) {
+      throw new Error(
+        'An error occurred trying to add the label to the telegraf config'
+      )
+    }
 
     const config = {
       ...tc,
-      labels: [label],
-    }
+      labels: [resp.data.label],
+    } as Telegraf
 
     dispatch(setTelegrafConfigID(tc.id))
     dispatch(addTelegraf(config))
@@ -554,7 +578,10 @@ export const writeLineProtocolAction = (
   try {
     dispatch(setLPStatus(RemoteDataState.Loading))
 
-    const resp = await postWrite({data: body, query: {org, bucket, precision}})
+    const resp = await api.postWrite({
+      data: body,
+      query: {org, bucket, precision},
+    })
 
     if (resp.status === 204) {
       dispatch(setLPStatus(RemoteDataState.Done))

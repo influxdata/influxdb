@@ -24,7 +24,8 @@ const FluxMonacoEditor = Loadable({
 })
 
 // Types
-import {KeyValueMap, VariableArguments} from 'src/types'
+import {KeyValueMap} from 'src/types'
+import {VariableProperties as VariableArguments} from 'src/client'
 
 interface Props {
   args: VariableArguments

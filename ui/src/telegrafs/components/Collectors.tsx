@@ -31,7 +31,8 @@ import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Telegraf, OverlayState, AppState, Bucket} from 'src/types'
+import {Telegraf} from 'src/client'
+import {OverlayState, AppState, Bucket} from 'src/types'
 import {
   setDataLoadersType,
   setTelegrafConfigID,

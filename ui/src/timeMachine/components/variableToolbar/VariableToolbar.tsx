@@ -11,7 +11,7 @@ import VariableItem from 'src/timeMachine/components/variableToolbar/VariableIte
 import {extractVariablesList} from 'src/variables/selectors'
 
 // Types
-import {IVariable as Variable} from '@influxdata/influx'
+import {Variable} from 'src/client'
 import {AppState} from 'src/types'
 
 interface OwnProps {

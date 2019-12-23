@@ -27,8 +27,8 @@ import {notify} from 'src/shared/actions/notifications'
 import {updateCheckFailed} from 'src/shared/copy/notifications'
 
 // Types
-import {Check, Label, AppState} from 'src/types'
-
+import {Check, AppState} from 'src/types'
+import {Label, Labels} from 'src/client'
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
 
@@ -43,7 +43,7 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  labels: Label[]
+  labels: Labels
 }
 
 interface OwnProps {
@@ -155,7 +155,7 @@ const CheckCard: FunctionComponent<Props> = ({
       }
       labels={
         <InlineLabels
-          selectedLabels={check.labels as Label[]}
+          selectedLabels={check.labels}
           labels={labels}
           onAddLabel={handleAddCheckLabel}
           onRemoveLabel={handleRemoveCheckLabel}
@@ -174,6 +174,7 @@ const CheckCard: FunctionComponent<Props> = ({
         <>Last completed at {check.latestCompleted}</>,
         <>{relativeTimestampFormatter(check.updatedAt, 'Last updated ')}</>,
         <LastRunTaskStatus
+          key={2}
           lastRunError={check.lastRunError}
           lastRunStatus={check.lastRunStatus}
         />,

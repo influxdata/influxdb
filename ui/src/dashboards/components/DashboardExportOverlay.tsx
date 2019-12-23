@@ -10,9 +10,7 @@ import {convertToTemplate as convertToTemplateAction} from 'src/dashboards/actio
 import {clearExportTemplate as clearExportTemplateAction} from 'src/templates/actions'
 
 // Types
-import {DocumentCreate} from '@influxdata/influx'
-import {AppState} from 'src/types'
-import {RemoteDataState} from 'src/types'
+import {AppState, DocumentCreate, RemoteDataState} from 'src/types'
 
 interface OwnProps {
   params: {dashboardID: string}

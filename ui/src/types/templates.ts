@@ -1,11 +1,12 @@
 import {
-  IVariable as Variable,
-  IDashboard,
   Document,
+  DocumentListEntry,
   DocumentMeta,
-} from '@influxdata/influx'
-import {DocumentListEntry} from 'src/client'
-import {Label as ILabel} from 'src/types'
+  Dashboard,
+  Label,
+  Labels,
+  Variable,
+} from 'src/client'
 import {View, Cell} from './index'
 
 export enum TemplateType {
@@ -29,7 +30,7 @@ interface DocumentMetaWithTemplateID extends DocumentMeta {
 export interface TemplateBase extends Document {
   meta: DocumentMetaWithTemplateID
   content: {data: TemplateData; included: TemplateIncluded[]}
-  labels: ILabel[]
+  labels: Labels
 }
 
 // TODO: be more specific about what attributes can be
@@ -98,7 +99,7 @@ export interface CellIncluded extends TemplateIncluded {
 
 export interface LabelIncluded extends TemplateIncluded {
   type: TemplateType.Label
-  attributes: ILabel
+  attributes: Label
 }
 
 export interface VariableIncluded extends TemplateIncluded {
@@ -130,7 +131,7 @@ interface TaskTemplateData extends TemplateData {
 
 interface DashboardTemplateData extends TemplateData {
   type: TemplateType.Dashboard
-  attributes: IDashboard
+  attributes: Dashboard
   relationships: {
     [TemplateType.Label]: {data: LabelRelationship[]}
     [TemplateType.Cell]: {data: CellRelationship[]}
@@ -169,8 +170,12 @@ export interface VariableTemplate extends TemplateBase {
   }
 }
 
-export type Template = TaskTemplate | DashboardTemplate | VariableTemplate
+export type Template =
+  | TaskTemplate
+  | DashboardTemplate
+  | VariableTemplate
+  | Document
 
 export interface TemplateSummary extends DocumentListEntry {
-  labels: ILabel[]
+  labels: Label[]
 }

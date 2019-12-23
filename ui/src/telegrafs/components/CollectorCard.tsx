@@ -11,8 +11,8 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
 import {
-  addTelelgrafLabelsAsync,
-  removeTelelgrafLabelsAsync,
+  addTelelgrafLabelAsync,
+  removeTelelgrafLabelAsync,
 } from 'src/telegrafs/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
@@ -23,8 +23,8 @@ import {viewableLabels} from 'src/labels/selectors'
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
 // Types
-import {AppState, Organization, Label, Telegraf} from 'src/types'
-
+import {AppState, Organization} from 'src/types'
+import {Label, Telegraf} from 'src/client'
 interface OwnProps {
   collector: Telegraf
   onDelete: (telegraf: Telegraf) => void
@@ -38,8 +38,8 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onAddLabels: typeof addTelelgrafLabelsAsync
-  onRemoveLabels: typeof removeTelelgrafLabelsAsync
+  onAddLabel: typeof addTelelgrafLabelAsync
+  onRemoveLabel: typeof removeTelelgrafLabelAsync
   onCreateLabel: typeof createLabelAsync
 }
 
@@ -133,15 +133,23 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleAddLabel = async (label: Label) => {
+<<<<<<< HEAD
     const {collector, onAddLabels} = this.props
+=======
+    const {collector, onAddLabel} = this.props
+>>>>>>> feat(ui): completed feature
 
-    await onAddLabels(collector.id, [label])
+    await onAddLabel(collector.id, label)
   }
 
   private handleRemoveLabel = async (label: Label) => {
+<<<<<<< HEAD
     const {collector, onRemoveLabels} = this.props
+=======
+    const {collector, onRemoveLabel} = this.props
+>>>>>>> feat(ui): completed feature
 
-    await onRemoveLabels(collector.id, [label])
+    await onRemoveLabel(collector.id, label)
   }
 
   private handleCreateLabel = async (label: Label) => {
@@ -170,8 +178,8 @@ const mstp = ({labels, orgs: {org}}: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  onAddLabels: addTelelgrafLabelsAsync,
-  onRemoveLabels: removeTelelgrafLabelsAsync,
+  onAddLabel: addTelelgrafLabelAsync,
+  onRemoveLabel: removeTelelgrafLabelAsync,
   onCreateLabel: createLabelAsync,
 }
 

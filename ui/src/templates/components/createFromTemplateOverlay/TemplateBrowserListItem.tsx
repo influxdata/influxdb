@@ -1,11 +1,12 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
-import {TemplateSummary} from '@influxdata/influx'
 
 // Components
 import {Icon, IconFont} from '@influxdata/clockface'
 
+// Types
+import {TemplateSummary} from 'src/types'
 interface Props {
   onClick: (template: TemplateSummary) => void
   template: TemplateSummary

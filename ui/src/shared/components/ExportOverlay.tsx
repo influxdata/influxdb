@@ -20,9 +20,8 @@ import {createTemplateFromResource} from 'src/templates/actions/'
 import {downloadTextFile} from 'src/shared/utils/download'
 
 // Types
-import {DocumentCreate} from '@influxdata/influx'
 import {ComponentColor, ComponentSize} from '@influxdata/clockface'
-import {RemoteDataState} from 'src/types'
+import {DocumentCreate, RemoteDataState} from 'src/types'
 
 interface OwnProps {
   onDismissOverlay: () => void

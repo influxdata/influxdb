@@ -33,11 +33,11 @@ import {setExportTemplate} from 'src/templates/actions'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
-import {AppState, Label, Task, TaskTemplate} from 'src/types'
+import {AppState, Task, TaskTemplate} from 'src/types'
 import {RemoteDataState} from '@influxdata/clockface'
 import {Run} from 'src/tasks/components/TaskRunsPage'
 import {LogEvent} from '@influxdata/influx'
-
+import {Label} from 'src/client'
 // Utils
 import {getErrorMessage} from 'src/utils/api'
 import {insertPreambleInScript} from 'src/shared/utils/insertPreambleInScript'

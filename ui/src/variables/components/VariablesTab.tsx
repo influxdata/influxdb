@@ -16,13 +16,11 @@ import VariableList from 'src/variables/components/VariableList'
 import FilterList from 'src/shared/components/Filter'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import GetResources, {ResourceType} from 'src/shared/components/GetResources'
-import {Sort} from '@influxdata/clockface'
 
 // Types
-import {OverlayState} from 'src/types'
-import {AppState} from 'src/types'
-import {IVariable as Variable} from '@influxdata/influx'
-import {ComponentSize} from '@influxdata/clockface'
+import {AppState, OverlayState} from 'src/types'
+import {ComponentSize, Sort} from '@influxdata/clockface'
+import {Variable} from 'src/client'
 import {SortTypes} from 'src/shared/utils/sort'
 
 interface StateProps {
@@ -154,7 +152,7 @@ class VariablesTab extends PureComponent<Props, State> {
     router.push(`/orgs/${orgID}/settings/variables/new`)
   }
 
-  private handleUpdateVariable = (variable: Partial<Variable>): void => {
+  private handleUpdateVariable = (variable: Variable): void => {
     const {onUpdateVariable} = this.props
 
     onUpdateVariable(variable.id, variable)

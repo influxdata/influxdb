@@ -20,7 +20,8 @@ import {
 import {downloadTextFile} from 'src/shared/utils/download'
 
 // Types
-import {AppState, Telegraf} from 'src/types'
+import {AppState} from 'src/types'
+import {Telegraf} from 'src/client'
 
 interface OwnProps {
   onClose: () => void

@@ -10,9 +10,7 @@ import {convertToTemplate as convertToTemplateAction} from 'src/variables/action
 import {clearExportTemplate as clearExportTemplateAction} from 'src/templates/actions'
 
 // Types
-import {AppState} from 'src/types'
-import {DocumentCreate} from '@influxdata/influx'
-import {RemoteDataState} from 'src/types'
+import {AppState, DocumentCreate, RemoteDataState} from 'src/types'
 
 interface OwnProps {
   params: {id: string}

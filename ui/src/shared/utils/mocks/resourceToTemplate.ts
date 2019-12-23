@@ -1,5 +1,5 @@
-import {Task, Dashboard, View, Label, TaskStatus} from 'src/types'
-import {IVariable as Variable} from '@influxdata/influx'
+import {Task, Dashboard, View, TaskStatus} from 'src/types'
+import {Label, Variable} from 'src/client'
 
 export const myDashboard: Dashboard = {
   id: 'dash_1',

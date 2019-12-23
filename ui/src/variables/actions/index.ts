@@ -18,7 +18,7 @@ import {setExportTemplate} from 'src/templates/actions'
 
 // APIs
 import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/templates/api'
-
+import * as api from 'src/client'
 // Utils
 import {getValueSelections, extractVariablesList} from 'src/variables/selectors'
 import {CancelBox} from 'src/types/promises'
@@ -36,9 +36,10 @@ import {
   QueryArguments,
   MapArguments,
   CSVArguments,
+  GetState,
+  VariableArgumentType,
 } from 'src/types'
-import {GetState, VariableArgumentType} from 'src/types'
-import {IVariable as Variable, ILabel as Label} from '@influxdata/influx'
+import {Label, Variable} from 'src/client'
 import {VariableValuesByID} from 'src/variables/types'
 import {
   addVariableLabelFailed,
@@ -145,9 +146,12 @@ export const getVariables = () => async (
     const {
       orgs: {org},
     } = getState()
-    const variables = await client.variables.getAll(org.id)
+    const resp = await api.getVariables({query: {orgID: org.id}})
+    if (resp.status !== 200) {
+      throw new Error("Couldn't retreive variables for this organization")
+    }
 
-    dispatch(setVariables(RemoteDataState.Done, variables))
+    dispatch(setVariables(RemoteDataState.Done, resp.data.variables))
   } catch (e) {
     console.error(e)
     dispatch(setVariables(RemoteDataState.Error))
@@ -161,9 +165,12 @@ export const getVariable = (id: string) => async (
   try {
     dispatch(setVariable(id, RemoteDataState.Loading))
 
-    const variable = await client.variables.get(id)
+    const resp = await api.getVariable({variableID: id})
+    if (resp.status !== 200) {
+      throw new Error("Couldn't retrieve variable based on the ID")
+    }
 
-    dispatch(setVariable(id, RemoteDataState.Done, variable))
+    dispatch(setVariable(id, RemoteDataState.Done, resp.data))
   } catch (e) {
     console.error(e)
     dispatch(setVariable(id, RemoteDataState.Error))
@@ -178,14 +185,18 @@ export const createVariable = (
     const {
       orgs: {org},
     } = getState()
-    const createdVariable = await client.variables.create({
-      ...variable,
-      orgID: org.id,
+    const resp = await api.postVariable({
+      data: {
+        ...variable,
+        orgID: org.id,
+      },
     })
 
-    dispatch(
-      setVariable(createdVariable.id, RemoteDataState.Done, createdVariable)
-    )
+    if (resp.status !== 201) {
+      throw new Error('Failed to create variable from template')
+    }
+
+    dispatch(setVariable(resp.data.id, RemoteDataState.Done, resp.data))
     dispatch(notify(createVariableSuccess(variable.name)))
   } catch (e) {
     console.error(e)
@@ -215,16 +226,23 @@ export const createVariableFromTemplate = (
   }
 }
 
-export const updateVariable = (id: string, props: Partial<Variable>) => async (
+export const updateVariable = (id: string, props: Variable) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
     dispatch(setVariable(id, RemoteDataState.Loading))
 
-    const variable = await client.variables.update(id, props)
+    const resp = await api.putVariable({
+      variableID: id,
+      data: props,
+    })
 
-    dispatch(setVariable(id, RemoteDataState.Done, variable))
-    dispatch(notify(updateVariableSuccess(variable.name)))
+    if (resp.status !== 200) {
+      throw new Error('An error occurred while updating the variable')
+    }
+
+    dispatch(setVariable(id, RemoteDataState.Done, resp.data))
+    dispatch(notify(updateVariableSuccess(resp.data.name)))
   } catch (e) {
     console.error(e)
     dispatch(setVariable(id, RemoteDataState.Error))
@@ -299,11 +317,23 @@ export const convertToTemplate = (variableID: string) => async (
     const {
       orgs: {org},
     } = getState()
-    const variable = await client.variables.get(variableID)
-    const allVariables = await client.variables.getAll(org.id)
+    const resp = await api.getVariable({variableID})
 
-    const dependencies = findDepedentVariables(variable, allVariables)
-    const variableTemplate = variableToTemplate(variable, dependencies)
+    if (resp.status !== 200) {
+      throw new Error('There was an error getting the variable')
+    }
+    const allVariables = await api.getVariables({query: {orgID: org.id}})
+    if (allVariables.status !== 200) {
+      throw new Error(
+        "There was an error getting this organization's variables"
+      )
+    }
+
+    const dependencies = findDepedentVariables(
+      resp.data,
+      allVariables.data.variables
+    )
+    const variableTemplate = variableToTemplate(resp.data, dependencies)
 
     dispatch(setExportTemplate(RemoteDataState.Done, variableTemplate))
   } catch (error) {
@@ -312,30 +342,38 @@ export const convertToTemplate = (variableID: string) => async (
   }
 }
 
-export const addVariableLabelsAsync = (
+export const addVariableLabelAsync = (
   variableID: string,
-  labels: Label[]
+  label: Label
 ) => async (dispatch): Promise<void> => {
   try {
-    await client.variables.addLabels(variableID, labels.map(l => l.id))
-    const variable = await client.variables.get(variableID)
+    await api.postVariablesLabel({variableID, data: {labelID: label.id}})
+    const resp = await api.getVariable({variableID})
 
-    dispatch(setVariable(variableID, RemoteDataState.Done, variable))
+    if (resp.status !== 200) {
+      throw new Error('There was an error adding the label to the variable')
+    }
+
+    dispatch(setVariable(variableID, RemoteDataState.Done, resp.data))
   } catch (error) {
     console.error(error)
     dispatch(notify(addVariableLabelFailed()))
   }
 }
 
-export const removeVariableLabelsAsync = (
+export const removeVariableLabelAsync = (
   variableID: string,
-  labels: Label[]
+  label: Label
 ) => async (dispatch): Promise<void> => {
   try {
-    await client.variables.removeLabels(variableID, labels.map(l => l.id))
-    const variable = await client.variables.get(variableID)
+    await api.deleteVariablesLabel({variableID, labelID: label.id})
+    const resp = await api.getVariable({variableID})
 
-    dispatch(setVariable(variableID, RemoteDataState.Done, variable))
+    if (resp.status !== 200) {
+      throw new Error('There was an error removing the label from the variable')
+    }
+
+    dispatch(setVariable(variableID, RemoteDataState.Done, resp.data))
   } catch (error) {
     console.error(error)
     dispatch(notify(removeVariableLabelFailed()))

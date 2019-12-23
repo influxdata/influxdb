@@ -27,7 +27,7 @@ import {
 import VariableForm from 'src/variables/components/VariableForm'
 
 // Types
-import {IVariable as Variable} from '@influxdata/influx'
+import {Variable} from 'src/client'
 import {
   AppState,
   VariableArgumentType,

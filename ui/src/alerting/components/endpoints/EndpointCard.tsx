@@ -28,12 +28,8 @@ import {
 } from 'src/alerting/constants/history'
 
 // Types
-import {
-  NotificationEndpoint,
-  Label,
-  AppState,
-  AlertHistoryType,
-} from 'src/types'
+import {NotificationEndpoint, AppState, AlertHistoryType} from 'src/types'
+import {Label} from 'src/client'
 import {Action} from 'src/alerting/actions/notifications/endpoints'
 
 // Utilities
@@ -148,7 +144,7 @@ const EndpointCard: FC<Props> = ({
   }
   const labelsComponent = (
     <InlineLabels
-      selectedLabels={endpoint.labels as Label[]}
+      selectedLabels={endpoint.labels}
       labels={labels}
       onAddLabel={handleAddEndpointLabel}
       onRemoveLabel={handleRemoveEndpointLabel}

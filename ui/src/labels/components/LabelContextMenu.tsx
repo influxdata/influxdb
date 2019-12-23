@@ -6,7 +6,7 @@ import {Context} from 'src/clockface'
 import {IconFont, ComponentColor} from '@influxdata/clockface'
 
 // Types
-import {Label} from 'src/types'
+import {Label} from 'src/client'
 
 interface Props {
   label: Label

@@ -16,7 +16,7 @@ import {
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis'
 import {createDashboardFromTemplate as createDashboardFromTemplateAJAX} from 'src/templates/api'
-
+import * as api from 'src/client'
 // Actions
 import {
   notify,
@@ -60,7 +60,7 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {CreateCell, ILabel} from '@influxdata/influx'
+import {CreateCell} from '@influxdata/influx'
 import {
   Dashboard,
   NewView,
@@ -69,6 +69,7 @@ import {
   View,
   DashboardTemplate,
 } from 'src/types'
+import {Label} from 'src/client'
 
 export enum ActionTypes {
   SetDashboards = 'SET_DASHBOARDS',
@@ -141,7 +142,7 @@ interface AddDashboardLabelsAction {
   type: ActionTypes.AddDashboardLabels
   payload: {
     dashboardID: string
-    labels: ILabel[]
+    labels: Label[]
   }
 }
 
@@ -149,7 +150,7 @@ interface RemoveDashboardLabelsAction {
   type: ActionTypes.RemoveDashboardLabels
   payload: {
     dashboardID: string
-    labels: ILabel[]
+    labels: Label[]
   }
 }
 
@@ -215,7 +216,7 @@ export const removeCell = (
 
 export const addDashboardLabels = (
   dashboardID: string,
-  labels: ILabel[]
+  labels: Label[]
 ): AddDashboardLabelsAction => ({
   type: ActionTypes.AddDashboardLabels,
   payload: {dashboardID, labels},
@@ -223,7 +224,7 @@ export const addDashboardLabels = (
 
 export const removeDashboardLabels = (
   dashboardID: string,
-  labels: ILabel[]
+  labels: Label[]
 ): RemoveDashboardLabelsAction => ({
   type: ActionTypes.RemoveDashboardLabels,
   payload: {dashboardID, labels},
@@ -527,7 +528,7 @@ export const copyDashboardCellAsync = (dashboard: Dashboard, cell: Cell) => (
 
 export const addDashboardLabelsAsync = (
   dashboardID: string,
-  labels: ILabel[]
+  labels: Label[]
 ) => async (dispatch: Dispatch<Action | PublishNotificationAction>) => {
   try {
     const newLabels = await client.dashboards.addLabels(
@@ -544,7 +545,7 @@ export const addDashboardLabelsAsync = (
 
 export const removeDashboardLabelsAsync = (
   dashboardID: string,
-  labels: ILabel[]
+  labels: Label[]
 ) => async (dispatch: Dispatch<Action | PublishNotificationAction>) => {
   try {
     await client.dashboards.removeLabels(dashboardID, labels.map(l => l.id))
@@ -583,9 +584,12 @@ export const convertToTemplate = (dashboardID: string) => async (
       getViewAJAX(dashboardID, c.id)
     )
     const views = await Promise.all(pendingViews)
-    const allVariables = await client.variables.getAll(org.id)
-    const variables = filterUnusedVars(allVariables, views)
-    const exportedVariables = exportVariables(variables, allVariables)
+    const resp = await api.getVariables({query: {orgID: org.id}})
+    if (resp.status !== 200) {
+      throw new Error("Couldn't retreive variables for this organization")
+    }
+    const variables = filterUnusedVars(resp.data.variables, views)
+    const exportedVariables = exportVariables(variables, resp.data.variables)
     const dashboardTemplate = dashboardToTemplate(
       dashboard,
       views,

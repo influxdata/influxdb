@@ -9,7 +9,7 @@ import {OPTION_NAME, BOUNDARY_GROUP} from 'src/variables/constants/index'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {IVariable as Variable} from '@influxdata/influx'
+import {Variable} from 'src/client'
 import {CancelBox, CancellationError} from 'src/types/promises'
 import {
   VariableValues,
@@ -412,6 +412,7 @@ export const hydrateVars = (
 
       return Promise.all(node.parents.filter(readyToResolve).map(resolve))
     } catch (e) {
+      console.error(e)
       if (e.name === 'CancellationError') {
         return
       }

@@ -1,7 +1,6 @@
 import {produce} from 'immer'
 import {Actions, ActionTypes} from 'src/templates/actions/'
-import {TemplateSummary, DocumentCreate} from '@influxdata/influx'
-import {RemoteDataState} from 'src/types'
+import {DocumentCreate, RemoteDataState, TemplateSummary} from 'src/types'
 
 export interface TemplatesState {
   status: RemoteDataState

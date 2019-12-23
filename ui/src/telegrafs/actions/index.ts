@@ -1,8 +1,10 @@
 // API
 import {client} from 'src/utils/api'
+import * as api from 'src/client'
 
 // Types
-import {RemoteDataState, GetState, Telegraf, Label} from 'src/types'
+import {RemoteDataState, GetState} from 'src/types'
+import {Label, Telegraf} from 'src/client'
 import {Dispatch, ThunkAction} from 'redux-thunk'
 
 // Actions
@@ -97,9 +99,13 @@ export const getTelegrafs = () => async (dispatch, getState: GetState) => {
   try {
     dispatch(setTelegrafs(RemoteDataState.Loading))
 
-    const telegrafs = await client.telegrafConfigs.getAll(org.id)
+    const resp = await api.getTelegrafs({query: {orgID: org.id}})
 
-    dispatch(setTelegrafs(RemoteDataState.Done, telegrafs))
+    if (resp.status !== 200) {
+      throw new Error("Couldn't get the telegraf config for this organization")
+    }
+
+    dispatch(setTelegrafs(RemoteDataState.Done, resp.data.configurations))
   } catch (e) {
     console.error(e)
     dispatch(setTelegrafs(RemoteDataState.Error))
@@ -111,8 +117,13 @@ export const createTelegraf = (telegraf: Telegraf) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    const createdTelegraf = await client.telegrafConfigs.create(telegraf)
-    dispatch(addTelegraf(createdTelegraf))
+    const resp = await api.postTelegraf({data: telegraf})
+
+    if (resp.status !== 201) {
+      throw new Error('There was an error creating the telegraf config')
+    }
+
+    dispatch(addTelegraf(resp.data))
   } catch (e) {
     console.error(e)
     dispatch(notify(telegrafCreateFailed()))
@@ -124,9 +135,15 @@ export const updateTelegraf = (telegraf: Telegraf) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    const t = await client.telegrafConfigs.update(telegraf.id, telegraf)
+    const resp = await api.putTelegraf({
+      telegrafID: telegraf.id,
+      data: telegraf,
+    })
+    if (resp.status !== 200) {
+      throw new Error('Failed update the telegraf config')
+    }
 
-    dispatch(editTelegraf(t))
+    dispatch(editTelegraf(resp.data))
   } catch (e) {
     console.error(e)
     dispatch(notify(telegrafUpdateFailed(telegraf.name)))
@@ -146,30 +163,42 @@ export const deleteTelegraf = (id: string, name: string) => async (
   }
 }
 
-export const addTelelgrafLabelsAsync = (
+export const addTelelgrafLabelAsync = (
   telegrafID: string,
-  labels: Label[]
+  label: Label
 ): ThunkAction<Promise<void>> => async (dispatch): Promise<void> => {
   try {
-    await client.telegrafConfigs.addLabels(telegrafID, labels)
-    const telegraf = await client.telegrafConfigs.get(telegrafID)
+    await api.postTelegrafsLabel({telegrafID, data: {labelID: label as string}})
+    const resp = await api.getTelegraf({telegrafID})
 
-    dispatch(editTelegraf(telegraf))
+    if (resp.status !== 200) {
+      throw new Error(
+        'An error occurred while adding labels to the telegraf config'
+      )
+    }
+
+    dispatch(editTelegraf(resp.data))
   } catch (error) {
     console.error(error)
     dispatch(notify(addTelelgrafLabelFailed()))
   }
 }
 
-export const removeTelelgrafLabelsAsync = (
+export const removeTelelgrafLabelAsync = (
   telegrafID: string,
-  labels: Label[]
+  label: Label
 ): ThunkAction<Promise<void>> => async (dispatch): Promise<void> => {
   try {
-    await client.telegrafConfigs.removeLabels(telegrafID, labels)
-    const telegraf = await client.telegrafConfigs.get(telegrafID)
+    await api.deleteTelegrafsLabel({telegrafID, labelID: label as string})
+    const resp = await api.getTelegraf({telegrafID})
 
-    dispatch(editTelegraf(telegraf))
+    if (resp.status !== 200) {
+      throw new Error(
+        'An error occurred while removing labels from the telegraf config'
+      )
+    }
+
+    dispatch(editTelegraf(resp.data))
   } catch (error) {
     console.error(error)
     dispatch(notify(removeTelelgrafLabelFailed()))

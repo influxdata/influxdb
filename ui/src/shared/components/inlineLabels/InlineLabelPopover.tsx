@@ -11,7 +11,7 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 import {ADD_NEW_LABEL_ITEM_ID} from 'src/shared/components/inlineLabels/InlineLabelsEditor'
 
 // Types
-import {Label} from 'src/types'
+import {Label} from 'src/client'
 import {IconFont} from '@influxdata/clockface'
 
 // Decorators

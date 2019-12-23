@@ -19,7 +19,7 @@ import {
   VariableValuesByID,
   ValueSelections,
 } from 'src/variables/types'
-import {IVariable as Variable} from '@influxdata/influx'
+import {Variable} from 'src/client'
 
 type VariablesState = AppState['variables']['variables']
 type ValuesState = AppState['variables']['values']['contextID']

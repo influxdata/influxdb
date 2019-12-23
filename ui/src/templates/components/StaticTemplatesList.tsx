@@ -9,7 +9,7 @@ import EmptyTemplatesList from 'src/templates/components/EmptyTemplatesList'
 import StaticTemplateCard from 'src/templates/components/StaticTemplateCard'
 
 // Types
-import {TemplateSummary} from '@influxdata/influx'
+import {TemplateSummary} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from 'src/clockface'
 

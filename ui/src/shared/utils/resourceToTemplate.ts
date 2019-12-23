@@ -4,13 +4,9 @@ import {getDeep} from 'src/utils/wrappers'
 import {defaultBuilderConfig} from 'src/shared/utils/view'
 import {viewableLabels} from 'src/labels/selectors'
 
-import {Task, Label, Dashboard, Cell, View} from 'src/types'
-import {
-  TemplateType,
-  DocumentCreate,
-  ITemplate,
-  IVariable as Variable,
-} from '@influxdata/influx'
+import {Cell, Dashboard, DocumentCreate, Task, Template, View} from 'src/types'
+import {TemplateType} from '@influxdata/influx'
+import {Document, Label, Variable} from 'src/client'
 import {DashboardQuery} from 'src/types/dashboards'
 
 const CURRENT_TEMPLATE_VERSION = '1'
@@ -300,7 +296,9 @@ export const dashboardToTemplate = (
   return template
 }
 
-export const templateToExport = (template: ITemplate): DocumentCreate => {
+export const templateToExport = (
+  template: Template | Document
+): DocumentCreate => {
   const pickedTemplate = _.pick(template, ['meta', 'content'])
   const labelsArray = template.labels.map(l => l.name)
   const templateWithLabels = {...pickedTemplate, labels: labelsArray}

@@ -14,7 +14,7 @@ import {ADD_NEW_LABEL_ITEM_ID} from 'src/shared/components/inlineLabels/InlineLa
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Label} from 'src/types'
+import {Label} from 'src/client'
 import {ComponentSize} from '@influxdata/clockface'
 
 interface Props {

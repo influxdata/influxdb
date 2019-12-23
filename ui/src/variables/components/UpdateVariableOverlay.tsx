@@ -26,7 +26,7 @@ import {extractVariablesList} from 'src/variables/selectors'
 import {variableItemTypes} from 'src/variables/constants'
 
 // Types
-import {IVariable as Variable} from '@influxdata/influx'
+import {Variable} from 'src/client'
 import {
   ButtonType,
   ComponentColor,

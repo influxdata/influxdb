@@ -14,8 +14,7 @@ import CopyButton from 'src/shared/components/CopyButton'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {RemoteDataState, DashboardTemplate} from 'src/types'
-import {DocumentCreate} from '@influxdata/influx'
+import {DocumentCreate, RemoteDataState, DashboardTemplate} from 'src/types'
 
 interface Props {
   onDismissOverlay: () => void

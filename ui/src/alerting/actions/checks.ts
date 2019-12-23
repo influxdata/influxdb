@@ -33,9 +33,9 @@ import {
   GetState,
   RemoteDataState,
   CheckViewProperties,
-  Label,
   PostCheck,
 } from 'src/types'
+import {Label} from 'src/client'
 import {createView} from 'src/shared/utils/view'
 
 export type Action =

@@ -19,10 +19,10 @@ import * as copy from 'src/shared/copy/notifications'
 import {
   NotificationEndpoint,
   GetState,
-  Label,
   NotificationEndpointUpdate,
   PostNotificationEndpoint,
 } from 'src/types'
+import {Label} from 'src/client'
 import {RemoteDataState} from '@influxdata/clockface'
 
 export type Action =

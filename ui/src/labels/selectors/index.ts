@@ -1,4 +1,4 @@
-import {Labels} from 'src/types'
+import {Labels} from 'src/client'
 import {INFLUX_LABEL_PREFIX} from 'src/labels/constants'
 
 export const viewableLabels = (labels: Labels) =>

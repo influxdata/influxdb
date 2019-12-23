@@ -14,9 +14,7 @@ import {
 } from 'src/templates/actions'
 
 // Types
-import {DocumentCreate} from '@influxdata/influx'
-import {AppState} from 'src/types'
-import {RemoteDataState} from 'src/types'
+import {AppState, DocumentCreate, RemoteDataState} from 'src/types'
 
 interface OwnProps {
   params: {id: string}

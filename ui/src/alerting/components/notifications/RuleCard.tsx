@@ -28,13 +28,8 @@ import {viewableLabels} from 'src/labels/selectors'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Types
-import {
-  NotificationRuleDraft,
-  AppState,
-  Label,
-  AlertHistoryType,
-} from 'src/types'
-
+import {NotificationRuleDraft, AppState, AlertHistoryType} from 'src/types'
+import {Label} from 'src/client'
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
 
@@ -150,7 +145,7 @@ const RuleCard: FC<Props> = ({
       }
       labels={
         <InlineLabels
-          selectedLabels={rule.labels as Label[]}
+          selectedLabels={rule.labels}
           labels={labels}
           onAddLabel={handleAddRuleLabel}
           onRemoveLabel={handleRemoveRuleLabel}
@@ -169,6 +164,7 @@ const RuleCard: FC<Props> = ({
         <>Last completed at {rule.latestCompleted}</>,
         <>{relativeTimestampFormatter(rule.updatedAt, 'Last updated ')}</>,
         <LastRunTaskStatus
+          key={2}
           lastRunError={rule.lastRunError}
           lastRunStatus={rule.lastRunStatus}
         />,

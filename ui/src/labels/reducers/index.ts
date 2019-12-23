@@ -4,7 +4,7 @@ import {produce} from 'immer'
 // Types
 import {RemoteDataState} from 'src/types'
 import {Action} from 'src/labels/actions'
-import {Label} from 'src/types'
+import {Label} from 'src/client'
 
 const initialState = (): LabelsState => ({
   status: RemoteDataState.NotStarted,

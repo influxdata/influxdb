@@ -11,7 +11,7 @@ import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 import {validateLabelUniqueness} from 'src/labels/utils/'
 
 // Types
-import {Label} from 'src/types'
+import {Label} from 'src/client'
 import {OverlayState} from 'src/types/overlay'
 
 // Constants

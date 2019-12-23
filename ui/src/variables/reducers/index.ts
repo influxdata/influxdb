@@ -12,7 +12,7 @@ import {
 } from 'src/types'
 import {VariableValuesByID} from 'src/variables/types'
 import {Action, EditorAction} from 'src/variables/actions'
-import {IVariable as Variable} from '@influxdata/influx'
+import {Variable} from 'src/client'
 
 export const initialEditorState = (): VariableEditorState => ({
   name: '',

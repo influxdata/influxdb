@@ -22,8 +22,8 @@ import {
   cloneTemplate,
   updateTemplate,
   createResourceFromTemplate,
-  removeTemplateLabelsAsync,
-  addTemplateLabelsAsync,
+  removeTemplateLabelAsync,
+  addTemplateLabelAsync,
 } from 'src/templates/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
@@ -31,10 +31,9 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Types
-import {TemplateSummary, ILabel} from '@influxdata/influx'
 import {ComponentColor} from '@influxdata/clockface'
-import {AppState, Organization} from 'src/types'
-
+import {AppState, Organization, TemplateSummary} from 'src/types'
+import {Label} from 'src/client'
 // Constants
 import {DEFAULT_TEMPLATE_NAME} from 'src/templates/constants'
 
@@ -48,13 +47,13 @@ interface DispatchProps {
   onClone: typeof cloneTemplate
   onUpdate: typeof updateTemplate
   onCreateFromTemplate: typeof createResourceFromTemplate
-  onAddTemplateLabels: typeof addTemplateLabelsAsync
-  onRemoveTemplateLabels: typeof removeTemplateLabelsAsync
+  onAddTemplateLabel: typeof addTemplateLabelAsync
+  onRemoveTemplateLabel: typeof removeTemplateLabelAsync
   onCreateLabel: typeof createLabelAsync
 }
 
 interface StateProps {
-  labels: ILabel[]
+  labels: Label[]
   org: Organization
 }
 
@@ -203,19 +202,19 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     router.push(`/orgs/${org.id}/settings/templates/${template.id}/view`)
   }
 
-  private handleAddLabel = (label: ILabel): void => {
-    const {template, onAddTemplateLabels} = this.props
+  private handleAddLabel = (label: Label): void => {
+    const {template, onAddTemplateLabel} = this.props
 
-    onAddTemplateLabels(template.id, [label])
+    onAddTemplateLabel(template.id, label)
   }
 
-  private handleRemoveLabel = (label: ILabel): void => {
-    const {template, onRemoveTemplateLabels} = this.props
+  private handleRemoveLabel = (label: Label): void => {
+    const {template, onRemoveTemplateLabel} = this.props
 
-    onRemoveTemplateLabels(template.id, [label])
+    onRemoveTemplateLabel(template.id, label)
   }
 
-  private handleCreateLabel = (label: ILabel) => {
+  private handleCreateLabel = (label: Label) => {
     this.props.onCreateLabel(label.name, label.properties)
   }
 }
@@ -232,8 +231,8 @@ const mdtp: DispatchProps = {
   onClone: cloneTemplate,
   onUpdate: updateTemplate,
   onCreateFromTemplate: createResourceFromTemplate,
-  onAddTemplateLabels: addTemplateLabelsAsync,
-  onRemoveTemplateLabels: removeTemplateLabelsAsync,
+  onAddTemplateLabel: addTemplateLabelAsync,
+  onRemoveTemplateLabel: removeTemplateLabelAsync,
   onCreateLabel: createLabelAsync,
 }
 

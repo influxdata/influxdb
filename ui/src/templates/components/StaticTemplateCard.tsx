@@ -21,10 +21,9 @@ import {createResourceFromStaticTemplate} from 'src/templates/actions'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Types
-import {TemplateSummary, ILabel} from '@influxdata/influx'
 import {ComponentColor} from '@influxdata/clockface'
-import {AppState, Organization} from 'src/types'
-
+import {AppState, Organization, TemplateSummary} from 'src/types'
+import {Label} from 'src/client'
 // Constants
 interface OwnProps {
   template: TemplateSummary
@@ -37,7 +36,7 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  labels: ILabel[]
+  labels: Label[]
   org: Organization
 }
 
