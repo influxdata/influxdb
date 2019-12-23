@@ -7157,6 +7157,7 @@ components:
                 - label
                 - notification_endpoint
                 - notification_rule
+                - task
                 - telegraf
                 - variable
             name:

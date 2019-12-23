@@ -198,6 +198,7 @@ func (p *Pkg) Summary() Summary {
 type (
 	validateOpt struct {
 		minResources bool
+		skipValidate bool
 	}
 
 	// ValidateOptFn provides a means to disable desired validation checks.
@@ -210,6 +211,15 @@ type (
 func ValidWithoutResources() ValidateOptFn {
 	return func(opt *validateOpt) {
 		opt.minResources = false
+	}
+}
+
+// ValidSkipParseError ignores the validation check from the  of resources. This
+// is useful for the service Create to ignore this and allow the creation of a
+// pkg without resources.
+func ValidSkipParseError() ValidateOptFn {
+	return func(opt *validateOpt) {
+		opt.skipValidate = true
 	}
 }
 
@@ -238,7 +248,7 @@ func (p *Pkg) Validate(opts ...ValidateOptFn) error {
 		}
 	}
 
-	if len(pErr.Resources) > 0 {
+	if len(pErr.Resources) > 0 && !opt.skipValidate {
 		return &pErr
 	}
 

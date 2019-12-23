@@ -2,7 +2,9 @@ package pkger
 
 import (
 	"errors"
+	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/notification"
@@ -496,6 +498,34 @@ func ruleToResource(iRule influxdb.NotificationRule, endpointName, name string) 
 		assignNonZeroStrings(r, map[string]string{fieldNotificationRuleChannel: t.Channel})
 	}
 
+	return r
+}
+
+// regex used to rip out the hard coded task option stuffs
+var taskFluxRegex = regexp.MustCompile(`option task = {(.|\n)*}`)
+
+func taskToResource(t influxdb.Task, name string) Resource {
+	if name == "" {
+		name = t.Name
+	}
+
+	var query = t.Flux
+	groups := taskFluxRegex.Split(t.Flux, 2)
+	if len(groups) > 1 {
+		query = strings.TrimSpace(groups[1])
+	}
+
+	r := Resource{
+		fieldKind:  KindTask.title(),
+		fieldName:  name,
+		fieldQuery: query,
+	}
+	assignNonZeroStrings(r, map[string]string{
+		fieldTaskCron:    t.Cron,
+		fieldDescription: t.Description,
+		fieldEvery:       t.Every,
+		fieldOffset:      durToStr(t.Offset),
+	})
 	return r
 }
 

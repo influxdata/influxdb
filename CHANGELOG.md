@@ -16,6 +16,7 @@
 1. [16320](https://github.com/influxdata/influxdb/pull/16320): Add support for tasks to pkger parser
 1. [16322](https://github.com/influxdata/influxdb/pull/16322): Add support for tasks to pkger dry run functionality
 1. [16323](https://github.com/influxdata/influxdb/pull/16323): Add support for tasks to pkger apply functionality
+1. [16324](https://github.com/influxdata/influxdb/pull/16324): Add support for tasks to pkger export functionality
 
 ### Bug Fixes
 
