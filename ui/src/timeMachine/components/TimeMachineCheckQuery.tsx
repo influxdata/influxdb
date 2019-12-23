@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {FC} from 'react'
 
 // Components
 import TimeMachineFluxEditor from 'src/timeMachine/components/TimeMachineFluxEditor'
@@ -13,29 +13,27 @@ import {
   JustifyContent,
 } from '@influxdata/clockface'
 
-class TimeMachineQueries extends PureComponent<> {
-  public render() {
-    return (
-      <div className="time-machine-queries">
-        <div className="time-machine-queries--controls">
-          <QueryTabs />
-          <div className="time-machine-queries--buttons">
-            <FlexBox
-              direction={FlexDirection.Row}
-              justifyContent={JustifyContent.FlexEnd}
-              margin={ComponentSize.Small}
-            >
-              <RawDataToggle />
-              <SubmitCheckQueryButton />
-            </FlexBox>
-          </div>
-        </div>
-        <div className="time-machine-queries--body">
-          <TimeMachineFluxEditor />
+const TimeMachineCheckQuery: FC = () => {
+  return (
+    <div className="time-machine-queries">
+      <div className="time-machine-queries--controls">
+        <QueryTabs />
+        <div className="time-machine-queries--buttons">
+          <FlexBox
+            direction={FlexDirection.Row}
+            justifyContent={JustifyContent.FlexEnd}
+            margin={ComponentSize.Small}
+          >
+            <RawDataToggle />
+            <SubmitCheckQueryButton />
+          </FlexBox>
         </div>
       </div>
-    )
-  }
+      <div className="time-machine-queries--body">
+        <TimeMachineFluxEditor />
+      </div>
+    </div>
+  )
 }
 
-export default TimeMachineQueries
+export default TimeMachineCheckQuery
