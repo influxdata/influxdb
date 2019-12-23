@@ -324,6 +324,10 @@ func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID) ([]R
 			cloneFn: s.cloneOrgNotificationRules,
 		},
 		{
+			resType: KindTask.ResourceType(),
+			cloneFn: s.cloneOrgTasks,
+		},
+		{
 			resType: KindTelegraf.ResourceType(),
 			cloneFn: s.cloneOrgTelegrafs,
 		},
@@ -456,6 +460,22 @@ func (s *Service) cloneOrgNotificationRules(ctx context.Context, orgID influxdb.
 	return resources, nil
 }
 
+func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	teles, _, err := s.taskSVC.FindTasks(ctx, influxdb.TaskFilter{OrganizationID: &orgID})
+	if err != nil {
+		return nil, err
+	}
+
+	resources := make([]ResourceToClone, 0, len(teles))
+	for _, t := range teles {
+		resources = append(resources, ResourceToClone{
+			Kind: KindTask,
+			ID:   t.ID,
+		})
+	}
+	return resources, nil
+}
+
 func (s *Service) cloneOrgTelegrafs(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
 	teles, _, err := s.teleSVC.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{OrgID: &orgID})
 	if err != nil {
@@ -544,6 +564,12 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 			return nil, err
 		}
 		newResource, sidecarResources = ruleRes, append(sidecarResources, endpointRes)
+	case r.Kind.is(KindTask):
+		t, err := s.taskSVC.FindTaskByID(ctx, r.ID)
+		if err != nil {
+			return nil, err
+		}
+		newResource = taskToResource(*t, r.Name)
 	case r.Kind.is(KindTelegraf):
 		t, err := s.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
 		if err != nil {

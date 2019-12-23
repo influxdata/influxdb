@@ -417,6 +417,10 @@ spec:
 					ID:   endpoints[0].NotificationEndpoint.GetID(),
 				},
 				{
+					Kind: pkger.KindTask,
+					ID:   influxdb.ID(task.ID),
+				},
+				{
 					Kind: pkger.KindTelegraf,
 					ID:   teles[0].TelegrafConfig.ID,
 				},
@@ -491,6 +495,16 @@ spec:
 			assert.Zero(t, newRule.EndpointID)
 			assert.Equal(t, rule.EndpointName, newRule.EndpointName)
 			hasLabelAssociations(t, newRule.LabelAssociations, 1, "label_1")
+
+			require.Len(t, newSum.Tasks, 1)
+			newTask := newSum.Tasks[0]
+			assert.Equal(t, task.Name, newTask.Name)
+			assert.Equal(t, task.Description, newTask.Description)
+			assert.Equal(t, task.Cron, newTask.Cron)
+			assert.Equal(t, task.Every, newTask.Every)
+			assert.Equal(t, task.Offset, newTask.Offset)
+			assert.Equal(t, task.Query, newTask.Query)
+			assert.Equal(t, task.Status, newTask.Status)
 
 			require.Len(t, newSum.TelegrafConfigs, 1)
 			assert.Equal(t, teles[0].TelegrafConfig.Name, newSum.TelegrafConfigs[0].TelegrafConfig.Name)
