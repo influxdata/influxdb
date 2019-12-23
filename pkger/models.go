@@ -33,6 +33,7 @@ const (
 	KindNotificationEndpointSlack     Kind = "notification_endpoint_slack"
 	KindNotificationRule              Kind = "notification_rule"
 	KindPackage                       Kind = "package"
+	KindTask                          Kind = "task"
 	KindTelegraf                      Kind = "telegraf"
 	KindVariable                      Kind = "variable"
 )
@@ -50,6 +51,7 @@ var kinds = map[Kind]bool{
 	KindNotificationEndpointSlack:     true,
 	KindNotificationRule:              true,
 	KindPackage:                       true,
+	KindTask:                          true,
 	KindTelegraf:                      true,
 	KindVariable:                      true,
 }
@@ -116,6 +118,8 @@ func (k Kind) ResourceType() influxdb.ResourceType {
 		return influxdb.NotificationEndpointResourceType
 	case KindNotificationRule:
 		return influxdb.NotificationRuleResourceType
+	case KindTask:
+		return influxdb.TasksResourceType
 	case KindTelegraf:
 		return influxdb.TelegrafsResourceType
 	case KindVariable:
@@ -513,6 +517,7 @@ type Summary struct {
 	NotificationRules     []SummaryNotificationRule     `json:"notificationRules"`
 	Labels                []SummaryLabel                `json:"labels"`
 	LabelMappings         []SummaryLabelMapping         `json:"labelMappings"`
+	Tasks                 []SummaryTask                 `json:"summaryTask"`
 	TelegrafConfigs       []SummaryTelegraf             `json:"telegrafConfigs"`
 	Variables             []SummaryVariable             `json:"variables"`
 }
@@ -721,6 +726,19 @@ type SummaryLabelMapping struct {
 	ResourceType influxdb.ResourceType `json:"resourceType"`
 	LabelName    string                `json:"labelName"`
 	LabelID      SafeID                `json:"labelID"`
+}
+
+// SummaryTask provides a summary of a task.
+type SummaryTask struct {
+	Name        string          `json:"name"`
+	Cron        string          `json:"cron"`
+	Description string          `json:"description"`
+	Every       string          `json:"every"`
+	Offset      string          `json:"offset"`
+	Query       string          `json:"query"`
+	Status      influxdb.Status `json:"status"`
+
+	LabelAssociations []SummaryLabel `json:"labelAssociations"`
 }
 
 // SummaryTelegraf provides a summary of a pkg telegraf config.
@@ -1762,6 +1780,82 @@ func (r mapperNotificationRules) Len() int {
 }
 
 const (
+	fieldTaskCron = "cron"
+)
+
+type task struct {
+	name        string
+	cron        string
+	description string
+	every       time.Duration
+	offset      time.Duration
+	query       string
+	status      string
+
+	labels sortedLabels
+}
+
+func (t *task) Name() string {
+	return t.name
+}
+
+func (t *task) ResourceType() influxdb.ResourceType {
+	return KindTask.ResourceType()
+}
+
+func (t *task) Status() influxdb.Status {
+	if t.status == "" {
+		return influxdb.Active
+	}
+	return influxdb.Status(t.status)
+}
+
+func (t *task) summarize() SummaryTask {
+	return SummaryTask{
+		Name:        t.Name(),
+		Cron:        t.cron,
+		Description: t.description,
+		Every:       durToStr(t.every),
+		Offset:      durToStr(t.offset),
+		Query:       t.query,
+		Status:      t.Status(),
+
+		LabelAssociations: toSummaryLabels(t.labels...),
+	}
+}
+
+func (t *task) valid() []validationErr {
+	var vErrs []validationErr
+	if t.cron == "" && t.every == 0 {
+		vErrs = append(vErrs,
+			validationErr{
+				Field: fieldEvery,
+				Msg:   "must provide if cron field is not provided",
+			},
+			validationErr{
+				Field: fieldTaskCron,
+				Msg:   "must provide if every field is not provided",
+			},
+		)
+	}
+
+	if t.query == "" {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldQuery,
+			Msg:   "must provide a non zero value",
+		})
+	}
+
+	if status := t.Status(); status != influxdb.Active && status != influxdb.Inactive {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldStatus,
+			Msg:   "must be 1 of [active, inactive]",
+		})
+	}
+	return vErrs
+}
+
+const (
 	fieldTelegrafConfig = "config"
 )
 
@@ -2528,6 +2622,13 @@ func (r references) SecretField() influxdb.SecretField {
 func toNotificationDuration(dur time.Duration) *notification.Duration {
 	d, _ := notification.FromTimeDuration(dur)
 	return &d
+}
+
+func durToStr(dur time.Duration) string {
+	if dur == 0 {
+		return ""
+	}
+	return dur.String()
 }
 
 func flt64Ptr(f float64) *float64 {
