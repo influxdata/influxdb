@@ -124,7 +124,7 @@ export const setKeysSearchTerm = (index: number, searchTerm: string) => ({
   payload: {index, searchTerm},
 })
 
-export const selectAggregateWindow = (period: string) => async (
+export const selectAggregateWindow = (period: string) => (
   dispatch: Dispatch<Action | AlertBuilderAction>
 ) => {
   dispatch(setAggregateWindow(period))

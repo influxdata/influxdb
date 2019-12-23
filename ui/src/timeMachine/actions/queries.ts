@@ -242,7 +242,7 @@ export const executeCheckQuery = () => async (dispatch, getState: GetState) => {
     checkQueryResult(result.csv)
 
     const file = result.csv
-    console.log(file)
+
     dispatch(setQueryResults(RemoteDataState.Done, [file], duration, null))
   } catch (e) {
     if (e.name === 'CancellationError') {
