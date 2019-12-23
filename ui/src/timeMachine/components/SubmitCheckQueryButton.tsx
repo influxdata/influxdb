@@ -50,12 +50,12 @@ class SubmitQueryButton extends PureComponent<Props, State> {
   public render() {
     return (
       <Button
-        text="Submit"
+        text="Execute check query and view statuses"
         size={ComponentSize.Small}
         status={this.buttonStatus}
         onClick={this.handleClick}
         color={ComponentColor.Primary}
-        testID="time-machine-submit-button"
+        testID="time-machine-check-query-run-button"
       />
     )
   }
