@@ -292,25 +292,26 @@ const NEW_VIEW_CREATORS = {
       colors: NINETEEN_EIGHTY_FOUR,
     },
   }),
-  custom: (): NewView<CheckViewProperties> => ({
-    name: 'check',
+  custom: (): NewView<TableViewProperties> => ({
+    ...defaultView(),
     properties: {
-      type: 'check',
+      type: 'table',
       shape: 'chronograf-v2',
-      checkID: '',
-      queries: [
-        {
-          name: '',
-          text: '',
-          editMode: 'builder',
-          builderConfig: {
-            buckets: [],
-            tags: [{key: '_measurement', values: []}],
-            functions: [],
-          },
-        },
-      ],
-      colors: NINETEEN_EIGHTY_FOUR,
+      queries: [],
+      colors: DEFAULT_THRESHOLDS_LIST_COLORS as Color[],
+      tableOptions: {
+        verticalTimeAxis: true,
+        sortBy: null,
+        fixFirstColumn: false,
+      },
+      fieldOptions: [],
+      decimalPlaces: {
+        isEnforced: false,
+        digits: 2,
+      },
+      timeFormat: 'YYYY-MM-DD HH:mm:ss',
+      note: '',
+      showNoteWhenEmpty: false,
     },
   }),
 }
