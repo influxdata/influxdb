@@ -181,6 +181,7 @@ type Diff struct {
 	LabelMappings         []DiffLabelMapping         `json:"labelMappings"`
 	NotificationEndpoints []DiffNotificationEndpoint `json:"notificationEndpoints"`
 	NotificationRules     []DiffNotificationRule     `json:"notificationRules"`
+	Tasks                 []DiffTask                 `json:"tasks"`
 	Telegrafs             []DiffTelegraf             `json:"telegrafConfigs"`
 	Variables             []DiffVariable             `json:"variables"`
 }
@@ -452,6 +453,29 @@ func newDiffNotificationRule(r *notificationRule, iEndpoint influxdb.Notificatio
 	}
 
 	return sum
+}
+
+// DiffTask is a diff of an individual task. This resource is always new.
+type DiffTask struct {
+	Name        string          `json:"name"`
+	Cron        string          `json:"cron"`
+	Description string          `json:"description"`
+	Every       string          `json:"every"`
+	Offset      string          `json:"offset"`
+	Query       string          `json:"query"`
+	Status      influxdb.Status `json:"status"`
+}
+
+func newDiffTask(t *task) DiffTask {
+	return DiffTask{
+		Name:        t.name,
+		Cron:        t.cron,
+		Description: t.description,
+		Every:       durToStr(t.every),
+		Offset:      durToStr(t.offset),
+		Query:       t.query,
+		Status:      t.Status(),
+	}
 }
 
 // DiffTelegraf is a diff of an individual telegraf. This resource is always new.

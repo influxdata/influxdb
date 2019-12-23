@@ -647,6 +647,7 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 		Checks:     s.dryRunChecks(ctx, orgID, pkg),
 		Dashboards: s.dryRunDashboards(pkg),
 		Labels:     s.dryRunLabels(ctx, orgID, pkg),
+		Tasks:      s.dryRunTasks(pkg),
 		Telegrafs:  s.dryRunTelegraf(pkg),
 		Variables:  s.dryRunVariables(ctx, orgID, pkg),
 	}
@@ -867,6 +868,14 @@ func (s *Service) dryRunSecrets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 	sort.Strings(missing)
 	err = fmt.Errorf("secrets to not exist for secret reference keys: %s", strings.Join(missing, ", "))
 	return &influxdb.Error{Code: influxdb.EUnprocessableEntity, Err: err}
+}
+
+func (s *Service) dryRunTasks(pkg *Pkg) []DiffTask {
+	var diffs []DiffTask
+	for _, t := range pkg.tasks() {
+		diffs = append(diffs, newDiffTask(t))
+	}
+	return diffs
 }
 
 func (s *Service) dryRunTelegraf(pkg *Pkg) []DiffTelegraf {

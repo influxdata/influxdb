@@ -138,7 +138,7 @@ type Pkg struct {
 	mDashboards            []*dashboard
 	mNotificationEndpoints map[string]*notificationEndpoint
 	mNotificationRules     []*notificationRule
-	mTasks                 map[string]*task
+	mTasks                 []*task
 	mTelegrafs             []*telegraf
 	mVariables             map[string]*variable
 
@@ -316,10 +316,7 @@ func (p *Pkg) secrets() map[string]bool {
 }
 
 func (p *Pkg) tasks() []*task {
-	tasks := make([]*task, 0, len(p.mTasks))
-	for _, t := range p.mTasks {
-		tasks = append(tasks, t)
-	}
+	tasks := p.mTasks[:]
 
 	sort.Slice(tasks, func(i, j int) bool { return tasks[i].Name() < tasks[j].Name() })
 
@@ -750,7 +747,7 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 }
 
 func (p *Pkg) graphTasks() *parseErr {
-	p.mTasks = make(map[string]*task)
+	p.mTasks = make([]*task, 0)
 	return p.eachResource(KindTask, 1, func(r Resource) []validationErr {
 		t := &task{
 			name:        r.Name(),
@@ -769,7 +766,7 @@ func (p *Pkg) graphTasks() *parseErr {
 		})
 		sort.Sort(t.labels)
 
-		p.mTasks[r.Name()] = t
+		p.mTasks = append(p.mTasks, t)
 		return append(failures, t.valid()...)
 	})
 }

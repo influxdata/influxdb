@@ -7499,6 +7499,25 @@ components:
                           type: string
                         operator:
                           type: string
+            tasks:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  cron:
+                    type: string
+                  description:
+                    type: string
+                  every:
+                    type: string
+                  offset:
+                    type: string
+                  query:
+                    type: string
+                  status:
+                    type: string
             telegrafConfigs:
               type: array
               items:
