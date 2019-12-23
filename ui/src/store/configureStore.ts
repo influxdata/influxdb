@@ -39,6 +39,7 @@ import {
   pluginsReducer,
   activePluginsReducer,
   editorReducer,
+  pluginsResourceReducer,
 } from 'src/dataLoaders/reducers/telegrafEditor'
 import {predicatesReducer} from 'src/shared/reducers/predicates'
 import alertBuilderReducer from 'src/alerting/reducers/alertBuilder'
@@ -75,6 +76,7 @@ export const rootReducer = combineReducers<ReducerState>({
   telegrafEditor: editorReducer,
   telegrafEditorActivePlugins: activePluginsReducer,
   telegrafEditorPlugins: pluginsReducer,
+  plugins: pluginsResourceReducer,
   telegrafs: telegrafsReducer,
   templates: templatesReducer,
   tokens: authorizationsReducer,
