@@ -754,6 +754,7 @@ type SummaryLabelMapping struct {
 
 // SummaryTask provides a summary of a task.
 type SummaryTask struct {
+	ID          SafeID          `json:"id"`
 	Name        string          `json:"name"`
 	Cron        string          `json:"cron"`
 	Description string          `json:"description"`
@@ -1808,6 +1809,8 @@ const (
 )
 
 type task struct {
+	id          influxdb.ID
+	orgID       influxdb.ID
 	name        string
 	cron        string
 	description string
@@ -1817,6 +1820,18 @@ type task struct {
 	status      string
 
 	labels sortedLabels
+}
+
+func (t *task) Exists() bool {
+	return false
+}
+
+func (t *task) ID() influxdb.ID {
+	return t.id
+}
+
+func (t *task) Labels() []*label {
+	return t.labels
 }
 
 func (t *task) Name() string {
@@ -1834,8 +1849,27 @@ func (t *task) Status() influxdb.Status {
 	return influxdb.Status(t.status)
 }
 
+func (t *task) flux() string {
+	taskOpts := []string{fmt.Sprintf("name: %q", t.name)}
+	if t.cron != "" {
+		taskOpts = append(taskOpts, fmt.Sprintf("cron: %q", t.cron))
+	}
+	if t.every > 0 {
+		taskOpts = append(taskOpts, fmt.Sprintf("every: %s", t.every))
+	}
+	if t.offset > 0 {
+		taskOpts = append(taskOpts, fmt.Sprintf("offset: %s", t.offset))
+	}
+	// this is required by the API, super nasty. Will be super challenging for
+	// anyone outside org to figure out how to do this within an hour of looking
+	// at the API :sadpanda:. Would be ideal to let the API translate the arguments
+	// into this required form instead of forcing that complexity on the caller.
+	return fmt.Sprintf("option task = { %s }\n%s", strings.Join(taskOpts, ", "), t.query)
+}
+
 func (t *task) summarize() SummaryTask {
 	return SummaryTask{
+		ID:          SafeID(t.ID()),
 		Name:        t.Name(),
 		Cron:        t.cron,
 		Description: t.description,
@@ -1877,6 +1911,16 @@ func (t *task) valid() []validationErr {
 		})
 	}
 	return vErrs
+}
+
+type mapperTasks []*task
+
+func (m mapperTasks) Association(i int) labelAssociater {
+	return m[i]
+}
+
+func (m mapperTasks) Len() int {
+	return len(m)
 }
 
 const (
