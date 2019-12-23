@@ -235,7 +235,10 @@ func Test_Pkg(t *testing.T) {
 			pkgFileArgs
 			bucketIDs    []influxdb.ID
 			dashIDs      []influxdb.ID
+			endpointIDs  []influxdb.ID
 			labelIDs     []influxdb.ID
+			ruleIDs      []influxdb.ID
+			taskIDs      []influxdb.ID
 			telegrafIDs  []influxdb.ID
 			varIDs       []influxdb.ID
 			expectedMeta pkger.Metadata
@@ -278,6 +281,24 @@ func Test_Pkg(t *testing.T) {
 			},
 			{
 				pkgFileArgs: pkgFileArgs{
+					name:     "endpoints",
+					encoding: pkger.EncodingYAML,
+					filename: "pkg_0.yml",
+					flags: []flagArg{
+						{name: "name", val: "new name"},
+						{name: "description", val: "new desc"},
+						{name: "version", val: "new version"},
+					},
+				},
+				endpointIDs: []influxdb.ID{1, 2},
+				expectedMeta: pkger.Metadata{
+					Name:        "new name",
+					Description: "new desc",
+					Version:     "new version",
+				},
+			},
+			{
+				pkgFileArgs: pkgFileArgs{
 					name:     "labels",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
@@ -296,7 +317,7 @@ func Test_Pkg(t *testing.T) {
 			},
 			{
 				pkgFileArgs: pkgFileArgs{
-					name:     "variables",
+					name:     "rules",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
 					flags: []flagArg{
@@ -305,7 +326,25 @@ func Test_Pkg(t *testing.T) {
 						{name: "version", val: "new version"},
 					},
 				},
-				varIDs: []influxdb.ID{1, 2},
+				ruleIDs: []influxdb.ID{1, 2},
+				expectedMeta: pkger.Metadata{
+					Name:        "new name",
+					Description: "new desc",
+					Version:     "new version",
+				},
+			},
+			{
+				pkgFileArgs: pkgFileArgs{
+					name:     "tasks",
+					encoding: pkger.EncodingYAML,
+					filename: "pkg_0.yml",
+					flags: []flagArg{
+						{name: "name", val: "new name"},
+						{name: "description", val: "new desc"},
+						{name: "version", val: "new version"},
+					},
+				},
+				taskIDs: []influxdb.ID{1, 2},
 				expectedMeta: pkger.Metadata{
 					Name:        "new name",
 					Description: "new desc",
@@ -330,12 +369,30 @@ func Test_Pkg(t *testing.T) {
 					Version:     "new version",
 				},
 			},
+			{
+				pkgFileArgs: pkgFileArgs{
+					name:     "variables",
+					encoding: pkger.EncodingYAML,
+					filename: "pkg_0.yml",
+					flags: []flagArg{
+						{name: "name", val: "new name"},
+						{name: "description", val: "new desc"},
+						{name: "version", val: "new version"},
+					},
+				},
+				varIDs: []influxdb.ID{1, 2},
+				expectedMeta: pkger.Metadata{
+					Name:        "new name",
+					Description: "new desc",
+					Version:     "new version",
+				},
+			},
 		}
 
 		cmdFn := func() *cobra.Command {
 			pkgSVC := &fakePkgSVC{
 				createFn: func(_ context.Context, opts ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
-					opt := pkger.CreateOpt{}
+					var opt pkger.CreateOpt
 					for _, o := range opts {
 						if err := o(&opt); err != nil {
 							return nil, err
@@ -348,6 +405,9 @@ func Test_Pkg(t *testing.T) {
 						Metadata:   opt.Metadata,
 					}
 					for _, rc := range opt.Resources {
+						if rc.Kind == pkger.KindNotificationEndpoint {
+							rc.Kind = pkger.KindNotificationEndpointHTTP
+						}
 						name := rc.Kind.String() + strconv.Itoa(int(rc.ID))
 						pkg.Spec.Resources = append(pkg.Spec.Resources, pkger.Resource{
 							"kind": rc.Kind,
@@ -364,8 +424,12 @@ func Test_Pkg(t *testing.T) {
 		for _, tt := range tests {
 			tt.flags = append(tt.flags,
 				flagArg{"buckets", idsStr(tt.bucketIDs...)},
+				flagArg{"endpoints", idsStr(tt.endpointIDs...)},
 				flagArg{"dashboards", idsStr(tt.dashIDs...)},
 				flagArg{"labels", idsStr(tt.labelIDs...)},
+				flagArg{"rules", idsStr(tt.ruleIDs...)},
+				flagArg{"tasks", idsStr(tt.taskIDs...)},
+				flagArg{"telegraf-configs", idsStr(tt.telegrafIDs...)},
 				flagArg{"variables", idsStr(tt.varIDs...)},
 			)
 
@@ -386,10 +450,30 @@ func Test_Pkg(t *testing.T) {
 					actual := sum.Dashboards[i]
 					assert.Equal(t, "dashboard"+strconv.Itoa(int(id)), actual.Name)
 				}
+				require.Len(t, sum.NotificationEndpoints, len(tt.endpointIDs))
+				for i, id := range tt.endpointIDs {
+					actual := sum.NotificationEndpoints[i]
+					assert.Equal(t, "notification_endpoint_http"+strconv.Itoa(int(id)), actual.NotificationEndpoint.GetName())
+				}
 				require.Len(t, sum.Labels, len(tt.labelIDs))
 				for i, id := range tt.labelIDs {
 					actual := sum.Labels[i]
 					assert.Equal(t, "label"+strconv.Itoa(int(id)), actual.Name)
+				}
+				require.Len(t, sum.NotificationRules, len(tt.ruleIDs))
+				for i, id := range tt.ruleIDs {
+					actual := sum.NotificationRules[i]
+					assert.Equal(t, "notification_rule"+strconv.Itoa(int(id)), actual.Name)
+				}
+				require.Len(t, sum.Tasks, len(tt.taskIDs))
+				for i, id := range tt.taskIDs {
+					actual := sum.Tasks[i]
+					assert.Equal(t, "task"+strconv.Itoa(int(id)), actual.Name)
+				}
+				require.Len(t, sum.TelegrafConfigs, len(tt.telegrafIDs))
+				for i, id := range tt.telegrafIDs {
+					actual := sum.TelegrafConfigs[i]
+					assert.Equal(t, "telegraf"+strconv.Itoa(int(id)), actual.TelegrafConfig.Name)
 				}
 				require.Len(t, sum.Variables, len(tt.varIDs))
 				for i, id := range tt.varIDs {
@@ -444,7 +528,6 @@ func testPkgWrites(t *testing.T, newCmdFn func() *cobra.Command, args pkgFileArg
 		return cmd
 	}
 
-	// we'll memoize the current env vars if defined in args.envVars, then set the env vars defined in each test
 	var initialEnvVars []struct{ key, val string }
 	for _, envVar := range args.envVars {
 		if k := os.Getenv(envVar.key); k != "" {
@@ -458,12 +541,10 @@ func testPkgWrites(t *testing.T, newCmdFn func() *cobra.Command, args pkgFileArg
 	}
 
 	defer func() {
-		// unset the env vars set by the test
 		for _, envVar := range args.envVars {
 			require.NoError(t, os.Unsetenv(envVar.key))
 		}
 
-		// set the test env vars back to the initial state
 		for _, envVar := range initialEnvVars {
 			require.NoError(t, os.Setenv(envVar.key, envVar.val))
 		}
@@ -489,7 +570,7 @@ func testPkgWritesFile(newCmdFn func() *cobra.Command, args pkgFileArgs, assertF
 
 		require.NoError(t, cmd.Execute())
 
-		pkg, err := pkger.Parse(args.encoding, pkger.FromFile(pathToFile), pkger.ValidWithoutResources())
+		pkg, err := pkger.Parse(args.encoding, pkger.FromFile(pathToFile), pkger.ValidWithoutResources(), pkger.ValidSkipParseError())
 		require.NoError(t, err)
 
 		require.Equal(t, pkger.KindPackage, pkg.Kind)
@@ -511,7 +592,7 @@ func testPkgWritesToBuffer(newCmdFn func() *cobra.Command, args pkgFileArgs, ass
 
 		require.NoError(t, cmd.Execute())
 
-		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromReader(&buf), pkger.ValidWithoutResources())
+		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromReader(&buf), pkger.ValidWithoutResources(), pkger.ValidSkipParseError())
 		require.NoError(t, err)
 
 		require.Equal(t, pkger.KindPackage, pkg.Kind)
