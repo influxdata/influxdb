@@ -34,6 +34,7 @@ type serviceOpt struct {
 	endpointSVC influxdb.NotificationEndpointService
 	ruleSVC     influxdb.NotificationRuleStore
 	secretSVC   influxdb.SecretService
+	taskSVC     influxdb.TaskService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
 
@@ -100,6 +101,13 @@ func WithSecretSVC(secretSVC influxdb.SecretService) ServiceSetterFn {
 }
 
 // WithTelegrafSVC sets the telegraf service.
+func WithTaskSVC(taskSVC influxdb.TaskService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.taskSVC = taskSVC
+	}
+}
+
+// WithTelegrafSVC sets the telegraf service.
 func WithTelegrafSVC(telegrafSVC influxdb.TelegrafConfigStore) ServiceSetterFn {
 	return func(opt *serviceOpt) {
 		opt.teleSVC = telegrafSVC
@@ -125,6 +133,7 @@ type Service struct {
 	endpointSVC influxdb.NotificationEndpointService
 	ruleSVC     influxdb.NotificationRuleStore
 	secretSVC   influxdb.SecretService
+	taskSVC     influxdb.TaskService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
 
@@ -152,6 +161,7 @@ func NewService(opts ...ServiceSetterFn) *Service {
 		endpointSVC:   opt.endpointSVC,
 		ruleSVC:       opt.ruleSVC,
 		secretSVC:     opt.secretSVC,
+		taskSVC:       opt.taskSVC,
 		teleSVC:       opt.teleSVC,
 		varSVC:        opt.varSVC,
 		applyReqLimit: opt.applyReqLimit,
@@ -953,6 +963,7 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 		mapperDashboards(pkg.mDashboards),
 		mapperNotificationEndpoints(pkg.notificationEndpoints()),
 		mapperNotificationRules(pkg.mNotificationRules),
+		mapperTasks(pkg.mTasks),
 		mapperTelegrafs(pkg.mTelegrafs),
 		mapperVariables(pkg.variables()),
 	}
@@ -1076,6 +1087,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 			s.applyChecks(pkg.checks()),
 			s.applyDashboards(pkg.dashboards()),
 			s.applyNotificationEndpoints(pkg.notificationEndpoints()),
+			s.applyTasks(pkg.tasks()),
 			s.applyTelegrafs(pkg.telegrafs()),
 		},
 	}
@@ -1679,6 +1691,55 @@ func (s *Service) rollbackNotificationRules(rules []*notificationRule) error {
 		return fmt.Errorf(`notication_rule_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
 	}
 	return nil
+}
+
+func (s *Service) applyTasks(tasks []*task) applier {
+	const resource = "tasks"
+
+	mutex := new(doMutex)
+	rollbackTasks := make([]task, 0, len(tasks))
+
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+		var t task
+		mutex.Do(func() {
+			tasks[i].orgID = orgID
+			t = *tasks[i]
+		})
+
+		newTask, err := s.taskSVC.CreateTask(ctx, influxdb.TaskCreate{
+			Type:           influxdb.TaskSystemType,
+			Flux:           t.flux(),
+			OwnerID:        userID,
+			Description:    t.description,
+			Status:         string(t.Status()),
+			OrganizationID: t.orgID,
+		})
+		if err != nil {
+			return &applyErrBody{name: t.Name(), msg: err.Error()}
+		}
+
+		mutex.Do(func() {
+			tasks[i].id = newTask.ID
+			rollbackTasks = append(rollbackTasks, *tasks[i])
+		})
+
+		return nil
+	}
+
+	return applier{
+		creater: creater{
+			entries: len(tasks),
+			fn:      createFn,
+		},
+		rollbacker: rollbacker{
+			resource: resource,
+			fn: func() error {
+				return s.deleteByIDs("task", len(rollbackTasks), s.taskSVC.DeleteTask, func(i int) influxdb.ID {
+					return rollbackTasks[i].ID()
+				})
+			},
+		},
+	}
 }
 
 func (s *Service) applyTelegrafs(teles []*telegraf) applier {

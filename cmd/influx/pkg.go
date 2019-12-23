@@ -702,13 +702,18 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 	}
 
 	if tasks := diff.Tasks; len(tasks) > 0 {
-		headers := []string{"New", "Name", "Description"}
+		headers := []string{"New", "Name", "Description", "Cycle"}
 		tablePrintFn("TASKS", headers, len(tasks), func(i int) []string {
 			t := tasks[i]
+			timing := fmt.Sprintf("every: %s offset: %s", t.Every, t.Offset)
+			if t.Cron != "" {
+				timing = t.Cron
+			}
 			return []string{
 				boolDiff(true),
 				t.Name,
 				green(t.Description),
+				green(timing),
 			}
 		})
 	}
@@ -818,6 +823,23 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 				v.EndpointName,
 				v.EndpointID.String(),
 				v.EndpointType,
+			}
+		})
+	}
+
+	if tasks := sum.Tasks; len(tasks) > 0 {
+		headers := []string{"ID", "Name", "Description", "Cycle"}
+		tablePrintFn("TASKS", headers, len(tasks), func(i int) []string {
+			t := tasks[i]
+			timing := fmt.Sprintf("every: %s offset: %s", t.Every, t.Offset)
+			if t.Cron != "" {
+				timing = t.Cron
+			}
+			return []string{
+				t.ID.String(),
+				t.Name,
+				t.Description,
+				timing,
 			}
 		})
 	}

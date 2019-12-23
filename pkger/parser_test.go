@@ -3850,7 +3850,7 @@ spec:
 				assert.Equal(t, "desc_"+strconv.Itoa(i), actual.Description)
 				assert.Equal(t, status, actual.Status)
 
-				expectedQuery := "from(bucket: \"rucket_1\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_idle\")\n  |> aggregateWindow(every: 1m, fn: mean)\n  |> yield(name: \"mean\")"
+				expectedQuery := "from(bucket: \"rucket_1\")\n  |> range(start: -5d, stop: -1h)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_idle\")\n  |> aggregateWindow(every: 1m, fn: mean)\n  |> yield(name: \"mean\")"
 				assert.Equal(t, expectedQuery, actual.Query)
 
 				require.Len(t, actual.LabelAssociations, 1)
