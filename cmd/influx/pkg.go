@@ -689,10 +689,22 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 		})
 	}
 
-	if teles := diff.Telegrafs; len(diff.Telegrafs) > 0 {
+	if teles := diff.Telegrafs; len(teles) > 0 {
 		headers := []string{"New", "Name", "Description"}
 		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
 			t := teles[i]
+			return []string{
+				boolDiff(true),
+				t.Name,
+				green(t.Description),
+			}
+		})
+	}
+
+	if tasks := diff.Tasks; len(tasks) > 0 {
+		headers := []string{"New", "Name", "Description"}
+		tablePrintFn("TASKS", headers, len(tasks), func(i int) []string {
+			t := tasks[i]
 			return []string{
 				boolDiff(true),
 				t.Name,

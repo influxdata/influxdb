@@ -132,22 +132,19 @@ func TestLauncher_Pkger(t *testing.T) {
 		sum, diff, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, newPkg(t))
 		require.NoError(t, err)
 
-		diffBkts := diff.Buckets
-		require.Len(t, diffBkts, 1)
-		assert.True(t, diffBkts[0].IsNew())
+		require.Len(t, diff.Buckets, 1)
+		assert.True(t, diff.Buckets[0].IsNew())
 
 		require.Len(t, diff.Checks, 2)
 		for _, ch := range diff.Checks {
 			assert.True(t, ch.IsNew())
 		}
 
-		diffLabels := diff.Labels
-		require.Len(t, diffLabels, 1)
-		assert.True(t, diffLabels[0].IsNew())
+		require.Len(t, diff.Labels, 1)
+		assert.True(t, diff.Labels[0].IsNew())
 
-		diffVars := diff.Variables
-		require.Len(t, diffVars, 1)
-		assert.True(t, diffVars[0].IsNew())
+		require.Len(t, diff.Variables, 1)
+		assert.True(t, diff.Variables[0].IsNew())
 
 		require.Len(t, diff.NotificationRules, 1)
 		// the pkg being run here has a relationship with the rule and the endpoint within the pkg.
@@ -155,6 +152,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		require.Len(t, diff.Dashboards, 1)
 		require.Len(t, diff.NotificationEndpoints, 1)
+		require.Len(t, diff.Tasks, 1)
 		require.Len(t, diff.Telegrafs, 1)
 
 		labels := sum.Labels
@@ -184,6 +182,13 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].NotificationEndpoint.GetName())
 		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
 		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
+
+		require.Len(t, sum.Tasks, 1)
+		task := sum.Tasks[0]
+		assert.Equal(t, "task_1", task.Name)
+		assert.Equal(t, "desc_1", task.Description)
+		assert.Equal(t, "15 * * * *", task.Cron)
+		hasLabelAssociations(t, task.LabelAssociations, 1, "label_1")
 
 		teles := sum.TelegrafConfigs
 		require.Len(t, teles, 1)
@@ -285,7 +290,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 
 		mappings := sum1.LabelMappings
-		require.Len(t, mappings, 8)
+		require.Len(t, mappings, 9)
 		hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
 		hasMapping(t, mappings, newSumMapping(dashs[0].ID, dashs[0].Name, influxdb.DashboardsResourceType))
 		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
@@ -700,6 +705,20 @@ spec:
         - key: k1
           value: v1
           operator: eQuAl
+      associations:
+        - kind: Label
+          name: label_1
+    - kind: Task
+      name: task_1
+      description: desc_1
+      cron: 15 * * * *
+      query:  >
+        from(bucket: "rucket_1")
+          |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+          |> filter(fn: (r) => r._measurement == "cpu")
+          |> filter(fn: (r) => r._field == "usage_idle")
+          |> aggregateWindow(every: 1m, fn: mean)
+          |> yield(name: "mean")
       associations:
         - kind: Label
           name: label_1
