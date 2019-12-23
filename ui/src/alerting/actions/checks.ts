@@ -40,7 +40,6 @@ import {
   CheckPatch,
   ThresholdCheck,
   DeadmanCheck,
-  CustomCheck,
 } from 'src/types'
 import {createView} from 'src/shared/utils/view'
 
@@ -180,11 +179,8 @@ export const saveCheckFromTimeMachine = () => async (
     orgID,
   } as Check
 
-  if (check.type === 'custom') {
-    check = check as CustomCheck
-  } else {
+  if (check.type === 'threshold' || check.type === 'deadman') {
     check = {...check, every, offset, tags, statusMessageTemplate}
-
     if (check.type === 'threshold') {
       check = {
         ...check,
