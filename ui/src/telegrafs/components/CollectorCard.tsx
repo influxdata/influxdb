@@ -133,21 +133,13 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleAddLabel = async (label: Label) => {
-<<<<<<< HEAD
-    const {collector, onAddLabels} = this.props
-=======
     const {collector, onAddLabel} = this.props
->>>>>>> feat(ui): completed feature
 
     await onAddLabel(collector.id, label)
   }
 
   private handleRemoveLabel = async (label: Label) => {
-<<<<<<< HEAD
-    const {collector, onRemoveLabels} = this.props
-=======
     const {collector, onRemoveLabel} = this.props
->>>>>>> feat(ui): completed feature
 
     await onRemoveLabel(collector.id, label)
   }
