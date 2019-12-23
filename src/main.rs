@@ -1,4 +1,4 @@
-use delorean::storage::Database;
+use delorean::storage::rocksdb::Database;
 
 use std::{env, io, str};
 use std::sync::Arc;
@@ -56,7 +56,7 @@ async fn main() -> io::Result<()> {
     env_logger::init();
 
     let db_dir = std::env::var("DELOREAN_DB_DIR").expect("DELOREAN_DB_DIR must be set");
-    let db = storage::Database::new(&db_dir);
+    let db = Database::new(&db_dir);
     let s = Arc::new(Server {db});
 
     HttpServer::new(move || {
