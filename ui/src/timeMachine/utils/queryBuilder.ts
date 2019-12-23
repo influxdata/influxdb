@@ -237,7 +237,7 @@ export function createCheckQueryFromAlertBuilder(
   const optionTask = [
     'option task = {',
     `  name: \"${name}\",`,
-    `  every: check.every,`,
+    `  every: ${every}, // expected to match check.every`,
     `  offset: ${offset}`,
     '}',
   ]
