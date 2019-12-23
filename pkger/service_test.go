@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
@@ -29,6 +30,7 @@ func TestService(t *testing.T) {
 			labelSVC:    mock.NewLabelService(),
 			endpointSVC: mock.NewNotificationEndpointService(),
 			ruleSVC:     mock.NewNotificationRuleStore(),
+			taskSVC:     mock.NewTaskService(),
 			teleSVC:     mock.NewTelegrafConfigStore(),
 			varSVC:      mock.NewVariableService(),
 		}
@@ -44,6 +46,7 @@ func TestService(t *testing.T) {
 			WithNotificationEndpointSVC(opt.endpointSVC),
 			WithNotificationRuleSVC(opt.ruleSVC),
 			WithSecretSVC(opt.secretSVC),
+			WithTaskSVC(opt.taskSVC),
 			WithTelegrafSVC(opt.teleSVC),
 			WithVariableSVC(opt.varSVC),
 		)
@@ -934,6 +937,35 @@ func TestService(t *testing.T) {
 				)
 			})
 
+			t.Run("maps tasks with labels", func(t *testing.T) {
+				testLabelMappingFn(
+					t,
+					"testdata/tasks.yml",
+					2,
+					func() []ServiceSetterFn {
+						fakeTaskSVC := mock.NewTaskService()
+						fakeTaskSVC.CreateTaskFn = func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+							reg := regexp.MustCompile(`name: "(.+)",`)
+							names := reg.FindStringSubmatch(tc.Flux)
+							if len(names) < 2 {
+								return nil, errors.New("bad flux query provided: " + tc.Flux)
+							}
+							return &influxdb.Task{
+								ID:             influxdb.ID(rand.Int()),
+								Type:           tc.Type,
+								OrganizationID: tc.OrganizationID,
+								OwnerID:        tc.OwnerID,
+								Name:           names[1],
+								Description:    tc.Description,
+								Status:         tc.Status,
+								Flux:           tc.Flux,
+							}, nil
+						}
+						return []ServiceSetterFn{WithTaskSVC(fakeTaskSVC)}
+					},
+				)
+			})
+
 			t.Run("maps telegrafs with labels", func(t *testing.T) {
 				testLabelMappingFn(
 					t,
@@ -1123,6 +1155,68 @@ func TestService(t *testing.T) {
 					require.Error(t, err)
 
 					assert.Equal(t, 1, fakeRuleStore.DeleteNotificationRuleCalls.Count())
+				})
+			})
+		})
+
+		t.Run("tasks", func(t *testing.T) {
+			t.Run("successfuly creates", func(t *testing.T) {
+				testfileRunner(t, "testdata/tasks.yml", func(t *testing.T, pkg *Pkg) {
+					orgID := influxdb.ID(9000)
+
+					fakeTaskSVC := mock.NewTaskService()
+					fakeTaskSVC.CreateTaskFn = func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+						reg := regexp.MustCompile(`name: "(.+)",`)
+						names := reg.FindStringSubmatch(tc.Flux)
+						if len(names) < 2 {
+							return nil, errors.New("bad flux query provided: " + tc.Flux)
+						}
+						return &influxdb.Task{
+							ID:             influxdb.ID(fakeTaskSVC.CreateTaskCalls.Count() + 1),
+							Type:           tc.Type,
+							OrganizationID: tc.OrganizationID,
+							OwnerID:        tc.OwnerID,
+							Name:           names[1],
+							Description:    tc.Description,
+							Status:         tc.Status,
+							Flux:           tc.Flux,
+						}, nil
+					}
+
+					svc := newTestService(WithTaskSVC(fakeTaskSVC))
+
+					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					require.NoError(t, err)
+
+					require.Len(t, sum.Tasks, 2)
+					for i, actual := range sum.Tasks {
+						assert.NotZero(t, actual.ID)
+						assert.Equal(t, "task_"+strconv.Itoa(i), actual.Name)
+						assert.Equal(t, "desc_"+strconv.Itoa(i), actual.Description)
+					}
+				})
+			})
+
+			t.Run("rolls back all created tasks on an error", func(t *testing.T) {
+				testfileRunner(t, "testdata/tasks.yml", func(t *testing.T, pkg *Pkg) {
+					fakeTaskSVC := mock.NewTaskService()
+					fakeTaskSVC.CreateTaskFn = func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+						if fakeTaskSVC.CreateTaskCalls.Count() == 1 {
+							return nil, errors.New("expected error")
+						}
+						return &influxdb.Task{
+							ID: influxdb.ID(fakeTaskSVC.CreateTaskCalls.Count() + 1),
+						}, nil
+					}
+
+					svc := newTestService(WithTaskSVC(fakeTaskSVC))
+
+					orgID := influxdb.ID(9000)
+
+					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
+					require.Error(t, err)
+
+					assert.Equal(t, 1, fakeTaskSVC.DeleteTaskCalls.Count())
 				})
 			})
 		})

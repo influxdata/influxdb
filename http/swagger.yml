@@ -7321,6 +7321,27 @@ components:
                     type: array
                     items:
                       $ref: "#/components/schemas/PkgSummaryLabel"
+            tasks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  cron:
+                    type: string
+                  description:
+                    type: string
+                  every:
+                    type: string
+                  offset:
+                    type: string
+                  query:
+                    type: string
+                  status:
+                    type: string
             telegrafConfigs:
               type: array
               items:

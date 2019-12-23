@@ -49,6 +49,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			}),
 			pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
 			pkger.WithNotificationRuleSVC(l.NotificationRuleService()),
+			pkger.WithTaskSVC(l.TaskServiceKV()),
 			pkger.WithTelegrafSVC(l.TelegrafService(t)),
 			pkger.WithVariableSVC(l.VariableService(t)),
 		)
@@ -87,6 +88,12 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Empty(t, rules)
+
+		tasks, _, err := l.TaskServiceKV().FindTasks(ctx, influxdb.TaskFilter{
+			OrganizationID: &l.Org.ID,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, tasks)
 
 		teles, _, err := l.TelegrafService(t).FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{
 			OrgID: &l.Org.ID,
@@ -258,6 +265,12 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointName)
 		assert.Equal(t, "http", rule.EndpointType)
 
+		require.Len(t, sum1.Tasks, 1)
+		task := sum1.Tasks[0]
+		assert.NotZero(t, task.ID)
+		assert.Equal(t, "task_1", task.Name)
+		assert.Equal(t, "desc_1", task.Description)
+
 		teles := sum1.TelegrafConfigs
 		require.Len(t, teles, 1)
 		assert.NotZero(t, teles[0].TelegrafConfig.ID)
@@ -292,9 +305,14 @@ func TestLauncher_Pkger(t *testing.T) {
 		mappings := sum1.LabelMappings
 		require.Len(t, mappings, 9)
 		hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
+		hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[0].Check.GetID()), checks[0].Check.GetName(), influxdb.ChecksResourceType))
+		hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[1].Check.GetID()), checks[1].Check.GetName(), influxdb.ChecksResourceType))
 		hasMapping(t, mappings, newSumMapping(dashs[0].ID, dashs[0].Name, influxdb.DashboardsResourceType))
-		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
+		hasMapping(t, mappings, newSumMapping(pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), endpoints[0].NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType))
+		hasMapping(t, mappings, newSumMapping(rule.ID, rule.Name, influxdb.NotificationRuleResourceType))
+		hasMapping(t, mappings, newSumMapping(task.ID, task.Name, influxdb.TasksResourceType))
 		hasMapping(t, mappings, newSumMapping(pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType))
+		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
 
 		t.Run("pkg with same bkt-var-label does nto create new resources for them", func(t *testing.T) {
 			// validate the new package doesn't create new resources for bkts/labels/vars
@@ -506,6 +524,7 @@ spec:
 				pkger.WithDashboardSVC(l.DashboardService(t)),
 				pkger.WithLabelSVC(l.LabelService(t)),
 				pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
+				pkger.WithTaskSVC(l.TaskServiceKV()),
 				pkger.WithTelegrafSVC(l.TelegrafService(t)),
 				pkger.WithVariableSVC(l.VariableService(t)),
 			)
@@ -714,11 +733,7 @@ spec:
       cron: 15 * * * *
       query:  >
         from(bucket: "rucket_1")
-          |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-          |> filter(fn: (r) => r._measurement == "cpu")
-          |> filter(fn: (r) => r._field == "usage_idle")
-          |> aggregateWindow(every: 1m, fn: mean)
-          |> yield(name: "mean")
+          |> yield()
       associations:
         - kind: Label
           name: label_1

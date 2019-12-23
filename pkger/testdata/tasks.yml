@@ -15,7 +15,7 @@ spec:
       offset: 15s
       query:  >
         from(bucket: "rucket_1")
-          |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+          |> range(start: -5d, stop: -1h)
           |> filter(fn: (r) => r._measurement == "cpu")
           |> filter(fn: (r) => r._field == "usage_idle")
           |> aggregateWindow(every: 1m, fn: mean)
@@ -30,7 +30,7 @@ spec:
       cron: 15 * * * *
       query:  >
         from(bucket: "rucket_1")
-          |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+          |> range(start: -5d, stop: -1h)
           |> filter(fn: (r) => r._measurement == "cpu")
           |> filter(fn: (r) => r._field == "usage_idle")
           |> aggregateWindow(every: 1m, fn: mean)
