@@ -22,8 +22,8 @@ import {
   cloneTemplate,
   updateTemplate,
   createResourceFromTemplate,
-  removeTemplateLabelsAsync,
-  addTemplateLabelsAsync,
+  removeTemplateLabelAsync,
+  addTemplateLabelAsync,
 } from 'src/templates/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
@@ -48,8 +48,8 @@ interface DispatchProps {
   onClone: typeof cloneTemplate
   onUpdate: typeof updateTemplate
   onCreateFromTemplate: typeof createResourceFromTemplate
-  onAddTemplateLabels: typeof addTemplateLabelsAsync
-  onRemoveTemplateLabels: typeof removeTemplateLabelsAsync
+  onAddTemplateLabel: typeof addTemplateLabelAsync
+  onRemoveTemplateLabel: typeof removeTemplateLabelAsync
   onCreateLabel: typeof createLabelAsync
 }
 
@@ -204,15 +204,15 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleAddLabel = (label: ILabel): void => {
-    const {template, onAddTemplateLabels} = this.props
+    const {template, onAddTemplateLabel} = this.props
 
-    onAddTemplateLabels(template.id, [label])
+    onAddTemplateLabel(template.id, label)
   }
 
   private handleRemoveLabel = (label: ILabel): void => {
-    const {template, onRemoveTemplateLabels} = this.props
+    const {template, onRemoveTemplateLabel} = this.props
 
-    onRemoveTemplateLabels(template.id, [label])
+    onRemoveTemplateLabel(template.id, label)
   }
 
   private handleCreateLabel = (label: ILabel) => {
@@ -232,8 +232,8 @@ const mdtp: DispatchProps = {
   onClone: cloneTemplate,
   onUpdate: updateTemplate,
   onCreateFromTemplate: createResourceFromTemplate,
-  onAddTemplateLabels: addTemplateLabelsAsync,
-  onRemoveTemplateLabels: removeTemplateLabelsAsync,
+  onAddTemplateLabel: addTemplateLabelAsync,
+  onRemoveTemplateLabel: removeTemplateLabelAsync,
   onCreateLabel: createLabelAsync,
 }
 

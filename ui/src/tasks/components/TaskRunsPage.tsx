@@ -12,7 +12,7 @@ import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 // Types
 import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
-import {Run as APIRun, Task} from '@influxdata/influx'
+import {Run as APIRun} from '@influxdata/influx'
 import {
   SpinnerContainer,
   TechnoSpinner,
@@ -28,6 +28,7 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {SortTypes} from 'src/shared/utils/sort'
+import {Task} from 'src/types'
 
 export interface Run extends APIRun {
   duration: string

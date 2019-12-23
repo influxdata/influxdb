@@ -14,8 +14,8 @@ import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
 
 import {
-  addTaskLabelsAsync,
-  removeTaskLabelsAsync,
+  addTaskLabelAsync,
+  removeTaskLabelAsync,
   runTask,
 } from 'src/tasks/actions'
 import {checkTaskLimits as checkTaskLimitsAction} from 'src/cloud/actions/limits'
@@ -33,8 +33,8 @@ interface Props {
   onClone: (task: Task) => void
   onFilterChange: (searchTerm: string) => void
   totalCount: number
-  onRemoveTaskLabels: typeof removeTaskLabelsAsync
-  onAddTaskLabels: typeof addTaskLabelsAsync
+  onRemoveTaskLabel: typeof removeTaskLabelAsync
+  onAddTaskLabel: typeof addTaskLabelAsync
   onRunTask: typeof runTask
   onUpdate: (task: Task) => void
   filterComponent?: JSX.Element

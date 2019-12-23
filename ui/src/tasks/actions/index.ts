@@ -5,6 +5,7 @@ import _ from 'lodash'
 // APIs
 import {client} from 'src/utils/api'
 import {notify} from 'src/shared/actions/notifications'
+import * as api from 'src/client'
 import {
   taskNotCreated,
   tasksFetchFailed,
@@ -240,7 +241,14 @@ export const getTasks = () => async (
       orgs: {org},
     } = getState()
 
-    const tasks = await client.tasks.getAll(org.id)
+    const resp = await api.getTasks({query: {orgID: org.id}})
+    if (resp.status !== 200) {
+      throw new Error("these aren't the tasks you're looking for")
+    }
+
+    const {
+      data: {tasks},
+    } = resp
 
     dispatch(setTasks(tasks))
     dispatch(setTasksStatus(RemoteDataState.Done))
@@ -252,29 +260,35 @@ export const getTasks = () => async (
   }
 }
 
-export const addTaskLabelsAsync = (taskID: string, labels: Label[]) => async (
+export const addTaskLabelAsync = (taskID: string, label: Label) => async (
   dispatch
 ): Promise<void> => {
   try {
-    await client.tasks.addLabels(taskID, labels.map(l => l.id))
-    const task = await client.tasks.get(taskID)
+    await api.postTasksLabel({taskID, data: {labelID: label.id}}) // todo: fix
+    const taskResp = await api.getTask({taskID})
 
-    dispatch(updateTask(task))
+    if (taskResp.status !== 200) {
+      throw new Error('An error occurred trying to add a label to your task')
+    }
+
+    dispatch(updateTask(taskResp.data))
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.addTaskLabelFailed()))
   }
 }
 
-export const removeTaskLabelsAsync = (
-  taskID: string,
-  labels: Label[]
-) => async (dispatch): Promise<void> => {
+export const removeTaskLabelAsync = (taskID: string, label: Label) => async (
+  dispatch
+): Promise<void> => {
   try {
-    await client.tasks.removeLabels(taskID, labels.map(l => l.id))
-    const task = await client.tasks.get(taskID)
+    await api.deleteTasksLabel({taskID, labelID: label.id})
+    const resp = await api.getTask({taskID})
+    if (resp.status !== 200) {
+      throw new Error('An error occurred while removing a label from the task')
+    }
 
-    dispatch(updateTask(task))
+    dispatch(updateTask(resp.data))
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.removeTaskLabelFailed()))
@@ -283,7 +297,7 @@ export const removeTaskLabelsAsync = (
 
 export const updateTaskStatus = (task: Task) => async dispatch => {
   try {
-    await client.tasks.updateStatus(task.id, task.status)
+    await api.patchTask({taskID: task.id, data: {status: task.status}})
 
     dispatch(getTasks())
     dispatch(notify(taskUpdateSuccess()))
@@ -296,7 +310,7 @@ export const updateTaskStatus = (task: Task) => async dispatch => {
 
 export const updateTaskName = (task: Task) => async dispatch => {
   try {
-    await client.tasks.update(task.id, task)
+    await api.patchTask({taskID: task.id, data: task})
 
     dispatch(getTasks())
     dispatch(notify(taskUpdateSuccess()))
@@ -342,8 +356,12 @@ export const selectTaskByID = (id: string) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const task = await client.tasks.get(id)
-    dispatch(setCurrentTask(task))
+    const resp = await api.getTask({taskID: id})
+    if (resp.status !== 200) {
+      throw new Error('An error occurred while trying to retrieve the task')
+    }
+
+    dispatch(setCurrentTask(resp.data))
   } catch (e) {
     console.error(e)
     dispatch(goToTasks())
@@ -356,8 +374,12 @@ export const setAllTaskOptionsByID = (taskID: string) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const task = await client.tasks.get(taskID)
-    dispatch(setAllTaskOptions(task))
+    const resp = await api.getTask({taskID})
+    if (resp.status !== 200) {
+      throw new Error('An error occurred while setting the task options')
+    }
+
+    dispatch(setAllTaskOptions(resp.data))
   } catch (e) {
     console.error(e)
     dispatch(goToTasks())
@@ -512,8 +534,11 @@ export const convertToTemplate = (taskID: string) => async (
 ): Promise<void> => {
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
-    const task = await client.tasks.get(taskID)
-    const taskTemplate = taskToTemplate(task)
+    const resp = await api.getTask({taskID})
+    if (resp.status !== 200) {
+      throw new Error('An error occurred converting the task into a template')
+    }
+    const taskTemplate = taskToTemplate(resp.data)
 
     dispatch(setExportTemplate(RemoteDataState.Done, taskTemplate))
   } catch (error) {

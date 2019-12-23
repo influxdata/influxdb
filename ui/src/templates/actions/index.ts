@@ -18,7 +18,6 @@ import {
   Label,
   TemplateType,
 } from 'src/types'
-import {GetDocumentsTemplateResult} from 'src/client'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -111,19 +110,37 @@ const removeTemplateSummary = (templateID: string): RemoveTemplateSummary => ({
 })
 
 export const getTemplateByID = async (id: string) => {
-  const template = (await api.getDocumentsTemplate({
-    templateID: id,
-  })) as GetDocumentsTemplateResult
-  return template
+  try {
+    const resp = await api.getDocumentsTemplate({
+      templateID: id,
+    })
+    if (resp.status !== 200) {
+      throw new Error('There was an error retrieving the specific template')
+    }
+    return resp.data
+  } catch (e) {
+    console.error(e)
+    return e
+  }
 }
 
 export const getTemplates = () => async (dispatch, getState: GetState) => {
   const {
     orgs: {org},
   } = getState()
-  dispatch(setTemplatesStatus(RemoteDataState.Loading))
-  const items = await api.getDocumentsTemplates({query: {orgID: org.id}})
-  dispatch(populateTemplateSummaries(items))
+  try {
+    dispatch(setTemplatesStatus(RemoteDataState.Loading))
+    const resp = await api.getDocumentsTemplates({query: {orgID: org.id}})
+    if (resp.status !== 200) {
+      throw new Error(
+        'There was an error creating getting the template results'
+      )
+    }
+    const items = resp.data as TemplateSummary[]
+    dispatch(populateTemplateSummaries(items))
+  } catch (e) {
+    console.error(e)
+  }
 }
 
 export const createTemplate = (template: DocumentCreate) => async (
@@ -177,12 +194,14 @@ export const updateTemplate = (id: string, props: TemplateSummary) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const {meta} = await api.putDocumentsTemplate({
+    const resp = await api.putDocumentsTemplate({
       templateID: id,
       data: props,
     })
-
-    dispatch(setTemplateSummary(id, {...props, meta}))
+    if (resp.status !== 200) {
+      throw new Error("Couldn't update the template with the given ID")
+    }
+    dispatch(setTemplateSummary(id, {...props, meta: resp.data.meta}))
     dispatch(notify(copy.updateTemplateSucceeded()))
   } catch (e) {
     console.error(e)
@@ -196,10 +215,13 @@ export const convertToTemplate = (id: string) => async (
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
 
-    const templateDocument = await api.getDocumentsTemplate({
+    const resp = await api.getDocumentsTemplate({
       templateID: id,
     })
-    const template = templateToExport(templateDocument)
+    if (resp.status !== 200) {
+      throw new Error("Couldn't convert the template based on the given ID")
+    }
+    const template = templateToExport(resp.data) // TODO: fix typing issue
 
     dispatch(setExportTemplate(RemoteDataState.Done, template))
   } catch (error) {
@@ -285,40 +307,57 @@ export const createResourceFromStaticTemplate = (name: string) => dispatch => {
 export const createResourceFromTemplate = (templateID: string) => async (
   dispatch
 ): Promise<void> => {
-  const template = await api.getDocumentsTemplate({
-    templateID,
-  })
-  dispatch(createFromTemplate(template))
-}
-
-export const addTemplateLabelsAsync = (
-  templateID: string,
-  labels: Label[]
-) => async (dispatch): Promise<void> => {
   try {
-    await client.templates.addLabels(templateID, labels.map(l => l.id))
-    const template = await api.getDocumentsTemplate({
+    const resp = await api.getDocumentsTemplate({
       templateID,
     })
+    if (resp.status !== 200) {
+      throw new Error('There was an error retrieving the specific template')
+    }
+    dispatch(createFromTemplate(resp.data))
+  } catch (e) {
+    console.error(e)
+  }
+}
 
-    dispatch(setTemplateSummary(templateID, templateToSummary(template)))
+export const addTemplateLabelAsync = (
+  templateID: string,
+  label: Label
+) => async (dispatch): Promise<void> => {
+  try {
+    await api.postDocumentsTemplatesLabel({
+      templateID,
+      data: {labelID: label.id},
+    })
+    const resp = await api.getDocumentsTemplate({
+      templateID,
+    })
+    if (resp.status !== 200) {
+      throw new Error('There was an error retrieving the specific template')
+    }
+    dispatch(setTemplateSummary(templateID, templateToSummary(resp.data)))
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.addTemplateLabelFailed()))
   }
 }
 
-export const removeTemplateLabelsAsync = (
+export const removeTemplateLabelAsync = (
   templateID: string,
-  labels: Label[]
+  label: Label
 ) => async (dispatch): Promise<void> => {
   try {
-    await client.templates.removeLabels(templateID, labels.map(l => l.id))
-    const template = await api.getDocumentsTemplate({
+    await api.deleteDocumentsTemplatesLabel({
+      templateID,
+      labelID: label.id,
+    })
+    const resp = await api.getDocumentsTemplate({
       templateID,
     })
-
-    dispatch(setTemplateSummary(templateID, templateToSummary(template)))
+    if (resp.status !== 200) {
+      throw new Error('There was an error retrieving the specific template')
+    }
+    dispatch(setTemplateSummary(templateID, templateToSummary(resp.data)))
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.removeTemplateLabelFailed()))

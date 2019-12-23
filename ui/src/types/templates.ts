@@ -1,10 +1,10 @@
 import {
   IVariable as Variable,
   IDashboard,
-  DocumentListEntry,
   Document,
   DocumentMeta,
 } from '@influxdata/influx'
+import {DocumentListEntry} from 'src/client'
 import {Label as ILabel} from 'src/types'
 import {View, Cell} from './index'
 

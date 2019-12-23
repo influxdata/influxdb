@@ -17,7 +17,7 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import LastRunTaskStatus from 'src/shared/components/lastRunTaskStatus/LastRunTaskStatus'
 
 // Actions
-import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions'
+import {addTaskLabelAsync, removeTaskLabelAsync} from 'src/tasks/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Selectors
@@ -46,8 +46,8 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onAddTaskLabels: typeof addTaskLabelsAsync
-  onRemoveTaskLabels: typeof removeTaskLabelsAsync
+  onAddTaskLabel: typeof addTaskLabelAsync
+  onRemoveTaskLabel: typeof removeTaskLabelAsync
   onCreateLabel: typeof createLabelAsync
 }
 
@@ -181,15 +181,15 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleAddLabel = (label: Label) => {
-    const {task, onAddTaskLabels} = this.props
+    const {task, onAddTaskLabel} = this.props
 
-    onAddTaskLabels(task.id, [label])
+    onAddTaskLabel(task.id, label)
   }
 
   private handleRemoveLabel = (label: Label) => {
-    const {task, onRemoveTaskLabels} = this.props
+    const {task, onRemoveTaskLabel} = this.props
 
-    onRemoveTaskLabels(task.id, [label])
+    onRemoveTaskLabel(task.id, label)
   }
 
   private handleCreateLabel = (label: Label) => {
@@ -237,8 +237,8 @@ const mstp = ({labels}: AppState): StateProps => {
 
 const mdtp: DispatchProps = {
   onCreateLabel: createLabelAsync,
-  onAddTaskLabels: addTaskLabelsAsync,
-  onRemoveTaskLabels: removeTaskLabelsAsync,
+  onAddTaskLabel: addTaskLabelAsync,
+  onRemoveTaskLabel: removeTaskLabelAsync,
 }
 
 export default connect<StateProps, DispatchProps, PassedProps>(
