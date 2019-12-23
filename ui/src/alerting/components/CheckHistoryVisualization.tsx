@@ -51,7 +51,8 @@ const CheckHistoryVisualization: FC<Props> = ({check, timeZone}) => {
             fallbackNote={null}
           >
             <CheckPlot
-              check={check}
+              checkType={check.type}
+              thresholds={check.type === 'threshold' ? check.thresholds : []}
               table={get(giraffeResult, 'table')}
               fluxGroupKeyUnion={get(giraffeResult, 'fluxGroupKeyUnion')}
               loading={loading}
