@@ -26,6 +26,7 @@ import {
   Action as AlertBuilderAction,
   setAlertBuilderCheck,
   setAlertBuilderCheckStatus,
+  resetAlertBuilder,
 } from 'src/alerting/actions/alertBuilder'
 import {checkChecksLimits} from 'src/cloud/actions/limits'
 
@@ -147,83 +148,92 @@ export const saveCheckFromTimeMachine = () => async (
   dispatch: Dispatch<any>,
   getState: GetState
 ) => {
-  const state = getState()
-  const {
-    orgs: {
-      org: {id: orgID},
-    },
-    alertBuilder: {
-      type,
-      id,
-      status,
-      name,
-      every,
-      offset,
-      tags,
-      statusMessageTemplate,
-      timeSince,
-      reportZero,
-      staleTime,
-      level,
-      thresholds,
-    },
-  } = state
-
-  const {draftQueries} = getActiveTimeMachine(state)
-
-  let check = {
-    type,
-    status,
-    name,
-    query: draftQueries[0],
-    orgID,
-  } as Check
-
-  if (check.type === 'threshold' || check.type === 'deadman') {
-    check = {...check, every, offset, tags, statusMessageTemplate}
-    if (check.type === 'threshold') {
-      check = {
-        ...check,
-        thresholds,
-      } as ThresholdCheck
-    } else if (check.type === 'deadman') {
-      check = {
-        ...check,
+  try {
+    const state = getState()
+    const {
+      orgs: {
+        org: {id: orgID},
+      },
+      alertBuilder: {
+        type,
+        id,
+        status,
+        name,
+        every,
+        offset,
+        tags,
+        statusMessageTemplate,
         timeSince,
         reportZero,
         staleTime,
         level,
-      } as DeadmanCheck
-    }
-  }
+        thresholds,
+      },
+    } = state
 
-  if (id) {
-    // update Check
-    // todo: refactor after https://github.com/influxdata/influxdb/issues/16317
-    const getCheckResponse = await api.getCheck({checkID: id})
-    if (getCheckResponse.status !== 200) {
-      throw new Error(getCheckResponse.data.message)
+    const {draftQueries} = getActiveTimeMachine(state)
+
+    let check = {
+      type,
+      status,
+      name,
+      query: draftQueries[0],
+      orgID,
+    } as Check
+
+    if (check.type === 'threshold' || check.type === 'deadman') {
+      check = {...check, every, offset, tags, statusMessageTemplate}
+      if (check.type === 'threshold') {
+        check = {
+          ...check,
+          thresholds,
+        } as ThresholdCheck
+      } else if (check.type === 'deadman') {
+        check = {
+          ...check,
+          timeSince,
+          reportZero,
+          staleTime,
+          level,
+        } as DeadmanCheck
+      }
     }
-    const resp = await api.putCheck({
-      checkID: id,
-      data: {...check, ownerID: getCheckResponse.data.ownerID},
-    })
-    if (resp.status === 200) {
+
+    if (id) {
+      // update Check
+      // todo: refactor after https://github.com/influxdata/influxdb/issues/16317
+      const getCheckResponse = await api.getCheck({checkID: id})
+      if (getCheckResponse.status !== 200) {
+        throw new Error(getCheckResponse.data.message)
+      }
+      const resp = await api.putCheck({
+        checkID: id,
+        data: {...check, ownerID: getCheckResponse.data.ownerID},
+      })
+      if (resp.status === 200) {
+        dispatch(setCheck(resp.data))
+        dispatch(checkChecksLimits())
+      } else {
+        throw new Error(resp.data.message)
+      }
+      return
+    }
+
+    // create check
+    const resp = await api.postCheck({data: check})
+    if (resp.status === 201) {
       dispatch(setCheck(resp.data))
       dispatch(checkChecksLimits())
     } else {
       throw new Error(resp.data.message)
     }
-    return
-  }
 
-  // create check
-  const resp = await api.postCheck({data: check})
-  if (resp.status === 201) {
-    dispatch(setCheck(resp.data))
-    dispatch(checkChecksLimits())
-  } else {
-    throw new Error(resp.data.message)
+    dispatch(push(`/orgs/${orgID}/alerting`))
+
+    dispatch(resetAlertBuilder())
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(copy.createCheckFailed(e.message)))
   }
 }
 

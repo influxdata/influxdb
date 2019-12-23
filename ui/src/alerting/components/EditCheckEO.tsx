@@ -17,8 +17,6 @@ import {
   getCheckForTimeMachine,
 } from 'src/alerting/actions/checks'
 import {executeQueries} from 'src/timeMachine/actions/queries'
-import {notify} from 'src/shared/actions/notifications'
-import {updateCheckFailed} from 'src/shared/copy/notifications'
 import {resetAlertBuilder, updateName} from 'src/alerting/actions/alertBuilder'
 
 // Types
@@ -34,7 +32,6 @@ interface DispatchProps {
   onSaveCheckFromTimeMachine: typeof saveCheckFromTimeMachine
   onGetCheckForTimeMachine: typeof getCheckForTimeMachine
   onExecuteQueries: typeof executeQueries
-  onNotify: typeof notify
   onResetAlertBuilder: typeof resetAlertBuilder
   onUpdateAlertBuilderName: typeof updateName
 }
@@ -56,7 +53,6 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onSaveCheckFromTimeMachine,
   onExecuteQueries,
   onGetCheckForTimeMachine,
-  onNotify,
   activeTimeMachineID,
   checkStatus,
   router,
@@ -76,16 +72,6 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   const handleClose = () => {
     router.push(`/orgs/${orgID}/alerting`)
     onResetAlertBuilder()
-  }
-
-  const handleSave = async () => {
-    try {
-      await onSaveCheckFromTimeMachine()
-      handleClose()
-    } catch (e) {
-      console.error(e)
-      onNotify(updateCheckFailed(e.message))
-    }
   }
 
   let loadingStatus = RemoteDataState.Loading
@@ -112,7 +98,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
             name={checkName}
             onSetName={onUpdateAlertBuilderName}
             onCancel={handleClose}
-            onSave={handleSave}
+            onSave={onSaveCheckFromTimeMachine}
           />
           <div className="veo-contents">
             <TimeMachine />
@@ -147,7 +133,6 @@ const mdtp: DispatchProps = {
   onSaveCheckFromTimeMachine: saveCheckFromTimeMachine,
   onGetCheckForTimeMachine: getCheckForTimeMachine,
   onExecuteQueries: executeQueries,
-  onNotify: notify,
   onResetAlertBuilder: resetAlertBuilder,
   onUpdateAlertBuilderName: updateName,
 }

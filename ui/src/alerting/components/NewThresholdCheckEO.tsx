@@ -11,8 +11,6 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 // Actions
 import {saveCheckFromTimeMachine} from 'src/alerting/actions/checks'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
-import {createCheckFailed} from 'src/shared/copy/notifications'
-import {notify} from 'src/shared/actions/notifications'
 import {
   resetAlertBuilder,
   updateName,
@@ -28,7 +26,6 @@ import {AppState, RemoteDataState, CheckViewProperties} from 'src/types'
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
   saveCheckFromTimeMachine: typeof saveCheckFromTimeMachine
-  notify: typeof notify
   onResetAlertBuilder: typeof resetAlertBuilder
   onUpdateAlertBuilderName: typeof updateName
   onInitializeAlertBuilder: typeof initializeAlertBuilder
@@ -48,7 +45,6 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   checkName,
   onSetActiveTimeMachine,
   saveCheckFromTimeMachine,
-  notify,
   onResetAlertBuilder,
   onUpdateAlertBuilderName,
   onInitializeAlertBuilder,
@@ -66,16 +62,6 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
     onResetAlertBuilder()
   }
 
-  const handleSave = async () => {
-    try {
-      await saveCheckFromTimeMachine()
-      handleClose()
-    } catch (e) {
-      console.error(e)
-      notify(createCheckFailed(e.message))
-    }
-  }
-
   return (
     <Overlay visible={true} className="veo-overlay">
       <div className="veo">
@@ -88,7 +74,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
             name={checkName}
             onSetName={onUpdateAlertBuilderName}
             onCancel={handleClose}
-            onSave={handleSave}
+            onSave={saveCheckFromTimeMachine}
           />
           <div className="veo-contents">
             <TimeMachine />
@@ -106,7 +92,6 @@ const mstp = ({alertBuilder: {name, checkStatus}}: AppState): StateProps => {
 const mdtp: DispatchProps = {
   onSetActiveTimeMachine: setActiveTimeMachine,
   saveCheckFromTimeMachine: saveCheckFromTimeMachine,
-  notify: notify,
   onResetAlertBuilder: resetAlertBuilder,
   onUpdateAlertBuilderName: updateName,
   onInitializeAlertBuilder: initializeAlertBuilder,
