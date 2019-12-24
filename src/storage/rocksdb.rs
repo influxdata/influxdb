@@ -250,8 +250,19 @@ impl Database {
         }
     }
 
-    fn evaluate_logical(&self, bucket: &Bucket, left: &Node, right: &Node, op: Logical, _range: &Range) -> Result<Treemap, StorageError> {
-        Err(StorageError{description:"not implemented".to_string()})
+    fn evaluate_logical(&self, bucket: &Bucket, left: &Node, right: &Node, op: Logical, range: &Range) -> Result<Treemap, StorageError> {
+        let mut left_result = self.evaluate_node(bucket, left, range)?;
+        let right_result = self.evaluate_node(bucket, right, range)?;
+
+        match op {
+            Logical::And => {
+                left_result.and_inplace(&right_result);
+                Ok(left_result)
+            },
+            Logical::Or => {
+                Err(StorageError{description: "or not implemented".to_string()})
+            }
+        }
     }
 
     fn evaluate_comparison(&self, bucket: &Bucket, left: &Node, right: &Node, op: Comparison, range: &Range) -> Result<Treemap, StorageError> {
@@ -912,8 +923,19 @@ mod tests {
         ]);
 
         // get series with host = a
+        let pred = parse_predicate("host = \"a\"").unwrap();
+        let series = db.get_series_filters(&bucket, Some(&pred), &range).unwrap();
+        assert_eq!(series, vec![
+            SeriesFilter{id: 2, value_predicate: None},
+            SeriesFilter{id: 3, value_predicate: None},
+        ]);
 
         // get series with measurement = cpu and host = b
+        let pred = parse_predicate("_m = \"cpu\" and host = \"b\"").unwrap();
+        let series = db.get_series_filters(&bucket, Some(&pred), &range).unwrap();
+        assert_eq!(series, vec![
+            SeriesFilter{id: 1, value_predicate: None},
+        ]);
     }
 
     // Test helpers
