@@ -1,5 +1,6 @@
-use crate::line_parser::Point;
+use crate::line_parser::{Point, Pair};
 use crate::delorean::{Bucket, IndexLevel, Predicate, Node, node};
+use crate::delorean::node::{Value, Comparison, Logical};
 
 use bytes::BufMut;
 use std::{error, fmt};
@@ -13,6 +14,8 @@ use rocksdb::MemtableFactory::{Vector, HashLinkList};
 use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
 use prost::Message;
 use futures::AsyncWriteExt;
+use croaring::Treemap;
+use croaring::treemap::NativeSerializer;
 
 /// Database wraps a RocksDB database for storing the raw series data, an inverted index of the
 /// metadata and the metadata about what buckets exist in the system.
@@ -201,8 +204,95 @@ impl Database {
     }
 
     // TODO: create test with different data and predicates loaded to ensure it hits the index properly
-    pub fn get_series_filters(&self, bucket: &Bucket, _predicate: Option<&Predicate>, range: &Range) -> Vec<SeriesFilter> {
-        vec![]
+    // TODO: refactor this to return an iterator so queries with many series don't materialize all at once
+    // TODO: wire up the time range part of this
+    /// get_series_filters returns a collection of series and associated value filters that can be used
+    /// to iterate over raw tsm data. The predicate passed in is the same as that used in the Go based
+    /// storage layer.
+    pub fn get_series_filters(&self, bucket: &Bucket, predicate: Option<&Predicate>, range: &Range) -> Result<Vec<SeriesFilter>, StorageError> {
+        if let Some(pred) = predicate {
+            if let Some(root) = &pred.root {
+                let mut map = self.evaluate_node(bucket, &root, range)?;
+                let mut filters = Vec::with_capacity(map.cardinality() as usize);
+
+                for id in map.iter() {
+                    filters.push(SeriesFilter{id, value_predicate: None});
+                }
+
+                return Ok(filters);
+            }
+        }
+
+        // TODO: return list of all series
+        Err(StorageError{description: "get for all series ids not wired up yet".to_string()})
+    }
+
+    fn evaluate_node(&self, bucket: &Bucket, n: &Node, range: &Range) -> Result<Treemap, StorageError> {
+        if n.children.len() != 2 {
+            return Err(StorageError{description: format!("expected only two children of node but found {}", n.children.len())})
+        }
+
+        match &n.value {
+            Some(node_value) => {
+                match node_value {
+                    Value::Logical(l) => {
+                        let l = Logical::from_i32(*l).unwrap();
+                        self.evaluate_logical(bucket, &n.children[0], &n.children[1], l, range)
+                    },
+                    Value::Comparison(c) => {
+                        let c = Comparison::from_i32(*c).unwrap();
+                        self.evaluate_comparison(bucket, &n.children[0], &n.children[1], c, range)
+                    },
+                    val => Err(StorageError{description: format!("evaluate_node called on wrong type {:?}", val)}),
+                }
+            },
+            None => Err(StorageError{description: "emtpy node value".to_string()}),
+        }
+    }
+
+    fn evaluate_logical(&self, bucket: &Bucket, left: &Node, right: &Node, op: Logical, _range: &Range) -> Result<Treemap, StorageError> {
+        Err(StorageError{description:"not implemented".to_string()})
+    }
+
+    fn evaluate_comparison(&self, bucket: &Bucket, left: &Node, right: &Node, op: Comparison, range: &Range) -> Result<Treemap, StorageError> {
+        let left = match &left.value {
+            Some(Value::TagRefValue(s)) => s,
+            _ => return Err(StorageError{description: "expected left operand to be a TagRefValue".to_string()}),
+        };
+
+        let right = match &right.value {
+            Some(Value::StringValue(s)) => s,
+            _ => return Err(StorageError{description: "unable to run comparison against anything other than a string".to_string()}),
+        };
+
+        match op {
+            Comparison::Equal => {
+                return self.get_posting_list_for_tag_key_value(bucket, &left, &right, range);
+            },
+            comp => return Err(StorageError{description: format!("unable to handle comparison {:?}", comp)}),
+        }
+    }
+
+    fn get_posting_list_for_tag_key_value(&self, bucket: &Bucket, key: &str, value: &str, _range: &Range) -> Result<Treemap, StorageError> {
+        match self.index_cf_handle(bucket) {
+            Some(cf) => {
+                match self.db.get_cf(cf, index_key_value_posting_list(bucket.id, key, value)).unwrap() {
+                    Some(val) => {
+                        let map = Treemap::deserialize(&val).expect("unexpected error deserializing tree map");
+                        Ok(map)
+                    },
+                    None => Ok(Treemap::create()),
+                }
+            },
+            None => Err(StorageError{description: "unable to find index".to_string()}),
+        }
+    }
+
+    fn index_cf_handle(&self, bucket: &Bucket) -> Option<&ColumnFamily> {
+        let index_level = bucket.index_levels.get(0).unwrap(); // TODO: find the right index based on range
+        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+        let cf_name = index_cf_name(bucket.id, index_level.duration_seconds, now);
+        self.db.cf_handle(&cf_name)
     }
 
     // TODO: handle predicate
@@ -307,6 +397,9 @@ impl Database {
             },
         };
 
+        // Keep an in memory map for updating multiple index entries at a time
+        let mut index_map: HashMap<Vec<u8>, Treemap> = HashMap::new();
+
         // now loop through the series and
         for series in series {
             // don't bother with series in the collection that already have IDs
@@ -320,6 +413,7 @@ impl Database {
             }
 
             series.id = Some(*next_id);
+            let id = *next_id;
             let mut series_id = Vec::with_capacity(8);
             series_id.write_u64::<BigEndian>(*next_id).unwrap();
             batch.put_cf(index_cf, index_series_key_id(&series.point.series), series_id);
@@ -328,6 +422,7 @@ impl Database {
             // insert the index entries
             // TODO: do the error handling bits, but how to handle? Should all series be validated before
             //       and fail the whole write if any one is bad, or insert the ones we can and ignore and log the bad?
+
             let pairs = series.point.index_pairs().unwrap();
             for pair in pairs {
                 // insert the tag key index
@@ -335,7 +430,51 @@ impl Database {
 
                 // insert the tag value index
                 batch.put_cf(index_cf, index_tag_key_value(bucket.id, &pair.key, &pair.value), vec![0 as u8]);
+
+                // update the key to id bitmap
+                let index_key_posting_list_key = index_key_posting_list(bucket.id, &pair.key).to_vec();
+
+                // put it in the temporary in memory map for a single write update later
+                match index_map.get_mut(&index_key_posting_list_key) {
+                    Some(tree) => {
+                        tree.add(id);
+                    },
+                    None => {
+                        let mut map = match self.db.get_cf(index_cf, &index_key_posting_list_key).unwrap() {
+                            Some(b) => {
+                                Treemap::deserialize(&b).expect("unexpected error deserializing posting list")
+                            },
+                            None => Treemap::create(),
+                        };
+                        map.add(id);
+                        index_map.insert(index_key_posting_list_key.clone(), map);
+                    }
+                };
+
+                // update the key/value to id bitmap
+                let index_key_value_posting_list_key = index_key_value_posting_list(bucket.id, &pair.key, &pair.value).to_vec();
+
+                match index_map.get_mut(&index_key_value_posting_list_key) {
+                    Some(tree) => {
+                        tree.add(id);
+                    },
+                    None => {
+                        let mut map = match self.db.get_cf(index_cf, &index_key_value_posting_list_key).unwrap() {
+                            Some(b) => {
+                                Treemap::deserialize(&b).expect("unexpected error deserializing posting list")
+                            },
+                            None => Treemap::create(),
+                        };
+                        map.add(id);
+                        index_map.insert(index_key_value_posting_list_key.clone(), map);
+                    }
+                }
             }
+        }
+
+        // do the index writes from the in temporary in memory map
+        for (k, v) in index_map.iter() {
+            batch.put_cf(index_cf, k, v.serialize().unwrap());
         }
 
         // save the next series id
@@ -476,6 +615,24 @@ fn index_tag_key_value_prefix(bucket_id: u32, key: &str) -> Vec<u8> {
     v
 }
 
+fn index_key_posting_list(bucket_id: u32, key: &str) -> Vec<u8> {
+    let mut v = Vec::with_capacity(key.len() + 6);
+    v.push(IndexEntryType::KeyPostingList as u8);
+    v.write_u32::<BigEndian>(bucket_id).unwrap();
+    v.append(&mut key.as_bytes().to_vec());
+    v
+}
+
+fn index_key_value_posting_list(bucket_id: u32, key: &str, value: &str) -> Vec<u8> {
+    let mut v = Vec::with_capacity(key.len() + value.len() + 6);
+    v.push(IndexEntryType::KeyValuePostingList as u8);
+    v.write_u32::<BigEndian>(bucket_id).unwrap();
+    v.append(&mut key.as_bytes().to_vec());
+    v.push(0 as u8);
+    v.append(&mut value.as_bytes().to_vec());
+    v
+}
+
 fn index_entry_type_from_byte(b: u8) -> IndexEntryType {
     unsafe { ::std::mem::transmute(b) }
 }
@@ -553,6 +710,7 @@ impl Bucket {
 
 host = a AND (region = west OR _value = 23)
 */
+#[derive(Debug, PartialEq)]
 pub struct SeriesFilter {
     id: u64,
     value_predicate: Option<Predicate>,
@@ -590,6 +748,8 @@ mod tests {
     use serde_json::error::Category::Data;
 
     use rocksdb;
+    use crate::storage::predicate::parse_predicate;
+    use crate::storage::rocksdb::IndexEntryType::SeriesKeyToID;
 
     #[test]
     fn create_and_get_buckets() {
@@ -743,16 +903,13 @@ mod tests {
         // get all series
 
         // get series with measurement = mem
-//        let series = db.get_series_filters(&bucket, None, &range);
-//        let predicate = Predicate{
-//            root: Some(Node{
-//                value: Some(node::Comparison::Equal),
-//                children: vec![
-//                    Node{value: Some(node::Tag)}
-//                ],
-//            }),
-//        };
-//        let found = db.get_series_filters(&bucket, Some(predicate), &range);
+        let pred = parse_predicate("_m = \"cpu\"").unwrap();
+        let series = db.get_series_filters(&bucket, Some(&pred), &range).unwrap();
+        assert_eq!(series, vec![
+            SeriesFilter{id: 1, value_predicate: None},
+            SeriesFilter{id: 2, value_predicate: None},
+            SeriesFilter{id: 3, value_predicate: None},
+        ]);
 
         // get series with host = a
 
