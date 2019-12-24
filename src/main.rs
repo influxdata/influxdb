@@ -33,7 +33,7 @@ async fn write(mut payload: web::Payload, s: web::Data<Arc<Server>>) -> Result<H
     let points = line_parser::parse(body);
 
     // TODO: pull the org and bucket names from the query parameters
-    if let Err(err) = s.db.write_points("", "", points) {
+    if let Err(err) = s.db.write_points(1, "foo", points) {
         return Ok(HttpResponse::InternalServerError().json(serde_json::json!({"error": format!("{}", err)})))
     }
 
