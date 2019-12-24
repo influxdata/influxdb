@@ -255,14 +255,11 @@ impl Database {
         let right_result = self.evaluate_node(bucket, right, range)?;
 
         match op {
-            Logical::And => {
-                left_result.and_inplace(&right_result);
-                Ok(left_result)
-            },
-            Logical::Or => {
-                Err(StorageError{description: "or not implemented".to_string()})
-            }
-        }
+            Logical::And => left_result.and_inplace(&right_result),
+            Logical::Or => left_result.or_inplace(&right_result),
+        };
+
+        Ok(left_result)
     }
 
     fn evaluate_comparison(&self, bucket: &Bucket, left: &Node, right: &Node, op: Comparison, range: &Range) -> Result<Treemap, StorageError> {
@@ -761,6 +758,7 @@ mod tests {
     use rocksdb;
     use crate::storage::predicate::parse_predicate;
     use crate::storage::rocksdb::IndexEntryType::SeriesKeyToID;
+    use crate::line_parser::parse;
 
     #[test]
     fn create_and_get_buckets() {
@@ -935,6 +933,14 @@ mod tests {
         let series = db.get_series_filters(&bucket, Some(&pred), &range).unwrap();
         assert_eq!(series, vec![
             SeriesFilter{id: 1, value_predicate: None},
+        ]);
+
+        let pred = parse_predicate("host = \"a\" OR _m = \"mem\"").unwrap();
+        let series = db.get_series_filters(&bucket, Some(&pred), &range).unwrap();
+        assert_eq!(series, vec![
+            SeriesFilter{id: 2, value_predicate: None},
+            SeriesFilter{id: 3, value_predicate: None},
+            SeriesFilter{id: 4, value_predicate: None},
         ]);
     }
 
