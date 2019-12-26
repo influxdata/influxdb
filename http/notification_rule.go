@@ -150,8 +150,8 @@ type notificationRuleResponse struct {
 	Labels          []influxdb.Label      `json:"labels"`
 	Links           notificationRuleLinks `json:"links"`
 	Status          string                `json:"status"`
-	LatestCompleted string                `json:"latestCompleted,omitempty"`
-	LatestScheduled string                `json:"latestScheduled,omitempty"`
+	LatestCompleted time.Time             `json:"latestCompleted,omitempty"`
+	LatestScheduled time.Time             `json:"latestScheduled,omitempty"`
 	LastRunStatus   string                `json:"LastRunStatus,omitempty"`
 	LastRunError    string                `json:"LastRunError,omitempty"`
 }
@@ -166,8 +166,8 @@ func (resp notificationRuleResponse) MarshalJSON() ([]byte, error) {
 		Labels          []influxdb.Label      `json:"labels"`
 		Links           notificationRuleLinks `json:"links"`
 		Status          string                `json:"status"`
-		LatestCompleted string                `json:"latestCompleted,omitempty"`
-		LatestScheduled string                `json:"latestScheduled,omitempty"`
+		LatestCompleted time.Time             `json:"latestCompleted,omitempty"`
+		LatestScheduled time.Time             `json:"latestScheduled,omitempty"`
 		LastRunStatus   string                `json:"lastRunStatus,omitempty"`
 		LastRunError    string                `json:"lastRunError,omitempty"`
 	}{
@@ -210,8 +210,8 @@ func (h *NotificationRuleHandler) newNotificationRuleResponse(ctx context.Contex
 		},
 		Labels:          []influxdb.Label{},
 		Status:          t.Status,
-		LatestCompleted: t.LatestCompleted.Format(time.RFC3339),
-		LatestScheduled: t.LatestScheduled.Format(time.RFC3339),
+		LatestCompleted: t.LatestCompleted,
+		LatestScheduled: t.LatestScheduled,
 		LastRunStatus:   t.LastRunStatus,
 		LastRunError:    t.LastRunError,
 	}

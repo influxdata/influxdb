@@ -142,8 +142,8 @@ type checkResponse struct {
 	Status          string           `json:"status"`
 	Labels          []influxdb.Label `json:"labels"`
 	Links           checkLinks       `json:"links"`
-	LatestCompleted string           `json:"latestCompleted,omitempty"`
-	LatestScheduled string           `json:"latestScheduled,omitempty"`
+	LatestCompleted time.Time        `json:"latestCompleted,omitempty"`
+	LatestScheduled time.Time        `json:"latestScheduled,omitempty"`
 	LastRunStatus   string           `json:"LastRunStatus,omitempty"`
 	LastRunError    string           `json:"LastRunError,omitempty"`
 }
@@ -167,8 +167,8 @@ func (resp checkResponse) MarshalJSON() ([]byte, error) {
 		Labels          []influxdb.Label `json:"labels"`
 		Links           checkLinks       `json:"links"`
 		Status          string           `json:"status"`
-		LatestCompleted string           `json:"latestCompleted,omitempty"`
-		LatestScheduled string           `json:"latestScheduled,omitempty"`
+		LatestCompleted time.Time        `json:"latestCompleted,omitempty"`
+		LatestScheduled time.Time        `json:"latestScheduled,omitempty"`
 		LastRunStatus   string           `json:"lastRunStatus,omitempty"`
 		LastRunError    string           `json:"lastRunError,omitempty"`
 	}{
@@ -212,8 +212,8 @@ func (h *CheckHandler) newCheckResponse(ctx context.Context, chk influxdb.Check,
 			Query:   fmt.Sprintf("/api/v2/checks/%s/query", chk.GetID()),
 		},
 		Labels:          []influxdb.Label{},
-		LatestCompleted: task.LatestCompleted.Format(time.RFC3339),
-		LatestScheduled: task.LatestScheduled.Format(time.RFC3339),
+		LatestCompleted: task.LatestCompleted,
+		LatestScheduled: task.LatestScheduled,
 		LastRunStatus:   task.LastRunStatus,
 		LastRunError:    task.LastRunError,
 	}

@@ -8,7 +8,7 @@ import RunLogRow from 'src/tasks/components/RunLogRow'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Types
-import {LogEvent} from '@influxdata/influx'
+import {LogEvent} from 'src/client'
 
 interface Props {
   onDismissOverlay: () => void

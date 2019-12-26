@@ -3,7 +3,6 @@ import {push, goBack} from 'react-router-redux'
 import _ from 'lodash'
 
 // APIs
-import {client} from 'src/utils/api'
 import {notify} from 'src/shared/actions/notifications'
 import * as api from 'src/client'
 import {
@@ -36,8 +35,7 @@ import * as copy from 'src/shared/copy/notifications'
 import {AppState, Task, TaskTemplate} from 'src/types'
 import {RemoteDataState} from '@influxdata/clockface'
 import {Run} from 'src/tasks/components/TaskRunsPage'
-import {LogEvent} from '@influxdata/influx'
-import {Label} from 'src/client'
+import {Label, LogEvent} from 'src/client'
 // Utils
 import {getErrorMessage} from 'src/utils/api'
 import {insertPreambleInScript} from 'src/shared/utils/insertPreambleInScript'
@@ -325,7 +323,7 @@ export const updateTaskName = (task: Task) => async dispatch => {
 
 export const deleteTask = (task: Task) => async dispatch => {
   try {
-    await client.tasks.delete(task.id)
+    await api.deleteTask({taskID: task.id})
 
     dispatch(getTasks())
     dispatch(notify(taskDeleteSuccess()))
@@ -338,7 +336,17 @@ export const deleteTask = (task: Task) => async dispatch => {
 
 export const cloneTask = (task: Task, _) => async dispatch => {
   try {
-    await client.tasks.clone(task.id)
+    const resp = await api.getTask({taskID: task.id})
+
+    if (resp.status !== 200 || resp.data.orgID === undefined) {
+      throw new Error('An error occurred cloning the task')
+    }
+
+    const newTask = await api.postTask({data: resp.data})
+
+    if (newTask.status !== 201) {
+      throw new Error('An error occurred cloning over the task data')
+    }
 
     dispatch(notify(taskCloneSuccess(task.name)))
     dispatch(getTasks())
@@ -443,7 +451,7 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
       updatedTask.every = null
     }
 
-    await client.tasks.update(task.id, updatedTask)
+    await api.patchTask({taskID: task.id, data: updatedTask})
 
     dispatch(goToTasks())
     dispatch(setCurrentTask(null))
@@ -465,7 +473,7 @@ export const saveNewScript = (script: string, preamble: string) => async (
     const {
       orgs: {org},
     } = getState()
-    await client.tasks.createByOrgID(org.id, fluxScript, null)
+    await api.postTask({data: {orgID: org.id, flux: fluxScript}})
 
     dispatch(setNewScript(''))
     dispatch(clearTask())
@@ -488,10 +496,15 @@ export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
   try {
     dispatch(setRuns([], RemoteDataState.Loading))
 
-    const [runs] = await Promise.all([
-      client.tasks.getRunsByTaskID(taskID),
-      dispatch(selectTaskByID(taskID)),
-    ])
+    const resp = await api.getTasksRuns({taskID})
+
+    if (resp.status !== 200) {
+      throw new Error('An error occurred getting the runs for this task')
+    }
+
+    let [runs] = await Promise.all([dispatch(selectTaskByID(taskID))])
+
+    runs = runs.concat(resp.data)
 
     const runsWithDuration = runs.map(run => {
       const finished = new Date(run.finishedAt)
@@ -514,7 +527,7 @@ export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
 
 export const runTask = (taskID: string) => async dispatch => {
   try {
-    await client.tasks.startRunByTaskID(taskID)
+    await api.postTasksRun({taskID})
     dispatch(notify(taskRunSuccess()))
   } catch (error) {
     const message = getErrorMessage(error)
@@ -527,8 +540,13 @@ export const getLogs = (taskID: string, runID: string) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const logs = await client.tasks.getLogEventsByRunID(taskID, runID)
-    dispatch(setLogs(logs))
+    const resp = await api.getTasksRunsLogs({taskID, runID})
+    if (resp.status !== 200) {
+      throw new Error(
+        'An error occurred while retrieving the log for the task runs'
+      )
+    }
+    dispatch(setLogs(resp.data.events))
   } catch (error) {
     console.error(error)
     dispatch(setLogs([]))

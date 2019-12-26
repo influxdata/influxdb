@@ -1,5 +1,4 @@
 // API
-import {client} from 'src/utils/api'
 import * as api from 'src/client'
 
 // Types
@@ -154,7 +153,7 @@ export const deleteTelegraf = (id: string, name: string) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    await client.telegrafConfigs.delete(id)
+    await api.deleteTelegraf({telegrafID: id})
 
     dispatch(removeTelegraf(id))
   } catch (e) {
@@ -168,7 +167,10 @@ export const addTelelgrafLabelAsync = (
   label: Label
 ): ThunkAction<Promise<void>> => async (dispatch): Promise<void> => {
   try {
-    await api.postTelegrafsLabel({telegrafID, data: {labelID: label as string}})
+    await api.postTelegrafsLabel({
+      telegrafID,
+      data: {labelID: label.id},
+    })
     const resp = await api.getTelegraf({telegrafID})
 
     if (resp.status !== 200) {
@@ -189,7 +191,7 @@ export const removeTelelgrafLabelAsync = (
   label: Label
 ): ThunkAction<Promise<void>> => async (dispatch): Promise<void> => {
   try {
-    await api.deleteTelegrafsLabel({telegrafID, labelID: label as string})
+    await api.deleteTelegrafsLabel({telegrafID, labelID: label.id})
     const resp = await api.getTelegraf({telegrafID})
 
     if (resp.status !== 200) {
@@ -210,8 +212,14 @@ export const getTelegrafConfigToml = (telegrafConfigID: string) => async (
 ): Promise<void> => {
   try {
     dispatch(setCurrentConfig(RemoteDataState.Loading))
-    const config = await client.telegrafConfigs.getTOML(telegrafConfigID)
-    dispatch(setCurrentConfig(RemoteDataState.Done, config))
+    const resp = await api.getTelegraf({
+      telegrafID: telegrafConfigID,
+      headers: {Accept: 'application/toml'},
+    })
+    if (resp.status !== 200) {
+      throw new Error("Couldn't get the telegraf config for this organization")
+    }
+    dispatch(setCurrentConfig(RemoteDataState.Done, resp.data as string))
   } catch (error) {
     dispatch(setCurrentConfig(RemoteDataState.Error))
     dispatch(notify(getTelegrafConfigFailed()))

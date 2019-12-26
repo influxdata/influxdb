@@ -1,9 +1,9 @@
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {LogEvent} from '@influxdata/influx'
 
 // Types
 import {Action} from 'src/tasks/actions'
 import {Task} from 'src/types'
+import {LogEvent} from 'src/client'
 import {RemoteDataState} from '@influxdata/clockface'
 import {Run} from 'src/tasks/components/TaskRunsPage'
 

@@ -24,7 +24,6 @@ import {notify} from 'src/shared/actions/notifications'
 import * as copy from 'src/shared/copy/notifications'
 
 // API
-import {client} from 'src/utils/api'
 import {createDashboardFromTemplate} from 'src/dashboards/actions'
 import {createVariableFromTemplate} from 'src/variables/actions'
 import {createTaskFromTemplate} from 'src/tasks/actions'
@@ -133,7 +132,7 @@ export const getTemplates = () => async (dispatch, getState: GetState) => {
       throw new Error("Couldn't get the templates for this org")
     }
 
-    const items = resp.data as TemplateSummary[]
+    const items = resp.data.documents as TemplateSummary[]
 
     dispatch(populateTemplateSummaries(items))
   } catch (e) {
@@ -246,7 +245,7 @@ export const deleteTemplate = (templateID: string) => async (
   dispatch
 ): Promise<void> => {
   try {
-    await client.templates.delete(templateID)
+    await api.deleteDocumentsTemplate({templateID})
     dispatch(removeTemplateSummary(templateID))
     dispatch(notify(copy.deleteTemplateSuccess()))
   } catch (e) {
