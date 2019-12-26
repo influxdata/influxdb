@@ -43,6 +43,21 @@ var deadman1 = &check.Deadman{
 		TaskID:      1,
 		Query: influxdb.DashboardQuery{
 			Text: script,
+			BuilderConfig: influxdb.BuilderConfig{
+				Buckets: []string{},
+				Tags: []struct {
+					Key    string   `json:"key"`
+					Values []string `json:"values"`
+				}{
+					{
+						Key:    "_field",
+						Values: []string{"usage_user"},
+					},
+				},
+				Functions: []struct {
+					Name string `json:"name"`
+				}{},
+			},
 		},
 		Every:                 mustDuration("1m"),
 		StatusMessageTemplate: "msg1",
@@ -73,6 +88,16 @@ var threshold1 = &check.Threshold{
 		Every:                 mustDuration("1m"),
 		Query: influxdb.DashboardQuery{
 			Text: script,
+			BuilderConfig: influxdb.BuilderConfig{
+				Buckets: []string{},
+				Tags: []struct {
+					Key    string   `json:"key"`
+					Values []string `json:"values"`
+				}{},
+				Functions: []struct {
+					Name string `json:"name"`
+				}{},
+			},
 		},
 		Tags: []influxdb.Tag{
 			{Key: "k11", Value: "v11"},
@@ -299,6 +324,7 @@ func CreateCheck(
 							Query: influxdb.DashboardQuery{
 								Text: script,
 								BuilderConfig: influxdb.BuilderConfig{
+									Buckets: []string{},
 									Tags: []struct {
 										Key    string   `json:"key"`
 										Values []string `json:"values"`
@@ -308,6 +334,9 @@ func CreateCheck(
 											Values: []string{"usage_user"},
 										},
 									},
+									Functions: []struct {
+										Name string `json:"name"`
+									}{},
 								},
 							},
 							Every:                 mustDuration("1m"),
@@ -626,6 +655,7 @@ func CreateCheck(
 							Query: influxdb.DashboardQuery{
 								Text: script,
 								BuilderConfig: influxdb.BuilderConfig{
+									Buckets: []string{},
 									Tags: []struct {
 										Key    string   `json:"key"`
 										Values []string `json:"values"`
@@ -635,6 +665,9 @@ func CreateCheck(
 											Values: []string{"usage_user"},
 										},
 									},
+									Functions: []struct {
+										Name string `json:"name"`
+									}{},
 								},
 							},
 							OwnerID:               MustIDBase16(twoID),
@@ -1727,6 +1760,21 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 						Description: "desc changed",
 						Query: influxdb.DashboardQuery{
 							Text: script,
+							BuilderConfig: influxdb.BuilderConfig{
+								Buckets: []string{},
+								Tags: []struct {
+									Key    string   `json:"key"`
+									Values []string `json:"values"`
+								}{
+									{
+										Key:    "_field",
+										Values: []string{"usage_user"},
+									},
+								},
+								Functions: []struct {
+									Name string `json:"name"`
+								}{},
+							},
 						},
 						StatusMessageTemplate: "msg1",
 						Tags: []influxdb.Tag{

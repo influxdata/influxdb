@@ -15,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	tracetesting "github.com/influxdata/influxdb/kit/tracing/testing"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
@@ -27,6 +25,7 @@ import (
 	"github.com/influxdata/influxdb/http/metric"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kit/check"
+	tracetesting "github.com/influxdata/influxdb/kit/tracing/testing"
 	influxmock "github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/mock"

@@ -147,9 +147,9 @@ func TestService_handleGetChecks(t *testing.T) {
 					"aggregateWindow": {
 						"period": ""
 					},
-					"buckets": null,
-					"functions": null,
-					"tags": null
+					"buckets": [],
+					"functions": [],
+					"tags": []
 				},
 				"editMode": "",
 				"name": "",
@@ -188,9 +188,9 @@ func TestService_handleGetChecks(t *testing.T) {
 					"aggregateWindow": {
 						"period": ""
 					},
-					"buckets": null,
-					"functions": null,
-					"tags": null
+					"buckets": [],
+					"functions": [],
+					"tags": []
 				},
 				"editMode": "",
 				"name": "",
@@ -505,9 +505,9 @@ func TestService_handleGetCheck(t *testing.T) {
               "aggregateWindow": {
                 "period": ""
               },
-              "buckets": null,
-              "functions": null,
-              "tags": null
+              "buckets": [],
+              "functions": [],
+              "tags": []
             },
             "editMode": "",
             "name": "",
@@ -683,9 +683,9 @@ func TestService_handlePostCheck(t *testing.T) {
     "aggregateWindow": {
       "period": ""
     },
-    "buckets": null,
-    "functions": null,
-    "tags": null
+    "buckets": [],
+    "functions": [],
+    "tags": []
   },
   "editMode": "",
   "name": "",
@@ -936,9 +936,9 @@ func TestService_handlePatchCheck(t *testing.T) {
 					"aggregateWindow": {
 						"period": ""
 					},
-					"buckets": null,
-					"functions": null,
-					"tags": null
+					"buckets": [],
+					"functions": [],
+					"tags": []
 				},
 				"editMode": "",
 				"name": "",
@@ -1117,9 +1117,9 @@ func TestService_handleUpdateCheck(t *testing.T) {
               "aggregateWindow": {
                 "period": ""
               },
-              "buckets": null,
-              "functions": null,
-              "tags": null
+              "buckets": [],
+              "functions": [],
+              "tags": []
             },
             "editMode": "",
             "name": "",
