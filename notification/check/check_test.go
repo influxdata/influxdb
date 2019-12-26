@@ -168,6 +168,18 @@ func TestJSON(t *testing.T) {
 					Name:    "name1",
 					OrgID:   influxTesting.MustIDBase16(id3),
 					Every:   mustDuration("1h"),
+					Query: influxdb.DashboardQuery{
+						BuilderConfig: influxdb.BuilderConfig{
+							Buckets: []string{},
+							Tags: []struct {
+								Key    string   `json:"key"`
+								Values []string `json:"values"`
+							}{},
+							Functions: []struct {
+								Name string `json:"name"`
+							}{},
+						},
+					},
 					Tags: []influxdb.Tag{
 						{
 							Key:   "k1",
@@ -197,6 +209,18 @@ func TestJSON(t *testing.T) {
 					OwnerID: influxTesting.MustIDBase16(id2),
 					OrgID:   influxTesting.MustIDBase16(id3),
 					Every:   mustDuration("1h"),
+					Query: influxdb.DashboardQuery{
+						BuilderConfig: influxdb.BuilderConfig{
+							Buckets: []string{},
+							Tags: []struct {
+								Key    string   `json:"key"`
+								Values []string `json:"values"`
+							}{},
+							Functions: []struct {
+								Name string `json:"name"`
+							}{},
+						},
+					},
 					Tags: []influxdb.Tag{
 						{
 							Key:   "k1",
@@ -221,16 +245,19 @@ func TestJSON(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		b, err := json.Marshal(c.src)
-		if err != nil {
-			t.Fatalf("%s marshal failed, err: %s", c.name, err.Error())
+		fn := func(t *testing.T) {
+			b, err := json.Marshal(c.src)
+			if err != nil {
+				t.Fatalf("%s marshal failed, err: %s", c.name, err.Error())
+			}
+			got, err := check.UnmarshalJSON(b)
+			if err != nil {
+				t.Fatalf("%s unmarshal failed, err: %s", c.name, err.Error())
+			}
+			if diff := cmp.Diff(got, c.src, cmpopts.IgnoreFields(notification.Duration{}, "BaseNode")); diff != "" {
+				t.Errorf("failed %s, Check are different -got/+want\ndiff %s", c.name, diff)
+			}
 		}
-		got, err := check.UnmarshalJSON(b)
-		if err != nil {
-			t.Fatalf("%s unmarshal failed, err: %s", c.name, err.Error())
-		}
-		if diff := cmp.Diff(got, c.src, cmpopts.IgnoreFields(notification.Duration{}, "BaseNode")); diff != "" {
-			t.Errorf("failed %s, Check are different -got/+want\ndiff %s", c.name, diff)
-		}
+		t.Run(c.name, fn)
 	}
 }
