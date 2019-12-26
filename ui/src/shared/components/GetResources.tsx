@@ -5,12 +5,14 @@ import _ from 'lodash'
 
 // Actions
 import {getLabels} from 'src/labels/actions/n.labels'
+import {getLabels as getLabelsOld} from 'src/labels/actions'
 import {getBuckets} from 'src/buckets/actions'
 import {getTelegrafs} from 'src/telegrafs/actions'
 import {getPlugins} from 'src/dataLoaders/actions/telegrafEditor'
 import {getVariables} from 'src/variables/actions'
 import {getScrapers} from 'src/scrapers/actions'
 import {getDashboardsAsync} from 'src/dashboards/actions'
+import {getDashboards} from 'src/dashboards/actions/n.dashboards'
 import {getTasks} from 'src/tasks/actions'
 import {getAuthorizations} from 'src/authorizations/actions'
 import {getTemplates} from 'src/templates/actions'
@@ -18,7 +20,6 @@ import {getMembers} from 'src/members/actions'
 import {getChecks} from 'src/alerting/actions/checks'
 import {getNotificationRules} from 'src/alerting/actions/notifications/rules'
 import {getEndpoints} from 'src/alerting/actions/notifications/endpoints'
-import {getDashboards} from 'src/dashboards/actions/n.dashboards'
 
 // Types
 import {AppState, RemoteDataState} from 'src/types'
@@ -63,21 +64,22 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  getLabels: typeof getLabels
   getBuckets: typeof getBuckets
+  getLabels: typeof getLabels
+  getLabelsOld: typeof getLabelsOld
   getTelegrafs: typeof getTelegrafs
   getPlugins: typeof getPlugins
   getVariables: typeof getVariables
   getScrapers: typeof getScrapers
   getAuthorizations: typeof getAuthorizations
-  getDashboards: typeof getDashboardsAsync
   getTasks: typeof getTasks
   getTemplates: typeof getTemplates
   getMembers: typeof getMembers
   getChecks: typeof getChecks
   getNotificationRules: typeof getNotificationRules
   getEndpoints: typeof getEndpoints
-  getNDashboards: typeof getDashboards
+  getDashboards: typeof getDashboards
+  getDashboardsOld: typeof getDashboardsAsync
 }
 
 interface PassedProps {
@@ -107,21 +109,25 @@ export enum ResourceType {
 class GetResources extends PureComponent<Props, StateProps> {
   public componentDidMount() {
     const {resources} = this.props
-    const promises = []
-    resources.forEach(resource => {
-      promises.push(this.getResourceDetails(resource))
-    })
+    const promises = resources
+      .map(resource => {
+        return this.getResourceDetails(resource)
+      })
+      .flat()
+
     Promise.all(promises)
   }
 
   private getResourceDetails(resource: ResourceType) {
     switch (resource) {
       case ResourceType.Dashboards: {
-        return this.props.getDashboards()
+        // remove getDashboardsOld when normalization work is complete
+        return [this.props.getDashboards(), this.props.getDashboardsOld()]
       }
 
       case ResourceType.Labels: {
-        return this.props.getLabels()
+        // remove getLabelsOld when normalization work is complete
+        return [this.props.getLabels(), this.props.getLabelsOld()]
       }
 
       case ResourceType.Buckets: {
@@ -245,7 +251,9 @@ const mdtp = {
   getChecks: getChecks,
   getNotificationRules: getNotificationRules,
   getEndpoints: getEndpoints,
+  getLabelsOld: getLabelsOld,
   getDashboards: getDashboards,
+  getDashboardsOld: getDashboardsAsync,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
