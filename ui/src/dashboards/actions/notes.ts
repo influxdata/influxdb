@@ -12,7 +12,7 @@ import {getView} from 'src/dashboards/selectors'
 // Types
 import {GetState, MarkdownViewProperties, NoteEditorMode} from 'src/types'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
-import {Dispatch} from 'redux-thunk'
+import {Dispatch} from 'react'
 
 export type Action =
   | CloseNoteEditorAction
@@ -61,7 +61,7 @@ export const setNote = (note: string): SetNoteAction => ({
 })
 
 export const createNoteCell = (dashboardID: string) => (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ReturnType<typeof createCellWithView>>,
   getState: GetState
 ) => {
   const dashboard = getState().dashboards.list.find(d => d.id === dashboardID)
@@ -131,7 +131,7 @@ export const loadNote = (id: string) => (
 }
 
 export const updateViewNote = (id: string) => (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ReturnType<typeof updateView>>,
   getState: GetState
 ) => {
   const state = getState()

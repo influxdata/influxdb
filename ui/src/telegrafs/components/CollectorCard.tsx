@@ -11,8 +11,8 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
 import {
-  addTelelgrafLabelsAsync,
-  removeTelelgrafLabelsAsync,
+  addTelegrafLabelsAsync,
+  removeTelegrafLabelsAsync,
 } from 'src/telegrafs/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
@@ -38,8 +38,8 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onAddLabels: typeof addTelelgrafLabelsAsync
-  onRemoveLabels: typeof removeTelelgrafLabelsAsync
+  onAddLabels: typeof addTelegrafLabelsAsync
+  onRemoveLabels: typeof removeTelegrafLabelsAsync
   onCreateLabel: typeof createLabelAsync
 }
 
@@ -170,8 +170,8 @@ const mstp = ({labels, orgs: {org}}: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  onAddLabels: addTelelgrafLabelsAsync,
-  onRemoveLabels: removeTelelgrafLabelsAsync,
+  onAddLabels: addTelegrafLabelsAsync,
+  onRemoveLabels: removeTelegrafLabelsAsync,
   onCreateLabel: createLabelAsync,
 }
 

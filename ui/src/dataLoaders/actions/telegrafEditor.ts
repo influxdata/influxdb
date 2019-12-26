@@ -1,7 +1,7 @@
 import {Bucket} from 'src/types'
 import {getTelegrafPlugins} from 'src/client'
 import {RemoteDataState} from 'src/types'
-import {Dispatch} from 'redux-thunk'
+import {Dispatch} from 'react'
 import {
   TelegrafEditorPluginState,
   TelegrafEditorActivePluginState,
