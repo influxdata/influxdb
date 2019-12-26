@@ -49,7 +49,7 @@ func initVariableService(s kv.Store, f influxdbtesting.VariableFields, t *testin
 	done := func() {
 		for _, variable := range f.Variables {
 			if err := svc.DeleteVariable(ctx, variable.ID); err != nil {
-				t.Fatalf("failed to clean up variables bolt test: %v", err)
+				t.Logf("failed to clean up variables bolt test: %v", err)
 			}
 		}
 	}

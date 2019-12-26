@@ -38,6 +38,7 @@ type Service struct {
 	Hash Crypt
 
 	endpointStore *uniqByNameStore
+	variableStore *uniqByNameStore
 }
 
 // NewService returns an instance of a Service.
@@ -51,7 +52,8 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		Hash:           &Bcrypt{},
 		kv:             kv,
 		TimeGenerator:  influxdb.RealTimeGenerator{},
-		endpointStore:  newEndpointUniqueByNameStore(kv),
+		endpointStore:  newEndpointStore(kv),
+		variableStore:  newVariableUniqueByNameStore(kv),
 	}
 
 	if len(configs) > 0 {
@@ -141,7 +143,7 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
-		if err := s.initializeVariables(ctx, tx); err != nil {
+		if err := s.variableStore.initBuckets(ctx, tx); err != nil {
 			return err
 		}
 
