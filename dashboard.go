@@ -880,6 +880,29 @@ type BuilderConfig struct {
 	} `json:"aggregateWindow"`
 }
 
+// MarshalJSON is necessary for the time being. UI keeps breaking
+// b/c it relies on these slices being populated/not nil. Other
+// consumers may have same issue.
+func (b BuilderConfig) MarshalJSON() ([]byte, error) {
+	type alias BuilderConfig
+	copyCfg := alias(b)
+	if copyCfg.Buckets == nil {
+		copyCfg.Buckets = []string{}
+	}
+	if copyCfg.Tags == nil {
+		copyCfg.Tags = []struct {
+			Key    string   `json:"key"`
+			Values []string `json:"values"`
+		}{}
+	}
+	if copyCfg.Functions == nil {
+		copyCfg.Functions = []struct {
+			Name string `json:"name"`
+		}{}
+	}
+	return json.Marshal(copyCfg)
+}
+
 // NewBuilderTag is a constructor for the builder config types. This
 // isn't technically required, but working with struct literals with embedded
 // struct tags is really painful. This is to get around that bit. Would be nicer
