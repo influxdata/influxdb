@@ -636,33 +636,6 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 		})
 	}
 
-	if vars := diff.Variables; len(vars) > 0 {
-		headers := []string{"New", "ID", "Name", "Description", "Arg Type", "Arg Values"}
-		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
-			v := vars[i]
-			var old pkger.DiffVariableValues
-			if v.Old != nil {
-				old = *v.Old
-			}
-			var oldArgType string
-			if old.Args != nil {
-				oldArgType = old.Args.Type
-			}
-			var newArgType string
-			if v.New.Args != nil {
-				newArgType = v.New.Args.Type
-			}
-			return []string{
-				boolDiff(v.IsNew()),
-				v.ID.String(),
-				v.Name,
-				diffLn(v.IsNew(), old.Description, v.New.Description),
-				diffLn(v.IsNew(), oldArgType, newArgType),
-				diffLn(v.IsNew(), printVarArgs(old.Args), printVarArgs(v.New.Args)),
-			}
-		})
-	}
-
 	if endpoints := diff.NotificationEndpoints; len(endpoints) > 0 {
 		headers := []string{"New", "ID", "Name"}
 		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
@@ -717,6 +690,33 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 				t.Name,
 				green(t.Description),
 				green(timing),
+			}
+		})
+	}
+
+	if vars := diff.Variables; len(vars) > 0 {
+		headers := []string{"New", "ID", "Name", "Description", "Arg Type", "Arg Values"}
+		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
+			v := vars[i]
+			var old pkger.DiffVariableValues
+			if v.Old != nil {
+				old = *v.Old
+			}
+			var oldArgType string
+			if old.Args != nil {
+				oldArgType = old.Args.Type
+			}
+			var newArgType string
+			if v.New.Args != nil {
+				newArgType = v.New.Args.Type
+			}
+			return []string{
+				boolDiff(v.IsNew()),
+				v.ID.String(),
+				v.Name,
+				diffLn(v.IsNew(), old.Description, v.New.Description),
+				diffLn(v.IsNew(), oldArgType, newArgType),
+				diffLn(v.IsNew(), printVarArgs(old.Args), printVarArgs(v.New.Args)),
 			}
 		})
 	}
@@ -785,21 +785,6 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 		})
 	}
 
-	if vars := sum.Variables; len(vars) > 0 {
-		headers := []string{"ID", "Name", "Description", "Arg Type", "Arg Values"}
-		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
-			v := vars[i]
-			args := v.Arguments
-			return []string{
-				v.ID.String(),
-				v.Name,
-				v.Description,
-				args.Type,
-				printVarArgs(args),
-			}
-		})
-	}
-
 	if endpoints := sum.NotificationEndpoints; len(endpoints) > 0 {
 		headers := []string{"ID", "Name", "Description", "Status"}
 		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
@@ -855,6 +840,21 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 				t.TelegrafConfig.ID.String(),
 				t.TelegrafConfig.Name,
 				t.TelegrafConfig.Description,
+			}
+		})
+	}
+
+	if vars := sum.Variables; len(vars) > 0 {
+		headers := []string{"ID", "Name", "Description", "Arg Type", "Arg Values"}
+		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
+			v := vars[i]
+			args := v.Arguments
+			return []string{
+				v.ID.String(),
+				v.Name,
+				v.Description,
+				args.Type,
+				printVarArgs(args),
 			}
 		})
 	}
