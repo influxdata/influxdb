@@ -165,7 +165,67 @@ func TestHealthSorting(t *testing.T) {
 	}
 }
 
-func TestForceHealth(t *testing.T) {
+func TestForceHealthy(t *testing.T) {
+	c, ts := buildCheckWithServer()
+	defer ts.Close()
+
+	c.AddHealthCheck(mockFail("a"))
+
+	_, err := http.Get(ts.URL + "/health?force=true&healthy=true")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.Get(ts.URL + "/health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err := respBuilder(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := &Response{
+		Name:   "Health",
+		Status: "pass",
+		Checks: Responses{
+			Response{Name: "manual-override", Message: "health manually overridden"},
+			Response{Name: "a", Status: "fail"},
+		},
+	}
+
+	if !reflect.DeepEqual(expected, actual) {
+		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
+	}
+
+	_, err = http.Get(ts.URL + "/health?force=false")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected = &Response{
+		Name:   "Health",
+		Status: "fail",
+		Checks: Responses{
+			Response{Name: "a", Status: "fail"},
+		},
+	}
+
+	resp, err = http.Get(ts.URL + "/health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err = respBuilder(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(expected, actual) {
+		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
+	}
+}
+
+func TestForceUnhealthy(t *testing.T) {
 	c, ts := buildCheckWithServer()
 	defer ts.Close()
 
@@ -212,6 +272,126 @@ func TestForceHealth(t *testing.T) {
 	}
 
 	resp, err = http.Get(ts.URL + "/health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err = respBuilder(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(expected, actual) {
+		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
+	}
+}
+
+func TestForceReady(t *testing.T) {
+	c, ts := buildCheckWithServer()
+	defer ts.Close()
+
+	c.AddReadyCheck(mockFail("a"))
+
+	_, err := http.Get(ts.URL + "/ready?force=true&ready=true")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.Get(ts.URL + "/ready")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err := respBuilder(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := &Response{
+		Name:   "Ready",
+		Status: "pass",
+		Checks: Responses{
+			Response{Name: "manual-override", Message: "ready manually overridden"},
+			Response{Name: "a", Status: "fail"},
+		},
+	}
+
+	if !reflect.DeepEqual(expected, actual) {
+		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
+	}
+
+	_, err = http.Get(ts.URL + "/ready?force=false")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected = &Response{
+		Name:   "Ready",
+		Status: "fail",
+		Checks: Responses{
+			Response{Name: "a", Status: "fail"},
+		},
+	}
+
+	resp, err = http.Get(ts.URL + "/ready")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err = respBuilder(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(expected, actual) {
+		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
+	}
+}
+
+func TestForceNotReady(t *testing.T) {
+	c, ts := buildCheckWithServer()
+	defer ts.Close()
+
+	c.AddReadyCheck(mockPass("a"))
+
+	_, err := http.Get(ts.URL + "/ready?force=true&ready=false")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.Get(ts.URL + "/ready")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err := respBuilder(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := &Response{
+		Name:   "Ready",
+		Status: "fail",
+		Checks: Responses{
+			Response{Name: "manual-override", Message: "ready manually overridden"},
+			Response{Name: "a", Status: "pass"},
+		},
+	}
+
+	if !reflect.DeepEqual(expected, actual) {
+		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
+	}
+
+	_, err = http.Get(ts.URL + "/ready?force=false")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected = &Response{
+		Name:   "Ready",
+		Status: "pass",
+		Checks: Responses{
+			Response{Name: "a", Status: "pass"},
+		},
+	}
+
+	resp, err = http.Get(ts.URL + "/ready")
 	if err != nil {
 		t.Fatal(err)
 	}
