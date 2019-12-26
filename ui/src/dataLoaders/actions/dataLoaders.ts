@@ -46,7 +46,7 @@ import {
   TelegrafConfigCreationSuccess,
   readWriteCardinalityLimitReached,
 } from 'src/shared/copy/notifications'
-import {Telegraf, TelegrafRequestPlugin} from 'src/client'
+import {Telegraf} from 'src/client'
 
 type GetState = () => AppState
 
@@ -381,7 +381,7 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
       data: {
         name: telegrafConfigName,
         description: telegrafConfigDescription,
-        plugins: plugins as TelegrafRequestPlugin[],
+        // plugins: plugins as TelegrafPlugin[], // TODO: figure out if still relevant
       },
     })
 

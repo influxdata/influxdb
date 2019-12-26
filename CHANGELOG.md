@@ -3,11 +3,11 @@
 ### Features
 
 1. [16234](https://github.com/influxdata/influxdb/pull/16234): Add support for notification endpoints to influx templates/pkgs.
-2. [16242](https://github.com/influxdata/influxdb/pull/16242): Drop id prefix for secret key requirement for notification endpoints
-3. [16259](https://github.com/influxdata/influxdb/pull/16259): Add support for check resource to pkger parser
-4. [16262](https://github.com/influxdata/influxdb/pull/16262): Add support for check resource pkger dry run functionality
-5. [16275](https://github.com/influxdata/influxdb/pull/16275): Add support for check resource pkger apply functionality
-6. [16283](https://github.com/influxdata/influxdb/pull/16283): Add support for check resource pkger export functionality
+1. [16242](https://github.com/influxdata/influxdb/pull/16242): Drop id prefix for secret key requirement for notification endpoints
+1. [16259](https://github.com/influxdata/influxdb/pull/16259): Add support for check resource to pkger parser
+1. [16262](https://github.com/influxdata/influxdb/pull/16262): Add support for check resource pkger dry run functionality
+1. [16275](https://github.com/influxdata/influxdb/pull/16275): Add support for check resource pkger apply functionality
+1. [16283](https://github.com/influxdata/influxdb/pull/16283): Add support for check resource pkger export functionality
 1. [16212](https://github.com/influxdata/influxdb/pull/16212): Add new kv.ForwardCursor interface
 1. [16297](https://github.com/influxdata/influxdb/pull/16297): Add support for notification rule to pkger parser
 1. [16298](https://github.com/influxdata/influxdb/pull/16298): Add support for notification rule pkger dry run functionality
@@ -17,6 +17,7 @@
 1. [16322](https://github.com/influxdata/influxdb/pull/16322): Add support for tasks to pkger dry run functionality
 1. [16323](https://github.com/influxdata/influxdb/pull/16323): Add support for tasks to pkger apply functionality
 1. [16324](https://github.com/influxdata/influxdb/pull/16324): Add support for tasks to pkger export functionality
+1. [16325](https://github.com/influxdata/influxdb/pull/16325): Add support for last run status, last completed, last run scheduled, and last run error for checks and notification rules
 
 ### Bug Fixes
 
