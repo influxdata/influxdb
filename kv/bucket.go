@@ -481,7 +481,7 @@ func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) (
 		return err
 	}
 
-	if err := s.createBucketUserResourceMappings(ctx, tx, b); err != nil {
+	if err := s.createUserResourceMappingForOrg(ctx, tx, b.OrgID, b.ID, influxdb.BucketsResourceType); err != nil {
 		return err
 	}
 	return nil
@@ -494,43 +494,8 @@ func (s *Service) generateBucketID(ctx context.Context, tx Tx) (influxdb.ID, err
 // PutBucket will put a bucket without setting an ID.
 func (s *Service) PutBucket(ctx context.Context, b *influxdb.Bucket) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		var err error
-		pe := s.putBucket(ctx, tx, b)
-		if pe != nil {
-			err = pe
-		}
-		return err
+		return s.putBucket(ctx, tx, b)
 	})
-}
-
-func (s *Service) createBucketUserResourceMappings(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	ms, err := s.findUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
-		ResourceType: influxdb.OrgsResourceType,
-		ResourceID:   b.OrgID,
-	})
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	for _, m := range ms {
-		if err := s.createUserResourceMapping(ctx, tx, &influxdb.UserResourceMapping{
-			ResourceType: influxdb.BucketsResourceType,
-			ResourceID:   b.ID,
-			UserID:       m.UserID,
-			UserType:     m.UserType,
-		}); err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-	}
-
-	return nil
 }
 
 func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
@@ -550,9 +515,10 @@ func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) erro
 			Err: err,
 		}
 	}
-	key, pe := bucketIndexKey(b)
+
+	key, err := bucketIndexKey(b)
 	if err != nil {
-		return pe
+		return err
 	}
 
 	idx, err := s.bucketsIndexBucket(tx)
