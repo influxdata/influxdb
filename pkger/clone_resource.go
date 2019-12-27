@@ -502,18 +502,14 @@ func ruleToResource(iRule influxdb.NotificationRule, endpointName, name string) 
 }
 
 // regex used to rip out the hard coded task option stuffs
-var taskFluxRegex = regexp.MustCompile(`option task = {(.|\n)*}`)
+var taskFluxRegex = regexp.MustCompile(`option task = {(.|\n)*?}`)
 
 func taskToResource(t influxdb.Task, name string) Resource {
 	if name == "" {
 		name = t.Name
 	}
 
-	var query = t.Flux
-	groups := taskFluxRegex.Split(t.Flux, 2)
-	if len(groups) > 1 {
-		query = strings.TrimSpace(groups[1])
-	}
+	query := strings.TrimSpace(taskFluxRegex.ReplaceAllString(t.Flux, ""))
 
 	r := Resource{
 		fieldKind:  KindTask.title(),
