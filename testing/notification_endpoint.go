@@ -285,7 +285,7 @@ func FindNotificationEndpointByID(
 			wants: wants{
 				err: &influxdb.Error{
 					Code: influxdb.EInvalid,
-					Msg:  "provided notification endpoint ID is an invalid format",
+					Msg:  "no key was provided for notification endpoint",
 				},
 			},
 		},
@@ -430,7 +430,7 @@ func FindNotificationEndpointByID(
 				iErr, ok := err.(*influxdb.Error)
 				require.True(t, ok)
 				assert.Equal(t, tt.wants.err.Code, iErr.Code)
-				assert.True(t, strings.HasPrefix(iErr.Error(), tt.wants.err.Error()))
+				assert.Truef(t, strings.HasPrefix(iErr.Error(), tt.wants.err.Error()), "got err: %s", err.Error())
 			}
 			if diff := cmp.Diff(edp, tt.wants.notificationEndpoint, notificationEndpointCmpOptions...); diff != "" {
 				t.Errorf("notification endpoint is different -got/+want\ndiff %s", diff)
@@ -1864,7 +1864,7 @@ func DeleteNotificationEndpoint(
 			wants: wants{
 				err: &influxdb.Error{
 					Code: influxdb.EInvalid,
-					Msg:  "provided notification endpoint ID is an invalid format",
+					Msg:  "no key was provided for notification endpoint",
 				},
 				userResourceMappings: []*influxdb.UserResourceMapping{
 					{
@@ -2113,7 +2113,7 @@ func DeleteNotificationEndpoint(
 				iErr, ok := err.(*influxdb.Error)
 				require.True(t, ok)
 				assert.Equal(t, tt.wants.err.Code, iErr.Code)
-				assert.True(t, strings.HasPrefix(iErr.Error(), tt.wants.err.Error()))
+				assert.Truef(t, strings.HasPrefix(iErr.Error(), tt.wants.err.Error()), "got err: %s", err.Error())
 				return
 			}
 			if diff := cmp.Diff(flds, tt.wants.secretFlds); diff != "" {
