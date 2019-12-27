@@ -530,11 +530,11 @@ describe('DataExplorer', () => {
         cy.getByTestID('empty-graph--no-queries').should('exist')
       })
 
-      it.only('shows an error if a query is syntactically invalid', () => {
+      it('shows an error if a query is syntactically invalid', () => {
         cy.getByTestID('switch-to-script-editor').click()
 
         cy.getByTestID('time-machine--bottom').within(() => {
-          const remove = cy.state().window.store.subscribe(action => {
+          const remove = cy.state().window.store.subscribe(() => {
             remove()
             cy.getByTestID('time-machine-submit-button').click()
             cy.getByTestID('empty-graph--error').should('exist')
