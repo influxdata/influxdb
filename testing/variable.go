@@ -1178,11 +1178,12 @@ func DeleteVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 			defer done()
 			ctx := context.Background()
 
-			err := s.DeleteVariable(ctx, tt.args.id)
 			defer s.ReplaceVariable(ctx, &platform.Variable{
 				ID:             tt.args.id,
 				OrganizationID: platform.ID(1),
 			})
+
+			err := s.DeleteVariable(ctx, tt.args.id)
 			if err != nil {
 				if tt.wants.err == nil {
 					require.NoError(t, err)
