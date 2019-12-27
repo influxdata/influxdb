@@ -1,4 +1,3 @@
-import {Doc} from 'codemirror'
 import {Organization} from '../../src/types'
 import {VIS_TYPES} from '../../src/timeMachine/constants'
 import {
@@ -11,14 +10,16 @@ import {
   STRINGS_TRIM,
 } from '../../src/shared/constants/fluxFunctions'
 
-interface HTMLElementCM extends HTMLElement {
-  CodeMirror: {
-    doc: CodeMirror.Doc
-  }
-}
-
-type $CM = JQuery<HTMLElementCM>
-
+      function getTimeMachineText() {
+        return cy.wrap({
+          text: () => {
+            const store = cy.state().window.store.getState().timeMachines
+            const timeMachine = store.timeMachines[store.activeTimeMachineID]
+            const query = timeMachine.draftQueries[timeMachine.activeQueryIndex].text
+            return query
+          }
+        }).invoke('text')
+      }
 describe('DataExplorer', () => {
   beforeEach(() => {
     cy.flush()
@@ -376,12 +377,6 @@ describe('DataExplorer', () => {
     it('imports the appropriate packages to build a query', () => {
       cy.getByTestID('functions-toolbar-tab').click()
 
-      cy.get<$CM>('.CodeMirror').then($cm => {
-        const cm = $cm[0].CodeMirror
-        cy.wrap(cm.doc).as('flux')
-        expect(cm.doc.getValue()).to.eq('')
-      })
-
       cy.getByTestID('flux-function from').click()
       cy.getByTestID('flux-function range').click()
       cy.getByTestID('flux-function math.abs').click()
@@ -389,8 +384,8 @@ describe('DataExplorer', () => {
       cy.getByTestID('flux-function strings.title').click()
       cy.getByTestID('flux-function strings.trim').click()
 
-      cy.get<Doc>('@flux').then(doc => {
-        const actual = doc.getValue()
+      getTimeMachineText()
+      .then((text) => {
         const expected = `
         import"${STRINGS_TITLE.package}"
         import"${MATH_ABS.package}"
@@ -401,45 +396,40 @@ describe('DataExplorer', () => {
         ${STRINGS_TITLE.example}|>
         ${STRINGS_TRIM.example}`
 
-        cy.fluxEqual(actual, expected).should('be.true')
+        cy.fluxEqual(text, expected).should('be.true')
       })
     })
 
     it('can use the function selector to build a query', () => {
       cy.getByTestID('functions-toolbar-tab').click()
 
-      cy.get<$CM>('.CodeMirror').then($cm => {
-        const cm = $cm[0].CodeMirror
-        cy.wrap(cm.doc).as('flux')
-        expect(cm.doc.getValue()).to.eq('')
-      })
-
       cy.getByTestID('flux-function from').click()
 
-      cy.get<Doc>('@flux').then(doc => {
-        const actual = doc.getValue()
+      getTimeMachineText()
+      .then((text) => {
         const expected = FROM.example
 
-        cy.fluxEqual(actual, expected).should('be.true')
+        cy.fluxEqual(text, expected).should('be.true')
       })
 
       cy.getByTestID('flux-function range').click()
 
-      cy.get<Doc>('@flux').then(doc => {
-        const actual = doc.getValue()
+      getTimeMachineText()
+      .then((text) => {
         const expected = `${FROM.example}|>${RANGE.example}`
 
-        cy.fluxEqual(actual, expected).should('be.true')
+        cy.fluxEqual(text, expected).should('be.true')
       })
 
       cy.getByTestID('flux-function mean').click()
 
-      cy.get<Doc>('@flux').then(doc => {
-        const actual = doc.getValue()
+      getTimeMachineText()
+      .then((text) => {
         const expected = `${FROM.example}|>${RANGE.example}|>${MEAN.example}`
 
-        cy.fluxEqual(actual, expected).should('be.true')
+        cy.fluxEqual(text, expected).should('be.true')
       })
+
     })
 
     it('can filter aggregation functions by name from script editor mode', () => {
