@@ -107,7 +107,7 @@ describe('Checks', () => {
       cy.get('.cf-resource-card__disabled').should('not.exist')
     })
 
-    it.only('can display the last run status', () => {
+    it('can display the last run status', () => {
       cy.getByTestID('last-run-status--icon').should('exist')
       cy.getByTestID('last-run-status--icon').trigger('mouseover')
       cy.getByTestID('popover--dialog')
