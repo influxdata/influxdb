@@ -185,9 +185,6 @@ export const deleteBucket = (id: string, name: string) => async (
 
     dispatch(removeBucket(id))
     dispatch(checkBucketLimits())
-    dispatch(() => ({
-      type: 'PLERPS',
-    }))
   } catch (e) {
     console.error(e)
     dispatch(notify(bucketDeleteFailed(name)))
