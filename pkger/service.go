@@ -462,6 +462,15 @@ func (s *Service) cloneOrgNotificationRules(ctx context.Context, orgID influxdb.
 }
 
 func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	teles, _, err := s.taskSVC.FindTasks(ctx, influxdb.TaskFilter{OrganizationID: &orgID})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(teles) == 0 {
+		return nil, nil
+	}
+
 	checks, _, err := s.checkSVC.FindChecks(ctx, influxdb.CheckFilter{
 		OrgID: &orgID,
 	})
@@ -469,14 +478,12 @@ func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]Resou
 		return nil, err
 	}
 
-	teles, _, err := s.taskSVC.FindTasks(ctx, influxdb.TaskFilter{OrganizationID: &orgID})
-	if err != nil {
-		return nil, err
-	}
-
 	mTeles := make(map[influxdb.ID]*influxdb.Task)
 	for i := range teles {
 		t := teles[i]
+		if t.Type == influxdb.TaskSystemType {
+			continue
+		}
 		mTeles[t.ID] = t
 	}
 	for _, c := range checks {
