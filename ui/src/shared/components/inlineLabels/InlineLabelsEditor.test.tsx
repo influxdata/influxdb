@@ -38,7 +38,6 @@ const setup = (override = {}) => {
     selectedItemID: labels[0].id,
     onUpdateSelectedItemID: jest.fn(),
     allLabelsUsed: false,
-    onDismiss: jest.fn(),
     onStartCreatingLabel: jest.fn(),
     onInputChange: jest.fn(),
     filteredLabels,
@@ -82,7 +81,7 @@ describe('Shared.Components.InlineLabelsEditor', () => {
       expect(popover).toHaveLength(1)
     })
 
-    it.skip('clicking the suggestion item shows create label overlay with the name field correctly populated', () => {
+    it('clicking the suggestion item shows create label overlay with the name field correctly populated', () => {
       const {getByTestId, getAllByTestId} = setup()
 
       const plusButton = getByTestId('inline-labels--add')
@@ -105,22 +104,6 @@ describe('Shared.Components.InlineLabelsEditor', () => {
 
       expect(labelOverlayNameField.getAttribute('value')).toEqual(inputValue)
     })
-  })
-  describe('mouse interactions', () => {
-    it('hovering over a list item updates the selected item ID', () => {
-      const secondLabel = labels[1]
-      const onUpdateSelectedItemID = jest.fn()
-      const {getByTestId} = setup({onUpdateSelectedItemID})
-      const button = getByTestId('inline-labels--add')
-      act(() => {
-        fireEvent.mouseOver(button)
-      })
-      const secondListItem = getByTestId(`label-list--item ${secondLabel.name}`)
-      act(() => {
-        fireEvent.mouseOver(secondListItem)
-      })
-      expect(onUpdateSelectedItemID).toHaveBeenCalledWith(secondLabel.id)
-    })
 
     it('clicking a list item adds a label and selects the next item on the list', () => {
       const secondLabel = labels[1]
@@ -133,139 +116,8 @@ describe('Shared.Components.InlineLabelsEditor', () => {
       const secondListItem = getByTestId(`label-list--item ${secondLabel.name}`)
       fireEvent.click(secondListItem)
 
-      expect(onAddLabel).toHaveBeenCalledWith(secondLabel.id)
+      expect(onAddLabel).toHaveBeenCalledWith(secondLabel)
     })
   })
 
-  describe('keyboard interactions', () => {
-    it('typing in the input updates parent component', () => {
-      const onInputChange = jest.fn(e => e.target.value)
-      const {getByTestId} = setup({onInputChange})
-
-      const testString = 'bananas'
-
-      const button = getByTestId('inline-labels--add')
-      act(() => {
-        fireEvent.mouseOver(button)
-      })
-      const input = getByTestId('inline-labels--popover-field')
-      fireEvent.change(input, {target: {value: testString}})
-
-      expect(onInputChange).toHaveReturnedWith(testString)
-    })
-
-    it('pressing ENTER adds the selected item', () => {
-      const selectedItemID = labels[0].id
-      const onAddLabel = jest.fn()
-      const {getByTestId} = setup({
-        onAddLabel,
-        selectedItemID,
-      })
-
-      const button = getByTestId('inline-labels--add')
-      act(() => {
-        fireEvent.mouseOver(button)
-      })
-
-      const input = getByTestId('inline-labels--popover-field')
-      fireEvent.keyDown(input, {key: 'Enter', code: 13})
-
-      expect(onAddLabel).toHaveBeenCalledWith(selectedItemID)
-    })
-
-    it('typing a new label name and pressing ENTER starts label creation flow', () => {
-      const onStartCreatingLabel = jest.fn()
-      const searchTerm = 'swogglez'
-      const selectedItemID = ADD_NEW_LABEL_ITEM_ID
-      const {getByTestId} = setup({
-        onStartCreatingLabel,
-        searchTerm,
-        selectedItemID,
-      })
-
-      const button = getByTestId('inline-labels--add')
-      act(() => {
-        fireEvent.mouseOver(button)
-      })
-
-      const input = getByTestId('inline-labels--popover-field')
-      fireEvent.keyDown(input, {key: 'Enter', code: 13})
-
-      expect(onStartCreatingLabel).toHaveBeenCalled()
-    })
-
-    it('pressing ARROWUP selects the previous item', () => {
-      const selectedItemID = filteredLabels[1].id
-      const previousItemID = filteredLabels[0].id
-      const onUpdateSelectedItemID = jest.fn()
-      const {getByTestId} = setup({
-        onUpdateSelectedItemID,
-        selectedItemID,
-      })
-
-      const button = getByTestId('inline-labels--add')
-      act(() => {
-        fireEvent.mouseOver(button)
-      })
-
-      const input = getByTestId('inline-labels--popover-field')
-      fireEvent.keyDown(input, {key: 'ArrowUp', code: 38})
-
-      expect(onUpdateSelectedItemID).toHaveBeenCalledWith(previousItemID)
-    })
-
-    it('pressing ARROWUP selects the same item', () => {
-      const selectedItemID = filteredLabels[0].id
-      const onUpdateSelectedItemID = jest.fn()
-      const {getByTestId} = setup({
-        onUpdateSelectedItemID,
-        selectedItemID,
-      })
-      const button = getByTestId('inline-labels--add')
-      act(() => {
-        fireEvent.mouseOver(button)
-      })
-
-      const input = getByTestId('inline-labels--popover-field')
-      fireEvent.keyDown(input, {key: 'ArrowUp', code: 38})
-
-      expect(onUpdateSelectedItemID).toHaveBeenCalledWith(selectedItemID)
-    })
-
-    it('pressing ARROWDOWN selects the next item', () => {
-      const selectedItemID = filteredLabels[1].id
-      const nextItemID = filteredLabels[2].id
-      const onUpdateSelectedItemID = jest.fn()
-      const {getByTestId} = setup({
-        onUpdateSelectedItemID,
-        selectedItemID,
-      })
-
-      const button = getByTestId('inline-labels--add')
-      act(() => {
-        fireEvent.mouseOver(button)
-      })
-      const input = getByTestId('inline-labels--popover-field')
-      fireEvent.keyDown(input, {key: 'ArrowDown', code: 40})
-
-      expect(onUpdateSelectedItemID).toHaveBeenCalledWith(nextItemID)
-    })
-
-    it('pressing ARROWDOWN selects the same item', () => {
-      const selectedItemID = filteredLabels[2].id
-      const onUpdateSelectedItemID = jest.fn()
-      const {getByTestId} = setup({
-        onUpdateSelectedItemID,
-        selectedItemID,
-      })
-      const button = getByTestId('inline-labels--add')
-      act(() => {
-        fireEvent.mouseOver(button)
-      })
-      const input = getByTestId('inline-labels--popover-field')
-      fireEvent.keyDown(input, {key: 'ArrowDown', code: 40})
-
-      expect(onUpdateSelectedItemID).toHaveBeenCalledWith(selectedItemID)
-    })
-  })
 })

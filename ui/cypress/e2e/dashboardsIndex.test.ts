@@ -190,6 +190,22 @@ describe('Dashboards', () => {
           })
       })
 
+      it('clicking a list item adds a label and leaves open the popover with the next item highlighted', () => {
+        const labelName = 'clicky'
+
+        cy.get('@org').then(({id}: Organization) => {
+          cy.createLabel(labelName, id).then(() => {
+            cy.getByTestID(`inline-labels--add`)
+              .first()
+              .trigger('mouseover')
+
+            cy.getByTestID(`label--pill ${labelName}`).click()
+
+            cy.getByTestID(`label--pill bar`).should('be.visible')
+          })
+        })
+      })
+
       it('can add an existing label to a dashboard', () => {
         const labelName = 'swogglez'
 
@@ -207,6 +223,38 @@ describe('Dashboards', () => {
                 cy.getByTestID(`label--pill ${labelName}`).should('be.visible')
               })
           })
+        })
+      })
+
+      it('typing in the input updates the list', () => {
+        const labelName = 'banana'
+
+        cy.get('@org').then(({id}: Organization) => {
+          cy.createLabel(labelName, id).then(() => {
+            cy.getByTestID(`inline-labels--add`)
+              .first()
+              .trigger('mouseover')
+
+            cy.getByTestID(`inline-labels--popover-field`).type(labelName)
+
+            cy.getByTestID(`label--pill ${labelName}`).should('be.visible')
+            cy.getByTestID('inline-labels--list').should('have.length', 1)
+          })
+        })
+      })
+
+      it('typing a new label name and pressing ENTER starts label creation flow', () => {
+        const labelName = 'choco'
+
+        cy.get('@org').then(({id}: Organization) => {
+          cy.getByTestID(`inline-labels--add`)
+            .first()
+            .trigger('mouseover')
+
+          cy.getByTestID(`inline-labels--popover-field`)
+            .type(labelName)
+            .type('{enter}')
+          cy.getByTestID('overlay--body').should('be.visible')
         })
       })
 

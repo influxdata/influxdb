@@ -147,8 +147,6 @@ class InlineLabelsEditor extends Component<Props, State> {
   }
 
   private handleUpdateSelectedItemID = (selectedItemID: string): void => {
-    console.log("hover for function")
-    console.log(selectedItemID)
     this.setState({selectedItemID})
   }
 

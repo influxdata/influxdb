@@ -61,7 +61,7 @@ export default class InlineLabelPopover extends PureComponent<Props> {
 
     return (
       <Popover
-        appearance={Appearance.Solid}
+        appearance={Appearance.Outline}
         position={PopoverPosition.Below}
         triggerRef={triggerRef}
         distanceFromTrigger={8}
