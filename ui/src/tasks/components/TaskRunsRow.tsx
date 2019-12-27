@@ -12,8 +12,7 @@ import {getLogs} from 'src/tasks/actions'
 
 // Types
 import {ComponentSize, ComponentColor, Button} from '@influxdata/clockface'
-import {LogEvent} from '@influxdata/influx'
-import {AppState} from 'src/types'
+import {AppState, LogEvent} from 'src/types'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 import {Run} from 'src/tasks/components/TaskRunsPage'
 

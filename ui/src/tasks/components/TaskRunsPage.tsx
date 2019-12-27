@@ -10,9 +10,8 @@ import TaskRunsList from 'src/tasks/components/TaskRunsList'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // Types
-import {AppState} from 'src/types'
-import {RemoteDataState} from 'src/types'
-import {Run as APIRun, Task} from '@influxdata/influx'
+import {AppState, RemoteDataState, Task} from 'src/types'
+import {Run as APIRun} from '@influxdata/influx'
 import {
   SpinnerContainer,
   TechnoSpinner,

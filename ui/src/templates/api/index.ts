@@ -13,7 +13,10 @@ import {
 import {IDashboard, Cell} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 
+// Utils
 import {
+  addDefaults,
+  addLabelDefaults,
   findIncludedsFromRelationships,
   findLabelsToCreate,
   findIncludedFromRelationship,
@@ -23,6 +26,8 @@ import {
   getLabelRelationships,
 } from 'src/templates/utils/'
 
+// API
+import {getTask, postTask, postTasksLabel} from 'src/client'
 // Create Dashboard Templates
 
 export const createDashboardFromTemplate = async (
@@ -230,30 +235,43 @@ export const createTaskFromTemplate = async (
   orgID: string
 ): Promise<Task> => {
   const {content} = template
+  try {
+    if (
+      content.data.type !== TemplateType.Task ||
+      template.meta.version !== '1'
+    ) {
+      throw new Error('Cannot create task from this template')
+    }
 
-  if (
-    content.data.type !== TemplateType.Task ||
-    template.meta.version !== '1'
-  ) {
-    throw new Error('Cannot create task from this template')
+    const flux = content.data.attributes.flux
+
+    const postResp = await postTask({data: {orgID, flux}})
+
+    if (postResp.status !== 201) {
+      throw new Error('Could not create task')
+    }
+
+    const postedTask = addDefaults(postResp.data as Task)
+
+    // associate imported label.id with created label
+    const labelMap = await createLabelsFromTemplate(template, orgID)
+
+    await addTaskLabelsFromTemplate(template, labelMap, postedTask as Task)
+
+    const resp = await getTask({taskID: postedTask.id})
+
+    if (resp.status !== 200) {
+      throw new Error(
+        'An unexpected error occurred while trying to get the task'
+      )
+    }
+
+    const task = addDefaults(resp.data as Task)
+
+    return task
+  } catch (e) {
+    console.error(e)
   }
-
-  const flux = content.data.attributes.flux
-
-  const createdTask = await client.tasks.createByOrgID(orgID, flux, null)
-
-  if (!createdTask || !createdTask.id) {
-    throw new Error('Could not create task')
-  }
-
-  // associate imported label.id with created label
-  const labelMap = await createLabelsFromTemplate(template, orgID)
-
-  await addTaskLabelsFromTemplate(template, labelMap, createdTask)
-
-  const task = await client.tasks.get(createdTask.id)
-
-  return task
 }
 
 const addTaskLabelsFromTemplate = async (
@@ -262,8 +280,9 @@ const addTaskLabelsFromTemplate = async (
   task: Task
 ) => {
   const relationships = getLabelRelationships(template.content.data)
-  const labelIDs = relationships.map(l => labelMap[l.id] || '')
-  await client.tasks.addLabels(task.id, labelIDs)
+  const [labelID] = relationships.map(l => labelMap[l.id] || '')
+  await postTasksLabel({taskID: task.id, data: {labelID}})
+  // TODO: do we need to add defaults here?
 }
 
 export const createVariableFromTemplate = async (

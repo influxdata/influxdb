@@ -26,8 +26,8 @@ import {
   cloneTask,
   setSearchTerm as setSearchTermAction,
   setShowInactive as setShowInactiveAction,
-  addTaskLabelsAsync,
-  removeTaskLabelsAsync,
+  addTaskLabelAsync,
+  removeTaskLabelAsync,
   runTask,
 } from 'src/tasks/actions'
 import {
@@ -54,8 +54,8 @@ interface ConnectedDispatchProps {
   selectTask: typeof selectTask
   setSearchTerm: typeof setSearchTermAction
   setShowInactive: typeof setShowInactiveAction
-  onAddTaskLabels: typeof addTaskLabelsAsync
-  onRemoveTaskLabels: typeof removeTaskLabelsAsync
+  onAddTaskLabel: typeof addTaskLabelAsync
+  onRemoveTaskLabel: typeof removeTaskLabelAsync
   onRunTask: typeof runTask
   checkTaskLimits: typeof checkTasksLimitsAction
 }
@@ -110,8 +110,8 @@ class TasksPage extends PureComponent<Props, State> {
       searchTerm,
       setShowInactive,
       showInactive,
-      onAddTaskLabels,
-      onRemoveTaskLabels,
+      onAddTaskLabel,
+      onRemoveTaskLabel,
       onRunTask,
       checkTaskLimits,
       limitStatus,
@@ -151,8 +151,8 @@ class TasksPage extends PureComponent<Props, State> {
                       onCreate={this.handleCreateTask}
                       onClone={this.handleClone}
                       onSelect={this.props.selectTask}
-                      onAddTaskLabels={onAddTaskLabels}
-                      onRemoveTaskLabels={onRemoveTaskLabels}
+                      onAddTaskLabel={onAddTaskLabel}
+                      onRemoveTaskLabel={onRemoveTaskLabel}
                       onRunTask={onRunTask}
                       onFilterChange={setSearchTerm}
                       filterComponent={this.search}
@@ -303,8 +303,8 @@ const mdtp: ConnectedDispatchProps = {
   cloneTask,
   setSearchTerm: setSearchTermAction,
   setShowInactive: setShowInactiveAction,
-  onRemoveTaskLabels: removeTaskLabelsAsync,
-  onAddTaskLabels: addTaskLabelsAsync,
+  onRemoveTaskLabel: removeTaskLabelAsync,
+  onAddTaskLabel: addTaskLabelAsync,
   onRunTask: runTask,
   checkTaskLimits: checkTasksLimitsAction,
 }
