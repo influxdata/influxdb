@@ -1,4 +1,4 @@
-import {Dispatch} from 'redux-thunk'
+import {Dispatch} from 'react'
 
 // API
 import * as api from 'src/client'
@@ -10,7 +10,7 @@ import {RemoteDataState, AppState, Bucket} from 'src/types'
 import {getErrorMessage} from 'src/utils/api'
 
 // Actions
-import {notify} from 'src/shared/actions/notifications'
+import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {checkBucketLimits} from 'src/cloud/actions/limits'
 
 // Constants
@@ -24,7 +24,12 @@ import {
   bucketRenameFailed,
 } from 'src/shared/copy/notifications'
 
-export type Action = SetBuckets | AddBucket | EditBucket | RemoveBucket
+export type Action =
+  | SetBuckets
+  | AddBucket
+  | EditBucket
+  | RemoveBucket
+  | NotifyAction
 
 interface SetBuckets {
   type: 'SET_BUCKETS'
@@ -101,7 +106,7 @@ export const getBuckets = () => async (
 }
 
 export const createBucket = (bucket: Bucket) => async (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ReturnType<typeof checkBucketLimits>>,
   getState: () => AppState
 ) => {
   try {
@@ -169,7 +174,7 @@ export const renameBucket = (
 }
 
 export const deleteBucket = (id: string, name: string) => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | ReturnType<typeof checkBucketLimits>>
 ) => {
   try {
     const resp = await api.deleteBucket({bucketID: id})

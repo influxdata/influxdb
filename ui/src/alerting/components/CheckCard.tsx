@@ -7,6 +7,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import CheckCardContext from 'src/alerting/components/CheckCardContext'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+import LastRunTaskStatus from 'src/shared/components/lastRunTaskStatus/LastRunTaskStatus'
 
 // Constants
 import {DEFAULT_CHECK_NAME} from 'src/alerting/constants'
@@ -170,7 +171,13 @@ const CheckCard: FunctionComponent<Props> = ({
         />
       }
       metaData={[
+        <>Last completed at {check.latestCompleted}</>,
         <>{relativeTimestampFormatter(check.updatedAt, 'Last updated ')}</>,
+        <LastRunTaskStatus
+          key={2}
+          lastRunError={check.lastRunError}
+          lastRunStatus={check.lastRunStatus}
+        />,
       ]}
     />
   )

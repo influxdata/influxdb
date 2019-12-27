@@ -362,6 +362,10 @@ func (tl *TestLauncher) PkgerService(tb testing.TB) pkger.SVC {
 	return &http.PkgerService{Client: tl.HTTPClient(tb)}
 }
 
+func (tl *TestLauncher) TaskServiceKV() platform.TaskService {
+	return tl.kvService
+}
+
 func (tl *TestLauncher) TelegrafService(tb testing.TB) *http.TelegrafService {
 	tb.Helper()
 	return http.NewTelegrafService(tl.HTTPClient(tb))

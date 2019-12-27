@@ -138,10 +138,11 @@ type Pkg struct {
 	mDashboards            []*dashboard
 	mNotificationEndpoints map[string]*notificationEndpoint
 	mNotificationRules     []*notificationRule
+	mTasks                 []*task
 	mTelegrafs             []*telegraf
 	mVariables             map[string]*variable
 
-	mSecrets map[string]struct{}
+	mSecrets map[string]bool
 
 	isVerified bool // dry run has verified pkg resources with existing resources
 	isParsed   bool // indicates the pkg has been parsed and all resources graphed accordingly
@@ -152,6 +153,11 @@ type Pkg struct {
 // the changes that will take place when this pkg would be applied.
 func (p *Pkg) Summary() Summary {
 	var sum Summary
+
+	// only add this after dry run has been completed
+	if p.isVerified {
+		sum.MissingSecrets = p.missingSecrets()
+	}
 
 	for _, b := range p.buckets() {
 		sum.Buckets = append(sum.Buckets, b.summarize())
@@ -179,6 +185,10 @@ func (p *Pkg) Summary() Summary {
 		sum.NotificationRules = append(sum.NotificationRules, r.summarize())
 	}
 
+	for _, t := range p.tasks() {
+		sum.Tasks = append(sum.Tasks, t.summarize())
+	}
+
 	for _, t := range p.telegrafs() {
 		sum.TelegrafConfigs = append(sum.TelegrafConfigs, t.summarize())
 	}
@@ -190,9 +200,16 @@ func (p *Pkg) Summary() Summary {
 	return sum
 }
 
+func (p *Pkg) applySecrets(secrets map[string]string) {
+	for k := range secrets {
+		p.mSecrets[k] = true
+	}
+}
+
 type (
 	validateOpt struct {
 		minResources bool
+		skipValidate bool
 	}
 
 	// ValidateOptFn provides a means to disable desired validation checks.
@@ -205,6 +222,15 @@ type (
 func ValidWithoutResources() ValidateOptFn {
 	return func(opt *validateOpt) {
 		opt.minResources = false
+	}
+}
+
+// ValidSkipParseError ignores the validation check from the  of resources. This
+// is useful for the service Create to ignore this and allow the creation of a
+// pkg without resources.
+func ValidSkipParseError() ValidateOptFn {
+	return func(opt *validateOpt) {
+		opt.skipValidate = true
 	}
 }
 
@@ -233,7 +259,7 @@ func (p *Pkg) Validate(opts ...ValidateOptFn) error {
 		}
 	}
 
-	if len(pErr.Resources) > 0 {
+	if len(pErr.Resources) > 0 && !opt.skipValidate {
 		return &pErr
 	}
 
@@ -301,13 +327,23 @@ func (p *Pkg) notificationRules() []*notificationRule {
 	return rules
 }
 
-func (p *Pkg) secrets() map[string]bool {
-	// copies the secrets map so we can destroy this one without concern
-	secrets := make(map[string]bool, len(p.mSecrets))
-	for secret := range p.mSecrets {
-		secrets[secret] = true
+func (p *Pkg) missingSecrets() []string {
+	secrets := make([]string, 0, len(p.mSecrets))
+	for secret, foundInPlatform := range p.mSecrets {
+		if foundInPlatform {
+			continue
+		}
+		secrets = append(secrets, secret)
 	}
 	return secrets
+}
+
+func (p *Pkg) tasks() []*task {
+	tasks := p.mTasks[:]
+
+	sort.Slice(tasks, func(i, j int) bool { return tasks[i].Name() < tasks[j].Name() })
+
+	return tasks
 }
 
 func (p *Pkg) telegrafs() []*telegraf {
@@ -426,7 +462,7 @@ func (p *Pkg) validResources() error {
 }
 
 func (p *Pkg) graphResources() error {
-	p.mSecrets = make(map[string]struct{})
+	p.mSecrets = make(map[string]bool)
 
 	graphFns := []func() *parseErr{
 		// labels are first, this is to validate associations with other resources
@@ -437,6 +473,7 @@ func (p *Pkg) graphResources() error {
 		p.graphDashboards,
 		p.graphNotificationEndpoints,
 		p.graphNotificationRules,
+		p.graphTasks,
 		p.graphTelegrafs,
 	}
 
@@ -674,7 +711,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 			refs := []references{endpoint.password, endpoint.routingKey, endpoint.token, endpoint.username}
 			for _, ref := range refs {
 				if secret := ref.Secret; secret != "" {
-					p.mSecrets[secret] = struct{}{}
+					p.mSecrets[secret] = false
 				}
 			}
 
@@ -732,6 +769,59 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 	})
 }
 
+func (p *Pkg) graphTasks() *parseErr {
+	p.mTasks = make([]*task, 0)
+	return p.eachResource(KindTask, 1, func(r Resource) []validationErr {
+		t := &task{
+			name:        r.Name(),
+			cron:        r.stringShort(fieldTaskCron),
+			description: r.stringShort(fieldDescription),
+			every:       r.durationShort(fieldEvery),
+			offset:      r.durationShort(fieldOffset),
+			query:       strings.TrimSpace(r.stringShort(fieldQuery)),
+			status:      normStr(r.stringShort(fieldStatus)),
+		}
+
+		failures := p.parseNestedLabels(r, func(l *label) error {
+			t.labels = append(t.labels, l)
+			p.mLabels[l.Name()].setMapping(t, false)
+			return nil
+		})
+		sort.Sort(t.labels)
+
+		p.mTasks = append(p.mTasks, t)
+		return append(failures, t.valid()...)
+	})
+}
+
+func (p *Pkg) graphTelegrafs() *parseErr {
+	p.mTelegrafs = make([]*telegraf, 0)
+	return p.eachResource(KindTelegraf, 0, func(r Resource) []validationErr {
+		tele := new(telegraf)
+		tele.config.Name = r.Name()
+		tele.config.Description = r.stringShort(fieldDescription)
+
+		failures := p.parseNestedLabels(r, func(l *label) error {
+			tele.labels = append(tele.labels, l)
+			p.mLabels[l.Name()].setMapping(tele, false)
+			return nil
+		})
+		sort.Sort(tele.labels)
+
+		tele.config.Config = r.stringShort(fieldTelegrafConfig)
+		if tele.config.Config == "" {
+			failures = append(failures, validationErr{
+				Field: fieldTelegrafConfig,
+				Msg:   "no config provided",
+			})
+		}
+
+		p.mTelegrafs = append(p.mTelegrafs, tele)
+
+		return failures
+	})
+}
+
 func (p *Pkg) graphVariables() *parseErr {
 	p.mVariables = make(map[string]*variable)
 	return p.eachResource(KindVariable, 1, func(r Resource) []validationErr {
@@ -763,34 +853,6 @@ func (p *Pkg) graphVariables() *parseErr {
 		p.mVariables[r.Name()] = newVar
 
 		return append(failures, newVar.valid()...)
-	})
-}
-
-func (p *Pkg) graphTelegrafs() *parseErr {
-	p.mTelegrafs = make([]*telegraf, 0)
-	return p.eachResource(KindTelegraf, 0, func(r Resource) []validationErr {
-		tele := new(telegraf)
-		tele.config.Name = r.Name()
-		tele.config.Description = r.stringShort(fieldDescription)
-
-		failures := p.parseNestedLabels(r, func(l *label) error {
-			tele.labels = append(tele.labels, l)
-			p.mLabels[l.Name()].setMapping(tele, false)
-			return nil
-		})
-		sort.Sort(tele.labels)
-
-		tele.config.Config = r.stringShort(fieldTelegrafConfig)
-		if tele.config.Config == "" {
-			failures = append(failures, validationErr{
-				Field: fieldTelegrafConfig,
-				Msg:   "no config provided",
-			})
-		}
-
-		p.mTelegrafs = append(p.mTelegrafs, tele)
-
-		return failures
 	})
 }
 
@@ -1274,7 +1336,13 @@ func uniqResources(resources []Resource) []Resource {
 		kind Kind
 		name string
 	}
+
+	// these 2 maps are used to eliminate duplicates that come
+	// from dependencies while keeping the Resource that has any
+	// associations. If there are no associations, then the resources
+	// are no different from one another.
 	m := make(map[key]bool)
+	res := make(map[key]Resource)
 
 	out := make([]Resource, 0, len(resources))
 	for _, r := range resources {
@@ -1285,18 +1353,22 @@ func uniqResources(resources []Resource) []Resource {
 		if err := k.OK(); err != nil {
 			continue
 		}
-		switch k {
-		// these 3 kinds are unique, have existing state identifiable by name
-		case KindBucket, KindLabel, KindVariable:
+
+		if kindsUniqByName[k] {
 			rKey := key{kind: k, name: r.Name()}
-			if m[rKey] {
+			if hasAssociations, ok := m[rKey]; ok && hasAssociations {
 				continue
 			}
-			m[rKey] = true
-			fallthrough
-		default:
-			out = append(out, r)
+			_, hasAssociations := r[fieldAssociations]
+			m[rKey] = hasAssociations
+			res[rKey] = r
+			continue
 		}
+		out = append(out, r)
+	}
+
+	for _, r := range res {
+		out = append(out, r)
 	}
 	return out
 }
@@ -1369,7 +1441,40 @@ func (e *parseErr) ValidationErrs() []ValidationErr {
 			errs = append(errs, traverseErrs(rootErr, v)...)
 		}
 	}
-	return errs
+
+	// used to provide a means to == or != in the map lookup
+	// to remove duplicate errors
+	type key struct {
+		kind    string
+		fields  string
+		indexes string
+		reason  string
+	}
+
+	m := make(map[key]bool)
+	var out []ValidationErr
+	for _, verr := range errs {
+		k := key{
+			kind:   verr.Kind,
+			fields: strings.Join(verr.Fields, ":"),
+			reason: verr.Reason,
+		}
+		var indexes []string
+		for _, idx := range verr.Indexes {
+			if idx == nil {
+				continue
+			}
+			indexes = append(indexes, strconv.Itoa(*idx))
+		}
+		k.indexes = strings.Join(indexes, ":")
+		if m[k] {
+			continue
+		}
+		m[k] = true
+		out = append(out, verr)
+	}
+
+	return out
 }
 
 // ValidationErr represents an error during the parsing of a package.
@@ -1419,8 +1524,15 @@ func (e *parseErr) append(errs ...resourceErr) {
 // it will return nil values for the parseErr, making it unsafe
 // to use.
 func IsParseErr(err error) bool {
-	_, ok := err.(*parseErr)
-	return ok
+	if _, ok := err.(*parseErr); ok {
+		return true
+	}
+
+	iErr, ok := err.(*influxdb.Error)
+	if !ok {
+		return false
+	}
+	return IsParseErr(iErr.Err)
 }
 
 func normStr(s string) string {

@@ -7130,10 +7130,16 @@ components:
     PkgApply:
       type: object
       properties:
-        apply:
+        dryRun:
           type: boolean
+        orgID:
+          type: string
         package:
           $ref: "#/components/schemas/Pkg"
+        secrets:
+          type: object
+          additionalProperties:
+            type: string
     PkgCreate:
       type: object
       properties:
@@ -7156,6 +7162,8 @@ components:
                 - dashboard
                 - label
                 - notification_endpoint
+                - notification_rule
+                - task
                 - telegraf
                 - variable
             name:
@@ -7262,6 +7270,10 @@ components:
                     type: string
                   labelID:
                     type: string
+            missingSecrets:
+              type: array
+              items:
+                type: string
             notificationEndpoints:
               type: array
               items:
@@ -7320,6 +7332,27 @@ components:
                     type: array
                     items:
                       $ref: "#/components/schemas/PkgSummaryLabel"
+            tasks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  cron:
+                    type: string
+                  description:
+                    type: string
+                  every:
+                    type: string
+                  offset:
+                    type: string
+                  query:
+                    type: string
+                  status:
+                    type: string
             telegrafConfigs:
               type: array
               items:
@@ -7498,6 +7531,25 @@ components:
                           type: string
                         operator:
                           type: string
+            tasks:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  cron:
+                    type: string
+                  description:
+                    type: string
+                  every:
+                    type: string
+                  offset:
+                    type: string
+                  query:
+                    type: string
+                  status:
+                    type: string
             telegrafConfigs:
               type: array
               items:
@@ -10172,6 +10224,21 @@ components:
         statusMessageTemplate:
           description: The template used to generate and write a status message.
           type: string
+        latestCompleted:
+          description: Timestamp of latest scheduled, completed run, RFC3339.
+          type: string
+          format: date-time
+          readOnly: true
+        lastRunStatus:
+          readOnly: true
+          type: string
+          enum:
+            - failed
+            - success
+            - canceled
+        lastRunError:
+          readOnly: true
+          type: string
         labels:
           $ref: "#/components/schemas/Labels"
         links:
@@ -10348,6 +10415,21 @@ components:
         - statusRules
         - endpointID
       properties:
+        latestCompleted:
+          description: Timestamp of latest scheduled, completed run, RFC3339.
+          type: string
+          format: date-time
+          readOnly: true
+        lastRunStatus:
+          readOnly: true
+          type: string
+          enum:
+            - failed
+            - success
+            - canceled
+        lastRunError:
+          readOnly: true
+          type: string
         id:
           readOnly: true
           type: string

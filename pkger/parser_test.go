@@ -1,6 +1,7 @@
 package pkger
 
 import (
+	"errors"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -3836,6 +3837,195 @@ spec:
 		})
 	})
 
+	t.Run("pkg with tasks", func(t *testing.T) {
+		testfileRunner(t, "testdata/tasks", func(t *testing.T, pkg *Pkg) {
+			sum := pkg.Summary()
+			tasks := sum.Tasks
+			require.Len(t, tasks, 2)
+
+			baseEqual := func(t *testing.T, i int, status influxdb.Status, actual SummaryTask) {
+				t.Helper()
+
+				assert.Equal(t, "task_"+strconv.Itoa(i), actual.Name)
+				assert.Equal(t, "desc_"+strconv.Itoa(i), actual.Description)
+				assert.Equal(t, status, actual.Status)
+
+				expectedQuery := "from(bucket: \"rucket_1\")\n  |> range(start: -5d, stop: -1h)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_idle\")\n  |> aggregateWindow(every: 1m, fn: mean)\n  |> yield(name: \"mean\")"
+				assert.Equal(t, expectedQuery, actual.Query)
+
+				require.Len(t, actual.LabelAssociations, 1)
+				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+			}
+
+			require.Len(t, sum.Labels, 1)
+
+			task1 := tasks[0]
+			baseEqual(t, 0, influxdb.Inactive, task1)
+			assert.Equal(t, (10 * time.Minute).String(), task1.Every)
+			assert.Equal(t, (15 * time.Second).String(), task1.Offset)
+
+			task2 := tasks[1]
+			baseEqual(t, 1, influxdb.Active, task2)
+			assert.Equal(t, "15 * * * *", task2.Cron)
+		})
+
+		t.Run("handles bad config", func(t *testing.T) {
+			tests := []struct {
+				kind   Kind
+				resErr testPkgResourceError
+			}{
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "missing name",
+						validationErrs: 1,
+						valFields:      []string{fieldName},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Task
+      description: desc_0
+      every: 10m
+      offset: 15s
+      query:  >
+        from(bucket: "rucket_1")
+`,
+					},
+				},
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "invalid status",
+						validationErrs: 1,
+						valFields:      []string{fieldStatus},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Task
+      name: task_0
+      description: desc_0
+      every: 10m
+      query:  >
+        from(bucket: "rucket_1")
+      status: RANDO WRONGO
+`,
+					},
+				},
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "missing query",
+						validationErrs: 1,
+						valFields:      []string{fieldQuery},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Task
+      name: task_0
+      description: desc_0
+      every: 10m
+`,
+					},
+				},
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "missing every and cron fields",
+						validationErrs: 1,
+						valFields:      []string{fieldEvery, fieldTaskCron},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Task
+      name: task_0
+      description: desc_0
+      query:  >
+        from(bucket: "rucket_1")
+`,
+					},
+				},
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "invalid association",
+						validationErrs: 1,
+						valFields:      []string{fieldAssociations},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Task
+      name: task_0
+      cron: "* * * * * *"
+      query:  >
+        from(bucket: "rucket_1")
+      associations:
+        - kind: Label
+          name: label_1
+`,
+					},
+				},
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "duplicate association",
+						validationErrs: 1,
+						valFields:      []string{fieldAssociations},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Label
+      name: label_1
+    - kind: Task
+      name: task_0
+      cron: "* * * * * *"
+      query:  >
+        from(bucket: "rucket_1")
+      associations:
+        - kind: Label
+          name: label_1
+        - kind: Label
+          name: label_1
+`,
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				testPkgErrors(t, tt.kind, tt.resErr)
+			}
+		})
+	})
+
 	t.Run("pkg with telegraf and label associations", func(t *testing.T) {
 		t.Run("with valid fields", func(t *testing.T) {
 			testfileRunner(t, "testdata/telegraf", func(t *testing.T, pkg *Pkg) {
@@ -4147,6 +4337,60 @@ spec:
 			require.True(t, ok)
 		})
 	})
+}
+
+func Test_IsParseError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "base case",
+			err:      &parseErr{},
+			expected: true,
+		},
+		{
+			name: "wrapped by influxdb error",
+			err: &influxdb.Error{
+				Err: &parseErr{},
+			},
+			expected: true,
+		},
+		{
+			name: "deeply nested in influxdb error",
+			err: &influxdb.Error{
+				Err: &influxdb.Error{
+					Err: &influxdb.Error{
+						Err: &influxdb.Error{
+							Err: &parseErr{},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "influxdb error without nested parse err",
+			err: &influxdb.Error{
+				Err: errors.New("nope"),
+			},
+			expected: false,
+		},
+		{
+			name:     "plain error",
+			err:      errors.New("nope"),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		fn := func(t *testing.T) {
+			isParseErr := IsParseErr(tt.err)
+			assert.Equal(t, tt.expected, isParseErr)
+		}
+		t.Run(tt.name, fn)
+	}
 }
 
 func Test_PkgValidationErr(t *testing.T) {

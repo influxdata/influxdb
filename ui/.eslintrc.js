@@ -53,6 +53,7 @@ module.exports = {
     '@typescript-eslint/member-delimiter-style': 'off',
     '@typescript-eslint/prefer-regexp-exec': 'off',
     '@typescript-eslint/prefer-string-starts-ends-with': 'off',
+    '@typescript-eslint/await-thenable': 'off',
     '@typescript-eslint/no-unused-vars': [
       'error',
       {varsIgnorePattern: '^_', argsIgnorePattern: '^_'},

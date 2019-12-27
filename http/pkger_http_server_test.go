@@ -201,8 +201,16 @@ func TestPkgerHTTPServer(t *testing.T) {
 				}
 				return sum, diff, nil
 			},
-			ApplyFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, error) {
-				return pkg.Summary(), nil
+			ApplyFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error) {
+				var opt pkger.ApplyOpt
+				for _, o := range opts {
+					require.NoError(t, o(&opt))
+				}
+				sum := pkg.Summary()
+				for key := range opt.MissingSecrets {
+					sum.MissingSecrets = append(sum.MissingSecrets, key)
+				}
+				return sum, nil
 			},
 		}
 
@@ -211,8 +219,9 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 		testttp.
 			PostJSON(t, "/api/v2/packages/apply", fluxTTP.ReqApplyPkg{
-				OrgID: influxdb.ID(9000).String(),
-				Pkg:   bucketPkg(t, pkger.EncodingJSON),
+				OrgID:   influxdb.ID(9000).String(),
+				Secrets: map[string]string{"secret1": "val1"},
+				Pkg:     bucketPkg(t, pkger.EncodingJSON),
 			}).
 			Do(svr).
 			ExpectStatus(http.StatusCreated).
@@ -222,6 +231,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 				assert.Len(t, resp.Summary.Buckets, 1)
 				assert.Len(t, resp.Diff.Buckets, 1)
+				assert.Equal(t, []string{"secret1"}, resp.Summary.MissingSecrets)
 				assert.Nil(t, resp.Errors)
 			})
 	})
@@ -300,7 +310,7 @@ func decodeBody(t *testing.T, r io.Reader, v interface{}) {
 
 type fakeSVC struct {
 	DryRunFn func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error)
-	ApplyFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, error)
+	ApplyFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error)
 }
 
 func (f *fakeSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
@@ -315,11 +325,11 @@ func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pk
 	return f.DryRunFn(ctx, orgID, userID, pkg)
 }
 
-func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, error) {
+func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error) {
 	if f.ApplyFn == nil {
 		panic("not implemented")
 	}
-	return f.ApplyFn(ctx, orgID, userID, pkg)
+	return f.ApplyFn(ctx, orgID, userID, pkg, opts...)
 }
 
 func newMountedHandler(rh fluxTTP.ResourceHandler, userID influxdb.ID) chi.Router {

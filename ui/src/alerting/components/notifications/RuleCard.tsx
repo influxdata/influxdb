@@ -7,6 +7,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import NotificationRuleCardContext from 'src/alerting/components/notifications/RuleCardContext'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+import LastRunTaskStatus from 'src/shared/components/lastRunTaskStatus/LastRunTaskStatus'
 
 // Constants
 import {DEFAULT_NOTIFICATION_RULE_NAME} from 'src/alerting/constants'
@@ -165,7 +166,13 @@ const RuleCard: FC<Props> = ({
         />
       }
       metaData={[
+        <>Last completed at {rule.latestCompleted}</>,
         <>{relativeTimestampFormatter(rule.updatedAt, 'Last updated ')}</>,
+        <LastRunTaskStatus
+          key={2}
+          lastRunError={rule.lastRunError}
+          lastRunStatus={rule.lastRunStatus}
+        />,
       ]}
     />
   )

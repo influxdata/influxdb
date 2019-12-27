@@ -1,6 +1,5 @@
 // Libraries
 import {Dispatch} from 'redux'
-import {ThunkAction} from 'redux-thunk'
 import {push, RouterAction} from 'react-router-redux'
 import HoneyBadger from 'honeybadger-js'
 
@@ -29,6 +28,7 @@ import {
   RemoteDataState,
   NotificationAction,
   Bucket,
+  AppThunk,
 } from 'src/types'
 
 export enum ActionTypes {
@@ -161,7 +161,7 @@ export const getOrganizations = () => async (
 export const createOrgWithBucket = (
   org: Organization,
   bucket: Bucket
-): ThunkAction<Promise<void>> => async (
+): AppThunk<Promise<void>> => async (
   dispatch: Dispatch<Actions | RouterAction | NotificationAction>
 ) => {
   let createdOrg: Organization
@@ -260,7 +260,7 @@ export const updateOrg = (org: Organization) => async (
 export const renameOrg = (
   originalName: string,
   org: Organization
-): ThunkAction<Promise<void>> => async (
+): AppThunk<Promise<void>> => async (
   dispatch: Dispatch<EditOrg | NotificationAction>
 ) => {
   try {
