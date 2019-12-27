@@ -2,13 +2,11 @@ package kv
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/notification/endpoint"
-
-	"github.com/influxdata/influxdb"
 )
 
 var (
@@ -21,23 +19,31 @@ var (
 
 var _ influxdb.NotificationEndpointService = (*Service)(nil)
 
-func newEndpointStore(kv Store) *uniqByNameStore {
-	return &uniqByNameStore{
-		kv:        kv,
-		resource:  "notification endpoint",
-		bktName:   []byte("notificationEndpointv1"),
-		indexName: []byte("notificationEndpointIndexv1"),
-		decodeBucketEntFn: func(key, val []byte) ([]byte, interface{}, error) {
-			edp, err := endpoint.UnmarshalJSON(val)
-			return key, edp, err
-		},
-		decodeOrgNameFn: func(body []byte) (influxdb.ID, string, error) {
-			edp, err := endpoint.UnmarshalJSON(body)
-			if err != nil {
-				return 0, "", err
-			}
-			return edp.GetOrgID(), edp.GetName(), nil
-		},
+func newEndpointStore() *IndexStore {
+	const resource = "notification endpoint"
+
+	var decEndpointEntFn DecodeBucketEntFn = func(key, val []byte) ([]byte, interface{}, error) {
+		edp, err := endpoint.UnmarshalJSON(val)
+		return key, edp, err
+	}
+
+	var decValToEntFn DecodedValToEntFn = func(_ []byte, v interface{}) (Entity, error) {
+		edp, ok := v.(influxdb.NotificationEndpoint)
+		if err := errUnexpectedDecodeVal(ok); err != nil {
+			return Entity{}, err
+		}
+		return Entity{
+			ID:    edp.GetID(),
+			Name:  edp.GetName(),
+			OrgID: edp.GetOrgID(),
+			Body:  edp,
+		}, nil
+	}
+
+	return &IndexStore{
+		Resource:   resource,
+		EntStore:   NewStoreBase(resource, []byte("notificationEndpointv1"), EncIDKey, EncBodyJSON, decEndpointEntFn, decValToEntFn),
+		IndexStore: NewOrgNameKeyStore(resource, []byte("notificationEndpointIndexv1"), true),
 	}
 }
 
@@ -78,20 +84,11 @@ func (s *Service) createNotificationEndpoint(ctx context.Context, tx Tx, edp inf
 		return err
 	}
 
-	b, err := json.Marshal(edp)
-	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "unable to marshal notification endpoint",
-			Err:  err,
-		}
-	}
-
 	ent := Entity{
 		ID:    edp.GetID(),
 		Name:  edp.GetName(),
 		OrgID: edp.GetOrgID(),
-		Body:  b,
+		Body:  edp,
 	}
 	if err := s.endpointStore.Put(ctx, tx, ent); err != nil {
 		return err
@@ -110,12 +107,16 @@ func (s *Service) findNotificationEndpointByName(ctx context.Context, tx Tx, org
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	body, err := s.endpointStore.FindByName(ctx, tx, orgID, name)
+	body, err := s.endpointStore.FindEnt(ctx, tx, Entity{
+		OrgID: orgID,
+		Name:  name,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	return endpoint.UnmarshalJSON(body)
+	edp, ok := body.(influxdb.NotificationEndpoint)
+	return edp, errUnexpectedDecodeVal(ok)
 }
 
 // UpdateNotificationEndpoint updates a single notification endpoint.
@@ -145,7 +146,10 @@ func (s *Service) updateNotificationEndpoint(ctx context.Context, tx Tx, id infl
 			}
 		}
 
-		err = s.endpointStore.deleteInIndex(ctx, tx, current.GetOrgID(), curName)
+		err = s.endpointStore.IndexStore.DeleteEnt(ctx, tx, Entity{
+			OrgID: edp.GetOrgID(),
+			Name:  curName,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -161,20 +165,11 @@ func (s *Service) updateNotificationEndpoint(ctx context.Context, tx Tx, id infl
 		return nil, err
 	}
 
-	b, err := json.Marshal(edp)
-	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "unable to marshal notification endpoint",
-			Err:  err,
-		}
-	}
-
 	ent := Entity{
 		ID:    edp.GetID(),
 		Name:  edp.GetName(),
 		OrgID: edp.GetOrgID(),
-		Body:  b,
+		Body:  edp,
 	}
 	if err := s.endpointStore.Put(ctx, tx, ent); err != nil {
 		return nil, err
@@ -214,7 +209,10 @@ func (s *Service) patchNotificationEndpoint(ctx context.Context, tx Tx, id influ
 			}
 		}
 
-		err = s.endpointStore.deleteInIndex(ctx, tx, edp.GetOrgID(), edp.GetName())
+		err = s.endpointStore.IndexStore.DeleteEnt(ctx, tx, Entity{
+			OrgID: edp.GetOrgID(),
+			Name:  edp.GetName(),
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -235,21 +233,13 @@ func (s *Service) patchNotificationEndpoint(ctx context.Context, tx Tx, id influ
 		return nil, err
 	}
 
-	b, err := json.Marshal(edp)
-	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "unable to marshal notification endpoint",
-			Err:  err,
-		}
-	}
 	// TODO(jsteenb2): every above here moves into service layer
 
 	ent := Entity{
 		ID:    edp.GetID(),
 		Name:  edp.GetName(),
 		OrgID: edp.GetOrgID(),
-		Body:  b,
+		Body:  edp,
 	}
 	if err := s.endpointStore.Put(ctx, tx, ent); err != nil {
 		return nil, err
@@ -266,21 +256,12 @@ func (s *Service) PutNotificationEndpoint(ctx context.Context, edp influxdb.Noti
 		return err
 	}
 
-	b, err := json.Marshal(edp)
-	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "unable to marshal notification endpoint",
-			Err:  err,
-		}
-	}
-
 	return s.kv.Update(ctx, func(tx Tx) (err error) {
 		ent := Entity{
 			ID:    edp.GetID(),
 			Name:  edp.GetName(),
 			OrgID: edp.GetOrgID(),
-			Body:  b,
+			Body:  edp,
 		}
 		return s.endpointStore.Put(ctx, tx, ent)
 	})
@@ -302,11 +283,12 @@ func (s *Service) FindNotificationEndpointByID(ctx context.Context, id influxdb.
 }
 
 func (s *Service) findNotificationEndpointByID(ctx context.Context, tx Tx, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
-	body, err := s.endpointStore.FindByID(ctx, tx, id)
+	decodedEnt, err := s.endpointStore.FindEnt(ctx, tx, Entity{ID: id})
 	if err != nil {
 		return nil, err
 	}
-	return endpoint.UnmarshalJSON(body)
+	edp, ok := decodedEnt.(influxdb.NotificationEndpoint)
+	return edp, errUnexpectedDecodeVal(ok)
 }
 
 // FindNotificationEndpoints returns a list of notification endpoints that match isNext and the total count of matching notification endpoints.
@@ -350,8 +332,19 @@ func (s *Service) findNotificationEndpoints(ctx context.Context, tx Tx, filter i
 	}
 
 	edps := make([]influxdb.NotificationEndpoint, 0)
-	err = s.endpointStore.Find(ctx, tx, o, filterEndpointsFn(idMap, filter), func(k []byte, v interface{}) {
-		edps = append(edps, v.(influxdb.NotificationEndpoint))
+	err = s.endpointStore.Find(ctx, tx, FindOpts{
+		Descending: o.Descending,
+		Offset:     o.Offset,
+		Limit:      o.Limit,
+		FilterFn:   filterEndpointsFn(idMap, filter),
+		CaptureFn: func(k []byte, v interface{}) error {
+			edp, ok := v.(influxdb.NotificationEndpoint)
+			if err := errUnexpectedDecodeVal(ok); err != nil {
+				return err
+			}
+			edps = append(edps, edp)
+			return nil
+		},
 	})
 	if err != nil {
 		return nil, 0, err
@@ -393,7 +386,7 @@ func (s *Service) deleteNotificationEndpoint(ctx context.Context, tx Tx, id infl
 		return nil, 0, err
 	}
 
-	if err := s.endpointStore.Delete(ctx, tx, id); err != nil {
+	if err := s.endpointStore.DeleteEnt(ctx, tx, Entity{ID: id}); err != nil {
 		return nil, 0, err
 	}
 

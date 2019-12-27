@@ -12,21 +12,7 @@ import (
 )
 
 func TestNotificationEndpointService(t *testing.T) {
-	tests := []struct {
-		name string
-		fn   func(f influxdbtesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func())
-	}{
-		{
-			name: "bolt",
-			fn:   initBoltNotificationEndpointService,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			influxdbtesting.NotificationEndpointService(tt.fn, t)
-		})
-	}
+	influxdbtesting.NotificationEndpointService(initBoltNotificationEndpointService, t)
 }
 
 func initBoltNotificationEndpointService(f influxdbtesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
