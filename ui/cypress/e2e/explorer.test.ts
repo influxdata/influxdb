@@ -10,16 +10,19 @@ import {
   STRINGS_TRIM,
 } from '../../src/shared/constants/fluxFunctions'
 
-      function getTimeMachineText() {
-        return cy.wrap({
-          text: () => {
-            const store = cy.state().window.store.getState().timeMachines
-            const timeMachine = store.timeMachines[store.activeTimeMachineID]
-            const query = timeMachine.draftQueries[timeMachine.activeQueryIndex].text
-            return query
-          }
-        }).invoke('text')
-      }
+function getTimeMachineText() {
+  return cy
+    .wrap({
+      text: () => {
+        const store = cy.state().window.store.getState().timeMachines
+        const timeMachine = store.timeMachines[store.activeTimeMachineID]
+        const query =
+          timeMachine.draftQueries[timeMachine.activeQueryIndex].text
+        return query
+      },
+    })
+    .invoke('text')
+}
 describe('DataExplorer', () => {
   beforeEach(() => {
     cy.flush()
@@ -385,8 +388,7 @@ describe('DataExplorer', () => {
       cy.getByTestID('flux-function strings.title').click()
       cy.getByTestID('flux-function strings.trim').click()
 
-      getTimeMachineText()
-      .then((text) => {
+      getTimeMachineText().then(text => {
         const expected = `
         import"${STRINGS_TITLE.package}"
         import"${MATH_ABS.package}"
@@ -406,8 +408,7 @@ describe('DataExplorer', () => {
 
       cy.getByTestID('flux-function from').click()
 
-      getTimeMachineText()
-      .then((text) => {
+      getTimeMachineText().then(text => {
         const expected = FROM.example
 
         cy.fluxEqual(text, expected).should('be.true')
@@ -415,8 +416,7 @@ describe('DataExplorer', () => {
 
       cy.getByTestID('flux-function range').click()
 
-      getTimeMachineText()
-      .then((text) => {
+      getTimeMachineText().then(text => {
         const expected = `${FROM.example}|>${RANGE.example}`
 
         cy.fluxEqual(text, expected).should('be.true')
@@ -424,13 +424,11 @@ describe('DataExplorer', () => {
 
       cy.getByTestID('flux-function mean').click()
 
-      getTimeMachineText()
-      .then((text) => {
+      getTimeMachineText().then(text => {
         const expected = `${FROM.example}|>${RANGE.example}|>${MEAN.example}`
 
         cy.fluxEqual(text, expected).should('be.true')
       })
-
     })
 
     it('can filter aggregation functions by name from script editor mode', () => {
@@ -532,15 +530,17 @@ describe('DataExplorer', () => {
         cy.getByTestID('empty-graph--no-queries').should('exist')
       })
 
-      it('shows an error if a query is syntactically invalid', () => {
+      it.only('shows an error if a query is syntactically invalid', () => {
         cy.getByTestID('switch-to-script-editor').click()
 
         cy.getByTestID('time-machine--bottom').within(() => {
+          const remove = cy.state().window.store.subscribe(action => {
+            remove()
+            cy.getByTestID('time-machine-submit-button').click()
+            cy.getByTestID('empty-graph--error').should('exist')
+          })
           cy.get('textarea').type('from(', {force: true})
-          cy.getByTestID('time-machine-submit-button').click()
         })
-
-        cy.getByTestID('empty-graph--error').should('exist')
       })
     })
 
