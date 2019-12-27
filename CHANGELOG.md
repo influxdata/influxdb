@@ -19,6 +19,7 @@
 1. [16324](https://github.com/influxdata/influxdb/pull/16324): Add support for tasks to pkger export functionality
 1. [16226](https://github.com/influxdata/influxdb/pull/16226): Add group() to Query Builder
 1. [16338](https://github.com/influxdata/influxdb/pull/16338): Add last run status to check and notification rules
+1. [16340](https://github.com/influxdata/influxdb/pull/16340): Add last run status to tasks
 
 ### Bug Fixes
 
