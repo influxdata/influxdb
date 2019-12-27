@@ -12,40 +12,38 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Actions
-import {updateCheck, getCheckForTimeMachine} from 'src/alerting/actions/checks'
+import {
+  getCheckForTimeMachine,
+  saveCheckFromTimeMachine,
+} from 'src/alerting/actions/checks'
 import {
   setActiveTimeMachine,
   setTimeMachineCheck,
   updateTimeMachineCheck,
 } from 'src/timeMachine/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
-import {notify} from 'src/shared/actions/notifications'
-import {updateCheckFailed} from 'src/shared/copy/notifications'
 
 // Types
 import {
   Check,
   AppState,
   RemoteDataState,
-  DashboardDraftQuery,
   TimeMachineID,
   QueryView,
 } from 'src/types'
 
 interface DispatchProps {
-  onUpdateCheck: typeof updateCheck
   onGetCheckForTimeMachine: typeof getCheckForTimeMachine
   onUpdateTimeMachineCheck: typeof updateTimeMachineCheck
   onSetActiveTimeMachine: typeof setActiveTimeMachine
   onSetTimeMachineCheck: typeof setTimeMachineCheck
   onExecuteQueries: typeof executeQueries
-  onNotify: typeof notify
+  onSaveCheckFromTimeMachine: typeof saveCheckFromTimeMachine
 }
 
 interface StateProps {
   view: QueryView | null
   check: Partial<Check>
-  query: DashboardDraftQuery
   checkStatus: RemoteDataState
   activeTimeMachineID: TimeMachineID
 }
@@ -53,17 +51,15 @@ interface StateProps {
 type Props = WithRouterProps & DispatchProps & StateProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
-  onUpdateCheck,
   onExecuteQueries,
   onGetCheckForTimeMachine,
+  onSaveCheckFromTimeMachine,
   onUpdateTimeMachineCheck,
   onSetTimeMachineCheck,
-  onNotify,
   activeTimeMachineID,
   checkStatus,
   router,
   params: {checkID, orgID},
-  query,
   check,
   view,
 }) => {
@@ -82,17 +78,6 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   const handleClose = () => {
     router.push(`/orgs/${orgID}/alerting`)
     onSetTimeMachineCheck(RemoteDataState.NotStarted, null)
-  }
-
-  const handleSave = () => {
-    // todo: update view when check has own view
-    try {
-      onUpdateCheck({...check, query})
-      handleClose()
-    } catch (e) {
-      console.error(e)
-      onNotify(updateCheckFailed(e.message))
-    }
   }
 
   let loadingStatus = RemoteDataState.Loading
@@ -120,7 +105,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
             name={check && check.name}
             onSetName={handleUpdateName}
             onCancel={handleClose}
-            onSave={handleSave}
+            onSave={onSaveCheckFromTimeMachine}
           />
           <div className="veo-contents">
             <TimeMachine />
@@ -137,23 +122,21 @@ const mstp = (state: AppState): StateProps => {
   } = state
 
   const {
-    draftQueries,
     alerting: {check, checkStatus},
   } = getActiveTimeMachine(state)
 
   const {view} = getActiveTimeMachine(state)
 
-  return {check, checkStatus, activeTimeMachineID, query: draftQueries[0], view}
+  return {check, checkStatus, activeTimeMachineID, view}
 }
 
 const mdtp: DispatchProps = {
-  onUpdateCheck: updateCheck,
   onSetTimeMachineCheck: setTimeMachineCheck,
   onUpdateTimeMachineCheck: updateTimeMachineCheck,
   onSetActiveTimeMachine: setActiveTimeMachine,
   onGetCheckForTimeMachine: getCheckForTimeMachine,
+  onSaveCheckFromTimeMachine: saveCheckFromTimeMachine,
   onExecuteQueries: executeQueries,
-  onNotify: notify,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
