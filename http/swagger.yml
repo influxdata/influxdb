@@ -10214,6 +10214,21 @@ components:
         statusMessageTemplate:
           description: The template used to generate and write a status message.
           type: string
+        latestCompleted:
+          description: Timestamp of latest scheduled, completed run, RFC3339.
+          type: string
+          format: date-time
+          readOnly: true
+        lastRunStatus:
+          readOnly: true
+          type: string
+          enum:
+            - failed
+            - success
+            - canceled
+        lastRunError:
+          readOnly: true
+          type: string
         labels:
           $ref: "#/components/schemas/Labels"
         links:
@@ -10390,6 +10405,21 @@ components:
         - statusRules
         - endpointID
       properties:
+        latestCompleted:
+          description: Timestamp of latest scheduled, completed run, RFC3339.
+          type: string
+          format: date-time
+          readOnly: true
+        lastRunStatus:
+          readOnly: true
+          type: string
+          enum:
+            - failed
+            - success
+            - canceled
+        lastRunError:
+          readOnly: true
+          type: string
         id:
           readOnly: true
           type: string

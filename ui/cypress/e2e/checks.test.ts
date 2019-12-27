@@ -75,6 +75,7 @@ describe('Checks', () => {
       cy.getByTestID('add-threshold-condition-WARN').click()
       cy.getByTestID('save-cell--button').click()
       cy.getByTestID('check-card').should('have.length', 1)
+      cy.getByTestID('notification-error').should('not.exist')
     })
 
     it('should allow created checks to be selected and routed to the edit page', () => {
@@ -94,6 +95,24 @@ describe('Checks', () => {
           })
         })
       })
+    })
+
+    it('can toggle a check to on / off', () => {
+      cy.get('.cf-resource-card__disabled').should('not.exist')
+      cy.getByTestID('check-card--slide-toggle').click()
+      cy.getByTestID('notification-error').should('not.exist')
+      cy.get('.cf-resource-card__disabled').should('exist')
+      cy.getByTestID('check-card--slide-toggle').click()
+      cy.getByTestID('notification-error').should('not.exist')
+      cy.get('.cf-resource-card__disabled').should('not.exist')
+    })
+
+    it('can display the last run status', () => {
+      cy.getByTestID('last-run-status--icon').should('exist')
+      cy.getByTestID('last-run-status--icon').trigger('mouseover')
+      cy.getByTestID('popover--dialog')
+        .should('exist')
+        .contains('Last Run Status:')
     })
   })
 })
