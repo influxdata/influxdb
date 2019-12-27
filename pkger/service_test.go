@@ -351,7 +351,7 @@ func TestService(t *testing.T) {
 			})
 		})
 
-		t.Run("secrets not found returns error", func(t *testing.T) {
+		t.Run("secrets not returns missing secrets", func(t *testing.T) {
 			testfileRunner(t, "testdata/notification_endpoint_secrets.yml", func(t *testing.T, pkg *Pkg) {
 				fakeSecretSVC := mock.NewSecretService()
 				fakeSecretSVC.GetSecretKeysFn = func(ctx context.Context, orgID influxdb.ID) ([]string, error) {
@@ -359,8 +359,10 @@ func TestService(t *testing.T) {
 				}
 				svc := newTestService(WithSecretSVC(fakeSecretSVC))
 
-				_, _, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
-				require.Error(t, err)
+				sum, _, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
+				require.NoError(t, err)
+
+				assert.Equal(t, []string{"routing-key"}, sum.MissingSecrets)
 			})
 		})
 

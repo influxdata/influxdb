@@ -7130,10 +7130,16 @@ components:
     PkgApply:
       type: object
       properties:
-        apply:
+        dryRun:
           type: boolean
+        orgID:
+          type: string
         package:
           $ref: "#/components/schemas/Pkg"
+        secrets:
+          type: object
+          additionalProperties:
+            type: string
     PkgCreate:
       type: object
       properties:
@@ -7264,6 +7270,10 @@ components:
                     type: string
                   labelID:
                     type: string
+            missingSecrets:
+              type: array
+              items:
+                type: string
             notificationEndpoints:
               type: array
               items:

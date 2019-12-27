@@ -46,7 +46,8 @@ type cmdPkgBuilder struct {
 	quiet           bool
 
 	applyOpts struct {
-		force string
+		force   string
+		secrets []string
 	}
 	exportOpts struct {
 		resourceType string
@@ -95,12 +96,15 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Path to package file")
 	cmd.MarkFlagFilename("file", "yaml", "yml", "json")
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "disable output printing")
-	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true".`)
+	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
 
 	b.org.register(cmd)
 
 	cmd.Flags().BoolVarP(&b.hasColor, "color", "c", true, "Enable color in output, defaults true")
 	cmd.Flags().BoolVar(&b.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
+
+	b.applyOpts.secrets = []string{}
+	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the package; format should --secret=SECRET_KEY::SECRET_VALUE --secret=SECRET_KEY_2::SECRET_VALUE_2")
 
 	cmd.RunE = b.pkgApplyRunEFn()
 
@@ -133,9 +137,40 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 			return err
 		}
 
-		_, diff, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg)
+		drySum, diff, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg)
 		if err != nil {
 			return err
+		}
+
+		providedSecrets := make(map[string]string)
+		for _, secretKey := range drySum.MissingSecrets {
+			providedSecrets[secretKey] = ""
+		}
+		for _, secretPair := range b.applyOpts.secrets {
+			pieces := strings.Split(secretPair, "::")
+			if len(pieces) < 2 {
+				continue
+			}
+			providedSecrets[pieces[0]] = pieces[1]
+		}
+
+		if !isTTY {
+			for secretKey, existinVal := range providedSecrets {
+				if existinVal != "" {
+					continue
+				}
+				ui := &input.UI{
+					Writer: os.Stdout,
+					Reader: os.Stdin,
+				}
+
+				const skipDefault = "skip-this-key"
+				prompt := "Please provide secret value for key " + secretKey + " (optional, press enter to skip)"
+				secretVal := getInput(ui, prompt, skipDefault)
+				if secretVal != "" && secretVal != skipDefault {
+					providedSecrets[secretKey] = secretVal
+				}
+			}
 		}
 
 		if !b.quiet {
@@ -160,7 +195,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 			return errors.New("package has conflicts with existing resources and cannot safely apply")
 		}
 
-		summary, err := svc.Apply(context.Background(), influxOrgID, 0, pkg)
+		summary, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, pkger.ApplyWithSecrets(providedSecrets))
 		if err != nil {
 			return err
 		}
@@ -872,6 +907,13 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 			}
 		})
 	}
+
+	if secrets := sum.MissingSecrets; len(secrets) > 0 {
+		headers := []string{"Secret Key"}
+		tablePrintFn("MISSING SECRETS", headers, len(secrets), func(i int) []string {
+			return []string{secrets[i]}
+		})
+	}
 }
 
 func (b *cmdPkgBuilder) tablePrinterGen() func(table string, headers []string, count int, rowFn func(i int) []string) {
@@ -906,8 +948,12 @@ func tablePrinter(wr io.Writer, table string, headers []string, count int, hasCo
 	}
 
 	footers := make([]string, len(headers))
-	footers[len(footers)-2] = "TOTAL"
-	footers[len(footers)-1] = strconv.Itoa(count)
+	if len(headers) > 1 {
+		footers[len(footers)-2] = "TOTAL"
+		footers[len(footers)-1] = strconv.Itoa(count)
+	} else {
+		footers[0] = "TOTAL: " + strconv.Itoa(count)
+	}
 	w.SetFooter(footers)
 	if hasColor {
 		var colors []tablewriter.Colors
@@ -915,8 +961,12 @@ func tablePrinter(wr io.Writer, table string, headers []string, count int, hasCo
 			colors = append(colors, tablewriter.Color(tablewriter.FgHiCyanColor))
 		}
 		w.SetHeaderColor(colors...)
-		colors[len(colors)-2] = tablewriter.Color(tablewriter.FgHiBlueColor)
-		colors[len(colors)-1] = tablewriter.Color(tablewriter.FgHiBlueColor)
+		if len(headers) > 1 {
+			colors[len(colors)-2] = tablewriter.Color(tablewriter.FgHiBlueColor)
+			colors[len(colors)-1] = tablewriter.Color(tablewriter.FgHiBlueColor)
+		} else {
+			colors[0] = tablewriter.Color(tablewriter.FgHiBlueColor)
+		}
 		w.SetFooterColor(colors...)
 	}
 
