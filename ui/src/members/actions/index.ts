@@ -7,11 +7,11 @@ import * as api from 'src/client'
 // Types
 import {RemoteDataState, GetState} from 'src/types'
 import {AddResourceMemberRequestBody} from '@influxdata/influx'
-import {Dispatch} from 'redux-thunk'
+import {Dispatch} from 'react'
 import {Member} from 'src/types'
 
 // Actions
-import {notify} from 'src/shared/actions/notifications'
+import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {
   memberAddSuccess,
   memberAddFailed,
@@ -19,7 +19,7 @@ import {
   memberRemoveFailed,
 } from 'src/shared/copy/notifications'
 
-export type Action = SetMembers | AddMember | RemoveMember
+export type Action = SetMembers | AddMember | RemoveMember | NotifyAction
 
 interface SetMembers {
   type: 'SET_MEMBERS'
