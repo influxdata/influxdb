@@ -147,7 +147,9 @@ func Test_newNotificationRuleResponses(t *testing.T) {
       ],
       "type": "slack",
       "updatedAt": "0001-01-01T00:00:00Z",
-      "status": "active"
+      "status": "active",
+			"latestCompleted": "0001-01-01T00:00:00Z",
+			"latestScheduled": "0001-01-01T00:00:00Z"
     },
     {
       "createdAt": "0001-01-01T00:00:00Z",
@@ -170,7 +172,9 @@ func Test_newNotificationRuleResponses(t *testing.T) {
       "runbookLink": "",
       "type": "pagerduty",
       "updatedAt": "0001-01-01T00:00:00Z",
-      "status": "active"
+      "status": "active",
+			"latestCompleted": "0001-01-01T00:00:00Z",
+			"latestScheduled": "0001-01-01T00:00:00Z"
     }
   ]
 }`,
@@ -287,7 +291,9 @@ func Test_newNotificationRuleResponse(t *testing.T) {
    }
  ],
  "type": "slack",
- "updatedAt": "0001-01-01T00:00:00Z"
+ "updatedAt": "0001-01-01T00:00:00Z",
+ "latestCompleted": "0001-01-01T00:00:00Z",
+	"latestScheduled": "0001-01-01T00:00:00Z"
 }`,
 		},
 	}

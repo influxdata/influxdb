@@ -182,6 +182,18 @@ export const saveCheckFromTimeMachine = () => async (
   }
 }
 
+export const updateCheck = (check: Partial<Check>) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
+  const resp = await api.putCheck({checkID: check.id, data: check as Check})
+  if (resp.status === 200) {
+    dispatch(setCheck(resp.data))
+  } else {
+    throw new Error(resp.data.message)
+  }
+  dispatch(setCheck(resp.data))
+}
+
 const updateCheckFromTimeMachine = async (check: Check) => {
   // todo: refactor after https://github.com/influxdata/influxdb/issues/16317
   const getCheckResponse = await api.getCheck({checkID: check.id})

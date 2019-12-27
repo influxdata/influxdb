@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
@@ -146,9 +147,13 @@ type notificationRuleLinks struct {
 
 type notificationRuleResponse struct {
 	influxdb.NotificationRule
-	Labels []influxdb.Label      `json:"labels"`
-	Links  notificationRuleLinks `json:"links"`
-	Status string                `json:"status"`
+	Labels          []influxdb.Label      `json:"labels"`
+	Links           notificationRuleLinks `json:"links"`
+	Status          string                `json:"status"`
+	LatestCompleted time.Time             `json:"latestCompleted,omitempty"`
+	LatestScheduled time.Time             `json:"latestScheduled,omitempty"`
+	LastRunStatus   string                `json:"LastRunStatus,omitempty"`
+	LastRunError    string                `json:"LastRunError,omitempty"`
 }
 
 func (resp notificationRuleResponse) MarshalJSON() ([]byte, error) {
@@ -158,13 +163,21 @@ func (resp notificationRuleResponse) MarshalJSON() ([]byte, error) {
 	}
 
 	b2, err := json.Marshal(struct {
-		Labels []influxdb.Label      `json:"labels"`
-		Links  notificationRuleLinks `json:"links"`
-		Status string                `json:"status"`
+		Labels          []influxdb.Label      `json:"labels"`
+		Links           notificationRuleLinks `json:"links"`
+		Status          string                `json:"status"`
+		LatestCompleted time.Time             `json:"latestCompleted,omitempty"`
+		LatestScheduled time.Time             `json:"latestScheduled,omitempty"`
+		LastRunStatus   string                `json:"lastRunStatus,omitempty"`
+		LastRunError    string                `json:"lastRunError,omitempty"`
 	}{
-		Links:  resp.Links,
-		Labels: resp.Labels,
-		Status: resp.Status,
+		Links:           resp.Links,
+		Labels:          resp.Labels,
+		Status:          resp.Status,
+		LatestCompleted: resp.LatestCompleted,
+		LatestScheduled: resp.LatestScheduled,
+		LastRunStatus:   resp.LastRunStatus,
+		LastRunError:    resp.LastRunError,
 	})
 	if err != nil {
 		return nil, err
@@ -195,8 +208,12 @@ func (h *NotificationRuleHandler) newNotificationRuleResponse(ctx context.Contex
 			Owners:  fmt.Sprintf("/api/v2/notificationRules/%s/owners", nr.GetID()),
 			Query:   fmt.Sprintf("/api/v2/notificationRules/%s/query", nr.GetID()),
 		},
-		Labels: []influxdb.Label{},
-		Status: t.Status,
+		Labels:          []influxdb.Label{},
+		Status:          t.Status,
+		LatestCompleted: t.LatestCompleted,
+		LatestScheduled: t.LatestScheduled,
+		LastRunStatus:   t.LastRunStatus,
+		LastRunError:    t.LastRunError,
 	}
 
 	for _, l := range labels {
