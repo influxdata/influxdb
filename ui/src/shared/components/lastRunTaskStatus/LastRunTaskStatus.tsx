@@ -54,7 +54,11 @@ const LastRunTaskStatus: FC<PassedProps> = ({lastRunError, lastRunStatus}) => {
 
   return (
     <>
-      <div className={statusClassName} ref={triggerRef}>
+      <div
+        data-testid="last-run-status--icon"
+        className={statusClassName}
+        ref={triggerRef}
+      >
         <Icon glyph={icon} />
       </div>
       <Popover
