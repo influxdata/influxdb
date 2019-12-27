@@ -2639,8 +2639,9 @@ func TestService(t *testing.T) {
 			taskSVC.FindTasksFn = func(ctx context.Context, f influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 				return []*influxdb.Task{
 					{ID: 31},
-					{ID: expectedCheck.TaskID}, // this one should be ignored in the return
-				}, 2, nil
+					{ID: expectedCheck.TaskID},              // this one should be ignored in the return
+					{ID: 99, Type: influxdb.TaskSystemType}, // this one should be skipped since it is a system task
+				}, 3, nil
 			}
 			taskSVC.FindTaskByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 				if id != 31 {
