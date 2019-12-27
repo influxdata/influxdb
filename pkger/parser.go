@@ -142,7 +142,7 @@ type Pkg struct {
 	mTelegrafs             []*telegraf
 	mVariables             map[string]*variable
 
-	mSecrets map[string]struct{}
+	mSecrets map[string]bool
 
 	isVerified bool // dry run has verified pkg resources with existing resources
 	isParsed   bool // indicates the pkg has been parsed and all resources graphed accordingly
@@ -153,6 +153,11 @@ type Pkg struct {
 // the changes that will take place when this pkg would be applied.
 func (p *Pkg) Summary() Summary {
 	var sum Summary
+
+	// only add this after dry run has been completed
+	if p.isVerified {
+		sum.MissingSecrets = p.missingSecrets()
+	}
 
 	for _, b := range p.buckets() {
 		sum.Buckets = append(sum.Buckets, b.summarize())
@@ -193,6 +198,12 @@ func (p *Pkg) Summary() Summary {
 	}
 
 	return sum
+}
+
+func (p *Pkg) applySecrets(secrets map[string]string) {
+	for k := range secrets {
+		p.mSecrets[k] = true
+	}
 }
 
 type (
@@ -316,11 +327,13 @@ func (p *Pkg) notificationRules() []*notificationRule {
 	return rules
 }
 
-func (p *Pkg) secrets() map[string]bool {
-	// copies the secrets map so we can destroy this one without concern
-	secrets := make(map[string]bool, len(p.mSecrets))
-	for secret := range p.mSecrets {
-		secrets[secret] = true
+func (p *Pkg) missingSecrets() []string {
+	secrets := make([]string, 0, len(p.mSecrets))
+	for secret, foundInPlatform := range p.mSecrets {
+		if foundInPlatform {
+			continue
+		}
+		secrets = append(secrets, secret)
 	}
 	return secrets
 }
@@ -449,7 +462,7 @@ func (p *Pkg) validResources() error {
 }
 
 func (p *Pkg) graphResources() error {
-	p.mSecrets = make(map[string]struct{})
+	p.mSecrets = make(map[string]bool)
 
 	graphFns := []func() *parseErr{
 		// labels are first, this is to validate associations with other resources
@@ -698,7 +711,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 			refs := []references{endpoint.password, endpoint.routingKey, endpoint.token, endpoint.username}
 			for _, ref := range refs {
 				if secret := ref.Secret; secret != "" {
-					p.mSecrets[secret] = struct{}{}
+					p.mSecrets[secret] = false
 				}
 			}
 
