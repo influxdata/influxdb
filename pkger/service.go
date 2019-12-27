@@ -22,11 +22,14 @@ const APIVersion = "0.1.0"
 type SVC interface {
 	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
 	DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (Summary, Diff, error)
-	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (Summary, error)
+	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, error)
 }
 
 type serviceOpt struct {
-	logger      *zap.Logger
+	logger *zap.Logger
+
+	applyReqLimit int
+
 	bucketSVC   influxdb.BucketService
 	checkSVC    influxdb.CheckService
 	dashSVC     influxdb.DashboardService
@@ -37,8 +40,6 @@ type serviceOpt struct {
 	taskSVC     influxdb.TaskService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
-
-	applyReqLimit int
 }
 
 // ServiceSetterFn is a means of setting dependencies on the Service type.
@@ -100,7 +101,7 @@ func WithSecretSVC(secretSVC influxdb.SecretService) ServiceSetterFn {
 	}
 }
 
-// WithTelegrafSVC sets the telegraf service.
+// WithTaskSVC sets the task service.
 func WithTaskSVC(taskSVC influxdb.TaskService) ServiceSetterFn {
 	return func(opt *serviceOpt) {
 		opt.taskSVC = taskSVC
@@ -895,7 +896,7 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 }
 
 func (s *Service) dryRunSecrets(ctx context.Context, orgID influxdb.ID, pkg *Pkg) error {
-	pkgSecrets := pkg.secrets()
+	pkgSecrets := pkg.mSecrets
 	if len(pkgSecrets) == 0 {
 		return nil
 	}
@@ -906,20 +907,10 @@ func (s *Service) dryRunSecrets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 	}
 
 	for _, secret := range existingSecrets {
-		delete(pkgSecrets, secret)
+		pkgSecrets[secret] = true // marked true since it exists in the platform
 	}
 
-	if len(pkgSecrets) == 0 {
-		return nil
-	}
-
-	missing := make([]string, 0, len(pkgSecrets))
-	for secret := range pkgSecrets {
-		missing = append(missing, secret)
-	}
-	sort.Strings(missing)
-	err = fmt.Errorf("secrets to not exist for secret reference keys: %s", strings.Join(missing, ", "))
-	return &influxdb.Error{Code: influxdb.EUnprocessableEntity, Err: err}
+	return nil
 }
 
 func (s *Service) dryRunTasks(pkg *Pkg) []DiffTask {
@@ -1087,13 +1078,36 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 	return nil
 }
 
+// ApplyOpt is an option for applying a package.
+type ApplyOpt struct {
+	MissingSecrets map[string]string
+}
+
+// ApplyOptFn updates the ApplyOpt per the functional option.
+type ApplyOptFn func(opt *ApplyOpt) error
+
+// ApplyWithSecrets provides secrets to the platform that the pkg will need.
+func ApplyWithSecrets(secrets map[string]string) ApplyOptFn {
+	return func(o *ApplyOpt) error {
+		o.MissingSecrets = secrets
+		return nil
+	}
+}
+
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg were applied.
-func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (sum Summary, e error) {
+func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, e error) {
 	if !pkg.isParsed {
 		if err := pkg.Validate(); err != nil {
 			return Summary{}, failedValidationErr(err)
+		}
+	}
+
+	var opt ApplyOpt
+	for _, o := range opts {
+		if err := o(&opt); err != nil {
+			return Summary{}, internalErr(err)
 		}
 	}
 
@@ -1104,7 +1118,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 	}
 
 	coordinator := &rollbackCoordinator{sem: make(chan struct{}, s.applyReqLimit)}
-	defer coordinator.rollback(s.log, &e)
+	defer coordinator.rollback(s.log, &e, orgID)
 
 	// each grouping here runs for its entirety, then returns an error that
 	// is indicative of running all appliers provided. For instance, the labels
@@ -1116,14 +1130,17 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 	// If those are all good, then we run the secondary(dependent) resources which
 	// rely on the primary resources having been created.
 	appliers := [][]applier{
-		// want to make all dependencies for belwo donezo before moving on to resources
-		// that have dependencies on lables
+		{
+			// adds secrets that are referenced it the pkg, this allows user to
+			// provide data that does not rest in the pkg.
+			s.applySecrets(opt.MissingSecrets),
+		},
 		{
 			// deps for primary resources
 			s.applyLabels(pkg.labels()),
 		},
 		{
-			// primary resources
+			// primary resources, can have relationships to labels
 			s.applyVariables(pkg.variables()),
 			s.applyBuckets(pkg.buckets()),
 			s.applyChecks(pkg.checks()),
@@ -1156,6 +1173,8 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 	if err := coordinator.runTilEnd(ctx, orgID, userID, secondary...); err != nil {
 		return Summary{}, internalErr(err)
 	}
+
+	pkg.applySecrets(opt.MissingSecrets)
 
 	return pkg.Summary(), nil
 }
@@ -1199,7 +1218,7 @@ func (s *Service) applyBuckets(buckets []*bucket) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func() error { return s.rollbackBuckets(rollbackBuckets) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackBuckets(rollbackBuckets) },
 		},
 	}
 }
@@ -1296,7 +1315,7 @@ func (s *Service) applyChecks(checks []*check) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func() error { return s.rollbackChecks(rollbackChecks) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackChecks(rollbackChecks) },
 		},
 	}
 }
@@ -1387,7 +1406,7 @@ func (s *Service) applyDashboards(dashboards []*dashboard) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn: func() error {
+			fn: func(_ influxdb.ID) error {
 				return s.deleteByIDs("dashboard", len(rollbackDashboards), s.dashSVC.DeleteDashboard, func(i int) influxdb.ID {
 					return rollbackDashboards[i].ID()
 				})
@@ -1471,7 +1490,7 @@ func (s *Service) applyLabels(labels []*label) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func() error { return s.rollbackLabels(rollBackLabels) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackLabels(rollBackLabels) },
 		},
 	}
 }
@@ -1570,7 +1589,7 @@ func (s *Service) applyNotificationEndpoints(endpoints []*notificationEndpoint) 
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn: func() error {
+			fn: func(_ influxdb.ID) error {
 				return s.rollbackNotificationEndpoints(rollbackEndpoints)
 			},
 		},
@@ -1700,7 +1719,7 @@ func (s *Service) applyNotificationRules(rules []*notificationRule) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn: func() error {
+			fn: func(_ influxdb.ID) error {
 				return s.rollbackNotificationRules(rollbackEndpoints)
 			},
 		},
@@ -1733,6 +1752,47 @@ func (s *Service) rollbackNotificationRules(rules []*notificationRule) error {
 		return fmt.Errorf(`notication_rule_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
 	}
 	return nil
+}
+
+func (s *Service) applySecrets(secrets map[string]string) applier {
+	const resource = "secrets"
+
+	if len(secrets) == 0 {
+		return applier{
+			rollbacker: rollbacker{fn: func(orgID influxdb.ID) error { return nil }},
+		}
+	}
+
+	mutex := new(doMutex)
+	rollbackSecrets := make([]string, 0)
+
+	createFn := func(ctx context.Context, i int, orgID, userID influxdb.ID) *applyErrBody {
+		err := s.secretSVC.PutSecrets(ctx, orgID, secrets)
+		if err != nil {
+			return &applyErrBody{name: "secrets", msg: err.Error()}
+		}
+
+		mutex.Do(func() {
+			for key := range secrets {
+				rollbackSecrets = append(rollbackSecrets, key)
+			}
+		})
+
+		return nil
+	}
+
+	return applier{
+		creater: creater{
+			entries: 1,
+			fn:      createFn,
+		},
+		rollbacker: rollbacker{
+			resource: resource,
+			fn: func(orgID influxdb.ID) error {
+				return s.secretSVC.DeleteSecret(context.Background(), orgID)
+			},
+		},
+	}
 }
 
 func (s *Service) applyTasks(tasks []*task) applier {
@@ -1775,7 +1835,7 @@ func (s *Service) applyTasks(tasks []*task) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn: func() error {
+			fn: func(_ influxdb.ID) error {
 				return s.deleteByIDs("task", len(rollbackTasks), s.taskSVC.DeleteTask, func(i int) influxdb.ID {
 					return rollbackTasks[i].ID()
 				})
@@ -1820,7 +1880,7 @@ func (s *Service) applyTelegrafs(teles []*telegraf) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn: func() error {
+			fn: func(_ influxdb.ID) error {
 				return s.deleteByIDs("telegraf", len(rollbackTelegrafs), s.teleSVC.DeleteTelegrafConfig, func(i int) influxdb.ID {
 					return rollbackTelegrafs[i].ID()
 				})
@@ -1866,7 +1926,7 @@ func (s *Service) applyVariables(vars []*variable) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func() error { return s.rollbackVariables(rollBackVars) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackVariables(rollBackVars) },
 		},
 	}
 }
@@ -1972,7 +2032,7 @@ func (s *Service) applyLabelMappings(labelMappings []SummaryLabelMapping) applie
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func() error { return s.rollbackLabelMappings(rollbackMappings) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackLabelMappings(rollbackMappings) },
 		},
 	}
 }
@@ -2044,7 +2104,7 @@ type (
 
 	rollbacker struct {
 		resource string
-		fn       func() error
+		fn       func(orgID influxdb.ID) error
 	}
 
 	creater struct {
@@ -2092,13 +2152,13 @@ func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID, userID influ
 	return errStr.close()
 }
 
-func (r *rollbackCoordinator) rollback(l *zap.Logger, err *error) {
+func (r *rollbackCoordinator) rollback(l *zap.Logger, err *error, orgID influxdb.ID) {
 	if *err == nil {
 		return
 	}
 
 	for _, r := range r.rollbacks {
-		if err := r.fn(); err != nil {
+		if err := r.fn(orgID); err != nil {
 			l.Error("failed to delete "+r.resource, zap.Error(err))
 		}
 	}

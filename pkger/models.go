@@ -541,6 +541,7 @@ type Summary struct {
 	NotificationRules     []SummaryNotificationRule     `json:"notificationRules"`
 	Labels                []SummaryLabel                `json:"labels"`
 	LabelMappings         []SummaryLabelMapping         `json:"labelMappings"`
+	MissingSecrets        []string                      `json:"missingSecrets"`
 	Tasks                 []SummaryTask                 `json:"summaryTask"`
 	TelegrafConfigs       []SummaryTelegraf             `json:"telegrafConfigs"`
 	Variables             []SummaryVariable             `json:"variables"`
