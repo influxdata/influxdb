@@ -604,7 +604,7 @@ func testPkgWritesToBuffer(newCmdFn func() *cobra.Command, args pkgFileArgs, ass
 type fakePkgSVC struct {
 	createFn func(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error)
 	dryRunFn func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error)
-	applyFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, error)
+	applyFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error)
 }
 
 func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
@@ -621,9 +621,9 @@ func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg 
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, error) {
+func (f *fakePkgSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error) {
 	if f.applyFn != nil {
-		return f.applyFn(ctx, orgID, userID, pkg)
+		return f.applyFn(ctx, orgID, userID, pkg, opts...)
 	}
 	panic("not implemented")
 }
