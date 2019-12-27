@@ -4,10 +4,10 @@ import {client} from 'src/utils/api'
 // Types
 import {RemoteDataState, GetState} from 'src/types'
 import {ScraperTargetResponse, ScraperTargetRequest} from '@influxdata/influx'
-import {Dispatch} from 'redux-thunk'
+import {Dispatch} from 'react'
 
 // Actions
-import {notify} from 'src/shared/actions/notifications'
+import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 
 import {
   scraperCreateFailed,
@@ -18,7 +18,12 @@ import {
   scraperUpdateSuccess,
 } from 'src/shared/copy/notifications'
 
-export type Action = SetScrapers | AddScraper | EditScraper | RemoveScraper
+export type Action =
+  | SetScrapers
+  | AddScraper
+  | EditScraper
+  | RemoveScraper
+  | NotifyAction
 
 interface SetScrapers {
   type: 'SET_SCRAPERS'

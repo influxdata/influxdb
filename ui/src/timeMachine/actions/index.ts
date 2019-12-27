@@ -1,6 +1,6 @@
 // Libraries
 import {get, isEmpty} from 'lodash'
-import {Dispatch} from 'redux-thunk'
+import {Dispatch} from 'react'
 
 // Actions
 import {loadBuckets} from 'src/timeMachine/actions/queryBuilder'
@@ -99,6 +99,11 @@ export type Action =
   | ReturnType<typeof changeCheckType>
   | ReturnType<typeof updateCheckThreshold>
   | ReturnType<typeof removeCheckThreshold>
+
+type ExternalActions =
+  | ReturnType<typeof loadBuckets>
+  | ReturnType<typeof saveAndExecuteQueries>
+  | ReturnType<typeof setValues>
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -392,7 +397,7 @@ export const setActiveQueryIndexSync = (
 })
 
 export const setActiveQueryIndex = (activeQueryIndex: number) => (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | ExternalActions>
 ) => {
   dispatch(setActiveQueryIndexSync(activeQueryIndex))
   dispatch(loadBuckets())
@@ -406,7 +411,9 @@ export const addQuerySync = (): AddQueryAction => ({
   type: 'ADD_QUERY',
 })
 
-export const addQuery = () => (dispatch: Dispatch<Action>) => {
+export const addQuery = () => (
+  dispatch: Dispatch<Action | ExternalActions>
+) => {
   dispatch(addQuerySync())
   dispatch(loadBuckets())
 }
@@ -432,7 +439,7 @@ export const toggleQuerySync = (queryIndex: number): ToggleQueryAction => ({
 })
 
 export const removeQuery = (queryIndex: number) => (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | ExternalActions>
 ) => {
   dispatch(removeQuerySync(queryIndex))
   dispatch(loadBuckets())
@@ -440,7 +447,7 @@ export const removeQuery = (queryIndex: number) => (
 }
 
 export const toggleQuery = (queryIndex: number) => (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | ExternalActions>
 ) => {
   dispatch(toggleQuerySync(queryIndex))
   dispatch(saveAndExecuteQueries())
@@ -677,7 +684,7 @@ export const removeCheckThreshold = (level: CheckStatusLevel) => ({
 })
 
 export const loadNewVEO = (dashboardID: string) => (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ExternalActions>,
   getState: GetState
 ): void => {
   const state = getState()

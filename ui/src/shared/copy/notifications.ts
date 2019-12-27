@@ -682,12 +682,12 @@ export const telegrafUpdateFailed = (telegrafName: string): Notification => ({
   message: `Failed to update telegraf: "${telegrafName}"`,
 })
 
-export const addTelelgrafLabelFailed = (): Notification => ({
+export const addTelegrafLabelFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to add label to telegraf config`,
 })
 
-export const removeTelelgrafLabelFailed = (): Notification => ({
+export const removeTelegrafLabelFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to remove label from telegraf config`,
 })

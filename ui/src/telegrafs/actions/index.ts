@@ -2,8 +2,9 @@
 import {client} from 'src/utils/api'
 
 // Types
-import {RemoteDataState, GetState, Telegraf, Label} from 'src/types'
-import {Dispatch, ThunkAction} from 'redux-thunk'
+import {AppThunk, RemoteDataState, GetState, Telegraf, Label} from 'src/types'
+import {Action as NotifyAction} from 'src/shared/actions/notifications'
+import {Dispatch} from 'react'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -14,8 +15,8 @@ import {
   telegrafCreateFailed,
   telegrafUpdateFailed,
   telegrafDeleteFailed,
-  addTelelgrafLabelFailed,
-  removeTelelgrafLabelFailed,
+  addTelegrafLabelFailed,
+  removeTelegrafLabelFailed,
   getTelegrafConfigFailed,
 } from 'src/shared/copy/notifications'
 
@@ -25,6 +26,7 @@ export type Action =
   | EditTelegraf
   | RemoveTelegraf
   | SetCurrentConfig
+  | NotifyAction
 
 interface SetTelegrafs {
   type: 'SET_TELEGRAFS'
@@ -146,10 +148,10 @@ export const deleteTelegraf = (id: string, name: string) => async (
   }
 }
 
-export const addTelelgrafLabelsAsync = (
+export const addTelegrafLabelsAsync = (
   telegrafID: string,
   labels: Label[]
-): ThunkAction<Promise<void>> => async (dispatch): Promise<void> => {
+): AppThunk<Promise<void>> => async (dispatch): Promise<void> => {
   try {
     await client.telegrafConfigs.addLabels(telegrafID, labels)
     const telegraf = await client.telegrafConfigs.get(telegrafID)
@@ -157,14 +159,14 @@ export const addTelelgrafLabelsAsync = (
     dispatch(editTelegraf(telegraf))
   } catch (error) {
     console.error(error)
-    dispatch(notify(addTelelgrafLabelFailed()))
+    dispatch(notify(addTelegrafLabelFailed()))
   }
 }
 
-export const removeTelelgrafLabelsAsync = (
+export const removeTelegrafLabelsAsync = (
   telegrafID: string,
   labels: Label[]
-): ThunkAction<Promise<void>> => async (dispatch): Promise<void> => {
+): AppThunk<Promise<void>> => async (dispatch): Promise<void> => {
   try {
     await client.telegrafConfigs.removeLabels(telegrafID, labels)
     const telegraf = await client.telegrafConfigs.get(telegrafID)
@@ -172,7 +174,7 @@ export const removeTelelgrafLabelsAsync = (
     dispatch(editTelegraf(telegraf))
   } catch (error) {
     console.error(error)
-    dispatch(notify(removeTelelgrafLabelFailed()))
+    dispatch(notify(removeTelegrafLabelFailed()))
   }
 }
 

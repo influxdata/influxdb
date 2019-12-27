@@ -79,7 +79,7 @@ class TelegrafEditor extends PureComponent<Props> {
           item =>
             (
               (this.props.pluginHashMap[item] as TelegrafEditorBasicPlugin) ||
-              {}
+              ({} as TelegrafEditorBasicPlugin)
             ).config
         )
         .filter(i => !!i)

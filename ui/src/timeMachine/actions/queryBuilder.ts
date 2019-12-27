@@ -9,12 +9,12 @@ import {
 } from 'src/timeMachine/selectors'
 
 // Types
-import {Dispatch} from 'redux-thunk'
 import {
   BuilderAggregateFunctionType,
   GetState,
   RemoteDataState,
 } from 'src/types'
+import {Dispatch} from 'react'
 import {BuilderFunctionsType} from '@influxdata/influx'
 
 export type Action =
@@ -124,7 +124,7 @@ export const setKeysSearchTerm = (index: number, searchTerm: string) => ({
 })
 
 export const loadBuckets = () => async (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ReturnType<typeof selectBucket>>,
   getState: GetState
 ) => {
   const queryURL = getState().links.query.self
@@ -164,13 +164,13 @@ export const loadBuckets = () => async (
 export const selectBucket = (
   bucket: string,
   resetSelections: boolean = false
-) => (dispatch: Dispatch<Action>) => {
+) => (dispatch: Dispatch<Action | ReturnType<typeof loadTagSelector>>) => {
   dispatch(setBuilderBucket(bucket, resetSelections))
   dispatch(loadTagSelector(0))
 }
 
 export const loadTagSelector = (index: number) => async (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ReturnType<typeof loadTagSelectorValues>>,
   getState: GetState
 ) => {
   const {buckets, tags} = getActiveQuery(getState()).builderConfig
@@ -230,7 +230,7 @@ export const loadTagSelector = (index: number) => async (
 }
 
 const loadTagSelectorValues = (index: number) => async (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ReturnType<typeof loadTagSelector>>,
   getState: GetState
 ) => {
   const state = getState()
@@ -280,7 +280,7 @@ const loadTagSelectorValues = (index: number) => async (
 }
 
 export const selectTagValue = (index: number, value: string) => (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ReturnType<typeof addTagSelector>>,
   getState: GetState
 ) => {
   const state = getState()

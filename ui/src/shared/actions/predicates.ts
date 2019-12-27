@@ -1,5 +1,5 @@
 // Libraries
-import {Dispatch} from 'redux-thunk'
+import {Dispatch} from 'react'
 import {extractBoxedCol} from 'src/timeMachine/apis/queryBuilder'
 import moment from 'moment'
 
@@ -25,6 +25,7 @@ import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 
 // Types
 import {RemoteDataState, Filter, CustomTimeRange, GetState} from 'src/types'
+import {Action as NotifyAction} from 'src/shared/actions/notifications'
 
 export type Action =
   | DeleteFilter
@@ -39,6 +40,7 @@ export type Action =
   | SetPreviewStatus
   | SetTimeRange
   | SetValuesByKey
+  | NotifyAction
 
 interface DeleteFilter {
   type: 'DELETE_FILTER'

@@ -29,21 +29,23 @@ import {findDepedentVariables} from 'src/variables/utils/exportVariables'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
-import {Dispatch} from 'redux-thunk'
+import {Dispatch} from 'react'
 import {
+  GetState,
+  VariableArgumentType,
   RemoteDataState,
   VariableTemplate,
   QueryArguments,
   MapArguments,
   CSVArguments,
 } from 'src/types'
-import {GetState, VariableArgumentType} from 'src/types'
 import {IVariable as Variable, ILabel as Label} from '@influxdata/influx'
 import {VariableValuesByID} from 'src/variables/types'
 import {
   addVariableLabelFailed,
   removeVariableLabelFailed,
 } from 'src/shared/copy/notifications'
+import {Action as NotifyAction} from 'src/shared/actions/notifications'
 
 export type EditorAction =
   | ReturnType<typeof clearEditor>
@@ -89,6 +91,7 @@ export type Action =
   | ReturnType<typeof moveVariable>
   | ReturnType<typeof setValues>
   | ReturnType<typeof selectValue>
+  | NotifyAction
 
 const setVariables = (status: RemoteDataState, variables?: Variable[]) => ({
   type: 'SET_VARIABLES' as 'SET_VARIABLES',

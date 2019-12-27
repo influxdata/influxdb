@@ -2,13 +2,13 @@
 import {client} from 'src/utils/api'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {Dispatch} from 'react'
+import {RemoteDataState, AppThunk} from 'src/types'
 import {ILabel, ILabelProperties} from '@influxdata/influx'
 import {LabelProperties} from 'src/types/labels'
-import {Dispatch, ThunkAction} from 'redux-thunk'
 
 // Actions
-import {notify} from 'src/shared/actions/notifications'
+import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {
   getLabelsFailed,
   createLabelFailed,
@@ -17,7 +17,12 @@ import {
 } from 'src/shared/copy/notifications'
 import {GetState} from 'src/types'
 
-export type Action = SetLabels | AddLabel | EditLabel | RemoveLabel
+export type Action =
+  | SetLabels
+  | AddLabel
+  | EditLabel
+  | RemoveLabel
+  | NotifyAction
 
 interface SetLabels {
   type: 'SET_LABELS'
@@ -90,7 +95,7 @@ export const getLabels = () => async (
 export const createLabel = (
   name: string,
   properties: LabelProperties
-): ThunkAction<Promise<void>, GetState> => async (
+): AppThunk<Promise<void>> => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ): Promise<void> => {
