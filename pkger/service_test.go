@@ -1382,6 +1382,7 @@ func TestService(t *testing.T) {
 		newThresholdBase := func(i int) icheck.Base {
 			return icheck.Base{
 				ID:          influxdb.ID(i),
+				TaskID:      300,
 				Name:        fmt.Sprintf("check_%d", i),
 				Description: fmt.Sprintf("desc_%d", i),
 				Every:       mustDuration(t, time.Minute),
@@ -2634,7 +2635,10 @@ func TestService(t *testing.T) {
 
 			taskSVC := mock.NewTaskService()
 			taskSVC.FindTasksFn = func(ctx context.Context, f influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
-				return []*influxdb.Task{{ID: 31}}, 1, nil
+				return []*influxdb.Task{
+					{ID: 31},
+					{ID: expectedCheck.TaskID}, // this one should be ignored in the return
+				}, 2, nil
 			}
 			taskSVC.FindTaskByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 				if id != 31 {
