@@ -19,7 +19,7 @@ var (
 var _ platform.IDGenerator = (*Client)(nil)
 
 func (c *Client) initializeID(tx *bolt.Tx) error {
-	if _, err := tx.CreateBucketIfNotExists([]byte(idsBucket)); err != nil {
+	if _, err := tx.CreateBucketIfNotExists(idsBucket); err != nil {
 		return err
 	}
 
