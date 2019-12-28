@@ -23,6 +23,7 @@
 1. [16341](https://github.com/influxdata/influxdb/pull/16341): Extend pkger apply functionality with ability to provide secrets outside of pkg
 1. [16345](https://github.com/influxdata/influxdb/pull/16345): Add hide headers flag to influx cli task find cmd
 1. [16336](https://github.com/influxdata/influxdb/pull/16336): Manual Overrides for Readiness Endpoint
+1. [16347](https://github.com/influxdata/influxdb/pull/16347): Drop legacy inmem service implementation in favor of kv service with inmem dependency
 
 ### Bug Fixes
 

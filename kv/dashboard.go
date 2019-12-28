@@ -854,9 +854,9 @@ func (s *Service) DeleteDashboard(ctx context.Context, id influxdb.ID) error {
 }
 
 func (s *Service) deleteDashboard(ctx context.Context, tx Tx, id influxdb.ID) error {
-	d, pe := s.findDashboardByID(ctx, tx, id)
-	if pe != nil {
-		return pe
+	d, err := s.findDashboardByID(ctx, tx, id)
+	if err != nil {
+		return err
 	}
 
 	for _, cell := range d.Cells {
@@ -956,6 +956,7 @@ func (s *Service) appendDashboardEventToLog(ctx context.Context, tx Tx, id influ
 	// TODO(desa): this is fragile and non explicit since it requires an authorizer to be on context. It should be
 	//             replaced with a higher level transaction so that adding to the log can take place in the http handler
 	//             where the userID will exist explicitly.
+
 	a, err := icontext.GetAuthorizer(ctx)
 	if err == nil {
 		// Add the user to the log if you can, but don't error if its not there.

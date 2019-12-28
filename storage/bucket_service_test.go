@@ -6,7 +6,9 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/storage"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestBucketService(t *testing.T) {
@@ -21,7 +23,7 @@ func TestBucketService(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 
-	inmemService := inmem.NewService()
+	inmemService := newInMemKVSVC(t)
 	service = storage.NewBucketService(inmemService, nil)
 
 	if err := service.DeleteBucket(context.TODO(), *i); err == nil {
@@ -60,4 +62,14 @@ type MockDeleter struct {
 func (m *MockDeleter) DeleteBucket(_ context.Context, orgID, bucketID platform.ID) error {
 	m.orgID, m.bucketID = orgID, bucketID
 	return nil
+}
+
+func newInMemKVSVC(t *testing.T) *kv.Service {
+	t.Helper()
+
+	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+	if err := svc.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	return svc
 }
