@@ -21,7 +21,7 @@ func (log *CRUDLog) SetCreatedAt(now time.Time) {
 	log.CreatedAt = now
 }
 
-// SetUpdated set the updated time.
+// SetUpdatedAt set the updated time.
 func (log *CRUDLog) SetUpdatedAt(now time.Time) {
 	log.UpdatedAt = now
 }

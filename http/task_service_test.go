@@ -16,7 +16,6 @@ import (
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
@@ -27,6 +26,7 @@ import (
 
 // NewMockTaskBackend returns a TaskBackend with mock services.
 func NewMockTaskBackend(t *testing.T) *TaskBackend {
+	t.Helper()
 	return &TaskBackend{
 		log: zaptest.NewLogger(t).With(zap.String("handler", "task")),
 
@@ -55,7 +55,7 @@ func NewMockTaskBackend(t *testing.T) *TaskBackend {
 				return org, nil
 			},
 		},
-		UserResourceMappingService: inmem.NewService(),
+		UserResourceMappingService: newInMemKVSVC(t),
 		LabelService:               mock.NewLabelService(),
 		UserService:                mock.NewUserService(),
 	}
@@ -820,7 +820,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 func TestTaskHandler_NotFoundStatus(t *testing.T) {
 	// Ensure that the HTTP handlers return 404s for missing resources, and OKs for matching.
 
-	im := inmem.NewService()
+	im := newInMemKVSVC(t)
 	taskBackend := NewMockTaskBackend(t)
 	taskBackend.HTTPErrorHandler = ErrorHandler(0)
 	h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
@@ -1210,7 +1210,7 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 // Test that org name to org ID translation happens properly in the HTTP layer.
 // Regression test for https://github.com/influxdata/influxdb/issues/12089.
 func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
-	i := inmem.NewService()
+	i := newInMemKVSVC(t)
 	ctx := context.Background()
 
 	// Set up user and org.
@@ -1303,7 +1303,7 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 func TestTaskHandler_Sessions(t *testing.T) {
 	t.Skip("rework these")
 	// Common setup to get a working base for using tasks.
-	i := inmem.NewService()
+	i := newInMemKVSVC(t)
 
 	ctx := context.Background()
 

@@ -617,12 +617,11 @@ func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.Lab
 	handler := NewLabelHandler(zaptest.NewLogger(t), svc, ErrorHandler(0))
 	server := httptest.NewServer(handler)
 	client := LabelService{
-		Client:   mustNewHTTPClient(t, server.URL, ""),
-		OpPrefix: inmem.OpPrefix,
+		Client: mustNewHTTPClient(t, server.URL, ""),
 	}
 	done := server.Close
 
-	return &client, inmem.OpPrefix, done
+	return &client, "", done
 }
 
 func TestLabelService(t *testing.T) {

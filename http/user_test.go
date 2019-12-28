@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/pkg/testttp"
 	platformtesting "github.com/influxdata/influxdb/testing"
@@ -29,7 +28,7 @@ func NewMockUserBackend(t *testing.T) *UserBackend {
 
 func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserService, string, func()) {
 	t.Helper()
-	svc := inmem.NewService()
+	svc := newInMemKVSVC(t)
 	svc.IDGenerator = f.IDGenerator
 
 	ctx := context.Background()
@@ -51,11 +50,10 @@ func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserS
 	}
 
 	client := UserService{
-		Client:   httpClient,
-		OpPrefix: inmem.OpPrefix,
+		Client: httpClient,
 	}
 
-	return &client, inmem.OpPrefix, server.Close
+	return &client, "", server.Close
 }
 
 func TestUserService(t *testing.T) {
