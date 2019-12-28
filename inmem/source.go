@@ -102,46 +102,8 @@ func (s *Service) FindSources(ctx context.Context, opt platform.FindOptions) ([]
 	return ds, len(ds), nil
 }
 
-// CreateSource creates a platform source and sets s.ID.
-func (s *Service) CreateSource(ctx context.Context, src *platform.Source) error {
-	src.ID = s.IDGenerator.ID()
-	if err := s.PutSource(ctx, src); err != nil {
-		return &platform.Error{
-			Err: err,
-		}
-	}
-	return nil
-}
-
 // PutSource will put a source without setting an ID.
 func (s *Service) PutSource(ctx context.Context, src *platform.Source) error {
 	s.sourceKV.Store(src.ID.String(), src)
-	return nil
-}
-
-// UpdateSource updates a source according the parameters set on upd.
-func (s *Service) UpdateSource(ctx context.Context, id platform.ID, upd platform.SourceUpdate) (*platform.Source, error) {
-	src, err := s.FindSourceByID(ctx, id)
-	if err != nil {
-		return nil, &platform.Error{
-			Err: err,
-			Op:  OpPrefix + platform.OpUpdateSource,
-		}
-	}
-
-	upd.Apply(src)
-	s.sourceKV.Store(src.ID.String(), src)
-	return src, nil
-}
-
-// DeleteSource deletes a source and prunes it from the index.
-func (s *Service) DeleteSource(ctx context.Context, id platform.ID) error {
-	if _, err := s.FindSourceByID(ctx, id); err != nil {
-		return &platform.Error{
-			Err: err,
-			Op:  OpPrefix + platform.OpDeleteSource,
-		}
-	}
-	s.sourceKV.Delete(id.String())
 	return nil
 }

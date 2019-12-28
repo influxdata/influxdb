@@ -23,7 +23,6 @@ import (
 	platform "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http/metric"
-	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kit/check"
 	tracetesting "github.com/influxdata/influxdb/kit/tracing/testing"
 	influxmock "github.com/influxdata/influxdb/mock"
@@ -324,12 +323,12 @@ var _ metric.EventRecorder = noopEventRecorder{}
 func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 	defer tracetesting.SetupInMemoryTracing(t.Name())()
 
-	i := inmem.NewService()
+	orgSVC := newInMemKVSVC(t)
 	b := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
 		log:                 zaptest.NewLogger(t),
 		QueryEventRecorder:  noopEventRecorder{},
-		OrganizationService: i,
+		OrganizationService: orgSVC,
 		ProxyQueryService: &mock.ProxyQueryService{
 			QueryF: func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
 				return flux.Statistics{}, &influxdb.Error{
@@ -409,7 +408,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 
 	t.Run("valid request but executing query results in client error", func(t *testing.T) {
 		org := influxdb.Organization{Name: t.Name()}
-		if err := i.CreateOrganization(context.Background(), &org); err != nil {
+		if err := orgSVC.CreateOrganization(context.Background(), &org); err != nil {
 			t.Fatal(err)
 		}
 

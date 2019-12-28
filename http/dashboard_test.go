@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/yudai/gojsondiff"
@@ -1755,9 +1756,8 @@ func Test_dashboardCellIDPath(t *testing.T) {
 
 func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (platform.DashboardService, string, func()) {
 	t.Helper()
-	svc := inmem.NewService()
+	svc := newInMemKVSVC(t)
 	svc.IDGenerator = f.IDGenerator
-	svc.TimeGenerator = f.TimeGenerator
 	ctx := context.Background()
 	for _, d := range f.Dashboards {
 		if err := svc.PutDashboard(ctx, d); err != nil {
@@ -1772,14 +1772,13 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 	server := httptest.NewServer(h)
 
 	client := DashboardService{Client: mustNewHTTPClient(t, server.URL, "")}
-	done := server.Close
 
-	return &client, inmem.OpPrefix, done
+	return &client, "", server.Close
 }
 
 func TestDashboardService(t *testing.T) {
 	t.Parallel()
-	platformtesting.DashboardService(initDashboardService, t)
+	platformtesting.DeleteDashboard(initDashboardService, t)
 }
 
 func TestService_handlePostDashboardLabel(t *testing.T) {
@@ -1916,4 +1915,14 @@ func jsonEqual(s1, s2 string) (eq bool, diff string, err error) {
 	diff, err = formatter.Format(d)
 
 	return cmp.Equal(o1, o2), diff, err
+}
+
+func newInMemKVSVC(t *testing.T) *kv.Service {
+	t.Helper()
+
+	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+	if err := svc.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	return svc
 }

@@ -10,6 +10,7 @@ import (
 	pctx "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
@@ -18,7 +19,7 @@ import (
 )
 
 func TestOnboardingValidation(t *testing.T) {
-	svc := inmem.NewService()
+	svc := newKVSVC(t)
 	ts := authorizer.NewTaskService(zaptest.NewLogger(t), mockTaskService(3, 2, 1))
 
 	r, err := svc.Generate(context.Background(), &influxdb.OnboardingRequest{
@@ -28,7 +29,6 @@ func TestOnboardingValidation(t *testing.T) {
 		Bucket:          "holder",
 		RetentionPeriod: 1,
 	})
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,9 +120,9 @@ func TestValidations(t *testing.T) {
 		otherOrg = &influxdb.Organization{Name: "other_org"}
 	)
 
-	inmem := inmem.NewService()
+	svc := newKVSVC(t)
 
-	r, err := inmem.Generate(context.Background(), &influxdb.OnboardingRequest{
+	r, err := svc.Generate(context.Background(), &influxdb.OnboardingRequest{
 		User:            "Setec Astronomy",
 		Password:        "too many secrets",
 		Org:             "thing",
@@ -133,7 +133,7 @@ func TestValidations(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := inmem.CreateOrganization(context.Background(), otherOrg); err != nil {
+	if err := svc.CreateOrganization(context.Background(), otherOrg); err != nil {
 		t.Fatal(err)
 	}
 
@@ -142,7 +142,7 @@ func TestValidations(t *testing.T) {
 		OrgID: otherOrg.ID,
 	}
 
-	if err = inmem.CreateBucket(context.Background(), otherBucket); err != nil {
+	if err = svc.CreateBucket(context.Background(), otherBucket); err != nil {
 		t.Fatal(err)
 	}
 
@@ -570,4 +570,14 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 			}
 		})
 	}
+}
+
+func newKVSVC(t *testing.T) *kv.Service {
+	t.Helper()
+
+	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+	if err := svc.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	return svc
 }

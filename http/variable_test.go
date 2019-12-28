@@ -13,8 +13,6 @@ import (
 
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap/zaptest"
@@ -890,14 +888,11 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 }
 
 func initVariableService(f platformtesting.VariableFields, t *testing.T) (platform.VariableService, string, func()) {
-	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+	svc := newInMemKVSVC(t)
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 
 	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatal(err)
-	}
 
 	for _, v := range f.Variables {
 		if err := svc.ReplaceVariable(ctx, v); err != nil {
@@ -915,7 +910,7 @@ func initVariableService(f platformtesting.VariableFields, t *testing.T) (platfo
 	}
 	done := server.Close
 
-	return &client, inmem.OpPrefix, done
+	return &client, "", done
 }
 
 func TestVariableService(t *testing.T) {

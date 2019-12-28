@@ -59,12 +59,11 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 	handler := NewOrgHandler(zaptest.NewLogger(t), orgBackend)
 	server := httptest.NewServer(handler)
 	client := OrganizationService{
-		Client:   mustNewHTTPClient(t, server.URL, ""),
-		OpPrefix: inmem.OpPrefix,
+		Client: mustNewHTTPClient(t, server.URL, ""),
 	}
 	done := server.Close
 
-	return &client, inmem.OpPrefix, done
+	return &client, "", done
 }
 
 func TestOrganizationService(t *testing.T) {
