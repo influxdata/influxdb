@@ -14,25 +14,8 @@ func TestBoltCheckService(t *testing.T) {
 	influxdbtesting.CheckService(initBoltCheckService, t)
 }
 
-func TestInmemCheckService(t *testing.T) {
-	influxdbtesting.CheckService(initInmemCheckService, t)
-}
-
 func initBoltCheckService(f influxdbtesting.CheckFields, t *testing.T) (influxdb.CheckService, string, func()) {
 	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, op, closeSvc := initCheckService(s, f, t)
-	return svc, op, func() {
-		closeSvc()
-		closeBolt()
-	}
-}
-
-func initInmemCheckService(f influxdbtesting.CheckFields, t *testing.T) (influxdb.CheckService, string, func()) {
-	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}

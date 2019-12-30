@@ -24,10 +24,6 @@ func TestLookupService_Name_WithBolt(t *testing.T) {
 	testLookupName(NewTestBoltStore, t)
 }
 
-func TestLookupService_Name_WithInMem(t *testing.T) {
-	testLookupName(NewTestInmemStore, t)
-}
-
 func testLookupName(newStore StoreFn, t *testing.T) {
 	type initFn func(context.Context, *kv.Service) error
 	type args struct {

@@ -14,25 +14,8 @@ func TestBoltBucketService(t *testing.T) {
 	influxdbtesting.BucketService(initBoltBucketService, t)
 }
 
-func TestInmemBucketService(t *testing.T) {
-	influxdbtesting.BucketService(initInmemBucketService, t)
-}
-
 func initBoltBucketService(f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
 	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, op, closeSvc := initBucketService(s, f, t)
-	return svc, op, func() {
-		closeSvc()
-		closeBolt()
-	}
-}
-
-func initInmemBucketService(f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
-	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}

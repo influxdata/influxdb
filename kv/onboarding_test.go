@@ -14,27 +14,10 @@ func TestBoltOnboardingService(t *testing.T) {
 	influxdbtesting.Generate(initBoltOnboardingService, t)
 }
 
-func TestInmemOnboardingService(t *testing.T) {
-	influxdbtesting.Generate(initInmemOnboardingService, t)
-}
-
 func initBoltOnboardingService(f influxdbtesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, func()) {
 	s, closeStore, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt kv store: %v", err)
-	}
-
-	svc, closeSvc := initOnboardingService(s, f, t)
-	return svc, func() {
-		closeSvc()
-		closeStore()
-	}
-}
-
-func initInmemOnboardingService(f influxdbtesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, func()) {
-	s, closeStore, err := NewTestInmemStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new inmem kv store: %v", err)
 	}
 
 	svc, closeSvc := initOnboardingService(s, f, t)

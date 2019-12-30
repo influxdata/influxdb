@@ -17,27 +17,10 @@ func TestBoltPasswordService(t *testing.T) {
 	influxdbtesting.PasswordsService(initBoltPasswordsService, t)
 }
 
-func TestInmemPasswordService(t *testing.T) {
-	influxdbtesting.PasswordsService(initInmemPasswordsService, t)
-}
-
 func initBoltPasswordsService(f influxdbtesting.PasswordFields, t *testing.T) (influxdb.PasswordsService, func()) {
 	s, closeStore, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt kv store: %v", err)
-	}
-
-	svc, closeSvc := initPasswordsService(s, f, t)
-	return svc, func() {
-		closeSvc()
-		closeStore()
-	}
-}
-
-func initInmemPasswordsService(f influxdbtesting.PasswordFields, t *testing.T) (influxdb.PasswordsService, func()) {
-	s, closeStore, err := NewTestInmemStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new inmem kv store: %v", err)
 	}
 
 	svc, closeSvc := initPasswordsService(s, f, t)
