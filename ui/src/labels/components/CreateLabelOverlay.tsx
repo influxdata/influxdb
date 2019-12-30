@@ -60,7 +60,7 @@ class CreateLabelOverlay extends Component<Props, State> {
           <Overlay.Header title="Create Label" onDismiss={onDismiss} />
           <Overlay.Body>
             <LabelOverlayForm
-              data-testid={`create-label--overlay`}
+              data-testid="create-label--overlay"
               id={label.id}
               name={label.name}
               onCloseModal={onDismiss}
