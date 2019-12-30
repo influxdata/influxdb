@@ -2,7 +2,7 @@
 import React, {FunctionComponent} from 'react'
 
 // Components
-import {Radio, ButtonShape} from '@influxdata/clockface'
+import {SelectGroup, ButtonShape} from '@influxdata/clockface'
 
 // Actions
 import {setActiveTab} from 'src/timeMachine/actions'
@@ -27,8 +27,9 @@ const CheckAlertingButton: FunctionComponent<Props> = ({
   }
 
   return (
-    <Radio shape={ButtonShape.StretchToFit} style={{width: '300px'}}>
-      <Radio.Button
+    <SelectGroup shape={ButtonShape.StretchToFit} style={{width: '300px'}}>
+      <SelectGroup.Option
+        name="query-mode"
         key="queries"
         id="queries"
         titleText="queries"
@@ -36,10 +37,10 @@ const CheckAlertingButton: FunctionComponent<Props> = ({
         active={activeTab === 'queries'}
         onClick={handleClick('queries')}
       >
-        1. Query
-      </Radio.Button>
-
-      <Radio.Button
+        1. Define Query
+      </SelectGroup.Option>
+      <SelectGroup.Option
+        name="query-mode"
         key="alerting"
         id="alerting"
         testID="checkeo--header alerting-tab"
@@ -48,9 +49,9 @@ const CheckAlertingButton: FunctionComponent<Props> = ({
         active={activeTab === 'alerting'}
         onClick={handleClick('alerting')}
       >
-        2. Check
-      </Radio.Button>
-    </Radio>
+        2. Configure Check
+      </SelectGroup.Option>
+    </SelectGroup>
   )
 }
 

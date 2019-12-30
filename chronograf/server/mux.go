@@ -12,10 +12,10 @@ import (
 
 	"github.com/NYTimes/gziphandler"
 	"github.com/bouk/httprouter"
+	jhttprouter "github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/chronograf"
 	"github.com/influxdata/influxdb/chronograf/oauth2"
 	"github.com/influxdata/influxdb/chronograf/roles"
-	jhttprouter "github.com/julienschmidt/httprouter"
 )
 
 const (
@@ -156,15 +156,6 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PUT("/chronograf/v1/mappings/:id", EnsureSuperAdmin(service.UpdateMapping))
 	router.DELETE("/chronograf/v1/mappings/:id", EnsureSuperAdmin(service.RemoveMapping))
 
-	// Sources
-	router.GET("/chronograf/v1/sources", EnsureViewer(service.Sources))
-	router.POST("/chronograf/v1/sources", EnsureEditor(service.NewSource))
-
-	router.GET("/chronograf/v1/sources/:id", EnsureViewer(service.SourcesID))
-	router.PATCH("/chronograf/v1/sources/:id", EnsureEditor(service.UpdateSource))
-	router.DELETE("/chronograf/v1/sources/:id", EnsureEditor(service.RemoveSource))
-	router.GET("/chronograf/v1/sources/:id/health", EnsureViewer(service.SourceHealth))
-
 	// Source Proxy to Influx; Has gzip compression around the handler
 	influx := gziphandler.GzipHandler(http.HandlerFunc(EnsureViewer(service.Influx)))
 	router.Handler("POST", "/chronograf/v1/sources/:id/proxy", influx)
@@ -190,22 +181,6 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// All possible permissions for users in this source
 	router.GET("/chronograf/v1/sources/:id/permissions", EnsureViewer(service.Permissions))
 
-	// Users associated with the data source
-	router.GET("/chronograf/v1/sources/:id/users", EnsureAdmin(service.SourceUsers))
-	router.POST("/chronograf/v1/sources/:id/users", EnsureAdmin(service.NewSourceUser))
-
-	router.GET("/chronograf/v1/sources/:id/users/:uid", EnsureAdmin(service.SourceUserID))
-	router.DELETE("/chronograf/v1/sources/:id/users/:uid", EnsureAdmin(service.RemoveSourceUser))
-	router.PATCH("/chronograf/v1/sources/:id/users/:uid", EnsureAdmin(service.UpdateSourceUser))
-
-	// Roles associated with the data source
-	router.GET("/chronograf/v1/sources/:id/roles", EnsureViewer(service.SourceRoles))
-	router.POST("/chronograf/v1/sources/:id/roles", EnsureEditor(service.NewSourceRole))
-
-	router.GET("/chronograf/v1/sources/:id/roles/:rid", EnsureViewer(service.SourceRoleID))
-	router.DELETE("/chronograf/v1/sources/:id/roles/:rid", EnsureEditor(service.RemoveSourceRole))
-	router.PATCH("/chronograf/v1/sources/:id/roles/:rid", EnsureEditor(service.UpdateSourceRole))
-
 	// Services are resources that chronograf proxies to
 	router.GET("/chronograf/v1/sources/:id/services", EnsureViewer(service.Services))
 	router.POST("/chronograf/v1/sources/:id/services", EnsureEditor(service.NewService))
@@ -218,29 +193,6 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.POST("/chronograf/v1/sources/:id/services/:kid/proxy", EnsureEditor(service.ProxyPost))
 	router.PATCH("/chronograf/v1/sources/:id/services/:kid/proxy", EnsureEditor(service.ProxyPatch))
 	router.DELETE("/chronograf/v1/sources/:id/services/:kid/proxy", EnsureEditor(service.ProxyDelete))
-
-	// Kapacitor
-	//router.GET("/chronograf/v1/sources/:id/kapacitors", EnsureViewer(service.Kapacitors))
-	//router.POST("/chronograf/v1/sources/:id/kapacitors", EnsureEditor(service.NewKapacitor))
-
-	//router.GET("/chronograf/v1/sources/:id/kapacitors/:kid", EnsureViewer(service.KapacitorsID))
-	//router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid", EnsureEditor(service.UpdateKapacitor))
-	//router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid", EnsureEditor(service.RemoveKapacitor))
-
-	//// Kapacitor rules
-	//router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/rules", EnsureViewer(service.KapacitorRulesGet))
-	//router.POST("/chronograf/v1/sources/:id/kapacitors/:kid/rules", EnsureEditor(service.KapacitorRulesPost))
-
-	//router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", EnsureViewer(service.KapacitorRulesID))
-	//router.PUT("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", EnsureEditor(service.KapacitorRulesPut))
-	//router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", EnsureEditor(service.KapacitorRulesStatus))
-	//router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", EnsureEditor(service.KapacitorRulesDelete))
-
-	//// Kapacitor Proxy
-	//router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureViewer(service.ProxyGet))
-	//router.POST("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.ProxyPost))
-	//router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.ProxyPatch))
-	//router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.ProxyDelete))
 
 	// Layouts
 	router.GET("/chronograf/v1/layouts", EnsureViewer(service.Layouts))

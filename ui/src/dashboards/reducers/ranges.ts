@@ -1,37 +1,38 @@
-import _ from 'lodash'
-
 import {TimeRange} from 'src/types'
 import {Action, ActionTypes} from 'src/dashboards/actions/ranges'
 
-export interface Range extends TimeRange {
-  dashboardID: string
+export type RangeState = {
+  [contextID: string]: TimeRange
 }
 
-export type RangeState = Range[]
+const initialState: RangeState = {}
 
-const initialState: RangeState = []
-
-export default (state: RangeState = initialState, action: Action) => {
+export default (
+  state: RangeState = initialState,
+  action: Action
+): RangeState => {
   switch (action.type) {
     case ActionTypes.DeleteTimeRange: {
       const {dashboardID} = action.payload
-      const ranges = state.filter(r => r.dashboardID !== dashboardID)
+      const {[dashboardID]: _, ...filteredRanges} = state
 
-      return ranges
+      return filteredRanges
     }
 
     case ActionTypes.RetainRangesDashboardTimeV1: {
       const {dashboardIDs} = action.payload
-      const ranges = state.filter(r => dashboardIDs.includes(r.dashboardID))
+      const ranges = {}
+      for (const key in state) {
+        if (dashboardIDs.includes(key)) {
+          ranges[key] = state[key]
+        }
+      }
       return ranges
     }
 
-    case ActionTypes.SetDashboardTimeV1: {
+    case ActionTypes.SetDashboardTimeRange: {
       const {dashboardID, timeRange} = action.payload
-      const newTimeRange = [{dashboardID, ...timeRange}]
-      const ranges = _.unionBy(newTimeRange, state, 'dashboardID')
-
-      return ranges
+      return {...state, [dashboardID]: timeRange}
     }
   }
 

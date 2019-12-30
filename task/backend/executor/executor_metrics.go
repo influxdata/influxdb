@@ -17,6 +17,7 @@ type ExecutorMetrics struct {
 	manualRunsCounter    *prometheus.CounterVec
 	resumeRunsCounter    *prometheus.CounterVec
 	unrecoverableCounter *prometheus.CounterVec
+	runLatency           *prometheus.HistogramVec
 }
 
 type runCollector struct {
@@ -83,6 +84,13 @@ func NewExecutorMetrics(te *TaskExecutor) *ExecutorMetrics {
 			Name:      "resume_runs_counter",
 			Help:      "Total number of runs resumed by task ID",
 		}, []string{"taskID"}),
+
+		runLatency: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "run_latency_seconds",
+			Help:      "Records the latency between the time the run was due to run and the time the task started execution, by task type",
+		}, []string{"task_type"}),
 	}
 }
 
@@ -122,13 +130,17 @@ func (em *ExecutorMetrics) PrometheusCollectors() []prometheus.Collector {
 		em.manualRunsCounter,
 		em.resumeRunsCounter,
 		em.unrecoverableCounter,
+		em.runLatency,
 	}
 }
 
 // StartRun store the delta time between when a run is due to start and actually starting.
-func (em *ExecutorMetrics) StartRun(task *influxdb.Task, queueDelta time.Duration) {
+func (em *ExecutorMetrics) StartRun(task *influxdb.Task, queueDelta time.Duration, runLatency time.Duration) {
 	em.queueDelta.WithLabelValues(task.Type, "all").Observe(queueDelta.Seconds())
 	em.queueDelta.WithLabelValues("", task.ID.String()).Observe(queueDelta.Seconds())
+
+	// schedule interval duration = (time task was scheduled to run) - (time it actually ran)
+	em.runLatency.WithLabelValues(task.Type).Observe(runLatency.Seconds())
 }
 
 // FinishRun adjusts the metrics to indicate a run is no longer in progress for the given task ID.

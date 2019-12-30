@@ -6,18 +6,19 @@
 $explore-graphic-anim-time: 0.5s;
 
 .explore-graphic--bg {
-  transition: fill 0.25s ease;
   fill: $g2-kevlar;
 }
 
 .explore-graphic--hex {
-  fill: $g5-pepper;
+  fill: $g4-onyx;
   transition: fill 0.25s ease;
 }
 
-.hex-a,
+.hex-a {
+  fill: $c-pool;
+}
 .hex-b {
-  transition: fill $explore-graphic-anim-time ease;
+  fill: $c-honeydew;
 }
 
 .explore-graphic--text {
@@ -29,11 +30,6 @@ $explore-graphic-anim-time: 0.5s;
 .explore-graphic--diagnostic {
   fill: transparent;
   transition: fill $explore-graphic-anim-time ease;
-}
-
-.explore-graphic--flows {
-  opacity: 0;
-  transition: opacity $explore-graphic-anim-time ease;
 }
 
 @keyframes flow {
@@ -50,7 +46,6 @@ $explore-graphic-anim-time: 0.5s;
   stroke-width: 2px;
   stroke-dasharray: 4px;
   stroke-dashoffset: 0px;
-  animation: flow 1s linear infinite;
 }
 
 .flow-a {
@@ -62,14 +57,10 @@ $explore-graphic-anim-time: 0.5s;
   animation-direction: reverse;
 }
 
-
 /* Hover State */
-.getting-started--card:hover {
-  .explore-graphic--bg {
-    fill: $g3-castle;
-  }
+.getting-started--image__animating {
   .explore-graphic--hex {
-    fill: $g6-smoke;
+    fill: $g5-pepper;
   }
   .explore-graphic--text {
     stroke: $g13-mist;
@@ -82,7 +73,7 @@ $explore-graphic-anim-time: 0.5s;
   .diagnostic-b {
     fill: $c-honeydew;
   }
-  .explore-graphic--flows {
-    opacity: 1;
+  .explore-graphic--flow {
+    animation: flow 1s linear infinite;
   }
 }

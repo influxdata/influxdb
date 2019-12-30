@@ -9,7 +9,7 @@ import (
 
 	"github.com/influxdata/influxdb/chronograf"
 	"github.com/influxdata/influxdb/chronograf/mocks"
-	"github.com/julienschmidt/httprouter"
+	"github.com/influxdata/httprouter"
 )
 
 func TestService_Queries(t *testing.T) {

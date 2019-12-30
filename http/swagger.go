@@ -17,7 +17,7 @@ var _ http.Handler = (*swaggerLoader)(nil)
 // swaggerLoader manages loading the swagger asset and serving it as JSON.
 type swaggerLoader struct {
 	influxdb.HTTPErrorHandler
-	logger *zap.Logger
+	log *zap.Logger
 
 	// Ensure we only call initialize once.
 	once sync.Once
@@ -29,8 +29,11 @@ type swaggerLoader struct {
 	loadErr error
 }
 
-func newSwaggerLoader(logger *zap.Logger, h influxdb.HTTPErrorHandler) *swaggerLoader {
-	return &swaggerLoader{logger: logger, HTTPErrorHandler: h}
+func newSwaggerLoader(log *zap.Logger, h influxdb.HTTPErrorHandler) *swaggerLoader {
+	return &swaggerLoader{
+		log:              log,
+		HTTPErrorHandler: h,
+	}
 }
 
 func (s *swaggerLoader) initialize() {

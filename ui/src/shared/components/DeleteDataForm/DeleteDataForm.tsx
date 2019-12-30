@@ -1,140 +1,166 @@
 // Libraries
-import React, {useReducer, FunctionComponent} from 'react'
+import React, {FC, useEffect, useState} from 'react'
 import moment from 'moment'
-import {Form, Grid, Columns, Panel} from '@influxdata/clockface'
+import {connect} from 'react-redux'
+import {
+  Columns,
+  ComponentSize,
+  Form,
+  Grid,
+  InfluxColors,
+  Panel,
+} from '@influxdata/clockface'
+import {extractBoxedCol} from 'src/timeMachine/apis/queryBuilder'
+
+// Utils
+import {runQuery} from 'src/shared/apis/query'
 
 // Components
 import BucketsDropdown from 'src/shared/components/DeleteDataForm/BucketsDropdown'
-import TimeRangeDropdown from 'src/shared/components/DeleteDataForm/TimeRangeDropdown'
 import Checkbox from 'src/shared/components/Checkbox'
 import DeleteButton from 'src/shared/components/DeleteDataForm/DeleteButton'
-import FilterEditor, {
-  Filter,
-} from 'src/shared/components/DeleteDataForm/FilterEditor'
+import FilterEditor from 'src/shared/components/DeleteDataForm/FilterEditor'
+import FluxTablesTransform from 'src/shared/components/FluxTablesTransform'
+import PreviewDataTable from 'src/shared/components/DeleteDataForm/PreviewDataTable'
+import TimeRangeDropdown from 'src/shared/components/DeleteDataForm/TimeRangeDropdown'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {Filter, RemoteDataState, CustomTimeRange, AppState} from 'src/types'
 
-const HOUR_MS = 1000 * 60 * 60
+// Selectors
+import {setCanDelete} from 'src/shared/selectors/canDelete'
 
-const FAKE_API_CALL = async (_: any) => {
-  await new Promise(res => setTimeout(res, 2000))
+// Actions
+import {
+  deleteFilter,
+  deleteWithPredicate,
+  executePreviewQuery,
+  resetFilters,
+  setFilter,
+  setIsSerious,
+  setBucketAndKeys,
+  setTimeRange,
+} from 'src/shared/actions/predicates'
+
+interface OwnProps {
+  handleDismiss: () => void
 }
 
-interface Props {
-  orgID: string
-  initialBucketName?: string
-  initialTimeRange?: [number, number]
-}
-
-interface State {
-  bucketName: string
-  timeRange: [number, number]
+interface StateProps {
+  canDelete: boolean
+  deletionStatus: RemoteDataState
+  files: string[]
   filters: Filter[]
   isSerious: boolean
-  deletionStatus: RemoteDataState
+  keys: string[]
+  timeRange: CustomTimeRange
+  values: (string | number)[]
+  bucketName: string
+  orgID: string
 }
 
-type Action =
-  | {type: 'SET_IS_SERIOUS'; isSerious: boolean}
-  | {type: 'SET_BUCKET_NAME'; bucketName: string}
-  | {type: 'SET_TIME_RANGE'; timeRange: [number, number]}
-  | {type: 'SET_FILTER'; filter: Filter; index: number}
-  | {type: 'DELETE_FILTER'; index: number}
-  | {type: 'SET_DELETION_STATUS'; deletionStatus: RemoteDataState}
-
-const reducer = (state: State, action: Action): State => {
-  switch (action.type) {
-    case 'SET_IS_SERIOUS':
-      return {...state, isSerious: action.isSerious}
-
-    case 'SET_BUCKET_NAME':
-      return {...state, bucketName: action.bucketName}
-
-    case 'SET_TIME_RANGE':
-      return {...state, timeRange: action.timeRange}
-
-    case 'SET_FILTER':
-      if (action.index >= state.filters.length) {
-        return {...state, filters: [...state.filters, action.filter]}
-      }
-
-      return {
-        ...state,
-        filters: state.filters.map((filter, i) =>
-          i === action.index ? action.filter : filter
-        ),
-      }
-
-    case 'DELETE_FILTER':
-      return {
-        ...state,
-        filters: state.filters.filter((_, i) => i !== action.index),
-      }
-
-    case 'SET_DELETION_STATUS':
-      return {...state, deletionStatus: action.deletionStatus}
-
-    default:
-      throw new Error('unhandled reducer action in <DeleteDataForm />')
-  }
+interface DispatchProps {
+  deleteFilter: typeof deleteFilter
+  deleteWithPredicate: typeof deleteWithPredicate
+  executePreviewQuery: typeof executePreviewQuery
+  resetFilters: typeof resetFilters
+  setFilter: typeof setFilter
+  setIsSerious: typeof setIsSerious
+  setBucketAndKeys: typeof setBucketAndKeys
+  setTimeRange: typeof setTimeRange
 }
 
-const DeleteDataForm: FunctionComponent<Props> = ({
+export type Props = StateProps & DispatchProps & OwnProps
+
+const DeleteDataForm: FC<Props> = ({
+  canDelete,
+  deleteFilter,
+  deletionStatus,
+  deleteWithPredicate,
+  executePreviewQuery,
+  files,
+  filters,
+  handleDismiss,
+  isSerious,
+  keys,
+  resetFilters,
+  setFilter,
+  setIsSerious,
+  setBucketAndKeys,
+  setTimeRange,
+  timeRange,
+  values,
+  bucketName,
   orgID,
-  initialBucketName,
-  initialTimeRange,
 }) => {
-  const recently = Date.parse(moment().format('YYYY-MM-DD HH:00:00'))
+  const [count, setCount] = useState('0')
+  useEffect(() => {
+    // trigger the setBucketAndKeys if the bucketName hasn't been set
+    if (bucketName) {
+      setBucketAndKeys(bucketName)
+    }
+  })
 
-  const initialState: State = {
-    bucketName: initialBucketName,
-    filters: [],
-    timeRange: initialTimeRange || [recently - HOUR_MS, recently],
-    isSerious: false,
-    deletionStatus: RemoteDataState.NotStarted,
+  useEffect(() => {
+    if (filters.every(filter => filter.key !== '' && filter.value !== '')) {
+      handleDeleteDataPreview()
+    }
+  }, [filters])
+
+  const formatPredicatesForPreview = (predicates: Filter[]) => {
+    let result = ''
+    predicates.forEach(predicate => {
+      const {key, equality, value} = predicate
+      result += `\n|> filter(fn: (r) => r.${key} ${
+        equality === '=' ? '==' : '!='
+      } "${value}")`
+    })
+    return result
   }
 
-  const [state, dispatch] = useReducer(reducer, initialState)
+  const handleDeleteDataPreview = async () => {
+    const {lower, upper} = timeRange
 
-  const canDelete =
-    state.isSerious &&
-    state.deletionStatus === RemoteDataState.NotStarted &&
-    state.filters.every(f => !!f.key && !!f.value)
+    let query = `from(bucket: "${name}")
+      |> range(start: ${moment(lower).toISOString()}, stop: ${moment(
+      upper
+    ).toISOString()})`
 
-  const handleDelete = async () => {
-    try {
-      dispatch({
-        type: 'SET_DELETION_STATUS',
-        deletionStatus: RemoteDataState.Loading,
-      })
-
-      const deleteRequest = {
-        query: {
-          bucket: state.bucketName,
-          org: orgID,
-          precision: 'ms',
-        },
-
-        body: {
-          start: state.timeRange[0],
-          stop: state.timeRange[1],
-          tags: state.filters,
-        },
-      }
-
-      await FAKE_API_CALL(deleteRequest)
-
-      dispatch({
-        type: 'SET_DELETION_STATUS',
-        deletionStatus: RemoteDataState.Done,
-      })
-    } catch {
-      dispatch({
-        type: 'SET_DELETION_STATUS',
-        deletionStatus: RemoteDataState.Error,
-      })
+    if (filters.length > 0) {
+      query += ` ${formatPredicatesForPreview(filters)}`
     }
+
+    const countQuery = `${query}
+      |> count()
+      |> keep(columns: ["_value"])
+      |> sum()
+    `
+
+    const rowQuery = `${query}
+      |> limit(n: 1)
+      |> yield(name: "sample_data")
+    `
+    const [total] = await extractBoxedCol(runQuery(orgID, countQuery), '_value')
+      .promise
+    executePreviewQuery(rowQuery)
+    setCount(total)
+  }
+
+  const handleDelete = () => {
+    deleteWithPredicate()
+    handleDismiss()
+  }
+
+  const handleBucketClick = (selectedBucketName: string) => {
+    setBucketAndKeys(selectedBucketName)
+    resetFilters()
+  }
+
+  const formatNumber = (num: string) => {
+    if (num) {
+      return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')
+    }
+    return 0
   }
 
   return (
@@ -144,20 +170,16 @@ const DeleteDataForm: FunctionComponent<Props> = ({
           <Grid.Column widthXS={Columns.Four}>
             <Form.Element label="Target Bucket">
               <BucketsDropdown
-                bucketName={state.bucketName}
-                onSetBucketName={bucketName =>
-                  dispatch({type: 'SET_BUCKET_NAME', bucketName})
-                }
+                bucketName={bucketName}
+                onSetBucketName={handleBucketClick}
               />
             </Form.Element>
           </Grid.Column>
           <Grid.Column widthXS={Columns.Eight}>
             <Form.Element label="Time Range">
               <TimeRangeDropdown
-                timeRange={state.timeRange}
-                onSetTimeRange={timeRange =>
-                  dispatch({type: 'SET_TIME_RANGE', timeRange})
-                }
+                timeRange={timeRange}
+                onSetTimeRange={setTimeRange}
               />
             </Form.Element>
           </Grid.Column>
@@ -165,31 +187,67 @@ const DeleteDataForm: FunctionComponent<Props> = ({
         <Grid.Row>
           <Grid.Column widthXS={Columns.Twelve}>
             <FilterEditor
-              filters={state.filters}
-              onSetFilter={(filter, index) =>
-                dispatch({type: 'SET_FILTER', filter, index})
-              }
-              onDeleteFilter={index => dispatch({type: 'DELETE_FILTER', index})}
-              shouldValidate={state.isSerious}
+              bucket={name}
+              filters={filters}
+              keys={keys}
+              onDeleteFilter={deleteFilter}
+              onSetFilter={setFilter}
+              shouldValidate={isSerious}
+              values={values}
             />
+          </Grid.Column>
+        </Grid.Row>
+        <Grid.Row className="delete-data-preview">
+          <Grid.Column widthXS={Columns.Twelve}>
+            <Panel>
+              <Panel.Header size={ComponentSize.ExtraSmall}>
+                <p className="preview-data-margins">Preview Data</p>
+              </Panel.Header>
+              <Panel.Body size={ComponentSize.ExtraSmall}>
+                {files && files.length > 0 && files[0].length > 1 && (
+                  <FluxTablesTransform files={files}>
+                    {tables => {
+                      const [table] = tables
+                      if (table && table.data) {
+                        let [headers, bodyData] = table.data
+                        headers = headers.slice(3)
+                        bodyData = bodyData.slice(3)
+                        return (
+                          <PreviewDataTable
+                            headers={headers}
+                            bodyData={bodyData}
+                          />
+                        )
+                      }
+                      return <span />
+                    }}
+                  </FluxTablesTransform>
+                )}
+              </Panel.Body>
+            </Panel>
           </Grid.Column>
         </Grid.Row>
         <Grid.Row>
           <Grid.Column widthXS={Columns.Twelve}>
             <Panel className="delete-data-form--danger-zone">
               <Panel.Header>
-                <Panel.Title>Danger Zone!</Panel.Title>
+                <h5>
+                  Danger Zone! You're deleting{' '}
+                  <span style={{color: InfluxColors.Dreamsicle}}>
+                    {formatNumber(count)}
+                  </span>{' '}
+                  records
+                </h5>
               </Panel.Header>
               <Panel.Body className="delete-data-form--confirm">
                 <Checkbox
+                  testID="delete-checkbox"
                   label="I understand that this cannot be undone."
-                  checked={state.isSerious}
-                  onSetChecked={isSerious =>
-                    dispatch({type: 'SET_IS_SERIOUS', isSerious})
-                  }
+                  checked={isSerious}
+                  onSetChecked={isSerious => setIsSerious(isSerious)}
                 />
                 <DeleteButton
-                  status={state.deletionStatus}
+                  status={deletionStatus}
                   valid={canDelete}
                   onClick={handleDelete}
                 />
@@ -202,4 +260,46 @@ const DeleteDataForm: FunctionComponent<Props> = ({
   )
 }
 
-export default DeleteDataForm
+const mstp = ({predicates, orgs}: AppState): StateProps => {
+  const {
+    bucketName,
+    deletionStatus,
+    files,
+    filters,
+    keys,
+    isSerious,
+    timeRange,
+    values,
+  } = predicates
+
+  const orgID = orgs.org.id
+
+  return {
+    bucketName,
+    canDelete: setCanDelete(predicates),
+    deletionStatus,
+    files,
+    filters,
+    isSerious,
+    keys,
+    timeRange,
+    values,
+    orgID,
+  }
+}
+
+const mdtp: DispatchProps = {
+  deleteFilter,
+  deleteWithPredicate,
+  resetFilters,
+  executePreviewQuery,
+  setFilter,
+  setIsSerious,
+  setBucketAndKeys,
+  setTimeRange,
+}
+
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(DeleteDataForm)

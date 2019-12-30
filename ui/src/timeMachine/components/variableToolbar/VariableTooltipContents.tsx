@@ -81,7 +81,7 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
   }
 
   return (
-    <div className="box-tooltip--contents" onMouseEnter={handleMouseEnter}>
+    <div onMouseEnter={handleMouseEnter}>
       <Form.Element label="Value">
         <SelectDropdown
           buttonIcon={icon}

@@ -53,18 +53,3 @@ func (s *Service) Permissions(w http.ResponseWriter, r *http.Request) {
 	}
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
-
-func validPermissions(perms *chronograf.Permissions) error {
-	if perms == nil {
-		return nil
-	}
-	for _, perm := range *perms {
-		if perm.Scope != chronograf.AllScope && perm.Scope != chronograf.DBScope {
-			return fmt.Errorf("invalid permission scope")
-		}
-		if perm.Scope == chronograf.DBScope && perm.Name == "" {
-			return fmt.Errorf("database scoped permission requires a name")
-		}
-	}
-	return nil
-}

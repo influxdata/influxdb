@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -15,34 +16,52 @@ import (
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/prom/promtest"
+	tracetest "github.com/influxdata/influxdb/kit/tracing/testing"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
+	"github.com/opentracing/opentracing-go"
+	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap/zaptest"
 )
+
+func TestMain(m *testing.M) {
+	var code int
+	func() {
+		defer tracetest.SetupInMemoryTracing("task_backend_tests")()
+
+		code = m.Run()
+	}()
+
+	os.Exit(code)
+}
 
 type tes struct {
 	svc     *fakeQueryService
 	ex      *TaskExecutor
 	metrics *ExecutorMetrics
 	i       *kv.Service
+	tcs     *taskControlService
 	tc      testCreds
 }
 
 func taskExecutorSystem(t *testing.T) tes {
-	aqs := newFakeQueryService()
-	qs := query.QueryServiceBridge{
-		AsyncQueryService: aqs,
-	}
-
-	i := kv.NewService(inmem.NewKVStore())
-
-	ex, metrics := NewExecutor(zaptest.NewLogger(t), qs, i, i, i)
+	var (
+		aqs = newFakeQueryService()
+		qs  = query.QueryServiceBridge{
+			AsyncQueryService: aqs,
+		}
+		i           = kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+		tcs         = &taskControlService{TaskControlService: i}
+		ex, metrics = NewExecutor(zaptest.NewLogger(t), qs, i, i, tcs)
+	)
 	return tes{
 		svc:     aqs,
 		ex:      ex,
 		metrics: metrics,
 		i:       i,
+		tcs:     tcs,
 		tc:      createCreds(t, i),
 	}
 }
@@ -61,16 +80,22 @@ func TestTaskExecutor(t *testing.T) {
 
 func testQuerySuccess(t *testing.T) {
 	t.Parallel()
+
 	tes := taskExecutorSystem(t)
 
-	script := fmt.Sprintf(fmtTestScript, t.Name())
-	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+	var (
+		script = fmt.Sprintf(fmtTestScript, t.Name())
+		ctx    = icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+		span   = opentracing.GlobalTracer().StartSpan("test-span")
+	)
+	ctx = opentracing.ContextWithSpan(ctx, span)
+
 	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,6 +110,10 @@ func testQuerySuccess(t *testing.T) {
 		t.Fatal("promise and run dont match")
 	}
 
+	if run.RunAt != time.Unix(126, 0).UTC() {
+		t.Fatalf("did not correctly set RunAt value, got: %v", run.RunAt)
+	}
+
 	tes.svc.WaitForQueryLive(t, script)
 	tes.svc.SucceedQuery(script)
 
@@ -93,12 +122,28 @@ func testQuerySuccess(t *testing.T) {
 	if got := promise.Error(); got != nil {
 		t.Fatal(got)
 	}
+
 	// confirm run is removed from in-mem store
 	run, err = tes.i.FindRunByID(context.Background(), task.ID, run.ID)
 	if run != nil || err == nil || !strings.Contains(err.Error(), "run not found") {
 		t.Fatal("run was returned when it should have been removed from kv")
 	}
 
+	// ensure the run returned by TaskControlService.FinishRun(...)
+	// has run logs formatted as expected
+	if run = tes.tcs.run; run == nil {
+		t.Fatal("expected run returned by FinishRun to not be nil")
+	}
+
+	if len(run.Log) < 3 {
+		t.Fatalf("expected 3 run logs, found %d", len(run.Log))
+	}
+
+	sctx := span.Context().(jaeger.SpanContext)
+	expectedMessage := fmt.Sprintf("trace_id=%s is_sampled=true", sctx.TraceID())
+	if expectedMessage != run.Log[1].Message {
+		t.Errorf("expected %q, found %q", expectedMessage, run.Log[1].Message)
+	}
 }
 
 func testQueryFailure(t *testing.T) {
@@ -112,7 +157,7 @@ func testQueryFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +240,7 @@ func testResumingRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	stalledRun, err := tes.i.CreateRun(ctx, task.ID, time.Unix(123, 0))
+	stalledRun, err := tes.i.CreateRun(ctx, task.ID, time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +283,7 @@ func testWorkerLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +325,7 @@ func testLimitFunc(t *testing.T) {
 		return nil
 	})
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +345,7 @@ func testMetrics(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
 	metrics := tes.metrics
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	reg.MustRegister(metrics.PrometheusCollectors()...)
 
 	mg := promtest.MustGather(t, reg)
@@ -316,7 +361,7 @@ func testMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,6 +427,15 @@ func testMetrics(t *testing.T) {
 		t.Fatalf("expected 1 manual run, got %v", got)
 	}
 
+	m = promtest.MustFindMetric(t, mg, "task_executor_run_latency_seconds", map[string]string{"task_type": ""})
+	if got := *m.Histogram.SampleCount; got < 1 {
+		t.Fatal("expected to find run latency metric")
+	}
+
+	if got := *m.Histogram.SampleSum; got <= 100 {
+		t.Fatalf("expected run latency metric to be very large, got %v", got)
+	}
+
 }
 
 func testIteratorFailure(t *testing.T) {
@@ -402,7 +456,7 @@ func testIteratorFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -432,7 +486,7 @@ func testErrorHandling(t *testing.T) {
 	tes := taskExecutorSystem(t)
 
 	metrics := tes.metrics
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	reg.MustRegister(metrics.PrometheusCollectors()...)
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
@@ -446,7 +500,7 @@ func testErrorHandling(t *testing.T) {
 	forcedErr := errors.New("could not find bucket")
 	tes.svc.FailNextQuery(forcedErr)
 
-	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -472,4 +526,21 @@ func testErrorHandling(t *testing.T) {
 			t.Fatal("expected task to be deactivated after permanent error")
 		}
 	*/
+}
+
+type taskControlService struct {
+	backend.TaskControlService
+
+	run *influxdb.Run
+}
+
+func (t *taskControlService) FinishRun(ctx context.Context, taskID influxdb.ID, runID influxdb.ID) (*influxdb.Run, error) {
+	// ensure auth set on context
+	_, err := icontext.GetAuthorizer(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	t.run, err = t.TaskControlService.FinishRun(ctx, taskID, runID)
+	return t.run, err
 }

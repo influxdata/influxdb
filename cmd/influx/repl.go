@@ -6,17 +6,18 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/repl"
+	_ "github.com/influxdata/flux/stdlib"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/query"
-	_ "github.com/influxdata/influxdb/query/builtin"
+	_ "github.com/influxdata/influxdb/query/stdlib"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 var replCmd = &cobra.Command{
 	Use:   "repl",
-	Short: "Interactive REPL (read-eval-print-loop)",
+	Short: "Interactive Flux REPL (read-eval-print-loop)",
 	Args:  cobra.NoArgs,
 	RunE:  wrapCheckSetup(replF),
 }
@@ -70,7 +71,9 @@ func replF(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	r, err := getFluxREPL(flags.host, flags.token, orgID)
+	flux.FinalizeBuiltIns()
+
+	r, err := getFluxREPL(flags.host, flags.token, flags.skipVerify, orgID)
 	if err != nil {
 		return err
 	}
@@ -80,9 +83,12 @@ func replF(cmd *cobra.Command, args []string) error {
 }
 
 func findOrgID(ctx context.Context, org string) (platform.ID, error) {
+	client, err := newHTTPClient()
+	if err != nil {
+		return 0, err
+	}
 	svc := &http.OrganizationService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Client: client,
 	}
 
 	o, err := svc.FindOrganization(ctx, platform.OrganizationFilter{
@@ -95,10 +101,11 @@ func findOrgID(ctx context.Context, org string) (platform.ID, error) {
 	return o.ID, nil
 }
 
-func getFluxREPL(addr, token string, orgID platform.ID) (*repl.REPL, error) {
+func getFluxREPL(addr, token string, skipVerify bool, orgID platform.ID) (*repl.REPL, error) {
 	qs := &http.FluxQueryService{
-		Addr:  addr,
-		Token: token,
+		Addr:               addr,
+		Token:              token,
+		InsecureSkipVerify: skipVerify,
 	}
 	q := &query.REPLQuerier{
 		OrganizationID: orgID,

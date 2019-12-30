@@ -109,7 +109,7 @@ func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb
 }
 
 func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRuleCreate) (*influxdb.Task, error) {
-	ep, _, _, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
+	ep, _, _, err := s.findNotificationEndpointByID(tx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.
 }
 
 func (s *Service) updateNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRule, status *string) (*influxdb.Task, error) {
-	ep, _, _, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
+	ep, _, _, err := s.findNotificationEndpointByID(tx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +508,7 @@ func (s *Service) deleteNotificationRule(ctx context.Context, tx Tx, id influxdb
 	}); err != nil {
 		// TODO(desa): it is possible that there were no user resource mappings for a resource so this likely shouldn't be a blocking
 		// condition for deleting a notification rule.
-		s.Logger.Info("failed to remove user resource mappings for notification rule", zap.Error(err), zap.Stringer("rule_id", id))
+		s.log.Info("Failed to remove user resource mappings for notification rule", zap.Error(err), zap.Stringer("rule_id", id))
 	}
 
 	return nil

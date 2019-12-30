@@ -10,24 +10,21 @@ import (
 
 // ProxyQueryService logs the request but does not write to the writer.
 type ProxyQueryService struct {
-	Logger *zap.Logger
+	log *zap.Logger
 }
 
-// NewProxyQueryService creates a new proxy query service with a logger.
+// NewProxyQueryService creates a new proxy query service with a log.
 // If the logger is nil, then it will use a noop logger.
-func NewProxyQueryService(l *zap.Logger) *ProxyQueryService {
-	if l == nil {
-		l = zap.NewNop()
-	}
+func NewProxyQueryService(log *zap.Logger) *ProxyQueryService {
 	return &ProxyQueryService{
-		Logger: l,
+		log: log,
 	}
 }
 
 // Query logs the query request.
 func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
 	if req != nil {
-		s.Logger.Info("query", zap.Any("request", req))
+		s.log.Info("Query", zap.Any("request", req))
 	}
 	n, err := w.Write([]byte{})
 	return int64(n), err

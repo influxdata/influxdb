@@ -5,26 +5,27 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/influxdata/influxdb/mock"
-	"go.uber.org/zap"
-
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap/zaptest"
 )
 
 // NewMockSetupBackend returns a SetupBackend with mock services.
-func NewMockSetupBackend() *SetupBackend {
+func NewMockSetupBackend(t *testing.T) *SetupBackend {
 	return &SetupBackend{
-		Logger:            zap.NewNop().With(zap.String("handler", "scraper")),
+		log:               zaptest.NewLogger(t),
 		OnboardingService: mock.NewOnboardingService(),
 	}
 }
 
 func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (platform.OnboardingService, func()) {
 	t.Helper()
-	svc := inmem.NewService()
+	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
 	svc.IDGenerator = f.IDGenerator
+	svc.OrgBucketIDs = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	if f.TimeGenerator == nil {
 		svc.TimeGenerator = platform.RealTimeGenerator{}
@@ -36,10 +37,10 @@ func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (pl
 		t.Fatalf("failed to set new onboarding finished: %v", err)
 	}
 
-	setupBackend := NewMockSetupBackend()
+	setupBackend := NewMockSetupBackend(t)
 	setupBackend.HTTPErrorHandler = ErrorHandler(0)
 	setupBackend.OnboardingService = svc
-	handler := NewSetupHandler(setupBackend)
+	handler := NewSetupHandler(zaptest.NewLogger(t), setupBackend)
 	server := httptest.NewServer(handler)
 	client := struct {
 		*SetupService

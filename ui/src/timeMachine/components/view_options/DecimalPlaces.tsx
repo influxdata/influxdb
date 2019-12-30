@@ -1,6 +1,9 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 
+// Utils
+import {convertUserInputToNumOrNaN} from 'src/shared/utils/convertUserInput'
+
 // Components
 import {
   Form,
@@ -26,6 +29,7 @@ interface Props extends DecimalPlaces {
 
 interface State {
   mode: AutoInputMode
+  value: number
 }
 
 @ErrorHandling
@@ -35,6 +39,7 @@ class DecimalPlacesOption extends PureComponent<Props, State> {
 
     this.state = {
       mode: this.props.digits ? AutoInputMode.Custom : AutoInputMode.Auto,
+      value: this.props.digits,
     }
   }
 
@@ -52,7 +57,7 @@ class DecimalPlacesOption extends PureComponent<Props, State> {
                 name="decimal-places"
                 placeholder="Enter a number"
                 onChange={this.handleSetValue}
-                value={this.value}
+                value={this.state.value}
                 min={MIN_DECIMAL_PLACES}
                 max={MAX_DECIMAL_PLACES}
                 type={InputType.Number}
@@ -65,28 +70,22 @@ class DecimalPlacesOption extends PureComponent<Props, State> {
   }
 
   public handleSetValue = (e: ChangeEvent<HTMLInputElement>): void => {
-    const value = Number(e.target.value) || 0
+    const value = convertUserInputToNumOrNaN(e)
     const {digits, onDecimalPlacesChange} = this.props
 
-    if (value === null) {
-      onDecimalPlacesChange({digits, isEnforced: false})
+    if (value === value && value >= MIN_DECIMAL_PLACES) {
+      onDecimalPlacesChange({
+        digits: Math.min(value, MAX_DECIMAL_PLACES),
+        isEnforced: true,
+      })
     } else {
-      onDecimalPlacesChange({digits: value, isEnforced: true})
+      onDecimalPlacesChange({digits, isEnforced: false})
     }
+    this.setState({value})
   }
 
   private handleChangeMode = (mode: AutoInputMode): void => {
     this.setState({mode})
-  }
-
-  private get value(): number {
-    const {isEnforced, digits} = this.props
-
-    if (!isEnforced) {
-      return
-    }
-
-    return digits
   }
 }
 

@@ -8,7 +8,7 @@ import (
 )
 
 func TestID(t *testing.T) {
-	c, closeFn, err := newTestClient()
+	c, closeFn, err := newTestClient(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}

@@ -13,7 +13,13 @@ interface Props {
   timeRange: TimeRange
   onSetTimeRange: (timeRange: TimeRange) => void
   onClose: () => void
-  position?: {top?: number; right?: number; bottom?: number; left?: number}
+  position?: {
+    top?: number
+    right?: number
+    bottom?: number
+    left?: number
+    position?: string
+  }
 }
 
 interface State {
@@ -78,19 +84,24 @@ class DateRangePicker extends PureComponent<Props, State> {
       }
     }
 
-    const style = Object.entries(position).reduce(
-      (acc, [k, v]) => ({...acc, [k]: `${v}px`}),
-      {}
-    )
+    const style = Object.entries(position).reduce((acc, [k, v]) => {
+      const obj = {...acc}
+      if (isNaN(+v)) {
+        obj[k] = v
+      } else {
+        obj[k] = `${v}px`
+      }
+      return obj
+    }, {})
 
     return style
   }
 
   private handleSetTimeRange = (): void => {
-    const {onSetTimeRange, timeRange} = this.props
+    const {onSetTimeRange} = this.props
     const {upper, lower} = this.state
 
-    onSetTimeRange({...timeRange, lower, upper})
+    onSetTimeRange({lower, upper, type: 'custom'})
   }
 
   private handleSelectLower = (lower: string): void => {

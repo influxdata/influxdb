@@ -41,7 +41,7 @@ func (s SecretField) String() string {
 	if s.Key == "" {
 		return ""
 	}
-	return "secret: " + string(s.Key)
+	return "secret: " + s.Key
 }
 
 // MarshalJSON implement the json marshaler interface.

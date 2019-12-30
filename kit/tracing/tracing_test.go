@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"runtime"
 	"testing"
 
+	"github.com/influxdata/httprouter"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 )
@@ -34,6 +36,83 @@ func TestInjectAndExtractHTTPRequest(t *testing.T) {
 
 	if span.(*mocktracer.MockSpan).SpanContext.SpanID != gotSpan.(*mocktracer.MockSpan).ParentID {
 		t.Error("injected span ID does not match extracted span parent ID")
+	}
+}
+
+func TestExtractHTTPRequest(t *testing.T) {
+	var (
+		tracer    = mocktracer.New()
+		oldTracer = opentracing.GlobalTracer()
+		ctx       = context.Background()
+	)
+
+	opentracing.SetGlobalTracer(tracer)
+	defer opentracing.SetGlobalTracer(oldTracer)
+
+	for _, test := range []struct {
+		name        string
+		handlerName string
+		path        string
+		ctx         context.Context
+		tags        map[string]interface{}
+	}{
+		{
+			name:        "happy path",
+			handlerName: "WriteHandler",
+			ctx:         context.WithValue(ctx, httprouter.MatchedRouteKey, "/api/v2/write"),
+			path:        "/api/v2/write",
+			tags: map[string]interface{}{
+				"route":   "/api/v2/write",
+				"handler": "WriteHandler",
+			},
+		},
+		{
+			name:        "happy path bucket handler",
+			handlerName: "BucketHandler",
+			ctx:         context.WithValue(ctx, httprouter.MatchedRouteKey, "/api/v2/buckets/:bucket_id"),
+			path:        "/api/v2/buckets/12345",
+			tags: map[string]interface{}{
+				"route":   "/api/v2/buckets/:bucket_id",
+				"handler": "BucketHandler",
+			},
+		},
+		{
+			name:        "empty path",
+			handlerName: "Home",
+			ctx:         ctx,
+			tags: map[string]interface{}{
+				"handler": "Home",
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodPost, "http://localhost"+test.path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			span := tracer.StartSpan("operation name")
+
+			InjectToHTTPRequest(span, request)
+			gotSpan, _ := ExtractFromHTTPRequest(request.WithContext(test.ctx), test.handlerName)
+
+			if op := gotSpan.(*mocktracer.MockSpan).OperationName; op != "request" {
+				t.Fatalf("operation name %q != request", op)
+			}
+
+			tags := gotSpan.(*mocktracer.MockSpan).Tags()
+			for k, v := range test.tags {
+				found, ok := tags[k]
+				if !ok {
+					t.Errorf("tag not found in span %q", k)
+					continue
+				}
+
+				if found != v {
+					t.Errorf("expected %v, found %v for tag %q", v, found, k)
+				}
+			}
+		})
 	}
 }
 
@@ -217,5 +296,17 @@ func BenchmarkOpentracing_StartSpan_child(b *testing.B) {
 
 	for n := 0; n < b.N; n++ {
 		_ = opentracing.StartSpan("operation name", opentracing.ChildOf(parentSpan.Context()))
+	}
+}
+
+func BenchmarkOpentracing_ExtractFromHTTPRequest(b *testing.B) {
+	b.ReportAllocs()
+
+	req := &http.Request{
+		URL: &url.URL{Path: "/api/v2/organization/12345"},
+	}
+
+	for n := 0; n < b.N; n++ {
+		_, _ = ExtractFromHTTPRequest(req, "OrganizationHandler")
 	}
 }

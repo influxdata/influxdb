@@ -7,6 +7,9 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/uber/jaeger-client-go"
+
+	"github.com/influxdata/httprouter"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/opentracing/opentracing-go/log"
@@ -50,15 +53,26 @@ func InjectToHTTPRequest(span opentracing.Span, req *http.Request) {
 func ExtractFromHTTPRequest(req *http.Request, handlerName string) (opentracing.Span, *http.Request) {
 	spanContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
 	if err != nil {
-		span, ctx := opentracing.StartSpanFromContext(req.Context(), handlerName+":"+req.URL.Path)
-		LogError(span, err)
-		req = req.WithContext(ctx)
-		return span, req
+		span, ctx := opentracing.StartSpanFromContext(req.Context(), "request")
+		annotateSpan(span, handlerName, req)
+
+		_ = LogError(span, err)
+
+		return span, req.WithContext(ctx)
 	}
 
-	span := opentracing.StartSpan(handlerName+":"+req.URL.Path, opentracing.ChildOf(spanContext), ext.RPCServerOption(spanContext))
-	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
-	return span, req
+	span := opentracing.StartSpan("request", opentracing.ChildOf(spanContext), ext.RPCServerOption(spanContext))
+	annotateSpan(span, handlerName, req)
+
+	return span, req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
+}
+
+func annotateSpan(span opentracing.Span, handlerName string, req *http.Request) {
+	if route := httprouter.MatchedRouteFromContext(req.Context()); route != "" {
+		span.SetTag("route", route)
+	}
+	span.SetTag("handler", handlerName)
+	span.LogKV("path", req.URL.Path)
 }
 
 // StartSpanFromContext is an improved opentracing.StartSpanFromContext.
@@ -152,4 +166,24 @@ func StartSpanFromContextWithOperationName(ctx context.Context, operationName st
 	span.LogFields(log.String("filename", file), log.Int("line", line))
 
 	return span, ctx
+}
+
+// InfoFromSpan returns the traceID and if it was sampled from the span, given it is a jaeger span.
+// It returns whether a span associated to the context has been found.
+func InfoFromSpan(span opentracing.Span) (traceID string, sampled bool, found bool) {
+	if spanContext, ok := span.Context().(jaeger.SpanContext); ok {
+		traceID = spanContext.TraceID().String()
+		sampled = spanContext.IsSampled()
+		return traceID, sampled, true
+	}
+	return "", false, false
+}
+
+// InfoFromContext returns the traceID and if it was sampled from the Jaeger span
+// found in the given context. It returns whether a span associated to the context has been found.
+func InfoFromContext(ctx context.Context) (traceID string, sampled bool, found bool) {
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		return InfoFromSpan(span)
+	}
+	return "", false, false
 }

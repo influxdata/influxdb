@@ -266,7 +266,7 @@ func (p *Permission) Valid() error {
 		}
 	}
 
-	if p.Resource.OrgID != nil && !(*p.Resource.OrgID).Valid() {
+	if p.Resource.OrgID != nil && !p.Resource.OrgID.Valid() {
 		return &Error{
 			Code: EInvalid,
 			Err:  ErrInvalidID,
@@ -274,7 +274,7 @@ func (p *Permission) Valid() error {
 		}
 	}
 
-	if p.Resource.ID != nil && !(*p.Resource.ID).Valid() {
+	if p.Resource.ID != nil && !p.Resource.ID.Valid() {
 		return &Error{
 			Code: EInvalid,
 			Err:  ErrInvalidID,

@@ -58,9 +58,10 @@ all_statuses
 		},
 	}
 
+	id := influxdb.ID(2)
 	e := &endpoint.HTTP{
 		Base: endpoint.Base{
-			ID:   2,
+			ID:   &id,
 			Name: "foo",
 		},
 		URL: "http://localhost:7777",
@@ -125,9 +126,10 @@ all_statuses
 		},
 	}
 
+	id := influxdb.ID(2)
 	e := &endpoint.HTTP{
 		Base: endpoint.Base{
-			ID:   2,
+			ID:   &id,
 			Name: "foo",
 		},
 		URL:        "http://localhost:7777",
@@ -200,9 +202,10 @@ all_statuses
 		},
 	}
 
+	id := influxdb.ID(2)
 	e := &endpoint.HTTP{
 		Base: endpoint.Base{
-			ID:   2,
+			ID:   &id,
 			Name: "foo",
 		},
 		URL:        "http://localhost:7777",
@@ -272,9 +275,10 @@ all_statuses
 		},
 	}
 
+	id := influxdb.ID(2)
 	e := &endpoint.HTTP{
 		Base: endpoint.Base{
-			ID:   2,
+			ID:   &id,
 			Name: "foo",
 		},
 		URL:        "http://localhost:7777",

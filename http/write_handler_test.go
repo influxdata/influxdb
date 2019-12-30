@@ -275,7 +275,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 				PointsWriter:        &mock.PointsWriter{Err: tt.state.writeErr},
 				WriteEventRecorder:  &metric.NopEventRecorder{},
 			}
-			writeHandler := NewWriteHandler(NewWriteBackend(b))
+			writeHandler := NewWriteHandler(zaptest.NewLogger(t), NewWriteBackend(zaptest.NewLogger(t), b))
 			handler := httpmock.NewAuthMiddlewareHandler(writeHandler, tt.request.auth)
 
 			r := httptest.NewRequest(

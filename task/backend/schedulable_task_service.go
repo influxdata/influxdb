@@ -28,10 +28,8 @@ func NewSchedulableTaskService(ts UpdateTaskService) SchedulableTaskService {
 
 // UpdateLastScheduled uses the task service to store the latest time a task was scheduled to run
 func (s SchedulableTaskService) UpdateLastScheduled(ctx context.Context, id scheduler.ID, t time.Time) error {
-	tm := t.Format(time.RFC3339)
-	tid := influxdb.ID(id)
-	_, err := s.UpdateTask(ctx, tid, influxdb.TaskUpdate{
-		LatestCompleted: &tm,
+	_, err := s.UpdateTask(ctx, influxdb.ID(id), influxdb.TaskUpdate{
+		LatestScheduled: &t,
 	})
 
 	if err != nil {

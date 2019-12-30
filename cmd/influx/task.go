@@ -56,8 +56,7 @@ func init() {
 
 // TaskCreateFlags define the Create Command
 type TaskCreateFlags struct {
-	org   string
-	orgID string
+	organization
 }
 
 var taskCreateFlags TaskCreateFlags
@@ -70,21 +69,21 @@ func init() {
 		RunE:  wrapCheckSetup(taskCreateF),
 	}
 
-	taskCreateCmd.Flags().StringVarP(&taskCreateFlags.org, "org", "", "", "organization name")
-	taskCreateCmd.Flags().StringVarP(&taskCreateFlags.orgID, "org-id", "", "", "id of the organization that owns the task")
+	taskCreateFlags.organization.register(taskCreateCmd)
 	taskCreateCmd.MarkFlagRequired("flux")
 
 	taskCmd.AddCommand(taskCreateCmd)
 }
 
 func taskCreateF(cmd *cobra.Command, args []string) error {
-	if taskCreateFlags.org != "" && taskCreateFlags.orgID != "" {
-		return fmt.Errorf("must specify exactly one of org or org-id")
+	if err := taskCreateFlags.organization.validOrgFlags(); err != nil {
+		return err
 	}
 
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	flux, err := repl.LoadQuery(args[0])
@@ -94,14 +93,18 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 
 	tc := platform.TaskCreate{
 		Flux:         flux,
-		Organization: taskCreateFlags.org,
+		Organization: taskCreateFlags.organization.name,
 	}
-	if taskCreateFlags.orgID != "" {
-		oid, err := platform.IDFromString(taskCreateFlags.orgID)
+	if taskCreateFlags.organization.id != "" || taskCreateFlags.organization.name != "" {
+		svc, err := newOrganizationService()
+		if err != nil {
+			return nil
+		}
+		oid, err := taskCreateFlags.organization.getID(svc)
 		if err != nil {
 			return fmt.Errorf("error parsing organization ID: %s", err)
 		}
-		tc.OrganizationID = *oid
+		tc.OrganizationID = oid
 	}
 
 	t, err := s.CreateTask(context.Background(), tc)
@@ -121,14 +124,13 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 		"Cron",
 	)
 	w.Write(map[string]interface{}{
-		"ID":              t.ID.String(),
-		"Name":            t.Name,
-		"OrganizationID":  t.OrganizationID.String(),
-		"Organization":    t.Organization,
-		"AuthorizationID": t.AuthorizationID.String(),
-		"Status":          t.Status,
-		"Every":           t.Every,
-		"Cron":            t.Cron,
+		"ID":             t.ID.String(),
+		"Name":           t.Name,
+		"OrganizationID": t.OrganizationID.String(),
+		"Organization":   t.Organization,
+		"Status":         t.Status,
+		"Every":          t.Every,
+		"Cron":           t.Cron,
 	})
 	w.Flush()
 
@@ -139,9 +141,8 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 type TaskFindFlags struct {
 	user  string
 	id    string
-	org   string
-	orgID string
 	limit int
+	organization
 }
 
 var taskFindFlags TaskFindFlags
@@ -155,17 +156,20 @@ func init() {
 
 	taskFindCmd.Flags().StringVarP(&taskFindFlags.id, "id", "i", "", "task ID")
 	taskFindCmd.Flags().StringVarP(&taskFindFlags.user, "user-id", "n", "", "task owner ID")
-	taskFindCmd.Flags().StringVarP(&taskFindFlags.org, "org", "", "", "task organization name")
-	taskFindCmd.Flags().StringVarP(&taskFindFlags.orgID, "org-id", "", "", "task organization ID")
+	taskFindFlags.organization.register(taskFindCmd)
 	taskFindCmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", platform.TaskDefaultPageSize, "the number of tasks to find")
 
 	taskCmd.AddCommand(taskFindCmd)
 }
 
 func taskFindF(cmd *cobra.Command, args []string) error {
+	if err := taskFindFlags.organization.validOrgFlags(); err != nil {
+		return err
+	}
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	filter := platform.TaskFilter{}
@@ -177,11 +181,11 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 		filter.User = id
 	}
 
-	if taskFindFlags.org != "" {
-		filter.Organization = taskFindFlags.org
+	if taskFindFlags.organization.name != "" {
+		filter.Organization = taskFindFlags.organization.name
 	}
-	if taskFindFlags.orgID != "" {
-		id, err := platform.IDFromString(taskFindFlags.orgID)
+	if taskFindFlags.organization.id != "" {
+		id, err := platform.IDFromString(taskFindFlags.organization.id)
 		if err != nil {
 			return err
 		}
@@ -193,7 +197,7 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	}
 	filter.Limit = taskFindFlags.limit
 
-	var tasks []*platform.Task
+	var tasks []http.Task
 	var err error
 
 	if taskFindFlags.id != "" {
@@ -207,7 +211,7 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		tasks = append(tasks, task)
+		tasks = append(tasks, *task)
 	} else {
 		tasks, _, err = s.FindTasks(context.Background(), filter)
 		if err != nil {
@@ -228,14 +232,13 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	)
 	for _, t := range tasks {
 		w.Write(map[string]interface{}{
-			"ID":              t.ID.String(),
-			"Name":            t.Name,
-			"OrganizationID":  t.OrganizationID.String(),
-			"Organization":    t.Organization,
-			"AuthorizationID": t.AuthorizationID.String(),
-			"Status":          t.Status,
-			"Every":           t.Every,
-			"Cron":            t.Cron,
+			"ID":             t.ID.String(),
+			"Name":           t.Name,
+			"OrganizationID": t.OrganizationID.String(),
+			"Organization":   t.Organization,
+			"Status":         t.Status,
+			"Every":          t.Every,
+			"Cron":           t.Cron,
 		})
 	}
 	w.Flush()
@@ -267,8 +270,9 @@ func init() {
 
 func taskUpdateF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	var id platform.ID
@@ -306,14 +310,13 @@ func taskUpdateF(cmd *cobra.Command, args []string) error {
 		"Cron",
 	)
 	w.Write(map[string]interface{}{
-		"ID":              t.ID.String(),
-		"Name":            t.Name,
-		"OrganizationID":  t.OrganizationID.String(),
-		"Organization":    t.Organization,
-		"AuthorizationID": t.AuthorizationID.String(),
-		"Status":          t.Status,
-		"Every":           t.Every,
-		"Cron":            t.Cron,
+		"ID":             t.ID.String(),
+		"Name":           t.Name,
+		"OrganizationID": t.OrganizationID.String(),
+		"Organization":   t.Organization,
+		"Status":         t.Status,
+		"Every":          t.Every,
+		"Cron":           t.Cron,
 	})
 	w.Flush()
 
@@ -342,8 +345,9 @@ func init() {
 
 func taskDeleteF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	var id platform.ID
@@ -374,14 +378,13 @@ func taskDeleteF(cmd *cobra.Command, args []string) error {
 		"Cron",
 	)
 	w.Write(map[string]interface{}{
-		"ID":              t.ID.String(),
-		"Name":            t.Name,
-		"OrganizationID":  t.OrganizationID.String(),
-		"Organization":    t.Organization,
-		"AuthorizationID": t.AuthorizationID.String(),
-		"Status":          t.Status,
-		"Every":           t.Every,
-		"Cron":            t.Cron,
+		"ID":             t.ID.String(),
+		"Name":           t.Name,
+		"OrganizationID": t.OrganizationID.String(),
+		"Organization":   t.Organization,
+		"Status":         t.Status,
+		"Every":          t.Every,
+		"Cron":           t.Cron,
 	})
 	w.Flush()
 
@@ -412,8 +415,9 @@ func init() {
 
 func taskLogFindF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	var filter platform.LogFilter
@@ -486,8 +490,9 @@ func init() {
 
 func taskRunFindF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	filter := platform.RunFilter{
@@ -574,8 +579,9 @@ func init() {
 
 func runRetryF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	var taskID, runID platform.ID

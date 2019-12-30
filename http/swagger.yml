@@ -339,6 +339,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /telegraf/plugins:
+    get:
+      operationId: GetTelegrafPlugins
+      parameters:
+          - $ref: '#/components/parameters/TraceSpan'
+          - in: query
+            name: type
+            description: The type of plugin desired.
+            schema:
+              type: string
+      responses:
+        '200':
+          description: A list of Telegraf plugins.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegrafPlugins"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /telegrafs:
     get:
       operationId: GetTelegrafs
@@ -1642,9 +1665,9 @@ paths:
                 $ref: "#/components/schemas/Error"
   /delete:
     post:
-      summary: delete Time series data from InfluxDB
+      summary: Delete time series data from InfluxDB
       requestBody:
-          description: predicate delete request
+          description: Predicate delete request
           required: true
           content:
             application/json:
@@ -1654,27 +1677,27 @@ paths:
         - $ref: '#/components/parameters/TraceSpan'
         - in: query
           name: org
-          description: specifies the destination organization for writes
+          description: Specifies the organization to delete data from.
           schema:
             type: string
-            description: all points within batch are written to this organization.
+            description: Only points from this organization are deleted.
         - in: query
           name: bucket
-          description: specifies the destination bucket for writes
+          description: Specifies the bucket to delete data from.
           schema:
             type: string
-            description: all points within batch are written to this bucket.
+            description: Only points from this bucket are deleted.
         - in: query
           name: orgID
-          description: specifies the organization ID of the resource
+          description: Specifies the organization ID of the resource.
           schema:
             type: string
         - in: query
           name: bucketID
-          description: specifies the destination bucket ID for writes
+          description: Specifies the bucket ID to delete data from.
           schema:
             type: string
-            description: all points within batch are written to this bucket.
+            description: Only points from this bucket ID are deleted.
       responses:
         '204':
           description: delete has been accepted
@@ -2145,7 +2168,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Dashboard"
+                oneOf:
+                  - $ref: "#/components/schemas/Dashboard"
+                  - $ref: "#/components/schemas/DashboardWithViewProperties"
         default:
           description: Unexpected error
           content:
@@ -2217,13 +2242,23 @@ paths:
               type: string
             required: true
             description: The ID of the dashboard to update.
+          - in: query
+            name: include
+            required: false
+            schema:
+              type: string
+              enum:
+                - properties
+            description: Includes the cell view properties in the response if set to `properties`
       responses:
           '200':
             description: Get a single dashboard
             content:
               application/json:
                 schema:
-                  $ref: "#/components/schemas/Dashboard"
+                  oneOf:
+                    - $ref: "#/components/schemas/Dashboard"
+                    - $ref: "#/components/schemas/DashboardWithViewProperties"
           '404':
             description: Dashboard not found
             content:
@@ -3196,6 +3231,11 @@ paths:
                     enum:
                     - gzip
                     - identity
+              Trace-Id:
+                description: The Trace-Id header reports the request's trace ID, if one was generated.
+                schema:
+                  type: string
+                  description: Specifies the request's trace ID.
             content:
               text/csv:
                 schema:
@@ -4241,6 +4281,73 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /packages:
+    post:
+      operationId: CreatePkg
+      tags:
+        - InfluxPackages
+      summary: Create a new Influx package
+      requestBody:
+        description: Influx package to create.
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PkgCreate"
+      responses:
+        '200':
+          description: Influx package created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pkg"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /packages/apply:
+    post:
+      operationId: ApplyPkg
+      tags:
+        - InfluxPackages
+      summary: Apply or dry-run an Influx package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PkgApply"
+          text/yml:
+            schema:
+              $ref: "#/components/schemas/PkgApply"
+      responses:
+        '200':
+          description: >
+            Influx package dry-run successful, no new resources created.
+            The provided diff and summary will not have IDs for resources
+            that do not exist at the time of the dry run.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PkgSummary"
+        '201':
+          description: >
+            Influx package applied successfully. Newly created resources created
+            available in summary. The diff compares the state of the world before
+            the package is applied with the changes the application will impose.
+            This corresponds to `"dryRun": true`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PkgSummary"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /tasks:
     get:
       operationId: GetTasks
@@ -4274,6 +4381,14 @@ paths:
           schema:
             type: string
           description: Filter tasks to a specific organization ID.
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - active
+              - inactive
+          description: Filter tasks by a status--"inactive" or "active".
         - in: query
           name: limit
           schema:
@@ -6235,19 +6350,21 @@ components:
         path:
           $ref: "#/components/schemas/StringLiteral"
     DeletePredicateRequest:
-      description: the delete predicate request
+      description: The delete predicate request.
       type: object
       required: [start, stop]
       properties:
         start:
-          description: RFC3339Nano.
+          description: RFC3339Nano
           type: string
+          format: date-time
         stop:
-          description: RFC3339Nano.
+          description: RFC3339Nano
           type: string
+          format: date-time
         predicate:
-          description: sql where like delete statement
-          example: tag1="value1" and (tag2="value2" and tag3="value3")
+          description: InfluxQL-like delete statement
+          example: tag1="value1" and (tag2="value2" and tag3!="value3")
           type: string
     Node:
       oneOf:
@@ -6712,6 +6829,14 @@ components:
         - $ref: "#/components/schemas/AuthorizationUpdateRequest"
         - type: object
           properties:
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+            updatedAt:
+              type: string
+              format: date-time
+              readOnly: true
             orgID:
               type: string
               description: ID of org that authorization is scoped to.
@@ -6774,22 +6899,7 @@ components:
         rp:
           type: string
         retentionRules:
-          type: array
-          description: Rules to expire or retain data.  No rules means data never expires.
-          items:
-            type: object
-            properties:
-              type:
-                type: string
-                default: expire
-                enum:
-                  - expire
-              everySeconds:
-                type: integer
-                description: Duration in seconds for how long data will be kept in the database.
-                example: 86400
-                minimum: 1
-            required: [type, everySeconds]
+          $ref: "#/components/schemas/RetentionRules"
       required: [name, retentionRules]
     Bucket:
       properties:
@@ -6853,22 +6963,7 @@ components:
           format: date-time
           readOnly: true
         retentionRules:
-          type: array
-          description: Rules to expire or retain data.  No rules means data never expires.
-          items:
-            type: object
-            properties:
-              type:
-                type: string
-                default: expire
-                enum:
-                  - expire
-              everySeconds:
-                type: integer
-                description: Duration in seconds for how long data will be kept in the database.
-                example: 86400
-                minimum: 1
-            required: [type, everySeconds]
+          $ref: "#/components/schemas/RetentionRules"
         labels:
           $ref: "#/components/schemas/Labels"
       required: [name, retentionRules]
@@ -6882,6 +6977,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Bucket"
+    RetentionRules:
+      type: array
+      description: Rules to expire or retain data.  No rules means data never expires.
+      items:
+        $ref: "#/components/schemas/RetentionRule"
+    RetentionRule:
+      type: object
+      properties:
+        type:
+          type: string
+          default: expire
+          enum:
+            - expire
+        everySeconds:
+          type: integer
+          description: Duration in seconds for how long data will be kept in the database.
+          example: 86400
+          minimum: 1
+      required: [type, everySeconds]
     Link:
       type: string
       format: uri
@@ -7013,11 +7127,361 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Organization"
+    PkgApply:
+      type: object
+      properties:
+        apply:
+          type: boolean
+        package:
+          $ref: "#/components/schemas/Pkg"
+    PkgCreate:
+      type: object
+      properties:
+        pkgName:
+          type: string
+        pkgDescription:
+          type: string
+        pkgVersion:
+          type: string
+        resources:
+          type: object
+          properties:
+            id:
+              type: string
+            kind:
+              type: string
+              enum:
+                - bucket
+                - check
+                - dashboard
+                - label
+                - notification_endpoint
+                - telegraf
+                - variable
+            name:
+              type: string
+          required: [id, kind]
+    Pkg:
+      type: object
+      properties:
+        apiVersion:
+          type: string
+        kind:
+          type: string
+          enum:
+            - package
+        meta:
+          type: object
+          properties:
+            description:
+              type: string
+            pkgName:
+              type: string
+            pkgVersion:
+              type: string
+        spec:
+          type: object
+          properties:
+            resources:
+              type: array
+              items:
+                type: object
+    PkgSummary:
+      type: object
+      properties:
+        summary:
+          type: object
+          properties:
+            buckets:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  orgID:
+                    type: string
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  retentionPeriod:
+                    type: integer
+                  labelAssociations:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PkgSummaryLabel"
+            checks:
+              type: array
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/CheckDiscriminator"
+                  - type: object
+                    properties:
+                      labelAssociations:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Label"
+            labels:
+              type: array
+              items:
+                $ref: "#/components/schemas/PkgSummaryLabel"
+            dashboards:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: "string"
+                  orgID:
+                    type: "string"
+                  name:
+                    type: "string"
+                  description:
+                    type: "string"
+                  labelAssociations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Label"
+                  charts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PkgChart"
+            labelMappings:
+              type: array
+              items:
+                type: object
+                properties:
+                  resourceName:
+                    type: string
+                  resourceID:
+                    type: string
+                  resourceType:
+                    type: string
+                  labelName:
+                    type: string
+                  labelID:
+                    type: string
+            notificationEndpoints:
+              type: array
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+                  - type: object
+                    properties:
+                      labelAssociations:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Label"
+            telegrafConfigs:
+              type: array
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/TelegrafRequest"
+                  - type: object
+                    properties:
+                      labelAssociations:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Label"
+            variables:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  orgID:
+                    type: string
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  arguments:
+                    $ref: "#/components/schemas/VariableProperties"
+                  labelAssociations:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Label"
+        diff:
+          type: object
+          properties:
+            buckets:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  new:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      retentionRules:
+                        $ref: "#/components/schemas/RetentionRules"
+                  old:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      retentionRules:
+                        $ref: "#/components/schemas/RetentionRules"
+            checks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  new:
+                    $ref: "#/components/schemas/CheckDiscriminator"
+                  old:
+                    $ref: "#/components/schemas/CheckDiscriminator"
+            dashboards:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  charts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PkgChart"
+            labels:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  new:
+                    type: object
+                    properties:
+                      color:
+                        type: string
+                      description:
+                        type: string
+                  old:
+                    type: object
+                    properties:
+                      color:
+                        type: string
+                      description:
+                        type: string
+            labelMappings:
+              type: array
+              items:
+                type: object
+                properties:
+                  isNew:
+                    type: boolean
+                  resourceType:
+                    type: string
+                  resourceID:
+                    type: string
+                  resourceName:
+                    type: string
+                  labelID:
+                    type: string
+                  labelName:
+                    type: string
+            notificationEndpoints:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  new:
+                    $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+                  old:
+                    $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+            telegrafConfigs:
+              type: array
+              items:
+                $ref: "#/components/schemas/TelegrafRequest"
+            variables:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  new:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      args:
+                        $ref: "#/components/schemas/VariableProperties"
+                  old:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      args:
+                        $ref: "#/components/schemas/VariableProperties"
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+              reason:
+                type: string
+              fields:
+                type: array
+                items:
+                  type: string
+              indexes:
+                type: array
+                items:
+                  type: integer
+    PkgSummaryLabel:
+      type: object
+      properties:
+        id:
+          type: string
+        orgID:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        retentionPeriod:
+          type: string
+    PkgChart:
+      type: object
+      properties:
+        xPos:
+          type: integer
+        yPos:
+          type: integer
+        height:
+          type: integer
+        width:
+          type: integer
+        properties: # field name is properties
+          $ref: "#/components/schemas/ViewProperties"
     Runs:
       type: object
       properties:
         links:
-          readOnly: true
           $ref: "#/components/schemas/Links"
         runs:
           type: array
@@ -7155,6 +7619,16 @@ components:
           type: string
           format: date-time
           readOnly: true
+        lastRunStatus:
+          readOnly: true
+          type: string
+          enum:
+            - failed
+            - success
+            - canceled
+        lastRunError:
+          readOnly: true
+          type: string
         createdAt:
           type: string
           format: date-time
@@ -7503,6 +7977,11 @@ components:
           type: array
           items:
             type: string
+        aggregateFunctionType:
+          $ref: '#/components/schemas/BuilderAggregateFunctionType'
+    BuilderAggregateFunctionType:
+      type: string
+      enum: ['filter', 'group']
     BuilderFunctionsType:
       type: object
       properties:
@@ -7611,7 +8090,10 @@ components:
         - legend
         - note
         - showNoteWhenEmpty
+        - position
       properties:
+        timeFormat:
+          type: string
         type:
           type: string
           enum: [xy]
@@ -7642,6 +8124,9 @@ components:
           type: string
         shadeBelow:
           type: boolean
+        position:
+          type: string
+          enum: [overlaid, stacked]
         geom:
           $ref: '#/components/schemas/XYGeom'
     XYGeom:
@@ -7661,6 +8146,7 @@ components:
         - prefix
         - suffix
         - decimalPlaces
+        - position
       properties:
         type:
           type: string
@@ -7692,6 +8178,9 @@ components:
           type: string
         shadeBelow:
           type: boolean
+        position:
+          type: string
+          enum: [overlaid, stacked]
         prefix:
           type: string
         suffix:
@@ -7720,6 +8209,8 @@ components:
         - xSuffix
         - ySuffix
       properties:
+        timeFormat:
+          type: string
         type:
           type: string
           enum: [scatter]
@@ -7795,6 +8286,8 @@ components:
         - ySuffix
         - binSize
       properties:
+        timeFormat:
+          type: string
         type:
           type: string
           enum: [heatmap]
@@ -8198,11 +8691,7 @@ components:
         labels:
           $ref: "#/components/schemas/Labels"
         arguments:
-          type: object
-          oneOf:
-            - $ref: "#/components/schemas/QueryVariableProperties"
-            - $ref: "#/components/schemas/ConstantVariableProperties"
-            - $ref: "#/components/schemas/MapVariableProperties"
+          $ref: "#/components/schemas/VariableProperties"
         createdAt:
           type: string
           format: date-time
@@ -8248,6 +8737,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Variable"
+    VariableProperties:
+      type: object
+      oneOf:
+        - $ref: "#/components/schemas/QueryVariableProperties"
+        - $ref: "#/components/schemas/ConstantVariableProperties"
+        - $ref: "#/components/schemas/MapVariableProperties"
     ViewProperties:
       oneOf:
         - $ref: "#/components/schemas/LinePlusSingleStatProperties"
@@ -8341,6 +8836,16 @@ components:
                 type: integer
               message:
                 type: string
+    CellWithViewProperties:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/Cell"
+        - type: object
+          properties:
+            name:
+              type: string
+            properties:
+              $ref: "#/components/schemas/ViewProperties"
     Cell:
       type: object
       properties:
@@ -8368,6 +8873,10 @@ components:
         viewID:
           type: string
           description: The reference to a view from the views API.
+    CellsWithViewProperties:
+      type: array
+      items:
+        $ref: "#/components/schemas/CellWithViewProperties"
     Cells:
       type: array
       items:
@@ -8411,6 +8920,53 @@ components:
       required:
         - orgID
         - name
+    DashboardWithViewProperties:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/CreateDashboardRequest"
+        - type: object
+          properties:
+            links:
+              type: object
+              example:
+                self: "/api/v2/dashboards/1"
+                cells: "/api/v2/dashboards/1/cells"
+                owners: "/api/v2/dashboards/1/owners"
+                members: "/api/v2/dashboards/1/members"
+                logs: "/api/v2/dashboards/1/logs"
+                labels: "/api/v2/dashboards/1/labels"
+                org: "/api/v2/labels/1"
+              properties:
+                self:
+                  $ref: "#/components/schemas/Link"
+                cells:
+                  $ref: "#/components/schemas/Link"
+                members:
+                  $ref: "#/components/schemas/Link"
+                owners:
+                  $ref: "#/components/schemas/Link"
+                logs:
+                  $ref: "#/components/schemas/Link"
+                labels:
+                  $ref: "#/components/schemas/Link"
+                org:
+                  $ref: "#/components/schemas/Link"
+            id:
+              readOnly: true
+              type: string
+            meta:
+              type: object
+              properties:
+                createdAt:
+                  type: string
+                  format: date-time
+                updatedAt:
+                  type: string
+                  format: date-time
+            cells:
+              $ref: "#/components/schemas/CellsWithViewProperties"
+            labels:
+              $ref: "#/components/schemas/Labels"
     Dashboard:
       type: object
       allOf:
@@ -9128,6 +9684,28 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Telegraf"
+    TelegrafPlugin:
+      type: object
+      properties:
+        type:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        config:
+          type: string
+    TelegrafPlugins:
+      type: object
+      properties:
+        version:
+          type: string
+        os:
+          type: string
+        plugins:
+          type: array
+          items:
+            $ref: "#/components/schemas/TelegrafPlugin"
     TelegrafPluginInputDockerConfig:
       type: object
       required:
@@ -9433,7 +10011,7 @@ components:
           enum:
             - active
             - inactive
-    Check:
+    CheckDiscriminator:
       oneOf:
         - $ref: "#/components/schemas/DeadmanCheck"
         - $ref: "#/components/schemas/ThresholdCheck"
@@ -9442,21 +10020,12 @@ components:
         mapping:
           deadman:  "#/components/schemas/DeadmanCheck"
           threshold: "#/components/schemas/ThresholdCheck"
+    Check:
+      allOf:
+        - $ref: "#/components/schemas/CheckDiscriminator"
     PostCheck:
       allOf:
-        - $ref: "#/components/schemas/Check"
-        - type: object
-          properties:
-            status:
-              type: string
-              enum:
-                - active
-                - inactive
-            labels:
-              type: array
-              description: List of label ids to associate with check
-              items:
-                type: string
+        - $ref: "#/components/schemas/CheckDiscriminator"
     Checks:
       properties:
         checks:
@@ -9523,6 +10092,7 @@ components:
             labels: "/api/v2/checks/1/labels"
             members: "/api/v2/checks/1/members"
             owners: "/api/v2/checks/1/owners"
+            query: "/api/v2/checks/1/query"
           properties:
             self:
               description: URL for this check
@@ -9536,7 +10106,10 @@ components:
             owners:
               description: URL to retrieve owners for this check
               $ref: "#/components/schemas/Link"
-      required: [name, type, orgID, query]
+            query:
+              description: URL to retrieve flux script for this check
+              $ref: "#/components/schemas/Link"
+      required: [name, orgID, query]
     ThresholdCheck:
       allOf:
         - $ref: "#/components/schemas/CheckBase"
@@ -9647,7 +10220,7 @@ components:
           enum:
             - active
             - inactive
-    NotificationRule:
+    NotificationRuleDiscriminator:
       oneOf:
         - $ref: "#/components/schemas/SlackNotificationRule"
         - $ref: "#/components/schemas/SMTPNotificationRule"
@@ -9660,21 +10233,12 @@ components:
           smtp: "#/components/schemas/SMTPNotificationRule"
           pagerduty: "#/components/schemas/PagerDutyNotificationRule"
           http: "#/components/schemas/HTTPNotificationRule"
+    NotificationRule:
+      allOf:
+        - $ref: "#/components/schemas/NotificationRuleDiscriminator"
     PostNotificationRule:
       allOf:
-        - $ref: "#/components/schemas/NotificationRule"
-        - type: object
-          properties:
-            status:
-              type: string
-              enum:
-                - active
-                - inactive
-            labels:
-              type: array
-              description: List of label ids to associate with notification rule
-              items:
-                type: string
+        - $ref: "#/components/schemas/NotificationRuleDiscriminator"
     NotificationRules:
       properties:
         notificationRules:
@@ -9759,6 +10323,7 @@ components:
             labels: "/api/v2/notificationRules/1/labels"
             members: "/api/v2/notificationRules/1/members"
             owners: "/api/v2/notificationRules/1/owners"
+            query: "/api/v2/notificationRules/1/query"
           properties:
             self:
               description: URL for this endpoint.
@@ -9771,6 +10336,9 @@ components:
               $ref: "#/components/schemas/Link"
             owners:
               description: URL to retrieve owners for this notification rule.
+              $ref: "#/components/schemas/Link"
+            query:
+              description: URL to retrieve flux script for this notification rule.
               $ref: "#/components/schemas/Link"
     TagRule:
       type: object
@@ -9795,7 +10363,7 @@ components:
           type: string
     HTTPNotificationRuleBase:
       type: object
-      required: [type, url]
+      required: [type]
       properties:
         type:
           type: string
@@ -9853,6 +10421,7 @@ components:
           type: string
     NotificationEndpointUpdate:
       type: object
+
       properties:
         name:
           type: string
@@ -9863,7 +10432,7 @@ components:
           enum:
             - active
             - inactive
-    NotificationEndpoint:
+    NotificationEndpointDiscrimator:
       oneOf:
         - $ref: "#/components/schemas/SlackNotificationEndpoint"
         - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
@@ -9874,21 +10443,12 @@ components:
           slack: "#/components/schemas/SlackNotificationEndpoint"
           pagerduty:  "#/components/schemas/PagerDutyNotificationEndpoint"
           http: "#/components/schemas/HTTPNotificationEndpoint"
+    NotificationEndpoint:
+      allOf:
+        - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
     PostNotificationEndpoint:
       allOf:
-        - $ref: "#/components/schemas/NotificationEndpoint"
-        - type: object
-          properties:
-            status:
-              type: string
-              enum:
-                - active
-                - inactive
-            labels:
-              type: array
-              description: List of label ids to associate with check
-              items:
-                type: string
+        - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
     NotificationEndpoints:
       properties:
         notificationEndpoints:

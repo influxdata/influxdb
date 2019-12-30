@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	tracetesting "github.com/influxdata/influxdb/kit/tracing/testing"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
@@ -243,7 +245,7 @@ func TestFluxHandler_postFluxAST(t *testing.T) {
 			name: "get ast from()",
 			w:    httptest.NewRecorder(),
 			r:    httptest.NewRequest("POST", "/api/v2/query/ast", bytes.NewBufferString(`{"query": "from()"}`)),
-			want: `{"ast":{"type":"Package","package":"main","files":[{"type":"File","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"package":null,"imports":null,"body":[{"type":"ExpressionStatement","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"expression":{"type":"CallExpression","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"callee":{"type":"Identifier","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":5},"source":"from"},"name":"from"}}}]}]}}
+			want: `{"ast":{"type":"Package","package":"main","files":[{"type":"File","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"metadata":"parser-type=rust","package":null,"imports":null,"body":[{"type":"ExpressionStatement","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"expression":{"type":"CallExpression","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"callee":{"type":"Identifier","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":5},"source":"from"},"name":"from"}}}]}]}}
 `,
 			status: http.StatusOK,
 		},
@@ -321,10 +323,12 @@ var _ metric.EventRecorder = noopEventRecorder{}
 
 // Certain error cases must be encoded as influxdb.Error so they can be properly decoded clientside.
 func TestFluxHandler_PostQuery_Errors(t *testing.T) {
+	defer tracetesting.SetupInMemoryTracing(t.Name())()
+
 	i := inmem.NewService()
 	b := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
-		Logger:              zaptest.NewLogger(t),
+		log:                 zaptest.NewLogger(t),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: i,
 		ProxyQueryService: &mock.ProxyQueryService{
@@ -336,7 +340,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 			},
 		},
 	}
-	h := NewFluxHandler(b)
+	h := NewFluxHandler(zaptest.NewLogger(t), b)
 
 	t.Run("missing authorizer", func(t *testing.T) {
 		ts := httptest.NewServer(h)
@@ -348,6 +352,10 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 		}
 
 		defer resp.Body.Close()
+
+		if actual := resp.Header.Get("Trace-Id"); actual == "" {
+			t.Error("expected trace ID header")
+		}
 
 		if resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("expected unauthorized status, got %d", resp.StatusCode)
@@ -379,6 +387,10 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 		req = req.WithContext(icontext.SetAuthorizer(req.Context(), authz))
 
 		h.handleQuery(w, req)
+
+		if actual := w.Header().Get("Trace-Id"); actual == "" {
+			t.Error("expected trace ID header")
+		}
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected bad request status, got %d", w.Code)
@@ -412,6 +424,10 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 
 		w := httptest.NewRecorder()
 		h.handleQuery(w, req)
+
+		if actual := w.Header().Get("Trace-Id"); actual == "" {
+			t.Error("expected trace ID header")
+		}
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected bad request status, got %d", w.Code)
@@ -478,18 +494,18 @@ func TestFluxService_Query_gzip(t *testing.T) {
 
 	fluxBackend := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
-		Logger:              zaptest.NewLogger(t),
+		log:                 zaptest.NewLogger(t),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
 		ProxyQueryService:   queryService,
 	}
 
-	fluxHandler := NewFluxHandler(fluxBackend)
+	fluxHandler := NewFluxHandler(zaptest.NewLogger(t), fluxBackend)
 
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places
 	// the auth on context.
-	auth := NewAuthenticationHandler(ErrorHandler(0))
+	auth := NewAuthenticationHandler(zaptest.NewLogger(t), ErrorHandler(0))
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
 	auth.UserService = &influxmock.UserService{
@@ -614,18 +630,18 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 
 	fluxBackend := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
-		Logger:              zaptest.NewLogger(b),
+		log:                 zaptest.NewLogger(b),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
 		ProxyQueryService:   queryService,
 	}
 
-	fluxHandler := NewFluxHandler(fluxBackend)
+	fluxHandler := NewFluxHandler(zaptest.NewLogger(b), fluxBackend)
 
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places
 	// the auth on context.
-	auth := NewAuthenticationHandler(ErrorHandler(0))
+	auth := NewAuthenticationHandler(zaptest.NewLogger(b), ErrorHandler(0))
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
 

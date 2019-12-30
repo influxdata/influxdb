@@ -5,6 +5,9 @@ import React, {FC} from 'react'
 import {FlexBox, TextBlock, Input, InputType} from '@influxdata/clockface'
 import {RangeThreshold} from 'src/types'
 
+// Utils
+import {convertUserInputToNumOrNaN} from 'src/shared/utils/convertUserInput'
+
 // Types
 interface Props {
   threshold: RangeThreshold
@@ -13,12 +16,13 @@ interface Props {
 
 const ThresholdRangeStatement: FC<Props> = ({threshold, changeRange}) => {
   const onChangeMin = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const min = Number(e.target.value)
+    const min = convertUserInputToNumOrNaN(e)
+
     changeRange(min, threshold.max)
   }
 
   const onChangeMax = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const max = Number(e.target.value)
+    const max = convertUserInputToNumOrNaN(e)
     changeRange(threshold.min, max)
   }
 

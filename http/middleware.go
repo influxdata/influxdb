@@ -9,14 +9,34 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"go.uber.org/zap"
 )
 
 // Middleware constructor.
 type Middleware func(http.Handler) http.Handler
 
+func traceMW(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		span, ctx := tracing.StartSpanFromContext(r.Context())
+		defer span.Finish()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	}
+	return http.HandlerFunc(fn)
+}
+
+func skipOptionsMW(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "OPTIONS" {
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(fn)
+}
+
 // LoggingMW middleware for logging inflight http requests.
-func LoggingMW(logger *zap.Logger) Middleware {
+func LoggingMW(log *zap.Logger) Middleware {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			srw := &statusResponseWriter{
@@ -62,7 +82,7 @@ func LoggingMW(logger *zap.Logger) Middleware {
 					fields = append(fields, zap.ByteString("body", buf.Bytes()))
 				}
 
-				logger.Debug("Request", fields...)
+				log.Debug("Request", fields...)
 			}(time.Now())
 
 			next.ServeHTTP(srw, r)
@@ -130,16 +150,16 @@ func ignoreMethod(ignoredMethods ...string) isValidMethodFn {
 }
 
 var blacklistEndpoints = map[string]isValidMethodFn{
-	"/api/v2/signin":                 ignoreMethod(),
-	"/api/v2/signout":                ignoreMethod(),
-	mePath:                           ignoreMethod(),
+	prefixSignIn:                     ignoreMethod(),
+	prefixSignOut:                    ignoreMethod(),
+	prefixMe:                         ignoreMethod(),
 	mePasswordPath:                   ignoreMethod(),
 	usersPasswordPath:                ignoreMethod(),
-	writePath:                        ignoreMethod("POST"),
+	prefixWrite:                      ignoreMethod("POST"),
 	organizationsIDSecretsPath:       ignoreMethod("PATCH"),
 	organizationsIDSecretsDeletePath: ignoreMethod("POST"),
-	setupPath:                        ignoreMethod("POST"),
-	notificationEndpointsPath:        ignoreMethod("POST"),
+	prefixSetup:                      ignoreMethod("POST"),
+	prefixNotificationEndpoints:      ignoreMethod("POST"),
 	notificationEndpointsIDPath:      ignoreMethod("PUT"),
 }
 

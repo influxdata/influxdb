@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"go.uber.org/zap"
-
+	"github.com/benbjohnson/clock"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/rand"
 	"github.com/influxdata/influxdb/snowflake"
+	"go.uber.org/zap"
 )
 
 var (
@@ -21,7 +21,8 @@ const OpPrefix = "kv/"
 // Service is the struct that influxdb services are implemented on.
 type Service struct {
 	kv     Store
-	Logger *zap.Logger
+	log    *zap.Logger
+	clock  clock.Clock
 	Config ServiceConfig
 
 	IDGenerator influxdb.IDGenerator
@@ -32,14 +33,15 @@ type Service struct {
 	OrgBucketIDs influxdb.IDGenerator
 
 	TokenGenerator influxdb.TokenGenerator
+	// TODO(desa:ariel): this should not be embedded
 	influxdb.TimeGenerator
 	Hash Crypt
 }
 
 // NewService returns an instance of a Service.
-func NewService(kv Store, configs ...ServiceConfig) *Service {
+func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 	s := &Service{
-		Logger:      zap.NewNop(),
+		log:         log,
 		IDGenerator: snowflake.NewIDGenerator(),
 		// Seed the random number generator with the current time
 		OrgBucketIDs:   rand.NewOrgBucketID(time.Now().UnixNano()),
@@ -55,12 +57,18 @@ func NewService(kv Store, configs ...ServiceConfig) *Service {
 		s.Config.SessionLength = influxdb.DefaultSessionLength
 	}
 
+	s.clock = s.Config.Clock
+	if s.clock == nil {
+		s.clock = clock.New()
+	}
+
 	return s
 }
 
 // ServiceConfig allows us to configure Services
 type ServiceConfig struct {
 	SessionLength time.Duration
+	Clock         clock.Clock
 }
 
 // Initialize creates Buckets needed.

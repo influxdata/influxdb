@@ -19,14 +19,15 @@
   width: 100%;
   height: 100%;
   position: absolute;
-  background-color: $g3-castle;
 }
 
 .time-machine--top {
   position: relative;
+  background-color: $g0-obsidian;
 }
 
 .time-machine--bottom {
+  background-color: $g3-castle;
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -10,20 +10,20 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"go.uber.org/zap"
-
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
-	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap/zaptest"
 )
 
 // NewMockAuthorizationBackend returns a AuthorizationBackend with mock services.
-func NewMockAuthorizationBackend() *AuthorizationBackend {
+func NewMockAuthorizationBackend(t *testing.T) *AuthorizationBackend {
 	return &AuthorizationBackend{
-		Logger: zap.NewNop().With(zap.String("handler", "authorization")),
+		log: zaptest.NewLogger(t),
 
 		AuthorizationService: mock.NewAuthorizationService(),
 		OrganizationService:  mock.NewOrganizationService(),
@@ -120,7 +120,9 @@ func TestService_handleGetAuthorizations(t *testing.T) {
       "status": "",
 	  "token": "hello",
 	  "description": "t1",
-	  "permissions": %s
+		"permissions": %s,
+		"createdAt": "0001-01-01T00:00:00Z",
+		"updatedAt": "0001-01-01T00:00:00Z"
     },
     {
       "links": {
@@ -135,7 +137,9 @@ func TestService_handleGetAuthorizations(t *testing.T) {
       "status": "",
       "token": "example",
 	  "description": "t2",
-	  "permissions": %s
+		"permissions": %s,
+		"createdAt": "0001-01-01T00:00:00Z",
+		"updatedAt": "0001-01-01T00:00:00Z"
     }
   ]
 }
@@ -212,7 +216,9 @@ func TestService_handleGetAuthorizations(t *testing.T) {
       "status": "",
 	  "token": "hello",
 	  "description": "t1",
-	  "permissions": %s
+		"permissions": %s,
+		"createdAt": "0001-01-01T00:00:00Z",
+		"updatedAt": "0001-01-01T00:00:00Z"
     }
   ]
 }
@@ -288,7 +294,9 @@ func TestService_handleGetAuthorizations(t *testing.T) {
       "status": "",
 	  "token": "hello",
 	  "description": "t1",
-	  "permissions": %s
+		"permissions": %s,
+		"createdAt": "0001-01-01T00:00:00Z",
+		"updatedAt": "0001-01-01T00:00:00Z"
     }
   ]
 }
@@ -322,12 +330,12 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			authorizationBackend := NewMockAuthorizationBackend()
+			authorizationBackend := NewMockAuthorizationBackend(t)
 			authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
-			h := NewAuthorizationHandler(authorizationBackend)
+			h := NewAuthorizationHandler(zaptest.NewLogger(t), authorizationBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -451,6 +459,8 @@ func TestService_handleGetAuthorization(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `
 {
+	"createdAt": "0001-01-01T00:00:00Z",
+	"updatedAt": "0001-01-01T00:00:00Z",
   "description": "",
   "id": "020f755c3c082000",
   "links": {
@@ -505,13 +515,13 @@ func TestService_handleGetAuthorization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			authorizationBackend := NewMockAuthorizationBackend()
+			authorizationBackend := NewMockAuthorizationBackend(t)
 			authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
 			authorizationBackend.LookupService = tt.fields.LookupService
-			h := NewAuthorizationHandler(authorizationBackend)
+			h := NewAuthorizationHandler(zaptest.NewLogger(t), authorizationBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -653,6 +663,8 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `
 {
+	"createdAt": "0001-01-01T00:00:00Z",
+	"updatedAt": "0001-01-01T00:00:00Z",
   "description": "only read dashboards sucka",
   "id": "020f755c3c082000",
   "links": {
@@ -683,13 +695,13 @@ func TestService_handlePostAuthorization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			authorizationBackend := NewMockAuthorizationBackend()
+			authorizationBackend := NewMockAuthorizationBackend(t)
 			authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
 			authorizationBackend.LookupService = tt.fields.LookupService
-			h := NewAuthorizationHandler(authorizationBackend)
+			h := NewAuthorizationHandler(zaptest.NewLogger(t), authorizationBackend)
 
 			req, err := newPostAuthorizationRequest(tt.args.authorization)
 			if err != nil {
@@ -797,12 +809,12 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			authorizationBackend := NewMockAuthorizationBackend()
+			authorizationBackend := NewMockAuthorizationBackend(t)
 			authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
-			h := NewAuthorizationHandler(authorizationBackend)
+			h := NewAuthorizationHandler(zaptest.NewLogger(t), authorizationBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -856,9 +868,10 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		t.Skip("HTTP authorization service does not required a user id on the authentication struct.  We get the user from the session token.")
 	}
 
-	svc := inmem.NewService()
+	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
+	svc.TimeGenerator = f.TimeGenerator
 
 	ctx := context.Background()
 
@@ -890,7 +903,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		},
 	}
 
-	authorizationBackend := NewMockAuthorizationBackend()
+	authorizationBackend := NewMockAuthorizationBackend(t)
 	authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
 	authorizationBackend.AuthorizationService = svc
 	authorizationBackend.UserService = mus
@@ -907,20 +920,22 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		},
 	}
 
-	authZ := NewAuthorizationHandler(authorizationBackend)
-	authN := NewAuthenticationHandler(ErrorHandler(0))
+	authZ := NewAuthorizationHandler(zaptest.NewLogger(t), authorizationBackend)
+	authN := NewAuthenticationHandler(zaptest.NewLogger(t), ErrorHandler(0))
 	authN.AuthorizationService = svc
 	authN.Handler = authZ
 	authN.UserService = mus
 
 	server := httptest.NewServer(authN)
-	client := AuthorizationService{
-		Addr:  server.URL,
-		Token: token,
+
+	httpClient, err := NewHTTPClient(server.URL, token, false)
+	if err != nil {
+		t.Fatal(err)
 	}
+
 	done := server.Close
 
-	return &client, inmem.OpPrefix, done
+	return &AuthorizationService{Client: httpClient}, inmem.OpPrefix, done
 }
 
 func TestAuthorizationService_CreateAuthorization(t *testing.T) {

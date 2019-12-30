@@ -1,34 +1,63 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FunctionComponent, useEffect} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import {Overlay} from '@influxdata/clockface'
+import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Components
 import DeleteDataForm from 'src/shared/components/DeleteDataForm/DeleteDataForm'
 
+// Actions
+import {
+  resetPredicateState,
+  setBucketAndKeys,
+} from 'src/shared/actions/predicates'
+
 // Types
-import {Bucket, AppState} from 'src/types'
+import {Bucket, AppState, RemoteDataState} from 'src/types'
 
 interface StateProps {
   buckets: Bucket[]
 }
 
-const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
+interface DispatchProps {
+  resetPredicateState: typeof resetPredicateState
+  setBucketAndKeys: typeof setBucketAndKeys
+}
+
+type Props = WithRouterProps & DispatchProps & StateProps
+
+const DeleteDataOverlay: FunctionComponent<Props> = ({
+  buckets,
   router,
   params: {orgID, bucketID},
-  buckets,
+  resetPredicateState,
+  setBucketAndKeys,
 }) => {
-  const handleDismiss = () =>
-    router.push(`/orgs/${orgID}/load-data/buckets/${bucketID}`)
-  const bucketName = buckets.find(bucket => bucket.id === bucketID).name
+  const bucket = buckets.find(bucket => bucket.id === bucketID)
+
+  useEffect(() => {
+    if (bucket) {
+      setBucketAndKeys(bucket.name)
+    }
+  }, [])
+
+  const handleDismiss = () => {
+    resetPredicateState()
+    router.push(`/orgs/${orgID}/load-data/buckets/`)
+  }
 
   return (
     <Overlay visible={true}>
       <Overlay.Container maxWidth={600}>
         <Overlay.Header title="Delete Data" onDismiss={handleDismiss} />
         <Overlay.Body>
-          <DeleteDataForm initialBucketName={bucketName} orgID={orgID} />
+          <SpinnerContainer
+            spinnerComponent={<TechnoSpinner />}
+            loading={bucket ? RemoteDataState.Done : RemoteDataState.Loading}
+          >
+            <DeleteDataForm handleDismiss={handleDismiss} />
+          </SpinnerContainer>
         </Overlay.Body>
       </Overlay.Container>
     </Overlay>
@@ -36,9 +65,17 @@ const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
 }
 
 const mstp = (state: AppState): StateProps => {
-  return {buckets: state.buckets.list}
+  return {
+    buckets: state.buckets.list,
+  }
 }
 
-export default connect<StateProps>(mstp)(
-  withRouter<StateProps>(DeleteDataOverlay)
-)
+const mdtp: DispatchProps = {
+  resetPredicateState,
+  setBucketAndKeys,
+}
+
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(withRouter<Props>(DeleteDataOverlay))

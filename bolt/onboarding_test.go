@@ -9,7 +9,7 @@ import (
 )
 
 func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (platform.OnboardingService, func()) {
-	c, closeFn, err := NewTestClient()
+	c, closeFn, err := NewTestClient(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}
@@ -33,5 +33,6 @@ func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (pl
 }
 
 func TestOnboardingService_Generate(t *testing.T) {
+	t.Skip("This service is not used, we use the kv bolt implementation")
 	platformtesting.Generate(initOnboardingService, t)
 }

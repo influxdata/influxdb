@@ -7,8 +7,7 @@ import {setType} from 'src/timeMachine/actions'
 
 // Components
 import OptionsSwitcher from 'src/timeMachine/components/view_options/OptionsSwitcher'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
-import {Grid} from '@influxdata/clockface'
+import {Grid, DapperScrollbars} from '@influxdata/clockface'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -30,7 +29,10 @@ class ViewOptions extends PureComponent<Props> {
   public render() {
     return (
       <div className="view-options">
-        <FancyScrollbar autoHide={false}>
+        <DapperScrollbars
+          autoHide={false}
+          style={{width: '100%', height: '100%'}}
+        >
           <div className="view-options--container">
             <Grid>
               <Grid.Row>
@@ -38,7 +40,7 @@ class ViewOptions extends PureComponent<Props> {
               </Grid.Row>
             </Grid>
           </div>
-        </FancyScrollbar>
+        </DapperScrollbars>
       </div>
     )
   }

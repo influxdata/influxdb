@@ -29,16 +29,18 @@ func TestScheduler_Cancelation(t *testing.T) {
 	e := mock.NewExecutor()
 	e.WithHanging(100 * time.Millisecond)
 
-	o := backend.NewScheduler(tcs, e, 5, backend.WithLogger(zaptest.NewLogger(t)))
+	o := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5)
 	o.Start(context.Background())
 	defer o.Stop()
 
 	const orgID = 2
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:04Z")
+
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		OrganizationID:  orgID,
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:04Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 	tcs.SetTask(task)
@@ -74,14 +76,15 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
-	o := backend.NewScheduler(tcs, e, 5, backend.WithLogger(zaptest.NewLogger(t)))
+	o := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5)
 	o.Start(context.Background())
 	defer o.Stop()
 
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:03Z")
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Cron:            "* * * * *",
-		LatestCompleted: "1970-01-01T00:00:03Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -99,7 +102,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	task = &platform.Task{
 		ID:              platform.ID(2),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:03Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {concurrency: 99, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -142,14 +145,15 @@ func TestScheduler_DontRunInactiveTasks(t *testing.T) {
 
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
-	o := backend.NewScheduler(tcs, e, 5)
+	o := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5)
 	o.Start(context.Background())
 	defer o.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Status:          "inactive",
 		Flux:            `option task = {concurrency: 2, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
@@ -174,14 +178,15 @@ func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
-	o := backend.NewScheduler(tcs, e, 5)
+	o := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5)
 	o.Start(context.Background())
 	defer o.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {concurrency: 2, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -246,18 +251,19 @@ func TestScheduler_LogStatisticsOnSuccess(t *testing.T) {
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
 
-	o := backend.NewScheduler(tcs, e, 5, backend.WithLogger(zaptest.NewLogger(t)))
+	o := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5)
 	o.Start(context.Background())
 	defer o.Stop()
 
 	const taskID = 0x12345
 	const orgID = 0x54321
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 
 	task := &platform.Task{
 		ID:              taskID,
 		OrganizationID:  orgID,
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -312,14 +318,15 @@ func TestScheduler_Release(t *testing.T) {
 
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
-	o := backend.NewScheduler(tcs, e, 5)
+	o := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5)
 	o.Start(context.Background())
 	defer o.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {concurrency: 99, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -348,14 +355,15 @@ func TestScheduler_UpdateTask(t *testing.T) {
 
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
-	s := backend.NewScheduler(tcs, e, 3059, backend.WithLogger(zaptest.NewLogger(t)))
+	s := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 3059)
 	s.Start(context.Background())
 	defer s.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:50:00Z")
 
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Cron:            "* * * * *",
-		LatestCompleted: "1970-01-01T00:50:00Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -399,14 +407,15 @@ func TestScheduler_Queue(t *testing.T) {
 
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
-	o := backend.NewScheduler(tcs, e, 3059, backend.WithLogger(zaptest.NewLogger(t)))
+	o := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 3059)
 	o.Start(context.Background())
 	defer o.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:50:00Z")
 
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Cron:            "* * * * *",
-		LatestCompleted: "1970-01-01T00:50:00Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 	t1, _ := time.Parse(time.RFC3339, "1970-01-01T00:02:00Z")
@@ -636,16 +645,17 @@ func TestScheduler_RunStatus(t *testing.T) {
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
 	rl := newRunListener(tcs)
-	s := backend.NewScheduler(rl, e, 5, backend.WithLogger(zaptest.NewLogger(t)))
+	s := backend.NewScheduler(zaptest.NewLogger(t), rl, e, 5)
 	s.Start(context.Background())
 	defer s.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 
 	// Claim a task that starts later.
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		OrganizationID:  platform.ID(2),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {concurrency: 99, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -736,15 +746,16 @@ func TestScheduler_RunFailureCleanup(t *testing.T) {
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
 	ll := newLogListener(tcs)
-	s := backend.NewScheduler(ll, e, 5, backend.WithLogger(zaptest.NewLogger(t)))
+	s := backend.NewScheduler(zaptest.NewLogger(t), ll, e, 5)
 	s.Start(context.Background())
 	defer s.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 
 	// Task with concurrency 1 should continue after one run fails.
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -819,20 +830,21 @@ func TestScheduler_Metrics(t *testing.T) {
 
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
-	s := backend.NewScheduler(tcs, e, 5)
+	s := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5)
 	s.Start(context.Background())
 	defer s.Stop()
 
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	// PrometheusCollector isn't part of the Scheduler interface. Yet.
 	// Still thinking about whether it should be.
 	reg.MustRegister(s.PrometheusCollectors()...)
 
 	// Claim a task that starts later.
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {concurrency: 99, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -969,7 +981,7 @@ func TestScheduler_Stop(t *testing.T) {
 	t.Parallel()
 
 	e := &fakeWaitExecutor{wait: make(chan struct{})}
-	o := backend.NewScheduler(mock.NewTaskControlService(), e, 4, backend.WithLogger(zaptest.NewLogger(t)))
+	o := backend.NewScheduler(zaptest.NewLogger(t), mock.NewTaskControlService(), e, 4)
 	o.Start(context.Background())
 
 	stopped := make(chan struct{})
@@ -1004,16 +1016,16 @@ func TestScheduler_WithTicker(t *testing.T) {
 	tickFreq := 100 * time.Millisecond
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
-	o := backend.NewScheduler(tcs, e, 5, backend.WithLogger(zaptest.NewLogger(t)), backend.WithTicker(ctx, tickFreq))
+	o := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5, backend.WithTicker(ctx, tickFreq))
 
 	o.Start(ctx)
 	defer o.Stop()
-	createdAt := time.Now()
+	createdAt := time.Now().UTC()
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Every:           "1s",
 		Flux:            `option task = {concurrency: 5, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
-		LatestCompleted: createdAt.Format(time.RFC3339Nano),
+		LatestCompleted: createdAt,
 	}
 
 	tcs.SetTask(task)

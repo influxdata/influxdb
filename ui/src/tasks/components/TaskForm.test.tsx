@@ -35,7 +35,6 @@ describe('TaskForm', () => {
 
       expect(wrapper.exists()).toBe(true)
       expect(form.exists()).toBe(true)
-      expect(wrapper).toMatchSnapshot()
     })
   })
 })

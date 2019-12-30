@@ -1,12 +1,100 @@
-## v2.0.0-alpha.19 [unreleased]
+## v2.0.0-alpha.22 [unreleased]
+
+### Features
+
+1. [16234](https://github.com/influxdata/influxdb/pull/16234): add support for notification endpoints to influx templates/pkgs.
+2. [16242](https://github.com/influxdata/influxdb/pull/16242): drop id prefix for secret key requirement for notification endpoints 
+3. [16259](https://github.com/influxdata/influxdb/pull/16259): add support for check resource to pkger parser 
+4. [16262](https://github.com/influxdata/influxdb/pull/16262): add support for check resource dry run functionality 
+5. [16275](https://github.com/influxdata/influxdb/pull/16275): add support for check resource apply functionality 
+6. [16283](https://github.com/influxdata/influxdb/pull/16283): add support for check resource export functionality 
+1. [16212](https://github.com/influxdata/influxdb/pull/16212): Add new kv.ForwardCursor interface
+
+### Bug Fixes
+
+1. [16225](https://github.com/influxdata/influxdb/pull/16225): Ensures env vars are applied consistently across cmd, and fixes issue where INFLUX\_ env var prefix was not set globally.
+1. [16235](https://github.com/influxdata/influxdb/pull/16235): Removed default frontend sorting when flux queries specify sorting
+1. [16238](https://github.com/influxdata/influxdb/pull/16238): Store canceled task runs in the correct bucket
+1. [16237](https://github.com/influxdata/influxdb/pull/16237): Updated Sortby functionality for table frontend sorts to sort numbers correctly
+1. [16249](https://github.com/influxdata/influxdb/pull/16249): Prevent potential infinite loop when finding tasks by organization.
+1. [16255](https://github.com/influxdata/influxdb/pull/16255): Retain user input when parsing invalid JSON during import
+1. [16268](https://github.com/influxdata/influxdb/pull/16268): Fixed test flakiness that stemmed from multiple flush/signins being called in the same test suite
+
+### UI Improvements
+
+## v2.0.0-alpha.21 [2019-12-13]
+
+### Features
+
+1. [15836](https://github.com/influxdata/influxdb/pull/16077): Add stacked line layer option to graphs
+1. [16094](https://github.com/influxdata/influxdb/pull/16094): Annotate log messages with trace ID, if available
+1. [16187](https://github.com/influxdata/influxdb/pull/16187): Bucket create to accept an org name flag
+1. [16158](https://github.com/influxdata/influxdb/pull/16158): Add trace ID response header to query endpoint
+
+### Bug Fixes
+
+1. [15655](https://github.com/influxdata/influxdb/pull/15655): Allow table columns to be draggable in table settings
+1. [15757](https://github.com/influxdata/influxdb/pull/15757): Light up the home page icon when active
+1. [15797](https://github.com/influxdata/influxdb/pull/15797): Make numeric inputs first class citizens
+1. [15853](https://github.com/influxdata/influxdb/pull/15853): Prompt users to make a dashboard when dashboards are empty
+1. [15884](https://github.com/influxdata/influxdb/pull/15884): Remove name editing from query definition during threshold check creation
+1. [15975](https://github.com/influxdata/influxdb/pull/15975): Wait until user stops dragging and releases marker before zooming in after threshold changes
+1. [16057](https://github.com/influxdata/influxdb/pull/16057): Adds `properties` to each cell on GET /dashboards/{dashboardID}
+1. [16101](https://github.com/influxdata/influxdb/pull/16101): Gracefully handle invalid user-supplied JSON
+1. [16105](https://github.com/influxdata/influxdb/pull/16105): Fix crash when loading queries built using Query Builder
+1. [16112](https://github.com/influxdata/influxdb/pull/16112): Create cell view properties on dashboard creation
+1. [16144](https://github.com/influxdata/influxdb/pull/16144): Scrollbars are dapper and proper
+1. [16172](https://github.com/influxdata/influxdb/pull/16172): Fixed table ui threshold colorization issue where setting thresholds would not change table UI
+1. [16194](https://github.com/influxdata/influxdb/pull/16194): Fixed windowPeriod issue that stemmed from webpack rules
+1. [16175](https://github.com/influxdata/influxdb/pull/16175): Added delete functionality to note cells so that they can be deleted
+1. [16204](https://github.com/influxdata/influxdb/pull/16204): Fix failure to create labels when creating telegraf configs
+1. [16207](https://github.com/influxdata/influxdb/pull/16207): Fix crash when editing a Telegraf config
+1. [16201](https://github.com/influxdata/influxdb/pull/16201): Updated start/endtime functionality so that custom script timeranges overwrite dropdown selections
+1. [16217](https://github.com/influxdata/influxdb/pull/16217): Fix 12-hour time format to use consistent formatting and number of time ticks
+
+### UI Improvements
+
+## v2.0.0-alpha.20 [2019-11-20]
+
+### Features
+
+1. [15805](https://github.com/influxdata/influxdb/pull/15924): Add tls insecure skip verify to influx CLI.
+1. [15981](https://github.com/influxdata/influxdb/pull/15981): Extend influx cli user create to allow for organization ID and user passwords to be set on user.
+1. [15983](https://github.com/influxdata/influxdb/pull/15983): Autopopulate organization ids in the code samples
+1. [15749](https://github.com/influxdata/influxdb/pull/15749): Expose bundle analysis tools for frontend resources
+1. [15674](https://github.com/influxdata/influxdb/pull/15674): Allow users to view just the output section of a telegraf config
+1. [15923](https://github.com/influxdata/influxdb/pull/15923): Allow the users to see string data in the single stat graph type
+
+### Bug Fixes
+
+1. [15777](https://github.com/influxdata/influxdb/pull/15777): Fix long startup when running 'influx help'
+1. [15713](https://github.com/influxdata/influxdb/pull/15713): Mock missing Flux dependencies when creating tasks
+1. [15731](https://github.com/influxdata/influxdb/pull/15731): Ensure array cursor iterator stats accumulate all cursor stats
+1. [15866](https://github.com/influxdata/influxdb/pull/15866): Do not show Members section in Cloud environments
+1. [15801](https://github.com/influxdata/influxdb/pull/15801): Change how cloud mode is enabled
+1. [15820](https://github.com/influxdata/influxdb/pull/15820): Merge frontend development environments
+1. [15944](https://github.com/influxdata/influxdb/pull/15944): Refactor table state logic on the frontend
+1. [15920](https://github.com/influxdata/influxdb/pull/15920): Arrows in tables now show data in ascending and descening order
+1. [15728](https://github.com/influxdata/influxdb/pull/15728): Sort by retention rules now sorts by seconds
+1. [15628](https://github.com/influxdata/influxdb/pull/15628): Horizontal scrollbar no longer covering data
+
+### UI Improvements
+
+1. [15809](https://github.com/influxdata/influxdb/pull/15809): Redesign cards and animations on getting started page
+1. [15787](https://github.com/influxdata/influxdb/pull/15787): Allow the users to filter with labels in telegraph input search
+
+## v2.0.0-alpha.19 [2019-10-30]
 
 ### Features
 
 1. [15313](https://github.com/influxdata/influxdb/pull/15313): Add shortcut for toggling comments in script editor
+1. [15650](https://github.com/influxdata/influxdb/pull/15650): Expose last run status and last run error in task API
 
 ### UI Improvements
+
 1. [15503](https://github.com/influxdata/influxdb/pull/15503): Redesign page headers to be more space efficient
 1. [15426](https://github.com/influxdata/influxdb/pull/15426): Add 403 handler that redirects back to the sign-in page on oats-generated routes.
+1. [15710](https://github.com/influxdata/influxdb/pull/15710): Add button to nginx and redis configuration sections to make interaction more clear
 
 ### Bug Fixes
 
@@ -23,6 +111,9 @@
 1. [15559](https://github.com/influxdata/influxdb/pull/15559): Exiting a configuration of a dashboard cell now properly renders the cell content
 1. [15556](https://github.com/influxdata/influxdb/pull/15556): Creating a check now displays on the checklist
 1. [15592](https://github.com/influxdata/influxdb/pull/15592): Changed task runs success status code from 200 to 201 to match Swagger documentation.
+1. [15634](https://github.com/influxdata/influxdb/pull/15634): TextAreas have the correct height
+1. [15647](https://github.com/influxdata/influxdb/pull/15647): Ensures labels are unique by organization in the kv store
+1. [15695](https://github.com/influxdata/influxdb/pull/15695): Ensures variable names are unique by organization
 
 ## v2.0.0-alpha.18 [2019-09-26]
 

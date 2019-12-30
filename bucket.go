@@ -54,6 +54,14 @@ func (bt BucketType) String() string {
 	return "user"
 }
 
+// ParseBucketType parses a bucket type from a string
+func ParseBucketType(s string) BucketType {
+	if s == "system" {
+		return BucketTypeSystem
+	}
+	return BucketTypeUser
+}
+
 // ops for buckets error and buckets op logs.
 var (
 	OpFindBucketByID = "FindBucketByID"
@@ -144,9 +152,4 @@ func (f BucketFilter) String() string {
 		parts = append(parts, "Org Name: "+*f.Org)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
-}
-
-// FindSystemBucket finds the system bucket with a given name
-func FindSystemBucket(ctx context.Context, bs BucketService, orgID ID, name string) (*Bucket, error) {
-	return bs.FindBucketByName(ctx, orgID, name)
 }

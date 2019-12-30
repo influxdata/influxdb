@@ -11,6 +11,9 @@ import AccountNavSubItem from 'src/pageLayout/components/AccountNavSubItem'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 
+// Constants
+import {HOMEPAGE_PATHNAME} from 'src/shared/constants'
+
 // Utils
 import {getNavItemActivation} from 'src/pageLayout/utils'
 
@@ -73,7 +76,7 @@ class SideNav extends PureComponent<Props, State> {
     const tokensLink = `${orgPrefix}/load-data/tokens`
     const clientLibrariesLink = `${orgPrefix}/load-data/client-libraries`
     // Settings
-    const settingsLink = `${orgPrefix}/settings/members`
+    const settingsLink = `${orgPrefix}/settings`
     const membersLink = `${orgPrefix}/settings/members`
     const variablesLink = `${orgPrefix}/settings/variables`
     const templatesLink = `${orgPrefix}/settings/templates`
@@ -98,7 +101,10 @@ class SideNav extends PureComponent<Props, State> {
                 <Icon glyph={IconFont.CuboNav} />
               </Link>
             )}
-            active={getNavItemActivation(['me', 'account'], location.pathname)}
+            active={getNavItemActivation(
+              [HOMEPAGE_PATHNAME, 'account'],
+              location.pathname
+            )}
           >
             <AccountNavSubItem
               orgs={orgs}
@@ -123,7 +129,11 @@ class SideNav extends PureComponent<Props, State> {
         />
         <NavMenu.Item
           titleLink={className => (
-            <Link className={className} to={dashboardsLink}>
+            <Link
+              className={className}
+              to={dashboardsLink}
+              data-testid="nav-menu_dashboard"
+            >
               Dashboards
             </Link>
           )}
@@ -247,15 +257,17 @@ class SideNav extends PureComponent<Props, State> {
           )}
           active={getNavItemActivation(['settings'], location.pathname)}
         >
-          <NavMenu.SubItem
-            titleLink={className => (
-              <Link to={membersLink} className={className}>
-                Members
-              </Link>
-            )}
-            active={getNavItemActivation(['members'], location.pathname)}
-            key="members"
-          />
+          <CloudExclude>
+            <NavMenu.SubItem
+              titleLink={className => (
+                <Link to={membersLink} className={className}>
+                  Members
+                </Link>
+              )}
+              active={getNavItemActivation(['members'], location.pathname)}
+              key="members"
+            />
+          </CloudExclude>
           <NavMenu.SubItem
             titleLink={className => (
               <Link to={variablesLink} className={className}>

@@ -1,14 +1,29 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import Loadable from 'react-loadable'
 import {connect} from 'react-redux'
 import {Position} from 'codemirror'
 
 // Components
-import FluxEditor from 'src/shared/components/FluxEditor'
+const spinner = <div className="time-machine-editor--loading" />
+
+const FluxEditor = Loadable({
+  loader: () => import('src/shared/components/FluxEditor'),
+  loading() {
+    return spinner
+  },
+})
+const FluxMonacoEditor = Loadable({
+  loader: () => import('src/shared/components/FluxMonacoEditor'),
+  loading() {
+    return spinner
+  },
+})
 import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
 import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {setActiveQueryText} from 'src/timeMachine/actions'
@@ -54,16 +69,30 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
       {
         size: 0.75,
         handleDisplay: HANDLE_NONE,
-        render: () => (
-          <FluxEditor
-            script={activeQueryText}
-            status={{type: '', text: ''}}
-            onChangeScript={onSetActiveQueryText}
-            onSubmitScript={onSubmitQueries}
-            suggestions={[]}
-            onCursorChange={this.handleCursorPosition}
-          />
-        ),
+        render: () => {
+          return (
+            <>
+              <FeatureFlag name="monacoEditor">
+                <FluxMonacoEditor
+                  script={activeQueryText}
+                  onChangeScript={onSetActiveQueryText}
+                  onSubmitScript={onSubmitQueries}
+                  onCursorChange={this.handleCursorPosition}
+                />
+              </FeatureFlag>
+              <FeatureFlag name="monacoEditor" equals={false}>
+                <FluxEditor
+                  script={activeQueryText}
+                  status={{type: '', text: ''}}
+                  onChangeScript={onSetActiveQueryText}
+                  onSubmitScript={onSubmitQueries}
+                  suggestions={[]}
+                  onCursorChange={this.handleCursorPosition}
+                />
+              </FeatureFlag>
+            </>
+          )
+        },
       },
       {
         render: () => {

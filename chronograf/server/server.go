@@ -338,13 +338,6 @@ func (s *Server) Serve(ctx context.Context) error {
 	service.Env = chronograf.Environment{
 		TelegrafSystemInterval: s.TelegrafSystemInterval,
 	}
-	if err := service.HandleNewSources(ctx, s.NewSources); err != nil {
-		logger.
-			WithField("component", "server").
-			WithField("new-sources", "invalid").
-			Error(err)
-		return err
-	}
 
 	if !validBasepath(s.Basepath) {
 		err := fmt.Errorf("invalid basepath, must follow format \"/mybasepath\"")

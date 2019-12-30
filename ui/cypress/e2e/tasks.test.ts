@@ -60,80 +60,120 @@ from(bucket: "${name}")
       .and('contain', taskName)
   })
 
-  it('can delete a task', () => {
-    cy.get('@org').then(({id}: Organization) => {
-      cy.get<string>('@token').then(token => {
-        cy.createTask(token, id)
-        cy.createTask(token, id)
+  it('can create a task using http.post', () => {
+    const taskName = 'Task'
+    createFirstTask(taskName, () => {
+      return `import "http"
+http.post(
+  url: "https://foo.bar/baz",
+  data: bytes(v: "body")
+)`
+    })
+
+    cy.contains('Save').click()
+
+    cy.getByTestID('task-card')
+      .should('have.length', 1)
+      .and('contain', taskName)
+  })
+
+  it('keeps user input in text area when attempting to import invalid JSON', () => {
+    cy.getByTestID('page-header').within(() => {
+      cy.contains('Create').click()
+    })
+
+    cy.getByTestID('add-resource-dropdown--import').click()
+    cy.contains('Paste').click()
+    cy.getByTestID('import-overlay--textarea')
+      .click()
+      .type('this is invalid JSON')
+    cy.get('button[title*="Import JSON"]').click()
+    cy.getByTestID('import-overlay--textarea--error').should('have.length', 1)
+    cy.getByTestID('import-overlay--textarea').should($s =>
+      expect($s).to.contain('this is invalid JSON')
+    )
+    cy.getByTestID('import-overlay--textarea').type(
+      '{backspace}{backspace}{backspace}{backspace}{backspace}'
+    )
+    cy.get('button[title*="Import JSON"]').click()
+    cy.getByTestID('import-overlay--textarea--error').should('have.length', 1)
+    cy.getByTestID('import-overlay--textarea').should($s =>
+      expect($s).to.contain('this is invalid')
+    )
+  })
+
+  describe('When tasks already exist', () => {
+    beforeEach(() => {
+      cy.get('@org').then(({id}: Organization) => {
+        cy.get<string>('@token').then(token => {
+          cy.createTask(token, id)
+        })
       })
+      cy.reload()
+    })
 
-      cy.fixture('routes').then(({orgs}) => {
-        cy.visit(`${orgs}/${id}/tasks`)
+    it('can edit a task', () => {
+      // Disabling the test
+      cy.getByTestID('task-card--slide-toggle')
+        .should('have.class', 'active')
+        .then(() => {
+          cy.getByTestID('task-card--slide-toggle')
+            .click()
+            .then(() => {
+              cy.getByTestID('task-card--slide-toggle').should(
+                'not.have.class',
+                'active'
+              )
+            })
+        })
+
+      // Editing a name
+      const newName = 'Task'
+
+      cy.getByTestID('task-card').then(() => {
+        cy.getByTestID('task-card--name')
+          .trigger('mouseover')
+          .then(() => {
+            cy.getByTestID('task-card--name-button')
+              .click()
+              .then(() => {
+                cy.getByTestID('task-card--input')
+                  .type(newName)
+                  .type('{enter}')
+              })
+
+            cy.getByTestID('notification-success').should('exist')
+            cy.contains(newName).should('exist')
+          })
       })
+    })
 
-      cy.getByTestID('task-card').should('have.length', 2)
-
+    it('can delete a task', () => {
       cy.getByTestID('task-card')
         .first()
         .trigger('mouseover')
-        .within(() => {
-          cy.getByTestID('context-delete-menu').click()
-          cy.getByTestID('context-delete-task').click()
+        .then(() => {
+          cy.getByTestID('context-delete-menu')
+            .click()
+            .then(() => {
+              cy.getByTestID('context-delete-task')
+                .click()
+                .then(() => {
+                  cy.getByTestID('empty-tasks-list').should('exist')
+                })
+            })
         })
-
-      cy.getByTestID('task-card').should('have.length', 1)
     })
   })
 
-  it('can disable a task', () => {
-    cy.get('@org').then(({id}: Organization) => {
-      cy.get<string>('@token').then(token => {
-        cy.createTask(token, id)
-      })
-    })
+  describe('Searching and filtering', () => {
+    const newLabelName = 'click-me'
+    const taskName = 'beepBoop'
 
-    cy.getByTestID('task-card--slide-toggle').should('have.class', 'active')
-
-    cy.getByTestID('task-card--slide-toggle').click()
-
-    cy.getByTestID('task-card--slide-toggle').should('not.have.class', 'active')
-  })
-
-  it('can edit a tasks name', () => {
-    cy.get('@org').then(({id}: Organization) => {
-      cy.get<string>('@token').then(token => {
-        cy.createTask(token, id)
-      })
-    })
-
-    const newName = 'Task'
-
-    cy.getByTestID('task-card').within(() => {
-      cy.getByTestID('task-card--name').trigger('mouseover')
-
-      cy.getByTestID('task-card--name-button').click()
-
-      cy.get('.cf-input-field')
-        .type(newName)
-        .type('{enter}')
-    })
-
-    cy.fixture('routes').then(({orgs}) => {
-      cy.get('@org').then(({id}: Organization) => {
-        cy.visit(`${orgs}/${id}/tasks`)
-      })
-    })
-
-    cy.getByTestID('task-card').should('contain', newName)
-  })
-
-  describe('labeling', () => {
-    it('can click to filter tasks by labels', () => {
-      const newLabelName = 'click-me'
-
+    beforeEach(() => {
       cy.get('@org').then(({id}: Organization) => {
         cy.get<string>('@token').then(token => {
-          cy.createTask(token, id).then(({body}) => {
+          cy.createTask(token, id, taskName).then(({body}) => {
             cy.createAndAddLabel('tasks', id, body.id, newLabelName)
           })
 
@@ -148,32 +188,19 @@ from(bucket: "${name}")
           cy.visit(`${orgs}/${id}/tasks`)
         })
       })
+    })
 
+    it('can click to filter tasks by labels', () => {
       cy.getByTestID('task-card').should('have.length', 2)
 
       cy.getByTestID(`label--pill ${newLabelName}`).click()
 
       cy.getByTestID('task-card').should('have.length', 1)
-    })
-  })
 
-  describe('searching', () => {
-    it('can search by task name', () => {
-      const searchName = 'beepBoop'
-      cy.get('@org').then(({id}: Organization) => {
-        cy.get<string>('@token').then(token => {
-          cy.createTask(token, id, searchName)
-          cy.createTask(token, id)
-        })
-      })
-
-      cy.fixture('routes').then(({orgs}) => {
-        cy.get('@org').then(({id}: Organization) => {
-          cy.visit(`${orgs}/${id}/tasks`)
-        })
-      })
-
-      cy.getByTestID('search-widget').type('bEE')
+      // searching by task name
+      cy.getByTestID('search-widget')
+        .clear()
+        .type('bEE')
 
       cy.getByTestID('task-card').should('have.length', 1)
     })
@@ -255,6 +282,112 @@ from(bucket: "${name}")
       cy.getByInputValue(cronInput)
       cy.getByInputValue(offset)
       cy.contains('Save').click()
+    })
+  })
+
+  describe('renders the correct name when toggling between tasks', () => {
+    // addresses an issue that was reported when clicking tasks
+    // this issue could not be reproduced manually | testing:
+    // https://github.com/influxdata/influxdb/issues/15552
+    const firstTask = 'First_Task'
+    const secondTask = 'Second_Task'
+    const interval = '12h'
+    const offset = '30m'
+    const flux = name => `import "influxdata/influxdb/v1"
+    v1.tagValues(bucket: "${name}", tag: "_field")
+    from(bucket: "${name}")
+      |> range(start: -2m)`
+    beforeEach(() => {
+      createFirstTask(
+        firstTask,
+        ({name}) => {
+          return flux(name)
+        },
+        interval,
+        offset
+      )
+      cy.contains('Save').click()
+      cy.getByTestID('task-card')
+        .should('have.length', 1)
+        .and('contain', firstTask)
+
+      cy.getByTestID('add-resource-dropdown--button').click()
+      cy.getByTestID('add-resource-dropdown--new').click()
+      cy.getByInputName('name').type(secondTask)
+      cy.getByTestID('task-form-schedule-input').type(interval)
+      cy.getByTestID('task-form-offset-input').type(offset)
+      cy.get<Bucket>('@bucket').then(bucket => {
+        cy.getByTestID('flux-editor').within(() => {
+          cy.get('textarea').type(flux(bucket), {force: true})
+        })
+      })
+      cy.contains('Save').click()
+      cy.getByTestID('task-card')
+        .should('have.length', 2)
+        .and('contain', firstTask)
+        .and('contain', secondTask)
+      cy.getByTestID('task-card--name')
+        .contains(firstTask)
+        .click()
+    })
+
+    it('when navigating using the navbar', () => {
+      // verify that the previously input data exists
+      cy.getByInputValue(firstTask)
+      // navigate home
+      cy.get('div.cf-nav--item.active').click()
+      // click on the second task
+      cy.getByTestID('task-card--name')
+        .contains(secondTask)
+        .click()
+      // verify that it is the correct data
+      cy.getByInputValue(secondTask)
+      cy.get('div.cf-nav--item.active').click()
+      // navigate back to the first one to verify that the name is correct
+      cy.getByTestID('task-card--name')
+        .contains(firstTask)
+        .click()
+      cy.getByInputValue(firstTask)
+    })
+
+    it('when navigating using the cancel button', () => {
+      // verify that the previously input data exists
+      cy.getByInputValue(firstTask)
+      // navigate home
+      cy.getByTestID('task-cancel-btn').click()
+      // click on the second task
+      cy.getByTestID('task-card--name')
+        .contains(secondTask)
+        .click()
+      // verify that it is the correct data
+      cy.getByInputValue(secondTask)
+      cy.getByTestID('task-cancel-btn').click()
+      // navigate back to the first task again
+      cy.getByTestID('task-card--name')
+        .contains(firstTask)
+        .click()
+      cy.getByInputValue(firstTask)
+      cy.getByTestID('task-cancel-btn').click()
+    })
+
+    it('when navigating using the save button', () => {
+      // verify that the previously input data exists
+      cy.getByInputValue(firstTask)
+      // navigate home
+      cy.getByTestID('task-save-btn').click()
+      // click on the second task
+      cy.getByTestID('task-card--name')
+        .contains(secondTask)
+        .click()
+      // verify that it is the correct data
+      cy.getByInputValue(secondTask)
+      cy.getByTestID('task-save-btn').click()
+      // navigate back to the first task again
+      cy.getByTestID('task-card--name')
+        .contains(firstTask)
+        .click()
+      cy.getByInputValue(firstTask)
+      cy.getByTestID('task-save-btn').click()
     })
   })
 })

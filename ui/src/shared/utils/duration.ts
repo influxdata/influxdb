@@ -1,11 +1,29 @@
-import {TimeRange} from 'src/types'
+import moment from 'moment'
+
+import {TimeRange, CustomTimeRange} from 'src/types'
 import {Duration, DurationUnit} from 'src/types/ast'
+import {TIME_RANGE_FORMAT} from 'src/shared/constants/timeRanges'
+
+export const removeSpacesAndNow = (input: string): string =>
+  input.replace(/\s/g, '').replace(/now\(\)-/, '')
+
+export const isDurationParseable = (lower: string): boolean => {
+  const durationRegExp = /([0-9]+)(y|mo|w|d|h|ms|s|m|us|µs|ns)/g
+  if (!lower || !lower.includes('now()')) {
+    return false
+  }
+  // warning! Using string.match(regex) here instead of regex.test(string) because regex.test() modifies the regex object, and can lead to unexpected behavior
+  const removedLower = removeSpacesAndNow(lower)
+
+  return !!removedLower.match(durationRegExp)
+}
 
 export const parseDuration = (input: string): Duration[] => {
-  const r = /([0-9]+)(y|mo|w|d|h|ms|s|m|us|µs|ns)/g
   const result = []
+  const durationRegExp = /([0-9]+)(y|mo|w|d|h|ms|s|m|us|µs|ns)/g
 
-  let match = r.exec(input)
+  // warning! regex.exec(string) modifies the regex it is operating on so that subsequent calls on the same string behave differently
+  let match = durationRegExp.exec(input)
 
   if (!match) {
     throw new Error(`could not parse "${input}" as duration`)
@@ -17,7 +35,7 @@ export const parseDuration = (input: string): Duration[] => {
       unit: match[2],
     })
 
-    match = r.exec(input)
+    match = durationRegExp.exec(input)
   }
 
   return result
@@ -92,5 +110,49 @@ export const timeRangeToDuration = (timeRange: TimeRange): string => {
     throw new Error('cannot convert time range to duration')
   }
 
-  return timeRange.lower.replace(/\s/g, '').replace(/now\(\)-/, '')
+  return removeSpacesAndNow(timeRange.lower)
+}
+
+export const convertTimeRangeToCustom = (
+  timeRange: TimeRange
+): CustomTimeRange => {
+  if (timeRange.type === 'custom') {
+    return timeRange
+  }
+
+  const upper = new Date().toISOString()
+  let lower = ''
+
+  if (timeRange.type === 'selectable-duration') {
+    lower = moment()
+      .subtract(timeRange.seconds, 's')
+      .toISOString()
+  } else if (timeRange.type === 'duration') {
+    const millisecondDuration = durationToMilliseconds(
+      parseDuration(timeRangeToDuration(timeRange))
+    )
+    lower = moment()
+      .subtract(millisecondDuration, 'milliseconds')
+      .toISOString()
+  }
+
+  return {
+    lower,
+    upper,
+    type: 'custom',
+  }
+}
+
+export const getTimeRangeLabel = (timeRange: TimeRange): string => {
+  if (timeRange.type === 'selectable-duration') {
+    return timeRange.label
+  }
+  if (timeRange.type === 'duration') {
+    return timeRange.lower
+  }
+  if (timeRange.type === 'custom') {
+    return `${moment(timeRange.lower).format(TIME_RANGE_FORMAT)} - ${moment(
+      timeRange.upper
+    ).format(TIME_RANGE_FORMAT)}`
+  }
 }

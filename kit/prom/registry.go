@@ -23,21 +23,15 @@ type PrometheusCollector interface {
 type Registry struct {
 	*prometheus.Registry
 
-	logger *zap.Logger
+	log *zap.Logger
 }
 
 // NewRegistry returns a new registry.
-func NewRegistry() *Registry {
+func NewRegistry(log *zap.Logger) *Registry {
 	return &Registry{
 		Registry: prometheus.NewRegistry(),
-		logger:   zap.NewNop(),
+		log:      log,
 	}
-}
-
-// WithLogger sets the logger for the Registry.
-// The logger will print any errors that occur while serving metrics over HTTP.
-func (r *Registry) WithLogger(l *zap.Logger) {
-	r.logger = l.With(zap.String("service", "prom_registry"))
 }
 
 // HTTPHandler returns an http.Handler for the registry,
@@ -50,7 +44,7 @@ func (r *Registry) HTTPHandler() http.Handler {
 	return promhttp.HandlerFor(r.Registry, opts)
 }
 
-// promLogger satisfies the promhttp.Logger interface with the registry.
+// promLogger satisfies the promhttp.logger interface with the registry.
 // Because normal usage is that WithLogger is called after HTTPHandler,
 // we refer to the Registry rather than its logger.
 type promLogger struct {
@@ -59,7 +53,7 @@ type promLogger struct {
 
 var _ promhttp.Logger = (*promLogger)(nil)
 
-// Println implements promhttp.Logger.
+// Println implements promhttp.logger.
 func (pl promLogger) Println(v ...interface{}) {
-	pl.r.logger.Sugar().Info(v...)
+	pl.r.log.Sugar().Info(v...)
 }

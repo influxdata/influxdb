@@ -81,8 +81,8 @@ describe('Dashboard', () => {
         // cellContent is yielded as a cutesy phrase from src/shared/copy/cell
 
         // open Cell Editor Overlay
-        cy.getByTestID('cell-context-menu--edit').click()
-        cy.getByTestID('cell-context-menu-item--configure').click()
+        cy.getByTestID('cell-context--toggle').click()
+        cy.getByTestID('cell-context--configure').click()
 
         // Cancel edit
         cy.getByTestID('cancel-cell-edit--button').click()
@@ -129,8 +129,8 @@ describe('Dashboard', () => {
             .should('equal', secondKey)
 
           // open CEO
-          cy.getByTestID('cell-context-menu--edit').click()
-          cy.getByTestID('cell-context-menu-item--configure').click()
+          cy.getByTestID('cell-context--toggle').click()
+          cy.getByTestID('cell-context--configure').click()
 
           // selected value in cell context is 2nd value
           cy.window()
@@ -175,5 +175,39 @@ describe('Dashboard', () => {
         })
       })
     })
+  })
+
+  it("Should return empty table parameters when query hasn't been submitted", () => {
+    cy.get('@org').then(({id: orgID}: Organization) => {
+      cy.createDashboard(orgID).then(({body}) => {
+        cy.fixture('routes').then(({orgs}) => {
+          cy.visit(`${orgs}/${orgID}/dashboards/${body.id}`)
+        })
+      })
+    })
+
+    cy.getByTestID('add-cell--button')
+      .click()
+      .then(() => {
+        cy.get('.view-options').should('not.exist')
+        cy.getByTestID('cog-cell--button')
+          .should('have.length', 1)
+          .click()
+        // should toggle the view options
+        cy.get('.view-options').should('exist')
+        cy.getByTestID('dropdown--button')
+          .contains('Graph')
+          .click()
+          .then(() => {
+            cy.getByTestID('view-type--table')
+              .contains('Table')
+              .should('have.length', 1)
+              .click()
+
+            cy.getByTestID('empty-state--text')
+              .contains('This query returned no columns')
+              .should('exist')
+          })
+      })
   })
 })

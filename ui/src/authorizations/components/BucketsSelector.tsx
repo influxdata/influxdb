@@ -50,6 +50,18 @@ class BucketsSelector extends PureComponent<Props> {
     )
   }
 
+  private get titlePreposition(): string {
+    const {title} = this.props
+    switch (title.toLowerCase()) {
+      case 'read':
+        return 'from'
+      case 'write':
+        return 'to'
+      default:
+        return 'on'
+    }
+  }
+
   private get bucketTabs(): BucketTab[] {
     return [BucketTab.AllBuckets, BucketTab.Scoped]
   }
@@ -62,6 +74,7 @@ class BucketsSelector extends PureComponent<Props> {
       onDeselectAll,
       buckets,
       activeTab,
+      title,
     } = this.props
 
     switch (activeTab) {
@@ -70,8 +83,9 @@ class BucketsSelector extends PureComponent<Props> {
           <>
             <EmptyState size={ComponentSize.Small}>
               <EmptyState.Text>
-                This token will be able to write to all existing buckets as well
-                as to any bucket created in the future
+                This token will be able to {title.toLowerCase()}{' '}
+                {this.titlePreposition} all existing buckets as well as{' '}
+                {this.titlePreposition} any bucket created in the future
               </EmptyState.Text>
             </EmptyState>
           </>

@@ -56,15 +56,13 @@ export default class CSVTemplateBuilder extends PureComponent<Props, State> {
             </p>
           </Grid.Column>
           <Grid.Column widthXS={Columns.Six}>
-            {
-              <Form.Element label="Select A Default">
-                <SelectDropdown
-                  options={values}
-                  selectedOption={this.defaultID}
-                  onSelect={onSelectDefault}
-                />
-              </Form.Element>
-            }
+            <Form.Element label="Select A Default">
+              <SelectDropdown
+                options={values}
+                selectedOption={this.defaultID}
+                onSelect={onSelectDefault}
+              />
+            </Form.Element>
           </Grid.Column>
         </Grid.Row>
       </Form.Element>

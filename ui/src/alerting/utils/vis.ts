@@ -9,7 +9,7 @@ import {extent} from 'src/shared/utils/vis'
 import {flatMap} from 'lodash'
 
 // Types
-import {TimeRange, Threshold} from 'src/types'
+import {Threshold, DurationTimeRange} from 'src/types'
 
 const POINTS_PER_CHECK_PLOT = 300
 
@@ -24,12 +24,16 @@ const POINTS_PER_CHECK_PLOT = 300
   each minute. So to display a plot with say, 300 points, we need to query a
   time range of the last 300 minutes.
 */
-export const getCheckVisTimeRange = (durationStr: string): TimeRange => {
+export const getCheckVisTimeRange = (
+  durationStr: string
+): DurationTimeRange => {
   const durationMultiple = parseDuration(durationStr)
     .map(({magnitude, unit}) => `${magnitude * POINTS_PER_CHECK_PLOT}${unit}`)
     .join('')
 
-  return {lower: `now() - ${durationMultiple}`}
+  const lower = `now() - ${durationMultiple}`
+
+  return {upper: null, lower, type: 'duration'}
 }
 
 /*

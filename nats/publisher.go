@@ -16,12 +16,16 @@ type Publisher interface {
 type AsyncPublisher struct {
 	ClientID   string
 	Connection stan.Conn
-	Logger     *zap.Logger
+	log        *zap.Logger
 	Addr       string
 }
 
-func NewAsyncPublisher(clientID string, addr string) *AsyncPublisher {
-	return &AsyncPublisher{ClientID: clientID, Addr: addr}
+func NewAsyncPublisher(log *zap.Logger, clientID string, addr string) *AsyncPublisher {
+	return &AsyncPublisher{
+		ClientID: clientID,
+		log:      log,
+		Addr:     addr,
+	}
 }
 
 // Open creates and maintains a connection to NATS server
@@ -41,7 +45,7 @@ func (p *AsyncPublisher) Publish(subject string, r io.Reader) error {
 
 	ah := func(guid string, err error) {
 		if err != nil {
-			p.Logger.Info(err.Error())
+			p.log.Info(err.Error())
 		}
 	}
 

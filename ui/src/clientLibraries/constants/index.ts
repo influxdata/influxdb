@@ -22,45 +22,45 @@ export const clientCSharpLibrary = {
   packageReferenceCodeSnippet: `<PackageReference Include="InfluxDB.Client" />`,
   initializeClientCodeSnippet: `using InfluxDB.Client;
 namespace Examples
-{  
-  public class Examples  
-  {    
-    public static void Main(string[] args)    
-    {      
+{
+  public class Examples
+  {
+    public static void Main(string[] args)
+    {
       // You can generate a Token from the "Tokens Tab" in the UI
-      var client = InfluxDBClientFactory.Create("basepath", "token".ToCharArray());    
-    }  
+      var client = InfluxDBClientFactory.Create("<%= server %>", "<%= token %>".ToCharArray());
+    }
   }
 }`,
-  executeQueryCodeSnippet: `const string query = "from(bucket: \\"my_bucket\\") |> range(start: -1h)";
-var tables = await client.GetQueryApi().QueryAsync(query, "myorgid");`,
+  executeQueryCodeSnippet: `const string query = "from(bucket: \\"<%= bucket %>\\") |> range(start: -1h)";
+var tables = await client.GetQueryApi().QueryAsync(query, "<%= org %>");`,
   writingDataLineProtocolCodeSnippet: `const string data = "mem,host=host1 used_percent=23.43234543 1556896326";
 using (var writeApi = client.GetWriteApi())
-{  
-  writeApi.WriteRecord("bucketID", "orgID", WritePrecision.Ns, data);
+{
+  writeApi.WriteRecord("<%= bucket %>", "<%= org %>", WritePrecision.Ns, data);
 }`,
-  writingDataPointCodeSnippet: `var point = PointData  
-  .Measurement("mem")  
-  .Tag("host", "host1")  
-  .Field("used_percent", 23.43234543)  
+  writingDataPointCodeSnippet: `var point = PointData
+  .Measurement("mem")
+  .Tag("host", "host1")
+  .Field("used_percent", 23.43234543)
   .Timestamp(1556896326L, WritePrecision.Ns);
-    
+
 using (var writeApi = client.GetWriteApi())
-{  
-  writeApi.WritePoint("bucketID", "orgID", point);
+{
+  writeApi.WritePoint("<%= bucket %>", "<%= org %>", point);
 }`,
   writingDataPocoCodeSnippet: `var mem = new Mem { Host = "host1", UsedPercent = 23.43234543, Time = DateTime.UtcNow };
-  
+
 using (var writeApi = client.GetWriteApi())
-{  
-  writeApi.WriteMeasurement("bucketID", "orgID", WritePrecision.Ns, mem);
+{
+  writeApi.WriteMeasurement("<%= bucket %>", "<%= org %>", WritePrecision.Ns, mem);
 }`,
   pocoClassCodeSnippet: `// Public class
 [Measurement("mem")]
 private class Mem
-{  
-  [Column("host", IsTag = true)] public string Host { get; set; }  
-  [Column("used_percent")] public double? UsedPercent { get; set; }  
+{
+  [Column("host", IsTag = true)] public string Host { get; set; }
+  [Column("used_percent")] public double? UsedPercent { get; set; }
   [Column(IsTimestamp = true)] public DateTime Time { get; set; }
 }`,
 }
@@ -71,7 +71,7 @@ export const clientGoLibrary = {
   url: 'https://github.com/influxdata/influxdb-client-go',
   image: GoLogo,
   initializeClientCodeSnippet: `// You can generate a Token from the "Tokens Tab" in the UI
-influx, err := influxdb.New(myHTTPInfluxAddress, myToken, influxdb.WithHTTPClient(myHTTPClient))
+influx, err := influxdb.New(<%= server %>, <%= token %>, influxdb.WithHTTPClient(myHTTPClient))
 if err != nil {
   panic(err) // error handling here; normally we wouldn't use fmt but it works for the example
 }
@@ -93,7 +93,7 @@ myMetrics := []influxdb.Metric{
 }
 
 // The actual write..., this method can be called concurrently.
-if _, err := influx.Write(context.Background(), "my-awesome-bucket", "my-very-awesome-org", myMetrics...)
+if _, err := influx.Write(context.Background(), "<%= bucket %>", "<%= org %>", myMetrics...)
 if err != nil {
   log.Fatal(err) // as above use your own error handling here.
 }`,
@@ -113,46 +113,46 @@ export const clientJavaLibrary = {
   compile "com.influxdb:influxdb-client-java:1.1.0"
 }`,
   initializeClientCodeSnippet: `package example;
-  
+
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.InfluxDBClientFactory;
-  
-public class InfluxDB2Example {  
-  public static void main(final String[] args) { 
-    // You can generate a Token from the "Tokens Tab" in the UI   
-    InfluxDBClient client = InfluxDBClientFactory.create("serverUrl", "token".toCharArray());  
+
+public class InfluxDB2Example {
+  public static void main(final String[] args) {
+    // You can generate a Token from the "Tokens Tab" in the UI
+    InfluxDBClient client = InfluxDBClientFactory.create("<%= server %>", "<%= token %>".toCharArray());
   }
 }`,
-  executeQueryCodeSnippet: `String query = "from(bucket: \\"my_bucket\\") |> range(start: -1h)";
-List<FluxTable> tables = client.getQueryApi().query(query, "myorgid");`,
+  executeQueryCodeSnippet: `String query = "from(bucket: \\"<%= bucket %>\\") |> range(start: -1h)";
+List<FluxTable> tables = client.getQueryApi().query(query, "<%= org %>");`,
   writingDataLineProtocolCodeSnippet: `String data = "mem,host=host1 used_percent=23.43234543 1556896326";
-try (WriteApi writeApi = client.getWriteApi()) {  
-  writeApi.writeRecord("bucketID", "orgID", WritePrecision.NS, data);
+try (WriteApi writeApi = client.getWriteApi()) {
+  writeApi.writeRecord("<%= bucket %>", "<%= org %>", WritePrecision.NS, data);
 }`,
-  writingDataPointCodeSnippet: `Point point = Point  
-  .measurement("mem")  
-  .addTag("host", "host1")  
-  .addField("used_percent", 23.43234543)  
+  writingDataPointCodeSnippet: `Point point = Point
+  .measurement("mem")
+  .addTag("host", "host1")
+  .addField("used_percent", 23.43234543)
   .time(1556896326L, WritePrecision.NS);
-  
-try (WriteApi writeApi = client.getWriteApi()) {  
-  writeApi.writePoint("bucketID", "orgID", point);
+
+try (WriteApi writeApi = client.getWriteApi()) {
+  writeApi.writePoint("<%= bucket %>", "<%= org %>", point);
 }`,
   writingDataPojoCodeSnippet: `Mem mem = new Mem();
 mem.host = "host1";
 mem.used_percent = 23.43234543;
 mem.time = Instant.now();
 
-try (WriteApi writeApi = client.getWriteApi()) {  
-  writeApi.writeMeasurement("bucketID", "orgID", WritePrecision.NS, mem);
+try (WriteApi writeApi = client.getWriteApi()) {
+  writeApi.writeMeasurement("<%= bucket %>", "<%= org %>", WritePrecision.NS, mem);
 }`,
   pojoClassCodeSnippet: `@Measurement(name = "mem")
-public class Mem {  
-  @Column(tag = true)  
-  String host;  
-  @Column  
-  Double used_percent;  
-  @Column(timestamp = true)  
+public class Mem {
+  @Column(tag = true)
+  String host;
+  @Column
+  Double used_percent;
+  @Column(timestamp = true)
   Instant time;
 }`,
 }
@@ -164,12 +164,12 @@ export const clientJSLibrary = {
   image: JSLogo,
   initializeClientCodeSnippet: `import Client from '@influxdata/influx'
 // You can generate a Token from the "Tokens Tab" in the UI
-const client = new Client('serverUrl', 'token')`,
+const client = new Client('<%= server %>', '<%= token %>')`,
   executeQueryCodeSnippet: `const query = 'from(bucket: "my_bucket") |> range(start: -1h)'
-const {promise} = client.queries.execute('myorgid', query)
+const {promise} = client.queries.execute('<%= org %>', query)
 const csv = await promise`,
   writingDataLineProtocolCodeSnippet: `const data = 'mem,host=host1 used_percent=23.43234543 1556896326' // Line protocol string
-const response = await client.write.create('orgID', 'bucketID', data)`,
+const response = await client.write.create('<%= org %>', '<%= bucket %>', data)`,
 }
 
 export const clientPythonLibrary = {
@@ -182,20 +182,20 @@ export const clientPythonLibrary = {
 from influxdb_client import InfluxDBClient
 
 ## You can generate a Token from the "Tokens Tab" in the UI
-client = InfluxDBClient(url="serverUrl", token="token")`,
-  executeQueryCodeSnippet: `query = 'from(bucket: "my_bucket") |> range(start: -1h)'
-tables = client.query_api().query(query, org="myorgid")`,
+client = InfluxDBClient(url="<%= server %>", token="<%= token %>")`,
+  executeQueryCodeSnippet: `query = 'from(bucket: "<%= bucket %>") |> range(start: -1h)'
+tables = client.query_api().query(query, org="<%= org %>")`,
   writingDataLineProtocolCodeSnippet: `data = "mem,host=host1 used_percent=23.43234543 1556896326"
-write_client.write("bucketID", "orgID", data)`,
+write_client.write("<%= bucket %>", "<%= org %>", data)`,
   writingDataPointCodeSnippet: `point = Point("mem")
   .tag("host", "host1")
   .field("used_percent", 23.43234543)
   .time(1556896326, WritePrecision.NS)
 
-write_client.write("bucketID", "orgID", point)`,
+write_client.write("<%= bucket %>", "<%= org %>", point)`,
   writingDataBatchCodeSnippet: `sequence = ["mem,host=host1 used_percent=23.43234543 1556896326",
             "mem,host=host1 available_percent=15.856523 1556896326"]
-write_client.write("bucketID", "orgID", sequence)`,
+write_client.write("<%= bucket %>", "<%= org %>", sequence)`,
 }
 
 export const clientLibraries: ClientLibrary[] = [

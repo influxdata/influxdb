@@ -17,9 +17,9 @@ type InspectReportTSMFlags struct {
 	pattern  string
 	exact    bool
 	detailed bool
-
-	orgID, bucketID string
-	dataDir         string
+	organization
+	bucketID string
+	dataDir  string
 }
 
 var inspectReportTSMFlags InspectReportTSMFlags
@@ -62,7 +62,7 @@ in the following ways:
 	inspectReportTSMCommand.Flags().BoolVarP(&inspectReportTSMFlags.exact, "exact", "", false, "calculate and exact cardinality count. Warning, may use significant memory...")
 	inspectReportTSMCommand.Flags().BoolVarP(&inspectReportTSMFlags.detailed, "detailed", "", false, "emit series cardinality segmented by measurements, tag keys and fields. Warning, may take a while.")
 
-	inspectReportTSMCommand.Flags().StringVarP(&inspectReportTSMFlags.orgID, "org-id", "", "", "process only data belonging to organization ID.")
+	inspectReportTSMFlags.organization.register(inspectReportTSMCommand)
 	inspectReportTSMCommand.Flags().StringVarP(&inspectReportTSMFlags.bucketID, "bucket-id", "", "", "process only data belonging to bucket ID. Requires org flag to be set.")
 
 	dir, err := fs.InfluxDir()
@@ -75,6 +75,9 @@ in the following ways:
 
 // inspectReportTSMF runs the report-tsm tool.
 func inspectReportTSMF(cmd *cobra.Command, args []string) error {
+	if err := inspectReportTSMFlags.organization.validOrgFlags(); err != nil {
+		return err
+	}
 	report := &tsm1.Report{
 		Stderr:   os.Stderr,
 		Stdout:   os.Stdout,
@@ -84,17 +87,19 @@ func inspectReportTSMF(cmd *cobra.Command, args []string) error {
 		Exact:    inspectReportTSMFlags.exact,
 	}
 
-	if inspectReportTSMFlags.orgID == "" && inspectReportTSMFlags.bucketID != "" {
+	if (inspectReportTSMFlags.organization.name == "" || inspectReportTSMFlags.organization.id == "") && inspectReportTSMFlags.bucketID != "" {
 		return errors.New("org-id must be set for non-empty bucket-id")
 	}
 
-	if inspectReportTSMFlags.orgID != "" {
-		orgID, err := influxdb.IDFromString(inspectReportTSMFlags.orgID)
-		if err != nil {
-			return err
-		}
-		report.OrgID = orgID
+	orgSvc, err := newOrganizationService()
+	if err != nil {
+		return nil
 	}
+	id, err := inspectReportTSMFlags.organization.getID(orgSvc)
+	if err != nil {
+		return nil
+	}
+	report.OrgID = &id
 
 	if inspectReportTSMFlags.bucketID != "" {
 		bucketID, err := influxdb.IDFromString(inspectReportTSMFlags.bucketID)
@@ -104,7 +109,7 @@ func inspectReportTSMF(cmd *cobra.Command, args []string) error {
 		report.BucketID = bucketID
 	}
 
-	_, err := report.Run(true)
+	_, err = report.Run(true)
 	if err != nil {
 		panic(err)
 	}

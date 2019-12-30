@@ -5,6 +5,9 @@ import {connect} from 'react-redux'
 // Components
 import ImportOverlay from 'src/shared/components/ImportOverlay'
 
+// Copy
+import {invalidJSON} from 'src/shared/copy/notifications'
+
 // Actions
 import {
   createTemplate as createTemplateAction,
@@ -14,6 +17,14 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types
 import {AppState, Organization} from 'src/types'
+import {ComponentStatus} from '@influxdata/clockface'
+
+// Utils
+import jsonlint from 'jsonlint-mod'
+
+interface State {
+  status: ComponentStatus
+}
 
 interface DispatchProps {
   createTemplate: typeof createTemplateAction
@@ -32,12 +43,18 @@ interface OwnProps extends WithRouterProps {
 type Props = DispatchProps & OwnProps & StateProps
 
 class TemplateImportOverlay extends PureComponent<Props> {
+  public state: State = {
+    status: ComponentStatus.Default,
+  }
+
   public render() {
     return (
       <ImportOverlay
         onDismissOverlay={this.onDismiss}
         resourceName="Template"
         onSubmit={this.handleImportTemplate}
+        status={this.state.status}
+        updateStatus={this.updateOverlayStatus}
       />
     )
   }
@@ -48,10 +65,21 @@ class TemplateImportOverlay extends PureComponent<Props> {
     router.goBack()
   }
 
-  private handleImportTemplate = (importString: string) => {
-    const {createTemplate, getTemplates} = this.props
+  private updateOverlayStatus = (status: ComponentStatus) =>
+    this.setState(() => ({status}))
 
-    const template = JSON.parse(importString)
+  private handleImportTemplate = (importString: string) => {
+    const {createTemplate, getTemplates, notify} = this.props
+
+    let template
+    this.updateOverlayStatus(ComponentStatus.Default)
+    try {
+      template = jsonlint.parse(importString)
+    } catch (error) {
+      this.updateOverlayStatus(ComponentStatus.Error)
+      notify(invalidJSON(error.message))
+      return
+    }
     createTemplate(template)
 
     getTemplates()

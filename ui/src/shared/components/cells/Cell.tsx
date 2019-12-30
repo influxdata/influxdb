@@ -60,18 +60,19 @@ class CellComponent extends Component<Props, State> {
 
     return (
       <>
-        <CellHeader name={this.viewName} note={this.viewNote} />
-        {view && (
-          <CellContext
-            cell={cell}
-            view={view}
-            onDeleteCell={onDeleteCell}
-            onCloneCell={onCloneCell}
-            onEditCell={onEditCell}
-            onEditNote={onEditNote}
-            onCSVDownload={this.handleCSVDownload}
-          />
-        )}
+        <CellHeader name={this.viewName} note={this.viewNote}>
+          {view && (
+            <CellContext
+              cell={cell}
+              view={view}
+              onDeleteCell={onDeleteCell}
+              onCloneCell={onCloneCell}
+              onEditCell={onEditCell}
+              onEditNote={onEditNote}
+              onCSVDownload={this.handleCSVDownload}
+            />
+          )}
+        </CellHeader>
         <div className="cell--view" data-testid="cell--view-empty">
           {this.view}
         </div>
@@ -86,7 +87,7 @@ class CellComponent extends Component<Props, State> {
       return view.name
     }
 
-    return ''
+    return 'Note'
   }
 
   private get viewNote(): string {

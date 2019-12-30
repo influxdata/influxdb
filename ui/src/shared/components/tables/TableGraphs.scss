@@ -1,24 +1,35 @@
+$table-graph-cell: $g0-obsidian;
+$table-graph-cell--highlight: $g2-kevlar;
+$table-graph-heading-bg: $g1-raven;
+$table-graph-heading-bg--active: $g3-castle;
+$table-graph-border: $g3-castle;
+$table-graph-font: 12px;
+
 .time-machine-tables {
   display: flex;
   align-items: stretch;
-  flex-wrap: none;
+  flex-wrap: nowrap;
   width: 100%;
   height: 100%;
-  padding: 8px;
 }
 
 .time-machine-sidebar {
-  width: 25%;
-  min-width: 180px;
-  max-width: 400px;
-  background-color: $g2-kevlar;
+  flex: 1 0 180px;
+  background-color: $g0-obsidian;
+  margin-right: $ix-marg-a;
   overflow: hidden;
-  border-radius: $radius 0 0 $radius;
+  border-radius: $ix-radius;
+  border: $ix-border solid $g3-castle;
 }
 
 .time-machine-sidebar--heading {
   padding: 10px;
-  background: $g4-onyx;
+  background: $g3-castle;
+  height: 50px;
+}
+
+.time-machine-sidebar--scroll {
+  height: calc(100% - 50px) !important;
 }
 
 .time-machines-sidebar--filter.form-control.cf-input-xs {
@@ -33,22 +44,11 @@
 .time-machine-sidebar-item {
   @include no-user-select();
   color: $g11-sidewalk;
-  font-size: 12px;
+  font-size: $table-graph-font;
   font-weight: 600;
-  padding: 7px 10px;
+  padding: 6px 12px;
   transition: color 0.25s ease, background-color 0.25s ease;
   white-space: nowrap;
-
-  &:hover {
-    background-color: $g4-onyx;
-    color: $g15-platinum;
-    cursor: pointer;
-  }
-
-  &.active {
-    background-color: $g5-pepper;
-    color: $g18-cloud;
-  }
 
   > span {
     padding-right: 1px;
@@ -63,18 +63,42 @@
     padding-right: 5px;
     color: $g11-sidewalk;
   }
+
+  &:hover {
+    background-color: $g2-kevlar;
+    color: $g13-mist;
+    cursor: pointer;
+
+    > span.key {
+      color: $g13-mist;
+    }
+
+    > span.value {
+      color: $g20-white;
+    }
+  }
+  
+  &.active {
+    background-color: $g3-castle;
+    color: $g18-cloud;
+
+    > span.key {
+      color: $g18-cloud;
+    }
+
+    > span.value {
+      color: $c-pool;
+    }
+  }
 }
 
 .time-machine-table {
-  width: calc(100% - 32px);
-  border: 2px solid $g5-pepper;
-  border-radius: 3px;
+  flex: 4 0 100px;
+  border: $ix-border solid $table-graph-border;
+  border-radius: $ix-radius-sm;
   overflow: hidden;
 
   &:only-child {
-    height: calc(100% - 16px);
-    top: 8px;
-    left: 16px;
     border: 1;
   }
 }
@@ -84,17 +108,6 @@
     ----------------------------------------------------------------------------
 */
 
-.table-graph-container {
-  position: absolute;
-  width: calc(100% - 32px);
-  height: calc(100% - 16px);
-  top: 8px;
-  left: 16px;
-  border: 2px solid $g5-pepper;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
 .table-graph-cell {
   user-select: text !important;
   -o-user-select: text !important;
@@ -102,16 +115,18 @@
   -webkit-user-select: text !important;
   line-height: 28px; // Cell height - 2x border width
   padding: 0 6px;
-  font-size: 12px;
+  font-size: $table-graph-font;
+  background-color: $table-graph-cell;
   font-weight: 500;
-  color: $g12-forge;
-  border: 1px solid $g5-pepper;
+  color: $g11-sidewalk;
+  border: ($ix-border / 2) solid $table-graph-border;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 
   &__highlight-row {
-    background-color: rgba(255, 255, 255, 0.2);
+    color: $g20-white;
+    background-color: $table-graph-cell--highlight;
   }
   &__numerical {
     font-family: $code-font;
@@ -121,7 +136,7 @@
   &__fixed-column {
     font-weight: 700;
     color: $g14-chromium;
-    background-color: $g4-onyx;
+    background-color: $table-graph-heading-bg;
   }
   &__fixed-row {
     border-top: 0;
@@ -134,7 +149,7 @@
     border-top: 0;
     border-left: 0;
     color: $g18-cloud;
-    background-color: $g5-pepper;
+    background-color: $table-graph-heading-bg--active;
   }
   &__field-name {
     padding-right: 17px;

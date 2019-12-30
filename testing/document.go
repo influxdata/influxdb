@@ -12,13 +12,14 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
+	"go.uber.org/zap"
 )
 
 // NewDocumentIntegrationTest will test the documents related funcs.
 func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 	return func(t *testing.T) {
 		ctx := context.Background()
-		svc := kv.NewService(store)
+		svc := kv.NewService(zap.NewNop(), store)
 		mockTimeGen := new(mock.TimeGenerator)
 		if err := svc.Initialize(ctx); err != nil {
 			t.Fatalf("failed to initialize service: %v", err)
@@ -36,8 +37,8 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 			t.Fatalf("failed to find document store: %v", err)
 		}
 
-		l1 := &influxdb.Label{Name: "l1"}
-		l2 := &influxdb.Label{Name: "l2"}
+		l1 := &influxdb.Label{Name: "l1", OrgID: MustIDBase16("41a9f7288d4e2d64")}
+		l2 := &influxdb.Label{Name: "l2", OrgID: MustIDBase16("41a9f7288d4e2d64")}
 		mustCreateLabels(ctx, svc, l1, l2)
 		lBad := &influxdb.Label{ID: MustIDBase16(oneID), Name: "bad"}
 

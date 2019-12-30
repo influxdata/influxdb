@@ -18,6 +18,7 @@ import {
   setDecimalPlaces,
   setColors,
   setFieldOptions,
+  updateFieldOption,
   setTableOptions,
   setTimeFormat,
 } from 'src/timeMachine/actions'
@@ -52,6 +53,7 @@ interface DispatchProps {
   onSetColors: typeof setColors
   onSetTimeFormat: typeof setTimeFormat
   onSetFieldOptions: typeof setFieldOptions
+  onUpdateFieldOption: typeof updateFieldOption
   onSetTableOptions: typeof setTableOptions
   onSetDecimalPlaces: typeof setDecimalPlaces
 }
@@ -72,13 +74,7 @@ export class TableOptions extends Component<Props, {}> {
       onSetDecimalPlaces,
     } = this.props
 
-    const filteredColumns = fieldOptions.filter(
-      col =>
-        col.internalName !== 'time' &&
-        col.internalName !== '' &&
-        col.internalName !== 'result' &&
-        col.internalName !== 'table'
-    )
+    const filteredColumns = this.filterFieldOptions(fieldOptions)
 
     const {fixFirstColumn, sortBy} = tableOptions
 
@@ -139,23 +135,32 @@ export class TableOptions extends Component<Props, {}> {
     )
   }
 
+  private filterFieldOptions = (fieldOptions: FieldOption[]) => {
+    return fieldOptions.filter(
+      col =>
+        col.internalName !== 'time' &&
+        col.internalName !== '' &&
+        col.internalName !== 'result' &&
+        col.internalName !== 'table'
+    )
+  }
+
   private handleChangeSortBy = (sortBy: FieldOption) => {
     const {tableOptions, onSetTableOptions} = this.props
     onSetTableOptions({...tableOptions, sortBy})
   }
 
   private handleMoveColumn = (dragIndex: number, hoverIndex: number) => {
-    const fieldOptions = move(this.props.fieldOptions, dragIndex, hoverIndex)
+    const fieldOptions = move(
+      this.filterFieldOptions(this.props.fieldOptions),
+      dragIndex,
+      hoverIndex
+    )
     this.props.onSetFieldOptions(fieldOptions)
   }
 
   private handleUpdateColumn = (fieldOption: FieldOption) => {
-    const {internalName} = fieldOption
-    const fieldOptions = this.props.fieldOptions.map(fopt =>
-      fopt.internalName === internalName ? fieldOption : fopt
-    )
-
-    this.props.onSetFieldOptions(fieldOptions)
+    this.props.onUpdateFieldOption(fieldOption)
   }
 
   private handleToggleFixFirstColumn = () => {
@@ -182,6 +187,7 @@ const mdtp: DispatchProps = {
   onSetDecimalPlaces: setDecimalPlaces,
   onSetColors: setColors,
   onSetFieldOptions: setFieldOptions,
+  onUpdateFieldOption: updateFieldOption,
   onSetTableOptions: setTableOptions,
   onSetTimeFormat: setTimeFormat,
 }

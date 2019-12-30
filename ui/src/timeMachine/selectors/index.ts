@@ -1,5 +1,6 @@
 // Libraries
 import memoizeOne from 'memoize-one'
+import moment from 'moment'
 import {get, flatMap} from 'lodash'
 import {fromFlux, Table} from '@influxdata/giraffe'
 
@@ -15,9 +16,15 @@ import {
 import {getVariableAssignments as getVariableAssignmentsForContext} from 'src/variables/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {getWindowPeriod} from 'src/variables/utils/getWindowVars'
+import {
+  timeRangeToDuration,
+  parseDuration,
+  durationToMilliseconds,
+} from 'src/shared/utils/duration'
 
 // Types
 import {
+  DashboardQuery,
   FluxTable,
   QueryView,
   AppState,
@@ -248,4 +255,57 @@ export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
   }
 
   return saveableView
+}
+
+export const getStartTime = (timeRange: TimeRange) => {
+  if (!timeRange) {
+    return Infinity
+  }
+  switch (timeRange.type) {
+    case 'custom':
+      return moment(timeRange.lower).valueOf()
+    case 'selectable-duration':
+      return moment()
+        .subtract(timeRange.seconds, 'seconds')
+        .valueOf()
+    case 'duration':
+      const millisecondDuration = durationToMilliseconds(
+        parseDuration(timeRangeToDuration(timeRange))
+      )
+      return moment()
+        .subtract(millisecondDuration, 'milliseconds')
+        .valueOf()
+    default:
+      throw new Error(
+        'unknown timeRange type ${timeRange.type} provided to getStartTime'
+      )
+  }
+}
+
+export const getEndTime = (timeRange: TimeRange): number => {
+  if (!timeRange) {
+    return null
+  }
+  if (timeRange.type === 'custom') {
+    return moment(timeRange.upper).valueOf()
+  }
+  return moment().valueOf()
+}
+
+export const getActiveTimeRange = (
+  timeRange: TimeRange,
+  queries: DashboardQuery[]
+) => {
+  if (!queries) {
+    return timeRange
+  }
+  const hasVariableTimes = queries.some(
+    query =>
+      query.text.includes('v.timeRangeStart') ||
+      query.text.includes('v.timeRangeStop')
+  )
+  if (hasVariableTimes) {
+    return timeRange
+  }
+  return null
 }

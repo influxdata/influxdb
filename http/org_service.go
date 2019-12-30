@@ -1,25 +1,24 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"path"
 
-	"github.com/julienschmidt/httprouter"
-	"go.uber.org/zap"
-
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/pkg/httpc"
+	"go.uber.org/zap"
 )
 
 // OrgBackend is all services and associated parameters required to construct
 // the OrgHandler.
 type OrgBackend struct {
 	influxdb.HTTPErrorHandler
-	Logger *zap.Logger
+	log *zap.Logger
 
 	OrganizationService             influxdb.OrganizationService
 	OrganizationOperationLogService influxdb.OrganizationOperationLogService
@@ -30,10 +29,10 @@ type OrgBackend struct {
 }
 
 // NewOrgBackend is a datasource used by the org handler.
-func NewOrgBackend(b *APIBackend) *OrgBackend {
+func NewOrgBackend(log *zap.Logger, b *APIBackend) *OrgBackend {
 	return &OrgBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "org")),
+		log:              log,
 
 		OrganizationService:             b.OrganizationService,
 		OrganizationOperationLogService: b.OrganizationOperationLogService,
@@ -48,7 +47,7 @@ func NewOrgBackend(b *APIBackend) *OrgBackend {
 type OrgHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	Logger *zap.Logger
+	log *zap.Logger
 
 	OrganizationService             influxdb.OrganizationService
 	OrganizationOperationLogService influxdb.OrganizationOperationLogService
@@ -59,7 +58,7 @@ type OrgHandler struct {
 }
 
 const (
-	organizationsPath            = "/api/v2/orgs"
+	prefixOrganizations          = "/api/v2/orgs"
 	organizationsIDPath          = "/api/v2/orgs/:id"
 	organizationsIDLogPath       = "/api/v2/orgs/:id/logs"
 	organizationsIDMembersPath   = "/api/v2/orgs/:id/members"
@@ -96,11 +95,11 @@ func checkOrganziationExists(handler *OrgHandler) Middleware {
 }
 
 // NewOrgHandler returns a new instance of OrgHandler.
-func NewOrgHandler(b *OrgBackend) *OrgHandler {
+func NewOrgHandler(log *zap.Logger, b *OrgBackend) *OrgHandler {
 	h := &OrgHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           zap.NewNop(),
+		log:              log,
 
 		OrganizationService:             b.OrganizationService,
 		OrganizationOperationLogService: b.OrganizationOperationLogService,
@@ -110,8 +109,8 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 		UserService:                     b.UserService,
 	}
 
-	h.HandlerFunc("POST", organizationsPath, h.handlePostOrg)
-	h.HandlerFunc("GET", organizationsPath, h.handleGetOrgs)
+	h.HandlerFunc("POST", prefixOrganizations, h.handlePostOrg)
+	h.HandlerFunc("GET", prefixOrganizations, h.handleGetOrgs)
 	h.HandlerFunc("GET", organizationsIDPath, h.handleGetOrg)
 	h.HandlerFunc("GET", organizationsIDLogPath, h.handleGetOrgLog)
 	h.HandlerFunc("PATCH", organizationsIDPath, h.handlePatchOrg)
@@ -119,7 +118,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.OrgsResourceType,
 		UserType:                   influxdb.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -131,7 +130,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.OrgsResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -148,7 +147,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "label")),
+		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.OrgsResourceType,
 	}
@@ -235,10 +234,10 @@ func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("org created", zap.String("org", fmt.Sprint(req.Org)))
+	h.log.Debug("Org created", zap.String("org", fmt.Sprint(req.Org)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newOrgResponse(req.Org)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -272,10 +271,10 @@ func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("org retrieved", zap.String("org", fmt.Sprint(b)))
+	h.log.Debug("Org retrieved", zap.String("org", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(b)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -320,10 +319,10 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("orgs retrieved", zap.String("org", fmt.Sprint(orgs)))
+	h.log.Debug("Orgs retrieved", zap.String("org", fmt.Sprint(orgs)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newOrgsResponse(orgs)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -364,7 +363,7 @@ func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("org deleted", zap.String("orgID", fmt.Sprint(req.OrganizationID)))
+	h.log.Debug("Org deleted", zap.String("orgID", fmt.Sprint(req.OrganizationID)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -412,10 +411,10 @@ func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("org updated", zap.String("org", fmt.Sprint(o)))
+	h.log.Debug("Org updated", zap.String("org", fmt.Sprint(o)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(o)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -462,13 +461,13 @@ func (h *OrgHandler) handleGetSecrets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ks, err := h.SecretService.GetSecretKeys(ctx, req.orgID)
-	if err != nil {
+	if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newSecretsResponse(req.orgID, ks)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -598,9 +597,7 @@ const (
 
 // OrganizationService connects to Influx via HTTP using tokens to manage organizations.
 type OrganizationService struct {
-	Addr               string
-	Token              string
-	InsecureSkipVerify bool
+	Client *httpc.Client
 	// OpPrefix is for not found errors.
 	OpPrefix string
 }
@@ -647,11 +644,14 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
+	params := findOptionParams(opt...)
 	if filter.Name != nil {
 		span.LogKV("org", *filter.Name)
+		params = append(params, [2]string{"org", *filter.Name})
 	}
 	if filter.ID != nil {
 		span.LogKV("org-id", *filter.ID)
+		params = append(params, [2]string{"orgID", filter.ID.String()})
 	}
 	for _, o := range opt {
 		if o.Offset != 0 {
@@ -666,41 +666,14 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 		}
 	}
 
-	url, err := NewURL(s.Addr, organizationPath)
-	if err != nil {
-		return nil, 0, tracing.LogError(span, err)
-	}
-	qp := url.Query()
-
-	if filter.Name != nil {
-		qp.Add(Org, *filter.Name)
-	}
-	if filter.ID != nil {
-		qp.Add(OrgID, filter.ID.String())
-	}
-	url.RawQuery = qp.Encode()
-
-	req, err := http.NewRequest("GET", url.String(), nil)
-	if err != nil {
-		return nil, 0, tracing.LogError(span, err)
-	}
-
-	SetToken(s.Token, req)
-	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, 0, tracing.LogError(span, err)
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, 0, tracing.LogError(span, err)
-	}
-
 	var os orgsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&os); err != nil {
-		return nil, 0, tracing.LogError(span, err)
+	err := s.Client.
+		Get(organizationPath).
+		QueryParams(params...).
+		DecodeJSON(&os).
+		Do(ctx)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	orgs := os.Toinfluxdb()
@@ -709,7 +682,6 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 
 // CreateOrganization creates an organization.
 func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxdb.Organization) error {
-
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -720,42 +692,10 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxd
 		span.LogKV("org-id", o.ID)
 	}
 
-	url, err := NewURL(s.Addr, organizationPath)
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	octets, err := json.Marshal(o)
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	req, err := http.NewRequest("POST", url.String(), bytes.NewReader(octets))
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(s.Token, req)
-
-	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-	defer resp.Body.Close()
-
-	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp); err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(o); err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	return nil
+	return s.Client.
+		PostJSON(o, organizationPath).
+		DecodeJSON(o).
+		Do(ctx)
 }
 
 // UpdateOrganization updates the organization over HTTP.
@@ -766,38 +706,12 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id influxd
 	span.LogKV("org-id", id)
 	span.LogKV("name", upd.Name)
 
-	u, err := NewURL(s.Addr, organizationIDPath(id))
-	if err != nil {
-		return nil, tracing.LogError(span, err)
-	}
-
-	octets, err := json.Marshal(upd)
-	if err != nil {
-		return nil, tracing.LogError(span, err)
-	}
-
-	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(octets))
-	if err != nil {
-		return nil, tracing.LogError(span, err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, tracing.LogError(span, err)
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, tracing.LogError(span, err)
-	}
-
 	var o influxdb.Organization
-	if err := json.NewDecoder(resp.Body).Decode(&o); err != nil {
+	err := s.Client.
+		PatchJSON(upd, organizationPath, id.String()).
+		DecodeJSON(&o).
+		Do(ctx)
+	if err != nil {
 		return nil, tracing.LogError(span, err)
 	}
 
@@ -809,31 +723,9 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id influxd
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := NewURL(s.Addr, organizationIDPath(id))
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	req, err := http.NewRequest("DELETE", u.String(), nil)
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-	defer resp.Body.Close()
-
-	err = CheckErrorStatus(http.StatusNoContent, resp)
-	if err != nil {
-		return tracing.LogError(span, err)
-	}
-
-	return nil
+	return s.Client.
+		Delete(organizationPath, id.String()).
+		Do(ctx)
 }
 
 func organizationIDPath(id influxdb.ID) string {
@@ -854,10 +746,10 @@ func (h *OrgHandler) handleGetOrgLog(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("org logs retrieved", zap.String("log", fmt.Sprint(log)))
+	h.log.Debug("Org logs retrieved", zap.String("log", fmt.Sprint(log)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newOrganizationLogResponse(req.OrganizationID, log)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }

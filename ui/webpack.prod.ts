@@ -6,10 +6,9 @@ const merge = require('webpack-merge')
 const path = require('path')
 
 // Plugins
-const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
-const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const OptimizeCSSAssetsPlugin = require('optimize-css-assets-webpack-plugin')
 const TerserJSPlugin = require('terser-webpack-plugin')
+const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 
 const {STATIC_DIRECTORY} = require('./src/utils/env')
 
@@ -21,20 +20,6 @@ module.exports = merge(common, {
   },
   module: {
     rules: [
-      {
-        test: /\.s?css$/i,
-        use: [
-          MiniCssExtractPlugin.loader,
-          'css-loader',
-          {
-            loader: 'sass-loader',
-            options: {
-              implementation: require('sass'),
-              hmr: true,
-            },
-          },
-        ],
-      },
       {
         test: /\.js$/,
         enforce: 'pre', // this forces this rule to run first.
@@ -60,10 +45,10 @@ module.exports = merge(common, {
     },
   },
   plugins: [
-    new MiniCssExtractPlugin({
-      filename: `${STATIC_DIRECTORY}[contenthash:10].css`,
-      chunkFilename: `${STATIC_DIRECTORY}[id].[contenthash:10].css`,
+    new BundleAnalyzerPlugin({
+      analyzerMode: 'static',
+      reportFilename: 'bundle-report.html',
+      openAnalyzer: false,
     }),
-    new ForkTsCheckerWebpackPlugin(),
   ],
 })

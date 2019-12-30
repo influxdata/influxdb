@@ -12,6 +12,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	s := NewService()
 	s.IDGenerator = f.IDGenerator
 	s.TokenGenerator = f.TokenGenerator
+	s.TimeGenerator = f.TimeGenerator
 	ctx := context.Background()
 
 	for _, u := range f.Users {
@@ -36,5 +37,6 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 }
 
 func TestAuthorizationService(t *testing.T) {
+	t.Skip("This service is not used, we use the kv inmem implementation")
 	platformtesting.AuthorizationService(initAuthorizationService, t)
 }

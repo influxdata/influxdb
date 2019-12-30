@@ -28,7 +28,7 @@ export class StatusIndicator extends PureComponent<Props> {
           </div>
         </div>
         <div className="wizard-step--footer">
-          <div className={this.footerClass}>
+          <div className={this.footerClass} data-testid={this.footerClass}>
             {this.footerText}
             {this.errorMessage}
           </div>

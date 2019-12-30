@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 var (
@@ -16,8 +16,7 @@ var (
 	three = influxdb.ID(3)
 	four  = influxdb.ID(4)
 
-	aTime      = time.Now()
-	aTimeStamp = aTime.Format(time.RFC3339)
+	aTime = time.Now().UTC()
 
 	taskOne   = &influxdb.Task{ID: one}
 	taskTwo   = &influxdb.Task{ID: two, Status: "active"}
@@ -51,12 +50,12 @@ func Test_NotifyCoordinatorOfCreated(t *testing.T) {
 
 	now = func() time.Time { return aTime }
 
-	if err := NotifyCoordinatorOfExisting(context.Background(), tasks, coordinator, zap.NewNop()); err != nil {
+	if err := NotifyCoordinatorOfExisting(context.Background(), zaptest.NewLogger(t), tasks, coordinator); err != nil {
 		t.Errorf("expected nil, found %q", err)
 	}
 
 	if diff := cmp.Diff([]update{
-		{two, influxdb.TaskUpdate{LatestCompleted: &aTimeStamp}},
+		{two, influxdb.TaskUpdate{LatestCompleted: &aTime, LatestScheduled: &aTime}},
 	}, tasks.updates); diff != "" {
 		t.Errorf("unexpected updates to task service %v", diff)
 	}

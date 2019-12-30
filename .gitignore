@@ -8,6 +8,7 @@ vendor
 .tern-project
 .DS_Store
 .idea
+.cgo_ldflags
 
 # binary databases
 influxd.bolt

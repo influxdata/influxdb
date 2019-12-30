@@ -34,6 +34,7 @@ class ViewTypeDropdown extends PureComponent<Props> {
       <Dropdown
         style={{width: '215px'}}
         className="view-type-dropdown"
+        testID="view-type--dropdown"
         button={(active, onClick) => (
           <Dropdown.Button
             active={active}
@@ -63,6 +64,7 @@ class ViewTypeDropdown extends PureComponent<Props> {
       <Dropdown.Item
         key={`view-type--${g.type}`}
         id={`${g.type}`}
+        testID={`view-type--${g.type}`}
         value={g.type}
         onClick={this.handleChange}
         selected={`${g.type}` === this.selectedView}

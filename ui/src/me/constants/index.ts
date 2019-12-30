@@ -150,6 +150,10 @@ const randomGreetings: Greeting[] = [
     text: 'Saluton',
     language: 'Esperanto',
   },
+  {
+    text: 'გამარჯობა',
+    language: 'Georgian',
+  },
 ]
 
 export const generateRandomGreeting = (): Greeting => {

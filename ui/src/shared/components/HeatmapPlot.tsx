@@ -16,19 +16,26 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, HeatmapViewProperties, TimeZone} from 'src/types'
+import {
+  RemoteDataState,
+  HeatmapViewProperties,
+  TimeZone,
+  TimeRange,
+} from 'src/types'
 
 interface Props {
-  table: Table
   loading: RemoteDataState
-  viewProperties: HeatmapViewProperties
+  timeRange: TimeRange | null
+  table: Table
   timeZone: TimeZone
+  viewProperties: HeatmapViewProperties
   children: (config: Config) => JSX.Element
 }
 
 const HeatmapPlot: FunctionComponent<Props> = ({
-  table,
   loading,
+  timeRange,
+  table,
   timeZone,
   viewProperties: {
     xColumn,
@@ -43,6 +50,7 @@ const HeatmapPlot: FunctionComponent<Props> = ({
     ySuffix,
     colors: storedColors,
     binSize,
+    timeFormat,
   },
   children,
 }) => {
@@ -50,7 +58,8 @@ const HeatmapPlot: FunctionComponent<Props> = ({
 
   const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
     storedXDomain,
-    table.getColumn(xColumn, 'number')
+    table.getColumn(xColumn, 'number'),
+    timeRange
   )
 
   const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
@@ -77,12 +86,14 @@ const HeatmapPlot: FunctionComponent<Props> = ({
     prefix: xPrefix,
     suffix: xSuffix,
     timeZone,
+    timeFormat,
   })
 
   const yFormatter = getFormatter(table.getColumnType(yColumn), {
     prefix: yPrefix,
     suffix: ySuffix,
     timeZone,
+    timeFormat,
   })
 
   const config: Config = {

@@ -1,26 +1,25 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"path"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/repl"
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/pkg/httpc"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/influxql"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 
 const (
-	sourceHTTPPath = "/api/v2/sources"
+	prefixSources = "/api/v2/sources"
 )
 
 type sourceResponse struct {
@@ -36,10 +35,10 @@ func newSourceResponse(s *platform.Source) *sourceResponse {
 		return &sourceResponse{
 			Source: s,
 			Links: map[string]interface{}{
-				"self":    fmt.Sprintf("%s/%s", sourceHTTPPath, s.ID.String()),
-				"query":   fmt.Sprintf("%s/%s/query", sourceHTTPPath, s.ID.String()),
-				"buckets": fmt.Sprintf("%s/%s/buckets", sourceHTTPPath, s.ID.String()),
-				"health":  fmt.Sprintf("%s/%s/health", sourceHTTPPath, s.ID.String()),
+				"self":    fmt.Sprintf("%s/%s", prefixSources, s.ID.String()),
+				"query":   fmt.Sprintf("%s/%s/query", prefixSources, s.ID.String()),
+				"buckets": fmt.Sprintf("%s/%s/buckets", prefixSources, s.ID.String()),
+				"health":  fmt.Sprintf("%s/%s/health", prefixSources, s.ID.String()),
 			},
 		}
 	}
@@ -47,10 +46,10 @@ func newSourceResponse(s *platform.Source) *sourceResponse {
 	return &sourceResponse{
 		Source: s,
 		Links: map[string]interface{}{
-			"self":    fmt.Sprintf("%s/%s", sourceHTTPPath, s.ID.String()),
-			"query":   fmt.Sprintf("%s/%s/query", sourceHTTPPath, s.ID.String()),
-			"buckets": fmt.Sprintf("%s/%s/buckets", sourceHTTPPath, s.ID.String()),
-			"health":  fmt.Sprintf("%s/%s/health", sourceHTTPPath, s.ID.String()),
+			"self":    fmt.Sprintf("%s/%s", prefixSources, s.ID.String()),
+			"query":   fmt.Sprintf("%s/%s/query", prefixSources, s.ID.String()),
+			"buckets": fmt.Sprintf("%s/%s/buckets", prefixSources, s.ID.String()),
+			"health":  fmt.Sprintf("%s/%s/health", prefixSources, s.ID.String()),
 		},
 	}
 }
@@ -63,7 +62,7 @@ type sourcesResponse struct {
 func newSourcesResponse(srcs []*platform.Source) *sourcesResponse {
 	res := &sourcesResponse{
 		Links: map[string]interface{}{
-			"self": sourceHTTPPath,
+			"self": prefixSources,
 		},
 	}
 
@@ -79,7 +78,7 @@ func newSourcesResponse(srcs []*platform.Source) *sourcesResponse {
 // the SourceHandler.
 type SourceBackend struct {
 	platform.HTTPErrorHandler
-	Logger *zap.Logger
+	log *zap.Logger
 
 	SourceService   platform.SourceService
 	LabelService    platform.LabelService
@@ -88,10 +87,10 @@ type SourceBackend struct {
 }
 
 // NewSourceBackend returns a new instance of SourceBackend.
-func NewSourceBackend(b *APIBackend) *SourceBackend {
+func NewSourceBackend(log *zap.Logger, b *APIBackend) *SourceBackend {
 	return &SourceBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "source")),
+		log:              log,
 
 		SourceService:   b.SourceService,
 		LabelService:    b.LabelService,
@@ -104,7 +103,7 @@ func NewSourceBackend(b *APIBackend) *SourceBackend {
 type SourceHandler struct {
 	*httprouter.Router
 	platform.HTTPErrorHandler
-	Logger        *zap.Logger
+	log           *zap.Logger
 	SourceService platform.SourceService
 	LabelService  platform.LabelService
 	BucketService platform.BucketService
@@ -115,11 +114,11 @@ type SourceHandler struct {
 }
 
 // NewSourceHandler returns a new instance of SourceHandler.
-func NewSourceHandler(b *SourceBackend) *SourceHandler {
+func NewSourceHandler(log *zap.Logger, b *SourceBackend) *SourceHandler {
 	h := &SourceHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger,
+		log:              log,
 
 		SourceService:   b.SourceService,
 		LabelService:    b.LabelService,
@@ -127,7 +126,7 @@ func NewSourceHandler(b *SourceBackend) *SourceHandler {
 		NewQueryService: b.NewQueryService,
 	}
 
-	h.HandlerFunc("POST", "/api/v2/sources", h.handlePostSource)
+	h.HandlerFunc("POST", prefixSources, h.handlePostSource)
 	h.HandlerFunc("GET", "/api/v2/sources", h.handleGetSources)
 	h.HandlerFunc("GET", "/api/v2/sources/:id", h.handleGetSource)
 	h.HandlerFunc("PATCH", "/api/v2/sources/:id", h.handlePatchSource)
@@ -244,7 +243,7 @@ func (h *SourceHandler) handleGetSourcesBuckets(w http.ResponseWriter, r *http.R
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newBucketsResponse(ctx, req.opts, req.filter, bs, h.LabelService)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -284,9 +283,9 @@ func (h *SourceHandler) handlePostSource(w http.ResponseWriter, r *http.Request)
 	}
 
 	res := newSourceResponse(req.Source)
-	h.Logger.Debug("source created", zap.String("source", fmt.Sprint(res)))
+	h.log.Debug("Source created", zap.String("source", fmt.Sprint(res)))
 	if err := encodeResponse(ctx, w, http.StatusCreated, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -322,10 +321,10 @@ func (h *SourceHandler) handleGetSource(w http.ResponseWriter, r *http.Request) 
 	}
 
 	res := newSourceResponse(s)
-	h.Logger.Debug("source retrieved", zap.String("source", fmt.Sprint(res)))
+	h.log.Debug("Source retrieved", zap.String("source", fmt.Sprint(res)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -392,7 +391,7 @@ func (h *SourceHandler) handleDeleteSource(w http.ResponseWriter, r *http.Reques
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("source deleted", zap.String("sourceID", fmt.Sprint(req.SourceID)))
+	h.log.Debug("Source deleted", zap.String("sourceID", fmt.Sprint(req.SourceID)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -438,10 +437,10 @@ func (h *SourceHandler) handleGetSources(w http.ResponseWriter, r *http.Request)
 	}
 
 	res := newSourcesResponse(srcs)
-	h.Logger.Debug("sources retrieved", zap.String("sources", fmt.Sprint(res)))
+	h.log.Debug("Sources retrieved", zap.String("sources", fmt.Sprint(res)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -469,10 +468,10 @@ func (h *SourceHandler) handlePatchSource(w http.ResponseWriter, r *http.Request
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("source updated", zap.String("source", fmt.Sprint(b)))
+	h.log.Debug("Source updated", zap.String("source", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -508,77 +507,33 @@ func decodePatchSourceRequest(ctx context.Context, r *http.Request) (*patchSourc
 	}, nil
 }
 
-const (
-	sourcePath = "/api/v2/sources"
-)
-
 // SourceService connects to Influx via HTTP using tokens to manage sources
 type SourceService struct {
-	Addr               string
-	Token              string
-	InsecureSkipVerify bool
+	Client *httpc.Client
 }
 
 // FindSourceByID returns a single source by ID.
 func (s *SourceService) FindSourceByID(ctx context.Context, id platform.ID) (*platform.Source, error) {
-	u, err := NewURL(s.Addr, sourceIDPath(id))
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, err
-	}
-
 	var b platform.Source
-	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
+	err := s.Client.
+		Get(prefixSources, id.String()).
+		DecodeJSON(&b).
+		Do(ctx)
+	if err != nil {
 		return nil, err
 	}
-
 	return &b, nil
 }
 
 // FindSources returns a list of sources that match filter and the total count of matching sources.
 // Additional options provide pagination & sorting.
 func (s *SourceService) FindSources(ctx context.Context, opt platform.FindOptions) ([]*platform.Source, int, error) {
-	u, err := NewURL(s.Addr, sourcePath)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, 0, err
-	}
-
 	var bs []*platform.Source
-	if err := json.NewDecoder(resp.Body).Decode(&bs); err != nil {
+	err := s.Client.
+		Get(prefixSources).
+		DecodeJSON(&bs).
+		Do(ctx)
+	if err != nil {
 		return nil, 0, err
 	}
 
@@ -587,108 +542,33 @@ func (s *SourceService) FindSources(ctx context.Context, opt platform.FindOption
 
 // CreateSource creates a new source and sets b.ID with the new identifier.
 func (s *SourceService) CreateSource(ctx context.Context, b *platform.Source) error {
-	u, err := NewURL(s.Addr, sourcePath)
-	if err != nil {
-		return err
-	}
-
-	octets, err := json.Marshal(b)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("POST", u.String(), bytes.NewReader(octets))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp); err != nil {
-		return err
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(b); err != nil {
-		return err
-	}
-
-	return nil
+	return s.Client.
+		PostJSON(b, prefixSources).
+		DecodeJSON(b).
+		Do(ctx)
 }
 
 // UpdateSource updates a single source with changeset.
 // Returns the new source state after update.
 func (s *SourceService) UpdateSource(ctx context.Context, id platform.ID, upd platform.SourceUpdate) (*platform.Source, error) {
-	u, err := NewURL(s.Addr, sourceIDPath(id))
-	if err != nil {
-		return nil, err
-	}
-
-	octets, err := json.Marshal(upd)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(octets))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, err
-	}
-
 	var b platform.Source
-	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
+	err := s.Client.
+		PatchJSON(upd, prefixSources, id.String()).
+		DecodeJSON(&b).
+		Do(ctx)
+	if err != nil {
 		return nil, err
 	}
-
 	return &b, nil
 }
 
 // DeleteSource removes a source by ID.
 func (s *SourceService) DeleteSource(ctx context.Context, id platform.ID) error {
-	u, err := NewURL(s.Addr, sourceIDPath(id))
-	if err != nil {
-		return err
-	}
+	return s.Client.
+		Delete(prefixSources, id.String()).
+		StatusFn(func(resp *http.Response) error {
+			return CheckErrorStatus(http.StatusNoContent, resp)
+		}).
+		Do(ctx)
 
-	req, err := http.NewRequest("DELETE", u.String(), nil)
-	if err != nil {
-		return err
-	}
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return CheckErrorStatus(http.StatusNoContent, resp)
-}
-
-func sourceIDPath(id platform.ID) string {
-	return path.Join(sourcePath, id.String())
 }

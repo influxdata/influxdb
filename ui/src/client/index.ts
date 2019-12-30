@@ -1,4 +1,8 @@
-import {setRequestHandler, setResponseHandler, postSignout} from './generatedRoutes'
+import {
+  setRequestHandler,
+  setResponseHandler,
+  postSignout,
+} from './generatedRoutes'
 import {getAPIBasepath} from 'src/utils/basepath'
 
 setRequestHandler((url, query, init) => {

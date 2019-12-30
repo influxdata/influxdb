@@ -15,6 +15,7 @@ const DeleteDataButton: FunctionComponent<WithRouterProps> = ({
   return (
     <FeatureFlag name="deleteWithPredicate">
       <Button
+        testID="delete-data-predicate"
         text="Delete Data"
         onClick={onClick}
         titleText="Filter and mark data for deletion"

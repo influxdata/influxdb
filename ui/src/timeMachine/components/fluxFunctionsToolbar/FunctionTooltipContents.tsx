@@ -21,14 +21,12 @@ const FunctionTooltipContents: FunctionComponent<Props> = ({
   func: {desc, args, example, link},
 }) => {
   return (
-    <div className="box-tooltip--contents">
-      <FancyScrollbar autoHeight={true} maxHeight={MAX_HEIGHT} autoHide={false}>
-        <TooltipDescription description={desc} />
-        <TooltipArguments argsList={args} />
-        <TooltipExample example={example} />
-        <TooltipLink link={link} />
-      </FancyScrollbar>
-    </div>
+    <FancyScrollbar autoHeight={true} maxHeight={MAX_HEIGHT} autoHide={false}>
+      <TooltipDescription description={desc} />
+      <TooltipArguments argsList={args} />
+      <TooltipExample example={example} />
+      <TooltipLink link={link} />
+    </FancyScrollbar>
   )
 }
 

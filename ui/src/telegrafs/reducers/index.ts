@@ -77,7 +77,7 @@ export const telegrafsReducer = (
         if (item) {
           draftState.currentConfig.item = item
         } else {
-          draftState.currentConfig.item = null
+          draftState.currentConfig.item = ''
         }
 
         return

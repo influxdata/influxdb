@@ -1,49 +1,68 @@
 // Libraries
-import React, {useRef, useState, FunctionComponent} from 'react'
-import moment from 'moment'
-import {Dropdown} from '@influxdata/clockface'
+import React, {useRef, useState, FC} from 'react'
 
 // Components
+import {
+  Dropdown,
+  Popover,
+  PopoverPosition,
+  PopoverInteraction,
+  Appearance,
+} from '@influxdata/clockface'
 import DateRangePicker from 'src/shared/components/dateRangePicker/DateRangePicker'
 
+// Types
+import {CustomTimeRange} from 'src/types'
+import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
+import {
+  convertTimeRangeToCustom,
+  getTimeRangeLabel,
+} from 'src/shared/utils/duration'
+
 interface Props {
-  timeRange: [number, number]
-  onSetTimeRange: (timeRange: [number, number]) => any
+  timeRange: CustomTimeRange
+  onSetTimeRange: (timeRange: CustomTimeRange) => void
 }
 
-const TimeRangeDropdown: FunctionComponent<Props> = ({
-  timeRange,
-  onSetTimeRange,
-}) => {
+const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
   const [pickerActive, setPickerActive] = useState(false)
   const buttonRef = useRef<HTMLDivElement>(null)
 
-  let datePickerPosition = null
+  let dropdownLabel = 'Select a Time Range'
 
-  if (buttonRef.current) {
-    const {right, top} = buttonRef.current.getBoundingClientRect()
-
-    datePickerPosition = {top: top, right: window.innerWidth - right}
+  if (timeRange) {
+    dropdownLabel = getTimeRangeLabel(timeRange)
   }
 
-  const lower = moment(timeRange[0]).format('YYYY-MM-DD HH:mm:ss')
-  const upper = moment(timeRange[1]).format('YYYY-MM-DD HH:mm:ss')
+  const handleApplyTimeRange = (timeRange: CustomTimeRange) => {
+    onSetTimeRange(timeRange)
+    setPickerActive(false)
+  }
 
   return (
     <div ref={buttonRef}>
       <Dropdown.Button onClick={() => setPickerActive(!pickerActive)}>
-        {lower} - {upper}
+        {dropdownLabel}
       </Dropdown.Button>
-      {pickerActive && (
-        <DateRangePicker
-          timeRange={{lower, upper}}
-          onSetTimeRange={({lower, upper}) =>
-            onSetTimeRange([Date.parse(lower), Date.parse(upper)])
-          }
-          position={datePickerPosition}
-          onClose={() => setPickerActive(false)}
-        />
-      )}
+      <Popover
+        appearance={Appearance.Outline}
+        position={PopoverPosition.Below}
+        triggerRef={buttonRef}
+        visible={pickerActive}
+        showEvent={PopoverInteraction.None}
+        hideEvent={PopoverInteraction.None}
+        distanceFromTrigger={8}
+        testID="timerange-popover"
+        enableDefaultStyles={false}
+        contents={() => (
+          <DateRangePicker
+            timeRange={timeRange || convertTimeRangeToCustom(pastHourTimeRange)}
+            onSetTimeRange={handleApplyTimeRange}
+            onClose={() => setPickerActive(false)}
+            position={{position: 'relative'}}
+          />
+        )}
+      />
     </div>
   )
 }

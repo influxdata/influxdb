@@ -16,14 +16,15 @@ import CheckPlot from 'src/shared/components/CheckPlot'
 
 // Types
 import {
-  QueryViewProperties,
-  SingleStatViewProperties,
-  XYViewProperties,
-  RemoteDataState,
-  TimeZone,
-  CheckViewProperties,
   Check,
+  CheckViewProperties,
+  QueryViewProperties,
+  RemoteDataState,
+  SingleStatViewProperties,
   StatusRow,
+  TimeZone,
+  XYViewProperties,
+  TimeRange,
 } from 'src/types'
 
 interface Props {
@@ -34,12 +35,14 @@ interface Props {
   properties: QueryViewProperties | CheckViewProperties
   timeZone: TimeZone
   statuses: StatusRow[][]
+  timeRange: TimeRange | null
 }
 
 const ViewSwitcher: FunctionComponent<Props> = ({
   properties,
   check,
   loading,
+  timeRange,
   files,
   giraffeResult: {table, fluxGroupKeyUnion},
   timeZone,
@@ -48,7 +51,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
   switch (properties.type) {
     case 'single-stat':
       return (
-        <LatestValueTransform table={table}>
+        <LatestValueTransform table={table} allowString={true}>
           {latestValue => (
             <SingleStat stat={latestValue} properties={properties} />
           )}
@@ -70,7 +73,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
 
     case 'gauge':
       return (
-        <LatestValueTransform table={table}>
+        <LatestValueTransform table={table} allowString={false}>
           {latestValue => (
             <GaugeChart value={latestValue} properties={properties} />
           )}
@@ -79,11 +82,12 @@ const ViewSwitcher: FunctionComponent<Props> = ({
     case 'xy':
       return (
         <XYPlot
-          table={table}
+          timeRange={timeRange}
           fluxGroupKeyUnion={fluxGroupKeyUnion}
-          viewProperties={properties}
           loading={loading}
+          table={table}
           timeZone={timeZone}
+          viewProperties={properties}
         >
           {config => <Plot config={config} />}
         </XYPlot>
@@ -105,15 +109,20 @@ const ViewSwitcher: FunctionComponent<Props> = ({
 
       return (
         <XYPlot
-          table={table}
+          timeRange={timeRange}
           fluxGroupKeyUnion={fluxGroupKeyUnion}
-          viewProperties={xyProperties}
           loading={loading}
+          table={table}
           timeZone={timeZone}
+          viewProperties={xyProperties}
         >
           {config => (
             <Plot config={config}>
-              <LatestValueTransform table={config.table} quiet={true}>
+              <LatestValueTransform
+                table={config.table}
+                quiet={true}
+                allowString={false}
+              >
                 {latestValue => (
                   <SingleStat
                     stat={latestValue}
@@ -141,8 +150,9 @@ const ViewSwitcher: FunctionComponent<Props> = ({
     case 'heatmap':
       return (
         <HeatmapPlot
-          table={table}
+          timeRange={timeRange}
           loading={loading}
+          table={table}
           timeZone={timeZone}
           viewProperties={properties}
         >
@@ -153,8 +163,9 @@ const ViewSwitcher: FunctionComponent<Props> = ({
     case 'scatter':
       return (
         <ScatterPlot
-          table={table}
+          timeRange={timeRange}
           loading={loading}
+          table={table}
           viewProperties={properties}
           timeZone={timeZone}
         >

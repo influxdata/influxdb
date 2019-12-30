@@ -163,13 +163,30 @@ export const editDashboard = (dashboard: Dashboard): EditDashboardAction => ({
 export const setDashboards = (
   status: RemoteDataState,
   list?: Dashboard[]
-): SetDashboardsAction => ({
-  type: ActionTypes.SetDashboards,
-  payload: {
-    status,
-    list,
-  },
-})
+): SetDashboardsAction => {
+  if (list) {
+    list = list.map(obj => {
+      if (obj.name === undefined) {
+        obj.name = ''
+      }
+      if (obj.meta === undefined) {
+        obj.meta = {}
+      }
+      if (obj.meta.updatedAt === undefined) {
+        obj.meta.updatedAt = new Date().toDateString()
+      }
+      return obj
+    })
+  }
+
+  return {
+    type: ActionTypes.SetDashboards,
+    payload: {
+      status,
+      list,
+    },
+  }
+}
 
 export const setDashboard = (dashboard: Dashboard): SetDashboardAction => ({
   type: ActionTypes.SetDashboard,
@@ -368,6 +385,7 @@ export const getDashboardAsync = (dashboardID: string) => async (
 
     // Now that all the necessary state has been loaded, set the dashboard
     dispatch(setDashboard(dashboard))
+    dispatch(updateTimeRangeFromQueryParams(dashboardID))
   } catch (error) {
     const {
       orgs: {org},
@@ -376,8 +394,6 @@ export const getDashboardAsync = (dashboardID: string) => async (
     dispatch(notify(copy.dashboardGetFailed(dashboardID, error.message)))
     return
   }
-
-  dispatch(updateTimeRangeFromQueryParams(dashboardID))
 }
 
 export const updateDashboardAsync = (dashboard: Dashboard) => async (

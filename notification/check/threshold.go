@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/influxdb/notification/flux"
 )
 
-var _ influxdb.Check = &Threshold{}
+var _ influxdb.Check = (*Threshold)(nil)
 
 // Threshold is the threshold check.
 type Threshold struct {
@@ -132,26 +132,18 @@ func (t Threshold) GenerateFluxAST() (*ast.Package, error) {
 		return nil, fmt.Errorf("expect a single file to be returned from query parsing got %d", len(p.Files))
 	}
 
+	fields := getFields(p)
+	if len(fields) != 1 {
+		return nil, fmt.Errorf("expected a single field but got: %s", fields)
+	}
+
 	f := p.Files[0]
 	assignPipelineToData(f)
 
 	f.Imports = append(f.Imports, flux.Imports("influxdata/influxdb/monitor", "influxdata/influxdb/v1")...)
-	f.Body = append(f.Body, t.generateFluxASTBody()...)
+	f.Body = append(f.Body, t.generateFluxASTBody(fields[0])...)
 
 	return p, nil
-}
-
-func (t Threshold) getSelectedField() (string, error) {
-	for _, kv := range t.Query.BuilderConfig.Tags {
-		if kv.Key == "_field" && len(kv.Values) != 1 {
-			return "", fmt.Errorf("expect there to be a single field value in builder config")
-		}
-		if kv.Key == "_field" && len(kv.Values) == 1 {
-			return kv.Values[0], nil
-		}
-	}
-
-	return "", fmt.Errorf("no field was selected")
 }
 
 // TODO(desa): we'll likely want something slightly more sophisitcated long term, but this should work for now.
@@ -222,6 +214,22 @@ func removeAggregateWindow(pkg *ast.Package) {
 	})
 }
 
+func getFields(pkg *ast.Package) []string {
+	var fields []string
+	ast.Visit(pkg, func(n ast.Node) {
+		if fn, ok := n.(*ast.BinaryExpression); ok {
+			if me, ok := fn.Left.(*ast.MemberExpression); ok {
+				if me.Property.Key() == "_field" {
+					if str, ok := fn.Right.(*ast.StringLiteral); ok {
+						fields = append(fields, str.Value)
+					}
+				}
+			}
+		}
+	})
+	return fields
+}
+
 func assignPipelineToData(f *ast.File) error {
 	if len(f.Body) != 1 {
 		return fmt.Errorf("expected there to be a single statement in the flux script body, recieved %d", len(f.Body))
@@ -249,11 +257,11 @@ func assignPipelineToData(f *ast.File) error {
 	return nil
 }
 
-func (t Threshold) generateFluxASTBody() []ast.Statement {
+func (t Threshold) generateFluxASTBody(field string) []ast.Statement {
 	var statements []ast.Statement
 	statements = append(statements, t.generateTaskOption())
 	statements = append(statements, t.generateFluxASTCheckDefinition("threshold"))
-	statements = append(statements, t.generateFluxASTThresholdFunctions()...)
+	statements = append(statements, t.generateFluxASTThresholdFunctions(field)...)
 	statements = append(statements, t.generateFluxASTMessageFunction())
 	statements = append(statements, t.generateFluxASTChecksFunction())
 	return statements
@@ -280,15 +288,8 @@ func (t Threshold) generateFluxASTChecksCall() *ast.CallExpression {
 	return flux.Call(flux.Member("monitor", "check"), flux.Object(objectProps...))
 }
 
-func (t Threshold) generateFluxASTThresholdFunctions() []ast.Statement {
+func (t Threshold) generateFluxASTThresholdFunctions(field string) []ast.Statement {
 	thresholdStatements := make([]ast.Statement, len(t.Thresholds))
-
-	field, err := t.getSelectedField()
-	if err != nil {
-		// the error here should never happen since it should be validated before this
-		// function is ever called.
-		panic(err)
-	}
 
 	// This assumes that the ThresholdConfigs we've been provided do not have duplicates.
 	for k, v := range t.Thresholds {
@@ -387,10 +388,9 @@ func (td Lesser) Type() string {
 	return "lesser"
 }
 
-type lesserAlias Lesser
-
 // MarshalJSON implement json.Marshaler interface.
 func (td Lesser) MarshalJSON() ([]byte, error) {
+	type lesserAlias Lesser
 	return json.Marshal(
 		struct {
 			lesserAlias
@@ -412,10 +412,9 @@ func (td Greater) Type() string {
 	return "greater"
 }
 
-type greaterAlias Greater
-
 // MarshalJSON implement json.Marshaler interface.
 func (td Greater) MarshalJSON() ([]byte, error) {
+	type greaterAlias Greater
 	return json.Marshal(
 		struct {
 			greaterAlias
@@ -439,10 +438,9 @@ func (td Range) Type() string {
 	return "range"
 }
 
-type rangeAlias Range
-
 // MarshalJSON implement json.Marshaler interface.
 func (td Range) MarshalJSON() ([]byte, error) {
+	type rangeAlias Range
 	return json.Marshal(
 		struct {
 			rangeAlias

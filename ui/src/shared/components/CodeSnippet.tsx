@@ -11,6 +11,7 @@ import CopyButton from 'src/shared/components/CopyButton'
 
 export interface Props {
   copyText: string
+  testID?: string
   label: string
 }
 
@@ -22,8 +23,10 @@ class CodeSnippet extends PureComponent<Props> {
 
   public render() {
     const {copyText, label} = this.props
+    const testID = this.props.testID || 'code-snippet'
+
     return (
-      <div className="code-snippet">
+      <div className="code-snippet" data-testid={testID}>
         <FancyScrollbar
           autoHide={false}
           autoHeight={true}

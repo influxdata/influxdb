@@ -51,7 +51,8 @@ func setupF(cmd *cobra.Command, args []string) error {
 
 	// check if setup is allowed
 	s := &http.SetupService{
-		Addr: flags.host,
+		Addr:               flags.host,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	allowed, err := s.IsOnboarding(context.Background())

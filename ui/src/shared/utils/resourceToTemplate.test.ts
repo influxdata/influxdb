@@ -348,6 +348,7 @@ describe('resourceToTemplate', () => {
                   showNoteWhenEmpty: false,
                   xColumn: null,
                   yColumn: null,
+                  position: 'overlaid',
                 },
               },
             },

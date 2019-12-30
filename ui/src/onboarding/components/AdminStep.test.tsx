@@ -23,6 +23,5 @@ describe('Onboarding.Components.AdminStep', () => {
     const wrapper = setup()
 
     expect(wrapper.exists()).toBe(true)
-    expect(wrapper).toMatchSnapshot()
   })
 })

@@ -69,9 +69,11 @@ statuses
 			},
 		},
 	}
+
+	id := influxdb.ID(2)
 	e := &endpoint.PagerDuty{
 		Base: endpoint.Base{
-			ID:   2,
+			ID:   &id,
 			Name: "foo",
 		},
 		ClientURL: "http://localhost:7777/host/${r.host}",

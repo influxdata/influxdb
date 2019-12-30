@@ -1,0 +1,119 @@
+import React, {PureComponent, SyntheticEvent, ChangeEvent} from 'react'
+import {connect} from 'react-redux'
+import classnames from 'classnames'
+
+import PluginList from 'src/dataLoaders/components/TelegrafEditorPluginList'
+import {AppState} from 'src/types'
+import {
+  TelegrafEditorPluginState,
+  TelegrafEditorPlugin,
+  TelegrafEditorActivePlugin,
+} from 'src/dataLoaders/reducers/telegrafEditor'
+import {setFilter, setList} from 'src/dataLoaders/actions/telegrafEditor'
+import {
+  Input,
+  IconFont,
+  ComponentSize,
+  SquareButton,
+} from '@influxdata/clockface'
+
+interface PluginStateProps {
+  plugins: TelegrafEditorPluginState
+  filter: string
+}
+
+const mstp_2 = (state: AppState): PluginStateProps => {
+  const plugins = state.telegrafEditorPlugins || []
+  const filter = state.telegrafEditor.filter
+
+  return {
+    plugins,
+    filter,
+  }
+}
+
+const AllPluginList = connect<PluginStateProps, {}>(
+  mstp_2,
+  null
+)(PluginList)
+
+interface StateProps {
+  filter: string
+  show: boolean
+}
+
+interface DispatchProps {
+  onSetFilter: typeof setFilter
+  onSetList: typeof setList
+}
+
+interface OwnProps {
+  onJump: (which: TelegrafEditorActivePlugin) => void
+  onAdd: (which: TelegrafEditorPlugin) => void
+}
+
+type TelegrafEditorSidebarProps = StateProps & DispatchProps & OwnProps
+
+class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
+  render() {
+    const {filter, show, onAdd, onSetList, onSetFilter} = this.props
+    const columnClassName = classnames('telegraf-editor--left-column', {
+      'telegraf-editor--column__collapsed': !show,
+    })
+    const icon = show ? IconFont.EyeOpen : IconFont.EyeClosed
+    const header = 'Browse & Add Plugins'
+
+    return (
+      <div className={columnClassName}>
+        <div className="telegraf-editor--column-heading">
+          <span className="telegraf-editor--title">{header}</span>
+          <SquareButton
+            icon={icon}
+            size={ComponentSize.ExtraSmall}
+            onClick={() => onSetList(!show)}
+          />
+        </div>
+        {show && (
+          <Input
+            className="telegraf-editor--filter"
+            size={ComponentSize.Small}
+            icon={IconFont.Search}
+            value={filter}
+            onBlur={(evt: SyntheticEvent<any>) => {
+              onSetFilter((evt.target as any).value)
+            }}
+            style={{}}
+            onChange={(evt: ChangeEvent<any>) => {
+              onSetFilter(evt.target.value)
+            }}
+            placeholder="Filter Plugins..."
+          />
+        )}
+        {show && <AllPluginList onClick={onAdd} />}
+        {!show && (
+          <div className="telegraf-editor--title__collapsed">{header}</div>
+        )}
+      </div>
+    )
+  }
+}
+
+const mstp_3 = (state: AppState): StateProps => {
+  const filter = state.telegrafEditor.filter
+  const show = state.telegrafEditor.showList
+
+  return {
+    filter,
+    show,
+  }
+}
+
+const mdtp_3: DispatchProps = {
+  onSetList: setList,
+  onSetFilter: setFilter,
+}
+
+export default connect<StateProps, DispatchProps, {}>(
+  mstp_3,
+  mdtp_3
+)(TelegrafEditorSideBar)

@@ -1,0 +1,14 @@
+apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Bucket
+      name: rucket_11
+      description: bucket 1 description
+      retentionRules:
+        - type: expire
+          everySeconds: 3600
