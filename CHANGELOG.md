@@ -1,4 +1,4 @@
-## v2.0.0-alpha.22 [unreleased]
+## v2.0.0-beta.1 [unreleased]
 
 ### Features
 
