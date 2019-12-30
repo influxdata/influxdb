@@ -21,20 +21,6 @@ import {getEndpoints} from 'src/alerting/actions/notifications/endpoints'
 
 // Types
 import {AppState, RemoteDataState} from 'src/types'
-import {LabelsState} from 'src/labels/reducers'
-import {BucketsState} from 'src/buckets/reducers'
-import {TelegrafsState} from 'src/telegrafs/reducers'
-import {PluginResourceState} from 'src/dataLoaders/reducers/telegrafEditor'
-import {ScrapersState} from 'src/scrapers/reducers'
-import {TasksState} from 'src/tasks/reducers/'
-import {DashboardsState} from 'src/dashboards/reducers/dashboards'
-import {AuthorizationsState} from 'src/authorizations/reducers'
-import {VariablesState} from 'src/variables/reducers'
-import {TemplatesState} from 'src/templates/reducers'
-import {MembersState} from 'src/members/reducers'
-import {ChecksState} from 'src/alerting/reducers/checks'
-import {NotificationRulesState} from 'src/alerting/reducers/notifications/rules'
-import {NotificationEndpointsState} from 'src/alerting/reducers/notifications/endpoints'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -45,20 +31,6 @@ import {getResourcesStatus} from 'src/shared/selectors/getResourcesStatus'
 
 interface StateProps {
   remoteDataState: RemoteDataState
-  labels: LabelsState
-  buckets: BucketsState
-  telegrafs: TelegrafsState
-  plugins: PluginResourceState
-  variables: VariablesState
-  scrapers: ScrapersState
-  tokens: AuthorizationsState
-  dashboards: DashboardsState
-  templates: TemplatesState
-  tasks: TasksState
-  members: MembersState
-  checks: ChecksState
-  rules: NotificationRulesState
-  endpoints: NotificationEndpointsState
 }
 
 interface DispatchProps {
@@ -112,7 +84,7 @@ class GetResources extends PureComponent<Props, StateProps> {
     Promise.all(promises)
   }
 
-  private getResourceDetails(resource) {
+  private getResourceDetails(resource: ResourceType) {
     switch (resource) {
       case ResourceType.Dashboards: {
         return this.props.getDashboards()
@@ -191,40 +163,9 @@ class GetResources extends PureComponent<Props, StateProps> {
 }
 
 const mstp = (state: AppState, {resources}: Props): StateProps => {
-  const {
-    labels,
-    buckets,
-    telegrafs,
-    plugins,
-    variables,
-    scrapers,
-    tokens,
-    dashboards,
-    tasks,
-    templates,
-    members,
-    checks,
-    rules,
-    endpoints,
-  } = state
-
   const remoteDataState = getResourcesStatus(state, resources)
 
   return {
-    labels,
-    buckets,
-    telegrafs,
-    plugins,
-    dashboards,
-    variables,
-    scrapers,
-    tokens,
-    tasks,
-    templates,
-    members,
-    checks,
-    rules,
-    endpoints,
     remoteDataState,
   }
 }

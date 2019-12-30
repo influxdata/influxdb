@@ -29,7 +29,7 @@ import {authorizationsReducer} from 'src/authorizations/reducers'
 import templatesReducer from 'src/templates/reducers'
 import {scrapersReducer} from 'src/scrapers/reducers'
 import {userSettingsReducer} from 'src/userSettings/reducers'
-import {membersReducer} from 'src/members/reducers'
+import membersReducer from 'src/members/reducers'
 import {autoRefreshReducer} from 'src/shared/reducers/autoRefresh'
 import {limitsReducer, LimitsState} from 'src/cloud/reducers/limits'
 import checksReducer from 'src/alerting/reducers/checks'
@@ -76,7 +76,9 @@ export const rootReducer = combineReducers<ReducerState>({
   scrapers: scrapersReducer,
   templates: templatesReducer,
   userSettings: userSettingsReducer,
-  members: membersReducer,
+  resources: combineReducers({
+    members: membersReducer,
+  }),
   cloud: combineReducers<{limits: LimitsState}>({limits: limitsReducer}),
   checks: checksReducer,
   rules: rulesReducer,

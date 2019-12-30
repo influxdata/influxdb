@@ -1,8 +1,10 @@
 // Libraries
 import _ from 'lodash'
+import {normalize, NormalizedSchema} from 'normalizr'
 
 // API
 import * as api from 'src/client'
+import * as schemas from 'src/schemas'
 
 // Types
 import {RemoteDataState, GetState} from 'src/types'
@@ -19,23 +21,22 @@ import {
   memberRemoveFailed,
 } from 'src/shared/copy/notifications'
 
-export type Action = SetMembers | AddMember | RemoveMember | NotifyAction
+export type Action = ReturnType<typeof setMembers>
+// | AddMember
+// | RemoveMember
+// | NotifyAction
 
-interface SetMembers {
-  type: 'SET_MEMBERS'
-  payload: {
-    status: RemoteDataState
-    list: Member[]
-  }
-}
+export const SET_MEMBERS = 'SET_MEMBERS'
 
 export const setMembers = (
   status: RemoteDataState,
-  list?: Member[]
-): SetMembers => ({
-  type: 'SET_MEMBERS',
-  payload: {status, list},
-})
+  normalized?: NormalizedSchema<schemas.MemberEntities, string[]>
+) =>
+  ({
+    type: SET_MEMBERS,
+    status,
+    normalized,
+  } as const)
 
 interface AddMember {
   type: 'ADD_MEMBER'
@@ -90,7 +91,12 @@ export const getMembers = () => async (
 
     const allMembers = [...owners, ...members]
 
-    dispatch(setMembers(RemoteDataState.Done, allMembers))
+    const normalized = normalize<any, schemas.MemberEntities, string[]>(
+      allMembers,
+      [schemas.members]
+    )
+
+    dispatch(setMembers(RemoteDataState.Done, normalized))
   } catch (e) {
     console.error(e)
     dispatch(setMembers(RemoteDataState.Error))
