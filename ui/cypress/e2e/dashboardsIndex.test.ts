@@ -246,7 +246,7 @@ describe('Dashboards', () => {
       it('typing a new label name and pressing ENTER starts label creation flow', () => {
         const labelName = 'choco'
 
-        cy.get('@org').then(({}: Organization) => {
+        cy.get('@org').then(() => {
           cy.getByTestID(`inline-labels--add`)
             .first()
             .trigger('mouseover')
