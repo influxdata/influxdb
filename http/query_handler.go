@@ -489,8 +489,11 @@ func (s FluxQueryService) Check(ctx context.Context) check.Response {
 	return QueryHealthCheck(s.Addr, s.InsecureSkipVerify)
 }
 
-// SimpleQuery runs a flux query with common parameters and returns CSV results.
-func SimpleQuery(addr, flux, org, token string) ([]byte, error) {
+// GetQueryResponse runs a flux query with common parameters and returns the response from the query service.
+func GetQueryResponse(addr, flux, org, token string, headers ...string) (*http.Response, error) {
+	if len(headers)%2 != 0 {
+		return nil, fmt.Errorf("headers must be key value pairs")
+	}
 	u, err := NewURL(addr, prefixQuery)
 	if err != nil {
 		return nil, err
@@ -523,22 +526,36 @@ func SimpleQuery(addr, flux, org, token string) ([]byte, error) {
 
 	SetToken(token, req)
 
+	// Default headers.
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/csv")
+	// Apply custom headers.
+	for i := 0; i < len(headers); i += 2 {
+		req.Header.Set(headers[i], headers[i+1])
+	}
 
 	insecureSkipVerify := false
 	hc := NewClient(u.Scheme, insecureSkipVerify)
-	res, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
+	return hc.Do(req)
+}
 
+// GetQueryResponseBody reads the body of a response from some query service.
+// It also checks for errors in the response.
+func GetQueryResponseBody(res *http.Response) ([]byte, error) {
 	if err := CheckError(res); err != nil {
 		return nil, err
 	}
-
 	defer res.Body.Close()
 	return ioutil.ReadAll(res.Body)
+}
+
+// SimpleQuery runs a flux query with common parameters and returns CSV results.
+func SimpleQuery(addr, flux, org, token string, headers ...string) ([]byte, error) {
+	res, err := GetQueryResponse(addr, flux, org, token, headers...)
+	if err != nil {
+		return nil, err
+	}
+	return GetQueryResponseBody(res)
 }
 
 func QueryHealthCheck(url string, insecureSkipVerify bool) check.Response {

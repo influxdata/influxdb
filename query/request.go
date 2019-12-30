@@ -9,7 +9,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 )
 
-// Request respresents the query to run.
+// Request represents the query to run.
 type Request struct {
 	// Scope
 	Authorization  *platform.Authorization `json:"authorization,omitempty"`
