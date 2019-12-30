@@ -7,36 +7,25 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification"
 	"github.com/influxdata/influxdb/notification/flux"
 )
 
 var _ influxdb.Check = &Custom{}
 
-// AlertBuilder describes last state of alert builder not called check builder because that stutters
-type AlertBuilder struct {
-	StatusMessageTemplate string                 `json:"statusMessageTemplate"`
-	Every                 *notification.Duration `json:"every,omitempty"`
-	Offset                *notification.Duration `json:"offset,omitempty"`
-	Tags                  []influxdb.Tag         `json:"tags"`
-	Thresholds            []ThresholdConfig      `json:"thresholds"`
-}
-
 // Custom is the custom check.
 type Custom struct {
-	ID           influxdb.ID             `json:"id,omitempty"`
-	Name         string                  `json:"name"`
-	Description  string                  `json:"description,omitempty"`
-	OwnerID      influxdb.ID             `json:"ownerID,omitempty"`
-	OrgID        influxdb.ID             `json:"orgID,omitempty"`
-	Query        influxdb.DashboardQuery `json:"query"`
-	TaskID       influxdb.ID             `json:"taskID,omitempty"`
-	AlertBuilder AlertBuilder            `json:"alertBuilder"`
-	CreatedAt    time.Time               `json:"createdAt"`
-	UpdatedAt    time.Time               `json:"updatedAt"`
+	ID          influxdb.ID             `json:"id,omitempty"`
+	Name        string                  `json:"name"`
+	Description string                  `json:"description,omitempty"`
+	OwnerID     influxdb.ID             `json:"ownerID,omitempty"`
+	OrgID       influxdb.ID             `json:"orgID,omitempty"`
+	Query       influxdb.DashboardQuery `json:"query"`
+	TaskID      influxdb.ID             `json:"taskID,omitempty"`
+	CreatedAt   time.Time               `json:"createdAt"`
+	UpdatedAt   time.Time               `json:"updatedAt"`
 }
 
-// check flux example for reference:
+// flux example for threshold check for reference:
 
 // package main
 // import "influxdata/influxdb/monitor"
