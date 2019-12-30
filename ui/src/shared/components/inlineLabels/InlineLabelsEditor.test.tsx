@@ -1,13 +1,11 @@
 // Libraries
 import React from 'react'
 import {act} from 'react-dom/test-utils'
-import {render, fireEvent} from 'react-testing-library'
+import {fireEvent} from 'react-testing-library'
 import 'intersection-observer'
 
 // Components
-import InlineLabelsEditor, {
-  ADD_NEW_LABEL_ITEM_ID,
-} from 'src/shared/components/inlineLabels/InlineLabelsEditor'
+import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsEditor'
 
 // Constants
 import {labels} from 'mocks/dummyData'
