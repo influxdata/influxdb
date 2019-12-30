@@ -26,6 +26,11 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+const (
+	PreferHeaderKey            = "Prefer"
+	PreferNoContentHeaderValue = "return-no-content"
+)
+
 // QueryRequest is a flux query request.
 type QueryRequest struct {
 	Extern  *ast.File    `json:"extern,omitempty"`
@@ -36,6 +41,17 @@ type QueryRequest struct {
 	Dialect QueryDialect `json:"dialect"`
 
 	Org *influxdb.Organization `json:"-"`
+
+	// PreferNoContent specifies if the Response to this request should
+	// contain any result. This is done for avoiding unnecessary
+	// bandwidth consumption in certain cases. For example, when the
+	// query produces side effects and the results do not matter. E.g.:
+	// 	from(...) |> ... |> to()
+	// For example, tasks do not use the results of queries, but only
+	// care about their side effects.
+	// To obtain a QueryRequest with no result, add the header
+	// `Prefer: return-no-content` to the HTTP request.
+	PreferNoContent bool
 }
 
 // QueryDialect is the formatting options for the query response.
@@ -255,20 +271,27 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 		noHeader = !*r.Dialect.Header
 	}
 
-	// TODO(nathanielc): Use commentPrefix and dateTimeFormat
-	// once they are supported.
-	return &query.ProxyRequest{
-		Request: query.Request{
-			OrganizationID: r.Org.ID,
-			Compiler:       compiler,
-		},
-		Dialect: &csv.Dialect{
+	var dialect flux.Dialect
+	if r.PreferNoContent {
+		dialect = &query.NoContentDialect{}
+	} else {
+		// TODO(nathanielc): Use commentPrefix and dateTimeFormat
+		// once they are supported.
+		dialect = &csv.Dialect{
 			ResultEncoderConfig: csv.ResultEncoderConfig{
 				NoHeader:    noHeader,
 				Delimiter:   delimiter,
 				Annotations: r.Dialect.Annotations,
 			},
+		}
+	}
+
+	return &query.ProxyRequest{
+		Request: query.Request{
+			OrganizationID: r.Org.ID,
+			Compiler:       compiler,
 		},
+		Dialect: dialect,
 	}, nil
 }
 
@@ -298,10 +321,11 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 		qr.Dialect.CommentPrefix = "#"
 		qr.Dialect.DateTimeFormat = "RFC3339"
 		qr.Dialect.Annotations = d.ResultEncoderConfig.Annotations
+	case *query.NoContentDialect:
+		qr.PreferNoContent = true
 	default:
 		return nil, fmt.Errorf("unsupported dialect %T", d)
 	}
-
 	return qr, nil
 }
 
@@ -330,6 +354,10 @@ func decodeQueryRequest(ctx context.Context, r *http.Request, svc influxdb.Organ
 		if err := json.NewDecoder(body).Decode(&req); err != nil {
 			return nil, body.bytesRead, err
 		}
+	}
+
+	if r.Header.Get(PreferHeaderKey) == PreferNoContentHeaderValue {
+		req.PreferNoContent = true
 	}
 
 	req = req.WithDefaults()
