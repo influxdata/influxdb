@@ -20,10 +20,6 @@ func TestNotificationEndpointService(t *testing.T) {
 			name: "bolt",
 			fn:   initBoltNotificationEndpointService,
 		},
-		{
-			name: "inmem",
-			fn:   initInmemNotificationEndpointService,
-		},
 	}
 
 	for _, tt := range tests {
@@ -43,19 +39,6 @@ func initBoltNotificationEndpointService(f influxdbtesting.NotificationEndpointF
 	return svc, secretSVC, func() {
 		closeSvc()
 		closeBolt()
-	}
-}
-
-func initInmemNotificationEndpointService(f influxdbtesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
-	s, closeInmem, err := NewTestInmemStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, secretSVC, closeSvc := initNotificationEndpointService(s, f, t)
-	return svc, secretSVC, func() {
-		closeSvc()
-		closeInmem()
 	}
 }
 

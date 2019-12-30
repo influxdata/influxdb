@@ -14,25 +14,8 @@ func TestBoltDashboardService(t *testing.T) {
 	influxdbtesting.DashboardService(initBoltDashboardService, t)
 }
 
-func TestInmemDashboardService(t *testing.T) {
-	influxdbtesting.DashboardService(initInmemDashboardService, t)
-}
-
 func initBoltDashboardService(f influxdbtesting.DashboardFields, t *testing.T) (influxdb.DashboardService, string, func()) {
 	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, op, closeSvc := initDashboardService(s, f, t)
-	return svc, op, func() {
-		closeSvc()
-		closeBolt()
-	}
-}
-
-func initInmemDashboardService(f influxdbtesting.DashboardFields, t *testing.T) (influxdb.DashboardService, string, func()) {
-	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
