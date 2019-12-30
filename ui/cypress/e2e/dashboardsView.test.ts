@@ -96,7 +96,7 @@ describe('Dashboard', () => {
     win.store.getState().variables.values[contextID].values[variableID]
       .selectedValue
 
-  it('can manage variable state with a lot of pointing and clicking', () => {
+  it.only('can manage variable state with a lot of pointing and clicking', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body: dashboard}) => {
         cy.createMapVariable(orgID).then(({body: variable}) => {
@@ -160,6 +160,9 @@ describe('Dashboard', () => {
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, variable.id))
             .should('equal', secondKey)
+
+          // graph tips responds to mouse over
+          cy.getByTestID('graphtips-question-mark').trigger('mouseover')
         })
       })
     })
