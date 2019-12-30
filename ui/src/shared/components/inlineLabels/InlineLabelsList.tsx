@@ -40,7 +40,7 @@ class InlineLabelsList extends Component<Props> {
         >
           <div
             className="inline-labels--list"
-            data-testid={`inline-labels--list`}
+            data-testid="inline-labels--list"
           >
             {this.menuItems}
           </div>
