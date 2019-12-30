@@ -2,6 +2,7 @@
 import React, {FunctionComponent, useEffect} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
+import {get} from 'lodash'
 
 // Components
 import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
@@ -60,7 +61,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
 
   useEffect(() => {
     onExecuteQueries()
-  }, [view])
+  }, [get(view, 'properties.queries[0]', null)])
 
   const handleClose = () => {
     router.push(`/orgs/${orgID}/alerting`)
