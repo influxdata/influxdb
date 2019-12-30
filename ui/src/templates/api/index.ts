@@ -16,7 +16,6 @@ import {client} from 'src/utils/api'
 // Utils
 import {
   addDefaults,
-  addLabelDefaults,
   findIncludedsFromRelationships,
   findLabelsToCreate,
   findIncludedFromRelationship,
@@ -282,7 +281,6 @@ const addTaskLabelsFromTemplate = async (
   const relationships = getLabelRelationships(template.content.data)
   const [labelID] = relationships.map(l => labelMap[l.id] || '')
   await postTasksLabel({taskID: task.id, data: {labelID}})
-  // TODO: do we need to add defaults here?
 }
 
 export const createVariableFromTemplate = async (
