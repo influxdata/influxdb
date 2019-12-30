@@ -14,25 +14,8 @@ func TestBoltAuthorizationService(t *testing.T) {
 	influxdbtesting.AuthorizationService(initBoltAuthorizationService, t)
 }
 
-func TestInmemAuthorizationService(t *testing.T) {
-	influxdbtesting.AuthorizationService(initInmemAuthorizationService, t)
-}
-
 func initBoltAuthorizationService(f influxdbtesting.AuthorizationFields, t *testing.T) (influxdb.AuthorizationService, string, func()) {
 	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, op, closeSvc := initAuthorizationService(s, f, t)
-	return svc, op, func() {
-		closeSvc()
-		closeBolt()
-	}
-}
-
-func initInmemAuthorizationService(f influxdbtesting.AuthorizationFields, t *testing.T) (influxdb.AuthorizationService, string, func()) {
-	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}

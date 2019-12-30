@@ -14,25 +14,8 @@ func TestBoltSecretService(t *testing.T) {
 	influxdbtesting.SecretService(initBoltSecretService, t)
 }
 
-func TestInmemSecretService(t *testing.T) {
-	influxdbtesting.SecretService(initInmemSecretService, t)
-}
-
 func initBoltSecretService(f influxdbtesting.SecretServiceFields, t *testing.T) (influxdb.SecretService, func()) {
 	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, closeSvc := initSecretService(s, f, t)
-	return svc, func() {
-		closeSvc()
-		closeBolt()
-	}
-}
-
-func initInmemSecretService(f influxdbtesting.SecretServiceFields, t *testing.T) (influxdb.SecretService, func()) {
-	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}

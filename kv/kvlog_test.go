@@ -14,25 +14,8 @@ func TestBoltKeyValueLog(t *testing.T) {
 	influxdbtesting.KeyValueLog(initBoltKeyValueLog, t)
 }
 
-func TestInmemKeyValueLog(t *testing.T) {
-	influxdbtesting.KeyValueLog(initInmemKeyValueLog, t)
-}
-
 func initBoltKeyValueLog(f influxdbtesting.KeyValueLogFields, t *testing.T) (influxdb.KeyValueLog, func()) {
 	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, closeSvc := initKeyValueLog(s, f, t)
-	return svc, func() {
-		closeSvc()
-		closeBolt()
-	}
-}
-
-func initInmemKeyValueLog(f influxdbtesting.KeyValueLogFields, t *testing.T) (influxdb.KeyValueLog, func()) {
-	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
