@@ -255,7 +255,7 @@ export const createTaskFromTemplate = async (
     // associate imported label.id with created label
     const labelMap = await createLabelsFromTemplate(template, orgID)
 
-    await addTaskLabelsFromTemplate(template, labelMap, postedTask as Task)
+    await addTaskLabelsFromTemplate(template, labelMap, postedTask)
 
     const resp = await getTask({taskID: postedTask.id})
 
