@@ -247,7 +247,7 @@ export const createTaskFromTemplate = async (
     const postResp = await postTask({data: {orgID, flux}})
 
     if (postResp.status !== 201) {
-      throw new Error('Could not create task')
+      throw new Error(postResp.data.message)
     }
 
     const postedTask = addDefaults(postResp.data as Task)
@@ -260,9 +260,7 @@ export const createTaskFromTemplate = async (
     const resp = await getTask({taskID: postedTask.id})
 
     if (resp.status !== 200) {
-      throw new Error(
-        'An unexpected error occurred while trying to get the task'
-      )
+      throw new Error(resp.data.message)
     }
 
     const task = addDefaults(resp.data as Task)

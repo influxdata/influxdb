@@ -1,3 +1,1 @@
-import {LogEvent as Log} from 'src/client'
-
-export interface LogEvent extends Log {}
+export {LogEvent} from 'src/client'

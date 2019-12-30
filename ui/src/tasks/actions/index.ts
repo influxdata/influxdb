@@ -251,7 +251,7 @@ export const getTasks = () => async (
 
     const resp = await apiGetTasks({query: {orgID: org.id}})
     if (resp.status !== 200) {
-      throw new Error("these aren't the tasks you're looking for")
+      throw new Error(resp.data.message)
     }
 
     let tasks = resp.data.tasks as Task[]
@@ -275,7 +275,7 @@ export const addTaskLabelAsync = (taskID: string, label: Label) => async (
     const resp = await apiGetTask({taskID})
 
     if (resp.status !== 200) {
-      throw new Error('An error occurred trying to add a label to your task')
+      throw new Error(resp.data.message)
     }
 
     const task = addDefaults(resp.data as Task)
@@ -294,7 +294,7 @@ export const removeTaskLabelAsync = (taskID: string, label: Label) => async (
     await deleteTasksLabel({taskID, labelID: label.id})
     const resp = await apiGetTask({taskID})
     if (resp.status !== 200) {
-      throw new Error('An error occurred while removing a label from the task')
+      throw new Error(resp.data.message)
     }
 
     const task = addDefaults(resp.data as Task)
@@ -358,7 +358,7 @@ export const cloneTask = (task: Task, _) => async dispatch => {
     const newTask = await postTask({data: postData})
 
     if (newTask.status !== 201) {
-      throw new Error('An error occurred cloning over the task data')
+      throw new Error(newTask.data.message)
     }
 
     dispatch(notify(taskCloneSuccess(task.name)))
@@ -381,7 +381,7 @@ export const selectTaskByID = (id: string) => async (
   try {
     const resp = await apiGetTask({taskID: id})
     if (resp.status !== 200) {
-      throw new Error('An error occurred while trying to retrieve the task')
+      throw new Error(resp.data.message)
     }
 
     const task = addDefaults(resp.data as Task)
@@ -400,7 +400,7 @@ export const setAllTaskOptionsByID = (taskID: string) => async (
   try {
     const resp = await apiGetTask({taskID})
     if (resp.status !== 200) {
-      throw new Error('An error occurred while setting the task options')
+      throw new Error(resp.data.message)
     }
 
     const task = addDefaults(resp.data as Task)
@@ -462,7 +462,11 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
       updatedTask.every = null
     }
 
-    await patchTask({taskID: task.id, data: updatedTask})
+    const resp = await patchTask({taskID: task.id, data: updatedTask})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
 
     dispatch(goToTasks())
     dispatch(setCurrentTask(null))
@@ -484,7 +488,10 @@ export const saveNewScript = (script: string, preamble: string) => async (
     const {
       orgs: {org},
     } = getState()
-    await postTask({data: {orgID: org.id, flux: fluxScript}})
+    const resp = await postTask({data: {orgID: org.id, flux: fluxScript}})
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
 
     dispatch(setNewScript(''))
     dispatch(clearTask())
@@ -510,7 +517,7 @@ export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
     const resp = await getTasksRuns({taskID})
 
     if (resp.status !== 200) {
-      throw new Error('An error occurred getting the runs for this task')
+      throw new Error(resp.data.message)
     }
 
     let [runs] = await Promise.all([dispatch(selectTaskByID(taskID))])
@@ -553,9 +560,7 @@ export const getLogs = (taskID: string, runID: string) => async (
   try {
     const resp = await getTasksRunsLogs({taskID, runID})
     if (resp.status !== 200) {
-      throw new Error(
-        'An error occurred while retrieving the log for the task runs'
-      )
+      throw new Error(resp.data.message)
     }
     dispatch(setLogs(resp.data.events))
   } catch (error) {
@@ -571,7 +576,7 @@ export const convertToTemplate = (taskID: string) => async (
     dispatch(setExportTemplate(RemoteDataState.Loading))
     const resp = await apiGetTask({taskID})
     if (resp.status !== 200) {
-      throw new Error('An error occurred converting the task into a template')
+      throw new Error(resp.data.message)
     }
     const task = addDefaults(resp.data as Task)
     const taskTemplate = taskToTemplate(task)
