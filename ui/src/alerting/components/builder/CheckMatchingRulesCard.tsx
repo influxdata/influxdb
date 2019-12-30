@@ -1,6 +1,8 @@
 // Libraries
 import React, {FunctionComponent, useState, useEffect} from 'react'
 import {connect} from 'react-redux'
+import {uniq} from 'lodash'
+import {fromFlux} from '@influxdata/giraffe'
 
 // Components
 import MatchingRuleCard from 'src/alerting/components/builder/MatchingRuleCard'
@@ -13,36 +15,58 @@ import {
 } from '@influxdata/clockface'
 
 // API
-import * as api from 'src/client'
+import {getNotificationRules} from 'src/client'
 
 //Types
 import {NotificationRule, AppState, CheckTagSet} from 'src/types'
 import {EmptyState, ComponentSize, RemoteDataState} from '@influxdata/clockface'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 interface StateProps {
   tags: CheckTagSet[]
   orgID: string
+  queryResults: string[] | null
 }
 
 const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
   orgID,
   tags,
+  queryResults,
 }) => {
   const getMatchingRules = async (): Promise<NotificationRule[]> => {
-    const tagsList = tags
+    const checkTags = tags
       .filter(t => t.key && t.value)
-      .map(t => ['tag', `${t.key}:${t.value}`])
+      .map(t => [t.key, t.value])
 
-    // todo also: get tags from query results
+    const queryTags = []
 
-    const resp = await api.getNotificationRules({
+    if (queryResults) {
+      const joined = queryResults.join('\n\n')
+      const table = fromFlux(joined).table
+      const fluxGroupKeyUnion = fromFlux(joined).fluxGroupKeyUnion.filter(
+        v => v !== '_start' && v !== '_stop'
+      )
+
+      fluxGroupKeyUnion.forEach(gk => {
+        const values = uniq(table.getColumn(gk, 'string'))
+        values.forEach(v => {
+          queryTags.push([gk, v])
+        })
+      })
+    }
+
+    const tagsList = [...checkTags, ...queryTags].map(t => [
+      'tag',
+      `${t[0].trim()}:${t[1].trim()}`,
+    ])
+
+    const resp = await getNotificationRules({
       query: [['orgID', orgID], ...tagsList] as any,
     })
 
     if (resp.status !== 200) {
       setMatchingRules({matchingRules: [], status: RemoteDataState.Error})
-      //TODO:notify?
       return
     }
 
@@ -62,8 +86,9 @@ const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
       matchingRules,
       status: RemoteDataState.Loading,
     })
+
     getMatchingRules()
-  }, [tags])
+  }, [tags, queryResults])
 
   let contents: JSX.Element
 
@@ -127,7 +152,11 @@ const mstp = (state: AppState): StateProps => {
     alertBuilder: {tags},
   } = state
 
-  return {tags, orgID}
+  const {
+    queryResults: {files},
+  } = getActiveTimeMachine(state)
+
+  return {tags, orgID, queryResults: files}
 }
 
 export default connect<StateProps, {}, {}>(
