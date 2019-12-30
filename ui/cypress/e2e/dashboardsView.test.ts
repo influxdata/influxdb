@@ -96,7 +96,7 @@ describe('Dashboard', () => {
     win.store.getState().variables.values[contextID].values[variableID]
       .selectedValue
 
-  it.only('can manage variable state with a lot of pointing and clicking', () => {
+  it('can manage variable state with a lot of pointing and clicking', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body: dashboard}) => {
         cy.createMapVariable(orgID).then(({body: variable}) => {

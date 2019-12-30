@@ -169,7 +169,6 @@ class InlineLabelsEditor extends Component<Props, State> {
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
     const searchTerm = e.target.value
     const filteredLabels = this.filterLabels(searchTerm)
-    console.log(searchTerm)
     if (filteredLabels.length) {
       const selectedItemID = filteredLabels[0].id
       this.setState({searchTerm, selectedItemID})
@@ -238,7 +237,6 @@ class InlineLabelsEditor extends Component<Props, State> {
       const newLabel = this.props.labels.find(l => l.name === label.name)
       await onAddLabel(newLabel)
     } catch (error) {
-      console.error(error)
     }
   }
 
