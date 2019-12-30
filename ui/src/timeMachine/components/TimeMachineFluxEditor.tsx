@@ -105,7 +105,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
           return (
             <>
               <div className="toolbar-tab-container">
-                {activeTab === 'customCheckQuery' ? null : (
+                {activeTab !== 'customCheckQuery' && (
                   <ToolbarTab
                     onSetActive={this.hideFluxFunctions}
                     name="Variables"
