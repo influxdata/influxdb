@@ -23,6 +23,7 @@ import {createCheckQueryFromAlertBuilder} from 'src/alerting/utils/customCheck'
 // Types
 import {TimeMachineState} from 'src/timeMachine/reducers'
 import {Action as QueryResultsAction} from 'src/timeMachine/actions/queries'
+import {Action as AlertBuilderAction} from 'src/alerting/actions/alertBuilder'
 import {
   TimeRange,
   ViewType,
@@ -666,7 +667,7 @@ export const loadNewVEO = (dashboardID: string) => (
 }
 
 export const loadCustomQueryState = () => (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | AlertBuilderAction>,
   getState: GetState
 ) => {
   const state = getState()
