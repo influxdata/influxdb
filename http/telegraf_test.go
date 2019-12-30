@@ -12,8 +12,6 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/telegraf/plugins/inputs"
-	"github.com/influxdata/influxdb/telegraf/plugins/outputs"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -54,11 +52,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 								OrgID:       platform.ID(2),
 								Name:        "tc1",
 								Description: "",
-								Plugins: []platform.TelegrafPlugin{
-									{
-										Config: &inputs.CPUStats{},
-									},
-								},
+								Config:      "[[inputs.cpu]]\n",
 							},
 						}, 1, nil
 					}
@@ -69,35 +63,21 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body: `
-				{
-					"configurations":[
-					  {
+				body: `{
+					"configurations": [
+						{
+							"id": "0000000000000001",
+							"orgID": "0000000000000002",
+							"name": "tc1",
+							"config": "[[inputs.cpu]]\n",
 							"labels": [],
 							"links": {
+								"self": "/api/v2/telegrafs/0000000000000001",
 								"labels": "/api/v2/telegrafs/0000000000000001/labels",
 								"members": "/api/v2/telegrafs/0000000000000001/members",
-								"owners": "/api/v2/telegrafs/0000000000000001/owners",
-								"self": "/api/v2/telegrafs/0000000000000001"
-							},
-						"id":"0000000000000001",
-						"orgID":"0000000000000002",
-						"name":"tc1",
-						"description":"",
-						"agent":{
-						  "collectionInterval":0
-						},
-						"plugins":[
-						  {
-							"name":"cpu",
-							"type":"input",
-							"comment":"",
-							"config":{
-
+								"owners": "/api/v2/telegrafs/0000000000000001/owners"
 							}
-						  }
-						]
-					  }
+						}
 					]
 				}`,
 			},
@@ -113,24 +93,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 							OrgID:       platform.ID(2),
 							Name:        "my config",
 							Description: "my description",
-							Agent: platform.TelegrafAgentConfig{
-								Interval: 10000,
-							},
-							Plugins: []platform.TelegrafPlugin{
-								{
-									Comment: "my cpu stats",
-									Config:  &inputs.CPUStats{},
-								},
-								{
-									Comment: "my influx output",
-									Config: &outputs.InfluxDBV2{
-										URLs:         []string{"http://127.0.0.1:9999"},
-										Token:        "no_more_secrets",
-										Organization: "my_org",
-										Bucket:       "my_bucket",
-									},
-								},
-							},
+							Config:      "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
 						},
 					}, 1, nil
 				},
@@ -139,46 +102,23 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
 				body: `{
-          "configurations": [
-            {
+					"configurations": [
+						{
+							"id": "0000000000000001",
+							"orgID": "0000000000000002",
+							"name": "my config",
+							"description": "my description",
+							"config": "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
 							"labels": [],
 							"links": {
+								"self": "/api/v2/telegrafs/0000000000000001",
 								"labels": "/api/v2/telegrafs/0000000000000001/labels",
 								"members": "/api/v2/telegrafs/0000000000000001/members",
-								"owners": "/api/v2/telegrafs/0000000000000001/owners",
-								"self": "/api/v2/telegrafs/0000000000000001"
-							},
-            "id": "0000000000000001",
-            "orgID": "0000000000000002",
-            "name": "my config",
-						"description": "my description",
-            "agent": {
-              "collectionInterval": 10000
-            },
-            "plugins": [
-              {
-              "name": "cpu",
-              "type": "input",
-              "comment": "my cpu stats",
-              "config": {}
-              },
-              {
-              "name": "influxdb_v2",
-              "type": "output",
-              "comment": "my influx output",
-              "config": {
-                "urls": [
-                "http://127.0.0.1:9999"
-                ],
-                "token": "no_more_secrets",
-                "organization": "my_org",
-                "bucket": "my_bucket"
-              }
-              }
-            ]
-            }
-          ]
-          }`,
+								"owners": "/api/v2/telegrafs/0000000000000001/owners"
+							}
+						}
+					]
+				}`,
 			},
 		},
 	}
@@ -236,24 +176,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 						OrgID:       platform.ID(2),
 						Name:        "my config",
 						Description: "",
-						Agent: platform.TelegrafAgentConfig{
-							Interval: 10000,
-						},
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "my cpu stats",
-								Config:  &inputs.CPUStats{},
-							},
-							{
-								Comment: "my influx output",
-								Config: &outputs.InfluxDBV2{
-									URLs:         []string{"http://127.0.0.1:9999"},
-									Token:        "no_more_secrets",
-									Organization: "my_org",
-									Bucket:       "my_bucket",
-								},
-							},
-						},
+						Config:      "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
 					}, nil
 				},
 			},
@@ -261,42 +184,18 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
 				body: `{
-            "id": "0000000000000001",
-            "orgID": "0000000000000002",
-            "name": "my config",
-						"description": "",
-            "agent": {
-              "collectionInterval": 10000
-						},
-						"labels": [],
-						"links": {
-							"labels": "/api/v2/telegrafs/0000000000000001/labels",
-							"members": "/api/v2/telegrafs/0000000000000001/members",
-							"owners": "/api/v2/telegrafs/0000000000000001/owners",
-							"self": "/api/v2/telegrafs/0000000000000001"
-						},
-            "plugins": [
-              {
-              "name": "cpu",
-              "type": "input",
-              "comment": "my cpu stats",
-              "config": {}
-              },
-              {
-              "name": "influxdb_v2",
-              "type": "output",
-              "comment": "my influx output",
-              "config": {
-                "urls": [
-                "http://127.0.0.1:9999"
-                ],
-                "token": "no_more_secrets",
-                "organization": "my_org",
-                "bucket": "my_bucket"
-              }
-              }
-            ]
-          }`,
+					"id": "0000000000000001",
+					"orgID": "0000000000000002",
+					"name": "my config",
+					"config": "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
+					"labels": [],
+					"links": {
+						"self": "/api/v2/telegrafs/0000000000000001",
+						"labels": "/api/v2/telegrafs/0000000000000001/labels",
+						"members": "/api/v2/telegrafs/0000000000000001/members",
+						"owners": "/api/v2/telegrafs/0000000000000001/owners"
+					}
+				}`,
 			},
 		},
 		{
@@ -310,24 +209,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 						OrgID:       platform.ID(2),
 						Name:        "my config",
 						Description: "",
-						Agent: platform.TelegrafAgentConfig{
-							Interval: 10000,
-						},
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "my cpu stats",
-								Config:  &inputs.CPUStats{},
-							},
-							{
-								Comment: "my influx output",
-								Config: &outputs.InfluxDBV2{
-									URLs:         []string{"http://127.0.0.1:9999"},
-									Token:        "no_more_secrets",
-									Organization: "my_org",
-									Bucket:       "my_bucket",
-								},
-							},
-						},
+						Config:      "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
 					}, nil
 				},
 			},
@@ -335,42 +217,18 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
 				body: `{
-            "id": "0000000000000001",
-            "orgID": "0000000000000002",
-            "name": "my config",
-						"description": "",
-            "agent": {
-              "collectionInterval": 10000
-						},
-						"labels": [],
-						"links": {
-							"labels": "/api/v2/telegrafs/0000000000000001/labels",
-							"members": "/api/v2/telegrafs/0000000000000001/members",
-							"owners": "/api/v2/telegrafs/0000000000000001/owners",
-							"self": "/api/v2/telegrafs/0000000000000001"
-						},
-            "plugins": [
-              {
-              "name": "cpu",
-              "type": "input",
-              "comment": "my cpu stats",
-              "config": {}
-              },
-              {
-              "name": "influxdb_v2",
-              "type": "output",
-              "comment": "my influx output",
-              "config": {
-                "urls": [
-                "http://127.0.0.1:9999"
-                ],
-                "token": "no_more_secrets",
-                "organization": "my_org",
-                "bucket": "my_bucket"
-              }
-              }
-            ]
-          }`,
+					"id": "0000000000000001",
+					"orgID": "0000000000000002",
+					"name": "my config",
+					"config": "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
+					"labels": [],
+					"links": {
+						"self": "/api/v2/telegrafs/0000000000000001",
+						"labels": "/api/v2/telegrafs/0000000000000001/labels",
+						"members": "/api/v2/telegrafs/0000000000000001/members",
+						"owners": "/api/v2/telegrafs/0000000000000001/owners"
+					}
+				}`,
 			},
 		},
 		{
@@ -383,24 +241,86 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 						ID:    platform.ID(1),
 						OrgID: platform.ID(2),
 						Name:  "my config",
-						Agent: platform.TelegrafAgentConfig{
-							Interval: 10000,
-						},
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "my cpu stats",
-								Config:  &inputs.CPUStats{},
-							},
-							{
-								Comment: "my influx output",
-								Config: &outputs.InfluxDBV2{
-									URLs:         []string{"http://127.0.0.1:9999"},
-									Token:        "no_more_secrets",
-									Organization: "my_org",
-									Bucket:       "my_bucket",
-								},
-							},
-						},
+						Config: `# Configuration for telegraf agent
+[agent]
+  ## Default data collection interval for all inputs
+  interval = "10s"
+  ## Rounds collection interval to 'interval'
+  ## ie, if interval="10s" then always collect on :00, :10, :20, etc.
+  round_interval = true
+
+  ## Telegraf will send metrics to outputs in batches of at most
+  ## metric_batch_size metrics.
+  ## This controls the size of writes that Telegraf sends to output plugins.
+  metric_batch_size = 1000
+
+  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each
+  ## output, and will flush this buffer on a successful write. Oldest metrics
+  ## are dropped first when this buffer fills.
+  ## This buffer only fills when writes fail to output plugin(s).
+  metric_buffer_limit = 10000
+
+  ## Collection jitter is used to jitter the collection by a random amount.
+  ## Each plugin will sleep for a random time within jitter before collecting.
+  ## This can be used to avoid many plugins querying things like sysfs at the
+  ## same time, which can have a measurable effect on the system.
+  collection_jitter = "0s"
+
+  ## Default flushing interval for all outputs. Maximum flush_interval will be
+  ## flush_interval + flush_jitter
+  flush_interval = "10s"
+  ## Jitter the flush interval by a random amount. This is primarily to avoid
+  ## large write spikes for users running a large number of telegraf instances.
+  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s
+  flush_jitter = "0s"
+
+  ## By default or when set to "0s", precision will be set to the same
+  ## timestamp order as the collection interval, with the maximum being 1s.
+  ##   ie, when interval = "10s", precision will be "1s"
+  ##       when interval = "250ms", precision will be "1ms"
+  ## Precision will NOT be used for service inputs. It is up to each individual
+  ## service input to set the timestamp at the appropriate precision.
+  ## Valid time units are "ns", "us" (or "µs"), "ms", "s".
+  precision = ""
+
+  ## Logging configuration:
+  ## Run telegraf with debug log messages.
+  debug = false
+  ## Run telegraf in quiet mode (error log messages only).
+  quiet = false
+  ## Specify the log file name. The empty string means to log to stderr.
+  logfile = ""
+
+  ## Override default hostname, if empty use os.Hostname()
+  hostname = ""
+  ## If set to true, do no set the "host" tag in the telegraf agent.
+  omit_hostname = false
+[[inputs.cpu]]
+  ## Whether to report per-cpu stats or not
+  percpu = true
+  ## Whether to report total system cpu stats or not
+  totalcpu = true
+  ## If true, collect raw CPU time metrics.
+  collect_cpu_time = false
+  ## If true, compute and report the sum of all non-idle CPU states.
+  report_active = false
+[[outputs.influxdb_v2]]
+  ## The URLs of the InfluxDB cluster nodes.
+  ##
+  ## Multiple URLs can be specified for a single cluster, only ONE of the
+  ## urls will be written to each interval.
+  ## urls exp: http://127.0.0.1:9999
+  urls = ["http://127.0.0.1:9999"]
+
+  ## Token for authentication.
+  token = "no_more_secrets"
+
+  ## Organization is the name of the organization you wish to write to; must exist.
+  organization = "my_org"
+
+  ## Destination bucket to write into.
+  bucket = "my_bucket"
+`,
 					}, nil
 				},
 			},
@@ -470,7 +390,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
   collect_cpu_time = false
   ## If true, compute and report the sum of all non-idle CPU states.
   report_active = false
-[[outputs.influxdb_v2]]	
+[[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
@@ -497,25 +417,86 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 					return &platform.TelegrafConfig{
 						ID:    platform.ID(1),
 						OrgID: platform.ID(2),
-						Name:  "my config",
-						Agent: platform.TelegrafAgentConfig{
-							Interval: 10000,
-						},
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "my cpu stats",
-								Config:  &inputs.CPUStats{},
-							},
-							{
-								Comment: "my influx output",
-								Config: &outputs.InfluxDBV2{
-									URLs:         []string{"http://127.0.0.1:9999"},
-									Token:        "no_more_secrets",
-									Organization: "my_org",
-									Bucket:       "my_bucket",
-								},
-							},
-						},
+						Config: `# Configuration for telegraf agent
+[agent]
+  ## Default data collection interval for all inputs
+  interval = "10s"
+  ## Rounds collection interval to 'interval'
+  ## ie, if interval="10s" then always collect on :00, :10, :20, etc.
+  round_interval = true
+
+  ## Telegraf will send metrics to outputs in batches of at most
+  ## metric_batch_size metrics.
+  ## This controls the size of writes that Telegraf sends to output plugins.
+  metric_batch_size = 1000
+
+  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each
+  ## output, and will flush this buffer on a successful write. Oldest metrics
+  ## are dropped first when this buffer fills.
+  ## This buffer only fills when writes fail to output plugin(s).
+  metric_buffer_limit = 10000
+
+  ## Collection jitter is used to jitter the collection by a random amount.
+  ## Each plugin will sleep for a random time within jitter before collecting.
+  ## This can be used to avoid many plugins querying things like sysfs at the
+  ## same time, which can have a measurable effect on the system.
+  collection_jitter = "0s"
+
+  ## Default flushing interval for all outputs. Maximum flush_interval will be
+  ## flush_interval + flush_jitter
+  flush_interval = "10s"
+  ## Jitter the flush interval by a random amount. This is primarily to avoid
+  ## large write spikes for users running a large number of telegraf instances.
+  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s
+  flush_jitter = "0s"
+
+  ## By default or when set to "0s", precision will be set to the same
+  ## timestamp order as the collection interval, with the maximum being 1s.
+  ##   ie, when interval = "10s", precision will be "1s"
+  ##       when interval = "250ms", precision will be "1ms"
+  ## Precision will NOT be used for service inputs. It is up to each individual
+  ## service input to set the timestamp at the appropriate precision.
+  ## Valid time units are "ns", "us" (or "µs"), "ms", "s".
+  precision = ""
+
+  ## Logging configuration:
+  ## Run telegraf with debug log messages.
+  debug = false
+  ## Run telegraf in quiet mode (error log messages only).
+  quiet = false
+  ## Specify the log file name. The empty string means to log to stderr.
+  logfile = ""
+
+  ## Override default hostname, if empty use os.Hostname()
+  hostname = ""
+  ## If set to true, do no set the "host" tag in the telegraf agent.
+  omit_hostname = false
+[[inputs.cpu]]
+  ## Whether to report per-cpu stats or not
+  percpu = true
+  ## Whether to report total system cpu stats or not
+  totalcpu = true
+  ## If true, collect raw CPU time metrics.
+  collect_cpu_time = false
+  ## If true, compute and report the sum of all non-idle CPU states.
+  report_active = false
+[[outputs.influxdb_v2]]
+  ## The URLs of the InfluxDB cluster nodes.
+  ##
+  ## Multiple URLs can be specified for a single cluster, only ONE of the
+  ## urls will be written to each interval.
+  ## urls exp: http://127.0.0.1:9999
+  urls = ["http://127.0.0.1:9999"]
+
+  ## Token for authentication.
+  token = "no_more_secrets"
+
+  ## Organization is the name of the organization you wish to write to; must exist.
+  organization = "my_org"
+
+  ## Destination bucket to write into.
+  bucket = "my_bucket"
+`,
 					}, nil
 				},
 			},
@@ -585,7 +566,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
   collect_cpu_time = false
   ## If true, compute and report the sum of all non-idle CPU states.
   report_active = false
-[[outputs.influxdb_v2]]	
+[[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
@@ -614,24 +595,86 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 						ID:    platform.ID(1),
 						OrgID: platform.ID(2),
 						Name:  "my config",
-						Agent: platform.TelegrafAgentConfig{
-							Interval: 10000,
-						},
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "my cpu stats",
-								Config:  &inputs.CPUStats{},
-							},
-							{
-								Comment: "my influx output",
-								Config: &outputs.InfluxDBV2{
-									URLs:         []string{"http://127.0.0.1:9999"},
-									Token:        "no_more_secrets",
-									Organization: "my_org",
-									Bucket:       "my_bucket",
-								},
-							},
-						},
+						Config: `# Configuration for telegraf agent
+[agent]
+  ## Default data collection interval for all inputs
+  interval = "10s"
+  ## Rounds collection interval to 'interval'
+  ## ie, if interval="10s" then always collect on :00, :10, :20, etc.
+  round_interval = true
+
+  ## Telegraf will send metrics to outputs in batches of at most
+  ## metric_batch_size metrics.
+  ## This controls the size of writes that Telegraf sends to output plugins.
+  metric_batch_size = 1000
+
+  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each
+  ## output, and will flush this buffer on a successful write. Oldest metrics
+  ## are dropped first when this buffer fills.
+  ## This buffer only fills when writes fail to output plugin(s).
+  metric_buffer_limit = 10000
+
+  ## Collection jitter is used to jitter the collection by a random amount.
+  ## Each plugin will sleep for a random time within jitter before collecting.
+  ## This can be used to avoid many plugins querying things like sysfs at the
+  ## same time, which can have a measurable effect on the system.
+  collection_jitter = "0s"
+
+  ## Default flushing interval for all outputs. Maximum flush_interval will be
+  ## flush_interval + flush_jitter
+  flush_interval = "10s"
+  ## Jitter the flush interval by a random amount. This is primarily to avoid
+  ## large write spikes for users running a large number of telegraf instances.
+  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s
+  flush_jitter = "0s"
+
+  ## By default or when set to "0s", precision will be set to the same
+  ## timestamp order as the collection interval, with the maximum being 1s.
+  ##   ie, when interval = "10s", precision will be "1s"
+  ##       when interval = "250ms", precision will be "1ms"
+  ## Precision will NOT be used for service inputs. It is up to each individual
+  ## service input to set the timestamp at the appropriate precision.
+  ## Valid time units are "ns", "us" (or "µs"), "ms", "s".
+  precision = ""
+
+  ## Logging configuration:
+  ## Run telegraf with debug log messages.
+  debug = false
+  ## Run telegraf in quiet mode (error log messages only).
+  quiet = false
+  ## Specify the log file name. The empty string means to log to stderr.
+  logfile = ""
+
+  ## Override default hostname, if empty use os.Hostname()
+  hostname = ""
+  ## If set to true, do no set the "host" tag in the telegraf agent.
+  omit_hostname = false
+[[inputs.cpu]]
+  ## Whether to report per-cpu stats or not
+  percpu = true
+  ## Whether to report total system cpu stats or not
+  totalcpu = true
+  ## If true, collect raw CPU time metrics.
+  collect_cpu_time = false
+  ## If true, compute and report the sum of all non-idle CPU states.
+  report_active = false
+[[outputs.influxdb_v2]]
+  ## The URLs of the InfluxDB cluster nodes.
+  ##
+  ## Multiple URLs can be specified for a single cluster, only ONE of the
+  ## urls will be written to each interval.
+  ## urls exp: http://127.0.0.1:9999
+  urls = ["http://127.0.0.1:9999"]
+
+  ## Token for authentication.
+  token = "no_more_secrets"
+
+  ## Organization is the name of the organization you wish to write to; must exist.
+  organization = "my_org"
+
+  ## Destination bucket to write into.
+  bucket = "my_bucket"
+`,
 					}, nil
 				},
 			},
@@ -701,7 +744,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
   collect_cpu_time = false
   ## If true, compute and report the sum of all non-idle CPU states.
   report_active = false
-[[outputs.influxdb_v2]]	
+[[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
@@ -749,7 +792,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 					t.Errorf("%q. handleGetTelegraf() = ***%s***", tt.name, diff)
 				}
 			} else if string(body) != tt.wants.body {
-				t.Errorf("%q. handleGetTelegraf() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+				t.Errorf("%q. handleGetTelegraf() = \n***%v***\nwant\n***%v***", tt.name, string(body), tt.wants.body)
 			}
 		})
 	}
@@ -772,69 +815,27 @@ func Test_newTelegrafResponses(t *testing.T) {
 						OrgID:       platform.ID(2),
 						Name:        "my config",
 						Description: "",
-						Agent: platform.TelegrafAgentConfig{
-							Interval: 10000,
-						},
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "my cpu stats",
-								Config:  &inputs.CPUStats{},
-							},
-							{
-								Comment: "my influx output",
-								Config: &outputs.InfluxDBV2{
-									URLs:         []string{"http://127.0.0.1:9999"},
-									Token:        "no_more_secrets",
-									Organization: "my_org",
-									Bucket:       "my_bucket",
-								},
-							},
-						},
+						Config:      "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
 					},
 				},
 			},
 			want: `{
-        "configurations": [
-          {
-      "labels": [
-      ],
-      "links": {
-	        "labels": "/api/v2/telegrafs/0000000000000001/labels",
-			"members": "/api/v2/telegrafs/0000000000000001/members",
-			"owners": "/api/v2/telegrafs/0000000000000001/owners",
-	        "self": "/api/v2/telegrafs/0000000000000001"
-          },
-          "id": "0000000000000001",
-          "orgID": "0000000000000002",
-          "name": "my config",
-					"description": "",
-          "agent": {
-            "collectionInterval": 10000
-          },
-          "plugins": [
-            {
-            "name": "cpu",
-            "type": "input",
-            "comment": "my cpu stats",
-            "config": {}
-            },
-            {
-            "name": "influxdb_v2",
-            "type": "output",
-            "comment": "my influx output",
-            "config": {
-              "urls": [
-              "http://127.0.0.1:9999"
-              ],
-              "token": "no_more_secrets",
-              "organization": "my_org",
-              "bucket": "my_bucket"
-            }
-            }
-          ]
-          }
-        ]
-        }`,
+				"configurations": [
+					{
+						"id": "0000000000000001",
+						"orgID": "0000000000000002",
+						"name": "my config",
+						"config": "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
+						"labels": [],
+						"links": {
+							"self": "/api/v2/telegrafs/0000000000000001",
+							"labels": "/api/v2/telegrafs/0000000000000001/labels",
+							"members": "/api/v2/telegrafs/0000000000000001/members",
+							"owners": "/api/v2/telegrafs/0000000000000001/owners"
+						}
+					}
+				]
+			}`,
 		},
 	}
 	for _, tt := range tests {
@@ -853,7 +854,6 @@ func Test_newTelegrafResponses(t *testing.T) {
 }
 
 func Test_newTelegrafResponse(t *testing.T) {
-	t.Skip("https://github.com/influxdata/influxdb/issues/12457")
 	type args struct {
 		tc *platform.TelegrafConfig
 	}
@@ -869,56 +869,23 @@ func Test_newTelegrafResponse(t *testing.T) {
 					OrgID:       platform.ID(2),
 					Name:        "my config",
 					Description: "my description",
-					Agent: platform.TelegrafAgentConfig{
-						Interval: 10000,
-					},
-					Plugins: []platform.TelegrafPlugin{
-						{
-							Comment: "my cpu stats",
-							Config:  &inputs.CPUStats{},
-						},
-						{
-							Comment: "my influx output",
-							Config: &outputs.InfluxDBV2{
-								URLs:         []string{"http://127.0.0.1:9999"},
-								Token:        "no_more_secrets",
-								Organization: "my_org",
-								Bucket:       "my_bucket",
-							},
-						},
-					},
+					Config:      "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
 				},
 			},
 			want: `{
-      "id": "0000000000000001",
-      "orgID": "0000000000000002",
-      "name": "my config",
-			"description": "my description",
-      "agent": {
-        "collectionInterval": 10000
-      },
-      "plugins": [
-        {
-        "name": "cpu",
-        "type": "input",
-        "comment": "my cpu stats",
-        "config": {}
-        },
-        {
-        "name": "influxdb_v2",
-        "type": "output",
-        "comment": "my influx output",
-        "config": {
-          "urls": [
-          "http://127.0.0.1:9999"
-          ],
-          "token": "no_more_secrets",
-          "organization": "my_org",
-          "bucket": "my_bucket"
-        }
-        }
-      ]
-      }`,
+				"id": "0000000000000001",
+				"orgID": "0000000000000002",
+				"name": "my config",
+				"description": "my description",
+				"config": "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
+				"labels": [],
+				"links": {
+					"self": "/api/v2/telegrafs/0000000000000001",
+					"labels": "/api/v2/telegrafs/0000000000000001/labels",
+					"members": "/api/v2/telegrafs/0000000000000001/members",
+					"owners": "/api/v2/telegrafs/0000000000000001/owners"
+				}
+			}`,
 		},
 	}
 	for _, tt := range tests {
@@ -929,6 +896,7 @@ func Test_newTelegrafResponse(t *testing.T) {
 				t.Fatalf("newTelegrafResponse() JSON marshal %v", err)
 			}
 			if eq, diff, _ := jsonEqual(string(got), tt.want); tt.want != "" && !eq {
+				fmt.Println(string(got))
 				t.Errorf("%q. newTelegrafResponse() = ***%s***", tt.name, diff)
 			}
 		})

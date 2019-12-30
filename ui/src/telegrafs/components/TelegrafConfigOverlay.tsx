@@ -20,8 +20,7 @@ import {
 import {downloadTextFile} from 'src/shared/utils/download'
 
 // Types
-import {AppState} from 'src/types'
-import {ITelegraf as Telegraf} from '@influxdata/influx'
+import {AppState, Telegraf} from 'src/types'
 
 interface OwnProps {
   onClose: () => void

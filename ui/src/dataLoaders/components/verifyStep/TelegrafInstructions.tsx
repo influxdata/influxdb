@@ -22,7 +22,7 @@ class TelegrafInstructions extends PureComponent<Props> {
       this.origin
     }/api/v2/telegrafs/${configID || ''}`
     return (
-      <div className="wizard-step--body" data-testid="setup-instructions">
+      <div data-testid="setup-instructions" className="telegraf-instructions">
         <h6>1. Install the Latest Telegraf</h6>
         <p>
           You can install the latest Telegraf by visiting the{' '}

@@ -354,8 +354,16 @@ func (tl *TestLauncher) NotificationEndpointService(tb testing.TB) *http.Notific
 	return http.NewNotificationEndpointService(tl.HTTPClient(tb))
 }
 
+func (tl *TestLauncher) NotificationRuleService() platform.NotificationRuleStore {
+	return tl.kvService
+}
+
 func (tl *TestLauncher) PkgerService(tb testing.TB) pkger.SVC {
 	return &http.PkgerService{Client: tl.HTTPClient(tb)}
+}
+
+func (tl *TestLauncher) TaskServiceKV() platform.TaskService {
+	return tl.kvService
 }
 
 func (tl *TestLauncher) TelegrafService(tb testing.TB) *http.TelegrafService {

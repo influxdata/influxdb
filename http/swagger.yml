@@ -7130,10 +7130,16 @@ components:
     PkgApply:
       type: object
       properties:
-        apply:
+        dryRun:
           type: boolean
+        orgID:
+          type: string
         package:
           $ref: "#/components/schemas/Pkg"
+        secrets:
+          type: object
+          additionalProperties:
+            type: string
     PkgCreate:
       type: object
       properties:
@@ -7156,6 +7162,8 @@ components:
                 - dashboard
                 - label
                 - notification_endpoint
+                - notification_rule
+                - task
                 - telegraf
                 - variable
             name:
@@ -7221,7 +7229,7 @@ components:
                       labelAssociations:
                         type: array
                         items:
-                          $ref: "#/components/schemas/Label"
+                          $ref: "#/components/schemas/PkgSummaryLabel"
             labels:
               type: array
               items:
@@ -7242,7 +7250,7 @@ components:
                   labelAssociations:
                     type: array
                     items:
-                      $ref: "#/components/schemas/Label"
+                      $ref: "#/components/schemas/PkgSummaryLabel"
                   charts:
                     type: array
                     items:
@@ -7262,6 +7270,10 @@ components:
                     type: string
                   labelID:
                     type: string
+            missingSecrets:
+              type: array
+              items:
+                type: string
             notificationEndpoints:
               type: array
               items:
@@ -7272,7 +7284,75 @@ components:
                       labelAssociations:
                         type: array
                         items:
-                          $ref: "#/components/schemas/Label"
+                          $ref: "#/components/schemas/PkgSummaryLabel"
+            notificationRules:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  endpointName:
+                    type: string
+                  endpointID:
+                    type: string
+                  endpointType:
+                    type: string
+                  every:
+                    type: string
+                  offset:
+                    type: string
+                  messageTemplate:
+                    type: string
+                  status:
+                    type: string
+                  statusRules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        currentLevel:
+                          type: string
+                        previousLevel:
+                          type: string
+                  tagRules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        value:
+                          type: string
+                        operator:
+                          type: string
+                  labelAssociations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PkgSummaryLabel"
+            tasks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  cron:
+                    type: string
+                  description:
+                    type: string
+                  every:
+                    type: string
+                  offset:
+                    type: string
+                  query:
+                    type: string
+                  status:
+                    type: string
             telegrafConfigs:
               type: array
               items:
@@ -7283,7 +7363,7 @@ components:
                       labelAssociations:
                         type: array
                         items:
-                          $ref: "#/components/schemas/Label"
+                          $ref: "#/components/schemas/PkgSummaryLabel"
             variables:
               type: array
               items:
@@ -7302,7 +7382,7 @@ components:
                   labelAssociations:
                         type: array
                         items:
-                          $ref: "#/components/schemas/Label"
+                          $ref: "#/components/schemas/PkgSummaryLabel"
         diff:
           type: object
           properties:
@@ -7408,6 +7488,68 @@ components:
                     $ref: "#/components/schemas/NotificationEndpointDiscrimator"
                   old:
                     $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+            notificationRules:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  endpointName:
+                    type: string
+                  endpointID:
+                    type: string
+                  endpointType:
+                    type: string
+                  every:
+                    type: string
+                  offset:
+                    type: string
+                  messageTemplate:
+                    type: string
+                  status:
+                    type: string
+                  statusRules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        currentLevel:
+                          type: string
+                        previousLevel:
+                          type: string
+                  tagRules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        value:
+                          type: string
+                        operator:
+                          type: string
+            tasks:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  cron:
+                    type: string
+                  description:
+                    type: string
+                  every:
+                    type: string
+                  offset:
+                    type: string
+                  query:
+                    type: string
+                  status:
+                    type: string
             telegrafConfigs:
               type: array
               items:
@@ -9264,15 +9406,15 @@ components:
           type: string
         description:
           type: string
-        agent:
+        metadata:
           type: object
           properties:
-            collectionInterval:
-              type: integer
-        plugins:
-          type: array
-          items:
-            $ref: "#/components/schemas/TelegrafRequestPlugin"
+            buckets:
+              type: array
+              items:
+                type: string
+        config:
+          type: string
         orgID:
           type: string
     TelegrafRequestPlugin:
@@ -10082,6 +10224,21 @@ components:
         statusMessageTemplate:
           description: The template used to generate and write a status message.
           type: string
+        latestCompleted:
+          description: Timestamp of latest scheduled, completed run, RFC3339.
+          type: string
+          format: date-time
+          readOnly: true
+        lastRunStatus:
+          readOnly: true
+          type: string
+          enum:
+            - failed
+            - success
+            - canceled
+        lastRunError:
+          readOnly: true
+          type: string
         labels:
           $ref: "#/components/schemas/Labels"
         links:
@@ -10258,6 +10415,21 @@ components:
         - statusRules
         - endpointID
       properties:
+        latestCompleted:
+          description: Timestamp of latest scheduled, completed run, RFC3339.
+          type: string
+          format: date-time
+          readOnly: true
+        lastRunStatus:
+          readOnly: true
+          type: string
+          enum:
+            - failed
+            - success
+            - canceled
+        lastRunError:
+          readOnly: true
+          type: string
         id:
           readOnly: true
           type: string

@@ -134,7 +134,10 @@ const mstp = (state: AppState): StateProps => {
     state.telegrafEditor.text ||
     map['__default__'].include
       .map((i: string) => {
-        return map[i].code
+        if (!map.hasOwnProperty(i)) {
+          return ''
+        }
+        return map[i].config
       })
       .join('\n')
 

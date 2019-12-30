@@ -1,6 +1,7 @@
 package pkger
 
 import (
+	"errors"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -492,7 +493,7 @@ spec:
 				},
 			}
 			assert.Equal(t, expectedThresholds, thresholdCheck.Thresholds)
-			assert.Equal(t, influxdb.Status(influxdb.TaskStatusInactive), check1.Status)
+			assert.Equal(t, influxdb.Inactive, check1.Status)
 			assert.Len(t, check1.LabelAssociations, 1)
 
 			check2 := sum.Checks[1]
@@ -512,7 +513,7 @@ spec:
 			}
 			expectedBase.Query.Text = "from(bucket: \"rucket_1\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_idle\")\n  |> aggregateWindow(every: 1m, fn: mean)\n  |> yield(name: \"mean\")"
 			assert.Equal(t, expectedBase, deadmanCheck.Base)
-			assert.Equal(t, influxdb.Status(influxdb.TaskStatusActive), check2.Status)
+			assert.Equal(t, influxdb.Active, check2.Status)
 			assert.Equal(t, mustDuration(t, 10*time.Minute), deadmanCheck.StaleTime)
 			assert.Equal(t, mustDuration(t, 90*time.Second), deadmanCheck.TimeSince)
 			assert.True(t, deadmanCheck.ReportZero)
@@ -579,7 +580,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing every duration",
 						validationErrs: 1,
-						valFields:      []string{fieldCheckEvery},
+						valFields:      []string{fieldEvery},
 						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
@@ -605,7 +606,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "invalid threshold value provided",
 						validationErrs: 1,
-						valFields:      []string{fieldCheckLevel},
+						valFields:      []string{fieldLevel},
 						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
@@ -788,7 +789,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing every",
 						validationErrs: 1,
-						valFields:      []string{fieldCheckEvery},
+						valFields:      []string{fieldEvery},
 						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
@@ -3540,6 +3541,491 @@ spec:
 		})
 	})
 
+	t.Run("pkg with notification rules", func(t *testing.T) {
+		testfileRunner(t, "testdata/notification_rule", func(t *testing.T, pkg *Pkg) {
+			sum := pkg.Summary()
+			rules := sum.NotificationRules
+			require.Len(t, rules, 1)
+
+			rule := rules[0]
+			assert.Equal(t, "rule_0", rule.Name)
+			assert.Equal(t, "endpoint_0", rule.EndpointName)
+			assert.Equal(t, "desc_0", rule.Description)
+			assert.Equal(t, (10 * time.Minute).String(), rule.Every)
+			assert.Equal(t, (30 * time.Second).String(), rule.Offset)
+			expectedMsgTempl := "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+			assert.Equal(t, expectedMsgTempl, rule.MessageTemplate)
+			assert.Equal(t, influxdb.Active, rule.Status)
+
+			expectedStatusRules := []SummaryStatusRule{
+				{CurrentLevel: "CRIT", PreviousLevel: "OK"},
+				{CurrentLevel: "WARN"},
+			}
+			assert.Equal(t, expectedStatusRules, rule.StatusRules)
+
+			expectedTagRules := []SummaryTagRule{
+				{Key: "k1", Value: "v1", Operator: "equal"},
+				{Key: "k1", Value: "v2", Operator: "equal"},
+			}
+			assert.Equal(t, expectedTagRules, rule.TagRules)
+
+			require.Len(t, sum.Labels, 1)
+			require.Len(t, rule.LabelAssociations, 1)
+		})
+
+		t.Run("handles bad config", func(t *testing.T) {
+			tests := []struct {
+				kind   Kind
+				resErr testPkgResourceError
+			}{
+				{
+					kind: KindNotificationRule,
+					resErr: testPkgResourceError{
+						name:           "missing name",
+						validationErrs: 1,
+						valFields:      []string{fieldName},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Notification_Rule
+      endpointName: endpoint_0
+      every: 10m
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      statusRules:
+        - currentLevel: WARN
+`,
+					},
+				},
+				{
+					kind: KindNotificationRule,
+					resErr: testPkgResourceError{
+						name:           "missing endpoint name",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationRuleEndpointName},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Notification_Rule
+      name: rule_0
+      every: 10m
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      statusRules:
+        - currentLevel: WARN
+`,
+					},
+				},
+				{
+					kind: KindNotificationRule,
+					resErr: testPkgResourceError{
+						name:           "missing endpoint name",
+						validationErrs: 1,
+						valFields:      []string{fieldEvery},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Notification_Rule
+      name: rule_0
+      endpointName: endpoint_0
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      statusRules:
+        - currentLevel: WARN
+`,
+					},
+				},
+				{
+					kind: KindNotificationRule,
+					resErr: testPkgResourceError{
+						name:           "missing status rules",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationRuleStatusRules},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Notification_Rule
+      name: rule_0
+      endpointName: endpoint_0
+      every: 10m
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+`,
+					},
+				},
+				{
+					kind: KindNotificationRule,
+					resErr: testPkgResourceError{
+						name:           "bad current status rule level",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationRuleStatusRules},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Notification_Rule
+      name: rule_0
+      endpointName: endpoint_0
+      every: 10m
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      statusRules:
+        - currentLevel: WRONGO
+`,
+					},
+				},
+				{
+					kind: KindNotificationRule,
+					resErr: testPkgResourceError{
+						name:           "bad previous status rule level",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationRuleStatusRules},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Notification_Rule
+      name: rule_0
+      endpointName: endpoint_0
+      every: 10m
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      statusRules:
+        - currentLevel: CRIT
+          previousLevel: WRONGO
+`,
+					},
+				},
+				{
+					kind: KindNotificationRule,
+					resErr: testPkgResourceError{
+						name:           "bad tag rule operator",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationRuleTagRules},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Notification_Rule
+      name: rule_0
+      endpointName: endpoint_0
+      every: 10m
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      statusRules:
+        - currentLevel: CRIT
+      tagRules:
+        - key: k1
+          value: v1
+          operator: WRONG
+`,
+					},
+				},
+				{
+					kind: KindNotificationRule,
+					resErr: testPkgResourceError{
+						name:           "bad status provided",
+						validationErrs: 1,
+						valFields:      []string{fieldStatus},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Notification_Rule
+      name: rule_0
+      endpointName: endpoint_0
+      every: 10m
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      status: RANDO 
+      statusRules:
+        - currentLevel: CRIT
+`,
+					},
+				},
+				{
+					kind: KindNotificationRule,
+					resErr: testPkgResourceError{
+						name:           "label association does not exist",
+						validationErrs: 1,
+						valFields:      []string{fieldAssociations},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Notification_Rule
+      name: rule_0
+      endpointName: endpoint_0
+      every: 10m
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      statusRules:
+        - currentLevel: CRIT
+      associations:
+        - kind: Label
+          name: label_1
+`,
+					},
+				},
+				{
+					kind: KindNotificationRule,
+					resErr: testPkgResourceError{
+						name:           "label association dupe",
+						validationErrs: 1,
+						valFields:      []string{fieldAssociations},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Label
+      name: label_1
+    - kind: Notification_Rule
+      name: rule_0
+      endpointName: endpoint_0
+      every: 10m
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      statusRules:
+        - currentLevel: CRIT
+      associations:
+        - kind: Label
+          name: label_1
+        - kind: Label
+          name: label_1
+`,
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				testPkgErrors(t, tt.kind, tt.resErr)
+			}
+		})
+	})
+
+	t.Run("pkg with tasks", func(t *testing.T) {
+		testfileRunner(t, "testdata/tasks", func(t *testing.T, pkg *Pkg) {
+			sum := pkg.Summary()
+			tasks := sum.Tasks
+			require.Len(t, tasks, 2)
+
+			baseEqual := func(t *testing.T, i int, status influxdb.Status, actual SummaryTask) {
+				t.Helper()
+
+				assert.Equal(t, "task_"+strconv.Itoa(i), actual.Name)
+				assert.Equal(t, "desc_"+strconv.Itoa(i), actual.Description)
+				assert.Equal(t, status, actual.Status)
+
+				expectedQuery := "from(bucket: \"rucket_1\")\n  |> range(start: -5d, stop: -1h)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_idle\")\n  |> aggregateWindow(every: 1m, fn: mean)\n  |> yield(name: \"mean\")"
+				assert.Equal(t, expectedQuery, actual.Query)
+
+				require.Len(t, actual.LabelAssociations, 1)
+				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+			}
+
+			require.Len(t, sum.Labels, 1)
+
+			task1 := tasks[0]
+			baseEqual(t, 0, influxdb.Inactive, task1)
+			assert.Equal(t, (10 * time.Minute).String(), task1.Every)
+			assert.Equal(t, (15 * time.Second).String(), task1.Offset)
+
+			task2 := tasks[1]
+			baseEqual(t, 1, influxdb.Active, task2)
+			assert.Equal(t, "15 * * * *", task2.Cron)
+		})
+
+		t.Run("handles bad config", func(t *testing.T) {
+			tests := []struct {
+				kind   Kind
+				resErr testPkgResourceError
+			}{
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "missing name",
+						validationErrs: 1,
+						valFields:      []string{fieldName},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Task
+      description: desc_0
+      every: 10m
+      offset: 15s
+      query:  >
+        from(bucket: "rucket_1")
+`,
+					},
+				},
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "invalid status",
+						validationErrs: 1,
+						valFields:      []string{fieldStatus},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Task
+      name: task_0
+      description: desc_0
+      every: 10m
+      query:  >
+        from(bucket: "rucket_1")
+      status: RANDO WRONGO
+`,
+					},
+				},
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "missing query",
+						validationErrs: 1,
+						valFields:      []string{fieldQuery},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Task
+      name: task_0
+      description: desc_0
+      every: 10m
+`,
+					},
+				},
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "missing every and cron fields",
+						validationErrs: 1,
+						valFields:      []string{fieldEvery, fieldTaskCron},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Task
+      name: task_0
+      description: desc_0
+      query:  >
+        from(bucket: "rucket_1")
+`,
+					},
+				},
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "invalid association",
+						validationErrs: 1,
+						valFields:      []string{fieldAssociations},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Task
+      name: task_0
+      cron: "* * * * * *"
+      query:  >
+        from(bucket: "rucket_1")
+      associations:
+        - kind: Label
+          name: label_1
+`,
+					},
+				},
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "duplicate association",
+						validationErrs: 1,
+						valFields:      []string{fieldAssociations},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Label
+      name: label_1
+    - kind: Task
+      name: task_0
+      cron: "* * * * * *"
+      query:  >
+        from(bucket: "rucket_1")
+      associations:
+        - kind: Label
+          name: label_1
+        - kind: Label
+          name: label_1
+`,
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				testPkgErrors(t, tt.kind, tt.resErr)
+			}
+		})
+	})
+
 	t.Run("pkg with telegraf and label associations", func(t *testing.T) {
 		t.Run("with valid fields", func(t *testing.T) {
 			testfileRunner(t, "testdata/telegraf", func(t *testing.T, pkg *Pkg) {
@@ -3851,6 +4337,60 @@ spec:
 			require.True(t, ok)
 		})
 	})
+}
+
+func Test_IsParseError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "base case",
+			err:      &parseErr{},
+			expected: true,
+		},
+		{
+			name: "wrapped by influxdb error",
+			err: &influxdb.Error{
+				Err: &parseErr{},
+			},
+			expected: true,
+		},
+		{
+			name: "deeply nested in influxdb error",
+			err: &influxdb.Error{
+				Err: &influxdb.Error{
+					Err: &influxdb.Error{
+						Err: &influxdb.Error{
+							Err: &parseErr{},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "influxdb error without nested parse err",
+			err: &influxdb.Error{
+				Err: errors.New("nope"),
+			},
+			expected: false,
+		},
+		{
+			name:     "plain error",
+			err:      errors.New("nope"),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		fn := func(t *testing.T) {
+			isParseErr := IsParseErr(tt.err)
+			assert.Equal(t, tt.expected, isParseErr)
+		}
+		t.Run(tt.name, fn)
+	}
 }
 
 func Test_PkgValidationErr(t *testing.T) {

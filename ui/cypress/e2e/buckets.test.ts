@@ -249,7 +249,7 @@ describe('Buckets', () => {
       cy.getByTestID('Enter Manually').click()
       cy.getByTestID('line-protocol--text-area').type('m1,t1=v1 v=1.0')
       cy.getByTestID('next').click()
-      cy.getByTestID('wizard-step--text-state success')
+      cy.getByTestID('line-protocol--status').should('have.class', 'success')
       cy.getByTestID('next').click()
 
       // writing a poorly-formed line errors
@@ -258,7 +258,7 @@ describe('Buckets', () => {
       cy.getByTestID('Enter Manually').click()
       cy.getByTestID('line-protocol--text-area').type('invalid invalid')
       cy.getByTestID('next').click()
-      cy.getByTestID('wizard-step--text-state error')
+      cy.getByTestID('line-protocol--status').should('have.class', 'error')
       cy.getByTestID('next').click()
 
       // writing a well-formed line with millisecond precision is accepted
@@ -270,7 +270,7 @@ describe('Buckets', () => {
       const now = Date.now()
       cy.getByTestID('line-protocol--text-area').type(`m2,t2=v2 v=2.0 ${now}`)
       cy.getByTestID('next').click()
-      cy.getByTestID('wizard-step--text-state success')
+      cy.getByTestID('line-protocol--status').should('have.class', 'success')
       cy.getByTestID('next').click()
     })
   })

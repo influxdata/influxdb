@@ -47,7 +47,9 @@ func TestLauncher_Pkger(t *testing.T) {
 				LabelService: l.LabelService(t),
 				killCount:    2, // hits error on 3rd attempt at creating a mapping
 			}),
-			pkger.WithNoticationEndpointSVC(l.NotificationEndpointService(t)),
+			pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
+			pkger.WithNotificationRuleSVC(l.NotificationRuleService()),
+			pkger.WithTaskSVC(l.TaskServiceKV()),
 			pkger.WithTelegrafSVC(l.TelegrafService(t)),
 			pkger.WithVariableSVC(l.VariableService(t)),
 		)
@@ -80,6 +82,18 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Empty(t, endpoints)
+
+		rules, _, err := l.NotificationRuleService().FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
+			OrgID: &l.Org.ID,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, rules)
+
+		tasks, _, err := l.TaskServiceKV().FindTasks(ctx, influxdb.TaskFilter{
+			OrganizationID: &l.Org.ID,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, tasks)
 
 		teles, _, err := l.TelegrafService(t).FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{
 			OrgID: &l.Org.ID,
@@ -125,25 +139,27 @@ func TestLauncher_Pkger(t *testing.T) {
 		sum, diff, err := svc.DryRun(ctx, l.Org.ID, l.User.ID, newPkg(t))
 		require.NoError(t, err)
 
-		diffBkts := diff.Buckets
-		require.Len(t, diffBkts, 1)
-		assert.True(t, diffBkts[0].IsNew())
-
-		diffLabels := diff.Labels
-		require.Len(t, diffLabels, 1)
-		assert.True(t, diffLabels[0].IsNew())
-
-		diffVars := diff.Variables
-		require.Len(t, diffVars, 1)
-		assert.True(t, diffVars[0].IsNew())
+		require.Len(t, diff.Buckets, 1)
+		assert.True(t, diff.Buckets[0].IsNew())
 
 		require.Len(t, diff.Checks, 2)
 		for _, ch := range diff.Checks {
 			assert.True(t, ch.IsNew())
 		}
 
+		require.Len(t, diff.Labels, 1)
+		assert.True(t, diff.Labels[0].IsNew())
+
+		require.Len(t, diff.Variables, 1)
+		assert.True(t, diff.Variables[0].IsNew())
+
+		require.Len(t, diff.NotificationRules, 1)
+		// the pkg being run here has a relationship with the rule and the endpoint within the pkg.
+		assert.Equal(t, "http", diff.NotificationRules[0].EndpointType)
+
 		require.Len(t, diff.Dashboards, 1)
 		require.Len(t, diff.NotificationEndpoints, 1)
+		require.Len(t, diff.Tasks, 1)
 		require.Len(t, diff.Telegrafs, 1)
 
 		labels := sum.Labels
@@ -173,6 +189,13 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].NotificationEndpoint.GetName())
 		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
 		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
+
+		require.Len(t, sum.Tasks, 1)
+		task := sum.Tasks[0]
+		assert.Equal(t, "task_1", task.Name)
+		assert.Equal(t, "desc_1", task.Description)
+		assert.Equal(t, "15 * * * *", task.Cron)
+		hasLabelAssociations(t, task.LabelAssociations, 1, "label_1")
 
 		teles := sum.TelegrafConfigs
 		require.Len(t, teles, 1)
@@ -234,13 +257,27 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, influxdb.TaskStatusInactive, string(endpoints[0].NotificationEndpoint.GetStatus()))
 		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
 
+		require.Len(t, sum1.NotificationRules, 1)
+		rule := sum1.NotificationRules[0]
+		assert.NotZero(t, rule.ID)
+		assert.Equal(t, "rule_0", rule.Name)
+		assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
+		assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointName)
+		assert.Equal(t, "http", rule.EndpointType)
+
+		require.Len(t, sum1.Tasks, 1)
+		task := sum1.Tasks[0]
+		assert.NotZero(t, task.ID)
+		assert.Equal(t, "task_1", task.Name)
+		assert.Equal(t, "desc_1", task.Description)
+
 		teles := sum1.TelegrafConfigs
 		require.Len(t, teles, 1)
 		assert.NotZero(t, teles[0].TelegrafConfig.ID)
 		assert.Equal(t, l.Org.ID, teles[0].TelegrafConfig.OrgID)
 		assert.Equal(t, "first_tele_config", teles[0].TelegrafConfig.Name)
 		assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
-		assert.Len(t, teles[0].TelegrafConfig.Plugins, 2)
+		assert.Equal(t, telConf, teles[0].TelegrafConfig.Config)
 
 		vars := sum1.Variables
 		require.Len(t, vars, 1)
@@ -266,11 +303,16 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 
 		mappings := sum1.LabelMappings
-		require.Len(t, mappings, 7)
+		require.Len(t, mappings, 9)
 		hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
+		hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[0].Check.GetID()), checks[0].Check.GetName(), influxdb.ChecksResourceType))
+		hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[1].Check.GetID()), checks[1].Check.GetName(), influxdb.ChecksResourceType))
 		hasMapping(t, mappings, newSumMapping(dashs[0].ID, dashs[0].Name, influxdb.DashboardsResourceType))
-		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
+		hasMapping(t, mappings, newSumMapping(pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), endpoints[0].NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType))
+		hasMapping(t, mappings, newSumMapping(rule.ID, rule.Name, influxdb.NotificationRuleResourceType))
+		hasMapping(t, mappings, newSumMapping(task.ID, task.Name, influxdb.TasksResourceType))
 		hasMapping(t, mappings, newSumMapping(pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType))
+		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
 
 		t.Run("pkg with same bkt-var-label does nto create new resources for them", func(t *testing.T) {
 			// validate the new package doesn't create new resources for bkts/labels/vars
@@ -375,12 +417,21 @@ spec:
 					ID:   endpoints[0].NotificationEndpoint.GetID(),
 				},
 				{
+					Kind: pkger.KindTask,
+					ID:   influxdb.ID(task.ID),
+				},
+				{
 					Kind: pkger.KindTelegraf,
 					ID:   teles[0].TelegrafConfig.ID,
 				},
 			}
 
 			resWithNewName := []pkger.ResourceToClone{
+				{
+					Kind: pkger.KindNotificationRule,
+					Name: "new rule name",
+					ID:   influxdb.ID(rule.ID),
+				},
 				{
 					Kind: pkger.KindVariable,
 					Name: "new name",
@@ -438,6 +489,23 @@ spec:
 			assert.Equal(t, endpoints[0].NotificationEndpoint.GetDescription(), newEndpoints[0].NotificationEndpoint.GetDescription())
 			hasLabelAssociations(t, newEndpoints[0].LabelAssociations, 1, "label_1")
 
+			require.Len(t, newSum.NotificationRules, 1)
+			newRule := newSum.NotificationRules[0]
+			assert.Equal(t, "new rule name", newRule.Name)
+			assert.Zero(t, newRule.EndpointID)
+			assert.Equal(t, rule.EndpointName, newRule.EndpointName)
+			hasLabelAssociations(t, newRule.LabelAssociations, 1, "label_1")
+
+			require.Len(t, newSum.Tasks, 1)
+			newTask := newSum.Tasks[0]
+			assert.Equal(t, task.Name, newTask.Name)
+			assert.Equal(t, task.Description, newTask.Description)
+			assert.Equal(t, task.Cron, newTask.Cron)
+			assert.Equal(t, task.Every, newTask.Every)
+			assert.Equal(t, task.Offset, newTask.Offset)
+			assert.Equal(t, task.Query, newTask.Query)
+			assert.Equal(t, task.Status, newTask.Status)
+
 			require.Len(t, newSum.TelegrafConfigs, 1)
 			assert.Equal(t, teles[0].TelegrafConfig.Name, newSum.TelegrafConfigs[0].TelegrafConfig.Name)
 			assert.Equal(t, teles[0].TelegrafConfig.Description, newSum.TelegrafConfigs[0].TelegrafConfig.Description)
@@ -469,7 +537,8 @@ spec:
 				pkger.WithCheckSVC(l.CheckService()),
 				pkger.WithDashboardSVC(l.DashboardService(t)),
 				pkger.WithLabelSVC(l.LabelService(t)),
-				pkger.WithNoticationEndpointSVC(l.NotificationEndpointService(t)),
+				pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
+				pkger.WithTaskSVC(l.TaskServiceKV()),
 				pkger.WithTelegrafSVC(l.TelegrafService(t)),
 				pkger.WithVariableSVC(l.VariableService(t)),
 			)
@@ -521,7 +590,22 @@ func newPkg(t *testing.T) *pkger.Pkg {
 	return pkg
 }
 
-const pkgYMLStr = `apiVersion: 0.1.0
+const telConf = `[agent]
+  interval = "10s"
+  metric_batch_size = 1000
+  metric_buffer_limit = 10000
+  collection_jitter = "0s"
+  flush_interval = "10s"
+[[outputs.influxdb_v2]]
+  urls = ["http://localhost:9999"]
+  token = "$INFLUX_TOKEN"
+  organization = "rg"
+  bucket = "rucket_3"
+[[inputs.cpu]]
+  percpu = true
+`
+
+var pkgYMLStr = fmt.Sprintf(`apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -572,20 +656,7 @@ spec:
       associations:
         - kind: Label
           name: label_1
-      config: |
-        [agent]
-          interval = "10s"
-          metric_batch_size = 1000
-          metric_buffer_limit = 10000
-          collection_jitter = "0s"
-          flush_interval = "10s"
-        [[outputs.influxdb_v2]]
-          urls = ["http://localhost:9999"]
-          token = "$INFLUX_TOKEN"
-          organization = "rg"
-          bucket = "rucket_3"
-        [[inputs.cpu]]
-          percpu = true
+      config: %+q
     - kind: Notification_Endpoint_HTTP
       name: http_none_auth_notification_endpoint
       type: none
@@ -594,8 +665,8 @@ spec:
       url:  https://www.example.com/endpoint/noneauth
       status: inactive
       associations:
-        - kind: Label
-          name: label_1
+      - kind: Label
+        name: label_1
     - kind: Check_Threshold
       name: check_0
       every: 1m
@@ -615,6 +686,16 @@ spec:
           level: INfO
           min: 30.0
           max: 45.0
+        - type: outside_range
+          level: WARN
+          min: 60.0
+          max: 70.0
+        - type: greater
+          level: CRIT
+          val: 80
+        - type: lesser
+          level: OK
+          val: 30
       associations:
         - kind: Label
           name: label_1
@@ -638,7 +719,39 @@ spec:
       associations:
         - kind: Label
           name: label_1
-`
+    - kind: Notification_Rule
+      name: rule_0
+      description: desc_0
+      endpointName: http_none_auth_notification_endpoint
+      every: 10m
+      offset: 30s
+      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+      status: active
+      statusRules:
+        - currentLevel: WARN
+        - currentLevel: CRIT
+          previousLevel: OK
+      tagRules:
+        - key: k1
+          value: v2
+          operator: eQuAl
+        - key: k1
+          value: v1
+          operator: eQuAl
+      associations:
+        - kind: Label
+          name: label_1
+    - kind: Task
+      name: task_1
+      description: desc_1
+      cron: 15 * * * *
+      query:  >
+        from(bucket: "rucket_1")
+          |> yield()
+      associations:
+        - kind: Label
+          name: label_1
+`, telConf)
 
 const updatePkgYMLStr = `apiVersion: 0.1.0
 kind: Package

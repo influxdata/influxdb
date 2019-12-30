@@ -5,10 +5,10 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Form} from '@influxdata/clockface'
+import {Form, Overlay} from '@influxdata/clockface'
 import LineProtocolTabs from 'src/dataLoaders/components/lineProtocolWizard/configure/LineProtocolTabs'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+import LineProtocolHelperText from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolHelperText'
 
 // Actions
 import {
@@ -50,47 +50,25 @@ export class LineProtocol extends PureComponent<Props> {
   }
 
   public render() {
-    return (
-      <div className="onboarding-step">
-        <Form onSubmit={this.handleSubmit}>
-          <FancyScrollbar
-            autoHide={true}
-            className="wizard-step--scroll-content"
-          >
-            <div>
-              <h3 className="wizard-step--title">Add Data via Line Protocol</h3>
-              <h5 className="wizard-step--lp-sub-title">
-                Need help writing InfluxDB Line Protocol?{' '}
-                <a
-                  href="https://v2.docs.influxdata.com/v2.0/write-data/#write-data-in-the-influxdb-ui"
-                  target="_blank"
-                >
-                  See Documentation
-                </a>
-              </h5>
+    const {bucket, org} = this.props
 
-              {this.content}
-            </div>
-          </FancyScrollbar>
-          <OnboardingButtons autoFocusNext={true} />
-        </Form>
-      </div>
+    return (
+      <Form onSubmit={this.handleSubmit}>
+        <Overlay.Body style={{textAlign: 'center'}}>
+          <LineProtocolTabs
+            tabs={this.LineProtocolTabs}
+            bucket={bucket}
+            org={org}
+          />
+          <LineProtocolHelperText />
+        </Overlay.Body>
+        <OnboardingButtons autoFocusNext={true} nextButtonText="Write Data" />
+      </Form>
     )
   }
 
   private get LineProtocolTabs(): LineProtocolTab[] {
     return [LineProtocolTab.UploadFile, LineProtocolTab.EnterManually]
-  }
-
-  private get content(): JSX.Element {
-    const {bucket, org} = this.props
-    return (
-      <LineProtocolTabs
-        tabs={this.LineProtocolTabs}
-        bucket={bucket}
-        org={org}
-      />
-    )
   }
 
   private handleSubmit = () => {

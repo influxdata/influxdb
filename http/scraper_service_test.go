@@ -14,7 +14,6 @@ import (
 	"github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
 	httpMock "github.com/influxdata/influxdb/http/mock"
-	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap/zaptest"
@@ -814,7 +813,7 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 
 func initScraperService(f platformtesting.TargetFields, t *testing.T) (influxdb.ScraperTargetStoreService, string, func()) {
 	t.Helper()
-	svc := inmem.NewService()
+	svc := newInMemKVSVC(t)
 	svc.IDGenerator = f.IDGenerator
 
 	ctx := context.Background()
@@ -824,7 +823,7 @@ func initScraperService(f platformtesting.TargetFields, t *testing.T) (influxdb.
 		}
 	}
 	for _, m := range f.UserResourceMappings {
-		if err := svc.PutUserResourceMapping(ctx, m); err != nil {
+		if err := svc.CreateUserResourceMapping(ctx, m); err != nil {
 			t.Fatalf("failed to populate user resource mapping")
 		}
 	}
@@ -864,14 +863,13 @@ func initScraperService(f platformtesting.TargetFields, t *testing.T) (influxdb.
 		UserResourceMappingService: svc,
 		OrganizationService:        svc,
 		ScraperService: ScraperService{
-			Token:    "tok",
-			Addr:     server.URL,
-			OpPrefix: inmem.OpPrefix,
+			Token: "tok",
+			Addr:  server.URL,
 		},
 	}
 	done := server.Close
 
-	return &client, inmem.OpPrefix, done
+	return &client, "", done
 }
 
 func TestScraperService(t *testing.T) {

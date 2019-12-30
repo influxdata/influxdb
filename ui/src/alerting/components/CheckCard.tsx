@@ -7,13 +7,11 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import CheckCardContext from 'src/alerting/components/CheckCardContext'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+import LastRunTaskStatus from 'src/shared/components/lastRunTaskStatus/LastRunTaskStatus'
 
 // Constants
 import {DEFAULT_CHECK_NAME} from 'src/alerting/constants'
-import {
-  SEARCH_QUERY_PARAM,
-  HISTORY_TYPE_QUERY_PARAM,
-} from 'src/alerting/constants/history'
+import {SEARCH_QUERY_PARAM} from 'src/alerting/constants/history'
 
 // Actions and Selectors
 import {
@@ -29,7 +27,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {updateCheckFailed} from 'src/shared/copy/notifications'
 
 // Types
-import {Check, Label, AppState, AlertHistoryType} from 'src/types'
+import {Check, Label, AppState} from 'src/types'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
@@ -106,14 +104,11 @@ const CheckCard: FunctionComponent<Props> = ({
   }
 
   const onView = () => {
-    const historyType: AlertHistoryType = 'statuses'
-
     const queryParams = new URLSearchParams({
-      [HISTORY_TYPE_QUERY_PARAM]: historyType,
       [SEARCH_QUERY_PARAM]: `"checkID" == "${check.id}"`,
     })
 
-    router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
+    router.push(`/orgs/${orgID}/checks/${check.id}/?${queryParams}`)
   }
 
   const handleAddCheckLabel = (label: Label) => {
@@ -176,7 +171,13 @@ const CheckCard: FunctionComponent<Props> = ({
         />
       }
       metaData={[
+        <>Last completed at {check.latestCompleted}</>,
         <>{relativeTimestampFormatter(check.updatedAt, 'Last updated ')}</>,
+        <LastRunTaskStatus
+          key={2}
+          lastRunError={check.lastRunError}
+          lastRunStatus={check.lastRunStatus}
+        />,
       ]}
     />
   )

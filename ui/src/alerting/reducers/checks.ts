@@ -15,6 +15,12 @@ export const defaultChecksState: ChecksState = {
   list: [],
 }
 
+export interface ResourceIDs {
+  checkIDs: {[x: string]: boolean}
+  endpointIDs: {[x: string]: boolean}
+  ruleIDs: {[x: string]: boolean}
+}
+
 export default (
   state: ChecksState = defaultChecksState,
   action: Action

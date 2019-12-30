@@ -23,6 +23,7 @@ import {
   setActiveTimeMachine,
   updateTimeMachineCheck,
   setCheckStatus,
+  setTimeMachineCheck,
 } from 'src/timeMachine/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 import {checkChecksLimits} from 'src/cloud/actions/limits'
@@ -140,35 +141,44 @@ export const saveCheckFromTimeMachine = () => async (
   dispatch: Dispatch<any>,
   getState: GetState
 ) => {
-  const state = getState()
-  const {
-    orgs: {
-      org: {id: orgID},
-    },
-  } = state
+  try {
+    const state = getState()
+    const {
+      orgs: {
+        org: {id: orgID},
+      },
+    } = state
 
-  const {
-    draftQueries,
-    alerting: {check},
-  } = getActiveTimeMachine(state)
+    const {
+      draftQueries,
+      alerting: {check},
+    } = getActiveTimeMachine(state)
 
-  const labels = get(check, 'labels', []) as Label[]
-  const checkWithOrg = {
-    ...check,
-    query: draftQueries[0],
-    orgID,
-    labels: labels.map(l => l.id),
-  } as PostCheck
+    const labels = get(check, 'labels', []) as Label[]
 
-  const resp = check.id
-    ? await api.patchCheck({checkID: check.id, data: checkWithOrg})
-    : await api.postCheck({data: checkWithOrg})
+    const checkWithOrg = {
+      ...check,
+      query: draftQueries[0],
+      orgID,
+      labels: labels.map(l => l.id),
+    } as PostCheck
 
-  if (resp.status === 201 || resp.status === 200) {
-    dispatch(setCheck(resp.data))
-    dispatch(checkChecksLimits())
-  } else {
-    throw new Error(resp.data.message)
+    const resp = check.id
+      ? await updateCheckFromTimeMachine(checkWithOrg)
+      : await api.postCheck({data: checkWithOrg})
+
+    if (resp.status === 200 || resp.status === 201) {
+      dispatch(setCheck(resp.data))
+      dispatch(checkChecksLimits())
+
+      dispatch(push(`/orgs/${orgID}/alerting`))
+      dispatch(setTimeMachineCheck(RemoteDataState.NotStarted, null))
+    } else {
+      throw new Error(resp.data.message)
+    }
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(copy.createCheckFailed(e.message)))
   }
 }
 
@@ -176,14 +186,26 @@ export const updateCheck = (check: Partial<Check>) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   const resp = await api.putCheck({checkID: check.id, data: check as Check})
-
   if (resp.status === 200) {
     dispatch(setCheck(resp.data))
   } else {
     throw new Error(resp.data.message)
   }
-
   dispatch(setCheck(resp.data))
+}
+
+const updateCheckFromTimeMachine = async (check: Check) => {
+  // todo: refactor after https://github.com/influxdata/influxdb/issues/16317
+  const getCheckResponse = await api.getCheck({checkID: check.id})
+
+  if (getCheckResponse.status !== 200) {
+    throw new Error(getCheckResponse.data.message)
+  }
+
+  return api.putCheck({
+    checkID: check.id,
+    data: {...check, ownerID: getCheckResponse.data.ownerID},
+  })
 }
 
 export const deleteCheck = (checkID: string) => async (

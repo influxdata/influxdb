@@ -32,21 +32,17 @@ func taskF(cmd *cobra.Command, args []string) error {
 var logCmd = &cobra.Command{
 	Use:   "log",
 	Short: "Log related commands",
-	Run:   logF,
-}
-
-func logF(cmd *cobra.Command, args []string) {
-	cmd.Usage()
+	Run: func(cmd *cobra.Command, args []string) {
+		cmd.Usage()
+	},
 }
 
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run related commands",
-	Run:   runF,
-}
-
-func runF(cmd *cobra.Command, args []string) {
-	cmd.Usage()
+	Run: func(cmd *cobra.Command, args []string) {
+		cmd.Usage()
+	},
 }
 
 func init() {
@@ -54,12 +50,9 @@ func init() {
 	taskCmd.AddCommand(logCmd)
 }
 
-// TaskCreateFlags define the Create Command
-type TaskCreateFlags struct {
+var taskCreateFlags struct {
 	organization
 }
-
-var taskCreateFlags TaskCreateFlags
 
 func init() {
 	taskCreateCmd := &cobra.Command{
@@ -137,15 +130,13 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// taskFindFlags define the Find Command
-type TaskFindFlags struct {
-	user  string
-	id    string
-	limit int
+var taskFindFlags struct {
+	user    string
+	id      string
+	limit   int
+	headers bool
 	organization
 }
-
-var taskFindFlags TaskFindFlags
 
 func init() {
 	taskFindCmd := &cobra.Command{
@@ -158,6 +149,7 @@ func init() {
 	taskFindCmd.Flags().StringVarP(&taskFindFlags.user, "user-id", "n", "", "task owner ID")
 	taskFindFlags.organization.register(taskFindCmd)
 	taskFindCmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", platform.TaskDefaultPageSize, "the number of tasks to find")
+	taskFindCmd.Flags().BoolVar(&taskFindFlags.headers, "headers", true, "To print the table headers; defaults true")
 
 	taskCmd.AddCommand(taskFindCmd)
 }
@@ -220,6 +212,7 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
+	w.HideHeaders(!taskFindFlags.headers)
 	w.WriteHeaders(
 		"ID",
 		"Name",
@@ -246,13 +239,10 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// taskUpdateFlags define the Update Command
-type TaskUpdateFlags struct {
+var taskUpdateFlags struct {
 	id     string
 	status string
 }
-
-var taskUpdateFlags TaskUpdateFlags
 
 func init() {
 	taskUpdateCmd := &cobra.Command{
@@ -323,12 +313,9 @@ func taskUpdateF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// taskDeleteFlags define the Delete command
-type TaskDeleteFlags struct {
+var taskDeleteFlags struct {
 	id string
 }
-
-var taskDeleteFlags TaskDeleteFlags
 
 func init() {
 	taskDeleteCmd := &cobra.Command{
@@ -391,13 +378,10 @@ func taskDeleteF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// taskLogFindFlags define the Delete command
-type TaskLogFindFlags struct {
+var taskLogFindFlags struct {
 	taskID string
 	runID  string
 }
-
-var taskLogFindFlags TaskLogFindFlags
 
 func init() {
 	taskLogFindCmd := &cobra.Command{
@@ -459,16 +443,13 @@ func taskLogFindF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// taskLogFindFlags define the Delete command
-type TaskRunFindFlags struct {
+var taskRunFindFlags struct {
 	runID      string
 	taskID     string
 	afterTime  string
 	beforeTime string
 	limit      int
 }
-
-var taskRunFindFlags TaskRunFindFlags
 
 func init() {
 	taskRunFindCmd := &cobra.Command{
@@ -556,11 +537,9 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-type RunRetryFlags struct {
+var runRetryFlags struct {
 	taskID, runID string
 }
-
-var runRetryFlags RunRetryFlags
 
 func init() {
 	cmd := &cobra.Command{

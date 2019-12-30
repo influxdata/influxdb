@@ -48,13 +48,15 @@ describe('The Query Builder', () => {
       cy.contains('Save As').click()
 
       // open the dashboard selector dropdown
-      cy.contains('Choose at least 1 dashboard').click()
-      cy.contains('Create a New Dashboard').trigger('mousedown')
-      cy.getByTestID('overlay--container').click() // close the blast door i mean dropdown
+      cy.getByTestID('save-as-dashboard-cell--dropdown').click()
+      cy.getByTestID('save-as-dashboard-cell--create-new-dash').click()
+      cy.getByTestID('save-as-overlay--header').click() // close the blast door i mean dropdown
 
-      cy.get('[placeholder="Add dashboard name"]').type('Basic Ole Dashboard')
-      cy.get('[placeholder="Add optional cell name"]').type('Memory Usage')
-      cy.contains('Save as Dashboard Cell').click()
+      cy.getByTestID('save-as-dashboard-cell--dashboard-name').type(
+        'Basic Ole Dashboard'
+      )
+      cy.getByTestID('save-as-dashboard-cell--cell-name').type('Memory Usage')
+      cy.getByTestID('save-as-dashboard-cell--submit').click()
 
       // wait for the notification since it's highly animated
       // we close the notification since it contains the name of the dashboard and interfers with cy.contains

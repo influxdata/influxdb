@@ -15,8 +15,6 @@ import {
   updateTimeMachineCheck,
   setTimeMachineCheck,
 } from 'src/timeMachine/actions'
-import {createCheckFailed} from 'src/shared/copy/notifications'
-import {notify} from 'src/shared/actions/notifications'
 
 // Utils
 import {createView} from 'src/shared/utils/view'
@@ -30,8 +28,7 @@ interface DispatchProps {
   setTimeMachineCheck: typeof setTimeMachineCheck
   updateTimeMachineCheck: typeof updateTimeMachineCheck
   onSetActiveTimeMachine: typeof setActiveTimeMachine
-  saveCheckFromTimeMachine: typeof saveCheckFromTimeMachine
-  notify: typeof notify
+  onSaveCheckFromTimeMachine: typeof saveCheckFromTimeMachine
 }
 
 interface StateProps {
@@ -45,12 +42,11 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
   updateTimeMachineCheck,
   setTimeMachineCheck,
-  saveCheckFromTimeMachine,
+  onSaveCheckFromTimeMachine,
   params,
   router,
   checkStatus,
   check,
-  notify,
 }) => {
   useEffect(() => {
     const view = createView<CheckViewProperties>('threshold')
@@ -72,19 +68,6 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
     router.push(`/orgs/${params.orgID}/alerting`)
   }
 
-  const handleSave = () => {
-    // todo: when check has own view
-    // save view as view
-    // put view.id on check.viewID
-    try {
-      saveCheckFromTimeMachine()
-      handleClose()
-    } catch (e) {
-      console.error(e)
-      notify(createCheckFailed(e.message))
-    }
-  }
-
   return (
     <Overlay visible={true} className="veo-overlay">
       <div className="veo">
@@ -97,7 +80,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
             name={check && check.name}
             onSetName={handleUpdateName}
             onCancel={handleClose}
-            onSave={handleSave}
+            onSave={onSaveCheckFromTimeMachine}
           />
           <div className="veo-contents">
             <TimeMachine />
@@ -120,8 +103,7 @@ const mdtp: DispatchProps = {
   setTimeMachineCheck: setTimeMachineCheck,
   updateTimeMachineCheck: updateTimeMachineCheck,
   onSetActiveTimeMachine: setActiveTimeMachine,
-  saveCheckFromTimeMachine: saveCheckFromTimeMachine,
-  notify: notify,
+  onSaveCheckFromTimeMachine: saveCheckFromTimeMachine,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

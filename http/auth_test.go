@@ -935,7 +935,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 
 	done := server.Close
 
-	return &AuthorizationService{Client: httpClient}, inmem.OpPrefix, done
+	return &AuthorizationService{Client: httpClient}, "", done
 }
 
 func TestAuthorizationService_CreateAuthorization(t *testing.T) {

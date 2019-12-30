@@ -5,8 +5,8 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
+import {Overlay} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
 import LineProtocolStepSwitcher from 'src/dataLoaders/components/lineProtocolWizard/verify/LineProtocolStepSwitcher'
 
 // Actions
@@ -68,12 +68,18 @@ class LineProtocolWizard extends PureComponent<Props & WithRouterProps> {
     const {buckets} = this.props
 
     return (
-      <WizardOverlay title="Line Protocol" onDismiss={this.handleDismiss}>
-        <LineProtocolStepSwitcher
-          stepProps={this.stepProps}
-          buckets={buckets}
-        />
-      </WizardOverlay>
+      <Overlay visible={true}>
+        <Overlay.Container maxWidth={800}>
+          <Overlay.Header
+            title="Add Data Using Line Protocol"
+            onDismiss={this.handleDismiss}
+          />
+          <LineProtocolStepSwitcher
+            stepProps={this.stepProps}
+            buckets={buckets}
+          />
+        </Overlay.Container>
+      </Overlay>
     )
   }
 

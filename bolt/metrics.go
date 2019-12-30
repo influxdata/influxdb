@@ -7,6 +7,18 @@ import (
 
 var _ prometheus.Collector = (*Client)(nil)
 
+// available buckets
+// TODO: nuke this whole thing?
+var (
+	authorizationBucket = []byte("authorizationsv1")
+	bucketBucket        = []byte("bucketsv1")
+	dashboardBucket     = []byte("dashboardsv2")
+	organizationBucket  = []byte("organizationsv1")
+	scraperBucket       = []byte("scraperv2")
+	telegrafBucket      = []byte("telegrafv1")
+	userBucket          = []byte("usersv1")
+)
+
 var (
 	orgsDesc = prometheus.NewDesc(
 		"influxdb_organizations_total",
@@ -88,13 +100,13 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 	orgs, buckets, users, tokens := 0, 0, 0, 0
 	dashboards, scrapers, telegrafs := 0, 0, 0
 	_ = c.db.View(func(tx *bolt.Tx) error {
-		orgs = tx.Bucket(organizationBucket).Stats().KeyN
 		buckets = tx.Bucket(bucketBucket).Stats().KeyN
-		users = tx.Bucket(userBucket).Stats().KeyN
-		tokens = tx.Bucket(authorizationBucket).Stats().KeyN
 		dashboards = tx.Bucket(dashboardBucket).Stats().KeyN
+		orgs = tx.Bucket(organizationBucket).Stats().KeyN
 		scrapers = tx.Bucket(scraperBucket).Stats().KeyN
 		telegrafs = tx.Bucket(telegrafBucket).Stats().KeyN
+		tokens = tx.Bucket(authorizationBucket).Stats().KeyN
+		users = tx.Bucket(userBucket).Stats().KeyN
 		return nil
 	})
 

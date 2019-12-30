@@ -18,13 +18,11 @@ var typeToRule = map[string](func() influxdb.NotificationRule){
 	"http":      func() influxdb.NotificationRule { return &HTTP{} },
 }
 
-type rawRuleJSON struct {
-	Typ string `json:"type"`
-}
-
 // UnmarshalJSON will convert
 func UnmarshalJSON(b []byte) (influxdb.NotificationRule, error) {
-	var raw rawRuleJSON
+	var raw struct {
+		Typ string `json:"type"`
+	}
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return nil, &influxdb.Error{
 			Msg: "unable to detect the notification type from json",

@@ -31,35 +31,31 @@ class PrecisionDropdown extends PureComponent<Props> {
   public render() {
     const {setPrecision, precision} = this.props
     return (
-      <div className="wizard-step--lp-precision">
-        <label>Time Precision</label>
-        <Dropdown
-          style={{width: '200px'}}
-          className="wizard-step--lp-precision"
-          testID="wizard-step--lp-precision--dropdown"
-          button={(active, onClick) => (
-            <Dropdown.Button active={active} onClick={onClick}>
-              {makePrecisionReadable[precision]}
-            </Dropdown.Button>
-          )}
-          menu={onCollapse => (
-            <Dropdown.Menu onCollapse={onCollapse}>
-              {writePrecisions.map(value => (
-                <Dropdown.Item
-                  key={value}
-                  value={value}
-                  id={value}
-                  onClick={setPrecision}
-                  testID={`wizard-step--lp-precision-${value}`}
-                  selected={`${value}` === `${precision}`}
-                >
-                  {makePrecisionReadable[value]}
-                </Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          )}
-        />
-      </div>
+      <Dropdown
+        testID="wizard-step--lp-precision--dropdown"
+        style={{width: '220px'}}
+        button={(active, onClick) => (
+          <Dropdown.Button active={active} onClick={onClick}>
+            {`Precision: ${makePrecisionReadable[precision]}`}
+          </Dropdown.Button>
+        )}
+        menu={onCollapse => (
+          <Dropdown.Menu onCollapse={onCollapse}>
+            {writePrecisions.map(value => (
+              <Dropdown.Item
+                key={value}
+                value={value}
+                id={value}
+                onClick={setPrecision}
+                testID={`wizard-step--lp-precision-${value}`}
+                selected={`${value}` === `${precision}`}
+              >
+                {makePrecisionReadable[value]}
+              </Dropdown.Item>
+            ))}
+          </Dropdown.Menu>
+        )}
+      />
     )
   }
 }
