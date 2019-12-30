@@ -166,7 +166,6 @@ class InlineLabelsEditor extends Component<Props, State> {
     this.setState({isPopoverVisible: true, selectedItemID, searchTerm: ''})
   }
 
-
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
     const searchTerm = e.target.value
     const filteredLabels = this.filterLabels(searchTerm)

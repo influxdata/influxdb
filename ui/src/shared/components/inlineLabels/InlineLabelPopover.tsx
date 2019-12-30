@@ -67,7 +67,7 @@ export default class InlineLabelPopover extends PureComponent<Props> {
         distanceFromTrigger={8}
         showEvent={PopoverInteraction.Hover}
         hideEvent={PopoverInteraction.Hover}
-        testID = 'inline-labels--popover'
+        testID="inline-labels--popover"
         contents={() => (
           <span>
             <h5 className="inline-labels--popover-heading">Add Labels</h5>
@@ -97,11 +97,7 @@ export default class InlineLabelPopover extends PureComponent<Props> {
   }
 
   private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
-    const {
-      selectedItemID,
-      onAddLabel,
-      onStartCreatingLabel,
-    } = this.props
+    const {selectedItemID, onAddLabel, onStartCreatingLabel} = this.props
 
     switch (e.key) {
       case 'Enter':

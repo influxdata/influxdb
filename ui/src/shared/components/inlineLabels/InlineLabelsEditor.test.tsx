@@ -119,5 +119,4 @@ describe('Shared.Components.InlineLabelsEditor', () => {
       expect(onAddLabel).toHaveBeenCalledWith(secondLabel)
     })
   })
-
 })

@@ -56,7 +56,7 @@ class CreateLabelOverlay extends Component<Props, State> {
 
     return (
       <Overlay visible={isVisible}>
-        <Overlay.Container maxWidth={400} >
+        <Overlay.Container maxWidth={400}>
           <Overlay.Header title="Create Label" onDismiss={onDismiss} />
           <Overlay.Body>
             <LabelOverlayForm
