@@ -23,7 +23,7 @@ import {createTaskFromTemplate as createTaskFromTemplateAJAX} from 'src/template
 import {addLabelDefaults} from 'src/labels/utils'
 import {
   deleteTask as apiDeleteTask,
-  deleteTasksLabel,
+  deleteTasksLabel as apiDeleteTasksLabel,
   getTask as apiGetTask,
   getTasks as apiGetTasks,
   getTasksRuns as apiGetTasksRuns,
@@ -295,7 +295,7 @@ export const removeTaskLabelAsync = (taskID: string, label: Label) => async (
   dispatch
 ): Promise<void> => {
   try {
-    await deleteTasksLabel({taskID, labelID: label.id})
+    await apiDeleteTasksLabel({taskID, labelID: label.id})
     const resp = await apiGetTask({taskID})
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
