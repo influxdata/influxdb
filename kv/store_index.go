@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/kit/tracing"
 )
 
@@ -80,24 +79,72 @@ func (s *IndexStore) Find(ctx context.Context, tx Tx, opts FindOpts) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if len(opts.Prefix) > 0 {
-		entCaptureFn := opts.CaptureFn
-		opts.CaptureFn = func(key []byte, indexVal interface{}) error {
-			ent, err := s.IndexStore.DecodeToEntFn(key, indexVal)
-			if err != nil {
-				return errors.Wrap(err, "index lookup")
-			}
-
-			entVal, err := s.EntStore.FindEnt(ctx, tx, ent)
-			if err != nil {
-				return errors.Wrap(err, "entity lookup")
-			}
-			return entCaptureFn(key, entVal)
-		}
-		return s.IndexStore.Find(ctx, tx, opts)
+	if len(opts.Prefix) == 0 {
+		return s.EntStore.Find(ctx, tx, opts)
 	}
 
-	return s.EntStore.Find(ctx, tx, opts)
+	entCaptureFn := opts.CaptureFn
+	kvStream, filterFn := s.indexFilterStream(ctx, tx, opts.FilterFn)
+	opts.FilterFn = filterFn
+	opts.CaptureFn = func(key []byte, indexVal interface{}) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case fromFilter, ok := <-kvStream:
+			if !ok {
+				return nil
+			}
+			return entCaptureFn(fromFilter.k, fromFilter.v)
+		}
+	}
+	return s.IndexStore.Find(ctx, tx, opts)
+
+}
+
+func (s *IndexStore) indexFilterStream(ctx context.Context, tx Tx, entFilterFn FilterFn) (<-chan struct {
+	k []byte
+	v interface{}
+}, func([]byte, interface{}) bool) {
+	kvStream := make(chan struct {
+		k []byte
+		v interface{}
+	}, 1)
+
+	return kvStream, func(key []byte, indexVal interface{}) (isValid bool) {
+		defer func() {
+			if !isValid && kvStream != nil {
+				close(kvStream)
+			}
+			kvStream = nil
+		}()
+		ent, err := s.IndexStore.DecodeToEntFn(key, indexVal)
+		if err != nil {
+			return false
+		}
+
+		entVal, err := s.EntStore.FindEnt(ctx, tx, ent)
+		if err != nil {
+			return false
+		}
+
+		entKey, err := s.EntStore.encodeEnt(ctx, ent, s.EntStore.EncodeEntKeyFn)
+		if err != nil {
+			return false
+		}
+
+		matches := entFilterFn(entKey, entVal)
+		if matches {
+			select {
+			case <-ctx.Done():
+				return false
+			case kvStream <- struct {
+				k []byte
+				v interface{}
+			}{k: entKey, v: entVal}:
+			}
+		}
+		return matches
+	}
 }
 
 // FindEnt returns the decoded entity body via teh provided entity.
