@@ -147,6 +147,10 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
+		if err := s.initializeVariablesOrgIndex(tx); err != nil {
+			return err
+		}
+
 		if err := s.initializeChecks(ctx, tx); err != nil {
 			return err
 		}
