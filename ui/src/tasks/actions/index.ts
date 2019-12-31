@@ -1,10 +1,7 @@
 // Libraries
 import {push, goBack} from 'react-router-redux'
 import _ from 'lodash'
-
 // APIs
-import {LogEvent, ITask as Task} from '@influxdata/influx'
-import {client} from 'src/utils/api'
 import {notify} from 'src/shared/actions/notifications'
 import {
   taskNotCreated,
@@ -19,13 +16,23 @@ import {
   taskCloneFailed,
   taskRunSuccess,
   taskGetFailed,
-} from 'src/shared/copy/notifications'
-import {
   importTaskFailed,
   importTaskSucceeded,
 } from 'src/shared/copy/notifications'
 import {createTaskFromTemplate as createTaskFromTemplateAJAX} from 'src/templates/api'
-
+import {addLabelDefaults} from 'src/labels/utils'
+import {
+  deleteTask as apiDeleteTask,
+  deleteTasksLabel,
+  getTask as apiGetTask,
+  getTasks as apiGetTasks,
+  getTasksRuns as apiGetTasksRuns,
+  getTasksRunsLogs as apiGetTasksRunsLogs,
+  patchTask as apiPatchTask,
+  postTask as apiPostTask,
+  postTasksLabel as apiPostTasksLabel,
+  postTasksRun as apiPostTasksRun,
+} from 'src/client'
 // Actions
 import {setExportTemplate} from 'src/templates/actions'
 
@@ -33,9 +40,9 @@ import {setExportTemplate} from 'src/templates/actions'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
-import {AppState, Label, TaskTemplate} from 'src/types'
+import {AppState, Label, TaskTemplate, LogEvent, Run, Task} from 'src/types'
 import {RemoteDataState} from '@influxdata/clockface'
-import {Run} from 'src/tasks/components/TaskRunsPage'
+import {Task as ITask} from 'src/client'
 
 // Utils
 import {getErrorMessage} from 'src/utils/api'
@@ -162,6 +169,13 @@ export interface UpdateTask {
   }
 }
 
+export const addDefaults = (task: ITask): Task => {
+  return {
+    ...task,
+    labels: (task.labels || []).map(addLabelDefaults),
+  }
+}
+
 export const setTaskOption = (taskOption: {
   key: TaskOptionKeys
   value: string
@@ -240,7 +254,12 @@ export const getTasks = () => async (
       orgs: {org},
     } = getState()
 
-    const tasks = await client.tasks.getAll(org.id)
+    const resp = await apiGetTasks({query: {orgID: org.id}})
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const tasks = resp.data.tasks.map(task => addDefaults(task))
 
     dispatch(setTasks(tasks))
     dispatch(setTasksStatus(RemoteDataState.Done))
@@ -252,12 +271,18 @@ export const getTasks = () => async (
   }
 }
 
-export const addTaskLabelsAsync = (taskID: string, labels: Label[]) => async (
+export const addTaskLabelAsync = (taskID: string, label: Label) => async (
   dispatch
 ): Promise<void> => {
   try {
-    await client.tasks.addLabels(taskID, labels.map(l => l.id))
-    const task = await client.tasks.get(taskID)
+    await apiPostTasksLabel({taskID, data: {labelID: label.id}})
+    const resp = await apiGetTask({taskID})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const task = addDefaults(resp.data)
 
     dispatch(updateTask(task))
   } catch (error) {
@@ -266,13 +291,17 @@ export const addTaskLabelsAsync = (taskID: string, labels: Label[]) => async (
   }
 }
 
-export const removeTaskLabelsAsync = (
-  taskID: string,
-  labels: Label[]
-) => async (dispatch): Promise<void> => {
+export const removeTaskLabelAsync = (taskID: string, label: Label) => async (
+  dispatch
+): Promise<void> => {
   try {
-    await client.tasks.removeLabels(taskID, labels.map(l => l.id))
-    const task = await client.tasks.get(taskID)
+    await deleteTasksLabel({taskID, labelID: label.id})
+    const resp = await apiGetTask({taskID})
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const task = addDefaults(resp.data)
 
     dispatch(updateTask(task))
   } catch (error) {
@@ -283,7 +312,14 @@ export const removeTaskLabelsAsync = (
 
 export const updateTaskStatus = (task: Task) => async dispatch => {
   try {
-    await client.tasks.updateStatus(task.id, task.status)
+    const resp = await apiPatchTask({
+      taskID: task.id,
+      data: {status: task.status},
+    })
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
 
     dispatch(getTasks())
     dispatch(notify(taskUpdateSuccess()))
@@ -294,9 +330,16 @@ export const updateTaskStatus = (task: Task) => async dispatch => {
   }
 }
 
-export const updateTaskName = (task: Task) => async dispatch => {
+export const updateTaskName = (
+  name: string,
+  taskID: string
+) => async dispatch => {
   try {
-    await client.tasks.update(task.id, task)
+    const resp = await apiPatchTask({taskID, data: {name}})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
 
     dispatch(getTasks())
     dispatch(notify(taskUpdateSuccess()))
@@ -309,7 +352,11 @@ export const updateTaskName = (task: Task) => async dispatch => {
 
 export const deleteTask = (task: Task) => async dispatch => {
   try {
-    await client.tasks.delete(task.id)
+    const resp = await apiDeleteTask({taskID: task.id})
+
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
 
     dispatch(getTasks())
     dispatch(notify(taskDeleteSuccess()))
@@ -322,7 +369,19 @@ export const deleteTask = (task: Task) => async dispatch => {
 
 export const cloneTask = (task: Task, _) => async dispatch => {
   try {
-    await client.tasks.clone(task.id)
+    const resp = await apiGetTask({taskID: task.id})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const postData = addDefaults(resp.data)
+
+    const newTask = await apiPostTask({data: postData})
+
+    if (newTask.status !== 201) {
+      throw new Error(newTask.data.message)
+    }
 
     dispatch(notify(taskCloneSuccess(task.name)))
     dispatch(getTasks())
@@ -342,7 +401,12 @@ export const selectTaskByID = (id: string) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const task = await client.tasks.get(id)
+    const resp = await apiGetTask({taskID: id})
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const task = addDefaults(resp.data)
     dispatch(setCurrentTask(task))
   } catch (e) {
     console.error(e)
@@ -356,7 +420,12 @@ export const setAllTaskOptionsByID = (taskID: string) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const task = await client.tasks.get(taskID)
+    const resp = await apiGetTask({taskID})
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const task = addDefaults(resp.data)
     dispatch(setAllTaskOptions(task))
   } catch (e) {
     console.error(e)
@@ -415,7 +484,11 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
       updatedTask.every = null
     }
 
-    await client.tasks.update(task.id, updatedTask)
+    const resp = await apiPatchTask({taskID: task.id, data: updatedTask})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
 
     dispatch(goToTasks())
     dispatch(setCurrentTask(null))
@@ -437,7 +510,10 @@ export const saveNewScript = (script: string, preamble: string) => async (
     const {
       orgs: {org},
     } = getState()
-    await client.tasks.createByOrgID(org.id, fluxScript, null)
+    const resp = await apiPostTask({data: {orgID: org.id, flux: fluxScript}})
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
 
     dispatch(setNewScript(''))
     dispatch(clearTask())
@@ -459,13 +535,14 @@ export const saveNewScript = (script: string, preamble: string) => async (
 export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
   try {
     dispatch(setRuns([], RemoteDataState.Loading))
+    dispatch(selectTaskByID(taskID))
+    const resp = await apiGetTasksRuns({taskID})
 
-    const [runs] = await Promise.all([
-      client.tasks.getRunsByTaskID(taskID),
-      dispatch(selectTaskByID(taskID)),
-    ])
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
 
-    const runsWithDuration = runs.map(run => {
+    const runsWithDuration = resp.data.runs.map(run => {
       const finished = new Date(run.finishedAt)
       const started = new Date(run.startedAt)
 
@@ -486,7 +563,7 @@ export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
 
 export const runTask = (taskID: string) => async dispatch => {
   try {
-    await client.tasks.startRunByTaskID(taskID)
+    await apiPostTasksRun({taskID})
     dispatch(notify(taskRunSuccess()))
   } catch (error) {
     const message = getErrorMessage(error)
@@ -499,8 +576,11 @@ export const getLogs = (taskID: string, runID: string) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const logs = await client.tasks.getLogEventsByRunID(taskID, runID)
-    dispatch(setLogs(logs))
+    const resp = await apiGetTasksRunsLogs({taskID, runID})
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+    dispatch(setLogs(resp.data.events))
   } catch (error) {
     console.error(error)
     dispatch(setLogs([]))
@@ -512,7 +592,11 @@ export const convertToTemplate = (taskID: string) => async (
 ): Promise<void> => {
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
-    const task = await client.tasks.get(taskID)
+    const resp = await apiGetTask({taskID})
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+    const task = addDefaults(resp.data)
     const taskTemplate = taskToTemplate(task)
 
     dispatch(setExportTemplate(RemoteDataState.Done, taskTemplate))
