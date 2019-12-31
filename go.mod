@@ -55,7 +55,6 @@ require (
 	github.com/mattn/go-zglob v0.0.1 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
 	github.com/mileusna/useragent v0.0.0-20190129205925-3e331f0949a5
-	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mna/pigeon v1.0.1-0.20180808201053-bb0192cfc2ae
 	github.com/mschoch/smat v0.0.0-20160514031455-90eadee771ae // indirect
 	github.com/nats-io/gnatsd v1.3.0
@@ -75,10 +74,10 @@ require (
 	github.com/prometheus/common v0.6.0
 	github.com/prometheus/procfs v0.0.3 // indirect
 	github.com/satori/go.uuid v1.2.0
-	github.com/spf13/cast v1.2.0
-	github.com/spf13/cobra v0.0.3
+	github.com/spf13/cast v1.3.0
+	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.3
-	github.com/spf13/viper v1.2.1
+	github.com/spf13/viper v1.3.2
 	github.com/stretchr/testify v1.4.0
 	github.com/tcnksm/go-input v0.0.0-20180404061846-548a7d7a8ee8
 	github.com/testcontainers/testcontainers-go v0.0.0-20190108154635-47c0da630f72
