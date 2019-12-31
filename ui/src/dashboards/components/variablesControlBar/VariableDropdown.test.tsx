@@ -20,11 +20,6 @@ const values = {
 const setInitialState = (state: AppState) => {
   return {
     ...state,
-    orgs: [
-      {
-        id: '03cbdc8a53a63000',
-      },
-    ],
     variables: {
       status: 'Done',
       variables: {

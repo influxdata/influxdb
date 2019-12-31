@@ -9,7 +9,7 @@ import configureStore from 'src/store/configureStore'
 import {RemoteDataState, TimeZone, LocalStorage} from 'src/types'
 import {pastFifteenMinTimeRange} from './shared/constants/timeRanges'
 
-const localState: LocalStorage = {
+export const localState: LocalStorage = {
   app: {
     ephemeral: {
       inPresentationMode: false,
@@ -39,7 +39,11 @@ const localState: LocalStorage = {
       org: {name: 'org', id: 'orgid'},
       status: RemoteDataState.Done,
     },
-    members: null,
+    members: {
+      byID: {},
+      allIDs: [],
+      status: RemoteDataState.NotStarted,
+    },
   },
 }
 

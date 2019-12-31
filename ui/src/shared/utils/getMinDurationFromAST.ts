@@ -20,7 +20,7 @@ import {
 
 export function getMinDurationFromAST(ast: Package): number {
   // We can't take the minimum of durations of each range individually, since
-  // seperate ranges are potentially combined via an inner `join` call. So the
+  // separate ranges are potentially combined via an inner `join` call. So the
   // approach is to:
   //
   // 1. Find every possible `[start, stop]` combination for all start and stop
