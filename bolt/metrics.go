@@ -1,6 +1,7 @@
 package bolt
 
 import (
+	"encoding/json"
 	bolt "github.com/coreos/bbolt"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -10,13 +11,14 @@ var _ prometheus.Collector = (*Client)(nil)
 // available buckets
 // TODO: nuke this whole thing?
 var (
-	authorizationBucket = []byte("authorizationsv1")
-	bucketBucket        = []byte("bucketsv1")
-	dashboardBucket     = []byte("dashboardsv2")
-	organizationBucket  = []byte("organizationsv1")
-	scraperBucket       = []byte("scraperv2")
-	telegrafBucket      = []byte("telegrafv1")
-	userBucket          = []byte("usersv1")
+	authorizationBucket   = []byte("authorizationsv1")
+	bucketBucket          = []byte("bucketsv1")
+	dashboardBucket       = []byte("dashboardsv2")
+	organizationBucket    = []byte("organizationsv1")
+	scraperBucket         = []byte("scraperv2")
+	telegrafBucket        = []byte("telegrafv1")
+	telegrafPluginsBucket = []byte("telegrafPluginsv1")
+	userBucket            = []byte("usersv1")
 )
 
 var (
@@ -55,6 +57,11 @@ var (
 		"Number of total telegraf configurations on the server",
 		nil, nil)
 
+	telegrafPluginsDesc = prometheus.NewDesc(
+		"influxdb_telegraf_plugins_count",
+		"Number of individual telegraf plugins configured",
+		nil, nil)
+
 	boltWritesDesc = prometheus.NewDesc(
 		"boltdb_writes_total",
 		"Total number of boltdb writes",
@@ -75,6 +82,7 @@ func (c *Client) Describe(ch chan<- *prometheus.Desc) {
 	ch <- dashboardsDesc
 	ch <- scrapersDesc
 	ch <- telegrafsDesc
+	ch <- telegrafPluginsDesc
 	ch <- boltWritesDesc
 	ch <- boltReadsDesc
 }
@@ -99,6 +107,7 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 
 	orgs, buckets, users, tokens := 0, 0, 0, 0
 	dashboards, scrapers, telegrafs := 0, 0, 0
+	telegrafPlugins := map[string]float64{}
 	_ = c.db.View(func(tx *bolt.Tx) error {
 		buckets = tx.Bucket(bucketBucket).Stats().KeyN
 		dashboards = tx.Bucket(dashboardBucket).Stats().KeyN
@@ -107,7 +116,24 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 		telegrafs = tx.Bucket(telegrafBucket).Stats().KeyN
 		tokens = tx.Bucket(authorizationBucket).Stats().KeyN
 		users = tx.Bucket(userBucket).Stats().KeyN
-		return nil
+		err := tx.Bucket(telegrafPluginsBucket).ForEach(func(k, v []byte) error {
+			pStats := map[string]float64{}
+			err := json.Unmarshal(v, pStats)
+			if err != nil {
+				return err
+			}
+
+			for k, v := range pStats {
+				if _, ok := telegrafPlugins[k]; ok {
+					telegrafPlugins[k] += v
+				} else {
+					telegrafPlugins[k] = v
+				}
+			}
+
+			return nil
+		})
+		return err
 	})
 
 	ch <- prometheus.MustNewConstMetric(
@@ -151,4 +177,13 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 		prometheus.CounterValue,
 		float64(telegrafs),
 	)
+
+	for k, v := range telegrafPlugins {
+		ch <- prometheus.MustNewConstMetric(
+			telegrafPluginsDesc,
+			prometheus.GaugeValue,
+			v,
+			k,
+		)
+	}
 }
