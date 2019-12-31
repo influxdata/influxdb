@@ -1,6 +1,12 @@
 // Libraries
 import React, {FunctionComponent, useMemo} from 'react'
-import {Config, Table} from '@influxdata/giraffe'
+import {
+  Config,
+  Table,
+  DomainLabel,
+  lineTransform,
+  getDomainDataFromLines,
+} from '@influxdata/giraffe'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
@@ -76,17 +82,6 @@ const XYPlot: FunctionComponent<Props> = ({
 
   const columnKeys = table.columnKeys
 
-  const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
-    storedXDomain,
-    table.getColumn(xColumn, 'number'),
-    timeRange
-  )
-
-  const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
-    storedYDomain,
-    table.getColumn(yColumn, 'number')
-  )
-
   const isValidView =
     xColumn &&
     columnKeys.includes(xColumn) &&
@@ -105,6 +100,32 @@ const XYPlot: FunctionComponent<Props> = ({
   const interpolation = geomToInterpolation(geom)
 
   const groupKey = [...fluxGroupKeyUnion, 'result']
+
+  const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
+    storedXDomain,
+    table.getColumn(xColumn, 'number'),
+    timeRange
+  )
+
+  const memoizedYColumnData = useMemo(() => {
+    if (position === 'stacked') {
+      const {lineData} = lineTransform(
+        table,
+        xColumn,
+        yColumn,
+        groupKey,
+        colorHexes,
+        position
+      )
+      return getDomainDataFromLines(lineData, DomainLabel.Y)
+    }
+    return table.getColumn(yColumn, 'number')
+  }, [table, yColumn, position])
+
+  const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
+    storedYDomain,
+    memoizedYColumnData
+  )
 
   const legendColumns = filterNoisyColumns(
     [...groupKey, xColumn, yColumn],
