@@ -3,8 +3,7 @@
 ### Features
 
 1. [16234](https://github.com/influxdata/influxdb/pull/16234): Add support for notification endpoints to influx templates/pkgs.
-1. [16242](https://github.com/influxdata/influxdb/pull/16242): Drop id prefix for secret key requirement for notification
-   endpoints
+1. [16242](https://github.com/influxdata/influxdb/pull/16242): Drop id prefix for secret key requirement for notification endpoints
 1. [16259](https://github.com/influxdata/influxdb/pull/16259): Add support for check resource to pkger parser
 1. [16262](https://github.com/influxdata/influxdb/pull/16262): Add support for check resource pkger dry run functionality
 1. [16275](https://github.com/influxdata/influxdb/pull/16275): Add support for check resource pkger apply functionality
