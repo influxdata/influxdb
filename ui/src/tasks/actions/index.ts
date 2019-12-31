@@ -42,6 +42,7 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {AppState, Label, TaskTemplate, LogEvent, Run, Task} from 'src/types'
 import {RemoteDataState} from '@influxdata/clockface'
+import {Task as ITask} from 'src/client'
 
 // Utils
 import {getErrorMessage} from 'src/utils/api'
@@ -168,7 +169,7 @@ export interface UpdateTask {
   }
 }
 
-export const addDefaults = (task: Task): Task => {
+export const addDefaults = (task: ITask): Task => {
   return {
     ...task,
     labels: (task.labels || []).map(addLabelDefaults),
@@ -258,8 +259,7 @@ export const getTasks = () => async (
       throw new Error(resp.data.message)
     }
 
-    let tasks = resp.data.tasks as Task[]
-    tasks = tasks.map(task => addDefaults(task))
+    const tasks = resp.data.tasks.map(task => addDefaults(task))
 
     dispatch(setTasks(tasks))
     dispatch(setTasksStatus(RemoteDataState.Done))
@@ -282,7 +282,7 @@ export const addTaskLabelAsync = (taskID: string, label: Label) => async (
       throw new Error(resp.data.message)
     }
 
-    const task = addDefaults(resp.data as Task)
+    const task = addDefaults(resp.data)
 
     dispatch(updateTask(task))
   } catch (error) {
@@ -301,7 +301,7 @@ export const removeTaskLabelAsync = (taskID: string, label: Label) => async (
       throw new Error(resp.data.message)
     }
 
-    const task = addDefaults(resp.data as Task)
+    const task = addDefaults(resp.data)
 
     dispatch(updateTask(task))
   } catch (error) {
@@ -375,7 +375,7 @@ export const cloneTask = (task: Task, _) => async dispatch => {
       throw new Error(resp.data.message)
     }
 
-    const postData = addDefaults(resp.data as Task)
+    const postData = addDefaults(resp.data)
 
     const newTask = await apiPostTask({data: postData})
 
@@ -406,7 +406,7 @@ export const selectTaskByID = (id: string) => async (
       throw new Error(resp.data.message)
     }
 
-    const task = addDefaults(resp.data as Task)
+    const task = addDefaults(resp.data)
     dispatch(setCurrentTask(task))
   } catch (e) {
     console.error(e)
@@ -425,7 +425,7 @@ export const setAllTaskOptionsByID = (taskID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    const task = addDefaults(resp.data as Task)
+    const task = addDefaults(resp.data)
     dispatch(setAllTaskOptions(task))
   } catch (e) {
     console.error(e)
@@ -596,7 +596,7 @@ export const convertToTemplate = (taskID: string) => async (
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
-    const task = addDefaults(resp.data as Task)
+    const task = addDefaults(resp.data)
     const taskTemplate = taskToTemplate(task)
 
     dispatch(setExportTemplate(RemoteDataState.Done, taskTemplate))

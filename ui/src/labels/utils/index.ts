@@ -1,4 +1,5 @@
 import _ from 'lodash'
+import {Label as GenLabel} from 'src/client'
 import {Label} from 'src/types'
 
 import {HEX_CODE_CHAR_LENGTH, PRESET_LABEL_COLORS} from 'src/labels/constants/'
@@ -58,7 +59,7 @@ export const validateHexCode = (colorHex: string): string | null => {
 
 const DEFAULT_LABEL_COLOR = '#326BBA'
 
-export const addLabelDefaults = (l: Label): Label => ({
+export const addLabelDefaults = (l: GenLabel): Label => ({
   ...l,
   properties: {
     ...l.properties,

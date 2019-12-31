@@ -253,7 +253,7 @@ export const createTaskFromTemplate = async (
       throw new Error(postResp.data.message)
     }
 
-    const postedTask = addDefaults(postResp.data as Task)
+    const postedTask = addDefaults(postResp.data)
 
     // associate imported label.id with created label
     const labelMap = await createLabelsFromTemplate(template, orgID)
@@ -266,7 +266,7 @@ export const createTaskFromTemplate = async (
       throw new Error(resp.data.message)
     }
 
-    const task = addDefaults(resp.data as Task)
+    const task = addDefaults(resp.data)
 
     return task
   } catch (e) {
