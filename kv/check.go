@@ -323,7 +323,6 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.CheckCreate
 			}
 		}
 	}
-
 	// check name unique
 	if _, err := s.findCheckByName(ctx, tx, c.GetOrgID(), c.GetName()); err == nil {
 		if err == nil {
@@ -333,32 +332,25 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.CheckCreate
 			}
 		}
 	}
-
 	c.SetID(s.IDGenerator.ID())
 	c.SetOwnerID(userID)
 	now := s.Now()
 	c.SetCreatedAt(now)
 	c.SetUpdatedAt(now)
-
+	if err := c.Valid(); err != nil {
+		return err
+	}
 	t, err := s.createCheckTask(ctx, tx, c)
 	if err != nil {
 		return err
 	}
-
 	c.SetTaskID(t.ID)
-
-	if err := c.Valid(); err != nil {
-		return err
-	}
-
 	if err := c.Status.Valid(); err != nil {
 		return err
 	}
-
 	if err := s.putCheck(ctx, tx, c); err != nil {
 		return err
 	}
-
 	if err := s.createCheckUserResourceMappings(ctx, tx, c); err != nil {
 		return err
 	}

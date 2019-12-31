@@ -10,16 +10,20 @@ import {
   Action as QueryBuilderAction,
 } from 'src/timeMachine/actions/queryBuilder'
 import {setValues} from 'src/variables/actions'
+import {convertCheckToCustom} from 'src/alerting/actions/alertBuilder'
 
 // Selectors
 import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+import {getActiveQuery} from 'src/timeMachine/selectors'
 
 // Utils
 import {createView} from 'src/shared/utils/view'
+import {createCheckQueryFromAlertBuilder} from 'src/alerting/utils/customCheck'
 
 // Types
 import {TimeMachineState} from 'src/timeMachine/reducers'
 import {Action as QueryResultsAction} from 'src/timeMachine/actions/queries'
+import {Action as AlertBuilderAction} from 'src/alerting/actions/alertBuilder'
 import {
   TimeRange,
   ViewType,
@@ -31,10 +35,6 @@ import {
   TimeMachineTab,
   AutoRefresh,
   TimeMachineID,
-  Check,
-  CheckType,
-  Threshold,
-  CheckStatusLevel,
   XYViewProperties,
   GetState,
   RemoteDataState,
@@ -93,12 +93,6 @@ export type Action =
   | SetXAxisLabelAction
   | SetShadeBelowAction
   | ReturnType<typeof toggleVisOptions>
-  | ReturnType<typeof setCheckStatus>
-  | ReturnType<typeof setTimeMachineCheck>
-  | ReturnType<typeof updateTimeMachineCheck>
-  | ReturnType<typeof changeCheckType>
-  | ReturnType<typeof updateCheckThreshold>
-  | ReturnType<typeof removeCheckThreshold>
 
 type ExternalActions =
   | ReturnType<typeof loadBuckets>
@@ -650,39 +644,6 @@ export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
   payload: {xAxisLabel},
 })
 
-export const setCheckStatus = (checkStatus: RemoteDataState) => ({
-  type: 'SET_TIME_MACHINE_CHECK_STATUS' as 'SET_TIME_MACHINE_CHECK_STATUS',
-  payload: {checkStatus},
-})
-
-export const setTimeMachineCheck = (
-  checkStatus: RemoteDataState,
-  check: Partial<Check>
-) => ({
-  type: 'SET_TIME_MACHINE_CHECK' as 'SET_TIME_MACHINE_CHECK',
-  payload: {checkStatus, check},
-})
-
-export const updateTimeMachineCheck = (checkUpdate: Partial<Check>) => ({
-  type: 'UPDATE_TIME_MACHINE_CHECK' as 'UPDATE_TIME_MACHINE_CHECK',
-  payload: {checkUpdate},
-})
-
-export const changeCheckType = (toType: CheckType) => ({
-  type: 'CHANGE_TIME_MACHINE_CHECK_TYPE' as 'CHANGE_TIME_MACHINE_CHECK_TYPE',
-  payload: {toType},
-})
-
-export const updateCheckThreshold = (threshold: Threshold) => ({
-  type: 'UPDATE_CHECK_THRESHOLD' as 'UPDATE_CHECK_THRESHOLD',
-  payload: {threshold},
-})
-
-export const removeCheckThreshold = (level: CheckStatusLevel) => ({
-  type: 'REMOVE_CHECK_THRESHOLD' as 'REMOVE_CHECK_THRESHOLD',
-  payload: {level},
-})
-
 export const loadNewVEO = (dashboardID: string) => (
   dispatch: Dispatch<Action | ExternalActions>,
   getState: GetState
@@ -703,4 +664,27 @@ export const loadNewVEO = (dashboardID: string) => (
     dispatch(setValues('veo', RemoteDataState.Done, values))
   }
   // no need to refresh variable values since there is no query in a new view
+}
+
+export const loadCustomCheckQueryState = () => (
+  dispatch: Dispatch<Action | AlertBuilderAction>,
+  getState: GetState
+) => {
+  const state = getState()
+
+  const {alertBuilder} = state
+
+  const {builderConfig} = getActiveQuery(state)
+
+  dispatch(
+    setActiveQueryText(
+      createCheckQueryFromAlertBuilder(builderConfig, alertBuilder)
+    )
+  )
+
+  dispatch(setType('table'))
+
+  dispatch(convertCheckToCustom())
+
+  dispatch(setActiveTab('customCheckQuery'))
 }

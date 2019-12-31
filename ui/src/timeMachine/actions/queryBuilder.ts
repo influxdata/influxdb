@@ -16,6 +16,10 @@ import {
 } from 'src/types'
 import {Dispatch} from 'react'
 import {BuilderFunctionsType} from '@influxdata/influx'
+import {
+  Action as AlertBuilderAction,
+  setEvery,
+} from 'src/alerting/actions/alertBuilder'
 
 export type Action =
   | ReturnType<typeof setBuilderAggregateFunctionType>
@@ -31,7 +35,7 @@ export type Action =
   | ReturnType<typeof addTagSelectorSync>
   | ReturnType<typeof removeTagSelectorSync>
   | ReturnType<typeof setFunctions>
-  | ReturnType<typeof selectAggregateWindow>
+  | ReturnType<typeof setAggregateWindow>
   | ReturnType<typeof setValuesSearchTerm>
   | ReturnType<typeof setKeysSearchTerm>
   | ReturnType<typeof setBuilderTagsStatus>
@@ -108,8 +112,8 @@ export const setFunctions = (functions: BuilderFunctionsType[]) => ({
   payload: {functions},
 })
 
-export const selectAggregateWindow = (period: string) => ({
-  type: 'SELECT_AGGREGATE_WINDOW' as 'SELECT_AGGREGATE_WINDOW',
+export const setAggregateWindow = (period: string) => ({
+  type: 'SET_AGGREGATE_WINDOW' as 'SET_AGGREGATE_WINDOW',
   payload: {period},
 })
 
@@ -122,6 +126,13 @@ export const setKeysSearchTerm = (index: number, searchTerm: string) => ({
   type: 'SET_BUILDER_KEYS_SEARCH_TERM' as 'SET_BUILDER_KEYS_SEARCH_TERM',
   payload: {index, searchTerm},
 })
+
+export const selectAggregateWindow = (period: string) => (
+  dispatch: Dispatch<Action | AlertBuilderAction>
+) => {
+  dispatch(setAggregateWindow(period))
+  dispatch(setEvery(period))
+}
 
 export const loadBuckets = () => async (
   dispatch: Dispatch<Action | ReturnType<typeof selectBucket>>,

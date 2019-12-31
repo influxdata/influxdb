@@ -76,10 +76,12 @@ const CheckHistory: FC<Props> = ({
                 className="alert-history-page--contents"
               >
                 <div className="alert-history-contents">
-                  <CheckHistoryVisualization
-                    check={check}
-                    timeZone={timeZone}
-                  />
+                  {check.type !== 'custom' && (
+                    <CheckHistoryVisualization
+                      check={check}
+                      timeZone={timeZone}
+                    />
+                  )}
                   <div className="alert-history">
                     <EventTable {...props} fields={fields} />
                   </div>
