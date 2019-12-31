@@ -23,9 +23,8 @@ else
 	VERSION := $(shell git describe --exact-match --tags 2>/dev/null)
 endif
 COMMIT := $(shell git rev-parse --short HEAD)
-DATE := $(shell date --utc +%FT%TZ)
 
-LDFLAGS := $(LDFLAGS) -X main.commit=$(COMMIT) -X main.date=$(DATE)
+LDFLAGS := $(LDFLAGS) -X main.commit=$(COMMIT)
 ifdef VERSION
 	LDFLAGS += -X main.version=$(VERSION)
 endif
