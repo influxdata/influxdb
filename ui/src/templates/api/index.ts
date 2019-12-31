@@ -15,7 +15,6 @@ import {client} from 'src/utils/api'
 
 // Utils
 import {
-  addDefaults,
   findIncludedsFromRelationships,
   findLabelsToCreate,
   findIncludedFromRelationship,
@@ -24,9 +23,13 @@ import {
   hasLabelsRelationships,
   getLabelRelationships,
 } from 'src/templates/utils/'
-
+import {addDefaults} from 'src/tasks/actions'
 // API
-import {getTask, postTask, postTasksLabel} from 'src/client'
+import {
+  getTask as apiGetTask,
+  postTask as apiPostTask,
+  postTasksLabel as apiPostTasksLabel,
+} from 'src/client'
 // Create Dashboard Templates
 
 export const createDashboardFromTemplate = async (
@@ -244,7 +247,7 @@ export const createTaskFromTemplate = async (
 
     const flux = content.data.attributes.flux
 
-    const postResp = await postTask({data: {orgID, flux}})
+    const postResp = await apiPostTask({data: {orgID, flux}})
 
     if (postResp.status !== 201) {
       throw new Error(postResp.data.message)
@@ -257,7 +260,7 @@ export const createTaskFromTemplate = async (
 
     await addTaskLabelsFromTemplate(template, labelMap, postedTask)
 
-    const resp = await getTask({taskID: postedTask.id})
+    const resp = await apiGetTask({taskID: postedTask.id})
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
@@ -278,7 +281,7 @@ const addTaskLabelsFromTemplate = async (
 ) => {
   const relationships = getLabelRelationships(template.content.data)
   const [labelID] = relationships.map(l => labelMap[l.id] || '')
-  await postTasksLabel({taskID: task.id, data: {labelID}})
+  await apiPostTasksLabel({taskID: task.id, data: {labelID}})
 }
 
 export const createVariableFromTemplate = async (

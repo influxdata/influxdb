@@ -36,7 +36,7 @@ import {
 } from 'src/cloud/actions/limits'
 
 // Types
-import {AppState, Task, TaskStatus, RemoteDataState} from 'src/types'
+import {AppState, Task, RemoteDataState} from 'src/types'
 import {InjectedRouter, WithRouterProps} from 'react-router'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
@@ -246,7 +246,7 @@ class TasksPage extends PureComponent<Props, State> {
     const matchingTasks = tasks.filter(t => {
       let activeFilter = true
       if (!showInactive) {
-        activeFilter = t.status === TaskStatus.Active
+        activeFilter = t.status === 'active'
       }
 
       return activeFilter
@@ -262,8 +262,7 @@ class TasksPage extends PureComponent<Props, State> {
   private get hiddenTaskAlert(): JSX.Element {
     const {showInactive, tasks} = this.props
 
-    const hiddenCount = tasks.filter(t => t.status === TaskStatus.Inactive)
-      .length
+    const hiddenCount = tasks.filter(t => t.status === 'inactive').length
 
     const allTasksAreHidden = hiddenCount === tasks.length
 

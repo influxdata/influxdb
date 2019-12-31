@@ -36,7 +36,7 @@ interface Props {
   onRemoveTaskLabel: typeof removeTaskLabelAsync
   onAddTaskLabel: typeof addTaskLabelAsync
   onRunTask: typeof runTask
-  onUpdate: (task: Task) => void
+  onUpdate: (name: string, taskID: string) => void
   filterComponent?: JSX.Element
   onImportTask: () => void
   sortKey: string

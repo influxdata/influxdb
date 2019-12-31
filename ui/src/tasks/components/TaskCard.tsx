@@ -26,7 +26,7 @@ import {viewableLabels} from 'src/labels/selectors'
 // Types
 import {ComponentColor} from '@influxdata/clockface'
 import {ILabel} from '@influxdata/influx'
-import {AppState, TaskStatus, Task} from 'src/types'
+import {AppState, Task} from 'src/types'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
@@ -38,7 +38,7 @@ interface PassedProps {
   onSelect: (task: Task) => void
   onClone: (task: Task) => void
   onRunTask: (taskID: string) => void
-  onUpdate: (task: Task) => void
+  onUpdate: (name: string, taskID: string) => void
   onFilterChange: (searchTerm: string) => void
 }
 
@@ -153,8 +153,11 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleRenameTask = (name: string) => {
-    const {onUpdate, task} = this.props
-    onUpdate({...task, name})
+    const {
+      onUpdate,
+      task: {id},
+    } = this.props
+    onUpdate(name, id)
   }
 
   private handleExport = () => {
@@ -199,7 +202,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
   private get isTaskActive(): boolean {
     const {task} = this.props
-    if (task.status === TaskStatus.Active) {
+    if (task.status === 'active') {
       return true
     }
     return false
@@ -207,10 +210,10 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
   private changeToggle = () => {
     const {task, onActivate} = this.props
-    if (task.status === TaskStatus.Active) {
-      task.status = TaskStatus.Inactive
+    if (task.status === 'active') {
+      task.status = 'inactive'
     } else {
-      task.status = TaskStatus.Active
+      task.status = 'active'
     }
     onActivate(task)
   }
