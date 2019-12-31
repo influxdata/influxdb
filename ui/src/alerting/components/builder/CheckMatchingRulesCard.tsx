@@ -15,7 +15,7 @@ import {
 } from '@influxdata/clockface'
 
 // API
-import {getNotificationRules} from 'src/client'
+import {getNotificationRules as apiGetNotificationRules} from 'src/client'
 
 //Types
 import {NotificationRule, AppState, CheckTagSet} from 'src/types'
@@ -61,7 +61,7 @@ const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
       `${t[0].trim()}:${t[1].trim()}`,
     ])
 
-    const resp = await getNotificationRules({
+    const resp = await apiGetNotificationRules({
       query: [['orgID', orgID], ...tagsList] as any,
     })
 
