@@ -12,10 +12,8 @@ import {getLogs} from 'src/tasks/actions'
 
 // Types
 import {ComponentSize, ComponentColor, Button} from '@influxdata/clockface'
-import {LogEvent} from '@influxdata/influx'
-import {AppState} from 'src/types'
+import {AppState, LogEvent, Run} from 'src/types'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
-import {Run} from 'src/tasks/components/TaskRunsPage'
 
 interface OwnProps {
   taskID: string
@@ -71,7 +69,7 @@ class TaskRunsRow extends PureComponent<Props, State> {
     )
   }
 
-  private dateTimeString(dt: Date): string {
+  private dateTimeString(dt: string): string {
     if (!dt) {
       return ''
     }
