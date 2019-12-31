@@ -10,12 +10,15 @@ import (
 )
 
 func TestIndexStore(t *testing.T) {
-	newStoreBase := func(resource string, bktName []byte, encKeyFn, encBodyFn kv.EncodeEntFn, decFn kv.DecodeBucketEntFn, decToEntFn kv.DecodedValToEntFn) *kv.StoreBase {
+	newStoreBase := func(resource string, bktName []byte, encKeyFn, encBodyFn kv.EncodeEntFn, decFn kv.DecodeBucketValFn, decToEntFn kv.ConvertValToEntFn) *kv.StoreBase {
 		return kv.NewStoreBase(resource, bktName, encKeyFn, encBodyFn, decFn, decToEntFn)
 	}
 
-	newFooIndexStore := func(t *testing.T, bktSuffix string) (*kv.IndexStore, kv.Store) {
-		inmemStore, _, _ := NewTestInmemStore(t)
+	newFooIndexStore := func(t *testing.T, bktSuffix string) (*kv.IndexStore, func(), kv.Store) {
+		t.Helper()
+
+		inmemStore, done, err := NewTestBoltStore(t)
+		require.NoError(t, err)
 
 		const resource = "foo"
 
@@ -25,15 +28,16 @@ func TestIndexStore(t *testing.T) {
 			IndexStore: kv.NewOrgNameKeyStore(resource, []byte("foo_idx_"+bktSuffix), false),
 		}
 
-		return indexStore, inmemStore
+		return indexStore, done, inmemStore
 	}
 
 	t.Run("Put", func(t *testing.T) {
-		indexStore, inmem := newFooIndexStore(t, "put")
+		indexStore, done, inmem := newFooIndexStore(t, "put")
+		defer done()
 
 		expected := testPutBase(t, inmem, indexStore, indexStore.EntStore.BktName)
 
-		key, _, err := indexStore.IndexStore.EncodeEntKeyFn(kv.Entity{
+		key, err := indexStore.IndexStore.EntKey(context.TODO(), kv.Entity{
 			OrgID: expected.OrgID,
 			Name:  expected.Name,
 		})
@@ -44,7 +48,8 @@ func TestIndexStore(t *testing.T) {
 	})
 
 	t.Run("DeleteEnt", func(t *testing.T) {
-		indexStore, inmem := newFooIndexStore(t, "delete_ent")
+		indexStore, done, inmem := newFooIndexStore(t, "delete_ent")
+		defer done()
 
 		expected := testDeleteEntBase(t, inmem, indexStore)
 
@@ -59,7 +64,7 @@ func TestIndexStore(t *testing.T) {
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		fn := func(t *testing.T, suffix string) (storeBase, kv.Store) {
+		fn := func(t *testing.T, suffix string) (storeBase, func(), kv.Store) {
 			return newFooIndexStore(t, suffix)
 		}
 
@@ -89,12 +94,15 @@ func TestIndexStore(t *testing.T) {
 
 	t.Run("FindEnt", func(t *testing.T) {
 		t.Run("by ID", func(t *testing.T) {
-			base, inmemStore := newFooIndexStore(t, "find_ent")
+			base, done, inmemStore := newFooIndexStore(t, "find_ent")
+			defer done()
 			testFindEnt(t, inmemStore, base)
 		})
 
 		t.Run("find by name", func(t *testing.T) {
-			base, kvStore := newFooIndexStore(t, "find_ent")
+			base, done, kvStore := newFooIndexStore(t, "find_ent")
+			defer done()
+
 			expected := newFooEnt(1, 9000, "foo_1")
 			seedEnts(t, kvStore, base, expected)
 
@@ -114,15 +122,48 @@ func TestIndexStore(t *testing.T) {
 
 	t.Run("Find", func(t *testing.T) {
 		t.Run("base", func(t *testing.T) {
-			fn := func(t *testing.T, suffix string) (storeBase, kv.Store) {
+			fn := func(t *testing.T, suffix string) (storeBase, func(), kv.Store) {
 				return newFooIndexStore(t, suffix)
 			}
 
 			testFind(t, fn)
 		})
 
+		t.Run("with entity filter", func(t *testing.T) {
+			base, done, kvStore := newFooIndexStore(t, "find_index_search")
+			defer done()
+
+			expectedEnts := []kv.Entity{
+				newFooEnt(1, 9000, "foo_0"),
+				newFooEnt(2, 9001, "foo_1"),
+				newFooEnt(3, 9003, "foo_2"),
+			}
+
+			seedEnts(t, kvStore, base, expectedEnts...)
+
+			var actuals []interface{}
+			view(t, kvStore, func(tx kv.Tx) error {
+				return base.Find(context.TODO(), tx, kv.FindOpts{
+					FilterEntFn: func(key []byte, decodedVal interface{}) bool {
+						return decodedVal.(foo).ID < 3
+					},
+					CaptureFn: func(key []byte, decodedVal interface{}) error {
+						actuals = append(actuals, decodedVal)
+						return nil
+					},
+				})
+			})
+
+			expected := []interface{}{
+				expectedEnts[0].Body,
+				expectedEnts[1].Body,
+			}
+			assert.Equal(t, expected, actuals)
+		})
+
 		t.Run("lookup via orgID", func(t *testing.T) {
-			base, kvStore := newFooIndexStore(t, "find_index_search")
+			base, done, kvStore := newFooIndexStore(t, "find_index_search")
+			defer done()
 
 			expectedEnts := []kv.Entity{
 				newFooEnt(1, 9000, "foo_0"),

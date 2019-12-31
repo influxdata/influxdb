@@ -74,7 +74,9 @@ func (s *IndexStore) DeleteEnt(ctx context.Context, tx Tx, ent Entity) error {
 }
 
 // Find provides a mechanism for looking through the bucket via
-// the set options.
+// the set options. When a prefix is provided, the prefix is used with
+// the index, and not the entity bucket. If you wish to look at the entity
+// bucket and seek, then nest into the EntStore here and do that instead.
 func (s *IndexStore) Find(ctx context.Context, tx Tx, opts FindOpts) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
@@ -84,8 +86,8 @@ func (s *IndexStore) Find(ctx context.Context, tx Tx, opts FindOpts) error {
 	}
 
 	entCaptureFn := opts.CaptureFn
-	kvStream, filterFn := s.indexFilterStream(ctx, tx, opts.FilterFn)
-	opts.FilterFn = filterFn
+	kvStream, filterFn := s.indexFilterStream(ctx, tx, opts.FilterEntFn)
+	opts.FilterEntFn = filterFn
 	opts.CaptureFn = func(key []byte, indexVal interface{}) error {
 		select {
 		case <-ctx.Done():
@@ -93,6 +95,9 @@ func (s *IndexStore) Find(ctx context.Context, tx Tx, opts FindOpts) error {
 		case fromFilter, ok := <-kvStream:
 			if !ok {
 				return nil
+			}
+			if fromFilter.err != nil {
+				return fromFilter.err
 			}
 			return entCaptureFn(fromFilter.k, fromFilter.v)
 		}
@@ -102,48 +107,63 @@ func (s *IndexStore) Find(ctx context.Context, tx Tx, opts FindOpts) error {
 }
 
 func (s *IndexStore) indexFilterStream(ctx context.Context, tx Tx, entFilterFn FilterFn) (<-chan struct {
-	k []byte
-	v interface{}
+	k   []byte
+	v   interface{}
+	err error
 }, func([]byte, interface{}) bool) {
 	kvStream := make(chan struct {
-		k []byte
-		v interface{}
+		k   []byte
+		v   interface{}
+		err error
 	}, 1)
+
+	type kve struct {
+		k   []byte
+		v   interface{}
+		err error
+	}
+
+	send := func(key []byte, v interface{}, err error) bool {
+		select {
+		case <-ctx.Done():
+		case kvStream <- kve{
+			k:   key,
+			v:   v,
+			err: err,
+		}:
+		}
+		return true
+	}
 
 	return kvStream, func(key []byte, indexVal interface{}) (isValid bool) {
 		defer func() {
-			if !isValid && kvStream != nil {
+			if !isValid {
 				close(kvStream)
 			}
-			kvStream = nil
 		}()
 		ent, err := s.IndexStore.DecodeToEntFn(key, indexVal)
 		if err != nil {
-			return false
+			return send(nil, nil, err)
 		}
 
 		entVal, err := s.EntStore.FindEnt(ctx, tx, ent)
 		if err != nil {
-			return false
+			return send(nil, nil, err)
 		}
 
-		entKey, err := s.EntStore.encodeEnt(ctx, ent, s.EntStore.EncodeEntKeyFn)
+		entKey, err := s.EntStore.EntKey(ctx, ent)
 		if err != nil {
-			return false
+			return send(nil, nil, err)
 		}
 
-		matches := entFilterFn(entKey, entVal)
-		if matches {
-			select {
-			case <-ctx.Done():
-				return false
-			case kvStream <- struct {
-				k []byte
-				v interface{}
-			}{k: entKey, v: entVal}:
-			}
+		if entFilterFn == nil {
+			return send(entKey, entVal, nil)
 		}
-		return matches
+
+		if matches := entFilterFn(entKey, entVal); matches {
+			return send(entKey, entVal, nil)
+		}
+		return false
 	}
 }
 
@@ -168,7 +188,7 @@ func (s *IndexStore) FindEnt(ctx context.Context, tx Tx, ent Entity) (interface{
 	return s.EntStore.FindEnt(ctx, tx, ent)
 }
 
-// Put will put the entity into both the entity store and the index store.
+// Put will persist the entity into both the entity store and the index store.
 func (s *IndexStore) Put(ctx context.Context, tx Tx, ent Entity) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
@@ -188,7 +208,12 @@ func (s *IndexStore) findByIndex(ctx context.Context, tx Tx, ent Entity) (interf
 		return nil, err
 	}
 
-	indexEnt, err := s.IndexStore.DecodeToEntFn([]byte{}, idxEncodedID)
+	indexKey, err := s.IndexStore.EntKey(ctx, ent)
+	if err != nil {
+		return nil, err
+	}
+
+	indexEnt, err := s.IndexStore.DecodeToEntFn(indexKey, idxEncodedID)
 	if err != nil {
 		return nil, err
 	}

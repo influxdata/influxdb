@@ -37,6 +37,7 @@ type Service struct {
 	influxdb.TimeGenerator
 	Hash Crypt
 
+	checkStore    *IndexStore
 	endpointStore *IndexStore
 	variableStore *IndexStore
 }
@@ -52,8 +53,9 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		Hash:           &Bcrypt{},
 		kv:             kv,
 		TimeGenerator:  influxdb.RealTimeGenerator{},
+		checkStore:     newCheckStore(),
 		endpointStore:  newEndpointStore(),
-		variableStore:  newVariableUniqueByNameStore(),
+		variableStore:  newVariableStore(),
 	}
 
 	if len(configs) > 0 {
@@ -151,8 +153,9 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
-		if err := s.initializeChecks(ctx, tx); err != nil {
+		if err := s.checkStore.Init(ctx, tx); err != nil {
 			return err
+
 		}
 
 		if err := s.initializeNotificationRule(ctx, tx); err != nil {
