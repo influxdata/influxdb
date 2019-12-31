@@ -1,5 +1,5 @@
 // Libraries
-import _ from 'lodash'
+import {get} from 'lodash'
 import {normalize, NormalizedSchema} from 'normalizr'
 
 // API
@@ -21,44 +21,39 @@ import {
   memberRemoveFailed,
 } from 'src/shared/copy/notifications'
 
-export type Action = ReturnType<typeof setMembers>
-// | AddMember
-// | RemoveMember
-// | NotifyAction
+export type Action =
+  | ReturnType<typeof setMembers>
+  | ReturnType<typeof addMember>
+  | ReturnType<typeof removeMember>
+  | NotifyAction
 
 export const SET_MEMBERS = 'SET_MEMBERS'
+export const ADD_MEMBER = 'ADD_MEMBER'
+export const REMOVE_MEMBER = 'REMOVE_MEMBER'
 
 export const setMembers = (
   status: RemoteDataState,
-  normalized?: NormalizedSchema<schemas.MemberEntities, string[]>
+  schema?: NormalizedSchema<schemas.MemberEntities, string[]>
 ) =>
   ({
     type: SET_MEMBERS,
     status,
-    normalized,
+    schema,
   } as const)
 
-interface AddMember {
-  type: 'ADD_MEMBER'
-  payload: {
-    member: Member
-  }
-}
+export const addMember = (
+  schema: NormalizedSchema<schemas.MemberEntities, string>
+) =>
+  ({
+    type: ADD_MEMBER,
+    schema,
+  } as const)
 
-export const addMember = (member: Member): AddMember => ({
-  type: 'ADD_MEMBER',
-  payload: {member},
-})
-
-interface RemoveMember {
-  type: 'REMOVE_MEMBER'
-  payload: {id: string}
-}
-
-export const removeMember = (id: string): RemoveMember => ({
-  type: 'REMOVE_MEMBER',
-  payload: {id},
-})
+export const removeMember = (id: string) =>
+  ({
+    type: REMOVE_MEMBER,
+    id,
+  } as const)
 
 export const getMembers = () => async (
   dispatch: Dispatch<Action>,
@@ -91,7 +86,7 @@ export const getMembers = () => async (
 
     const allMembers = [...owners, ...members]
 
-    const normalized = normalize<any, schemas.MemberEntities, string[]>(
+    const normalized = normalize<Member, schemas.MemberEntities, string[]>(
       allMembers,
       [schemas.members]
     )
@@ -103,7 +98,7 @@ export const getMembers = () => async (
   }
 }
 
-export const addNewMember = (member: AddResourceMemberRequestBody) => async (
+export const addNewMember = (data: AddResourceMemberRequestBody) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -114,19 +109,23 @@ export const addNewMember = (member: AddResourceMemberRequestBody) => async (
       },
     } = getState()
 
-    const resp = await api.postOrgsMember({orgID: id, data: member})
+    const resp = await api.postOrgsMember({orgID: id, data})
 
     if (resp.status !== 201) {
       throw new Error(resp.data.message)
     }
 
     const newMember = resp.data
+    const member = normalize<Member, schemas.MemberEntities, string>(
+      newMember,
+      schemas.members
+    )
 
-    dispatch(addMember(newMember))
-    dispatch(notify(memberAddSuccess(member.name)))
+    dispatch(addMember(member))
+    dispatch(notify(memberAddSuccess(newMember.name)))
   } catch (e) {
     console.error(e)
-    const message = _.get(e, 'response.data.message', 'Unknown error')
+    const message = get(e, 'response.data.message', 'Unknown error')
     dispatch(notify(memberAddFailed(message)))
     throw e
   }
