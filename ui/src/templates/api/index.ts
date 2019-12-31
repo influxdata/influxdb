@@ -9,7 +9,6 @@ import {
   TemplateBase,
   Task,
   VariableTemplate,
-  Label,
 } from 'src/types'
 import {IDashboard, Cell} from '@influxdata/influx'
 import {client} from 'src/utils/api'
@@ -117,7 +116,7 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
     throw new Error(resp.data.message)
   }
 
-  const existingLabels = resp.data.labels.map(l => addLabelDefaults(l as Label))
+  const existingLabels = resp.data.labels.map(l => addLabelDefaults(l))
 
   const foundLabelsToCreate = findLabelsToCreate(
     existingLabels,

@@ -8,9 +8,7 @@ import {
 
 // Types
 import {Dispatch} from 'react'
-import {RemoteDataState, AppThunk} from 'src/types'
-import {ILabelProperties} from '@influxdata/influx'
-import {LabelProperties} from 'src/types/labels'
+import {RemoteDataState, AppThunk, LabelProperties} from 'src/types'
 
 // Actions
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
@@ -96,7 +94,7 @@ export const getLabels = () => async (
       throw new Error(resp.data.message)
     }
 
-    const labels = resp.data.labels.map(l => addLabelDefaults(l as Label))
+    const labels = resp.data.labels.map(l => addLabelDefaults(l))
 
     dispatch(setLabels(RemoteDataState.Done, labels))
   } catch (e) {
@@ -122,7 +120,7 @@ export const createLabel = (
       data: {
         orgID: org.id,
         name,
-        properties: properties as ILabelProperties,
+        properties,
       },
     })
 
@@ -130,7 +128,7 @@ export const createLabel = (
       throw new Error(resp.data.message)
     }
 
-    const createdLabel = addLabelDefaults(resp.data.label as Label)
+    const createdLabel = addLabelDefaults(resp.data.label)
 
     dispatch(addLabel(createdLabel))
   } catch (e) {
@@ -149,7 +147,7 @@ export const updateLabel = (id: string, l: Label) => async (
       throw new Error(resp.data.message)
     }
 
-    const label = addLabelDefaults(resp.data.label as Label)
+    const label = addLabelDefaults(resp.data.label)
 
     dispatch(editLabel(label))
   } catch (e) {

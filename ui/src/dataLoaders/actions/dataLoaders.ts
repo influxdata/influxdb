@@ -31,7 +31,7 @@ import {
   BundleName,
   ConfigurationState,
 } from 'src/types/dataLoaders'
-import {AppState, Label, RemoteDataState} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 import {
   WritePrecision,
   TelegrafRequest,
@@ -464,7 +464,7 @@ const createTelegraf = async (dispatch, getState, plugins) => {
       throw new Error(resp.data.message)
     }
 
-    const createdLabel = addLabelDefaults(resp.data.label as Label)
+    const createdLabel = addLabelDefaults(resp.data.label)
 
     // add label to telegraf config
     const label = await client.telegrafConfigs.addLabel(tc.id, createdLabel)
