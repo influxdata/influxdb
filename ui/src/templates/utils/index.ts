@@ -6,7 +6,7 @@ import {
   LabelRelationship,
 } from 'src/types'
 import {IVariable as Variable} from '@influxdata/influx'
-import {Task, Label} from 'src/types'
+import {Label} from 'src/types'
 
 export function findIncludedsFromRelationships<
   T extends {id: string; type: TemplateType}

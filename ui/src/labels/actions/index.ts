@@ -1,8 +1,8 @@
 // API
 import {
   getLabels as apiGetLabels,
-  postLabel,
-  patchLabel,
+  postLabel as apiPostLabel,
+  patchLabel as apiPatchLabel,
   deleteLabel as apiDeleteLabel,
 } from 'src/client'
 
@@ -118,7 +118,7 @@ export const createLabel = (
   } = getState()
 
   try {
-    const resp = await postLabel({
+    const resp = await apiPostLabel({
       data: {
         orgID: org.id,
         name,
@@ -143,7 +143,7 @@ export const updateLabel = (id: string, l: Label) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    const resp = await patchLabel({labelID: id, data: l})
+    const resp = await apiPatchLabel({labelID: id, data: l})
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)

@@ -25,7 +25,7 @@ import {viewableLabels} from 'src/labels/selectors'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {AppState, TaskStatus, Task, Label} from 'src/types'
+import {AppState, Task, Label} from 'src/types'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'

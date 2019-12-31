@@ -9,7 +9,7 @@ import {
   ILabelProperties,
 } from '@influxdata/influx'
 import {createAuthorization} from 'src/authorizations/apis'
-import {postWrite, postLabel} from 'src/client'
+import {postWrite as apiPostWrite, postLabel as apiPostLabel} from 'src/client'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
@@ -452,7 +452,7 @@ const createTelegraf = async (dispatch, getState, plugins) => {
       tokenID: createdToken.id,
     } as ILabelProperties // hack to make compiler work
 
-    const resp = await postLabel({
+    const resp = await apiPostLabel({
       data: {
         orgID: org.id,
         name: `@influxdata.token-${new Date().getTime()}`, // fix for https://github.com/influxdata/influxdb/issues/15730
@@ -562,7 +562,10 @@ export const writeLineProtocolAction = (
   try {
     dispatch(setLPStatus(RemoteDataState.Loading))
 
-    const resp = await postWrite({data: body, query: {org, bucket, precision}})
+    const resp = await apiPostWrite({
+      data: body,
+      query: {org, bucket, precision},
+    })
 
     if (resp.status === 204) {
       dispatch(setLPStatus(RemoteDataState.Done))

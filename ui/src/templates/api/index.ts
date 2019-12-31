@@ -31,8 +31,8 @@ import {
   getTask as apiGetTask,
   postTask as apiPostTask,
   postTasksLabel as apiPostTasksLabel,
-  getLabels,
-  postLabel,
+  getLabels as apiGetLabels,
+  postLabel as apiPostLabel,
 } from 'src/client'
 // Create Dashboard Templates
 
@@ -111,7 +111,7 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
     labelRelationships
   )
 
-  const resp = await getLabels({query: {orgID}})
+  const resp = await apiGetLabels({query: {orgID}})
 
   if (resp.status !== 200) {
     throw new Error(resp.data.message)
@@ -129,7 +129,7 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
   }))
 
   const promisedLabels = foundLabelsToCreate.map(async lab => {
-    return postLabel({
+    return apiPostLabel({
       data: lab,
     })
       .then(res => get(res, 'res.data.label', ''))
