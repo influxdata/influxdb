@@ -12,27 +12,29 @@ import {
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 
 // Actions & Selectors
-import {updateTimeMachineCheck} from 'src/timeMachine/actions'
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {setStatusMessageTemplate} from 'src/alerting/actions/alertBuilder'
 
 // Types
-import {Check, AppState} from 'src/types'
+import {AppState} from 'src/types'
 
 interface DispatchProps {
-  onUpdateTimeMachineCheck: typeof updateTimeMachineCheck
+  onSetStatusMessageTemplate: typeof setStatusMessageTemplate
 }
 
 interface StateProps {
-  check: Partial<Check>
+  statusMessageTemplate: string
 }
 
 type Props = DispatchProps & StateProps
 
-const CheckMessageCard: FC<Props> = ({check, onUpdateTimeMachineCheck}) => {
+const CheckMessageCard: FC<Props> = ({
+  statusMessageTemplate,
+  onSetStatusMessageTemplate,
+}) => {
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    onUpdateTimeMachineCheck({[e.target.name]: e.target.value})
+    onSetStatusMessageTemplate(e.target.value)
   }
 
   return (
@@ -56,7 +58,7 @@ const CheckMessageCard: FC<Props> = ({check, onUpdateTimeMachineCheck}) => {
           size={ComponentSize.Medium}
           spellCheck={false}
           testID="status-message-textarea"
-          value={check.statusMessageTemplate}
+          value={statusMessageTemplate}
           wrap={Wrap.Soft}
           placeholder="This template what this Check will use to write status messages"
         />
@@ -89,16 +91,14 @@ const CheckMessageCard: FC<Props> = ({check, onUpdateTimeMachineCheck}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
-  const {
-    alerting: {check},
-  } = getActiveTimeMachine(state)
-
-  return {check}
-}
+const mstp = ({
+  alertBuilder: {statusMessageTemplate},
+}: AppState): StateProps => ({
+  statusMessageTemplate,
+})
 
 const mdtp: DispatchProps = {
-  onUpdateTimeMachineCheck: updateTimeMachineCheck,
+  onSetStatusMessageTemplate: setStatusMessageTemplate,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

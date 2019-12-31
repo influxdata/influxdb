@@ -49,13 +49,16 @@ export const getIsInCheckOverlay = (state: AppState): boolean => {
 }
 
 export const getTimeRange = (state: AppState): TimeRange => {
-  const {alerting, timeRange} = getActiveTimeMachine(state)
+  const {timeRange} = getActiveTimeMachine(state)
+  const {
+    alertBuilder: {every},
+  } = state
 
   if (!getIsInCheckOverlay(state)) {
     return timeRange
   }
 
-  return getCheckVisTimeRange(alerting.check.every)
+  return getCheckVisTimeRange(every)
 }
 
 export const getActiveQuery = (state: AppState): DashboardDraftQuery => {

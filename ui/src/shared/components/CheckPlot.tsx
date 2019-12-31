@@ -22,22 +22,24 @@ import {
   RemoteDataState,
   CheckViewProperties,
   TimeZone,
-  Check,
+  CheckType,
   StatusRow,
+  Threshold,
 } from 'src/types'
-import {updateTimeMachineCheck} from 'src/timeMachine/actions'
 import {useCheckYDomain} from 'src/alerting/utils/vis'
+import {updateThresholds} from 'src/alerting/actions/alertBuilder'
 
 const X_COLUMN = '_time'
 const Y_COLUMN = '_value'
 
 interface DispatchProps {
-  updateTimeMachineCheck: typeof updateTimeMachineCheck
+  onUpdateThresholds: typeof updateThresholds
 }
 
 interface OwnProps {
   table: Table
-  check: Partial<Check>
+  checkType: CheckType
+  thresholds: Threshold[]
   fluxGroupKeyUnion: string[]
   loading: RemoteDataState
   timeZone: TimeZone
@@ -49,18 +51,17 @@ interface OwnProps {
 type Props = OwnProps & DispatchProps
 
 const CheckPlot: FunctionComponent<Props> = ({
-  updateTimeMachineCheck,
   table,
-  check,
   fluxGroupKeyUnion,
   loading,
   children,
   timeZone,
   statuses,
+  checkType,
+  thresholds,
+  onUpdateThresholds,
   viewProperties: {colors},
 }) => {
-  const thresholds = check && check.type === 'threshold' ? check.thresholds : []
-
   const [yDomain, onSetYDomain, onResetYDomain] = useCheckYDomain(
     table.getColumn(Y_COLUMN, 'number'),
     thresholds
@@ -125,8 +126,8 @@ const CheckPlot: FunctionComponent<Props> = ({
         render: ({yScale, yDomain}) => (
           <ThresholdMarkers
             key="thresholds"
-            thresholds={thresholds || []}
-            onSetThresholds={thresholds => updateTimeMachineCheck({thresholds})}
+            thresholds={checkType === 'threshold' ? thresholds : []}
+            onSetThresholds={onUpdateThresholds}
             yScale={yScale}
             yDomain={yDomain}
           />
@@ -156,7 +157,7 @@ const CheckPlot: FunctionComponent<Props> = ({
 }
 
 const mdtp: DispatchProps = {
-  updateTimeMachineCheck: updateTimeMachineCheck,
+  onUpdateThresholds: updateThresholds,
 }
 
 export default connect<{}, DispatchProps, {}>(

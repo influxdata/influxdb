@@ -17,31 +17,37 @@ import {
 import CheckLevelsDropdown from 'src/alerting/components/builder/CheckLevelsDropdown'
 
 // Actions
-import {updateTimeMachineCheck} from 'src/timeMachine/actions'
+import {
+  setStaleTime,
+  setTimeSince,
+  setLevel,
+} from 'src/alerting/actions/alertBuilder'
 
 // Types
-import {DeadmanCheck, CheckStatusLevel} from 'src/types'
+import {CheckStatusLevel, AppState} from 'src/types'
 
 interface DispatchProps {
-  onUpdateTimeMachineCheck: typeof updateTimeMachineCheck
+  onSetStaleTime: typeof setStaleTime
+  onSetTimeSince: typeof setTimeSince
+  onSetLevel: typeof setLevel
 }
 
-interface OwnProps {
-  check: Partial<DeadmanCheck>
+interface StateProps {
+  staleTime: string
+  timeSince: string
+  level: CheckStatusLevel
 }
 
-type Props = DispatchProps & OwnProps
+type Props = DispatchProps & StateProps
 
 const DeadmanConditions: FC<Props> = ({
-  check: {staleTime, timeSince, level},
-  onUpdateTimeMachineCheck,
+  staleTime,
+  timeSince,
+  level,
+  onSetStaleTime,
+  onSetTimeSince,
+  onSetLevel,
 }) => {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onUpdateTimeMachineCheck({[e.target.name]: e.target.value})
-  }
-  const handleChangeLevel = (level: CheckStatusLevel) => {
-    onUpdateTimeMachineCheck({level})
-  }
   return (
     <Panel backgroundColor={InfluxColors.Castle} testID="panel">
       <PanelBody testID="panel--body">
@@ -72,7 +78,9 @@ const DeadmanConditions: FC<Props> = ({
             <TextBlock testID="when-value-text-block" text="for" />
             <FlexBox.Child testID="component-spacer--flex-child">
               <Input
-                onChange={handleChange}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  onSetTimeSince(e.target.value)
+                }
                 name="timeSince"
                 testID="input-field"
                 type={InputType.Text}
@@ -83,7 +91,7 @@ const DeadmanConditions: FC<Props> = ({
             <FlexBox.Child testID="component-spacer--flex-child">
               <CheckLevelsDropdown
                 selectedLevel={level}
-                onClickLevel={handleChangeLevel}
+                onClickLevel={onSetLevel}
               />
             </FlexBox.Child>
           </FlexBox>
@@ -99,7 +107,9 @@ const DeadmanConditions: FC<Props> = ({
             />
             <FlexBox.Child testID="component-spacer--flex-child">
               <Input
-                onChange={handleChange}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  onSetStaleTime(e.target.value)
+                }
                 name="staleTime"
                 testID="input-field"
                 type={InputType.Text}
@@ -113,11 +123,17 @@ const DeadmanConditions: FC<Props> = ({
   )
 }
 
+const mstp = ({
+  alertBuilder: {staleTime, timeSince, level},
+}: AppState): StateProps => ({staleTime, timeSince, level})
+
 const mdtp: DispatchProps = {
-  onUpdateTimeMachineCheck: updateTimeMachineCheck,
+  onSetStaleTime: setStaleTime,
+  onSetTimeSince: setTimeSince,
+  onSetLevel: setLevel,
 }
 
-export default connect<{}, DispatchProps, {}>(
-  null,
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
   mdtp
 )(DeadmanConditions)

@@ -16,7 +16,6 @@ import CheckPlot from 'src/shared/components/CheckPlot'
 
 // Types
 import {
-  Check,
   CheckViewProperties,
   QueryViewProperties,
   RemoteDataState,
@@ -25,28 +24,32 @@ import {
   TimeZone,
   XYViewProperties,
   TimeRange,
+  CheckType,
+  Threshold,
 } from 'src/types'
 
 interface Props {
   giraffeResult: FromFluxResult
-  check: Partial<Check>
   files: string[]
   loading: RemoteDataState
   properties: QueryViewProperties | CheckViewProperties
   timeZone: TimeZone
   statuses: StatusRow[][]
   timeRange: TimeRange | null
+  checkType?: CheckType
+  checkThresholds?: Threshold[]
 }
 
 const ViewSwitcher: FunctionComponent<Props> = ({
   properties,
-  check,
   loading,
   timeRange,
   files,
   giraffeResult: {table, fluxGroupKeyUnion},
   timeZone,
   statuses,
+  checkType = null,
+  checkThresholds = [],
 }) => {
   switch (properties.type) {
     case 'single-stat':
@@ -176,7 +179,8 @@ const ViewSwitcher: FunctionComponent<Props> = ({
     case 'check':
       return (
         <CheckPlot
-          check={check}
+          checkType={checkType}
+          thresholds={checkThresholds}
           table={table}
           fluxGroupKeyUnion={fluxGroupKeyUnion}
           loading={loading}

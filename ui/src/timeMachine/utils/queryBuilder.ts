@@ -3,7 +3,8 @@ import {
   BuilderConfig,
   BuilderTagsType,
   DashboardDraftQuery,
-  Check,
+  CheckType,
+  Threshold,
 } from 'src/types'
 import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 import {
@@ -63,7 +64,8 @@ export const isDraftQueryAlertable = (
 
 export const isCheckSaveable = (
   draftQueries: DashboardDraftQuery[],
-  check: Partial<Check>
+  checkType: CheckType,
+  thresholds: Threshold[]
 ): boolean => {
   const {
     oneQuery,
@@ -72,7 +74,11 @@ export const isCheckSaveable = (
     singleField,
   } = isDraftQueryAlertable(draftQueries)
 
-  if (check.type === 'deadman') {
+  if (checkType === 'custom') {
+    return true
+  }
+
+  if (checkType === 'deadman') {
     return oneQuery && builderMode && singleField
   }
 
@@ -81,8 +87,7 @@ export const isCheckSaveable = (
     builderMode &&
     singleAggregateFunc &&
     singleField &&
-    check.thresholds &&
-    !!check.thresholds.length
+    !!thresholds.length
   )
 }
 

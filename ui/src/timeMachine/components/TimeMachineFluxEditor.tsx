@@ -30,7 +30,7 @@ import {setActiveQueryText} from 'src/timeMachine/actions'
 import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 
 // Utils
-import {getActiveQuery} from 'src/timeMachine/selectors'
+import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {insertFluxFunction} from 'src/timeMachine/utils/insertFunction'
 import {insertVariable} from 'src/timeMachine/utils/insertVariable'
 
@@ -42,6 +42,7 @@ import {AppState, FluxToolbarFunction} from 'src/types'
 
 interface StateProps {
   activeQueryText: string
+  activeTab: string
 }
 
 interface DispatchProps {
@@ -63,7 +64,12 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {activeQueryText, onSubmitQueries, onSetActiveQueryText} = this.props
+    const {
+      activeQueryText,
+      onSubmitQueries,
+      onSetActiveQueryText,
+      activeTab,
+    } = this.props
 
     const divisions = [
       {
@@ -99,11 +105,13 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
           return (
             <>
               <div className="toolbar-tab-container">
-                <ToolbarTab
-                  onSetActive={this.hideFluxFunctions}
-                  name="Variables"
-                  active={!this.state.displayFluxFunctions}
-                />
+                {activeTab !== 'customCheckQuery' && (
+                  <ToolbarTab
+                    onSetActive={this.hideFluxFunctions}
+                    name="Variables"
+                    active={!this.state.displayFluxFunctions}
+                  />
+                )}
                 <ToolbarTab
                   onSetActive={this.showFluxFunctions}
                   name="Functions"
@@ -186,8 +194,9 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
 
 const mstp = (state: AppState) => {
   const activeQueryText = getActiveQuery(state).text
+  const {activeTab} = getActiveTimeMachine(state)
 
-  return {activeQueryText}
+  return {activeQueryText, activeTab}
 }
 
 const mdtp = {

@@ -12,8 +12,8 @@ import {CheckStatusLevel} from 'src/types'
 describe('ThresholdCondition Builder', () => {
   describe('empty state', () => {
     it('should default to the middle of the graph', () => {
-      const onUpdateCheckThreshold = jest.fn()
-      const onRemoveCheckThreshold = jest.fn()
+      const onUpdateThreshold = jest.fn()
+      const onRemoveThreshold = jest.fn()
       const table = ({
         getColumn() {
           return [0, 0, 1000000]
@@ -25,8 +25,8 @@ describe('ThresholdCondition Builder', () => {
         length: 3,
       } as unknown) as Table
       const props = {
-        onUpdateCheckThreshold,
-        onRemoveCheckThreshold,
+        onUpdateThreshold,
+        onRemoveThreshold,
         table,
         level: 'CRIT' as CheckStatusLevel,
         threshold: null,
@@ -39,8 +39,8 @@ describe('ThresholdCondition Builder', () => {
 
       fireEvent.click(button)
 
-      expect(onUpdateCheckThreshold.mock.calls.length).toEqual(1)
-      expect(onUpdateCheckThreshold.mock.calls[0][0].value).toEqual(500000)
+      expect(onUpdateThreshold.mock.calls.length).toEqual(1)
+      expect(onUpdateThreshold.mock.calls[0][0].value).toEqual(500000)
     })
   })
 })
