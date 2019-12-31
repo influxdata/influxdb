@@ -51,6 +51,7 @@ import {TaskOptionKeys, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {isLimitError} from 'src/cloud/utils/limits'
 import {checkTaskLimits} from 'src/cloud/actions/limits'
+import {getOrg} from 'src/organizations/selectors'
 
 export type Action =
   | SetNewScript
@@ -250,10 +251,8 @@ export const getTasks = () => async (
 ): Promise<void> => {
   try {
     dispatch(setTasksStatus(RemoteDataState.Loading))
-    const {
-      orgs: {org},
-    } = getState()
 
+    const org = getOrg(getState())
     const resp = await apiGetTasks({query: {orgID: org.id}})
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
@@ -439,17 +438,13 @@ export const selectTask = (task: Task) => (
   dispatch,
   getState: GetStateFunc
 ) => {
-  const {
-    orgs: {org},
-  } = getState()
+  const org = getOrg(getState())
 
   dispatch(push(`/orgs/${org.id}/tasks/${task.id}`))
 }
 
 export const goToTasks = () => (dispatch, getState: GetStateFunc) => {
-  const {
-    orgs: {org},
-  } = getState()
+  const org = getOrg(getState())
 
   dispatch(push(`/orgs/${org.id}/tasks`))
 }
@@ -506,10 +501,7 @@ export const saveNewScript = (script: string, preamble: string) => async (
 ): Promise<void> => {
   try {
     const fluxScript = await insertPreambleInScript(script, preamble)
-
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
     const resp = await apiPostTask({data: {orgID: org.id, flux: fluxScript}})
     if (resp.status !== 201) {
       throw new Error(resp.data.message)
@@ -611,9 +603,7 @@ export const createTaskFromTemplate = (template: TaskTemplate) => async (
   getState: GetStateFunc
 ): Promise<void> => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
 
     await createTaskFromTemplateAJAX(template, org.id)
 

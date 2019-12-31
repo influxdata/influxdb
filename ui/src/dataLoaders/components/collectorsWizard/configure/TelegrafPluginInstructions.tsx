@@ -37,6 +37,10 @@ import {AppState, TelegrafPlugin, ConfigurationState} from 'src/types'
 import {InputType, ComponentSize} from '@influxdata/clockface'
 import {influxdbTemplateList} from 'src/templates/constants/defaultTemplates'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+import {getDataLoaders} from 'src/dataLoaders/selectors'
+
 interface DispatchProps {
   onSetTelegrafConfigName: typeof setTelegrafConfigName
   onSetTelegrafConfigDescription: typeof setTelegrafConfigDescription
@@ -202,23 +206,22 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
   }
 }
 
-const mstp = ({
-  dataLoading: {
-    dataLoaders: {
-      telegrafConfigName,
-      telegrafConfigDescription,
-      telegrafPlugins,
-      telegrafConfigID,
-    },
-  },
-  orgs: {org},
-}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {
+    telegrafConfigName,
+    telegrafConfigDescription,
+    telegrafPlugins,
+    telegrafConfigID,
+  } = getDataLoaders(state)
+
+  const {id: orgID} = getOrg(state)
+
   return {
     telegrafConfigName,
     telegrafConfigDescription,
     telegrafPlugins,
     telegrafConfigID,
-    orgID: org.id,
+    orgID,
   }
 }
 

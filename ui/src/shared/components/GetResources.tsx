@@ -20,7 +20,7 @@ import {getNotificationRules} from 'src/alerting/actions/notifications/rules'
 import {getEndpoints} from 'src/alerting/actions/notifications/endpoints'
 
 // Types
-import {AppState, RemoteDataState} from 'src/types'
+import {AppState, RemoteDataState, ResourceType} from 'src/types'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -55,23 +55,6 @@ interface PassedProps {
 }
 
 export type Props = StateProps & DispatchProps & PassedProps
-
-export enum ResourceType {
-  Labels = 'labels',
-  Buckets = 'buckets',
-  Telegrafs = 'telegrafs',
-  Plugins = 'plugins',
-  Variables = 'variables',
-  Authorizations = 'tokens',
-  Scrapers = 'scrapers',
-  Dashboards = 'dashboards',
-  Tasks = 'tasks',
-  Templates = 'templates',
-  Members = 'members',
-  Checks = 'checks',
-  NotificationRules = 'rules',
-  NotificationEndpoints = 'endpoints',
-}
 
 @ErrorHandling
 class GetResources extends PureComponent<Props, StateProps> {

@@ -3,8 +3,6 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import {WithRouterProps, withRouter} from 'react-router'
 
-import _ from 'lodash'
-
 // Components
 import {
   Form,
@@ -21,11 +19,14 @@ import {
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
-import {renameOrg} from 'src/organizations/actions/orgs'
+import {renameOrg} from 'src/organizations/actions/thunks'
 
 // Types
 import {ComponentStatus} from '@influxdata/clockface'
-import {AppState, Organization} from 'src/types'
+import {AppState, Organization, ResourceType} from 'src/types'
+
+// Selectors
+import {getAll} from 'src/shared/selectors'
 
 interface StateProps {
   startOrg: Organization
@@ -152,9 +153,11 @@ class RenameOrgForm extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState) => {
+  const {resources} = state
   const {
-    orgs: {org: startOrg, items: orgs},
-  } = state
+    orgs: {org: startOrg},
+  } = resources
+  const orgs = getAll<Organization[]>(state, ResourceType.Orgs)
 
   const orgNames = orgs.filter(o => o.id !== startOrg.id).map(o => o.name)
 

@@ -53,6 +53,7 @@ import {exportVariables} from 'src/variables/utils/exportVariables'
 import {getSaveableView} from 'src/timeMachine/selectors'
 import {incrementCloneName} from 'src/utils/naming'
 import {isLimitError} from 'src/cloud/utils/limits'
+import {getOrg} from 'src/organizations/selectors'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -237,9 +238,7 @@ export const createDashboard = () => async (
   getState: GetState
 ): Promise<void> => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
 
     const newDashboard = {
       name: DEFAULT_DASHBOARD_NAME,
@@ -266,11 +265,9 @@ export const cloneDashboard = (dashboard: Dashboard) => async (
   getState: GetState
 ): Promise<void> => {
   try {
-    const {
-      orgs: {org},
-      dashboards,
-    } = getState()
+    const {dashboards} = getState()
 
+    const org = getOrg(getState())
     const allDashboardNames = dashboards.list.map(d => d.name)
 
     const clonedName = incrementCloneName(allDashboardNames, dashboard.name)
@@ -294,9 +291,7 @@ export const getDashboardsAsync = () => async (
   getState: GetState
 ): Promise<Dashboard[]> => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
 
     dispatch(setDashboards(RemoteDataState.Loading))
     const dashboards = await getDashboardsAJAX(org.id)
@@ -314,9 +309,7 @@ export const createDashboardFromTemplate = (
   template: DashboardTemplate
 ) => async (dispatch, getState: GetState) => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
 
     await createDashboardFromTemplateAJAX(template, org.id)
 
@@ -576,9 +569,7 @@ export const convertToTemplate = (dashboardID: string) => async (
 ): Promise<void> => {
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
     const dashboard = await getDashboardAJAX(dashboardID)
     const pendingViews = dashboard.cells.map(c =>
       getViewAJAX(dashboardID, c.id)

@@ -14,6 +14,9 @@ import {
 // Types
 import {AppState, Organization} from 'src/types'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 interface StateProps {
   org: Organization
 }
@@ -47,8 +50,8 @@ class TemplateBrowserEmpty extends PureComponent<Props> {
   }
 }
 
-const mstp = ({orgs: {org}}: AppState): StateProps => ({
-  org,
+const mstp = (state: AppState): StateProps => ({
+  org: getOrg(state),
 })
 
 export default connect<StateProps, {}>(

@@ -4,7 +4,11 @@ import {connect} from 'react-redux'
 import {WithRouterProps} from 'react-router'
 
 // Types
-import {AppState, Organization} from 'src/types'
+import {AppState, Organization, ResourceType} from 'src/types'
+
+// Selectors
+import {getAll} from 'src/shared/selectors'
+import {getOrg} from 'src/organizations/selectors'
 
 interface StateProps {
   orgs: Organization[]
@@ -38,11 +42,10 @@ class RouteToOrg extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    orgs: {items, org},
-  } = state
+  const org = getOrg(state)
+  const orgs = getAll<Organization[]>(state, ResourceType.Orgs)
 
-  return {orgs: items, org}
+  return {orgs, org}
 }
 
 export default connect<StateProps, {}, {}>(mstp)(RouteToOrg)

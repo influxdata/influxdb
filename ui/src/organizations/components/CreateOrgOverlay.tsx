@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import {WithRouterProps, withRouter} from 'react-router'
 
-import _ from 'lodash'
+import {sample, startCase} from 'lodash'
 
 // Components
 import {Form, Input, Button, Overlay} from '@influxdata/clockface'
@@ -17,7 +17,7 @@ import {
 } from '@influxdata/clockface'
 
 // Actions
-import {createOrgWithBucket} from 'src/organizations/actions/orgs'
+import {createOrgWithBucket} from 'src/organizations/actions/thunks'
 
 interface OwnProps {}
 
@@ -176,15 +176,15 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
 
   private randomErrorMessage = (key: string, resource: string): string => {
     const messages = [
-      `Imagine that! ${_.startCase(resource)} without a ${key}`,
-      `${_.startCase(resource)} needs a ${key}`,
+      `Imagine that! ${startCase(resource)} without a ${key}`,
+      `${startCase(resource)} needs a ${key}`,
       `You're not getting far without a ${key}`,
       `The ${resource} formerly known as...`,
       `Pick a ${key}, any ${key}`,
       `Any ${key} will do`,
     ]
 
-    return _.sample(messages)
+    return sample(messages)
   }
 }
 

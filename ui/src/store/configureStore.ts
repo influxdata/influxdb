@@ -64,7 +64,6 @@ export const rootReducer = combineReducers<ReducerState>({
   me: meReducer,
   noteEditor: noteEditorReducer,
   onboarding: onboardingReducer,
-  orgs: orgsReducer,
   overlays: overlaysReducer,
   predicates: predicatesReducer,
   ranges: rangesReducer,
@@ -83,6 +82,7 @@ export const rootReducer = combineReducers<ReducerState>({
   userSettings: userSettingsReducer,
   resources: combineReducers({
     members: membersReducer,
+    orgs: orgsReducer,
   }),
   variables: variablesReducer,
   variableEditor: variableEditorReducer,

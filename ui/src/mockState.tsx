@@ -20,11 +20,6 @@ const localState: LocalStorage = {
       timeZone: 'Local' as TimeZone,
     },
   },
-  orgs: {
-    items: [{name: 'org', id: 'orgid'}],
-    org: {name: 'org', id: 'orgid'},
-    status: RemoteDataState.Done,
-  },
   VERSION: '2.0.0',
   ranges: {
     '0349ecda531ea000': pastFifteenMinTimeRange,
@@ -32,6 +27,20 @@ const localState: LocalStorage = {
   autoRefresh: {},
   variables: initialVariablesState(),
   userSettings: initialUserSettingsState(),
+  resources: {
+    orgs: {
+      byID: {
+        orgid: {
+          name: 'org',
+          id: 'orgid',
+        },
+      },
+      allIDs: ['orgid'],
+      org: {name: 'org', id: 'orgid'},
+      status: RemoteDataState.Done,
+    },
+    members: null,
+  },
 }
 
 const history = createMemoryHistory({entries: ['/']})

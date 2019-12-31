@@ -21,6 +21,9 @@ import {
   setEvery,
 } from 'src/alerting/actions/alertBuilder'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 export type Action =
   | ReturnType<typeof setBuilderAggregateFunctionType>
   | ReturnType<typeof setBuilderBucket>
@@ -139,7 +142,7 @@ export const loadBuckets = () => async (
   getState: GetState
 ) => {
   const queryURL = getState().links.query.self
-  const orgID = getState().orgs.org.id
+  const orgID = getOrg(getState()).id
 
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
@@ -192,7 +195,7 @@ export const loadTagSelector = (index: number) => async (
 
   const tagsSelections = tags.slice(0, index)
   const queryURL = getState().links.query.self
-  const orgID = getState().orgs.org.id
+  const orgID = getOrg(getState()).id
 
   dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
 
@@ -248,7 +251,7 @@ const loadTagSelectorValues = (index: number) => async (
   const {buckets, tags} = getActiveQuery(state).builderConfig
   const tagsSelections = tags.slice(0, index)
   const queryURL = state.links.query.self
-  const orgID = getState().orgs.org.id
+  const orgID = getOrg(getState()).id
 
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 

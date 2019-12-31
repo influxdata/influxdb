@@ -21,7 +21,7 @@ import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPage
 import {FilteredList} from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
@@ -31,7 +31,7 @@ import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Telegraf, OverlayState, AppState, Bucket} from 'src/types'
+import {Telegraf, OverlayState, AppState, Bucket, ResourceType} from 'src/types'
 import {
   setDataLoadersType,
   setTelegrafConfigID,
@@ -40,6 +40,9 @@ import {
 } from 'src/dataLoaders/actions/dataLoaders'
 import {DataLoaderType} from 'src/types/dataLoaders'
 import {SortTypes} from 'src/shared/utils/sort'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
 
 interface StateProps {
   hasTelegrafs: boolean
@@ -255,10 +258,13 @@ class Collectors extends PureComponent<Props, State> {
     this.setState({searchTerm})
   }
 }
-const mstp = ({telegrafs, orgs: {org}, buckets}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {telegrafs, buckets} = state
+  const orgName = getOrg(state).name
+
   return {
     hasTelegrafs: telegrafs.list && telegrafs.list.length > 0,
-    orgName: org.name,
+    orgName,
     buckets: buckets.list,
   }
 }

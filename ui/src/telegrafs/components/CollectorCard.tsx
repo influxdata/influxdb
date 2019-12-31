@@ -18,6 +18,7 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
+import {getOrg} from 'src/organizations/selectors'
 
 // Constants
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
@@ -165,7 +166,9 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = ({labels, orgs: {org}}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {labels} = state
+  const org = getOrg(state)
   return {org, labels: viewableLabels(labels.list)}
 }
 

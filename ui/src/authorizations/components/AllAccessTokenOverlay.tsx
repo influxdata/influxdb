@@ -22,6 +22,7 @@ import {createAuthorization} from 'src/authorizations/actions'
 
 // Utils
 import {allAccessPermissions} from 'src/authorizations/utils/permissions'
+import {getOrg} from 'src/organizations/selectors'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -130,7 +131,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => {
   return {
-    orgID: state.orgs.org.id,
+    orgID: getOrg(state).id,
   }
 }
 

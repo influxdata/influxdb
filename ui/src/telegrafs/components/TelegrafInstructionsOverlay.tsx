@@ -8,13 +8,13 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Overlay} from '@influxdata/clockface'
 import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/TelegrafInstructions'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 
 // Constants
 import {TOKEN_LABEL} from 'src/labels/constants'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 import {Telegraf} from '@influxdata/influx'
 
 interface StateProps {
