@@ -123,7 +123,7 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
     existingLabels,
     includedLabels
   ).map(l => ({
-    orgID: orgID as string,
+    orgID,
     name: _.get(l, 'attributes.name', ''),
     properties: _.get(l, 'attributes.properties', {}),
   }))
