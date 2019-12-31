@@ -1,4 +1,4 @@
-import _ from 'lodash'
+import _, {get} from 'lodash'
 import {
   DashboardTemplate,
   TemplateType,
@@ -24,11 +24,14 @@ import {
   getLabelRelationships,
 } from 'src/templates/utils/'
 import {addDefaults} from 'src/tasks/actions'
+import {addLabelDefaults} from 'src/labels/utils'
 // API
 import {
   getTask as apiGetTask,
   postTask as apiPostTask,
   postTasksLabel as apiPostTasksLabel,
+  getLabels as apiGetLabels,
+  postLabel as apiPostLabel,
 } from 'src/client'
 // Create Dashboard Templates
 
@@ -107,17 +110,33 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
     labelRelationships
   )
 
-  const existingLabels = await client.labels.getAll(orgID)
+  const resp = await apiGetLabels({query: {orgID}})
 
-  const labelsToCreate = findLabelsToCreate(existingLabels, includedLabels).map(
-    l => ({
-      orgID,
-      name: _.get(l, 'attributes.name', ''),
-      properties: _.get(l, 'attributes.properties', {}),
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
+  }
+
+  const existingLabels = resp.data.labels.map(l => addLabelDefaults(l))
+
+  const foundLabelsToCreate = findLabelsToCreate(
+    existingLabels,
+    includedLabels
+  ).map(l => ({
+    orgID,
+    name: _.get(l, 'attributes.name', ''),
+    properties: _.get(l, 'attributes.properties', {}),
+  }))
+
+  const promisedLabels = foundLabelsToCreate.map(async lab => {
+    return apiPostLabel({
+      data: lab,
     })
-  )
+      .then(res => get(res, 'res.data.label', ''))
+      .then(lab => addLabelDefaults(lab))
+  })
 
-  const createdLabels = await client.labels.createAll(labelsToCreate)
+  const createdLabels = await Promise.all(promisedLabels)
+
   const allLabels = [...createdLabels, ...existingLabels]
 
   const labelMap: LabelMap = {}

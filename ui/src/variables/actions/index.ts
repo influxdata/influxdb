@@ -38,8 +38,9 @@ import {
   QueryArguments,
   MapArguments,
   CSVArguments,
+  Label,
 } from 'src/types'
-import {IVariable as Variable, ILabel as Label} from '@influxdata/influx'
+import {IVariable as Variable} from '@influxdata/influx'
 import {VariableValuesByID} from 'src/variables/types'
 import {
   addVariableLabelFailed,

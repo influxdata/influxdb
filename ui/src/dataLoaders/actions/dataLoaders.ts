@@ -9,10 +9,11 @@ import {
   ILabelProperties,
 } from '@influxdata/influx'
 import {createAuthorization} from 'src/authorizations/apis'
-import {postWrite} from 'src/client'
+import {postWrite as apiPostWrite, postLabel as apiPostLabel} from 'src/client'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
+import {addLabelDefaults} from 'src/labels/utils/'
 
 // Constants
 import {
@@ -30,8 +31,7 @@ import {
   BundleName,
   ConfigurationState,
 } from 'src/types/dataLoaders'
-import {AppState} from 'src/types'
-import {RemoteDataState} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 import {
   WritePrecision,
   TelegrafRequest,
@@ -452,11 +452,19 @@ const createTelegraf = async (dispatch, getState, plugins) => {
       tokenID: createdToken.id,
     } as ILabelProperties // hack to make compiler work
 
-    const createdLabel = await client.labels.create({
-      orgID: org.id,
-      name: `@influxdata.token-${new Date().getTime()}`, // fix for https://github.com/influxdata/influxdb/issues/15730
-      properties,
+    const resp = await apiPostLabel({
+      data: {
+        orgID: org.id,
+        name: `@influxdata.token-${new Date().getTime()}`, // fix for https://github.com/influxdata/influxdb/issues/15730
+        properties,
+      },
     })
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    const createdLabel = addLabelDefaults(resp.data.label)
 
     // add label to telegraf config
     const label = await client.telegrafConfigs.addLabel(tc.id, createdLabel)
@@ -554,7 +562,10 @@ export const writeLineProtocolAction = (
   try {
     dispatch(setLPStatus(RemoteDataState.Loading))
 
-    const resp = await postWrite({data: body, query: {org, bucket, precision}})
+    const resp = await apiPostWrite({
+      data: body,
+      query: {org, bucket, precision},
+    })
 
     if (resp.status === 204) {
       dispatch(setLPStatus(RemoteDataState.Done))
