@@ -25,6 +25,7 @@ const maxTCPConnections = 128
 func main() {
 	influxCmd := influxCmd()
 	if err := influxCmd.Execute(); err != nil {
+		seeHelp(influxCmd, nil)
 		os.Exit(1)
 	}
 }
@@ -72,15 +73,44 @@ func out(w io.Writer) genericCLIOptfn {
 	}
 }
 
+func fetchSubCommand(parent *cobra.Command, args []string) *cobra.Command {
+	var err error
+	var cmd *cobra.Command
+
+	// Workaround FAIL with "go test -v" or "cobra.test -test.v", see #155
+	if args == nil && filepath.Base(os.Args[0]) != "cobra.test" {
+		args = os.Args[1:]
+	}
+
+	if parent.TraverseChildren {
+		cmd, _, err = parent.Traverse(args)
+	} else {
+		cmd, _, err = parent.Find(args)
+	}
+	// return nil if any errs
+	if err != nil {
+		return nil
+	}
+	return cmd
+}
+
+func seeHelp(c *cobra.Command, args []string) {
+	if c = fetchSubCommand(c, args); c == nil {
+		return //return here, since cobra already handles the error
+	}
+	c.Printf("See '%s -h' for help\n", c.CommandPath())
+}
+
 func influxCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "influx",
-		Short: "Influx Client",
+		Use:          "influx",
+		Short:        "Influx Client",
+		SilenceUsage: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := checkSetup(flags.host); err != nil {
 				fmt.Printf("Note: %v\n", internal.ErrorFmt(err))
 			}
-			cmd.Usage()
+			seeHelp(cmd, args)
 		},
 	}
 

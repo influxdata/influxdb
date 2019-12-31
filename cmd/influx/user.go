@@ -15,9 +15,7 @@ func userCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "user",
 		Short: "User management commands",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Usage()
-		},
+		Run:   seeHelp,
 	}
 	cmd.AddCommand(
 		userCreateCmd(),

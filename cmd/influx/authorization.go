@@ -54,9 +54,7 @@ func authCmd() *cobra.Command {
 		Use:     "auth",
 		Aliases: []string{"authorization"},
 		Short:   "Authorization management commands",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Usage()
-		},
+		Run:     seeHelp,
 	}
 	cmd.AddCommand(
 		authActiveCmd(),
