@@ -82,15 +82,15 @@ func (s *Service) findOrganizationVariables(ctx context.Context, tx Tx, orgID in
 	return variables, nil
 }
 
-func newVariableUniqueByNameStore() *IndexStore {
+func newVariableStore() *IndexStore {
 	const resource = "variable"
 
-	var decodeVarEntFn DecodeBucketEntFn = func(key, val []byte) ([]byte, interface{}, error) {
+	var decodeVarEntFn DecodeBucketValFn = func(key, val []byte) ([]byte, interface{}, error) {
 		var v influxdb.Variable
 		return key, &v, json.Unmarshal(val, &v)
 	}
 
-	var decValToEntFn DecodedValToEntFn = func(_ []byte, i interface{}) (entity Entity, err error) {
+	var decValToEntFn ConvertValToEntFn = func(_ []byte, i interface{}) (entity Entity, err error) {
 		v, ok := i.(*influxdb.Variable)
 		if err := errUnexpectedDecodeVal(ok); err != nil {
 			return Entity{}, err
@@ -110,7 +110,7 @@ func newVariableUniqueByNameStore() *IndexStore {
 	}
 }
 
-func (s *Service) findVariables(ctx context.Context, tx Tx, filter influxdb.VariableFilter) ([]*influxdb.Variable, error) {
+func (s *Service) findVariables(ctx context.Context, tx Tx, filter influxdb.VariableFilter, opt ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
 	if filter.OrganizationID != nil {
 		return s.findOrganizationVariables(ctx, tx, *filter.OrganizationID)
 	}
@@ -123,10 +123,18 @@ func (s *Service) findVariables(ctx context.Context, tx Tx, filter influxdb.Vari
 		return s.findOrganizationVariables(ctx, tx, o.ID)
 	}
 
+	var o influxdb.FindOptions
+	if len(opt) > 0 {
+		o = opt[0]
+	}
+
 	// TODO(jsteenb2): investigate why we don't implement the find options for vars?
-	var variables []*influxdb.Variable
+	variables := make([]*influxdb.Variable, 0)
 	err := s.variableStore.Find(ctx, tx, FindOpts{
-		FilterFn: filterVariablesFn(filter),
+		Descending:  o.Descending,
+		Limit:       o.Limit,
+		Offset:      o.Offset,
+		FilterEntFn: filterVariablesFn(filter),
 		CaptureFn: func(key []byte, decodedVal interface{}) error {
 			variables = append(variables, decodedVal.(*influxdb.Variable))
 			return nil
@@ -162,7 +170,7 @@ func (s *Service) FindVariables(ctx context.Context, filter influxdb.VariableFil
 	// todo(leodido) > handle find options
 	res := []*influxdb.Variable{}
 	err := s.kv.View(ctx, func(tx Tx) error {
-		variables, err := s.findVariables(ctx, tx, filter)
+		variables, err := s.findVariables(ctx, tx, filter, opt...)
 		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
 			return err
 		}
@@ -224,7 +232,6 @@ func (s *Service) CreateVariable(ctx context.Context, v *influxdb.Variable) erro
 		now := s.Now()
 		v.CreatedAt = now
 		v.UpdatedAt = now
-
 		return s.putVariable(ctx, tx, v)
 	})
 }

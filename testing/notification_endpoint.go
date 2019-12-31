@@ -2106,16 +2106,7 @@ func DeleteNotificationEndpoint(
 
 			ctx := context.Background()
 			flds, orgID, err := s.DeleteNotificationEndpoint(ctx, tt.args.id)
-			if err != nil {
-				if tt.wants.err == nil {
-					require.NoError(t, err)
-				}
-				iErr, ok := err.(*influxdb.Error)
-				require.True(t, ok)
-				assert.Equal(t, tt.wants.err.Code, iErr.Code)
-				assert.Truef(t, strings.HasPrefix(iErr.Error(), tt.wants.err.Error()), "got err: %s", err.Error())
-				return
-			}
+			influxErrsEqual(t, tt.wants.err, err)
 			if diff := cmp.Diff(flds, tt.wants.secretFlds); diff != "" {
 				t.Errorf("delete notification endpoint secret fields are different -got/+want\ndiff %s", diff)
 			}
@@ -2165,4 +2156,24 @@ func DeleteNotificationEndpoint(
 			}
 		})
 	}
+}
+
+func influxErrsEqual(t *testing.T, expected *influxdb.Error, actual error) {
+	t.Helper()
+
+	if expected != nil {
+		require.Error(t, actual)
+	}
+
+	if actual == nil {
+		return
+	}
+
+	if expected == nil {
+		require.NoError(t, actual)
+	}
+	iErr, ok := actual.(*influxdb.Error)
+	require.True(t, ok)
+	assert.Equal(t, expected.Code, iErr.Code)
+	assert.Truef(t, strings.HasPrefix(iErr.Error(), expected.Error()), "got err: %s", actual.Error())
 }
