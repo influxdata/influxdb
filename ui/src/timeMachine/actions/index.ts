@@ -666,7 +666,7 @@ export const loadNewVEO = (dashboardID: string) => (
   // no need to refresh variable values since there is no query in a new view
 }
 
-export const loadCustomQueryState = () => (
+export const loadCustomCheckQueryState = () => (
   dispatch: Dispatch<Action | AlertBuilderAction>,
   getState: GetState
 ) => {

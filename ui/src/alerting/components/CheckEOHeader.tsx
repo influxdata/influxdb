@@ -101,7 +101,8 @@ const CheckEOHeader: FC<Props> = ({
   }
 
   const {singleField, singleAggregateFunc} = isDraftQueryAlertable(draftQueries)
-  const oneOrMoreThresholds = checkType === 'threshold' && !!thresholds.length
+  const oneOrMoreThresholds =
+    checkType === 'threshold' && thresholds && !!thresholds.length
 
   return (
     <Page.Header fullWidth={true}>
@@ -115,13 +116,13 @@ const CheckEOHeader: FC<Props> = ({
         />
       </Page.HeaderLeft>
       <Page.HeaderCenter>
-        {activeTab !== 'customCheckQuery' ? (
+        {activeTab !== 'customCheckQuery' && (
           <CheckAlertingButton
             activeTab={activeTab}
             draftQueries={draftQueries}
             setActiveTab={setActiveTab}
           />
-        ) : null}
+        )}
       </Page.HeaderCenter>
       <Page.HeaderRight>
         <SquareButton

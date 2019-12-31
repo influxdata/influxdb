@@ -80,57 +80,61 @@ export default (
 
       const newState = {
         ...initialState(),
-        id,
-        type,
-        name,
         checkStatus: RemoteDataState.Done,
+        id,
+        name,
         query,
+        type,
       }
 
       if (action.payload.check.type === 'custom') {
         return newState
-      } else if (action.payload.check.type === 'threshold') {
+      }
+      if (action.payload.check.type === 'threshold') {
         const {
-          thresholds,
           every,
           offset,
-          tags,
           statusMessageTemplate,
+          tags,
+          thresholds,
         } = action.payload.check
 
         return {
           ...newState,
+          every,
+          offset,
+          statusMessageTemplate,
+          tags,
           thresholds,
-          every,
-          offset,
-          tags,
-          statusMessageTemplate,
-        }
-      } else if (action.payload.check.type === 'deadman') {
-        const {
-          timeSince,
-          staleTime,
-          reportZero,
-          level,
-          every,
-          offset,
-          tags,
-          statusMessageTemplate,
-        } = action.payload.check
-
-        return {
-          ...newState,
-          timeSince,
-          staleTime,
-          reportZero,
-          level,
-          every,
-          offset,
-          tags,
-          statusMessageTemplate,
         }
       }
-      return
+      if (action.payload.check.type === 'deadman') {
+        const {
+          every,
+          level,
+          offset,
+          reportZero,
+          staleTime,
+          statusMessageTemplate,
+          tags,
+          timeSince,
+        } = action.payload.check
+
+        return {
+          ...newState,
+          every,
+          level,
+          offset,
+          reportZero,
+          staleTime,
+          statusMessageTemplate,
+          tags,
+          timeSince,
+        }
+      }
+      throw new Error(
+        'Incorrect check type provided to SET_ALERT_BUILDER_CHECK'
+      )
     }
 
     case 'SET_ALERT_BUILER_CHECK_STATUS': {

@@ -20,26 +20,26 @@ export function createCheckQueryFromAlertBuilder(
     thresholds,
   }: AlertBuilderState
 ): string {
-  const dataFrom = `data = from(bucket: \"${builderConfig.buckets[0]}\")`
+  const dataFrom = `data = from(bucket: "${builderConfig.buckets[0]}")`
 
   const filterStatements = builderConfig.tags
     .filter(tag => !!tag.values[0])
-    .map(tag => `  |> filter(fn: (r) => r.${tag.key} == \"${tag.values[0]}\")`)
+    .map(tag => `  |> filter(fn: (r) => r.${tag.key} == "${tag.values[0]}")`)
 
-  const messageFn = `messageFn = (r) =>(\"${statusMessageTemplate}\")`
+  const messageFn = `messageFn = (r) =>("${statusMessageTemplate}")`
 
   const checkTags = tags
     ? tags
         .filter(t => t.key && t.value)
-        .map(t => `${t.key}: \"${t.value}\"`)
+        .map(t => `${t.key}: "${t.value}"`)
         .join(',')
     : ''
 
   const checkStatement = [
     'check = {',
-    `  _check_id: \"${id || ''}\",`,
-    `  _check_name: \"${name}\",`,
-    `  _type: \"custom\",`,
+    `  _check_id: "${id || ''}",`,
+    `  _check_name: "${name}",`,
+    `  _type: "custom",`,
     `  tags: {${checkTags}},`,
     `  every: ${every}`,
     '}',
@@ -47,7 +47,7 @@ export function createCheckQueryFromAlertBuilder(
 
   const optionTask = [
     'option task = {',
-    `  name: \"${name}\",`,
+    `  name: "${name}",`,
     `  every: ${every}, // expected to match check.every`,
     `  offset: ${offset}`,
     '}',
@@ -110,22 +110,20 @@ export function createCheckQueryFromAlertBuilder(
 
     const thresholdExpressions = thresholds.map(t => {
       const fieldTag = builderConfig.tags.find(t => t.key === '_field')
-      const fieldSelection = get(fieldTag, 'values.[0]')
+      const fieldSelection = get(fieldTag, 'values[0]')
 
-      // "crit = (r) =>(r.fieldName"
       const beginning = `${t.level.toLowerCase()} = (r) =>(r.${fieldSelection}`
 
       if (t.type === 'range') {
         if (t.within) {
           return `${beginning} > ${t.min}) and r.${fieldSelection} < ${t.max})`
-        } else {
-          return `${beginning} < ${t.min} and r.${fieldSelection} > ${t.max})`
         }
-      } else {
-        const equality = t.type === 'greater' ? '>' : '<'
-
-        return `${beginning}${equality} ${t.value})`
+        return `${beginning} < ${t.min} and r.${fieldSelection} > ${t.max})`
       }
+
+      const operator = t.type === 'greater' ? '>' : '<'
+
+      return `${beginning} ${operator} ${t.value})`
     })
 
     const thresholdsDefined = thresholds.map(

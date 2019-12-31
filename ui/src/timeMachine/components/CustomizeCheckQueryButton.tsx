@@ -6,17 +6,17 @@ import {connect} from 'react-redux'
 import {Button} from '@influxdata/clockface'
 
 // Actions
-import {loadCustomQueryState} from 'src/timeMachine/actions'
+import {loadCustomCheckQueryState} from 'src/timeMachine/actions'
 
 interface DispatchProps {
-  onLoadCustomQueryState: typeof loadCustomQueryState
+  onLoadCustomCheckQueryState: typeof loadCustomCheckQueryState
 }
 
 const CustomizeCheckQueryButton: FC<DispatchProps> = ({
-  onLoadCustomQueryState,
+  onLoadCustomCheckQueryState,
 }) => {
   const switchToEditor = () => {
-    onLoadCustomQueryState()
+    onLoadCustomCheckQueryState()
   }
   return (
     <Button
@@ -29,7 +29,7 @@ const CustomizeCheckQueryButton: FC<DispatchProps> = ({
 }
 
 const mdtp: DispatchProps = {
-  onLoadCustomQueryState: loadCustomQueryState,
+  onLoadCustomCheckQueryState: loadCustomCheckQueryState,
 }
 
 export default connect<{}, DispatchProps>(

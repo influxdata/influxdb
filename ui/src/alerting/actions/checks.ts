@@ -182,22 +182,27 @@ export const saveCheckFromTimeMachine = () => async (
       orgID,
     } as Check
 
-    if (check.type === 'threshold' || check.type === 'deadman') {
-      check = {...check, every, offset, tags, statusMessageTemplate}
-      if (check.type === 'threshold') {
-        check = {
-          ...check,
-          thresholds,
-        } as ThresholdCheck
-      } else if (check.type === 'deadman') {
-        check = {
-          ...check,
-          timeSince,
-          reportZero,
-          staleTime,
-          level,
-        } as DeadmanCheck
-      }
+    if (check.type === 'threshold') {
+      check = {
+        ...check,
+        every,
+        offset,
+        statusMessageTemplate,
+        tags,
+        thresholds,
+      } as ThresholdCheck
+    } else if (check.type === 'deadman') {
+      check = {
+        ...check,
+        every,
+        level,
+        offset,
+        reportZero,
+        staleTime,
+        statusMessageTemplate,
+        tags,
+        timeSince,
+      } as DeadmanCheck
     }
 
     const resp = check.id

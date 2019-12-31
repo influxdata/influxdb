@@ -29,11 +29,11 @@ const CheckConditionsCard: FC<Props> = ({checkType}) => {
   if (checkType === 'deadman') {
     cardTitle = 'Deadman'
     conditionsComponent = <DeadmanConditions />
-  }
-
-  if (checkType === 'threshold') {
+  } else if (checkType === 'threshold') {
     cardTitle = 'Thresholds'
     conditionsComponent = <ThresholdConditions />
+  } else {
+    throw new Error('Incorrect check type provided to <CheckConditionsCard/>')
   }
 
   return (
