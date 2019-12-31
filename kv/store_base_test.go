@@ -14,10 +14,12 @@ import (
 )
 
 func TestStore(t *testing.T) {
-	newStoreBase := func(t *testing.T, bktSuffix string, encKeyFn, encBodyFn kv.EncodeEntFn, decFn kv.DecodeBucketEntFn, decToEntFn kv.DecodedValToEntFn) (*kv.StoreBase, kv.Store) {
+	newStoreBase := func(t *testing.T, bktSuffix string, encKeyFn, encBodyFn kv.EncodeEntFn, decFn kv.DecodeBucketValFn, decToEntFn kv.ConvertValToEntFn) (*kv.StoreBase, func(), kv.Store) {
 		t.Helper()
 
-		inmemSVC, _, _ := NewTestInmemStore(t)
+		inmemSVC, done, err := NewTestBoltStore(t)
+		require.NoError(t, err)
+
 		store := kv.NewStoreBase("foo", []byte("foo_"+bktSuffix), encKeyFn, encBodyFn, decFn, decToEntFn)
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -26,37 +28,41 @@ func TestStore(t *testing.T) {
 		require.NoError(t, inmemSVC.Update(ctx, func(tx kv.Tx) error {
 			return store.Init(ctx, tx)
 		}))
-		return store, inmemSVC
+		return store, done, inmemSVC
 	}
 
-	newFooStoreBase := func(t *testing.T, bktSuffix string) (*kv.StoreBase, kv.Store) {
+	newFooStoreBase := func(t *testing.T, bktSuffix string) (*kv.StoreBase, func(), kv.Store) {
 		return newStoreBase(t, bktSuffix, kv.EncIDKey, kv.EncBodyJSON, decJSONFooFn, decFooEntFn)
 	}
 
 	t.Run("Put", func(t *testing.T) {
-		base, inmemStore := newFooStoreBase(t, "put")
+		base, done, inmemStore := newFooStoreBase(t, "put")
+		defer done()
 		testPutBase(t, inmemStore, base, base.BktName)
 	})
 
 	t.Run("DeleteEnt", func(t *testing.T) {
-		base, inmemStore := newFooStoreBase(t, "delete_ent")
+		base, done, inmemStore := newFooStoreBase(t, "delete_ent")
+		defer done()
 
 		testDeleteEntBase(t, inmemStore, base)
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		testDeleteBase(t, func(t *testing.T, suffix string) (storeBase, kv.Store) {
+		testDeleteBase(t, func(t *testing.T, suffix string) (storeBase, func(), kv.Store) {
 			return newFooStoreBase(t, suffix)
 		})
 	})
 
 	t.Run("FindEnt", func(t *testing.T) {
-		base, inmemStore := newFooStoreBase(t, "find_ent")
+		base, done, inmemStore := newFooStoreBase(t, "find_ent")
+		defer done()
+
 		testFindEnt(t, inmemStore, base)
 	})
 
 	t.Run("Find", func(t *testing.T) {
-		testFind(t, func(t *testing.T, suffix string) (storeBase, kv.Store) {
+		testFind(t, func(t *testing.T, suffix string) (storeBase, func(), kv.Store) {
 			return newFooStoreBase(t, suffix)
 		})
 	})
@@ -106,7 +112,7 @@ func testDeleteEntBase(t *testing.T, kvStore kv.Store, base storeBase) kv.Entity
 	return expected
 }
 
-func testDeleteBase(t *testing.T, fn func(t *testing.T, suffix string) (storeBase, kv.Store), assertFns ...func(*testing.T, kv.Store, storeBase, []foo)) {
+func testDeleteBase(t *testing.T, fn func(t *testing.T, suffix string) (storeBase, func(), kv.Store), assertFns ...func(*testing.T, kv.Store, storeBase, []foo)) {
 	expectedEnts := []kv.Entity{
 		newFooEnt(1, 9000, "foo_0"),
 		newFooEnt(2, 9000, "foo_1"),
@@ -145,7 +151,8 @@ func testDeleteBase(t *testing.T, fn func(t *testing.T, suffix string) (storeBas
 		fn := func(t *testing.T) {
 			t.Helper()
 
-			base, inmemStore := fn(t, "delete")
+			base, done, inmemStore := fn(t, "delete")
+			defer done()
 
 			seedEnts(t, inmemStore, base, expectedEnts...)
 
@@ -198,7 +205,7 @@ func testFindEnt(t *testing.T, kvStore kv.Store, base storeBase) kv.Entity {
 	return expected
 }
 
-func testFind(t *testing.T, fn func(t *testing.T, suffix string) (storeBase, kv.Store)) {
+func testFind(t *testing.T, fn func(t *testing.T, suffix string) (storeBase, func(), kv.Store)) {
 	t.Helper()
 
 	expectedEnts := []kv.Entity{
@@ -253,7 +260,9 @@ func testFind(t *testing.T, fn func(t *testing.T, suffix string) (storeBase, kv.
 
 	for _, tt := range tests {
 		fn := func(t *testing.T) {
-			base, kvStore := fn(t, "find")
+			base, done, kvStore := fn(t, "find")
+			defer done()
+
 			seedEnts(t, kvStore, base, expectedEnts...)
 
 			var actuals []interface{}

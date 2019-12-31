@@ -19,34 +19,44 @@ type Entity struct {
 	Body  interface{}
 }
 
+// EncodeEntFn encodes the entity. This is used both for the key and vals in the store base.
 type EncodeEntFn func(ent Entity) ([]byte, string, error)
 
+// EncIDKey encodes an entity into a key that represents the encoded ID provided.
 func EncIDKey(ent Entity) ([]byte, string, error) {
 	id, err := ent.ID.Encode()
 	return id, "ID", err
 }
 
-func EncOrgNameKeyFn(caseSensitive bool) func(ent Entity) ([]byte, string, error) {
+// EncOrgIDNameKey encodes an organization id and name key.
+func EncOrgIDNameKey(caseSensitive bool) func(ent Entity) ([]byte, string, error) {
 	return func(ent Entity) ([]byte, string, error) {
 		key, err := indexByOrgNameKey(ent.OrgID, ent.Name, caseSensitive)
 		return key, "organization ID and name", err
 	}
 }
 
+// EncBodyJSON JSON encodes the entity body and returns the raw bytes and indicates
+// that it uses the entity body.
 func EncBodyJSON(ent Entity) ([]byte, string, error) {
 	v, err := json.Marshal(ent.Body)
 	return v, "entity body", err
 }
 
-type DecodeBucketEntFn func(key, val []byte) (keyRepeat []byte, decodedVal interface{}, err error)
+// DecodeBucketValFn decodes the raw []byte.
+type DecodeBucketValFn func(key, val []byte) (keyRepeat []byte, decodedVal interface{}, err error)
 
-func DecIndexEntFn(key, val []byte) ([]byte, interface{}, error) {
+// DecIndexID decodes the bucket val into an influxdb.ID.
+func DecIndexID(key, val []byte) ([]byte, interface{}, error) {
 	var i influxdb.ID
 	return key, i, i.Decode(val)
 }
 
-type DecodedValToEntFn func(k []byte, v interface{}) (Entity, error)
+// ConvertValToEntFn converts a key and decoded bucket value to an entity.
+type ConvertValToEntFn func(k []byte, v interface{}) (Entity, error)
 
+// DecodeOrgNameKey decodes a raw bucket key into the organization id and name
+// used to create it.
 func DecodeOrgNameKey(k []byte) (influxdb.ID, string, error) {
 	var orgID influxdb.ID
 	if err := orgID.Decode(k[:influxdb.IDLength]); err != nil {
@@ -55,8 +65,10 @@ func DecodeOrgNameKey(k []byte) (influxdb.ID, string, error) {
 	return orgID, string(k[influxdb.IDLength:]), nil
 }
 
+// NewOrgNameKeyStore creates a store for an entity's unique index on organization id and name.
+// This is used throughout the kv pkg here to provide an entity uniquness by name within an org.
 func NewOrgNameKeyStore(resource string, bktName []byte, caseSensitive bool) *StoreBase {
-	var decValToEntFn DecodedValToEntFn = func(k []byte, v interface{}) (Entity, error) {
+	var decValToEntFn ConvertValToEntFn = func(k []byte, v interface{}) (Entity, error) {
 		id, ok := v.(influxdb.ID)
 		if err := errUnexpectedDecodeVal(ok); err != nil {
 			return Entity{}, err
@@ -76,20 +88,23 @@ func NewOrgNameKeyStore(resource string, bktName []byte, caseSensitive bool) *St
 		return ent, nil
 	}
 
-	return NewStoreBase(resource, bktName, EncOrgNameKeyFn(caseSensitive), EncIDKey, DecIndexEntFn, decValToEntFn)
+	return NewStoreBase(resource, bktName, EncOrgIDNameKey(caseSensitive), EncIDKey, DecIndexID, decValToEntFn)
 }
 
+// StoreBase is the base behavior for accessing buckets in kv. It provides mechanisms that can
+// be used in composing stores together (i.e. IndexStore).
 type StoreBase struct {
 	Resource string
 	BktName  []byte
 
 	EncodeEntKeyFn  EncodeEntFn
 	EncodeEntBodyFn EncodeEntFn
-	DecodeEntFn     DecodeBucketEntFn
-	DecodeToEntFn   DecodedValToEntFn
+	DecodeEntFn     DecodeBucketValFn
+	DecodeToEntFn   ConvertValToEntFn
 }
 
-func NewStoreBase(resource string, bktName []byte, encKeyFn, encBodyFn EncodeEntFn, decFn DecodeBucketEntFn, decToEntFn DecodedValToEntFn) *StoreBase {
+// NewStoreBase creates a new store base.
+func NewStoreBase(resource string, bktName []byte, encKeyFn, encBodyFn EncodeEntFn, decFn DecodeBucketValFn, decToEntFn ConvertValToEntFn) *StoreBase {
 	return &StoreBase{
 		Resource:        resource,
 		BktName:         bktName,
@@ -100,10 +115,13 @@ func NewStoreBase(resource string, bktName []byte, encKeyFn, encBodyFn EncodeEnt
 	}
 }
 
+// EntKey returns the key for the entity provided. This is a shortcut for grabbing the EntKey without
+// having to juggle the encoding funcs.
 func (s *StoreBase) EntKey(ctx context.Context, ent Entity) ([]byte, error) {
 	return s.encodeEnt(ctx, ent, s.EncodeEntKeyFn)
 }
 
+// Init creates the buckets.
 func (s *StoreBase) Init(ctx context.Context, tx Tx) error {
 	span, ctx := tracing.StartSpanFromContextWithOperationName(ctx, "bucket_"+string(s.BktName))
 	defer span.Finish()
@@ -119,14 +137,21 @@ func (s *StoreBase) Init(ctx context.Context, tx Tx) error {
 }
 
 type (
+	// DeleteOpts provides indicators to the store.Delete call for deleting a given
+	// entity. The FilterFn indicates the current value should be deleted when returning
+	// true.
 	DeleteOpts struct {
 		DeleteRelationFns []DeleteRelationsFn
 		FilterFn          FilterFn
 	}
 
+	// DeleteRelationsFn is a hook that a store that composes other stores can use to
+	// delete an entity and any relations it may share. An example would be deleting an
+	// an entity and its associated index.
 	DeleteRelationsFn func(key []byte, decodedVal interface{}) error
 )
 
+// Delete deletes entities by the provided options.
 func (s *StoreBase) Delete(ctx context.Context, tx Tx, opts DeleteOpts) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
@@ -144,11 +169,12 @@ func (s *StoreBase) Delete(ctx context.Context, tx Tx, opts DeleteOpts) error {
 			}
 			return s.bucketDelete(ctx, tx, k)
 		},
-		FilterFn: opts.FilterFn,
+		FilterEntFn: opts.FilterFn,
 	}
 	return s.Find(ctx, tx, findOpts)
 }
 
+// DeleteEnt deletes an entity.
 func (s *StoreBase) DeleteEnt(ctx context.Context, tx Tx, ent Entity) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
@@ -161,39 +187,60 @@ func (s *StoreBase) DeleteEnt(ctx context.Context, tx Tx, ent Entity) error {
 }
 
 type (
+	// FindOpts provided a means to search through the bucket. When a filter func
+	// is provided, that will run against the entity and if the filter responds true,
+	// will count it towards the number of entries seen and the capture func will be
+	// run with it provided to it.
 	FindOpts struct {
-		Descending bool
-		Offset     int
-		Limit      int
-		Prefix     []byte
-		CaptureFn  FindCaptureFn
-		FilterFn   FilterFn
+		Descending  bool
+		Offset      int
+		Limit       int
+		Prefix      []byte
+		CaptureFn   FindCaptureFn
+		FilterEntFn FilterFn
 	}
 
+	// FindCaptureFn is the mechanism for closing over the key and decoded value pair
+	// for adding results to the call sites collection. This generic implementation allows
+	// it to be reused. The returned decodedVal should always satisfy whatever decoding
+	// of the bucket value was set on the storeo that calls Find.
 	FindCaptureFn func(key []byte, decodedVal interface{}) error
-	FilterFn      func(k []byte, v interface{}) bool
+
+	// FilterFn will provide an indicator to the Find or Delete calls that the entity that
+	// was seen is one that is valid and should be either captured or deleted (depending on
+	// the caller of the filter func).
+	FilterFn func(key []byte, decodedVal interface{}) bool
 )
 
+// Find provides a mechanism for looking through the bucket via
+// the set options. When a prefix is provided, the prefix is used to
+// seek the bucket.
 func (s *StoreBase) Find(ctx context.Context, tx Tx, opts FindOpts) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	cur, err := s.bucketCursor(ctx, tx)
 	if err != nil {
 		return err
 	}
 
-	iter := &Iter{
+	iter := &iterator{
 		cursor:     cur,
 		descending: opts.Descending,
 		limit:      opts.Limit,
 		offset:     opts.Offset,
 		prefix:     opts.Prefix,
 		decodeFn:   s.DecodeEntFn,
-		filterFn:   opts.FilterFn,
+		filterFn:   opts.FilterEntFn,
 	}
 
-	for k, v := iter.Next(ctx); k != nil; k, v = iter.Next(ctx) {
+	for k, v, err := iter.Next(ctx); k != nil; k, v, err = iter.Next(ctx) {
+		if err != nil {
+			return err
+		}
 		if err := opts.CaptureFn(k, v); err != nil {
 			return err
 		}
@@ -201,6 +248,9 @@ func (s *StoreBase) Find(ctx context.Context, tx Tx, opts FindOpts) error {
 	return nil
 }
 
+// FindEnt returns the decoded entity body via the provided entity.
+// An example entity should not include a Body, but rather the ID,
+// Name, or OrgID.
 func (s *StoreBase) FindEnt(ctx context.Context, tx Tx, ent Entity) (interface{}, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
@@ -219,6 +269,7 @@ func (s *StoreBase) FindEnt(ctx context.Context, tx Tx, ent Entity) (interface{}
 	return s.decodeEnt(ctx, body)
 }
 
+// Put will persist the entity.
 func (s *StoreBase) Put(ctx context.Context, tx Tx, ent Entity) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
@@ -361,7 +412,7 @@ func (s *StoreBase) encodeEnt(ctx context.Context, ent Entity, fn EncodeEntFn) (
 
 	encoded, field, err := fn(ent)
 	if err != nil {
-		return nil, &influxdb.Error{
+		return encoded, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  fmt.Sprintf("provided %s %s is an invalid format", s.Resource, field),
 			Err:  err,
@@ -370,7 +421,7 @@ func (s *StoreBase) encodeEnt(ctx context.Context, ent Entity, fn EncodeEntFn) (
 	return encoded, nil
 }
 
-type Iter struct {
+type iterator struct {
 	cursor Cursor
 
 	counter    int
@@ -385,12 +436,12 @@ type Iter struct {
 	filterFn FilterFn
 }
 
-func (i *Iter) Next(ctx context.Context) (key []byte, val interface{}) {
+func (i *iterator) Next(ctx context.Context) (key []byte, val interface{}, err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if i.limit > 0 && i.counter >= i.limit+i.offset {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	var (
@@ -401,8 +452,12 @@ func (i *Iter) Next(ctx context.Context) (key []byte, val interface{}) {
 	case len(i.prefix) > 0:
 		i.seek(ctx)
 		nextFn = func() ([]byte, []byte) {
-			kv := <-i.seekChan
-			return kv.k, kv.v
+			select {
+			case <-ctx.Done():
+				return nil, nil
+			case kv := <-i.seekChan:
+				return kv.k, kv.v
+			}
 		}
 		k, vRaw = nextFn()
 	case i.counter == 0 && i.descending:
@@ -420,15 +475,18 @@ func (i *Iter) Next(ctx context.Context) (key []byte, val interface{}) {
 	}
 
 	k, decodedVal, err := i.decodeFn(k, vRaw)
-	for ; err == nil && len(k) > 0; k, decodedVal, err = i.decodeFn(nextFn()) {
+	for ; ; k, decodedVal, err = i.decodeFn(nextFn()) {
+		if err != nil {
+			return nil, nil, err
+		}
 		if i.isNext(k, decodedVal) {
 			break
 		}
 	}
-	return k, decodedVal
+	return k, decodedVal, nil
 }
 
-func (i *Iter) isNext(k []byte, v interface{}) bool {
+func (i *iterator) isNext(k []byte, v interface{}) bool {
 	if len(k) == 0 {
 		return true
 	}
@@ -452,7 +510,7 @@ func (i *Iter) isNext(k []byte, v interface{}) bool {
 	return true
 }
 
-func (i *Iter) seek(ctx context.Context) {
+func (i *iterator) seek(ctx context.Context) {
 	if i.seekChan != nil || len(i.prefix) == 0 {
 		return
 	}
@@ -478,13 +536,6 @@ func (i *Iter) seek(ctx context.Context) {
 }
 
 func indexByOrgNameKey(orgID influxdb.ID, name string, caseSensitive bool) ([]byte, error) {
-	if name == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "name must be provided",
-		}
-	}
-
 	orgIDEncoded, err := orgID.Encode()
 	if err != nil {
 		return nil, &influxdb.Error{
@@ -495,6 +546,18 @@ func indexByOrgNameKey(orgID influxdb.ID, name string, caseSensitive bool) ([]by
 	}
 	k := make([]byte, influxdb.IDLength+len(name))
 	copy(k, orgIDEncoded)
+
+	if name == "" {
+		// purposefully returning a partial key here b/c it allows for
+		// a key of just the orgID to be used. An Error can be ignored
+		// and then the key useful to the caller. It is used in the Index
+		// Store when needing to lookup by orgID and hte name isn't provided.
+		return k, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "name must be provided",
+		}
+	}
+
 	if !caseSensitive {
 		name = strings.ToLower(name)
 	}

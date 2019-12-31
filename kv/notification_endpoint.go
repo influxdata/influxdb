@@ -22,12 +22,12 @@ var _ influxdb.NotificationEndpointService = (*Service)(nil)
 func newEndpointStore() *IndexStore {
 	const resource = "notification endpoint"
 
-	var decEndpointEntFn DecodeBucketEntFn = func(key, val []byte) ([]byte, interface{}, error) {
+	var decEndpointEntFn DecodeBucketValFn = func(key, val []byte) ([]byte, interface{}, error) {
 		edp, err := endpoint.UnmarshalJSON(val)
 		return key, edp, err
 	}
 
-	var decValToEntFn DecodedValToEntFn = func(_ []byte, v interface{}) (Entity, error) {
+	var decValToEntFn ConvertValToEntFn = func(_ []byte, v interface{}) (Entity, error) {
 		edp, ok := v.(influxdb.NotificationEndpoint)
 		if err := errUnexpectedDecodeVal(ok); err != nil {
 			return Entity{}, err
@@ -333,10 +333,10 @@ func (s *Service) findNotificationEndpoints(ctx context.Context, tx Tx, filter i
 
 	edps := make([]influxdb.NotificationEndpoint, 0)
 	err = s.endpointStore.Find(ctx, tx, FindOpts{
-		Descending: o.Descending,
-		Offset:     o.Offset,
-		Limit:      o.Limit,
-		FilterFn:   filterEndpointsFn(idMap, filter),
+		Descending:  o.Descending,
+		Offset:      o.Offset,
+		Limit:       o.Limit,
+		FilterEntFn: filterEndpointsFn(idMap, filter),
 		CaptureFn: func(k []byte, v interface{}) error {
 			edp, ok := v.(influxdb.NotificationEndpoint)
 			if err := errUnexpectedDecodeVal(ok); err != nil {

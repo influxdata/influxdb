@@ -215,7 +215,7 @@ func CreateCheck(
 		check  influxdb.Check
 	}
 	type wants struct {
-		err    error
+		err    *influxdb.Error
 		checks []influxdb.Check
 		urms   []*influxdb.UserResourceMapping
 	}
@@ -737,12 +737,12 @@ func CreateCheck(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			createCheck := influxdb.CheckCreate{Check: tt.args.check, Status: influxdb.Active}
 			err := s.CreateCheck(ctx, createCheck, tt.args.userID)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			influxErrsEqual(t, tt.wants.err, err)
 
 			defer s.DeleteCheck(ctx, tt.args.check.GetID())
 			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
@@ -778,7 +778,7 @@ func FindCheckByID(
 		id influxdb.ID
 	}
 	type wants struct {
-		err   error
+		err   *influxdb.Error
 		check influxdb.Check
 	}
 
@@ -838,12 +838,12 @@ func FindCheckByID(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			check, err := s.FindCheckByID(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			influxErrsEqual(t, tt.wants.err, err)
 
 			if diff := cmp.Diff(check, tt.wants.check, checkCmpOptions...); diff != "" {
 				t.Errorf("check is different -got/+want\ndiff %s", diff)
@@ -1185,7 +1185,7 @@ func DeleteCheck(
 		userID influxdb.ID
 	}
 	type wants struct {
-		err    error
+		err    *influxdb.Error
 		checks []influxdb.Check
 	}
 
@@ -1299,11 +1299,11 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteCheck(ctx, MustIDBase16(tt.args.ID))
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			influxErrsEqual(t, tt.wants.err, err)
 
 			filter := influxdb.CheckFilter{
 				UserResourceMappingFilter: influxdb.UserResourceMappingFilter{
@@ -1334,7 +1334,7 @@ func FindCheck(
 
 	type wants struct {
 		check influxdb.Check
-		err   error
+		err   *influxdb.Error
 	}
 
 	tests := []struct {
@@ -1419,10 +1419,10 @@ func FindCheck(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
-			ctx := context.Background()
-			filter := influxdb.CheckFilter{}
+
+			var filter influxdb.CheckFilter
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
 			}
@@ -1430,8 +1430,8 @@ func FindCheck(
 				filter.OrgID = &tt.args.OrgID
 			}
 
-			check, err := s.FindCheck(ctx, filter)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			check, err := s.FindCheck(context.Background(), filter)
+			influxErrsEqual(t, tt.wants.err, err)
 
 			if diff := cmp.Diff(check, tt.wants.check, checkCmpOptions...); diff != "" {
 				t.Errorf("checks are different -got/+want\ndiff %s", diff)

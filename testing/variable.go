@@ -8,11 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/pkg/testing/assert"
-
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/pkg/testing/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -770,7 +769,9 @@ func FindVariables(init func(VariableFields, *testing.T) (platform.VariableServi
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.Background()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
 
 			filter := platform.VariableFilter{}
 			if tt.args.orgID != nil {
