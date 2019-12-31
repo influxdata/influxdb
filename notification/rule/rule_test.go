@@ -466,6 +466,21 @@ func TestMatchingRules(t *testing.T) {
 			},
 			exp: true,
 		},
+		{
+			name:     "Empty tag rule matches filterTags",
+			tagRules: []notification.TagRule{},
+			filterTags: []influxdb.Tag{
+				{Key: "a", Value: "b"},
+				{Key: "c", Value: "X"},
+			},
+			exp: true,
+		},
+		{
+			name:       "Empty tag rule matches empty filter tags",
+			tagRules:   []notification.TagRule{},
+			filterTags: []influxdb.Tag{},
+			exp:        true,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
