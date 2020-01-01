@@ -33,17 +33,16 @@ func newEndpointStore() *IndexStore {
 			return Entity{}, err
 		}
 		return Entity{
-			ID:    edp.GetID(),
-			Name:  edp.GetName(),
-			OrgID: edp.GetOrgID(),
-			Body:  edp,
+			PK:        EncID(edp.GetID()),
+			UniqueKey: Encode(EncID(edp.GetOrgID()), EncString(edp.GetName())),
+			Body:      edp,
 		}, nil
 	}
 
 	return &IndexStore{
 		Resource:   resource,
 		EntStore:   NewStoreBase(resource, []byte("notificationEndpointv1"), EncIDKey, EncBodyJSON, decEndpointEntFn, decValToEntFn),
-		IndexStore: NewOrgNameKeyStore(resource, []byte("notificationEndpointIndexv1"), true),
+		IndexStore: NewOrgNameKeyStore(resource, []byte("notificationEndpointIndexv1"), false),
 	}
 }
 
@@ -85,10 +84,9 @@ func (s *Service) createNotificationEndpoint(ctx context.Context, tx Tx, edp inf
 	}
 
 	ent := Entity{
-		ID:    edp.GetID(),
-		Name:  edp.GetName(),
-		OrgID: edp.GetOrgID(),
-		Body:  edp,
+		PK:        EncID(edp.GetID()),
+		UniqueKey: Encode(EncID(edp.GetOrgID()), EncString(edp.GetName())),
+		Body:      edp,
 	}
 	if err := s.endpointStore.Put(ctx, tx, ent); err != nil {
 		return err
@@ -108,8 +106,7 @@ func (s *Service) findNotificationEndpointByName(ctx context.Context, tx Tx, org
 	defer span.Finish()
 
 	body, err := s.endpointStore.FindEnt(ctx, tx, Entity{
-		OrgID: orgID,
-		Name:  name,
+		UniqueKey: Encode(EncID(orgID), EncString(name)),
 	})
 	if err != nil {
 		return nil, err
@@ -147,8 +144,7 @@ func (s *Service) updateNotificationEndpoint(ctx context.Context, tx Tx, id infl
 		}
 
 		err = s.endpointStore.IndexStore.DeleteEnt(ctx, tx, Entity{
-			OrgID: edp.GetOrgID(),
-			Name:  curName,
+			UniqueKey: Encode(EncID(edp.GetOrgID()), EncString(curName)),
 		})
 		if err != nil {
 			return nil, err
@@ -166,10 +162,9 @@ func (s *Service) updateNotificationEndpoint(ctx context.Context, tx Tx, id infl
 	}
 
 	ent := Entity{
-		ID:    edp.GetID(),
-		Name:  edp.GetName(),
-		OrgID: edp.GetOrgID(),
-		Body:  edp,
+		PK:        EncID(edp.GetID()),
+		UniqueKey: Encode(EncID(edp.GetOrgID()), EncString(edp.GetName())),
+		Body:      edp,
 	}
 	if err := s.endpointStore.Put(ctx, tx, ent); err != nil {
 		return nil, err
@@ -210,8 +205,7 @@ func (s *Service) patchNotificationEndpoint(ctx context.Context, tx Tx, id influ
 		}
 
 		err = s.endpointStore.IndexStore.DeleteEnt(ctx, tx, Entity{
-			OrgID: edp.GetOrgID(),
-			Name:  edp.GetName(),
+			UniqueKey: Encode(EncID(edp.GetOrgID()), EncString(edp.GetName())),
 		})
 		if err != nil {
 			return nil, err
@@ -236,10 +230,9 @@ func (s *Service) patchNotificationEndpoint(ctx context.Context, tx Tx, id influ
 	// TODO(jsteenb2): every above here moves into service layer
 
 	ent := Entity{
-		ID:    edp.GetID(),
-		Name:  edp.GetName(),
-		OrgID: edp.GetOrgID(),
-		Body:  edp,
+		PK:        EncID(edp.GetID()),
+		UniqueKey: Encode(EncID(edp.GetOrgID()), EncString(edp.GetName())),
+		Body:      edp,
 	}
 	if err := s.endpointStore.Put(ctx, tx, ent); err != nil {
 		return nil, err
@@ -258,10 +251,9 @@ func (s *Service) PutNotificationEndpoint(ctx context.Context, edp influxdb.Noti
 
 	return s.kv.Update(ctx, func(tx Tx) (err error) {
 		ent := Entity{
-			ID:    edp.GetID(),
-			Name:  edp.GetName(),
-			OrgID: edp.GetOrgID(),
-			Body:  edp,
+			PK:        EncID(edp.GetID()),
+			UniqueKey: Encode(EncID(edp.GetOrgID()), EncString(edp.GetName())),
+			Body:      edp,
 		}
 		return s.endpointStore.Put(ctx, tx, ent)
 	})
@@ -283,7 +275,7 @@ func (s *Service) FindNotificationEndpointByID(ctx context.Context, id influxdb.
 }
 
 func (s *Service) findNotificationEndpointByID(ctx context.Context, tx Tx, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
-	decodedEnt, err := s.endpointStore.FindEnt(ctx, tx, Entity{ID: id})
+	decodedEnt, err := s.endpointStore.FindEnt(ctx, tx, Entity{PK: EncID(id)})
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +378,7 @@ func (s *Service) deleteNotificationEndpoint(ctx context.Context, tx Tx, id infl
 		return nil, 0, err
 	}
 
-	if err := s.endpointStore.DeleteEnt(ctx, tx, Entity{ID: id}); err != nil {
+	if err := s.endpointStore.DeleteEnt(ctx, tx, Entity{PK: EncID(id)}); err != nil {
 		return nil, 0, err
 	}
 
