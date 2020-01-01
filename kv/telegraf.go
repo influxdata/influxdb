@@ -78,6 +78,9 @@ func (s *Service) initializeTelegraf(ctx context.Context, tx Tx) error {
 	if _, err := s.telegrafBucket(tx); err != nil {
 		return err
 	}
+	if _, err := s.telegrafPluginsBucket(tx); err != nil {
+		return err
+	}
 	return nil
 }
 

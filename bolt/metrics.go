@@ -60,7 +60,7 @@ var (
 	telegrafPluginsDesc = prometheus.NewDesc(
 		"influxdb_telegraf_plugins_count",
 		"Number of individual telegraf plugins configured",
-		nil, nil)
+		[]string{"plugin"}, nil)
 
 	boltWritesDesc = prometheus.NewDesc(
 		"boltdb_writes_total",
@@ -118,7 +118,7 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 		users = tx.Bucket(userBucket).Stats().KeyN
 		err := tx.Bucket(telegrafPluginsBucket).ForEach(func(k, v []byte) error {
 			pStats := map[string]float64{}
-			err := json.Unmarshal(v, pStats)
+			err := json.Unmarshal(v, &pStats)
 			if err != nil {
 				return err
 			}
