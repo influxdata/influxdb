@@ -34,7 +34,7 @@ const GetOrganizations: FunctionComponent<Props> = ({
     if (status === RemoteDataState.NotStarted) {
       getOrganizations()
     }
-  })
+  }, [])
 
   return (
     <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>

@@ -53,6 +53,11 @@ const SetOrg: FC<Props> = ({
       return
     }
 
+    if (!orgs.length) {
+      router.push(`/no-orgs`)
+      return
+    }
+
     // else default to first org
     router.push(`/orgs/${orgs[0].id}`)
   }, [orgID])

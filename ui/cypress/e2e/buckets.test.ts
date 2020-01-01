@@ -59,12 +59,7 @@ describe('Buckets', () => {
     })
 
     describe('Searching and Sorting', () => {
-      it('Searching buckets', () => {
-        cy.getByTestID('search-widget').type('tasks')
-        cy.getByTestID('bucket-card').should('have.length', 1)
-      })
-
-      it('Sorting by Name', () => {
+      it('can sort by name and retention', () => {
         cy.getByTestID('name-sorter').click()
         cy.getByTestID('bucket-card')
           .first()
@@ -74,9 +69,7 @@ describe('Buckets', () => {
         cy.getByTestID('bucket-card')
           .first()
           .contains('_monitoring')
-      })
 
-      it('Sorting by Retention', () => {
         cy.getByTestID('retention-sorter').click()
         cy.getByTestID('bucket-card')
           .first()
@@ -86,6 +79,9 @@ describe('Buckets', () => {
         cy.getByTestID('bucket-card')
           .first()
           .contains('defbuck')
+
+        cy.getByTestID('search-widget').type('tasks')
+        cy.getByTestID('bucket-card').should('have.length', 1)
       })
     })
 
