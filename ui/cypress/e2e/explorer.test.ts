@@ -546,8 +546,11 @@ describe('DataExplorer', () => {
         cy.getByTestID('switch-to-script-editor').click()
 
         cy.getByTestID('time-machine--bottom').within(() => {
-          cy.get('textarea').type('from(', {force: true})
-          cy.getByTestID('time-machine-submit-button').click()
+          cy.get('textarea')
+            .type('from(', {force: true})
+            .then(() => {
+              cy.getByTestID('time-machine-submit-button').click()
+            })
         })
 
         cy.getByTestID('empty-graph--error').should('exist')
