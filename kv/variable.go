@@ -96,17 +96,16 @@ func newVariableStore() *IndexStore {
 			return Entity{}, err
 		}
 		return Entity{
-			ID:    v.ID,
-			Name:  v.Name,
-			OrgID: v.OrganizationID,
-			Body:  v,
+			PK:        EncID(v.ID),
+			UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(v.Name)),
+			Body:      v,
 		}, nil
 	}
 
 	return &IndexStore{
 		Resource:   resource,
 		EntStore:   NewStoreBase(resource, []byte("variablesv1"), EncIDKey, EncBodyJSON, decodeVarEntFn, decValToEntFn),
-		IndexStore: NewOrgNameKeyStore(resource, []byte("variablesindexv1"), false),
+		IndexStore: NewOrgNameKeyStore(resource, []byte("variablesindexv1"), true),
 	}
 }
 
@@ -195,7 +194,7 @@ func (s *Service) FindVariableByID(ctx context.Context, id influxdb.ID) (*influx
 }
 
 func (s *Service) findVariableByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Variable, error) {
-	body, err := s.variableStore.FindEnt(ctx, tx, Entity{ID: id})
+	body, err := s.variableStore.FindEnt(ctx, tx, Entity{PK: EncID(id)})
 	if err != nil {
 		return nil, err
 	}
@@ -217,8 +216,7 @@ func (s *Service) CreateVariable(ctx context.Context, v *influxdb.Variable) erro
 		v.Name = strings.TrimSpace(v.Name) // TODO: move to service layer
 
 		_, err := s.variableStore.FindEnt(ctx, tx, Entity{
-			OrgID: v.OrganizationID,
-			Name:  v.Name,
+			UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(v.Name)),
 		})
 		if err == nil {
 			return &influxdb.Error{
@@ -240,9 +238,8 @@ func (s *Service) CreateVariable(ctx context.Context, v *influxdb.Variable) erro
 func (s *Service) ReplaceVariable(ctx context.Context, v *influxdb.Variable) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
 		_, err := s.variableStore.FindEnt(ctx, tx, Entity{
-			ID:    v.ID,
-			OrgID: v.OrganizationID,
-			Name:  v.Name,
+			PK:        EncID(v.ID),
+			UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(v.Name)),
 		})
 		if err == nil {
 			return &influxdb.Error{
@@ -261,10 +258,9 @@ func (s *Service) putVariable(ctx context.Context, tx Tx, v *influxdb.Variable) 
 	}
 
 	ent := Entity{
-		ID:    v.ID,
-		Name:  v.Name,
-		OrgID: v.OrganizationID,
-		Body:  v,
+		PK:        EncID(v.ID),
+		UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(v.Name)),
+		Body:      v,
 	}
 	return s.variableStore.Put(ctx, tx, ent)
 }
@@ -286,8 +282,7 @@ func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *in
 			update.Name = strings.ToLower(strings.TrimSpace(update.Name))
 
 			vbytes, err := s.variableStore.FindEnt(ctx, tx, Entity{
-				OrgID: v.OrganizationID,
-				Name:  update.Name,
+				UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(update.Name)),
 			})
 			if err == nil {
 				existingVar, ok := vbytes.(*influxdb.Variable)
@@ -303,8 +298,7 @@ func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *in
 			}
 
 			err = s.variableStore.IndexStore.DeleteEnt(ctx, tx, Entity{
-				OrgID: v.OrganizationID,
-				Name:  v.Name,
+				UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(update.Name)),
 			})
 			if err != nil {
 				return err
@@ -331,7 +325,7 @@ func (s *Service) DeleteVariable(ctx context.Context, id influxdb.ID) error {
 		if err := s.removeVariableOrgsIndex(tx, v); err != nil {
 			return err
 		}
-		return s.variableStore.DeleteEnt(ctx, tx, Entity{ID: id})
+		return s.variableStore.DeleteEnt(ctx, tx, Entity{PK: EncID(id)})
 	})
 }
 

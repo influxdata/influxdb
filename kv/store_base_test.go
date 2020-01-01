@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStore(t *testing.T) {
+func TestStoreBase(t *testing.T) {
 	newStoreBase := func(t *testing.T, bktSuffix string, encKeyFn, encBodyFn kv.EncodeEntFn, decFn kv.DecodeBucketValFn, decToEntFn kv.ConvertValToEntFn) (*kv.StoreBase, func(), kv.Store) {
 		t.Helper()
 
@@ -79,10 +79,9 @@ func testPutBase(t *testing.T, kvStore kv.Store, base storeBase, bktName []byte)
 
 	update(t, kvStore, func(tx kv.Tx) error {
 		return base.Put(context.TODO(), tx, kv.Entity{
-			ID:    expected.ID,
-			Name:  expected.Name,
-			OrgID: expected.OrgID,
-			Body:  expected,
+			PK:        kv.EncID(expected.ID),
+			UniqueKey: kv.Encode(kv.EncID(expected.OrgID), kv.EncString(expected.Name)),
+			Body:      expected,
 		})
 	})
 
@@ -101,11 +100,11 @@ func testDeleteEntBase(t *testing.T, kvStore kv.Store, base storeBase) kv.Entity
 	seedEnts(t, kvStore, base, expected)
 
 	update(t, kvStore, func(tx kv.Tx) error {
-		return base.DeleteEnt(context.TODO(), tx, kv.Entity{ID: expected.ID})
+		return base.DeleteEnt(context.TODO(), tx, kv.Entity{PK: expected.PK})
 	})
 
 	err := kvStore.View(context.TODO(), func(tx kv.Tx) error {
-		_, err := base.FindEnt(context.TODO(), tx, kv.Entity{ID: expected.ID})
+		_, err := base.FindEnt(context.TODO(), tx, kv.Entity{PK: expected.PK})
 		return err
 	})
 	isNotFoundErr(t, err)
@@ -195,7 +194,7 @@ func testFindEnt(t *testing.T, kvStore kv.Store, base storeBase) kv.Entity {
 
 	var actual interface{}
 	view(t, kvStore, func(tx kv.Tx) error {
-		f, err := base.FindEnt(context.TODO(), tx, kv.Entity{ID: expected.ID})
+		f, err := base.FindEnt(context.TODO(), tx, kv.Entity{PK: expected.PK})
 		actual = f
 		return err
 	})
@@ -360,20 +359,18 @@ func decFooEntFn(k []byte, v interface{}) (kv.Entity, error) {
 		return kv.Entity{}, fmt.Errorf("invalid entry: %#v", v)
 	}
 	return kv.Entity{
-		ID:    f.ID,
-		Name:  f.Name,
-		OrgID: f.OrgID,
-		Body:  f,
+		PK:        kv.EncID(f.ID),
+		UniqueKey: kv.Encode(kv.EncID(f.OrgID), kv.EncString(f.Name)),
+		Body:      f,
 	}, nil
 }
 
 func newFooEnt(id, orgID influxdb.ID, name string) kv.Entity {
 	f := foo{ID: id, Name: name, OrgID: orgID}
 	return kv.Entity{
-		ID:    f.ID,
-		Name:  f.Name,
-		OrgID: f.OrgID,
-		Body:  f,
+		PK:        kv.EncID(f.ID),
+		UniqueKey: kv.Encode(kv.EncID(f.OrgID), kv.EncString(f.Name)),
+		Body:      f,
 	}
 }
 

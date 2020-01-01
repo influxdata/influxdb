@@ -2,7 +2,6 @@ package kv
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -41,7 +40,7 @@ func (s *IndexStore) Delete(ctx context.Context, tx Tx, opts DeleteOpts) error {
 	defer span.Finish()
 
 	deleteIndexedRelationFn := func(k []byte, v interface{}) error {
-		ent, err := s.EntStore.DecodeToEntFn(k, v)
+		ent, err := s.EntStore.ConvertValToEntFn(k, v)
 		if err != nil {
 			return err
 		}
@@ -65,7 +64,7 @@ func (s *IndexStore) DeleteEnt(ctx context.Context, tx Tx, ent Entity) error {
 		return err
 	}
 
-	decodedEnt, err := s.EntStore.DecodeToEntFn(nil, existing)
+	decodedEnt, err := s.EntStore.ConvertValToEntFn(nil, existing)
 	if err != nil {
 		return err
 	}
@@ -111,6 +110,7 @@ func (s *IndexStore) indexFilterStream(ctx context.Context, tx Tx, entFilterFn F
 	v   interface{}
 	err error
 }, func([]byte, interface{}) bool) {
+
 	kvStream := make(chan struct {
 		k   []byte
 		v   interface{}
@@ -126,11 +126,7 @@ func (s *IndexStore) indexFilterStream(ctx context.Context, tx Tx, entFilterFn F
 	send := func(key []byte, v interface{}, err error) bool {
 		select {
 		case <-ctx.Done():
-		case kvStream <- kve{
-			k:   key,
-			v:   v,
-			err: err,
-		}:
+		case kvStream <- kve{k: key, v: v, err: err}:
 		}
 		return true
 	}
@@ -141,7 +137,7 @@ func (s *IndexStore) indexFilterStream(ctx context.Context, tx Tx, entFilterFn F
 				close(kvStream)
 			}
 		}()
-		ent, err := s.IndexStore.DecodeToEntFn(key, indexVal)
+		ent, err := s.IndexStore.ConvertValToEntFn(key, indexVal)
 		if err != nil {
 			return send(nil, nil, err)
 		}
@@ -175,14 +171,17 @@ func (s *IndexStore) FindEnt(ctx context.Context, tx Tx, ent Entity) (interface{
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if ent.ID == 0 && ent.OrgID == 0 && ent.Name == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  fmt.Sprintf("no key was provided for %s", s.Resource),
+	_, err := s.EntStore.EntKey(ctx, ent)
+	if err != nil {
+		if _, idxErr := s.IndexStore.EntKey(ctx, ent); idxErr != nil {
+			return nil, &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "no key was provided for " + s.Resource,
+			}
 		}
 	}
 
-	if ent.ID == 0 {
+	if err != nil {
 		return s.findByIndex(ctx, tx, ent)
 	}
 	return s.EntStore.FindEnt(ctx, tx, ent)
@@ -213,7 +212,7 @@ func (s *IndexStore) findByIndex(ctx context.Context, tx Tx, ent Entity) (interf
 		return nil, err
 	}
 
-	indexEnt, err := s.IndexStore.DecodeToEntFn(indexKey, idxEncodedID)
+	indexEnt, err := s.IndexStore.ConvertValToEntFn(indexKey, idxEncodedID)
 	if err != nil {
 		return nil, err
 	}
