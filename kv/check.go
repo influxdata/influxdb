@@ -15,27 +15,26 @@ func newCheckStore() *IndexStore {
 	const resource = "check"
 
 	var decEndpointEntFn DecodeBucketValFn = func(key, val []byte) ([]byte, interface{}, error) {
-		edp, err := check.UnmarshalJSON(val)
-		return key, edp, err
+		ch, err := check.UnmarshalJSON(val)
+		return key, ch, err
 	}
 
 	var decValToEntFn ConvertValToEntFn = func(_ []byte, v interface{}) (Entity, error) {
-		edp, ok := v.(influxdb.Check)
+		ch, ok := v.(influxdb.Check)
 		if err := errUnexpectedDecodeVal(ok); err != nil {
 			return Entity{}, err
 		}
 		return Entity{
-			ID:    edp.GetID(),
-			Name:  edp.GetName(),
-			OrgID: edp.GetOrgID(),
-			Body:  edp,
+			PK:        EncID(ch.GetID()),
+			UniqueKey: Encode(EncID(ch.GetOrgID()), EncString(ch.GetName())),
+			Body:      ch,
 		}, nil
 	}
 
 	return &IndexStore{
 		Resource:   resource,
 		EntStore:   NewStoreBase(resource, []byte("checksv1"), EncIDKey, EncBodyJSON, decEndpointEntFn, decValToEntFn),
-		IndexStore: NewOrgNameKeyStore(resource, []byte("checkindexv1"), true),
+		IndexStore: NewOrgNameKeyStore(resource, []byte("checkindexv1"), false),
 	}
 }
 
@@ -61,7 +60,7 @@ func (s *Service) FindCheckByID(ctx context.Context, id influxdb.ID) (influxdb.C
 }
 
 func (s *Service) findCheckByID(ctx context.Context, tx Tx, id influxdb.ID) (influxdb.Check, error) {
-	chkVal, err := s.checkStore.FindEnt(ctx, tx, Entity{ID: id})
+	chkVal, err := s.checkStore.FindEnt(ctx, tx, Entity{PK: EncID(id)})
 	if err != nil {
 		return nil, err
 	}
@@ -73,8 +72,7 @@ func (s *Service) findCheckByName(ctx context.Context, tx Tx, orgID influxdb.ID,
 	defer span.Finish()
 
 	chVal, err := s.checkStore.FindEnt(ctx, tx, Entity{
-		OrgID: orgID,
-		Name:  name,
+		UniqueKey: Encode(EncID(orgID), EncString(name)),
 	})
 	if IsNotFound(err) {
 		return nil, &influxdb.Error{
@@ -118,7 +116,7 @@ func (s *Service) FindCheck(ctx context.Context, filter influxdb.CheckFilter) (i
 
 		var prefix []byte
 		if filter.OrgID != nil {
-			ent := Entity{OrgID: *filter.OrgID}
+			ent := Entity{UniqueKey: EncID(*filter.OrgID)}
 			prefix, _ = s.checkStore.IndexStore.EntKey(ctx, ent)
 		}
 		filterFn := filterChecksFn(nil, filter)
@@ -203,11 +201,11 @@ func (s *Service) FindChecks(ctx context.Context, filter influxdb.CheckFilter, o
 
 		var prefix []byte
 		if filter.OrgID != nil {
-			ent := Entity{OrgID: *filter.OrgID}
+			encs := []EncodeFn{EncID(*filter.OrgID)}
 			if filter.Name != nil {
-				ent.Name = *filter.Name
+				encs = append(encs, EncString(*filter.Name))
 			}
-			prefix, _ = s.checkStore.IndexStore.EntKey(ctx, ent)
+			prefix, _ = s.checkStore.IndexStore.EntKey(ctx, Entity{UniqueKey: Encode(encs...)})
 		}
 
 		var opt influxdb.FindOptions
@@ -338,10 +336,9 @@ func (s *Service) PutCheck(ctx context.Context, c influxdb.Check) error {
 
 func (s *Service) putCheck(ctx context.Context, tx Tx, c influxdb.Check) error {
 	return s.checkStore.Put(ctx, tx, Entity{
-		ID:    c.GetID(),
-		Name:  c.GetName(),
-		OrgID: c.GetOrgID(),
-		Body:  c,
+		PK:        EncID(c.GetID()),
+		UniqueKey: Encode(EncID(c.GetOrgID()), EncString(c.GetName())),
+		Body:      c,
 	})
 }
 
@@ -400,8 +397,7 @@ func (s *Service) updateCheck(ctx context.Context, tx Tx, id influxdb.ID, chk in
 		}
 
 		ent := Entity{
-			OrgID: current.GetOrgID(),
-			Name:  current.GetName(),
+			UniqueKey: Encode(EncID(current.GetOrgID()), EncString(current.GetName())),
 		}
 		if err := s.checkStore.IndexStore.DeleteEnt(ctx, tx, ent); err != nil {
 			return nil, err
@@ -468,8 +464,7 @@ func (s *Service) patchCheck(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		}
 
 		ent := Entity{
-			OrgID: c.GetOrgID(),
-			Name:  c.GetName(),
+			UniqueKey: Encode(EncID(c.GetOrgID()), EncString(c.GetName())),
 		}
 		if err := s.checkStore.IndexStore.DeleteEnt(ctx, tx, ent); err != nil {
 			return nil, err
@@ -513,7 +508,10 @@ func (s *Service) DeleteCheck(ctx context.Context, id influxdb.ID) error {
 	}
 
 	return s.kv.Update(ctx, func(tx Tx) error {
-		if err := s.checkStore.DeleteEnt(ctx, tx, Entity{ID: id}); err != nil {
+		err := s.checkStore.DeleteEnt(ctx, tx, Entity{
+			PK: EncID(id),
+		})
+		if err != nil {
 			return err
 		}
 

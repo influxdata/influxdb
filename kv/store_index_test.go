@@ -38,8 +38,7 @@ func TestIndexStore(t *testing.T) {
 		expected := testPutBase(t, inmem, indexStore, indexStore.EntStore.BktName)
 
 		key, err := indexStore.IndexStore.EntKey(context.TODO(), kv.Entity{
-			OrgID: expected.OrgID,
-			Name:  expected.Name,
+			UniqueKey: kv.Encode(kv.EncID(expected.OrgID), kv.EncString(expected.Name)),
 		})
 		require.NoError(t, err)
 
@@ -55,8 +54,7 @@ func TestIndexStore(t *testing.T) {
 
 		err := inmem.View(context.TODO(), func(tx kv.Tx) error {
 			_, err := indexStore.IndexStore.FindEnt(context.TODO(), tx, kv.Entity{
-				OrgID: expected.OrgID,
-				Name:  expected.Name,
+				UniqueKey: expected.UniqueKey,
 			})
 			return err
 		})
@@ -109,8 +107,7 @@ func TestIndexStore(t *testing.T) {
 			var actual interface{}
 			view(t, kvStore, func(tx kv.Tx) error {
 				f, err := base.FindEnt(context.TODO(), tx, kv.Entity{
-					OrgID: expected.OrgID,
-					Name:  expected.Name,
+					UniqueKey: expected.UniqueKey,
 				})
 				actual = f
 				return err
