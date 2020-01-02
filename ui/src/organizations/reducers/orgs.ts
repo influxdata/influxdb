@@ -34,7 +34,6 @@ const org = (state: OrgsState['org'] = null, action: Action) => {
 
 const byID = (state: OrgsState['byID'] = {}, action: Action) => {
   switch (action.type) {
-    case ADD_ORG:
     case SET_ORGS: {
       const {schema} = action
 
@@ -42,7 +41,18 @@ const byID = (state: OrgsState['byID'] = {}, action: Action) => {
         return state
       }
 
-      return {...state, ...schema.entities.orgs}
+      return schema.entities.orgs
+    }
+
+    case ADD_ORG: {
+      const {schema} = action
+
+      if (!get(schema, 'entities.orgs')) {
+        return state
+      }
+
+      const org = schema.entities[schema.result]
+      return {...state, [action.schema.result]: org}
     }
 
     case REMOVE_ORG: {
@@ -64,14 +74,22 @@ const byID = (state: OrgsState['byID'] = {}, action: Action) => {
 
 const allIDs = (state: OrgsState['allIDs'] = [], action: Action) => {
   switch (action.type) {
-    case ADD_ORG:
+    case ADD_ORG: {
+      const {schema} = action
+      if (!get(schema, 'result')) {
+        return state
+      }
+
+      return [...state, schema.result]
+    }
+
     case SET_ORGS: {
       const {schema} = action
       if (!get(schema, 'result')) {
         return state
       }
 
-      return [...state, ...schema.result]
+      return [...schema.result]
     }
 
     case REMOVE_ORG: {
