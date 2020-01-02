@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
 	pctx "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/task/backend"
 )
 
 func TestLauncher_Task(t *testing.T) {
@@ -102,13 +101,6 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// Find the next due run of the task we just created, so that we can accurately tick the scheduler to it.
-	ndr, err := be.TaskControlService().NextDueRun(ctx, created.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	be.TaskScheduler().(*backend.TickScheduler).Tick(ndr + 1)
 
 	// Poll for the task to have started and finished.
 	deadline := time.Now().Add(10 * time.Second) // Arbitrary deadline; 10s seems safe for -race on a resource-constrained system.

@@ -2,7 +2,6 @@ package influxdb
 
 import (
 	"fmt"
-	"time"
 )
 
 var (
@@ -151,14 +150,6 @@ func ErrTaskOptionParse(err error) *Error {
 		Msg:  fmt.Sprintf("invalid options; Err: %v", err),
 		Op:   "taskOptions",
 		Err:  err,
-	}
-}
-
-// ErrRunNotDueYet is returned from CreateNextRun if a run is not yet due.
-func ErrRunNotDueYet(dueAt int64) *Error {
-	return &Error{
-		Code: EInvalid,
-		Msg:  fmt.Sprintf("run not due until: %v", time.Unix(dueAt, 0).UTC().Format(time.RFC3339)),
 	}
 }
 
