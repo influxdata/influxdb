@@ -275,7 +275,7 @@ describe('Dashboards', () => {
     it('should route the user to the dashboard index page', () => {
       const nonexistentID = '/0499992503cd3700'
 
-      // visitng the dashboard edit page
+      // visiting the dashboard edit page
       cy.get('@org').then(({id}: Organization) => {
         cy.fixture('routes').then(({orgs, dashboards}) => {
           cy.visit(`${orgs}/${id}${dashboards}${nonexistentID}`)

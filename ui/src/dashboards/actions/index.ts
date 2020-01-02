@@ -358,7 +358,7 @@ export const refreshDashboardVariableValues = (
 
 export const getDashboardAsync = (dashboardID: string) => async (
   dispatch,
-  getState
+  getState: GetState
 ): Promise<void> => {
   try {
     // Fetch the dashboard and all variables a user has access to
@@ -381,9 +381,7 @@ export const getDashboardAsync = (dashboardID: string) => async (
     dispatch(setDashboard(dashboard))
     dispatch(updateTimeRangeFromQueryParams(dashboardID))
   } catch (error) {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
     dispatch(push(`/orgs/${org.id}/dashboards`))
     dispatch(notify(copy.dashboardGetFailed(dashboardID, error.message)))
     return
