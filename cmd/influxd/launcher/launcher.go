@@ -727,7 +727,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	// still open.
 	//
 	// This atrocity checks if the port is free, and if it's not, moves on to the
-	// next one.
+	// next one. This best-effort approach may still fail occasionally when, for example,
+	// two tests race on isAddressPortAvailable.
 	var total int
 	for {
 		portAvailable, err := isAddressPortAvailable(natsOpts.Host, natsOpts.Port)
