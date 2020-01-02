@@ -8,7 +8,7 @@ import TaskRunsRow from 'src/tasks/components/TaskRunsRow'
 
 // Types
 import {Sort, ComponentSize} from '@influxdata/clockface'
-import {Run} from 'src/tasks/components/TaskRunsPage'
+import {Run} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 
 // Utils

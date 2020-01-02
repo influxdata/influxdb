@@ -14,7 +14,7 @@ import (
 )
 
 // check that *KVStore implement kv.Store interface.
-var _ (kv.Store) = (*KVStore)(nil)
+var _ kv.Store = (*KVStore)(nil)
 
 // KVStore is a kv.Store backed by boltdb.
 type KVStore struct {

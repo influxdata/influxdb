@@ -10,9 +10,7 @@ import TaskRunsList from 'src/tasks/components/TaskRunsList'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // Types
-import {AppState} from 'src/types'
-import {RemoteDataState} from 'src/types'
-import {Run as APIRun, Task} from '@influxdata/influx'
+import {AppState, RemoteDataState, Task, Run} from 'src/types'
 import {
   SpinnerContainer,
   TechnoSpinner,
@@ -28,10 +26,6 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {SortTypes} from 'src/shared/utils/sort'
-
-export interface Run extends APIRun {
-  duration: string
-}
 
 interface OwnProps {
   params: {id: string}

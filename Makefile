@@ -17,11 +17,23 @@ SUBDIRS := http ui chronograf query storage
 # The 'libflux' tag is required for instructing the flux to be compiled with the Rust parser
 GO_TAGS=libflux
 GO_ARGS=-tags '$(GO_TAGS)'
+ifeq ($(OS), Windows_NT)
+	VERSION := $(shell git describe --exact-match --tags 2>nil)
+else
+	VERSION := $(shell git describe --exact-match --tags 2>/dev/null)
+endif
+COMMIT := $(shell git rev-parse --short HEAD)
+
+LDFLAGS := $(LDFLAGS) -X main.commit=$(COMMIT)
+ifdef VERSION
+	LDFLAGS += -X main.version=$(VERSION)
+endif
+
 
 # Test vars can be used by all recursive Makefiles
 export GOOS=$(shell go env GOOS)
-export GO_BUILD=env GO111MODULE=on CGO_LDFLAGS="$$(cat .cgo_ldflags)" go build $(GO_ARGS)
-export GO_INSTALL=env GO111MODULE=on CGO_LDFLAGS="$$(cat .cgo_ldflags)" go install $(GO_ARGS)
+export GO_BUILD=env GO111MODULE=on CGO_LDFLAGS="$$(cat .cgo_ldflags)" go build $(GO_ARGS) -ldflags "$(LDFLAGS)"
+export GO_INSTALL=env GO111MODULE=on CGO_LDFLAGS="$$(cat .cgo_ldflags)" go install $(GO_ARGS) -ldflags "$(LDFLAGS)"
 export GO_TEST=env FLUX_PARSER_TYPE=rust GOTRACEBACK=all GO111MODULE=on CGO_LDFLAGS="$$(cat .cgo_ldflags)" go test $(GO_ARGS)
 # Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.
 export GO_GENERATE=go generate $(GO_ARGS)

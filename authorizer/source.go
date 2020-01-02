@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
 )
 
 var _ influxdb.SourceService = (*SourceService)(nil)
@@ -95,13 +94,6 @@ func (s *SourceService) FindSources(ctx context.Context, opts influxdb.FindOptio
 		err := authorizeReadSource(ctx, src.OrganizationID, src.ID)
 		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
 			return nil, 0, err
-		}
-
-		// TODO(desa): this is a totaly hack and needs to be fixed.
-		// Specifically, we need to remove the concept of a default source.
-		if src.OrganizationID.String() == bolt.DefaultSourceOrganizationID {
-			sources = append(sources, src)
-			continue
 		}
 
 		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {

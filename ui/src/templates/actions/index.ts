@@ -12,7 +12,6 @@ import {
   ITaskTemplate,
   TemplateType,
   ITemplate,
-  ILabel as Label,
 } from '@influxdata/influx'
 import {
   RemoteDataState,
@@ -20,6 +19,7 @@ import {
   DashboardTemplate,
   VariableTemplate,
   Template,
+  Label,
 } from 'src/types'
 
 // Actions

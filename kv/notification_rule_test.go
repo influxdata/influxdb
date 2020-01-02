@@ -11,30 +11,11 @@ import (
 )
 
 func TestBoltNotificationRuleStore(t *testing.T) {
-	t.Skip("https://github.com/influxdata/influxdb/issues/14799")
 	influxdbtesting.NotificationRuleStore(initBoltNotificationRuleStore, t)
-}
-
-func TestNotificationRuleStore(t *testing.T) {
-	t.Skip("https://github.com/influxdata/influxdb/issues/14799")
-	influxdbtesting.NotificationRuleStore(initInmemNotificationRuleStore, t)
 }
 
 func initBoltNotificationRuleStore(f influxdbtesting.NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, func()) {
 	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, closeSvc := initNotificationRuleStore(s, f, t)
-	return svc, func() {
-		closeSvc()
-		closeBolt()
-	}
-}
-
-func initInmemNotificationRuleStore(f influxdbtesting.NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, func()) {
-	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}

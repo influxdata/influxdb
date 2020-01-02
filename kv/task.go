@@ -660,6 +660,8 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 }
 
 func (s *Service) createTaskURM(ctx context.Context, tx Tx, t *influxdb.Task) error {
+	// TODO(jsteenb2): should not be getting authorizer inside the store, should terminate at the
+	//  transport layer then pass user id everywhere else.
 	userAuth, err := icontext.GetAuthorizer(ctx)
 	if err != nil {
 		return err

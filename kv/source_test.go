@@ -17,28 +17,8 @@ func TestBoltSourceService(t *testing.T) {
 	t.Run("DeleteSource", func(t *testing.T) { influxdbtesting.DeleteSource(initBoltSourceService, t) })
 }
 
-func TestInmemSourceService(t *testing.T) {
-	t.Run("CreateSource", func(t *testing.T) { influxdbtesting.CreateSource(initInmemSourceService, t) })
-	t.Run("FindSourceByID", func(t *testing.T) { influxdbtesting.FindSourceByID(initInmemSourceService, t) })
-	t.Run("FindSources", func(t *testing.T) { influxdbtesting.FindSources(initInmemSourceService, t) })
-	t.Run("DeleteSource", func(t *testing.T) { influxdbtesting.DeleteSource(initInmemSourceService, t) })
-}
-
 func initBoltSourceService(f influxdbtesting.SourceFields, t *testing.T) (influxdb.SourceService, string, func()) {
 	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, op, closeSvc := initSourceService(s, f, t)
-	return svc, op, func() {
-		closeSvc()
-		closeBolt()
-	}
-}
-
-func initInmemSourceService(f influxdbtesting.SourceFields, t *testing.T) (influxdb.SourceService, string, func()) {
-	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}

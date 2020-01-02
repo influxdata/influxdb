@@ -7,7 +7,7 @@ import moment from 'moment'
 import {IndexList} from '@influxdata/clockface'
 
 // Types
-import {LogEvent} from '@influxdata/influx'
+import {LogEvent} from 'src/types'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
 interface Props {
@@ -36,7 +36,7 @@ class RunLogRow extends PureComponent<Props> {
     )
   }
 
-  private dateTimeString(dt: Date): string {
+  private dateTimeString(dt: string): string {
     if (!dt) {
       return ''
     }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -220,7 +221,7 @@ func FindNotificationEndpointByID(
 		id influxdb.ID
 	}
 	type wants struct {
-		err                  error
+		err                  *influxdb.Error
 		notificationEndpoint influxdb.NotificationEndpoint
 	}
 
@@ -284,7 +285,7 @@ func FindNotificationEndpointByID(
 			wants: wants{
 				err: &influxdb.Error{
 					Code: influxdb.EInvalid,
-					Msg:  "provided notification endpoint ID has invalid format",
+					Msg:  "no key was provided for notification endpoint",
 				},
 			},
 		},
@@ -422,7 +423,7 @@ func FindNotificationEndpointByID(
 			ctx := context.Background()
 
 			edp, err := s.FindNotificationEndpointByID(ctx, tt.args.id)
-			ErrorsEqual(t, err, tt.wants.err)
+			influxErrsEqual(t, tt.wants.err, err)
 			if diff := cmp.Diff(edp, tt.wants.notificationEndpoint, notificationEndpointCmpOptions...); diff != "" {
 				t.Errorf("notification endpoint is different -got/+want\ndiff %s", diff)
 			}
@@ -796,6 +797,16 @@ func FindNotificationEndpoints(
 						ClientURL:  "example-pagerduty.com",
 						RoutingKey: influxdb.SecretField{Key: fourID + "-routing-key"},
 					},
+					&endpoint.PagerDuty{
+						Base: endpoint.Base{
+							ID:     MustIDBase16Ptr(fiveID),
+							OrgID:  MustIDBase16Ptr(fourID),
+							Status: influxdb.Active,
+							Name:   "edp4",
+						},
+						ClientURL:  "example-pagerduty.com",
+						RoutingKey: influxdb.SecretField{Key: fourID + "-routing-key"},
+					},
 				},
 			},
 			args: args{
@@ -938,6 +949,103 @@ func FindNotificationEndpoints(
 						},
 						ClientURL:  "example-pagerduty.com",
 						RoutingKey: influxdb.SecretField{Key: fourID + "-routing-key"},
+					},
+				},
+			},
+		},
+		{
+			name: "find options offset",
+			fields: NotificationEndpointFields{
+				Orgs: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(oneID),
+						Name: "org1",
+					},
+					{
+						ID:   MustIDBase16(fourID),
+						Name: "org4",
+					},
+				},
+				UserResourceMappings: []*influxdb.UserResourceMapping{
+					{
+						ResourceID:   MustIDBase16(oneID),
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Member,
+						ResourceType: influxdb.NotificationEndpointResourceType,
+					},
+					{
+						ResourceID:   MustIDBase16(twoID),
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Member,
+						ResourceType: influxdb.NotificationEndpointResourceType,
+					},
+
+					{
+						ResourceID:   MustIDBase16(fourID),
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Member,
+						ResourceType: influxdb.NotificationEndpointResourceType,
+					},
+				},
+				NotificationEndpoints: []influxdb.NotificationEndpoint{
+					&endpoint.Slack{
+						Base: endpoint.Base{
+							ID:     MustIDBase16Ptr(oneID),
+							OrgID:  MustIDBase16Ptr(fourID),
+							Status: influxdb.Active,
+							Name:   "edp1",
+						},
+						URL:   "example-slack.com",
+						Token: influxdb.SecretField{Key: oneID + "-token"},
+					},
+					&endpoint.HTTP{
+						Base: endpoint.Base{
+							ID:     MustIDBase16Ptr(twoID),
+							OrgID:  MustIDBase16Ptr(fourID),
+							Status: influxdb.Active,
+							Name:   "edp2",
+						},
+						URL:        "example-webhook.com",
+						Method:     http.MethodGet,
+						AuthMethod: "none",
+					},
+					&endpoint.PagerDuty{
+						Base: endpoint.Base{
+							ID:     MustIDBase16Ptr(fourID),
+							OrgID:  MustIDBase16Ptr(fourID),
+							Status: influxdb.Active,
+							Name:   "edp3",
+						},
+						ClientURL:  "example-pagerduty.com",
+						RoutingKey: influxdb.SecretField{Key: fourID + "-routing-key"},
+					},
+				},
+			},
+			args: args{
+				filter: influxdb.NotificationEndpointFilter{
+					Org: strPtr("org4"),
+					UserResourceMappingFilter: influxdb.UserResourceMappingFilter{
+						UserID:       MustIDBase16(sixID),
+						ResourceType: influxdb.NotificationEndpointResourceType,
+					},
+				},
+				opts: influxdb.FindOptions{
+					Limit:  1,
+					Offset: 1,
+				},
+			},
+			wants: wants{
+				notificationEndpoints: []influxdb.NotificationEndpoint{
+					&endpoint.HTTP{
+						Base: endpoint.Base{
+							ID:     MustIDBase16Ptr(twoID),
+							OrgID:  MustIDBase16Ptr(fourID),
+							Status: influxdb.Active,
+							Name:   "edp2",
+						},
+						URL:        "example-webhook.com",
+						Method:     http.MethodGet,
+						AuthMethod: "none",
 					},
 				},
 			},
@@ -1218,7 +1326,7 @@ func UpdateNotificationEndpoint(
 
 	type wants struct {
 		notificationEndpoint influxdb.NotificationEndpoint
-		err                  error
+		err                  *influxdb.Error
 	}
 	tests := []struct {
 		name   string
@@ -1452,8 +1560,10 @@ func UpdateNotificationEndpoint(
 			ctx := context.Background()
 
 			edp, err := s.UpdateNotificationEndpoint(ctx, tt.args.id, tt.args.notificationEndpoint, tt.args.userID)
-			ErrorsEqual(t, err, tt.wants.err)
 			if err != nil {
+				iErr, ok := err.(*influxdb.Error)
+				require.True(t, ok)
+				assert.Equal(t, tt.wants.err.Code, iErr.Code)
 				return
 			}
 
@@ -1498,7 +1608,7 @@ func PatchNotificationEndpoint(
 
 	type wants struct {
 		notificationEndpoint influxdb.NotificationEndpoint
-		err                  error
+		err                  *influxdb.Error
 	}
 	tests := []struct {
 		name   string
@@ -1650,7 +1760,15 @@ func PatchNotificationEndpoint(
 			ctx := context.Background()
 
 			edp, err := s.PatchNotificationEndpoint(ctx, tt.args.id, tt.args.upd)
-			ErrorsEqual(t, err, tt.wants.err)
+			if err != nil {
+				if tt.wants.err == nil {
+					require.NoError(t, err)
+				}
+				iErr, ok := err.(*influxdb.Error)
+				require.True(t, ok, err)
+				assert.Equal(t, tt.wants.err.Code, iErr.Code)
+				return
+			}
 			if diff := cmp.Diff(edp, tt.wants.notificationEndpoint, notificationEndpointCmpOptions...); tt.wants.err == nil && diff != "" {
 				t.Errorf("notificationEndpoints are different -got/+want\ndiff %s", diff)
 			}
@@ -1674,7 +1792,7 @@ func DeleteNotificationEndpoint(
 		userResourceMappings  []*influxdb.UserResourceMapping
 		secretFlds            []influxdb.SecretField
 		orgID                 influxdb.ID
-		err                   error
+		err                   *influxdb.Error
 	}
 	tests := []struct {
 		name   string
@@ -1738,7 +1856,7 @@ func DeleteNotificationEndpoint(
 			wants: wants{
 				err: &influxdb.Error{
 					Code: influxdb.EInvalid,
-					Msg:  "provided notification endpoint ID has invalid format",
+					Msg:  "no key was provided for notification endpoint",
 				},
 				userResourceMappings: []*influxdb.UserResourceMapping{
 					{
@@ -1980,26 +2098,18 @@ func DeleteNotificationEndpoint(
 
 			ctx := context.Background()
 			flds, orgID, err := s.DeleteNotificationEndpoint(ctx, tt.args.id)
-			ErrorsEqual(t, err, tt.wants.err)
-			if err != nil {
-				if diff := cmp.Diff(flds, tt.wants.secretFlds); diff != "" {
-					t.Errorf("delete notification endpoint secret fields are different -got/+want\ndiff %s", diff)
-				}
-				if diff := cmp.Diff(orgID, tt.wants.orgID); diff != "" {
-					t.Errorf("delete notification endpoint org id is different -got/+want\ndiff %s", diff)
-				}
+			influxErrsEqual(t, tt.wants.err, err)
+			if diff := cmp.Diff(flds, tt.wants.secretFlds); diff != "" {
+				t.Errorf("delete notification endpoint secret fields are different -got/+want\ndiff %s", diff)
+			}
+			if diff := cmp.Diff(orgID, tt.wants.orgID); diff != "" {
+				t.Errorf("delete notification endpoint org id is different -got/+want\ndiff %s", diff)
 			}
 
 			filter := influxdb.NotificationEndpointFilter{}
 			edps, n, err := s.FindNotificationEndpoints(ctx, filter)
 			if err != nil && tt.wants.err == nil {
 				t.Fatalf("expected errors to be nil got '%v'", err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if want, got := tt.wants.err.Error(), err.Error(); want != got {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
 			}
 
 			if n != len(tt.wants.notificationEndpoints) {
@@ -2038,4 +2148,24 @@ func DeleteNotificationEndpoint(
 			}
 		})
 	}
+}
+
+func influxErrsEqual(t *testing.T, expected *influxdb.Error, actual error) {
+	t.Helper()
+
+	if expected != nil {
+		require.Error(t, actual)
+	}
+
+	if actual == nil {
+		return
+	}
+
+	if expected == nil {
+		require.NoError(t, actual)
+	}
+	iErr, ok := actual.(*influxdb.Error)
+	require.True(t, ok)
+	assert.Equal(t, expected.Code, iErr.Code)
+	assert.Truef(t, strings.HasPrefix(iErr.Error(), expected.Error()), "expected: %s got err: %s", expected.Error(), actual.Error())
 }

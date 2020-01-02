@@ -10,12 +10,7 @@ import (
 
 	"github.com/influxdata/influxdb/bolt"
 	"go.uber.org/zap/zaptest"
-	"golang.org/x/crypto/bcrypt"
 )
-
-func init() {
-	bolt.HashCost = bcrypt.MinCost
-}
 
 func NewTestClient(t *testing.T) (*bolt.Client, func(), error) {
 	c, closeFn, err := newTestClient(t)

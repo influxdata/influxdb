@@ -528,6 +528,7 @@ func decodePatchCheckRequest(ctx context.Context, r *http.Request) (*patchCheckR
 // handlePostCheck is the HTTP handler for the POST /api/v2/checks route.
 func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
 	chk, err := decodePostCheckRequest(r)
 	if err != nil {
 		h.log.Debug("Failed to decode request", zap.Error(err))
@@ -545,7 +546,6 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("Check created", zap.String("check", fmt.Sprint(chk)))
 
 	labels := h.mapNewCheckLabels(ctx, chk.CheckCreate, chk.Labels)
 

@@ -1,4 +1,4 @@
-import _ from 'lodash'
+import _, {get} from 'lodash'
 import {
   DashboardTemplate,
   TemplateType,
@@ -13,6 +13,7 @@ import {
 import {IDashboard, Cell} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 
+// Utils
 import {
   findIncludedsFromRelationships,
   findLabelsToCreate,
@@ -22,7 +23,16 @@ import {
   hasLabelsRelationships,
   getLabelRelationships,
 } from 'src/templates/utils/'
-
+import {addDefaults} from 'src/tasks/actions'
+import {addLabelDefaults} from 'src/labels/utils'
+// API
+import {
+  getTask as apiGetTask,
+  postTask as apiPostTask,
+  postTasksLabel as apiPostTasksLabel,
+  getLabels as apiGetLabels,
+  postLabel as apiPostLabel,
+} from 'src/client'
 // Create Dashboard Templates
 
 export const createDashboardFromTemplate = async (
@@ -100,17 +110,33 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
     labelRelationships
   )
 
-  const existingLabels = await client.labels.getAll(orgID)
+  const resp = await apiGetLabels({query: {orgID}})
 
-  const labelsToCreate = findLabelsToCreate(existingLabels, includedLabels).map(
-    l => ({
-      orgID,
-      name: _.get(l, 'attributes.name', ''),
-      properties: _.get(l, 'attributes.properties', {}),
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
+  }
+
+  const existingLabels = resp.data.labels.map(l => addLabelDefaults(l))
+
+  const foundLabelsToCreate = findLabelsToCreate(
+    existingLabels,
+    includedLabels
+  ).map(l => ({
+    orgID,
+    name: _.get(l, 'attributes.name', ''),
+    properties: _.get(l, 'attributes.properties', {}),
+  }))
+
+  const promisedLabels = foundLabelsToCreate.map(async lab => {
+    return apiPostLabel({
+      data: lab,
     })
-  )
+      .then(res => get(res, 'res.data.label', ''))
+      .then(lab => addLabelDefaults(lab))
+  })
 
-  const createdLabels = await client.labels.createAll(labelsToCreate)
+  const createdLabels = await Promise.all(promisedLabels)
+
   const allLabels = [...createdLabels, ...existingLabels]
 
   const labelMap: LabelMap = {}
@@ -230,30 +256,41 @@ export const createTaskFromTemplate = async (
   orgID: string
 ): Promise<Task> => {
   const {content} = template
+  try {
+    if (
+      content.data.type !== TemplateType.Task ||
+      template.meta.version !== '1'
+    ) {
+      throw new Error('Cannot create task from this template')
+    }
 
-  if (
-    content.data.type !== TemplateType.Task ||
-    template.meta.version !== '1'
-  ) {
-    throw new Error('Cannot create task from this template')
+    const flux = content.data.attributes.flux
+
+    const postResp = await apiPostTask({data: {orgID, flux}})
+
+    if (postResp.status !== 201) {
+      throw new Error(postResp.data.message)
+    }
+
+    const postedTask = addDefaults(postResp.data)
+
+    // associate imported label.id with created label
+    const labelMap = await createLabelsFromTemplate(template, orgID)
+
+    await addTaskLabelsFromTemplate(template, labelMap, postedTask)
+
+    const resp = await apiGetTask({taskID: postedTask.id})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const task = addDefaults(resp.data)
+
+    return task
+  } catch (e) {
+    console.error(e)
   }
-
-  const flux = content.data.attributes.flux
-
-  const createdTask = await client.tasks.createByOrgID(orgID, flux, null)
-
-  if (!createdTask || !createdTask.id) {
-    throw new Error('Could not create task')
-  }
-
-  // associate imported label.id with created label
-  const labelMap = await createLabelsFromTemplate(template, orgID)
-
-  await addTaskLabelsFromTemplate(template, labelMap, createdTask)
-
-  const task = await client.tasks.get(createdTask.id)
-
-  return task
 }
 
 const addTaskLabelsFromTemplate = async (
@@ -262,8 +299,8 @@ const addTaskLabelsFromTemplate = async (
   task: Task
 ) => {
   const relationships = getLabelRelationships(template.content.data)
-  const labelIDs = relationships.map(l => labelMap[l.id] || '')
-  await client.tasks.addLabels(task.id, labelIDs)
+  const [labelID] = relationships.map(l => labelMap[l.id] || '')
+  await apiPostTasksLabel({taskID: task.id, data: {labelID}})
 }
 
 export const createVariableFromTemplate = async (

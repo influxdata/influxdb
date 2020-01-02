@@ -14,25 +14,8 @@ func TestBoltVariableService(t *testing.T) {
 	influxdbtesting.VariableService(initBoltVariableService, t)
 }
 
-func TestInmemVariableService(t *testing.T) {
-	influxdbtesting.VariableService(initInmemVariableService, t)
-}
-
 func initBoltVariableService(f influxdbtesting.VariableFields, t *testing.T) (influxdb.VariableService, string, func()) {
 	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, op, closeSvc := initVariableService(s, f, t)
-	return svc, op, func() {
-		closeSvc()
-		closeBolt()
-	}
-}
-
-func initInmemVariableService(f influxdbtesting.VariableFields, t *testing.T) (influxdb.VariableService, string, func()) {
-	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -66,7 +49,7 @@ func initVariableService(s kv.Store, f influxdbtesting.VariableFields, t *testin
 	done := func() {
 		for _, variable := range f.Variables {
 			if err := svc.DeleteVariable(ctx, variable.ID); err != nil {
-				t.Fatalf("failed to clean up variables bolt test: %v", err)
+				t.Logf("failed to clean up variables bolt test: %v", err)
 			}
 		}
 	}

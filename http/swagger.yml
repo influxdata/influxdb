@@ -5580,7 +5580,7 @@ paths:
             type: string
         - in: query
           name: tag
-          description: Only show notification rules that match a tag pair. Uses `AND` to specify multiple tags.
+          description: Only return notification rules that "would match" statuses which contain the tag key value pairs provided.
           schema:
             type: string
             pattern: ^[a-zA-Z0-9_]+:[a-zA-Z0-9_]+$
@@ -10157,11 +10157,13 @@ components:
       oneOf:
         - $ref: "#/components/schemas/DeadmanCheck"
         - $ref: "#/components/schemas/ThresholdCheck"
+        - $ref: "#/components/schemas/CustomCheck"
       discriminator:
         propertyName: type
         mapping:
           deadman:  "#/components/schemas/DeadmanCheck"
           threshold: "#/components/schemas/ThresholdCheck"
+          custom: "#/components/schemas/CustomCheck"
     Check:
       allOf:
         - $ref: "#/components/schemas/CheckDiscriminator"
@@ -10202,27 +10204,8 @@ components:
           $ref: "#/components/schemas/DashboardQuery"
         status:
           $ref: "#/components/schemas/TaskStatusType"
-        every:
-          description: Check repetition interval.
-          type: string
-        offset:
-          description: Duration to delay after the schedule, before executing check.
-          type: string
-        tags:
-          description: List of tags to write to each status.
-          type: array
-          items:
-            type: object
-            properties:
-              key:
-                type: string
-              value:
-                type: string
         description:
           description: An optional description of the check.
-          type: string
-        statusMessageTemplate:
-          description: The template used to generate and write a status message.
           type: string
         latestCompleted:
           description: Timestamp of latest scheduled, completed run, RFC3339.
@@ -10271,6 +10254,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/CheckBase"
         - type: object
+          required: [type]
           properties:
             type:
               type: string
@@ -10279,6 +10263,25 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/Threshold"
+            every:
+              description: Check repetition interval.
+              type: string
+            offset:
+              description: Duration to delay after the schedule, before executing check.
+              type: string
+            tags:
+              description: List of tags to write to each status.
+              type: array
+              items:
+                type: object
+                properties:
+                  key:
+                    type: string
+                  value:
+                    type: string
+            statusMessageTemplate:
+              description: The template used to generate and write a status message.
+              type: string
     Threshold:
       oneOf:
         - $ref: "#/components/schemas/GreaterThreshold"
@@ -10294,6 +10297,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/CheckBase"
         - type: object
+          required: [type]
           properties:
             type:
               type: string
@@ -10309,6 +10313,34 @@ components:
               type: boolean
             level:
               $ref: "#/components/schemas/CheckStatusLevel"
+            every:
+              description: Check repetition interval.
+              type: string
+            offset:
+              description: Duration to delay after the schedule, before executing check.
+              type: string
+            tags:
+              description: List of tags to write to each status.
+              type: array
+              items:
+                type: object
+                properties:
+                  key:
+                    type: string
+                  value:
+                    type: string
+            statusMessageTemplate:
+              description: The template used to generate and write a status message.
+              type: string
+    CustomCheck:
+     allOf:
+        - $ref: "#/components/schemas/CheckBase"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [custom]
+          required: [type]
     ThresholdBase:
       properties:
         level:

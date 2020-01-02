@@ -9,50 +9,49 @@ import CheckTagRow from 'src/alerting/components/builder/CheckTagRow'
 import DurationSelector from 'src/shared/components/DurationSelector'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 
-// Actions & Selectors
-import {updateTimeMachineCheck} from 'src/timeMachine/actions'
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-import {selectCheckEvery} from 'src/alerting/actions/checks'
+// Actions
+import {
+  setOffset,
+  removeTagSet,
+  selectCheckEvery,
+  editTagSetByIndex,
+} from 'src/alerting/actions/alertBuilder'
 
 // Constants
 import {CHECK_EVERY_OPTIONS, CHECK_OFFSET_OPTIONS} from 'src/alerting/constants'
 
 // Types
-import {Check, AppState, CheckTagSet} from 'src/types'
+import {AppState, CheckTagSet} from 'src/types'
 
 interface DispatchProps {
-  onUpdateTimeMachineCheck: typeof updateTimeMachineCheck
   onSelectCheckEvery: typeof selectCheckEvery
+  onSetOffset: typeof setOffset
+  onRemoveTagSet: typeof removeTagSet
+  onEditTagSetByIndex: typeof editTagSetByIndex
 }
 
 interface StateProps {
-  check: Partial<Check>
+  tags: CheckTagSet[]
+  offset: string
+  every: string
 }
 
 type Props = DispatchProps & StateProps
 
+const EMPTY_TAG_SET = {
+  key: '',
+  value: '',
+}
+
 const CheckMetaCard: FC<Props> = ({
-  check,
-  onUpdateTimeMachineCheck,
+  tags,
+  offset,
+  every,
   onSelectCheckEvery,
+  onSetOffset,
+  onRemoveTagSet,
+  onEditTagSetByIndex,
 }) => {
-  const addTagsRow = () => {
-    const tags = check.tags || []
-    onUpdateTimeMachineCheck({tags: [...tags, {key: '', value: ''}]})
-  }
-
-  const handleChangeTagRow = (index: number, tagSet: CheckTagSet) => {
-    const tags = [...check.tags]
-    tags[index] = tagSet
-    onUpdateTimeMachineCheck({tags})
-  }
-
-  const handleRemoveTagRow = (index: number) => {
-    let tags = [...check.tags]
-    tags = tags.filter((_, i) => i !== index)
-    onUpdateTimeMachineCheck({tags})
-  }
-
   return (
     <BuilderCard
       testID="builder-meta"
@@ -65,7 +64,7 @@ const CheckMetaCard: FC<Props> = ({
             <Grid.Column widthSM={6}>
               <Form.Element label="Schedule Every">
                 <DurationSelector
-                  selectedDuration={check.every}
+                  selectedDuration={every}
                   durations={CHECK_EVERY_OPTIONS}
                   onSelectDuration={onSelectCheckEvery}
                 />
@@ -74,30 +73,27 @@ const CheckMetaCard: FC<Props> = ({
             <Grid.Column widthSM={6}>
               <Form.Element label="Offset">
                 <DurationSelector
-                  selectedDuration={check.offset}
+                  selectedDuration={offset}
                   durations={CHECK_OFFSET_OPTIONS}
-                  onSelectDuration={offset =>
-                    onUpdateTimeMachineCheck({offset})
-                  }
+                  onSelectDuration={onSetOffset}
                 />
               </Form.Element>
             </Grid.Column>
           </Grid.Row>
         </Grid>
         <Form.Label label="Tags" />
-        {check.tags &&
-          check.tags.map((t, i) => (
-            <CheckTagRow
-              key={i}
-              index={i}
-              tagSet={t}
-              handleChangeTagRow={handleChangeTagRow}
-              handleRemoveTagRow={handleRemoveTagRow}
-            />
-          ))}
+        {tags.map((t, i) => (
+          <CheckTagRow
+            key={i}
+            index={i}
+            tagSet={t}
+            handleChangeTagRow={onEditTagSetByIndex}
+            handleRemoveTagRow={onRemoveTagSet}
+          />
+        ))}
         <DashedButton
           text="+ Tag"
-          onClick={addTagsRow}
+          onClick={() => onEditTagSetByIndex(tags.length, EMPTY_TAG_SET)}
           color={ComponentColor.Primary}
           size={ComponentSize.Small}
         />
@@ -106,17 +102,15 @@ const CheckMetaCard: FC<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
-  const {
-    alerting: {check},
-  } = getActiveTimeMachine(state)
-
-  return {check}
+const mstp = ({alertBuilder: {tags, offset, every}}: AppState): StateProps => {
+  return {tags, offset, every}
 }
 
 const mdtp: DispatchProps = {
-  onUpdateTimeMachineCheck: updateTimeMachineCheck,
   onSelectCheckEvery: selectCheckEvery,
+  onSetOffset: setOffset,
+  onRemoveTagSet: removeTagSet,
+  onEditTagSetByIndex: editTagSetByIndex,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

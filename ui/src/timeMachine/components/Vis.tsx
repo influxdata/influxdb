@@ -28,8 +28,9 @@ import {
   QueryViewProperties,
   TimeZone,
   TimeRange,
-  Check,
   StatusRow,
+  CheckType,
+  Threshold,
 } from 'src/types'
 
 // Selectors
@@ -46,7 +47,8 @@ interface StateProps {
   giraffeResult: FromFluxResult
   xColumn: string
   yColumn: string
-  check: Partial<Check>
+  checkType: CheckType
+  checkThresholds: Threshold[]
   fillColumns: string[]
   symbolColumns: string[]
   timeZone: TimeZone
@@ -62,7 +64,8 @@ const TimeMachineVis: SFC<Props> = ({
   isInitialFetch,
   isViewingRawData,
   files,
-  check,
+  checkType,
+  checkThresholds,
   viewProperties,
   giraffeResult,
   xColumn,
@@ -116,7 +119,8 @@ const TimeMachineVis: SFC<Props> = ({
               files={files}
               loading={loading}
               properties={resolvedViewProperties}
-              check={check}
+              checkType={checkType}
+              checkThresholds={checkThresholds}
               timeZone={timeZone}
               statuses={statuses}
             />
@@ -138,9 +142,11 @@ const mstp = (state: AppState): StateProps => {
       files,
       statuses,
     },
-    alerting: {check},
     timeRange,
   } = getActiveTimeMachine(state)
+  const {
+    alertBuilder: {type: checkType, thresholds: checkThresholds},
+  } = state
 
   const giraffeResult = getVisTable(state)
   const xColumn = getXColumnSelection(state)
@@ -152,7 +158,8 @@ const mstp = (state: AppState): StateProps => {
 
   return {
     loading,
-    check,
+    checkType,
+    checkThresholds,
     errorMessage,
     isInitialFetch,
     files,

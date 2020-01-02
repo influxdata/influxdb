@@ -22,6 +22,10 @@
 1. [16340](https://github.com/influxdata/influxdb/pull/16340): Add last run status to tasks
 1. [16341](https://github.com/influxdata/influxdb/pull/16341): Extend pkger apply functionality with ability to provide secrets outside of pkg
 1. [16345](https://github.com/influxdata/influxdb/pull/16345): Add hide headers flag to influx cli task find cmd
+1. [16336](https://github.com/influxdata/influxdb/pull/16336): Manual Overrides for Readiness Endpoint
+1. [16347](https://github.com/influxdata/influxdb/pull/16347): Drop legacy inmem service implementation in favor of kv service with inmem dependency
+1. [16348](https://github.com/influxdata/influxdb/pull/16348): Drop legacy bolt service implementation in favor of kv service with bolt dependency
+1. [16014](https://github.com/influxdata/influxdb/pull/16014): While creating check, also display notification rules that would match check based on tag rules
 
 ### Bug Fixes
 
@@ -33,6 +37,8 @@
 1. [16255](https://github.com/influxdata/influxdb/pull/16255): Retain user input when parsing invalid JSON during import
 1. [16268](https://github.com/influxdata/influxdb/pull/16268): Fixed test flakiness that stemmed from multiple flush/signins being called in the same test suite
 1. [16346](https://github.com/influxdata/influxdb/pull/16346): Update pkger task export to only trim out option task and not all vars provided
+1. [16374](https://github.com/influxdata/influxdb/pull/16374): Update influx CLI, only show "see help" message, instead of the whole usage.
+1. [16380](https://github.com/influxdata/influxdb/pull/16380): Fix notification tag matching rules and enable tests to verify
 
 ### UI Improvements
 

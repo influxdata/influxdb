@@ -7,6 +7,9 @@ import {
   PagerDutyNotificationRuleBase,
   HTTPNotificationRuleBase,
   Label,
+  ThresholdCheck,
+  DeadmanCheck,
+  CustomCheck,
 } from 'src/client'
 
 type Omit<T, U> = Pick<T, Exclude<keyof T, U>>
@@ -72,7 +75,6 @@ export interface NotificationRow {
 }
 
 export {
-  Check,
   Threshold,
   CheckBase,
   StatusRule,
@@ -85,6 +87,7 @@ export {
   RangeThreshold,
   ThresholdCheck,
   DeadmanCheck,
+  CustomCheck,
   NotificationEndpoint,
   PostNotificationEndpoint,
   NotificationRuleBase,
@@ -105,14 +108,18 @@ export {
   NotificationEndpointUpdate,
   NotificationEndpointBase,
   PostNotificationRule,
+  CheckPatch,
 } from '../client'
 
-import {Check, Threshold, HTTPNotificationEndpoint} from '../client'
+import {Threshold, HTTPNotificationEndpoint} from '../client'
+
+export type Check = ThresholdCheck | DeadmanCheck | CustomCheck
 
 export type CheckType = Check['type']
+
 export type ThresholdType = Threshold['type']
 
-export type CheckTagSet = Check['tags'][0]
+export type CheckTagSet = ThresholdCheck['tags'][0]
 
 export type AlertHistoryType = 'statuses' | 'notifications'
 
