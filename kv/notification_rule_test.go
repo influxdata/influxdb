@@ -11,7 +11,6 @@ import (
 )
 
 func TestBoltNotificationRuleStore(t *testing.T) {
-	t.Skip("https://github.com/influxdata/influxdb/issues/14799")
 	influxdbtesting.NotificationRuleStore(initBoltNotificationRuleStore, t)
 }
 
