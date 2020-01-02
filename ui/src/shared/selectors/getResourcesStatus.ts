@@ -1,6 +1,5 @@
 // Types
-import {AppState, RemoteDataState} from 'src/types'
-import {ResourceType} from 'src/shared/components/GetResources'
+import {AppState, RemoteDataState, ResourceType} from 'src/types'
 
 export const getResourcesStatus = (
   state: AppState,

@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {isEmpty} from 'lodash'
 
 // Components
 import {Button, EmptyState, Sort} from '@influxdata/clockface'
@@ -28,6 +28,9 @@ import {
 } from '@influxdata/clockface'
 import {AppState, Bucket, Organization} from 'src/types'
 import FilterList from 'src/shared/components/Filter'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
 
 interface StateProps {
   scrapers: ScraperTargetResponse[]
@@ -142,7 +145,7 @@ class Scrapers extends PureComponent<Props, State> {
     const {org} = this.props
     const {searchTerm} = this.state
 
-    if (_.isEmpty(searchTerm)) {
+    if (isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text>
@@ -186,10 +189,10 @@ class Scrapers extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({scrapers, buckets, orgs}: AppState): StateProps => ({
-  scrapers: scrapers.list,
-  buckets: buckets.list,
-  org: orgs.org,
+const mstp = (state: AppState): StateProps => ({
+  scrapers: state.scrapers.list,
+  buckets: state.buckets.list,
+  org: getOrg(state),
 })
 
 const mdtp: DispatchProps = {

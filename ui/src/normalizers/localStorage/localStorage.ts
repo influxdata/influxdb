@@ -12,8 +12,8 @@ import {
   getLocalStateRanges,
   setLocalStateRanges,
   normalizeApp,
-  normalizeOrgs,
 } from 'src/normalizers/localStorage'
+import {normalizeResources} from './resources'
 
 export const normalizeGetLocalStorage = (state: LocalStorage): LocalStorage => {
   let newState = state
@@ -34,14 +34,14 @@ export const normalizeGetLocalStorage = (state: LocalStorage): LocalStorage => {
 }
 
 export const normalizeSetLocalStorage = (state: LocalStorage): LocalStorage => {
-  const {app, ranges, autoRefresh, variables, userSettings, orgs} = state
+  const {app, ranges, autoRefresh, variables, userSettings} = state
   return {
     VERSION,
     variables,
     autoRefresh,
     userSettings,
     app: normalizeApp(app),
-    orgs: normalizeOrgs(orgs),
     ranges: setLocalStateRanges(ranges),
+    resources: normalizeResources(state),
   }
 }

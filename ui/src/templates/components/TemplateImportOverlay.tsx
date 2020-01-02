@@ -16,11 +16,12 @@ import {
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types
-import {AppState, Organization} from 'src/types'
+import {AppState, ResourceType, Organization} from 'src/types'
 import {ComponentStatus} from '@influxdata/clockface'
 
 // Utils
 import jsonlint from 'jsonlint-mod'
+import {getByID} from 'src/shared/selectors'
 
 interface State {
   status: ComponentStatus
@@ -89,11 +90,11 @@ class TemplateImportOverlay extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState, props: Props): StateProps => {
-  const {
-    orgs: {items},
-  } = state
-
-  const org = items.find(o => o.id === props.params.orgID)
+  const org = getByID<Organization>(
+    state,
+    ResourceType.Orgs,
+    props.params.orgID
+  )
 
   return {org}
 }

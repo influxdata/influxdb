@@ -1,5 +1,4 @@
-import {RemoteDataState} from 'src/types'
-import {ResourceType} from 'src/shared/components/GetResources'
+import {RemoteDataState, ResourceType} from 'src/types'
 import {getResourcesStatus} from 'src/shared/selectors/getResourcesStatus'
 
 const getResourcesStatusUntyped: any = getResourcesStatus

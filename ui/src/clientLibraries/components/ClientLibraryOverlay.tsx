@@ -9,6 +9,9 @@ import {Overlay} from '@influxdata/clockface'
 // Types
 import {AppState, Organization} from 'src/types'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 interface OwnProps {
   title: string
 }
@@ -41,8 +44,8 @@ const ClientLibraryOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = ({orgs: {org}}: AppState): StateProps => ({
-  org,
+const mstp = (state: AppState): StateProps => ({
+  org: getOrg(state),
 })
 
 export default connect<StateProps>(mstp)(

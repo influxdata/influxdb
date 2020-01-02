@@ -1,66 +1,124 @@
 // Libraries
-import {produce} from 'immer'
+import {get, omit} from 'lodash'
 
 // Types
-import {ActionTypes, Actions} from 'src/organizations/actions/orgs'
-import {Organization, RemoteDataState} from 'src/types'
+import {
+  SET_ORGS,
+  SET_ORG,
+  ADD_ORG,
+  REMOVE_ORG,
+  Action,
+  EDIT_ORG,
+} from 'src/organizations/actions/creators'
+import {RemoteDataState, ResourceState} from 'src/types'
+import {combineReducers} from 'redux'
 
-export interface OrgsState {
-  status: RemoteDataState
-  items: Organization[]
-  org: Organization
-}
+type OrgsState = ResourceState['orgs']
 
-const defaultState: OrgsState = {
-  status: RemoteDataState.NotStarted,
-  items: [],
-  org: null,
-}
+const org = (state: OrgsState['org'] = null, action: Action) => {
+  switch (action.type) {
+    case SET_ORG: {
+      const {org} = action
 
-export const orgsReducer = (state = defaultState, action: Actions): OrgsState =>
-  produce(state, draftState => {
-    switch (action.type) {
-      case ActionTypes.SetOrgsStatus: {
-        const {status} = action.payload
-        draftState.status = status
-        return
+      if (!org) {
+        return state
       }
-      case ActionTypes.SetOrgs: {
-        const {status, orgs} = action.payload
-        draftState.status = status || draftState.status
-        draftState.items = orgs || draftState.items
-        return
-      }
-      case ActionTypes.SetOrg: {
-        const {
-          org: {name, id},
-        } = action.payload
-        draftState.org = {name, id}
-        return
-      }
-      case ActionTypes.AddOrg: {
-        const {org} = action.payload
-        draftState.items.push(org)
-        return
-      }
-      case ActionTypes.RemoveOrg: {
-        const {org} = action.payload
-        draftState.items = draftState.items.filter(o => o.id !== org.id)
-        return
-      }
-      case ActionTypes.EditOrg: {
-        const {org} = action.payload
-        draftState.items = draftState.items.map(o => {
-          if (o.id === org.id) {
-            return {...o, ...org}
-          }
-          return o
-        })
 
-        draftState.org = org
-        return
-      }
+      return org
     }
-  })
 
-export default orgsReducer
+    default:
+      return state
+  }
+}
+
+const byID = (state: OrgsState['byID'] = {}, action: Action) => {
+  switch (action.type) {
+    case SET_ORGS: {
+      const {schema} = action
+
+      if (!get(schema, 'entities.orgs')) {
+        return state
+      }
+
+      return schema.entities.orgs
+    }
+
+    case ADD_ORG: {
+      const {schema} = action
+
+      if (!get(schema, 'entities.orgs')) {
+        return state
+      }
+
+      const org = schema.entities[schema.result]
+      return {...state, [action.schema.result]: org}
+    }
+
+    case REMOVE_ORG: {
+      const {id} = action
+
+      return omit(state, id)
+    }
+
+    case EDIT_ORG: {
+      const {schema} = action
+      const org = schema.entities[schema.result]
+      return {...state, [action.schema.result]: org}
+    }
+
+    default:
+      return state
+  }
+}
+
+const allIDs = (state: OrgsState['allIDs'] = [], action: Action) => {
+  switch (action.type) {
+    case ADD_ORG: {
+      const {schema} = action
+      if (!get(schema, 'result')) {
+        return state
+      }
+
+      return [...state, schema.result]
+    }
+
+    case SET_ORGS: {
+      const {schema} = action
+      if (!get(schema, 'result')) {
+        return state
+      }
+
+      return [...schema.result]
+    }
+
+    case REMOVE_ORG: {
+      return state.filter(id => id !== action.id)
+    }
+
+    default:
+      return state
+  }
+}
+
+const status = (
+  state: OrgsState['status'] = RemoteDataState.NotStarted,
+  action: Action
+) => {
+  switch (action.type) {
+    case SET_ORGS: {
+      const {status} = action
+      return status
+    }
+
+    default:
+      return state
+  }
+}
+
+export default combineReducers({
+  byID,
+  allIDs,
+  status,
+  org,
+})

@@ -18,7 +18,7 @@ import {
   Form,
 } from '@influxdata/clockface'
 import BucketsSelector from 'src/authorizations/components/BucketsSelector'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 
 // Utils
 import {
@@ -28,6 +28,7 @@ import {
   BucketTab,
 } from 'src/authorizations/utils/permissions'
 import {isSystemBucket} from 'src/buckets/constants/index'
+import {getOrg} from 'src/organizations/selectors'
 
 // Actions
 import {createAuthorization} from 'src/authorizations/actions'
@@ -36,7 +37,13 @@ import {createAuthorization} from 'src/authorizations/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {AppState, Bucket, Permission, Authorization} from 'src/types'
+import {
+  AppState,
+  Bucket,
+  Permission,
+  Authorization,
+  ResourceType,
+} from 'src/types'
 
 interface OwnProps {
   onClose: () => void
@@ -272,7 +279,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => {
   return {
-    orgID: state.orgs.org.id,
+    orgID: getOrg(state).id,
     buckets: state.buckets.list,
   }
 }

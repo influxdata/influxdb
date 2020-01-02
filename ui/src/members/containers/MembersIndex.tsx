@@ -7,14 +7,15 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
 import {Page} from '@influxdata/clockface'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 import Members from 'src/members/components/Members'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {getByID} from 'src/shared/selectors'
 
 // Types
-import {AppState, Organization} from 'src/types'
+import {AppState, Organization, ResourceType} from 'src/types'
 
 interface StateProps {
   org: Organization
@@ -47,8 +48,13 @@ class MembersIndex extends Component<Props> {
   }
 }
 
-const mstp = ({orgs: {items}}: AppState, props: Props) => {
-  const org = items.find(o => o.id === props.params.orgID)
+const mstp = (state: AppState, props: Props) => {
+  const org = getByID<Organization>(
+    state,
+    ResourceType.Orgs,
+    props.params.orgID
+  )
+
   return {
     org,
   }

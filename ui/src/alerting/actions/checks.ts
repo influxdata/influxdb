@@ -13,7 +13,7 @@ import * as api from 'src/client'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {incrementCloneName} from 'src/utils/naming'
 
-//Actions
+// Actions
 import {
   notify,
   Action as NotificationAction,
@@ -42,7 +42,10 @@ import {
   ThresholdCheck,
   DeadmanCheck,
 } from 'src/types'
+
+// Utils
 import {createView} from 'src/shared/utils/view'
+import {getOrg} from 'src/organizations/selectors'
 
 export type Action =
   | ReturnType<typeof setAllChecks>
@@ -84,11 +87,7 @@ export const getChecks = () => async (
 ) => {
   try {
     dispatch(setAllChecks(RemoteDataState.Loading))
-    const {
-      orgs: {
-        org: {id: orgID},
-      },
-    } = getState()
+    const {id: orgID} = getOrg(getState())
 
     const resp = await api.getChecks({query: {orgID}})
 
@@ -111,9 +110,7 @@ export const getCheckForTimeMachine = (checkID: string) => async (
   >,
   getState: GetState
 ) => {
-  const {
-    orgs: {org},
-  } = getState()
+  const org = getOrg(getState())
   try {
     dispatch(setAlertBuilderCheckStatus(RemoteDataState.Loading))
 
@@ -151,9 +148,6 @@ export const saveCheckFromTimeMachine = () => async (
   try {
     const state = getState()
     const {
-      orgs: {
-        org: {id: orgID},
-      },
       alertBuilder: {
         type,
         id,
@@ -170,6 +164,7 @@ export const saveCheckFromTimeMachine = () => async (
         thresholds,
       },
     } = state
+    const {id: orgID} = getOrg(state)
 
     const {draftQueries} = getActiveTimeMachine(state)
 

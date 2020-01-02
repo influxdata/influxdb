@@ -1,22 +1,28 @@
+// Libraries
 import React, {PureComponent, SyntheticEvent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import classnames from 'classnames'
 
+// Components
 import PluginList from 'src/dataLoaders/components/TelegrafEditorPluginList'
-import {AppState} from 'src/types'
 import {
   TelegrafEditorPluginState,
   TelegrafEditorPlugin,
   TelegrafEditorActivePlugin,
 } from 'src/dataLoaders/reducers/telegrafEditor'
-import {setFilter, setList} from 'src/dataLoaders/actions/telegrafEditor'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 import {
   Input,
   IconFont,
   ComponentSize,
   SquareButton,
 } from '@influxdata/clockface'
+
+// Actions
+import {setFilter, setList} from 'src/dataLoaders/actions/telegrafEditor'
+
+// Types
+import {AppState, ResourceType} from 'src/types'
 
 interface PluginStateProps {
   plugins: TelegrafEditorPluginState

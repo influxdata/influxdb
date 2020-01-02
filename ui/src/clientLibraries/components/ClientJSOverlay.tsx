@@ -12,6 +12,9 @@ import {clientJSLibrary} from 'src/clientLibraries/constants'
 // Types
 import {AppState} from 'src/types'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 interface StateProps {
   org: string
 }
@@ -78,10 +81,10 @@ const ClientJSOverlay: FunctionComponent<Props> = props => {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const org = state.orgs.org.id
+  const {id} = getOrg(state)
 
   return {
-    org,
+    org: id,
   }
 }
 

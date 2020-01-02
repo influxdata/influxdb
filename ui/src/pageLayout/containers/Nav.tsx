@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps, Link} from 'react-router'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import {NavMenu, Icon} from '@influxdata/clockface'
@@ -18,11 +18,15 @@ import {HOMEPAGE_PATHNAME} from 'src/shared/constants'
 import {getNavItemActivation} from 'src/pageLayout/utils'
 
 // Types
-import {AppState, Organization} from 'src/types'
+import {AppState, Organization, ResourceType} from 'src/types'
 import {IconFont} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/shared/selectors'
 
 interface StateProps {
   isHidden: boolean
@@ -334,13 +338,11 @@ class SideNav extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => {
   const isHidden = state.app.ephemeral.inPresentationMode
-  const {
-    me,
-    orgs,
-    orgs: {org},
-  } = state
+  const orgs = getAll<Organization[]>(state, ResourceType.Orgs)
+  const org = getOrg(state)
+  const {me} = state
 
-  return {isHidden, me, orgs: orgs.items, orgName: _.get(org, 'name', '')}
+  return {isHidden, me, orgs, orgName: get(org, 'name', '')}
 }
 
 export default connect<StateProps>(mstp)(withRouter(SideNav))

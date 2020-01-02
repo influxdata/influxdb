@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
+import {isEmpty} from 'lodash'
 import {connect} from 'react-redux'
 
 // Components
@@ -36,6 +36,7 @@ import {
 // Utils
 import {prettyBuckets} from 'src/shared/utils/prettyBucket'
 import {extractBucketLimits} from 'src/cloud/utils/limits'
+import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {OverlayState, AppState, Bucket, Organization} from 'src/types'
@@ -217,7 +218,7 @@ class BucketsTab extends PureComponent<Props, State> {
   private get emptyState(): JSX.Element {
     const {searchTerm} = this.state
 
-    if (_.isEmpty(searchTerm)) {
+    if (isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text>
@@ -241,10 +242,10 @@ class BucketsTab extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({buckets, orgs, cloud: {limits}}: AppState): StateProps => ({
-  buckets: buckets.list,
-  org: orgs.org,
-  limitStatus: extractBucketLimits(limits),
+const mstp = (state: AppState): StateProps => ({
+  buckets: state.buckets.list,
+  org: getOrg(state),
+  limitStatus: extractBucketLimits(state.cloud.limits),
 })
 
 const mdtp = {

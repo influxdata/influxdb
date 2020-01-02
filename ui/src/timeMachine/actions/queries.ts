@@ -41,6 +41,9 @@ import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import {CancelBox} from 'src/types/promises'
 import {GetState, RemoteDataState, StatusRow} from 'src/types'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 export type Action = SaveDraftQueriesAction | SetQueryResults
 
 interface SetQueryResults {
@@ -117,9 +120,6 @@ export const executeQueries = (dashboardID?: string) => async (
   const queries = view.properties.queries.filter(({text}) => !!text.trim())
   const {
     alertBuilder: {id: checkID},
-    orgs: {
-      org: {id: orgID},
-    },
   } = state
 
   if (!queries.length) {
@@ -132,6 +132,7 @@ export const executeQueries = (dashboardID?: string) => async (
     await dispatch(refreshTimeMachineVariableValues(dashboardID))
 
     const variableAssignments = getVariableAssignments(state)
+    const orgID = getOrg(state).id
 
     const startTime = Date.now()
 
@@ -202,12 +203,7 @@ export const saveAndExecuteQueries = () => dispatch => {
 export const executeCheckQuery = () => async (dispatch, getState: GetState) => {
   const state = getState()
   const {text} = getActiveQuery(state)
-
-  const {
-    orgs: {
-      org: {id: orgID},
-    },
-  } = state
+  const {id: orgID} = getOrg(state)
 
   if (text == '') {
     dispatch(setQueryResults(RemoteDataState.Done, [], null))

@@ -19,6 +19,7 @@ import {createResourceFromStaticTemplate} from 'src/templates/actions'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
+import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {TemplateSummary} from '@influxdata/influx'
@@ -118,10 +119,10 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = ({labels, orgs: {org}}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
   return {
-    org,
-    labels: viewableLabels(labels.list),
+    org: getOrg(state),
+    labels: viewableLabels(state.labels.list),
   }
 }
 
