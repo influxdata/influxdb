@@ -6,7 +6,7 @@ import {Context} from 'src/clockface'
 import {IconFont, ComponentColor} from '@influxdata/clockface'
 
 // Types
-import {Variable} from '@influxdata/influx'
+import {Variable} from 'src/types'
 
 interface Props {
   variable: Variable

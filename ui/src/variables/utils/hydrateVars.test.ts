@@ -6,7 +6,7 @@ import {hydrateVars} from 'src/variables/utils/hydrateVars'
 import {createMapVariable, createVariable} from 'src/variables/mocks'
 
 // Types
-import {CancellationError} from 'src/types/promises'
+import {Variable, CancellationError} from 'src/types'
 
 class FakeFetcher implements ValueFetcher {
   responses = {}
@@ -190,7 +190,7 @@ describe('hydrate vars', () => {
           k: 'v',
         },
       },
-    }
+    } as Variable
 
     const vars = [a, b]
 
@@ -230,7 +230,7 @@ describe('hydrate vars', () => {
         type: 'constant',
         values: ['v1', 'v2'],
       },
-    }
+    } as Variable
 
     const vars = [a, b]
 
