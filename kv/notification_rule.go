@@ -435,9 +435,7 @@ func (s *Service) forEachNotificationRule(ctx context.Context, tx Tx, descending
 	return nil
 }
 
-func filterNotificationRulesFn(
-	idMap map[influxdb.ID]bool,
-	filter influxdb.NotificationRuleFilter) func(nr influxdb.NotificationRule) bool {
+func filterNotificationRulesFn(idMap map[influxdb.ID]bool, filter influxdb.NotificationRuleFilter) func(nr influxdb.NotificationRule) bool {
 	if filter.OrgID != nil {
 		return func(nr influxdb.NotificationRule) bool {
 			if !nr.MatchesTags(filter.Tags) {

@@ -476,6 +476,20 @@ func TestMatchingRules(t *testing.T) {
 			exp: true,
 		},
 		{
+			name: "Non empty tag rule matches empty filter tags",
+			tagRules: []notification.TagRule{
+				{
+					Tag: influxdb.Tag{
+						Key:   "c",
+						Value: "d",
+					},
+					Operator: influxdb.NotEqual,
+				},
+			},
+			filterTags: []influxdb.Tag{},
+			exp:        true,
+		},
+		{
 			name:       "Empty tag rule matches empty filter tags",
 			tagRules:   []notification.TagRule{},
 			filterTags: []influxdb.Tag{},
