@@ -4,57 +4,111 @@ import (
 	"context"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/task/backend/executor"
+	"github.com/influxdata/influxdb/task/backend/scheduler"
+)
+
+var _ Executor = (*executorE)(nil)
+
+type (
+	executorE struct {
+		calls []interface{}
+	}
+
+	manualRunCall struct {
+		TaskID influxdb.ID
+		RunID  influxdb.ID
+	}
+
+	cancelCallC struct {
+		RunID influxdb.ID
+	}
 )
 
 type (
-	schedulerS struct {
-		backend.Scheduler
-
-		claimErr,
-		updateErr,
-		releaseErr error
+	schedulerC struct {
+		scheduler.Scheduler
 
 		calls []interface{}
 	}
 
-	claimCall struct {
-		Task *influxdb.Task
+	scheduleCall struct {
+		Task scheduler.Schedulable
 	}
 
-	updateCall struct {
-		Task *influxdb.Task
-	}
-
-	releaseCall struct {
-		ID influxdb.ID
-	}
-
-	cancelCall struct {
-		TaskID, RunID influxdb.ID
+	releaseCallC struct {
+		TaskID scheduler.ID
 	}
 )
 
-func (s *schedulerS) ClaimTask(_ context.Context, task *influxdb.Task) error {
-	s.calls = append(s.calls, claimCall{task})
+type (
+	promise struct {
+		run *influxdb.Run
 
-	return s.claimErr
+		done chan struct{}
+		err  error
+
+		ctx        context.Context
+		cancelFunc context.CancelFunc
+	}
+)
+
+// ID is the id of the run that was created
+func (p *promise) ID() influxdb.ID {
+	return p.run.ID
 }
 
-func (s *schedulerS) UpdateTask(_ context.Context, task *influxdb.Task) error {
-	s.calls = append(s.calls, updateCall{task})
+// Cancel is used to cancel a executing query
+func (p *promise) Cancel(ctx context.Context) {
+	// call cancelfunc
+	p.cancelFunc()
 
-	return s.updateErr
+	// wait for ctx.Done or p.Done
+	select {
+	case <-p.Done():
+	case <-ctx.Done():
+	}
 }
 
-func (s *schedulerS) ReleaseTask(taskID influxdb.ID) error {
-	s.calls = append(s.calls, releaseCall{taskID})
-
-	return s.releaseErr
+// Done provides a channel that closes on completion of a promise
+func (p *promise) Done() <-chan struct{} {
+	return p.done
 }
 
-func (s *schedulerS) CancelRun(_ context.Context, taskID influxdb.ID, runID influxdb.ID) error {
-	s.calls = append(s.calls, cancelCall{taskID, runID})
+// Error returns the error resulting from a run execution.
+// If the execution is not complete error waits on Done().
+func (p *promise) Error() error {
+	<-p.done
+	return p.err
+}
 
+func (s *schedulerC) Schedule(task scheduler.Schedulable) error {
+	s.calls = append(s.calls, scheduleCall{task})
+
+	return nil
+}
+
+func (s *schedulerC) Release(taskID scheduler.ID) error {
+	s.calls = append(s.calls, releaseCallC{taskID})
+
+	return nil
+}
+
+func (e *executorE) ManualRun(ctx context.Context, id influxdb.ID, runID influxdb.ID) (executor.Promise, error) {
+	e.calls = append(e.calls, manualRunCall{id, runID})
+	ctx, cancel := context.WithCancel(ctx)
+	p := promise{
+		done:       make(chan struct{}),
+		ctx:        ctx,
+		cancelFunc: cancel,
+	}
+	close(p.done)
+
+	err := p.Error()
+	return &p, err
+}
+
+func (e *executorE) Cancel(ctx context.Context, runID influxdb.ID) error {
+	e.calls = append(e.calls, cancelCallC{runID})
 	return nil
 }

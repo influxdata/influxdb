@@ -59,7 +59,7 @@ func (p *pipingCoordinator) TaskDeleted(_ context.Context, id influxdb.ID) error
 	}
 	return p.err
 }
-func (p *pipingCoordinator) RunCancelled(ctx context.Context, taskID, runID influxdb.ID) error {
+func (p *pipingCoordinator) RunCancelled(ctx context.Context, runID influxdb.ID) error {
 	return p.err
 }
 func (p *pipingCoordinator) RunRetried(ctx context.Context, task *influxdb.Task, run *influxdb.Run) error {

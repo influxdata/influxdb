@@ -3,42 +3,150 @@ package coordinator
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
 	"go.uber.org/zap/zaptest"
 )
 
-var (
-	one   = influxdb.ID(1)
-	two   = influxdb.ID(2)
-	three = influxdb.ID(3)
+func Test_Coordinator_Executor_Methods(t *testing.T) {
+	var (
+		one     = influxdb.ID(1)
+		taskOne = &influxdb.Task{ID: one}
 
-	taskOne     = &influxdb.Task{ID: one}
-	taskTwo     = &influxdb.Task{ID: two, Status: "active"}
-	taskThree   = &influxdb.Task{ID: three, Status: "inactive"}
-	activeThree = &influxdb.Task{
-		ID:     three,
-		Status: "active",
-	}
+		runOne = &influxdb.Run{
+			ID:           one,
+			TaskID:       one,
+			ScheduledFor: time.Now(),
+		}
 
-	runOne = &influxdb.Run{
-		ID:     one,
-		TaskID: one,
-	}
+		allowUnexported = cmp.AllowUnexported(executorE{}, schedulerC{}, SchedulableTask{})
+	)
 
-	allowUnexported = cmp.AllowUnexported(schedulerS{}, scheduler.Schedule{}, SchedulableTask{})
-)
-
-func Test_Coordinator(t *testing.T) {
 	for _, test := range []struct {
 		name       string
 		claimErr   error
 		updateErr  error
 		releaseErr error
 		call       func(*testing.T, *Coordinator)
-		scheduler  *schedulerS
+		executor   *executorE
+	}{
+		{
+			name: "RunForced",
+			call: func(t *testing.T, c *Coordinator) {
+				if err := c.RunForced(context.Background(), taskOne, runOne); err != nil {
+					t.Errorf("expected nil error found %q", err)
+				}
+			},
+			executor: &executorE{
+				calls: []interface{}{
+					manualRunCall{taskOne.ID, runOne.ID},
+				},
+			},
+		},
+		{
+			name: "RunRetried",
+			call: func(t *testing.T, c *Coordinator) {
+				if err := c.RunRetried(context.Background(), taskOne, runOne); err != nil {
+					t.Errorf("expected nil error found %q", err)
+				}
+			},
+			executor: &executorE{
+				calls: []interface{}{
+					manualRunCall{taskOne.ID, runOne.ID},
+				},
+			},
+		},
+		{
+			name: "RunCancelled",
+			call: func(t *testing.T, c *Coordinator) {
+				if err := c.RunCancelled(context.Background(), runOne.ID); err != nil {
+					t.Errorf("expected nil error found %q", err)
+				}
+			},
+			executor: &executorE{
+				calls: []interface{}{
+					cancelCallC{runOne.ID},
+				},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var (
+				executor  = &executorE{}
+				scheduler = &schedulerC{}
+				coord     = NewCoordinator(zaptest.NewLogger(t), scheduler, executor)
+			)
+
+			test.call(t, coord)
+
+			if diff := cmp.Diff(
+				test.executor.calls,
+				executor.calls,
+				allowUnexported); diff != "" {
+				t.Errorf("unexpected executor contents %s", diff)
+			}
+		})
+	}
+}
+
+func Test_Coordinator_Scheduler_Methods(t *testing.T) {
+
+	var (
+		one   = influxdb.ID(1)
+		two   = influxdb.ID(2)
+		three = influxdb.ID(3)
+		now   = time.Now().UTC()
+
+		taskOne           = &influxdb.Task{ID: one, CreatedAt: now, Cron: "* * * * *"}
+		taskTwo           = &influxdb.Task{ID: two, Status: "active", CreatedAt: now, Cron: "* * * * *"}
+		taskTwoInactive   = &influxdb.Task{ID: two, Status: "inactive", CreatedAt: now, Cron: "* * * * *"}
+		taskThreeOriginal = &influxdb.Task{
+			ID:        three,
+			Status:    "active",
+			Name:      "Previous",
+			CreatedAt: now,
+			Cron:      "* * * * *",
+		}
+		taskThreeNew = &influxdb.Task{
+			ID:        three,
+			Status:    "active",
+			Name:      "Renamed",
+			CreatedAt: now,
+			Cron:      "* * * * *",
+		}
+	)
+
+	schedulableT, err := NewSchedulableTask(taskOne)
+	if err != nil {
+		t.Fatal(err)
+	}
+	schedulableTaskTwo, err := NewSchedulableTask(taskTwo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	schedulableTaskThree, err := NewSchedulableTask(taskThreeNew)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	runOne := &influxdb.Run{
+		ID:           one,
+		TaskID:       one,
+		ScheduledFor: time.Now().UTC(),
+	}
+
+	for _, test := range []struct {
+		name       string
+		claimErr   error
+		updateErr  error
+		releaseErr error
+		call       func(*testing.T, *Coordinator)
+		scheduler  *schedulerC
 	}{
 		{
 			name: "TaskCreated",
@@ -47,152 +155,80 @@ func Test_Coordinator(t *testing.T) {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &schedulerS{
+			scheduler: &schedulerC{
 				calls: []interface{}{
-					claimCall{taskOne},
+					scheduleCall{schedulableT},
 				},
 			},
 		},
 		{
-			name: "TaskUpdated from inactive to active",
+			name: "TaskUpdated - deactivate task",
 			call: func(t *testing.T, c *Coordinator) {
-				if err := c.TaskUpdated(context.Background(), taskThree, activeThree); err != nil {
+				if err := c.TaskUpdated(context.Background(), taskTwo, taskTwoInactive); err != nil {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &schedulerS{
+			scheduler: &schedulerC{
 				calls: []interface{}{
-					updateCall{activeThree},
-					claimCall{activeThree},
+					releaseCallC{scheduler.ID(taskTwo.ID)},
 				},
 			},
 		},
 		{
-			name: "TaskUpdated from active to inactive",
+			name: "TaskUpdated - activate task",
 			call: func(t *testing.T, c *Coordinator) {
-				if err := c.TaskUpdated(context.Background(), activeThree, taskThree); err != nil {
+				if err := c.TaskUpdated(context.Background(), taskTwoInactive, taskTwo); err != nil {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &schedulerS{
+			scheduler: &schedulerC{
 				calls: []interface{}{
-					releaseCall{three},
-					updateCall{taskThree},
+					scheduleCall{schedulableTaskTwo},
 				},
 			},
 		},
 		{
-			name:       "TaskUpdated from active to inactive task not claimed error on release",
-			releaseErr: influxdb.ErrTaskNotClaimed,
+			name: "TaskUpdated - change name",
 			call: func(t *testing.T, c *Coordinator) {
-				if err := c.TaskUpdated(context.Background(), activeThree, taskThree); err != nil {
+				if err := c.TaskUpdated(context.Background(), taskThreeOriginal, taskThreeNew); err != nil {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &schedulerS{
+			scheduler: &schedulerC{
 				calls: []interface{}{
-					releaseCall{three},
-					updateCall{taskThree},
+					scheduleCall{schedulableTaskThree},
 				},
 			},
 		},
 		{
-			name:      "TaskUpdated from active to inactive task not claimed error on update",
-			updateErr: influxdb.ErrTaskNotClaimed,
+			name: "TaskDeleted",
 			call: func(t *testing.T, c *Coordinator) {
-				if err := c.TaskUpdated(context.Background(), activeThree, taskThree); err != nil {
+				if err := c.TaskDeleted(context.Background(), runOne.ID); err != nil {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &schedulerS{
+			scheduler: &schedulerC{
 				calls: []interface{}{
-					releaseCall{three},
-					updateCall{taskThree},
-				},
-			},
-		},
-		{
-			name: "TaskUpdated with no status change",
-			call: func(t *testing.T, c *Coordinator) {
-				if err := c.TaskUpdated(context.Background(), taskTwo, taskTwo); err != nil {
-					t.Errorf("expected nil error found %q", err)
-				}
-			},
-			scheduler: &schedulerS{
-				calls: []interface{}{
-					updateCall{taskTwo},
-				},
-			},
-		},
-		{
-			name: "TaskDeleted releases the task ID",
-			call: func(t *testing.T, c *Coordinator) {
-				if err := c.TaskDeleted(context.Background(), two); err != nil {
-					t.Errorf("expected nil error found %q", err)
-				}
-			},
-			scheduler: &schedulerS{
-				calls: []interface{}{
-					releaseCall{two},
-				},
-			},
-		},
-		{
-			name: "RunCancelled delegates to the scheduler",
-			call: func(t *testing.T, c *Coordinator) {
-				if err := c.RunCancelled(context.Background(), one, one); err != nil {
-					t.Errorf("expected nil error found %q", err)
-				}
-			},
-			scheduler: &schedulerS{
-				calls: []interface{}{
-					cancelCall{one, one},
-				},
-			},
-		},
-		{
-			name: "RunRetried delegates to Update",
-			call: func(t *testing.T, c *Coordinator) {
-				if err := c.RunRetried(context.Background(), taskOne, runOne); err != nil {
-					t.Errorf("expected nil error found %q", err)
-				}
-			},
-			scheduler: &schedulerS{
-				calls: []interface{}{
-					updateCall{taskOne},
-				},
-			},
-		},
-		{
-			name: "RunForced delegates to Update",
-			call: func(t *testing.T, c *Coordinator) {
-				if err := c.RunForced(context.Background(), taskOne, runOne); err != nil {
-					t.Errorf("expected nil error found %q", err)
-				}
-			},
-			scheduler: &schedulerS{
-				calls: []interface{}{
-					updateCall{taskOne},
+					releaseCallC{scheduler.ID(taskOne.ID)},
 				},
 			},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var (
-				scheduler = &schedulerS{
-					claimErr:   test.claimErr,
-					updateErr:  test.updateErr,
-					releaseErr: test.releaseErr,
-				}
-				coord = New(zaptest.NewLogger(t), scheduler)
+				executor = &executorE{}
+				sch      = &schedulerC{}
+				coord    = NewCoordinator(zaptest.NewLogger(t), sch, executor)
 			)
 
 			test.call(t, coord)
 
 			if diff := cmp.Diff(
 				test.scheduler.calls,
-				scheduler.calls,
-				allowUnexported); diff != "" {
+				sch.calls,
+				cmp.AllowUnexported(executorE{}, schedulerC{}, SchedulableTask{}, *coord),
+				cmpopts.IgnoreUnexported(scheduler.Schedule{}),
+			); diff != "" {
 				t.Errorf("unexpected scheduler contents %s", diff)
 			}
 		})

@@ -2,745 +2,544 @@ package executor
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
+	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/flux/memory"
-	"github.com/influxdata/flux/values"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kit/prom"
+	"github.com/influxdata/influxdb/kit/prom/promtest"
+	tracetest "github.com/influxdata/influxdb/kit/tracing/testing"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/query"
-	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/task/backend/scheduler"
+	"github.com/opentracing/opentracing-go"
+	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap/zaptest"
 )
 
-type fakeQueryService struct {
-	mu       sync.Mutex
-	queries  map[string]*fakeQuery
-	queryErr error
-	// The most recent ctx received in the Query method.
-	// Used to validate that the executor applied the correct authorizer.
-	mostRecentCtx context.Context
+func TestMain(m *testing.M) {
+	var code int
+	func() {
+		defer tracetest.SetupInMemoryTracing("task_backend_tests")()
+
+		code = m.Run()
+	}()
+
+	os.Exit(code)
 }
 
-var _ query.AsyncQueryService = (*fakeQueryService)(nil)
-
-func makeAST(q string) lang.ASTCompiler {
-	pkg, err := flux.Parse(q)
-	if err != nil {
-		panic(err)
-	}
-	return lang.ASTCompiler{
-		AST: pkg,
-		Now: time.Unix(123, 0),
-	}
+type tes struct {
+	svc     *fakeQueryService
+	ex      *Executor
+	metrics *ExecutorMetrics
+	i       *kv.Service
+	tcs     *taskControlService
+	tc      testCreds
 }
 
-func makeASTString(q lang.ASTCompiler) string {
-	b, err := json.Marshal(q)
-	if err != nil {
-		panic(err)
-	}
-	return string(b)
-}
-
-func newFakeQueryService() *fakeQueryService {
-	return &fakeQueryService{queries: make(map[string]*fakeQuery)}
-}
-
-func (s *fakeQueryService) Query(ctx context.Context, req *query.Request) (flux.Query, error) {
-	if req.Authorization == nil {
-		panic("authorization required")
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.mostRecentCtx = ctx
-	if s.queryErr != nil {
-		err := s.queryErr
-		s.queryErr = nil
-		return nil, err
-	}
-
-	astc, ok := req.Compiler.(lang.ASTCompiler)
-	if !ok {
-		return nil, fmt.Errorf("fakeQueryService only supports the ASTCompiler, got %T", req.Compiler)
-	}
-
-	fq := &fakeQuery{
-		wait:    make(chan struct{}),
-		results: make(chan flux.Result),
-	}
-	s.queries[makeASTString(astc)] = fq
-
-	go fq.run(ctx)
-
-	return fq, nil
-}
-
-// SucceedQuery allows the running query matching the given script to return on its Ready channel.
-func (s *fakeQueryService) SucceedQuery(script string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Unblock the flux.
-	ast := makeAST(script)
-	spec := makeASTString(ast)
-	fq, ok := s.queries[spec]
-	if !ok {
-		ast.Now = ast.Now.UTC()
-		spec = makeASTString(ast)
-		fq = s.queries[spec]
-	}
-	close(fq.wait)
-	delete(s.queries, spec)
-}
-
-// FailQuery closes the running query's Ready channel and sets its error to the given value.
-func (s *fakeQueryService) FailQuery(script string, forced error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Unblock the flux.
-	ast := makeAST(script)
-	spec := makeASTString(ast)
-	fq, ok := s.queries[spec]
-	if !ok {
-		ast.Now = ast.Now.UTC()
-		spec = makeASTString(ast)
-		fq = s.queries[spec]
-	}
-	fq.forcedError = forced
-	close(fq.wait)
-	delete(s.queries, spec)
-}
-
-// FailNextQuery causes the next call to QueryWithCompile to return the given error.
-func (s *fakeQueryService) FailNextQuery(forced error) {
-	s.queryErr = forced
-}
-
-// WaitForQueryLive ensures that the query has made it into the service.
-// This is particularly useful for the synchronous executor,
-// because the execution starts on a separate goroutine.
-func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
-	t.Helper()
-
-	const attempts = 10
-	ast := makeAST(script)
-	astUTC := makeAST(script)
-	astUTC.Now = ast.Now.UTC()
-	spec := makeASTString(ast)
-	specUTC := makeASTString(astUTC)
-	for i := 0; i < attempts; i++ {
-		if i != 0 {
-			time.Sleep(5 * time.Millisecond)
+func taskExecutorSystem(t *testing.T) tes {
+	var (
+		aqs = newFakeQueryService()
+		qs  = query.QueryServiceBridge{
+			AsyncQueryService: aqs,
 		}
-
-		s.mu.Lock()
-		_, ok := s.queries[spec]
-		s.mu.Unlock()
-		if ok {
-			return
-		}
-		s.mu.Lock()
-		_, ok = s.queries[specUTC]
-		s.mu.Unlock()
-		if ok {
-			return
-		}
-
-	}
-
-	t.Fatalf("Did not see live query %q in time", script)
-}
-
-type fakeQuery struct {
-	results     chan flux.Result
-	wait        chan struct{} // Blocks Ready from returning.
-	forcedError error         // Value to return from Err() method.
-
-	ctxErr error // Error from ctx.Done.
-}
-
-var _ flux.Query = (*fakeQuery)(nil)
-
-func (q *fakeQuery) Done()                       {}
-func (q *fakeQuery) Cancel()                     { close(q.results) }
-func (q *fakeQuery) Statistics() flux.Statistics { return flux.Statistics{} }
-func (q *fakeQuery) Results() <-chan flux.Result { return q.results }
-
-func (q *fakeQuery) Err() error {
-	if q.ctxErr != nil {
-		return q.ctxErr
-	}
-	return q.forcedError
-}
-
-// run is intended to be run on its own goroutine.
-// It blocks until q.wait is closed, then sends a fake result on the q.results channel.
-func (q *fakeQuery) run(ctx context.Context) {
-	defer close(q.results)
-
-	// Wait for call to set query success/fail.
-	select {
-	case <-ctx.Done():
-		q.ctxErr = ctx.Err()
-		return
-	case <-q.wait:
-		// Normal case.
-	}
-
-	if q.forcedError == nil {
-		res := newFakeResult()
-		q.results <- res
+		i           = kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+		tcs         = &taskControlService{TaskControlService: i}
+		ex, metrics = NewExecutor(zaptest.NewLogger(t), qs, i, i, tcs)
+	)
+	return tes{
+		svc:     aqs,
+		ex:      ex,
+		metrics: metrics,
+		i:       i,
+		tcs:     tcs,
+		tc:      createCreds(t, i),
 	}
 }
 
-// fakeResult is a dumb implementation of flux.Result that always returns the same values.
-type fakeResult struct {
-	name  string
-	table flux.Table
+func TestTaskExecutor(t *testing.T) {
+	t.Run("QuerySuccess", testQuerySuccess)
+	t.Run("QueryFailure", testQueryFailure)
+	t.Run("ManualRun", testManualRun)
+	t.Run("ResumeRun", testResumingRun)
+	t.Run("WorkerLimit", testWorkerLimit)
+	t.Run("LimitFunc", testLimitFunc)
+	t.Run("Metrics", testMetrics)
+	t.Run("IteratorFailure", testIteratorFailure)
+	t.Run("ErrorHandling", testErrorHandling)
 }
 
-var _ flux.Result = (*fakeResult)(nil)
-
-func newFakeResult() *fakeResult {
-	meta := []flux.ColMeta{{Label: "x", Type: flux.TInt}}
-	vals := []values.Value{values.NewInt(int64(1))}
-	gk := execute.NewGroupKey(meta, vals)
-	a := &memory.Allocator{}
-	b := execute.NewColListTableBuilder(gk, a)
-	i, _ := b.AddCol(meta[0])
-	b.AppendInt(i, int64(1))
-	t, err := b.Table()
-	if err != nil {
-		panic(err)
-	}
-	return &fakeResult{name: "res", table: t}
-}
-
-func (r *fakeResult) Statistics() flux.Statistics {
-	return flux.Statistics{}
-}
-
-func (r *fakeResult) Name() string               { return r.name }
-func (r *fakeResult) Tables() flux.TableIterator { return tables{r.table} }
-
-// tables makes a TableIterator out of a slice of Tables.
-type tables []flux.Table
-
-var _ flux.TableIterator = tables(nil)
-
-func (ts tables) Do(f func(flux.Table) error) error {
-	for _, t := range ts {
-		if err := f(t); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (ts tables) Statistics() flux.Statistics { return flux.Statistics{} }
-
-type system struct {
-	name string
-	svc  *fakeQueryService
-	ts   platform.TaskService
-	ex   backend.Executor
-	// We really just want an authorization service here, but we take a whole inmem service
-	// to ensure that the authorization service validates org and user existence properly.
-	i     *kv.Service
-	store *inmem.KVStore
-}
-
-type createSysFn func(*testing.T) *system
-
-func createAsyncSystem(t *testing.T) *system {
-	svc := newFakeQueryService()
-	store := inmem.NewKVStore()
-	i := kv.NewService(zaptest.NewLogger(t), store)
-	if err := i.Initialize(context.Background()); err != nil {
-		panic(err)
-	}
-
-	return &system{
-		name:  "AsyncExecutor",
-		svc:   svc,
-		ts:    i,
-		ex:    NewAsyncQueryServiceExecutor(zaptest.NewLogger(t), svc, i, i),
-		i:     i,
-		store: store,
-	}
-}
-
-func createSyncSystem(t *testing.T) *system {
-	svc := newFakeQueryService()
-	i := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
-	if err := i.Initialize(context.Background()); err != nil {
-		panic(err)
-	}
-
-	return &system{
-		name: "SynchronousExecutor",
-		svc:  svc,
-		ts:   i,
-		ex: NewQueryServiceExecutor(
-			zaptest.NewLogger(t),
-			query.QueryServiceBridge{
-				AsyncQueryService: svc,
-			},
-			i,
-			i,
-		),
-		i: i,
-	}
-}
-
-func TestExecutor(t *testing.T) {
-	for _, fn := range []createSysFn{createAsyncSystem, createSyncSystem} {
-		testExecutorQuerySuccess(t, fn)
-		testExecutorQueryFailure(t, fn)
-		testExecutorPromiseCancel(t, fn)
-		testExecutorServiceError(t, fn)
-		testExecutorWait(t, fn)
-		testExecutorExecuteErrors(t, fn)
-	}
-}
-
-// Some tests use t.Parallel, and the fake query service depends on unique scripts,
-// so format a new script with the test name in each test.
-const fmtTestScript = `
-option task = {
-			name: %q,
-			every: 1m,
-}
-
-from(bucket: "one") |> to(bucket: "two", orgID: "0000000000000000")`
-
-func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
-	sys := fn(t)
-	tc := createCreds(t, sys.i)
-	t.Run(sys.name+"/QuerySuccess", func(t *testing.T) {
-		t.Parallel()
-
-		script := fmt.Sprintf(fmtTestScript, t.Name())
-		ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
-		task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, OwnerID: tc.Auth.GetUserID(), Flux: script})
-		if err != nil {
-			t.Fatal(err)
-		}
-		qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
-		rp, err := sys.ex.Execute(context.Background(), qr)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if got := rp.Run(); !reflect.DeepEqual(qr, got) {
-			t.Fatalf("unexpected queued run returned: %#v", got)
-		}
-
-		doneWaiting := make(chan struct{})
-		go func() {
-			_, _ = rp.Wait()
-			close(doneWaiting)
-		}()
-
-		select {
-		case <-doneWaiting:
-			t.Fatal("Wait returned before query was unblocked")
-		case <-time.After(10 * time.Millisecond):
-			// Okay.
-		}
-
-		sys.svc.WaitForQueryLive(t, script)
-		sys.svc.SucceedQuery(script)
-		res, err := rp.Wait()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got := res.Err(); got != nil {
-			t.Fatal(got)
-		}
-
-		res2, err := rp.Wait()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !reflect.DeepEqual(res, res2) {
-			t.Fatalf("second call to wait returned a different result: %#v", res2)
-		}
-	})
-}
-
-func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
-	sys := fn(t)
-	tc := createCreds(t, sys.i)
-	t.Run(sys.name+"/QueryFail", func(t *testing.T) {
-		t.Parallel()
-		script := fmt.Sprintf(fmtTestScript, t.Name())
-		ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
-		task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, OwnerID: tc.Auth.GetUserID(), Flux: script})
-		if err != nil {
-			t.Fatal(err)
-		}
-		qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
-		rp, err := sys.ex.Execute(context.Background(), qr)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		expErr := errors.New("forced error")
-		sys.svc.WaitForQueryLive(t, script)
-		sys.svc.FailQuery(script, expErr)
-		res, err := rp.Wait()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got := res.Err(); got != expErr {
-			t.Fatalf("expected error %v; got %v", expErr, got)
-		}
-	})
-}
-
-func errCmp(x, y error) bool {
-	if x == nil {
-		return y == nil
-	}
-	if y == nil {
-		return false
-	}
-	return x.Error() == y.Error()
-}
-
-func errTr(x error) string {
-	if x == nil {
-		return ""
-	}
-	return x.Error()
-}
-
-func testExecutorExecuteErrors(t *testing.T, fn createSysFn) {
-	sys := fn(t)
-	t.Run(sys.name+"/Execute", func(t *testing.T) {
-		t.Run("no task", func(t *testing.T) {
-			t.Parallel()
-			qr := backend.QueuedRun{TaskID: platform.ID(10), RunID: platform.ID(1), Now: 123}
-			_, err := sys.ex.Execute(context.Background(), qr)
-			if !cmp.Equal(err, platform.ErrTaskNotFound, cmp.Comparer(errCmp)) {
-				t.Fatalf("unexpected error. -got/+exp\n%s", cmp.Diff(err, platform.ErrTaskNotFound, cmp.Transformer("err", errTr)))
-			}
-		})
-	})
-}
-
-func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
-	sys := fn(t)
-	tc := createCreds(t, sys.i)
-	t.Run(sys.name+"/PromiseCancel", func(t *testing.T) {
-		t.Parallel()
-		script := fmt.Sprintf(fmtTestScript, t.Name())
-		ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
-		task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, OwnerID: tc.Auth.GetUserID(), Flux: script})
-		if err != nil {
-			t.Fatal(err)
-		}
-		qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
-		rp, err := sys.ex.Execute(context.Background(), qr)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		rp.Cancel()
-
-		res, err := rp.Wait()
-		if err != platform.ErrRunCanceled {
-			t.Fatalf("expected ErrRunCanceled, got %v", err)
-		}
-		if res != nil {
-			t.Fatalf("expected nil result after cancel, got %#v", res)
-		}
-	})
-}
-
-func testExecutorServiceError(t *testing.T, fn createSysFn) {
-	sys := fn(t)
-	tc := createCreds(t, sys.i)
-	t.Run(sys.name+"/ServiceError", func(t *testing.T) {
-		t.Parallel()
-		script := fmt.Sprintf(fmtTestScript, t.Name())
-		ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
-		task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, OwnerID: tc.Auth.GetUserID(), Flux: script})
-		if err != nil {
-			t.Fatal(err)
-		}
-		qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
-
-		var forced = errors.New("forced")
-		sys.svc.FailNextQuery(forced)
-		rp, err := sys.ex.Execute(context.Background(), qr)
-		if err == forced {
-			// Expected err matches.
-			if rp != nil {
-				t.Fatalf("expected nil run promise when execution fails, got %v", rp)
-			}
-		} else if err == nil {
-			// Synchronous query service always returns <rp>, nil.
-			// Make sure rp.Wait returns the correct error.
-			res, err := rp.Wait()
-			if err != forced {
-				t.Fatalf("expected forced error, got %v", err)
-			}
-			if res != nil {
-				t.Fatalf("expected nil result on query service error, got %v", res)
-			}
-		} else {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-}
-
-func testExecutorWait(t *testing.T, createSys createSysFn) {
-	// This is a longer delay than I'd prefer,
-	// but it needs to be large-ish for slow machines running with the race detector.
-	const waitCheckDelay = 100 * time.Millisecond
-
-	// Other executor tests create a single sys and share it among subtests.
-	// For this set of tests, we are testing Wait, which does not allow calling Execute concurrently,
-	// so we make a new sys for each subtest.
-
-	t.Run(createSys(t).name+"/Wait", func(t *testing.T) {
-		t.Run("with nothing running", func(t *testing.T) {
-			t.Parallel()
-			sys := createSys(t)
-
-			executorWaited := make(chan struct{})
-			go func() {
-				sys.ex.Wait()
-				close(executorWaited)
-			}()
-
-			select {
-			case <-executorWaited:
-				// Okay.
-			case <-time.After(waitCheckDelay):
-				t.Fatalf("executor.Wait should have returned immediately")
-			}
-		})
-
-		t.Run("cancel execute context", func(t *testing.T) {
-			t.Parallel()
-			sys := createSys(t)
-			tc := createCreds(t, sys.i)
-
-			ctx, ctxCancel := context.WithCancel(context.Background())
-			defer ctxCancel()
-
-			script := fmt.Sprintf(fmtTestScript, t.Name())
-			ctx = icontext.SetAuthorizer(ctx, tc.Auth)
-			task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, OwnerID: tc.Auth.GetUserID(), Flux: script})
-			if err != nil {
-				t.Fatal(err)
-			}
-			qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
-			if _, err := sys.ex.Execute(ctx, qr); err != nil {
-				t.Fatal(err)
-			}
-
-			executorWaited := make(chan struct{})
-			go func() {
-				sys.ex.Wait()
-				close(executorWaited)
-			}()
-
-			select {
-			case <-executorWaited:
-				t.Fatalf("executor.Wait returned too early")
-			case <-time.After(waitCheckDelay):
-				// Okay.
-			}
-
-			ctxCancel()
-
-			select {
-			case <-executorWaited:
-				// Okay.
-			case <-time.After(waitCheckDelay):
-				t.Fatalf("executor.Wait didn't return after execute context canceled")
-			}
-		})
-
-		t.Run("cancel run promise", func(t *testing.T) {
-			t.Parallel()
-			sys := createSys(t)
-			tc := createCreds(t, sys.i)
-
-			ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
-
-			script := fmt.Sprintf(fmtTestScript, t.Name())
-			task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, OwnerID: tc.Auth.GetUserID(), Flux: script})
-			if err != nil {
-				t.Fatal(err)
-			}
-			qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
-			rp, err := sys.ex.Execute(ctx, qr)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			executorWaited := make(chan struct{})
-			go func() {
-				sys.ex.Wait()
-				close(executorWaited)
-			}()
-
-			select {
-			case <-executorWaited:
-				t.Fatalf("executor.Wait returned too early")
-			case <-time.After(waitCheckDelay):
-				// Okay.
-			}
-
-			rp.Cancel()
-
-			select {
-			case <-executorWaited:
-				// Okay.
-			case <-time.After(waitCheckDelay):
-				t.Fatalf("executor.Wait didn't return after run promise canceled")
-			}
-		})
-
-		t.Run("run success", func(t *testing.T) {
-			t.Parallel()
-			sys := createSys(t)
-			tc := createCreds(t, sys.i)
-
-			ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
-
-			script := fmt.Sprintf(fmtTestScript, t.Name())
-			task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, OwnerID: tc.Auth.GetUserID(), Flux: script})
-			if err != nil {
-				t.Fatal(err)
-			}
-			qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
-			if _, err := sys.ex.Execute(ctx, qr); err != nil {
-				t.Fatal(err)
-			}
-
-			executorWaited := make(chan struct{})
-			go func() {
-				sys.ex.Wait()
-				close(executorWaited)
-			}()
-
-			select {
-			case <-executorWaited:
-				t.Fatalf("executor.Wait returned too early")
-			case <-time.After(waitCheckDelay):
-				// Okay.
-			}
-
-			sys.svc.WaitForQueryLive(t, script)
-			sys.svc.SucceedQuery(script)
-
-			select {
-			case <-executorWaited:
-				// Okay.
-			case <-time.After(waitCheckDelay):
-				t.Fatalf("executor.Wait didn't return after query succeeded")
-			}
-		})
-
-		t.Run("run failure", func(t *testing.T) {
-			t.Parallel()
-			sys := createSys(t)
-			tc := createCreds(t, sys.i)
-
-			script := fmt.Sprintf(fmtTestScript, t.Name())
-			ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
-			task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, OwnerID: tc.Auth.GetUserID(), Flux: script})
-			if err != nil {
-				t.Fatal(err)
-			}
-			qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
-			if _, err := sys.ex.Execute(ctx, qr); err != nil {
-				t.Fatal(err)
-			}
-
-			executorWaited := make(chan struct{})
-			go func() {
-				sys.ex.Wait()
-				close(executorWaited)
-			}()
-
-			select {
-			case <-executorWaited:
-				t.Fatalf("executor.Wait returned too early")
-			case <-time.After(waitCheckDelay):
-				// Okay.
-			}
-
-			sys.svc.WaitForQueryLive(t, script)
-			sys.svc.FailQuery(script, errors.New("forced"))
-
-			select {
-			case <-executorWaited:
-				// Okay.
-			case <-time.After(waitCheckDelay):
-				t.Fatalf("executor.Wait didn't return after query failed")
-			}
-		})
-	})
-}
-
-type testCreds struct {
-	OrgID, UserID platform.ID
-	Auth          *platform.Authorization
-}
-
-func createCreds(t *testing.T, i *kv.Service) testCreds {
-	t.Helper()
-
-	org := &platform.Organization{Name: t.Name() + "-org"}
-	if err := i.CreateOrganization(context.Background(), org); err != nil {
-		t.Fatal(err)
-	}
-
-	user := &platform.User{Name: t.Name() + "-user"}
-	if err := i.CreateUser(context.Background(), user); err != nil {
-		t.Fatal(err)
-	}
-
-	readPerm, err := platform.NewGlobalPermission(platform.ReadAction, platform.BucketsResourceType)
+func testQuerySuccess(t *testing.T) {
+	t.Parallel()
+
+	tes := taskExecutorSystem(t)
+
+	var (
+		script = fmt.Sprintf(fmtTestScript, t.Name())
+		ctx    = icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+		span   = opentracing.GlobalTracer().StartSpan("test-span")
+	)
+	ctx = opentracing.ContextWithSpan(ctx, span)
+
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
-	writePerm, err := platform.NewGlobalPermission(platform.WriteAction, platform.BucketsResourceType)
+
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth := &platform.Authorization{
-		OrgID:       org.ID,
-		UserID:      user.ID,
-		Token:       "hifriend!",
-		Permissions: []platform.Permission{*readPerm, *writePerm},
-	}
-	if err := i.CreateAuthorization(context.Background(), auth); err != nil {
+	promiseID := influxdb.ID(promise.ID())
+
+	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	return testCreds{OrgID: org.ID, Auth: auth}
+	if run.ID != promiseID {
+		t.Fatal("promise and run dont match")
+	}
+
+	if run.RunAt != time.Unix(126, 0).UTC() {
+		t.Fatalf("did not correctly set RunAt value, got: %v", run.RunAt)
+	}
+
+	tes.svc.WaitForQueryLive(t, script)
+	tes.svc.SucceedQuery(script)
+
+	<-promise.Done()
+
+	if got := promise.Error(); got != nil {
+		t.Fatal(got)
+	}
+
+	// confirm run is removed from in-mem store
+	run, err = tes.i.FindRunByID(context.Background(), task.ID, run.ID)
+	if run != nil || err == nil || !strings.Contains(err.Error(), "run not found") {
+		t.Fatal("run was returned when it should have been removed from kv")
+	}
+
+	// ensure the run returned by TaskControlService.FinishRun(...)
+	// has run logs formatted as expected
+	if run = tes.tcs.run; run == nil {
+		t.Fatal("expected run returned by FinishRun to not be nil")
+	}
+
+	if len(run.Log) < 3 {
+		t.Fatalf("expected 3 run logs, found %d", len(run.Log))
+	}
+
+	sctx := span.Context().(jaeger.SpanContext)
+	expectedMessage := fmt.Sprintf("trace_id=%s is_sampled=true", sctx.TraceID())
+	if expectedMessage != run.Log[1].Message {
+		t.Errorf("expected %q, found %q", expectedMessage, run.Log[1].Message)
+	}
+}
+
+func testQueryFailure(t *testing.T) {
+	t.Parallel()
+	tes := taskExecutorSystem(t)
+
+	script := fmt.Sprintf(fmtTestScript, t.Name())
+	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	promiseID := influxdb.ID(promise.ID())
+
+	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if run.ID != promiseID {
+		t.Fatal("promise and run dont match")
+	}
+
+	tes.svc.WaitForQueryLive(t, script)
+	tes.svc.FailQuery(script, errors.New("blargyblargblarg"))
+
+	<-promise.Done()
+
+	if got := promise.Error(); got == nil {
+		t.Fatal("got no error when I should have")
+	}
+}
+
+func testManualRun(t *testing.T) {
+	t.Parallel()
+	tes := taskExecutorSystem(t)
+
+	script := fmt.Sprintf(fmtTestScript, t.Name())
+	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manualRun, err := tes.i.ForceRun(ctx, task.ID, 123)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mrs, err := tes.i.ManualRuns(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(mrs) != 1 {
+		t.Fatal("manual run not created by force run")
+	}
+
+	promise, err := tes.ex.ManualRun(ctx, task.ID, manualRun.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	run, err := tes.i.FindRunByID(context.Background(), task.ID, promise.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if run.ID != promise.ID() || manualRun.ID != promise.ID() {
+		t.Fatal("promise and run and manual run dont match")
+	}
+
+	tes.svc.WaitForQueryLive(t, script)
+	tes.svc.SucceedQuery(script)
+
+	if got := promise.Error(); got != nil {
+		t.Fatal(got)
+	}
+}
+
+func testResumingRun(t *testing.T) {
+	t.Parallel()
+	tes := taskExecutorSystem(t)
+
+	script := fmt.Sprintf(fmtTestScript, t.Name())
+	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stalledRun, err := tes.i.CreateRun(ctx, task.ID, time.Unix(123, 0), time.Unix(126, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	promise, err := tes.ex.ResumeCurrentRun(ctx, task.ID, stalledRun.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// ensure that it doesn't recreate a promise
+	if _, err := tes.ex.ResumeCurrentRun(ctx, task.ID, stalledRun.ID); err != influxdb.ErrRunNotFound {
+		t.Fatal("failed to error when run has already been resumed")
+	}
+
+	run, err := tes.i.FindRunByID(context.Background(), task.ID, promise.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if run.ID != promise.ID() || stalledRun.ID != promise.ID() {
+		t.Fatal("promise and run and manual run dont match")
+	}
+
+	tes.svc.WaitForQueryLive(t, script)
+	tes.svc.SucceedQuery(script)
+
+	if got := promise.Error(); got != nil {
+		t.Fatal(got)
+	}
+}
+
+func testWorkerLimit(t *testing.T) {
+	t.Parallel()
+	tes := taskExecutorSystem(t)
+
+	script := fmt.Sprintf(fmtTestScript, t.Name())
+	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(tes.ex.workerLimit) != 1 {
+		t.Fatal("expected a worker to be started")
+	}
+
+	tes.svc.WaitForQueryLive(t, script)
+	tes.svc.FailQuery(script, errors.New("blargyblargblarg"))
+
+	<-promise.Done()
+
+	if got := promise.Error(); got == nil {
+		t.Fatal("got no error when I should have")
+	}
+}
+
+func testLimitFunc(t *testing.T) {
+	t.Parallel()
+	tes := taskExecutorSystem(t)
+
+	script := fmt.Sprintf(fmtTestScript, t.Name())
+	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+	forcedErr := errors.New("forced")
+	forcedQueryErr := influxdb.ErrQueryError(forcedErr)
+	tes.svc.FailNextQuery(forcedErr)
+
+	count := 0
+	tes.ex.SetLimitFunc(func(*influxdb.Task, *influxdb.Run) error {
+		count++
+		if count < 2 {
+			return errors.New("not there yet")
+		}
+		return nil
+	})
+
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	<-promise.Done()
+
+	if got := promise.Error(); got.Error() != forcedQueryErr.Error() {
+		t.Fatal("failed to get failure from forced error")
+	}
+
+	if count != 2 {
+		t.Fatalf("failed to call limitFunc enough times: %d", count)
+	}
+}
+
+func testMetrics(t *testing.T) {
+	t.Parallel()
+	tes := taskExecutorSystem(t)
+	metrics := tes.metrics
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
+	reg.MustRegister(metrics.PrometheusCollectors()...)
+
+	mg := promtest.MustGather(t, reg)
+	m := promtest.MustFindMetric(t, mg, "task_executor_total_runs_active", nil)
+	if got := *m.Gauge.Value; got != 0 {
+		t.Fatalf("expected 0 total runs active, got %v", got)
+	}
+
+	script := fmt.Sprintf(fmtTestScript, t.Name())
+	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	promiseID := influxdb.ID(promise.ID())
+
+	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if run.ID != promiseID {
+		t.Fatal("promise and run dont match")
+	}
+
+	tes.svc.WaitForQueryLive(t, script)
+
+	mg = promtest.MustGather(t, reg)
+	m = promtest.MustFindMetric(t, mg, "task_executor_total_runs_active", nil)
+	if got := *m.Gauge.Value; got != 1 {
+		t.Fatalf("expected 1 total runs active, got %v", got)
+	}
+
+	tes.svc.SucceedQuery(script)
+	<-promise.Done()
+
+	mg = promtest.MustGather(t, reg)
+
+	m = promtest.MustFindMetric(t, mg, "task_executor_total_runs_complete", map[string]string{"task_type": "", "status": "success"})
+	if got := *m.Counter.Value; got != 1 {
+		t.Fatalf("expected 1 active runs, got %v", got)
+	}
+	m = promtest.MustFindMetric(t, mg, "task_executor_total_runs_active", nil)
+	if got := *m.Gauge.Value; got != 0 {
+		t.Fatalf("expected 0 total runs active, got %v", got)
+	}
+
+	if got := promise.Error(); got != nil {
+		t.Fatal(got)
+	}
+
+	// manual runs metrics
+	mt, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	scheduledFor := int64(123)
+
+	r, err := tes.i.ForceRun(ctx, mt.ID, scheduledFor)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = tes.ex.ManualRun(ctx, mt.ID, r.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mg = promtest.MustGather(t, reg)
+
+	m = promtest.MustFindMetric(t, mg, "task_executor_manual_runs_counter", map[string]string{"taskID": string(mt.ID.String())})
+	if got := *m.Counter.Value; got != 1 {
+		t.Fatalf("expected 1 manual run, got %v", got)
+	}
+
+	m = promtest.MustFindMetric(t, mg, "task_executor_run_latency_seconds", map[string]string{"task_type": ""})
+	if got := *m.Histogram.SampleCount; got < 1 {
+		t.Fatal("expected to find run latency metric")
+	}
+
+	if got := *m.Histogram.SampleSum; got <= 100 {
+		t.Fatalf("expected run latency metric to be very large, got %v", got)
+	}
+
+}
+
+func testIteratorFailure(t *testing.T) {
+	t.Parallel()
+	tes := taskExecutorSystem(t)
+
+	// replace iterator exhaust function with one which errors
+	tes.ex.workerPool = sync.Pool{New: func() interface{} {
+		return &worker{tes.ex, func(flux.Result) error {
+			return errors.New("something went wrong exhausting iterator")
+		}}
+	}}
+
+	script := fmt.Sprintf(fmtTestScript, t.Name())
+	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	promiseID := influxdb.ID(promise.ID())
+
+	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if run.ID != promiseID {
+		t.Fatal("promise and run dont match")
+	}
+
+	tes.svc.WaitForQueryLive(t, script)
+	tes.svc.SucceedQuery(script)
+
+	<-promise.Done()
+
+	if got := promise.Error(); got == nil {
+		t.Fatal("got no error when I should have")
+	}
+}
+
+func testErrorHandling(t *testing.T) {
+	t.Parallel()
+	tes := taskExecutorSystem(t)
+
+	metrics := tes.metrics
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
+	reg.MustRegister(metrics.PrometheusCollectors()...)
+
+	script := fmt.Sprintf(fmtTestScript, t.Name())
+	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script, Status: "active"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// encountering a bucket not found error should log an unrecoverable error in the metrics
+	forcedErr := errors.New("could not find bucket")
+	tes.svc.FailNextQuery(forcedErr)
+
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0), time.Unix(126, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	<-promise.Done()
+
+	mg := promtest.MustGather(t, reg)
+
+	m := promtest.MustFindMetric(t, mg, "task_executor_unrecoverable_counter", map[string]string{"taskID": task.ID.String(), "errorType": "internal error"})
+	if got := *m.Counter.Value; got != 1 {
+		t.Fatalf("expected 1 unrecoverable error, got %v", got)
+	}
+
+	// TODO (al): once user notification system is put in place, this code should be uncommented
+	// encountering a bucket not found error should deactivate the task
+	/*
+		inactive, err := tes.i.FindTaskByID(context.Background(), task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inactive.Status != "inactive" {
+			t.Fatal("expected task to be deactivated after permanent error")
+		}
+	*/
+}
+
+type taskControlService struct {
+	backend.TaskControlService
+
+	run *influxdb.Run
+}
+
+func (t *taskControlService) FinishRun(ctx context.Context, taskID influxdb.ID, runID influxdb.ID) (*influxdb.Run, error) {
+	// ensure auth set on context
+	_, err := icontext.GetAuthorizer(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	t.run, err = t.TaskControlService.FinishRun(ctx, taskID, runID)
+	return t.run, err
 }
