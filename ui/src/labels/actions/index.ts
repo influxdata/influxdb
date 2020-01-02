@@ -161,8 +161,10 @@ export const deleteLabel = (id: string) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    await apiDeleteLabel({labelID: id})
-
+    const resp = await apiDeleteLabel({labelID: id})
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
     dispatch(removeLabel(id))
   } catch (e) {
     console.error(e)
