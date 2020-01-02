@@ -29,6 +29,7 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
+import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {TemplateSummary} from '@influxdata/influx'
@@ -220,9 +221,10 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = ({labels, orgs: {org}}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {labels} = state
   return {
-    org,
+    org: getOrg(state),
     labels: viewableLabels(labels.list),
   }
 }

@@ -2,6 +2,8 @@ import {mocked} from 'ts-jest/utils'
 
 // Mocks
 import {postDelete} from 'src/client'
+import {localState} from 'src/mockState'
+
 jest.mock('src/client')
 jest.mock('src/timeMachine/apis/queryBuilder')
 jest.mock('src/shared/apis/query')
@@ -16,8 +18,16 @@ import {convertTimeRangeToCustom} from '../utils/duration'
 
 const mockGetState = jest.fn(_ => {
   return {
-    orgs: {
-      org: {id: '1'},
+    ...localState,
+    resources: {
+      ...localState.resources,
+      orgs: {
+        byID: {
+          '1': '1',
+        },
+        allIDs: ['1'],
+        org: {id: '1', name: 'plerps'},
+      },
     },
     predicates: {
       timeRange: convertTimeRangeToCustom(pastHourTimeRange),

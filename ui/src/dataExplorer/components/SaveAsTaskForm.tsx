@@ -24,6 +24,7 @@ import {
   taskOptionsToFluxScript,
   addDestinationToFluxScript,
 } from 'src/utils/taskOptionsToFluxScript'
+import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {AppState, TimeRange, VariableAssignment} from 'src/types'
@@ -164,11 +165,11 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
 const mstp = (state: AppState): StateProps => {
   const {
     tasks: {newScript, taskOptions},
-    orgs: {org},
   } = state
 
   const {timeRange} = getActiveTimeMachine(state)
   const activeQuery = getActiveQuery(state)
+  const org = getOrg(state)
   const userDefinedVars = getVariableAssignments(
     state,
     state.timeMachines.activeTimeMachineID

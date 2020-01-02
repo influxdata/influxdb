@@ -21,6 +21,9 @@ import {
   memberRemoveFailed,
 } from 'src/shared/copy/notifications'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 export type Action =
   | ReturnType<typeof setMembers>
   | ReturnType<typeof addMember>
@@ -60,11 +63,7 @@ export const getMembers = () => async (
   getState: GetState
 ) => {
   try {
-    const {
-      orgs: {
-        org: {id},
-      },
-    } = getState()
+    const {id} = getOrg(getState())
     dispatch(setMembers(RemoteDataState.Loading))
 
     const [ownersResp, membersResp] = await Promise.all([
@@ -103,12 +102,7 @@ export const addNewMember = (data: AddResourceMemberRequestBody) => async (
   getState: GetState
 ) => {
   try {
-    const {
-      orgs: {
-        org: {id},
-      },
-    } = getState()
-
+    const {id} = getOrg(getState())
     const resp = await api.postOrgsMember({orgID: id, data})
 
     if (resp.status !== 201) {
@@ -136,12 +130,7 @@ export const deleteMember = (member: Member) => async (
   getState: GetState
 ) => {
   try {
-    const {
-      orgs: {
-        org: {id},
-      },
-    } = getState()
-
+    const {id} = getOrg(getState())
     const resp = await api.deleteOrgsMember({orgID: id, userID: member.id})
 
     if (resp.status !== 204) {

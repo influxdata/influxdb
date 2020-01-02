@@ -27,6 +27,9 @@ import {
   Authorization,
 } from 'src/types'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 export type Action =
   | SetAuthorizations
   | AddAuthorization
@@ -97,10 +100,7 @@ export const getAuthorizations = () => async (
 ) => {
   try {
     dispatch(setAuthorizations(RemoteDataState.Loading))
-    const {
-      orgs: {org},
-    } = getState()
-
+    const org = getOrg(getState())
     const resp = await api.getAuthorizations({query: {orgID: org.id}})
 
     if (resp.status !== 200) {

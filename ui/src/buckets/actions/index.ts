@@ -8,6 +8,7 @@ import {RemoteDataState, AppState, Bucket} from 'src/types'
 
 // Utils
 import {getErrorMessage} from 'src/utils/api'
+import {getOrg} from 'src/organizations/selectors'
 
 // Actions
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
@@ -87,9 +88,7 @@ export const getBuckets = () => async (
 ) => {
   try {
     dispatch(setBuckets(RemoteDataState.Loading))
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
 
     const resp = await api.getBuckets({query: {orgID: org.id}})
 
@@ -110,9 +109,7 @@ export const createBucket = (bucket: Bucket) => async (
   getState: () => AppState
 ) => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
 
     const resp = await api.postBucket({data: {...bucket, orgID: org.id}})
 

@@ -1,10 +1,11 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get, isEmpty} from 'lodash'
 
-// Utils
+// Selectors
 import {getSaveableView} from 'src/timeMachine/selectors'
+import {getOrg} from 'src/organizations/selectors'
 
 // Components
 import {Form, Input, Button, Grid} from '@influxdata/clockface'
@@ -151,7 +152,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 
   private get isFormValid(): boolean {
     const {targetDashboardIDs} = this.state
-    return !_.isEmpty(targetDashboardIDs)
+    return !isEmpty(targetDashboardIDs)
   }
 
   private handleSubmit = () => {
@@ -238,12 +239,12 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 const mstp = (state: AppState): StateProps => {
   const {
     dashboards: {list: dashboards},
-    orgs: {org},
   } = state
 
   const view = getSaveableView(state)
+  const org = getOrg(state)
 
-  return {dashboards, view, orgID: _.get(org, 'id', '')}
+  return {dashboards, view, orgID: get(org, 'id', '')}
 }
 
 const mdtp: DispatchProps = {

@@ -4,9 +4,6 @@ import {
   getLimits as getLimitsAJAX,
 } from 'src/cloud/apis/limits'
 
-// Types
-import {AppState, Limits} from 'src/types'
-
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 
@@ -14,7 +11,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {readLimitReached} from 'src/shared/copy/notifications'
 
 // Types
-import {RemoteDataState} from '@influxdata/clockface'
+import {AppState, Limits, RemoteDataState} from 'src/types'
 import {
   extractDashboardMax,
   extractBucketMax,
@@ -23,6 +20,9 @@ import {
   extractRulesMax,
   extractEndpointsMax,
 } from 'src/cloud/utils/limits'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
 
 export enum LimitStatus {
   OK = 'ok',
@@ -213,9 +213,7 @@ export const getReadWriteCardinalityLimits = () => async (
   getState: () => AppState
 ) => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
 
     const limits = await getReadWriteCardinalityLimitsAJAX(org.id)
 
@@ -246,9 +244,7 @@ export const getAssetLimits = () => async (
 ) => {
   dispatch(setLimitsStatus(RemoteDataState.Loading))
   try {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
 
     const limits = await getLimitsAJAX(org.id)
     dispatch(setLimits(limits))

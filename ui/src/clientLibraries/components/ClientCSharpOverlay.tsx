@@ -12,6 +12,9 @@ import {clientCSharpLibrary} from 'src/clientLibraries/constants'
 // Types
 import {AppState} from 'src/types'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 interface StateProps {
   org: string
 }
@@ -126,10 +129,8 @@ const ClientCSharpOverlay: FunctionComponent<Props> = props => {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const org = state.orgs.org.id
-
   return {
-    org,
+    org: getOrg(state).id,
   }
 }
 

@@ -10,6 +10,7 @@ import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import {getVariableAssignments} from 'src/timeMachine/selectors'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
+import {getOrg} from 'src/organizations/selectors'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -175,11 +176,9 @@ export const deleteWithPredicate = () => async (
   dispatch(setDeletionStatus(RemoteDataState.Loading))
 
   const {
-    orgs: {
-      org: {id: orgID},
-    },
     predicates: {timeRange, bucketName, filters},
   } = getState()
+  const orgID = getOrg(getState()).id
 
   const data = {
     start: moment(timeRange.lower).toISOString(),
@@ -219,7 +218,7 @@ export const executePreviewQuery = (query: string) => async (
 ) => {
   dispatch(setPreviewStatus(RemoteDataState.Loading))
   try {
-    const orgID = getState().orgs.org.id
+    const orgID = getOrg(getState()).id
 
     const variableAssignments = getVariableAssignments(getState())
     const windowVars = getWindowVars(query, variableAssignments)
@@ -258,11 +257,7 @@ export const setBucketAndKeys = (bucketName: string) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
-  const {
-    orgs: {
-      org: {id: orgID},
-    },
-  } = getState()
+  const orgID = getOrg(getState()).id
 
   try {
     const query = `import "influxdata/influxdb/v1"
@@ -282,11 +277,7 @@ export const setValuesByKey = (bucketName: string, keyName: string) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
-  const {
-    orgs: {
-      org: {id: orgID},
-    },
-  } = getState()
+  const orgID = getOrg(getState()).id
 
   try {
     const query = `import "influxdata/influxdb/v1" v1.tagValues(bucket: "${bucketName}", tag: "${keyName}")`

@@ -1,8 +1,9 @@
-import {Member, RemoteDataState} from 'src/types'
+import {Organization, Member, RemoteDataState} from 'src/types'
 
 export enum ResourceType {
-  Labels = 'labels',
   Buckets = 'buckets',
+  Orgs = 'orgs',
+  Labels = 'labels',
   Telegrafs = 'telegrafs',
   Variables = 'variables',
   Authorizations = 'tokens',
@@ -14,6 +15,7 @@ export enum ResourceType {
   Checks = 'checks',
   NotificationRules = 'rules',
   NotificationEndpoints = 'endpoints',
+  Plugins = 'plugins',
 }
 
 export interface NormalizedState<R> {
@@ -24,7 +26,12 @@ export interface NormalizedState<R> {
   status: RemoteDataState
 }
 
+export interface OrgsState extends NormalizedState<Organization> {
+  org: Organization
+}
+
 // ResourceState defines the types for normalized resources
 export interface ResourceState {
   [ResourceType.Members]: NormalizedState<Member>
+  [ResourceType.Orgs]: OrgsState
 }

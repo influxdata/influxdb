@@ -9,7 +9,7 @@ import configureStore from 'src/store/configureStore'
 import {RemoteDataState, TimeZone, LocalStorage} from 'src/types'
 import {pastFifteenMinTimeRange} from './shared/constants/timeRanges'
 
-const localState: LocalStorage = {
+export const localState: LocalStorage = {
   app: {
     ephemeral: {
       inPresentationMode: false,
@@ -20,11 +20,6 @@ const localState: LocalStorage = {
       timeZone: 'Local' as TimeZone,
     },
   },
-  orgs: {
-    items: [{name: 'org', id: 'orgid'}],
-    org: {name: 'org', id: 'orgid'},
-    status: RemoteDataState.Done,
-  },
   VERSION: '2.0.0',
   ranges: {
     '0349ecda531ea000': pastFifteenMinTimeRange,
@@ -32,6 +27,24 @@ const localState: LocalStorage = {
   autoRefresh: {},
   variables: initialVariablesState(),
   userSettings: initialUserSettingsState(),
+  resources: {
+    orgs: {
+      byID: {
+        orgid: {
+          name: 'org',
+          id: 'orgid',
+        },
+      },
+      allIDs: ['orgid'],
+      org: {name: 'org', id: 'orgid'},
+      status: RemoteDataState.Done,
+    },
+    members: {
+      byID: {},
+      allIDs: [],
+      status: RemoteDataState.NotStarted,
+    },
+  },
 }
 
 const history = createMemoryHistory({entries: ['/']})

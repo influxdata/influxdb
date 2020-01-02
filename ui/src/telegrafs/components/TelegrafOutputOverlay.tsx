@@ -19,6 +19,7 @@ import {
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
+import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {AppState, Bucket} from 'src/types'
@@ -173,13 +174,12 @@ class TelegrafOutputOverlay extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const org = state.orgs.org.name
-  const orgID = state.orgs.org.id
+  const {name, id} = getOrg(state)
   const server = window.location.origin
 
   return {
-    org,
-    orgID,
+    org: name,
+    orgID: id,
     server,
     buckets: state.buckets.list,
   }

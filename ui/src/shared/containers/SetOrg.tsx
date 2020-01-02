@@ -1,12 +1,12 @@
 // Libraries
-import React, {useEffect, useState, FunctionComponent} from 'react'
+import React, {useEffect, useState, FC} from 'react'
 import {connect} from 'react-redux'
 
 // Types
-import {AppState, Organization} from 'src/types'
+import {AppState, Organization, ResourceType} from 'src/types'
 
 // Actions
-import {setOrg as setOrgAction} from 'src/organizations/actions/orgs'
+import {setOrg as setOrgAction} from 'src/organizations/actions/creators'
 
 // Decorators
 import {InjectedRouter} from 'react-router'
@@ -15,6 +15,9 @@ import {
   SpinnerContainer,
   TechnoSpinner,
 } from '@influxdata/clockface'
+
+// Selectors
+import {getAll} from 'src/shared/selectors'
 
 interface PassedInProps {
   children: React.ReactElement<any>
@@ -32,7 +35,7 @@ interface StateProps {
 
 type Props = StateProps & DispatchProps & PassedInProps
 
-const SetOrg: FunctionComponent<Props> = ({
+const SetOrg: FC<Props> = ({
   params: {orgID},
   orgs,
   router,
@@ -47,6 +50,11 @@ const SetOrg: FunctionComponent<Props> = ({
     if (foundOrg) {
       setOrg(foundOrg)
       setLoading(RemoteDataState.Done)
+      return
+    }
+
+    if (!orgs.length) {
+      router.push(`/no-orgs`)
       return
     }
 
@@ -66,11 +74,9 @@ const mdtp = {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    orgs: {items},
-  } = state
+  const orgs = getAll<Organization[]>(state, ResourceType.Orgs)
 
-  return {orgs: items}
+  return {orgs}
 }
 
 export default connect<StateProps, DispatchProps, PassedInProps>(

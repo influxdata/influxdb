@@ -7,14 +7,14 @@ import {get} from 'lodash'
 // Components
 import {Overlay} from '@influxdata/clockface'
 import DeleteDataForm from 'src/shared/components/DeleteDataForm/DeleteDataForm'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {convertTimeRangeToCustom} from 'src/shared/utils/duration'
 
 // Types
-import {AppState, TimeRange} from 'src/types'
+import {AppState, TimeRange, ResourceType} from 'src/types'
 
 // Actions
 import {

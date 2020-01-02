@@ -10,6 +10,7 @@ import {Grid, Columns, Page} from '@influxdata/clockface'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {AppState, Organization} from 'src/types'
@@ -44,7 +45,7 @@ class OrgProfilePage extends Component<StateProps> {
   }
 }
 
-const mstp = ({orgs: {org}}: AppState) => ({org})
+const mstp = (state: AppState) => ({org: getOrg(state)})
 
 export default connect<StateProps, {}, {}>(
   mstp,

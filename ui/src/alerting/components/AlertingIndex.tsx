@@ -10,7 +10,7 @@ import RulesColumn from 'src/alerting/components/notifications/RulesColumn'
 import EndpointsColumn from 'src/alerting/components/EndpointsColumn'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -20,7 +20,7 @@ import {
 } from 'src/cloud/utils/limits'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 
 interface StateProps {

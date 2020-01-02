@@ -179,7 +179,7 @@ const mstp = ({
     steps: {currentStep, substep, bucket},
   },
   me: {name},
-  orgs: {org},
+  resources,
   telegrafEditor,
 }: AppState): StateProps => ({
   links,
@@ -190,7 +190,7 @@ const mstp = ({
   username: name,
   bucket,
   buckets: buckets.list,
-  org: org,
+  org: resources.orgs.org,
 })
 
 const mdtp: DispatchProps = {

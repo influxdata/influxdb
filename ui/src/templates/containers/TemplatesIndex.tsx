@@ -8,13 +8,14 @@ import {Page} from '@influxdata/clockface'
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
 import TemplatesPage from 'src/templates/components/TemplatesPage'
+import GetResources from 'src/shared/components/GetResources'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {getOrg} from 'src/organizations/selectors'
 
 // Types
-import {AppState, Organization} from 'src/types'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import {AppState, Organization, ResourceType} from 'src/types'
 
 interface StateProps {
   org: Organization
@@ -48,12 +49,8 @@ class TemplatesIndex extends Component<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    orgs: {org},
-  } = state
-
   return {
-    org,
+    org: getOrg(state),
   }
 }
 

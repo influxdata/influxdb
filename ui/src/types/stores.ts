@@ -27,7 +27,6 @@ import {ViewsState} from 'src/dashboards/reducers/views'
 import {ScrapersState} from 'src/scrapers/reducers'
 import {UserSettingsState} from 'src/userSettings/reducers'
 import {DashboardsState} from 'src/dashboards/reducers/dashboards'
-import {OrgsState} from 'src/organizations/reducers/orgs'
 import {OverlayState} from 'src/overlays/reducers/overlays'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
@@ -54,7 +53,6 @@ export interface AppState {
   noteEditor: NoteEditorState
   notifications: Notification[]
   onboarding: OnboardingState
-  orgs: OrgsState
   overlays: OverlayState
   predicates: PredicatesState
   ranges: RangeState

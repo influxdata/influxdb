@@ -19,6 +19,7 @@ import {
   removeTelegrafLabelFailed,
   getTelegrafConfigFailed,
 } from 'src/shared/copy/notifications'
+import {getOrg} from 'src/organizations/selectors'
 
 export type Action =
   | SetTelegrafs
@@ -92,9 +93,7 @@ export const setCurrentConfig = (
 })
 
 export const getTelegrafs = () => async (dispatch, getState: GetState) => {
-  const {
-    orgs: {org},
-  } = getState()
+  const org = getOrg(getState())
 
   try {
     dispatch(setTelegrafs(RemoteDataState.Loading))

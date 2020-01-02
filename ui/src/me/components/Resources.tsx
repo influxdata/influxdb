@@ -5,6 +5,7 @@ import React, {PureComponent} from 'react'
 import Support from 'src/me/components/Support'
 import LogoutButton from 'src/me/components/LogoutButton'
 import DashboardsList from 'src/me/components/DashboardsList'
+import GetResources from 'src/shared/components/GetResources'
 import {
   Panel,
   FlexBox,
@@ -15,8 +16,7 @@ import {
 import VersionInfo from 'src/shared/components/VersionInfo'
 
 // Types
-import {AppState} from 'src/types'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import {AppState, ResourceType} from 'src/types'
 
 interface Props {
   me: AppState['me']
