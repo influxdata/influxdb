@@ -51,6 +51,12 @@ const byID = (state: OrgsState['byID'] = {}, action: Action) => {
       return omit(state, id)
     }
 
+    case EDIT_ORG: {
+      const {schema} = action
+      const org = schema.entities[schema.result]
+      return {...state, [action.schema.result]: org}
+    }
+
     default:
       return state
   }
@@ -70,12 +76,6 @@ const allIDs = (state: OrgsState['allIDs'] = [], action: Action) => {
 
     case REMOVE_ORG: {
       return state.filter(id => id !== action.id)
-    }
-
-    case EDIT_ORG: {
-      const {schema} = action
-      const org = schema.entities[schema.result]
-      return {...state, [action.schema.result]: org}
     }
 
     default:
