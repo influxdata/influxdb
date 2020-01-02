@@ -60,7 +60,7 @@ from(bucket: "${name}")
       .and('contain', taskName)
   })
 
-  it.only('can create a task using http.post', () => {
+  it('can create a task using http.post', () => {
     const taskName = 'Task'
     createFirstTask(taskName, () => {
       return `import "http"
