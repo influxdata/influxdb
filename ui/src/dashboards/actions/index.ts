@@ -38,6 +38,7 @@ import {setExportTemplate} from 'src/templates/actions'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
 
 // Utils
+import {addVariableDefaults} from 'src/variables/actions'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {
   extractVariablesList,
@@ -578,8 +579,9 @@ export const convertToTemplate = (dashboardID: string) => async (
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
-    const variables = filterUnusedVars(resp.data.variables, views)
-    const exportedVariables = exportVariables(variables, resp.data.variables)
+    const vars = resp.data.variables.map(v => addVariableDefaults(v))
+    const variables = filterUnusedVars(vars, views)
+    const exportedVariables = exportVariables(variables, vars)
     const dashboardTemplate = dashboardToTemplate(
       dashboard,
       views,
