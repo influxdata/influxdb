@@ -3,6 +3,7 @@ import {client} from 'src/utils/api'
 
 // Types
 import {AppThunk, RemoteDataState, GetState, Telegraf, Label} from 'src/types'
+import {ILabel} from '@influxdata/influx'
 import {Action as NotifyAction} from 'src/shared/actions/notifications'
 import {Dispatch} from 'react'
 
@@ -152,7 +153,7 @@ export const addTelegrafLabelsAsync = (
   labels: Label[]
 ): AppThunk<Promise<void>> => async (dispatch): Promise<void> => {
   try {
-    await client.telegrafConfigs.addLabels(telegrafID, labels)
+    await client.telegrafConfigs.addLabels(telegrafID, labels as ILabel[])
     const telegraf = await client.telegrafConfigs.get(telegrafID)
 
     dispatch(editTelegraf(telegraf))
@@ -167,7 +168,7 @@ export const removeTelegrafLabelsAsync = (
   labels: Label[]
 ): AppThunk<Promise<void>> => async (dispatch): Promise<void> => {
   try {
-    await client.telegrafConfigs.removeLabels(telegrafID, labels)
+    await client.telegrafConfigs.removeLabels(telegrafID, labels as ILabel[])
     const telegraf = await client.telegrafConfigs.get(telegrafID)
 
     dispatch(editTelegraf(telegraf))

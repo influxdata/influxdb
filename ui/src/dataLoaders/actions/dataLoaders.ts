@@ -469,7 +469,10 @@ const createTelegraf = async (dispatch, getState: GetState, plugins) => {
     const createdLabel = addLabelDefaults(resp.data.label)
 
     // add label to telegraf config
-    const label = await client.telegrafConfigs.addLabel(tc.id, createdLabel)
+    const label = await client.telegrafConfigs.addLabel(
+      tc.id,
+      createdLabel as ILabel
+    )
 
     const config = {
       ...tc,

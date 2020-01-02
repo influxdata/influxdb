@@ -80,7 +80,7 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
 
   private get labels(): JSX.Element {
     const {variable, labels, onFilterChange} = this.props
-    const collectorLabels = viewableLabels(variable.labels as Label[])
+    const collectorLabels = viewableLabels(variable.labels)
 
     return (
       <InlineLabels
