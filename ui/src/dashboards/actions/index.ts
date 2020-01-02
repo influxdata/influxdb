@@ -15,6 +15,7 @@ import {
   getView as getViewAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis'
+import {getVariables as apiGetVariables} from 'src/client'
 import {createDashboardFromTemplate as createDashboardFromTemplateAJAX} from 'src/templates/api'
 
 // Actions
@@ -573,9 +574,12 @@ export const convertToTemplate = (dashboardID: string) => async (
       getViewAJAX(dashboardID, c.id)
     )
     const views = await Promise.all(pendingViews)
-    const allVariables = await client.variables.getAll(org.id)
-    const variables = filterUnusedVars(allVariables, views)
-    const exportedVariables = exportVariables(variables, allVariables)
+    const resp = await apiGetVariables({query: {orgID: org.id}})
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+    const variables = filterUnusedVars(resp.data.variables, views)
+    const exportedVariables = exportVariables(variables, resp.data.variables)
     const dashboardTemplate = dashboardToTemplate(
       dashboard,
       views,

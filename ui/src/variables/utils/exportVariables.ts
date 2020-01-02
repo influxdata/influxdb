@@ -6,7 +6,7 @@ import {
 } from 'src/variables/utils/hydrateVars'
 
 // Types
-import {IVariable as Variable} from '@influxdata/influx'
+import {Variable} from 'src/types'
 
 const getDescendantsFromGraph = (
   variable: Variable,

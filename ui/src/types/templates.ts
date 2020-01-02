@@ -1,11 +1,10 @@
 import {
-  IVariable as Variable,
   IDashboard,
   DocumentListEntry,
   Document,
   DocumentMeta,
 } from '@influxdata/influx'
-import {View, Cell, Label} from './index'
+import {View, Cell, Label, Variable} from 'src/types'
 
 export enum TemplateType {
   Label = 'label',

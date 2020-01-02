@@ -4,13 +4,8 @@ import {getDeep} from 'src/utils/wrappers'
 import {defaultBuilderConfig} from 'src/shared/utils/view'
 import {viewableLabels} from 'src/labels/selectors'
 
-import {Task, Label, Dashboard, Cell, View} from 'src/types'
-import {
-  TemplateType,
-  DocumentCreate,
-  ITemplate,
-  IVariable as Variable,
-} from '@influxdata/influx'
+import {Task, Label, Dashboard, Cell, View, Variable} from 'src/types'
+import {TemplateType, DocumentCreate, ITemplate} from '@influxdata/influx'
 import {DashboardQuery} from 'src/types/dashboards'
 
 const CURRENT_TEMPLATE_VERSION = '1'
@@ -179,11 +174,11 @@ export const variableToTemplate = (
   const variableData = variableToIncluded(v)
   const variableRelationships = dependencies.map(d => variableToRelationship(d))
   const includedDependencies = dependencies.map(d => variableToIncluded(d))
-  const includedLabels = v.labels.map(l => labelToIncluded(l))
-  const labelRelationships = v.labels.map(l => labelToRelationship(l))
+  const includedLabels = v.labels.map(l => labelToIncluded(l as Label))
+  const labelRelationships = v.labels.map(l => labelToRelationship(l as Label))
 
   const includedDependentLabels = _.flatMap(dependencies, d =>
-    d.labels.map(l => labelToIncluded(l))
+    d.labels.map(l => labelToIncluded(l as Label))
   )
 
   return {
@@ -218,7 +213,7 @@ export const variableToTemplate = (
 
 const variableToIncluded = (v: Variable) => {
   const variableAttributes = _.pick(v, ['name', 'arguments', 'selected'])
-  const labelRelationships = v.labels.map(l => labelToRelationship(l))
+  const labelRelationships = v.labels.map(l => labelToRelationship(l as Label))
 
   return {
     id: v.id,
@@ -258,7 +253,7 @@ export const dashboardToTemplate = (
 
   const includedVariables = variables.map(v => variableToIncluded(v))
   const variableIncludedLabels = _.flatMap(variables, v =>
-    v.labels.map(l => labelToIncluded(l))
+    v.labels.map(l => labelToIncluded(l as Label))
   )
   const relationshipsVariables = variables.map(v => variableToRelationship(v))
 
