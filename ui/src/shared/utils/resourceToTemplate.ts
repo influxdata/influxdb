@@ -174,11 +174,11 @@ export const variableToTemplate = (
   const variableData = variableToIncluded(v)
   const variableRelationships = dependencies.map(d => variableToRelationship(d))
   const includedDependencies = dependencies.map(d => variableToIncluded(d))
-  const includedLabels = v.labels.map(l => labelToIncluded(l as Label))
-  const labelRelationships = v.labels.map(l => labelToRelationship(l as Label))
+  const includedLabels = v.labels.map(l => labelToIncluded(l))
+  const labelRelationships = v.labels.map(l => labelToRelationship(l))
 
   const includedDependentLabels = _.flatMap(dependencies, d =>
-    d.labels.map(l => labelToIncluded(l as Label))
+    d.labels.map(l => labelToIncluded(l))
   )
 
   return {
@@ -213,7 +213,7 @@ export const variableToTemplate = (
 
 const variableToIncluded = (v: Variable) => {
   const variableAttributes = _.pick(v, ['name', 'arguments', 'selected'])
-  const labelRelationships = v.labels.map(l => labelToRelationship(l as Label))
+  const labelRelationships = v.labels.map(l => labelToRelationship(l))
 
   return {
     id: v.id,
@@ -253,7 +253,7 @@ export const dashboardToTemplate = (
 
   const includedVariables = variables.map(v => variableToIncluded(v))
   const variableIncludedLabels = _.flatMap(variables, v =>
-    v.labels.map(l => labelToIncluded(l as Label))
+    v.labels.map(l => labelToIncluded(l))
   )
   const relationshipsVariables = variables.map(v => variableToRelationship(v))
 

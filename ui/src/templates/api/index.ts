@@ -25,6 +25,7 @@ import {
   getLabelRelationships,
 } from 'src/templates/utils/'
 import {addDefaults} from 'src/tasks/actions'
+import {addVariableDefaults} from 'src/variables/actions'
 import {addLabelDefaults} from 'src/labels/utils'
 // API
 import {
@@ -239,8 +240,10 @@ const createVariablesFromTemplate = async (
     throw new Error(resp.data.message)
   }
 
+  const variables = resp.data.variables.map(v => addVariableDefaults(v))
+
   const variablesToCreate = findVariablesToCreate(
-    resp.data.variables,
+    variables,
     variablesIncluded
   ).map(v => ({...v.attributes, orgID}))
 
@@ -252,9 +255,11 @@ const createVariablesFromTemplate = async (
       })
   )
 
-  const createdVariables = (await Promise.all(pendingVariables)) as Variable[]
+  const createdVariables = await Promise.all(pendingVariables).then(vars =>
+    vars.map(v => addVariableDefaults(v as Variable))
+  )
 
-  const allVars = [...resp.data.variables, ...createdVariables]
+  const allVars = [...variables, ...createdVariables]
 
   const addLabelsToVars = variablesIncluded.map(async includedVar => {
     const variable = allVars.find(v => v.name === includedVar.attributes.name)
@@ -361,7 +366,7 @@ export const createVariableFromTemplate = async (
       throw new Error(variable.data.message)
     }
 
-    return variable.data
+    return addVariableDefaults(variable.data)
   } catch (e) {
     console.error(e)
   }

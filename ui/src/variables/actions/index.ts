@@ -27,6 +27,7 @@ import {
 
 // Utils
 import {getValueSelections, extractVariablesList} from 'src/variables/selectors'
+import {addLabelDefaults} from 'src/labels/utils'
 import {CancelBox} from 'src/types/promises'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {findDepedentVariables} from 'src/variables/utils/exportVariables'
@@ -47,6 +48,7 @@ import {
   CSVArguments,
   Label,
   Variable,
+  Variable as IVariable,
 } from 'src/types'
 import {VariableValuesByID} from 'src/variables/types'
 import {
@@ -62,6 +64,13 @@ export type EditorAction =
   | ReturnType<typeof updateQuery>
   | ReturnType<typeof updateMap>
   | ReturnType<typeof updateConstant>
+
+export const addVariableDefaults = (task: IVariable): Variable => {
+  return {
+    ...task,
+    labels: (task.labels || []).map(addLabelDefaults),
+  }
+}
 
 export const clearEditor = () => ({
   type: 'CLEAR_VARIABLE_EDITOR' as 'CLEAR_VARIABLE_EDITOR',
@@ -159,7 +168,9 @@ export const getVariables = () => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setVariables(RemoteDataState.Done, resp.data.variables))
+    const variables = resp.data.variables.map(v => addVariableDefaults(v))
+
+    dispatch(setVariables(RemoteDataState.Done, variables))
   } catch (e) {
     console.error(e)
     dispatch(setVariables(RemoteDataState.Error))
@@ -178,7 +189,9 @@ export const getVariable = (id: string) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setVariable(id, RemoteDataState.Done, resp.data))
+    const variable = addVariableDefaults(resp.data)
+
+    dispatch(setVariable(id, RemoteDataState.Done, variable))
   } catch (e) {
     console.error(e)
     dispatch(setVariable(id, RemoteDataState.Error))
@@ -202,7 +215,9 @@ export const createVariable = (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setVariable(resp.data.id, RemoteDataState.Done, resp.data))
+    const createdVar = addVariableDefaults(resp.data)
+
+    dispatch(setVariable(createdVar.id, RemoteDataState.Done, createdVar))
     dispatch(notify(createVariableSuccess(variable.name)))
   } catch (e) {
     console.error(e)
@@ -244,8 +259,10 @@ export const updateVariable = (id: string, props: Variable) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setVariable(id, RemoteDataState.Done, resp.data))
-    dispatch(notify(updateVariableSuccess(resp.data.name)))
+    const variable = addVariableDefaults(resp.data)
+
+    dispatch(setVariable(id, RemoteDataState.Done, variable))
+    dispatch(notify(updateVariableSuccess(variable.name)))
   } catch (e) {
     console.error(e)
     dispatch(setVariable(id, RemoteDataState.Error))
@@ -324,15 +341,17 @@ export const convertToTemplate = (variableID: string) => async (
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
+
+    const variable = addVariableDefaults(resp.data)
     const allVariables = await apiGetVariables({query: {orgID: org.id}})
     if (allVariables.status !== 200) {
       throw new Error(allVariables.data.message)
     }
-    const dependencies = findDepedentVariables(
-      resp.data,
-      allVariables.data.variables
+    const variables = allVariables.data.variables.map(v =>
+      addVariableDefaults(v)
     )
-    const variableTemplate = variableToTemplate(resp.data, dependencies)
+    const dependencies = findDepedentVariables(variable, variables)
+    const variableTemplate = variableToTemplate(variable, dependencies)
 
     dispatch(setExportTemplate(RemoteDataState.Done, variableTemplate))
   } catch (error) {
@@ -359,7 +378,9 @@ export const addVariableLabelAsync = (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setVariable(variableID, RemoteDataState.Done, resp.data))
+    const variable = addVariableDefaults(resp.data)
+
+    dispatch(setVariable(variableID, RemoteDataState.Done, variable))
   } catch (error) {
     console.error(error)
     dispatch(notify(addVariableLabelFailed()))
@@ -384,7 +405,9 @@ export const removeVariableLabelAsync = (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setVariable(variableID, RemoteDataState.Done, resp.data))
+    const variable = addVariableDefaults(resp.data)
+
+    dispatch(setVariable(variableID, RemoteDataState.Done, variable))
   } catch (error) {
     console.error(error)
     dispatch(notify(removeVariableLabelFailed()))
