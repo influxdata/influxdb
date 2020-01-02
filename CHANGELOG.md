@@ -37,6 +37,7 @@
 1. [16268](https://github.com/influxdata/influxdb/pull/16268): Fixed test flakiness that stemmed from multiple flush/signins being called in the same test suite
 1. [16346](https://github.com/influxdata/influxdb/pull/16346): Update pkger task export to only trim out option task and not all vars provided
 1. [16374](https://github.com/influxdata/influxdb/pull/16374): Update influx CLI, only show "see help" message, instead of the whole usage.
+1. [16380](https://github.com/influxdata/influxdb/pull/16380): Fix notification tag matching rules and enable tests to verify
 
 ### UI Improvements
 

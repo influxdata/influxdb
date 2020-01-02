@@ -337,7 +337,9 @@ func (b *Base) ClearPrivateData() {
 
 // MatchesTags returns true if the Rule matches all of the tags
 func (b *Base) MatchesTags(tags []influxdb.Tag) bool {
-
+	if len(tags) == 0 {
+		return true
+	}
 	// for each tag in NR
 	// if there exists
 	// a key value match with operator == equal in tags
