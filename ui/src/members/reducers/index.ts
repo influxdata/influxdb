@@ -9,7 +9,7 @@ import {
   SET_MEMBERS,
   ADD_MEMBER,
   REMOVE_MEMBER,
-} from 'src/members/actions'
+} from 'src/members/actions/creators'
 
 export type MembersState = ResourceState['members']
 

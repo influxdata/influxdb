@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
+import {get} from 'lodash'
 import {connect} from 'react-redux'
 
 // Components
@@ -8,9 +8,10 @@ import {Dropdown, ComponentStatus} from '@influxdata/clockface'
 
 // Utils
 import {isSystemBucket} from 'src/buckets/constants/index'
+import {getAll, getStatus} from 'src/shared/selectors'
 
 // Types
-import {RemoteDataState, AppState, Bucket} from 'src/types'
+import {RemoteDataState, AppState, Bucket, ResourceType} from 'src/types'
 
 interface OwnProps {
   onChangeBucketName: (selectedBucketName: string) => void
@@ -105,23 +106,26 @@ class TaskOptionsBucketDropdown extends PureComponent<Props> {
       if (selectedBucketName) {
         return selectedBucketName
       }
-      return _.get(buckets, '0.name', '')
+      return get(buckets, '0.name', '')
     }
     return 'no-buckets'
   }
 
   private setSelectedToFirst() {
     const {buckets, onChangeBucketName} = this.props
-    const firstBucketNameInList = _.get(buckets, '0.name', '')
+    const firstBucketNameInList = get(buckets, '0.name', '')
 
     onChangeBucketName(firstBucketNameInList)
   }
 }
 
-const mstp = ({buckets}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const buckets = getAll<Bucket[]>(state, ResourceType.Buckets)
+  const status = getStatus(state, ResourceType.Buckets)
+
   return {
-    buckets: buckets.list,
-    status: buckets.status,
+    buckets,
+    status,
   }
 }
 

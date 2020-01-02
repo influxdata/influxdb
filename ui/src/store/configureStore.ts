@@ -56,7 +56,6 @@ export const rootReducer = combineReducers<ReducerState>({
   alertBuilder: alertBuilderReducer,
   checks: checksReducer,
   cloud: combineReducers<{limits: LimitsState}>({limits: limitsReducer}),
-  buckets: bucketsReducer,
   dashboards: dashboardsReducer,
   dataLoading: dataLoadingReducer,
   endpoints: endpointsReducer,
@@ -83,6 +82,7 @@ export const rootReducer = combineReducers<ReducerState>({
   resources: combineReducers({
     members: membersReducer,
     orgs: orgsReducer,
+    buckets: bucketsReducer,
   }),
   variables: variablesReducer,
   variableEditor: variableEditorReducer,

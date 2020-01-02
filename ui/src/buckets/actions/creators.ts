@@ -1,60 +1,42 @@
 // Types
-import {RemoteDataState, Bucket} from 'src/types'
-import {Action as NotifyAction} from 'src/shared/actions/notifications'
+import {RemoteDataState, BucketEntities} from 'src/types'
+import {NormalizedSchema} from 'normalizr'
+
+export const SET_BUCKETS = 'SET_BUCKETS'
+export const ADD_BUCKET = 'ADD_BUCKET'
+export const EDIT_BUCKET = 'EDIT_BUCKET'
+export const REMOVE_BUCKET = 'REMOVE_BUCKET'
 
 export type Action =
-  | SetBuckets
-  | AddBucket
-  | EditBucket
-  | RemoveBucket
-  | NotifyAction
-
-interface SetBuckets {
-  type: 'SET_BUCKETS'
-  payload: {
-    status: RemoteDataState
-    list: Bucket[]
-  }
-}
+  | ReturnType<typeof setBuckets>
+  | ReturnType<typeof addBucket>
+  | ReturnType<typeof editBucket>
+  | ReturnType<typeof removeBucket>
 
 export const setBuckets = (
   status: RemoteDataState,
-  list?: Bucket[]
-): SetBuckets => ({
-  type: 'SET_BUCKETS',
-  payload: {status, list},
-})
+  schema?: NormalizedSchema<BucketEntities, string[]>
+) =>
+  ({
+    type: SET_BUCKETS,
+    status,
+    schema,
+  } as const)
 
-interface AddBucket {
-  type: 'ADD_BUCKET'
-  payload: {
-    bucket: Bucket
-  }
-}
+export const addBucket = (schema: NormalizedSchema<BucketEntities, string>) =>
+  ({
+    type: ADD_BUCKET,
+    schema,
+  } as const)
 
-export const addBucket = (bucket: Bucket): AddBucket => ({
-  type: 'ADD_BUCKET',
-  payload: {bucket},
-})
+export const editBucket = (schema: NormalizedSchema<BucketEntities, string>) =>
+  ({
+    type: EDIT_BUCKET,
+    schema,
+  } as const)
 
-interface EditBucket {
-  type: 'EDIT_BUCKET'
-  payload: {
-    bucket: Bucket
-  }
-}
-
-export const editBucket = (bucket: Bucket): EditBucket => ({
-  type: 'EDIT_BUCKET',
-  payload: {bucket},
-})
-
-interface RemoveBucket {
-  type: 'REMOVE_BUCKET'
-  payload: {id: string}
-}
-
-export const removeBucket = (id: string): RemoveBucket => ({
-  type: 'REMOVE_BUCKET',
-  payload: {id},
-})
+export const removeBucket = (id: string) =>
+  ({
+    type: REMOVE_BUCKET,
+    id,
+  } as const)
