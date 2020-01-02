@@ -385,15 +385,14 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
   createTelegraf(dispatch, getState, plugins)
 }
 
-const createTelegraf = async (dispatch, getState, plugins) => {
+const createTelegraf = async (dispatch, getState: GetState, plugins) => {
   try {
-    const {
-      dataLoading: {
-        dataLoaders: {telegrafConfigName, telegrafConfigDescription},
-        steps: {bucket, bucketID},
-      },
-      orgs: {org},
-    } = getState()
+    const state = getState()
+    const {telegrafConfigName, telegrafConfigDescription} = getDataLoaders(
+      state
+    )
+    const {bucket, bucketID} = getSteps(state)
+    const org = getOrg(getState())
 
     const telegrafRequest: TelegrafRequest = {
       name: telegrafConfigName,
@@ -474,6 +473,7 @@ const createTelegraf = async (dispatch, getState, plugins) => {
     dispatch(addTelegraf(config))
     dispatch(notify(TelegrafConfigCreationSuccess))
   } catch (error) {
+    console.error(error.message)
     dispatch(notify(TelegrafConfigCreationError))
   }
 }
