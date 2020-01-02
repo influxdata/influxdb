@@ -36,7 +36,7 @@ from(bucket: "${name}")
   |> to(org: "${name}")`
     })
 
-    cy.contains('Save').click()
+    cy.getByTestID('task-save-btn').click()
 
     cy.getByTestID('notification-error').should(
       'contain',
@@ -53,14 +53,14 @@ from(bucket: "${name}")
   |> range(start: -2m)`
     })
 
-    cy.contains('Save').click()
+    cy.getByTestID('task-save-btn').click()
 
     cy.getByTestID('task-card')
       .should('have.length', 1)
       .and('contain', taskName)
   })
 
-  it('can create a task using http.post', () => {
+  it.only('can create a task using http.post', () => {
     const taskName = 'Task'
     createFirstTask(taskName, () => {
       return `import "http"
@@ -70,7 +70,7 @@ http.post(
 )`
     })
 
-    cy.contains('Save').click()
+    cy.getByTestID('task-save-btn').click()
 
     cy.getByTestID('task-card')
       .should('have.length', 1)
@@ -224,7 +224,7 @@ http.post(
         interval,
         offset
       )
-      cy.contains('Save').click()
+      cy.getByTestID('task-save-btn').click()
       cy.getByTestID('task-card')
         .should('have.length', 1)
         .and('contain', taskName)
@@ -253,7 +253,7 @@ http.post(
         .clear()
         .type(newOffset)
 
-      cy.contains('Save').click()
+      cy.getByTestID('task-save-btn').click()
       // checks to see if the data has been updated once saved
       cy.getByTestID('task-card--name').contains(newTask)
     })
@@ -281,7 +281,7 @@ http.post(
       // checks to see if the cron data persists
       cy.getByInputValue(cronInput)
       cy.getByInputValue(offset)
-      cy.contains('Save').click()
+      cy.getByTestID('task-save-btn').click()
     })
   })
 
@@ -306,7 +306,7 @@ http.post(
         interval,
         offset
       )
-      cy.contains('Save').click()
+      cy.getByTestID('task-save-btn').click()
       cy.getByTestID('task-card')
         .should('have.length', 1)
         .and('contain', firstTask)
@@ -321,7 +321,7 @@ http.post(
           cy.get('textarea').type(flux(bucket), {force: true})
         })
       })
-      cy.contains('Save').click()
+      cy.getByTestID('task-save-btn').click()
       cy.getByTestID('task-card')
         .should('have.length', 2)
         .and('contain', firstTask)
@@ -411,6 +411,7 @@ function createFirstTask(
   cy.get<Bucket>('@bucket').then(bucket => {
     cy.getByTestID('flux-editor').within(() => {
       cy.get('textarea').type(flux(bucket), {force: true})
+      cy.wait(500) // TODO: find a
     })
   })
 }

@@ -353,8 +353,7 @@ describe('DataExplorer', () => {
     })
   })
 
-  // todo: investigate flakiness of this test: https://github.com/influxdata/influxdb/issues/16330
-  describe.skip('raw script editing', () => {
+  describe('raw script editing', () => {
     beforeEach(() => {
       cy.getByTestID('switch-to-script-editor').click()
     })
