@@ -11,12 +11,19 @@ import {getErrorMessage} from 'src/utils/api'
 import {getOrg} from 'src/organizations/selectors'
 
 // Actions
-import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
+import {
+  editBucket,
+  addBucket,
+  setBuckets,
+  removeBucket,
+  Action,
+} from 'src/buckets/actions/creators'
+import {notify} from 'src/shared/actions/notifications'
 import {checkBucketLimits} from 'src/cloud/actions/limits'
 
 // Constants
-import {getBucketsFailed} from 'src/shared/copy/notifications'
 import {
+  getBucketsFailed,
   bucketCreateFailed,
   bucketUpdateFailed,
   bucketDeleteFailed,
@@ -24,63 +31,6 @@ import {
   bucketRenameSuccess,
   bucketRenameFailed,
 } from 'src/shared/copy/notifications'
-
-export type Action =
-  | SetBuckets
-  | AddBucket
-  | EditBucket
-  | RemoveBucket
-  | NotifyAction
-
-interface SetBuckets {
-  type: 'SET_BUCKETS'
-  payload: {
-    status: RemoteDataState
-    list: Bucket[]
-  }
-}
-
-export const setBuckets = (
-  status: RemoteDataState,
-  list?: Bucket[]
-): SetBuckets => ({
-  type: 'SET_BUCKETS',
-  payload: {status, list},
-})
-
-interface AddBucket {
-  type: 'ADD_BUCKET'
-  payload: {
-    bucket: Bucket
-  }
-}
-
-export const addBucket = (bucket: Bucket): AddBucket => ({
-  type: 'ADD_BUCKET',
-  payload: {bucket},
-})
-
-interface EditBucket {
-  type: 'EDIT_BUCKET'
-  payload: {
-    bucket: Bucket
-  }
-}
-
-export const editBucket = (bucket: Bucket): EditBucket => ({
-  type: 'EDIT_BUCKET',
-  payload: {bucket},
-})
-
-interface RemoveBucket {
-  type: 'REMOVE_BUCKET'
-  payload: {id: string}
-}
-
-export const removeBucket = (id: string): RemoveBucket => ({
-  type: 'REMOVE_BUCKET',
-  payload: {id},
-})
 
 export const getBuckets = () => async (
   dispatch: Dispatch<Action>,
