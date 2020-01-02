@@ -410,8 +410,10 @@ function createFirstTask(
 
   cy.get<Bucket>('@bucket').then(bucket => {
     cy.getByTestID('flux-editor').within(() => {
-      cy.get('textarea').type(flux(bucket), {force: true})
-      cy.wait(500) // TODO: find a
+      cy.get('.react-monaco-editor-container')
+        .click()
+        .focused()
+        .type(flux(bucket), {force: true})
     })
   })
 }
