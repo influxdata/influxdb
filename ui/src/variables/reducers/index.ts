@@ -9,10 +9,10 @@ import {
   QueryArguments,
   MapArguments,
   CSVArguments,
-  Variable,
 } from 'src/types'
 import {VariableValuesByID} from 'src/variables/types'
 import {Action, EditorAction} from 'src/variables/actions'
+import {IVariable as Variable} from '@influxdata/influx'
 
 export const initialEditorState = (): VariableEditorState => ({
   name: '',

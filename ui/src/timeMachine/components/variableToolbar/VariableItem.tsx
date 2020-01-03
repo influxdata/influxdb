@@ -11,7 +11,7 @@ import {
 } from '@influxdata/clockface'
 
 // Types
-import {Variable} from 'src/types'
+import {IVariable as Variable} from '@influxdata/influx'
 import VariableLabel from 'src/timeMachine/components/variableToolbar/VariableLabel'
 
 interface Props {

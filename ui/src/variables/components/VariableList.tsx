@@ -7,7 +7,8 @@ import {ResourceList} from '@influxdata/clockface'
 import VariableCard from 'src/variables/components/VariableCard'
 
 // Types
-import {OverlayState, Variable} from 'src/types'
+import {IVariable as Variable} from '@influxdata/influx'
+import {OverlayState} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
 

@@ -26,12 +26,13 @@ import {extractVariablesList} from 'src/variables/selectors'
 import {variableItemTypes} from 'src/variables/constants'
 
 // Types
+import {IVariable as Variable} from '@influxdata/influx'
 import {
   ButtonType,
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {VariableArguments, AppState, Variable} from 'src/types'
+import {VariableArguments, AppState} from 'src/types'
 
 interface State {
   workingVariable: Variable

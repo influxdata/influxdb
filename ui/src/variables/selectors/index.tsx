@@ -13,17 +13,13 @@ import {
   CSVArguments,
 } from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
-import {
-  AppState,
-  VariableArguments,
-  VariableArgumentType,
-  Variable,
-} from 'src/types'
+import {AppState, VariableArguments, VariableArgumentType} from 'src/types'
 import {
   VariableValues,
   VariableValuesByID,
   ValueSelections,
 } from 'src/variables/types'
+import {IVariable as Variable} from '@influxdata/influx'
 
 type VariablesState = AppState['variables']['variables']
 type ValuesState = AppState['variables']['values']['contextID']
