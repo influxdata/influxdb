@@ -249,14 +249,18 @@ const createVariablesFromTemplate = async (
 
   const pendingVariables = variablesToCreate.map(vars =>
     apiPostVariable({data: vars})
-      .then(res => res.data)
-      .catch(e => {
-        throw new Error(e.message)
-      })
   )
 
+  const resolvedVariables = await Promise.all(pendingVariables)
+  if (
+    resolvedVariables.length > 0 &&
+    resolvedVariables.every(r => r.status !== 201)
+  ) {
+    throw new Error('An error occurred creating the variables from templates')
+  }
+
   const createdVariables = await Promise.all(pendingVariables).then(vars =>
-    vars.map(v => addVariableDefaults(v as Variable))
+    vars.map(res => addVariableDefaults(res.data as Variable))
   )
 
   const allVars = [...variables, ...createdVariables]
@@ -264,9 +268,11 @@ const createVariablesFromTemplate = async (
   const addLabelsToVars = variablesIncluded.map(async includedVar => {
     const variable = allVars.find(v => v.name === includedVar.attributes.name)
     const labelRelationships = getLabelRelationships(includedVar)
-    const [labelID] = labelRelationships.map(l => labelMap[l.id] || '')
-
-    await apiPostVariablesLabel({variableID: variable.id, data: {labelID}})
+    const labelIDs = labelRelationships.map(l => labelMap[l.id] || '')
+    const pending = labelIDs.map(async labelID => {
+      await apiPostVariablesLabel({variableID: variable.id, data: {labelID}})
+    })
+    await Promise.all(pending)
   })
 
   await Promise.all(addLabelsToVars)
@@ -321,10 +327,14 @@ const addTaskLabelsFromTemplate = async (
 ) => {
   try {
     const relationships = getLabelRelationships(template.content.data)
-    const [labelID] = relationships.map(l => labelMap[l.id] || '')
-    const resp = await apiPostTasksLabel({taskID: task.id, data: {labelID}})
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
+    const labelIDs = relationships.map(l => labelMap[l.id] || '')
+    const pending = labelIDs.map(
+      async labelID =>
+        await apiPostTasksLabel({taskID: task.id, data: {labelID}})
+    )
+    const resolved = await Promise.all(pending)
+    if (resolved.length > 0 && resolved.every(r => r.status !== 201)) {
+      throw new Error('An error occurred adding task labels from the templates')
     }
   } catch (e) {
     console.error(e)

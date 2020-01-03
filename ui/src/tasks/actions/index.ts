@@ -279,12 +279,11 @@ export const addTaskLabelAsync = (taskID: string, label: Label) => async (
       data: {labelID: label.id},
     })
 
-    if (postResp.status !== 200) {
+    if (postResp.status !== 201) {
       throw new Error(postResp.data.message)
     }
 
     const resp = await apiGetTask({taskID})
-
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }

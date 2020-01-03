@@ -1,8 +1,4 @@
-import {Label as GenLabel} from 'src/client'
-
-export interface Label extends GenLabel {
-  properties?: LabelProperties
-}
+export {Label} from 'src/client'
 
 export interface LabelProperties {
   color: string

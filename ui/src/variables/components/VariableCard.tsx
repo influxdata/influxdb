@@ -24,7 +24,6 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 interface OwnProps {
   variable: Variable
   onDeleteVariable: (variable: Variable) => void
-  onUpdateVariableName: (variable: Partial<Variable>) => void
   onEditVariable: (variable: Variable) => void
   onFilterChange: (searchTerm: string) => void
 }
