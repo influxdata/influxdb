@@ -45,8 +45,7 @@ import {predicatesReducer} from 'src/shared/reducers/predicates'
 import alertBuilderReducer from 'src/alerting/reducers/alertBuilder'
 
 // Types
-import {LocalStorage} from 'src/types/localStorage'
-import {AppState} from 'src/types'
+import {AppState, LocalStorage} from 'src/types'
 
 type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
@@ -64,8 +63,14 @@ export const rootReducer = combineReducers<ReducerState>({
   noteEditor: noteEditorReducer,
   onboarding: onboardingReducer,
   overlays: overlaysReducer,
+  plugins: pluginsResourceReducer,
   predicates: predicatesReducer,
   ranges: rangesReducer,
+  resources: combineReducers({
+    members: membersReducer,
+    orgs: orgsReducer,
+    buckets: bucketsReducer,
+  }),
   routing: routerReducer,
   rules: rulesReducer,
   scrapers: scrapersReducer,
@@ -73,17 +78,11 @@ export const rootReducer = combineReducers<ReducerState>({
   telegrafEditor: editorReducer,
   telegrafEditorActivePlugins: activePluginsReducer,
   telegrafEditorPlugins: pluginsReducer,
-  plugins: pluginsResourceReducer,
   telegrafs: telegrafsReducer,
   templates: templatesReducer,
-  tokens: authorizationsReducer,
   timeMachines: timeMachinesReducer,
+  tokens: authorizationsReducer,
   userSettings: userSettingsReducer,
-  resources: combineReducers({
-    members: membersReducer,
-    orgs: orgsReducer,
-    buckets: bucketsReducer,
-  }),
   variables: variablesReducer,
   variableEditor: variableEditorReducer,
   views: viewsReducer,
