@@ -26,11 +26,12 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {AppState, Bucket, Organization} from 'src/types'
+import {AppState, Bucket, Organization, ResourceType} from 'src/types'
 import FilterList from 'src/shared/components/Filter'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/shared/selectors'
 
 interface StateProps {
   scrapers: ScraperTargetResponse[]
@@ -191,7 +192,7 @@ class Scrapers extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => ({
   scrapers: state.scrapers.list,
-  buckets: state.buckets.list,
+  buckets: getAll<Bucket[]>(state, ResourceType.Buckets),
   org: getOrg(state),
 })
 

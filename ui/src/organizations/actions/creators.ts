@@ -2,11 +2,8 @@
 import HoneyBadger from 'honeybadger-js'
 import {NormalizedSchema} from 'normalizr'
 
-// Schemas
-import {OrgEntities} from 'src/schemas'
-
 // Types
-import {Organization, RemoteDataState} from 'src/types'
+import {Organization, RemoteDataState, OrgEntities} from 'src/types'
 
 // Action Types
 export const SET_ORGS = 'SET_ORGS'

@@ -9,20 +9,15 @@ import TemplatedCodeSnippet, {
   transform,
 } from 'src/shared/components/TemplatedCodeSnippet'
 import BucketDropdown from 'src/dataLoaders/components/BucketsDropdown'
-import {
-  ComponentColor,
-  Button,
-  // SpinnerContainer,
-  //  TechnoSpinner,
-  Overlay,
-} from '@influxdata/clockface'
+import {ComponentColor, Button, Overlay} from '@influxdata/clockface'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/shared/selectors'
 
 // Types
-import {AppState, Bucket} from 'src/types'
+import {AppState, Bucket, ResourceType} from 'src/types'
 
 interface OwnProps {
   onClose: () => void
@@ -176,12 +171,13 @@ class TelegrafOutputOverlay extends PureComponent<Props> {
 const mstp = (state: AppState): StateProps => {
   const {name, id} = getOrg(state)
   const server = window.location.origin
+  const buckets = getAll<Bucket[]>(state, ResourceType.Buckets)
 
   return {
     org: name,
     orgID: id,
     server,
-    buckets: state.buckets.list,
+    buckets,
   }
 }
 

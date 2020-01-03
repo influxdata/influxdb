@@ -1,22 +1,34 @@
+// Libraries
+import {normalize} from 'normalizr'
 import {Dispatch} from 'react'
 
 // API
 import * as api from 'src/client'
 
+// Schemas
+import * as schemas from 'src/schemas'
+
 // Types
-import {RemoteDataState, AppState, Bucket} from 'src/types'
+import {RemoteDataState, GetState, Bucket, BucketEntities} from 'src/types'
 
 // Utils
 import {getErrorMessage} from 'src/utils/api'
 import {getOrg} from 'src/organizations/selectors'
 
 // Actions
+import {
+  editBucket,
+  addBucket,
+  setBuckets,
+  removeBucket,
+  Action as BucketAction,
+} from 'src/buckets/actions/creators'
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {checkBucketLimits} from 'src/cloud/actions/limits'
 
 // Constants
-import {getBucketsFailed} from 'src/shared/copy/notifications'
 import {
+  getBucketsFailed,
   bucketCreateFailed,
   bucketUpdateFailed,
   bucketDeleteFailed,
@@ -25,66 +37,11 @@ import {
   bucketRenameFailed,
 } from 'src/shared/copy/notifications'
 
-export type Action =
-  | SetBuckets
-  | AddBucket
-  | EditBucket
-  | RemoveBucket
-  | NotifyAction
-
-interface SetBuckets {
-  type: 'SET_BUCKETS'
-  payload: {
-    status: RemoteDataState
-    list: Bucket[]
-  }
-}
-
-export const setBuckets = (
-  status: RemoteDataState,
-  list?: Bucket[]
-): SetBuckets => ({
-  type: 'SET_BUCKETS',
-  payload: {status, list},
-})
-
-interface AddBucket {
-  type: 'ADD_BUCKET'
-  payload: {
-    bucket: Bucket
-  }
-}
-
-export const addBucket = (bucket: Bucket): AddBucket => ({
-  type: 'ADD_BUCKET',
-  payload: {bucket},
-})
-
-interface EditBucket {
-  type: 'EDIT_BUCKET'
-  payload: {
-    bucket: Bucket
-  }
-}
-
-export const editBucket = (bucket: Bucket): EditBucket => ({
-  type: 'EDIT_BUCKET',
-  payload: {bucket},
-})
-
-interface RemoveBucket {
-  type: 'REMOVE_BUCKET'
-  payload: {id: string}
-}
-
-export const removeBucket = (id: string): RemoveBucket => ({
-  type: 'REMOVE_BUCKET',
-  payload: {id},
-})
+type Action = BucketAction | NotifyAction
 
 export const getBuckets = () => async (
   dispatch: Dispatch<Action>,
-  getState: () => AppState
+  getState: GetState
 ) => {
   try {
     dispatch(setBuckets(RemoteDataState.Loading))
@@ -96,7 +53,12 @@ export const getBuckets = () => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setBuckets(RemoteDataState.Done, resp.data.buckets))
+    const buckets = normalize<Bucket, BucketEntities, string[]>(
+      resp.data.buckets,
+      schemas.arrayOfBuckets
+    )
+
+    dispatch(setBuckets(RemoteDataState.Done, buckets))
   } catch (e) {
     console.error(e)
     dispatch(setBuckets(RemoteDataState.Error))
@@ -106,7 +68,7 @@ export const getBuckets = () => async (
 
 export const createBucket = (bucket: Bucket) => async (
   dispatch: Dispatch<Action | ReturnType<typeof checkBucketLimits>>,
-  getState: () => AppState
+  getState: GetState
 ) => {
   try {
     const org = getOrg(getState())
@@ -117,7 +79,12 @@ export const createBucket = (bucket: Bucket) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(addBucket(resp.data))
+    const newBucket = normalize<Bucket, BucketEntities, string>(
+      resp.data,
+      schemas.bucket
+    )
+
+    dispatch(addBucket(newBucket))
     dispatch(checkBucketLimits())
   } catch (error) {
     console.error(error)
@@ -139,7 +106,12 @@ export const updateBucket = (updatedBucket: Bucket) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(editBucket(resp.data))
+    const newBucket = normalize<Bucket, BucketEntities, string>(
+      resp.data,
+      schemas.bucket
+    )
+
+    dispatch(editBucket(newBucket))
     dispatch(notify(bucketUpdateSuccess(updatedBucket.name)))
   } catch (e) {
     console.error(e)
@@ -162,7 +134,12 @@ export const renameBucket = (
       throw new Error(resp.data.message)
     }
 
-    dispatch(editBucket(resp.data))
+    const newBucket = normalize<Bucket, BucketEntities, string>(
+      resp.data,
+      schemas.bucket
+    )
+
+    dispatch(editBucket(newBucket))
     dispatch(notify(bucketRenameSuccess(updatedBucket.name)))
   } catch (e) {
     console.error(e)

@@ -14,7 +14,8 @@ import {
 } from 'src/shared/actions/predicates'
 
 // Types
-import {Bucket, AppState, RemoteDataState} from 'src/types'
+import {Bucket, AppState, RemoteDataState, ResourceType} from 'src/types'
+import {getAll} from 'src/shared/selectors'
 
 interface StateProps {
   buckets: Bucket[]
@@ -66,7 +67,7 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState): StateProps => {
   return {
-    buckets: state.buckets.list,
+    buckets: getAll<Bucket[]>(state, ResourceType.Buckets),
   }
 }
 

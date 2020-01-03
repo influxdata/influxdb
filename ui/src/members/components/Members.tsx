@@ -13,7 +13,7 @@ import MemberList from 'src/members/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
 
 // Actions
-import {deleteMember} from 'src/members/actions'
+import {deleteMember} from 'src/members/actions/thunks'
 
 // Types
 import {ComponentSize} from '@influxdata/clockface'

@@ -12,7 +12,6 @@ import {OnboardingState} from 'src/onboarding/reducers'
 import {PredicatesState} from 'src/types'
 import {VariablesState, VariableEditorState} from 'src/variables/reducers'
 import {LabelsState} from 'src/labels/reducers'
-import {BucketsState} from 'src/buckets/reducers'
 import {
   TelegrafEditorPluginState,
   PluginResourceState,
@@ -41,7 +40,6 @@ export interface AppState {
   alertBuilder: AlertBuilderState
   app: AppPresentationState
   autoRefresh: AutoRefreshState
-  buckets: BucketsState
   checks: ChecksState
   cloud: {limits: LimitsState}
   dashboards: DashboardsState

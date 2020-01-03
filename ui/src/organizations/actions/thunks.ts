@@ -39,6 +39,7 @@ import {
   NotificationAction,
   Bucket,
   AppThunk,
+  OrgEntities,
 } from 'src/types'
 
 export const getOrganizations = () => async (
@@ -55,11 +56,7 @@ export const getOrganizations = () => async (
 
     const {orgs} = resp.data
 
-    const organizations = normalize<
-      Organization,
-      schemas.OrgEntities,
-      string[]
-    >(orgs, [schemas.orgs])
+    const organizations = normalize<Organization, OrgEntities, string[]>(orgs, schemas.arrayOfOrgs)
 
     dispatch(setOrgs(RemoteDataState.Done, organizations))
 
@@ -88,9 +85,9 @@ export const createOrgWithBucket = (
 
     dispatch(notify(orgCreateSuccess()))
 
-    const normOrg = normalize<Organization, schemas.OrgEntities, string>(
+    const normOrg = normalize<Organization, OrgEntities, string>(
       createdOrg,
-      schemas.orgs
+      schemas.org
     )
 
     dispatch(addOrg(normOrg))
@@ -127,9 +124,9 @@ export const createOrg = (org: Organization) => async (
     }
 
     const createdOrg = resp.data
-    const normOrg = normalize<Organization, schemas.OrgEntities, string>(
+    const normOrg = normalize<Organization, OrgEntities, string>(
       createdOrg,
-      schemas.orgs
+      schemas.org
     )
 
     dispatch(addOrg(normOrg))
@@ -169,9 +166,9 @@ export const updateOrg = (org: Organization) => async (
     }
 
     const updatedOrg = resp.data
-    const normOrg = normalize<Organization, schemas.OrgEntities, string>(
+    const normOrg = normalize<Organization, OrgEntities, string>(
       updatedOrg,
-      schemas.orgs
+      schemas.org
     )
 
     dispatch(editOrg(normOrg))
@@ -198,9 +195,9 @@ export const renameOrg = (
 
     const updatedOrg = resp.data
 
-    const normOrg = normalize<Organization, schemas.OrgEntities, string>(
+    const normOrg = normalize<Organization, OrgEntities, string>(
       updatedOrg,
-      schemas.orgs
+      schemas.org
     )
 
     dispatch(editOrg(normOrg))

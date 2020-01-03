@@ -13,7 +13,10 @@ import {createScraper} from 'src/scrapers/actions'
 
 // Types
 import {ScraperTargetRequest} from '@influxdata/influx'
-import {AppState, Bucket} from 'src/types'
+import {AppState, Bucket, ResourceType} from 'src/types'
+
+// Selectors
+import {getAll} from 'src/shared/selectors'
 
 interface OwnProps {
   visible: boolean
@@ -119,8 +122,8 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({buckets}: AppState): StateProps => ({
-  buckets: buckets.list,
+const mstp = (state: AppState): StateProps => ({
+  buckets: getAll<Bucket[]>(state, ResourceType.Buckets),
 })
 
 const mdtp: DispatchProps = {

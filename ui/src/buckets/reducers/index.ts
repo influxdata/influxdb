@@ -1,19 +1,24 @@
 // Libraries
 import {produce} from 'immer'
+import {get} from 'lodash'
 
 // Types
-import {RemoteDataState, Bucket} from 'src/types'
-import {Action} from 'src/buckets/actions'
+import {RemoteDataState, ResourceState} from 'src/types'
+import {
+  ADD_BUCKET,
+  SET_BUCKETS,
+  Action,
+  EDIT_BUCKET,
+  REMOVE_BUCKET,
+} from 'src/buckets/actions/creators'
+
+type BucketsState = ResourceState['buckets']
 
 const initialState = (): BucketsState => ({
   status: RemoteDataState.NotStarted,
-  list: [],
+  byID: null,
+  allIDs: [],
 })
-
-export interface BucketsState {
-  status: RemoteDataState
-  list: Bucket[]
-}
 
 export const bucketsReducer = (
   state: BucketsState = initialState(),
@@ -21,49 +26,43 @@ export const bucketsReducer = (
 ): BucketsState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_BUCKETS': {
-        const {status, list} = action.payload
+      case SET_BUCKETS: {
+        const {status, schema} = action
 
         draftState.status = status
 
-        if (list) {
-          draftState.list = list
+        if (get(schema, 'entities')) {
+          draftState.byID = schema.entities.buckets
+          draftState.allIDs = schema.result
         }
 
         return
       }
 
-      case 'ADD_BUCKET': {
-        const {bucket} = action.payload
+      case ADD_BUCKET: {
+        const {result, entities} = action.schema
+        const bucket = entities.buckets[result]
 
-        draftState.list.push(bucket)
-
-        return
-      }
-
-      case 'EDIT_BUCKET': {
-        const {bucket} = action.payload
-        const {list} = draftState
-
-        draftState.list = list.map(l => {
-          if (l.id === bucket.id) {
-            return bucket
-          }
-
-          return l
-        })
+        draftState.byID[result] = bucket
+        draftState.allIDs.push(result)
 
         return
       }
 
-      case 'REMOVE_BUCKET': {
-        const {id} = action.payload
-        const {list} = draftState
-        const deleted = list.filter(l => {
-          return l.id !== id
-        })
+      case EDIT_BUCKET: {
+        const {entities, result} = action.schema
+        const bucket = entities.buckets[result]
+        draftState.byID[result] = bucket
 
-        draftState.list = deleted
+        return
+      }
+
+      case REMOVE_BUCKET: {
+        const {id} = action
+
+        delete draftState.byID[id]
+        draftState.allIDs = draftState.allIDs.filter(uuid => uuid !== id)
+
         return
       }
     }

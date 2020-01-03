@@ -33,7 +33,7 @@ import {
   BundleName,
   ConfigurationState,
 } from 'src/types/dataLoaders'
-import {AppState, RemoteDataState} from 'src/types'
+import {GetState, RemoteDataState} from 'src/types'
 import {
   WritePrecision,
   TelegrafRequest,
@@ -49,8 +49,6 @@ import {
   TelegrafConfigCreationSuccess,
   readWriteCardinalityLimitReached,
 } from 'src/shared/copy/notifications'
-
-type GetState = () => AppState
 
 const DEFAULT_COLLECTION_INTERVAL = 10000
 
