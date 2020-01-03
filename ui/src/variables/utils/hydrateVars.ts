@@ -8,7 +8,8 @@ import {resolveSelectedValue} from 'src/variables/utils/resolveSelectedValue'
 import {OPTION_NAME, BOUNDARY_GROUP} from 'src/variables/constants/index'
 
 // Types
-import {RemoteDataState, Variable} from 'src/types'
+import {RemoteDataState} from 'src/types'
+import {IVariable as Variable} from '@influxdata/influx'
 import {CancelBox, CancellationError} from 'src/types/promises'
 import {
   VariableValues,

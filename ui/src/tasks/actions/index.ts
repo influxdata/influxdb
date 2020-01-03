@@ -274,15 +274,7 @@ export const addTaskLabelAsync = (taskID: string, label: Label) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const postResp = await apiPostTasksLabel({
-      taskID,
-      data: {labelID: label.id},
-    })
-
-    if (postResp.status !== 200) {
-      throw new Error(postResp.data.message)
-    }
-
+    await apiPostTasksLabel({taskID, data: {labelID: label.id}})
     const resp = await apiGetTask({taskID})
 
     if (resp.status !== 200) {
@@ -302,10 +294,7 @@ export const removeTaskLabelAsync = (taskID: string, label: Label) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const deleteResp = await apiDeleteTasksLabel({taskID, labelID: label.id})
-    if (deleteResp.status !== 204) {
-      throw new Error(deleteResp.data.message)
-    }
+    await apiDeleteTasksLabel({taskID, labelID: label.id})
     const resp = await apiGetTask({taskID})
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
@@ -566,10 +555,7 @@ export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
 
 export const runTask = (taskID: string) => async dispatch => {
   try {
-    const resp = await apiPostTasksRun({taskID})
-    if (resp.status !== 201) {
-      throw new Error(resp.data.message)
-    }
+    await apiPostTasksRun({taskID})
     dispatch(notify(taskRunSuccess()))
   } catch (error) {
     const message = getErrorMessage(error)

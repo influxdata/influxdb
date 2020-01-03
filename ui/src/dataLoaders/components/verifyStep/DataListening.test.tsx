@@ -12,8 +12,7 @@ describe('Onboarding.Components.DataListening', () => {
   describe('if button is clicked', () => {
     it('displays connection information', () => {
       const {getByTitle, getByText} = renderWithRedux(
-        <DataListening bucket="bucket" />
-      )
+        <DataListening bucket="bucket" />)
 
       const button = getByTitle('Listen for Data')
 

@@ -4,9 +4,9 @@ import {
   VariableIncluded,
   Relationships,
   LabelRelationship,
-  Label,
-  Variable,
 } from 'src/types'
+import {IVariable as Variable} from '@influxdata/influx'
+import {Label} from 'src/types'
 
 export function findIncludedsFromRelationships<
   T extends {id: string; type: TemplateType}

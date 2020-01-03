@@ -33,7 +33,6 @@ import {
   BundleName,
   ConfigurationState,
 } from 'src/types/dataLoaders'
-import {ILabel} from '@influxdata/influx'
 import {AppState, RemoteDataState} from 'src/types'
 import {
   WritePrecision,
@@ -463,10 +462,7 @@ const createTelegraf = async (dispatch, getState: GetState, plugins) => {
     const createdLabel = addLabelDefaults(resp.data.label)
 
     // add label to telegraf config
-    const label = await client.telegrafConfigs.addLabel(
-      tc.id,
-      createdLabel as ILabel
-    )
+    const label = await client.telegrafConfigs.addLabel(tc.id, createdLabel)
 
     const config = {
       ...tc,
