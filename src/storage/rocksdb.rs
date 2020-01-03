@@ -84,8 +84,8 @@ impl Database {
 
     /// write_points will write values into the database under the given org_id and bucket_name. It
     /// also inserts the series and their metadata into the index if not already present.
-    /// It does no validation against the org_id. If will return an error if the bucket hasn't been
-    /// created.
+    /// It does no validation against the org_id. It will create the bucket with the default
+    /// single index level of all time if it hasn't been created yet.
     ///
     /// # Arguments
     /// * org_id - the organization this data resides under
@@ -93,16 +93,13 @@ impl Database {
     /// * points - individual values with their timestamps and series keys
     pub fn write_points(&self, org_id: u32, bucket_name: &str, points: Vec<Point>) -> Result<(), StorageError> {
         let key = bucket_key(org_id, bucket_name);
+
+        let _ = self.create_default_bucket_if_not_exists(org_id, bucket_name, &key)?;
         let bucket_map = self.bucket_map.read().unwrap();
-        let bucket = match bucket_map.get(&key) {
-            Some(b) => b,
-            None => return Err(StorageError{description: "bucket not found".to_string()}),
-        };
+        let bucket = bucket_map.get(&key).unwrap();
 
         let mut series = self.get_series_ids(org_id, &bucket, points);
-        println!("get_series_ids: {:?}", series);
         self.insert_series_without_ids(org_id, &bucket, &mut series);
-        println!("get_series_ids after insert: {:?}", series);
 
         let mut batch = WriteBatch::default();
         for s in series {
@@ -114,6 +111,16 @@ impl Database {
 
         self.db.read().unwrap().write(batch).expect("unexpected RocksDB error");
         Ok(())
+    }
+
+    fn create_default_bucket_if_not_exists(&self, org_id: u32, bucket_name: &str, bucket_key: &[u8]) -> Result<u32, StorageError> {
+        match self.bucket_map.read().unwrap().get(bucket_key) {
+            Some(b) => return Ok(b.id),
+            None => (),
+        }
+
+        let bucket = Bucket::new(org_id, bucket_name.to_string());
+        self.create_bucket_if_not_exists(org_id, &bucket)
     }
 
     pub fn read_range<'a>(&self, org_id: u32, bucket_name: &str, range: &'a Range, predicate: &'a Predicate, batch_size: usize) -> Result<SeriesIterator<'a>, StorageError> {
@@ -623,7 +630,6 @@ TODO: The index todo list
 8. index levels
 
 TODO: other pieces
-1. update the writes to go into the correct CF with the right keys
 2. HTTP GET endpoint with predicate and time ranges
 3. API endpoint to delete old series data
 4. API endpoint to delete old indexes
@@ -1106,6 +1112,18 @@ mod tests {
             SeriesFilter{id: 3, value_predicate: None},
             SeriesFilter{id: 4, value_predicate: None},
         ]);
+    }
+
+    #[test]
+    fn write_creates_bucket() {
+        let mut b1 = Bucket::new(1, "bucket1".to_string());
+        let mut db = test_database("write_creates_bucket", true);
+
+        let p1 = Point{series: "cpu,host=b,region=west\tusage_system".to_string(), value: 1, time: 1};
+        let p2 = Point{series: "cpu,host=b,region=west\tusage_system".to_string(), value: 1, time: 2};
+
+        db.write_points(b1.org_id, &b1.name, vec![p1, p2]).unwrap();
+        assert_eq!(db.get_bucket_by_name(b1.org_id, &b1.name).unwrap().unwrap().id, 1);
     }
 
     #[test]

@@ -5,9 +5,11 @@ use std::sync::Arc;
 
 use actix_web::{App, middleware, HttpServer, web, HttpResponse, Error as AWError, guard, error};
 use serde_json;
+use serde::Deserialize;
 use actix_web::web::{BytesMut};
 use futures::StreamExt;
 use delorean::{line_parser, storage};
+use std::env::VarError;
 
 
 struct Server {
@@ -16,8 +18,14 @@ struct Server {
 
 const MAX_SIZE: usize = 1_048_576; // max write request size of 1MB
 
+#[derive(Deserialize)]
+struct WriteInfo {
+    org_id: u32,
+    bucket_name: String,
+}
+
 // TODO: write end to end test of write
-async fn write(mut payload: web::Payload, s: web::Data<Arc<Server>>) -> Result<HttpResponse, AWError> {
+async fn write(mut payload: web::Payload, write_info: web::Query<WriteInfo>, s: web::Data<Arc<Server>>) -> Result<HttpResponse, AWError> {
     let mut body = BytesMut::new();
     while let Some(chunk) = payload.next().await {
         let chunk = chunk?;
@@ -32,8 +40,7 @@ async fn write(mut payload: web::Payload, s: web::Data<Arc<Server>>) -> Result<H
 
     let points = line_parser::parse(body);
 
-    // TODO: pull the org and bucket names from the query parameters
-    if let Err(err) = s.db.write_points(1, "foo", points) {
+    if let Err(err) = s.db.write_points(write_info.org_id, &write_info.bucket_name, points) {
         return Ok(HttpResponse::InternalServerError().json(serde_json::json!({"error": format!("{}", err)})))
     }
 
@@ -57,11 +64,16 @@ async fn main() -> io::Result<()> {
 
     let db_dir = std::env::var("DELOREAN_DB_DIR").expect("DELOREAN_DB_DIR must be set");
     let db = Database::new(&db_dir);
-    let s = Arc::new(Server {db});
+    let state = Arc::new(Server{db});
+    let bind_addr = match std::env::var("DELOREAN_BIND_ADDR") {
+        Ok(addr) => addr,
+        Err(VarError::NotPresent) => "127.0.0.1:8080".to_string(),
+        Err(VarError::NotUnicode(_)) => panic!("DELOREAN_BIND_ADDR environment variable not a valid unicode string"),
+    };
 
     HttpServer::new(move || {
         App::new()
-            .data(s.clone())
+            .data(state.clone())
             // enable logger
             .wrap(middleware::Logger::default())
             .service(web::resource("/api/v2/write")
@@ -86,7 +98,7 @@ async fn main() -> io::Result<()> {
                     ),
             )
     })
-        .bind("127.0.0.1:8080")?
-        .start()
+        .bind(bind_addr)?
+        .run()
         .await
 }
