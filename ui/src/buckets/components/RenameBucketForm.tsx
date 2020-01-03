@@ -18,10 +18,13 @@ import {
 } from '@influxdata/clockface'
 
 // Actions
-import {renameBucket} from 'src/buckets/actions'
+import {renameBucket} from 'src/buckets/actions/thunks'
 
 // Types
-import {AppState, Bucket} from 'src/types'
+import {AppState, Bucket, ResourceType} from 'src/types'
+
+// Selectors
+import {getAll, getByID} from 'src/shared/selectors'
 
 interface State {
   bucket: Bucket
@@ -146,8 +149,10 @@ const mstp = (state: AppState, props: Props): StateProps => {
     params: {bucketID},
   } = props
 
-  const startBucket = state.buckets.list.find(b => b.id === bucketID)
-  const buckets = state.buckets.list.filter(b => b.id !== bucketID)
+  const startBucket = getByID<Bucket>(state, ResourceType.Buckets, bucketID)
+  const buckets = getAll<Bucket[]>(state, ResourceType.Buckets).filter(
+    b => b.id !== bucketID
+  )
 
   return {
     startBucket,

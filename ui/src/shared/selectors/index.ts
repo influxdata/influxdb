@@ -2,7 +2,11 @@
 import {get} from 'lodash'
 
 // Types
-import {AppState, ResourceType} from 'src/types'
+import {AppState, ResourceType, RemoteDataState} from 'src/types'
+
+export const getStatus = ({resources}: AppState, resource): RemoteDataState => {
+  return resources[resource].status
+}
 
 export const getAll = <R>({resources}: AppState, resource): R => {
   const {allIDs} = resources[resource]

@@ -40,7 +40,7 @@ import {setExportTemplate} from 'src/templates/actions'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
-import {AppState, Label, TaskTemplate, LogEvent, Run, Task} from 'src/types'
+import {Label, TaskTemplate, LogEvent, Run, Task, GetState} from 'src/types'
 import {RemoteDataState} from '@influxdata/clockface'
 import {Task as ITask} from 'src/client'
 
@@ -70,7 +70,7 @@ export type Action =
   | UpdateTask
   | SetTaskStatus
 
-type GetStateFunc = () => AppState
+type GetStateFunc = GetState
 
 export interface SetAllTaskOptions {
   type: 'SET_ALL_TASK_OPTIONS'

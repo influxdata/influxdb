@@ -43,6 +43,7 @@ import {SortTypes} from 'src/shared/utils/sort'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/shared/selectors'
 
 interface StateProps {
   hasTelegrafs: boolean
@@ -259,13 +260,14 @@ class Collectors extends PureComponent<Props, State> {
   }
 }
 const mstp = (state: AppState): StateProps => {
-  const {telegrafs, buckets} = state
+  const {telegrafs} = state
   const orgName = getOrg(state).name
+  const buckets = getAll<Bucket[]>(state, ResourceType.Buckets)
 
   return {
     hasTelegrafs: telegrafs.list && telegrafs.list.length > 0,
     orgName,
-    buckets: buckets.list,
+    buckets,
   }
 }
 

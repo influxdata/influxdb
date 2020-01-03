@@ -44,6 +44,11 @@ export const localState: LocalStorage = {
       allIDs: [],
       status: RemoteDataState.NotStarted,
     },
+    buckets: {
+      byID: {},
+      allIDs: [],
+      status: RemoteDataState.NotStarted,
+    },
   },
 }
 

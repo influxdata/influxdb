@@ -12,6 +12,10 @@ export const getResourcesStatus = (
         return state.resources[resource].status
       }
 
+      case ResourceType.Buckets: {
+        return state.resources[resource].status
+      }
+
       default:
         // Get status for resources that have not yet been normalized
         return getStatus(state, resource)

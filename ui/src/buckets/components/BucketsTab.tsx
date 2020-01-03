@@ -27,7 +27,11 @@ import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import BucketExplainer from 'src/buckets/components/BucketExplainer'
 
 // Actions
-import {createBucket, updateBucket, deleteBucket} from 'src/buckets/actions'
+import {
+  createBucket,
+  updateBucket,
+  deleteBucket,
+} from 'src/buckets/actions/thunks'
 import {
   checkBucketLimits as checkBucketLimitsAction,
   LimitStatus,
@@ -39,8 +43,15 @@ import {extractBucketLimits} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
 
 // Types
-import {OverlayState, AppState, Bucket, Organization} from 'src/types'
+import {
+  OverlayState,
+  AppState,
+  Bucket,
+  Organization,
+  ResourceType,
+} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
+import {getAll} from 'src/shared/selectors'
 
 interface StateProps {
   org: Organization
@@ -243,8 +254,8 @@ class BucketsTab extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => ({
-  buckets: state.buckets.list,
   org: getOrg(state),
+  buckets: getAll<Bucket[]>(state, ResourceType.Buckets),
   limitStatus: extractBucketLimits(state.cloud.limits),
 })
 

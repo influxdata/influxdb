@@ -1,6 +1,6 @@
 // Libraries
 import {get} from 'lodash'
-import {normalize, NormalizedSchema} from 'normalizr'
+import {normalize} from 'normalizr'
 
 // API
 import * as api from 'src/client'
@@ -10,10 +10,16 @@ import * as schemas from 'src/schemas'
 import {RemoteDataState, GetState} from 'src/types'
 import {AddResourceMemberRequestBody} from '@influxdata/influx'
 import {Dispatch} from 'react'
-import {Member} from 'src/types'
+import {Member, MemberEntities} from 'src/types'
 
 // Actions
-import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
+import {
+  setMembers,
+  Action,
+  addMember,
+  removeMember,
+} from 'src/members/actions/creators'
+import {notify} from 'src/shared/actions/notifications'
 import {
   memberAddSuccess,
   memberAddFailed,
@@ -23,40 +29,6 @@ import {
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
-
-export type Action =
-  | ReturnType<typeof setMembers>
-  | ReturnType<typeof addMember>
-  | ReturnType<typeof removeMember>
-  | NotifyAction
-
-export const SET_MEMBERS = 'SET_MEMBERS'
-export const ADD_MEMBER = 'ADD_MEMBER'
-export const REMOVE_MEMBER = 'REMOVE_MEMBER'
-
-export const setMembers = (
-  status: RemoteDataState,
-  schema?: NormalizedSchema<schemas.MemberEntities, string[]>
-) =>
-  ({
-    type: SET_MEMBERS,
-    status,
-    schema,
-  } as const)
-
-export const addMember = (
-  schema: NormalizedSchema<schemas.MemberEntities, string>
-) =>
-  ({
-    type: ADD_MEMBER,
-    schema,
-  } as const)
-
-export const removeMember = (id: string) =>
-  ({
-    type: REMOVE_MEMBER,
-    id,
-  } as const)
 
 export const getMembers = () => async (
   dispatch: Dispatch<Action>,
@@ -85,9 +57,9 @@ export const getMembers = () => async (
 
     const allMembers = [...owners, ...members]
 
-    const normalized = normalize<Member, schemas.MemberEntities, string[]>(
+    const normalized = normalize<Member, MemberEntities, string[]>(
       allMembers,
-      [schemas.members]
+      schemas.arrayOfMembers
     )
 
     dispatch(setMembers(RemoteDataState.Done, normalized))
@@ -110,9 +82,9 @@ export const addNewMember = (data: AddResourceMemberRequestBody) => async (
     }
 
     const newMember = resp.data
-    const member = normalize<Member, schemas.MemberEntities, string>(
+    const member = normalize<Member, MemberEntities, string>(
       newMember,
-      schemas.members
+      schemas.member
     )
 
     dispatch(addMember(member))
