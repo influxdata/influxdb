@@ -11,7 +11,15 @@ import {notify} from 'src/shared/actions/notifications'
 import {readLimitReached} from 'src/shared/copy/notifications'
 
 // Types
-import {AppState, Limits, RemoteDataState} from 'src/types'
+import {
+  Bucket,
+  GetState,
+  Limits,
+  RemoteDataState,
+  ResourceType,
+} from 'src/types'
+
+// Selectors
 import {
   extractDashboardMax,
   extractBucketMax,
@@ -20,9 +28,8 @@ import {
   extractRulesMax,
   extractEndpointsMax,
 } from 'src/cloud/utils/limits'
-
-// Selectors
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/shared/selectors'
 
 export enum LimitStatus {
   OK = 'ok',
@@ -210,7 +217,7 @@ export const setLimitsStatus = (status: RemoteDataState): SetLimitsStatus => {
 
 export const getReadWriteCardinalityLimits = () => async (
   dispatch,
-  getState: () => AppState
+  getState: GetState
 ) => {
   try {
     const org = getOrg(getState())
@@ -238,10 +245,7 @@ export const getReadWriteCardinalityLimits = () => async (
   } catch (e) {}
 }
 
-export const getAssetLimits = () => async (
-  dispatch,
-  getState: () => AppState
-) => {
+export const getAssetLimits = () => async (dispatch, getState: GetState) => {
   dispatch(setLimitsStatus(RemoteDataState.Loading))
   try {
     const org = getOrg(getState())
@@ -254,10 +258,7 @@ export const getAssetLimits = () => async (
   }
 }
 
-export const checkDashboardLimits = () => (
-  dispatch,
-  getState: () => AppState
-) => {
+export const checkDashboardLimits = () => (dispatch, getState: GetState) => {
   try {
     const {
       dashboards: {list},
@@ -277,15 +278,15 @@ export const checkDashboardLimits = () => (
   }
 }
 
-export const checkBucketLimits = () => (dispatch, getState: () => AppState) => {
+export const checkBucketLimits = () => (dispatch, getState: GetState) => {
   try {
+    const state = getState()
     const {
-      buckets: {list},
       cloud: {limits},
-    } = getState()
-
+    } = state
+    const allBuckets = getAll<Bucket[]>(state, ResourceType.Buckets)
     const bucketsMax = extractBucketMax(limits)
-    const buckets = list.filter(bucket => {
+    const buckets = allBuckets.filter(bucket => {
       return bucket.type == 'user'
     })
     const bucketsCount = buckets.length
@@ -300,7 +301,7 @@ export const checkBucketLimits = () => (dispatch, getState: () => AppState) => {
   }
 }
 
-export const checkTaskLimits = () => (dispatch, getState: () => AppState) => {
+export const checkTaskLimits = () => (dispatch, getState: GetState) => {
   try {
     const {
       tasks: {list},
@@ -320,7 +321,7 @@ export const checkTaskLimits = () => (dispatch, getState: () => AppState) => {
   }
 }
 
-export const checkChecksLimits = () => (dispatch, getState: () => AppState) => {
+export const checkChecksLimits = () => (dispatch, getState: GetState) => {
   try {
     const {
       checks: {list: checksList},
@@ -339,7 +340,7 @@ export const checkChecksLimits = () => (dispatch, getState: () => AppState) => {
   }
 }
 
-export const checkRulesLimits = () => (dispatch, getState: () => AppState) => {
+export const checkRulesLimits = () => (dispatch, getState: GetState) => {
   try {
     const {
       rules: {list: rulesList},
@@ -359,10 +360,7 @@ export const checkRulesLimits = () => (dispatch, getState: () => AppState) => {
   }
 }
 
-export const checkEndpointsLimits = () => (
-  dispatch,
-  getState: () => AppState
-) => {
+export const checkEndpointsLimits = () => (dispatch, getState: GetState) => {
   try {
     const {
       endpoints: {list: endpointsList},

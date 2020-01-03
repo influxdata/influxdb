@@ -45,7 +45,11 @@ import {reset} from 'src/dataLoaders/actions/telegrafEditor'
 // Types
 import {Links} from 'src/types/links'
 import {Substep, TelegrafPlugin} from 'src/types/dataLoaders'
-import {AppState, Bucket, Organization} from 'src/types'
+import {AppState, Bucket, Organization, ResourceType} from 'src/types'
+
+// Selectors
+import {getAll} from 'src/shared/selectors'
+import {getOrg} from 'src/organizations/selectors'
 
 export interface CollectorsStepProps {
   currentStepIndex: number
@@ -171,27 +175,32 @@ class CollectorsWizard extends PureComponent<AllProps, State> {
   }
 }
 
-const mstp = ({
-  links,
-  buckets,
-  dataLoading: {
-    dataLoaders: {telegrafPlugins},
-    steps: {currentStep, substep, bucket},
-  },
-  me: {name},
-  resources,
-  telegrafEditor,
-}: AppState): StateProps => ({
-  links,
-  telegrafPlugins,
-  text: telegrafEditor.text,
-  currentStepIndex: currentStep,
-  substep,
-  username: name,
-  bucket,
-  buckets: buckets.list,
-  org: resources.orgs.org,
-})
+const mstp = (state: AppState): StateProps => {
+  const {
+    links,
+    dataLoading: {
+      dataLoaders: {telegrafPlugins},
+      steps: {currentStep, substep, bucket},
+    },
+    me: {name},
+    telegrafEditor,
+  } = state
+
+  const buckets = getAll<Bucket[]>(state, ResourceType.Buckets)
+  const org = getOrg(state)
+
+  return {
+    links,
+    telegrafPlugins,
+    text: telegrafEditor.text,
+    currentStepIndex: currentStep,
+    substep,
+    username: name,
+    bucket,
+    buckets,
+    org,
+  }
+}
 
 const mdtp: DispatchProps = {
   notify: notifyAction,

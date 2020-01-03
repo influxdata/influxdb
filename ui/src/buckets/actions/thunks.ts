@@ -1,5 +1,5 @@
 // Libraries
-import {normalize, schema} from 'normalizr'
+import {normalize} from 'normalizr'
 import {Dispatch} from 'react'
 
 // API
@@ -9,7 +9,7 @@ import * as api from 'src/client'
 import * as schemas from 'src/schemas'
 
 // Types
-import {RemoteDataState, AppState, Bucket, BucketEntities} from 'src/types'
+import {RemoteDataState, GetState, Bucket, BucketEntities} from 'src/types'
 
 // Utils
 import {getErrorMessage} from 'src/utils/api'
@@ -21,9 +21,9 @@ import {
   addBucket,
   setBuckets,
   removeBucket,
-  Action,
+  Action as BucketAction,
 } from 'src/buckets/actions/creators'
-import {notify} from 'src/shared/actions/notifications'
+import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {checkBucketLimits} from 'src/cloud/actions/limits'
 
 // Constants
@@ -37,9 +37,11 @@ import {
   bucketRenameFailed,
 } from 'src/shared/copy/notifications'
 
+type Action = BucketAction | NotifyAction
+
 export const getBuckets = () => async (
   dispatch: Dispatch<Action>,
-  getState: () => AppState
+  getState: GetState
 ) => {
   try {
     dispatch(setBuckets(RemoteDataState.Loading))
@@ -66,7 +68,7 @@ export const getBuckets = () => async (
 
 export const createBucket = (bucket: Bucket) => async (
   dispatch: Dispatch<Action | ReturnType<typeof checkBucketLimits>>,
-  getState: () => AppState
+  getState: GetState
 ) => {
   try {
     const org = getOrg(getState())

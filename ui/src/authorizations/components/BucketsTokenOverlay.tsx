@@ -29,6 +29,7 @@ import {
 } from 'src/authorizations/utils/permissions'
 import {isSystemBucket} from 'src/buckets/constants/index'
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/shared/selectors'
 
 // Actions
 import {createAuthorization} from 'src/authorizations/actions'
@@ -280,7 +281,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
 const mstp = (state: AppState): StateProps => {
   return {
     orgID: getOrg(state).id,
-    buckets: state.buckets.list,
+    buckets: getAll<Bucket[]>(state, ResourceType.Buckets),
   }
 }
 
