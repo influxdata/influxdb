@@ -93,11 +93,11 @@ func inspectReportTSMF(cmd *cobra.Command, args []string) error {
 
 	orgSvc, err := newOrganizationService()
 	if err != nil {
-		return nil
+		return err
 	}
 	id, err := inspectReportTSMFlags.organization.getID(orgSvc)
 	if err != nil {
-		return nil
+		return err
 	}
 	report.OrgID = &id
 
