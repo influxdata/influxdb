@@ -1,55 +1,51 @@
 import {RemoteDataState, ResourceType} from 'src/types'
 import {getResourcesStatus} from 'src/shared/selectors/getResourcesStatus'
 
+// Types
 const getResourcesStatusUntyped: any = getResourcesStatus
+const {NotStarted, Done, Loading} = RemoteDataState
+const {Labels, Buckets} = ResourceType
+
+type StatusTuple = [RemoteDataState, RemoteDataState]
+
+const genState = (statuses: StatusTuple = [NotStarted, NotStarted]) => ({
+  labels: {
+    status: statuses[0],
+  },
+  resources: {
+    buckets: {
+      byID: {},
+      allIDs: [],
+      status: statuses[1],
+    },
+  },
+})
 
 describe('getResourcesStatus', () => {
   it('should return RemoteDataState.Done when all the resources are done loading', () => {
-    const state = {
-      labels: {
-        status: RemoteDataState.Done,
-      },
-      buckets: {
-        status: RemoteDataState.Done,
-      },
-    }
-    const resources = [ResourceType.Labels, ResourceType.Buckets]
-    expect(getResourcesStatusUntyped(state, resources)).toEqual(
-      RemoteDataState.Done
-    )
+    const state = genState([Done, Done])
+    const resources = [Labels, Buckets]
+    expect(getResourcesStatusUntyped(state, resources)).toEqual(Done)
   })
+
   it('should return RemoteDataState.Loading when when any of the resources are loading', () => {
-    const state = {
-      labels: {
-        status: RemoteDataState.Done,
-      },
-      buckets: {
-        status: RemoteDataState.Loading,
-      },
-    }
-    const resources = [ResourceType.Labels, ResourceType.Buckets]
-    expect(getResourcesStatusUntyped(state, resources)).toEqual(
-      RemoteDataState.Loading
-    )
+    const state = genState([Done, Loading])
+    const resources = [Labels, Buckets]
+    expect(getResourcesStatusUntyped(state, resources)).toEqual(Loading)
   })
+
   it('should return RemoteDataState.Error when when any of the resources error', () => {
-    const state = {
-      labels: {
-        status: RemoteDataState.Error,
-      },
-      buckets: {
-        status: RemoteDataState.Loading,
-      },
-    }
-    const resources = [ResourceType.Labels, ResourceType.Buckets]
+    const state = genState([RemoteDataState.Error, Loading])
+    const resources = [Labels, Buckets]
     expect(getResourcesStatusUntyped(state, resources)).toEqual(
       RemoteDataState.Error
     )
   })
+
   it('should throw an error when when any of the resources have no status', () => {
     const state1 = {
       labels: {},
-      buckets: {},
+      resources: {},
     }
 
     const state2 = {
