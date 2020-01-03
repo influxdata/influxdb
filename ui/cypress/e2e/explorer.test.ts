@@ -349,8 +349,7 @@ describe('DataExplorer', () => {
     })
   })
 
-  // todo: investigate flakiness of this test: https://github.com/influxdata/influxdb/issues/16330
-  describe.skip('raw script editing', () => {
+  describe('raw script editing', () => {
     beforeEach(() => {
       cy.getByTestID('switch-to-script-editor').click()
     })
@@ -359,16 +358,16 @@ describe('DataExplorer', () => {
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
 
       cy.getByTestID('flux-editor').within(() => {
-        cy.get('textarea').type('yo', {force: true})
+        cy.get('.CodeMirror').type('yo')
         cy.getByTestID('time-machine-submit-button').should('not.be.disabled')
       })
     })
 
     it('disables submit when a query is deleted', () => {
       cy.getByTestID('time-machine--bottom').then(() => {
-        cy.get('textarea').type('from(bucket: "foo")', {force: true})
+        cy.get('.CodeMirror').type('from(bucket: "foo")')
         cy.getByTestID('time-machine-submit-button').should('not.be.disabled')
-        cy.get('textarea').type('{selectall} {backspace}', {force: true})
+        cy.get('.CodeMirror').type('{selectall} {backspace}')
       })
 
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
@@ -450,11 +449,10 @@ describe('DataExplorer', () => {
 
     it('shows the empty state when the query returns no results', () => {
       cy.getByTestID('time-machine--bottom').within(() => {
-        cy.get('textarea').type(
+        cy.get('.CodeMirror').type(
           `from(bucket: "defbuck")
   |> range(start: -10s)
-  |> filter(fn: (r) => r._measurement == "no exist")`,
-          {force: true}
+  |> filter(fn: (r) => r._measurement == "no exist")`
         )
         cy.getByTestID('time-machine-submit-button').click()
       })
@@ -466,11 +464,10 @@ describe('DataExplorer', () => {
       const taskName = 'tax'
       // begin flux
       cy.getByTestID('flux-editor').within(() => {
-        cy.get('textarea').type(
+        cy.get('.CodeMirror').type(
           `from(bucket: "defbuck")
   |> range(start: -15m, stop: now())
-  |> filter(fn: (r) => r._measurement == `,
-          {force: true}
+  |> filter(fn: (r) => r._measurement == `
         )
       })
 
@@ -479,7 +476,7 @@ describe('DataExplorer', () => {
       cy.get('.variables-toolbar--label').click()
       // finish flux
       cy.getByTestID('flux-editor').within(() => {
-        cy.get('textarea').type(`)`, {force: true})
+        cy.get('.CodeMirror').type(`)`)
       })
 
       cy.getByTestID('save-query-as').click()
