@@ -10,6 +10,28 @@ import (
 // EncodeFn returns an encoding when called. Closures are your friend here.
 type EncodeFn func() ([]byte, error)
 
+type IDPK influxdb.ID
+
+func (i IDPK) PrimaryKey() ([]byte, error) {
+	if i == 0 {
+		return nil, errors.New("no ID was provided")
+	}
+	return influxdb.ID(i).Encode()
+}
+
+// Encode2 concatenates a list of encodings together.
+func Encode2(encodings ...EncodeFn) ([]byte, error) {
+	var key []byte
+	for _, enc := range encodings {
+		part, err := enc()
+		if err != nil {
+			return key, err
+		}
+		key = append(key, part...)
+	}
+	return key, nil
+}
+
 // Encode concatenates a list of encodings together.
 func Encode(encodings ...EncodeFn) EncodeFn {
 	return func() ([]byte, error) {
