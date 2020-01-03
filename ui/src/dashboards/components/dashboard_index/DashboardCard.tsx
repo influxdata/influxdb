@@ -78,7 +78,7 @@ class DashboardCard extends PureComponent<Props> {
         }
         labels={
           <InlineLabels
-            selectedLabels={dashboard.labels as Label[]}
+            selectedLabels={dashboard.labels}
             labels={labels}
             onFilterChange={onFilterChange}
             onAddLabel={this.handleAddLabel}

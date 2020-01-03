@@ -155,7 +155,7 @@ const CheckCard: FunctionComponent<Props> = ({
       }
       labels={
         <InlineLabels
-          selectedLabels={check.labels as Label[]}
+          selectedLabels={check.labels}
           labels={labels}
           onAddLabel={handleAddCheckLabel}
           onRemoveLabel={handleRemoveCheckLabel}
