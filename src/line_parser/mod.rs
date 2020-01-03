@@ -1,10 +1,80 @@
 use std::str::Chars;
+use std::{error, fmt};
+use std::fs::read;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Point {
     pub series: String,
     pub time: i64,
     pub value: i64,
+}
+
+impl Point {
+    // TODO: handle escapes in the line protocol for , = and \t
+    /// index_pairs parses the series key into key value pairs for insertion into the index. In
+    /// cases where this series is already in the database, this parse step can be skipped entirely.
+    /// The measurement is represented as a _m key and field as _f.
+    pub fn index_pairs(&self) -> Result<Vec<Pair>, ParseError> {
+        let mut chars = self.series.chars();
+        let mut pairs = vec![];
+        let mut key = "_m".to_string();
+        let mut value = String::with_capacity(250);
+        let mut reading_key = false;
+
+        while let Some(ch) = chars.next() {
+            match ch {
+                ',' => {
+                    reading_key = true;
+                    pairs.push(Pair{key, value});
+                    key = String::with_capacity(250);
+                    value = String::with_capacity(250);
+                },
+                '=' => {
+                    reading_key = false;
+                },
+                '\t' => {
+                    reading_key = false;
+                    pairs.push(Pair{key, value});
+                    key = "_f".to_string();
+                    value = String::with_capacity(250);
+                },
+                _ => {
+                    if reading_key {
+                        key.push(ch);
+                    } else {
+                        value.push(ch);
+                    }
+                }
+            }
+        }
+        pairs.push(Pair{key, value});
+
+        Ok(pairs)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Pair {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ParseError {
+    description: String,
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.description)
+    }
+}
+
+impl error::Error for ParseError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
 }
 
 // TODO: have parse return an error for invalid inputs
@@ -97,5 +167,17 @@ mod test {
         assert_eq!(vals[1].series, "foo\tbar");
         assert_eq!(vals[1].time, 1234);
         assert_eq!(vals[1].value, 5);
+    }
+
+    #[test]
+    fn index_pairs() {
+        let p = Point{series: "cpu,host=A,region=west\tusage_system".to_string(), value: 0, time: 0};
+        let pairs = p.index_pairs().unwrap();
+        assert_eq!(pairs, vec![
+            Pair{key: "_m".to_string(), value: "cpu".to_string()},
+            Pair{key: "host".to_string(), value: "A".to_string()},
+            Pair{key: "region".to_string(), value: "west".to_string()},
+            Pair{key: "_f".to_string(), value: "usage_system".to_string()},
+        ]);
     }
 }

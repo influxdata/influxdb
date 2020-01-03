@@ -30,6 +30,11 @@ num_cpus = "1.11.1"
 #tonic = "0.1.0-alpha.6"
 prost = "0.5.0"
 
+# using croaring here because we needed Treemap support for u64
+# for series ids and we needed serialization, which the pure Rust
+# crate didn't offer.
+croaring = "0.4.2"
+
 [build-dependencies]
 #tonic-build = "0.1.0-alpha.6"
 prost-build = { version = "0.5.0" }
