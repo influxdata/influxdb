@@ -1,5 +1,5 @@
 // Types
-import {Variable} from 'src/types'
+import {IVariable as Variable} from '@influxdata/influx'
 
 export const createVariable = (
   name: string,

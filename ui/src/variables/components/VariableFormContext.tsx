@@ -27,13 +27,13 @@ import {
 import VariableForm from 'src/variables/components/VariableForm'
 
 // Types
+import {IVariable as Variable} from '@influxdata/influx'
 import {
   AppState,
   VariableArgumentType,
   QueryArguments,
   CSVArguments,
   MapArguments,
-  Variable,
 } from 'src/types'
 
 interface ComponentProps {

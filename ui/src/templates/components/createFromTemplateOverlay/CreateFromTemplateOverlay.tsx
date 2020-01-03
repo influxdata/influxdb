@@ -196,7 +196,7 @@ const mstp = ({templates: {items, status}}: AppState): StateProps => {
   )
 
   return {
-    templates: [...templates, ...(influxdbTemplateList as TemplateSummary[])],
+    templates: [...templates, ...influxdbTemplateList],
     templateStatus: status,
   }
 }

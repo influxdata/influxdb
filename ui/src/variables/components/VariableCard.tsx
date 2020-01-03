@@ -9,15 +9,16 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import VariableContextMenu from 'src/variables/components/VariableContextMenu'
 
 // Types
-import {AppState, Label, Variable} from 'src/types'
+import {IVariable as Variable} from '@influxdata/influx'
+import {AppState, Label} from 'src/types'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
 
 // Actions
 import {
-  addVariableLabelAsync,
-  removeVariableLabelAsync,
+  addVariableLabelsAsync,
+  removeVariableLabelsAsync,
 } from 'src/variables/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
@@ -34,8 +35,8 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onAddVariableLabel: typeof addVariableLabelAsync
-  onRemoveVariableLabel: typeof removeVariableLabelAsync
+  onAddVariableLabels: typeof addVariableLabelsAsync
+  onRemoveVariableLabels: typeof removeVariableLabelsAsync
   onCreateLabel: typeof createLabelAsync
 }
 
@@ -95,15 +96,15 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleAddLabel = (label: Label): void => {
-    const {variable, onAddVariableLabel} = this.props
+    const {variable, onAddVariableLabels} = this.props
 
-    onAddVariableLabel(variable.id, label)
+    onAddVariableLabels(variable.id, [label])
   }
 
   private handleRemoveLabel = (label: Label): void => {
-    const {variable, onRemoveVariableLabel} = this.props
+    const {variable, onRemoveVariableLabels} = this.props
 
-    onRemoveVariableLabel(variable.id, label)
+    onRemoveVariableLabels(variable.id, [label])
   }
 
   private handleCreateLabel = (label: Label): void => {
@@ -139,8 +140,8 @@ const mstp = ({labels}: AppState): StateProps => {
 
 const mdtp: DispatchProps = {
   onCreateLabel: createLabelAsync,
-  onAddVariableLabel: addVariableLabelAsync,
-  onRemoveVariableLabel: removeVariableLabelAsync,
+  onAddVariableLabels: addVariableLabelsAsync,
+  onRemoveVariableLabels: removeVariableLabelsAsync,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

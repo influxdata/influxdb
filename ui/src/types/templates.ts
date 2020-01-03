@@ -1,11 +1,11 @@
 import {
+  IVariable as Variable,
   IDashboard,
   DocumentListEntry,
   Document,
   DocumentMeta,
 } from '@influxdata/influx'
-import {View, Cell, Label, Variable} from 'src/types'
-import {ILabel} from '@influxdata/influx'
+import {View, Cell, Label} from './index'
 
 export enum TemplateType {
   Label = 'label',
@@ -171,5 +171,5 @@ export interface VariableTemplate extends TemplateBase {
 export type Template = TaskTemplate | DashboardTemplate | VariableTemplate
 
 export interface TemplateSummary extends DocumentListEntry {
-  labels: ILabel[]
+  labels: Label[]
 }

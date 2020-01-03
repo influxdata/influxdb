@@ -2,7 +2,8 @@
 import {isInQuery} from 'src/variables/utils/hydrateVars'
 
 // Types
-import {QueryViewProperties, View, ViewProperties, Variable} from 'src/types'
+import {QueryViewProperties, View, ViewProperties} from 'src/types'
+import {IVariable as Variable} from '@influxdata/influx'
 
 function isQueryViewProperties(vp: ViewProperties): vp is QueryViewProperties {
   return (vp as QueryViewProperties).queries !== undefined

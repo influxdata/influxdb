@@ -15,7 +15,8 @@ import {extractVariablesList} from 'src/variables/selectors'
 import {updateVariable} from 'src/variables/actions'
 
 // Types
-import {AppState, Variable} from 'src/types'
+import {AppState} from 'src/types'
+import {IVariable as Variable} from '@influxdata/influx'
 import {
   ButtonType,
   ComponentColor,
