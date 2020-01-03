@@ -1,9 +1,16 @@
 // Libraries
 import {produce} from 'immer'
+import {get} from 'lodash'
 
 // Types
 import {RemoteDataState, ResourceState} from 'src/types'
-import {ADD_BUCKET, SET_BUCKETS, Action, EDIT_BUCKET, REMOVE_BUCKET} from 'src/buckets/actions/creators'
+import {
+  ADD_BUCKET,
+  SET_BUCKETS,
+  Action,
+  EDIT_BUCKET,
+  REMOVE_BUCKET,
+} from 'src/buckets/actions/creators'
 
 type BucketsState = ResourceState['buckets']
 
@@ -24,7 +31,7 @@ export const bucketsReducer = (
 
         draftState.status = status
 
-        if (schema.entities) {
+        if (get(schema, 'entities')) {
           draftState.byID = schema.entities.buckets
           draftState.allIDs = schema.result
         }
