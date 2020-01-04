@@ -27,6 +27,7 @@
 1. [16348](https://github.com/influxdata/influxdb/pull/16348): Drop legacy bolt service implementation in favor of kv service with bolt dependency
 1. [16014](https://github.com/influxdata/influxdb/pull/16014): While creating check, also display notification rules that would match check based on tag rules
 1. [16389](https://github.com/influxdata/influxdb/pull/16389): Increase default bucket retention period to 30 days
+1. [16418](https://github.com/influxdata/influxdb/pull/16418): Add Developer Documentation
 
 ### Bug Fixes
 
