@@ -43,7 +43,7 @@ We have nightly and weekly versioned Docker images, Debian packages, RPM package
 
 ## Building From Source
 
-This project requires Go 1.11 and Go module support.
+This project requires Go 1.13 and Go module support.
 
 Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed.
 
@@ -88,7 +88,7 @@ They're synonymous with what was previously in InfluxDB 1.x a database and reten
 
 The simplest way to get set up is to point your browser to [http://localhost:9999](http://localhost:9999) and go through the prompts.
 
-**Note**: Port 9999 will be used during the alpha and beta phases of development of InfluxDB v2.0.
+**Note**: Port 9999 will be used by the API server during the alpha and beta phases of development of InfluxDB v2.0.
 This should allow a v2.0-alpha instance to be run alongside a v1.x instance without interfering on port 8086.
 InfluxDB v2.0 will thereafter continue to use 8086.
 
