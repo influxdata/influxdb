@@ -10,7 +10,12 @@ import {
   Action,
   EDIT_ORG,
 } from 'src/organizations/actions/creators'
-import {ResourceState, Organization, ResourceType} from 'src/types'
+import {
+  ResourceState,
+  Organization,
+  ResourceType,
+  RemoteDataState,
+} from 'src/types'
 
 // Utils
 import {
@@ -23,7 +28,17 @@ import {
 const {Orgs} = ResourceType
 type OrgsState = ResourceState['orgs']
 
-export const orgsReducer = (state: OrgsState, action: Action) =>
+const initialState = (): OrgsState => ({
+  byID: null,
+  allIDs: [],
+  status: RemoteDataState.NotStarted,
+  org: null,
+})
+
+export const orgsReducer = (
+  state: OrgsState = initialState(),
+  action: Action
+) =>
   produce(state, draftState => {
     switch (action.type) {
       case SET_ORGS: {
