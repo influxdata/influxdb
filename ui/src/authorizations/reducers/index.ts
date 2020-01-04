@@ -2,7 +2,12 @@
 import {produce} from 'immer'
 
 // Types
-import {RemoteDataState, ResourceState, ResourceType} from 'src/types'
+import {
+  RemoteDataState,
+  ResourceState,
+  ResourceType,
+  Authorization,
+} from 'src/types'
 import {
   Action,
   SET_AUTH,
@@ -17,7 +22,7 @@ import {
   addResource,
   removeResource,
   editResource,
-} from 'src/shared/reducers/helpers'
+} from 'src/resources/reducers/helpers'
 
 type AuthsState = ResourceState['tokens']
 const {Authorizations} = ResourceType
@@ -35,25 +40,25 @@ export const authsReducer = (
   produce(state, draftState => {
     switch (action.type) {
       case SET_AUTH: {
-        setResource(draftState, action, Authorizations)
+        setResource<Authorization>(draftState, action, Authorizations)
 
         return
       }
 
       case ADD_AUTH: {
-        addResource(draftState, action, Authorizations)
+        addResource<Authorization>(draftState, action, Authorizations)
 
         return
       }
 
       case REMOVE_AUTH: {
-        removeResource(draftState, action)
+        removeResource<Authorization>(draftState, action)
 
         return
       }
 
       case EDIT_AUTH: {
-        editResource(draftState, action, Authorizations)
+        editResource<Authorization>(draftState, action, Authorizations)
 
         return
       }
