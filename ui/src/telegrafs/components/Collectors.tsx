@@ -43,7 +43,7 @@ import {SortTypes} from 'src/shared/utils/sort'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/shared/selectors'
+import {getAll} from 'src/resources/selectors'
 
 interface StateProps {
   hasTelegrafs: boolean

@@ -2,68 +2,59 @@
 import {produce} from 'immer'
 
 // Types
-import {RemoteDataState, Authorization} from 'src/types'
-import {Action} from 'src/authorizations/actions'
+import {RemoteDataState, ResourceState, ResourceType} from 'src/types'
+import {
+  Action,
+  SET_AUTH,
+  ADD_AUTH,
+  EDIT_AUTH,
+  REMOVE_AUTH,
+} from 'src/authorizations/actions/creators'
 
-const initialState = (): AuthorizationsState => ({
+// Utils
+import {
+  setResource,
+  addResource,
+  removeResource,
+  editResource,
+} from 'src/shared/reducers/helpers'
+
+type AuthsState = ResourceState['tokens']
+const {Authorizations} = ResourceType
+
+const initialState = (): AuthsState => ({
   status: RemoteDataState.NotStarted,
-  list: [],
+  byID: null,
+  allIDs: [],
 })
 
-export interface AuthorizationsState {
-  status: RemoteDataState
-  list: Authorization[]
-}
-
-export const authorizationsReducer = (
-  state: AuthorizationsState = initialState(),
+export const authsReducer = (
+  state: AuthsState = initialState(),
   action: Action
-): AuthorizationsState =>
+): AuthsState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_AUTHS': {
-        const {status, list} = action.payload
-
-        draftState.status = status
-
-        if (list) {
-          draftState.list = list
-        }
+      case SET_AUTH: {
+        setResource(draftState, action, Authorizations)
 
         return
       }
 
-      case 'ADD_AUTH': {
-        const {authorization} = action.payload
-
-        draftState.list.push(authorization)
+      case ADD_AUTH: {
+        addResource(draftState, action, Authorizations)
 
         return
       }
 
-      case 'EDIT_AUTH': {
-        const {authorization} = action.payload
-        const {list} = draftState
-
-        draftState.list = list.map(l => {
-          if (l.id === authorization.id) {
-            return authorization
-          }
-
-          return l
-        })
+      case REMOVE_AUTH: {
+        removeResource(draftState, action)
 
         return
       }
 
-      case 'REMOVE_AUTH': {
-        const {id} = action.payload
-        const {list} = draftState
-        const deleted = list.filter(l => {
-          return l.id !== id
-        })
+      case EDIT_AUTH: {
+        editResource(draftState, action, Authorizations)
 
-        draftState.list = deleted
         return
       }
     }

@@ -31,7 +31,7 @@ import FilterList from 'src/shared/components/Filter'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/shared/selectors'
+import {getAll} from 'src/resources/selectors'
 
 interface StateProps {
   scrapers: ScraperTargetResponse[]

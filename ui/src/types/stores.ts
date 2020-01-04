@@ -20,7 +20,6 @@ import {
 } from 'src/dataLoaders/reducers/telegrafEditor'
 import {TelegrafsState} from 'src/telegrafs/reducers'
 import {TemplatesState} from 'src/templates/reducers'
-import {AuthorizationsState} from 'src/authorizations/reducers'
 import {RangeState} from 'src/dashboards/reducers/ranges'
 import {ViewsState} from 'src/dashboards/reducers/views'
 import {ScrapersState} from 'src/scrapers/reducers'
@@ -67,7 +66,6 @@ export interface AppState {
   templates: TemplatesState
   timeMachines: TimeMachinesState
   timeRange: TimeRange
-  tokens: AuthorizationsState
   userSettings: UserSettingsState
   variables: VariablesState
   variableEditor: VariableEditorState

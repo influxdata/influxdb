@@ -25,7 +25,7 @@ import {variablesReducer, variableEditorReducer} from 'src/variables/reducers'
 import {labelsReducer} from 'src/labels/reducers'
 import {bucketsReducer} from 'src/buckets/reducers'
 import {telegrafsReducer} from 'src/telegrafs/reducers'
-import {authorizationsReducer} from 'src/authorizations/reducers'
+import {authsReducer} from 'src/authorizations/reducers'
 import templatesReducer from 'src/templates/reducers'
 import {scrapersReducer} from 'src/scrapers/reducers'
 import {userSettingsReducer} from 'src/userSettings/reducers'
@@ -70,6 +70,7 @@ export const rootReducer = combineReducers<ReducerState>({
     members: membersReducer,
     orgs: orgsReducer,
     buckets: bucketsReducer,
+    tokens: authsReducer,
   }),
   routing: routerReducer,
   rules: rulesReducer,
@@ -81,7 +82,6 @@ export const rootReducer = combineReducers<ReducerState>({
   telegrafs: telegrafsReducer,
   templates: templatesReducer,
   timeMachines: timeMachinesReducer,
-  tokens: authorizationsReducer,
   userSettings: userSettingsReducer,
   variables: variablesReducer,
   variableEditor: variableEditorReducer,

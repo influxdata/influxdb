@@ -12,7 +12,7 @@ import Members from 'src/members/components/Members'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
-import {getByID} from 'src/shared/selectors'
+import {getByID} from 'src/resources/selectors'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'

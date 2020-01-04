@@ -42,7 +42,7 @@ import {
 } from '@influxdata/influx'
 import {Dispatch} from 'redux'
 import {addTelegraf, editTelegraf} from 'src/telegrafs/actions'
-import {addAuthorization} from 'src/authorizations/actions'
+import {addAuthorization} from 'src/authorizations/actions/creators'
 import {notify} from 'src/shared/actions/notifications'
 import {
   TelegrafConfigCreationError,
