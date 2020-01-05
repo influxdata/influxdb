@@ -6,7 +6,6 @@ import {connect} from 'react-redux'
 import {Form, ComponentSize, ComponentColor, Grid} from '@influxdata/clockface'
 import DashedButton from 'src/shared/components/dashed_button/DashedButton'
 import CheckTagRow from 'src/alerting/components/builder/CheckTagRow'
-import DurationSelector from 'src/shared/components/DurationSelector'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 import DurationInput from 'src/shared/components/DurationInput'
 
@@ -75,10 +74,11 @@ const CheckMetaCard: FC<Props> = ({
             </Grid.Column>
             <Grid.Column widthSM={6}>
               <Form.Element label="Offset">
-                <DurationSelector
-                  selectedDuration={offset}
-                  durations={CHECK_OFFSET_OPTIONS}
-                  onSelectDuration={onSetOffset}
+                <DurationInput
+                  value={offset}
+                  exampleSearches={CHECK_OFFSET_OPTIONS}
+                  onSubmit={onSetOffset}
+                  placeholder="offset duration"
                 />
               </Form.Element>
             </Grid.Column>
