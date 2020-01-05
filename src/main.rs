@@ -1,24 +1,19 @@
 use delorean::storage::rocksdb::Database;
-use delorean::{line_parser, storage};
-use delorean::storage::iterators::SeriesIterator;
-use delorean::storage::rocksdb::{PointsIterator, SeriesFilter, Range};
-use delorean::line_parser::{parse, index_pairs, Pair};
+use delorean::line_parser;
+use delorean::storage::rocksdb::{PointsIterator, Range};
+use delorean::line_parser::index_pairs;
 use delorean::storage::predicate::parse_predicate;
 use delorean::time::{parse_duration, time_as_i64_nanos};
 
 use std::{env, io, str};
 use std::env::VarError;
 use std::sync::Arc;
-use std::task::{Context, Poll};
-use std::time::SystemTime;
 
-use actix_web::{App, middleware, HttpServer, web, HttpResponse, Error as AWError, guard, error, Responder};
-use actix_web::web::Bytes;
+use actix_web::{App, middleware, HttpServer, web, HttpResponse, Error as AWError, guard, error};
 use serde_json;
 use serde::Deserialize;
-use serde::ser::{Serialize, Serializer, SerializeStruct};
 use actix_web::web::{BytesMut};
-use futures::{self, StreamExt, Stream};
+use futures::{self, StreamExt};
 use failure::_core::time::Duration;
 use csv::Writer;
 
@@ -160,7 +155,7 @@ async fn read(read_info: web::Query<ReadInfo>, s: web::Data<Arc<Server>>) -> Res
 
     let range = Range{start, stop};
 
-    let mut series = s.db.read_range(read_info.org_id, &read_info.bucket_name, &range, &predicate, 10)?;
+    let series = s.db.read_range(read_info.org_id, &read_info.bucket_name, &range, &predicate, 10)?;
 
     let bucket_id = series.bucket_id;
     let db = &s.db;
@@ -170,7 +165,7 @@ async fn read(read_info: web::Query<ReadInfo>, s: web::Data<Arc<Server>>) -> Res
     for s in series {
         let mut wtr = Writer::from_writer(vec![]);
 
-        let mut points = PointsIterator::new_from_series_filter(read_info.org_id, bucket_id, &db, &s, &range, 10)?;
+        let points = PointsIterator::new_from_series_filter(read_info.org_id, bucket_id, &db, &s, &range, 10)?;
         let pairs = index_pairs(&s.key)?;
         let mut cols = Vec::with_capacity(pairs.len() + 2);
         let mut vals = Vec::with_capacity(pairs.len() + 2);

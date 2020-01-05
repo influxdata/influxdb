@@ -118,7 +118,7 @@ fn parse_value(chars: &mut Peekable<Chars>) -> Result<Value, StorageError> {
                 val.push(ch);
             }
         },
-        Some(ch) => return Err(StorageError{description: "unable to parse non-string values".to_string()}),
+        Some(ch) => return Err(StorageError{description: format!("unable to parse non-string values like '{}'", ch)}),
         None => (),
     }
 

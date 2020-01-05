@@ -1,7 +1,5 @@
 use crate::Error;
 
-use std::str::Chars;
-use std::iter::Peekable;
 use std::time::{Duration, UNIX_EPOCH};
 use std::time::SystemTime;
 
@@ -30,6 +28,7 @@ impl RelativeDuration {
     }
 }
 
+// TODO: update this so that we're not indexing into the string. Should be iterating with chars
 pub fn parse_duration(s: &str) ->  Result<RelativeDuration, Error> {
     if s.len() < 2 {
         return Err(Error{description: "duration must have at least two characters".to_string()})

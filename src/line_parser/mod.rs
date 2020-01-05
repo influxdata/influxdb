@@ -1,6 +1,5 @@
 use std::str::Chars;
 use std::{error, fmt};
-use std::fs::read;
 use actix_web::ResponseError;
 use actix_web::http::StatusCode;
 
@@ -92,7 +91,7 @@ impl ResponseError for ParseError {
 // TODO: have parse return an error for invalid inputs
 pub fn parse(input: &str) -> Vec<Point> {
     let mut points = Vec::with_capacity(10000);
-    let mut lines= input.lines();
+    let lines= input.lines();
 
     for line in lines {
         read_line(line, &mut points)

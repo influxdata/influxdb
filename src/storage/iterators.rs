@@ -1,7 +1,4 @@
-use crate::delorean::Predicate;
-use crate::storage::rocksdb::{Database, SeriesFilter, StorageError, Range, PointsIterator};
-
-use rocksdb::{DB, IteratorMode, DBIterator};
+use crate::storage::rocksdb::SeriesFilter;
 
 pub struct SeriesIterator {
     pub org_id: u32,
