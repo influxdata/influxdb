@@ -19,6 +19,10 @@ export const isDurationWithNowParseable = (lower: string): boolean => {
 }
 
 export const isDurationParseable = (duration: string): boolean => {
+  if (typeof duration !== 'string') {
+    return false
+  }
+
   const durationRegExp = /^(([0-9]+)(y|mo|w|d|h|ms|s|m|us|µs|ns))+$/g
 
   // warning! Using string.match(regex) here instead of regex.test(string) because regex.test() modifies the regex object, and can lead to unexpected behavior
