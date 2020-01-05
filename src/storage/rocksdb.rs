@@ -16,6 +16,8 @@ use prost::Message;
 use futures::AsyncWriteExt;
 use croaring::Treemap;
 use croaring::treemap::NativeSerializer;
+use actix_web::ResponseError;
+use actix_web::http::StatusCode;
 
 /// Database wraps a RocksDB database for storing the raw series data, an inverted index of the
 /// metadata and the metadata about what buckets exist in the system.
@@ -102,6 +104,7 @@ impl Database {
         self.insert_series_without_ids(org_id, &bucket, &mut series);
 
         let mut batch = WriteBatch::default();
+
         for s in series {
             let key = key_for_series_and_time(bucket.id, s.id.unwrap(), s.point.time);
             let mut value = Vec::with_capacity(8);
@@ -123,19 +126,18 @@ impl Database {
         self.create_bucket_if_not_exists(org_id, &bucket)
     }
 
-    pub fn read_range<'a>(&self, org_id: u32, bucket_name: &str, range: &'a Range, predicate: &'a Predicate, batch_size: usize) -> Result<SeriesIterator<'a>, StorageError> {
+    pub fn read_range<'a>(&self, org_id: u32, bucket_name: &str, range: &'a Range, predicate: &'a Predicate, batch_size: usize) -> Result<SeriesIterator, StorageError> {
         let bucket = match self.get_bucket_by_name(org_id, bucket_name).unwrap() {
             Some(b) => b,
             None => return Err(StorageError{description: format!("bucket {} not found", bucket_name)}),
         };
 
         let series_filters = self.get_series_filters(&bucket, Some(&predicate), range)?;
-        println!("filters: {:?}", series_filters);
 
-        Ok(SeriesIterator::new(range, batch_size, predicate, org_id, bucket.id, series_filters))
+        Ok(SeriesIterator::new(org_id, bucket.id, series_filters))
     }
 
-    pub fn get_db_points_iter(&self, _org_id: u32, bucket_id: u32, series_id: u64, range: &Range, batch_size: usize) -> Result<PointsIterator, StorageError> {
+    fn get_db_points_iter(&self, _org_id: u32, bucket_id: u32, series_id: u64, range: &Range, batch_size: usize) -> Result<PointsIterator, StorageError> {
         let mut prefix = prefix_for_series(bucket_id, series_id, range.start);
         let mode = IteratorMode::From(&prefix, Direction::Forward);
         let mut iter = self.db.read().unwrap().iterator(mode);
@@ -693,6 +695,10 @@ impl PointsIterator<'_> {
             drained: false,
         }
     }
+
+    pub fn new_from_series_filter<'a>(org_id: u32, bucket_id: u32, db: &'a Database, series_filter: &'a SeriesFilter, range: &Range, batch_size: usize) -> Result<PointsIterator<'a>, StorageError> {
+        db.get_db_points_iter(org_id, bucket_id, series_filter.id, range, batch_size)
+    }
 }
 
 impl Iterator for PointsIterator<'_> {
@@ -706,6 +712,14 @@ impl Iterator for PointsIterator<'_> {
         let mut v = Vec::with_capacity(self.batch_size);
         let mut n = 0;
 
+        // we have to check if the iterator is still valid. There are some edge cases where
+        // this function could get called with an invalid iterator because it has gone to
+        // the end of th rocksdb keyspace. Calling next on it segfaults the program, so check it first.
+        // Here's the issue: https://github.com/rust-rocksdb/rust-rocksdb/issues/361
+        if !self.iter.valid() {
+            self.drained = true;
+            return None;
+        }
         while let Some((key, value)) = self.iter.next() {
             if !key.starts_with(&self.series_prefix) {
                 self.drained = true;
@@ -957,6 +971,12 @@ impl error::Error for StorageError {
     }
 }
 
+impl ResponseError for StorageError {
+    fn status_code(&self) -> StatusCode {
+        StatusCode::BAD_REQUEST
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1169,6 +1189,32 @@ mod tests {
     }
 
     #[test]
+    fn catch_rocksdb_iterator_segfault() {
+        let mut b1 = Bucket::new(1, "bucket1".to_string());
+        let mut db = test_database("catch_rocksdb_iterator_segfault", true);
+
+        let p1 = Point{series: "cpu,host=b,region=west\tusage_system".to_string(), value: 1, time: 1};
+
+        b1.id = db.create_bucket_if_not_exists(b1.org_id, &b1).unwrap();
+
+        db.write_points(b1.org_id, &b1.name, vec![p1.clone()]).unwrap();
+
+        // test that we'll only read from the bucket we wrote points into
+        let range = Range{start: 1, stop: 4};
+        let pred = parse_predicate("_m = \"cpu\"").unwrap();
+        let mut iter = db.read_range(b1.org_id, &b1.name, &range, &pred, 10).unwrap();
+        let series_filter = iter.next().unwrap();
+        assert_eq!(series_filter, SeriesFilter{id: 1, key: "cpu,host=b,region=west\tusage_system".to_string(), value_predicate: None});
+        assert_eq!(iter.next(), None);
+        let mut points_iter = PointsIterator::new_from_series_filter(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 10).unwrap();
+        let points = points_iter.next().unwrap();
+        assert_eq!(points, vec![
+            ReadPoint{time: 1, value: 1},
+        ]);
+        assert_eq!(points_iter.next(), None);
+    }
+
+    #[test]
     fn write_and_read_points() {
         let mut b1 = Bucket::new(1, "bucket1".to_string());
         let mut b2 = Bucket::new(2, "bucket2".to_string());
@@ -1192,19 +1238,20 @@ mod tests {
         let series_filter = iter.next().unwrap();
         assert_eq!(series_filter, SeriesFilter{id: 1, key: "cpu,host=b,region=west\tusage_system".to_string(), value_predicate: None});
         assert_eq!(iter.next(), None);
-        let mut points_iter = iter.points_iterator(&db, &series_filter).unwrap();
+        let mut points_iter = PointsIterator::new_from_series_filter(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 10).unwrap();
         let points = points_iter.next().unwrap();
         assert_eq!(points, vec![
             ReadPoint{time: 1, value: 1},
             ReadPoint{time: 2, value: 1},
         ]);
+        assert_eq!(points_iter.next(), None);
 
         // test that we'll read multiple series
         let pred = parse_predicate("_m = \"cpu\" OR _m = \"mem\"").unwrap();
         let mut iter = db.read_range(b2.org_id, &b2.name, &range, &pred, 10).unwrap();
         let series_filter = iter.next().unwrap();
         assert_eq!(series_filter, SeriesFilter{id: 1, key: "cpu,host=b,region=west\tusage_system".to_string(), value_predicate: None});
-        let mut points_iter = iter.points_iterator(&db, &series_filter).unwrap();
+        let mut points_iter = PointsIterator::new_from_series_filter(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 10).unwrap();
         let points = points_iter.next().unwrap();
         assert_eq!(points, vec![
             ReadPoint{time: 1, value: 1},
@@ -1213,7 +1260,7 @@ mod tests {
 
         let series_filter = iter.next().unwrap();
         assert_eq!(series_filter, SeriesFilter{id: 2, key: "mem,host=b,region=west\tfree".to_string(), value_predicate: None});
-        let mut points_iter = iter.points_iterator(&db, &series_filter).unwrap();
+        let mut points_iter = PointsIterator::new_from_series_filter(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 10).unwrap();
         let points = points_iter.next().unwrap();
         assert_eq!(points, vec![
             ReadPoint{time: 2, value: 1},
@@ -1226,7 +1273,7 @@ mod tests {
         let series_filter = iter.next().unwrap();
         assert_eq!(series_filter, SeriesFilter{id: 1, key: "cpu,host=b,region=west\tusage_system".to_string(), value_predicate: None});
         assert_eq!(iter.next(), None);
-        let mut points_iter = iter.points_iterator(&db, &series_filter).unwrap();
+        let mut points_iter = PointsIterator::new_from_series_filter(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 1).unwrap();
         let points = points_iter.next().unwrap();
         assert_eq!(points, vec![
             ReadPoint{time: 1, value: 1},
@@ -1242,7 +1289,7 @@ mod tests {
         let mut iter = db.read_range(b2.org_id, &b2.name, &range, &pred, 10).unwrap();
         let series_filter = iter.next().unwrap();
         assert_eq!(series_filter, SeriesFilter{id: 1, key: "cpu,host=b,region=west\tusage_system".to_string(), value_predicate: None});
-        let mut points_iter = iter.points_iterator(&db, &series_filter).unwrap();
+        let mut points_iter = PointsIterator::new_from_series_filter(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 10).unwrap();
         let points = points_iter.next().unwrap();
         assert_eq!(points, vec![
             ReadPoint{time: 2, value: 1},
@@ -1250,7 +1297,7 @@ mod tests {
 
         let series_filter = iter.next().unwrap();
         assert_eq!(series_filter, SeriesFilter{id: 2, key: "mem,host=b,region=west\tfree".to_string(), value_predicate: None});
-        let mut points_iter = iter.points_iterator(&db, &series_filter).unwrap();
+        let mut points_iter = PointsIterator::new_from_series_filter(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 10).unwrap();
         let points = points_iter.next().unwrap();
         assert_eq!(points, vec![
             ReadPoint{time: 2, value: 1},

@@ -1,6 +1,8 @@
 use std::str::Chars;
 use std::{error, fmt};
 use std::fs::read;
+use actix_web::ResponseError;
+use actix_web::http::StatusCode;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Point {
@@ -10,47 +12,51 @@ pub struct Point {
 }
 
 impl Point {
-    // TODO: handle escapes in the line protocol for , = and \t
-    /// index_pairs parses the series key into key value pairs for insertion into the index. In
-    /// cases where this series is already in the database, this parse step can be skipped entirely.
-    /// The measurement is represented as a _m key and field as _f.
     pub fn index_pairs(&self) -> Result<Vec<Pair>, ParseError> {
-        let mut chars = self.series.chars();
-        let mut pairs = vec![];
-        let mut key = "_m".to_string();
-        let mut value = String::with_capacity(250);
-        let mut reading_key = false;
+        index_pairs(&self.series)
+    }
+}
 
-        while let Some(ch) = chars.next() {
-            match ch {
-                ',' => {
-                    reading_key = true;
-                    pairs.push(Pair{key, value});
-                    key = String::with_capacity(250);
-                    value = String::with_capacity(250);
-                },
-                '=' => {
-                    reading_key = false;
-                },
-                '\t' => {
-                    reading_key = false;
-                    pairs.push(Pair{key, value});
-                    key = "_f".to_string();
-                    value = String::with_capacity(250);
-                },
-                _ => {
-                    if reading_key {
-                        key.push(ch);
-                    } else {
-                        value.push(ch);
-                    }
+// TODO: handle escapes in the line protocol for , = and \t
+/// index_pairs parses the series key into key value pairs for insertion into the index. In
+/// cases where this series is already in the database, this parse step can be skipped entirely.
+/// The measurement is represented as a _m key and field as _f.
+pub fn index_pairs(key: &str) -> Result<Vec<Pair>, ParseError> {
+    let mut chars = key.chars();
+    let mut pairs = vec![];
+    let mut key = "_m".to_string();
+    let mut value = String::with_capacity(250);
+    let mut reading_key = false;
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            ',' => {
+                reading_key = true;
+                pairs.push(Pair{key, value});
+                key = String::with_capacity(250);
+                value = String::with_capacity(250);
+            },
+            '=' => {
+                reading_key = false;
+            },
+            '\t' => {
+                reading_key = false;
+                pairs.push(Pair{key, value});
+                key = "_f".to_string();
+                value = String::with_capacity(250);
+            },
+            _ => {
+                if reading_key {
+                    key.push(ch);
+                } else {
+                    value.push(ch);
                 }
             }
         }
-        pairs.push(Pair{key, value});
-
-        Ok(pairs)
     }
+    pairs.push(Pair{key, value});
+
+    Ok(pairs)
 }
 
 #[derive(Debug, PartialEq)]
@@ -74,6 +80,12 @@ impl error::Error for ParseError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         // Generic error, underlying cause isn't tracked.
         None
+    }
+}
+
+impl ResponseError for ParseError {
+    fn status_code(&self) -> StatusCode {
+        StatusCode::BAD_REQUEST
     }
 }
 

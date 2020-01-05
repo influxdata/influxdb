@@ -3,35 +3,25 @@ use crate::storage::rocksdb::{Database, SeriesFilter, StorageError, Range, Point
 
 use rocksdb::{DB, IteratorMode, DBIterator};
 
-pub struct SeriesIterator<'a> {
-    range: &'a Range,
-    batch_size: usize,
-    predicate: &'a Predicate,
-    org_id: u32,
-    bucket_id: u32,
+pub struct SeriesIterator {
+    pub org_id: u32,
+    pub bucket_id: u32,
     series_filters: Vec<SeriesFilter>,
     next_filter: usize,
 }
 
-impl SeriesIterator<'_> {
-    pub fn new<'a>(range: &'a Range, batch_size: usize, predicate: &'a Predicate, org_id: u32, bucket_id: u32, series_filters: Vec<SeriesFilter>) -> SeriesIterator<'a> {
+impl SeriesIterator {
+    pub fn new(org_id: u32, bucket_id: u32, series_filters: Vec<SeriesFilter>) -> SeriesIterator {
         SeriesIterator{
-            range,
-            batch_size,
-            predicate,
             org_id,
             bucket_id,
             next_filter: 0,
             series_filters: series_filters,
         }
     }
-
-    pub fn points_iterator<'a>(&self, db: &'a Database, series_filter: &'a SeriesFilter) -> Result<PointsIterator<'a>, StorageError> {
-        db.get_db_points_iter(self.org_id, self.bucket_id, series_filter.id, self.range, self.batch_size)
-    }
 }
 
-impl Iterator for SeriesIterator<'_> {
+impl Iterator for SeriesIterator {
     type Item = SeriesFilter;
 
     fn next(&mut self) -> Option<Self::Item> {
