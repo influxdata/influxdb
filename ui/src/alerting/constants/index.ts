@@ -1,5 +1,3 @@
-import {DURATIONS} from 'src/timeMachine/constants/queryBuilder'
-
 import {ThresholdCheck, TagRuleDraft} from 'src/types'
 import {NotificationEndpoint, CheckStatusLevel} from 'src/client'
 import {ComponentColor, InfluxColors} from '@influxdata/clockface'
@@ -16,8 +14,6 @@ export const DEFAULT_CHECK_REPORT_ZERO = false
 export const DEFAULT_DEADMAN_LEVEL: CheckStatusLevel = 'CRIT'
 export const DEFAULT_STATUS_MESSAGE =
   'Check: ${ r._check_name } is: ${ r._level }'
-
-export const CHECK_EVERY_OPTIONS: DurationOption[] = DURATIONS
 
 export const CHECK_OFFSET_OPTIONS: DurationOption[] = [
   {duration: '0s', displayText: 'None'},
