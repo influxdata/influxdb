@@ -1,4 +1,4 @@
-use crate::line_parser::Point;
+use crate::line_parser::PointType;
 use crate::storage::iterators::{ReadPoint, SeriesIterator};
 use crate::delorean::{Bucket, IndexLevel, Predicate, Node};
 use crate::delorean::node::{Value, Comparison, Logical};
@@ -36,7 +36,7 @@ pub struct Database {
 #[derive(Debug, PartialEq)]
 pub struct Series {
     id: Option<u64>,
-    point: Point,
+    point: PointType,
 }
 
 const BUCKET_CF: &str = "buckets";
@@ -90,7 +90,7 @@ impl Database {
     /// * org_id - the organization this data resides under
     /// * bucket_name - the string identifier of the bucket
     /// * points - individual values with their timestamps and series keys
-    pub fn write_points(&self, org_id: u32, bucket_name: &str, points: Vec<Point>) -> Result<(), StorageError> {
+    pub fn write_points(&self, org_id: u32, bucket_name: &str, points: Vec<PointType>) -> Result<(), StorageError> {
         let key = bucket_key(org_id, bucket_name);
 
         let _ = self.create_default_bucket_if_not_exists(org_id, bucket_name, &key)?;
@@ -103,9 +103,10 @@ impl Database {
         let mut batch = WriteBatch::default();
 
         for s in series {
-            let key = key_for_series_and_time(bucket.id, s.id.unwrap(), s.point.time);
+            let key = key_for_series_and_time(bucket.id, s.id.unwrap(), s.point.time());
             let mut value = Vec::with_capacity(8);
-            value.write_i64::<BigEndian>(s.point.value).unwrap();
+            // TODO: finish wiring up other data types
+            value.write_i64::<BigEndian>(s.point.i64_value().unwrap()).unwrap();
             batch.put(key, value).unwrap();
         }
 
@@ -233,14 +234,14 @@ impl Database {
     ///
     /// # Returns
     /// A vector of series where each point in the passed in vector is contained in a series
-    pub fn get_series_ids(&self, _org_id: u32, bucket: &Bucket, points: Vec<Point>) -> Vec<Series> {
+    pub fn get_series_ids(&self, _org_id: u32, bucket: &Bucket, points: Vec<PointType>) -> Vec<Series> {
         let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
 
         let series = points.into_iter().map(|p| {
             let mut series = Series{id: None, point: p};
             let level = &bucket.index_levels[0];
             let cf_name = index_cf_name(bucket.id,level.duration_seconds, now);
-            series.id = self.get_series_id(&cf_name, &series.point.series);
+            series.id = self.get_series_id(&cf_name, &series.point.series());
             series
         }).collect();
 
@@ -487,13 +488,13 @@ impl Database {
             }
 
             // if we've already put this series in the map in this write, skip it
-            if let Some(id) = series_id_map.get(&series.point.series) {
+            if let Some(id) = series_id_map.get(series.point.series()) {
                 series.id = Some(*id);
                 continue;
             }
 
             // now that we have the mutex on series, make sure these weren't inserted in some other thread
-            if let Some(_) = self.get_series_id(&cf_name, &series.point.series) {
+            if let Some(_) = self.get_series_id(&cf_name, &series.point.series()) {
                 continue;
             }
 
@@ -501,9 +502,9 @@ impl Database {
             let id = *next_id;
             let mut series_id = Vec::with_capacity(8);
             series_id.write_u64::<BigEndian>(*next_id).unwrap();
-            batch.put_cf(index_cf, index_series_key_id(&series.point.series), series_id.clone()).unwrap();
-            batch.put_cf(index_cf, index_series_id(&series_id), &series.point.series.as_bytes()).unwrap();
-            series_id_map.insert(series.point.series.clone(), *next_id);
+            batch.put_cf(index_cf, index_series_key_id(&series.point.series()), series_id.clone()).unwrap();
+            batch.put_cf(index_cf, index_series_id(&series_id), &series.point.series().as_bytes()).unwrap();
+            series_id_map.insert(series.point.series().clone(), *next_id);
             *next_id += 1;
 
             // insert the index entries
@@ -1030,10 +1031,10 @@ mod tests {
         let org_id = 23;
         let mut b = Bucket::new(org_id, "series".to_string());
         let mut b2 = Bucket::new(1, "series".to_string());
-        let p1 = Point{series: "one".to_string(), value: 1, time: 0};
-        let p2 = Point{series: "two".to_string(), value: 23, time: 40};
-        let p3 = Point{series: "three".to_string(), value: 33, time: 86};
-        let p4 = Point{series: "four".to_string(), value: 234, time: 100};
+        let p1 = PointType::new_i64("one".to_string(), 1, 0);
+        let p2 = PointType::new_i64("two".to_string(), 23, 40);
+        let p3 = PointType::new_i64("three".to_string(), 33, 86);
+        let p4 = PointType::new_i64("four".to_string(), 234, 100);
 
         {
             let db = test_database("series_id_indexing", true);
@@ -1110,10 +1111,10 @@ mod tests {
     fn series_metadata_indexing() {
         let mut bucket = Bucket::new(1, "foo".to_string());
         let db = test_database("series_metadata_indexing", true);
-        let p1 = Point{series: "cpu,host=b,region=west\tusage_system".to_string(), value: 1, time: 0};
-        let p2 = Point{series: "cpu,host=a,region=west\tusage_system".to_string(), value: 1, time: 0};
-        let p3 = Point{series: "cpu,host=a,region=west\tusage_user".to_string(), value: 1, time: 0};
-        let p4 = Point{series: "mem,host=b,region=west\tfree".to_string(), value: 1, time: 0};
+        let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 0);
+        let p2 = PointType::new_i64("cpu,host=a,region=west\tusage_system".to_string(), 1, 0);
+        let p3 = PointType::new_i64("cpu,host=a,region=west\tusage_user".to_string(), 1, 0);
+        let p4 = PointType::new_i64("mem,host=b,region=west\tfree".to_string(), 1, 0);
 
         bucket.id = db.create_bucket_if_not_exists(bucket.org_id, &bucket).unwrap();
         let mut series = db.get_series_ids(bucket.org_id, &bucket, vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()]);
@@ -1166,8 +1167,8 @@ mod tests {
         let b1 = Bucket::new(1, "bucket1".to_string());
         let db = test_database("write_creates_bucket", true);
 
-        let p1 = Point{series: "cpu,host=b,region=west\tusage_system".to_string(), value: 1, time: 1};
-        let p2 = Point{series: "cpu,host=b,region=west\tusage_system".to_string(), value: 1, time: 2};
+        let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 1);
+        let p2 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 2);
 
         db.write_points(b1.org_id, &b1.name, vec![p1, p2]).unwrap();
         assert_eq!(db.get_bucket_by_name(b1.org_id, &b1.name).unwrap().unwrap().id, 1);
@@ -1178,7 +1179,7 @@ mod tests {
         let mut b1 = Bucket::new(1, "bucket1".to_string());
         let db = test_database("catch_rocksdb_iterator_segfault", true);
 
-        let p1 = Point{series: "cpu,host=b,region=west\tusage_system".to_string(), value: 1, time: 1};
+        let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 1);
 
         b1.id = db.create_bucket_if_not_exists(b1.org_id, &b1).unwrap();
 
@@ -1205,10 +1206,10 @@ mod tests {
         let mut b2 = Bucket::new(2, "bucket2".to_string());
         let db = test_database("write_and_read_points", true);
 
-        let p1 = Point{series: "cpu,host=b,region=west\tusage_system".to_string(), value: 1, time: 1};
-        let p2 = Point{series: "cpu,host=b,region=west\tusage_system".to_string(), value: 1, time: 2};
-        let p3 = Point{series: "mem,host=b,region=west\tfree".to_string(), value: 1, time: 2};
-        let p4 = Point{series: "mem,host=b,region=west\tfree".to_string(), value: 1, time: 4};
+        let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 1);
+        let p2 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 2);
+        let p3 = PointType::new_i64("mem,host=b,region=west\tfree".to_string(), 1, 2);
+        let p4 = PointType::new_i64("mem,host=b,region=west\tfree".to_string(), 1, 4);
 
         b1.id = db.create_bucket_if_not_exists(b1.org_id, &b1).unwrap();
         b2.id = db.create_bucket_if_not_exists(b2.org_id, &b2).unwrap();
