@@ -1,6 +1,6 @@
-use delorean::storage::rocksdb::Database;
+use delorean::storage::rocksdb::{Database, new_i64_points_iterator};
 use delorean::line_parser;
-use delorean::storage::rocksdb::{PointsIterator, Range};
+use delorean::storage::rocksdb::Range;
 use delorean::line_parser::index_pairs;
 use delorean::storage::predicate::parse_predicate;
 use delorean::time::{parse_duration, time_as_i64_nanos};
@@ -165,7 +165,7 @@ async fn read(read_info: web::Query<ReadInfo>, s: web::Data<Arc<Server>>) -> Res
     for s in series {
         let mut wtr = Writer::from_writer(vec![]);
 
-        let points = PointsIterator::new_from_series_filter(read_info.org_id, bucket_id, &db, &s, &range, 10)?;
+        let points = new_i64_points_iterator(read_info.org_id, bucket_id, &db, &s, &range, 10);
         let pairs = index_pairs(&s.key)?;
         let mut cols = Vec::with_capacity(pairs.len() + 2);
         let mut vals = Vec::with_capacity(pairs.len() + 2);
