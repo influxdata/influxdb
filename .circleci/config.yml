@@ -61,7 +61,7 @@ jobs:
           destination: nightly-junit
   e2e:
     docker:
-      - image: circleci/golang:1.12-node-browsers
+      - image: circleci/golang:1.13-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -137,7 +137,7 @@ jobs:
           path: ~/artifacts
   jstest:
     docker:
-      - image: circleci/golang:1.12-node-browsers
+      - image: circleci/golang:1.13-node-browsers
     working_directory: /go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
@@ -172,7 +172,7 @@ jobs:
             - ~/.cache/yarn
   jslint:
     docker:
-      - image: circleci/golang:1.12-node-browsers
+      - image: circleci/golang:1.13-node-browsers
     working_directory: /go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
@@ -202,7 +202,7 @@ jobs:
             - ~/.cache/yarn
   gotest:
     docker:
-      - image: circleci/golang:1.12
+      - image: circleci/golang:1.13
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -255,7 +255,7 @@ jobs:
           path: /tmp/test-results
   golint:
     docker:
-      - image: circleci/golang:1.12
+      - image: circleci/golang:1.13
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -279,6 +279,16 @@ jobs:
       - run: sudo apt-get install -y bzr
       - install_rust_compiler
       - run: mkdir -p $TEST_RESULTS
+      - run: |
+          # this is not in a seperate bash script because it isn't meant to be run on local.
+          # it just checks to make sure that the same major/minor version of go is used in the mod file as on ci
+          # to prevent accidentally checking in a wrong go mod version.
+          gomodversiondiff=$( go mod edit -go=$( go version | sed -n 's/^.*go\([0-9]*.[0-9]*\).*$/\1/p') -print |diff - go.mod )
+          if [ "$gomodversiondiff" ]
+          then
+            echo unexpected go version $gomodversiondiff
+            exit 1
+          fi
       - run: make vet
       - run: make checkfmt
       - run: make checktidy
@@ -304,7 +314,7 @@ jobs:
           path: /tmp/test-results
   build:
     docker:
-      - image: circleci/golang:1.12-node-browsers
+      - image: circleci/golang:1.13-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -336,7 +346,7 @@ jobs:
             - etc/litmus_fail_notify.sh
   deploy-nightly:
     docker:
-      - image: circleci/golang:1.12-node-browsers
+      - image: circleci/golang:1.13-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -370,7 +380,7 @@ jobs:
 
   release:
     docker:
-      - image: circleci/golang:1.12-node-browsers
+      - image: circleci/golang:1.13-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
