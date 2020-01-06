@@ -118,7 +118,6 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
 
   private get labels(): JSX.Element {
     const {collector, labels, onFilterChange} = this.props
-    // todo(glinton): track down `Label` drift and remove `as Label[]`
     const collectorLabels = viewableLabels(collector.labels as Label[])
 
     return (

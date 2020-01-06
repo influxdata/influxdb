@@ -35,7 +35,7 @@ interface StaticTemplate {
 
 const staticTemplates: StaticTemplate[] = _.map(statics, (template, name) => ({
   name,
-  template,
+  template: template as TemplateSummary,
 }))
 
 interface OwnProps {

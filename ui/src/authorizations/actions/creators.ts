@@ -39,7 +39,8 @@ export const editAuthorization = (
     schema,
   } as const)
 
-export const removeAuthorization = (id: string) => ({
-  type: REMOVE_AUTH,
-  id,
-} as const)
+export const removeAuthorization = (id: string) =>
+  ({
+    type: REMOVE_AUTH,
+    id,
+  } as const)

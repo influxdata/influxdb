@@ -24,11 +24,11 @@ const FluxMonacoEditor = Loadable({
 })
 
 // Types
-import {KeyValueMap, VariableArguments} from 'src/types'
+import {KeyValueMap, VariableProperties} from 'src/types'
 
 interface Props {
-  args: VariableArguments
-  onChange: (update: {args: VariableArguments; isValid: boolean}) => void
+  args: VariableProperties
+  onChange: (update: {args: VariableProperties; isValid: boolean}) => void
   onSelectMapDefault: (selectedKey: string) => void
   selected: string[]
 }

@@ -7,8 +7,7 @@ import {ResourceList} from '@influxdata/clockface'
 import VariableCard from 'src/variables/components/VariableCard'
 
 // Types
-import {IVariable as Variable} from '@influxdata/influx'
-import {OverlayState} from 'src/types'
+import {OverlayState, Variable} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
 
@@ -21,7 +20,6 @@ interface Props {
   variables: Variable[]
   emptyState: JSX.Element
   onDeleteVariable: (variable: Variable) => void
-  onUpdateVariable: (variable: Variable) => void
   onFilterChange: (searchTerm: string) => void
   sortKey: string
   sortDirection: Sort
@@ -89,7 +87,6 @@ export default class VariableList extends PureComponent<Props, State> {
       sortDirection,
       sortType,
       onDeleteVariable,
-      onUpdateVariable,
       onFilterChange,
     } = this.props
     const sortedVariables = this.memGetSortedResources(
@@ -104,7 +101,6 @@ export default class VariableList extends PureComponent<Props, State> {
         key={variable.id || `variable-${index}`}
         variable={variable}
         onDeleteVariable={onDeleteVariable}
-        onUpdateVariableName={onUpdateVariable}
         onEditVariable={this.handleStartEdit}
         onFilterChange={onFilterChange}
       />

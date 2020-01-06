@@ -4,11 +4,7 @@ import {normalize} from 'normalizr'
 
 // APIs
 import {client} from 'src/utils/api'
-import {
-  ScraperTargetRequest,
-  PermissionResource,
-  ILabelProperties,
-} from '@influxdata/influx'
+import {ScraperTargetRequest, PermissionResource} from '@influxdata/influx'
 import {createAuthorization} from 'src/authorizations/apis'
 import {postWrite as apiPostWrite, postLabel as apiPostLabel} from 'src/client'
 
@@ -37,7 +33,14 @@ import {
   BundleName,
   ConfigurationState,
 } from 'src/types/dataLoaders'
-import {GetState, RemoteDataState, Authorization, AuthEntities} from 'src/types'
+import {
+  GetState,
+  RemoteDataState,
+  LabelProperties,
+  Authorization,
+  AuthEntities,
+} from 'src/types'
+import {ILabel} from '@influxdata/influx'
 import {
   WritePrecision,
   TelegrafRequest,
@@ -452,7 +455,7 @@ const createTelegraf = async (dispatch, getState: GetState, plugins) => {
       color: '#FFFFFF',
       description: `token for telegraf config: ${telegrafConfigName}`,
       tokenID: createdToken.id,
-    } as ILabelProperties // hack to make compiler work
+    } as LabelProperties // hack to make compiler work
 
     const resp = await apiPostLabel({
       data: {
@@ -469,7 +472,10 @@ const createTelegraf = async (dispatch, getState: GetState, plugins) => {
     const createdLabel = addLabelDefaults(resp.data.label)
 
     // add label to telegraf config
-    const label = await client.telegrafConfigs.addLabel(tc.id, createdLabel)
+    const label = await client.telegrafConfigs.addLabel(
+      tc.id,
+      createdLabel as ILabel
+    )
 
     const config = {
       ...tc,
