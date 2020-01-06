@@ -566,7 +566,7 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 		if err != nil {
 			return nil, err
 		}
-		newResource = dashboardToResource(*dash, r.Name)
+		newResource = DashboardToResource(*dash, r.Name)
 	case r.Kind.is(KindLabel):
 		l, err := s.labelSVC.FindLabelByID(ctx, r.ID)
 		if err != nil {
@@ -605,7 +605,7 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 		if err != nil {
 			return nil, err
 		}
-		newResource = variableToResource(*v, r.Name)
+		newResource = VariableToResource(*v, r.Name)
 	default:
 		return nil, errors.New("unsupported kind provided: " + string(r.Kind))
 	}
