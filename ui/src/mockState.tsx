@@ -56,7 +56,7 @@ export const localState: LocalStorage = {
       byID: {},
       allIDs: [],
       status: NotStarted,
-    }
+    },
   },
 }
 

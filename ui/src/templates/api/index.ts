@@ -328,12 +328,11 @@ const addTaskLabelsFromTemplate = async (
   try {
     const relationships = getLabelRelationships(template.content.data)
     const labelIDs = relationships.map(l => labelMap[l.id] || '')
-    const pending = labelIDs.map(
-      async labelID =>
-        await apiPostTasksLabel({taskID: task.id, data: {labelID}})
+    const pending = labelIDs.map(labelID =>
+      apiPostTasksLabel({taskID: task.id, data: {labelID}})
     )
     const resolved = await Promise.all(pending)
-    if (resolved.length > 0 && resolved.every(r => r.status !== 201)) {
+    if (resolved.length > 0 && resolved.some(r => r.status !== 201)) {
       throw new Error('An error occurred adding task labels from the templates')
     }
   } catch (e) {

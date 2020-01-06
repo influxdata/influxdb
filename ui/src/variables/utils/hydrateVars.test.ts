@@ -179,7 +179,7 @@ describe('hydrate vars', () => {
   test('works with map template variables', async () => {
     const a = createVariable('a', 'f(x: v.b)')
 
-    const b = {
+    const b: Variable = {
       id: 'b',
       name: 'b',
       orgID: '',
@@ -190,7 +190,7 @@ describe('hydrate vars', () => {
           k: 'v',
         },
       },
-    } as Variable
+    }
 
     const vars = [a, b]
 
@@ -221,7 +221,7 @@ describe('hydrate vars', () => {
   test('works with constant template variables', async () => {
     const a = createVariable('a', 'f(x: v.b)')
 
-    const b = {
+    const b: Variable = {
       id: 'b',
       name: 'b',
       orgID: '',
@@ -230,7 +230,7 @@ describe('hydrate vars', () => {
         type: 'constant',
         values: ['v1', 'v2'],
       },
-    } as Variable
+    }
 
     const vars = [a, b]
 

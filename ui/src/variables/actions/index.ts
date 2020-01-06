@@ -65,10 +65,10 @@ export type EditorAction =
   | ReturnType<typeof updateMap>
   | ReturnType<typeof updateConstant>
 
-export const addVariableDefaults = (task: IVariable): Variable => {
+export const addVariableDefaults = (variable: IVariable): Variable => {
   return {
-    ...task,
-    labels: (task.labels || []).map(addLabelDefaults),
+    ...variable,
+    labels: (variable.labels || []).map(addLabelDefaults),
   }
 }
 
