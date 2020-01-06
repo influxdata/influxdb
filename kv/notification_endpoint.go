@@ -2,7 +2,6 @@ package kv
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -29,7 +28,7 @@ func newEndpointStore() *IndexStore {
 
 	var decValToEntFn ConvertValToEntFn = func(_ []byte, v interface{}) (Entity, error) {
 		edp, ok := v.(influxdb.NotificationEndpoint)
-		if err := errUnexpectedDecodeVal(ok); err != nil {
+		if err := IsErrUnexpectedDecodeVal(ok); err != nil {
 			return Entity{}, err
 		}
 		return Entity{
@@ -65,13 +64,7 @@ func (s *Service) createNotificationEndpoint(ctx context.Context, tx Tx, edp inf
 			return err
 		}
 	}
-	// notification endpoint name unique
-	if _, err := s.findNotificationEndpointByName(ctx, tx, edp.GetOrgID(), edp.GetName()); err == nil {
-		return &influxdb.Error{
-			Code: influxdb.EConflict,
-			Msg:  fmt.Sprintf("notification endpoint with name %s already exists", edp.GetName()),
-		}
-	}
+
 	id := s.IDGenerator.ID()
 	edp.SetID(id)
 	now := s.TimeGenerator.Now()
@@ -88,7 +81,7 @@ func (s *Service) createNotificationEndpoint(ctx context.Context, tx Tx, edp inf
 		UniqueKey: Encode(EncID(edp.GetOrgID()), EncString(edp.GetName())),
 		Body:      edp,
 	}
-	if err := s.endpointStore.Put(ctx, tx, ent); err != nil {
+	if err := s.endpointStore.Put(ctx, tx, ent, PutNew()); err != nil {
 		return err
 	}
 
@@ -99,21 +92,6 @@ func (s *Service) createNotificationEndpoint(ctx context.Context, tx Tx, edp inf
 		ResourceType: influxdb.NotificationEndpointResourceType,
 	}
 	return s.createUserResourceMapping(ctx, tx, urm)
-}
-
-func (s *Service) findNotificationEndpointByName(ctx context.Context, tx Tx, orgID influxdb.ID, name string) (influxdb.NotificationEndpoint, error) {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	body, err := s.endpointStore.FindEnt(ctx, tx, Entity{
-		UniqueKey: Encode(EncID(orgID), EncString(name)),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	edp, ok := body.(influxdb.NotificationEndpoint)
-	return edp, errUnexpectedDecodeVal(ok)
 }
 
 // UpdateNotificationEndpoint updates a single notification endpoint.
@@ -133,27 +111,7 @@ func (s *Service) updateNotificationEndpoint(ctx context.Context, tx Tx, id infl
 		return nil, err
 	}
 
-	if edpName, curName := edp.GetName(), current.GetName(); edpName != curName {
-		edp0, err := s.findNotificationEndpointByName(ctx, tx, current.GetOrgID(), edpName)
-		// TODO: when can id every be zero value from store?... feels off
-		if err == nil && edp0.GetID() != id {
-			return nil, &influxdb.Error{
-				Code: influxdb.EConflict,
-				Msg:  "notification endpoint name is not unique",
-			}
-		}
-
-		err = s.endpointStore.IndexStore.DeleteEnt(ctx, tx, Entity{
-			UniqueKey: Encode(EncID(edp.GetOrgID()), EncString(curName)),
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	// ID and OrganizationID can not be updated
-	edp.SetID(current.GetID())
-	edp.SetOrgID(current.GetOrgID())
 	edp.SetCreatedAt(current.GetCRUDLog().CreatedAt)
 	edp.SetUpdatedAt(s.TimeGenerator.Now())
 
@@ -166,7 +124,7 @@ func (s *Service) updateNotificationEndpoint(ctx context.Context, tx Tx, id infl
 		UniqueKey: Encode(EncID(edp.GetOrgID()), EncString(edp.GetName())),
 		Body:      edp,
 	}
-	if err := s.endpointStore.Put(ctx, tx, ent); err != nil {
+	if err := s.endpointStore.Put(ctx, tx, ent, PutUpdate()); err != nil {
 		return nil, err
 	}
 
@@ -195,22 +153,6 @@ func (s *Service) patchNotificationEndpoint(ctx context.Context, tx Tx, id influ
 	if err != nil {
 		return nil, err
 	}
-	if upd.Name != nil {
-		edp0, err := s.findNotificationEndpointByName(ctx, tx, edp.GetOrgID(), *upd.Name)
-		if err == nil && edp0.GetID() != id {
-			return nil, &influxdb.Error{
-				Code: influxdb.EConflict,
-				Msg:  "notification endpoint name is not unique",
-			}
-		}
-
-		err = s.endpointStore.IndexStore.DeleteEnt(ctx, tx, Entity{
-			UniqueKey: Encode(EncID(edp.GetOrgID()), EncString(edp.GetName())),
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	if upd.Name != nil {
 		edp.SetName(*upd.Name)
@@ -234,7 +176,7 @@ func (s *Service) patchNotificationEndpoint(ctx context.Context, tx Tx, id influ
 		UniqueKey: Encode(EncID(edp.GetOrgID()), EncString(edp.GetName())),
 		Body:      edp,
 	}
-	if err := s.endpointStore.Put(ctx, tx, ent); err != nil {
+	if err := s.endpointStore.Put(ctx, tx, ent, PutUpdate()); err != nil {
 		return nil, err
 	}
 
@@ -280,7 +222,7 @@ func (s *Service) findNotificationEndpointByID(ctx context.Context, tx Tx, id in
 		return nil, err
 	}
 	edp, ok := decodedEnt.(influxdb.NotificationEndpoint)
-	return edp, errUnexpectedDecodeVal(ok)
+	return edp, IsErrUnexpectedDecodeVal(ok)
 }
 
 // FindNotificationEndpoints returns a list of notification endpoints that match isNext and the total count of matching notification endpoints.
@@ -331,7 +273,7 @@ func (s *Service) findNotificationEndpoints(ctx context.Context, tx Tx, filter i
 		FilterEntFn: filterEndpointsFn(idMap, filter),
 		CaptureFn: func(k []byte, v interface{}) error {
 			edp, ok := v.(influxdb.NotificationEndpoint)
-			if err := errUnexpectedDecodeVal(ok); err != nil {
+			if err := IsErrUnexpectedDecodeVal(ok); err != nil {
 				return err
 			}
 			edps = append(edps, edp)

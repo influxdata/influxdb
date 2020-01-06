@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/influxdata/influxdb"
@@ -92,7 +91,7 @@ func newVariableStore() *IndexStore {
 
 	var decValToEntFn ConvertValToEntFn = func(_ []byte, i interface{}) (entity Entity, err error) {
 		v, ok := i.(*influxdb.Variable)
-		if err := errUnexpectedDecodeVal(ok); err != nil {
+		if err := IsErrUnexpectedDecodeVal(ok); err != nil {
 			return Entity{}, err
 		}
 		return Entity{
@@ -200,7 +199,7 @@ func (s *Service) findVariableByID(ctx context.Context, tx Tx, id influxdb.ID) (
 	}
 
 	variable, ok := body.(*influxdb.Variable)
-	return variable, errUnexpectedDecodeVal(ok)
+	return variable, IsErrUnexpectedDecodeVal(ok)
 }
 
 // CreateVariable creates a new variable and assigns it an ID
@@ -213,46 +212,23 @@ func (s *Service) CreateVariable(ctx context.Context, v *influxdb.Variable) erro
 			}
 		}
 
-		v.Name = strings.TrimSpace(v.Name) // TODO: move to service layer
-
-		_, err := s.variableStore.FindEnt(ctx, tx, Entity{
-			UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(v.Name)),
-		})
-		if err == nil {
-			return &influxdb.Error{
-				Code: influxdb.EConflict,
-				Msg:  fmt.Sprintf("variable with name %s already exists", v.Name),
-			}
-		}
-
+		v.Name = strings.ToLower(strings.TrimSpace(v.Name)) // TODO: move to service layer
 		v.ID = s.IDGenerator.ID()
-
 		now := s.Now()
 		v.CreatedAt = now
 		v.UpdatedAt = now
-		return s.putVariable(ctx, tx, v)
+		return s.putVariable(ctx, tx, v, PutNew())
 	})
 }
 
 // ReplaceVariable puts a variable in the store
 func (s *Service) ReplaceVariable(ctx context.Context, v *influxdb.Variable) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		_, err := s.variableStore.FindEnt(ctx, tx, Entity{
-			PK:        EncID(v.ID),
-			UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(v.Name)),
-		})
-		if err == nil {
-			return &influxdb.Error{
-				Code: influxdb.EConflict,
-				Msg:  fmt.Sprintf("variable with name %s already exists", v.Name),
-			}
-		}
-
-		return s.putVariable(ctx, tx, v)
+		return s.putVariable(ctx, tx, v, PutNew())
 	})
 }
 
-func (s *Service) putVariable(ctx context.Context, tx Tx, v *influxdb.Variable) error {
+func (s *Service) putVariable(ctx context.Context, tx Tx, v *influxdb.Variable, putOpts ...PutOptionFn) error {
 	if err := s.putVariableOrgsIndex(tx, v); err != nil {
 		return err
 	}
@@ -262,7 +238,7 @@ func (s *Service) putVariable(ctx context.Context, tx Tx, v *influxdb.Variable) 
 		UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(v.Name)),
 		Body:      v,
 	}
-	return s.variableStore.Put(ctx, tx, ent)
+	return s.variableStore.Put(ctx, tx, ent, putOpts...)
 }
 
 // UpdateVariable updates a single variable in the store with a changeset
@@ -274,41 +250,13 @@ func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *in
 			return err
 		}
 		m.UpdatedAt = s.Now()
-
 		v = m
 
-		if update.Name != "" {
-			// TODO: should be moved to service layer
-			update.Name = strings.ToLower(strings.TrimSpace(update.Name))
-
-			vbytes, err := s.variableStore.FindEnt(ctx, tx, Entity{
-				UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(update.Name)),
-			})
-			if err == nil {
-				existingVar, ok := vbytes.(*influxdb.Variable)
-				if err := errUnexpectedDecodeVal(ok); err != nil {
-					return err
-				}
-				if existingVar.ID != v.ID {
-					return &influxdb.Error{
-						Code: influxdb.EConflict,
-						Msg:  fmt.Sprintf("variable with name %s already exists", update.Name),
-					}
-				}
-			}
-
-			err = s.variableStore.IndexStore.DeleteEnt(ctx, tx, Entity{
-				UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(update.Name)),
-			})
-			if err != nil {
-				return err
-			}
-			v.Name = update.Name
-		}
-
+		// TODO: should be moved to service layer
+		update.Name = strings.ToLower(strings.TrimSpace(update.Name))
 		update.Apply(m)
 
-		return s.putVariable(ctx, tx, v)
+		return s.putVariable(ctx, tx, v, PutUpdate())
 	})
 
 	return v, err

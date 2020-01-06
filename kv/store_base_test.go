@@ -36,16 +36,91 @@ func TestStoreBase(t *testing.T) {
 	}
 
 	t.Run("Put", func(t *testing.T) {
-		base, done, inmemStore := newFooStoreBase(t, "put")
-		defer done()
-		testPutBase(t, inmemStore, base, base.BktName)
+		t.Run("basic", func(t *testing.T) {
+			base, done, kvStore := newFooStoreBase(t, "put")
+			defer done()
+
+			testPutBase(t, kvStore, base, base.BktName)
+		})
+
+		t.Run("new", func(t *testing.T) {
+			base, done, kvStore := newFooStoreBase(t, "put")
+			defer done()
+
+			expected := newFooEnt(3, 33, "name3")
+			update(t, kvStore, func(tx kv.Tx) error {
+				return base.Put(context.TODO(), tx, expected, kv.PutNew())
+			})
+
+			var actual interface{}
+			view(t, kvStore, func(tx kv.Tx) error {
+				f, err := base.FindEnt(context.TODO(), tx, kv.Entity{PK: expected.PK})
+				actual = f
+				return err
+			})
+
+			assert.Equal(t, expected.Body, actual)
+		})
+
+		t.Run("update", func(t *testing.T) {
+			base, done, kvStore := newFooStoreBase(t, "put")
+			defer done()
+
+			expected := testPutBase(t, kvStore, base, base.BktName)
+
+			updateEnt := newFooEnt(expected.ID, expected.OrgID, "new name")
+			update(t, kvStore, func(tx kv.Tx) error {
+				return base.Put(context.TODO(), tx, updateEnt, kv.PutUpdate())
+			})
+
+			var actual interface{}
+			view(t, kvStore, func(tx kv.Tx) error {
+				f, err := base.FindEnt(context.TODO(), tx, kv.Entity{PK: kv.EncID(expected.ID)})
+				actual = f
+				return err
+			})
+
+			expected.Name = "new name"
+			assert.Equal(t, expected, actual)
+		})
+
+		t.Run("error cases", func(t *testing.T) {
+			t.Run("new entity conflicts with existing", func(t *testing.T) {
+				base, done, kvStore := newFooStoreBase(t, "put")
+				defer done()
+
+				expected := testPutBase(t, kvStore, base, base.BktName)
+
+				err := kvStore.Update(context.TODO(), func(tx kv.Tx) error {
+					entCopy := newFooEnt(expected.ID, expected.OrgID, expected.Name)
+					return base.Put(context.TODO(), tx, entCopy, kv.PutNew())
+				})
+				require.Error(t, err)
+				assert.Equal(t, influxdb.EConflict, influxdb.ErrorCode(err))
+			})
+		})
+
+		t.Run("updating entity that does not exist", func(t *testing.T) {
+			base, done, kvStore := newFooStoreBase(t, "put")
+			defer done()
+
+			expected := testPutBase(t, kvStore, base, base.BktName)
+
+			err := kvStore.Update(context.TODO(), func(tx kv.Tx) error {
+				// ent by id does not exist
+				entCopy := newFooEnt(333, expected.OrgID, "name1")
+				return base.Put(context.TODO(), tx, entCopy, kv.PutUpdate())
+			})
+			require.Error(t, err)
+			assert.Equal(t, influxdb.ENotFound, influxdb.ErrorCode(err))
+		})
 	})
 
 	t.Run("DeleteEnt", func(t *testing.T) {
-		base, done, inmemStore := newFooStoreBase(t, "delete_ent")
+		base, done, kvStore := newFooStoreBase(t, "delete_ent")
 		defer done()
 
-		testDeleteEntBase(t, inmemStore, base)
+		testDeleteEntBase(t, kvStore, base)
 	})
 
 	t.Run("Delete", func(t *testing.T) {
@@ -55,10 +130,10 @@ func TestStoreBase(t *testing.T) {
 	})
 
 	t.Run("FindEnt", func(t *testing.T) {
-		base, done, inmemStore := newFooStoreBase(t, "find_ent")
+		base, done, kvStore := newFooStoreBase(t, "find_ent")
 		defer done()
 
-		testFindEnt(t, inmemStore, base)
+		testFindEnt(t, kvStore, base)
 	})
 
 	t.Run("Find", func(t *testing.T) {
@@ -150,17 +225,17 @@ func testDeleteBase(t *testing.T, fn func(t *testing.T, suffix string) (storeBas
 		fn := func(t *testing.T) {
 			t.Helper()
 
-			base, done, inmemStore := fn(t, "delete")
+			base, done, kvStore := fn(t, "delete")
 			defer done()
 
-			seedEnts(t, inmemStore, base, expectedEnts...)
+			seedEnts(t, kvStore, base, expectedEnts...)
 
-			update(t, inmemStore, func(tx kv.Tx) error {
+			update(t, kvStore, func(tx kv.Tx) error {
 				return base.Delete(context.TODO(), tx, tt.opts)
 			})
 
 			var actuals []interface{}
-			view(t, inmemStore, func(tx kv.Tx) error {
+			view(t, kvStore, func(tx kv.Tx) error {
 				return base.Find(context.TODO(), tx, kv.FindOpts{
 					CaptureFn: func(key []byte, decodedVal interface{}) error {
 						actuals = append(actuals, decodedVal)
@@ -179,7 +254,7 @@ func testDeleteBase(t *testing.T, fn func(t *testing.T, suffix string) (storeBas
 			}
 
 			for _, assertFn := range assertFns {
-				assertFn(t, inmemStore, base, entsLeft)
+				assertFn(t, kvStore, base, entsLeft)
 			}
 		}
 		t.Run(tt.name, fn)
@@ -297,7 +372,7 @@ type storeBase interface {
 	DeleteEnt(ctx context.Context, tx kv.Tx, ent kv.Entity) error
 	FindEnt(ctx context.Context, tx kv.Tx, ent kv.Entity) (interface{}, error)
 	Find(ctx context.Context, tx kv.Tx, opts kv.FindOpts) error
-	Put(ctx context.Context, tx kv.Tx, ent kv.Entity) error
+	Put(ctx context.Context, tx kv.Tx, ent kv.Entity, opts ...kv.PutOptionFn) error
 }
 
 func seedEnts(t *testing.T, kvStore kv.Store, store storeBase, ents ...kv.Entity) {
