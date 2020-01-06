@@ -390,7 +390,7 @@ describe('DataExplorer', () => {
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
     })
 
-    it.only('imports the appropriate packages to build a query', () => {
+    it('imports the appropriate packages to build a query', () => {
       cy.getByTestID('functions-toolbar-tab').click()
 
       cy.getByTestID('flux-function from').click()
