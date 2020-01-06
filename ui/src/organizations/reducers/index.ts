@@ -29,7 +29,7 @@ const {Orgs} = ResourceType
 type OrgsState = ResourceState['orgs']
 
 const initialState = (): OrgsState => ({
-  byID: null,
+  byID: {},
   allIDs: [],
   status: RemoteDataState.NotStarted,
   org: null,

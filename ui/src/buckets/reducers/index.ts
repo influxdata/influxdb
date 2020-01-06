@@ -24,7 +24,7 @@ type BucketsState = ResourceState['buckets']
 
 const initialState = (): BucketsState => ({
   status: RemoteDataState.NotStarted,
-  byID: null,
+  byID: {},
   allIDs: [],
 })
 

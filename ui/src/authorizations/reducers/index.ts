@@ -29,7 +29,7 @@ const {Authorizations} = ResourceType
 
 const initialState = (): AuthsState => ({
   status: RemoteDataState.NotStarted,
-  byID: null,
+  byID: {},
   allIDs: [],
 })
 

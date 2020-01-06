@@ -21,7 +21,7 @@ const {Members} = ResourceType
 export type MembersState = ResourceState['members']
 
 const initialState = (): MembersState => ({
-  byID: null,
+  byID: {},
   allIDs: [],
   status: RemoteDataState.NotStarted,
 })

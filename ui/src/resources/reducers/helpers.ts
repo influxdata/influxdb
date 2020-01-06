@@ -27,9 +27,9 @@ export const addResource = <R>(
   resource: ResourceType
 ) => {
   const {result, entities} = action.schema
-  const bucket = entities[resource][result]
+  const r = entities[resource][result]
 
-  draftState.byID[result] = bucket
+  draftState.byID[result] = r
   draftState.allIDs.push(result)
 }
 
