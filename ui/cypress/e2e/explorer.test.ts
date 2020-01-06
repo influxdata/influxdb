@@ -349,7 +349,7 @@ describe('DataExplorer', () => {
     })
   })
 
-  describe.skip('raw script editing', () => {
+  describe('raw script editing', () => {
     beforeEach(() => {
       cy.getByTestID('switch-to-script-editor').click()
     })
