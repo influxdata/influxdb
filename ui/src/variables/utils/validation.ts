@@ -1,4 +1,4 @@
-import {Variable} from '@influxdata/influx'
+import {Variable} from 'src/types'
 import {
   TIME_RANGE_START,
   TIME_RANGE_STOP,

@@ -6,7 +6,7 @@ import {hydrateVars} from 'src/variables/utils/hydrateVars'
 import {createMapVariable, createVariable} from 'src/variables/mocks'
 
 // Types
-import {CancellationError} from 'src/types/promises'
+import {Variable, CancellationError} from 'src/types'
 
 class FakeFetcher implements ValueFetcher {
   responses = {}
@@ -179,7 +179,7 @@ describe('hydrate vars', () => {
   test('works with map template variables', async () => {
     const a = createVariable('a', 'f(x: v.b)')
 
-    const b = {
+    const b: Variable = {
       id: 'b',
       name: 'b',
       orgID: '',
@@ -221,7 +221,7 @@ describe('hydrate vars', () => {
   test('works with constant template variables', async () => {
     const a = createVariable('a', 'f(x: v.b)')
 
-    const b = {
+    const b: Variable = {
       id: 'b',
       name: 'b',
       orgID: '',

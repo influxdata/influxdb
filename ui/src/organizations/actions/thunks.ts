@@ -56,7 +56,10 @@ export const getOrganizations = () => async (
 
     const {orgs} = resp.data
 
-    const organizations = normalize<Organization, OrgEntities, string[]>(orgs, schemas.arrayOfOrgs)
+    const organizations = normalize<Organization, OrgEntities, string[]>(
+      orgs,
+      schemas.arrayOfOrgs
+    )
 
     dispatch(setOrgs(RemoteDataState.Done, organizations))
 

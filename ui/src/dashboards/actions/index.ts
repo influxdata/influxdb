@@ -15,6 +15,7 @@ import {
   getView as getViewAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis'
+import {getVariables as apiGetVariables} from 'src/client'
 import {createDashboardFromTemplate as createDashboardFromTemplateAJAX} from 'src/templates/api'
 
 // Actions
@@ -37,6 +38,7 @@ import {setExportTemplate} from 'src/templates/actions'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
 
 // Utils
+import {addVariableDefaults} from 'src/variables/actions'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {
   extractVariablesList,
@@ -573,9 +575,13 @@ export const convertToTemplate = (dashboardID: string) => async (
       getViewAJAX(dashboardID, c.id)
     )
     const views = await Promise.all(pendingViews)
-    const allVariables = await client.variables.getAll(org.id)
-    const variables = filterUnusedVars(allVariables, views)
-    const exportedVariables = exportVariables(variables, allVariables)
+    const resp = await apiGetVariables({query: {orgID: org.id}})
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+    const vars = resp.data.variables.map(v => addVariableDefaults(v))
+    const variables = filterUnusedVars(vars, views)
+    const exportedVariables = exportVariables(variables, vars)
     const dashboardTemplate = dashboardToTemplate(
       dashboard,
       views,

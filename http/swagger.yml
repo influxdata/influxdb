@@ -4805,7 +4805,7 @@ paths:
             schema:
               $ref: "#/components/schemas/LabelMapping"
       responses:
-        '200':
+        '201':
           description: A list of all labels for a task
           content:
             application/json:
