@@ -502,7 +502,8 @@ impl Database {
             }
 
             // now that we have the mutex on series, make sure these weren't inserted in some other thread
-            if let Some(_) = self.get_series_id(&cf_name, &series.point.series()) {
+            if let Some(id) = self.get_series_id(&cf_name, &series.point.series()) {
+                series.id = Some(id);
                 continue;
             }
 
