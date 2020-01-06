@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Utils
-import {updateVariable, deleteVariable} from 'src/variables/actions'
+import {deleteVariable} from 'src/variables/actions'
 import {extractVariablesList} from 'src/variables/selectors'
 
 // Components
@@ -15,13 +15,11 @@ import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader
 import VariableList from 'src/variables/components/VariableList'
 import FilterList from 'src/shared/components/Filter'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 import {Sort} from '@influxdata/clockface'
 
 // Types
-import {OverlayState} from 'src/types'
-import {AppState} from 'src/types'
-import {IVariable as Variable} from '@influxdata/influx'
+import {AppState, OverlayState, ResourceType, Variable} from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 
@@ -30,7 +28,6 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onUpdateVariable: typeof updateVariable
   onDeleteVariable: typeof deleteVariable
 }
 
@@ -84,7 +81,6 @@ class VariablesTab extends PureComponent<Props, State> {
                 variables={variables}
                 emptyState={this.emptyState}
                 onDeleteVariable={this.handleDeleteVariable}
-                onUpdateVariable={this.handleUpdateVariable}
                 onFilterChange={this.handleFilterUpdate}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
@@ -154,15 +150,8 @@ class VariablesTab extends PureComponent<Props, State> {
     router.push(`/orgs/${orgID}/settings/variables/new`)
   }
 
-  private handleUpdateVariable = (variable: Partial<Variable>): void => {
-    const {onUpdateVariable} = this.props
-
-    onUpdateVariable(variable.id, variable)
-  }
-
   private handleDeleteVariable = (variable: Variable): void => {
     const {onDeleteVariable} = this.props
-
     onDeleteVariable(variable.id)
   }
 }
@@ -174,7 +163,6 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  onUpdateVariable: updateVariable,
   onDeleteVariable: deleteVariable,
 }
 

@@ -18,38 +18,6 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-func TestInmemTaskService(t *testing.T) {
-	servicetest.TestTaskService(
-		t,
-		func(t *testing.T) (*servicetest.System, context.CancelFunc) {
-			store, close, err := NewTestInmemStore(t)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			service := kv.NewService(zaptest.NewLogger(t), store)
-			ctx, cancelFunc := context.WithCancel(context.Background())
-
-			if err := service.Initialize(ctx); err != nil {
-				t.Fatalf("error initializing urm service: %v", err)
-			}
-
-			go func() {
-				<-ctx.Done()
-				close()
-			}()
-
-			return &servicetest.System{
-				TaskControlService: service,
-				TaskService:        service,
-				I:                  service,
-				Ctx:                ctx,
-			}, cancelFunc
-		},
-		"transactional",
-	)
-}
-
 func TestBoltTaskService(t *testing.T) {
 	servicetest.TestTaskService(
 		t,
@@ -79,106 +47,6 @@ func TestBoltTaskService(t *testing.T) {
 		},
 		"transactional",
 	)
-}
-
-func TestNextRunDue(t *testing.T) {
-	store, close, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer close()
-
-	service := kv.NewService(zaptest.NewLogger(t), store)
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	if err := service.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing urm service: %v", err)
-	}
-	defer cancelFunc()
-	u := &influxdb.User{Name: t.Name() + "-user"}
-	if err := service.CreateUser(ctx, u); err != nil {
-		t.Fatal(err)
-	}
-	o := &influxdb.Organization{Name: t.Name() + "-org"}
-	if err := service.CreateOrganization(ctx, o); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := service.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
-		ResourceType: influxdb.OrgsResourceType,
-		ResourceID:   o.ID,
-		UserID:       u.ID,
-		UserType:     influxdb.Owner,
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	authz := influxdb.Authorization{
-		OrgID:       o.ID,
-		UserID:      u.ID,
-		Permissions: influxdb.OperPermissions(),
-	}
-	if err := service.CreateAuthorization(context.Background(), &authz); err != nil {
-		t.Fatal(err)
-	}
-
-	ctx = icontext.SetAuthorizer(ctx, &authz)
-
-	task1, err := service.CreateTask(ctx, influxdb.TaskCreate{
-		Flux:           `option task = {name: "a task",cron: "0 * * * *", offset: 20s} from(bucket:"test") |> range(start:-1h)`,
-		OrganizationID: o.ID,
-		OwnerID:        u.ID,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	task2, err := service.CreateTask(ctx, influxdb.TaskCreate{
-		Flux:           `option task = {name: "a task",every: 1h, offset: 20s} from(bucket:"test") |> range(start:-1h)`,
-		OrganizationID: o.ID,
-		OwnerID:        u.ID,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	task3, err := service.CreateTask(ctx, influxdb.TaskCreate{
-		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
-		OrganizationID: o.ID,
-		OwnerID:        u.ID,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, task := range []*influxdb.Task{task1, task2, task3} {
-		nd, err := service.NextDueRun(ctx, task.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		run, err := service.CreateNextRun(ctx, task.ID, time.Now().Add(time.Hour).Unix())
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// +20 to account for the 20 second offset in the flux script
-		oldNextDue := run.Created.Now
-		if task.Offset != 0 {
-			oldNextDue += 20
-		}
-		if oldNextDue != nd {
-			t.Fatalf("expected nextRunDue and created run to match, %d, %d", nd, run.Created.Now)
-		}
-		nd1, err := service.NextDueRun(ctx, task.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if run.NextDue != nd1 {
-			t.Fatalf("expected returned next run to be the same as teh next due after scheduling %d, %d", run.NextDue, nd1)
-		}
-	}
-
 }
 
 type testService struct {
@@ -422,16 +290,16 @@ func TestTaskRunCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	run, err := service.CreateNextRun(ctx, task.ID, time.Now().Add(time.Hour).Unix())
+	run, err := service.CreateRun(ctx, task.ID, time.Now().Add(time.Hour), time.Now().Add(time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := service.CancelRun(ctx, run.Created.TaskID, run.Created.RunID); err != nil {
+	if err := service.CancelRun(ctx, run.TaskID, run.ID); err != nil {
 		t.Fatal(err)
 	}
 
-	canceled, err := service.FindRunByID(ctx, run.Created.TaskID, run.Created.RunID)
+	canceled, err := service.FindRunByID(ctx, run.TaskID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

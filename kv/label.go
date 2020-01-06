@@ -274,7 +274,7 @@ func (s *Service) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 			return err
 		}
 
-		if err := s.createLabelUserResourceMappings(ctx, tx, l); err != nil {
+		if err := s.createUserResourceMappingForOrg(ctx, tx, l.OrgID, l.ID, influxdb.LabelsResourceType); err != nil {
 			return err
 		}
 
@@ -301,13 +301,13 @@ func (s *Service) PutLabel(ctx context.Context, l *influxdb.Label) error {
 	})
 }
 
-func (s *Service) createLabelUserResourceMappings(ctx context.Context, tx Tx, l *influxdb.Label) error {
+func (s *Service) createUserResourceMappingForOrg(ctx context.Context, tx Tx, orgID influxdb.ID, resID influxdb.ID, resType influxdb.ResourceType) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	ms, err := s.findUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
 		ResourceType: influxdb.OrgsResourceType,
-		ResourceID:   l.OrgID,
+		ResourceID:   orgID,
 	})
 	if err != nil {
 		return &influxdb.Error{
@@ -317,8 +317,8 @@ func (s *Service) createLabelUserResourceMappings(ctx context.Context, tx Tx, l 
 
 	for _, m := range ms {
 		if err := s.createUserResourceMapping(ctx, tx, &influxdb.UserResourceMapping{
-			ResourceType: influxdb.LabelsResourceType,
-			ResourceID:   l.ID,
+			ResourceType: resType,
+			ResourceID:   resID,
 			UserID:       m.UserID,
 			UserType:     m.UserType,
 		}); err != nil {

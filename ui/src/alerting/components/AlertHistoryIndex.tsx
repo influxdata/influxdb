@@ -8,6 +8,7 @@ import EventViewer from 'src/eventViewer/components/EventViewer'
 import EventTable from 'src/eventViewer/components/EventTable'
 import AlertHistoryControls from 'src/alerting/components/AlertHistoryControls'
 import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryParams'
+import GetResources from 'src/shared/components/GetResources'
 
 // Constants
 import {
@@ -26,8 +27,7 @@ import {getCheckIDs, getEndpointIDs, getRuleIDs} from 'src/alerting/selectors'
 
 // Types
 import {ResourceIDs} from 'src/alerting/reducers/checks'
-import {AlertHistoryType, AppState} from 'src/types'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import {ResourceType, AlertHistoryType, AppState} from 'src/types'
 
 export const ResourceIDsContext = createContext<ResourceIDs>(null)
 

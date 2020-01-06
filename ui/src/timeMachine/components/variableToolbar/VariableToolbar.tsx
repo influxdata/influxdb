@@ -11,8 +11,7 @@ import VariableItem from 'src/timeMachine/components/variableToolbar/VariableIte
 import {extractVariablesList} from 'src/variables/selectors'
 
 // Types
-import {IVariable as Variable} from '@influxdata/influx'
-import {AppState} from 'src/types'
+import {AppState, Variable} from 'src/types'
 
 interface OwnProps {
   onClickVariable: (variableName: string) => void

@@ -1,5 +1,3 @@
-import _ from 'lodash'
-
 // Utils
 import {templateToExport} from 'src/shared/utils/resourceToTemplate'
 
@@ -12,7 +10,6 @@ import {
   ITaskTemplate,
   TemplateType,
   ITemplate,
-  ILabel as Label,
 } from '@influxdata/influx'
 import {
   RemoteDataState,
@@ -20,12 +17,13 @@ import {
   DashboardTemplate,
   VariableTemplate,
   Template,
+  Label,
 } from 'src/types'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 
-// constants
+// Constants
 import * as copy from 'src/shared/copy/notifications'
 
 // API
@@ -33,6 +31,9 @@ import {client} from 'src/utils/api'
 import {createDashboardFromTemplate} from 'src/dashboards/actions'
 import {createVariableFromTemplate} from 'src/variables/actions'
 import {createTaskFromTemplate} from 'src/tasks/actions'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
 
 export enum ActionTypes {
   GetTemplateSummariesForOrg = 'GET_TEMPLATE_SUMMARIES_FOR_ORG',
@@ -117,9 +118,7 @@ export const getTemplateByID = async (id: string) => {
 }
 
 export const getTemplates = () => async (dispatch, getState: GetState) => {
-  const {
-    orgs: {org},
-  } = getState()
+  const org = getOrg(getState())
   dispatch(setTemplatesStatus(RemoteDataState.Loading))
   const items = await client.templates.getAll(org.id)
   dispatch(populateTemplateSummaries(items))
@@ -130,10 +129,7 @@ export const createTemplate = (template: DocumentCreate) => async (
   getState: GetState
 ) => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
-
+    const org = getOrg(getState())
     await client.templates.create({...template, orgID: org.id})
     dispatch(notify(copy.importTemplateSucceeded()))
   } catch (e) {
@@ -147,10 +143,7 @@ export const createTemplateFromResource = (
   resourceName: string
 ) => async (dispatch, getState: GetState) => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
-
+    const org = getOrg(getState())
     await client.templates.create({...resource, orgID: org.id})
     dispatch(notify(copy.resourceSavedAsTemplate(resourceName)))
   } catch (e) {
@@ -224,10 +217,7 @@ export const cloneTemplate = (templateID: string) => async (
   getState: GetState
 ): Promise<void> => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
-
+    const org = getOrg(getState())
     const createdTemplate = await client.templates.clone(templateID, org.id)
 
     dispatch(

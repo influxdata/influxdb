@@ -37,8 +37,13 @@ func UnmarshalJSON(b []byte) (influxdb.NotificationEndpoint, error) {
 		}
 	}
 	converted := convertedFunc()
-	err := json.Unmarshal(b, converted)
-	return converted, err
+	if err := json.Unmarshal(b, converted); err != nil {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInternal,
+			Err:  err,
+		}
+	}
+	return converted, nil
 }
 
 // Base is the embed struct of every notification endpoint.

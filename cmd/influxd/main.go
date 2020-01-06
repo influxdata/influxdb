@@ -5,6 +5,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/generate"
@@ -20,7 +21,7 @@ import (
 var (
 	version = "dev"
 	commit  = "none"
-	date    = "unknown"
+	date    = fmt.Sprint(time.Now().UTC().Format(time.RFC3339))
 )
 
 var rootCmd = &cobra.Command{

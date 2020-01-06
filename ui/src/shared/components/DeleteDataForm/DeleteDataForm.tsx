@@ -29,6 +29,7 @@ import {Filter, RemoteDataState, CustomTimeRange, AppState} from 'src/types'
 
 // Selectors
 import {setCanDelete} from 'src/shared/selectors/canDelete'
+import {getOrg} from 'src/organizations/selectors'
 
 // Actions
 import {
@@ -260,7 +261,8 @@ const DeleteDataForm: FC<Props> = ({
   )
 }
 
-const mstp = ({predicates, orgs}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {predicates} = state
   const {
     bucketName,
     deletionStatus,
@@ -272,8 +274,6 @@ const mstp = ({predicates, orgs}: AppState): StateProps => {
     values,
   } = predicates
 
-  const orgID = orgs.org.id
-
   return {
     bucketName,
     canDelete: setCanDelete(predicates),
@@ -284,7 +284,7 @@ const mstp = ({predicates, orgs}: AppState): StateProps => {
     keys,
     timeRange,
     values,
-    orgID,
+    orgID: getOrg(state).id,
   }
 }
 

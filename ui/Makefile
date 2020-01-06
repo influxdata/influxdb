@@ -10,7 +10,7 @@ node_modules:
 
 e2e: node_modules
 	yarn generate
-	yarn test:junit
+	yarn test:e2e
 
 build: node_modules $(UISOURCES)
 	yarn build

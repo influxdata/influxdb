@@ -14,25 +14,8 @@ func TestBoltTelegrafService(t *testing.T) {
 	influxdbtesting.TelegrafConfigStore(initBoltTelegrafService, t)
 }
 
-func TestInmemTelegrafService(t *testing.T) {
-	influxdbtesting.TelegrafConfigStore(initInmemTelegrafService, t)
-}
-
 func initBoltTelegrafService(f influxdbtesting.TelegrafConfigFields, t *testing.T) (influxdb.TelegrafConfigStore, func()) {
 	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, closeSvc := initTelegrafService(s, f, t)
-	return svc, func() {
-		closeSvc()
-		closeBolt()
-	}
-}
-
-func initInmemTelegrafService(f influxdbtesting.TelegrafConfigFields, t *testing.T) (influxdb.TelegrafConfigStore, func()) {
-	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}

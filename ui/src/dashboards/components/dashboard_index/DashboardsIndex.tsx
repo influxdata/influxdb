@@ -13,7 +13,7 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
 // Utils
@@ -29,7 +29,7 @@ import {
 } from 'src/dashboards/actions'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 import {ComponentStatus} from '@influxdata/clockface'
 

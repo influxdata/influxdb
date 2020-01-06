@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/pkg/testing/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -472,7 +475,7 @@ func FindVariableByID(init func(VariableFields, *testing.T) (platform.VariableSe
 		id platform.ID
 	}
 	type wants struct {
-		err      error
+		err      *platform.Error
 		variable *platform.Variable
 	}
 
@@ -555,12 +558,21 @@ func FindVariableByID(init func(VariableFields, *testing.T) (platform.VariableSe
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			variable, err := s.FindVariableByID(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			if err != nil {
+				if tt.wants.err == nil {
+					require.NoError(t, err)
+				}
+				iErr, ok := err.(*platform.Error)
+				require.True(t, ok)
+				assert.Equal(t, iErr.Code, tt.wants.err.Code)
+				assert.Equal(t, strings.HasPrefix(iErr.Error(), tt.wants.err.Error()), true)
+				return
+			}
 
 			if diff := cmp.Diff(variable, tt.wants.variable); diff != "" {
 				t.Fatalf("found unexpected variable -got/+want\ndiff %s", diff)
@@ -757,7 +769,9 @@ func FindVariables(init func(VariableFields, *testing.T) (platform.VariableServi
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.Background()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
 
 			filter := platform.VariableFilter{}
 			if tt.args.orgID != nil {
@@ -781,7 +795,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 		update *platform.VariableUpdate
 	}
 	type wants struct {
-		err       error
+		err       *platform.Error
 		variables []*platform.Variable
 	}
 
@@ -958,7 +972,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 			},
 		},
 		{
-			name: "trims the variable name, but updating fails when variable name already exists",
+			name: "trims the variable name but updating fails when variable name already exists",
 			fields: VariableFields{
 				TimeGenerator: fakeGenerator,
 				Variables: []*platform.Variable{
@@ -1036,12 +1050,21 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			variable, err := s.UpdateVariable(ctx, tt.args.id, tt.args.update)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			if err != nil {
+				if tt.wants.err == nil {
+					require.NoError(t, err)
+				}
+				iErr, ok := err.(*platform.Error)
+				require.True(t, ok)
+				assert.Equal(t, iErr.Code, tt.wants.err.Code)
+				assert.Equal(t, strings.HasPrefix(iErr.Error(), tt.wants.err.Error()), true)
+				return
+			}
 
 			if variable != nil {
 				if tt.args.update.Name != "" && variable.Name != tt.args.update.Name {
@@ -1066,7 +1089,7 @@ func DeleteVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 		id platform.ID
 	}
 	type wants struct {
-		err       error
+		err       *platform.Error
 		variables []*platform.Variable
 	}
 
@@ -1152,16 +1175,26 @@ func DeleteVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
-			err := s.DeleteVariable(ctx, tt.args.id)
 			defer s.ReplaceVariable(ctx, &platform.Variable{
 				ID:             tt.args.id,
 				OrganizationID: platform.ID(1),
 			})
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+
+			err := s.DeleteVariable(ctx, tt.args.id)
+			if err != nil {
+				if tt.wants.err == nil {
+					require.NoError(t, err)
+				}
+				iErr, ok := err.(*platform.Error)
+				require.True(t, ok)
+				assert.Equal(t, iErr.Code, tt.wants.err.Code)
+				assert.Equal(t, strings.HasPrefix(iErr.Error(), tt.wants.err.Error()), true)
+				return
+			}
 
 			variables, err := s.FindVariables(ctx, platform.VariableFilter{})
 			if err != nil {

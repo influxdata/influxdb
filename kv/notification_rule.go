@@ -109,7 +109,7 @@ func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb
 }
 
 func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRuleCreate) (*influxdb.Task, error) {
-	ep, _, _, err := s.findNotificationEndpointByID(tx, r.GetEndpointID())
+	ep, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.
 }
 
 func (s *Service) updateNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRule, status *string) (*influxdb.Task, error) {
-	ep, _, _, err := s.findNotificationEndpointByID(tx, r.GetEndpointID())
+	ep, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
 	}
@@ -435,15 +435,11 @@ func (s *Service) forEachNotificationRule(ctx context.Context, tx Tx, descending
 	return nil
 }
 
-func filterNotificationRulesFn(
-	idMap map[influxdb.ID]bool,
-	filter influxdb.NotificationRuleFilter) func(nr influxdb.NotificationRule) bool {
+func filterNotificationRulesFn(idMap map[influxdb.ID]bool, filter influxdb.NotificationRuleFilter) func(nr influxdb.NotificationRule) bool {
 	if filter.OrgID != nil {
 		return func(nr influxdb.NotificationRule) bool {
-			for _, ft := range filter.Tags {
-				if !nr.HasTag(ft.Key, ft.Value) {
-					return false
-				}
+			if !nr.MatchesTags(filter.Tags) {
+				return false
 			}
 
 			_, ok := idMap[nr.GetID()]
@@ -452,10 +448,8 @@ func filterNotificationRulesFn(
 	}
 
 	return func(nr influxdb.NotificationRule) bool {
-		for _, ft := range filter.Tags {
-			if !nr.HasTag(ft.Key, ft.Value) {
-				return false
-			}
+		if !nr.MatchesTags(filter.Tags) {
+			return false
 		}
 
 		_, ok := idMap[nr.GetID()]

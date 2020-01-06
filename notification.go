@@ -30,7 +30,7 @@ type NotificationRule interface {
 	GetEndpointID() ID
 	GetLimit() *Limit
 	GenerateFlux(NotificationEndpoint) (string, error)
-	HasTag(key, value string) bool
+	MatchesTags(tags []Tag) bool
 }
 
 // NotificationRuleStore represents a service for managing notification rule.

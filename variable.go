@@ -140,7 +140,7 @@ func (u *VariableUpdate) Valid() error {
 }
 
 // Apply applies non-zero fields from a VariableUpdate to a Variable
-func (u *VariableUpdate) Apply(m *Variable) error {
+func (u *VariableUpdate) Apply(m *Variable) {
 	if u.Name != "" {
 		m.Name = u.Name
 	}
@@ -156,8 +156,6 @@ func (u *VariableUpdate) Apply(m *Variable) error {
 	if u.Description != "" {
 		m.Description = u.Description
 	}
-
-	return nil
 }
 
 // UnmarshalJSON unmarshals json into a VariableArguments struct, using the `Type`

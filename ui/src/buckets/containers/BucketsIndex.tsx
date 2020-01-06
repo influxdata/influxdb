@@ -7,7 +7,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
 import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import BucketsTab from 'src/buckets/components/BucketsTab'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import LimitChecker from 'src/cloud/components/LimitChecker'
 import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
@@ -24,9 +24,10 @@ import {
   extractRateLimitStatus,
 } from 'src/cloud/utils/limits'
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {getOrg} from 'src/organizations/selectors'
 
 // Types
-import {AppState, Organization} from 'src/types'
+import {AppState, Organization, ResourceType} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 
 interface StateProps {
@@ -80,7 +81,11 @@ class BucketsIndex extends Component<StateProps> {
   }
 }
 
-const mstp = ({orgs: {org}, cloud: {limits}}: AppState) => {
+const mstp = (state: AppState) => {
+  const {
+    cloud: {limits},
+  } = state
+  const org = getOrg(state)
   const limitedResources = extractRateLimitResources(limits)
   const limitStatus = extractRateLimitStatus(limits)
 

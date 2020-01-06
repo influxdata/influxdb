@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/pkg/testing/assert"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/notification"
@@ -335,5 +336,172 @@ func TestJSON(t *testing.T) {
 		if diff := cmp.Diff(got, c.src); diff != "" {
 			t.Errorf("failed %s, notification rule are different -got/+want\ndiff %s", c.name, diff)
 		}
+	}
+}
+
+func TestMatchingRules(t *testing.T) {
+	cases := []struct {
+		name       string
+		tagRules   []notification.TagRule
+		filterTags []influxdb.Tag
+		exp        bool
+	}{
+		{
+			name: "Matches when tagrules and filterTags are the same. ",
+			tagRules: []notification.TagRule{
+				{
+					Tag: influxdb.Tag{
+						Key:   "a",
+						Value: "b",
+					},
+					Operator: influxdb.Equal,
+				},
+				{
+					Tag: influxdb.Tag{
+						Key:   "c",
+						Value: "d",
+					},
+					Operator: influxdb.Equal,
+				},
+			},
+			filterTags: []influxdb.Tag{
+				{Key: "a", Value: "b"},
+				{Key: "c", Value: "d"},
+			},
+			exp: true,
+		},
+		{
+			name: "Matches when tagrules are subset of filterTags. ",
+			tagRules: []notification.TagRule{
+				{
+					Tag: influxdb.Tag{
+						Key:   "a",
+						Value: "b",
+					},
+					Operator: influxdb.Equal,
+				},
+				{
+					Tag: influxdb.Tag{
+						Key:   "c",
+						Value: "d",
+					},
+					Operator: influxdb.Equal,
+				},
+			},
+			filterTags: []influxdb.Tag{
+				{Key: "a", Value: "b"},
+				{Key: "c", Value: "d"},
+				{Key: "e", Value: "f"},
+			},
+			exp: true,
+		},
+		{
+			name: "Does not match when filterTags are missing tags that are in tag rules.",
+			tagRules: []notification.TagRule{
+				{
+					Tag: influxdb.Tag{
+						Key:   "a",
+						Value: "b",
+					},
+					Operator: influxdb.Equal,
+				},
+				{
+					Tag: influxdb.Tag{
+						Key:   "c",
+						Value: "d",
+					},
+					Operator: influxdb.Equal,
+				},
+			},
+			filterTags: []influxdb.Tag{
+				{Key: "a", Value: "b"},
+			},
+			exp: false,
+		},
+		{
+			name: "Does not match when tagrule has key value pair that does not match value of same key in filterTags",
+			tagRules: []notification.TagRule{
+				{
+					Tag: influxdb.Tag{
+						Key:   "a",
+						Value: "b",
+					},
+					Operator: influxdb.Equal,
+				},
+				{
+					Tag: influxdb.Tag{
+						Key:   "c",
+						Value: "d",
+					},
+					Operator: influxdb.Equal,
+				},
+			},
+			filterTags: []influxdb.Tag{
+				{Key: "a", Value: "b"},
+				{Key: "c", Value: "X"},
+			},
+			exp: false,
+		},
+		{
+			name: "Match when tagrule has key value pair that does not match value of same key in filterTags, if tagrule has notEqual operator",
+			tagRules: []notification.TagRule{
+				{
+					Tag: influxdb.Tag{
+						Key:   "a",
+						Value: "b",
+					},
+					Operator: influxdb.Equal,
+				},
+				{
+					Tag: influxdb.Tag{
+						Key:   "c",
+						Value: "d",
+					},
+					Operator: influxdb.NotEqual,
+				},
+			},
+			filterTags: []influxdb.Tag{
+				{Key: "a", Value: "b"},
+				{Key: "c", Value: "X"},
+			},
+			exp: true,
+		},
+		{
+			name:     "Empty tag rule matches filterTags",
+			tagRules: []notification.TagRule{},
+			filterTags: []influxdb.Tag{
+				{Key: "a", Value: "b"},
+				{Key: "c", Value: "X"},
+			},
+			exp: true,
+		},
+		{
+			name: "Non empty tag rule matches empty filter tags",
+			tagRules: []notification.TagRule{
+				{
+					Tag: influxdb.Tag{
+						Key:   "c",
+						Value: "d",
+					},
+					Operator: influxdb.NotEqual,
+				},
+			},
+			filterTags: []influxdb.Tag{},
+			exp:        true,
+		},
+		{
+			name:       "Empty tag rule matches empty filter tags",
+			tagRules:   []notification.TagRule{},
+			filterTags: []influxdb.Tag{},
+			exp:        true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+
+			r := rule.Base{TagRules: c.tagRules}
+
+			assert.Equal(t, r.MatchesTags(c.filterTags), c.exp, "expected NR tags to be subset of filterTags")
+		})
 	}
 }

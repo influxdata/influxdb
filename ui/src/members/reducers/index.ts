@@ -2,19 +2,29 @@
 import {produce} from 'immer'
 
 // Types
-import {RemoteDataState} from 'src/types'
-import {Action} from 'src/members/actions'
-import {Member} from 'src/types'
+import {Member, RemoteDataState, ResourceState, ResourceType} from 'src/types'
+import {
+  Action,
+  SET_MEMBERS,
+  ADD_MEMBER,
+  REMOVE_MEMBER,
+} from 'src/members/actions/creators'
+
+// Utils
+import {
+  setResource,
+  addResource,
+  removeResource,
+} from 'src/resources/reducers/helpers'
+
+const {Members} = ResourceType
+export type MembersState = ResourceState['members']
 
 const initialState = (): MembersState => ({
+  byID: {},
+  allIDs: [],
   status: RemoteDataState.NotStarted,
-  list: [],
 })
-
-export interface MembersState {
-  status: RemoteDataState
-  list: Member[]
-}
 
 export const membersReducer = (
   state: MembersState = initialState(),
@@ -22,35 +32,21 @@ export const membersReducer = (
 ): MembersState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_MEMBERS': {
-        const {status, list} = action.payload
-
-        draftState.status = status
-
-        if (list) {
-          draftState.list = list
-        }
+      case SET_MEMBERS: {
+        setResource<Member>(draftState, action, Members)
 
         return
       }
 
-      case 'ADD_MEMBER': {
-        const {member} = action.payload
-
-        draftState.list.push(member)
+      case ADD_MEMBER: {
+        addResource<Member>(draftState, action, Members)
 
         return
       }
 
-      case 'REMOVE_MEMBER': {
-        const {id} = action.payload
-        const {list} = draftState
+      case REMOVE_MEMBER: {
+        removeResource<Member>(draftState, action)
 
-        const deleted = list.filter(l => {
-          return l.id !== id
-        })
-
-        draftState.list = deleted
         return
       }
     }

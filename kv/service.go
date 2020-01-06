@@ -36,6 +36,10 @@ type Service struct {
 	// TODO(desa:ariel): this should not be embedded
 	influxdb.TimeGenerator
 	Hash Crypt
+
+	checkStore    *IndexStore
+	endpointStore *IndexStore
+	variableStore *IndexStore
 }
 
 // NewService returns an instance of a Service.
@@ -49,6 +53,9 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		Hash:           &Bcrypt{},
 		kv:             kv,
 		TimeGenerator:  influxdb.RealTimeGenerator{},
+		checkStore:     newCheckStore(),
+		endpointStore:  newEndpointStore(),
+		variableStore:  newVariableStore(),
 	}
 
 	if len(configs) > 0 {
@@ -138,19 +145,24 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
-		if err := s.initializeVariables(ctx, tx); err != nil {
+		if err := s.variableStore.Init(ctx, tx); err != nil {
 			return err
 		}
 
-		if err := s.initializeChecks(ctx, tx); err != nil {
+		if err := s.initializeVariablesOrgIndex(tx); err != nil {
 			return err
+		}
+
+		if err := s.checkStore.Init(ctx, tx); err != nil {
+			return err
+
 		}
 
 		if err := s.initializeNotificationRule(ctx, tx); err != nil {
 			return err
 		}
 
-		if err := s.initializeNotificationEndpoint(ctx, tx); err != nil {
+		if err := s.endpointStore.Init(ctx, tx); err != nil {
 			return err
 		}
 

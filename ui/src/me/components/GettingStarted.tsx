@@ -19,6 +19,9 @@ import ExploreGraphic from 'src/me/graphics/ExploreGraphic'
 // Types
 import {AppState} from 'src/types'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 interface StateProps {
   orgID: string
 }
@@ -124,11 +127,8 @@ const GettingStarted: FunctionComponent<Props> = ({orgID, router}) => {
   )
 }
 
-const mstp = ({
-  orgs: {
-    org: {id},
-  },
-}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {id} = getOrg(state)
   return {
     orgID: id,
   }

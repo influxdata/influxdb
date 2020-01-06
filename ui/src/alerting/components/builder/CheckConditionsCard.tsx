@@ -13,30 +13,27 @@ import ThresholdConditions from 'src/alerting/components/builder/ThresholdCondit
 import DeadmanConditions from 'src/alerting/components/builder/DeadmanConditions'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 
-// Actions & Selectors
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-
 // Types
-import {Check, AppState} from 'src/types'
+import {CheckType, AppState} from 'src/types'
 
 interface StateProps {
-  check: Partial<Check>
+  checkType: CheckType
 }
 
 type Props = StateProps
 
-const CheckConditionsCard: FC<Props> = ({check}) => {
+const CheckConditionsCard: FC<Props> = ({checkType}) => {
   let cardTitle: string
   let conditionsComponent: JSX.Element
 
-  if (check.type === 'deadman') {
+  if (checkType === 'deadman') {
     cardTitle = 'Deadman'
-    conditionsComponent = <DeadmanConditions check={check} />
-  }
-
-  if (check.type === 'threshold') {
+    conditionsComponent = <DeadmanConditions />
+  } else if (checkType === 'threshold') {
     cardTitle = 'Thresholds'
-    conditionsComponent = <ThresholdConditions check={check} />
+    conditionsComponent = <ThresholdConditions />
+  } else {
+    throw new Error('Incorrect check type provided to <CheckConditionsCard/>')
   }
 
   return (
@@ -58,12 +55,8 @@ const CheckConditionsCard: FC<Props> = ({check}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
-  const {
-    alerting: {check},
-  } = getActiveTimeMachine(state)
-
-  return {check}
+const mstp = ({alertBuilder: {type}}: AppState): StateProps => {
+  return {checkType: type}
 }
 
 export default connect<StateProps, {}, {}>(

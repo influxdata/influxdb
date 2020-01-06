@@ -1,18 +1,23 @@
 // Types
-import {AppState, RemoteDataState} from 'src/types'
-import {ResourceType} from 'src/shared/components/GetResources'
+import {AppState, RemoteDataState, ResourceType} from 'src/types'
 
 export const getResourcesStatus = (
   state: AppState,
   resources: Array<ResourceType>
 ): RemoteDataState => {
   const statuses = resources.map(resource => {
-    if (!state[resource] || !state[resource].status) {
-      throw new Error(
-        `Loading status for resource ${resource} is undefined in getResourcesStatus`
-      )
+    switch (resource) {
+      // Normalized resource statuses
+      case ResourceType.Members:
+      case ResourceType.Buckets:
+      case ResourceType.Authorizations: {
+        return state.resources[resource].status
+      }
+
+      default:
+        // Get status for resources that have not yet been normalized
+        return getStatus(state, resource)
     }
-    return state[resource].status
   })
 
   let status = RemoteDataState.NotStarted
@@ -26,4 +31,14 @@ export const getResourcesStatus = (
   }
 
   return status
+}
+
+const getStatus = (state: AppState, resource: ResourceType) => {
+  if (!state[resource] || !state[resource].status) {
+    throw new Error(
+      `Loading status for resource "${resource}" is undefined in getResourcesStatus`
+    )
+  }
+
+  return state[resource].status
 }

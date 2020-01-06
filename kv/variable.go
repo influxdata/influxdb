@@ -10,16 +10,10 @@ import (
 	"github.com/influxdata/influxdb"
 )
 
-var (
-	variableBucket    = []byte("variablesv1")
-	variableOrgsIndex = []byte("variableorgsv1")
-	variablesIndex    = []byte("variablesindexv1")
-)
+// TODO: eradicate this with migration strategy
+var variableOrgsIndex = []byte("variableorgsv1")
 
-func (s *Service) initializeVariables(ctx context.Context, tx Tx) error {
-	if _, err := tx.Bucket(variableBucket); err != nil {
-		return err
-	}
+func (s *Service) initializeVariablesOrgIndex(tx Tx) error {
 	if _, err := tx.Bucket(variableOrgsIndex); err != nil {
 		return err
 	}
@@ -88,7 +82,34 @@ func (s *Service) findOrganizationVariables(ctx context.Context, tx Tx, orgID in
 	return variables, nil
 }
 
-func (s *Service) findVariables(ctx context.Context, tx Tx, filter influxdb.VariableFilter) ([]*influxdb.Variable, error) {
+func newVariableStore() *IndexStore {
+	const resource = "variable"
+
+	var decodeVarEntFn DecodeBucketValFn = func(key, val []byte) ([]byte, interface{}, error) {
+		var v influxdb.Variable
+		return key, &v, json.Unmarshal(val, &v)
+	}
+
+	var decValToEntFn ConvertValToEntFn = func(_ []byte, i interface{}) (entity Entity, err error) {
+		v, ok := i.(*influxdb.Variable)
+		if err := errUnexpectedDecodeVal(ok); err != nil {
+			return Entity{}, err
+		}
+		return Entity{
+			PK:        EncID(v.ID),
+			UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(v.Name)),
+			Body:      v,
+		}, nil
+	}
+
+	return &IndexStore{
+		Resource:   resource,
+		EntStore:   NewStoreBase(resource, []byte("variablesv1"), EncIDKey, EncBodyJSON, decodeVarEntFn, decValToEntFn),
+		IndexStore: NewOrgNameKeyStore(resource, []byte("variablesindexv1"), true),
+	}
+}
+
+func (s *Service) findVariables(ctx context.Context, tx Tx, filter influxdb.VariableFilter, opt ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
 	if filter.OrganizationID != nil {
 		return s.findOrganizationVariables(ctx, tx, *filter.OrganizationID)
 	}
@@ -101,61 +122,46 @@ func (s *Service) findVariables(ctx context.Context, tx Tx, filter influxdb.Vari
 		return s.findOrganizationVariables(ctx, tx, o.ID)
 	}
 
-	variables := []*influxdb.Variable{}
-	filterFn := filterVariablesFn(filter)
-	err := s.forEachVariable(ctx, tx, func(m *influxdb.Variable) bool {
-		if filterFn(m) {
-			variables = append(variables, m)
-		}
-		return true
-	})
+	var o influxdb.FindOptions
+	if len(opt) > 0 {
+		o = opt[0]
+	}
 
+	// TODO(jsteenb2): investigate why we don't implement the find options for vars?
+	variables := make([]*influxdb.Variable, 0)
+	err := s.variableStore.Find(ctx, tx, FindOpts{
+		Descending:  o.Descending,
+		Limit:       o.Limit,
+		Offset:      o.Offset,
+		FilterEntFn: filterVariablesFn(filter),
+		CaptureFn: func(key []byte, decodedVal interface{}) error {
+			variables = append(variables, decodedVal.(*influxdb.Variable))
+			return nil
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
-
 	return variables, nil
 }
 
-func filterVariablesFn(filter influxdb.VariableFilter) func(m *influxdb.Variable) bool {
-	if filter.ID != nil {
-		return func(m *influxdb.Variable) bool {
-			return m.ID == *filter.ID
+func filterVariablesFn(filter influxdb.VariableFilter) func([]byte, interface{}) bool {
+	return func(key []byte, val interface{}) bool {
+		variable, ok := val.(*influxdb.Variable)
+		if !ok {
+			return false
 		}
-	}
 
-	if filter.OrganizationID != nil {
-		return func(m *influxdb.Variable) bool {
-			return m.OrganizationID == *filter.OrganizationID
+		if filter.ID != nil {
+			return variable.ID == *filter.ID
 		}
-	}
 
-	return func(m *influxdb.Variable) bool { return true }
-}
-
-// forEachVariable will iterate through all variables while fn returns true.
-func (s *Service) forEachVariable(ctx context.Context, tx Tx, fn func(*influxdb.Variable) bool) error {
-	b, err := tx.Bucket(variableBucket)
-	if err != nil {
-		return err
-	}
-
-	cur, err := b.Cursor()
-	if err != nil {
-		return err
-	}
-
-	for k, v := cur.First(); k != nil; k, v = cur.Next() {
-		m := &influxdb.Variable{}
-		if err := json.Unmarshal(v, m); err != nil {
-			return err
+		if filter.OrganizationID != nil {
+			return variable.OrganizationID == *filter.OrganizationID
 		}
-		if !fn(m) {
-			break
-		}
-	}
 
-	return nil
+		return true
+	}
 }
 
 // FindVariables returns all variables in the store
@@ -163,131 +169,163 @@ func (s *Service) FindVariables(ctx context.Context, filter influxdb.VariableFil
 	// todo(leodido) > handle find options
 	res := []*influxdb.Variable{}
 	err := s.kv.View(ctx, func(tx Tx) error {
-		variables, err := s.findVariables(ctx, tx, filter)
+		variables, err := s.findVariables(ctx, tx, filter, opt...)
 		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
 			return err
 		}
 		res = variables
 		return nil
 	})
-
-	if err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	return res, nil
+	return res, err
 }
 
 // FindVariableByID finds a single variable in the store by its ID
 func (s *Service) FindVariableByID(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
 	var variable *influxdb.Variable
 	err := s.kv.View(ctx, func(tx Tx) error {
-		m, pe := s.findVariableByID(ctx, tx, id)
-		if pe != nil {
-			return &influxdb.Error{
-				Err: pe,
-			}
+		m, err := s.findVariableByID(ctx, tx, id)
+		if err != nil {
+			return err
 		}
 		variable = m
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	return variable, nil
+	return variable, err
 }
 
 func (s *Service) findVariableByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Variable, error) {
-	encID, err := id.Encode()
-	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Err:  err,
-		}
-	}
-
-	b, err := tx.Bucket(variableBucket)
+	body, err := s.variableStore.FindEnt(ctx, tx, Entity{PK: EncID(id)})
 	if err != nil {
 		return nil, err
 	}
 
-	d, err := b.Get(encID)
-	if IsNotFound(err) {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Msg:  influxdb.ErrVariableNotFound,
-		}
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	variable := &influxdb.Variable{}
-	err = json.Unmarshal(d, &variable)
-	if err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	return variable, nil
+	variable, ok := body.(*influxdb.Variable)
+	return variable, errUnexpectedDecodeVal(ok)
 }
 
 // CreateVariable creates a new variable and assigns it an ID
-func (s *Service) CreateVariable(ctx context.Context, variable *influxdb.Variable) error {
+func (s *Service) CreateVariable(ctx context.Context, v *influxdb.Variable) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		if err := variable.Valid(); err != nil {
+		if err := v.Valid(); err != nil {
 			return &influxdb.Error{
 				Code: influxdb.EInvalid,
 				Err:  err,
 			}
 		}
 
-		variable.Name = strings.TrimSpace(variable.Name)
+		v.Name = strings.TrimSpace(v.Name) // TODO: move to service layer
 
-		if err := s.uniqueVariableName(ctx, tx, variable); err != nil {
-			return err
-		}
-
-		variable.ID = s.IDGenerator.ID()
-
-		if err := s.putVariableOrgsIndex(ctx, tx, variable); err != nil {
-			return err
-		}
-		now := s.Now()
-		variable.CreatedAt = now
-		variable.UpdatedAt = now
-		if pe := s.putVariable(ctx, tx, variable); pe != nil {
+		_, err := s.variableStore.FindEnt(ctx, tx, Entity{
+			UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(v.Name)),
+		})
+		if err == nil {
 			return &influxdb.Error{
-				Err: pe,
+				Code: influxdb.EConflict,
+				Msg:  fmt.Sprintf("variable with name %s already exists", v.Name),
 			}
-
 		}
-		return nil
+
+		v.ID = s.IDGenerator.ID()
+
+		now := s.Now()
+		v.CreatedAt = now
+		v.UpdatedAt = now
+		return s.putVariable(ctx, tx, v)
 	})
 }
 
 // ReplaceVariable puts a variable in the store
-func (s *Service) ReplaceVariable(ctx context.Context, variable *influxdb.Variable) error {
+func (s *Service) ReplaceVariable(ctx context.Context, v *influxdb.Variable) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		if err := s.putVariableOrgsIndex(ctx, tx, variable); err != nil {
+		_, err := s.variableStore.FindEnt(ctx, tx, Entity{
+			PK:        EncID(v.ID),
+			UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(v.Name)),
+		})
+		if err == nil {
 			return &influxdb.Error{
-				Err: err,
+				Code: influxdb.EConflict,
+				Msg:  fmt.Sprintf("variable with name %s already exists", v.Name),
 			}
 		}
 
-		err := s.uniqueVariableName(ctx, tx, variable)
+		return s.putVariable(ctx, tx, v)
+	})
+}
+
+func (s *Service) putVariable(ctx context.Context, tx Tx, v *influxdb.Variable) error {
+	if err := s.putVariableOrgsIndex(tx, v); err != nil {
+		return err
+	}
+
+	ent := Entity{
+		PK:        EncID(v.ID),
+		UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(v.Name)),
+		Body:      v,
+	}
+	return s.variableStore.Put(ctx, tx, ent)
+}
+
+// UpdateVariable updates a single variable in the store with a changeset
+func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *influxdb.VariableUpdate) (*influxdb.Variable, error) {
+	var v *influxdb.Variable
+	err := s.kv.Update(ctx, func(tx Tx) error {
+		m, err := s.findVariableByID(ctx, tx, id)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
+			return err
+		}
+		m.UpdatedAt = s.Now()
+
+		v = m
+
+		if update.Name != "" {
+			// TODO: should be moved to service layer
+			update.Name = strings.ToLower(strings.TrimSpace(update.Name))
+
+			vbytes, err := s.variableStore.FindEnt(ctx, tx, Entity{
+				UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(update.Name)),
+			})
+			if err == nil {
+				existingVar, ok := vbytes.(*influxdb.Variable)
+				if err := errUnexpectedDecodeVal(ok); err != nil {
+					return err
+				}
+				if existingVar.ID != v.ID {
+					return &influxdb.Error{
+						Code: influxdb.EConflict,
+						Msg:  fmt.Sprintf("variable with name %s already exists", update.Name),
+					}
+				}
 			}
+
+			err = s.variableStore.IndexStore.DeleteEnt(ctx, tx, Entity{
+				UniqueKey: Encode(EncID(v.OrganizationID), EncStringCaseInsensitive(update.Name)),
+			})
+			if err != nil {
+				return err
+			}
+			v.Name = update.Name
 		}
 
-		return s.putVariable(ctx, tx, variable)
+		update.Apply(m)
+
+		return s.putVariable(ctx, tx, v)
+	})
+
+	return v, err
+}
+
+// DeleteVariable removes a single variable from the store by its ID
+func (s *Service) DeleteVariable(ctx context.Context, id influxdb.ID) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
+		v, err := s.findVariableByID(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+
+		if err := s.removeVariableOrgsIndex(tx, v); err != nil {
+			return err
+		}
+		return s.variableStore.DeleteEnt(ctx, tx, Entity{PK: EncID(id)})
 	})
 }
 
@@ -315,7 +353,7 @@ func encodeVariableOrgsIndex(variable *influxdb.Variable) ([]byte, error) {
 	return key, nil
 }
 
-func (s *Service) putVariableOrgsIndex(ctx context.Context, tx Tx, variable *influxdb.Variable) error {
+func (s *Service) putVariableOrgsIndex(tx Tx, variable *influxdb.Variable) error {
 	key, err := encodeVariableOrgsIndex(variable)
 	if err != nil {
 		return err
@@ -323,19 +361,17 @@ func (s *Service) putVariableOrgsIndex(ctx context.Context, tx Tx, variable *inf
 
 	idx, err := tx.Bucket(variableOrgsIndex)
 	if err != nil {
-		return err
+		return &influxdb.Error{Code: influxdb.EInternal, Err: err}
 	}
 
 	if err := idx.Put(key, nil); err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
+		return &influxdb.Error{Code: influxdb.EInternal, Err: err}
 	}
 
 	return nil
 }
 
-func (s *Service) removeVariableOrgsIndex(ctx context.Context, tx Tx, variable *influxdb.Variable) error {
+func (s *Service) removeVariableOrgsIndex(tx Tx, variable *influxdb.Variable) error {
 	key, err := encodeVariableOrgsIndex(variable)
 	if err != nil {
 		return err
@@ -343,231 +379,11 @@ func (s *Service) removeVariableOrgsIndex(ctx context.Context, tx Tx, variable *
 
 	idx, err := tx.Bucket(variableOrgsIndex)
 	if err != nil {
-		return err
+		return &influxdb.Error{Code: influxdb.EInternal, Err: err}
 	}
 
 	if err := idx.Delete(key); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *Service) putVariable(ctx context.Context, tx Tx, variable *influxdb.Variable) error {
-	m, err := json.Marshal(variable)
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	encID, err := variable.ID.Encode()
-	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Err:  err,
-		}
-	}
-
-	err = s.createVariableIndex(ctx, tx, variable)
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	b, err := tx.Bucket(variableBucket)
-	if err != nil {
-		return err
-	}
-
-	if err := b.Put(encID, m); err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	return nil
-}
-
-// UpdateVariable updates a single variable in the store with a changeset
-func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *influxdb.VariableUpdate) (*influxdb.Variable, error) {
-	var variable *influxdb.Variable
-	err := s.kv.Update(ctx, func(tx Tx) error {
-		m, err := s.findVariableByID(ctx, tx, id)
-		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-		m.UpdatedAt = s.Now()
-
-		variable = m
-
-		if update.Name != "" {
-			update.Name = strings.TrimSpace(update.Name)
-
-			err = s.deleteVariableIndex(ctx, tx, variable)
-			if err != nil {
-				return &influxdb.Error{
-					Err: err,
-				}
-			}
-
-			variable.Name = update.Name
-			if err := s.uniqueVariableName(ctx, tx, variable); err != nil {
-				return &influxdb.Error{
-					Err: err,
-				}
-			}
-		}
-
-		if err := update.Apply(m); err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-
-		if err = s.putVariable(ctx, tx, variable); err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-		return nil
-	})
-
-	return variable, err
-}
-
-// DeleteVariable removes a single variable from the store by its ID
-func (s *Service) DeleteVariable(ctx context.Context, id influxdb.ID) error {
-	return s.kv.Update(ctx, func(tx Tx) error {
-		v, err := s.findVariableByID(ctx, tx, id)
-		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-
-		encID, err := id.Encode()
-		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-
-		if err := s.removeVariableOrgsIndex(ctx, tx, v); err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-
-		b, err := tx.Bucket(variableBucket)
-		if err != nil {
-			return err
-		}
-
-		if err := s.deleteVariableIndex(ctx, tx, v); err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-
-		if err := b.Delete(encID); err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-
-		return nil
-	})
-}
-
-func variableAlreadyExistsError(v *influxdb.Variable) error {
-	return &influxdb.Error{
-		Code: influxdb.EConflict,
-		Msg:  fmt.Sprintf("variable with name %s already exists", v.Name),
-	}
-}
-
-func variableIndexKey(v *influxdb.Variable) ([]byte, error) {
-	orgID, err := v.OrganizationID.Encode()
-	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Err:  err,
-		}
-	}
-
-	k := make([]byte, influxdb.IDLength+len(v.Name))
-	copy(k, orgID)
-	copy(k[influxdb.IDLength:], []byte(strings.ToLower((v.Name))))
-	return k, nil
-}
-
-func (s *Service) deleteVariableIndex(ctx context.Context, tx Tx, v *influxdb.Variable) error {
-	idx, err := tx.Bucket(variablesIndex)
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	idxKey, err := variableIndexKey(v)
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	if err := idx.Delete(idxKey); err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
-	return nil
-}
-
-func (s *Service) createVariableIndex(ctx context.Context, tx Tx, v *influxdb.Variable) error {
-	encID, err := v.OrganizationID.Encode()
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	idxBkt, err := tx.Bucket(variablesIndex)
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	idxKey, err := variableIndexKey(v)
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	if err := idxBkt.Put([]byte(idxKey), encID); err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	return nil
-}
-
-func (s *Service) uniqueVariableName(ctx context.Context, tx Tx, v *influxdb.Variable) error {
-	key, err := variableIndexKey(v)
-	if err != nil {
-		return err
-	}
-
-	err = s.unique(ctx, tx, variablesIndex, key)
-	if err == NotUniqueError {
-		return variableAlreadyExistsError(v)
+		return &influxdb.Error{Code: influxdb.EInternal, Err: err}
 	}
 
 	return nil

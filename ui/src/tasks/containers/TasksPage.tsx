@@ -10,7 +10,7 @@ import {Page} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FilterList from 'src/shared/components/Filter'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
@@ -26,8 +26,8 @@ import {
   cloneTask,
   setSearchTerm as setSearchTermAction,
   setShowInactive as setShowInactiveAction,
-  addTaskLabelsAsync,
-  removeTaskLabelsAsync,
+  addTaskLabelAsync,
+  removeTaskLabelAsync,
   runTask,
 } from 'src/tasks/actions'
 import {
@@ -36,7 +36,7 @@ import {
 } from 'src/cloud/actions/limits'
 
 // Types
-import {AppState, Task, TaskStatus, RemoteDataState} from 'src/types'
+import {AppState, Task, RemoteDataState, ResourceType} from 'src/types'
 import {InjectedRouter, WithRouterProps} from 'react-router'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
@@ -54,8 +54,8 @@ interface ConnectedDispatchProps {
   selectTask: typeof selectTask
   setSearchTerm: typeof setSearchTermAction
   setShowInactive: typeof setShowInactiveAction
-  onAddTaskLabels: typeof addTaskLabelsAsync
-  onRemoveTaskLabels: typeof removeTaskLabelsAsync
+  onAddTaskLabel: typeof addTaskLabelAsync
+  onRemoveTaskLabel: typeof removeTaskLabelAsync
   onRunTask: typeof runTask
   checkTaskLimits: typeof checkTasksLimitsAction
 }
@@ -110,8 +110,8 @@ class TasksPage extends PureComponent<Props, State> {
       searchTerm,
       setShowInactive,
       showInactive,
-      onAddTaskLabels,
-      onRemoveTaskLabels,
+      onAddTaskLabel,
+      onRemoveTaskLabel,
       onRunTask,
       checkTaskLimits,
       limitStatus,
@@ -151,8 +151,8 @@ class TasksPage extends PureComponent<Props, State> {
                       onCreate={this.handleCreateTask}
                       onClone={this.handleClone}
                       onSelect={this.props.selectTask}
-                      onAddTaskLabels={onAddTaskLabels}
-                      onRemoveTaskLabels={onRemoveTaskLabels}
+                      onAddTaskLabel={onAddTaskLabel}
+                      onRemoveTaskLabel={onRemoveTaskLabel}
                       onRunTask={onRunTask}
                       onFilterChange={setSearchTerm}
                       filterComponent={this.search}
@@ -246,7 +246,7 @@ class TasksPage extends PureComponent<Props, State> {
     const matchingTasks = tasks.filter(t => {
       let activeFilter = true
       if (!showInactive) {
-        activeFilter = t.status === TaskStatus.Active
+        activeFilter = t.status === 'active'
       }
 
       return activeFilter
@@ -262,8 +262,7 @@ class TasksPage extends PureComponent<Props, State> {
   private get hiddenTaskAlert(): JSX.Element {
     const {showInactive, tasks} = this.props
 
-    const hiddenCount = tasks.filter(t => t.status === TaskStatus.Inactive)
-      .length
+    const hiddenCount = tasks.filter(t => t.status === 'inactive').length
 
     const allTasksAreHidden = hiddenCount === tasks.length
 
@@ -303,8 +302,8 @@ const mdtp: ConnectedDispatchProps = {
   cloneTask,
   setSearchTerm: setSearchTermAction,
   setShowInactive: setShowInactiveAction,
-  onRemoveTaskLabels: removeTaskLabelsAsync,
-  onAddTaskLabels: addTaskLabelsAsync,
+  onRemoveTaskLabel: removeTaskLabelAsync,
+  onAddTaskLabel: addTaskLabelAsync,
   onRunTask: runTask,
   checkTaskLimits: checkTasksLimitsAction,
 }

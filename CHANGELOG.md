@@ -25,6 +25,9 @@
 1. [16336](https://github.com/influxdata/influxdb/pull/16336): Manual Overrides for Readiness Endpoint
 1. [16347](https://github.com/influxdata/influxdb/pull/16347): Drop legacy inmem service implementation in favor of kv service with inmem dependency
 1. [16348](https://github.com/influxdata/influxdb/pull/16348): Drop legacy bolt service implementation in favor of kv service with bolt dependency
+1. [16014](https://github.com/influxdata/influxdb/pull/16014): While creating check, also display notification rules that would match check based on tag rules
+1. [16389](https://github.com/influxdata/influxdb/pull/16389): Increase default bucket retention period to 30 days
+1. [16418](https://github.com/influxdata/influxdb/pull/16418): Add Developer Documentation
 
 ### Bug Fixes
 
@@ -36,6 +39,10 @@
 1. [16255](https://github.com/influxdata/influxdb/pull/16255): Retain user input when parsing invalid JSON during import
 1. [16268](https://github.com/influxdata/influxdb/pull/16268): Fixed test flakiness that stemmed from multiple flush/signins being called in the same test suite
 1. [16346](https://github.com/influxdata/influxdb/pull/16346): Update pkger task export to only trim out option task and not all vars provided
+1. [16374](https://github.com/influxdata/influxdb/pull/16374): Update influx CLI, only show "see help" message, instead of the whole usage.
+1. [16380](https://github.com/influxdata/influxdb/pull/16380): Fix notification tag matching rules and enable tests to verify
+1. [16376](https://github.com/influxdata/influxdb/pull/16376): Extend the y-axis when stacked graph is selected
+1. [16404](https://github.com/influxdata/influxdb/pull/16404): Fixed query reset bug that was resetting query in script editor whenever dates were changed
 
 ### UI Improvements
 

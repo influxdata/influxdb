@@ -3,6 +3,7 @@ import {client} from 'src/utils/api'
 
 // Types
 import {AppThunk, RemoteDataState, GetState, Telegraf, Label} from 'src/types'
+import {ILabel} from '@influxdata/influx'
 import {Action as NotifyAction} from 'src/shared/actions/notifications'
 import {Dispatch} from 'react'
 
@@ -19,6 +20,7 @@ import {
   removeTelegrafLabelFailed,
   getTelegrafConfigFailed,
 } from 'src/shared/copy/notifications'
+import {getOrg} from 'src/organizations/selectors'
 
 export type Action =
   | SetTelegrafs
@@ -92,9 +94,7 @@ export const setCurrentConfig = (
 })
 
 export const getTelegrafs = () => async (dispatch, getState: GetState) => {
-  const {
-    orgs: {org},
-  } = getState()
+  const org = getOrg(getState())
 
   try {
     dispatch(setTelegrafs(RemoteDataState.Loading))
@@ -153,7 +153,7 @@ export const addTelegrafLabelsAsync = (
   labels: Label[]
 ): AppThunk<Promise<void>> => async (dispatch): Promise<void> => {
   try {
-    await client.telegrafConfigs.addLabels(telegrafID, labels)
+    await client.telegrafConfigs.addLabels(telegrafID, labels as ILabel[])
     const telegraf = await client.telegrafConfigs.get(telegrafID)
 
     dispatch(editTelegraf(telegraf))
@@ -168,7 +168,7 @@ export const removeTelegrafLabelsAsync = (
   labels: Label[]
 ): AppThunk<Promise<void>> => async (dispatch): Promise<void> => {
   try {
-    await client.telegrafConfigs.removeLabels(telegrafID, labels)
+    await client.telegrafConfigs.removeLabels(telegrafID, labels as ILabel[])
     const telegraf = await client.telegrafConfigs.get(telegrafID)
 
     dispatch(editTelegraf(telegraf))

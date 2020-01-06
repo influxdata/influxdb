@@ -129,7 +129,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 
 		influxOrgID, err := b.org.getID(orgSVC)
 		if err != nil {
-			return nil
+			return err
 		}
 
 		pkg, isTTY, err := b.readPkgStdInOrFile(b.file)

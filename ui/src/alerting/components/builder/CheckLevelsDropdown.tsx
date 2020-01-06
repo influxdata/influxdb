@@ -33,7 +33,7 @@ const CheckLevelsDropdown: FC<Props> = ({selectedLevel, onClickLevel}) => {
     throw new Error('Unknown level type provided to <CheckLevelsDropdown/>')
   }
 
-  const button = (active, onClick) => (
+  const button = (active: boolean, onClick) => (
     <Dropdown.Button
       color={ComponentColor.Default}
       active={active}
@@ -68,7 +68,7 @@ const CheckLevelsDropdown: FC<Props> = ({selectedLevel, onClickLevel}) => {
     </Dropdown.Item>
   ))
 
-  const menu = onCollapse => (
+  const menu = (onCollapse: () => void) => (
     <Dropdown.Menu theme={DropdownMenuTheme.Onyx} onCollapse={onCollapse}>
       {items}
     </Dropdown.Menu>

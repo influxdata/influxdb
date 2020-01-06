@@ -41,7 +41,7 @@ require (
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/influxdata/cron v0.0.0-20191112133922-ad5847cfab62
-	github.com/influxdata/flux v0.57.0
+	github.com/influxdata/flux v0.58.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
@@ -55,7 +55,6 @@ require (
 	github.com/mattn/go-zglob v0.0.1 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
 	github.com/mileusna/useragent v0.0.0-20190129205925-3e331f0949a5
-	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mna/pigeon v1.0.1-0.20180808201053-bb0192cfc2ae
 	github.com/mschoch/smat v0.0.0-20160514031455-90eadee771ae // indirect
 	github.com/nats-io/gnatsd v1.3.0
@@ -75,10 +74,10 @@ require (
 	github.com/prometheus/common v0.6.0
 	github.com/prometheus/procfs v0.0.3 // indirect
 	github.com/satori/go.uuid v1.2.0
-	github.com/spf13/cast v1.2.0
-	github.com/spf13/cobra v0.0.3
+	github.com/spf13/cast v1.3.0
+	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.3
-	github.com/spf13/viper v1.2.1
+	github.com/spf13/viper v1.3.2
 	github.com/stretchr/testify v1.4.0
 	github.com/tcnksm/go-input v0.0.0-20180404061846-548a7d7a8ee8
 	github.com/testcontainers/testcontainers-go v0.0.0-20190108154635-47c0da630f72
@@ -102,7 +101,6 @@ require (
 	golang.org/x/tools v0.0.0-20190628153133-6cdbf07be9d0
 	google.golang.org/api v0.7.0
 	google.golang.org/grpc v1.21.1
-	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20191010095647-fc94e3f71652
 	honnef.co/go/tools v0.0.1-2019.2.3.0.20190904154718-afd67930eec2

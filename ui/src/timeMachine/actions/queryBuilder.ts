@@ -16,6 +16,13 @@ import {
 } from 'src/types'
 import {Dispatch} from 'react'
 import {BuilderFunctionsType} from '@influxdata/influx'
+import {
+  Action as AlertBuilderAction,
+  setEvery,
+} from 'src/alerting/actions/alertBuilder'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
 
 export type Action =
   | ReturnType<typeof setBuilderAggregateFunctionType>
@@ -31,7 +38,7 @@ export type Action =
   | ReturnType<typeof addTagSelectorSync>
   | ReturnType<typeof removeTagSelectorSync>
   | ReturnType<typeof setFunctions>
-  | ReturnType<typeof selectAggregateWindow>
+  | ReturnType<typeof setAggregateWindow>
   | ReturnType<typeof setValuesSearchTerm>
   | ReturnType<typeof setKeysSearchTerm>
   | ReturnType<typeof setBuilderTagsStatus>
@@ -108,8 +115,8 @@ export const setFunctions = (functions: BuilderFunctionsType[]) => ({
   payload: {functions},
 })
 
-export const selectAggregateWindow = (period: string) => ({
-  type: 'SELECT_AGGREGATE_WINDOW' as 'SELECT_AGGREGATE_WINDOW',
+export const setAggregateWindow = (period: string) => ({
+  type: 'SET_AGGREGATE_WINDOW' as 'SET_AGGREGATE_WINDOW',
   payload: {period},
 })
 
@@ -123,12 +130,19 @@ export const setKeysSearchTerm = (index: number, searchTerm: string) => ({
   payload: {index, searchTerm},
 })
 
+export const selectAggregateWindow = (period: string) => (
+  dispatch: Dispatch<Action | AlertBuilderAction>
+) => {
+  dispatch(setAggregateWindow(period))
+  dispatch(setEvery(period))
+}
+
 export const loadBuckets = () => async (
   dispatch: Dispatch<Action | ReturnType<typeof selectBucket>>,
   getState: GetState
 ) => {
   const queryURL = getState().links.query.self
-  const orgID = getState().orgs.org.id
+  const orgID = getOrg(getState()).id
 
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
@@ -181,7 +195,7 @@ export const loadTagSelector = (index: number) => async (
 
   const tagsSelections = tags.slice(0, index)
   const queryURL = getState().links.query.self
-  const orgID = getState().orgs.org.id
+  const orgID = getOrg(getState()).id
 
   dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
 
@@ -237,7 +251,7 @@ const loadTagSelectorValues = (index: number) => async (
   const {buckets, tags} = getActiveQuery(state).builderConfig
   const tagsSelections = tags.slice(0, index)
   const queryURL = state.links.query.self
-  const orgID = getState().orgs.org.id
+  const orgID = getOrg(getState()).id
 
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 

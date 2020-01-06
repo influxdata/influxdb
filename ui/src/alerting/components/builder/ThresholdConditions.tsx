@@ -1,23 +1,18 @@
 // Libraries
 import React, {FC} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import ThresholdCondition from 'src/alerting/components/builder/ThresholdCondition'
 
 // Types
-import {ThresholdCheck} from 'src/types'
+import {Threshold, AppState} from 'src/types'
 
-interface Props {
-  check: Partial<ThresholdCheck>
+interface StateProps {
+  thresholds: {[k: string]: Threshold}
 }
 
-const ThresholdConditions: FC<Props> = ({check}) => {
-  const thresholds = {}
-  if (check.thresholds) {
-    check.thresholds.forEach(t => {
-      thresholds[t.level] = t
-    })
-  }
+const ThresholdConditions: FC<StateProps> = ({thresholds}) => {
   return (
     <>
       <ThresholdCondition level="CRIT" threshold={thresholds['CRIT']} />
@@ -28,4 +23,17 @@ const ThresholdConditions: FC<Props> = ({check}) => {
   )
 }
 
-export default ThresholdConditions
+const mstp = ({
+  alertBuilder: {thresholds: thresholdsArray},
+}: AppState): StateProps => {
+  const thresholds = {}
+  thresholdsArray.forEach(t => {
+    thresholds[t.level] = t
+  })
+  return {thresholds}
+}
+
+export default connect<StateProps, {}, {}>(
+  mstp,
+  null
+)(ThresholdConditions)

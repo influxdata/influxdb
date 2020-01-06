@@ -18,6 +18,9 @@ import {
   scraperUpdateSuccess,
 } from 'src/shared/copy/notifications'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 export type Action =
   | SetScrapers
   | AddScraper
@@ -80,9 +83,7 @@ export const getScrapers = () => async (
   getState: GetState
 ) => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
 
     dispatch(setScrapers(RemoteDataState.Loading))
 

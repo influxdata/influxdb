@@ -9,6 +9,7 @@ import CheckHistoryControls from 'src/alerting/components/CheckHistoryControls'
 import CheckHistoryVisualization from 'src/alerting/components/CheckHistoryVisualization'
 import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryParams'
 import EventTable from 'src/eventViewer/components/EventTable'
+import GetResources from 'src/shared/components/GetResources'
 
 //Context
 import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'
@@ -22,8 +23,7 @@ import {getCheckIDs} from 'src/alerting/selectors'
 
 // Types
 import {ResourceIDs} from 'src/alerting/reducers/checks'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
-import {AppState, Check, TimeZone} from 'src/types'
+import {AppState, Check, TimeZone, ResourceType} from 'src/types'
 
 interface OwnProps {
   params: {orgID: string; checkID: string}
@@ -76,10 +76,12 @@ const CheckHistory: FC<Props> = ({
                 className="alert-history-page--contents"
               >
                 <div className="alert-history-contents">
-                  <CheckHistoryVisualization
-                    check={check}
-                    timeZone={timeZone}
-                  />
+                  {check.type !== 'custom' && (
+                    <CheckHistoryVisualization
+                      check={check}
+                      timeZone={timeZone}
+                    />
+                  )}
                   <div className="alert-history">
                     <EventTable {...props} fields={fields} />
                   </div>

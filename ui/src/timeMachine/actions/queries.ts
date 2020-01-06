@@ -1,4 +1,5 @@
 // Libraries
+import {parse} from '@influxdata/flux-parser'
 import {get, isEmpty} from 'lodash'
 
 // API
@@ -24,6 +25,7 @@ import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 import {
   getActiveTimeMachine,
   getVariableAssignments,
+  getActiveQuery,
 } from 'src/timeMachine/selectors'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
@@ -38,6 +40,9 @@ import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 // Types
 import {CancelBox} from 'src/types/promises'
 import {GetState, RemoteDataState, StatusRow} from 'src/types'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
 
 export type Action = SaveDraftQueriesAction | SetQueryResults
 
@@ -110,11 +115,12 @@ export const executeQueries = (dashboardID?: string) => async (
   dispatch,
   getState: GetState
 ) => {
-  const {
-    view,
-    alerting: {check},
-  } = getActiveTimeMachine(getState())
+  const state = getState()
+  const {view} = getActiveTimeMachine(state)
   const queries = view.properties.queries.filter(({text}) => !!text.trim())
+  const {
+    alertBuilder: {id: checkID},
+  } = state
 
   if (!queries.length) {
     dispatch(setQueryResults(RemoteDataState.Done, [], null))
@@ -125,9 +131,8 @@ export const executeQueries = (dashboardID?: string) => async (
 
     await dispatch(refreshTimeMachineVariableValues(dashboardID))
 
-    const orgID = getState().orgs.org.id
-
-    const variableAssignments = getVariableAssignments(getState())
+    const variableAssignments = getVariableAssignments(state)
+    const orgID = getOrg(state).id
 
     const startTime = Date.now()
 
@@ -144,10 +149,10 @@ export const executeQueries = (dashboardID?: string) => async (
     const duration = Date.now() - startTime
 
     let statuses = [[]] as StatusRow[][]
-    if (check) {
+    if (checkID) {
       const extern = buildVarsOption(variableAssignments)
-      pendingCheckStatuses = runStatusesQuery(orgID, check.id, extern)
-      statuses = await pendingCheckStatuses.promise // TODO handle errors
+      pendingCheckStatuses = runStatusesQuery(orgID, checkID, extern)
+      statuses = await pendingCheckStatuses.promise
     }
 
     for (const result of results) {
@@ -193,6 +198,56 @@ const saveDraftQueries = (): SaveDraftQueriesAction => ({
 export const saveAndExecuteQueries = () => dispatch => {
   dispatch(saveDraftQueries())
   dispatch(executeQueries())
+}
+
+export const executeCheckQuery = () => async (dispatch, getState: GetState) => {
+  const state = getState()
+  const {text} = getActiveQuery(state)
+  const {id: orgID} = getOrg(state)
+
+  if (text == '') {
+    dispatch(setQueryResults(RemoteDataState.Done, [], null))
+  }
+
+  try {
+    dispatch(setQueryResults(RemoteDataState.Loading, null, null, null))
+
+    const startTime = Date.now()
+
+    const extern = parse(
+      'import "influxdata/influxdb/monitor"\noption monitor.write = yield'
+    )
+
+    const result = await runQuery(orgID, text, extern).promise
+    const duration = Date.now() - startTime
+
+    if (result.type === 'UNKNOWN_ERROR') {
+      throw new Error(result.message)
+    }
+
+    if (result.type === 'RATE_LIMIT_ERROR') {
+      dispatch(notify(rateLimitReached(result.retryAfter)))
+
+      throw new Error(result.message)
+    }
+
+    if (result.didTruncate) {
+      dispatch(notify(resultTooLarge(result.bytesRead)))
+    }
+
+    checkQueryResult(result.csv)
+
+    const file = result.csv
+
+    dispatch(setQueryResults(RemoteDataState.Done, [file], duration, null))
+  } catch (e) {
+    if (e.name === 'CancellationError') {
+      return
+    }
+
+    console.error(e)
+    dispatch(setQueryResults(RemoteDataState.Error, null, null, e.message))
+  }
 }
 
 export const addVariableToTimeMachine = (variableID: string) => async (

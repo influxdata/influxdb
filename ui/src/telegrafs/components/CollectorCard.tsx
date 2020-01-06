@@ -18,6 +18,7 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
+import {getOrg} from 'src/organizations/selectors'
 
 // Constants
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
@@ -117,7 +118,6 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
 
   private get labels(): JSX.Element {
     const {collector, labels, onFilterChange} = this.props
-    // todo(glinton): track down `Label` drift and remove `as Label[]`
     const collectorLabels = viewableLabels(collector.labels as Label[])
 
     return (
@@ -165,7 +165,9 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = ({labels, orgs: {org}}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {labels} = state
+  const org = getOrg(state)
   return {org, labels: viewableLabels(labels.list)}
 }
 

@@ -8,19 +8,24 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Overlay} from '@influxdata/clockface'
 import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/TelegrafInstructions'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 
 // Constants
 import {TOKEN_LABEL} from 'src/labels/constants'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, ResourceType, Authorization} from 'src/types'
 import {Telegraf} from '@influxdata/influx'
+
+// Selectors
+import {getAll} from 'src/resources/selectors'
+
+const {Authorizations} = ResourceType
 
 interface StateProps {
   username: string
   telegrafs: AppState['telegrafs']['list']
-  tokens: AppState['tokens']['list']
+  tokens: Authorization[]
   collectors: Telegraf[]
 }
 
@@ -92,12 +97,19 @@ export class TelegrafInstructionsOverlay extends PureComponent<
   }
 }
 
-const mstp = ({me: {name}, telegrafs, tokens}: AppState): StateProps => ({
-  username: name,
-  telegrafs: telegrafs.list,
-  tokens: tokens.list,
-  collectors: telegrafs.list,
-})
+const mstp = (state: AppState): StateProps => {
+  const {
+    me: {name},
+    telegrafs,
+  } = state
+
+  return {
+    username: name,
+    telegrafs: telegrafs.list,
+    tokens: getAll<Authorization[]>(state, Authorizations),
+    collectors: telegrafs.list,
+  }
+}
 
 export default connect<StateProps, {}, {}>(
   mstp,

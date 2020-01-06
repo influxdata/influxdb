@@ -14,25 +14,8 @@ func TestBoltScraperTargetStoreService(t *testing.T) {
 	influxdbtesting.ScraperService(initBoltTargetService, t)
 }
 
-func TestInmemScraperTargetStoreService(t *testing.T) {
-	influxdbtesting.ScraperService(initInmemTargetService, t)
-}
-
 func initBoltTargetService(f influxdbtesting.TargetFields, t *testing.T) (influxdb.ScraperTargetStoreService, string, func()) {
 	s, closeFn, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, op, closeSvc := initScraperTargetStoreService(s, f, t)
-	return svc, op, func() {
-		closeSvc()
-		closeFn()
-	}
-}
-
-func initInmemTargetService(f influxdbtesting.TargetFields, t *testing.T) (influxdb.ScraperTargetStoreService, string, func()) {
-	s, closeFn, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}

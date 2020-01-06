@@ -14,25 +14,8 @@ func TestBoltOrganizationService(t *testing.T) {
 	influxdbtesting.OrganizationService(initBoltOrganizationService, t)
 }
 
-func TestInmemOrganizationService(t *testing.T) {
-	influxdbtesting.OrganizationService(initInmemOrganizationService, t)
-}
-
 func initBoltOrganizationService(f influxdbtesting.OrganizationFields, t *testing.T) (influxdb.OrganizationService, string, func()) {
 	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, op, closeSvc := initOrganizationService(s, f, t)
-	return svc, op, func() {
-		closeSvc()
-		closeBolt()
-	}
-}
-
-func initInmemOrganizationService(f influxdbtesting.OrganizationFields, t *testing.T) (influxdb.OrganizationService, string, func()) {
-	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}

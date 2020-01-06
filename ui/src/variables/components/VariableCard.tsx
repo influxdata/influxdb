@@ -9,34 +9,32 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import VariableContextMenu from 'src/variables/components/VariableContextMenu'
 
 // Types
-import {IVariable as Variable, ILabel} from '@influxdata/influx'
-import {AppState} from 'src/types'
+import {AppState, Label, Variable} from 'src/types'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
 
 // Actions
 import {
-  addVariableLabelsAsync,
-  removeVariableLabelsAsync,
+  addVariableLabelAsync,
+  removeVariableLabelAsync,
 } from 'src/variables/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 interface OwnProps {
   variable: Variable
   onDeleteVariable: (variable: Variable) => void
-  onUpdateVariableName: (variable: Partial<Variable>) => void
   onEditVariable: (variable: Variable) => void
   onFilterChange: (searchTerm: string) => void
 }
 
 interface StateProps {
-  labels: ILabel[]
+  labels: Label[]
 }
 
 interface DispatchProps {
-  onAddVariableLabels: typeof addVariableLabelsAsync
-  onRemoveVariableLabels: typeof removeVariableLabelsAsync
+  onAddVariableLabel: typeof addVariableLabelAsync
+  onRemoveVariableLabel: typeof removeVariableLabelAsync
   onCreateLabel: typeof createLabelAsync
 }
 
@@ -95,19 +93,19 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleAddLabel = (label: ILabel): void => {
-    const {variable, onAddVariableLabels} = this.props
+  private handleAddLabel = (label: Label): void => {
+    const {variable, onAddVariableLabel} = this.props
 
-    onAddVariableLabels(variable.id, [label])
+    onAddVariableLabel(variable.id, label)
   }
 
-  private handleRemoveLabel = (label: ILabel): void => {
-    const {variable, onRemoveVariableLabels} = this.props
+  private handleRemoveLabel = (label: Label): void => {
+    const {variable, onRemoveVariableLabel} = this.props
 
-    onRemoveVariableLabels(variable.id, [label])
+    onRemoveVariableLabel(variable.id, label)
   }
 
-  private handleCreateLabel = (label: ILabel): void => {
+  private handleCreateLabel = (label: Label): void => {
     const {name, properties} = label
     this.props.onCreateLabel(name, properties)
   }
@@ -134,14 +132,14 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
 
 const mstp = ({labels}: AppState): StateProps => {
   return {
-    labels: viewableLabels(labels.list as ILabel[]),
+    labels: viewableLabels(labels.list),
   }
 }
 
 const mdtp: DispatchProps = {
   onCreateLabel: createLabelAsync,
-  onAddVariableLabels: addVariableLabelsAsync,
-  onRemoveVariableLabels: removeVariableLabelsAsync,
+  onAddVariableLabel: addVariableLabelAsync,
+  onRemoveVariableLabel: removeVariableLabelAsync,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
