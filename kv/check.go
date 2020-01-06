@@ -2,7 +2,6 @@ package kv
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -21,7 +20,7 @@ func newCheckStore() *IndexStore {
 
 	var decValToEntFn ConvertValToEntFn = func(_ []byte, v interface{}) (Entity, error) {
 		ch, ok := v.(influxdb.Check)
-		if err := errUnexpectedDecodeVal(ok); err != nil {
+		if err := IsErrUnexpectedDecodeVal(ok); err != nil {
 			return Entity{}, err
 		}
 		return Entity{
@@ -126,7 +125,7 @@ func (s *Service) FindCheck(ctx context.Context, filter influxdb.CheckFilter) (i
 			Limit:  1,
 			FilterEntFn: func(k []byte, v interface{}) bool {
 				ch, ok := v.(influxdb.Check)
-				if err := errUnexpectedDecodeVal(ok); err != nil {
+				if err := IsErrUnexpectedDecodeVal(ok); err != nil {
 					return false
 				}
 				return filterFn(ch)
@@ -221,14 +220,14 @@ func (s *Service) FindChecks(ctx context.Context, filter influxdb.CheckFilter, o
 			Prefix:     prefix,
 			FilterEntFn: func(k []byte, v interface{}) bool {
 				ch, ok := v.(influxdb.Check)
-				if err := errUnexpectedDecodeVal(ok); err != nil {
+				if err := IsErrUnexpectedDecodeVal(ok); err != nil {
 					return false
 				}
 				return filterFn(ch)
 			},
 			CaptureFn: func(key []byte, decodedVal interface{}) error {
 				c, ok := decodedVal.(influxdb.Check)
-				if err := errUnexpectedDecodeVal(ok); err != nil {
+				if err := IsErrUnexpectedDecodeVal(ok); err != nil {
 					return err
 				}
 				checks = append(checks, c)
@@ -271,14 +270,6 @@ func (s *Service) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userI
 }
 
 func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.CheckCreate, userID influxdb.ID) error {
-	// check name unique
-	if _, err := s.findCheckByName(ctx, tx, c.GetOrgID(), c.GetName()); err == nil {
-		return &influxdb.Error{
-			Code: influxdb.EConflict,
-			Msg:  fmt.Sprintf("check with name %s already exists", c.GetName()),
-		}
-	}
-
 	c.SetID(s.IDGenerator.ID())
 	c.SetOwnerID(userID)
 	now := s.Now()
@@ -295,7 +286,7 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.CheckCreate
 	}
 	c.SetTaskID(t.ID)
 
-	if err := s.putCheck(ctx, tx, c); err != nil {
+	if err := s.putCheck(ctx, tx, c, PutNew()); err != nil {
 		return err
 	}
 
@@ -334,12 +325,12 @@ func (s *Service) PutCheck(ctx context.Context, c influxdb.Check) error {
 	})
 }
 
-func (s *Service) putCheck(ctx context.Context, tx Tx, c influxdb.Check) error {
+func (s *Service) putCheck(ctx context.Context, tx Tx, c influxdb.Check, opts ...PutOptionFn) error {
 	return s.checkStore.Put(ctx, tx, Entity{
 		PK:        EncID(c.GetID()),
 		UniqueKey: Encode(EncID(c.GetOrgID()), EncString(c.GetName())),
 		Body:      c,
-	})
+	}, opts...)
 }
 
 // PatchCheck updates a check according the parameters set on upd.
@@ -455,20 +446,6 @@ func (s *Service) patchCheck(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 	}
 
 	if upd.Name != nil {
-		c0, err := s.findCheckByName(ctx, tx, c.GetOrgID(), *upd.Name)
-		if err == nil && c0.GetID() != id {
-			return nil, &influxdb.Error{
-				Code: influxdb.EConflict,
-				Msg:  "check name is not unique",
-			}
-		}
-
-		ent := Entity{
-			UniqueKey: Encode(EncID(c.GetOrgID()), EncString(c.GetName())),
-		}
-		if err := s.checkStore.IndexStore.DeleteEnt(ctx, tx, ent); err != nil {
-			return nil, err
-		}
 		c.SetName(*upd.Name)
 	}
 
@@ -489,11 +466,11 @@ func (s *Service) patchCheck(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		return nil, err
 	}
 
-	if _, err := s.updateTask(ctx, tx, c.GetTaskID(), tu); err != nil {
+	if err := s.putCheck(ctx, tx, c, PutUpdate()); err != nil {
 		return nil, err
 	}
 
-	if err := s.putCheck(ctx, tx, c); err != nil {
+	if _, err := s.updateTask(ctx, tx, c.GetTaskID(), tu); err != nil {
 		return nil, err
 	}
 
