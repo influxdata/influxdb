@@ -8,9 +8,12 @@ import SaveAsButton from 'src/dataExplorer/components/SaveAsButton'
 import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
 import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
 import DeleteDataButton from 'src/dataExplorer/components/DeleteDataButton'
+
+// Types
+import {ResourceType} from 'src/types'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'

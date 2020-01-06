@@ -1,7 +1,7 @@
 // Libraries
 import {Dispatch} from 'redux'
 import {push, RouterAction} from 'react-router-redux'
-import HoneyBadger from 'honeybadger-js'
+import {normalize} from 'normalizr'
 
 // APIs
 import {getErrorMessage} from 'src/utils/api'
@@ -9,6 +9,13 @@ import * as api from 'src/client'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
+import {
+  Action,
+  setOrgs,
+  addOrg,
+  removeOrg,
+  editOrg,
+} from 'src/organizations/actions/creators'
 
 // Constants
 import {
@@ -22,6 +29,9 @@ import {
   orgRenameFailed,
 } from 'src/shared/copy/notifications'
 
+// Schemas
+import * as schemas from 'src/schemas'
+
 // Types
 import {
   Organization,
@@ -29,117 +39,14 @@ import {
   NotificationAction,
   Bucket,
   AppThunk,
+  OrgEntities,
 } from 'src/types'
 
-export enum ActionTypes {
-  SetOrgs = 'SET_ORGS',
-  SetOrgsStatus = 'SET_ORGS_STATUS',
-  AddOrg = 'ADD_ORG',
-  RemoveOrg = 'REMOVE_ORG',
-  EditOrg = 'EDIT_ORG',
-  SetOrg = 'SET_ORG',
-}
-
-export type Actions =
-  | SetOrgs
-  | AddOrg
-  | RemoveOrg
-  | EditOrg
-  | SetOrgsStatus
-  | SetOrg
-
-export interface SetOrgs {
-  type: ActionTypes.SetOrgs
-  payload: {
-    status: RemoteDataState
-    orgs: Organization[]
-  }
-}
-
-export const setOrgs = (
-  orgs: Organization[],
-  status: RemoteDataState
-): SetOrgs => {
-  return {
-    type: ActionTypes.SetOrgs,
-    payload: {status, orgs},
-  }
-}
-
-export interface SetOrgsStatus {
-  type: ActionTypes.SetOrgsStatus
-  payload: {
-    status: RemoteDataState
-  }
-}
-
-export interface SetOrg {
-  type: ActionTypes.SetOrg
-  payload: {
-    org: Organization
-  }
-}
-
-export const setOrg = (org: Organization): SetOrg => {
-  HoneyBadger.setContext({
-    orgID: org.id,
-  })
-  return {
-    type: ActionTypes.SetOrg,
-    payload: {org},
-  }
-}
-
-export const setOrgsStatus = (status: RemoteDataState): SetOrgsStatus => {
-  return {
-    type: ActionTypes.SetOrgsStatus,
-    payload: {status},
-  }
-}
-
-export interface AddOrg {
-  type: ActionTypes.AddOrg
-  payload: {
-    org: Organization
-  }
-}
-
-export const addOrg = (org: Organization): AddOrg => ({
-  type: ActionTypes.AddOrg,
-  payload: {org},
-})
-
-export interface RemoveOrg {
-  type: ActionTypes.RemoveOrg
-  payload: {
-    org: Organization
-  }
-}
-
-export const removeOrg = (org: Organization): RemoveOrg => ({
-  type: ActionTypes.RemoveOrg,
-  payload: {org},
-})
-
-export interface EditOrg {
-  type: ActionTypes.EditOrg
-  payload: {
-    org: Organization
-  }
-}
-
-export const editOrg = (org: Organization): EditOrg => ({
-  type: ActionTypes.EditOrg,
-  payload: {org},
-})
-
-// Async Actions
-
 export const getOrganizations = () => async (
-  dispatch
+  dispatch: Dispatch<Action>
 ): Promise<Organization[]> => {
   try {
-    dispatch(setOrgsStatus(RemoteDataState.Loading))
+    dispatch(setOrgs(RemoteDataState.Loading))
 
     const resp = await api.getOrgs({})
 
@@ -149,12 +56,14 @@ export const getOrganizations = () => async (
 
     const {orgs} = resp.data
 
-    dispatch(setOrgs(orgs, RemoteDataState.Done))
+    const organizations = normalize<Organization, OrgEntities, string[]>(orgs, schemas.arrayOfOrgs)
+
+    dispatch(setOrgs(RemoteDataState.Done, organizations))
 
     return orgs
   } catch (e) {
     console.error(e)
-    dispatch(setOrgs(null, RemoteDataState.Error))
+    dispatch(setOrgs(RemoteDataState.Error, null))
   }
 }
 
@@ -162,7 +71,7 @@ export const createOrgWithBucket = (
   org: Organization,
   bucket: Bucket
 ): AppThunk<Promise<void>> => async (
-  dispatch: Dispatch<Actions | RouterAction | NotificationAction>
+  dispatch: Dispatch<Action | RouterAction | NotificationAction>
 ) => {
   let createdOrg: Organization
 
@@ -171,11 +80,17 @@ export const createOrgWithBucket = (
     if (orgResp.status !== 201) {
       throw new Error(orgResp.data.message)
     }
+
     createdOrg = orgResp.data
 
     dispatch(notify(orgCreateSuccess()))
 
-    dispatch(addOrg(createdOrg))
+    const normOrg = normalize<Organization, OrgEntities, string>(
+      createdOrg,
+      schemas.org
+    )
+
+    dispatch(addOrg(normOrg))
     dispatch(push(`/orgs/${createdOrg.id}`))
 
     const bucketResp = await api.postBucket({
@@ -199,7 +114,7 @@ export const createOrgWithBucket = (
 }
 
 export const createOrg = (org: Organization) => async (
-  dispatch: Dispatch<Actions | RouterAction | NotificationAction>
+  dispatch: Dispatch<Action | RouterAction | NotificationAction>
 ): Promise<void> => {
   try {
     const resp = await api.postOrg({data: org})
@@ -209,8 +124,12 @@ export const createOrg = (org: Organization) => async (
     }
 
     const createdOrg = resp.data
+    const normOrg = normalize<Organization, OrgEntities, string>(
+      createdOrg,
+      schemas.org
+    )
 
-    dispatch(addOrg(createdOrg))
+    dispatch(addOrg(normOrg))
     dispatch(push(`/orgs/${createdOrg.id}`))
 
     dispatch(notify(orgCreateSuccess()))
@@ -221,7 +140,7 @@ export const createOrg = (org: Organization) => async (
 }
 
 export const deleteOrg = (org: Organization) => async (
-  dispatch: Dispatch<RemoveOrg>
+  dispatch: Dispatch<Action>
 ): Promise<void> => {
   try {
     const resp = await api.deleteOrg({orgID: org.id})
@@ -230,14 +149,14 @@ export const deleteOrg = (org: Organization) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(removeOrg(org))
+    dispatch(removeOrg(org.id))
   } catch (e) {
     console.error(e)
   }
 }
 
 export const updateOrg = (org: Organization) => async (
-  dispatch: Dispatch<EditOrg | NotificationAction>
+  dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
     const resp = await api.patchOrg({orgID: org.id, data: org})
@@ -247,8 +166,12 @@ export const updateOrg = (org: Organization) => async (
     }
 
     const updatedOrg = resp.data
+    const normOrg = normalize<Organization, OrgEntities, string>(
+      updatedOrg,
+      schemas.org
+    )
 
-    dispatch(editOrg(updatedOrg))
+    dispatch(editOrg(normOrg))
 
     dispatch(notify(orgEditSuccess()))
   } catch (e) {
@@ -261,7 +184,7 @@ export const renameOrg = (
   originalName: string,
   org: Organization
 ): AppThunk<Promise<void>> => async (
-  dispatch: Dispatch<EditOrg | NotificationAction>
+  dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
     const resp = await api.patchOrg({orgID: org.id, data: org})
@@ -272,8 +195,12 @@ export const renameOrg = (
 
     const updatedOrg = resp.data
 
-    dispatch(editOrg(updatedOrg))
+    const normOrg = normalize<Organization, OrgEntities, string>(
+      updatedOrg,
+      schemas.org
+    )
 
+    dispatch(editOrg(normOrg))
     dispatch(notify(orgRenameSuccess(updatedOrg.name)))
   } catch (e) {
     dispatch(notify(orgRenameFailed(originalName)))

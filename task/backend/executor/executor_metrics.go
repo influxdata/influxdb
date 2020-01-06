@@ -24,10 +24,10 @@ type runCollector struct {
 	totalRunsActive   *prometheus.Desc
 	workersBusy       *prometheus.Desc
 	promiseQueueUsage *prometheus.Desc
-	te                *TaskExecutor
+	ex                *Executor
 }
 
-func NewExecutorMetrics(te *TaskExecutor) *ExecutorMetrics {
+func NewExecutorMetrics(ex *Executor) *ExecutorMetrics {
 	const namespace = "task"
 	const subsystem = "executor"
 
@@ -39,7 +39,7 @@ func NewExecutorMetrics(te *TaskExecutor) *ExecutorMetrics {
 			Help:      "Total number of runs completed across all tasks, split out by success or failure.",
 		}, []string{"task_type", "status"}),
 
-		activeRuns: NewRunCollector(te),
+		activeRuns: NewRunCollector(ex),
 
 		queueDelta: prometheus.NewSummaryVec(prometheus.SummaryOpts{
 			Namespace:  namespace,
@@ -95,7 +95,7 @@ func NewExecutorMetrics(te *TaskExecutor) *ExecutorMetrics {
 }
 
 // NewRunCollector returns a collector which exports influxdb process metrics.
-func NewRunCollector(te *TaskExecutor) prometheus.Collector {
+func NewRunCollector(ex *Executor) prometheus.Collector {
 	return &runCollector{
 		workersBusy: prometheus.NewDesc(
 			"task_executor_workers_busy",
@@ -115,7 +115,7 @@ func NewRunCollector(te *TaskExecutor) prometheus.Collector {
 			nil,
 			prometheus.Labels{},
 		),
-		te: te,
+		ex: ex,
 	}
 }
 
@@ -182,9 +182,9 @@ func (r *runCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the run collector.
 func (r *runCollector) Collect(ch chan<- prometheus.Metric) {
-	ch <- prometheus.MustNewConstMetric(r.workersBusy, prometheus.GaugeValue, r.te.WorkersBusy())
+	ch <- prometheus.MustNewConstMetric(r.workersBusy, prometheus.GaugeValue, r.ex.WorkersBusy())
 
-	ch <- prometheus.MustNewConstMetric(r.promiseQueueUsage, prometheus.GaugeValue, r.te.PromiseQueueUsage())
+	ch <- prometheus.MustNewConstMetric(r.promiseQueueUsage, prometheus.GaugeValue, r.ex.PromiseQueueUsage())
 
-	ch <- prometheus.MustNewConstMetric(r.totalRunsActive, prometheus.GaugeValue, float64(r.te.RunsActive()))
+	ch <- prometheus.MustNewConstMetric(r.totalRunsActive, prometheus.GaugeValue, float64(r.ex.RunsActive()))
 }

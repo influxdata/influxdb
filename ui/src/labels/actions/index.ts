@@ -8,7 +8,13 @@ import {
 
 // Types
 import {Dispatch} from 'react'
-import {RemoteDataState, AppThunk, LabelProperties} from 'src/types'
+import {
+  RemoteDataState,
+  AppThunk,
+  LabelProperties,
+  GetState,
+  Label,
+} from 'src/types'
 
 // Actions
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
@@ -18,10 +24,10 @@ import {
   updateLabelFailed,
   deleteLabelFailed,
 } from 'src/shared/copy/notifications'
-import {GetState, Label} from 'src/types'
 
 // Utils
 import {addLabelDefaults} from 'src/labels/utils/'
+import {getOrg} from 'src/organizations/selectors'
 
 export type Action =
   | SetLabels
@@ -83,9 +89,7 @@ export const getLabels = () => async (
   getState: GetState
 ) => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
     dispatch(setLabels(RemoteDataState.Loading))
 
     const resp = await apiGetLabels({query: {orgID: org.id}})
@@ -111,10 +115,7 @@ export const createLabel = (
   dispatch: Dispatch<Action>,
   getState: GetState
 ): Promise<void> => {
-  const {
-    orgs: {org},
-  } = getState()
-
+  const org = getOrg(getState())
   try {
     const resp = await apiPostLabel({
       data: {

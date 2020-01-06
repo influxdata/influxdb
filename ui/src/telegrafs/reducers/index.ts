@@ -1,5 +1,6 @@
 // Libraries
 import {produce} from 'immer'
+import {get} from 'lodash'
 
 // Types
 import {RemoteDataState, Telegraf} from 'src/types'
@@ -35,6 +36,7 @@ export const telegrafsReducer = (
                 buckets: [],
               }
             }
+
             if (!telegraf.metadata.buckets) {
               telegraf.metadata.buckets = []
             }
@@ -48,6 +50,16 @@ export const telegrafsReducer = (
 
       case 'ADD_TELEGRAF': {
         const {telegraf} = action.payload
+
+        if (!telegraf.metadata) {
+          telegraf.metadata = {
+            buckets: [],
+          }
+        }
+
+        if (!get(telegraf, 'metadata.buckets')) {
+          telegraf.metadata.buckets = []
+        }
 
         draftState.list.push(telegraf)
 

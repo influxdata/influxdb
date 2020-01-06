@@ -9,7 +9,7 @@ import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import {RemoteDataState, AppState} from 'src/types'
 
 // Actions
-import {getOrganizations as getOrganizationsAction} from 'src/organizations/actions/orgs'
+import {getOrganizations as getOrganizationsAction} from 'src/organizations/actions/thunks'
 
 interface PassedInProps {
   children: React.ReactElement<any>
@@ -34,7 +34,7 @@ const GetOrganizations: FunctionComponent<Props> = ({
     if (status === RemoteDataState.NotStarted) {
       getOrganizations()
     }
-  })
+  }, [])
 
   return (
     <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
@@ -47,7 +47,9 @@ const mdtp = {
   getOrganizations: getOrganizationsAction,
 }
 
-const mstp = ({orgs: {status}}: AppState): StateProps => ({status})
+const mstp = ({resources}: AppState): StateProps => ({
+  status: resources.orgs.status,
+})
 
 export default connect<StateProps, DispatchProps, PassedInProps>(
   mstp,

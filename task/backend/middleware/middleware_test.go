@@ -7,40 +7,41 @@ import (
 	"testing"
 	"time"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	pmock "github.com/influxdata/influxdb/mock"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/snowflake"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/coordinator"
 	"github.com/influxdata/influxdb/task/backend/middleware"
+	"github.com/influxdata/influxdb/task/backend/scheduler"
 	"github.com/influxdata/influxdb/task/mock"
 	"go.uber.org/zap/zaptest"
 )
 
-func timeoutSelector(ch <-chan *platform.Task) (*platform.Task, error) {
+func timeoutSelector(ch <-chan scheduler.ID) (scheduler.ID, error) {
 	select {
-	case task := <-ch:
-		return task, nil
+	case id := <-ch:
+		return id, nil
 	case <-time.After(10 * time.Second):
-		return nil, errors.New("timeout on select")
+		return 0, errors.New("timeout on select")
 	}
 }
 
 const script = `option task = {name: "a task",cron: "* * * * *"} from(bucket:"test") |> range(start:-1h)`
 
 // TODO(lh): Once we have a kv.TaskService this entire part can be replaced with kv.TaskService using a inmem kv.Store
-func inmemTaskService() platform.TaskService {
+func inmemTaskService() influxdb.TaskService {
 	gen := snowflake.NewDefaultIDGenerator()
-	tasks := map[platform.ID]*platform.Task{}
+	tasks := map[influxdb.ID]*influxdb.Task{}
 	mu := sync.Mutex{}
 
 	ts := &pmock.TaskService{
-		CreateTaskFn: func(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
+		CreateTaskFn: func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
 			mu.Lock()
 			defer mu.Unlock()
 			id := gen.ID()
-			task := &platform.Task{ID: id, Flux: tc.Flux, Status: tc.Status, OrganizationID: tc.OrganizationID, Organization: tc.Organization}
+			task := &influxdb.Task{ID: id, Flux: tc.Flux, Cron: "* * * * *", Status: tc.Status, OrganizationID: tc.OrganizationID, Organization: tc.Organization}
 			if task.Status == "" {
 				task.Status = string(backend.TaskActive)
 			}
@@ -48,18 +49,18 @@ func inmemTaskService() platform.TaskService {
 
 			return tasks[id], nil
 		},
-		DeleteTaskFn: func(ctx context.Context, id platform.ID) error {
+		DeleteTaskFn: func(ctx context.Context, id influxdb.ID) error {
 			mu.Lock()
 			defer mu.Unlock()
 			delete(tasks, id)
 			return nil
 		},
-		UpdateTaskFn: func(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
+		UpdateTaskFn: func(ctx context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
 			mu.Lock()
 			defer mu.Unlock()
 			t, ok := tasks[id]
 			if !ok {
-				return nil, platform.ErrTaskNotFound
+				return nil, influxdb.ErrTaskNotFound
 			}
 			if upd.Flux != nil {
 				t.Flux = *upd.Flux
@@ -74,37 +75,37 @@ func inmemTaskService() platform.TaskService {
 
 			return t, nil
 		},
-		FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*platform.Task, error) {
+		FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 			mu.Lock()
 			defer mu.Unlock()
 			t, ok := tasks[id]
 			if !ok {
-				return nil, platform.ErrTaskNotFound
+				return nil, influxdb.ErrTaskNotFound
 			}
 			newt := *t
 			return &newt, nil
 		},
-		FindTasksFn: func(ctx context.Context, tf platform.TaskFilter) ([]*platform.Task, int, error) {
+		FindTasksFn: func(ctx context.Context, tf influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 			mu.Lock()
 			defer mu.Unlock()
 			if tf.After != nil {
-				return []*platform.Task{}, 0, nil
+				return []*influxdb.Task{}, 0, nil
 			}
-			rtn := []*platform.Task{}
+			rtn := []*influxdb.Task{}
 			for _, task := range tasks {
 				rtn = append(rtn, task)
 			}
 			return rtn, len(rtn), nil
 		},
-		ForceRunFn: func(ctx context.Context, id platform.ID, scheduledFor int64) (*platform.Run, error) {
+		ForceRunFn: func(ctx context.Context, id influxdb.ID, scheduledFor int64) (*influxdb.Run, error) {
 			mu.Lock()
 			defer mu.Unlock()
 			t, ok := tasks[id]
 			if !ok {
-				return nil, platform.ErrTaskNotFound
+				return nil, influxdb.ErrTaskNotFound
 			}
 
-			return &platform.Run{ID: id, TaskID: t.ID, ScheduledFor: time.Unix(scheduledFor, 0)}, nil
+			return &influxdb.Run{ID: id, TaskID: t.ID, ScheduledFor: time.Unix(scheduledFor, 0)}, nil
 		},
 	}
 	return ts
@@ -113,26 +114,25 @@ func inmemTaskService() platform.TaskService {
 
 func TestCoordinatingTaskService(t *testing.T) {
 	var (
-		ts          = inmemTaskService()
-		sched       = mock.NewScheduler()
-		coord       = coordinator.New(zaptest.NewLogger(t), sched)
-		middleware  = middleware.New(ts, coord)
-		createChan  = sched.TaskCreateChan()
-		releaseChan = sched.TaskReleaseChan()
-		updateChan  = sched.TaskUpdateChan()
+		ts         = inmemTaskService()
+		ex         = mock.NewExecutor()
+		sch, _, _  = scheduler.NewScheduler(ex, backend.NewSchedulableTaskService(ts))
+		coord      = coordinator.NewCoordinator(zaptest.NewLogger(t), sch, ex)
+		middleware = middleware.New(ts, coord)
 	)
 
-	task, err := middleware.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Flux: script})
+	task, err := middleware.CreateTask(context.Background(), influxdb.TaskCreate{OrganizationID: 1, Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	createdTask, err := timeoutSelector(createChan)
+	id, err := timeoutSelector(ex.ExecutedChan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if task.ID != createdTask.ID {
-		t.Fatal("task given to scheduler not the same as task created")
+
+	if id != scheduler.ID(task.ID) {
+		t.Fatalf("task given to scheduler not the same as task created. expected: %v, got: %v", task.ID, id)
 	}
 
 	if task.Flux != script {
@@ -143,26 +143,17 @@ func TestCoordinatingTaskService(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	task, err = timeoutSelector(releaseChan)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	if task.Flux != script {
 		t.Fatal("task sent to scheduler doesn't match task created")
 	}
 
-	task, err = middleware.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Flux: script})
+	task, err = middleware.CreateTask(context.Background(), influxdb.TaskCreate{OrganizationID: 1, Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = timeoutSelector(createChan)
-	if err != nil {
-		t.Fatal(err)
-	}
 	inactive := string(backend.TaskInactive)
-	res, err := middleware.UpdateTask(context.Background(), task.ID, platform.TaskUpdate{Status: &inactive})
+	res, err := middleware.UpdateTask(context.Background(), task.ID, influxdb.TaskUpdate{Status: &inactive})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,22 +168,12 @@ func TestCoordinatingTaskService(t *testing.T) {
 		t.Fatalf("unexpected meta status on update result: got %q, want %q", res.Status, inactive)
 	}
 
-	task, err = timeoutSelector(releaseChan)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	if task.Flux != script {
 		t.Fatal("task sent to scheduler doesnt match task created")
 	}
 
 	active := string(backend.TaskActive)
-	if _, err := middleware.UpdateTask(context.Background(), task.ID, platform.TaskUpdate{Status: &active}); err != nil {
-		t.Fatal(err)
-	}
-
-	task, err = timeoutSelector(createChan)
-	if err != nil {
+	if _, err := middleware.UpdateTask(context.Background(), task.ID, influxdb.TaskUpdate{Status: &active}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -201,12 +182,7 @@ func TestCoordinatingTaskService(t *testing.T) {
 	}
 
 	newScript := `option task = {name: "a task",cron: "1 * * * *"} from(bucket:"test") |> range(start:-2h)`
-	if _, err := middleware.UpdateTask(context.Background(), task.ID, platform.TaskUpdate{Flux: &newScript}); err != nil {
-		t.Fatal(err)
-	}
-
-	task, err = timeoutSelector(updateChan)
-	if err != nil {
+	if _, err := middleware.UpdateTask(context.Background(), task.ID, influxdb.TaskUpdate{Flux: &newScript}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -215,91 +191,22 @@ func TestCoordinatingTaskService(t *testing.T) {
 	}
 }
 
-func TestCoordinatingTaskService_ClaimTaskUpdatesLatestCompleted(t *testing.T) {
-	t.Skip("https://github.com/influxdata/influxdb/issues/14797")
-	t.Parallel()
-	var (
-		ts         = inmemTaskService()
-		sched      = mock.NewScheduler()
-		coord      = coordinator.New(zaptest.NewLogger(t), sched)
-		latest     = time.Now().UTC().Add(time.Second)
-		middleware = middleware.New(ts, coord, middleware.WithNowFunc(func() time.Time {
-			return latest
-		}))
-	)
-
-	task, err := middleware.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Flux: script})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rchan := sched.TaskReleaseChan()
-	activeStr := string(backend.TaskActive)
-	inactiveStr := string(backend.TaskInactive)
-
-	task, err = middleware.UpdateTask(context.Background(), task.ID, platform.TaskUpdate{Status: &inactiveStr})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	select {
-	case <-rchan:
-	case <-time.After(time.Second):
-		t.Fatal("failed to release claimed task")
-	}
-
-	cchan := sched.TaskCreateChan()
-
-	_, err = middleware.UpdateTask(context.Background(), task.ID, platform.TaskUpdate{Status: &activeStr})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	select {
-	case claimedTask := <-cchan:
-		if claimedTask.LatestCompleted != latest.UTC() {
-			t.Fatal("failed up update latest completed in claimed task")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("failed to release claimed task")
-	}
-
-}
-
-func TestCoordinatingTaskService_DeleteUnclaimedTask(t *testing.T) {
-	var (
-		ts         = inmemTaskService()
-		sched      = mock.NewScheduler()
-		coord      = coordinator.New(zaptest.NewLogger(t), sched)
-		middleware = middleware.New(ts, coord)
-	)
-
-	// Create an isolated task directly through the store so the coordinator doesn't know about it.
-	task, err := ts.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Flux: script})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Deleting the task through the coordinator should succeed.
-	if err := middleware.DeleteTask(context.Background(), task.ID); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := ts.FindTaskByID(context.Background(), task.ID); err != platform.ErrTaskNotFound {
-		t.Fatalf("expected deleted task not to be found; got %v", err)
-	}
-}
-
 func TestCoordinatingTaskService_ForceRun(t *testing.T) {
 	var (
 		ts         = inmemTaskService()
-		sched      = mock.NewScheduler()
-		coord      = coordinator.New(zaptest.NewLogger(t), sched)
+		ex         = mock.NewExecutor()
+		sch, _, _  = scheduler.NewScheduler(ex, backend.NewSchedulableTaskService(ts))
+		coord      = coordinator.NewCoordinator(zaptest.NewLogger(t), sch, ex)
 		middleware = middleware.New(ts, coord)
 	)
 
 	// Create an isolated task directly through the store so the coordinator doesn't know about it.
-	task, err := middleware.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Flux: script})
+	task, err := middleware.CreateTask(context.Background(), influxdb.TaskCreate{OrganizationID: 1, Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	id, err := timeoutSelector(ex.ExecutedChan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,16 +216,13 @@ func TestCoordinatingTaskService_ForceRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ch := sched.TaskUpdateChan()
 	manualRunTime := time.Now().Unix()
-	if _, err := middleware.ForceRun(context.Background(), task.ID, manualRunTime); err != nil {
+	if _, err = middleware.ForceRun(context.Background(), task.ID, manualRunTime); err != nil {
 		t.Fatal(err)
 	}
 
-	select {
-	case <-ch:
-		// great!
-	case <-time.After(time.Second):
-		t.Fatal("didn't receive task update in time")
+	if influxdb.ID(id) != task.ID {
+		t.Fatalf("expected task ID passed to scheduler to match create task ID %v, got: %v", task.ID, id)
 	}
+
 }

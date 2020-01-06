@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
+// Libraries
+import {isEmpty} from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -12,16 +13,15 @@ import MemberList from 'src/members/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
 
 // Actions
-import {deleteMember} from 'src/members/actions'
+import {deleteMember} from 'src/members/actions/thunks'
 
 // Types
 import {ComponentSize} from '@influxdata/clockface'
-import {AppState, Member} from 'src/types'
+import {AppState, Member, ResourceType} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
-import {ResourceType} from 'src/shared/components/GetResources'
 
 // Selectors
-import {getAll} from 'src/shared/selectors'
+import {getAll} from 'src/resources/selectors'
 
 interface StateProps {
   members: Member[]
@@ -102,7 +102,7 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
   private get emptyState(): JSX.Element {
     const {searchTerm} = this.state
 
-    if (_.isEmpty(searchTerm)) {
+    if (isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Medium}>
           <EmptyState.Text>

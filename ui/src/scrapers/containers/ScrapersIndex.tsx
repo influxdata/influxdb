@@ -6,17 +6,18 @@ import {connect} from 'react-redux'
 import {Page} from '@influxdata/clockface'
 import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 import Scrapers from 'src/scrapers/components/Scrapers'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {getOrg} from 'src/organizations/selectors'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {AppState, Organization} from 'src/types'
+import {AppState, Organization, ResourceType} from 'src/types'
 
 interface StateProps {
   org: Organization
@@ -45,7 +46,7 @@ class ScrapersIndex extends Component<StateProps> {
   }
 }
 
-const mstp = ({orgs: {org}}: AppState) => ({org})
+const mstp = (state: AppState) => ({org: getOrg(state)})
 
 export default connect<StateProps, {}, {}>(
   mstp,

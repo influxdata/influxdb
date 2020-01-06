@@ -9,6 +9,9 @@ import TemplatedCodeSnippet from 'src/shared/components/TemplatedCodeSnippet'
 // Constants
 import {clientPythonLibrary} from 'src/clientLibraries/constants'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 // Types
 import {AppState} from 'src/types'
 
@@ -111,10 +114,10 @@ const ClientPythonOverlay: FunctionComponent<Props> = props => {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const org = state.orgs.org.id
+  const {id} = getOrg(state)
 
   return {
-    org,
+    org: id,
   }
 }
 

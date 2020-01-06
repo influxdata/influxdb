@@ -13,6 +13,7 @@ import {
 } from '@influxdata/clockface'
 import TemplateBrowser from 'src/templates/components/createFromTemplateOverlay/TemplateBrowser'
 import TemplateBrowserEmpty from 'src/templates/components/createFromTemplateOverlay/TemplateBrowserEmpty'
+import GetResources from 'src/shared/components/GetResources'
 
 // Actions
 import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions'
@@ -30,8 +31,8 @@ import {
   AppState,
   RemoteDataState,
   DashboardTemplate,
+  ResourceType,
 } from 'src/types'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 interface StateProps {
   templates: TemplateSummary[]

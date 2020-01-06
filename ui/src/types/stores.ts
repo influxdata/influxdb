@@ -12,7 +12,6 @@ import {OnboardingState} from 'src/onboarding/reducers'
 import {PredicatesState} from 'src/types'
 import {VariablesState, VariableEditorState} from 'src/variables/reducers'
 import {LabelsState} from 'src/labels/reducers'
-import {BucketsState} from 'src/buckets/reducers'
 import {
   TelegrafEditorPluginState,
   PluginResourceState,
@@ -21,13 +20,11 @@ import {
 } from 'src/dataLoaders/reducers/telegrafEditor'
 import {TelegrafsState} from 'src/telegrafs/reducers'
 import {TemplatesState} from 'src/templates/reducers'
-import {AuthorizationsState} from 'src/authorizations/reducers'
 import {RangeState} from 'src/dashboards/reducers/ranges'
 import {ViewsState} from 'src/dashboards/reducers/views'
 import {ScrapersState} from 'src/scrapers/reducers'
 import {UserSettingsState} from 'src/userSettings/reducers'
 import {DashboardsState} from 'src/dashboards/reducers/dashboards'
-import {OrgsState} from 'src/organizations/reducers/orgs'
 import {OverlayState} from 'src/overlays/reducers/overlays'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
@@ -42,7 +39,6 @@ export interface AppState {
   alertBuilder: AlertBuilderState
   app: AppPresentationState
   autoRefresh: AutoRefreshState
-  buckets: BucketsState
   checks: ChecksState
   cloud: {limits: LimitsState}
   dashboards: DashboardsState
@@ -54,7 +50,6 @@ export interface AppState {
   noteEditor: NoteEditorState
   notifications: Notification[]
   onboarding: OnboardingState
-  orgs: OrgsState
   overlays: OverlayState
   predicates: PredicatesState
   ranges: RangeState
@@ -71,7 +66,6 @@ export interface AppState {
   templates: TemplatesState
   timeMachines: TimeMachinesState
   timeRange: TimeRange
-  tokens: AuthorizationsState
   userSettings: UserSettingsState
   variables: VariablesState
   variableEditor: VariableEditorState

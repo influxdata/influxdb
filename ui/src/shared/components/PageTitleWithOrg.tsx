@@ -17,6 +17,9 @@ import {AppState} from 'src/types'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 interface OwnProps {
   title: string
   altText?: string
@@ -46,8 +49,8 @@ class PageTitleWithOrg extends PureComponent<Props> {
   }
 }
 
-const mstp = ({orgs: {org}}: AppState) => {
-  return {orgName: org.name}
+const mstp = (state: AppState) => {
+  return {orgName: getOrg(state).name}
 }
 
 export default connect<StateProps>(mstp)(PageTitleWithOrg)

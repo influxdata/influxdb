@@ -13,6 +13,7 @@ import * as api from 'src/client'
 
 // Utils
 import {incrementCloneName} from 'src/utils/naming'
+import {getOrg} from 'src/organizations/selectors'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
@@ -56,10 +57,10 @@ export const getEndpoints = () => async (
       status: RemoteDataState.Loading,
     })
 
-    const {orgs} = getState()
+    const {id: orgID} = getOrg(getState())
 
     const resp = await api.getNotificationEndpoints({
-      query: {orgID: orgs.org.id},
+      query: {orgID},
     })
 
     if (resp.status !== 200) {

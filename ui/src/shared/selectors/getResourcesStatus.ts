@@ -1,6 +1,5 @@
 // Types
-import {AppState, RemoteDataState} from 'src/types'
-import {ResourceType} from 'src/shared/components/GetResources'
+import {AppState, RemoteDataState, ResourceType} from 'src/types'
 
 export const getResourcesStatus = (
   state: AppState,
@@ -8,8 +7,10 @@ export const getResourcesStatus = (
 ): RemoteDataState => {
   const statuses = resources.map(resource => {
     switch (resource) {
-      // Normalized resource status
-      case ResourceType.Members: {
+      // Normalized resource statuses
+      case ResourceType.Members:
+      case ResourceType.Buckets:
+      case ResourceType.Authorizations: {
         return state.resources[resource].status
       }
 

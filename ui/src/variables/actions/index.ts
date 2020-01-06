@@ -24,6 +24,7 @@ import {getValueSelections, extractVariablesList} from 'src/variables/selectors'
 import {CancelBox} from 'src/types/promises'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {findDepedentVariables} from 'src/variables/utils/exportVariables'
+import {getOrg} from 'src/organizations/selectors'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -146,9 +147,7 @@ export const getVariables = () => async (
 ) => {
   try {
     dispatch(setVariables(RemoteDataState.Loading))
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
     const variables = await client.variables.getAll(org.id)
 
     dispatch(setVariables(RemoteDataState.Done, variables))
@@ -179,9 +178,7 @@ export const createVariable = (
   variable: Pick<Variable, 'name' | 'arguments'>
 ) => async (dispatch: Dispatch<Action>, getState: GetState) => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
     const createdVariable = await client.variables.create({
       ...variable,
       orgID: org.id,
@@ -201,9 +198,7 @@ export const createVariableFromTemplate = (
   template: VariableTemplate
 ) => async (dispatch: Dispatch<Action>, getState: GetState) => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
     const createdVariable = await createVariableFromTemplateAJAX(
       template,
       org.id
@@ -264,9 +259,7 @@ export const refreshVariableValues = (
   dispatch(setValues(contextID, RemoteDataState.Loading))
 
   try {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
     const url = getState().links.query.self
     const selections = getValueSelections(getState(), contextID)
     const allVariables = extractVariablesList(getState())
@@ -300,9 +293,7 @@ export const convertToTemplate = (variableID: string) => async (
 ): Promise<void> => {
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
     const variable = await client.variables.get(variableID)
     const allVariables = await client.variables.getAll(org.id)
 

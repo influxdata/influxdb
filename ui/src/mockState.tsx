@@ -6,10 +6,13 @@ import {render} from 'react-testing-library'
 import {initialState as initialVariablesState} from 'src/variables/reducers'
 import {initialState as initialUserSettingsState} from 'src/userSettings/reducers'
 import configureStore from 'src/store/configureStore'
-import {RemoteDataState, TimeZone, LocalStorage} from 'src/types'
+import {RemoteDataState, TimeZone, LocalStorage, ResourceType} from 'src/types'
 import {pastFifteenMinTimeRange} from './shared/constants/timeRanges'
 
-const localState: LocalStorage = {
+const {Members, Orgs, Buckets, Authorizations} = ResourceType
+const {NotStarted, Done} = RemoteDataState
+
+export const localState: LocalStorage = {
   app: {
     ephemeral: {
       inPresentationMode: false,
@@ -20,11 +23,6 @@ const localState: LocalStorage = {
       timeZone: 'Local' as TimeZone,
     },
   },
-  orgs: {
-    items: [{name: 'org', id: 'orgid'}],
-    org: {name: 'org', id: 'orgid'},
-    status: RemoteDataState.Done,
-  },
   VERSION: '2.0.0',
   ranges: {
     '0349ecda531ea000': pastFifteenMinTimeRange,
@@ -32,6 +30,34 @@ const localState: LocalStorage = {
   autoRefresh: {},
   variables: initialVariablesState(),
   userSettings: initialUserSettingsState(),
+  resources: {
+    [Orgs]: {
+      byID: {
+        orgid: {
+          name: 'org',
+          id: 'orgid',
+        },
+      },
+      allIDs: ['orgid'],
+      org: {name: 'org', id: 'orgid'},
+      status: Done,
+    },
+    [Members]: {
+      byID: {},
+      allIDs: [],
+      status: NotStarted,
+    },
+    [Buckets]: {
+      byID: {},
+      allIDs: [],
+      status: NotStarted,
+    },
+    [Authorizations]: {
+      byID: {},
+      allIDs: [],
+      status: NotStarted,
+    }
+  },
 }
 
 const history = createMemoryHistory({entries: ['/']})

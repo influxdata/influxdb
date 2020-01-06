@@ -14,7 +14,7 @@ type Coordinator interface {
 	TaskCreated(context.Context, *influxdb.Task) error
 	TaskUpdated(ctx context.Context, from, to *influxdb.Task) error
 	TaskDeleted(context.Context, influxdb.ID) error
-	RunCancelled(ctx context.Context, taskID, runID influxdb.ID) error
+	RunCancelled(ctx context.Context, runID influxdb.ID) error
 	RunRetried(ctx context.Context, task *influxdb.Task, run *influxdb.Run) error
 	RunForced(ctx context.Context, task *influxdb.Task, run *influxdb.Run) error
 }
@@ -93,7 +93,7 @@ func (s *CoordinatingTaskService) CancelRun(ctx context.Context, taskID, runID i
 		return err
 	}
 
-	return s.coordinator.RunCancelled(ctx, taskID, runID)
+	return s.coordinator.RunCancelled(ctx, runID)
 }
 
 // RetryRun calls retry on the task service and publishes the retry.

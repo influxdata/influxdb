@@ -28,6 +28,9 @@ import {AppState} from 'src/types'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 interface StateProps {
   me: AppState['me']
   orgName: string
@@ -75,10 +78,8 @@ export class MePage extends PureComponent<StateProps> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    me,
-    orgs: {org},
-  } = state
+  const org = getOrg(state)
+  const {me} = state
 
   return {me, orgName: get(org, 'name', '')}
 }

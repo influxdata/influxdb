@@ -9,11 +9,11 @@ import TemplatesList from 'src/templates/components/TemplatesList'
 import StaticTemplatesList from 'src/templates/components/StaticTemplatesList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 
 // Types
-import {TemplateSummary, AppState} from 'src/types'
+import {TemplateSummary, AppState, ResourceType} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {
   Sort,

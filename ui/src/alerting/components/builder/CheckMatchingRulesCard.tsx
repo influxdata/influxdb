@@ -14,6 +14,9 @@ import {
   AlignItems,
 } from '@influxdata/clockface'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 // API
 import {getNotificationRules as apiGetNotificationRules} from 'src/client'
 
@@ -22,6 +25,8 @@ import {NotificationRule, AppState, CheckTagSet} from 'src/types'
 import {EmptyState, ComponentSize, RemoteDataState} from '@influxdata/clockface'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+
+// Selectors
 
 interface StateProps {
   tags: CheckTagSet[]
@@ -146,11 +151,9 @@ const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
 
 const mstp = (state: AppState): StateProps => {
   const {
-    orgs: {
-      org: {id: orgID},
-    },
     alertBuilder: {tags},
   } = state
+  const {id: orgID} = getOrg(state)
 
   const {
     queryResults: {files},

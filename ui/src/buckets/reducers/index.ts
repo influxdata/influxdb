@@ -2,18 +2,31 @@
 import {produce} from 'immer'
 
 // Types
-import {RemoteDataState, Bucket} from 'src/types'
-import {Action} from 'src/buckets/actions'
+import {Bucket, RemoteDataState, ResourceState, ResourceType} from 'src/types'
+import {
+  ADD_BUCKET,
+  SET_BUCKETS,
+  Action,
+  EDIT_BUCKET,
+  REMOVE_BUCKET,
+} from 'src/buckets/actions/creators'
+
+// Utils
+import {
+  setResource,
+  addResource,
+  removeResource,
+  editResource,
+} from 'src/resources/reducers/helpers'
+
+const {Buckets} = ResourceType
+type BucketsState = ResourceState['buckets']
 
 const initialState = (): BucketsState => ({
   status: RemoteDataState.NotStarted,
-  list: [],
+  byID: {},
+  allIDs: [],
 })
-
-export interface BucketsState {
-  status: RemoteDataState
-  list: Bucket[]
-}
 
 export const bucketsReducer = (
   state: BucketsState = initialState(),
@@ -21,49 +34,27 @@ export const bucketsReducer = (
 ): BucketsState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_BUCKETS': {
-        const {status, list} = action.payload
-
-        draftState.status = status
-
-        if (list) {
-          draftState.list = list
-        }
+      case SET_BUCKETS: {
+        setResource<Bucket>(draftState, action, Buckets)
 
         return
       }
 
-      case 'ADD_BUCKET': {
-        const {bucket} = action.payload
-
-        draftState.list.push(bucket)
+      case ADD_BUCKET: {
+        addResource<Bucket>(draftState, action, Buckets)
 
         return
       }
 
-      case 'EDIT_BUCKET': {
-        const {bucket} = action.payload
-        const {list} = draftState
-
-        draftState.list = list.map(l => {
-          if (l.id === bucket.id) {
-            return bucket
-          }
-
-          return l
-        })
+      case EDIT_BUCKET: {
+        editResource<Bucket>(draftState, action, Buckets)
 
         return
       }
 
-      case 'REMOVE_BUCKET': {
-        const {id} = action.payload
-        const {list} = draftState
-        const deleted = list.filter(l => {
-          return l.id !== id
-        })
+      case REMOVE_BUCKET: {
+        removeResource<Bucket>(draftState, action)
 
-        draftState.list = deleted
         return
       }
     }

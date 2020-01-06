@@ -1,7 +1,8 @@
 // Libraries
-import _ from 'lodash'
+import {get} from 'lodash'
+import {normalize} from 'normalizr'
 
-// Apis
+// APIs
 import {client} from 'src/utils/api'
 import {
   ScraperTargetRequest,
@@ -11,9 +12,14 @@ import {
 import {createAuthorization} from 'src/authorizations/apis'
 import {postWrite as apiPostWrite, postLabel as apiPostLabel} from 'src/client'
 
+// Schemas
+import * as schemas from 'src/schemas'
+
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
-import {addLabelDefaults} from 'src/labels/utils/'
+import {addLabelDefaults} from 'src/labels/utils'
+import {getDataLoaders, getSteps} from 'src/dataLoaders/selectors'
+import {getOrg} from 'src/organizations/selectors'
 
 // Constants
 import {
@@ -31,7 +37,7 @@ import {
   BundleName,
   ConfigurationState,
 } from 'src/types/dataLoaders'
-import {AppState, RemoteDataState} from 'src/types'
+import {GetState, RemoteDataState, Authorization, AuthEntities} from 'src/types'
 import {
   WritePrecision,
   TelegrafRequest,
@@ -40,15 +46,13 @@ import {
 } from '@influxdata/influx'
 import {Dispatch} from 'redux'
 import {addTelegraf, editTelegraf} from 'src/telegrafs/actions'
-import {addAuthorization} from 'src/authorizations/actions'
+import {addAuthorization} from 'src/authorizations/actions/creators'
 import {notify} from 'src/shared/actions/notifications'
 import {
   TelegrafConfigCreationError,
   TelegrafConfigCreationSuccess,
   readWriteCardinalityLimitReached,
 } from 'src/shared/copy/notifications'
-
-type GetState = () => AppState
 
 const DEFAULT_COLLECTION_INTERVAL = 10000
 
@@ -339,19 +343,13 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
   getState: GetState
 ) => {
   const {
-    dataLoading: {
-      dataLoaders: {
-        telegrafPlugins,
-        telegrafConfigID,
-        telegrafConfigName,
-        telegrafConfigDescription,
-      },
-      steps: {bucket},
-    },
-    orgs: {
-      org: {name},
-    },
-  } = getState()
+    telegrafPlugins,
+    telegrafConfigID,
+    telegrafConfigName,
+    telegrafConfigDescription,
+  } = getDataLoaders(getState())
+  const {name} = getOrg(getState())
+  const {bucket} = getSteps(getState())
 
   const influxDB2Out = {
     name: TelegrafPluginOutputInfluxDBV2.NameEnum.InfluxdbV2,
@@ -389,15 +387,14 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
   createTelegraf(dispatch, getState, plugins)
 }
 
-const createTelegraf = async (dispatch, getState, plugins) => {
+const createTelegraf = async (dispatch, getState: GetState, plugins) => {
   try {
-    const {
-      dataLoading: {
-        dataLoaders: {telegrafConfigName, telegrafConfigDescription},
-        steps: {bucket, bucketID},
-      },
-      orgs: {org},
-    } = getState()
+    const state = getState()
+    const {telegrafConfigName, telegrafConfigDescription} = getDataLoaders(
+      state
+    )
+    const {bucket, bucketID} = getSteps(state)
+    const org = getOrg(getState())
 
     const telegrafRequest: TelegrafRequest = {
       name: telegrafConfigName,
@@ -442,8 +439,13 @@ const createTelegraf = async (dispatch, getState, plugins) => {
     // add token to data loader state
     dispatch(setToken(createdToken.token))
 
+    const normAuth = normalize<Authorization, AuthEntities, string>(
+      createdToken,
+      schemas.auth
+    )
+
     // add token to authorizations state
-    dispatch(addAuthorization(createdToken))
+    dispatch(addAuthorization(normAuth))
 
     // create token label
     const properties = {
@@ -478,6 +480,7 @@ const createTelegraf = async (dispatch, getState, plugins) => {
     dispatch(addTelegraf(config))
     dispatch(notify(TelegrafConfigCreationSuccess))
   } catch (error) {
+    console.error(error.message)
     dispatch(notify(TelegrafConfigCreationError))
   }
 }
@@ -573,7 +576,7 @@ export const writeLineProtocolAction = (
       dispatch(notify(readWriteCardinalityLimitReached(resp.data.message)))
       dispatch(setLPStatus(RemoteDataState.Error))
     } else {
-      throw new Error(_.get(resp, 'data.message', 'Failed to write data'))
+      throw new Error(get(resp, 'data.message', 'Failed to write data'))
     }
   } catch (error) {
     console.error(error)

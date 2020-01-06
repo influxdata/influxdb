@@ -2,14 +2,28 @@
 import {schema} from 'normalizr'
 
 // Types
-import {Member, ResourceType} from 'src/types'
+import {ResourceType} from 'src/types'
 
-// Entities defines the result of normalizr's normalization
-export interface MemberEntities {
-  members: {
-    [uuid: string]: Member
-  }
-}
+/* Authorizations */
+
+// Defines the schema for the "auth" resource
+export const auth = new schema.Entity(ResourceType.Authorizations)
+export const arrayOfAuths = [auth]
+
+/* Buckets */
+
+// Defines the schema for the "bucket" resource
+export const bucket = new schema.Entity(ResourceType.Buckets)
+export const arrayOfBuckets = [bucket]
+
+/* Members */
 
 // Defines the schema for the "member" resource
-export const members = new schema.Entity(ResourceType.Members)
+export const member = new schema.Entity(ResourceType.Members)
+export const arrayOfMembers = [member]
+
+/* Organizations */
+
+// Defines the schema for the "member" resource
+export const org = new schema.Entity(ResourceType.Orgs)
+export const arrayOfOrgs = [org]

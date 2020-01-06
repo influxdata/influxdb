@@ -77,7 +77,7 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 
 	orgSvc, err := newOrganizationService()
 	if err != nil {
-		return nil
+		return err
 	}
 
 	b.OrgID, err = bucketCreateFlags.organization.getID(orgSvc)
