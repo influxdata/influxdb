@@ -101,7 +101,6 @@ require (
 	golang.org/x/tools v0.0.0-20190628153133-6cdbf07be9d0
 	google.golang.org/api v0.7.0
 	google.golang.org/grpc v1.21.1
-	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20191010095647-fc94e3f71652
 	honnef.co/go/tools v0.0.1-2019.2.3.0.20190904154718-afd67930eec2
