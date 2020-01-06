@@ -180,13 +180,20 @@ fn read_fields(measurement_tags: &str, chars: &mut Chars, points: &mut Vec<Point
     while let Some(ch) = chars.next() {
         match ch {
             '=' => {
-                read_value(&measurement_tags, field_name, &mut chars, &mut points);
+                let should_break = !read_value(&measurement_tags, field_name, &mut chars, &mut points);
                 field_name = String::with_capacity(100);
+                if should_break {
+                    break
+                }
             },
             _ => field_name.push(ch),
         }
     }
 
+    // read the time
+    for ch in chars {
+        field_name.push(ch);
+    }
     let time = field_name.parse::<i64>().unwrap();
 
     while point_offset < points.len() {
@@ -195,12 +202,13 @@ fn read_fields(measurement_tags: &str, chars: &mut Chars, points: &mut Vec<Point
     }
 }
 
-fn read_value(measurement_tags: &str, field_name: String, chars: &mut Chars, points: &mut Vec<PointType>) {
+// read_value reads the value from the chars and returns true if there are more fields and values to be read
+fn read_value(measurement_tags: &str, field_name: String, chars: &mut Chars, points: &mut Vec<PointType>) -> bool {
     let mut value = String::new();
 
     while let Some(ch) = chars.next() {
         match ch {
-            ' ' => {
+            ' ' | ',' => {
                 let series = measurement_tags.to_string() + "\t" + &field_name;
 
                 // if the last character of the value is an i then it's an integer, otherwise it's
@@ -216,11 +224,18 @@ fn read_value(measurement_tags: &str, field_name: String, chars: &mut Chars, poi
                     }
                 };
                 points.push(point);
-                return;
+
+                if ch == ' ' {
+                    return false;
+                }
+
+                return true;
             },
             _ => value.push(ch),
         }
     }
+
+    false
 }
 
 #[cfg(test)]
@@ -251,7 +266,7 @@ mod test {
 
     #[test]
     fn parse_two_fields() {
-        let input = "foo asdf=23i bar=5i 1234";
+        let input = "foo asdf=23i,bar=5i 1234";
 
         let vals = parse(input);
         assert_eq!(vals[0].series(), "foo\tasdf");
@@ -262,7 +277,7 @@ mod test {
         assert_eq!(vals[1].time(), 1234);
         assert_eq!(vals[1].i64_value().unwrap(), 5);
 
-        let input = "foo asdf=23.1 bar=5 1234";
+        let input = "foo asdf=23.1,bar=5 1234";
 
         let vals = parse(input);
         assert_eq!(vals[0].series(), "foo\tasdf");
@@ -276,7 +291,7 @@ mod test {
 
     #[test]
     fn parse_mixed() {
-        let input = "foo asdf=23.1 bar=5i 1234";
+        let input = "foo asdf=23.1,bar=5i 1234";
 
         let vals = parse(input);
         assert_eq!(vals[0].series(), "foo\tasdf");
