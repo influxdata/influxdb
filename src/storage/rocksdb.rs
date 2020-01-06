@@ -1,21 +1,21 @@
-use crate::line_parser::{Point, Pair};
-use crate::delorean::{Bucket, IndexLevel, Predicate, Node, node};
+use crate::line_parser::PointType;
+use crate::storage::iterators::{ReadPoint, SeriesIterator};
+use crate::delorean::{Bucket, IndexLevel, Predicate, Node};
 use crate::delorean::node::{Value, Comparison, Logical};
 
-use bytes::BufMut;
 use std::{error, fmt};
-use std::sync::{Arc, RwLock, Mutex, MutexGuard};
+use std::sync::{Arc, RwLock, Mutex};
 use std::collections::HashMap;
 use std::time::SystemTime;
 use std::io::Cursor;
 
-use rocksdb::{DB, IteratorMode, WriteBatch, Options, ColumnFamilyDescriptor, Direction, ColumnFamily};
-use rocksdb::MemtableFactory::{Vector, HashLinkList};
-use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
+use rocksdb::{DB, IteratorMode, WriteBatch, Options, ColumnFamilyDescriptor, Direction, DBIterator};
+use byteorder::{ByteOrder, BigEndian, WriteBytesExt, ReadBytesExt};
 use prost::Message;
-use futures::AsyncWriteExt;
 use croaring::Treemap;
 use croaring::treemap::NativeSerializer;
+use actix_web::ResponseError;
+use actix_web::http::StatusCode;
 
 /// Database wraps a RocksDB database for storing the raw series data, an inverted index of the
 /// metadata and the metadata about what buckets exist in the system.
@@ -26,7 +26,7 @@ use croaring::treemap::NativeSerializer;
 /// Series (measurement + tagset + field) are identified by a u64 ID that is unique within a bucket.
 /// Each bucket keeps an incrementing counter for new series IDs.
 pub struct Database {
-    db: DB,
+    db: Arc<RwLock<DB>>,
     // bucket_map is an in memory map of what buckets exist in the system. the key is the org id and bucket name together as bytes
     bucket_map: Arc<RwLock<HashMap<Vec<u8>, Bucket>>>,
     // series_insert_lock is a map of mutexes for creating new series in each bucket. Bucket ids are unique across all orgs
@@ -36,12 +36,11 @@ pub struct Database {
 #[derive(Debug, PartialEq)]
 pub struct Series {
     id: Option<u64>,
-    point: Point,
+    point: PointType,
 }
 
 const BUCKET_CF: &str = "buckets";
 const BUCKET_CF_WRITE_BUFFER_SIZE: usize = 1024 * 1024; // 1MB
-const INDEX_CF: &str = "indexes";
 const INDEX_CF_WRITE_BUFFER_SIZE: usize = 10 * 1024 * 1024; // 10MB
 
 impl Database {
@@ -73,7 +72,7 @@ impl Database {
         let db = DB::open_cf_descriptors(&opts, dir, cf_descriptors).unwrap();
 
         let mut database = Database{
-            db,
+            db: Arc::new(RwLock::new(db)),
             bucket_map: Arc::new(RwLock::new(HashMap::new())),
             series_insert_lock: Arc::new(RwLock::new(HashMap::new())),
         };
@@ -82,23 +81,72 @@ impl Database {
         database
     }
 
-    // TODO: wire up the org and bucket part of this
-    // TODO: wire up series to ID
-    // TODO: wire up inverted index creation
-    pub fn write_points(&self, _org: &str, _bucket: &str, points: Vec<Point>) -> Result<(), StorageError> {
+    /// write_points will write values into the database under the given org_id and bucket_name. It
+    /// also inserts the series and their metadata into the index if not already present.
+    /// It does no validation against the org_id. It will create the bucket with the default
+    /// single index level of all time if it hasn't been created yet.
+    ///
+    /// # Arguments
+    /// * org_id - the organization this data resides under
+    /// * bucket_name - the string identifier of the bucket
+    /// * points - individual values with their timestamps and series keys
+    pub fn write_points(&self, org_id: u32, bucket_name: &str, points: Vec<PointType>) -> Result<(), StorageError> {
+        let key = bucket_key(org_id, bucket_name);
+
+        let _ = self.create_default_bucket_if_not_exists(org_id, bucket_name, &key)?;
+        let bucket_map = self.bucket_map.read().unwrap();
+        let bucket = bucket_map.get(&key).unwrap();
+
+        let mut series = self.get_series_ids(org_id, &bucket, points);
+        self.insert_series_without_ids(org_id, &bucket, &mut series);
+
         let mut batch = WriteBatch::default();
 
-        for point in points {
-            let mut s = point.series.into_bytes();
-            s.write_i64::<BigEndian>(point.time).unwrap();
-            let mut val:Vec<u8> = Vec::with_capacity(4);
-            val.write_i64::<BigEndian>(point.value).unwrap();
+        for s in series {
+            let key = key_for_series_and_time(bucket.id, s.id.unwrap(), s.point.time());
+            let mut value = Vec::with_capacity(8);
 
-            batch.put(s, val).unwrap();
+            match s.point {
+                PointType::I64(p) => value.write_i64::<BigEndian>(p.value).unwrap(),
+                PointType::F64(p) => value.write_f64::<BigEndian>(p.value).unwrap(),
+            }
+
+            batch.put(key, value).unwrap();
         }
 
-        self.db.write(batch).unwrap(); // crash if there's some Rocks related error
+        self.db.read().unwrap().write(batch).expect("unexpected RocksDB error");
         Ok(())
+    }
+
+    fn create_default_bucket_if_not_exists(&self, org_id: u32, bucket_name: &str, bucket_key: &[u8]) -> Result<u32, StorageError> {
+        match self.bucket_map.read().unwrap().get(bucket_key) {
+            Some(b) => return Ok(b.id),
+            None => (),
+        }
+
+        let bucket = Bucket::new(org_id, bucket_name.to_string());
+        self.create_bucket_if_not_exists(org_id, &bucket)
+    }
+
+    pub fn read_range<'a>(&self, org_id: u32, bucket_name: &str, range: &'a Range, predicate: &'a Predicate, _batch_size: usize) -> Result<SeriesIterator, StorageError> {
+        let bucket = match self.get_bucket_by_name(org_id, bucket_name).unwrap() {
+            Some(b) => b,
+            None => return Err(StorageError{description: format!("bucket {} not found", bucket_name)}),
+        };
+
+        let series_filters = self.get_series_filters(&bucket, Some(&predicate), range)?;
+
+        Ok(SeriesIterator::new(org_id, bucket.id, series_filters))
+    }
+
+    fn get_db_points_iter(&self, _org_id: u32, bucket_id: u32, series_id: u64, start: i64) -> (DBIterator, Vec<u8>) {
+        let prefix = prefix_for_series(bucket_id, series_id, start);
+        let mode = IteratorMode::From(&prefix, Direction::Forward);
+
+        let iter = self.db.read().unwrap().iterator(mode);
+        let prefix = prefix[0..12].to_vec();
+
+        (iter, prefix)
     }
 
     /// If the bucket name exists within an org, this function returns the ID (ignoring whether the
@@ -109,7 +157,7 @@ impl Database {
     ///
     /// * `org_id` - The organization this bucket is under
     /// * `bucket` - The bucket to create along with all of its configuration options. Ignores the ID.
-    pub fn create_bucket_if_not_exists(&mut self, org_id: u32, bucket: &Bucket) -> Result<u32, StorageError> {
+    pub fn create_bucket_if_not_exists(&self, org_id: u32, bucket: &Bucket) -> Result<u32, StorageError> {
         validate_bucket_fields(bucket)?;
 
         let key = bucket_key(org_id, &bucket.name);
@@ -122,15 +170,17 @@ impl Database {
             return Ok(b.id);
         }
 
+        let db = self.db.read().unwrap();
+
         // assign the ID and insert the bucket
-        let buckets = self.db.cf_handle(BUCKET_CF)
+        let buckets = db.cf_handle(BUCKET_CF)
             .expect("unexpected rocksdb error while trying to get the buckets column family");
 
         let mut buf: Vec<u8> = vec![];
         let mut store = bucket.clone();
 
         // get the next bucket ID
-        let mut next_id = match self.db.get_cf(buckets, next_bucket_id_key())
+        let next_id = match db.get_cf(buckets, next_bucket_id_key())
             .expect("unexpected rocksdb error while trying to get the next bucket id") {
 
             Some(val) => u32_from_bytes(&val),
@@ -143,8 +193,8 @@ impl Database {
         // write the bucket and the next ID counter atomically
         let mut batch = WriteBatch::default();
         batch.put_cf(&buckets, &key, buf).unwrap();
-        batch.put_cf(&buckets, next_bucket_id_key(), u32_to_bytes(store.id + 1));
-        self.db.write(batch).expect("unexpected rocksdb error writing to DB");
+        batch.put_cf(&buckets, next_bucket_id_key(), u32_to_bytes(store.id + 1)).unwrap();
+        db.write(batch).expect("unexpected rocksdb error writing to DB");
 
         let id = store.id;
         map.insert(key, store);
@@ -159,9 +209,10 @@ impl Database {
     /// * `org_id` - The organization this bucket is under
     /// * `name` - The name of the bucket (which is unique under an organization)
     pub fn get_bucket_by_name(&self, org_id: u32, name: &str) -> Result<Option<Bucket>, rocksdb::Error> {
-        let buckets = self.db.cf_handle(BUCKET_CF).unwrap();
+        let db = self.db.read().unwrap();
+        let buckets = db.cf_handle(BUCKET_CF).unwrap();
 
-        match self.db.get_cf(buckets, bucket_key(org_id, &name.to_string())) {
+        match db.get_cf(buckets, bucket_key(org_id, &name.to_string())) {
             Ok(b) => {
                 match b {
                     Some(b) => {
@@ -189,14 +240,14 @@ impl Database {
     ///
     /// # Returns
     /// A vector of series where each point in the passed in vector is contained in a series
-    pub fn get_series_ids(&self, org_id: u32, bucket: &Bucket, mut points: Vec<Point>) -> Vec<Series> {
+    pub fn get_series_ids(&self, _org_id: u32, bucket: &Bucket, points: Vec<PointType>) -> Vec<Series> {
         let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
 
-        let mut series = points.into_iter().map(|p| {
+        let series = points.into_iter().map(|p| {
             let mut series = Series{id: None, point: p};
             let level = &bucket.index_levels[0];
             let cf_name = index_cf_name(bucket.id,level.duration_seconds, now);
-            series.id = self.get_series_id(&cf_name, &series.point.series);
+            series.id = self.get_series_id(&cf_name, &series.point.series());
             series
         }).collect();
 
@@ -212,11 +263,12 @@ impl Database {
     pub fn get_series_filters(&self, bucket: &Bucket, predicate: Option<&Predicate>, range: &Range) -> Result<Vec<SeriesFilter>, StorageError> {
         if let Some(pred) = predicate {
             if let Some(root) = &pred.root {
-                let mut map = self.evaluate_node(bucket, &root, range)?;
+                let map = self.evaluate_node(bucket, &root, range)?;
                 let mut filters = Vec::with_capacity(map.cardinality() as usize);
 
                 for id in map.iter() {
-                    filters.push(SeriesFilter{id, value_predicate: None});
+                    let (key, series_type) = self.get_series_key_and_type_by_id(&bucket, id, &range)?;
+                    filters.push(SeriesFilter{id, key, value_predicate: None, series_type});
                 }
 
                 return Ok(filters);
@@ -225,6 +277,27 @@ impl Database {
 
         // TODO: return list of all series
         Err(StorageError{description: "get for all series ids not wired up yet".to_string()})
+    }
+
+    fn get_series_key_and_type_by_id(&self, bucket: &Bucket, id: u64, _range: &Range) -> Result<(String, SeriesDataType), StorageError> {
+        let index_level = bucket.index_levels.get(0).unwrap(); // TODO: find the right index based on range
+        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+        let cf_name = index_cf_name(bucket.id, index_level.duration_seconds, now);
+        let db = self.db.read().unwrap();
+
+        match db.cf_handle(&cf_name) {
+            Some(cf) => {
+                match db.get_cf(cf, index_series_id_from_id(id)).unwrap() {
+                    Some(val) => {
+                        let t = series_type_from_byte(val[0]);
+                        let key = std::str::from_utf8(&val[1..]).unwrap().to_owned();
+                        Ok((key, t))
+                    },
+                    None => Err(StorageError{description: "series id not found".to_string()})
+                }
+            },
+            None => Err(StorageError{description: "unable to find index".to_string()}),
+        }
     }
 
     fn evaluate_node(&self, bucket: &Bucket, n: &Node, range: &Range) -> Result<Treemap, StorageError> {
@@ -282,9 +355,15 @@ impl Database {
     }
 
     fn get_posting_list_for_tag_key_value(&self, bucket: &Bucket, key: &str, value: &str, _range: &Range) -> Result<Treemap, StorageError> {
-        match self.index_cf_handle(bucket) {
+        // first get the cf for this index
+        let index_level = bucket.index_levels.get(0).unwrap(); // TODO: find the right index based on range
+        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+        let cf_name = index_cf_name(bucket.id, index_level.duration_seconds, now);
+        let db = self.db.read().unwrap();
+
+        match db.cf_handle(&cf_name) {
             Some(cf) => {
-                match self.db.get_cf(cf, index_key_value_posting_list(bucket.id, key, value)).unwrap() {
+                match db.get_cf(cf, index_key_value_posting_list(bucket.id, key, value)).unwrap() {
                     Some(val) => {
                         let map = Treemap::deserialize(&val).expect("unexpected error deserializing tree map");
                         Ok(map)
@@ -296,26 +375,21 @@ impl Database {
         }
     }
 
-    fn index_cf_handle(&self, bucket: &Bucket) -> Option<&ColumnFamily> {
-        let index_level = bucket.index_levels.get(0).unwrap(); // TODO: find the right index based on range
-        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
-        let cf_name = index_cf_name(bucket.id, index_level.duration_seconds, now);
-        self.db.cf_handle(&cf_name)
-    }
-
     // TODO: handle predicate
-    pub fn get_tag_keys(&self, bucket: &Bucket, _predicate: Option<&Predicate>, range: &Range) -> Vec<String> {
+    pub fn get_tag_keys(&self, bucket: &Bucket, _predicate: Option<&Predicate>, _range: &Range) -> Vec<String> {
         let index_level = bucket.index_levels.get(0).unwrap(); // TODO: find the right index based on range
         let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
         let cf_name = index_cf_name(bucket.id, index_level.duration_seconds, now);
 
         let mut keys = vec![];
 
-        match self.db.cf_handle(&cf_name) {
+        let db = self.db.read().unwrap();
+
+        match db.cf_handle(&cf_name) {
             Some(index) => {
                 let prefix = index_tag_key_prefix(bucket.id);
                 let mode = IteratorMode::From(&prefix, Direction::Forward);
-                let mut iter = self.db.iterator_cf(index, mode)
+                let iter = db.iterator_cf(index, mode)
                     .expect("unexpected rocksdb error getting iterator for index");
 
                 for (key, _) in iter {
@@ -333,18 +407,19 @@ impl Database {
         keys
     }
 
-    pub fn get_tag_values(&self, bucket: &Bucket, tag: &str, _predicate: Option<&Predicate>, range: &Range) -> Vec<String> {
+    pub fn get_tag_values(&self, bucket: &Bucket, tag: &str, _predicate: Option<&Predicate>, _range: &Range) -> Vec<String> {
         let index_level = bucket.index_levels.get(0).unwrap(); // TODO: find the right index based on range
         let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
         let cf_name = index_cf_name(bucket.id, index_level.duration_seconds, now);
 
+        let db = self.db.read().unwrap();
         let mut values = vec![];
 
-        match self.db.cf_handle(&cf_name) {
+        match db.cf_handle(&cf_name) {
             Some(index) => {
                 let prefix = index_tag_key_value_prefix(bucket.id, tag);
                 let mode = IteratorMode::From(&prefix, Direction::Forward);
-                let mut iter = self.db.iterator_cf(index, mode)
+                let iter = db.iterator_cf(index, mode)
                     .expect("unexpected rocksdb error getting iterator for index");
 
                 for (key, _) in iter {
@@ -364,10 +439,10 @@ impl Database {
 
     // ensure_series_mutex_exists makes sure that the passed in bucket id has a mutex, which is used
     // when inserting new series into a bucket
-    fn ensure_series_mutex_exists(&mut self, bucket_id: u32) {
+    fn ensure_series_mutex_exists(&self, bucket_id: u32) {
         let map = self.series_insert_lock.read().expect("mutex poisoned");
 
-        if let Some(next_id_mutex) = map.get(&bucket_id) {
+        if let Some(_next_id_mutex) = map.get(&bucket_id) {
             return;
         }
 
@@ -385,11 +460,11 @@ impl Database {
     // TODO: build the index for levels other than the first
     // insert_series_without_ids will insert any series into the index and obtain an identifier for it.
     // the passed in series vector is modified so that the newly inserted series have their ids
-    pub fn insert_series_without_ids(&mut self, org_id: u32, bucket: &Bucket, series: &mut Vec<Series>) {
+    pub fn insert_series_without_ids(&self, org_id: u32, bucket: &Bucket, series: &mut Vec<Series>) {
         // We want to get a lock on new series only for this bucket
         self.ensure_series_mutex_exists(bucket.id);
         let map = self.series_insert_lock.read().expect("mutex poisoned");
-        let mut next_id = map.get(&bucket.id).expect("should exist because of call to ensure_series_mutex_exists");
+        let next_id = map.get(&bucket.id).expect("should exist because of call to ensure_series_mutex_exists");
         let mut next_id = next_id.lock().expect("mutex poisoned");
 
         let mut batch = WriteBatch::default();
@@ -397,26 +472,38 @@ impl Database {
         // create the column family to store the index if it doesn't exist
         let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
         let cf_name = index_cf_name(bucket.id, bucket.index_levels[0].duration_seconds, now);
-        let index_cf = match self.db.cf_handle(&cf_name) {
-            Some(cf) => cf,
-            None => {
-                self.db.create_cf(&cf_name, &index_cf_options()).unwrap();
-                self.db.cf_handle(&cf_name).unwrap()
-            },
+        let index_exists = match self.db.read().unwrap().cf_handle(&cf_name) {
+            Some(_) => true,
+            None => false,
         };
+
+        if !index_exists {
+            self.db.write().unwrap().create_cf(&cf_name, &index_cf_options()).unwrap();
+        }
+
+        let db = self.db.read().unwrap();
+        let index_cf = db.cf_handle(&cf_name).expect("index column family should have already been inserted");
 
         // Keep an in memory map for updating multiple index entries at a time
         let mut index_map: HashMap<Vec<u8>, Treemap> = HashMap::new();
+        let mut series_id_map: HashMap<String, u64> = HashMap::new();
 
-        // now loop through the series and
+        // now loop through the series and insert the index entries into the map
         for series in series {
             // don't bother with series in the collection that already have IDs
             if let Some(_) = series.id {
                 continue;
             }
 
+            // if we've already put this series in the map in this write, skip it
+            if let Some(id) = series_id_map.get(series.point.series()) {
+                series.id = Some(*id);
+                continue;
+            }
+
             // now that we have the mutex on series, make sure these weren't inserted in some other thread
-            if let Some(_) = self.get_series_id(&cf_name, &series.point.series) {
+            if let Some(id) = self.get_series_id(&cf_name, &series.point.series()) {
+                series.id = Some(id);
                 continue;
             }
 
@@ -424,7 +511,9 @@ impl Database {
             let id = *next_id;
             let mut series_id = Vec::with_capacity(8);
             series_id.write_u64::<BigEndian>(*next_id).unwrap();
-            batch.put_cf(index_cf, index_series_key_id(&series.point.series), series_id);
+            batch.put_cf(index_cf, index_series_key_id(&series.point.series()), series_id.clone()).unwrap();
+            batch.put_cf(index_cf, index_series_id(&series_id), index_series_id_value(series_type_from_point_type(&series.point), &series.point.series())).unwrap();
+            series_id_map.insert(series.point.series().clone(), *next_id);
             *next_id += 1;
 
             // insert the index entries
@@ -434,10 +523,10 @@ impl Database {
             let pairs = series.point.index_pairs().unwrap();
             for pair in pairs {
                 // insert the tag key index
-                batch.put_cf(index_cf, index_tag_key(bucket.id, &pair.key), vec![0 as u8]);
+                batch.put_cf(index_cf, index_tag_key(bucket.id, &pair.key), vec![0 as u8]).unwrap();
 
                 // insert the tag value index
-                batch.put_cf(index_cf, index_tag_key_value(bucket.id, &pair.key, &pair.value), vec![0 as u8]);
+                batch.put_cf(index_cf, index_tag_key_value(bucket.id, &pair.key, &pair.value), vec![0 as u8]).unwrap();
 
                 // update the key to id bitmap
                 let index_key_posting_list_key = index_key_posting_list(bucket.id, &pair.key).to_vec();
@@ -448,7 +537,7 @@ impl Database {
                         tree.add(id);
                     },
                     None => {
-                        let mut map = match self.db.get_cf(index_cf, &index_key_posting_list_key).unwrap() {
+                        let mut map = match self.db.read().unwrap().get_cf(index_cf, &index_key_posting_list_key).unwrap() {
                             Some(b) => {
                                 Treemap::deserialize(&b).expect("unexpected error deserializing posting list")
                             },
@@ -467,7 +556,7 @@ impl Database {
                         tree.add(id);
                     },
                     None => {
-                        let mut map = match self.db.get_cf(index_cf, &index_key_value_posting_list_key).unwrap() {
+                        let mut map = match self.db.read().unwrap().get_cf(index_cf, &index_key_value_posting_list_key).unwrap() {
                             Some(b) => {
                                 Treemap::deserialize(&b).expect("unexpected error deserializing posting list")
                             },
@@ -482,21 +571,22 @@ impl Database {
 
         // do the index writes from the in temporary in memory map
         for (k, v) in index_map.iter() {
-            batch.put_cf(index_cf, k, v.serialize().unwrap());
+            let _ = batch.put_cf(index_cf, k, v.serialize().unwrap());
         }
 
         // save the next series id
-        let bucket_cf = self.db.cf_handle(BUCKET_CF).unwrap();
+        let bucket_cf = db.cf_handle(BUCKET_CF).unwrap();
         let mut next_series_id_val = Vec::with_capacity(8);
         next_series_id_val.write_u64::<BigEndian>(*next_id).unwrap();
-        batch.put_cf(bucket_cf, next_series_id_key(org_id, bucket.id), next_series_id_val);
-        self.db.write(batch).expect("unexpected rocksdb error");
+        let _ = batch.put_cf(bucket_cf, next_series_id_key(org_id, bucket.id), next_series_id_val);
+
+        db.write(batch).expect("unexpected rocksdb error");
     }
 
     fn get_series_id(&self, cf_name: &str, series_key: &str) -> Option<u64> {
         // this column family might not exist if this index hasn't been created yet
-        if let Some(cf) = self.db.cf_handle(cf_name) {
-            if let Some(val) = self.db.get_cf(cf, index_series_key_id(series_key)).expect("unexpected rocksdb error") {
+        if let Some(cf) = self.db.read().unwrap().cf_handle(cf_name) {
+            if let Some(val) = self.db.read().unwrap().get_cf(cf, index_series_key_id(series_key)).expect("unexpected rocksdb error") {
                 let mut c = Cursor::new(val);
                 Some(c.read_u64::<BigEndian>().unwrap())
             } else {
@@ -508,9 +598,11 @@ impl Database {
     }
 
     fn load_bucket_map(&mut self) {
-        let buckets = self.db.cf_handle(BUCKET_CF).unwrap();
+        let db = self.db.read().unwrap();
+
+        let buckets = db.cf_handle(BUCKET_CF).unwrap();
         let prefix = &[BucketEntryType::Bucket as u8];
-        let mut iter = self.db.iterator_cf(&buckets, IteratorMode::From(prefix, Direction::Forward)).unwrap();
+        let iter = db.iterator_cf(&buckets, IteratorMode::From(prefix, Direction::Forward)).unwrap();
 
         let mut id_mutex_map = HashMap::new();
         let mut bucket_map = self.bucket_map.write().unwrap();
@@ -555,6 +647,135 @@ this one is for show keys or show values where key = value queries
 tag value map: <TagValueMap><tag key><0x0><tag value><0x0><tag key 2><0x0><tag value 2>:<BigEndian created unix seconds epoch>
 */
 
+/*
+
+TODO: The index todo list
+1. no predicate (return all series)
+2. starts with
+3. regex match
+4. not equal
+5. not regex
+6. value matches
+7. convert series/predicate matcher to return iterator over SeriesFilter
+8. index levels
+
+TODO: other pieces
+  - API endpoint to delete old series data
+  - API endpoint to delete old indexes
+  - API endpoint to run tsm compaction
+  - Write/read other data types
+  - Buckets backed by alternate storage
+  - Meta store abstracted from RocksDB
+  - Index abstracted to Trait
+  - Raw data iterator abstracted to Trait
+
+*/
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum SeriesDataType {
+    I64,
+    F64,
+//    U64,
+//    String,
+//    Bool,
+}
+
+fn prefix_for_series(bucket_id: u32, series_id: u64, start_time: i64) -> Vec<u8> {
+    let mut v = Vec::with_capacity(20);
+    v.write_u32::<BigEndian>(bucket_id).unwrap();
+    v.write_u64::<BigEndian>(series_id).unwrap();
+    v.write_i64::<BigEndian>(start_time).unwrap();
+    v
+}
+
+pub struct PointsIterator<'a, T> {
+    batch_size: usize,
+    iter: DBIterator<'a>,
+    stop_time: i64,
+    series_prefix: Vec<u8>,
+    drained: bool,
+    read: fn(b: &[u8]) -> T,
+}
+
+pub fn new_i64_points_iterator<'a>(org_id: u32, bucket_id: u32, db: &'a Database, series_filter: &'a SeriesFilter, range: &Range, batch_size: usize) -> PointsIterator<'a, i64> {
+    let (iter, series_prefix) = db.get_db_points_iter(org_id, bucket_id, series_filter.id, range.start);
+
+    PointsIterator{
+        batch_size,
+        iter,
+        stop_time: range.stop,
+        series_prefix,
+        drained: false,
+        read: i64_from_bytes,
+    }
+}
+
+pub fn new_f64_points_iterator<'a>(org_id: u32, bucket_id: u32, db: &'a Database, series_filter: &'a SeriesFilter, range: &Range, batch_size: usize) -> PointsIterator<'a, f64> {
+    let (iter, series_prefix) = db.get_db_points_iter(org_id, bucket_id, series_filter.id, range.start);
+
+    PointsIterator{
+        batch_size,
+        iter,
+        stop_time: range.stop,
+        series_prefix,
+        drained: false,
+        read: f64_from_bytes,
+    }
+}
+
+impl<T> Iterator for PointsIterator<'_, T> {
+    type Item = Vec<ReadPoint<T>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.drained {
+            return None;
+        }
+
+        let mut v = Vec::with_capacity(self.batch_size);
+        let mut n = 0;
+
+        // we have to check if the iterator is still valid. There are some edge cases where
+        // this function could get called with an invalid iterator because it has gone to
+        // the end of th rocksdb keyspace. Calling next on it segfaults the program, so check it first.
+        // Here's the issue: https://github.com/rust-rocksdb/rust-rocksdb/issues/361
+        if !self.iter.valid() {
+            self.drained = true;
+            return None;
+        }
+        while let Some((key, value)) = self.iter.next() {
+            if !key.starts_with(&self.series_prefix) {
+                self.drained = true;
+                break;
+            }
+
+            let time = BigEndian::read_i64(&key[12..]);
+            if time > self.stop_time {
+                self.drained = true;
+                break;
+            }
+
+            let point = ReadPoint{
+                value: (self.read)(&value),
+                time,
+            };
+
+            v.push(point);
+
+            n += 1;
+            if n >= self.batch_size {
+                break;
+            }
+        }
+
+        if v.is_empty() {
+            self.drained = true;
+            None
+        } else {
+            Some(v)
+        }
+    }
+}
+
 // IndexEntryType is used as a u8 prefix for any key in rocks for these different index entries
 enum IndexEntryType {
     SeriesKeyToID,
@@ -586,6 +807,38 @@ fn index_series_key_id(series_key: &str) -> Vec<u8> {
     let mut v = Vec::with_capacity(series_key.len() + 1);
     v.push(IndexEntryType::SeriesKeyToID as u8);
     v.append(&mut series_key.as_bytes().to_vec());
+    v
+}
+
+fn index_series_id(id: &Vec<u8>) -> Vec<u8> {
+    let mut v = Vec::with_capacity(8 + 1);
+    v.push(IndexEntryType::IDToSeriesKey as u8);
+    v.append(&mut id.clone());
+    v
+}
+
+fn index_series_id_value(t: SeriesDataType, key: &str) -> Vec<u8> {
+    let mut v = Vec::with_capacity(1 + key.len());
+    v.push(t as u8);
+    v.append(&mut key.as_bytes().to_vec());
+    v
+}
+
+fn series_type_from_point_type(p: &PointType) -> SeriesDataType {
+    match p {
+        PointType::I64(_) => SeriesDataType::I64,
+        PointType::F64(_) => SeriesDataType::F64,
+    }
+}
+
+fn series_type_from_byte(b: u8) -> SeriesDataType {
+    unsafe { ::std::mem::transmute(b) }
+}
+
+fn index_series_id_from_id(id: u64) -> Vec<u8> {
+    let mut v = Vec::with_capacity(8 + 1);
+    v.push(IndexEntryType::IDToSeriesKey as u8);
+    v.write_u64::<BigEndian>(id).unwrap();
     v
 }
 
@@ -641,10 +894,6 @@ fn index_key_value_posting_list(bucket_id: u32, key: &str, value: &str) -> Vec<u
     v
 }
 
-fn index_entry_type_from_byte(b: u8) -> IndexEntryType {
-    unsafe { ::std::mem::transmute(b) }
-}
-
 // next_series_id_key gives the key in the buckets CF in rocks that holds the value for the next series ID
 fn next_series_id_key(org_id: u32, bucket_id: u32) -> Vec<u8> {
     let mut v = Vec::with_capacity(9);
@@ -665,8 +914,8 @@ fn validate_bucket_fields(_bucket: &Bucket) -> Result<(), StorageError> {
     Ok(())
 }
 // returns the byte key to find this bucket in the buckets CF in rocks
-fn bucket_key(org_id: u32, bucket_name: &String) -> Vec<u8> {
-    let mut s = bucket_name.clone().into_bytes();
+fn bucket_key(org_id: u32, bucket_name: &str) -> Vec<u8> {
+    let mut s = bucket_name.as_bytes().to_vec();
     let mut key = Vec::with_capacity(3 + s.len());
     key.push(BucketEntryType::Bucket as u8);
     key.write_u32::<BigEndian>(org_id).unwrap();
@@ -699,6 +948,16 @@ fn u32_to_bytes(val: u32) -> Vec<u8> {
     v
 }
 
+fn i64_from_bytes(b: &[u8]) -> i64 {
+    let mut c = Cursor::new(b);
+    c.read_i64::<BigEndian>().unwrap()
+}
+
+fn f64_from_bytes(b: &[u8]) -> f64 {
+    let mut c = Cursor::new(b);
+    c.read_f64::<BigEndian>().unwrap()
+}
+
 impl Bucket {
     pub fn new(org_id: u32, name: String) -> Bucket {
         Bucket{
@@ -714,19 +973,26 @@ impl Bucket {
     }
 }
 
-/*
+fn key_for_series_and_time(bucket_id: u32, series_id: u64, timestamp: i64) -> Vec<u8> {
+    let mut v = Vec::with_capacity(20);
+    v.write_u32::<BigEndian>(bucket_id).unwrap();
+    v.write_u64::<BigEndian>(series_id).unwrap();
+    v.write_i64::<BigEndian>(timestamp).unwrap();
+    v
+}
 
-host = a AND (region = west OR _value = 23)
-*/
-#[derive(Debug, PartialEq)]
+// TODO: add series type to series filter
+#[derive(Debug, PartialEq, Clone)]
 pub struct SeriesFilter {
-    id: u64,
-    value_predicate: Option<Predicate>,
+    pub id: u64,
+    pub key: String,
+    pub value_predicate: Option<Predicate>,
+    pub series_type: SeriesDataType,
 }
 
 pub struct Range {
-    start: i64,
-    stop: i64,
+    pub start: i64,
+    pub stop: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -747,26 +1013,28 @@ impl error::Error for StorageError {
     }
 }
 
+impl ResponseError for StorageError {
+    fn status_code(&self) -> StatusCode {
+        StatusCode::BAD_REQUEST
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use dotenv::dotenv;
     use std::env;
-    use serde_json::error::Category::Data;
 
-    use rocksdb;
     use crate::storage::predicate::parse_predicate;
-    use crate::storage::rocksdb::IndexEntryType::SeriesKeyToID;
-    use crate::line_parser::parse;
 
     #[test]
     fn create_and_get_buckets() {
-        let mut bucket: Bucket;
+        let bucket: Bucket;
         let org_id = 1;
         let mut bucket2 = Bucket::new(2, "Foo".to_string());
         {
-            let mut db = test_database("create_and_get_buckets", true);
+            let db = test_database("create_and_get_buckets", true);
             let mut b = Bucket::new(org_id, "Foo".to_string());
 
             b.id = db.create_bucket_if_not_exists(org_id, &b).unwrap();
@@ -797,7 +1065,7 @@ mod tests {
 
         // ensure it persists across database reload
         {
-            let mut db = test_database("create_and_get_buckets", false);
+            let db = test_database("create_and_get_buckets", false);
             let stored_bucket = db.get_bucket_by_name(org_id, &bucket.name).unwrap().unwrap();
             assert_eq!(bucket, stored_bucket);
 
@@ -813,13 +1081,13 @@ mod tests {
         let org_id = 23;
         let mut b = Bucket::new(org_id, "series".to_string());
         let mut b2 = Bucket::new(1, "series".to_string());
-        let p1 = Point{series: "one".to_string(), value: 1, time: 0};
-        let p2 = Point{series: "two".to_string(), value: 23, time: 40};
-        let p3 = Point{series: "three".to_string(), value: 33, time: 86};
-        let p4 = Point{series: "four".to_string(), value: 234, time: 100};
+        let p1 = PointType::new_i64("one".to_string(), 1, 0);
+        let p2 = PointType::new_i64("two".to_string(), 23, 40);
+        let p3 = PointType::new_i64("three".to_string(), 33, 86);
+        let p4 = PointType::new_i64("four".to_string(), 234, 100);
 
         {
-            let mut db = test_database("series_id_indexing", true);
+            let db = test_database("series_id_indexing", true);
             b.id = db.create_bucket_if_not_exists(org_id, &b).unwrap();
             b2.id = db.create_bucket_if_not_exists(b2.org_id, &b2).unwrap();
 
@@ -858,7 +1126,7 @@ mod tests {
 
         // now make sure that a new series gets inserted properly after restart
         {
-            let mut db = test_database("series_id_indexing", false);
+            let db = test_database("series_id_indexing", false);
 
             // check the first org
             let mut series = vec![Series{id: None, point: p4.clone()}];
@@ -892,11 +1160,11 @@ mod tests {
     #[test]
     fn series_metadata_indexing() {
         let mut bucket = Bucket::new(1, "foo".to_string());
-        let mut db = test_database("series_metadata_indexing", true);
-        let p1 = Point{series: "cpu,host=b,region=west\tusage_system".to_string(), value: 1, time: 0};
-        let p2 = Point{series: "cpu,host=a,region=west\tusage_system".to_string(), value: 1, time: 0};
-        let p3 = Point{series: "cpu,host=a,region=west\tusage_user".to_string(), value: 1, time: 0};
-        let p4 = Point{series: "mem,host=b,region=west\tfree".to_string(), value: 1, time: 0};
+        let db = test_database("series_metadata_indexing", true);
+        let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 0);
+        let p2 = PointType::new_i64("cpu,host=a,region=west\tusage_system".to_string(), 1, 0);
+        let p3 = PointType::new_i64("cpu,host=a,region=west\tusage_user".to_string(), 1, 0);
+        let p4 = PointType::new_i64("mem,host=b,region=west\tfree".to_string(), 1, 0);
 
         bucket.id = db.create_bucket_if_not_exists(bucket.org_id, &bucket).unwrap();
         let mut series = db.get_series_ids(bucket.org_id, &bucket, vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()]);
@@ -915,33 +1183,189 @@ mod tests {
         let pred = parse_predicate("_m = \"cpu\"").unwrap();
         let series = db.get_series_filters(&bucket, Some(&pred), &range).unwrap();
         assert_eq!(series, vec![
-            SeriesFilter{id: 1, value_predicate: None},
-            SeriesFilter{id: 2, value_predicate: None},
-            SeriesFilter{id: 3, value_predicate: None},
+            SeriesFilter{id: 1, key: "cpu,host=b,region=west\tusage_system".to_string(), value_predicate: None, series_type: SeriesDataType::I64},
+            SeriesFilter{id: 2, key: "cpu,host=a,region=west\tusage_system".to_string(), value_predicate: None, series_type: SeriesDataType::I64},
+            SeriesFilter{id: 3, key: "cpu,host=a,region=west\tusage_user".to_string(), value_predicate: None, series_type: SeriesDataType::I64},
         ]);
 
         // get series with host = a
         let pred = parse_predicate("host = \"a\"").unwrap();
         let series = db.get_series_filters(&bucket, Some(&pred), &range).unwrap();
         assert_eq!(series, vec![
-            SeriesFilter{id: 2, value_predicate: None},
-            SeriesFilter{id: 3, value_predicate: None},
+            SeriesFilter{id: 2, key: "cpu,host=a,region=west\tusage_system".to_string(), value_predicate: None, series_type: SeriesDataType::I64},
+            SeriesFilter{id: 3, key: "cpu,host=a,region=west\tusage_user".to_string(), value_predicate: None, series_type: SeriesDataType::I64},
         ]);
 
         // get series with measurement = cpu and host = b
         let pred = parse_predicate("_m = \"cpu\" and host = \"b\"").unwrap();
         let series = db.get_series_filters(&bucket, Some(&pred), &range).unwrap();
         assert_eq!(series, vec![
-            SeriesFilter{id: 1, value_predicate: None},
+            SeriesFilter{id: 1, key: "cpu,host=b,region=west\tusage_system".to_string(), value_predicate: None, series_type: SeriesDataType::I64},
         ]);
 
         let pred = parse_predicate("host = \"a\" OR _m = \"mem\"").unwrap();
         let series = db.get_series_filters(&bucket, Some(&pred), &range).unwrap();
         assert_eq!(series, vec![
-            SeriesFilter{id: 2, value_predicate: None},
-            SeriesFilter{id: 3, value_predicate: None},
-            SeriesFilter{id: 4, value_predicate: None},
+            SeriesFilter{id: 2, key: "cpu,host=a,region=west\tusage_system".to_string(), value_predicate: None, series_type: SeriesDataType::I64},
+            SeriesFilter{id: 3, key: "cpu,host=a,region=west\tusage_user".to_string(), value_predicate: None, series_type: SeriesDataType::I64},
+            SeriesFilter{id: 4, key: "mem,host=b,region=west\tfree".to_string(), value_predicate: None, series_type: SeriesDataType::I64},
         ]);
+    }
+
+    #[test]
+    fn write_creates_bucket() {
+        let b1 = Bucket::new(1, "bucket1".to_string());
+        let db = test_database("write_creates_bucket", true);
+
+        let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 1);
+        let p2 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 2);
+
+        db.write_points(b1.org_id, &b1.name, vec![p1, p2]).unwrap();
+        assert_eq!(db.get_bucket_by_name(b1.org_id, &b1.name).unwrap().unwrap().id, 1);
+    }
+
+    #[test]
+    fn catch_rocksdb_iterator_segfault() {
+        let mut b1 = Bucket::new(1, "bucket1".to_string());
+        let db = test_database("catch_rocksdb_iterator_segfault", true);
+
+        let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 1);
+
+        b1.id = db.create_bucket_if_not_exists(b1.org_id, &b1).unwrap();
+
+        db.write_points(b1.org_id, &b1.name, vec![p1.clone()]).unwrap();
+
+        // test that we'll only read from the bucket we wrote points into
+        let range = Range{start: 1, stop: 4};
+        let pred = parse_predicate("_m = \"cpu\"").unwrap();
+        let mut iter = db.read_range(b1.org_id, &b1.name, &range, &pred, 10).unwrap();
+        let series_filter = iter.next().unwrap();
+        assert_eq!(series_filter, SeriesFilter{id: 1, key: "cpu,host=b,region=west\tusage_system".to_string(), value_predicate: None, series_type: SeriesDataType::I64});
+        assert_eq!(iter.next(), None);
+        let mut points_iter = new_i64_points_iterator(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 10);
+        let points = points_iter.next().unwrap();
+        assert_eq!(points, vec![
+            ReadPoint{time: 1, value: 1},
+        ]);
+        assert_eq!(points_iter.next(), None);
+    }
+
+    #[test]
+    fn write_and_read_points() {
+        let mut b1 = Bucket::new(1, "bucket1".to_string());
+        let mut b2 = Bucket::new(2, "bucket2".to_string());
+        let db = test_database("write_and_read_points", true);
+
+        let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 1);
+        let p2 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 2);
+        let p3 = PointType::new_i64("mem,host=b,region=west\tfree".to_string(), 1, 2);
+        let p4 = PointType::new_i64("mem,host=b,region=west\tfree".to_string(), 1, 4);
+
+        b1.id = db.create_bucket_if_not_exists(b1.org_id, &b1).unwrap();
+        b2.id = db.create_bucket_if_not_exists(b2.org_id, &b2).unwrap();
+
+        db.write_points(b1.org_id, &b1.name, vec![p1.clone(), p2.clone()]).unwrap();
+        db.write_points(b2.org_id, &b2.name, vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()]).unwrap();
+
+        // test that we'll only read from the bucket we wrote points into
+        let range = Range{start: 1, stop: 4};
+        let pred = parse_predicate("_m = \"cpu\" OR _m = \"mem\"").unwrap();
+        let mut iter = db.read_range(b1.org_id, &b1.name, &range, &pred, 10).unwrap();
+        let series_filter = iter.next().unwrap();
+        assert_eq!(series_filter, SeriesFilter{id: 1, key: "cpu,host=b,region=west\tusage_system".to_string(), value_predicate: None, series_type: SeriesDataType::I64});
+        assert_eq!(iter.next(), None);
+        let mut points_iter = new_i64_points_iterator(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 10);
+        let points = points_iter.next().unwrap();
+        assert_eq!(points, vec![
+            ReadPoint{time: 1, value: 1},
+            ReadPoint{time: 2, value: 1},
+        ]);
+        assert_eq!(points_iter.next(), None);
+
+        // test that we'll read multiple series
+        let pred = parse_predicate("_m = \"cpu\" OR _m = \"mem\"").unwrap();
+        let mut iter = db.read_range(b2.org_id, &b2.name, &range, &pred, 10).unwrap();
+        let series_filter = iter.next().unwrap();
+        assert_eq!(series_filter, SeriesFilter{id: 1, key: "cpu,host=b,region=west\tusage_system".to_string(), value_predicate: None, series_type: SeriesDataType::I64});
+        let mut points_iter = new_i64_points_iterator(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 10);
+        let points = points_iter.next().unwrap();
+        assert_eq!(points, vec![
+            ReadPoint{time: 1, value: 1},
+            ReadPoint{time: 2, value: 1},
+        ]);
+
+        let series_filter = iter.next().unwrap();
+        assert_eq!(series_filter, SeriesFilter{id: 2, key: "mem,host=b,region=west\tfree".to_string(), value_predicate: None, series_type: SeriesDataType::I64});
+        let mut points_iter = new_i64_points_iterator(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 10);
+        let points = points_iter.next().unwrap();
+        assert_eq!(points, vec![
+            ReadPoint{time: 2, value: 1},
+            ReadPoint{time: 4, value: 1},
+        ]);
+
+        // test that the batch size is honored
+        let pred = parse_predicate("host = \"b\"").unwrap();
+        let mut iter = db.read_range(b1.org_id, &b1.name, &range, &pred, 1).unwrap();
+        let series_filter = iter.next().unwrap();
+        assert_eq!(series_filter, SeriesFilter{id: 1, key: "cpu,host=b,region=west\tusage_system".to_string(), value_predicate: None, series_type: SeriesDataType::I64});
+        assert_eq!(iter.next(), None);
+        let mut points_iter = new_i64_points_iterator(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 1);
+        let points = points_iter.next().unwrap();
+        assert_eq!(points, vec![
+            ReadPoint{time: 1, value: 1},
+        ]);
+        let points = points_iter.next().unwrap();
+        assert_eq!(points, vec![
+            ReadPoint{time: 2, value: 1},
+        ]);
+
+        // test that the time range is properly limiting
+        let range = Range{start: 2, stop: 3};
+        let pred = parse_predicate("_m = \"cpu\" OR _m = \"mem\"").unwrap();
+        let mut iter = db.read_range(b2.org_id, &b2.name, &range, &pred, 10).unwrap();
+        let series_filter = iter.next().unwrap();
+        assert_eq!(series_filter, SeriesFilter{id: 1, key: "cpu,host=b,region=west\tusage_system".to_string(), value_predicate: None, series_type: SeriesDataType::I64});
+        let mut points_iter = new_i64_points_iterator(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 10);
+        let points = points_iter.next().unwrap();
+        assert_eq!(points, vec![
+            ReadPoint{time: 2, value: 1},
+        ]);
+
+        let series_filter = iter.next().unwrap();
+        assert_eq!(series_filter, SeriesFilter{id: 2, key: "mem,host=b,region=west\tfree".to_string(), value_predicate: None, series_type: SeriesDataType::I64});
+        let mut points_iter = new_i64_points_iterator(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 10);
+        let points = points_iter.next().unwrap();
+        assert_eq!(points, vec![
+            ReadPoint{time: 2, value: 1},
+        ]);
+    }
+
+    #[test]
+    fn write_and_read_float_values() {
+        let mut b1 = Bucket::new(1, "bucket1".to_string());
+        let db = test_database("write_and_read_float_values", true);
+
+        let p1 = PointType::new_f64("cpu,host=b,region=west\tusage_system".to_string(), 1.0, 1);
+        let p2 = PointType::new_f64("cpu,host=b,region=west\tusage_system".to_string(), 2.2, 2);
+
+        b1.id = db.create_bucket_if_not_exists(b1.org_id, &b1).unwrap();
+
+        db.write_points(b1.org_id, &b1.name, vec![p1.clone(), p2.clone()]).unwrap();
+
+        // test that we'll only read from the bucket we wrote points into
+        let range = Range{start: 0, stop: 4};
+        let pred = parse_predicate("_m = \"cpu\"").unwrap();
+        let mut iter = db.read_range(b1.org_id, &b1.name, &range, &pred, 10).unwrap();
+        let series_filter = iter.next().unwrap();
+        assert_eq!(series_filter, SeriesFilter{id: 1, key: "cpu,host=b,region=west\tusage_system".to_string(), value_predicate: None, series_type: SeriesDataType::F64});
+        assert_eq!(iter.next(), None);
+        let mut points_iter = new_f64_points_iterator(iter.org_id, iter.bucket_id, &db, &series_filter, &range, 10);
+        let points = points_iter.next().unwrap();
+        assert_eq!(points, vec![
+            ReadPoint{time: 1, value: 1.0},
+            ReadPoint{time: 2, value: 2.2},
+        ]);
+        assert_eq!(points_iter.next(), None);
     }
 
     // Test helpers
