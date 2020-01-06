@@ -27,7 +27,7 @@ const NUM_BITS: [[u8; 2]; 14] = [
 
 /// encode_all packs and binary encodes the provides slice of u64 values using
 /// simple8b into the provided vector.
-pub fn encode_all<'a>(src: &[u64], dst: &'a mut Vec<u8>) -> Result<(), Box<Error>> {
+pub fn encode_all<'a>(src: &[u64], dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     let mut i = 0;
     'next_value: while i < src.len() {
         // try to pack a run of 240 or 120 1s
@@ -96,6 +96,7 @@ pub fn decode_all<'a>(src: &[u8], dst: &'a mut Vec<u64>) {
     dst.truncate(j);
 }
 
+#[allow(dead_code)]
 pub fn decode(v: u64, dst: &mut [u64]) -> usize {
     let sel = v >> S8B_BIT_SIZE as u64;
     let mut v = v;

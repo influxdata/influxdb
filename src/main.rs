@@ -1,24 +1,19 @@
-use delorean::storage::rocksdb::Database;
-use delorean::{line_parser, storage};
-use delorean::storage::iterators::SeriesIterator;
-use delorean::storage::rocksdb::{PointsIterator, SeriesFilter, Range};
-use delorean::line_parser::{parse, index_pairs, Pair};
+use delorean::storage::rocksdb::{Database, new_i64_points_iterator, SeriesDataType, new_f64_points_iterator};
+use delorean::line_parser;
+use delorean::storage::rocksdb::Range;
+use delorean::line_parser::index_pairs;
 use delorean::storage::predicate::parse_predicate;
 use delorean::time::{parse_duration, time_as_i64_nanos};
 
 use std::{env, io, str};
 use std::env::VarError;
 use std::sync::Arc;
-use std::task::{Context, Poll};
-use std::time::SystemTime;
 
-use actix_web::{App, middleware, HttpServer, web, HttpResponse, Error as AWError, guard, error, Responder};
-use actix_web::web::Bytes;
+use actix_web::{App, middleware, HttpServer, web, HttpResponse, Error as AWError, guard, error};
 use serde_json;
 use serde::Deserialize;
-use serde::ser::{Serialize, Serializer, SerializeStruct};
 use actix_web::web::{BytesMut};
-use futures::{self, StreamExt, Stream};
+use futures::{self, StreamExt};
 use failure::_core::time::Duration;
 use csv::Writer;
 
@@ -160,7 +155,7 @@ async fn read(read_info: web::Query<ReadInfo>, s: web::Data<Arc<Server>>) -> Res
 
     let range = Range{start, stop};
 
-    let mut series = s.db.read_range(read_info.org_id, &read_info.bucket_name, &range, &predicate, 10)?;
+    let series = s.db.read_range(read_info.org_id, &read_info.bucket_name, &range, &predicate, 10)?;
 
     let bucket_id = series.bucket_id;
     let db = &s.db;
@@ -170,7 +165,6 @@ async fn read(read_info: web::Query<ReadInfo>, s: web::Data<Arc<Server>>) -> Res
     for s in series {
         let mut wtr = Writer::from_writer(vec![]);
 
-        let mut points = PointsIterator::new_from_series_filter(read_info.org_id, bucket_id, &db, &s, &range, 10)?;
         let pairs = index_pairs(&s.key)?;
         let mut cols = Vec::with_capacity(pairs.len() + 2);
         let mut vals = Vec::with_capacity(pairs.len() + 2);
@@ -191,16 +185,36 @@ async fn read(read_info: web::Query<ReadInfo>, s: web::Data<Arc<Server>>) -> Res
 
         wtr.write_record(&cols).unwrap();
 
-        for batch in points {
-            for p in batch {
-                let t = p.time.to_string();
-                let v = p.value.to_string();
-                vals[vcol] = v;
-                vals[tcol] = t;
+        match s.series_type {
+            SeriesDataType::I64 => {
+                let points = new_i64_points_iterator(read_info.org_id, bucket_id, &db, &s, &range, 10);
 
-                wtr.write_record(&vals).unwrap();
-            }
-        }
+                for batch in points {
+                    for p in batch {
+                        let t = p.time.to_string();
+                        let v = p.value.to_string();
+                        vals[vcol] = v;
+                        vals[tcol] = t;
+
+                        wtr.write_record(&vals).unwrap();
+                    }
+                }
+            },
+            SeriesDataType::F64 => {
+                let points = new_f64_points_iterator(read_info.org_id, bucket_id, &db, &s, &range, 10);
+
+                for batch in points {
+                    for p in batch {
+                        let t = p.time.to_string();
+                        let v = p.value.to_string();
+                        vals[vcol] = v;
+                        vals[tcol] = t;
+
+                        wtr.write_record(&vals).unwrap();
+                    }
+                }
+            },
+        };
 
         let mut data = match wtr.into_inner() {
             Ok(d) => d,

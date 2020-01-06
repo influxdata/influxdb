@@ -1,19 +1,76 @@
 use std::str::Chars;
 use std::{error, fmt};
-use std::fs::read;
 use actix_web::ResponseError;
 use actix_web::http::StatusCode;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Point {
+pub struct Point<T> {
     pub series: String,
     pub time: i64,
-    pub value: i64,
+    pub value: T,
 }
 
-impl Point {
+impl<T> Point<T> {
     pub fn index_pairs(&self) -> Result<Vec<Pair>, ParseError> {
         index_pairs(&self.series)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum PointType {
+    I64(Point<i64>),
+    F64(Point<f64>),
+}
+
+impl PointType {
+    pub fn new_i64(series: String, value: i64, time: i64) -> PointType {
+        PointType::I64(Point{series, value, time})
+    }
+
+    pub fn new_f64(series: String, value: f64, time: i64) -> PointType {
+        PointType::F64(Point{series, value, time})
+    }
+
+    pub fn series(&self) -> &String {
+        match self {
+            PointType::I64(p) => &p.series,
+            PointType::F64(p) => &p.series,
+        }
+    }
+
+    pub fn time(&self) -> i64 {
+        match self {
+            PointType::I64(p) => p.time,
+            PointType::F64(p) => p.time,
+        }
+    }
+
+    pub fn set_time(&mut self, t: i64) {
+        match self {
+            PointType::I64(p) => p.time = t,
+            PointType::F64(p) => p.time = t,
+        }
+    }
+
+    pub fn i64_value(&self) -> Option<i64> {
+        match self {
+            PointType::I64(p) => Some(p.value),
+            _ => None,
+        }
+    }
+
+    pub fn f64_value(&self) -> Option<f64> {
+        match self {
+            PointType::F64(p) => Some(p.value),
+            _ => None,
+        }
+    }
+
+    pub fn index_pairs(&self) -> Result<Vec<Pair>, ParseError> {
+        match self {
+            PointType::I64(p) => p.index_pairs(),
+            PointType::F64(p) => p.index_pairs(),
+        }
     }
 }
 
@@ -90,9 +147,9 @@ impl ResponseError for ParseError {
 }
 
 // TODO: have parse return an error for invalid inputs
-pub fn parse(input: &str) -> Vec<Point> {
-    let mut points = Vec::with_capacity(10000);
-    let mut lines= input.lines();
+pub fn parse(input: &str) -> Vec<PointType> {
+    let mut points: Vec<PointType> = Vec::with_capacity(10000);
+    let lines= input.lines();
 
     for line in lines {
         read_line(line, &mut points)
@@ -101,7 +158,7 @@ pub fn parse(input: &str) -> Vec<Point> {
     return points;
 }
 
-fn read_line(line: &str, points: &mut Vec<Point>) {
+fn read_line(line: &str, points: &mut Vec<PointType>) {
     let mut points = points;
     let mut chars = line.chars();
     let mut series = String::with_capacity(1000);
@@ -113,7 +170,7 @@ fn read_line(line: &str, points: &mut Vec<Point>) {
     }
 }
 
-fn read_fields(measurement_tags: &str, chars: &mut Chars, points: &mut Vec<Point>) {
+fn read_fields(measurement_tags: &str, chars: &mut Chars, points: &mut Vec<PointType>) {
     let mut chars = chars;
     let mut points = points;
     let mut field_name = String::with_capacity(100);
@@ -123,34 +180,62 @@ fn read_fields(measurement_tags: &str, chars: &mut Chars, points: &mut Vec<Point
     while let Some(ch) = chars.next() {
         match ch {
             '=' => {
-                read_value(&measurement_tags, field_name, &mut chars, &mut points);
+                let should_break = !read_value(&measurement_tags, field_name, &mut chars, &mut points);
                 field_name = String::with_capacity(100);
+                if should_break {
+                    break
+                }
             },
             _ => field_name.push(ch),
         }
     }
 
+    // read the time
+    for ch in chars {
+        field_name.push(ch);
+    }
     let time = field_name.parse::<i64>().unwrap();
 
     while point_offset < points.len() {
-        points[point_offset].time = time;
+        points[point_offset].set_time(time);
         point_offset += 1;
     }
 }
 
-fn read_value(measurement_tags: &str, field_name: String, chars: &mut Chars, points: &mut Vec<Point>) {
+// read_value reads the value from the chars and returns true if there are more fields and values to be read
+fn read_value(measurement_tags: &str, field_name: String, chars: &mut Chars, points: &mut Vec<PointType>) -> bool {
     let mut value = String::new();
 
     while let Some(ch) = chars.next() {
         match ch {
-            ' ' => {
-                let val = value.parse::<i64>().unwrap();
-                points.push(Point{series: measurement_tags.to_string() + "\t" + &field_name, value: val, time: 0});
-                return;
+            ' ' | ',' => {
+                let series = measurement_tags.to_string() + "\t" + &field_name;
+
+                // if the last character of the value is an i then it's an integer, otherwise it's
+                // a float (at least until we support the other data types
+                let point = match value.ends_with("i") {
+                    true => {
+                        let val = value[..value.len()-1].parse::<i64>().unwrap();
+                        PointType::new_i64(series, val, 0)
+                    },
+                    false => {
+                        let val = value.parse::<f64>().unwrap();
+                        PointType::new_f64(series, val, 0)
+                    }
+                };
+                points.push(point);
+
+                if ch == ' ' {
+                    return false;
+                }
+
+                return true;
             },
             _ => value.push(ch),
         }
     }
+
+    false
 }
 
 #[cfg(test)]
@@ -159,26 +244,63 @@ mod test {
 
     #[test]
     fn parse_single_field() {
-        let input = "foo asdf=23 1234";
+        let input = "foo asdf=23i 1234";
 
         let vals = parse(input);
-        assert_eq!(vals[0].series, "foo\tasdf");
-        assert_eq!(vals[0].time, 1234);
-        assert_eq!(vals[0].value, 23);
+        assert_eq!(vals[0].series(), "foo\tasdf");
+        assert_eq!(vals[0].time(), 1234);
+        assert_eq!(vals[0].i64_value().unwrap(), 23);
+
+        let input = "foo asdf=44 546";
+        let vals = parse(input);
+        assert_eq!(vals[0].series(), "foo\tasdf");
+        assert_eq!(vals[0].time(), 546);
+        assert_eq!(vals[0].f64_value().unwrap(), 44.0);
+
+        let input = "foo asdf=3.14 123";
+        let vals = parse(input);
+        assert_eq!(vals[0].series(), "foo\tasdf");
+        assert_eq!(vals[0].time(), 123);
+        assert_eq!(vals[0].f64_value().unwrap(), 3.14);
     }
 
     #[test]
     fn parse_two_fields() {
-        let input = "foo asdf=23 bar=5 1234";
+        let input = "foo asdf=23i,bar=5i 1234";
 
         let vals = parse(input);
-        assert_eq!(vals[0].series, "foo\tasdf");
-        assert_eq!(vals[0].time, 1234);
-        assert_eq!(vals[0].value, 23);
+        assert_eq!(vals[0].series(), "foo\tasdf");
+        assert_eq!(vals[0].time(), 1234);
+        assert_eq!(vals[0].i64_value().unwrap(), 23);
 
-        assert_eq!(vals[1].series, "foo\tbar");
-        assert_eq!(vals[1].time, 1234);
-        assert_eq!(vals[1].value, 5);
+        assert_eq!(vals[1].series(), "foo\tbar");
+        assert_eq!(vals[1].time(), 1234);
+        assert_eq!(vals[1].i64_value().unwrap(), 5);
+
+        let input = "foo asdf=23.1,bar=5 1234";
+
+        let vals = parse(input);
+        assert_eq!(vals[0].series(), "foo\tasdf");
+        assert_eq!(vals[0].time(), 1234);
+        assert_eq!(vals[0].f64_value().unwrap(), 23.1);
+
+        assert_eq!(vals[1].series(), "foo\tbar");
+        assert_eq!(vals[1].time(), 1234);
+        assert_eq!(vals[1].f64_value().unwrap(), 5.0);
+    }
+
+    #[test]
+    fn parse_mixed() {
+        let input = "foo asdf=23.1,bar=5i 1234";
+
+        let vals = parse(input);
+        assert_eq!(vals[0].series(), "foo\tasdf");
+        assert_eq!(vals[0].time(), 1234);
+        assert_eq!(vals[0].f64_value().unwrap(), 23.1);
+
+        assert_eq!(vals[1].series(), "foo\tbar");
+        assert_eq!(vals[1].time(), 1234);
+        assert_eq!(vals[1].i64_value().unwrap(), 5);
     }
 
     #[test]
