@@ -1,11 +1,11 @@
 extern crate num_cpus;
 
-use std::{error, fmt};
-use actix_web::ResponseError;
 use actix_web::http::StatusCode;
+use actix_web::ResponseError;
+use std::{error, fmt};
 
-pub mod line_parser;
 pub mod encoders;
+pub mod line_parser;
 pub mod storage;
 pub mod time;
 

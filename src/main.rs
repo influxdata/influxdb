@@ -1,21 +1,23 @@
-use delorean::storage::rocksdb::{Database, new_i64_points_iterator, SeriesDataType, new_f64_points_iterator};
 use delorean::line_parser;
-use delorean::storage::rocksdb::Range;
 use delorean::line_parser::index_pairs;
 use delorean::storage::predicate::parse_predicate;
+use delorean::storage::rocksdb::Range;
+use delorean::storage::rocksdb::{
+    new_f64_points_iterator, new_i64_points_iterator, Database, SeriesDataType,
+};
 use delorean::time::{parse_duration, time_as_i64_nanos};
 
-use std::{env, io, str};
 use std::env::VarError;
 use std::sync::Arc;
+use std::{env, io, str};
 
-use actix_web::{App, middleware, HttpServer, web, HttpResponse, Error as AWError, guard, error};
-use serde_json;
-use serde::Deserialize;
-use actix_web::web::{BytesMut};
-use futures::{self, StreamExt};
-use failure::_core::time::Duration;
+use actix_web::web::BytesMut;
+use actix_web::{error, guard, middleware, web, App, Error as AWError, HttpResponse, HttpServer};
 use csv::Writer;
+use failure::_core::time::Duration;
+use futures::{self, StreamExt};
+use serde::Deserialize;
+use serde_json;
 
 struct Server {
     db: Database,
@@ -30,7 +32,11 @@ struct WriteInfo {
 }
 
 // TODO: write end to end test of write
-async fn write(mut payload: web::Payload, write_info: web::Query<WriteInfo>, s: web::Data<Arc<Server>>) -> Result<HttpResponse, AWError> {
+async fn write(
+    mut payload: web::Payload,
+    write_info: web::Query<WriteInfo>,
+    s: web::Data<Arc<Server>>,
+) -> Result<HttpResponse, AWError> {
     let mut body = BytesMut::new();
     while let Some(chunk) = payload.next().await {
         let chunk = chunk?;
@@ -45,8 +51,11 @@ async fn write(mut payload: web::Payload, write_info: web::Query<WriteInfo>, s: 
 
     let points = line_parser::parse(body);
 
-    if let Err(err) = s.db.write_points(write_info.org_id, &write_info.bucket_name, points) {
-        return Ok(HttpResponse::InternalServerError().json(serde_json::json!({"error": format!("{}", err)})))
+    if let Err(err) =
+        s.db.write_points(write_info.org_id, &write_info.bucket_name, points)
+    {
+        return Ok(HttpResponse::InternalServerError()
+            .json(serde_json::json!({ "error": format!("{}", err) })));
     }
 
     Ok(HttpResponse::Ok().json({}))
@@ -126,7 +135,10 @@ struct ReadInfo {
 
 // TODO: write end to end test of read
 // TODO: figure out how to stream read results out rather than rendering the whole thing in mem
-async fn read(read_info: web::Query<ReadInfo>, s: web::Data<Arc<Server>>) -> Result<HttpResponse, AWError> {
+async fn read(
+    read_info: web::Query<ReadInfo>,
+    s: web::Data<Arc<Server>>,
+) -> Result<HttpResponse, AWError> {
     let predicate = parse_predicate(&read_info.predicate)?;
 
     let now = std::time::SystemTime::now();
@@ -146,16 +158,22 @@ async fn read(read_info: web::Query<ReadInfo>, s: web::Data<Arc<Server>>) -> Res
         Some(duration) => {
             let d = parse_duration(duration)?;
             d.from_time(now)?
-        },
+        }
         None => now,
     };
 
     let start = time_as_i64_nanos(&start);
     let stop = time_as_i64_nanos(&stop);
 
-    let range = Range{start, stop};
+    let range = Range { start, stop };
 
-    let series = s.db.read_range(read_info.org_id, &read_info.bucket_name, &range, &predicate, 10)?;
+    let series = s.db.read_range(
+        read_info.org_id,
+        &read_info.bucket_name,
+        &range,
+        &predicate,
+        10,
+    )?;
 
     let bucket_id = series.bucket_id;
     let db = &s.db;
@@ -187,7 +205,8 @@ async fn read(read_info: web::Query<ReadInfo>, s: web::Data<Arc<Server>>) -> Res
 
         match s.series_type {
             SeriesDataType::I64 => {
-                let points = new_i64_points_iterator(read_info.org_id, bucket_id, &db, &s, &range, 10);
+                let points =
+                    new_i64_points_iterator(read_info.org_id, bucket_id, &db, &s, &range, 10);
 
                 for batch in points {
                     for p in batch {
@@ -199,9 +218,10 @@ async fn read(read_info: web::Query<ReadInfo>, s: web::Data<Arc<Server>>) -> Res
                         wtr.write_record(&vals).unwrap();
                     }
                 }
-            },
+            }
             SeriesDataType::F64 => {
-                let points = new_f64_points_iterator(read_info.org_id, bucket_id, &db, &s, &range, 10);
+                let points =
+                    new_f64_points_iterator(read_info.org_id, bucket_id, &db, &s, &range, 10);
 
                 for batch in points {
                     for p in batch {
@@ -213,12 +233,15 @@ async fn read(read_info: web::Query<ReadInfo>, s: web::Data<Arc<Server>>) -> Res
                         wtr.write_record(&vals).unwrap();
                     }
                 }
-            },
+            }
         };
 
         let mut data = match wtr.into_inner() {
             Ok(d) => d,
-            Err(e) => return Ok(HttpResponse::InternalServerError().json(serde_json::json!({"error": format!("{}", e)}))),
+            Err(e) => {
+                return Ok(HttpResponse::InternalServerError()
+                    .json(serde_json::json!({ "error": format!("{}", e) })))
+            }
         };
         response_body.append(&mut data);
         response_body.append(&mut b"\n".to_vec());
@@ -240,11 +263,13 @@ async fn main() -> io::Result<()> {
 
     let db_dir = std::env::var("DELOREAN_DB_DIR").expect("DELOREAN_DB_DIR must be set");
     let db = Database::new(&db_dir);
-    let state = Arc::new(Server{db});
+    let state = Arc::new(Server { db });
     let bind_addr = match std::env::var("DELOREAN_BIND_ADDR") {
         Ok(addr) => addr,
         Err(VarError::NotPresent) => "127.0.0.1:8080".to_string(),
-        Err(VarError::NotUnicode(_)) => panic!("DELOREAN_BIND_ADDR environment variable not a valid unicode string"),
+        Err(VarError::NotUnicode(_)) => {
+            panic!("DELOREAN_BIND_ADDR environment variable not a valid unicode string")
+        }
     };
 
     HttpServer::new(move || {
@@ -254,12 +279,8 @@ async fn main() -> io::Result<()> {
             .wrap(middleware::Logger::default())
             .service(
                 web::scope("/api/v2")
-                    .service(web::resource("/write")
-                        .route(web::post().to(write))
-                    )
-                    .service(web::resource("/read")
-                        .route(web::get().to(read))
-                    )
+                    .service(web::resource("/write").route(web::post().to(write)))
+                    .service(web::resource("/read").route(web::get().to(read))),
             )
             // default
             .default_service(
@@ -274,7 +295,7 @@ async fn main() -> io::Result<()> {
                     ),
             )
     })
-        .bind(bind_addr)?
-        .run()
-        .await
+    .bind(bind_addr)?
+    .run()
+    .await
 }

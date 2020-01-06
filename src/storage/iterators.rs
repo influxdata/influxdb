@@ -9,7 +9,7 @@ pub struct SeriesIterator {
 
 impl SeriesIterator {
     pub fn new(org_id: u32, bucket_id: u32, series_filters: Vec<SeriesFilter>) -> SeriesIterator {
-        SeriesIterator{
+        SeriesIterator {
             org_id,
             bucket_id,
             next_filter: 0,
