@@ -41,6 +41,7 @@
 1. [16374](https://github.com/influxdata/influxdb/pull/16374): Update influx CLI, only show "see help" message, instead of the whole usage.
 1. [16380](https://github.com/influxdata/influxdb/pull/16380): Fix notification tag matching rules and enable tests to verify
 1. [16376](https://github.com/influxdata/influxdb/pull/16376): Extend the y-axis when stacked graph is selected
+1. [16404](https://github.com/influxdata/influxdb/pull/16404): Fixed query reset bug that was resetting query in script editor whenever dates were changed
 
 ### UI Improvements
 
