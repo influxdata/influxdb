@@ -50,6 +50,7 @@ import {AppState, Bucket, Organization, ResourceType} from 'src/types'
 // Selectors
 import {getAll} from 'src/resources/selectors'
 import {getOrg} from 'src/organizations/selectors'
+import {isSystemBucket} from 'src/buckets/selectors'
 
 export interface CollectorsStepProps {
   currentStepIndex: number
@@ -84,24 +85,17 @@ interface StateProps {
   org: Organization
 }
 
-interface State {
-  buckets: Bucket[]
-}
-
 type Props = StateProps & DispatchProps
 type AllProps = Props & WithRouterProps
 
 @ErrorHandling
-class CollectorsWizard extends PureComponent<AllProps, State> {
-  constructor(props: AllProps) {
-    super(props)
-    this.state = {
-      buckets: [],
-    }
-  }
-
+class CollectorsWizard extends PureComponent<AllProps> {
   public componentDidMount() {
-    this.handleSetBucketInfo()
+    const {bucket, buckets} = this.props
+    if (!bucket && (buckets && buckets.length)) {
+      const {orgID, name, id} = buckets[0]
+      this.props.onSetBucketInfo(orgID, name, id)
+    }
     this.props.onSetCurrentStepIndex(0)
   }
 
@@ -132,15 +126,6 @@ class CollectorsWizard extends PureComponent<AllProps, State> {
         </Overlay.Container>
       </Overlay>
     )
-  }
-
-  private handleSetBucketInfo = () => {
-    const {bucket, buckets} = this.props
-    if (!bucket && (buckets && buckets.length)) {
-      const {orgID, name, id} = buckets[0]
-
-      this.props.onSetBucketInfo(orgID, name, id)
-    }
   }
 
   private handleDismiss = () => {
@@ -187,6 +172,11 @@ const mstp = (state: AppState): StateProps => {
   } = state
 
   const buckets = getAll<Bucket>(state, ResourceType.Buckets)
+
+  const nonSystemBuckets = buckets.filter(
+    bucket => !isSystemBucket(bucket.name)
+  )
+
   const org = getOrg(state)
 
   return {
@@ -197,7 +187,7 @@ const mstp = (state: AppState): StateProps => {
     substep,
     username: name,
     bucket,
-    buckets,
+    buckets: nonSystemBuckets,
     org,
   }
 }

@@ -70,11 +70,9 @@ class BucketsDropdown extends PureComponent<Props> {
       return []
     }
 
-    const nonSystemBuckets = buckets.filter(bucket => {
-      if (!isSystemBucket(bucket.name)) {
-        return bucket
-      }
-    })
+    const nonSystemBuckets = buckets.filter(
+      bucket => !isSystemBucket(bucket.name)
+    )
 
     return nonSystemBuckets.map(b => (
       <Dropdown.Item
