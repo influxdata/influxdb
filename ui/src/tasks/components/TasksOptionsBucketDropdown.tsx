@@ -8,7 +8,7 @@ import {Dropdown, ComponentStatus} from '@influxdata/clockface'
 
 // Utils
 import {isSystemBucket} from 'src/buckets/constants/index'
-import {getAll, getStatus} from 'src/shared/selectors'
+import {getAll, getStatus} from 'src/resources/selectors'
 
 // Types
 import {RemoteDataState, AppState, Bucket, ResourceType} from 'src/types'

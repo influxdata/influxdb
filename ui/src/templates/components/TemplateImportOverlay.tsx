@@ -21,7 +21,7 @@ import {ComponentStatus} from '@influxdata/clockface'
 
 // Utils
 import jsonlint from 'jsonlint-mod'
-import {getByID} from 'src/shared/selectors'
+import {getByID} from 'src/resources/selectors'
 
 interface State {
   status: ComponentStatus

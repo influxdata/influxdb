@@ -7,12 +7,10 @@ export const getResourcesStatus = (
 ): RemoteDataState => {
   const statuses = resources.map(resource => {
     switch (resource) {
-      // Normalized resource status
-      case ResourceType.Members: {
-        return state.resources[resource].status
-      }
-
-      case ResourceType.Buckets: {
+      // Normalized resource statuses
+      case ResourceType.Members:
+      case ResourceType.Buckets:
+      case ResourceType.Authorizations: {
         return state.resources[resource].status
       }
 

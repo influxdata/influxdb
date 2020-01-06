@@ -26,7 +26,7 @@ import {ComponentStatus} from '@influxdata/clockface'
 import {AppState, Organization, ResourceType} from 'src/types'
 
 // Selectors
-import {getAll} from 'src/shared/selectors'
+import {getAll} from 'src/resources/selectors'
 
 interface StateProps {
   startOrg: Organization

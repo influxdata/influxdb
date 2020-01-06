@@ -12,8 +12,11 @@ import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader
 import GenerateTokenDropdown from 'src/authorizations/components/GenerateTokenDropdown'
 
 // Types
-import {AppState, Authorization} from 'src/types'
+import {AppState, Authorization, ResourceType} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
+
+// Selectors
+import {getAll} from 'src/resources/selectors'
 
 enum AuthSearchKeys {
   Description = 'description',
@@ -116,7 +119,9 @@ class TokensTab extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({tokens}: AppState) => ({tokens: tokens.list})
+const mstp = (state: AppState) => ({
+  tokens: getAll<Authorization[]>(state, ResourceType.Authorizations),
+})
 
 export default connect<StateProps, {}, {}>(
   mstp,

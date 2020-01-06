@@ -14,7 +14,7 @@ import {ComponentColor, Button, Overlay} from '@influxdata/clockface'
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/shared/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Types
 import {AppState, Bucket, ResourceType} from 'src/types'

@@ -8,7 +8,7 @@ import {AppState, Bucket, ResourceType} from 'src/types'
 
 // Selectors
 import {getSortedBucketNames} from 'src/buckets/selectors'
-import {getAll} from 'src/shared/selectors'
+import {getAll} from 'src/resources/selectors'
 
 interface StateProps {
   bucketNames: string[]
