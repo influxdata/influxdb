@@ -261,7 +261,16 @@ async fn main() -> io::Result<()> {
     env::set_var("RUST_LOG", "delorean=debug,actix_server=info");
     env_logger::init();
 
-    let db_dir = std::env::var("DELOREAN_DB_DIR").expect("DELOREAN_DB_DIR must be set");
+    let db_dir = match std::env::var("DELOREAN_DB_DIR") {
+        Ok(val) => val,
+        Err(_) => {
+            // default database path is $HOME/.delorean
+            let mut path = dirs::home_dir().unwrap();
+            path.push(".delorean/");
+            path.into_os_string().into_string().unwrap()
+        }
+    };
+
     let db = Database::new(&db_dir);
     let state = Arc::new(Server { db });
     let bind_addr = match std::env::var("DELOREAN_BIND_ADDR") {

@@ -1,3 +1,4 @@
+extern crate dirs;
 extern crate num_cpus;
 
 use actix_web::http::StatusCode;
