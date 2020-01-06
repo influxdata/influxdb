@@ -40,9 +40,11 @@ export const telegrafsReducer = (
       case SET_TELEGRAFS: {
         const {schema} = action
 
-        schema.result.forEach(id => {
-          addMetaData(schema.entities[id])
-        })
+        if (schema) {
+          schema.result.forEach(id => {
+            addMetaData(schema.entities[id])
+          })
+        }
 
         setResource<Telegraf>(draftState, action, Telegrafs)
 
