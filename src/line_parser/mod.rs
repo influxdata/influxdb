@@ -1,7 +1,8 @@
+use actix_web::http::StatusCode;
+use actix_web::ResponseError;
+use std::fs::read;
 use std::str::Chars;
 use std::{error, fmt};
-use actix_web::ResponseError;
-use actix_web::http::StatusCode;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Point<T> {
@@ -24,11 +25,19 @@ pub enum PointType {
 
 impl PointType {
     pub fn new_i64(series: String, value: i64, time: i64) -> PointType {
-        PointType::I64(Point{series, value, time})
+        PointType::I64(Point {
+            series,
+            value,
+            time,
+        })
     }
 
     pub fn new_f64(series: String, value: f64, time: i64) -> PointType {
-        PointType::F64(Point{series, value, time})
+        PointType::F64(Point {
+            series,
+            value,
+            time,
+        })
     }
 
     pub fn series(&self) -> &String {
@@ -89,19 +98,19 @@ pub fn index_pairs(key: &str) -> Result<Vec<Pair>, ParseError> {
         match ch {
             ',' => {
                 reading_key = true;
-                pairs.push(Pair{key, value});
+                pairs.push(Pair { key, value });
                 key = String::with_capacity(250);
                 value = String::with_capacity(250);
-            },
+            }
             '=' => {
                 reading_key = false;
-            },
+            }
             '\t' => {
                 reading_key = false;
-                pairs.push(Pair{key, value});
+                pairs.push(Pair { key, value });
                 key = "_f".to_string();
                 value = String::with_capacity(250);
-            },
+            }
             _ => {
                 if reading_key {
                     key.push(ch);
@@ -111,7 +120,7 @@ pub fn index_pairs(key: &str) -> Result<Vec<Pair>, ParseError> {
             }
         }
     }
-    pairs.push(Pair{key, value});
+    pairs.push(Pair { key, value });
 
     Ok(pairs)
 }
@@ -149,7 +158,7 @@ impl ResponseError for ParseError {
 // TODO: have parse return an error for invalid inputs
 pub fn parse(input: &str) -> Vec<PointType> {
     let mut points: Vec<PointType> = Vec::with_capacity(10000);
-    let lines= input.lines();
+    let lines = input.lines();
 
     for line in lines {
         read_line(line, &mut points)
@@ -180,12 +189,13 @@ fn read_fields(measurement_tags: &str, chars: &mut Chars, points: &mut Vec<Point
     while let Some(ch) = chars.next() {
         match ch {
             '=' => {
-                let should_break = !read_value(&measurement_tags, field_name, &mut chars, &mut points);
+                let should_break =
+                    !read_value(&measurement_tags, field_name, &mut chars, &mut points);
                 field_name = String::with_capacity(100);
                 if should_break {
-                    break
+                    break;
                 }
-            },
+            }
             _ => field_name.push(ch),
         }
     }
@@ -203,7 +213,12 @@ fn read_fields(measurement_tags: &str, chars: &mut Chars, points: &mut Vec<Point
 }
 
 // read_value reads the value from the chars and returns true if there are more fields and values to be read
-fn read_value(measurement_tags: &str, field_name: String, chars: &mut Chars, points: &mut Vec<PointType>) -> bool {
+fn read_value(
+    measurement_tags: &str,
+    field_name: String,
+    chars: &mut Chars,
+    points: &mut Vec<PointType>,
+) -> bool {
     let mut value = String::new();
 
     while let Some(ch) = chars.next() {
@@ -215,9 +230,9 @@ fn read_value(measurement_tags: &str, field_name: String, chars: &mut Chars, poi
                 // a float (at least until we support the other data types
                 let point = match value.ends_with("i") {
                     true => {
-                        let val = value[..value.len()-1].parse::<i64>().unwrap();
+                        let val = value[..value.len() - 1].parse::<i64>().unwrap();
                         PointType::new_i64(series, val, 0)
-                    },
+                    }
                     false => {
                         let val = value.parse::<f64>().unwrap();
                         PointType::new_f64(series, val, 0)
@@ -230,7 +245,7 @@ fn read_value(measurement_tags: &str, field_name: String, chars: &mut Chars, poi
                 }
 
                 return true;
-            },
+            }
             _ => value.push(ch),
         }
     }
@@ -305,13 +320,32 @@ mod test {
 
     #[test]
     fn index_pairs() {
-        let p = Point{series: "cpu,host=A,region=west\tusage_system".to_string(), value: 0, time: 0};
+        let p = Point {
+            series: "cpu,host=A,region=west\tusage_system".to_string(),
+            value: 0,
+            time: 0,
+        };
         let pairs = p.index_pairs().unwrap();
-        assert_eq!(pairs, vec![
-            Pair{key: "_m".to_string(), value: "cpu".to_string()},
-            Pair{key: "host".to_string(), value: "A".to_string()},
-            Pair{key: "region".to_string(), value: "west".to_string()},
-            Pair{key: "_f".to_string(), value: "usage_system".to_string()},
-        ]);
+        assert_eq!(
+            pairs,
+            vec![
+                Pair {
+                    key: "_m".to_string(),
+                    value: "cpu".to_string()
+                },
+                Pair {
+                    key: "host".to_string(),
+                    value: "A".to_string()
+                },
+                Pair {
+                    key: "region".to_string(),
+                    value: "west".to_string()
+                },
+                Pair {
+                    key: "_f".to_string(),
+                    value: "usage_system".to_string()
+                },
+            ]
+        );
     }
 }
