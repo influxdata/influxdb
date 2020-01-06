@@ -10,6 +10,8 @@ import {
   STRINGS_TRIM,
 } from '../../src/shared/constants/fluxFunctions'
 
+const TYPE_DELAY = 0
+
 function getTimeMachineText() {
   return cy
     .wrap({
@@ -362,22 +364,33 @@ describe('DataExplorer', () => {
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
 
       cy.getByTestID('flux-editor').within(() => {
-        cy.get('textarea').type('yo', {force: true})
+        cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type('yo', {force: true, delay: TYPE_DELAY})
         cy.getByTestID('time-machine-submit-button').should('not.be.disabled')
       })
     })
 
     it('disables submit when a query is deleted', () => {
       cy.getByTestID('time-machine--bottom').then(() => {
-        cy.get('textarea').type('from(bucket: "foo")', {force: true})
+        cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type('from(bucket: "foo")', {force: true, delay: TYPE_DELAY})
+
         cy.getByTestID('time-machine-submit-button').should('not.be.disabled')
-        cy.get('textarea').type('{selectall} {backspace}', {force: true})
+
+        cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type('{selectall} {backspace}', {force: true, delay: TYPE_DELAY})
       })
 
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
     })
 
-    it('imports the appropriate packages to build a query', () => {
+    it.only('imports the appropriate packages to build a query', () => {
       cy.getByTestID('functions-toolbar-tab').click()
 
       cy.getByTestID('flux-function from').click()
@@ -386,6 +399,8 @@ describe('DataExplorer', () => {
       cy.getByTestID('flux-function math.floor').click()
       cy.getByTestID('flux-function strings.title').click()
       cy.getByTestID('flux-function strings.trim').click()
+
+      cy.wait(100)
 
       getTimeMachineText().then(text => {
         const expected = `
@@ -437,11 +452,14 @@ describe('DataExplorer', () => {
 
     it('shows the empty state when the query returns no results', () => {
       cy.getByTestID('time-machine--bottom').within(() => {
-        cy.get('textarea').type(
+        cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type(
           `from(bucket: "defbuck")
   |> range(start: -10s)
   |> filter(fn: (r) => r._measurement == "no exist")`,
-          {force: true}
+          {force: true, delay: TYPE_DELAY}
         )
         cy.getByTestID('time-machine-submit-button').click()
       })
@@ -453,11 +471,14 @@ describe('DataExplorer', () => {
       const taskName = 'tax'
       // begin flux
       cy.getByTestID('flux-editor').within(() => {
-        cy.get('textarea').type(
+        cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type(
           `from(bucket: "defbuck")
   |> range(start: -15m, stop: now())
   |> filter(fn: (r) => r._measurement == `,
-          {force: true}
+          {force: true, delay: TYPE_DELAY}
         )
       })
 
@@ -466,7 +487,10 @@ describe('DataExplorer', () => {
       cy.get('.variables-toolbar--label').click()
       // finish flux
       cy.getByTestID('flux-editor').within(() => {
-        cy.get('textarea').type(`)`, {force: true})
+        cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type(`)`, {force: true, delay: TYPE_DELAY})
       })
 
       cy.getByTestID('save-query-as').click()
@@ -538,8 +562,10 @@ describe('DataExplorer', () => {
             cy.getByTestID('time-machine-submit-button').click()
             cy.getByTestID('empty-graph--error').should('exist')
           })
-          cy.get('textarea')
-            .type('from(', {force: true})
+          cy.get('.react-monaco-editor-container')
+            .click()
+            .focused()
+            .type('from(', {force: true, delay: 2})
           cy.getByTestID('time-machine-submit-button').click()
         })
       })

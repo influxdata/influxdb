@@ -318,7 +318,10 @@ http.post(
       cy.getByTestID('task-form-offset-input').type(offset)
       cy.get<Bucket>('@bucket').then(bucket => {
         cy.getByTestID('flux-editor').within(() => {
-          cy.get('textarea').type(flux(bucket), {force: true})
+          cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type(flux(bucket), {force: true, delay: 2})
         })
       })
       cy.getByTestID('task-save-btn').click()
@@ -413,7 +416,7 @@ function createFirstTask(
       cy.get('.react-monaco-editor-container')
         .click()
         .focused()
-        .type(flux(bucket), {force: true})
+        .type(flux(bucket), {force: true, delay: 2})
     })
   })
 }
