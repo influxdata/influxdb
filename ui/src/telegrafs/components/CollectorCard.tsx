@@ -118,7 +118,7 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
 
   private get labels(): JSX.Element {
     const {collector, labels, onFilterChange} = this.props
-    const collectorLabels = viewableLabels(collector.labels)
+    const collectorLabels = viewableLabels(collector.labels as Label[])
 
     return (
       <InlineLabels

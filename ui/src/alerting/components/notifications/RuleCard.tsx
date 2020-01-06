@@ -150,7 +150,7 @@ const RuleCard: FC<Props> = ({
       }
       labels={
         <InlineLabels
-          selectedLabels={rule.labels}
+          selectedLabels={rule.labels as Label[]}
           labels={labels}
           onAddLabel={handleAddRuleLabel}
           onRemoveLabel={handleRemoveRuleLabel}

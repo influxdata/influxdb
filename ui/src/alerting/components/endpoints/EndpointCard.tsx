@@ -148,7 +148,7 @@ const EndpointCard: FC<Props> = ({
   }
   const labelsComponent = (
     <InlineLabels
-      selectedLabels={endpoint.labels}
+      selectedLabels={endpoint.labels as Label[]}
       labels={labels}
       onAddLabel={handleAddEndpointLabel}
       onRemoveLabel={handleRemoveEndpointLabel}

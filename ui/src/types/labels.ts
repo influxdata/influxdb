@@ -1,7 +1,7 @@
 import {Label as GenLabel} from 'src/client'
 
 export interface Label extends GenLabel {
-  properties?: LabelProperties
+  properties: LabelProperties
 }
 
 export interface LabelProperties {
