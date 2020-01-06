@@ -10,11 +10,11 @@ If you are looking for the 1.x line of releases, there are branches for each of 
 
 The latest InfluxDB 1.x is the stable release and recommended for production use. The InfluxDB that is on the master branch is currently in the beta stage. This means that it is still **NOT** recommended for production usage. There may be breaking API changes, breaking changes in the [Flux language](https://github.com/influxdata/flux), changes in the underlying storage format that will require you to delete all your data, and significant changes to the UI. The beta is intended for feature exploration and gathering feedback on the available feature set. It **SHOULD NOT** be used for performance testing, benchmarks, or other stress tests.
 
-Additional features will arrive during the beta period until we reach GA. We will be cutting versioned releases at least every two weeks starting in the first release. There will also be nightly builds based off the latest code in master.
+Additional features will arrive during the beta period until we reach general availability (GA). We will be cutting versioned releases at least every two weeks starting in the first release. There will also be nightly builds based off the latest code in master.
 
-Once we close on the final feature set of what will be in the first GA release of InfluxDB in the 2.x line, we will move into the RC phase. At that point, our intention is to avoid making breaking changes to the API or the Flux language. However, it still may be necessary to do so. We will do our best to keep this to an absolute minimum and clearly communicate ANY and ALL changes in this regard via the changelog.
+Once we close on the final feature set of what will be in the first GA release of InfluxDB in the 2.x line, we will move into the release candidate (RC) phase. At that point, we intend to avoid making breaking changes to the API or the Flux language. However, it still may be necessary to do so. We will do our best to keep this to an absolute minimum and clearly communicate ANY and ALL changes in this regard via the changelog.
 
-The RCs will still not be recommended for production usage. During the RC period we will focus on bug fixes, performance, and additive features (where time permits).
+RCs are not recommended for production usage. During the RC period, we will focus on bug fixes, performance, and additive features (where time permits).
 
 ### What you can expect in the Beta and RC Phases
 
@@ -31,7 +31,7 @@ Planned additions include:
 **As needed**
 
 Planned activities include:
-- Performance tuning, stability improvements, and fine tuning based on community feedback.
+- Performance tuning, stability improvements, and fine-tuning based on community feedback.
 
 ### What is **NOT** planned?
 - Migration of users/security permissions from InfluxDB v1.x to 2.x.  ACTION REQUIRED: Re-establish users and permissions within the new unified security model which now spans the underlying database and user interface.
