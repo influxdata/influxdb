@@ -101,6 +101,11 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 	fromNode := pn.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
 
+	// Cannot push down when keeping empty tables.
+	if filterSpec.KeepEmptyTables {
+		return pn, false, nil
+	}
+
 	bodyExpr, ok := filterSpec.Fn.Fn.Block.Body.(semantic.Expression)
 	if !ok {
 		return pn, false, nil
