@@ -156,6 +156,24 @@ func TestIndex_MeasurementTracking(t *testing.T) {
 	}
 }
 
+func TestCreateSeriesListIfNotExists_MaxValuesExceeded(t *testing.T) {
+	sfile := mustOpenSeriesFile()
+	defer sfile.Close()
+	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", sfile.SeriesFile)}
+	opt.Config.MaxValuesPerTag = 10
+	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt)
+	si.Open()
+
+	keys, names, tags := createData(10, 20)
+	si.CreateSeriesListIfNotExists(keys, names, tags)
+
+	keys, names, tags = createData(100, 120)
+	err := si.CreateSeriesListIfNotExists(keys, names, tags)
+	if _, ok := err.(tsdb.PartialWriteError); !ok {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
 // seriesFileWrapper is a test wrapper for tsdb.seriesFileWrapper.
 type seriesFileWrapper struct {
 	*tsdb.SeriesFile
