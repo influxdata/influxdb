@@ -62,8 +62,8 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"keys":               "group key mismatch",
 
 		// failed to read meta data errors: the CSV encoding is incomplete probably due to data schema errors.  needs more detailed investigation to find root cause of error
-		"filter_by_regex":             "failed to read metadata",
-		"filter_by_tags":              "failed to read metadata",
+		// "filter_by_regex":             "failed to read metadata",
+		// "filter_by_tags":              "failed to read metadata",
 		"group":                       "failed to read metadata",
 		"group_except":                "failed to read metadata",
 		"group_ungroup":               "failed to read metadata",
