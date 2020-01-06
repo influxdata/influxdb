@@ -1,4 +1,10 @@
-import {Bucket, Organization, Member, RemoteDataState} from 'src/types'
+import {
+  Bucket,
+  Authorization,
+  Organization,
+  Member,
+  RemoteDataState,
+} from 'src/types'
 
 export enum ResourceType {
   Buckets = 'buckets',
@@ -35,4 +41,5 @@ export interface ResourceState {
   [ResourceType.Members]: NormalizedState<Member>
   [ResourceType.Orgs]: OrgsState
   [ResourceType.Buckets]: NormalizedState<Bucket>
+  [ResourceType.Authorizations]: NormalizedState<Authorization>
 }

@@ -16,7 +16,7 @@ import {ScraperTargetRequest} from '@influxdata/influx'
 import {AppState, Bucket, ResourceType} from 'src/types'
 
 // Selectors
-import {getAll} from 'src/shared/selectors'
+import {getAll} from 'src/resources/selectors'
 
 interface OwnProps {
   visible: boolean

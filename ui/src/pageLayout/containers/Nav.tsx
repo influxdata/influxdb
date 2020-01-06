@@ -25,7 +25,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/shared/selectors'
+import {getAll} from 'src/resources/selectors'
 
 interface StateProps {
   isHidden: boolean

@@ -51,7 +51,7 @@ import {
   ResourceType,
 } from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
-import {getAll} from 'src/shared/selectors'
+import {getAll} from 'src/resources/selectors'
 
 interface StateProps {
   org: Organization

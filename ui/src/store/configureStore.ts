@@ -16,7 +16,7 @@ import rangesReducer from 'src/dashboards/reducers/ranges'
 import {dashboardsReducer} from 'src/dashboards/reducers/dashboards'
 import viewsReducer from 'src/dashboards/reducers/views'
 import {timeMachinesReducer} from 'src/timeMachine/reducers'
-import orgsReducer from 'src/organizations/reducers/orgs'
+import {orgsReducer} from 'src/organizations/reducers'
 import overlaysReducer from 'src/overlays/reducers/overlays'
 import onboardingReducer from 'src/onboarding/reducers'
 import noteEditorReducer from 'src/dashboards/reducers/notes'
@@ -25,7 +25,7 @@ import {variablesReducer, variableEditorReducer} from 'src/variables/reducers'
 import {labelsReducer} from 'src/labels/reducers'
 import {bucketsReducer} from 'src/buckets/reducers'
 import {telegrafsReducer} from 'src/telegrafs/reducers'
-import {authorizationsReducer} from 'src/authorizations/reducers'
+import {authsReducer} from 'src/authorizations/reducers'
 import templatesReducer from 'src/templates/reducers'
 import {scrapersReducer} from 'src/scrapers/reducers'
 import {userSettingsReducer} from 'src/userSettings/reducers'
@@ -45,8 +45,7 @@ import {predicatesReducer} from 'src/shared/reducers/predicates'
 import alertBuilderReducer from 'src/alerting/reducers/alertBuilder'
 
 // Types
-import {LocalStorage} from 'src/types/localStorage'
-import {AppState} from 'src/types'
+import {AppState, LocalStorage} from 'src/types'
 
 type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
@@ -64,8 +63,15 @@ export const rootReducer = combineReducers<ReducerState>({
   noteEditor: noteEditorReducer,
   onboarding: onboardingReducer,
   overlays: overlaysReducer,
+  plugins: pluginsResourceReducer,
   predicates: predicatesReducer,
   ranges: rangesReducer,
+  resources: combineReducers({
+    members: membersReducer,
+    orgs: orgsReducer,
+    buckets: bucketsReducer,
+    tokens: authsReducer,
+  }),
   routing: routerReducer,
   rules: rulesReducer,
   scrapers: scrapersReducer,
@@ -73,17 +79,10 @@ export const rootReducer = combineReducers<ReducerState>({
   telegrafEditor: editorReducer,
   telegrafEditorActivePlugins: activePluginsReducer,
   telegrafEditorPlugins: pluginsReducer,
-  plugins: pluginsResourceReducer,
   telegrafs: telegrafsReducer,
   templates: templatesReducer,
-  tokens: authorizationsReducer,
   timeMachines: timeMachinesReducer,
   userSettings: userSettingsReducer,
-  resources: combineReducers({
-    members: membersReducer,
-    orgs: orgsReducer,
-    buckets: bucketsReducer,
-  }),
   variables: variablesReducer,
   variableEditor: variableEditorReducer,
   views: viewsReducer,

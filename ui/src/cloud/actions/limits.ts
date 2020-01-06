@@ -29,7 +29,7 @@ import {
   extractEndpointsMax,
 } from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/shared/selectors'
+import {getAll} from 'src/resources/selectors'
 
 export enum LimitStatus {
   OK = 'ok',

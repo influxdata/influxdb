@@ -48,7 +48,7 @@ import {Substep, TelegrafPlugin} from 'src/types/dataLoaders'
 import {AppState, Bucket, Organization, ResourceType} from 'src/types'
 
 // Selectors
-import {getAll} from 'src/shared/selectors'
+import {getAll} from 'src/resources/selectors'
 import {getOrg} from 'src/organizations/selectors'
 
 export interface CollectorsStepProps {

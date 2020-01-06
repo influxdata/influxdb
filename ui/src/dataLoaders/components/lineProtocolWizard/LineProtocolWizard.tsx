@@ -25,7 +25,7 @@ import {AppState, ResourceType} from 'src/types'
 import {Bucket} from 'src/types'
 
 // Selectors
-import {getAll} from 'src/shared/selectors'
+import {getAll} from 'src/resources/selectors'
 
 export interface LineProtocolStepProps {
   currentStepIndex: number
@@ -132,10 +132,10 @@ class LineProtocolWizard extends PureComponent<Props & WithRouterProps> {
 
 const mstp = (state: AppState): StateProps => {
   const {
-  dataLoading: {
-    steps: {currentStep, bucket},
-  },
-  me: {name},
+    dataLoading: {
+      steps: {currentStep, bucket},
+    },
+    me: {name},
   } = state
 
   const buckets = getAll<Bucket[]>(state, ResourceType.Buckets)

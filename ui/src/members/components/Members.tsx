@@ -21,7 +21,7 @@ import {AppState, Member, ResourceType} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 
 // Selectors
-import {getAll} from 'src/shared/selectors'
+import {getAll} from 'src/resources/selectors'
 
 interface StateProps {
   members: Member[]
