@@ -157,7 +157,7 @@ const mstp = (state: AppState) => {
   const {
     orgs: {org: startOrg},
   } = resources
-  const orgs = getAll<Organization[]>(state, ResourceType.Orgs)
+  const orgs = getAll<Organization>(state, ResourceType.Orgs)
 
   const orgNames = orgs.filter(o => o.id !== startOrg.id).map(o => o.name)
 

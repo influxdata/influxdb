@@ -6,7 +6,7 @@ import _ from 'lodash'
 // Actions
 import {getLabels} from 'src/labels/actions'
 import {getBuckets} from 'src/buckets/actions/thunks'
-import {getTelegrafs} from 'src/telegrafs/actions'
+import {getTelegrafs} from 'src/telegrafs/actions/thunks'
 import {getPlugins} from 'src/dataLoaders/actions/telegrafEditor'
 import {getVariables} from 'src/variables/actions'
 import {getScrapers} from 'src/scrapers/actions'

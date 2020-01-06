@@ -1,22 +1,35 @@
 // Libraries
 import {produce} from 'immer'
-import {get} from 'lodash'
 
 // Types
-import {RemoteDataState, Telegraf} from 'src/types'
-import {Action} from 'src/telegrafs/actions'
+import {RemoteDataState, Telegraf, ResourceState, ResourceType} from 'src/types'
+import {
+  Action,
+  SET_TELEGRAFS,
+  ADD_TELEGRAF,
+  EDIT_TELEGRAF,
+  REMOVE_TELEGRAF,
+  SET_CURRENT_CONFIG,
+} from 'src/telegrafs/actions/creators'
+
+// Utils
+import {
+  setResource,
+  addResource,
+  editResource,
+  removeResource,
+} from 'src/resources/reducers/helpers'
+
+const {Telegrafs} = ResourceType
 
 const initialState = (): TelegrafsState => ({
   status: RemoteDataState.NotStarted,
-  list: [],
+  byID: {},
+  allIDs: [],
   currentConfig: {status: RemoteDataState.NotStarted, item: ''},
 })
 
-export interface TelegrafsState {
-  status: RemoteDataState
-  list: Telegraf[]
-  currentConfig: {status: RemoteDataState; item: string}
-}
+type TelegrafsState = ResourceState['telegrafs']
 
 export const telegrafsReducer = (
   state: TelegrafsState = initialState(),
@@ -24,76 +37,42 @@ export const telegrafsReducer = (
 ): TelegrafsState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_TELEGRAFS': {
-        const {status, list} = action.payload
+      case SET_TELEGRAFS: {
+        const {schema} = action
 
-        draftState.status = status
-
-        if (list) {
-          draftState.list = list.map(telegraf => {
-            if (!telegraf.metadata) {
-              telegraf.metadata = {
-                buckets: [],
-              }
-            }
-
-            if (!telegraf.metadata.buckets) {
-              telegraf.metadata.buckets = []
-            }
-
-            return telegraf
-          })
-        }
-
-        return
-      }
-
-      case 'ADD_TELEGRAF': {
-        const {telegraf} = action.payload
-
-        if (!telegraf.metadata) {
-          telegraf.metadata = {
-            buckets: [],
-          }
-        }
-
-        if (!get(telegraf, 'metadata.buckets')) {
-          telegraf.metadata.buckets = []
-        }
-
-        draftState.list.push(telegraf)
-
-        return
-      }
-
-      case 'EDIT_TELEGRAF': {
-        const {telegraf} = action.payload
-        const {list} = draftState
-
-        draftState.list = list.map(l => {
-          if (l.id === telegraf.id) {
-            return telegraf
-          }
-
-          return l
+        schema.result.forEach(id => {
+          addMetaData(schema.entities[id])
         })
 
+        setResource<Telegraf>(draftState, action, Telegrafs)
+
         return
       }
 
-      case 'REMOVE_TELEGRAF': {
-        const {id} = action.payload
-        const {list} = draftState
-        const deleted = list.filter(l => {
-          return l.id !== id
-        })
+      case ADD_TELEGRAF: {
+        const {schema} = action
+        const {entities, result} = schema
 
-        draftState.list = deleted
+        addMetaData(entities[result])
+        addResource<Telegraf>(draftState, action, Telegrafs)
+
         return
       }
 
-      case 'SET_CURRENT_CONFIG': {
-        const {status, item} = action.payload
+      case EDIT_TELEGRAF: {
+        editResource<Telegraf>(draftState, action, Telegrafs)
+
+        return
+      }
+
+      case REMOVE_TELEGRAF: {
+        removeResource<Telegraf>(draftState, action)
+
+        return
+      }
+
+      case SET_CURRENT_CONFIG: {
+        const {status, item} = action
         draftState.currentConfig.status = status
 
         if (item) {
@@ -106,3 +85,15 @@ export const telegrafsReducer = (
       }
     }
   })
+
+const addMetaData = (telegraf: Telegraf) => {
+  if (!telegraf.metadata) {
+    telegraf.metadata = {
+      buckets: [],
+    }
+  }
+
+  if (!telegraf.metadata.buckets) {
+    telegraf.metadata.buckets = []
+  }
+}

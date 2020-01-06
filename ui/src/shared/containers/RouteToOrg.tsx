@@ -43,7 +43,7 @@ class RouteToOrg extends PureComponent<Props> {
 
 const mstp = (state: AppState): StateProps => {
   const org = getOrg(state)
-  const orgs = getAll<Organization[]>(state, ResourceType.Orgs)
+  const orgs = getAll<Organization>(state, ResourceType.Orgs)
 
   return {orgs, org}
 }

@@ -171,7 +171,7 @@ class TelegrafOutputOverlay extends PureComponent<Props> {
 const mstp = (state: AppState): StateProps => {
   const {name, id} = getOrg(state)
   const server = window.location.origin
-  const buckets = getAll<Bucket[]>(state, ResourceType.Buckets)
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
 
   return {
     org: name,

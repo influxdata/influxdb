@@ -74,7 +74,7 @@ const mdtp = {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const orgs = getAll<Organization[]>(state, ResourceType.Orgs)
+  const orgs = getAll<Organization>(state, ResourceType.Orgs)
 
   return {orgs}
 }

@@ -25,7 +25,7 @@ import GetResources from 'src/shared/components/GetResources'
 
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
-import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions'
+import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions/thunks'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -260,12 +260,13 @@ class Collectors extends PureComponent<Props, State> {
   }
 }
 const mstp = (state: AppState): StateProps => {
-  const {telegrafs} = state
+  const {telegrafs} = state.resources
   const orgName = getOrg(state).name
-  const buckets = getAll<Bucket[]>(state, ResourceType.Buckets)
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
+  const hasTelegrafs = !!telegrafs.allIDs.length
 
   return {
-    hasTelegrafs: telegrafs.list && telegrafs.list.length > 0,
+    hasTelegrafs,
     orgName,
     buckets,
   }

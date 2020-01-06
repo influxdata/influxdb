@@ -27,3 +27,9 @@ export const arrayOfMembers = [member]
 // Defines the schema for the "member" resource
 export const org = new schema.Entity(ResourceType.Orgs)
 export const arrayOfOrgs = [org]
+
+/* Telegrafs */
+
+// Defines the schema for the "member" resource
+export const telegraf = new schema.Entity(ResourceType.Orgs)
+export const arrayOfTelegrafs = [telegraf]

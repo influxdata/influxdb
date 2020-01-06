@@ -1,5 +1,5 @@
 // Types
-import {Member, Bucket, Organization, Authorization} from 'src/types'
+import {Telegraf, Member, Bucket, Organization, Authorization} from 'src/types'
 
 // TODO: make these Entities generic
 
@@ -32,5 +32,13 @@ export interface MemberEntities {
 export interface OrgEntities {
   orgs: {
     [uuid: string]: Organization
+  }
+}
+
+// TelegrafEntities defines the result of normalizr's normalization
+// of the "organizations" resource
+export interface TelegrafEntities {
+  telegrafs: {
+    [uuid: string]: Telegraf
   }
 }
