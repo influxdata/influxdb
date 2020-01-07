@@ -281,7 +281,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
 const mstp = (state: AppState): StateProps => {
   return {
     orgID: getOrg(state).id,
-    buckets: getAll<Bucket[]>(state, ResourceType.Buckets),
+    buckets: getAll<Bucket>(state, ResourceType.Buckets),
   }
 }
 

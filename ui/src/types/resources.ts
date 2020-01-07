@@ -4,24 +4,25 @@ import {
   Organization,
   Member,
   RemoteDataState,
+  Telegraf,
 } from 'src/types'
 
 export enum ResourceType {
-  Buckets = 'buckets',
-  Orgs = 'orgs',
-  Labels = 'labels',
-  Telegrafs = 'telegrafs',
-  Variables = 'variables',
   Authorizations = 'tokens',
-  Scrapers = 'scrapers',
-  Dashboards = 'dashboards',
-  Tasks = 'tasks',
-  Templates = 'templates',
-  Members = 'members',
+  Buckets = 'buckets',
   Checks = 'checks',
+  Dashboards = 'dashboards',
+  Labels = 'labels',
+  Orgs = 'orgs',
+  Members = 'members',
   NotificationRules = 'rules',
   NotificationEndpoints = 'endpoints',
   Plugins = 'plugins',
+  Scrapers = 'scrapers',
+  Tasks = 'tasks',
+  Templates = 'templates',
+  Telegrafs = 'telegrafs',
+  Variables = 'variables',
 }
 
 export interface NormalizedState<R> {
@@ -36,10 +37,14 @@ export interface OrgsState extends NormalizedState<Organization> {
   org: Organization
 }
 
+export interface TelegrafsState extends NormalizedState<Telegraf> {
+  currentConfig: {status: RemoteDataState; item: string}
+}
 // ResourceState defines the types for normalized resources
 export interface ResourceState {
+  [ResourceType.Authorizations]: NormalizedState<Authorization>
+  [ResourceType.Buckets]: NormalizedState<Bucket>
   [ResourceType.Members]: NormalizedState<Member>
   [ResourceType.Orgs]: OrgsState
-  [ResourceType.Buckets]: NormalizedState<Bucket>
-  [ResourceType.Authorizations]: NormalizedState<Authorization>
+  [ResourceType.Telegrafs]: TelegrafsState
 }

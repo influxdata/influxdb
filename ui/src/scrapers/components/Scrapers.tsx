@@ -192,7 +192,7 @@ class Scrapers extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => ({
   scrapers: state.scrapers.list,
-  buckets: getAll<Bucket[]>(state, ResourceType.Buckets),
+  buckets: getAll<Bucket>(state, ResourceType.Buckets),
   org: getOrg(state),
 })
 

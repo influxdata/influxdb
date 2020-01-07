@@ -284,7 +284,7 @@ export const checkBucketLimits = () => (dispatch, getState: GetState) => {
     const {
       cloud: {limits},
     } = state
-    const allBuckets = getAll<Bucket[]>(state, ResourceType.Buckets)
+    const allBuckets = getAll<Bucket>(state, ResourceType.Buckets)
     const bucketsMax = extractBucketMax(limits)
     const buckets = allBuckets.filter(bucket => {
       return bucket.type == 'user'

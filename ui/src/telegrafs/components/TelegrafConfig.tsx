@@ -23,7 +23,7 @@ import {RemoteDataState} from '@influxdata/clockface'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
-import {getTelegrafConfigToml} from 'src/telegrafs/actions'
+import {getTelegrafConfigToml} from 'src/telegrafs/actions/thunks'
 
 // Types
 import {AppState} from 'src/types'
@@ -84,9 +84,9 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
-  telegrafConfig: state.telegrafs.currentConfig.item,
-  status: state.telegrafs.currentConfig.status,
+const mstp = ({resources}: AppState): StateProps => ({
+  telegrafConfig: resources.telegrafs.currentConfig.item,
+  status: resources.telegrafs.currentConfig.status,
 })
 
 const mdtp: DispatchProps = {

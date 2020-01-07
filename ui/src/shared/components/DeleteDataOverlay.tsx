@@ -67,7 +67,7 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState): StateProps => {
   return {
-    buckets: getAll<Bucket[]>(state, ResourceType.Buckets),
+    buckets: getAll<Bucket>(state, ResourceType.Buckets),
   }
 }
 

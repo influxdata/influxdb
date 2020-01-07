@@ -120,7 +120,7 @@ class TokensTab extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState) => ({
-  tokens: getAll<Authorization[]>(state, ResourceType.Authorizations),
+  tokens: getAll<Authorization>(state, ResourceType.Authorizations),
 })
 
 export default connect<StateProps, {}, {}>(
