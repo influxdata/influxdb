@@ -14,10 +14,10 @@ import {
 
 // Utils
 import {
-  setResource,
-  addResource,
   editResource,
   removeResource,
+  setResource,
+  addResource,
 } from 'src/resources/reducers/helpers'
 
 const {Telegrafs} = ResourceType
@@ -40,23 +40,22 @@ export const telegrafsReducer = (
       case SET_TELEGRAFS: {
         const {schema} = action
 
-        if (schema) {
+        setResource<Telegraf>(draftState, action, Telegrafs)
+
+        if (schema && schema.entities) {
           schema.result.forEach(id => {
-            addMetaData(schema.entities[id])
+            addMetadata(draftState.byID[id])
           })
         }
-
-        setResource<Telegraf>(draftState, action, Telegrafs)
 
         return
       }
 
       case ADD_TELEGRAF: {
         const {schema} = action
-        const {entities, result} = schema
 
-        addMetaData(entities[result])
         addResource<Telegraf>(draftState, action, Telegrafs)
+        addMetadata(draftState.byID[schema.result])
 
         return
       }
@@ -88,7 +87,7 @@ export const telegrafsReducer = (
     }
   })
 
-const addMetaData = (telegraf: Telegraf) => {
+const addMetadata = (telegraf: Telegraf) => {
   if (!telegraf.metadata) {
     telegraf.metadata = {
       buckets: [],

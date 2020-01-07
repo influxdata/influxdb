@@ -75,6 +75,7 @@ class CollectorList extends PureComponent<Props> {
       onUpdateTelegraf,
       onFilterChange,
     } = this.props
+
     const sortedCollectors = this.memGetSortedResources(
       collectors,
       sortKey,
