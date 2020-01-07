@@ -242,8 +242,8 @@ func TestService(t *testing.T) {
 					AuthMethod: "none",
 					URL:        "https://www.example.com/endpoint/old",
 				}
-				fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
-					return []influxdb.NotificationEndpoint{existing}, 1, nil
+				fakeEndpointSVC.FindF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, error) {
+					return []influxdb.NotificationEndpoint{existing}, nil
 				}
 
 				svc := newTestService(WithNotificationEndpointSVC(fakeEndpointSVC))
@@ -307,8 +307,8 @@ func TestService(t *testing.T) {
 					AuthMethod: "none",
 					URL:        "https://www.example.com/endpoint/old",
 				}
-				fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
-					return []influxdb.NotificationEndpoint{existing}, 1, nil
+				fakeEndpointSVC.FindF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, error) {
+					return []influxdb.NotificationEndpoint{existing}, nil
 				}
 
 				svc := newTestService(WithNotificationEndpointSVC(fakeEndpointSVC))
@@ -898,7 +898,7 @@ func TestService(t *testing.T) {
 					5,
 					func() []ServiceSetterFn {
 						fakeEndpointSVC := mock.NewNotificationEndpointService()
-						fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
+						fakeEndpointSVC.CreateF = func(ctx context.Context, userID influxdb.ID, nr influxdb.NotificationEndpoint) error {
 							nr.SetID(influxdb.ID(rand.Int()))
 							return nil
 						}
@@ -914,7 +914,7 @@ func TestService(t *testing.T) {
 					1,
 					func() []ServiceSetterFn {
 						fakeEndpointSVC := mock.NewNotificationEndpointService()
-						fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+						fakeEndpointSVC.FindF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, error) {
 							id := influxdb.ID(9)
 							return []influxdb.NotificationEndpoint{
 								&endpoint.HTTP{
@@ -924,7 +924,7 @@ func TestService(t *testing.T) {
 									},
 									AuthMethod: "none",
 								},
-							}, 1, nil
+							}, nil
 						}
 						fakeRuleStore := mock.NewNotificationRuleStore()
 						fakeRuleStore.CreateNotificationRuleF = func(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
@@ -1006,8 +1006,8 @@ func TestService(t *testing.T) {
 			t.Run("successfully creates pkg of endpoints", func(t *testing.T) {
 				testfileRunner(t, "testdata/notification_endpoint.yml", func(t *testing.T, pkg *Pkg) {
 					fakeEndpointSVC := mock.NewNotificationEndpointService()
-					fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
-						nr.SetID(influxdb.ID(fakeEndpointSVC.CreateNotificationEndpointCalls.Count() + 1))
+					fakeEndpointSVC.CreateF = func(ctx context.Context, userID influxdb.ID, nr influxdb.NotificationEndpoint) error {
+						nr.SetID(influxdb.ID(fakeEndpointSVC.CreateCalls.Count() + 1))
 						return nil
 					}
 
@@ -1049,9 +1049,9 @@ func TestService(t *testing.T) {
 			t.Run("rolls back all created notifications on an error", func(t *testing.T) {
 				testfileRunner(t, "testdata/notification_endpoint.yml", func(t *testing.T, pkg *Pkg) {
 					fakeEndpointSVC := mock.NewNotificationEndpointService()
-					fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
-						nr.SetID(influxdb.ID(fakeEndpointSVC.CreateNotificationEndpointCalls.Count() + 1))
-						if fakeEndpointSVC.CreateNotificationEndpointCalls.Count() == 5 {
+					fakeEndpointSVC.CreateF = func(ctx context.Context, userID influxdb.ID, nr influxdb.NotificationEndpoint) error {
+						nr.SetID(influxdb.ID(fakeEndpointSVC.CreateCalls.Count() + 1))
+						if fakeEndpointSVC.CreateCalls.Count() == 5 {
 							return errors.New("hit that kill count")
 						}
 						return nil
@@ -1069,7 +1069,7 @@ func TestService(t *testing.T) {
 					_, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.Error(t, err)
 
-					assert.GreaterOrEqual(t, fakeEndpointSVC.DeleteNotificationEndpointCalls.Count(), 5)
+					assert.GreaterOrEqual(t, fakeEndpointSVC.DeleteCalls.Count(), 5)
 				})
 			})
 		})
@@ -1078,7 +1078,7 @@ func TestService(t *testing.T) {
 			t.Run("successfuly creates", func(t *testing.T) {
 				testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
 					fakeEndpointSVC := mock.NewNotificationEndpointService()
-					fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+					fakeEndpointSVC.FindF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, error) {
 						id := influxdb.ID(9)
 						return []influxdb.NotificationEndpoint{
 							&endpoint.HTTP{
@@ -1087,7 +1087,7 @@ func TestService(t *testing.T) {
 									Name: "endpoint_0",
 								},
 							},
-						}, 1, nil
+						}, nil
 					}
 					fakeRuleStore := mock.NewNotificationRuleStore()
 					fakeRuleStore.CreateNotificationRuleF = func(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
@@ -1117,7 +1117,7 @@ func TestService(t *testing.T) {
 			t.Run("rolls back all created notification rules on an error", func(t *testing.T) {
 				testfileRunner(t, "testdata/notification_rule.yml", func(t *testing.T, pkg *Pkg) {
 					fakeEndpointSVC := mock.NewNotificationEndpointService()
-					fakeEndpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+					fakeEndpointSVC.FindF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, error) {
 						id := influxdb.ID(9)
 						return []influxdb.NotificationEndpoint{
 							&endpoint.HTTP{
@@ -1127,7 +1127,7 @@ func TestService(t *testing.T) {
 								},
 								AuthMethod: "none",
 							},
-						}, 1, nil
+						}, nil
 					}
 					fakeRuleStore := mock.NewNotificationRuleStore()
 					fakeRuleStore.CreateNotificationRuleF = func(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
@@ -2030,7 +2030,7 @@ func TestService(t *testing.T) {
 						tt.expected.SetID(id)
 
 						endpointSVC := mock.NewNotificationEndpointService()
-						endpointSVC.FindNotificationEndpointByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+						endpointSVC.FindByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
 							if id != tt.expected.GetID() {
 								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
 							}
@@ -2147,7 +2147,7 @@ func TestService(t *testing.T) {
 				for _, tt := range tests {
 					fn := func(t *testing.T) {
 						endpointSVC := mock.NewNotificationEndpointService()
-						endpointSVC.FindNotificationEndpointByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+						endpointSVC.FindByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
 							if id != tt.endpoint.GetID() {
 								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
 							}
@@ -2573,7 +2573,7 @@ func TestService(t *testing.T) {
 			}
 
 			endpointSVC := mock.NewNotificationEndpointService()
-			endpointSVC.FindNotificationEndpointsF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+			endpointSVC.FindF = func(ctx context.Context, f influxdb.NotificationEndpointFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, error) {
 				id := influxdb.ID(2)
 				endpoints := []influxdb.NotificationEndpoint{
 					&endpoint.HTTP{
@@ -2588,9 +2588,9 @@ func TestService(t *testing.T) {
 						Method:     "POST",
 					},
 				}
-				return endpoints, len(endpoints), nil
+				return endpoints, nil
 			}
-			endpointSVC.FindNotificationEndpointByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+			endpointSVC.FindByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
 				return &endpoint.HTTP{
 					Base: endpoint.Base{
 						ID:   &id,

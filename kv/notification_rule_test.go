@@ -4,9 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/influxdata/influxdb/endpoints"
+
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -28,34 +31,38 @@ func initBoltNotificationRuleStore(f influxdbtesting.NotificationRuleFields, t *
 }
 
 func initNotificationRuleStore(s kv.Store, f influxdbtesting.NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, func()) {
-	svc := kv.NewService(zaptest.NewLogger(t), s)
-	svc.IDGenerator = f.IDGenerator
-	svc.TimeGenerator = f.TimeGenerator
+	kvSVC := kv.NewService(zaptest.NewLogger(t), s)
+	kvSVC.IDGenerator = f.IDGenerator
+	kvSVC.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
-		svc.TimeGenerator = influxdb.RealTimeGenerator{}
+		kvSVC.TimeGenerator = influxdb.RealTimeGenerator{}
 	}
 
 	ctx := context.Background()
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing user service: %v", err)
-	}
+	require.NoError(t, kvSVC.Initialize(ctx))
+
+	store := endpoints.NewStore(s)
+	require.NoError(t, store.Init(ctx))
+
+	endpointSVC := endpoints.NewService(
+		endpoints.WithStore(store),
+		endpoints.WithIDGenerator(f.IDGenerator),
+		endpoints.WithTimeGenerator(f.TimeGenerator),
+		endpoints.WithOrgSVC(kvSVC),
+		endpoints.WithSecretSVC(kvSVC),
+		endpoints.WithUserResourceMappingSVC(kvSVC),
+	)
 
 	for _, o := range f.Orgs {
-		if err := svc.PutOrganization(ctx, o); err != nil {
-			t.Fatalf("failed to populate org: %v", err)
-		}
+		require.NoError(t, kvSVC.PutOrganization(ctx, o))
 	}
 
 	for _, m := range f.UserResourceMappings {
-		if err := svc.CreateUserResourceMapping(ctx, m); err != nil {
-			t.Fatalf("failed to populate user resource mapping: %v", err)
-		}
+		require.NoError(t, kvSVC.CreateUserResourceMapping(ctx, m))
 	}
 
 	for _, e := range f.Endpoints {
-		if err := svc.CreateNotificationEndpoint(ctx, e, 1); err != nil {
-			t.Fatalf("failed to populate notification endpoint: %v", err)
-		}
+		require.NoError(t, endpointSVC.Create(ctx, 1, e))
 	}
 
 	for _, nr := range f.NotificationRules {
@@ -63,32 +70,27 @@ func initNotificationRuleStore(s kv.Store, f influxdbtesting.NotificationRuleFie
 			NotificationRule: nr,
 			Status:           influxdb.Active,
 		}
-		if err := svc.PutNotificationRule(ctx, nrc); err != nil {
-			t.Fatalf("failed to populate notification rule: %v", err)
-		}
+		require.NoError(t, kvSVC.PutNotificationRule(ctx, nrc))
 	}
 
 	for _, c := range f.Tasks {
-		if _, err := svc.CreateTask(ctx, c); err != nil {
-			t.Fatalf("failed to populate task: %v", err)
-		}
+		_, err := kvSVC.CreateTask(ctx, c)
+		require.NoError(t, err)
 	}
 
-	return svc, func() {
+	return kvSVC, func() {
 		for _, nr := range f.NotificationRules {
-			if err := svc.DeleteNotificationRule(ctx, nr.GetID()); err != nil {
+			if err := kvSVC.DeleteNotificationRule(ctx, nr.GetID()); err != nil {
 				t.Logf("failed to remove notification rule: %v", err)
 			}
 		}
 		for _, urm := range f.UserResourceMappings {
-			if err := svc.DeleteUserResourceMapping(ctx, urm.ResourceID, urm.UserID); err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+			if err := kvSVC.DeleteUserResourceMapping(ctx, urm.ResourceID, urm.UserID); err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
 				t.Logf("failed to remove urm rule: %v", err)
 			}
 		}
 		for _, o := range f.Orgs {
-			if err := svc.DeleteOrganization(ctx, o.ID); err != nil {
-				t.Fatalf("failed to remove org: %v", err)
-			}
+			require.NoError(t, kvSVC.DeleteOrganization(ctx, o.ID))
 		}
 	}
 }

@@ -294,7 +294,7 @@ func (h *NotificationRuleHandler) handleGetNotificationRuleQuery(w http.Response
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	edp, err := h.NotificationEndpointService.FindNotificationEndpointByID(ctx, nr.GetEndpointID())
+	edp, err := h.NotificationEndpointService.FindByID(ctx, nr.GetEndpointID())
 	if err != nil {
 		h.HandleHTTPError(ctx, &influxdb.Error{
 			Code: influxdb.EInternal,

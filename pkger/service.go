@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/endpoints"
+
 	"github.com/influxdata/influxdb"
 	ierrors "github.com/influxdata/influxdb/kit/errors"
 	"go.uber.org/zap"
@@ -426,7 +428,7 @@ func (s *Service) cloneOrgLabels(ctx context.Context, orgID influxdb.ID) ([]Reso
 }
 
 func (s *Service) cloneOrgNotificationEndpoints(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
-	endpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
+	endpoints, err := s.endpointSVC.Find(ctx, influxdb.NotificationEndpointFilter{
 		OrgID: &orgID,
 	})
 	if err != nil {
@@ -577,7 +579,7 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 		r.Kind.is(KindNotificationEndpointHTTP),
 		r.Kind.is(KindNotificationEndpointPagerDuty),
 		r.Kind.is(KindNotificationEndpointSlack):
-		e, err := s.endpointSVC.FindNotificationEndpointByID(ctx, r.ID)
+		e, err := s.endpointSVC.FindByID(ctx, r.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -627,7 +629,7 @@ func (s *Service) exportNotificationRule(ctx context.Context, r ResourceToClone)
 		return nil, nil, err
 	}
 
-	ruleEndpoint, err := s.endpointSVC.FindNotificationEndpointByID(ctx, rule.GetEndpointID())
+	ruleEndpoint, err := s.endpointSVC.FindByID(ctx, rule.GetEndpointID())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -836,7 +838,7 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 }
 
 func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffNotificationEndpoint, error) {
-	existingEndpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
+	existingEndpoints, err := s.endpointSVC.Find(ctx, influxdb.NotificationEndpointFilter{
 		OrgID: &orgID,
 	}) // grab em all
 	if err != nil {
@@ -874,7 +876,7 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 }
 
 func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffNotificationRule, error) {
-	iEndpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
+	iEndpoints, err := s.endpointSVC.Find(ctx, influxdb.NotificationEndpointFilter{
 		OrgID: &orgID,
 	})
 	if err != nil {
@@ -1608,7 +1610,7 @@ func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationE
 		// stub out userID since we're always using hte http client which will fill it in for us with the token
 		// feels a bit broken that is required.
 		// TODO: look into this userID requirement
-		updatedEndpoint, err := s.endpointSVC.UpdateNotificationEndpoint(ctx, e.ID(), e.existing, userID)
+		updatedEndpoint, err := s.endpointSVC.Update(ctx, endpoints.UpdateEndpoint(e.existing))
 		if err != nil {
 			return nil, err
 		}
@@ -1616,7 +1618,7 @@ func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationE
 	}
 
 	actual := e.summarize().NotificationEndpoint
-	err := s.endpointSVC.CreateNotificationEndpoint(ctx, actual, userID)
+	err := s.endpointSVC.Create(ctx, userID, actual)
 	if err != nil {
 		return nil, err
 	}
@@ -1624,18 +1626,17 @@ func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationE
 	return actual, nil
 }
 
-func (s *Service) rollbackNotificationEndpoints(endpoints []*notificationEndpoint) error {
+func (s *Service) rollbackNotificationEndpoints(rollbackEndpoints []*notificationEndpoint) error {
 	var errs []string
-	for _, e := range endpoints {
+	for _, e := range rollbackEndpoints {
 		if e.existing == nil {
-			_, _, err := s.endpointSVC.DeleteNotificationEndpoint(context.Background(), e.ID())
-			if err != nil {
+			if err := s.endpointSVC.Delete(context.Background(), e.ID()); err != nil {
 				errs = append(errs, e.ID().String())
 			}
 			continue
 		}
 
-		_, err := s.endpointSVC.UpdateNotificationEndpoint(context.Background(), e.ID(), e.existing, 0)
+		_, err := s.endpointSVC.Update(context.Background(), endpoints.UpdateEndpoint(e.existing))
 		if err != nil {
 			errs = append(errs, e.ID().String())
 		}
@@ -1649,7 +1650,7 @@ func (s *Service) rollbackNotificationEndpoints(endpoints []*notificationEndpoin
 }
 
 func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID influxdb.ID, rules []*notificationRule) (applier, error) {
-	endpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
+	endpoints, err := s.endpointSVC.Find(ctx, influxdb.NotificationEndpointFilter{
 		OrgID: &orgID,
 	})
 	if err != nil {

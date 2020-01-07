@@ -77,7 +77,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, dashs)
 
-		endpoints, _, err := l.NotificationEndpointService(t).FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
+		endpoints, err := l.NotificationEndpointService(t).Find(ctx, influxdb.NotificationEndpointFilter{
 			OrgID: &l.Org.ID,
 		})
 		require.NoError(t, err)
@@ -565,7 +565,7 @@ spec:
 			require.NoError(t, err)
 			assert.Equal(t, labels[0].Properties.Description, label.Properties["description"])
 
-			endpoint, err := l.NotificationEndpointService(t).FindNotificationEndpointByID(ctx, endpoints[0].NotificationEndpoint.GetID())
+			endpoint, err := l.NotificationEndpointService(t).FindByID(ctx, endpoints[0].NotificationEndpoint.GetID())
 			require.NoError(t, err)
 			assert.Equal(t, endpoints[0].NotificationEndpoint.GetDescription(), endpoint.GetDescription())
 

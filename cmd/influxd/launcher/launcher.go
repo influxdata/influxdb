@@ -15,13 +15,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/endpoints"
+
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/chronograf/server"
 	"github.com/influxdata/influxdb/cmd/influxd/inspect"
-	"github.com/influxdata/influxdb/endpoints"
 	"github.com/influxdata/influxdb/gather"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/inmem"
@@ -481,17 +482,20 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		SessionLength: time.Duration(m.sessionLength) * time.Minute,
 	}
 
+	var kvStore kv.Store
 	flushers := flushers{}
 	switch m.storeType {
 	case BoltStore:
 		store := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), m.boltPath)
 		store.WithDB(m.boltClient.DB())
+		kvStore = store
 		m.kvService = kv.NewService(m.log.With(zap.String("store", "kv")), store, serviceConfig)
 		if m.testing {
 			flushers = append(flushers, store)
 		}
 	case MemoryStore:
 		store := inmem.NewKVStore()
+		kvStore = store
 		m.kvService = kv.NewService(m.log.With(zap.String("store", "kv")), store, serviceConfig)
 		if m.testing {
 			flushers = append(flushers, store)
@@ -515,27 +519,32 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg.MustRegister(m.boltClient)
 
 	var (
-		orgSvc                    platform.OrganizationService             = m.kvService
-		authSvc                   platform.AuthorizationService            = m.kvService
-		userSvc                   platform.UserService                     = m.kvService
-		variableSvc               platform.VariableService                 = m.kvService
-		bucketSvc                 platform.BucketService                   = m.kvService
-		sourceSvc                 platform.SourceService                   = m.kvService
-		sessionSvc                platform.SessionService                  = m.kvService
-		passwdsSvc                platform.PasswordsService                = m.kvService
-		dashboardSvc              platform.DashboardService                = m.kvService
-		dashboardLogSvc           platform.DashboardOperationLogService    = m.kvService
-		userLogSvc                platform.UserOperationLogService         = m.kvService
-		bucketLogSvc              platform.BucketOperationLogService       = m.kvService
-		orgLogSvc                 platform.OrganizationOperationLogService = m.kvService
-		onboardingSvc             platform.OnboardingService               = m.kvService
-		scraperTargetSvc          platform.ScraperTargetStoreService       = m.kvService
-		telegrafSvc               platform.TelegrafConfigStore             = m.kvService
-		userResourceSvc           platform.UserResourceMappingService      = m.kvService
-		labelSvc                  platform.LabelService                    = m.kvService
-		secretSvc                 platform.SecretService                   = m.kvService
-		lookupSvc                 platform.LookupService                   = m.kvService
-		notificationEndpointStore platform.NotificationEndpointService     = m.kvService
+		orgSvc                  platform.OrganizationService             = m.kvService
+		authSvc                 platform.AuthorizationService            = m.kvService
+		userSvc                 platform.UserService                     = m.kvService
+		variableSvc             platform.VariableService                 = m.kvService
+		bucketSvc               platform.BucketService                   = m.kvService
+		sourceSvc               platform.SourceService                   = m.kvService
+		sessionSvc              platform.SessionService                  = m.kvService
+		passwdsSvc              platform.PasswordsService                = m.kvService
+		dashboardSvc            platform.DashboardService                = m.kvService
+		dashboardLogSvc         platform.DashboardOperationLogService    = m.kvService
+		userLogSvc              platform.UserOperationLogService         = m.kvService
+		bucketLogSvc            platform.BucketOperationLogService       = m.kvService
+		orgLogSvc               platform.OrganizationOperationLogService = m.kvService
+		onboardingSvc           platform.OnboardingService               = m.kvService
+		scraperTargetSvc        platform.ScraperTargetStoreService       = m.kvService
+		telegrafSvc             platform.TelegrafConfigStore             = m.kvService
+		userResourceSvc         platform.UserResourceMappingService      = m.kvService
+		labelSvc                platform.LabelService                    = m.kvService
+		secretSvc               platform.SecretService                   = m.kvService
+		lookupSvc               platform.LookupService                   = m.kvService
+		notificationEndpointSVC platform.NotificationEndpointService     = endpoints.NewService(
+			endpoints.WithStore(endpoints.NewStore(kvStore)),
+			endpoints.WithOrgSVC(orgSvc),
+			endpoints.WithSecretSVC(secretSvc),
+			endpoints.WithUserResourceMappingSVC(userResourceSvc),
+		)
 	)
 
 	switch m.secretStore {
@@ -794,7 +803,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		TaskService:                     taskSvc,
 		TelegrafService:                 telegrafSvc,
 		NotificationRuleStore:           notificationRuleSvc,
-		NotificationEndpointService:     endpoints.NewService(notificationEndpointStore, secretSvc, userResourceSvc, orgSvc),
+		NotificationEndpointService:     notificationEndpointSVC,
 		CheckService:                    checkSvc,
 		ScraperTargetStoreService:       scraperTargetSvc,
 		ChronografService:               chronografSvc,

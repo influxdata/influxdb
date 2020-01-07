@@ -2,52 +2,284 @@ package endpoints
 
 import (
 	"context"
+	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/snowflake"
 )
 
-// Service provides all the notification endpoint service behavior.
-type Service struct {
-	endpointStore influxdb.NotificationEndpointService
-	secretSVC     influxdb.SecretService
+const serviceName = "notification endpoint"
 
-	// TODO(jsteenb2): NUKE THESE 2 embedded services after fixing up the domain!
-	influxdb.UserResourceMappingService
-	influxdb.OrganizationService
+type (
+	// Service provides all the notification endpoint service behavior.
+	Service struct {
+		idGen   influxdb.IDGenerator
+		timeGen influxdb.TimeGenerator
+
+		store     Store
+		orgSVC    influxdb.OrganizationService
+		secretSVC influxdb.SecretService
+		urmSVC    influxdb.UserResourceMappingService
+	}
+
+	Store interface {
+		Init(ctx context.Context) error
+		Create(ctx context.Context, edp influxdb.NotificationEndpoint) error
+		Delete(ctx context.Context, id influxdb.ID) error
+		Find(ctx context.Context, f FindFilter) ([]influxdb.NotificationEndpoint, error)
+		FindByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error)
+		Update(ctx context.Context, edp influxdb.NotificationEndpoint) error
+	}
+
+	ServiceSetterFn func(opt *serviceOpt)
+
+	serviceOpt struct {
+		idGen   influxdb.IDGenerator
+		timeGen influxdb.TimeGenerator
+
+		store     Store
+		orgSVC    influxdb.OrganizationService
+		secretSVC influxdb.SecretService
+		urmSVC    influxdb.UserResourceMappingService
+	}
+)
+
+func WithIDGenerator(idGen influxdb.IDGenerator) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.idGen = idGen
+	}
+}
+
+func WithTimeGenerator(timeGen influxdb.TimeGenerator) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.timeGen = timeGen
+	}
+}
+
+func WithStore(store Store) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.store = store
+	}
+}
+
+func WithOrgSVC(orgSVC influxdb.OrganizationService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.orgSVC = orgSVC
+	}
+}
+
+func WithSecretSVC(secretSVC influxdb.SecretService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.secretSVC = secretSVC
+	}
+}
+
+func WithUserResourceMappingSVC(urmSVC influxdb.UserResourceMappingService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.urmSVC = urmSVC
+	}
 }
 
 // NewService constructs a new Service.
-func NewService(store influxdb.NotificationEndpointService, secretSVC influxdb.SecretService, urmSVC influxdb.UserResourceMappingService, orgSVC influxdb.OrganizationService) *Service {
+func NewService(opts ...ServiceSetterFn) *Service {
+	opt := serviceOpt{
+		idGen:   snowflake.NewIDGenerator(),
+		timeGen: influxdb.RealTimeGenerator{},
+	}
+	for _, o := range opts {
+		o(&opt)
+	}
+
 	return &Service{
-		endpointStore:              store,
-		secretSVC:                  secretSVC,
-		UserResourceMappingService: urmSVC,
-		OrganizationService:        orgSVC,
+		idGen:   opt.idGen,
+		timeGen: opt.timeGen,
+		store:   opt.store,
+
+		orgSVC:    opt.orgSVC,
+		secretSVC: opt.secretSVC,
+		urmSVC:    opt.urmSVC,
 	}
 }
 
 var _ influxdb.NotificationEndpointService = (*Service)(nil)
 
-// FindNotificationEndpointByID returns a single notification endpoint by ID.
-func (s *Service) FindNotificationEndpointByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
-	return s.endpointStore.FindNotificationEndpointByID(ctx, id)
-}
+func (s *Service) Delete(ctx context.Context, id influxdb.ID) error {
+	// TODO: extend mapping service to be able to delete
+	// 	by ResID and ResType (ideally just ResID is all that is needed)
 
-// FindNotificationEndpoints returns a list of notification endpoints that match filter and the total count of matching notification endpoints.
-// Additional options provide pagination & sorting.
-func (s *Service) FindNotificationEndpoints(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
-	return s.endpointStore.FindNotificationEndpoints(ctx, filter, opt...)
-}
-
-// CreateNotificationEndpoint creates a new notification endpoint and sets b.ID with the new identifier.
-func (s *Service) CreateNotificationEndpoint(ctx context.Context, edp influxdb.NotificationEndpoint, userID influxdb.ID) error {
-	err := s.endpointStore.CreateNotificationEndpoint(ctx, edp, userID)
+	mappings, _, err := s.urmSVC.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
+		ResourceID:   id,
+		ResourceType: influxdb.NotificationEndpointResourceType,
+	})
 	if err != nil {
 		return err
 	}
 
+	if err := s.store.Delete(ctx, id); err != nil {
+		return err
+	}
+
+	for _, mapping := range mappings {
+		if err := s.urmSVC.DeleteUserResourceMapping(ctx, id, mapping.UserID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) FindByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+	return s.store.FindByID(ctx, id)
+}
+
+func (s *Service) Find(ctx context.Context, f influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, error) {
+	mappings, _, err := s.urmSVC.FindUserResourceMappings(ctx, f.UserResourceMappingFilter)
+	if err != nil {
+		return nil, &influxdb.Error{Code: influxdb.EInternal, Err: err}
+	}
+	if len(mappings) == 0 {
+		return []influxdb.NotificationEndpoint{}, nil
+	}
+
+	filter, err := s.newStoreFindFilter(ctx, mappings, f, opt...)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.store.Find(ctx, filter)
+}
+
+func (s *Service) newStoreFindFilter(ctx context.Context, mappings []*influxdb.UserResourceMapping, f influxdb.NotificationEndpointFilter, opts ...influxdb.FindOptions) (FindFilter, error) {
+	mUserMappings := make(map[influxdb.ID]bool)
+	for _, item := range mappings {
+		mUserMappings[item.ResourceID] = true
+	}
+
+	filter := FindFilter{UserMappings: mUserMappings}
+	if f.OrgID != nil || f.Org != nil {
+		org, err := s.orgSVC.FindOrganization(ctx, influxdb.OrganizationFilter{
+			Name: f.Org,
+			ID:   f.OrgID,
+		})
+		if err != nil {
+			return FindFilter{}, err
+		}
+		filter.OrgID = org.ID
+	}
+
+	if len(opts) > 0 {
+		filter.Descending = opts[0].Descending
+		filter.Offset = opts[0].Offset
+		filter.Limit = opts[0].Limit
+	}
+
+	return filter, nil
+}
+
+func (s *Service) Create(ctx context.Context, userID influxdb.ID, endpoint influxdb.NotificationEndpoint) error {
+	if _, err := s.orgSVC.FindOrganizationByID(ctx, endpoint.GetOrgID()); err != nil {
+		return &influxdb.Error{
+			Code: influxdb.EConflict,
+			Msg:  "organization is not valid for orgID: " + endpoint.GetOrgID().String(),
+			Err:  err,
+		}
+	}
+
+	endpoint.SetID(s.idGen.ID())
+	now := s.timeGen.Now()
+	endpoint.SetCreatedAt(now)
+	endpoint.SetUpdatedAt(now)
+	endpoint.BackfillSecretKeys()
+	if err := endpoint.Valid(); err != nil {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Err:  err,
+		}
+	}
+
+	if err := s.store.Create(ctx, endpoint); err != nil {
+		return err
+	}
+
+	err := s.urmSVC.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
+		ResourceID:   endpoint.GetID(),
+		UserID:       userID,
+		UserType:     influxdb.Owner,
+		ResourceType: influxdb.NotificationEndpointResourceType,
+	})
+	if err != nil {
+		return err
+	}
+	return s.putSecrets(ctx, endpoint)
+}
+
+func UpdateEndpoint(endpoint influxdb.NotificationEndpoint) influxdb.EndpointUpdate {
+	fn := func(now time.Time, existing influxdb.NotificationEndpoint) (influxdb.NotificationEndpoint, error) {
+		endpoint.BackfillSecretKeys() // :sadpanda:
+		endpoint.SetCreatedAt(existing.GetCRUDLog().CreatedAt)
+		endpoint.SetUpdatedAt(now)
+		return endpoint, endpoint.Valid()
+	}
+	return influxdb.EndpointUpdate{
+		UpdateType: "endpoint",
+		ID:         endpoint.GetID(),
+		Fn:         fn,
+	}
+}
+
+func UpdateChangeSet(id influxdb.ID, update influxdb.NotificationEndpointUpdate) influxdb.EndpointUpdate {
+	fn := func(now time.Time, existing influxdb.NotificationEndpoint) (influxdb.NotificationEndpoint, error) {
+		if err := update.Valid(); err != nil {
+			return nil, err
+		}
+
+		if update.Name != nil {
+			existing.SetName(*update.Name)
+		}
+		if update.Description != nil {
+			existing.SetDescription(*update.Description)
+		}
+		if update.Status != nil {
+			existing.SetStatus(*update.Status)
+		}
+		return UpdateEndpoint(existing).Fn(now, existing)
+	}
+	return influxdb.EndpointUpdate{
+		UpdateType: "change_set",
+		ID:         id,
+		Fn:         fn,
+	}
+}
+
+func (s *Service) Update(ctx context.Context, update influxdb.EndpointUpdate) (influxdb.NotificationEndpoint, error) {
+	current, err := s.FindByID(ctx, update.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	updateEndpoint, err := update.Fn(s.timeGen.Now(), current)
+	if err != nil {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Err:  err,
+		}
+	}
+
+	fns := []func(context.Context, influxdb.NotificationEndpoint) error{
+		s.store.Update,
+		s.putSecrets,
+	}
+	for _, fn := range fns {
+		if err := fn(ctx, updateEndpoint); err != nil {
+			return nil, err
+		}
+	}
+
+	return updateEndpoint, nil
+}
+
+func (s *Service) putSecrets(ctx context.Context, endpoint influxdb.NotificationEndpoint) error {
 	secrets := make(map[string]string)
-	for _, fld := range edp.SecretFields() {
+	for _, fld := range endpoint.SecretFields() {
 		if fld.Value != nil {
 			secrets[fld.Key] = *fld.Value
 		}
@@ -56,43 +288,12 @@ func (s *Service) CreateNotificationEndpoint(ctx context.Context, edp influxdb.N
 		return nil
 	}
 
-	return s.secretSVC.PutSecrets(ctx, edp.GetOrgID(), secrets)
-}
-
-// UpdateNotificationEndpoint updates a single notification endpoint.
-// Returns the new notification endpoint after update.
-func (s *Service) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID, nr influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
-	nr.BackfillSecretKeys() // :sadpanda:
-	updatedEndpoint, err := s.endpointStore.UpdateNotificationEndpoint(ctx, id, nr, userID)
-	if err != nil {
-		return nil, err
-	}
-
-	secrets := make(map[string]string)
-	for _, fld := range updatedEndpoint.SecretFields() {
-		if fld.Value != nil {
-			secrets[fld.Key] = *fld.Value
+	if err := s.secretSVC.PutSecrets(ctx, endpoint.GetOrgID(), secrets); err != nil {
+		return &influxdb.Error{
+			Code: influxdb.EInternal,
+			Msg:  "failed to put secrets",
+			Err:  err,
 		}
 	}
-
-	if len(secrets) == 0 {
-		return updatedEndpoint, nil
-	}
-
-	if err := s.secretSVC.PutSecrets(ctx, updatedEndpoint.GetOrgID(), secrets); err != nil {
-		return nil, err
-	}
-
-	return updatedEndpoint, nil
-}
-
-// PatchNotificationEndpoint updates a single  notification endpoint with changeset.
-// Returns the new notification endpoint state after update.
-func (s *Service) PatchNotificationEndpoint(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
-	return s.endpointStore.PatchNotificationEndpoint(ctx, id, upd)
-}
-
-// DeleteNotificationEndpoint removes a notification endpoint by ID, returns secret fields, orgID for further deletion.
-func (s *Service) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
-	return s.endpointStore.DeleteNotificationEndpoint(ctx, id)
+	return nil
 }

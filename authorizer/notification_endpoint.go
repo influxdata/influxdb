@@ -29,9 +29,9 @@ func NewNotificationEndpointService(
 	}
 }
 
-// FindNotificationEndpointByID checks to see if the authorizer on context has read access to the id provided.
-func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
-	edp, err := s.s.FindNotificationEndpointByID(ctx, id)
+// FindByID checks to see if the authorizer on context has read access to the id provided.
+func (s *NotificationEndpointService) FindByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+	edp, err := s.s.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -43,11 +43,11 @@ func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.C
 	return edp, nil
 }
 
-// FindNotificationEndpoints retrieves all notification endpoints that match the provided filter and then filters the list down to only the resources that are authorized.
-func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+// Find retrieves all notification endpoints that match the provided filter and then filters the list down to only the resources that are authorized.
+func (s *NotificationEndpointService) Find(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, error) {
 	// TODO: This is a temporary fix as to not fetch the entire collection when no filter is provided.
 	if !filter.UserID.Valid() && filter.OrgID == nil {
-		return nil, 0, &influxdb.Error{
+		return nil, &influxdb.Error{
 			Code: influxdb.EUnauthorized,
 			Msg:  "cannot process a request without a org or user filter",
 		}
@@ -55,9 +55,9 @@ func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Cont
 
 	// TODO: we'll likely want to push this operation into the database eventually since fetching the whole list of data
 	// will likely be expensive.
-	edps, _, err := s.s.FindNotificationEndpoints(ctx, filter, opt...)
+	edps, err := s.s.Find(ctx, filter, opt...)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	// This filters without allocating
@@ -66,7 +66,7 @@ func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Cont
 	for _, edp := range edps {
 		err := authorizeReadOrg(ctx, edp.GetOrgID())
 		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
-			return nil, 0, err
+			return nil, err
 		}
 
 		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
@@ -76,11 +76,11 @@ func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Cont
 		endpoints = append(endpoints, edp)
 	}
 
-	return endpoints, len(endpoints), nil
+	return endpoints, nil
 }
 
-// CreateNotificationEndpoint checks to see if the authorizer on context has write access to the global notification endpoint resource.
-func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Context, edp influxdb.NotificationEndpoint, userID influxdb.ID) error {
+// Create checks to see if the authorizer on context has write access to the global notification endpoint resource.
+func (s *NotificationEndpointService) Create(ctx context.Context, userID influxdb.ID, edp influxdb.NotificationEndpoint) error {
 	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.NotificationEndpointResourceType, edp.GetOrgID())
 	if err != nil {
 		return err
@@ -98,12 +98,12 @@ func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Con
 		return err0
 	}
 
-	return s.s.CreateNotificationEndpoint(ctx, edp, userID)
+	return s.s.Create(ctx, userID, edp)
 }
 
-// UpdateNotificationEndpoint checks to see if the authorizer on context has write access to the notification endpoint provided.
-func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
-	edp, err := s.FindNotificationEndpointByID(ctx, id)
+// Update checks to see if the authorizer on context has write access to the notification endpoint provided.
+func (s *NotificationEndpointService) Update(ctx context.Context, update influxdb.EndpointUpdate) (influxdb.NotificationEndpoint, error) {
+	edp, err := s.FindByID(ctx, update.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -112,33 +112,19 @@ func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Con
 		return nil, err
 	}
 
-	return s.s.UpdateNotificationEndpoint(ctx, id, upd, userID)
+	return s.s.Update(ctx, update)
 }
 
-// PatchNotificationEndpoint checks to see if the authorizer on context has write access to the notification endpoint provided.
-func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
-	edp, err := s.FindNotificationEndpointByID(ctx, id)
+// Delete checks to see if the authorizer on context has write access to the notification endpoint provided.
+func (s *NotificationEndpointService) Delete(ctx context.Context, id influxdb.ID) error {
+	edp, err := s.FindByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := authorizeWriteOrg(ctx, edp.GetOrgID()); err != nil {
-		return nil, err
+		return err
 	}
 
-	return s.s.PatchNotificationEndpoint(ctx, id, upd)
-}
-
-// DeleteNotificationEndpoint checks to see if the authorizer on context has write access to the notification endpoint provided.
-func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
-	edp, err := s.FindNotificationEndpointByID(ctx, id)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	if err := authorizeWriteOrg(ctx, edp.GetOrgID()); err != nil {
-		return nil, 0, err
-	}
-
-	return s.s.DeleteNotificationEndpoint(ctx, id)
+	return s.s.Delete(ctx, id)
 }

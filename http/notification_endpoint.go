@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
+
+	"github.com/influxdata/influxdb/endpoints"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
@@ -226,7 +229,7 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoints(w http.Resp
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	edps, _, err := h.NotificationEndpointService.FindNotificationEndpoints(ctx, filter, opts)
+	edps, err := h.NotificationEndpointService.Find(ctx, filter, opts)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -246,7 +249,7 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoint(w http.Respo
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	edp, err := h.NotificationEndpointService.FindNotificationEndpointByID(ctx, id)
+	edp, err := h.NotificationEndpointService.FindByID(ctx, id)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -410,7 +413,7 @@ func (h *NotificationEndpointHandler) handlePostNotificationEndpoint(w http.Resp
 		return
 	}
 
-	err = h.NotificationEndpointService.CreateNotificationEndpoint(ctx, edp.NotificationEndpoint, auth.GetUserID())
+	err = h.NotificationEndpointService.Create(ctx, auth.GetUserID(), edp.NotificationEndpoint)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -466,13 +469,8 @@ func (h *NotificationEndpointHandler) handlePutNotificationEndpoint(w http.Respo
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	auth, err := pctx.GetAuthorizer(ctx)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
 
-	edp, err = h.NotificationEndpointService.UpdateNotificationEndpoint(ctx, edp.GetID(), edp, auth.GetUserID())
+	edp, err = h.NotificationEndpointService.Update(ctx, endpoints.UpdateEndpoint(edp))
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -501,7 +499,7 @@ func (h *NotificationEndpointHandler) handlePatchNotificationEndpoint(w http.Res
 		return
 	}
 
-	edp, err := h.NotificationEndpointService.PatchNotificationEndpoint(ctx, req.ID, req.Update)
+	edp, err := h.NotificationEndpointService.Update(ctx, endpoints.UpdateChangeSet(req.ID, req.Update))
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -528,23 +526,10 @@ func (h *NotificationEndpointHandler) handleDeleteNotificationEndpoint(w http.Re
 		return
 	}
 
-	flds, _, err := h.NotificationEndpointService.DeleteNotificationEndpoint(ctx, i)
-	if err != nil {
+	if err := h.NotificationEndpointService.Delete(ctx, i); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	keys := make([]string, len(flds))
-	for k, fld := range flds {
-		if fld.Key == "" {
-			h.HandleHTTPError(ctx, &influxdb.Error{
-				Op:  "http/handleDeleteNotificationEndpoint",
-				Msg: "Bad Secret Key in endpoint " + i.String(),
-			}, w)
-			return
-		}
-		keys[k] = fld.Key
-	}
-	h.log.Debug("NotificationEndpoint deleted", zap.String("notificationEndpointID", fmt.Sprint(i)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -571,8 +556,8 @@ func NewNotificationEndpointService(client *httpc.Client) *NotificationEndpointS
 
 var _ influxdb.NotificationEndpointService = (*NotificationEndpointService)(nil)
 
-// FindNotificationEndpointByID returns a single notification endpoint by ID.
-func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+// FindByID returns a single notification endpoint by ID.
+func (s *NotificationEndpointService) FindByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
 	var resp notificationEndpointDecoder
 	err := s.Client.
 		Get(prefixNotificationEndpoints, id.String()).
@@ -584,13 +569,10 @@ func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.C
 	return resp.endpoint, nil
 }
 
-// FindNotificationEndpoints returns a list of notification endpoints that match filter and the total count of matching notification endpoints.
+// Find returns a list of notification endpoints that match filter and the total count of matching notification endpoints.
 // Additional options provide pagination & sorting.
-func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+func (s *NotificationEndpointService) Find(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, error) {
 	params := findOptionParams(opt...)
-	if filter.ID != nil {
-		params = append(params, [2]string{"id", filter.ID.String()})
-	}
 	if filter.OrgID != nil {
 		params = append(params, [2]string{"orgID", filter.OrgID.String()})
 	}
@@ -607,20 +589,20 @@ func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Cont
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	var endpoints []influxdb.NotificationEndpoint
 	for _, e := range resp.Endpoints {
 		endpoints = append(endpoints, e.endpoint)
 	}
-	return endpoints, len(endpoints), nil
+	return endpoints, nil
 }
 
-// CreateNotificationEndpoint creates a new notification endpoint and sets b.ID with the new identifier.
+// Create creates a new notification endpoint and sets b.ID with the new identifier.
 // TODO(@jsteenb2): this is unsatisfactory, we have no way of grabbing the new notification endpoint without
 //  serious hacky hackertoning. Put it on the list...
-func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Context, ne influxdb.NotificationEndpoint, userID influxdb.ID) error {
+func (s *NotificationEndpointService) Create(ctx context.Context, _ influxdb.ID, ne influxdb.NotificationEndpoint) error {
 	// userID is ignored here since server reads it off
 	// the token/auth. its a nothing burger here
 	var resp notificationEndpointDecoder
@@ -637,13 +619,29 @@ func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Con
 	return nil
 }
 
-// UpdateNotificationEndpoint updates a single notification endpoint.
+// Update updates a single notification endpoint.
 // Returns the new notification endpoint after update.
-func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID, ne influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
-	// userID is ignored since userID is grabbed off the http auth set on the client
+func (s *NotificationEndpointService) Update(ctx context.Context, update influxdb.EndpointUpdate) (influxdb.NotificationEndpoint, error) {
+	switch update.UpdateType {
+	case "endpoint":
+		return s.update(ctx, update)
+	case "change_set":
+		return s.patch(ctx, update)
+	default:
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "invalid update provided",
+		}
+	}
+
+}
+
+func (s *NotificationEndpointService) update(ctx context.Context, update influxdb.EndpointUpdate) (influxdb.NotificationEndpoint, error) {
+	endpoint, _ := update.Fn(time.Time{}, &endpoint.HTTP{})
+
 	var resp notificationEndpointDecoder
 	err := s.Client.
-		PutJSON(&notificationEndpointEncoder{ne: ne}, prefixNotificationEndpoints, id.String()).
+		PutJSON(&notificationEndpointEncoder{ne: endpoint}, prefixNotificationEndpoints, endpoint.GetID().String()).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
@@ -654,14 +652,23 @@ func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Con
 
 // PatchNotificationEndpoint updates a single  notification endpoint with changeset.
 // Returns the new notification endpoint state after update.
-func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
-	if err := upd.Valid(); err != nil {
-		return nil, err
+func (s *NotificationEndpointService) patch(ctx context.Context, update influxdb.EndpointUpdate) (influxdb.NotificationEndpoint, error) {
+	endpoint, _ := update.Fn(time.Time{}, &endpoint.HTTP{})
+
+	var body influxdb.NotificationEndpointUpdate
+	if name := endpoint.GetName(); name != "" {
+		body.Name = &name
+	}
+	if desc := endpoint.GetDescription(); true {
+		body.Description = &desc
+	}
+	if status := endpoint.GetStatus(); status.Valid() == nil {
+		body.Status = &status
 	}
 
 	var resp notificationEndpointDecoder
 	err := s.Client.
-		PatchJSON(upd, prefixNotificationEndpoints, id.String()).
+		PatchJSON(body, prefixNotificationEndpoints, endpoint.GetID().String()).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
@@ -670,16 +677,16 @@ func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Cont
 	return resp.endpoint, nil
 }
 
-// DeleteNotificationEndpoint removes a notification endpoint by ID, returns secret fields, orgID for further deletion.
+// Delete removes a notification endpoint by ID, returns secret fields, orgID for further deletion.
 // TODO: axe this delete design, makes little sense in how its currently being done. Right now, as an http client,
 //  I am forced to know how the store handles this and then figure out what the server does in between me and that store,
 //  then see what falls out :flushed... for now returning nothing for secrets, orgID, and only returning an error. This makes
 //  the code/design smell super obvious imo
-func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+func (s *NotificationEndpointService) Delete(ctx context.Context, id influxdb.ID) error {
 	err := s.Client.
 		Delete(prefixNotificationEndpoints, id.String()).
 		Do(ctx)
-	return nil, 0, err
+	return err
 }
 
 type notificationEndpointEncoder struct {

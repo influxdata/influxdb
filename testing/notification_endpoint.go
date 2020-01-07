@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/endpoints"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
@@ -16,18 +18,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// NotificationEndpointFields includes prepopulated data for mapping tests.
-type NotificationEndpointFields struct {
-	IDGenerator           influxdb.IDGenerator
-	TimeGenerator         influxdb.TimeGenerator
-	NotificationEndpoints []influxdb.NotificationEndpoint
-	Orgs                  []*influxdb.Organization
-	UserResourceMappings  []*influxdb.UserResourceMapping
-}
+type (
+	// NotificationEndpointFields includes prepopulated data for mapping tests.
+	NotificationEndpointFields struct {
+		IDGenerator           influxdb.IDGenerator
+		TimeGenerator         influxdb.TimeGenerator
+		NotificationEndpoints []influxdb.NotificationEndpoint
+		Orgs                  []*influxdb.Organization
+		UserResourceMappings  []*influxdb.UserResourceMapping
+	}
 
-var timeGen1 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 13, 4, 19, 10, 0, time.UTC)}
-var timeGen2 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 14, 5, 23, 53, 10, time.UTC)}
-var time3 = time.Date(2006, time.July, 15, 5, 23, 53, 10, time.UTC)
+	NotificationEndpointDeps struct {
+		SecretSVC              influxdb.SecretService
+		UserResourceMappingSVC influxdb.UserResourceMappingService
+	}
+)
+
+var (
+	timeGen1 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 13, 4, 19, 10, 0, time.UTC)}
+	timeGen2 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 14, 5, 23, 53, 10, time.UTC)}
+	time3    = time.Date(2006, time.July, 15, 5, 23, 53, 10, time.UTC)
+)
 
 var notificationEndpointCmpOptions = cmp.Options{
 	cmp.Transformer("Sort", func(in []influxdb.NotificationEndpoint) []influxdb.NotificationEndpoint {
@@ -41,15 +52,15 @@ var notificationEndpointCmpOptions = cmp.Options{
 
 // NotificationEndpointService tests all the service functions.
 func NotificationEndpointService(
-	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()), t *testing.T,
+	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, NotificationEndpointDeps, func()), t *testing.T,
 ) {
 	tests := []struct {
 		name string
-		fn   func(init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()),
+		fn   func(init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, NotificationEndpointDeps, func()),
 			t *testing.T)
 	}{
 		{
-			name: "CreateNotificationEndpoint",
+			name: "Create",
 			fn:   CreateNotificationEndpoint,
 		},
 		{
@@ -61,7 +72,7 @@ func NotificationEndpointService(
 			fn:   FindNotificationEndpoints,
 		},
 		{
-			name: "UpdateNotificationEndpoint",
+			name: "Update",
 			fn:   UpdateNotificationEndpoint,
 		},
 		{
@@ -69,7 +80,7 @@ func NotificationEndpointService(
 			fn:   PatchNotificationEndpoint,
 		},
 		{
-			name: "DeleteNotificationEndpoint",
+			name: "Delete",
 			fn:   DeleteNotificationEndpoint,
 		},
 	}
@@ -82,7 +93,7 @@ func NotificationEndpointService(
 
 // CreateNotificationEndpoint testing.
 func CreateNotificationEndpoint(
-	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()),
+	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, NotificationEndpointDeps, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -170,11 +181,11 @@ func CreateNotificationEndpoint(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, secretSVC, done := init(tt.fields, t)
+			s, deps, done := init(tt.fields, t)
 			defer done()
 
 			ctx := context.Background()
-			err := s.CreateNotificationEndpoint(ctx, tt.args.notificationEndpoint, tt.args.userID)
+			err := s.Create(ctx, tt.args.userID, tt.args.notificationEndpoint)
 			ErrorsEqual(t, err, tt.wants.err)
 
 			urmFilter := influxdb.UserResourceMappingFilter{
@@ -183,7 +194,7 @@ func CreateNotificationEndpoint(
 			}
 
 			filter := influxdb.NotificationEndpointFilter{}
-			edps, _, err := s.FindNotificationEndpoints(ctx, filter)
+			edps, err := s.Find(ctx, filter)
 			if err != nil {
 				t.Fatalf("failed to retrieve notification endpoints: %v", err)
 			}
@@ -191,7 +202,7 @@ func CreateNotificationEndpoint(
 				t.Errorf("notificationEndpoints are different -got/+want\ndiff %s", diff)
 			}
 
-			urms, _, err := s.FindUserResourceMappings(ctx, urmFilter)
+			urms, _, err := deps.UserResourceMappingSVC.FindUserResourceMappings(ctx, urmFilter)
 			if err != nil {
 				t.Fatalf("failed to retrieve user resource mappings: %v", err)
 			}
@@ -200,7 +211,7 @@ func CreateNotificationEndpoint(
 			}
 
 			for _, edp := range tt.wants.notificationEndpoints {
-				secrets, err := secretSVC.GetSecretKeys(ctx, edp.GetOrgID())
+				secrets, err := deps.SecretSVC.GetSecretKeys(ctx, edp.GetOrgID())
 				if err != nil {
 					t.Errorf("failed to retrieve secrets for endpoint: %v", err)
 				}
@@ -214,7 +225,7 @@ func CreateNotificationEndpoint(
 
 // FindNotificationEndpointByID testing.
 func FindNotificationEndpointByID(
-	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()),
+	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, NotificationEndpointDeps, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -422,7 +433,7 @@ func FindNotificationEndpointByID(
 			defer done()
 			ctx := context.Background()
 
-			edp, err := s.FindNotificationEndpointByID(ctx, tt.args.id)
+			edp, err := s.FindByID(ctx, tt.args.id)
 			influxErrsEqual(t, tt.wants.err, err)
 			if diff := cmp.Diff(edp, tt.wants.notificationEndpoint, notificationEndpointCmpOptions...); diff != "" {
 				t.Errorf("notification endpoint is different -got/+want\ndiff %s", diff)
@@ -433,7 +444,7 @@ func FindNotificationEndpointByID(
 
 // FindNotificationEndpoints testing
 func FindNotificationEndpoints(
-	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()),
+	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, NotificationEndpointDeps, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -1051,97 +1062,6 @@ func FindNotificationEndpoints(
 			},
 		},
 		{
-			name: "find by id",
-			fields: NotificationEndpointFields{
-				Orgs: []*influxdb.Organization{
-					{
-						ID:   MustIDBase16(oneID),
-						Name: "org1",
-					},
-					{
-						ID:   MustIDBase16(fourID),
-						Name: "org4",
-					},
-				},
-				UserResourceMappings: []*influxdb.UserResourceMapping{
-					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(sixID),
-						UserType:     influxdb.Member,
-						ResourceType: influxdb.NotificationEndpointResourceType,
-					},
-					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(sixID),
-						UserType:     influxdb.Member,
-						ResourceType: influxdb.NotificationEndpointResourceType,
-					},
-					{
-						ResourceID:   MustIDBase16(fourID),
-						UserID:       MustIDBase16(sixID),
-						UserType:     influxdb.Member,
-						ResourceType: influxdb.NotificationEndpointResourceType,
-					},
-				},
-				NotificationEndpoints: []influxdb.NotificationEndpoint{
-					&endpoint.Slack{
-						Base: endpoint.Base{
-							ID:     MustIDBase16Ptr(oneID),
-							OrgID:  MustIDBase16Ptr(fourID),
-							Status: influxdb.Active,
-							Name:   "edp1",
-						},
-						URL:   "example-slack.com",
-						Token: influxdb.SecretField{Key: oneID + "-token"},
-					},
-					&endpoint.HTTP{
-						Base: endpoint.Base{
-							ID:     MustIDBase16Ptr(twoID),
-							OrgID:  MustIDBase16Ptr(fourID),
-							Status: influxdb.Active,
-							Name:   "edp2",
-						},
-						URL:        "example-webhook.com",
-						Method:     http.MethodGet,
-						AuthMethod: "none",
-					},
-					&endpoint.PagerDuty{
-						Base: endpoint.Base{
-							ID:     MustIDBase16Ptr(fourID),
-							OrgID:  MustIDBase16Ptr(oneID),
-							Status: influxdb.Active,
-							Name:   "edp3",
-						},
-						ClientURL:  "example-pagerduty.com",
-						RoutingKey: influxdb.SecretField{Key: fourID + "-routing-key"},
-					},
-				},
-			},
-			args: args{
-				filter: influxdb.NotificationEndpointFilter{
-					ID: idPtr(MustIDBase16(fourID)),
-					UserResourceMappingFilter: influxdb.UserResourceMappingFilter{
-						UserID:       MustIDBase16(sixID),
-						ResourceType: influxdb.NotificationEndpointResourceType,
-					},
-				},
-			},
-			wants: wants{
-				notificationEndpoints: []influxdb.NotificationEndpoint{
-					&endpoint.PagerDuty{
-						Base: endpoint.Base{
-							ID:     MustIDBase16Ptr(fourID),
-							OrgID:  MustIDBase16Ptr(oneID),
-							Status: influxdb.Active,
-							Name:   "edp3",
-						},
-						ClientURL:  "example-pagerduty.com",
-						RoutingKey: influxdb.SecretField{Key: fourID + "-routing-key"},
-					},
-				},
-			},
-		},
-		{
 			name: "look for organization not bound to any notification endpoint",
 			fields: NotificationEndpointFields{
 				Orgs: []*influxdb.Organization{
@@ -1220,77 +1140,6 @@ func FindNotificationEndpoints(
 				notificationEndpoints: []influxdb.NotificationEndpoint{},
 			},
 		},
-		{
-			name: "find nothing",
-			fields: NotificationEndpointFields{
-				Orgs: []*influxdb.Organization{
-					{
-						ID:   MustIDBase16(oneID),
-						Name: "org1",
-					},
-					{
-						ID:   MustIDBase16(fourID),
-						Name: "org4",
-					},
-				},
-				UserResourceMappings: []*influxdb.UserResourceMapping{
-					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(sixID),
-						UserType:     influxdb.Member,
-						ResourceType: influxdb.NotificationEndpointResourceType,
-					},
-					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(sixID),
-						UserType:     influxdb.Member,
-						ResourceType: influxdb.NotificationEndpointResourceType,
-					},
-				},
-				NotificationEndpoints: []influxdb.NotificationEndpoint{
-					&endpoint.Slack{
-						Base: endpoint.Base{
-							ID:     MustIDBase16Ptr(oneID),
-							OrgID:  MustIDBase16Ptr(fourID),
-							Status: influxdb.Active,
-							Name:   "edp1",
-						},
-						URL:   "example-slack.com",
-						Token: influxdb.SecretField{Key: oneID + "-token"},
-					},
-					&endpoint.HTTP{
-						Base: endpoint.Base{
-							ID:     MustIDBase16Ptr(twoID),
-							OrgID:  MustIDBase16Ptr(fourID),
-							Status: influxdb.Active,
-							Name:   "edp2",
-						},
-						URL:        "example-webhook.com",
-						Method:     http.MethodGet,
-						AuthMethod: "none",
-					},
-					&endpoint.PagerDuty{
-						Base: endpoint.Base{
-							ID:     MustIDBase16Ptr(threeID),
-							OrgID:  MustIDBase16Ptr(fourID),
-							Status: influxdb.Active,
-							Name:   "edp3",
-						},
-						ClientURL: "example-pagerduty.com", RoutingKey: influxdb.SecretField{Key: threeID + "-routing-key"},
-					},
-				},
-			},
-			args: args{
-				filter: influxdb.NotificationEndpointFilter{
-					ID: idPtr(MustIDBase16(fiveID)),
-					UserResourceMappingFilter: influxdb.UserResourceMappingFilter{
-						UserID:       MustIDBase16(sixID),
-						ResourceType: influxdb.NotificationEndpointResourceType,
-					},
-				},
-			},
-			wants: wants{},
-		},
 	}
 
 	for _, tt := range tests {
@@ -1299,10 +1148,10 @@ func FindNotificationEndpoints(
 			defer done()
 			ctx := context.Background()
 
-			edps, n, err := s.FindNotificationEndpoints(ctx, tt.args.filter, tt.args.opts)
+			edps, err := s.Find(ctx, tt.args.filter, tt.args.opts)
 			ErrorsEqual(t, err, tt.wants.err)
-			if n != len(tt.wants.notificationEndpoints) {
-				t.Fatalf("notification endpoints length is different got %d, want %d", n, len(tt.wants.notificationEndpoints))
+			if len(edps) != len(tt.wants.notificationEndpoints) {
+				t.Fatalf("notification endpoints length is different got %d, want %d", len(edps), len(tt.wants.notificationEndpoints))
 			}
 
 			if diff := cmp.Diff(edps, tt.wants.notificationEndpoints, notificationEndpointCmpOptions...); diff != "" {
@@ -1314,7 +1163,7 @@ func FindNotificationEndpoints(
 
 // UpdateNotificationEndpoint testing.
 func UpdateNotificationEndpoint(
-	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()),
+	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, NotificationEndpointDeps, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -1555,11 +1404,11 @@ func UpdateNotificationEndpoint(
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, secretSVC, done := init(tt.fields, t)
+			s, deps, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
-			edp, err := s.UpdateNotificationEndpoint(ctx, tt.args.id, tt.args.notificationEndpoint, tt.args.userID)
+			edp, err := s.Update(ctx, endpoints.UpdateEndpoint(tt.args.notificationEndpoint))
 			if err != nil {
 				iErr, ok := err.(*influxdb.Error)
 				require.True(t, ok)
@@ -1568,7 +1417,7 @@ func UpdateNotificationEndpoint(
 			}
 
 			if tt.wants.notificationEndpoint != nil {
-				secrets, err := secretSVC.GetSecretKeys(ctx, edp.GetOrgID())
+				secrets, err := deps.SecretSVC.GetSecretKeys(ctx, edp.GetOrgID())
 				if err != nil {
 					t.Errorf("failed to retrieve secrets for endpoint: %v", err)
 				}
@@ -1593,7 +1442,7 @@ func UpdateNotificationEndpoint(
 
 // PatchNotificationEndpoint testing.
 func PatchNotificationEndpoint(
-	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()),
+	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, NotificationEndpointDeps, func()),
 	t *testing.T,
 ) {
 
@@ -1759,7 +1608,7 @@ func PatchNotificationEndpoint(
 			defer done()
 			ctx := context.Background()
 
-			edp, err := s.PatchNotificationEndpoint(ctx, tt.args.id, tt.args.upd)
+			edp, err := s.Update(ctx, endpoints.UpdateChangeSet(tt.args.id, tt.args.upd))
 			if err != nil {
 				if tt.wants.err == nil {
 					require.NoError(t, err)
@@ -1778,7 +1627,7 @@ func PatchNotificationEndpoint(
 
 // DeleteNotificationEndpoint testing.
 func DeleteNotificationEndpoint(
-	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()),
+	init func(NotificationEndpointFields, *testing.T) (influxdb.NotificationEndpointService, NotificationEndpointDeps, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -1790,7 +1639,6 @@ func DeleteNotificationEndpoint(
 	type wants struct {
 		notificationEndpoints []influxdb.NotificationEndpoint
 		userResourceMappings  []*influxdb.UserResourceMapping
-		secretFlds            []influxdb.SecretField
 		orgID                 influxdb.ID
 		err                   *influxdb.Error
 	}
@@ -2060,9 +1908,6 @@ func DeleteNotificationEndpoint(
 				userID: MustIDBase16(sixID),
 			},
 			wants: wants{
-				secretFlds: []influxdb.SecretField{
-					{Key: twoID + "-routing-key"},
-				},
 				orgID: MustIDBase16(fourID),
 				userResourceMappings: []*influxdb.UserResourceMapping{
 					{
@@ -2093,42 +1938,34 @@ func DeleteNotificationEndpoint(
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, secretSVC, done := init(tt.fields, t)
+			s, deps, done := init(tt.fields, t)
 			defer done()
 
 			ctx := context.Background()
-			flds, orgID, err := s.DeleteNotificationEndpoint(ctx, tt.args.id)
+			err := s.Delete(ctx, tt.args.id)
 			influxErrsEqual(t, tt.wants.err, err)
-			if diff := cmp.Diff(flds, tt.wants.secretFlds); diff != "" {
-				t.Errorf("delete notification endpoint secret fields are different -got/+want\ndiff %s", diff)
-			}
-			if diff := cmp.Diff(orgID, tt.wants.orgID); diff != "" {
-				t.Errorf("delete notification endpoint org id is different -got/+want\ndiff %s", diff)
-			}
 
 			filter := influxdb.NotificationEndpointFilter{}
-			edps, n, err := s.FindNotificationEndpoints(ctx, filter)
+			edps, err := s.Find(ctx, filter)
 			if err != nil && tt.wants.err == nil {
 				t.Fatalf("expected errors to be nil got '%v'", err)
 			}
 
-			if n != len(tt.wants.notificationEndpoints) {
-				t.Fatalf("notification endpoints length is different got %d, want %d", n, len(tt.wants.notificationEndpoints))
+			if len(edps) != len(tt.wants.notificationEndpoints) {
+				t.Fatalf("notification endpoints length is different got %d, want %d", len(edps), len(tt.wants.notificationEndpoints))
 			}
 			if diff := cmp.Diff(edps, tt.wants.notificationEndpoints, notificationEndpointCmpOptions...); diff != "" {
 				t.Errorf("notification endpoints are different -got/+want\ndiff %s", diff)
 			}
 
-			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
+			urms, _, err := deps.UserResourceMappingSVC.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
 				UserID:       tt.args.userID,
 				ResourceType: influxdb.NotificationEndpointResourceType,
 			})
 			if err != nil {
 				t.Fatalf("failed to retrieve user resource mappings: %v", err)
 			}
-			if diff := cmp.Diff(urms, tt.wants.userResourceMappings, userResourceMappingCmpOptions...); diff != "" {
-				t.Errorf("user resource mappings are different -got/+want\ndiff %s", diff)
-			}
+			assert.Equal(t, tt.wants.userResourceMappings, urms)
 
 			var deletedEndpoint influxdb.NotificationEndpoint
 			for _, ne := range tt.fields.NotificationEndpoints {
@@ -2141,7 +1978,7 @@ func DeleteNotificationEndpoint(
 				return
 			}
 
-			secrets, err := secretSVC.GetSecretKeys(ctx, deletedEndpoint.GetOrgID())
+			secrets, err := deps.SecretSVC.GetSecretKeys(ctx, deletedEndpoint.GetOrgID())
 			require.NoError(t, err)
 			for _, deleted := range deletedEndpoint.SecretFields() {
 				assert.NotContains(t, secrets, deleted.Key)

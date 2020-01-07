@@ -3,13 +3,34 @@ package influxdb
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"time"
 )
 
-var (
-	// ErrInvalidNotificationEndpointType denotes that the provided NotificationEndpoint is not a valid type
-	ErrInvalidNotificationEndpointType = errors.New("unknown notification endpoint type")
-)
+// NotificationEndpointService represents a service for managing notification endpoints.
+type NotificationEndpointService interface {
+	// Create creates a new notification endpoint and sets b.ID with the new identifier.
+	Create(ctx context.Context, userID ID, ne NotificationEndpoint) error
+
+	// Delete removes a notification endpoint by ID, returns secret fields, orgID for further deletion.
+	Delete(ctx context.Context, id ID) error
+
+	// FindByID returns a single notification endpoint by ID.
+	FindByID(ctx context.Context, id ID) (NotificationEndpoint, error)
+
+	// Find returns a list of notification endpoints that match filter and the total count of matching notification endpoints.
+	// Additional options provide pagination & sorting.
+	Find(ctx context.Context, filter NotificationEndpointFilter, opt ...FindOptions) ([]NotificationEndpoint, error)
+
+	// Update updates a single notification endpoint.
+	// Returns the new notification endpoint after update.
+	Update(ctx context.Context, update EndpointUpdate) (NotificationEndpoint, error)
+}
+
+type EndpointUpdate struct {
+	UpdateType string
+	ID         ID
+	Fn         func(now time.Time, existing NotificationEndpoint) (NotificationEndpoint, error)
+}
 
 // NotificationEndpoint is the configuration describing
 // how to call a 3rd party service. E.g. Slack, Pagerduty
@@ -42,14 +63,13 @@ var (
 	OpFindNotificationEndpointByID = "FindNotificationEndpointByID"
 	OpFindNotificationEndpoint     = "FindNotificationEndpoint"
 	OpFindNotificationEndpoints    = "FindNotificationEndpoints"
-	OpCreateNotificationEndpoint   = "CreateNotificationEndpoint"
-	OpUpdateNotificationEndpoint   = "UpdateNotificationEndpoint"
-	OpDeleteNotificationEndpoint   = "DeleteNotificationEndpoint"
+	OpCreateNotificationEndpoint   = "Create"
+	OpUpdateNotificationEndpoint   = "Update"
+	OpDeleteNotificationEndpoint   = "Delete"
 )
 
 // NotificationEndpointFilter represents a set of filter that restrict the returned notification endpoints.
 type NotificationEndpointFilter struct {
-	ID    *ID
 	OrgID *ID
 	Org   *string
 	UserResourceMappingFilter
@@ -100,34 +120,4 @@ func (n *NotificationEndpointUpdate) Valid() error {
 	}
 
 	return nil
-}
-
-// NotificationEndpointService represents a service for managing notification endpoints.
-type NotificationEndpointService interface {
-	// UserResourceMappingService must be part of all NotificationEndpointStore service,
-	// for create, delete.
-	UserResourceMappingService
-	// OrganizationService is needed for search filter
-	OrganizationService
-
-	// FindNotificationEndpointByID returns a single notification endpoint by ID.
-	FindNotificationEndpointByID(ctx context.Context, id ID) (NotificationEndpoint, error)
-
-	// FindNotificationEndpoints returns a list of notification endpoints that match filter and the total count of matching notification endpoints.
-	// Additional options provide pagination & sorting.
-	FindNotificationEndpoints(ctx context.Context, filter NotificationEndpointFilter, opt ...FindOptions) ([]NotificationEndpoint, int, error)
-
-	// CreateNotificationEndpoint creates a new notification endpoint and sets b.ID with the new identifier.
-	CreateNotificationEndpoint(ctx context.Context, ne NotificationEndpoint, userID ID) error
-
-	// UpdateNotificationEndpoint updates a single notification endpoint.
-	// Returns the new notification endpoint after update.
-	UpdateNotificationEndpoint(ctx context.Context, id ID, nr NotificationEndpoint, userID ID) (NotificationEndpoint, error)
-
-	// PatchNotificationEndpoint updates a single  notification endpoint with changeset.
-	// Returns the new notification endpoint state after update.
-	PatchNotificationEndpoint(ctx context.Context, id ID, upd NotificationEndpointUpdate) (NotificationEndpoint, error)
-
-	// DeleteNotificationEndpoint removes a notification endpoint by ID, returns secret fields, orgID for further deletion.
-	DeleteNotificationEndpoint(ctx context.Context, id ID) (flds []SecretField, orgID ID, err error)
 }
