@@ -5,6 +5,7 @@ import {DEFAULT_CELL_NAME} from 'src/dashboards/constants/index'
 import {
   DEFAULT_GAUGE_COLORS,
   DEFAULT_THRESHOLDS_LIST_COLORS,
+  DEFAULT_THRESHOLDS_TABLE_COLORS,
 } from 'src/shared/constants/thresholds'
 import {DEFAULT_CHECK_EVERY} from 'src/alerting/constants'
 
@@ -202,7 +203,7 @@ const NEW_VIEW_CREATORS = {
       type: 'table',
       shape: 'chronograf-v2',
       queries: [defaultViewQuery()],
-      colors: DEFAULT_THRESHOLDS_LIST_COLORS as Color[],
+      colors: DEFAULT_THRESHOLDS_TABLE_COLORS as Color[],
       tableOptions: {
         verticalTimeAxis: true,
         sortBy: null,

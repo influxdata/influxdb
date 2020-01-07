@@ -119,3 +119,13 @@ export const DEFAULT_THRESHOLDS_LIST_COLORS = [
     value: 0,
   },
 ]
+
+export const DEFAULT_THRESHOLDS_TABLE_COLORS = [
+  {
+    type: THRESHOLD_TYPE_TEXT,
+    hex: THRESHOLD_COLORS[17].hex,
+    id: BASE_THRESHOLD_ID,
+    name: THRESHOLD_COLORS[17].name,
+    value: 0,
+  },
+]
