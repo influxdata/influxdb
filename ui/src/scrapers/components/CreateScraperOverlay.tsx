@@ -9,7 +9,7 @@ import {Overlay} from '@influxdata/clockface'
 import CreateScraperForm from 'src/scrapers/components/CreateScraperForm'
 
 // Actions
-import {createScraper} from 'src/scrapers/actions'
+import {createScraper} from 'src/scrapers/actions/thunks'
 
 // Types
 import {ScraperTargetRequest} from '@influxdata/influx'

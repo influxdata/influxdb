@@ -1,10 +1,17 @@
 // Types
-import {Telegraf, Member, Bucket, Organization, Authorization} from 'src/types'
+import {
+  Telegraf,
+  Member,
+  Bucket,
+  Scraper,
+  Organization,
+  Authorization,
+} from 'src/types'
 
 // TODO: make these Entities generic
 
 // AuthEntities defines the result of normalizr's normalization
-// of the "organizations" resource
+// of the "authorization" resource
 export interface AuthEntities {
   buckets: {
     [uuid: string]: Authorization
@@ -12,7 +19,7 @@ export interface AuthEntities {
 }
 
 // BucketEntities defines the result of normalizr's normalization
-// of the "organizations" resource
+// of the "bucket" resource
 export interface BucketEntities {
   buckets: {
     [uuid: string]: Bucket
@@ -28,7 +35,7 @@ export interface MemberEntities {
 }
 
 // OrgEntities defines the result of normalizr's normalization
-// of the "organizations" resource
+// of the "organization" resource
 export interface OrgEntities {
   orgs: {
     [uuid: string]: Organization
@@ -36,9 +43,17 @@ export interface OrgEntities {
 }
 
 // TelegrafEntities defines the result of normalizr's normalization
-// of the "organizations" resource
+// of the "telegraf" resource
 export interface TelegrafEntities {
   telegrafs: {
     [uuid: string]: Telegraf
+  }
+}
+
+// ScraperEntities defines the result of normalizr's normalization
+// of the "scraper" resource
+export interface ScraperEntities {
+  scrapers: {
+    [uuid: string]: Scraper
   }
 }

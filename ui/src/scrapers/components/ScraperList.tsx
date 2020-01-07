@@ -7,20 +7,20 @@ import {ResourceList} from '@influxdata/clockface'
 import ScraperRow from 'src/scrapers/components/ScraperRow'
 
 // Types
-import {ScraperTargetResponse} from '@influxdata/influx'
+import {Scraper} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
 
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
 
-type SortKey = keyof ScraperTargetResponse
+type SortKey = keyof Scraper
 
 interface Props {
-  scrapers: ScraperTargetResponse[]
+  scrapers: Scraper[]
   emptyState: JSX.Element
   onDeleteScraper: (scraper) => void
-  onUpdateScraper: (scraper: ScraperTargetResponse) => void
+  onUpdateScraper: (scraper: Scraper) => void
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
