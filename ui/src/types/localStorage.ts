@@ -11,5 +11,7 @@ export interface LocalStorage {
   autoRefresh: AutoRefreshState
   variables: VariablesState
   userSettings: UserSettingsState
-  resources: ResourceState
+  resources: {
+    orgs: ResourceState['orgs']
+  }
 }
