@@ -177,7 +177,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 				variable: &platform.Variable{
 					ID:             MustIDBase16(idA),
 					OrganizationID: platform.ID(3),
-					Name:           "my-variable",
+					Name:           "MY-variable",
 					Selected:       []string{"a"},
 					Arguments: &platform.VariableArguments{
 						Type:   "constant",
@@ -205,7 +205,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 					{
 						ID:             MustIDBase16(idA),
 						OrganizationID: platform.ID(3),
-						Name:           "my-variable",
+						Name:           "MY-variable",
 						Selected:       []string{"a"},
 						Arguments: &platform.VariableArguments{
 							Type:   "constant",
