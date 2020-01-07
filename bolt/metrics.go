@@ -117,6 +117,8 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 		tokens = tx.Bucket(authorizationBucket).Stats().KeyN
 		users = tx.Bucket(userBucket).Stats().KeyN
 		err := tx.Bucket(telegrafPluginsBucket).ForEach(func(k, v []byte) error {
+			// loops through all reported number of plugins in the least intrusive way
+			// (vs a global map and locking every time a config is updated)
 			pStats := map[string]float64{}
 			err := json.Unmarshal(v, &pStats)
 			if err != nil {
