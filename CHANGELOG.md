@@ -44,6 +44,7 @@
 1. [16380](https://github.com/influxdata/influxdb/pull/16380): Fix notification tag matching rules and enable tests to verify
 1. [16376](https://github.com/influxdata/influxdb/pull/16376): Extend the y-axis when stacked graph is selected
 1. [16404](https://github.com/influxdata/influxdb/pull/16404): Fixed query reset bug that was resetting query in script editor whenever dates were changed
+1. [16435](https://github.com/influxdata/influxdb/pull/16435): Time labels are no longer squished to the left
 
 ### UI Improvements
 
