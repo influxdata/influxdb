@@ -143,8 +143,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h.Mount(prefixLabels, NewLabelHandler(b.Logger, authorizer.NewLabelService(b.LabelService), b.HTTPErrorHandler))
 
 	notificationEndpointBackend := NewNotificationEndpointBackend(b.Logger.With(zap.String("handler", "notificationEndpoint")), b)
-	notificationEndpointBackend.NotificationEndpointService = authorizer.NewNotificationEndpointService(b.NotificationEndpointService,
-		b.UserResourceMappingService, b.OrganizationService)
 	h.Mount(prefixNotificationEndpoints, NewNotificationEndpointHandler(notificationEndpointBackend.Logger(), notificationEndpointBackend))
 
 	notificationRuleBackend := NewNotificationRuleBackend(b.Logger.With(zap.String("handler", "notification_rule")), b)

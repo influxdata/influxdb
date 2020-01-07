@@ -13,7 +13,7 @@ type mwTracing struct {
 
 var _ influxdb.NotificationEndpointService = (*mwTracing)(nil)
 
-// MiddlewareTracing is service middleware for the notification endpoint service.
+// MiddlewareTracing is a tracing service middleware for the notification endpoint service.
 func MiddlewareTracing() ServiceMW {
 	return func(svc influxdb.NotificationEndpointService) influxdb.NotificationEndpointService {
 		return &mwTracing{next: svc}

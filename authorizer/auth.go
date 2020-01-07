@@ -73,7 +73,7 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id inf
 	return a, nil
 }
 
-// FindAuthorization retrieves the authorization and checks to see if the authorizer on context has read access to the authorization.
+// FindAuthorizationByToken retrieves the authorization and checks to see if the authorizer on context has read access to the authorization.
 func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, t string) (*influxdb.Authorization, error) {
 	a, err := s.s.FindAuthorizationByToken(ctx, t)
 	if err != nil {
@@ -128,7 +128,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *influ
 	return s.s.CreateAuthorization(ctx, a)
 }
 
-// VerifyPermission ensures that an authorization is allowed all of the appropriate permissions.
+// VerifyPermissions ensures that an authorization is allowed all of the appropriate permissions.
 func VerifyPermissions(ctx context.Context, ps []influxdb.Permission) error {
 	for _, p := range ps {
 		if err := IsAllowed(ctx, p); err != nil {

@@ -834,7 +834,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			pkger.WithCheckSVC(authorizer.NewCheckService(b.CheckService, authedURMSVC, authedOrgSVC)),
 			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
 			pkger.WithLabelSVC(authorizer.NewLabelService(b.LabelService)),
-			pkger.WithNotificationEndpointSVC(authorizer.NewNotificationEndpointService(b.NotificationEndpointService, authedURMSVC, authedOrgSVC)),
+			pkger.WithNotificationEndpointSVC(endpoints.MiddlewareAuth(new(authorizer.AuthAgent))(b.NotificationEndpointService)),
 			pkger.WithNotificationRuleSVC(authorizer.NewNotificationRuleStore(b.NotificationRuleStore, authedURMSVC, authedOrgSVC)),
 			pkger.WithSecretSVC(authorizer.NewSecretService(b.SecretService)),
 			pkger.WithTaskSVC(authorizer.NewTaskService(pkgerLogger, b.TaskService)),

@@ -130,6 +130,9 @@ func (s *Service) Delete(ctx context.Context, id influxdb.ID) error {
 }
 
 func (s *Service) FindByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+	if endpoint := getEndpoint(ctx); endpoint != nil {
+		return endpoint, nil
+	}
 	return s.store.FindByID(ctx, id)
 }
 
