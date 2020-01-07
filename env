@@ -1,0 +1,6 @@
+# This is an example .env file showing all of the environment variables that can 
+# be configured within the project.
+#
+#- DELOREAN_DB_DIR=/home/user/.delorean
+#- TEST_DELOREAN_DB_DIR=/home/user/.delorean_test
+
