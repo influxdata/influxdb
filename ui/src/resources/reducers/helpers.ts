@@ -54,7 +54,15 @@ export const editResource = <R>(
   draftState.byID[result] = bucket
 }
 
-export const removeResource = <R>(draftState: NormalizedState<R>, action) => {
+interface RemoveAction {
+  type: string
+  id: string
+}
+
+export const removeResource = <R>(
+  draftState: NormalizedState<R>,
+  action: RemoveAction
+) => {
   const {id} = action
   delete draftState.byID[id]
   draftState.allIDs = draftState.allIDs.filter(uuid => uuid !== id)

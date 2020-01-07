@@ -21,7 +21,6 @@ import {
 import {TemplatesState} from 'src/templates/reducers'
 import {RangeState} from 'src/dashboards/reducers/ranges'
 import {ViewsState} from 'src/dashboards/reducers/views'
-import {ScrapersState} from 'src/scrapers/reducers'
 import {UserSettingsState} from 'src/userSettings/reducers'
 import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 import {OverlayState} from 'src/overlays/reducers/overlays'
@@ -55,7 +54,6 @@ export interface AppState {
   resources: ResourceState
   routing: RouterState
   rules: NotificationRulesState
-  scrapers: ScrapersState
   tasks: TasksState
   telegrafEditorPlugins: TelegrafEditorPluginState
   telegrafEditorActivePlugins: TelegrafEditorActivePluginState

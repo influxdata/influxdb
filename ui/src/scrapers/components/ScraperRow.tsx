@@ -4,16 +4,16 @@ import React, {PureComponent} from 'react'
 // Components
 import {Context} from 'src/clockface'
 import {ResourceCard} from '@influxdata/clockface'
-import {ScraperTargetResponse} from '@influxdata/influx'
+import {Scraper} from 'src/types'
 
 // Constants
 import {DEFAULT_SCRAPER_NAME} from 'src/dashboards/constants'
 import {IconFont, ComponentColor} from '@influxdata/clockface'
 
 interface Props {
-  scraper: ScraperTargetResponse
+  scraper: Scraper
   onDeleteScraper: (scraper) => void
-  onUpdateScraper: (scraper: ScraperTargetResponse) => void
+  onUpdateScraper: (scraper: Scraper) => void
 }
 
 export default class ScraperRow extends PureComponent<Props> {

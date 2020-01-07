@@ -62,3 +62,10 @@ export const telegraf = new schema.Entity(
 )
 
 export const arrayOfTelegrafs = [telegraf]
+
+/* Scrapers */
+
+// Defines the schema for the "scrapers" resource
+
+export const scraper = new schema.Entity(ResourceType.Scrapers)
+export const arrayOfScrapers = [scraper]
