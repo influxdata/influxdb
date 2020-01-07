@@ -10,6 +10,7 @@ export const getResourcesStatus = (
       // Normalized resource statuses
       case ResourceType.Members:
       case ResourceType.Buckets:
+      case ResourceType.Telegrafs:
       case ResourceType.Authorizations: {
         return state.resources[resource].status
       }

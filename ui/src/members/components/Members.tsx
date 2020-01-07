@@ -121,7 +121,7 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const members = getAll<Member[]>(state, ResourceType.Members)
+  const members = getAll<Member>(state, ResourceType.Members)
   return {members}
 }
 

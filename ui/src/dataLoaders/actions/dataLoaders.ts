@@ -39,6 +39,8 @@ import {
   LabelProperties,
   Authorization,
   AuthEntities,
+  TelegrafEntities,
+  Telegraf,
 } from 'src/types'
 import {ILabel} from '@influxdata/influx'
 import {
@@ -48,7 +50,9 @@ import {
   Permission,
 } from '@influxdata/influx'
 import {Dispatch} from 'redux'
-import {addTelegraf, editTelegraf} from 'src/telegrafs/actions'
+
+// Actions
+import {addTelegraf, editTelegraf} from 'src/telegrafs/actions/creators'
 import {addAuthorization} from 'src/authorizations/actions/creators'
 import {notify} from 'src/shared/actions/notifications'
 import {
@@ -382,7 +386,13 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
       description: telegrafConfigDescription,
       plugins,
     })
-    dispatch(editTelegraf(telegraf))
+
+    const normTelegraf = normalize<Telegraf, TelegrafEntities, string>(
+      telegraf,
+      schemas.telegraf
+    )
+
+    dispatch(editTelegraf(normTelegraf))
     dispatch(setTelegrafConfigID(telegrafConfigID))
     return
   }
@@ -482,8 +492,13 @@ const createTelegraf = async (dispatch, getState: GetState, plugins) => {
       labels: [label],
     }
 
+    const normTelegraf = normalize<Telegraf, TelegrafEntities, string>(
+      config,
+      schemas.telegraf
+    )
+
     dispatch(setTelegrafConfigID(tc.id))
-    dispatch(addTelegraf(config))
+    dispatch(addTelegraf(normTelegraf))
     dispatch(notify(TelegrafConfigCreationSuccess))
   } catch (error) {
     console.error(error.message)

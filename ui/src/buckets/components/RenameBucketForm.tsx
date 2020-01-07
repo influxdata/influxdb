@@ -150,7 +150,7 @@ const mstp = (state: AppState, props: Props): StateProps => {
   } = props
 
   const startBucket = getByID<Bucket>(state, ResourceType.Buckets, bucketID)
-  const buckets = getAll<Bucket[]>(state, ResourceType.Buckets).filter(
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets).filter(
     b => b.id !== bucketID
   )
 
