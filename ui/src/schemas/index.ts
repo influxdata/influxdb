@@ -2,7 +2,7 @@
 import {schema} from 'normalizr'
 
 // Types
-import {ResourceType} from 'src/types'
+import {ResourceType, Telegraf} from 'src/types'
 
 /* Authorizations */
 
@@ -31,5 +31,34 @@ export const arrayOfOrgs = [org]
 /* Telegrafs */
 
 // Defines the schema for the "member" resource
-export const telegraf = new schema.Entity(ResourceType.Telegrafs)
+export const telegraf = new schema.Entity(
+  ResourceType.Telegrafs,
+  {},
+  {
+    // add buckets to metadata if not present
+    processStrategy: (t: Telegraf) => {
+      if (!t.metadata) {
+        return {
+          ...t,
+          metadata: {
+            buckets: [],
+          },
+        }
+      }
+
+      if (!t.metadata.buckets) {
+        return {
+          ...t,
+          metadata: {
+            ...t.metadata,
+            buckets: [],
+          },
+        }
+      }
+
+      return t
+    },
+  }
+)
+
 export const arrayOfTelegrafs = [telegraf]
