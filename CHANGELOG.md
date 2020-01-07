@@ -47,6 +47,7 @@
 1. [16404](https://github.com/influxdata/influxdb/pull/16404): Fixed query reset bug that was resetting query in script editor whenever dates were changed
 1. [16430](https://github.com/influxdata/influxdb/pull/16430): Fixed table threshold bug that was defaulting set colors to the background.
 1. [16435](https://github.com/influxdata/influxdb/pull/16435): Time labels are no longer squished to the left
+1. [16427](https://github.com/influxdata/influxdb/pull/16427): Fixed underlying issue with disappearing queries made in Advanced Mode
 
 ### UI Improvements
 

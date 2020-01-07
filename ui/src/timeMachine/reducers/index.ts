@@ -1025,12 +1025,12 @@ const initialQueryResultsState = (): QueryResultsState => ({
   statuses: null,
 })
 
-const buildActiveQuery = (draftState: TimeMachineState) => {
+export const buildActiveQuery = (draftState: TimeMachineState) => {
   const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
 
   if (isConfigValid(draftQuery.builderConfig)) {
     draftQuery.text = buildQuery(draftQuery.builderConfig)
-  } else {
+  } else if (!draftQuery.text) {
     draftQuery.text = ''
   }
 }
