@@ -255,7 +255,7 @@ class BucketsTab extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => ({
   org: getOrg(state),
-  buckets: getAll<Bucket[]>(state, ResourceType.Buckets),
+  buckets: getAll<Bucket>(state, ResourceType.Buckets),
   limitStatus: extractBucketLimits(state.cloud.limits),
 })
 

@@ -138,7 +138,7 @@ const mstp = (state: AppState): StateProps => {
     me: {name},
   } = state
 
-  const buckets = getAll<Bucket[]>(state, ResourceType.Buckets)
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
 
   return {
     currentStepIndex: currentStep,

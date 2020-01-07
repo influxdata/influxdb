@@ -8,9 +8,9 @@ export const getStatus = ({resources}: AppState, resource): RemoteDataState => {
   return resources[resource].status
 }
 
-export const getAll = <R>({resources}: AppState, resource): R => {
-  const {allIDs} = resources[resource]
-  const {byID} = resources[resource]
+export const getAll = <R>({resources}: AppState, resource): R[] => {
+  const allIDs: string[] = resources[resource].allIDs
+  const byID: {[uuid: string]: R} = resources[resource].byID
   return allIDs.map(id => byID[id])
 }
 

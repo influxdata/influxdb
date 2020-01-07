@@ -14,8 +14,7 @@ import GetResources from 'src/shared/components/GetResources'
 import {TOKEN_LABEL} from 'src/labels/constants'
 
 // Types
-import {AppState, ResourceType, Authorization} from 'src/types'
-import {Telegraf} from '@influxdata/influx'
+import {Telegraf, AppState, ResourceType, Authorization} from 'src/types'
 
 // Selectors
 import {getAll} from 'src/resources/selectors'
@@ -24,7 +23,7 @@ const {Authorizations} = ResourceType
 
 interface StateProps {
   username: string
-  telegrafs: AppState['telegrafs']['list']
+  telegrafs: Telegraf[]
   tokens: Authorization[]
   collectors: Telegraf[]
 }
@@ -100,14 +99,16 @@ export class TelegrafInstructionsOverlay extends PureComponent<
 const mstp = (state: AppState): StateProps => {
   const {
     me: {name},
-    telegrafs,
   } = state
+
+  const tokens = getAll<Authorization>(state, Authorizations)
+  const telegrafs = getAll<Telegraf>(state, ResourceType.Telegrafs)
 
   return {
     username: name,
-    telegrafs: telegrafs.list,
-    tokens: getAll<Authorization[]>(state, Authorizations),
-    collectors: telegrafs.list,
+    tokens,
+    collectors: telegrafs,
+    telegrafs: telegrafs,
   }
 }
 

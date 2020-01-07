@@ -338,7 +338,7 @@ class SideNav extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => {
   const isHidden = state.app.ephemeral.inPresentationMode
-  const orgs = getAll<Organization[]>(state, ResourceType.Orgs)
+  const orgs = getAll<Organization>(state, ResourceType.Orgs)
   const org = getOrg(state)
   const {me} = state
 

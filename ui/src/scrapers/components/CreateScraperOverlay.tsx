@@ -123,7 +123,7 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => ({
-  buckets: getAll<Bucket[]>(state, ResourceType.Buckets),
+  buckets: getAll<Bucket>(state, ResourceType.Buckets),
 })
 
 const mdtp: DispatchProps = {

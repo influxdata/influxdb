@@ -186,7 +186,7 @@ const mstp = (state: AppState): StateProps => {
     telegrafEditor,
   } = state
 
-  const buckets = getAll<Bucket[]>(state, ResourceType.Buckets)
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
   const org = getOrg(state)
 
   return {
