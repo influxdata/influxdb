@@ -16,6 +16,7 @@ actix-rt = "1.0"
 actix-web = "2.0"
 
 dotenv = "0.10"
+dirs = "2.0.2"
 env_logger = "0.6"
 failure = "0.1.1"
 futures = "0.3.1"

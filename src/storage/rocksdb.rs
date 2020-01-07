@@ -1885,9 +1885,16 @@ mod tests {
 
     // Test helpers
     fn get_test_storage_path() -> String {
-        dotenv().ok();
-        env::var("TEST_DELOREAN_DB_DIR")
-            .expect("TEST_DELOREAN_DB_DIR must be set. Perhaps .env is missing?")
+        dotenv().ok(); // load .env file if present
+        match env::var("TEST_DELOREAN_DB_DIR") {
+            Ok(val) => val,
+            Err(_) => {
+                // default test asset path is <OS tmp dir>/delorean
+                let mut path = env::temp_dir();
+                path.push("delorean/");
+                path.into_os_string().into_string().unwrap()
+            }
+        }
     }
 
     fn test_database(name: &str, remove_old: bool) -> Database {
