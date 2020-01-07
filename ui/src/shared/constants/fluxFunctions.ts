@@ -1095,6 +1095,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
           'A single argument function that evaluates true or false. Records are passed to the function. Those that evaluate to true are included in the output tables.',
         type: 'Function',
       },
+      {
+        name: 'onEmpty',
+        desc:
+          'Defines the behavior for empty tables. Potential values are `keep` and `drop`. Defaults to `drop`.',
+        type: 'String',
+      },
     ],
     package: '',
     desc:
