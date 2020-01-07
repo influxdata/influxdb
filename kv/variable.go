@@ -212,7 +212,7 @@ func (s *Service) CreateVariable(ctx context.Context, v *influxdb.Variable) erro
 			}
 		}
 
-		v.Name = strings.ToLower(strings.TrimSpace(v.Name)) // TODO: move to service layer
+		v.Name = strings.TrimSpace(v.Name) // TODO: move to service layer
 		v.ID = s.IDGenerator.ID()
 		now := s.Now()
 		v.CreatedAt = now
@@ -253,7 +253,7 @@ func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *in
 		v = m
 
 		// TODO: should be moved to service layer
-		update.Name = strings.ToLower(strings.TrimSpace(update.Name))
+		update.Name = strings.TrimSpace(update.Name)
 		update.Apply(m)
 
 		return s.putVariable(ctx, tx, v, PutUpdate())
