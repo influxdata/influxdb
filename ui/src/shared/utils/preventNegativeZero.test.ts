@@ -18,16 +18,19 @@ describe('preventNegativeZero', () => {
   it('should handle negative zero as a number', () => {
     expect(preventNegativeZero(-0)).toEqual(0)
     expect(preventNegativeZero(-0.0)).toEqual(0)
-    /*
-      // Note: prettier prevents us from adding additional tests with these patterns:
-      expect(preventNegativeZero(-0.00)).toEqual(0)
-      expect(preventNegativeZero(-0.000)).toEqual(0)
-      expect(preventNegativeZero(-0.0000)).toEqual(0)
 
-      expect(preventNegativeZero(-0.00)).toEqual(0.00)
-      expect(preventNegativeZero(-0.000)).toEqual(0.000)
-      expect(preventNegativeZero(-0.0000)).toEqual(0.0000)
-    */
+    // prettier-ignore
+    expect(preventNegativeZero(-0.00)).toEqual(0)
+    // prettier-ignore
+    expect(preventNegativeZero(-0.000)).toEqual(0)
+    // prettier-ignore
+    expect(preventNegativeZero(-0.0000)).toEqual(0)
+    // prettier-ignore
+    expect(preventNegativeZero(-0.00)).toEqual(0.00)
+    // prettier-ignore
+    expect(preventNegativeZero(-0.000)).toEqual(0.000)
+    // prettier-ignore
+    expect(preventNegativeZero(-0.0000)).toEqual(0.0000)
   })
   it('should handle negative zero as a string', () => {
     expect(preventNegativeZero('-0')).toEqual('0')
