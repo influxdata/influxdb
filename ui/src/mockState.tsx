@@ -9,8 +9,8 @@ import configureStore from 'src/store/configureStore'
 import {RemoteDataState, TimeZone, LocalStorage, ResourceType} from 'src/types'
 import {pastFifteenMinTimeRange} from './shared/constants/timeRanges'
 
-const {Members, Orgs, Buckets, Authorizations, Telegrafs} = ResourceType
-const {NotStarted, Done} = RemoteDataState
+const {Orgs} = ResourceType
+const {Done} = RemoteDataState
 
 export const localState: LocalStorage = {
   app: {
@@ -41,27 +41,6 @@ export const localState: LocalStorage = {
       allIDs: ['orgid'],
       org: {name: 'org', id: 'orgid'},
       status: Done,
-    },
-    [Members]: {
-      byID: {},
-      allIDs: [],
-      status: NotStarted,
-    },
-    [Buckets]: {
-      byID: {},
-      allIDs: [],
-      status: NotStarted,
-    },
-    [Authorizations]: {
-      byID: {},
-      allIDs: [],
-      status: NotStarted,
-    },
-    [Telegrafs]: {
-      byID: {},
-      allIDs: [],
-      status: NotStarted,
-      currentConfig: {status: NotStarted, item: ''},
     },
   },
 }

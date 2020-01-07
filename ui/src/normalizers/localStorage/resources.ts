@@ -3,7 +3,6 @@ import {RemoteDataState, LocalStorage} from 'src/types'
 
 export const normalizeResources = (state: LocalStorage) => {
   return {
-    ...state.resources,
     orgs: normalizeOrgs(state.resources.orgs),
   }
 }

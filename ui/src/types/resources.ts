@@ -5,6 +5,7 @@ import {
   Member,
   RemoteDataState,
   Telegraf,
+  Scraper,
 } from 'src/types'
 
 export enum ResourceType {
@@ -40,11 +41,22 @@ export interface OrgsState extends NormalizedState<Organization> {
 export interface TelegrafsState extends NormalizedState<Telegraf> {
   currentConfig: {status: RemoteDataState; item: string}
 }
+
+const {
+  Authorizations,
+  Buckets,
+  Members,
+  Orgs,
+  Telegrafs,
+  Scrapers,
+} = ResourceType
+
 // ResourceState defines the types for normalized resources
 export interface ResourceState {
-  [ResourceType.Authorizations]: NormalizedState<Authorization>
-  [ResourceType.Buckets]: NormalizedState<Bucket>
-  [ResourceType.Members]: NormalizedState<Member>
-  [ResourceType.Orgs]: OrgsState
-  [ResourceType.Telegrafs]: TelegrafsState
+  [Authorizations]: NormalizedState<Authorization>
+  [Buckets]: NormalizedState<Bucket>
+  [Members]: NormalizedState<Member>
+  [Orgs]: OrgsState
+  [Telegrafs]: TelegrafsState
+  [Scrapers]: NormalizedState<Scraper>
 }
