@@ -31,6 +31,8 @@ type (
 		Update(ctx context.Context, edp influxdb.NotificationEndpoint) error
 	}
 
+	ServiceMW func(svc influxdb.NotificationEndpointService) influxdb.NotificationEndpointService
+
 	ServiceSetterFn func(opt *serviceOpt)
 
 	serviceOpt struct {

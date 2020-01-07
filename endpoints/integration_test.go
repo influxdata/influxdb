@@ -36,7 +36,7 @@ func initNotificationEndpointService(s kv.Store, f influxdbtesting.NotificationE
 	store := endpoints.NewStore(s)
 	require.NoError(t, store.Init(ctx))
 
-	endpointSVC := endpoints.NewService(
+	var endpointSVC influxdb.NotificationEndpointService = endpoints.NewService(
 		endpoints.WithStore(store),
 		endpoints.WithIDGenerator(f.IDGenerator),
 		endpoints.WithTimeGenerator(f.TimeGenerator),
@@ -44,6 +44,7 @@ func initNotificationEndpointService(s kv.Store, f influxdbtesting.NotificationE
 		endpoints.WithSecretSVC(kvSVC),
 		endpoints.WithUserResourceMappingSVC(kvSVC),
 	)
+	endpointSVC = endpoints.MiddlewareTracing()(endpointSVC)
 
 	for _, edp := range f.NotificationEndpoints {
 		require.NoError(t, store.Put(ctx, edp))
