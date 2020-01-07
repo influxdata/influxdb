@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/cron"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/pkg/pointer"
-	cron "gopkg.in/robfig/cron.v2"
 )
 
 const maxConcurrency = 100
@@ -55,13 +55,6 @@ func (a *Duration) Parse(s string) error {
 	if err != nil {
 		return ErrTaskInvalidDuration(err)
 	}
-	// TODO(docmerlin): the following needs to be removed once we can support duration units longer than an hour.
-	// This is here to check to make sure that the duration is compatible with golang durations as well, as the current task
-	// cron doesn't support certain duration units that flux supports. For historical reasons empty-string needs to parse without error
-	if _, err := time.ParseDuration(s); strings.TrimSpace(s) != "" && err != nil {
-		return ErrTaskInvalidDuration(err)
-	}
-
 	a.Node = *q
 	return nil
 }
@@ -277,9 +270,6 @@ func FromScript(script string) (Options, error) {
 		if err != nil {
 			return opt, err
 		}
-		if _, err := time.ParseDuration(dur.Location().Source); err != nil { // TODO(docmerlin): remove this once tasks fully supports all flux duration units.
-			return opt, ErrParseTaskOptionField("every")
-		}
 
 		if !ok || durNode == nil {
 			return opt, ErrParseTaskOptionField("every")
@@ -300,9 +290,6 @@ func FromScript(script string) (Options, error) {
 		durNode, err := parseSignedDuration(dur.Location().Source)
 		if err != nil {
 			return opt, err
-		}
-		if _, err := time.ParseDuration(dur.Location().Source); err != nil { // TODO(docmerlin): remove this once tasks fully supports all flux duration units.
-			return opt, ErrParseTaskOptionField("every")
 		}
 		if !ok || durNode == nil {
 			return opt, ErrParseTaskOptionField("offset")
@@ -347,7 +334,7 @@ func (o *Options) Validate() error {
 		// They're both present or both missing.
 		errs = append(errs, "must specify exactly one of either cron or every")
 	} else if cronPresent {
-		_, err := cron.Parse(o.Cron)
+		_, err := cron.ParseUTC(o.Cron)
 		if err != nil {
 			errs = append(errs, "cron invalid: "+err.Error())
 		}
