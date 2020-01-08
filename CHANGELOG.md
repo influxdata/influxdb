@@ -48,6 +48,7 @@
 1. [16430](https://github.com/influxdata/influxdb/pull/16430): Fixed table threshold bug that was defaulting set colors to the background.
 1. [16435](https://github.com/influxdata/influxdb/pull/16435): Time labels are no longer squished to the left
 1. [16427](https://github.com/influxdata/influxdb/pull/16427): Fixed underlying issue with disappearing queries made in Advanced Mode
+1. [16439](https://github.com/influxdata/influxdb/pull/16439): Prevent negative zero and allow zero to have decimal places
 
 ### UI Improvements
 
