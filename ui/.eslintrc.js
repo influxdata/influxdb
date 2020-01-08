@@ -33,7 +33,6 @@ module.exports = {
     'getter-return': 'off',
     'no-extra-boolean-cast': 'off',
     'no-case-declarations': 'off',
-    'no-compare-neg-zero': 'off',
     'no-useless-escape': 'off',
     'no-undef': 'off',
     'no-fallthrough': 'off',
