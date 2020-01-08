@@ -518,6 +518,8 @@ func (f *FileStore) ForEachFile(fn func(f TSMFile) bool) {
 	f.mu.RUnlock()
 }
 
+// Apply calls fn on each TSMFile in the store concurrently. The level of
+// concurrency is set to GOMAXPROCS.
 func (f *FileStore) Apply(fn func(r TSMFile) error) error {
 	// Limit apply fn to number of cores
 	limiter := limiter.NewFixed(runtime.GOMAXPROCS(0))

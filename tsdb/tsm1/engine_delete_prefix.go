@@ -80,13 +80,18 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 	possiblyDead.keys = make(map[string]struct{})
 
 	if err := e.FileStore.Apply(func(r TSMFile) error {
+		var predClone Predicate // Apply executes concurrently across files.
+		if pred != nil {
+			predClone = pred.Clone()
+		}
+
 		// TODO(edd): tracing this deep down is currently speculative, so I have
 		// not added the tracing into the TSMReader API.
 		span, _ := tracing.StartSpanFromContextWithOperationName(rootCtx, "TSMFile delete prefix")
 		span.LogKV("file_path", r.Path())
 		defer span.Finish()
 
-		return r.DeletePrefix(name, min, max, pred, func(key []byte) {
+		return r.DeletePrefix(name, min, max, predClone, func(key []byte) {
 			possiblyDead.Lock()
 			possiblyDead.keys[string(key)] = struct{}{}
 			possiblyDead.Unlock()
@@ -126,6 +131,11 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 	// Now that all of the data is purged, we need to find if some keys are fully deleted
 	// and if so, remove them from the index.
 	if err := e.FileStore.Apply(func(r TSMFile) error {
+		var predClone Predicate // Apply executes concurrently across files.
+		if pred != nil {
+			predClone = pred.Clone()
+		}
+
 		// TODO(edd): tracing this deep down is currently speculative, so I have
 		// not added the tracing into the Engine API.
 		span, _ := tracing.StartSpanFromContextWithOperationName(rootCtx, "TSMFile determine fully deleted")
@@ -142,7 +152,7 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 			if !bytes.HasPrefix(key, name) {
 				break
 			}
-			if pred != nil && !pred.Matches(key) {
+			if predClone != nil && !predClone.Matches(key) {
 				continue
 			}
 
