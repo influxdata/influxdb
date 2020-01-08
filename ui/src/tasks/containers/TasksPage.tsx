@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import TasksHeader from 'src/tasks/components/TasksHeader'
@@ -24,12 +23,15 @@ import {
   deleteTask,
   selectTask,
   cloneTask,
+  addTaskLabel,
+  runTask,
+} from 'src/tasks/actions/thunks'
+
+import {
   setSearchTerm as setSearchTermAction,
   setShowInactive as setShowInactiveAction,
-  addTaskLabelAsync,
-  removeTaskLabelAsync,
-  runTask,
-} from 'src/tasks/actions'
+} from 'src/tasks/actions/creators'
+
 import {
   checkTaskLimits as checkTasksLimitsAction,
   LimitStatus,
@@ -41,6 +43,9 @@ import {InjectedRouter, WithRouterProps} from 'react-router'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {extractTaskLimits} from 'src/cloud/utils/limits'
+
+// Selectors
+import {getAll} from 'src/resources/selectors'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -54,8 +59,7 @@ interface ConnectedDispatchProps {
   selectTask: typeof selectTask
   setSearchTerm: typeof setSearchTermAction
   setShowInactive: typeof setShowInactiveAction
-  onAddTaskLabel: typeof addTaskLabelAsync
-  onRemoveTaskLabel: typeof removeTaskLabelAsync
+  onAddTaskLabel: typeof addTaskLabel
   onRunTask: typeof runTask
   checkTaskLimits: typeof checkTasksLimitsAction
 }
@@ -105,13 +109,13 @@ class TasksPage extends PureComponent<Props, State> {
   public render(): JSX.Element {
     const {sortKey, sortDirection, sortType} = this.state
     const {
+      selectTask,
       setSearchTerm,
       updateTaskName,
       searchTerm,
       setShowInactive,
       showInactive,
       onAddTaskLabel,
-      onRemoveTaskLabel,
       onRunTask,
       checkTaskLimits,
       limitStatus,
@@ -150,9 +154,8 @@ class TasksPage extends PureComponent<Props, State> {
                       onDelete={this.handleDelete}
                       onCreate={this.handleCreateTask}
                       onClone={this.handleClone}
-                      onSelect={this.props.selectTask}
+                      onSelect={selectTask}
                       onAddTaskLabel={onAddTaskLabel}
-                      onRemoveTaskLabel={onRemoveTaskLabel}
                       onRunTask={onRunTask}
                       onFilterChange={setSearchTerm}
                       filterComponent={this.search}
@@ -194,12 +197,11 @@ class TasksPage extends PureComponent<Props, State> {
   }
 
   private handleDelete = (task: Task) => {
-    this.props.deleteTask(task)
+    this.props.deleteTask(task.id)
   }
 
   private handleClone = (task: Task) => {
-    const {tasks} = this.props
-    this.props.cloneTask(task, tasks)
+    this.props.cloneTask(task)
   }
 
   private handleCreateTask = () => {
@@ -281,12 +283,15 @@ class TasksPage extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({
-  tasks: {status, list, searchTerm, showInactive},
-  cloud: {limits},
-}: AppState): ConnectedStateProps => {
+const mstp = (state: AppState): ConnectedStateProps => {
+  const {
+    resources,
+    cloud: {limits},
+  } = state
+  const {status, searchTerm, showInactive} = resources.tasks
+
   return {
-    tasks: list,
+    tasks: getAll<Task>(state, ResourceType.Tasks),
     status: status,
     searchTerm,
     showInactive,
@@ -302,8 +307,7 @@ const mdtp: ConnectedDispatchProps = {
   cloneTask,
   setSearchTerm: setSearchTermAction,
   setShowInactive: setShowInactiveAction,
-  onRemoveTaskLabel: removeTaskLabelAsync,
-  onAddTaskLabel: addTaskLabelAsync,
+  onAddTaskLabel: addTaskLabel,
   onRunTask: runTask,
   checkTaskLimits: checkTasksLimitsAction,
 }
