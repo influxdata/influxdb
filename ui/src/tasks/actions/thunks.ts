@@ -14,6 +14,7 @@ import * as schemas from 'src/schemas'
 import {setExportTemplate} from 'src/templates/actions'
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {
+  addTask,
   setTasks,
   editTask,
   setCurrentTask,
@@ -21,8 +22,9 @@ import {
   setRuns,
   setLogs,
   clearTask,
-  clearCurrentTask,
+  removeTask,
   setNewScript,
+  clearCurrentTask,
   Action as TaskAction,
 } from 'src/tasks/actions/creators'
 
@@ -144,7 +146,12 @@ export const updateTaskStatus = (task: Task) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(getTasks())
+    const normTask = normalize<Task, TaskEntities, string>(
+      resp.data,
+      schemas.task
+    )
+
+    dispatch(editTask(normTask))
     dispatch(notify(copy.taskUpdateSuccess()))
   } catch (e) {
     console.error(e)
@@ -163,7 +170,12 @@ export const updateTaskName = (name: string, taskID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(getTasks())
+    const normTask = normalize<Task, TaskEntities, string>(
+      resp.data,
+      schemas.task
+    )
+
+    dispatch(editTask(normTask))
     dispatch(notify(copy.taskUpdateSuccess()))
   } catch (e) {
     console.error(e)
@@ -172,17 +184,17 @@ export const updateTaskName = (name: string, taskID: string) => async (
   }
 }
 
-export const deleteTask = (task: Task) => async (
+export const deleteTask = (taskID: string) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    const resp = await api.deleteTask({taskID: task.id})
+    const resp = await api.deleteTask({taskID})
 
     if (resp.status !== 204) {
       throw new Error(resp.data.message)
     }
 
-    dispatch(getTasks())
+    dispatch(removeTask(taskID))
     dispatch(notify(copy.taskDeleteSuccess()))
   } catch (e) {
     console.error(e)
@@ -205,8 +217,13 @@ export const cloneTask = (task: Task) => async (dispatch: Dispatch<Action>) => {
       throw new Error(newTask.data.message)
     }
 
+    const normTask = normalize<Task, TaskEntities, string>(
+      resp.data,
+      schemas.task
+    )
+
     dispatch(notify(copy.taskCloneSuccess(task.name)))
-    dispatch(getTasks())
+    dispatch(addTask(normTask))
     dispatch(checkTaskLimits())
   } catch (error) {
     console.error(error)
@@ -341,7 +358,6 @@ export const saveNewScript = (script: string, preamble: string) => async (
 
     dispatch(setNewScript(''))
     dispatch(clearTask())
-    dispatch(getTasks())
     dispatch(goToTasks())
     dispatch(notify(copy.taskCreatedSuccess()))
     dispatch(checkTaskLimits())

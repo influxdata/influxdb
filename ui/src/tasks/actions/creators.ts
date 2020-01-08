@@ -21,6 +21,8 @@ export const SET_SEARCH_TERM = 'SET_SEARCH_TERM'
 export const SET_SHOW_INACTIVE = 'SET_SHOW_INACTIVE'
 export const SET_RUNS = 'SET_RUNS'
 export const SET_LOGS = 'SET_LOGS'
+export const REMOVE_TASK = 'REMOVE_TASK'
+export const ADD_TASK = 'ADD_TASK'
 
 export type Action =
   | ReturnType<typeof setTasks>
@@ -37,6 +39,8 @@ export type Action =
   | ReturnType<typeof editTask>
   | ReturnType<typeof setNewScript>
   | ReturnType<typeof clearCurrentTask>
+  | ReturnType<typeof removeTask>
+  | ReturnType<typeof addTask>
 
 // R is the type of the value of the "result" key in normalizr's normalization
 type TasksSchema<R extends string | string[]> = NormalizedSchema<
@@ -53,10 +57,22 @@ export const setTasks = (
     schema,
   } as const)
 
+export const addTask = (schema: TasksSchema<string>) =>
+  ({
+    type: ADD_TASK,
+    schema,
+  } as const)
+
 export const editTask = (schema: TasksSchema<string>) =>
   ({
     type: EDIT_TASK,
     schema,
+  } as const)
+
+export const removeTask = (id: string) =>
+  ({
+    type: REMOVE_TASK,
+    id,
   } as const)
 
 export const setCurrentTask = (schema: TasksSchema<string>) =>

@@ -197,7 +197,7 @@ class TasksPage extends PureComponent<Props, State> {
   }
 
   private handleDelete = (task: Task) => {
-    this.props.deleteTask(task)
+    this.props.deleteTask(task.id)
   }
 
   private handleClone = (task: Task) => {

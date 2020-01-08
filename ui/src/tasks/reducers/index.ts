@@ -4,6 +4,7 @@ import {produce} from 'immer'
 // Types
 import {
   Action,
+  ADD_TASK,
   SET_TASKS,
   CLEAR_TASK,
   CLEAR_CURRENT_TASK,
@@ -17,12 +18,18 @@ import {
   SET_SHOW_INACTIVE,
   SET_LOGS,
   EDIT_TASK,
+  REMOVE_TASK,
 } from 'src/tasks/actions/creators'
 import {ResourceType, ResourceState, TaskSchedule, Task} from 'src/types'
 
 // Utils
 import {initialState, defaultOptions} from 'src/tasks/reducers/helpers'
-import {setResource, editResource} from 'src/resources/reducers/helpers'
+import {
+  setResource,
+  editResource,
+  removeResource,
+  addResource,
+} from 'src/resources/reducers/helpers'
 
 type TasksState = ResourceState['tasks']
 
@@ -40,6 +47,18 @@ export default (
 
       case EDIT_TASK: {
         editResource<Task>(draftState, action, ResourceType.Tasks)
+
+        return
+      }
+
+      case REMOVE_TASK: {
+        removeResource<Task>(draftState, action)
+
+        return
+      }
+
+      case ADD_TASK: {
+        addResource<Task>(draftState, action, ResourceType.Tasks)
 
         return
       }
