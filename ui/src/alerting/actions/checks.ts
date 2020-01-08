@@ -216,6 +216,7 @@ export const saveCheckFromTimeMachine = () => async (
     }
   } catch (error) {
     console.error(error)
+    dispatch(notify(copy.createCheckFailed(error.message)))
     reportError(error, {
       context: {getState},
       name: 'saveCheckFromTimeMachine function',
