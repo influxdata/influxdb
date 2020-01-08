@@ -13,6 +13,7 @@ export const EDIT_TASK = 'EDIT_TASK'
 export const SET_TASK_OPTION = 'SET_TASK_OPTION'
 export const SET_ALL_TASK_OPTIONS = 'SET_ALL_TASK_OPTIONS'
 export const CLEAR_TASK = 'CLEAR_TASK'
+export const CLEAR_CURRENT_TASK = 'CLEAR_CURRENT_TASK'
 export const SET_NEW_SCRIPT = 'SET_NEW_SCRIPT'
 export const SET_CURRENT_SCRIPT = 'SET_CURRENT_SCRIPT'
 export const SET_CURRENT_TASK = 'SET_CURRENT_TASK'
@@ -35,6 +36,7 @@ export type Action =
   | ReturnType<typeof setLogs>
   | ReturnType<typeof editTask>
   | ReturnType<typeof setNewScript>
+  | ReturnType<typeof clearCurrentTask>
 
 // R is the type of the value of the "result" key in normalizr's normalization
 type TasksSchema<R extends string | string[]> = NormalizedSchema<
@@ -61,6 +63,11 @@ export const setCurrentTask = (schema: TasksSchema<string>) =>
   ({
     type: SET_CURRENT_TASK,
     schema,
+  } as const)
+
+export const clearCurrentTask = () =>
+  ({
+    type: CLEAR_CURRENT_TASK,
   } as const)
 
 export const setTaskOption = (taskOption: {

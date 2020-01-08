@@ -6,6 +6,7 @@ import {
   Action,
   SET_TASKS,
   CLEAR_TASK,
+  CLEAR_CURRENT_TASK,
   SET_RUNS,
   SET_TASK_OPTION,
   SET_ALL_TASK_OPTIONS,
@@ -47,6 +48,13 @@ export default (
         draftState.taskOptions = defaultOptions
         draftState.currentScript = ''
         draftState.newScript = ''
+
+        return
+      }
+
+      case CLEAR_CURRENT_TASK: {
+        draftState.currentScript = ''
+        draftState.currentTask = null
 
         return
       }

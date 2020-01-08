@@ -21,6 +21,7 @@ import {
   setRuns,
   setLogs,
   clearTask,
+  clearCurrentTask,
   setNewScript,
   Action as TaskAction,
 } from 'src/tasks/actions/creators'
@@ -277,7 +278,7 @@ export const goToTasks = () => (
 }
 
 export const cancel = () => (dispatch: Dispatch<Action>) => {
-  dispatch(setCurrentTask(null))
+  dispatch(clearCurrentTask())
   dispatch(goBack())
 }
 
@@ -317,7 +318,7 @@ export const updateScript = () => async (
     }
 
     dispatch(goToTasks())
-    dispatch(setCurrentTask(null))
+    dispatch(clearCurrentTask())
     dispatch(notify(copy.taskUpdateSuccess()))
   } catch (error) {
     console.error(error)
