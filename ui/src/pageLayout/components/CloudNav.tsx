@@ -55,6 +55,7 @@ const CloudNav: FunctionComponent<StateProps> = ({orgName, orgID}) => {
             color={ComponentColor.Success}
             text="Upgrade"
             onClick={handleUpgradeClick}
+            className="upgrade-payg--button"
           />
           <PopNav>
             <p className="cloud-nav--account">
