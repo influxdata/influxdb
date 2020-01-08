@@ -66,7 +66,7 @@ export const getTasks = () => async (
     }
 
     const tasks = normalize<Task, TaskEntities, string[]>(
-      resp.data,
+      resp.data.tasks,
       schemas.arrayOfTasks
     )
 
