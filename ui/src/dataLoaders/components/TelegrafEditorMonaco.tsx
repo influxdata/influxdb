@@ -5,6 +5,8 @@ import Editor from 'src/shared/components/TomlMonacoEditor'
 import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api'
 import {setText, setActivePlugins} from 'src/dataLoaders/actions/telegrafEditor'
 import {TelegrafEditorPluginType} from 'src/dataLoaders/reducers/telegrafEditor'
+import {getOrg} from 'src/organizations/selectors'
+import {transform} from 'src/shared/components/TemplatedCodeSnippet'
 
 const PLUGIN_REGEX = /\[\[\s*(inputs|outputs|processors|aggregators)\.(.+)\s*\]\]/
 
@@ -124,11 +126,21 @@ class TelegrafEditorMonaco extends PureComponent<Props> {
 
 export {TelegrafEditorMonaco}
 
+const OUTPUT_DEFAULTS = {
+  server: '$INFLUX_SERVER',
+  token: '$INFLUX_TOKEN',
+  org: '$INFLUX_ORG',
+  bucket: '$INFLUX_BUCKET',
+}
+
 const mstp = (state: AppState): StateProps => {
   const map = state.telegrafEditorPlugins.reduce((prev, curr) => {
     prev[curr.name] = curr
     return prev
   }, {})
+
+  const server = window.location.origin
+  const {name} = getOrg(state)
 
   const script =
     state.telegrafEditor.text ||
@@ -137,7 +149,13 @@ const mstp = (state: AppState): StateProps => {
         if (!map.hasOwnProperty(i)) {
           return ''
         }
-        return map[i].config
+        return transform(
+          map[i].config,
+          Object.assign({}, OUTPUT_DEFAULTS, {
+            server,
+            org: name,
+          })
+        )
       })
       .join('\n')
 

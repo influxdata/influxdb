@@ -1,9 +1,18 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {downloadTextFile} from 'src/shared/utils/download'
+
+// Components
 import {ComponentColor, Button} from '@influxdata/clockface'
+
+// Actions
+import {saveTelegrafConfig} from 'src/dataLoaders/actions/telegrafEditor'
+
+// Utils
+import {downloadTextFile} from 'src/shared/utils/download'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+
+// Types
 import {AppState} from 'src/types'
 
 interface OwnProps {
@@ -12,9 +21,12 @@ interface OwnProps {
 
 interface StateProps {
   script: string
+  showSetup: boolean
 }
 
-interface DispatchProps {}
+interface DispatchProps {
+  onSaveTelegrafConfig: typeof saveTelegrafConfig
+}
 
 type Props = StateProps & DispatchProps & OwnProps
 
@@ -22,6 +34,23 @@ export class TelegrafEditorFooter extends PureComponent<Props> {
   public render() {
     if (!isFlagEnabled('telegrafEditor')) {
       return false
+    }
+
+    if (this.props.showSetup) {
+      return (
+        <>
+          <Button
+            color={ComponentColor.Secondary}
+            text="Download Config"
+            onClick={this.handleDownloadConfig}
+          />
+          <Button
+            color={ComponentColor.Primary}
+            text="Close"
+            onClick={this.handleCloseConfig}
+          />
+        </>
+      )
     }
 
     return (
@@ -45,19 +74,27 @@ export class TelegrafEditorFooter extends PureComponent<Props> {
   }
 
   private handleSaveConfig = () => {
+    this.props.onSaveTelegrafConfig()
+  }
+
+  private handleCloseConfig = () => {
     this.props.onDismiss()
   }
 }
 
 const mstp = (state: AppState): StateProps => {
   const script = state.telegrafEditor.text
+  const showSetup = state.telegrafEditor.showSetup
 
   return {
     script,
+    showSetup,
   }
 }
 
-const mdtp: DispatchProps = {}
+const mdtp: DispatchProps = {
+  onSaveTelegrafConfig: saveTelegrafConfig,
+}
 
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,

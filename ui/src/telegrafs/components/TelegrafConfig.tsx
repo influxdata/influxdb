@@ -20,16 +20,19 @@ const MonacoEditor = Loadable({
   },
 })
 import {RemoteDataState} from '@influxdata/clockface'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
+import {FeatureFlag, isFlagEnabled} from 'src/shared/utils/featureFlag'
+import TelegrafEditor from 'src/dataLoaders/components/TelegrafEditor'
 
 // Actions
 import {getTelegrafConfigToml} from 'src/telegrafs/actions'
+import {loadTelegrafConfig} from 'src/dataLoaders/actions/telegrafEditor'
 
 // Types
 import {AppState} from 'src/types'
 
 interface DispatchProps {
   getTelegrafConfigToml: typeof getTelegrafConfigToml
+  loadTelegrafConfig: typeof loadTelegrafConfig
 }
 
 interface StateProps {
@@ -45,16 +48,30 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
     const {
       params: {id},
       getTelegrafConfigToml,
+      loadTelegrafConfig,
     } = this.props
-    getTelegrafConfigToml(id)
+
+    if (isFlagEnabled('telegrafEditor')) {
+      loadTelegrafConfig(id)
+    } else {
+      getTelegrafConfigToml(id)
+    }
   }
 
   public render() {
+    if (isFlagEnabled('telegrafEditor')) {
+      return <>{this.editorBody}</>
+    }
+
     return <>{this.overlayBody}</>
   }
 
   private onBeforeChange = () => {}
   private onTouchStart = () => {}
+
+  private get editorBody(): JSX.Element {
+    return <TelegrafEditor />
+  }
 
   private get overlayBody(): JSX.Element {
     const {telegrafConfig} = this.props
@@ -91,6 +108,7 @@ const mstp = (state: AppState): StateProps => ({
 
 const mdtp: DispatchProps = {
   getTelegrafConfigToml: getTelegrafConfigToml,
+  loadTelegrafConfig: loadTelegrafConfig,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

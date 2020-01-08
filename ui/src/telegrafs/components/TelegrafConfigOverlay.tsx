@@ -6,6 +6,7 @@ import _ from 'lodash'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TelegrafConfig from 'src/telegrafs/components/TelegrafConfig'
+import TelegrafEditorFooter from 'src/dataLoaders/components/TelegrafEditorFooter'
 import {
   ComponentColor,
   Button,
@@ -18,6 +19,10 @@ import {
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+
+// Actions
+import {reset} from 'src/dataLoaders/actions/telegrafEditor'
 
 // Types
 import {AppState, Telegraf} from 'src/types'
@@ -33,7 +38,11 @@ interface StateProps {
   configStatus: RemoteDataState
 }
 
-type Props = OwnProps & StateProps
+interface DispatchProps {
+  resetEditor: typeof reset
+}
+
+type Props = OwnProps & StateProps & DispatchProps
 
 @ErrorHandling
 class TelegrafConfigOverlay extends PureComponent<Props> {
@@ -44,12 +53,31 @@ class TelegrafConfigOverlay extends PureComponent<Props> {
   private get overlay(): JSX.Element {
     const {telegraf, status} = this.props
 
+    let title = 'Telegraf Configuration'
+    let footer = (
+      <Overlay.Footer>
+        <Button
+          color={ComponentColor.Secondary}
+          text="Download Config"
+          onClick={this.handleDownloadConfig}
+          status={this.buttonStatus}
+        />
+      </Overlay.Footer>
+    )
+
+    if (!isFlagEnabled('telegrafEditor')) {
+      title += ' - ' + _.get(telegraf, 'name', '')
+    } else {
+      footer = (
+        <Overlay.Footer>
+          <TelegrafEditorFooter onDismiss={this.handleDismiss} />
+        </Overlay.Footer>
+      )
+    }
+
     return (
       <Overlay.Container maxWidth={1200}>
-        <Overlay.Header
-          title={`Telegraf Configuration - ${_.get(telegraf, 'name', '')}`}
-          onDismiss={this.handleDismiss}
-        />
+        <Overlay.Header title={title} onDismiss={this.handleDismiss} />
         <Overlay.Body>
           <SpinnerContainer
             loading={status}
@@ -60,14 +88,7 @@ class TelegrafConfigOverlay extends PureComponent<Props> {
             </div>
           </SpinnerContainer>
         </Overlay.Body>
-        <Overlay.Footer>
-          <Button
-            color={ComponentColor.Secondary}
-            text="Download Config"
-            onClick={this.handleDownloadConfig}
-            status={this.buttonStatus}
-          />
-        </Overlay.Footer>
+        {footer}
       </Overlay.Container>
     )
   }
@@ -80,6 +101,9 @@ class TelegrafConfigOverlay extends PureComponent<Props> {
   }
 
   private handleDismiss = () => {
+    if (isFlagEnabled('telegrafEditor')) {
+      this.props.resetEditor()
+    }
     this.props.onClose()
   }
 
@@ -105,7 +129,11 @@ const mstp = ({telegrafs, overlays}: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}, {}>(
+const mdtp: DispatchProps = {
+  resetEditor: reset,
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
-  null
+  mdtp
 )(TelegrafConfigOverlay)

@@ -1,7 +1,12 @@
-import {Bucket} from 'src/types'
+import {Bucket, RemoteDataState} from 'src/types'
 import {getTelegrafPlugins} from 'src/client'
-import {RemoteDataState} from 'src/types'
 import {Dispatch} from 'react'
+import {client} from 'src/utils/api'
+import {
+  PublishNotificationAction,
+  notify,
+} from 'src/shared/actions/notifications'
+import {getTelegrafConfigFailed} from 'src/shared/copy/notifications'
 import {
   TelegrafEditorPluginState,
   TelegrafEditorActivePluginState,
@@ -11,6 +16,8 @@ import {
 export type PluginResourceAction =
   | ReturnType<typeof setPlugins>
   | ReturnType<typeof setPluginLoadingState>
+  | ReturnType<typeof setSaveState>
+  | ReturnType<typeof setLoadState>
 
 export const getPlugins = () => async (
   dispatch: Dispatch<PluginResourceAction>
@@ -38,6 +45,16 @@ export const setPlugins = (plugins: TelegrafEditorPluginState) => ({
   payload: plugins,
 })
 
+export const setLoadState = (state: RemoteDataState) => ({
+  type: 'SET_TELEGRAF_EDITOR_LOAD_STATE' as 'SET_TELEGRAF_EDITOR_LOAD_STATE',
+  payload: state,
+})
+
+export const setSaveState = (state: RemoteDataState) => ({
+  type: 'SET_TELEGRAF_EDITOR_SAVE_STATE' as 'SET_TELEGRAF_EDITOR_SAVE_STATE',
+  payload: state,
+})
+
 export type ActivePluginAction = ReturnType<typeof setActivePlugins>
 
 export const setActivePlugins = (plugins: TelegrafEditorActivePluginState) => ({
@@ -51,6 +68,9 @@ export type EditorAction =
   | ReturnType<typeof setText>
   | ReturnType<typeof setBucket>
   | ReturnType<typeof setFilter>
+  | ReturnType<typeof setName>
+  | ReturnType<typeof setDescription>
+  | ReturnType<typeof setSetup>
   | ReturnType<typeof reset>
 
 export const setLookup = (show: boolean) => ({
@@ -78,6 +98,61 @@ export const setFilter = (filter: string) => ({
   payload: filter,
 })
 
+export const setName = (name: string) => ({
+  type: 'SET_TELEGRAF_EDITOR_NAME' as 'SET_TELEGRAF_EDITOR_NAME',
+  payload: name,
+})
+
+export const setDescription = (description: string) => ({
+  type: 'SET_TELEGRAF_EDITOR_DESCRIPTION' as 'SET_TELEGRAF_EDITOR_DESCRIPTION',
+  payload: description,
+})
+
+export const setSetup = (show: boolean) => ({
+  type: 'SET_TELEGRAF_EDITOR_SETUP' as 'SET_TELEGRAF_EDITOR_SETUP',
+  payload: show,
+})
+
 export const reset = () => ({
   type: 'RESET_TELEGRAF_EDITOR' as 'RESET_TELEGRAF_EDITOR',
 })
+
+export type LoadTelegrafConfig =
+  | PluginResourceAction
+  | EditorAction
+  | ReturnType<typeof getPlugins>
+  | PublishNotificationAction
+
+export const loadTelegrafConfig = (id: string) => (
+  dispatch: Dispatch<LoadTelegrafConfig>
+) => {
+  try {
+    dispatch(setLoadState(RemoteDataState.Loading))
+    Promise.all([
+      client.telegrafConfigs.get(id),
+      client.telegrafConfigs.getTOML(id),
+    ]).then(resps => {
+      dispatch(setText(resps[1]))
+      dispatch(setName(resps[0].name))
+      dispatch(setDescription(resps[0].description))
+      dispatch(getPlugins())
+      dispatch(setLoadState(RemoteDataState.Done))
+    })
+  } catch (error) {
+    dispatch(setLoadState(RemoteDataState.Error))
+    dispatch(notify(getTelegrafConfigFailed()))
+  }
+}
+
+export type SaveTelegrafConfig = PluginResourceAction | EditorAction
+
+export const saveTelegrafConfig = () => (
+  dispatch: Dispatch<SaveTelegrafConfig>
+) => {
+  dispatch(setSaveState(RemoteDataState.Loading))
+
+  setTimeout(() => {
+    dispatch(setSetup(true))
+    dispatch(setSaveState(RemoteDataState.Done))
+  }, 200)
+}

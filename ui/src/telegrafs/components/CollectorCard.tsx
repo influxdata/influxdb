@@ -9,6 +9,8 @@ import {ResourceCard, IconFont} from '@influxdata/clockface'
 import {ComponentColor} from '@influxdata/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+
 // Actions
 import {
   addTelegrafLabelsAsync,
@@ -49,29 +51,63 @@ type Props = OwnProps & StateProps & DispatchProps
 class CollectorRow extends PureComponent<Props & WithRouterProps> {
   public render() {
     const {collector, org} = this.props
+    let name = (
+        <ResourceCard.EditableName
+          onUpdate={this.handleUpdateName}
+          onClick={this.handleNameClick}
+          name={collector.name}
+          noNameString={DEFAULT_COLLECTOR_NAME}
+          testID="collector-card--name"
+          buttonTestID="collector-card--name-button"
+          inputTestID="collector-card--input"
+        />
+      ),
+      description = (
+        <ResourceCard.EditableDescription
+          onUpdate={this.handleUpdateDescription}
+          description={collector.description}
+          placeholder={`Describe ${collector.name}`}
+        />
+      )
+
+    if (isFlagEnabled('telegrafEditor')) {
+      name = (
+        <div
+          className="cf-resource-card--row"
+          onClick={this.handleEdit}
+          style={{cursor: 'pointer'}}
+        >
+          <div
+            className="cf-resource-name--text"
+            data-testid="collector-card--name"
+          >
+            {collector.name}
+          </div>
+        </div>
+      )
+
+      const classer = collector.description
+        ? 'cf-resource-description--preview'
+        : 'cf-resource-description--preview untitled'
+      description = (
+        <div
+          className="cf-resource-card--row"
+          onClick={this.handleEdit}
+          style={{cursor: 'pointer'}}
+        >
+          <div className={classer}>
+            {collector.description || 'No description'}
+          </div>
+        </div>
+      )
+    }
 
     return (
       <ResourceCard
         key={`telegraf-id--${collector.id}`}
         testID="resource-card"
-        name={
-          <ResourceCard.EditableName
-            onUpdate={this.handleUpdateName}
-            onClick={this.handleNameClick}
-            name={collector.name}
-            noNameString={DEFAULT_COLLECTOR_NAME}
-            testID="collector-card--name"
-            buttonTestID="collector-card--name-button"
-            inputTestID="collector-card--input"
-          />
-        }
-        description={
-          <ResourceCard.EditableDescription
-            onUpdate={this.handleUpdateDescription}
-            description={collector.description}
-            placeholder={`Describe ${collector.name}`}
-          />
-        }
+        name={name}
+        description={description}
         labels={this.labels}
         metaData={[
           <span key={`bucket-key--${collector.id}`} data-testid="bucket-name">
@@ -102,6 +138,11 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
         </Context.Menu>
       </Context>
     )
+  }
+
+  private handleEdit = () => {
+    const {org, collector, router} = this.props
+    router.push(`/orgs/${org.id}/load-data/telegrafs/${collector.id}/view`)
   }
 
   private handleUpdateName = (name: string) => {
