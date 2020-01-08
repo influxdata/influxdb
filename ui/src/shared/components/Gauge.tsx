@@ -28,7 +28,9 @@ interface Props {
   gaugePosition: number
   colors?: Color[]
   prefix: string
+  tickPrefix: string
   suffix: string
+  tickSuffix: string
   decimalPlaces: DecimalPlaces
 }
 
@@ -340,7 +342,7 @@ class Gauge extends Component<Props> {
     const textContent = formatStatValue(gaugePosition, {
       decimalPlaces,
       prefix,
-      suffix,
+      suffix
     })
 
     ctx.fillText(textContent, 0, textY)

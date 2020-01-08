@@ -20,7 +20,14 @@ interface Props {
 class GaugeChart extends PureComponent<Props> {
   public render() {
     const {value} = this.props
-    const {colors, prefix, suffix, decimalPlaces} = this.props.properties
+    const {
+      colors,
+      prefix,
+      tickPrefix,
+      suffix,
+      tickSuffix,
+      decimalPlaces,
+    } = this.props.properties
 
     return (
       <AutoSizer>
@@ -31,7 +38,9 @@ class GaugeChart extends PureComponent<Props> {
               height={height}
               colors={colors}
               prefix={prefix}
+              tickPrefix={tickPrefix}
               suffix={suffix}
+              tickSuffix={tickSuffix}
               gaugePosition={value}
               decimalPlaces={decimalPlaces}
             />

@@ -208,6 +208,8 @@ func convertCellView(cell influxdb.Cell) chart {
 	case influxdb.GaugeViewProperties:
 		setCommon(chartKindGauge, p.ViewColors, p.DecimalPlaces, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, p.Prefix, p.Suffix)
+		ch.TickPrefix = p.TickPrefix
+		ch.TickSuffix = p.TickSuffix
 	case influxdb.HeatmapViewProperties:
 		ch.Kind = chartKindHeatMap
 		ch.Queries = convertQueries(p.Queries)

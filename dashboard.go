@@ -785,7 +785,9 @@ type GaugeViewProperties struct {
 	Type              string           `json:"type"`
 	Queries           []DashboardQuery `json:"queries"`
 	Prefix            string           `json:"prefix"`
+	TickPrefix        string           `json:"tickPrefix"`
 	Suffix            string           `json:"suffix"`
+	TickSuffix        string           `json:"tickSuffix"`
 	ViewColors        []ViewColor      `json:"colors"`
 	DecimalPlaces     DecimalPlaces    `json:"decimalPlaces"`
 	Note              string           `json:"note"`
