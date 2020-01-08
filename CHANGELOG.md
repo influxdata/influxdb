@@ -1,3 +1,9 @@
+## v2.0.0-beta.2 [Unreleased]
+
+### UI Improvements
+
+1. [16203](https://github.com/influxdata/influxdb/pull/16203): Move cloud navigation to top of page instead of within left side navigation
+
 ## v2.0.0-beta.1 [2020-01-08]
 
 ### Features
