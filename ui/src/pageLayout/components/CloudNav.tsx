@@ -39,7 +39,12 @@ const CloudNav: FunctionComponent<StateProps> = ({orgName, orgID}) => {
       <AppHeader.Logo>
         <Link to={`/orgs/${orgID}`} className="cloud-nav--logo-link"><img className="cloud-nav--logo" alt="InfluxData Logo" src={Logo} /></Link></AppHeader.Logo>
         <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Medium}>
-          <Button color={ComponentColor.Success} text="Upgrade" onClick={handleUpgradeClick} />
+          <Button
+            color={ComponentColor.Success}
+            text="Upgrade"
+            onClick={handleUpgradeClick}
+            className="upgrade-payg--button"
+          />
           <PopNav>
             <p className="cloud-nav--account">Logged in as <strong>{orgName}</strong></p>
             <PopNav.Item active={false} titleLink={className => (
