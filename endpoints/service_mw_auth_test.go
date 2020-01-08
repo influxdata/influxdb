@@ -40,10 +40,12 @@ func Test_MiddlewareAuth(t *testing.T) {
 		t.Run("happy path", func(t *testing.T) {
 			svc := mock.NewNotificationEndpointService()
 			svc.FindByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
-				e := &endpoint.HTTP{}
-				e.SetID(id)
-				e.SetOrgID(2)
-				return e, nil
+				return &endpoint.HTTP{
+					EndpointBase: influxdb.EndpointBase{
+						ID:    id,
+						OrgID: 2,
+					},
+				}, nil
 			}
 
 			authAgent := newDefaultAuthAgent(1, 2, influxdb.WriteAction)
@@ -57,11 +59,13 @@ func Test_MiddlewareAuth(t *testing.T) {
 			t.Run("not authorized for org", func(t *testing.T) {
 				svc := mock.NewNotificationEndpointService()
 				svc.FindByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
-					e := &endpoint.HTTP{}
-					e.SetID(id)
 					badOrgID := influxdb.ID(3000)
-					e.SetOrgID(badOrgID)
-					return e, nil
+					return &endpoint.HTTP{
+						EndpointBase: influxdb.EndpointBase{
+							ID:    id,
+							OrgID: badOrgID,
+						},
+					}, nil
 				}
 
 				authAgent := newDefaultAuthAgent(1, 2, influxdb.WriteAction)

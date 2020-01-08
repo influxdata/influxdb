@@ -18,10 +18,10 @@ const (
 	id3 = "020f755c3c082002"
 )
 
-var goodBase = endpoint.Base{
-	ID:          influxTesting.MustIDBase16Ptr(id1),
+var goodBase = influxdb.EndpointBase{
+	ID:          influxTesting.MustIDBase16(id1),
 	Name:        "name1",
-	OrgID:       influxTesting.MustIDBase16Ptr(id3),
+	OrgID:       influxTesting.MustIDBase16(id3),
 	Status:      influxdb.Active,
 	Description: "desc1",
 }
@@ -43,10 +43,10 @@ func TestValidEndpoint(t *testing.T) {
 		{
 			name: "invalid status",
 			src: &endpoint.PagerDuty{
-				Base: endpoint.Base{
-					ID:    influxTesting.MustIDBase16Ptr(id1),
+				EndpointBase: influxdb.EndpointBase{
+					ID:    influxTesting.MustIDBase16(id1),
 					Name:  "name1",
-					OrgID: influxTesting.MustIDBase16Ptr(id3),
+					OrgID: influxTesting.MustIDBase16(id3),
 				},
 			},
 			err: &influxdb.Error{
@@ -57,9 +57,9 @@ func TestValidEndpoint(t *testing.T) {
 		{
 			name: "empty name",
 			src: &endpoint.PagerDuty{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+				EndpointBase: influxdb.EndpointBase{
+					ID:     influxTesting.MustIDBase16(id1),
+					OrgID:  influxTesting.MustIDBase16(id3),
 					Status: influxdb.Active,
 				},
 				ClientURL:  "https://events.pagerduty.com/v2/enqueue",
@@ -73,7 +73,7 @@ func TestValidEndpoint(t *testing.T) {
 		{
 			name: "empty slack url",
 			src: &endpoint.Slack{
-				Base: goodBase,
+				EndpointBase: goodBase,
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
@@ -83,8 +83,8 @@ func TestValidEndpoint(t *testing.T) {
 		{
 			name: "invalid slack url",
 			src: &endpoint.Slack{
-				Base: goodBase,
-				URL:  "posts://er:{DEf1=ghi@:5432/db?ssl",
+				EndpointBase: goodBase,
+				URL:          "posts://er:{DEf1=ghi@:5432/db?ssl",
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
@@ -94,16 +94,16 @@ func TestValidEndpoint(t *testing.T) {
 		{
 			name: "empty slack token",
 			src: &endpoint.Slack{
-				Base: goodBase,
-				URL:  "localhost",
+				EndpointBase: goodBase,
+				URL:          "localhost",
 			},
 			err: nil,
 		},
 		{
 			name: "empty http http method",
 			src: &endpoint.HTTP{
-				Base: goodBase,
-				URL:  "localhost",
+				EndpointBase: goodBase,
+				URL:          "localhost",
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
@@ -113,10 +113,10 @@ func TestValidEndpoint(t *testing.T) {
 		{
 			name: "empty http token",
 			src: &endpoint.HTTP{
-				Base:       goodBase,
-				URL:        "localhost",
-				Method:     "GET",
-				AuthMethod: "bearer",
+				EndpointBase: goodBase,
+				URL:          "localhost",
+				Method:       "GET",
+				AuthMethod:   "bearer",
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
@@ -126,10 +126,10 @@ func TestValidEndpoint(t *testing.T) {
 		{
 			name: "empty http username",
 			src: &endpoint.HTTP{
-				Base:       goodBase,
-				URL:        "localhost",
-				Method:     http.MethodGet,
-				AuthMethod: "basic",
+				EndpointBase: goodBase,
+				URL:          "localhost",
+				Method:       http.MethodGet,
+				AuthMethod:   "basic",
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
@@ -156,10 +156,10 @@ func TestJSON(t *testing.T) {
 		{
 			name: "simple Slack",
 			src: &endpoint.Slack{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
+				EndpointBase: influxdb.EndpointBase{
+					ID:     influxTesting.MustIDBase16(id1),
 					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					OrgID:  influxTesting.MustIDBase16(id3),
 					Status: influxdb.Active,
 					CRUDLog: influxdb.CRUDLog{
 						CreatedAt: timeGen1.Now(),
@@ -173,10 +173,10 @@ func TestJSON(t *testing.T) {
 		{
 			name: "Slack without token",
 			src: &endpoint.Slack{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
+				EndpointBase: influxdb.EndpointBase{
+					ID:     influxTesting.MustIDBase16(id1),
 					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					OrgID:  influxTesting.MustIDBase16(id3),
 					Status: influxdb.Active,
 					CRUDLog: influxdb.CRUDLog{
 						CreatedAt: timeGen1.Now(),
@@ -189,10 +189,10 @@ func TestJSON(t *testing.T) {
 		{
 			name: "simple pagerduty",
 			src: &endpoint.PagerDuty{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
+				EndpointBase: influxdb.EndpointBase{
+					ID:     influxTesting.MustIDBase16(id1),
 					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					OrgID:  influxTesting.MustIDBase16(id3),
 					Status: influxdb.Active,
 					CRUDLog: influxdb.CRUDLog{
 						CreatedAt: timeGen1.Now(),
@@ -206,10 +206,10 @@ func TestJSON(t *testing.T) {
 		{
 			name: "simple http",
 			src: &endpoint.HTTP{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
+				EndpointBase: influxdb.EndpointBase{
+					ID:     influxTesting.MustIDBase16(id1),
 					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					OrgID:  influxTesting.MustIDBase16(id3),
 					Status: influxdb.Active,
 					CRUDLog: influxdb.CRUDLog{
 						CreatedAt: timeGen1.Now(),
@@ -251,10 +251,10 @@ func TestBackFill(t *testing.T) {
 		{
 			name: "simple Slack",
 			src: &endpoint.Slack{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
+				EndpointBase: influxdb.EndpointBase{
+					ID:     influxTesting.MustIDBase16(id1),
 					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					OrgID:  influxTesting.MustIDBase16(id3),
 					Status: influxdb.Active,
 					CRUDLog: influxdb.CRUDLog{
 						CreatedAt: timeGen1.Now(),
@@ -267,10 +267,10 @@ func TestBackFill(t *testing.T) {
 				},
 			},
 			target: &endpoint.Slack{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
+				EndpointBase: influxdb.EndpointBase{
+					ID:     influxTesting.MustIDBase16(id1),
 					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					OrgID:  influxTesting.MustIDBase16(id3),
 					Status: influxdb.Active,
 					CRUDLog: influxdb.CRUDLog{
 						CreatedAt: timeGen1.Now(),
@@ -287,10 +287,10 @@ func TestBackFill(t *testing.T) {
 		{
 			name: "simple pagerduty",
 			src: &endpoint.PagerDuty{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
+				EndpointBase: influxdb.EndpointBase{
+					ID:     influxTesting.MustIDBase16(id1),
 					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					OrgID:  influxTesting.MustIDBase16(id3),
 					Status: influxdb.Active,
 					CRUDLog: influxdb.CRUDLog{
 						CreatedAt: timeGen1.Now(),
@@ -303,10 +303,10 @@ func TestBackFill(t *testing.T) {
 				},
 			},
 			target: &endpoint.PagerDuty{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
+				EndpointBase: influxdb.EndpointBase{
+					ID:     influxTesting.MustIDBase16(id1),
 					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					OrgID:  influxTesting.MustIDBase16(id3),
 					Status: influxdb.Active,
 					CRUDLog: influxdb.CRUDLog{
 						CreatedAt: timeGen1.Now(),
@@ -323,10 +323,10 @@ func TestBackFill(t *testing.T) {
 		{
 			name: "http with token",
 			src: &endpoint.HTTP{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
+				EndpointBase: influxdb.EndpointBase{
+					ID:     influxTesting.MustIDBase16(id1),
 					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					OrgID:  influxTesting.MustIDBase16(id3),
 					Status: influxdb.Active,
 					CRUDLog: influxdb.CRUDLog{
 						CreatedAt: timeGen1.Now(),
@@ -343,10 +343,10 @@ func TestBackFill(t *testing.T) {
 				},
 			},
 			target: &endpoint.HTTP{
-				Base: endpoint.Base{
-					ID:     influxTesting.MustIDBase16Ptr(id1),
+				EndpointBase: influxdb.EndpointBase{
+					ID:     influxTesting.MustIDBase16(id1),
 					Name:   "name1",
-					OrgID:  influxTesting.MustIDBase16Ptr(id3),
+					OrgID:  influxTesting.MustIDBase16(id3),
 					Status: influxdb.Active,
 					CRUDLog: influxdb.CRUDLog{
 						CreatedAt: timeGen1.Now(),

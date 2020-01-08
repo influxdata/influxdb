@@ -20,9 +20,11 @@ func newEndpointStore() *IndexStore {
 		if err := IsErrUnexpectedDecodeVal(ok); err != nil {
 			return Entity{}, err
 		}
+
+		base := edp.Base()
 		return Entity{
-			PK:        EncID(edp.GetID()),
-			UniqueKey: Encode(EncID(edp.GetOrgID()), EncString(edp.GetName())),
+			PK:        EncID(base.ID),
+			UniqueKey: Encode(EncID(base.OrgID), EncString(base.Name)),
 			Body:      edp,
 		}, nil
 	}

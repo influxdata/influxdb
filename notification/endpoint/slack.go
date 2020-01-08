@@ -14,7 +14,7 @@ const slackTokenSuffix = "-token"
 
 // Slack is the notification endpoint config of slack.
 type Slack struct {
-	Base
+	influxdb.EndpointBase
 	// URL is a valid slack webhook URL
 	// TODO(jm): validate this in unmarshaler
 	// example: https://slack.com/api/chat.postMessage
@@ -23,11 +23,15 @@ type Slack struct {
 	Token influxdb.SecretField `json:"token"`
 }
 
+func (s *Slack) Base() *influxdb.EndpointBase {
+	return &s.EndpointBase
+}
+
 // BackfillSecretKeys fill back fill the secret field key during the unmarshalling
 // if value of that secret field is not nil.
 func (s *Slack) BackfillSecretKeys() {
 	if s.Token.Key == "" && s.Token.Value != nil {
-		s.Token.Key = s.idStr() + slackTokenSuffix
+		s.Token.Key = s.ID.String() + slackTokenSuffix
 	}
 }
 
@@ -42,7 +46,7 @@ func (s Slack) SecretFields() []influxdb.SecretField {
 
 // Valid returns error if some configuration is invalid
 func (s Slack) Valid() error {
-	if err := s.Base.valid(); err != nil {
+	if err := s.EndpointBase.Valid(); err != nil {
 		return err
 	}
 	if s.URL == "" {

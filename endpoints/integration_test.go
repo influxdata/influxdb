@@ -65,7 +65,7 @@ func initNotificationEndpointService(s kv.Store, f influxdbtesting.NotificationE
 
 	doneFn := func() {
 		for _, edp := range f.NotificationEndpoints {
-			if err := endpointSVC.Delete(ctx, edp.GetID()); err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+			if err := endpointSVC.Delete(ctx, edp.Base().ID); err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
 				t.Logf("failed to remove notification endpoint: %v", err)
 			}
 		}

@@ -823,12 +823,12 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 	if endpoints := sum.NotificationEndpoints; len(endpoints) > 0 {
 		headers := []string{"ID", "Name", "Description", "Status"}
 		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
-			v := endpoints[i]
+			base := endpoints[i].NotificationEndpoint.Base()
 			return []string{
-				v.NotificationEndpoint.GetID().String(),
-				v.NotificationEndpoint.GetName(),
-				v.NotificationEndpoint.GetDescription(),
-				string(v.NotificationEndpoint.GetStatus()),
+				base.ID.String(),
+				base.Name,
+				base.Description,
+				string(base.Status),
 			}
 		})
 	}

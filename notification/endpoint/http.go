@@ -20,35 +20,44 @@ const (
 
 // HTTP is the notification endpoint config of http.
 type HTTP struct {
-	Base
+	influxdb.EndpointBase
+
 	// Path is the API path of HTTP
-	URL string `json:"url"`
+	URL     string            `json:"url"`
+	Headers map[string]string `json:"headers,omitempty"`
+
 	// Token is the bearer token for authorization
-	Headers         map[string]string    `json:"headers,omitempty"`
-	Token           influxdb.SecretField `json:"token,omitempty"`
-	Username        influxdb.SecretField `json:"username,omitempty"`
-	Password        influxdb.SecretField `json:"password,omitempty"`
-	AuthMethod      string               `json:"authMethod"`
-	Method          string               `json:"method"`
-	ContentTemplate string               `json:"contentTemplate"`
+	Token    influxdb.SecretField `json:"token,omitempty"`
+	Username influxdb.SecretField `json:"username,omitempty"`
+	Password influxdb.SecretField `json:"password,omitempty"`
+
+	AuthMethod      string `json:"authMethod"`
+	Method          string `json:"method"`
+	ContentTemplate string `json:"contentTemplate"`
+}
+
+func (s *HTTP) Base() *influxdb.EndpointBase {
+	return &s.EndpointBase
 }
 
 // BackfillSecretKeys fill back fill the secret field key during the unmarshalling
 // if value of that secret field is not nil.
 func (s *HTTP) BackfillSecretKeys() {
 	if s.Token.Key == "" && s.Token.Value != nil {
-		s.Token.Key = s.idStr() + httpTokenSuffix
+		s.Token.Key = s.ID.String() + httpTokenSuffix
 	}
 	if s.Username.Key == "" && s.Username.Value != nil {
-		s.Username.Key = s.idStr() + httpUsernameSuffix
+		s.Username.Key = s.ID.String() + httpUsernameSuffix
 	}
 	if s.Password.Key == "" && s.Password.Value != nil {
-		s.Password.Key = s.idStr() + httpPasswordSuffix
+		s.Password.Key = s.ID.String() + httpPasswordSuffix
 	}
 }
 
 // SecretFields return available secret fields.
 func (s HTTP) SecretFields() []influxdb.SecretField {
+	s.BackfillSecretKeys()
+
 	arr := make([]influxdb.SecretField, 0)
 	if s.Token.Key != "" {
 		arr = append(arr, s.Token)
@@ -76,7 +85,7 @@ var goodHTTPMethod = map[string]bool{
 
 // Valid returns error if some configuration is invalid
 func (s HTTP) Valid() error {
-	if err := s.Base.valid(); err != nil {
+	if err := s.EndpointBase.Valid(); err != nil {
 		return err
 	}
 	if s.URL == "" {
@@ -129,7 +138,8 @@ func (s HTTP) MarshalJSON() ([]byte, error) {
 		}{
 			httpAlias: httpAlias(s),
 			Type:      s.Type(),
-		})
+		},
+	)
 }
 
 // Type returns the type.

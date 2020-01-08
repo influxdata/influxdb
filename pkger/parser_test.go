@@ -3169,7 +3169,7 @@ spec:
 			expectedEndpoints := []SummaryNotificationEndpoint{
 				{
 					NotificationEndpoint: &endpoint.HTTP{
-						Base: endpoint.Base{
+						EndpointBase: influxdb.EndpointBase{
 							Name:        "http_basic_auth_notification_endpoint",
 							Description: "http basic auth desc",
 							Status:      influxdb.TaskStatusInactive,
@@ -3183,7 +3183,7 @@ spec:
 				},
 				{
 					NotificationEndpoint: &endpoint.HTTP{
-						Base: endpoint.Base{
+						EndpointBase: influxdb.EndpointBase{
 							Name:        "http_bearer_auth_notification_endpoint",
 							Description: "http bearer auth desc",
 							Status:      influxdb.TaskStatusActive,
@@ -3196,7 +3196,7 @@ spec:
 				},
 				{
 					NotificationEndpoint: &endpoint.HTTP{
-						Base: endpoint.Base{
+						EndpointBase: influxdb.EndpointBase{
 							Name:        "http_none_auth_notification_endpoint",
 							Description: "http none auth desc",
 							Status:      influxdb.TaskStatusActive,
@@ -3208,7 +3208,7 @@ spec:
 				},
 				{
 					NotificationEndpoint: &endpoint.PagerDuty{
-						Base: endpoint.Base{
+						EndpointBase: influxdb.EndpointBase{
 							Name:        "pager_duty_notification_endpoint",
 							Description: "pager duty desc",
 							Status:      influxdb.TaskStatusActive,
@@ -3219,7 +3219,7 @@ spec:
 				},
 				{
 					NotificationEndpoint: &endpoint.Slack{
-						Base: endpoint.Base{
+						EndpointBase: influxdb.EndpointBase{
 							Name:        "slack_notification_endpoint",
 							Description: "slack desc",
 							Status:      influxdb.TaskStatusActive,
@@ -3243,7 +3243,7 @@ spec:
 
 				containsLabelMappings(t, sum.LabelMappings, labelMapping{
 					labelName: "label_1",
-					resName:   expected.NotificationEndpoint.GetName(),
+					resName:   expected.NotificationEndpoint.Base().Name,
 					resType:   influxdb.NotificationEndpointResourceType,
 				})
 			}
@@ -4320,7 +4320,7 @@ spec:
 			require.Len(t, endpoints, 1)
 
 			expected := &endpoint.PagerDuty{
-				Base: endpoint.Base{
+				EndpointBase: influxdb.EndpointBase{
 					Name:   "pager_duty_notification_endpoint",
 					Status: influxdb.TaskStatusActive,
 				},
@@ -4329,7 +4329,7 @@ spec:
 			}
 			actual, ok := endpoints[0].NotificationEndpoint.(*endpoint.PagerDuty)
 			require.True(t, ok)
-			assert.Equal(t, expected.Base.Name, actual.Name)
+			assert.Equal(t, expected.Base().Name, actual.Name)
 			require.Nil(t, actual.RoutingKey.Value)
 			assert.Equal(t, "routing-key", actual.RoutingKey.Key)
 

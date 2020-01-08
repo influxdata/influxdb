@@ -12,7 +12,7 @@ const routingKeySuffix = "-routing-key"
 
 // PagerDuty is the notification endpoint config of pagerduty.
 type PagerDuty struct {
-	Base
+	influxdb.EndpointBase
 	// ClientURL is the url that is presented in the PagerDuty UI when this alert is triggered
 	ClientURL string `json:"clientURL"`
 	// RoutingKey is a version 4 UUID expressed as a 32-digit hexadecimal number.
@@ -20,11 +20,15 @@ type PagerDuty struct {
 	RoutingKey influxdb.SecretField `json:"routingKey"`
 }
 
+func (s *PagerDuty) Base() *influxdb.EndpointBase {
+	return &s.EndpointBase
+}
+
 // BackfillSecretKeys fill back fill the secret field key during the unmarshalling
 // if value of that secret field is not nil.
 func (s *PagerDuty) BackfillSecretKeys() {
 	if s.RoutingKey.Key == "" && s.RoutingKey.Value != nil {
-		s.RoutingKey.Key = s.idStr() + routingKeySuffix
+		s.RoutingKey.Key = s.ID.String() + routingKeySuffix
 	}
 }
 
@@ -37,7 +41,7 @@ func (s PagerDuty) SecretFields() []influxdb.SecretField {
 
 // Valid returns error if some configuration is invalid
 func (s PagerDuty) Valid() error {
-	if err := s.Base.valid(); err != nil {
+	if err := s.EndpointBase.Valid(); err != nil {
 		return err
 	}
 	if s.RoutingKey.Key == "" {

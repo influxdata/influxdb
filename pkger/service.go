@@ -439,7 +439,7 @@ func (s *Service) cloneOrgNotificationEndpoints(ctx context.Context, orgID influ
 	for _, e := range endpoints {
 		resources = append(resources, ResourceToClone{
 			Kind: KindNotificationEndpoint,
-			ID:   e.GetID(),
+			ID:   e.Base().ID,
 		})
 	}
 	return resources, nil
@@ -634,7 +634,7 @@ func (s *Service) exportNotificationRule(ctx context.Context, r ResourceToClone)
 		return nil, nil, err
 	}
 
-	return ruleToResource(rule, ruleEndpoint.GetName(), r.Name), endpointToResource(ruleEndpoint, ""), nil
+	return ruleToResource(rule, ruleEndpoint.Base().Name, r.Name), endpointToResource(ruleEndpoint, ""), nil
 }
 
 type (
@@ -848,7 +848,7 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 	mExisting := make(map[string]influxdb.NotificationEndpoint)
 	for i := range existingEndpoints {
 		e := existingEndpoints[i]
-		mExisting[e.GetName()] = e
+		mExisting[e.Base().Name] = e
 	}
 
 	mExistingToNew := make(map[string]DiffNotificationEndpoint)
@@ -884,7 +884,7 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 	}
 	mExisting := make(map[string]influxdb.NotificationEndpoint)
 	for _, e := range iEndpoints {
-		mExisting[e.GetName()] = e
+		mExisting[e.Base().Name] = e
 	}
 
 	var diffs []DiffNotificationRule
@@ -1572,7 +1572,7 @@ func (s *Service) applyNotificationEndpoints(endpoints []*notificationEndpoint) 
 		}
 
 		mutex.Do(func() {
-			endpoints[i].id = influxEndpoint.GetID()
+			endpoints[i].id = influxEndpoint.Base().ID
 			for _, secret := range influxEndpoint.SecretFields() {
 				switch {
 				case strings.HasSuffix(secret.Key, "-routing-key"):
@@ -1663,8 +1663,9 @@ func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID inf
 	}
 	mEndpoints := make(map[string]mVal)
 	for _, e := range endpoints {
-		mEndpoints[e.GetName()] = mVal{
-			id:    e.GetID(),
+		base := e.Base()
+		mEndpoints[base.Name] = mVal{
+			id:    base.ID,
 			eType: e.Type(),
 		}
 	}

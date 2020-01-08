@@ -232,8 +232,8 @@ func TestService(t *testing.T) {
 				fakeEndpointSVC := mock.NewNotificationEndpointService()
 				id := influxdb.ID(1)
 				existing := &endpoint.HTTP{
-					Base: endpoint.Base{
-						ID:          &id,
+					EndpointBase: influxdb.EndpointBase{
+						ID:          id,
 						Name:        "http_none_auth_notification_endpoint",
 						Description: "old desc",
 						Status:      influxdb.TaskStatusInactive,
@@ -275,8 +275,8 @@ func TestService(t *testing.T) {
 					},
 					New: DiffNotificationEndpointValues{
 						NotificationEndpoint: &endpoint.HTTP{
-							Base: endpoint.Base{
-								ID:          &id,
+							EndpointBase: influxdb.EndpointBase{
+								ID:          id,
 								Name:        "http_none_auth_notification_endpoint",
 								Description: "http none auth desc",
 								Status:      influxdb.TaskStatusActive,
@@ -296,8 +296,8 @@ func TestService(t *testing.T) {
 				fakeEndpointSVC := mock.NewNotificationEndpointService()
 				id := influxdb.ID(1)
 				existing := &endpoint.HTTP{
-					Base: endpoint.Base{
-						ID: &id,
+					EndpointBase: influxdb.EndpointBase{
+						ID: id,
 						// This name here matches the endpoint identified in the pkg notification rule
 						Name:        "endpoint_0",
 						Description: "old desc",
@@ -323,7 +323,7 @@ func TestService(t *testing.T) {
 				assert.Equal(t, "desc_0", actual.Description)
 				assert.Equal(t, "http", actual.EndpointType)
 				assert.Equal(t, existing.Name, actual.EndpointName)
-				assert.Equal(t, SafeID(*existing.ID), actual.EndpointID)
+				assert.Equal(t, SafeID(existing.ID), actual.EndpointID)
 				assert.Equal(t, influxdb.Active, actual.Status)
 				assert.Equal(t, (10 * time.Minute).String(), actual.Every)
 				assert.Equal(t, (30 * time.Second).String(), actual.Offset)
@@ -899,7 +899,7 @@ func TestService(t *testing.T) {
 					func() []ServiceSetterFn {
 						fakeEndpointSVC := mock.NewNotificationEndpointService()
 						fakeEndpointSVC.CreateF = func(ctx context.Context, userID influxdb.ID, nr influxdb.NotificationEndpoint) error {
-							nr.SetID(influxdb.ID(rand.Int()))
+							nr.Base().ID = influxdb.ID(rand.Int())
 							return nil
 						}
 						return []ServiceSetterFn{WithNotificationEndpointSVC(fakeEndpointSVC)}
@@ -918,8 +918,8 @@ func TestService(t *testing.T) {
 							id := influxdb.ID(9)
 							return []influxdb.NotificationEndpoint{
 								&endpoint.HTTP{
-									Base: endpoint.Base{
-										ID:   &id,
+									EndpointBase: influxdb.EndpointBase{
+										ID:   id,
 										Name: "endpoint_0",
 									},
 									AuthMethod: "none",
@@ -1007,7 +1007,7 @@ func TestService(t *testing.T) {
 				testfileRunner(t, "testdata/notification_endpoint.yml", func(t *testing.T, pkg *Pkg) {
 					fakeEndpointSVC := mock.NewNotificationEndpointService()
 					fakeEndpointSVC.CreateF = func(ctx context.Context, userID influxdb.ID, nr influxdb.NotificationEndpoint) error {
-						nr.SetID(influxdb.ID(fakeEndpointSVC.CreateCalls.Count() + 1))
+						nr.Base().ID = influxdb.ID(fakeEndpointSVC.CreateCalls.Count() + 1)
 						return nil
 					}
 
@@ -1022,11 +1022,11 @@ func TestService(t *testing.T) {
 
 					containsWithID := func(t *testing.T, name string) {
 						for _, actualNotification := range sum.NotificationEndpoints {
-							actual := actualNotification.NotificationEndpoint
-							if actual.GetID() == 0 {
-								assert.NotZero(t, actual.GetID())
+							actual := actualNotification.NotificationEndpoint.Base()
+							if actual.ID == 0 {
+								assert.NotZero(t, actual.ID)
 							}
-							if actual.GetName() == name {
+							if actual.Name == name {
 								return
 							}
 						}
@@ -1050,7 +1050,7 @@ func TestService(t *testing.T) {
 				testfileRunner(t, "testdata/notification_endpoint.yml", func(t *testing.T, pkg *Pkg) {
 					fakeEndpointSVC := mock.NewNotificationEndpointService()
 					fakeEndpointSVC.CreateF = func(ctx context.Context, userID influxdb.ID, nr influxdb.NotificationEndpoint) error {
-						nr.SetID(influxdb.ID(fakeEndpointSVC.CreateCalls.Count() + 1))
+						nr.Base().ID = influxdb.ID(fakeEndpointSVC.CreateCalls.Count() + 1)
 						if fakeEndpointSVC.CreateCalls.Count() == 5 {
 							return errors.New("hit that kill count")
 						}
@@ -1082,8 +1082,8 @@ func TestService(t *testing.T) {
 						id := influxdb.ID(9)
 						return []influxdb.NotificationEndpoint{
 							&endpoint.HTTP{
-								Base: endpoint.Base{
-									ID:   &id,
+								EndpointBase: influxdb.EndpointBase{
+									ID:   id,
 									Name: "endpoint_0",
 								},
 							},
@@ -1121,8 +1121,8 @@ func TestService(t *testing.T) {
 						id := influxdb.ID(9)
 						return []influxdb.NotificationEndpoint{
 							&endpoint.HTTP{
-								Base: endpoint.Base{
-									ID:   &id,
+								EndpointBase: influxdb.EndpointBase{
+									ID:   id,
 									Name: "endpoint_0",
 								},
 								AuthMethod: "none",
@@ -1946,7 +1946,7 @@ func TestService(t *testing.T) {
 					{
 						name: "pager duty",
 						expected: &endpoint.PagerDuty{
-							Base: endpoint.Base{
+							EndpointBase: influxdb.EndpointBase{
 								Name:        "pd-endpoint",
 								Description: "desc",
 								Status:      influxdb.TaskStatusActive,
@@ -1959,7 +1959,7 @@ func TestService(t *testing.T) {
 						name:    "pager duty with new name",
 						newName: "new name",
 						expected: &endpoint.PagerDuty{
-							Base: endpoint.Base{
+							EndpointBase: influxdb.EndpointBase{
 								Name:        "pd-endpoint",
 								Description: "desc",
 								Status:      influxdb.TaskStatusActive,
@@ -1971,7 +1971,7 @@ func TestService(t *testing.T) {
 					{
 						name: "slack",
 						expected: &endpoint.Slack{
-							Base: endpoint.Base{
+							EndpointBase: influxdb.EndpointBase{
 								Name:        "pd-endpoint",
 								Description: "desc",
 								Status:      influxdb.TaskStatusInactive,
@@ -1983,7 +1983,7 @@ func TestService(t *testing.T) {
 					{
 						name: "http basic",
 						expected: &endpoint.HTTP{
-							Base: endpoint.Base{
+							EndpointBase: influxdb.EndpointBase{
 								Name:        "pd-endpoint",
 								Description: "desc",
 								Status:      influxdb.TaskStatusInactive,
@@ -1998,7 +1998,7 @@ func TestService(t *testing.T) {
 					{
 						name: "http bearer",
 						expected: &endpoint.HTTP{
-							Base: endpoint.Base{
+							EndpointBase: influxdb.EndpointBase{
 								Name:        "pd-endpoint",
 								Description: "desc",
 								Status:      influxdb.TaskStatusInactive,
@@ -2012,7 +2012,7 @@ func TestService(t *testing.T) {
 					{
 						name: "http none",
 						expected: &endpoint.HTTP{
-							Base: endpoint.Base{
+							EndpointBase: influxdb.EndpointBase{
 								Name:        "pd-endpoint",
 								Description: "desc",
 								Status:      influxdb.TaskStatusInactive,
@@ -2026,12 +2026,11 @@ func TestService(t *testing.T) {
 
 				for _, tt := range tests {
 					fn := func(t *testing.T) {
-						id := influxdb.ID(1)
-						tt.expected.SetID(id)
+						tt.expected.Base().ID = influxdb.ID(1)
 
 						endpointSVC := mock.NewNotificationEndpointService()
 						endpointSVC.FindByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
-							if id != tt.expected.GetID() {
+							if id != tt.expected.Base().ID {
 								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
 							}
 							return tt.expected, nil
@@ -2041,7 +2040,7 @@ func TestService(t *testing.T) {
 
 						resToClone := ResourceToClone{
 							Kind: KindNotificationEndpoint,
-							ID:   tt.expected.GetID(),
+							ID:   tt.expected.Base().ID,
 							Name: tt.newName,
 						}
 						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
@@ -2051,13 +2050,14 @@ func TestService(t *testing.T) {
 						require.Len(t, endpoints, 1)
 
 						actual := endpoints[0].NotificationEndpoint
-						expectedName := tt.expected.GetName()
+						base := tt.expected.Base()
+						expectedName := base.Name
 						if tt.newName != "" {
 							expectedName = tt.newName
 						}
-						assert.Equal(t, expectedName, actual.GetName())
-						assert.Equal(t, tt.expected.GetDescription(), actual.GetDescription())
-						assert.Equal(t, tt.expected.GetStatus(), actual.GetStatus())
+						assert.Equal(t, expectedName, actual.Base().Name)
+						assert.Equal(t, base.Description, actual.Base().Description)
+						assert.Equal(t, base.Status, actual.Base().Status)
 						assert.Equal(t, tt.expected.SecretFields(), actual.SecretFields())
 					}
 					t.Run(tt.name, fn)
@@ -2093,8 +2093,8 @@ func TestService(t *testing.T) {
 						name:    "pager duty",
 						newName: "pager_duty_name",
 						endpoint: &endpoint.PagerDuty{
-							Base: endpoint.Base{
-								ID:          newTestIDPtr(13),
+							EndpointBase: influxdb.EndpointBase{
+								ID:          13,
 								Name:        "endpoint_0",
 								Description: "desc",
 								Status:      influxdb.TaskStatusActive,
@@ -2110,8 +2110,8 @@ func TestService(t *testing.T) {
 					{
 						name: "slack",
 						endpoint: &endpoint.Slack{
-							Base: endpoint.Base{
-								ID:          newTestIDPtr(13),
+							EndpointBase: influxdb.EndpointBase{
+								ID:          13,
 								Name:        "endpoint_0",
 								Description: "desc",
 								Status:      influxdb.TaskStatusInactive,
@@ -2128,8 +2128,8 @@ func TestService(t *testing.T) {
 					{
 						name: "http none",
 						endpoint: &endpoint.HTTP{
-							Base: endpoint.Base{
-								ID:          newTestIDPtr(13),
+							EndpointBase: influxdb.EndpointBase{
+								ID:          13,
 								Name:        "endpoint_0",
 								Description: "desc",
 								Status:      influxdb.TaskStatusInactive,
@@ -2148,7 +2148,7 @@ func TestService(t *testing.T) {
 					fn := func(t *testing.T) {
 						endpointSVC := mock.NewNotificationEndpointService()
 						endpointSVC.FindByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
-							if id != tt.endpoint.GetID() {
+							if id != tt.endpoint.Base().ID {
 								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
 							}
 							return tt.endpoint, nil
@@ -2221,9 +2221,10 @@ func TestService(t *testing.T) {
 						require.Len(t, pkg.Summary().NotificationEndpoints, 1)
 
 						actualEndpoint := pkg.Summary().NotificationEndpoints[0].NotificationEndpoint
-						assert.Equal(t, tt.endpoint.GetName(), actualEndpoint.GetName())
-						assert.Equal(t, tt.endpoint.GetDescription(), actualEndpoint.GetDescription())
-						assert.Equal(t, tt.endpoint.GetStatus(), actualEndpoint.GetStatus())
+						expected, actual := tt.endpoint.Base(), actualEndpoint.Base()
+						assert.Equal(t, expected.Name, actual.Name)
+						assert.Equal(t, expected.Description, actual.Description)
+						assert.Equal(t, expected.Status, actual.Status)
 					}
 					t.Run(tt.name, fn)
 				}
@@ -2577,8 +2578,8 @@ func TestService(t *testing.T) {
 				id := influxdb.ID(2)
 				endpoints := []influxdb.NotificationEndpoint{
 					&endpoint.HTTP{
-						Base: endpoint.Base{
-							ID:   &id,
+						EndpointBase: influxdb.EndpointBase{
+							ID:   id,
 							Name: "http",
 						},
 						URL:        "http://example.com",
@@ -2592,8 +2593,8 @@ func TestService(t *testing.T) {
 			}
 			endpointSVC.FindByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
 				return &endpoint.HTTP{
-					Base: endpoint.Base{
-						ID:   &id,
+					EndpointBase: influxdb.EndpointBase{
+						ID:   id,
 						Name: "http",
 					},
 					URL:        "http://example.com",
@@ -2704,7 +2705,7 @@ func TestService(t *testing.T) {
 
 			endpoints := summary.NotificationEndpoints
 			require.Len(t, endpoints, 1)
-			assert.Equal(t, "http", endpoints[0].NotificationEndpoint.GetName())
+			assert.Equal(t, "http", endpoints[0].NotificationEndpoint.Base().Name)
 
 			rules := summary.NotificationRules
 			require.Len(t, rules, 1)
@@ -2720,11 +2721,6 @@ func TestService(t *testing.T) {
 			assert.Equal(t, "variable", vars[0].Name)
 		})
 	})
-}
-
-func newTestIDPtr(i int) *influxdb.ID {
-	id := influxdb.ID(i)
-	return &id
 }
 
 func levelPtr(l notification.CheckLevel) *notification.CheckLevel {

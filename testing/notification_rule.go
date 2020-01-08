@@ -117,8 +117,8 @@ func CreateNotificationRule(
 							Key:   "020f755c3c082001-token",
 							Value: strPtr("abc123"),
 						},
-						Base: endpoint.Base{
-							OrgID:  MustIDBase16Ptr(fourID),
+						EndpointBase: influxdb.EndpointBase{
+							OrgID:  MustIDBase16(fourID),
 							Name:   "foo",
 							Status: influxdb.Active,
 						},
@@ -1775,8 +1775,8 @@ func UpdateNotificationRule(
 							Key:   "020f755c3c082001-token",
 							Value: strPtr("abc123"),
 						},
-						Base: endpoint.Base{
-							OrgID:  MustIDBase16Ptr(fourID),
+						EndpointBase: influxdb.EndpointBase{
+							OrgID:  MustIDBase16(fourID),
 							Name:   "foo",
 							Status: influxdb.Active,
 						},
@@ -2038,8 +2038,8 @@ func PatchNotificationRule(
 							Key:   "020f755c3c082001-token",
 							Value: strPtr("abc123"),
 						},
-						Base: endpoint.Base{
-							OrgID:  MustIDBase16Ptr(fourID),
+						EndpointBase: influxdb.EndpointBase{
+							OrgID:  MustIDBase16(fourID),
 							Name:   "foo",
 							Status: influxdb.Active,
 						},

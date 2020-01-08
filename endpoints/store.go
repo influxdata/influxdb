@@ -27,9 +27,11 @@ func NewStore(kvStore kv.Store) *StoreKV {
 		if err := kv.IsErrUnexpectedDecodeVal(ok); err != nil {
 			return kv.Entity{}, err
 		}
+
+		base := edp.Base()
 		return kv.Entity{
-			PK:        kv.EncID(edp.GetID()),
-			UniqueKey: kv.Encode(kv.EncID(edp.GetOrgID()), kv.EncString(edp.GetName())),
+			PK:        kv.EncID(base.ID),
+			UniqueKey: kv.Encode(kv.EncID(base.OrgID), kv.EncString(base.Name)),
 			Body:      edp,
 		}, nil
 	}
@@ -75,19 +77,19 @@ type FindFilter struct {
 
 func (f FindFilter) filter() kv.FilterFn {
 	return func(key []byte, val interface{}) bool {
-		edp := val.(influxdb.NotificationEndpoint)
-		if f.OrgID != 0 && edp.GetOrgID() != f.OrgID {
+		base := val.(influxdb.NotificationEndpoint).Base()
+		if f.OrgID != 0 && base.OrgID != f.OrgID {
 			return false
 		}
 
-		if f.Name != "" && edp.GetName() != f.Name {
+		if f.Name != "" && base.Name != f.Name {
 			return false
 		}
 
 		if f.UserMappings == nil {
 			return true
 		}
-		return f.UserMappings[edp.GetID()]
+		return f.UserMappings[base.ID]
 	}
 }
 
@@ -139,9 +141,11 @@ func (s *StoreKV) Update(ctx context.Context, edp influxdb.NotificationEndpoint)
 }
 
 func (s *StoreKV) put(ctx context.Context, edp influxdb.NotificationEndpoint, opts ...kv.PutOptionFn) error {
+	base := edp.Base()
+
 	ent := kv.Entity{
-		PK:        kv.EncID(edp.GetID()),
-		UniqueKey: kv.Encode(kv.EncID(edp.GetOrgID()), kv.EncString(edp.GetName())),
+		PK:        kv.EncID(base.ID),
+		UniqueKey: kv.Encode(kv.EncID(base.OrgID), kv.EncString(base.Name)),
 		Body:      edp,
 	}
 	return s.kvStore.Update(ctx, func(tx kv.Tx) error {

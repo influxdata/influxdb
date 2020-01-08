@@ -9,11 +9,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/influxdata/influxdb/endpoints"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/endpoints"
 	"github.com/influxdata/influxdb/notification/endpoint"
 	"github.com/influxdata/influxdb/pkg/httpc"
 	"go.uber.org/zap"
@@ -57,10 +56,7 @@ type NotificationEndpointHandler struct {
 	log *zap.Logger
 
 	NotificationEndpointService influxdb.NotificationEndpointService
-	UserResourceMappingService  influxdb.UserResourceMappingService
 	LabelService                influxdb.LabelService
-	UserService                 influxdb.UserService
-	OrganizationService         influxdb.OrganizationService
 }
 
 const (
@@ -82,10 +78,7 @@ func NewNotificationEndpointHandler(log *zap.Logger, b *NotificationEndpointBack
 		log:              log,
 
 		NotificationEndpointService: b.NotificationEndpointService,
-		UserResourceMappingService:  b.UserResourceMappingService,
 		LabelService:                b.LabelService,
-		UserService:                 b.UserService,
-		OrganizationService:         b.OrganizationService,
 	}
 	h.HandlerFunc("POST", prefixNotificationEndpoints, h.handlePostNotificationEndpoint)
 	h.HandlerFunc("GET", prefixNotificationEndpoints, h.handleGetNotificationEndpoints)
@@ -178,10 +171,10 @@ func newNotificationEndpointResponse(edp influxdb.NotificationEndpoint, labels [
 	res := notificationEndpointResponse{
 		NotificationEndpoint: edp,
 		Links: notificationEndpointLinks{
-			Self:    fmt.Sprintf("/api/v2/notificationEndpoints/%s", edp.GetID()),
-			Labels:  fmt.Sprintf("/api/v2/notificationEndpoints/%s/labels", edp.GetID()),
-			Members: fmt.Sprintf("/api/v2/notificationEndpoints/%s/members", edp.GetID()),
-			Owners:  fmt.Sprintf("/api/v2/notificationEndpoints/%s/owners", edp.GetID()),
+			Self:    fmt.Sprintf("/api/v2/notificationEndpoints/%s", edp.Base().ID),
+			Labels:  fmt.Sprintf("/api/v2/notificationEndpoints/%s/labels", edp.Base().ID),
+			Members: fmt.Sprintf("/api/v2/notificationEndpoints/%s/members", edp.Base().ID),
+			Owners:  fmt.Sprintf("/api/v2/notificationEndpoints/%s/owners", edp.Base().ID),
 		},
 		Labels: []influxdb.Label{},
 	}
@@ -199,7 +192,7 @@ func newNotificationEndpointsResponse(ctx context.Context, edps []influxdb.Notif
 		Links:                 newPagingLinks(prefixNotificationEndpoints, opts, f, len(edps)),
 	}
 	for i, edp := range edps {
-		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
+		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.Base().ID})
 		resp.NotificationEndpoints[i] = newNotificationEndpointResponse(edp, labels)
 	}
 	return resp
@@ -256,7 +249,7 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoint(w http.Respo
 	}
 	h.log.Debug("NotificationEndpoint retrieved", zap.String("notificationEndpoint", fmt.Sprint(edp)))
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.Base().ID})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -360,7 +353,7 @@ func decodePutNotificationEndpointRequest(ctx context.Context, r *http.Request) 
 	if err != nil {
 		return nil, err
 	}
-	edp.SetID(*i)
+	edp.Base().ID = *i
 	return edp, nil
 }
 
@@ -446,7 +439,7 @@ func (h *NotificationEndpointHandler) mapNewNotificationEndpointLabels(ctx conte
 
 		mapping := influxdb.LabelMapping{
 			LabelID:      label.ID,
-			ResourceID:   nre.GetID(),
+			ResourceID:   nre.Base().ID,
 			ResourceType: influxdb.NotificationEndpointResourceType,
 		}
 
@@ -476,7 +469,9 @@ func (h *NotificationEndpointHandler) handlePutNotificationEndpoint(w http.Respo
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
+		ResourceID: edp.Base().ID,
+	})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -505,7 +500,9 @@ func (h *NotificationEndpointHandler) handlePatchNotificationEndpoint(w http.Res
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
+		ResourceID: edp.Base().ID,
+	})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -613,9 +610,9 @@ func (s *NotificationEndpointService) Create(ctx context.Context, _ influxdb.ID,
 	if err != nil {
 		return err
 	}
-	// :sadpanda:
-	ne.SetID(resp.endpoint.GetID())
-	ne.SetOrgID(resp.endpoint.GetOrgID())
+	base := ne.Base()
+	base.ID = resp.endpoint.Base().ID
+	base.OrgID = resp.endpoint.Base().OrgID
 	return nil
 }
 
@@ -641,7 +638,7 @@ func (s *NotificationEndpointService) update(ctx context.Context, update influxd
 
 	var resp notificationEndpointDecoder
 	err := s.Client.
-		PutJSON(&notificationEndpointEncoder{ne: endpoint}, prefixNotificationEndpoints, endpoint.GetID().String()).
+		PutJSON(&notificationEndpointEncoder{ne: endpoint}, prefixNotificationEndpoints, endpoint.Base().ID.String()).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
@@ -656,19 +653,21 @@ func (s *NotificationEndpointService) patch(ctx context.Context, update influxdb
 	endpoint, _ := update.Fn(time.Time{}, &endpoint.HTTP{})
 
 	var body influxdb.NotificationEndpointUpdate
-	if name := endpoint.GetName(); name != "" {
+
+	base := endpoint.Base()
+	if name := base.Name; name != "" {
 		body.Name = &name
 	}
-	if desc := endpoint.GetDescription(); true {
+	if desc := base.Description; true {
 		body.Description = &desc
 	}
-	if status := endpoint.GetStatus(); status.Valid() == nil {
+	if status := base.Status; status.Valid() == nil {
 		body.Status = &status
 	}
 
 	var resp notificationEndpointDecoder
 	err := s.Client.
-		PatchJSON(body, prefixNotificationEndpoints, endpoint.GetID().String()).
+		PatchJSON(body, prefixNotificationEndpoints, endpoint.Base().ID.String()).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {

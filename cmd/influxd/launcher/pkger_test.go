@@ -186,8 +186,8 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		endpoints := sum.NotificationEndpoints
 		require.Len(t, endpoints, 1)
-		assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].NotificationEndpoint.GetName())
-		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
+		assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].NotificationEndpoint.Base().Name)
+		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.Base().Description)
 		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
 
 		require.Len(t, sum.Tasks, 1)
@@ -251,17 +251,17 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		endpoints := sum1.NotificationEndpoints
 		require.Len(t, endpoints, 1)
-		assert.NotZero(t, endpoints[0].NotificationEndpoint.GetID())
-		assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].NotificationEndpoint.GetName())
-		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
-		assert.Equal(t, influxdb.TaskStatusInactive, string(endpoints[0].NotificationEndpoint.GetStatus()))
+		assert.NotZero(t, endpoints[0].NotificationEndpoint.Base().ID)
+		assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].NotificationEndpoint.Base().Name)
+		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.Base().Description)
+		assert.Equal(t, influxdb.TaskStatusInactive, string(endpoints[0].NotificationEndpoint.Base().Status))
 		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
 
 		require.Len(t, sum1.NotificationRules, 1)
 		rule := sum1.NotificationRules[0]
 		assert.NotZero(t, rule.ID)
 		assert.Equal(t, "rule_0", rule.Name)
-		assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
+		assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.Base().ID), rule.EndpointID)
 		assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointName)
 		assert.Equal(t, "http", rule.EndpointType)
 
@@ -308,7 +308,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[0].Check.GetID()), checks[0].Check.GetName(), influxdb.ChecksResourceType))
 		hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[1].Check.GetID()), checks[1].Check.GetName(), influxdb.ChecksResourceType))
 		hasMapping(t, mappings, newSumMapping(dashs[0].ID, dashs[0].Name, influxdb.DashboardsResourceType))
-		hasMapping(t, mappings, newSumMapping(pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), endpoints[0].NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType))
+		hasMapping(t, mappings, newSumMapping(pkger.SafeID(endpoints[0].NotificationEndpoint.Base().ID), endpoints[0].NotificationEndpoint.Base().Name, influxdb.NotificationEndpointResourceType))
 		hasMapping(t, mappings, newSumMapping(rule.ID, rule.Name, influxdb.NotificationRuleResourceType))
 		hasMapping(t, mappings, newSumMapping(task.ID, task.Name, influxdb.TasksResourceType))
 		hasMapping(t, mappings, newSumMapping(pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType))
@@ -356,7 +356,7 @@ spec:
 			secretSum := applyPkgStr(t, pkgWithSecretRaw)
 			require.Len(t, secretSum.NotificationEndpoints, 1)
 
-			id := secretSum.NotificationEndpoints[0].NotificationEndpoint.GetID()
+			id := secretSum.NotificationEndpoints[0].NotificationEndpoint.Base().ID
 			expected := influxdb.SecretField{
 				Key: id.String() + "-routing-key",
 			}
@@ -414,7 +414,7 @@ spec:
 				},
 				{
 					Kind: pkger.KindNotificationEndpoint,
-					ID:   endpoints[0].NotificationEndpoint.GetID(),
+					ID:   endpoints[0].NotificationEndpoint.Base().ID,
 				},
 				{
 					Kind: pkger.KindTask,
@@ -485,8 +485,8 @@ spec:
 
 			newEndpoints := newSum.NotificationEndpoints
 			require.Len(t, newEndpoints, 1)
-			assert.Equal(t, endpoints[0].NotificationEndpoint.GetName(), newEndpoints[0].NotificationEndpoint.GetName())
-			assert.Equal(t, endpoints[0].NotificationEndpoint.GetDescription(), newEndpoints[0].NotificationEndpoint.GetDescription())
+			assert.Equal(t, endpoints[0].NotificationEndpoint.Base().Name, newEndpoints[0].NotificationEndpoint.Base().Name)
+			assert.Equal(t, endpoints[0].NotificationEndpoint.Base().Description, newEndpoints[0].NotificationEndpoint.Base().Description)
 			hasLabelAssociations(t, newEndpoints[0].LabelAssociations, 1, "label_1")
 
 			require.Len(t, newSum.NotificationRules, 1)
@@ -565,9 +565,9 @@ spec:
 			require.NoError(t, err)
 			assert.Equal(t, labels[0].Properties.Description, label.Properties["description"])
 
-			endpoint, err := l.NotificationEndpointService(t).FindByID(ctx, endpoints[0].NotificationEndpoint.GetID())
+			endpoint, err := l.NotificationEndpointService(t).FindByID(ctx, endpoints[0].NotificationEndpoint.Base().ID)
 			require.NoError(t, err)
-			assert.Equal(t, endpoints[0].NotificationEndpoint.GetDescription(), endpoint.GetDescription())
+			assert.Equal(t, endpoints[0].NotificationEndpoint.Base().Description, endpoint.Base().Description)
 
 			v, err := l.VariableService(t).FindVariableByID(ctx, influxdb.ID(vars[0].ID))
 			require.NoError(t, err)

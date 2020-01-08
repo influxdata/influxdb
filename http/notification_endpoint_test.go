@@ -68,19 +68,19 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 					FindF: func(ctx context.Context, filter influxdb.NotificationEndpointFilter, opts ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, error) {
 						return []influxdb.NotificationEndpoint{
 							&endpoint.Slack{
-								Base: endpoint.Base{
-									ID:     influxTesting.MustIDBase16Ptr("0b501e7e557ab1ed"),
+								EndpointBase: influxdb.EndpointBase{
+									ID:     influxTesting.MustIDBase16("0b501e7e557ab1ed"),
 									Name:   "hello",
-									OrgID:  influxTesting.MustIDBase16Ptr("50f7ba1150f7ba11"),
+									OrgID:  influxTesting.MustIDBase16("50f7ba1150f7ba11"),
 									Status: influxdb.Active,
 								},
 								URL: "http://example.com",
 							},
 							&endpoint.HTTP{
-								Base: endpoint.Base{
-									ID:     influxTesting.MustIDBase16Ptr("c0175f0077a77005"),
+								EndpointBase: influxdb.EndpointBase{
+									ID:     influxTesting.MustIDBase16("c0175f0077a77005"),
 									Name:   "example",
-									OrgID:  influxTesting.MustIDBase16Ptr("7e55e118dbabb1ed"),
+									OrgID:  influxTesting.MustIDBase16("7e55e118dbabb1ed"),
 									Status: influxdb.Inactive,
 								},
 								URL:             "example.com",
@@ -286,9 +286,9 @@ func TestService_handleGetNotificationEndpoint(t *testing.T) {
 					FindByIDF: func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							return &endpoint.HTTP{
-								Base: endpoint.Base{
-									ID:     influxTesting.MustIDBase16Ptr("020f755c3c082000"),
-									OrgID:  influxTesting.MustIDBase16Ptr("020f755c3c082000"),
+								EndpointBase: influxdb.EndpointBase{
+									ID:     influxTesting.MustIDBase16("020f755c3c082000"),
+									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
 									Name:   "hello",
 									Status: influxdb.Active,
 								},
@@ -431,7 +431,7 @@ func TestService_handlePostNotificationEndpoint(t *testing.T) {
 				Secrets: map[string]string{},
 				NotificationEndpointService: &mock.NotificationEndpointService{
 					CreateF: func(ctx context.Context, userID influxdb.ID, edp influxdb.NotificationEndpoint) error {
-						edp.SetID(influxTesting.MustIDBase16("020f755c3c082000"))
+						edp.Base().ID = influxTesting.MustIDBase16("020f755c3c082000")
 						edp.BackfillSecretKeys()
 						return nil
 					},
@@ -621,10 +621,10 @@ func TestService_handlePatchNotificationEndpoint(t *testing.T) {
 					UpdateF: func(ctx context.Context, update influxdb.EndpointUpdate) (influxdb.NotificationEndpoint, error) {
 						if update.ID == influxTesting.MustIDBase16("020f755c3c082000") {
 							d := &endpoint.Slack{
-								Base: endpoint.Base{
-									ID:     influxTesting.MustIDBase16Ptr("020f755c3c082000"),
+								EndpointBase: influxdb.EndpointBase{
+									ID:     influxTesting.MustIDBase16("020f755c3c082000"),
 									Name:   "hello",
-									OrgID:  influxTesting.MustIDBase16Ptr("020f755c3c082000"),
+									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
 									Status: influxdb.Active,
 								},
 								URL: "http://example.com",
@@ -768,8 +768,9 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 				NotificationEndpointService: &mock.NotificationEndpointService{
 					UpdateF: func(ctx context.Context, update influxdb.EndpointUpdate) (influxdb.NotificationEndpoint, error) {
 						if update.ID == influxTesting.MustIDBase16("020f755c3c082000") {
-							e := &endpoint.HTTP{}
-							e.SetID(update.ID)
+							e := &endpoint.HTTP{
+								EndpointBase: influxdb.EndpointBase{ID: update.ID},
+							}
 							return update.Fn(time.Time{}, e)
 						}
 

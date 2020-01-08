@@ -453,7 +453,7 @@ func Test_Pkg(t *testing.T) {
 				require.Len(t, sum.NotificationEndpoints, len(tt.endpointIDs))
 				for i, id := range tt.endpointIDs {
 					actual := sum.NotificationEndpoints[i]
-					assert.Equal(t, "notification_endpoint_http"+strconv.Itoa(int(id)), actual.NotificationEndpoint.GetName())
+					assert.Equal(t, "notification_endpoint_http"+strconv.Itoa(int(id)), actual.NotificationEndpoint.Base().Name)
 				}
 				require.Len(t, sum.Labels, len(tt.labelIDs))
 				for i, id := range tt.labelIDs {

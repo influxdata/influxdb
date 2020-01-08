@@ -118,7 +118,7 @@ func (b *Base) generateFluxASTNotificationDefinition(e influxdb.NotificationEndp
 	ruleID := flux.Property("_notification_rule_id", flux.String(b.ID.String()))
 	ruleName := flux.Property("_notification_rule_name", flux.String(b.Name))
 	endpointID := flux.Property("_notification_endpoint_id", flux.String(b.EndpointID.String()))
-	endpointName := flux.Property("_notification_endpoint_name", flux.String(e.GetName()))
+	endpointName := flux.Property("_notification_endpoint_name", flux.String(e.Base().Name))
 
 	return flux.DefineVariable("notification", flux.Object(ruleID, ruleName, endpointID, endpointName))
 }

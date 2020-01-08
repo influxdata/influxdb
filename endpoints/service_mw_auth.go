@@ -34,7 +34,8 @@ func (mw *mwAuth) Delete(ctx context.Context, id influxdb.ID) error {
 		return err
 	}
 
-	if err := mw.authAgent.OrgPermission(ctx, endpoint.GetOrgID(), influxdb.WriteAction); err != nil {
+	err = mw.authAgent.OrgPermission(ctx, endpoint.Base().OrgID, influxdb.WriteAction)
+	if err != nil {
 		return err
 	}
 
@@ -47,7 +48,8 @@ func (mw *mwAuth) FindByID(ctx context.Context, id influxdb.ID) (influxdb.Notifi
 		return nil, err
 	}
 
-	if err := mw.authAgent.OrgPermission(ctx, endpoint.GetOrgID(), influxdb.ReadAction); err != nil {
+	err = mw.authAgent.OrgPermission(ctx, endpoint.Base().OrgID, influxdb.ReadAction)
+	if err != nil {
 		return nil, err
 	}
 
@@ -69,7 +71,7 @@ func (mw *mwAuth) Find(ctx context.Context, f influxdb.NotificationEndpointFilte
 
 	endpoints := make([]influxdb.NotificationEndpoint, 0, len(edps))
 	for _, endpoint := range edps {
-		err := mw.authAgent.OrgPermission(ctx, endpoint.GetOrgID(), influxdb.ReadAction)
+		err := mw.authAgent.OrgPermission(ctx, endpoint.Base().OrgID, influxdb.ReadAction)
 		if err == nil {
 			endpoints = append(endpoints, endpoint)
 			continue
@@ -83,7 +85,7 @@ func (mw *mwAuth) Find(ctx context.Context, f influxdb.NotificationEndpointFilte
 }
 
 func (mw *mwAuth) Create(ctx context.Context, userID influxdb.ID, endpoint influxdb.NotificationEndpoint) error {
-	err := mw.authAgent.IsWritable(ctx, endpoint.GetOrgID(), influxdb.NotificationEndpointResourceType)
+	err := mw.authAgent.IsWritable(ctx, endpoint.Base().OrgID, influxdb.NotificationEndpointResourceType)
 	if err != nil {
 		return err
 	}
@@ -96,7 +98,8 @@ func (mw *mwAuth) Update(ctx context.Context, update influxdb.EndpointUpdate) (i
 		return nil, err
 	}
 
-	if err := mw.authAgent.OrgPermission(ctx, endpoint.GetOrgID(), influxdb.WriteAction); err != nil {
+	err = mw.authAgent.OrgPermission(ctx, endpoint.Base().OrgID, influxdb.WriteAction)
+	if err != nil {
 		return nil, err
 	}
 

@@ -401,15 +401,16 @@ func labelToResource(l influxdb.Label, name string) Resource {
 }
 
 func endpointToResource(e influxdb.NotificationEndpoint, name string) Resource {
+	base := e.Base()
 	if name == "" {
-		name = e.GetName()
+		name = base.Name
 	}
 	r := Resource{
 		fieldName: name,
 	}
 	assignNonZeroStrings(r, map[string]string{
-		fieldDescription: e.GetDescription(),
-		fieldStatus:      string(e.GetStatus()),
+		fieldDescription: base.Description,
+		fieldStatus:      string(base.Status),
 	})
 
 	switch actual := e.(type) {

@@ -181,18 +181,19 @@ func (s *Service) newStoreFindFilter(ctx context.Context, mappings []*influxdb.U
 }
 
 func (s *Service) Create(ctx context.Context, userID influxdb.ID, endpoint influxdb.NotificationEndpoint) error {
-	if _, err := s.orgSVC.FindOrganizationByID(ctx, endpoint.GetOrgID()); err != nil {
+	base := endpoint.Base()
+	if _, err := s.orgSVC.FindOrganizationByID(ctx, base.OrgID); err != nil {
 		return &influxdb.Error{
 			Code: influxdb.EConflict,
-			Msg:  "organization is not valid for orgID: " + endpoint.GetOrgID().String(),
+			Msg:  "organization is not valid for orgID: " + base.OrgID.String(),
 			Err:  err,
 		}
 	}
 
-	endpoint.SetID(s.idGen.ID())
+	base.ID = s.idGen.ID()
 	now := s.timeGen.Now()
-	endpoint.SetCreatedAt(now)
-	endpoint.SetUpdatedAt(now)
+	base.CreatedAt = now
+	base.UpdatedAt = now
 	endpoint.BackfillSecretKeys()
 	if err := endpoint.Valid(); err != nil {
 		return &influxdb.Error{
@@ -206,7 +207,7 @@ func (s *Service) Create(ctx context.Context, userID influxdb.ID, endpoint influ
 	}
 
 	err := s.urmSVC.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
-		ResourceID:   endpoint.GetID(),
+		ResourceID:   base.ID,
 		UserID:       userID,
 		UserType:     influxdb.Owner,
 		ResourceType: influxdb.NotificationEndpointResourceType,
@@ -220,13 +221,14 @@ func (s *Service) Create(ctx context.Context, userID influxdb.ID, endpoint influ
 func UpdateEndpoint(endpoint influxdb.NotificationEndpoint) influxdb.EndpointUpdate {
 	fn := func(now time.Time, existing influxdb.NotificationEndpoint) (influxdb.NotificationEndpoint, error) {
 		endpoint.BackfillSecretKeys() // :sadpanda:
-		endpoint.SetCreatedAt(existing.GetCRUDLog().CreatedAt)
-		endpoint.SetUpdatedAt(now)
+		base := endpoint.Base()
+		base.CreatedAt = existing.Base().CreatedAt
+		base.UpdatedAt = now
 		return endpoint, endpoint.Valid()
 	}
 	return influxdb.EndpointUpdate{
 		UpdateType: "endpoint",
-		ID:         endpoint.GetID(),
+		ID:         endpoint.Base().ID,
 		Fn:         fn,
 	}
 }
@@ -237,14 +239,15 @@ func UpdateChangeSet(id influxdb.ID, update influxdb.NotificationEndpointUpdate)
 			return nil, err
 		}
 
+		base := existing.Base()
 		if update.Name != nil {
-			existing.SetName(*update.Name)
+			base.Name = *update.Name
 		}
 		if update.Description != nil {
-			existing.SetDescription(*update.Description)
+			base.Description = *update.Description
 		}
 		if update.Status != nil {
-			existing.SetStatus(*update.Status)
+			base.Status = *update.Status
 		}
 		return UpdateEndpoint(existing).Fn(now, existing)
 	}
@@ -293,7 +296,7 @@ func (s *Service) putSecrets(ctx context.Context, endpoint influxdb.Notification
 		return nil
 	}
 
-	if err := s.secretSVC.PutSecrets(ctx, endpoint.GetOrgID(), secrets); err != nil {
+	if err := s.secretSVC.PutSecrets(ctx, endpoint.Base().OrgID, secrets); err != nil {
 		return &influxdb.Error{
 			Code: influxdb.EInternal,
 			Msg:  "failed to put secrets",

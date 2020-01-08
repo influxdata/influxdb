@@ -403,7 +403,7 @@ func newDiffNotificationEndpoint(ne *notificationEndpoint, i influxdb.Notificati
 		},
 	}
 	if i != nil {
-		diff.ID = SafeID(i.GetID())
+		diff.ID = SafeID(i.Base().ID)
 		diff.Old = &DiffNotificationEndpointValues{
 			NotificationEndpoint: i,
 		}
@@ -448,7 +448,7 @@ func newDiffNotificationRule(r *notificationRule, iEndpoint influxdb.Notificatio
 		TagRules:        toSummaryTagRules(r.tagRules),
 	}
 	if iEndpoint != nil {
-		sum.EndpointID = SafeID(iEndpoint.GetID())
+		sum.EndpointID = SafeID(iEndpoint.Base().ID)
 		sum.EndpointType = iEndpoint.Type()
 	}
 
@@ -1391,7 +1391,7 @@ func (n *notificationEndpoint) Exists() bool {
 
 func (n *notificationEndpoint) ID() influxdb.ID {
 	if n.existing != nil {
-		return n.existing.GetID()
+		return n.existing.Base().ID
 	}
 	return n.id
 }
@@ -1408,19 +1408,14 @@ func (n *notificationEndpoint) ResourceType() influxdb.ResourceType {
 	return KindNotificationEndpointSlack.ResourceType()
 }
 
-func (n *notificationEndpoint) base() endpoint.Base {
-	e := endpoint.Base{
+func (n *notificationEndpoint) base() influxdb.EndpointBase {
+	return influxdb.EndpointBase{
+		ID:          n.ID(),
+		OrgID:       n.OrgID,
 		Name:        n.Name(),
 		Description: n.description,
 		Status:      influxdb.Active,
 	}
-	if id := n.ID(); id > 0 {
-		e.ID = &id
-	}
-	if orgID := n.OrgID; orgID > 0 {
-		e.OrgID = &orgID
-	}
-	return e
 }
 
 func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
@@ -1435,9 +1430,9 @@ func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 	switch n.kind {
 	case notificationKindHTTP:
 		e := &endpoint.HTTP{
-			Base:   base,
-			URL:    n.url,
-			Method: n.method,
+			EndpointBase: base,
+			URL:          n.url,
+			Method:       n.method,
 		}
 		switch n.httpType {
 		case notificationHTTPAuthTypeBasic:
@@ -1453,15 +1448,15 @@ func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 		sum.NotificationEndpoint = e
 	case notificationKindPagerDuty:
 		sum.NotificationEndpoint = &endpoint.PagerDuty{
-			Base:       base,
-			ClientURL:  n.url,
-			RoutingKey: n.routingKey.SecretField(),
+			EndpointBase: base,
+			ClientURL:    n.url,
+			RoutingKey:   n.routingKey.SecretField(),
 		}
 	case notificationKindSlack:
 		sum.NotificationEndpoint = &endpoint.Slack{
-			Base:  base,
-			URL:   n.url,
-			Token: n.token.SecretField(),
+			EndpointBase: base,
+			URL:          n.url,
+			Token:        n.token.SecretField(),
 		}
 	}
 	return sum
