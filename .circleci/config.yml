@@ -113,7 +113,7 @@ jobs:
             timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:9999)" != "200" ]]; do sleep 5; done' || false
       - run:
           name: Checkout Tests
-          command: git clone --single-branch --branch 2.0-Alpha https://github.com/bonitoo-io/selenium-accept-infl2.git
+          command: git clone --single-branch --branch 2.0-Beta https://github.com/bonitoo-io/selenium-accept-infl2.git
       - run:
           name: Selenium tests
           command: |
@@ -384,7 +384,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
-      DOCKER_VERSION: 2.0.0-alpha
+      DOCKER_VERSION: 2.0.0-beta
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -461,25 +461,25 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
       - golint:
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
       - jstest:
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
       - jslint:
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
       - release:
           requires:
             - gotest
@@ -490,4 +490,4 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
