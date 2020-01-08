@@ -12,9 +12,9 @@ The latest InfluxDB 1.x is the stable release and recommended for production use
 
 Additional features will arrive during the beta period until we reach general availability (GA). We will be cutting versioned releases at least every two weeks starting in the first release. There will also be nightly builds based off the latest code in master.
 
-Once we close on the final feature set of what will be in the first GA release of InfluxDB in the 2.x line, we will move into the release candidate (RC) phase. At that point, we intend to avoid making breaking changes to the API or the Flux language. However, it still may be necessary to do so. We will do our best to keep this to an absolute minimum and clearly communicate ANY and ALL changes in this regard via the changelog.
+Once we close on the final feature set of what will be in the first GA release of InfluxDB in the 2.x line, we will move into the release candidate (RC) phase. At that point, we do not expect there to be breaking changes to the API or Flux language. We may still need to make a breaking change prior to GA due to some unforseen circumstance, but it would need to be extremely important and will be clearly communicated via the changelog and all available channels.
 
-RCs are not recommended for production usage. During the RC period, we will focus on bug fixes, performance, and additive features (where time permits).
+Our current plans are to release RCs suitable for production usage, but we will re-evaluate in consultation with the community as the cycle progresses. During the RC period, we will focus on feedback from users, bug fixes, performance, and additive features (where time permits).
 
 ### What you can expect in the Beta and RC Phases
 
