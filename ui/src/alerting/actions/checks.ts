@@ -12,6 +12,7 @@ import * as api from 'src/client'
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {incrementCloneName} from 'src/utils/naming'
+import {reportError} from 'src/shared/utils/errors'
 
 // Actions
 import {
@@ -213,9 +214,12 @@ export const saveCheckFromTimeMachine = () => async (
     } else {
       throw new Error(resp.data.message)
     }
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.createCheckFailed(e.message)))
+  } catch (error) {
+    console.error(error)
+    reportError(error, {
+      context: {getState},
+      name: 'saveCheckFromTimeMachine function',
+    })
   }
 }
 
