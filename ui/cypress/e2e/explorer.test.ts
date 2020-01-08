@@ -651,7 +651,7 @@ describe('DataExplorer', () => {
           .click()
       })
 
-      it.only('should autoselect the first bucket', () => {
+      it('should autoselect the first bucket', () => {
         cy.getByTestID('task-options-bucket-dropdown--button').within(() => {
           cy.get('span.cf-dropdown--selected')
             .then((elem) => {
