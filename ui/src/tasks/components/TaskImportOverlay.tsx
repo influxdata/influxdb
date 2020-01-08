@@ -9,7 +9,7 @@ import ImportOverlay from 'src/shared/components/ImportOverlay'
 import {invalidJSON} from 'src/shared/copy/notifications'
 
 // Actions
-import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/tasks/actions/'
+import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/tasks/actions/thunks'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types

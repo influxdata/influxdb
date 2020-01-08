@@ -304,12 +304,11 @@ export const checkBucketLimits = () => (dispatch, getState: GetState) => {
 export const checkTaskLimits = () => (dispatch, getState: GetState) => {
   try {
     const {
-      tasks: {list},
       cloud: {limits},
+      resources,
     } = getState()
-
     const tasksMax = extractTaskMax(limits)
-    const tasksCount = list.length
+    const tasksCount = resources.tasks.allIDs.length
 
     if (tasksCount >= tasksMax) {
       dispatch(setTaskLimitStatus(LimitStatus.EXCEEDED))

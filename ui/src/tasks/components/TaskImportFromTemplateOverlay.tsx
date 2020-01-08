@@ -16,7 +16,7 @@ import TemplateBrowserEmpty from 'src/tasks/components/TemplateBrowserEmpty'
 import GetResources from 'src/shared/components/GetResources'
 
 // Actions
-import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/tasks/actions'
+import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/tasks/actions/thunks'
 import {getTemplateByID} from 'src/templates/actions'
 
 // Types

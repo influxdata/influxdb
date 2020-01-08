@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -19,7 +18,7 @@ import {
 } from '@influxdata/clockface'
 
 // Actions
-import {getRuns, runTask} from 'src/tasks/actions'
+import {getRuns, runTask} from 'src/tasks/actions/thunks'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -145,12 +144,12 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {tasks} = state
+  const {runs, runStatus, currentTask} = state.resources.tasks
 
   return {
-    runs: tasks.runs,
-    runStatus: tasks.runStatus,
-    currentTask: tasks.currentTask,
+    runs,
+    runStatus,
+    currentTask,
   }
 }
 

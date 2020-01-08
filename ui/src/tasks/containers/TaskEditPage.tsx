@@ -28,25 +28,28 @@ const FluxMonacoEditor = Loadable({
 
 // Actions
 import {
-  updateScript,
-  selectTaskByID,
   setCurrentScript,
-  cancel,
   setTaskOption,
   clearTask,
+} from 'src/tasks/actions/creators'
+import {
+  updateScript,
+  selectTaskByID,
+  cancel,
   setAllTaskOptionsByID,
-} from 'src/tasks/actions'
+} from 'src/tasks/actions/thunks'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {
+  AppState,
+  Task,
   TaskOptions,
   TaskOptionKeys,
   TaskSchedule,
-} from 'src/utils/taskOptionsToFluxScript'
-import {AppState, Task} from 'src/types'
+} from 'src/types'
 
 interface OwnProps {
   router: InjectedRouter
@@ -165,11 +168,13 @@ class TaskEditPage extends PureComponent<Props> {
   }
 }
 
-const mstp = ({tasks}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {taskOptions, currentScript, currentTask} = state.resources.tasks
+
   return {
-    taskOptions: tasks.taskOptions,
-    currentScript: tasks.currentScript,
-    currentTask: tasks.currentTask,
+    taskOptions,
+    currentScript,
+    currentTask,
   }
 }
 

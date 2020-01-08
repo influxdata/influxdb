@@ -6,7 +6,7 @@ import {Form, Input, Grid} from '@influxdata/clockface'
 
 // Types
 import {Columns, InputType} from '@influxdata/clockface'
-import {TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
+import {TaskSchedule} from 'src/types'
 
 interface Props {
   schedule: TaskSchedule
