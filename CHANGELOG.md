@@ -51,6 +51,7 @@
 1. [16439](https://github.com/influxdata/influxdb/pull/16439): Prevent negative zero and allow zero to have decimal places
 
 ### UI Improvements
+1. [16444](https://github.com/influxdata/influxdb/pull/16444): Add honeybadger reporting to create checks
 
 ## v2.0.0-alpha.21 [2019-12-13]
 
