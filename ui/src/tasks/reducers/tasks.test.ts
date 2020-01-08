@@ -1,26 +1,28 @@
-import tasksReducer, {
-  defaultState,
-  defaultTaskOptions,
-} from 'src/tasks/reducers'
-import {setTaskOption} from 'src/tasks/actions'
-import {TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
+import tasksReducer from 'src/tasks/reducers'
+import {setTaskOption} from 'src/tasks/actions/creators'
+
+// Helpers
+import {initialState, defaultOptions} from 'src/tasks/reducers/helpers'
+
+// Types
+import {TaskSchedule} from 'src/types'
 
 describe('tasksReducer', () => {
   describe('setTaskOption', () => {
     it('should not clear the cron property from the task options when interval is selected', () => {
-      const initialState = defaultState
+      const state = initialState()
       const cron = '0 2 * * *'
-      initialState.taskOptions = {...defaultTaskOptions, cron}
+      state.taskOptions = {...defaultOptions, cron}
 
       const actual = tasksReducer(
-        initialState,
+        state,
         setTaskOption({key: 'taskScheduleType', value: TaskSchedule.interval})
       )
 
       const expected = {
-        ...defaultState,
+        ...state,
         taskOptions: {
-          ...defaultTaskOptions,
+          ...defaultOptions,
           taskScheduleType: TaskSchedule.interval,
           cron,
         },
@@ -30,19 +32,19 @@ describe('tasksReducer', () => {
     })
 
     it('should not clear the interval property from the task options when cron is selected', () => {
-      const initialState = defaultState
+      const state = initialState()
       const interval = '24h'
-      initialState.taskOptions = {...defaultTaskOptions, interval} // todo(docmerlin): allow for time units larger than 1d, right now h is the longest unit our s
+      state.taskOptions = {...defaultOptions, interval} // todo(docmerlin): allow for time units larger than 1d, right now h is the longest unit our s
 
       const actual = tasksReducer(
-        initialState,
+        state,
         setTaskOption({key: 'taskScheduleType', value: TaskSchedule.cron})
       )
 
       const expected = {
-        ...defaultState,
+        ...state,
         taskOptions: {
-          ...defaultTaskOptions,
+          ...defaultOptions,
           taskScheduleType: TaskSchedule.cron,
           interval,
         },

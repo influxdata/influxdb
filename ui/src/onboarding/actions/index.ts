@@ -59,12 +59,12 @@ const setOrganizationID = (orgID: string): SetOrganizationID => ({
 })
 
 interface SetBucketID {
-  type: 'SET_BUCKET_ID'
+  type: 'SET_ONBOARDING_BUCKET_ID'
   payload: {bucketID: string}
 }
 
 export const setBucketID = (bucketID: string): SetBucketID => ({
-  type: 'SET_BUCKET_ID',
+  type: 'SET_ONBOARDING_BUCKET_ID',
   payload: {bucketID},
 })
 

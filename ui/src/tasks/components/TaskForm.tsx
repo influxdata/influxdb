@@ -25,8 +25,7 @@ import {
   AlignItems,
   ComponentSize,
 } from '@influxdata/clockface'
-import {ResourceType} from 'src/types'
-import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
+import {ResourceType, TaskOptions, TaskSchedule} from 'src/types'
 
 interface Props {
   taskOptions: TaskOptions
