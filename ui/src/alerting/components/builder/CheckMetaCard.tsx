@@ -66,9 +66,8 @@ const CheckMetaCard: FC<Props> = ({
               <Form.Element label="Schedule Every">
                 <DurationInput
                   value={every}
-                  exampleSearches={DURATION_STRINGS}
+                  suggestions={DURATION_STRINGS}
                   onSubmit={onSelectCheckEvery}
-                  placeholder="interval duration"
                 />
               </Form.Element>
             </Grid.Column>
@@ -76,9 +75,8 @@ const CheckMetaCard: FC<Props> = ({
               <Form.Element label="Offset">
                 <DurationInput
                   value={offset}
-                  exampleSearches={CHECK_OFFSET_OPTIONS}
+                  suggestions={CHECK_OFFSET_OPTIONS}
                   onSubmit={onSetOffset}
-                  placeholder="offset duration"
                 />
               </Form.Element>
             </Grid.Column>

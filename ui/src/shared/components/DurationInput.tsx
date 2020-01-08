@@ -13,28 +13,30 @@ import {isDurationParseable} from 'src/shared/utils/duration'
 const SUGGESTION_CLASS = 'duration-input--suggestion'
 
 type Props = {
-  placeholder?: string
-  exampleSearches: string[]
+  suggestions: string[]
   onSubmit: (input: string) => void
   value: string
+  placeholder?: string
+  submitInvalid?: boolean
 }
 
 const DurationInput: FC<Props> = ({
-  placeholder,
-  exampleSearches,
+  suggestions,
   onSubmit,
   value,
+  placeholder,
+  submitInvalid = true,
 }) => {
   const [isFocused, setIsFocused] = useState(false)
 
-  const [input, setInput] = useState(value)
+  const [inputValue, setInputValue] = useState(value)
 
-  const inputStatus = isDurationParseable(input)
+  const inputStatus = isDurationParseable(inputValue)
     ? ComponentStatus.Default
     : ComponentStatus.Error
 
   const handleClickSuggestion = (suggestion: string) => {
-    setInput(suggestion)
+    setInputValue(suggestion)
 
     onSubmit(suggestion)
     setIsFocused(false)
@@ -51,8 +53,8 @@ const DurationInput: FC<Props> = ({
   }
 
   const onChange = (i: string) => {
-    setInput(i)
-    if (isDurationParseable(i)) {
+    setInputValue(i)
+    if (submitInvalid || (!submitInvalid && isDurationParseable(i))) {
       onSubmit(i)
     }
   }
@@ -62,7 +64,7 @@ const DurationInput: FC<Props> = ({
       <ClickOutside onClickOutside={handleClickOutside}>
         <Input
           placeholder={placeholder}
-          value={input}
+          value={inputValue}
           status={inputStatus}
           onChange={e => onChange(e.target.value)}
           onFocus={() => setIsFocused(true)}
@@ -75,7 +77,7 @@ const DurationInput: FC<Props> = ({
           noScrollY={true}
         >
           <DropdownDivider text="Examples" />
-          {exampleSearches.map(s => (
+          {suggestions.map(s => (
             <DropdownItem
               key={s}
               value={s}
