@@ -154,7 +154,7 @@ describe('Onboarding', () => {
     })
   })
 
-  it('Can onboard to configure later', () => {
+  it.skip('Can onboard to configure later', () => {
     cy.server()
 
     cy.route('POST', 'api/v2/setup').as('orgSetup')
