@@ -10,15 +10,15 @@ import (
 	"time"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb/http/metric"
-	"go.uber.org/zap"
-
 	"github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/http/metric"
 	"github.com/influxdata/influxdb/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb"
+	"go.uber.org/zap"
 )
 
 // WriteBackend is all services and associated parameters required to construct
@@ -99,15 +99,15 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	// Ideally this will be moved when we solve https://github.com/influxdata/influxdb/issues/13403
 	var orgID influxdb.ID
 	var requestBytes int
-	sw := newStatusResponseWriter(w)
+	sw := kithttp.NewStatusResponseWriter(w)
 	w = sw
 	defer func() {
 		h.EventRecorder.Record(ctx, metric.Event{
 			OrgID:         orgID,
 			Endpoint:      r.URL.Path, // This should be sufficient for the time being as it should only be single endpoint.
 			RequestBytes:  requestBytes,
-			ResponseBytes: sw.responseBytes,
-			Status:        sw.code(),
+			ResponseBytes: sw.ResponseBytes(),
+			Status:        sw.Code(),
 		})
 	}()
 

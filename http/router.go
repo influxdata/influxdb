@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -32,9 +33,9 @@ func newBaseChiRouter(errorHandler platform.HTTPErrorHandler) chi.Router {
 	bh := baseHandler{HTTPErrorHandler: errorHandler}
 	router.NotFound(bh.notFound)
 	router.MethodNotAllowed(bh.methodNotAllowed)
-	router.Use(skipOptionsMW)
+	router.Use(kithttp.SkipOptions)
 	router.Use(middleware.StripSlashes)
-	router.Use(setCORSResponseHeaders)
+	router.Use(kithttp.SetCORS)
 	return router
 }
 

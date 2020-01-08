@@ -9,39 +9,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"go.uber.org/zap"
 )
 
-// Middleware constructor.
-type Middleware func(http.Handler) http.Handler
-
-func traceMW(next http.Handler) http.Handler {
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		span, ctx := tracing.StartSpanFromContext(r.Context())
-		defer span.Finish()
-		next.ServeHTTP(w, r.WithContext(ctx))
-	}
-	return http.HandlerFunc(fn)
-}
-
-func skipOptionsMW(next http.Handler) http.Handler {
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "OPTIONS" {
-			return
-		}
-		next.ServeHTTP(w, r)
-	}
-	return http.HandlerFunc(fn)
-}
-
 // LoggingMW middleware for logging inflight http requests.
-func LoggingMW(log *zap.Logger) Middleware {
+func LoggingMW(log *zap.Logger) kithttp.Middleware {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			srw := &statusResponseWriter{
-				ResponseWriter: w,
-			}
+			srw := kithttp.NewStatusResponseWriter(w)
 
 			var buf bytes.Buffer
 			r.Body = &bodyEchoer{
@@ -66,12 +42,12 @@ func LoggingMW(log *zap.Logger) Middleware {
 					zap.String("path", r.URL.Path),
 					zap.String("query", r.URL.Query().Encode()),
 					zap.String("proto", r.Proto),
-					zap.Int("status_code", srw.code()),
-					zap.Int("response_size", srw.responseBytes),
+					zap.Int("status_code", srw.Code()),
+					zap.Int("response_size", srw.ResponseBytes()),
 					zap.Int64("content_length", r.ContentLength),
 					zap.String("referrer", r.Referer()),
 					zap.String("remote", r.RemoteAddr),
-					zap.String("user_agent", r.UserAgent()),
+					zap.String("user_agent", kithttp.UserAgent(r)),
 					zap.Duration("took", time.Since(start)),
 					errField,
 					errReferenceField,
@@ -177,7 +153,7 @@ func (b *bodyEchoer) Close() error {
 	return b.rc.Close()
 }
 
-func applyMW(h http.Handler, m ...Middleware) http.Handler {
+func applyMW(h http.Handler, m ...kithttp.Middleware) http.Handler {
 	if len(m) < 1 {
 		return h
 	}
