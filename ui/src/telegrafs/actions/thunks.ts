@@ -1,14 +1,34 @@
+// Libraries
+import {normalize} from 'normalizr'
+
 // API
 import {client} from 'src/utils/api'
 
+// Schemas
+import * as schemas from 'src/schemas'
+
 // Types
-import {AppThunk, RemoteDataState, GetState, Telegraf, Label} from 'src/types'
 import {ILabel} from '@influxdata/influx'
-import {Action as NotifyAction} from 'src/shared/actions/notifications'
+import {
+  AppThunk,
+  RemoteDataState,
+  GetState,
+  Telegraf,
+  Label,
+  TelegrafEntities,
+} from 'src/types'
 import {Dispatch} from 'react'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
+import {
+  Action,
+  setTelegrafs,
+  addTelegraf,
+  editTelegraf,
+  removeTelegraf,
+  setCurrentConfig,
+} from 'src/telegrafs/actions/creators'
 
 // Utils
 import {
@@ -22,78 +42,10 @@ import {
 } from 'src/shared/copy/notifications'
 import {getOrg} from 'src/organizations/selectors'
 
-export type Action =
-  | SetTelegrafs
-  | AddTelegraf
-  | EditTelegraf
-  | RemoveTelegraf
-  | SetCurrentConfig
-  | NotifyAction
-
-interface SetTelegrafs {
-  type: 'SET_TELEGRAFS'
-  payload: {
-    status: RemoteDataState
-    list: Telegraf[]
-  }
-}
-
-export const setTelegrafs = (
-  status: RemoteDataState,
-  list?: Telegraf[]
-): SetTelegrafs => ({
-  type: 'SET_TELEGRAFS',
-  payload: {status, list},
-})
-
-interface AddTelegraf {
-  type: 'ADD_TELEGRAF'
-  payload: {
-    telegraf: Telegraf
-  }
-}
-
-export const addTelegraf = (telegraf: Telegraf): AddTelegraf => ({
-  type: 'ADD_TELEGRAF',
-  payload: {telegraf},
-})
-
-interface EditTelegraf {
-  type: 'EDIT_TELEGRAF'
-  payload: {
-    telegraf: Telegraf
-  }
-}
-
-export const editTelegraf = (telegraf: Telegraf): EditTelegraf => ({
-  type: 'EDIT_TELEGRAF',
-  payload: {telegraf},
-})
-
-interface RemoveTelegraf {
-  type: 'REMOVE_TELEGRAF'
-  payload: {id: string}
-}
-
-export const removeTelegraf = (id: string): RemoveTelegraf => ({
-  type: 'REMOVE_TELEGRAF',
-  payload: {id},
-})
-
-export interface SetCurrentConfig {
-  type: 'SET_CURRENT_CONFIG'
-  payload: {status: RemoteDataState; item?: string}
-}
-
-export const setCurrentConfig = (
-  status: RemoteDataState,
-  item?: string
-): SetCurrentConfig => ({
-  type: 'SET_CURRENT_CONFIG',
-  payload: {status, item},
-})
-
-export const getTelegrafs = () => async (dispatch, getState: GetState) => {
+export const getTelegrafs = () => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
   const org = getOrg(getState())
 
   try {
@@ -101,7 +53,12 @@ export const getTelegrafs = () => async (dispatch, getState: GetState) => {
 
     const telegrafs = await client.telegrafConfigs.getAll(org.id)
 
-    dispatch(setTelegrafs(RemoteDataState.Done, telegrafs))
+    const normTelegrafs = normalize<Telegraf, TelegrafEntities, string[]>(
+      telegrafs,
+      schemas.arrayOfTelegrafs
+    )
+
+    dispatch(setTelegrafs(RemoteDataState.Done, normTelegrafs))
   } catch (e) {
     console.error(e)
     dispatch(setTelegrafs(RemoteDataState.Error))
@@ -114,7 +71,13 @@ export const createTelegraf = (telegraf: Telegraf) => async (
 ) => {
   try {
     const createdTelegraf = await client.telegrafConfigs.create(telegraf)
-    dispatch(addTelegraf(createdTelegraf))
+
+    const normTelegraf = normalize<Telegraf, TelegrafEntities, string>(
+      createdTelegraf,
+      schemas.telegraf
+    )
+
+    dispatch(addTelegraf(normTelegraf))
   } catch (e) {
     console.error(e)
     dispatch(notify(telegrafCreateFailed()))
@@ -128,7 +91,12 @@ export const updateTelegraf = (telegraf: Telegraf) => async (
   try {
     const t = await client.telegrafConfigs.update(telegraf.id, telegraf)
 
-    dispatch(editTelegraf(t))
+    const normTelegraf = normalize<Telegraf, TelegrafEntities, string>(
+      t,
+      schemas.telegraf
+    )
+
+    dispatch(editTelegraf(normTelegraf))
   } catch (e) {
     console.error(e)
     dispatch(notify(telegrafUpdateFailed(telegraf.name)))
@@ -155,8 +123,12 @@ export const addTelegrafLabelsAsync = (
   try {
     await client.telegrafConfigs.addLabels(telegrafID, labels as ILabel[])
     const telegraf = await client.telegrafConfigs.get(telegrafID)
+    const normTelegraf = normalize<Telegraf, TelegrafEntities, string>(
+      telegraf,
+      schemas.telegraf
+    )
 
-    dispatch(editTelegraf(telegraf))
+    dispatch(editTelegraf(normTelegraf))
   } catch (error) {
     console.error(error)
     dispatch(notify(addTelegrafLabelFailed()))
@@ -170,8 +142,12 @@ export const removeTelegrafLabelsAsync = (
   try {
     await client.telegrafConfigs.removeLabels(telegrafID, labels as ILabel[])
     const telegraf = await client.telegrafConfigs.get(telegrafID)
+    const normTelegraf = normalize<Telegraf, TelegrafEntities, string>(
+      telegraf,
+      schemas.telegraf
+    )
 
-    dispatch(editTelegraf(telegraf))
+    dispatch(editTelegraf(normTelegraf))
   } catch (error) {
     console.error(error)
     dispatch(notify(removeTelegrafLabelFailed()))
@@ -179,7 +155,7 @@ export const removeTelegrafLabelsAsync = (
 }
 
 export const getTelegrafConfigToml = (telegrafConfigID: string) => async (
-  dispatch
+  dispatch: Dispatch<Action>
 ): Promise<void> => {
   try {
     dispatch(setCurrentConfig(RemoteDataState.Loading))

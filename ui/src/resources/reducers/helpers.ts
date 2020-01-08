@@ -12,6 +12,9 @@ export const setResource = <R>(
   const {status, schema} = action
 
   draftState.status = status
+  if (!draftState.byID) {
+    draftState.byID = {}
+  }
 
   if (get(schema, 'entities')) {
     draftState.byID = schema.entities[resource]
@@ -29,6 +32,10 @@ export const addResource = <R>(
   const {result, entities} = action.schema
   const r = entities[resource][result]
 
+  if (!draftState.byID) {
+    draftState.byID = {}
+  }
+
   draftState.byID[result] = r
   draftState.allIDs.push(result)
 }
@@ -39,11 +46,23 @@ export const editResource = <R>(
   resource: ResourceType
 ) => {
   const {entities, result} = action.schema
+  if (!draftState.byID) {
+    draftState.byID = {}
+  }
+
   const bucket = entities[resource][result]
   draftState.byID[result] = bucket
 }
 
-export const removeResource = <R>(draftState: NormalizedState<R>, action) => {
+interface RemoveAction {
+  type: string
+  id: string
+}
+
+export const removeResource = <R>(
+  draftState: NormalizedState<R>,
+  action: RemoveAction
+) => {
   const {id} = action
   delete draftState.byID[id]
   draftState.allIDs = draftState.allIDs.filter(uuid => uuid !== id)

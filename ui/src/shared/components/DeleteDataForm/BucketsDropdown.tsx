@@ -38,7 +38,7 @@ const BucketsDropdown: FunctionComponent<Props> = ({
 const mstp = (state: AppState): StateProps => {
   // map names and sort via a selector
   const buckets = getSortedBucketNames(
-    getAll<Bucket[]>(state, ResourceType.Buckets)
+    getAll<Bucket>(state, ResourceType.Buckets)
   )
 
   return {

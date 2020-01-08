@@ -9,7 +9,7 @@ import {Overlay} from '@influxdata/clockface'
 import CreateScraperForm from 'src/scrapers/components/CreateScraperForm'
 
 // Actions
-import {createScraper} from 'src/scrapers/actions'
+import {createScraper} from 'src/scrapers/actions/thunks'
 
 // Types
 import {ScraperTargetRequest} from '@influxdata/influx'
@@ -123,7 +123,7 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => ({
-  buckets: getAll<Bucket[]>(state, ResourceType.Buckets),
+  buckets: getAll<Bucket>(state, ResourceType.Buckets),
 })
 
 const mdtp: DispatchProps = {

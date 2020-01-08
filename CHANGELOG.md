@@ -27,7 +27,9 @@
 1. [16348](https://github.com/influxdata/influxdb/pull/16348): Drop legacy bolt service implementation in favor of kv service with bolt dependency
 1. [16014](https://github.com/influxdata/influxdb/pull/16014): While creating check, also display notification rules that would match check based on tag rules
 1. [16389](https://github.com/influxdata/influxdb/pull/16389): Increase default bucket retention period to 30 days
+1. [16430](https://github.com/influxdata/influxdb/pull/16430): Added toggle to table thresholds to allow users to choose between setting threshold colors to text or background
 1. [16418](https://github.com/influxdata/influxdb/pull/16418): Add Developer Documentation
+1. [16260](https://github.com/influxdata/influxdb/pull/16260): Capture User-Agent header as query source for logging purposes
 
 ### Bug Fixes
 
@@ -43,8 +45,13 @@
 1. [16380](https://github.com/influxdata/influxdb/pull/16380): Fix notification tag matching rules and enable tests to verify
 1. [16376](https://github.com/influxdata/influxdb/pull/16376): Extend the y-axis when stacked graph is selected
 1. [16404](https://github.com/influxdata/influxdb/pull/16404): Fixed query reset bug that was resetting query in script editor whenever dates were changed
+1. [16430](https://github.com/influxdata/influxdb/pull/16430): Fixed table threshold bug that was defaulting set colors to the background.
+1. [16435](https://github.com/influxdata/influxdb/pull/16435): Time labels are no longer squished to the left
+1. [16427](https://github.com/influxdata/influxdb/pull/16427): Fixed underlying issue with disappearing queries made in Advanced Mode
+1. [16439](https://github.com/influxdata/influxdb/pull/16439): Prevent negative zero and allow zero to have decimal places
 
 ### UI Improvements
+1. [16444](https://github.com/influxdata/influxdb/pull/16444): Add honeybadger reporting to create checks
 
 ## v2.0.0-alpha.21 [2019-12-13]
 

@@ -89,7 +89,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 		variable *platform.Variable
 	}
 	type wants struct {
-		err       error
+		err       *platform.Error
 		variables []*platform.Variable
 	}
 
@@ -177,7 +177,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 				variable: &platform.Variable{
 					ID:             MustIDBase16(idA),
 					OrganizationID: platform.ID(3),
-					Name:           "my-variable",
+					Name:           "MY-variable",
 					Selected:       []string{"a"},
 					Arguments: &platform.VariableArguments{
 						Type:   "constant",
@@ -205,7 +205,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 					{
 						ID:             MustIDBase16(idA),
 						OrganizationID: platform.ID(3),
-						Name:           "my-variable",
+						Name:           "MY-variable",
 						Selected:       []string{"a"},
 						Arguments: &platform.VariableArguments{
 							Type:   "constant",
@@ -260,7 +260,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 			wants: wants{
 				err: &platform.Error{
 					Code: platform.EConflict,
-					Msg:  "variable with name existing-variable already exists",
+					Msg:  "variable is not unique",
 				},
 				variables: []*platform.Variable{
 					{
@@ -317,7 +317,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 			wants: wants{
 				err: &platform.Error{
 					Code: platform.EConflict,
-					Msg:  "variable with name EXISTING-variable already exists",
+					Msg:  "variable is not unique for key ",
 				},
 				variables: []*platform.Variable{
 					{
@@ -374,7 +374,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 			wants: wants{
 				err: &platform.Error{
 					Code: platform.EConflict,
-					Msg:  "variable with name existing-variable already exists",
+					Msg:  "variable is not unique",
 				},
 				variables: []*platform.Variable{
 					{
@@ -431,7 +431,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 			wants: wants{
 				err: &platform.Error{
 					Code: platform.EConflict,
-					Msg:  "variable with name existing-variable already exists",
+					Msg:  "variable is not unique",
 				},
 				variables: []*platform.Variable{
 					{
@@ -451,12 +451,12 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			err := s.CreateVariable(ctx, tt.args.variable)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			influxErrsEqual(t, tt.wants.err, err)
 
 			variables, err := s.FindVariables(ctx, platform.VariableFilter{})
 			if err != nil {
@@ -938,8 +938,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 			wants: wants{
 				err: &platform.Error{
 					Code: platform.EConflict,
-					Op:   platform.OpUpdateVariable,
-					Msg:  "variable with name variable-a already exists",
+					Msg:  "variable entity update conflicts with an existing entity",
 				},
 				variables: []*platform.Variable{
 					{
@@ -1013,8 +1012,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 			wants: wants{
 				err: &platform.Error{
 					Code: platform.EConflict,
-					Op:   platform.OpUpdateVariable,
-					Msg:  "variable with name variable-a already exists",
+					Msg:  "variable entity update conflicts with an existing entity",
 				},
 				variables: []*platform.Variable{
 					{
@@ -1055,14 +1053,8 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 			ctx := context.Background()
 
 			variable, err := s.UpdateVariable(ctx, tt.args.id, tt.args.update)
+			influxErrsEqual(t, tt.wants.err, err)
 			if err != nil {
-				if tt.wants.err == nil {
-					require.NoError(t, err)
-				}
-				iErr, ok := err.(*platform.Error)
-				require.True(t, ok)
-				assert.Equal(t, iErr.Code, tt.wants.err.Code)
-				assert.Equal(t, strings.HasPrefix(iErr.Error(), tt.wants.err.Error()), true)
 				return
 			}
 

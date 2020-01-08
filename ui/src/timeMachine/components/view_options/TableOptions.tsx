@@ -10,6 +10,7 @@ import TimeFormat from 'src/timeMachine/components/view_options/TimeFormat'
 import SortBy from 'src/timeMachine/components/view_options/SortBy'
 import {Grid, Form} from '@influxdata/clockface'
 import ThresholdsSettings from 'src/shared/components/ThresholdsSettings'
+import ThresholdColoring from 'src/timeMachine/components/view_options/ThresholdColoring'
 
 // Constants
 
@@ -130,6 +131,9 @@ export class TableOptions extends Component<Props, {}> {
             thresholds={colors}
             onSetThresholds={onSetColors}
           />
+        </Grid.Column>
+        <Grid.Column>
+          <ThresholdColoring />
         </Grid.Column>
       </>
     )

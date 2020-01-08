@@ -73,7 +73,7 @@ func DecodeOrgNameKey(k []byte) (influxdb.ID, string, error) {
 func NewOrgNameKeyStore(resource string, bktName []byte, caseSensitive bool) *StoreBase {
 	var decValToEntFn ConvertValToEntFn = func(k []byte, v interface{}) (Entity, error) {
 		id, ok := v.(influxdb.ID)
-		if err := errUnexpectedDecodeVal(ok); err != nil {
+		if err := IsErrUnexpectedDecodeVal(ok); err != nil {
 			return Entity{}, err
 		}
 
@@ -275,10 +275,53 @@ func (s *StoreBase) FindEnt(ctx context.Context, tx Tx, ent Entity) (interface{}
 	return s.decodeEnt(ctx, body)
 }
 
+type (
+	putOption struct {
+		isNew    bool
+		isUpdate bool
+	}
+
+	// PutOptionFn provides a hint to the store to make some guarantees about the
+	// put action. I.e. If it is new, then will validate there is no existing entity
+	// by the given PK.
+	PutOptionFn func(o *putOption) error
+)
+
+// PutNew will create an entity that is not does not already exist. Guarantees uniqueness
+// by the store's uniqueness guarantees.
+func PutNew() PutOptionFn {
+	return func(o *putOption) error {
+		o.isNew = true
+		return nil
+	}
+}
+
+// PutUpdate will update an entity that must already exist.
+func PutUpdate() PutOptionFn {
+	return func(o *putOption) error {
+		o.isUpdate = true
+		return nil
+	}
+}
+
 // Put will persist the entity.
-func (s *StoreBase) Put(ctx context.Context, tx Tx, ent Entity) error {
+func (s *StoreBase) Put(ctx context.Context, tx Tx, ent Entity, opts ...PutOptionFn) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
+
+	var opt putOption
+	for _, o := range opts {
+		if err := o(&opt); err != nil {
+			return &influxdb.Error{
+				Code: influxdb.EConflict,
+				Err:  err,
+			}
+		}
+	}
+
+	if err := s.putValidate(ctx, tx, ent, opt); err != nil {
+		return err
+	}
 
 	encodedID, err := s.EntKey(ctx, ent)
 	if err != nil {
@@ -291,6 +334,25 @@ func (s *StoreBase) Put(ctx context.Context, tx Tx, ent Entity) error {
 	}
 
 	return s.bucketPut(ctx, tx, encodedID, body)
+}
+
+func (s *StoreBase) putValidate(ctx context.Context, tx Tx, ent Entity, opt putOption) error {
+	if !opt.isUpdate && !opt.isNew {
+		return nil
+	}
+
+	_, err := s.FindEnt(ctx, tx, ent)
+	if opt.isNew {
+		if err == nil || influxdb.ErrorCode(err) != influxdb.ENotFound {
+			return &influxdb.Error{
+				Code: influxdb.EConflict,
+				Msg:  fmt.Sprintf("%s is not unique", s.Resource),
+				Err:  err,
+			}
+		}
+		return nil
+	}
+	return err
 }
 
 func (s *StoreBase) bucket(ctx context.Context, tx Tx) (Bucket, error) {
@@ -548,7 +610,7 @@ func (i *iterator) seek(ctx context.Context) {
 
 }
 
-func errUnexpectedDecodeVal(ok bool) error {
+func IsErrUnexpectedDecodeVal(ok bool) error {
 	if ok {
 		return nil
 	}

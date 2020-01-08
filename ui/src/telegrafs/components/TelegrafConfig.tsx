@@ -24,7 +24,7 @@ import {FeatureFlag, isFlagEnabled} from 'src/shared/utils/featureFlag'
 import TelegrafEditor from 'src/dataLoaders/components/TelegrafEditor'
 
 // Actions
-import {getTelegrafConfigToml} from 'src/telegrafs/actions'
+import {getTelegrafConfigToml} from 'src/telegrafs/actions/thunks'
 import {loadTelegrafConfig} from 'src/dataLoaders/actions/telegrafEditor'
 
 // Types
@@ -101,9 +101,9 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
-  telegrafConfig: state.telegrafs.currentConfig.item,
-  status: state.telegrafs.currentConfig.status,
+const mstp = ({resources}: AppState): StateProps => ({
+  telegrafConfig: resources.telegrafs.currentConfig.item,
+  status: resources.telegrafs.currentConfig.status,
 })
 
 const mdtp: DispatchProps = {
