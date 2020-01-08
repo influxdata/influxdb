@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/prometheus/client_golang/prometheus"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 )
 
 // PlatformHandler is a collection of all the service handlers.
@@ -12,19 +12,6 @@ type PlatformHandler struct {
 	AssetHandler *AssetHandler
 	DocsHandler  http.HandlerFunc
 	APIHandler   http.Handler
-}
-
-func setCORSResponseHeaders(next http.Handler) http.Handler {
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		if origin := r.Header.Get("Origin"); origin != "" {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
-		}
-		next.ServeHTTP(w, r)
-	}
-
-	return http.HandlerFunc(fn)
 }
 
 // NewPlatformHandler returns a platform handler that serves the API and associated assets.
@@ -46,8 +33,8 @@ func NewPlatformHandler(b *APIBackend, opts ...APIHandlerOptFn) *PlatformHandler
 	assetHandler := NewAssetHandler()
 	assetHandler.Path = b.AssetsPath
 
-	wrappedHandler := setCORSResponseHeaders(h)
-	wrappedHandler = skipOptionsMW(wrappedHandler)
+	wrappedHandler := kithttp.SetCORS(h)
+	wrappedHandler = kithttp.SkipOptions(wrappedHandler)
 
 	return &PlatformHandler{
 		AssetHandler: assetHandler,
@@ -73,10 +60,4 @@ func (h *PlatformHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.APIHandler.ServeHTTP(w, r)
-}
-
-// PrometheusCollectors satisfies the prom.PrometheusCollector interface.
-func (h *PlatformHandler) PrometheusCollectors() []prometheus.Collector {
-	// TODO: collect and return relevant metrics.
-	return nil
 }
