@@ -46,6 +46,7 @@ class TaskOptionsBucketDropdown extends PureComponent<Props> {
             active={active}
             onClick={onClick}
             status={this.status}
+            testID="task-options-bucket-dropdown--button"
           >
             {selectedBucketName}
           </Dropdown.Button>
