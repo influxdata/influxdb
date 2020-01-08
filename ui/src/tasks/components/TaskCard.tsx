@@ -17,8 +17,12 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import LastRunTaskStatus from 'src/shared/components/lastRunTaskStatus/LastRunTaskStatus'
 
 // Actions
-import {addTaskLabelAsync, removeTaskLabelAsync} from 'src/tasks/actions'
-import {createLabel as createLabelAsync} from 'src/labels/actions'
+import {
+  addTaskLabel,
+  deleteTaskLabel,
+  selectTask,
+} from 'src/tasks/actions/thunks'
+import {createLabel} from 'src/labels/actions'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
@@ -34,7 +38,7 @@ interface PassedProps {
   task: Task
   onActivate: (task: Task) => void
   onDelete: (task: Task) => void
-  onSelect: (task: Task) => void
+  onSelect: typeof selectTask
   onClone: (task: Task) => void
   onRunTask: (taskID: string) => void
   onUpdate: (name: string, taskID: string) => void
@@ -46,9 +50,9 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onAddTaskLabel: typeof addTaskLabelAsync
-  onRemoveTaskLabel: typeof removeTaskLabelAsync
-  onCreateLabel: typeof createLabelAsync
+  onAddTaskLabel: typeof addTaskLabel
+  onDeleteTaskLabel: typeof deleteTaskLabel
+  onCreateLabel: typeof createLabel
 }
 
 type Props = PassedProps & StateProps & DispatchProps
@@ -139,7 +143,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   private handleNameClick = (e: MouseEvent) => {
     e.preventDefault()
 
-    this.props.onSelect(this.props.task)
+    this.props.onSelect(this.props.task.id)
   }
 
   private handleViewRuns = () => {
@@ -190,9 +194,9 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleRemoveLabel = (label: Label) => {
-    const {task, onRemoveTaskLabel} = this.props
+    const {task, onDeleteTaskLabel} = this.props
 
-    onRemoveTaskLabel(task.id, label)
+    onDeleteTaskLabel(task.id, label)
   }
 
   private handleCreateLabel = (label: Label) => {
@@ -239,9 +243,9 @@ const mstp = ({labels}: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  onCreateLabel: createLabelAsync,
-  onAddTaskLabel: addTaskLabelAsync,
-  onRemoveTaskLabel: removeTaskLabelAsync,
+  onCreateLabel: createLabel,
+  onAddTaskLabel: addTaskLabel,
+  onDeleteTaskLabel: deleteTaskLabel,
 }
 
 export default connect<StateProps, DispatchProps, PassedProps>(

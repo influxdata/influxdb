@@ -1,18 +1,9 @@
-import _, {get} from 'lodash'
-import {
-  DashboardTemplate,
-  TemplateType,
-  CellIncluded,
-  LabelIncluded,
-  ViewIncluded,
-  TaskTemplate,
-  TemplateBase,
-  Task,
-  VariableTemplate,
-  Variable,
-} from 'src/types'
-import {IDashboard, Cell} from '@influxdata/influx'
-import {client} from 'src/utils/api'
+// Libraries
+import {get, isEmpty, flatMap} from 'lodash'
+import {normalize} from 'normalizr'
+
+// Schemas
+import * as schemas from 'src/schemas'
 
 // Utils
 import {
@@ -24,9 +15,9 @@ import {
   hasLabelsRelationships,
   getLabelRelationships,
 } from 'src/templates/utils/'
-import {addDefaults} from 'src/tasks/actions'
 import {addVariableDefaults} from 'src/variables/actions'
 import {addLabelDefaults} from 'src/labels/utils'
+
 // API
 import {
   getTask as apiGetTask,
@@ -39,8 +30,25 @@ import {
   postVariable as apiPostVariable,
   postVariablesLabel as apiPostVariablesLabel,
 } from 'src/client'
-// Create Dashboard Templates
+import {client} from 'src/utils/api'
 
+// Types
+import {
+  DashboardTemplate,
+  TemplateType,
+  CellIncluded,
+  LabelIncluded,
+  ViewIncluded,
+  TaskTemplate,
+  TemplateBase,
+  TaskEntities,
+  Task,
+  VariableTemplate,
+  Variable,
+} from 'src/types'
+import {IDashboard, Cell} from '@influxdata/influx'
+
+// Create Dashboard Templates
 export const createDashboardFromTemplate = async (
   template: DashboardTemplate,
   orgID: string
@@ -103,11 +111,11 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
     hasLabelsRelationships(r)
   )
 
-  if (_.isEmpty(labeledResources)) {
+  if (isEmpty(labeledResources)) {
     return {}
   }
 
-  const labelRelationships = _.flatMap(labeledResources, r =>
+  const labelRelationships = flatMap(labeledResources, r =>
     getLabelRelationships(r)
   )
 
@@ -129,8 +137,8 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
     includedLabels
   ).map(l => ({
     orgID,
-    name: _.get(l, 'attributes.name', ''),
-    properties: _.get(l, 'attributes.properties', {}),
+    name: get(l, 'attributes.name', ''),
+    properties: get(l, 'attributes.properties', {}),
   }))
 
   const promisedLabels = foundLabelsToCreate.map(async lab => {
@@ -299,7 +307,12 @@ export const createTaskFromTemplate = async (
       throw new Error(postResp.data.message)
     }
 
-    const postedTask = addDefaults(postResp.data)
+    const {entities, result} = normalize<Task, TaskEntities, string>(
+      postResp.data,
+      schemas.task
+    )
+
+    const postedTask = entities.tasks[result]
 
     // associate imported label.id with created label
     const labelMap = await createLabelsFromTemplate(template, orgID)
@@ -312,9 +325,7 @@ export const createTaskFromTemplate = async (
       throw new Error(resp.data.message)
     }
 
-    const task = addDefaults(resp.data)
-
-    return task
+    return postedTask
   } catch (e) {
     console.error(e)
   }

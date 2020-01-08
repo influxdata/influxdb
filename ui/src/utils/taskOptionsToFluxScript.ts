@@ -1,23 +1,8 @@
-import _ from 'lodash'
+// Libraries
+import {trimEnd} from 'lodash'
 
-export interface TaskOptions {
-  name: string
-  interval: string
-  cron: string
-  offset: string
-  taskScheduleType: TaskSchedule
-  orgID: string
-  toOrgName: string
-  toBucketName: string
-}
-
-export type TaskOptionKeys = keyof TaskOptions
-
-export enum TaskSchedule {
-  interval = 'interval',
-  cron = 'cron',
-  unselected = '',
-}
+// Types
+import {TaskOptions, TaskSchedule} from 'src/types'
 
 export const taskOptionsToFluxScript = (options: TaskOptions): string => {
   let fluxScript = `option task = { \n  name: "${options.name}",\n`
@@ -43,7 +28,7 @@ export const addDestinationToFluxScript = (
   const {toOrgName, toBucketName} = options
 
   if (toOrgName && toBucketName) {
-    const trimmedScript = _.trimEnd(script)
+    const trimmedScript = trimEnd(script)
     const trimmedOrgName = toOrgName.trim()
     const trimmedBucketName = toBucketName.trim()
     return `${trimmedScript}\n  |> to(bucket: "${trimmedBucketName}", org: "${trimmedOrgName}")`
