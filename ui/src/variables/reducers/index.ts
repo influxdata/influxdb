@@ -10,8 +10,8 @@ import {
   MapArguments,
   CSVArguments,
   Variable,
+  VariableValuesByID,
 } from 'src/types'
-import {VariableValuesByID} from 'src/variables/types'
 import {Action, EditorAction} from 'src/variables/actions'
 
 export const initialEditorState = (): VariableEditorState => ({

@@ -48,9 +48,9 @@ import {
   CSVArguments,
   Label,
   Variable,
+  VariableValuesByID,
 } from 'src/types'
 import {Variable as IVariable} from 'src/client'
-import {VariableValuesByID} from 'src/variables/types'
 import {
   addVariableLabelFailed,
   removeVariableLabelFailed,
