@@ -1,111 +1,63 @@
-// Libraries
-import React, {FC} from 'react'
-import {Link} from 'react-router'
-import {connect} from 'react-redux'
+import React, {PureComponent} from 'react'
 
 // Components
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
-import {
-  AppHeader,
-  PopNav,
-  Button,
-  ComponentColor,
-  FlexBox,
-  FlexDirection,
-  ComponentSize,
-} from '@influxdata/clockface'
-
-// Constants
+import {NavMenu, Icon} from '@influxdata/clockface'
+import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 import {
   CLOUD_URL,
   CLOUD_USAGE_PATH,
   CLOUD_BILLING_PATH,
-  CLOUD_SIGNOUT_URL,
 } from 'src/shared/constants'
 
 // Types
-import {AppState, Organization} from 'src/types'
+import {IconFont} from '@influxdata/clockface'
 
-// Images
-import Logo from '../images/influxdata-logo.png'
-
-// Selectors
-import {getOrg} from 'src/organizations/selectors'
-
-interface StateProps {
-  org: Organization
-}
-
-const CloudNav: FC<StateProps> = ({org}) => {
-  const usageURL = `${CLOUD_URL}${CLOUD_USAGE_PATH}`
-  const billingURL = `${CLOUD_URL}${CLOUD_BILLING_PATH}`
-  const handleUpgradeClick = () => {
-    window.location.assign(billingURL)
-  }
-
-  if (!org) {
+export default class CloudNav extends PureComponent {
+  render() {
     return (
-      <AppHeader className="cloud-nav">
-        <AppHeader.Logo>
-          <img className="cloud-nav--logo" alt="InfluxData Logo" src={Logo} />
-        </AppHeader.Logo>
-      </AppHeader>
-    )
-  }
-
-  return (
-    <AppHeader className="cloud-nav">
-      <AppHeader.Logo>
-        <Link to={`/orgs/${org.id}`} className="cloud-nav--logo-link">
-          <img className="cloud-nav--logo" alt="InfluxData Logo" src={Logo} />
-        </Link>
-      </AppHeader.Logo>
-      <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Medium}>
-        <Button
-          color={ComponentColor.Success}
-          text="Upgrade"
-          onClick={handleUpgradeClick}
-          className="upgrade-payg--button"
-        />
-        <PopNav>
-          <p className="cloud-nav--account">
-            Logged in as <strong>{org.name}</strong>
-          </p>
-          <PopNav.Item
-            active={false}
-            titleLink={className => (
-              <a className={className} href={usageURL}>
-                Usage
-              </a>
-            )}
-          />
+      <CloudOnly>
+        <NavMenu.Item
+          active={false}
+          titleLink={className => (
+            <a className={className} href={this.usageURL}>
+              Usage
+            </a>
+          )}
+          iconLink={className => (
+            <a className={className} href={this.usageURL}>
+              <Icon glyph={IconFont.Cloud} />
+            </a>
+          )}
+        >
           <FeatureFlag name="cloudBilling">
-            <PopNav.Item
+            <NavMenu.SubItem
               active={false}
               titleLink={className => (
-                <a className={className} href={billingURL}>
+                <a className={className} href={this.usageURL}>
+                  Usage
+                </a>
+              )}
+            />
+            <NavMenu.SubItem
+              active={false}
+              titleLink={className => (
+                <a className={className} href={this.billingURL}>
                   Billing
                 </a>
               )}
             />
           </FeatureFlag>
-          <PopNav.Item
-            active={false}
-            titleLink={className => (
-              <a className={className} href={CLOUD_SIGNOUT_URL}>
-                Logout
-              </a>
-            )}
-          />
-        </PopNav>
-      </FlexBox>
-    </AppHeader>
-  )
-}
+        </NavMenu.Item>
+      </CloudOnly>
+    )
+  }
 
-const mstp = (state: AppState) => {
-  const org = getOrg(state)
-  return {org}
-}
+  private get usageURL(): string {
+    return `${CLOUD_URL}${CLOUD_USAGE_PATH}`
+  }
 
-export default connect<StateProps>(mstp)(CloudNav)
+  private get billingURL(): string {
+    return `${CLOUD_URL}${CLOUD_BILLING_PATH}`
+  }
+}
