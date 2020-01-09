@@ -11,11 +11,8 @@ import {
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Actions
-import {
-  refreshVariableValues,
-  selectValue,
-  setValues,
-} from 'src/variables/actions'
+import {selectValue, setValues} from 'src/variables/actions/creators'
+import {refreshVariableValues} from 'src/variables/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 
 // Constants

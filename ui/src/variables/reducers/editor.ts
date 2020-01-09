@@ -3,7 +3,7 @@ import {produce} from 'immer'
 
 // Types
 import {VariableEditorState} from 'src/types'
-import {EditorAction} from 'src/variables/actions'
+import {EditorAction} from 'src/variables/actions/creators'
 
 export const initialEditorState = (): VariableEditorState => ({
   name: '',

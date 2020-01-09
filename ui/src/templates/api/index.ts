@@ -15,7 +15,7 @@ import {
   hasLabelsRelationships,
   getLabelRelationships,
 } from 'src/templates/utils/'
-import {addVariableDefaults} from 'src/variables/actions'
+import {addVariableDefaults} from 'src/variables/actions/thunks'
 import {addLabelDefaults} from 'src/labels/utils'
 
 // API
@@ -285,6 +285,7 @@ const createVariablesFromTemplate = async (
     throw new Error(resp.data.message)
   }
 
+  // TODO: normalize
   const variables = resp.data.variables.map(v => addVariableDefaults(v))
 
   const variablesToCreate = findVariablesToCreate(

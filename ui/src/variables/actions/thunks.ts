@@ -1,16 +1,12 @@
 // Actions
 import {notify} from 'src/shared/actions/notifications'
-import {
-  getVariablesFailed,
-  getVariableFailed,
-  createVariableFailed,
-  updateVariableFailed,
-  deleteVariableFailed,
-  deleteVariableSuccess,
-  createVariableSuccess,
-  updateVariableSuccess,
-} from 'src/shared/copy/notifications'
 import {setExportTemplate} from 'src/templates/actions'
+import {
+  setValues,
+  setVariables,
+  setVariable,
+  removeVariable,
+} from 'src/variables/actions/creators'
 
 // APIs
 import {hydrateVars} from 'src/variables/utils/hydrateVars'
@@ -23,14 +19,15 @@ import {
   postVariable as apiPostVariable,
   postVariablesLabel as apiPostVariablesLabel,
   patchVariable as apiPatchVariable,
+  Variable as IVariable,
 } from 'src/client'
 
 // Utils
 import {getValueSelections, extractVariablesList} from 'src/variables/selectors'
-import {addLabelDefaults} from 'src/labels/utils'
 import {CancelBox} from 'src/types/promises'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {findDependentVariables} from 'src/variables/utils/exportVariables'
+import {addLabelDefaults} from 'src/labels/utils'
 import {getOrg} from 'src/organizations/selectors'
 
 // Constants
@@ -40,30 +37,19 @@ import * as copy from 'src/shared/copy/notifications'
 import {Dispatch} from 'react'
 import {
   GetState,
-  VariableArgumentType,
   RemoteDataState,
   VariableTemplate,
-  QueryArguments,
-  MapArguments,
-  CSVArguments,
   Label,
   Variable,
   VariableValuesByID,
 } from 'src/types'
-import {Variable as IVariable} from 'src/client'
-import {
-  addVariableLabelFailed,
-  removeVariableLabelFailed,
-} from 'src/shared/copy/notifications'
 import {Action as NotifyAction} from 'src/shared/actions/notifications'
+import {
+  Action as VariableAction,
+  EditorAction,
+} from 'src/variables/actions/creators'
 
-export type EditorAction =
-  | ReturnType<typeof clearEditor>
-  | ReturnType<typeof updateType>
-  | ReturnType<typeof updateName>
-  | ReturnType<typeof updateQuery>
-  | ReturnType<typeof updateMap>
-  | ReturnType<typeof updateConstant>
+type Action = VariableAction | EditorAction | NotifyAction
 
 export const addVariableDefaults = (variable: IVariable): Variable => {
   return {
@@ -72,90 +58,6 @@ export const addVariableDefaults = (variable: IVariable): Variable => {
     status: RemoteDataState.NotStarted,
   }
 }
-
-export const clearEditor = () => ({
-  type: 'CLEAR_VARIABLE_EDITOR' as 'CLEAR_VARIABLE_EDITOR',
-})
-
-export const updateType = (type: VariableArgumentType) => ({
-  type: 'CHANGE_VARIABLE_EDITOR_TYPE' as 'CHANGE_VARIABLE_EDITOR_TYPE',
-  payload: type,
-})
-
-export const updateName = (name: string) => ({
-  type: 'UPDATE_VARIABLE_EDITOR_NAME' as 'UPDATE_VARIABLE_EDITOR_NAME',
-  payload: name,
-})
-
-export const updateQuery = (arg: QueryArguments) => ({
-  type: 'UPDATE_VARIABLE_EDITOR_QUERY' as 'UPDATE_VARIABLE_EDITOR_QUERY',
-  payload: arg,
-})
-
-export const updateMap = (arg: MapArguments) => ({
-  type: 'UPDATE_VARIABLE_EDITOR_MAP' as 'UPDATE_VARIABLE_EDITOR_MAP',
-  payload: arg,
-})
-
-export const updateConstant = (arg: CSVArguments) => ({
-  type: 'UPDATE_VARIABLE_EDITOR_CONSTANT' as 'UPDATE_VARIABLE_EDITOR_CONSTANT',
-  payload: arg,
-})
-
-export type Action =
-  | ReturnType<typeof setVariables>
-  | ReturnType<typeof setVariable>
-  | ReturnType<typeof removeVariable>
-  | ReturnType<typeof moveVariable>
-  | ReturnType<typeof setValues>
-  | ReturnType<typeof selectValue>
-  | NotifyAction
-
-const setVariables = (status: RemoteDataState, variables?: Variable[]) => ({
-  type: 'SET_VARIABLES' as 'SET_VARIABLES',
-  payload: {status, variables},
-})
-
-const setVariable = (
-  id: string,
-  status: RemoteDataState,
-  variable?: Variable
-) => ({
-  type: 'SET_VARIABLE' as 'SET_VARIABLE',
-  payload: {id, status, variable},
-})
-
-const removeVariable = (id: string) => ({
-  type: 'REMOVE_VARIABLE' as 'REMOVE_VARIABLE',
-  payload: {id},
-})
-
-export const moveVariable = (
-  originalIndex: number,
-  newIndex: number,
-  contextID: string
-) => ({
-  type: 'MOVE_VARIABLE' as 'MOVE_VARIABLE',
-  payload: {originalIndex, newIndex, contextID},
-})
-
-export const setValues = (
-  contextID: string,
-  status: RemoteDataState,
-  values?: VariableValuesByID
-) => ({
-  type: 'SET_VARIABLE_VALUES' as 'SET_VARIABLE_VALUES',
-  payload: {contextID, status, values},
-})
-
-export const selectValue = (
-  contextID: string,
-  variableID: string,
-  selectedValue: string
-) => ({
-  type: 'SELECT_VARIABLE_VALUE' as 'SELECT_VARIABLE_VALUE',
-  payload: {contextID, variableID, selectedValue},
-})
 
 export const getVariables = () => async (
   dispatch: Dispatch<Action>,
@@ -175,7 +77,7 @@ export const getVariables = () => async (
   } catch (e) {
     console.error(e)
     dispatch(setVariables(RemoteDataState.Error))
-    dispatch(notify(getVariablesFailed()))
+    dispatch(notify(copy.getVariablesFailed()))
   }
 }
 
@@ -196,7 +98,7 @@ export const getVariable = (id: string) => async (
   } catch (e) {
     console.error(e)
     dispatch(setVariable(id, RemoteDataState.Error))
-    dispatch(notify(getVariableFailed()))
+    dispatch(notify(copy.getVariableFailed()))
   }
 }
 
@@ -219,10 +121,10 @@ export const createVariable = (
     const createdVar = addVariableDefaults(resp.data)
 
     dispatch(setVariable(createdVar.id, RemoteDataState.Done, createdVar))
-    dispatch(notify(createVariableSuccess(variable.name)))
+    dispatch(notify(copy.createVariableSuccess(variable.name)))
   } catch (e) {
     console.error(e)
-    dispatch(notify(createVariableFailed(e.message)))
+    dispatch(notify(copy.createVariableFailed(e.message)))
   }
 }
 
@@ -239,10 +141,10 @@ export const createVariableFromTemplate = (
     dispatch(
       setVariable(createdVariable.id, RemoteDataState.Done, createdVariable)
     )
-    dispatch(notify(createVariableSuccess(createdVariable.name)))
+    dispatch(notify(copy.createVariableSuccess(createdVariable.name)))
   } catch (e) {
     console.error(e)
-    dispatch(notify(createVariableFailed(e.message)))
+    dispatch(notify(copy.createVariableFailed(e.message)))
   }
 }
 
@@ -263,11 +165,11 @@ export const updateVariable = (id: string, props: Variable) => async (
     const variable = addVariableDefaults(resp.data)
 
     dispatch(setVariable(id, RemoteDataState.Done, variable))
-    dispatch(notify(updateVariableSuccess(variable.name)))
+    dispatch(notify(copy.updateVariableSuccess(variable.name)))
   } catch (e) {
     console.error(e)
     dispatch(setVariable(id, RemoteDataState.Error))
-    dispatch(notify(updateVariableFailed(e.message)))
+    dispatch(notify(copy.updateVariableFailed(e.message)))
   }
 }
 
@@ -281,11 +183,11 @@ export const deleteVariable = (id: string) => async (
       throw new Error(resp.data.message)
     }
     dispatch(removeVariable(id))
-    dispatch(notify(deleteVariableSuccess()))
+    dispatch(notify(copy.deleteVariableSuccess()))
   } catch (e) {
     console.error(e)
     dispatch(setVariable(id, RemoteDataState.Done))
-    dispatch(notify(deleteVariableFailed(e.message)))
+    dispatch(notify(copy.deleteVariableFailed(e.message)))
   }
 }
 
@@ -302,10 +204,11 @@ export const refreshVariableValues = (
   dispatch(setValues(contextID, RemoteDataState.Loading))
 
   try {
-    const org = getOrg(getState())
-    const url = getState().links.query.self
-    const selections = getValueSelections(getState(), contextID)
-    const allVariables = extractVariablesList(getState())
+    const state = getState()
+    const org = getOrg(state)
+    const url = state.links.query.self
+    const selections = getValueSelections(state, contextID)
+    const allVariables = extractVariablesList(state)
 
     if (pendingValueRequests[contextID]) {
       pendingValueRequests[contextID].cancel()
@@ -384,7 +287,7 @@ export const addVariableLabelAsync = (
     dispatch(setVariable(variableID, RemoteDataState.Done, variable))
   } catch (error) {
     console.error(error)
-    dispatch(notify(addVariableLabelFailed()))
+    dispatch(notify(copy.addVariableLabelFailed()))
   }
 }
 
@@ -411,6 +314,6 @@ export const removeVariableLabelAsync = (
     dispatch(setVariable(variableID, RemoteDataState.Done, variable))
   } catch (error) {
     console.error(error)
-    dispatch(notify(removeVariableLabelFailed()))
+    dispatch(notify(copy.removeVariableLabelFailed()))
   }
 }

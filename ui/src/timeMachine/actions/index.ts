@@ -9,7 +9,7 @@ import {
   reloadTagSelectors,
   Action as QueryBuilderAction,
 } from 'src/timeMachine/actions/queryBuilder'
-import {setValues} from 'src/variables/actions'
+import {setValues} from 'src/variables/actions/creators'
 import {convertCheckToCustom} from 'src/alerting/actions/alertBuilder'
 
 // Selectors
