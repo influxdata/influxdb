@@ -125,8 +125,9 @@ class TaskOptionsBucketDropdown extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
-    .filter((bucket: Bucket): boolean => bucket.type !== 'system')
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets).filter(
+    (bucket: Bucket): boolean => bucket.type !== 'system'
+  )
   const status = getStatus(state, ResourceType.Buckets)
 
   return {

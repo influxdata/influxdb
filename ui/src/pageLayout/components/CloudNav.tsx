@@ -40,7 +40,7 @@ const CloudNav: FC<StateProps> = ({org}) => {
   const usageURL = `${CLOUD_URL}${CLOUD_USAGE_PATH}`
   const billingURL = `${CLOUD_URL}${CLOUD_BILLING_PATH}`
   const handleUpgradeClick = () => {
-    console.log('boop')
+    window.location.assign(billingURL)
   }
 
   if (!org) {
