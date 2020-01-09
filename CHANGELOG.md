@@ -50,6 +50,7 @@
 1. [16427](https://github.com/influxdata/influxdb/pull/16427): Fixed underlying issue with disappearing queries made in Advanced Mode
 1. [16439](https://github.com/influxdata/influxdb/pull/16439): Prevent negative zero and allow zero to have decimal places
 1. [16376](https://github.com/influxdata/influxdb/pull/16413): Limit data loader bucket selection to non system buckets
+1. [16458](https://github.com/influxdata/influxdb/pull/16458): Fix EOF error when manually running tasks from the Task Page.
 
 ### UI Improvements
 1. [16444](https://github.com/influxdata/influxdb/pull/16444): Add honeybadger reporting to create checks
