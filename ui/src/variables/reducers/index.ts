@@ -9,10 +9,14 @@ import {
   VariablesState,
   ResourceType,
 } from 'src/types'
-import {Action, SET_VARIABLES} from 'src/variables/actions/creators'
+import {
+  Action,
+  SET_VARIABLES,
+  SET_VARIABLE,
+} from 'src/variables/actions/creators'
 
 // Utils
-import {setResource} from 'src/resources/reducers/helpers'
+import {setResource, removeResource} from 'src/resources/reducers/helpers'
 
 export const initialState = (): VariablesState => ({
   status: RemoteDataState.NotStarted,
@@ -33,12 +37,16 @@ export const variablesReducer = (
         return
       }
 
-      case 'SET_VARIABLE': {
-        const {id, status, variable} = action.payload
+      case SET_VARIABLE: {
+        const {id, status, schema} = action
+        const {entities} = schema
+
+        const variable = get(entities, ['variables', id])
         const variableExists = !!draftState.byID[id]
 
         if (variable || !variableExists) {
           draftState.byID[id] = {...variable, status}
+          draftState.allIDs.push(id)
         } else {
           draftState.byID[id].status = status
         }
@@ -47,9 +55,7 @@ export const variablesReducer = (
       }
 
       case 'REMOVE_VARIABLE': {
-        const {id} = action.payload
-
-        delete draftState.byID[id]
+        removeResource<Variable>(draftState, action)
 
         return
       }

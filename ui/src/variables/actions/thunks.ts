@@ -75,8 +75,8 @@ export const getVariables = () => async (
     )
 
     dispatch(setVariables(RemoteDataState.Done, variables))
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
     dispatch(setVariables(RemoteDataState.Error))
     dispatch(notify(copy.getVariablesFailed()))
   }
@@ -93,11 +93,14 @@ export const getVariable = (id: string) => async (
       throw new Error(resp.data.message)
     }
 
-    const variable = addVariableDefaults(resp.data)
+    const variable = normalize<Variable, VariableEntities, string>(
+      resp.data,
+      schemas.variable
+    )
 
     dispatch(setVariable(id, RemoteDataState.Done, variable))
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
     dispatch(setVariable(id, RemoteDataState.Error))
     dispatch(notify(copy.getVariableFailed()))
   }
@@ -119,13 +122,16 @@ export const createVariable = (
       throw new Error(resp.data.message)
     }
 
-    const createdVar = addVariableDefaults(resp.data)
+    const createdVar = normalize<Variable, VariableEntities, string>(
+      resp.data,
+      schemas.variable
+    )
 
-    dispatch(setVariable(createdVar.id, RemoteDataState.Done, createdVar))
+    dispatch(setVariable(resp.data.id, RemoteDataState.Done, createdVar))
     dispatch(notify(copy.createVariableSuccess(variable.name)))
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.createVariableFailed(e.message)))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.createVariableFailed(error.message)))
   }
 }
 
@@ -134,18 +140,18 @@ export const createVariableFromTemplate = (
 ) => async (dispatch: Dispatch<Action>, getState: GetState) => {
   try {
     const org = getOrg(getState())
-    const createdVariable = await createVariableFromTemplateAJAX(
-      template,
-      org.id
+    const resp = await createVariableFromTemplateAJAX(template, org.id)
+
+    const createdVar = normalize<Variable, VariableEntities, string>(
+      resp,
+      schemas.variable
     )
 
-    dispatch(
-      setVariable(createdVariable.id, RemoteDataState.Done, createdVariable)
-    )
-    dispatch(notify(copy.createVariableSuccess(createdVariable.name)))
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.createVariableFailed(e.message)))
+    dispatch(setVariable(resp.id, RemoteDataState.Done, createdVar))
+    dispatch(notify(copy.createVariableSuccess(resp.name)))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.createVariableFailed(error.message)))
   }
 }
 
@@ -154,6 +160,7 @@ export const updateVariable = (id: string, props: Variable) => async (
 ) => {
   try {
     dispatch(setVariable(id, RemoteDataState.Loading))
+
     const resp = await api.patchVariable({
       variableID: id,
       data: props,
@@ -163,14 +170,17 @@ export const updateVariable = (id: string, props: Variable) => async (
       throw new Error(resp.data.message)
     }
 
-    const variable = addVariableDefaults(resp.data)
+    const variable = normalize<Variable, VariableEntities, string>(
+      resp.data,
+      schemas.variable
+    )
 
     dispatch(setVariable(id, RemoteDataState.Done, variable))
-    dispatch(notify(copy.updateVariableSuccess(variable.name)))
-  } catch (e) {
-    console.error(e)
+    dispatch(notify(copy.updateVariableSuccess(resp.data.name)))
+  } catch (error) {
+    console.error(error)
     dispatch(setVariable(id, RemoteDataState.Error))
-    dispatch(notify(copy.updateVariableFailed(e.message)))
+    dispatch(notify(copy.updateVariableFailed(error.message)))
   }
 }
 
@@ -283,7 +293,10 @@ export const addVariableLabelAsync = (
       throw new Error(resp.data.message)
     }
 
-    const variable = addVariableDefaults(resp.data)
+    const variable = normalize<Variable, VariableEntities, string>(
+      resp.data,
+      schemas.variable
+    )
 
     dispatch(setVariable(variableID, RemoteDataState.Done, variable))
   } catch (error) {
@@ -295,7 +308,7 @@ export const addVariableLabelAsync = (
 export const removeVariableLabelAsync = (
   variableID: string,
   label: Label
-) => async (dispatch): Promise<void> => {
+) => async (dispatch: Dispatch<Action>) => {
   try {
     const deleted = await api.deleteVariablesLabel({
       variableID,
@@ -310,7 +323,10 @@ export const removeVariableLabelAsync = (
       throw new Error(resp.data.message)
     }
 
-    const variable = addVariableDefaults(resp.data)
+    const variable = normalize<Variable, VariableEntities, string>(
+      resp.data,
+      schemas.variable
+    )
 
     dispatch(setVariable(variableID, RemoteDataState.Done, variable))
   } catch (error) {

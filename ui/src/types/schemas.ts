@@ -69,7 +69,7 @@ export interface TaskEntities {
 // VariableEntities defines the result of normalizr's normalization
 // of the "variables" resource
 export interface VariableEntities {
-  tasks: {
+  variables: {
     [uuid: string]: Variable
   }
 }

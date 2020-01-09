@@ -6,13 +6,13 @@ import {
   QueryArguments,
   MapArguments,
   CSVArguments,
-  Variable,
   VariableValuesByID,
 } from 'src/types'
 import {NormalizedSchema} from 'normalizr'
 
 export const SET_VARIABLES = 'SET_VARIABLES'
 export const SET_VARIABLE = 'SET_VARIABLE'
+export const REMOVE_VARIABLE = 'REMOVE_VARIABLE'
 
 export type Action =
   | ReturnType<typeof setVariables>
@@ -41,16 +41,20 @@ export const setVariables = (
 export const setVariable = (
   id: string,
   status: RemoteDataState,
-  variable?: Variable
-) => ({
-  type: 'SET_VARIABLE' as 'SET_VARIABLE',
-  payload: {id, status, variable},
-})
+  schema?: VariablesSchema<string>
+) =>
+  ({
+    type: SET_VARIABLE,
+    id,
+    status,
+    schema,
+  } as const)
 
-export const removeVariable = (id: string) => ({
-  type: 'REMOVE_VARIABLE' as 'REMOVE_VARIABLE',
-  payload: {id},
-})
+export const removeVariable = (id: string) =>
+  ({
+    type: REMOVE_VARIABLE,
+    id,
+  } as const)
 
 export const moveVariable = (
   originalIndex: number,
