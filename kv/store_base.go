@@ -1,7 +1,6 @@
 package kv
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -505,52 +504,37 @@ type iterator struct {
 	offset     int
 	prefix     []byte
 
-	seekChan <-chan struct{ k, v []byte }
+	nextFn func() (key, val []byte)
 
 	decodeFn func(key, val []byte) (k []byte, decodedVal interface{}, err error)
 	filterFn FilterFn
 }
 
 func (i *iterator) Next(ctx context.Context) (key []byte, val interface{}, err error) {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if i.limit > 0 && i.counter >= i.limit+i.offset {
 		return nil, nil, nil
 	}
 
-	var (
-		k, vRaw []byte
-		nextFn  func() ([]byte, []byte)
-	)
+	var k, vRaw []byte
 	switch {
+	case i.nextFn != nil:
+		k, vRaw = i.nextFn()
 	case len(i.prefix) > 0:
-		i.seek(ctx)
-		nextFn = func() ([]byte, []byte) {
-			select {
-			case <-ctx.Done():
-				return nil, nil
-			case kv := <-i.seekChan:
-				return kv.k, kv.v
-			}
-		}
-		k, vRaw = nextFn()
-	case i.counter == 0 && i.descending:
-		k, vRaw = i.cursor.Last()
-		nextFn = i.cursor.Prev
-	case i.counter == 0:
-		k, vRaw = i.cursor.First()
-		nextFn = i.cursor.Next
+		k, vRaw = i.cursor.Seek(i.prefix)
+		i.nextFn = i.cursor.Next
 	case i.descending:
-		k, vRaw = i.cursor.Prev()
-		nextFn = i.cursor.Prev
+		k, vRaw = i.cursor.Last()
+		i.nextFn = i.cursor.Prev
 	default:
-		k, vRaw = i.cursor.Next()
-		nextFn = i.cursor.Next
+		k, vRaw = i.cursor.First()
+		i.nextFn = i.cursor.Next
 	}
 
 	k, decodedVal, err := i.decodeFn(k, vRaw)
-	for ; ; k, decodedVal, err = i.decodeFn(nextFn()) {
+	for ; ; k, decodedVal, err = i.decodeFn(i.nextFn()) {
 		if err != nil {
 			return nil, nil, err
 		}
@@ -583,31 +567,6 @@ func (i *iterator) isNext(k []byte, v interface{}) bool {
 		return false
 	}
 	return true
-}
-
-func (i *iterator) seek(ctx context.Context) {
-	if i.seekChan != nil || len(i.prefix) == 0 {
-		return
-	}
-	out := make(chan struct{ k, v []byte })
-	i.seekChan = out
-
-	go func() {
-		defer close(out)
-
-		for k, v := i.cursor.Seek(i.prefix); bytes.HasPrefix(k, i.prefix); k, v = i.cursor.Next() {
-			if len(k) == 0 {
-				return
-			}
-
-			select {
-			case <-ctx.Done():
-				return
-			case out <- struct{ k, v []byte }{k: k, v: v}:
-			}
-		}
-	}()
-
 }
 
 func IsErrUnexpectedDecodeVal(ok bool) error {

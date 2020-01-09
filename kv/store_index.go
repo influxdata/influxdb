@@ -76,94 +76,14 @@ func (s *IndexStore) DeleteEnt(ctx context.Context, tx Tx, ent Entity) error {
 }
 
 // Find provides a mechanism for looking through the bucket via
-// the set options. When a prefix is provided, the prefix is used with
-// the index, and not the entity bucket. If you wish to look at the entity
-// bucket and seek, then nest into the EntStore here and do that instead.
+// the set options. When a prefix is provided, it will be used within
+// the entity store. If you would like to search the index store, then
+// you can by calling the index store directly.
 func (s *IndexStore) Find(ctx context.Context, tx Tx, opts FindOpts) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if len(opts.Prefix) == 0 {
-		return s.EntStore.Find(ctx, tx, opts)
-	}
-
-	entCaptureFn := opts.CaptureFn
-	kvStream, filterFn := s.indexFilterStream(ctx, tx, opts.FilterEntFn)
-	opts.FilterEntFn = filterFn
-	opts.CaptureFn = func(key []byte, indexVal interface{}) error {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case fromFilter, ok := <-kvStream:
-			if !ok {
-				return nil
-			}
-			if fromFilter.err != nil {
-				return fromFilter.err
-			}
-			return entCaptureFn(fromFilter.k, fromFilter.v)
-		}
-	}
-	return s.IndexStore.Find(ctx, tx, opts)
-
-}
-
-func (s *IndexStore) indexFilterStream(ctx context.Context, tx Tx, entFilterFn FilterFn) (<-chan struct {
-	k   []byte
-	v   interface{}
-	err error
-}, func([]byte, interface{}) bool) {
-
-	kvStream := make(chan struct {
-		k   []byte
-		v   interface{}
-		err error
-	}, 1)
-
-	type kve struct {
-		k   []byte
-		v   interface{}
-		err error
-	}
-
-	send := func(key []byte, v interface{}, err error) bool {
-		select {
-		case <-ctx.Done():
-		case kvStream <- kve{k: key, v: v, err: err}:
-		}
-		return true
-	}
-
-	return kvStream, func(key []byte, indexVal interface{}) (isValid bool) {
-		defer func() {
-			if !isValid {
-				close(kvStream)
-			}
-		}()
-		ent, err := s.IndexStore.ConvertValToEntFn(key, indexVal)
-		if err != nil {
-			return send(nil, nil, err)
-		}
-
-		entVal, err := s.EntStore.FindEnt(ctx, tx, ent)
-		if err != nil {
-			return send(nil, nil, err)
-		}
-
-		entKey, err := s.EntStore.EntKey(ctx, ent)
-		if err != nil {
-			return send(nil, nil, err)
-		}
-
-		if entFilterFn == nil {
-			return send(entKey, entVal, nil)
-		}
-
-		if matches := entFilterFn(entKey, entVal); matches {
-			return send(entKey, entVal, nil)
-		}
-		return false
-	}
+	return s.EntStore.Find(ctx, tx, opts)
 }
 
 // FindEnt returns the decoded entity body via teh provided entity.
