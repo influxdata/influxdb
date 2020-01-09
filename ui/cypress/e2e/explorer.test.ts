@@ -647,16 +647,14 @@ describe('DataExplorer', () => {
 
     describe('as a task', () => {
       beforeEach(() => {
-        cy.getByTestID('task--radio-button')
-          .click()
+        cy.getByTestID('task--radio-button').click()
       })
 
       it('should autoselect the first bucket', () => {
         cy.getByTestID('task-options-bucket-dropdown--button').within(() => {
-          cy.get('span.cf-dropdown--selected')
-            .then((elem) => {
-              expect(elem.text()).to.include('defbuck')
-            })
+          cy.get('span.cf-dropdown--selected').then(elem => {
+            expect(elem.text()).to.include('defbuck')
+          })
         })
       })
     })
