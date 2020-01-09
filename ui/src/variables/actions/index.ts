@@ -30,7 +30,7 @@ import {getValueSelections, extractVariablesList} from 'src/variables/selectors'
 import {addLabelDefaults} from 'src/labels/utils'
 import {CancelBox} from 'src/types/promises'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
-import {findDepedentVariables} from 'src/variables/utils/exportVariables'
+import {findDependentVariables} from 'src/variables/utils/exportVariables'
 import {getOrg} from 'src/organizations/selectors'
 
 // Constants
@@ -351,7 +351,7 @@ export const convertToTemplate = (variableID: string) => async (
     const variables = allVariables.data.variables.map(v =>
       addVariableDefaults(v)
     )
-    const dependencies = findDepedentVariables(variable, variables)
+    const dependencies = findDependentVariables(variable, variables)
     const variableTemplate = variableToTemplate(variable, dependencies)
 
     dispatch(setExportTemplate(RemoteDataState.Done, variableTemplate))
