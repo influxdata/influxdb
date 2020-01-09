@@ -1,5 +1,5 @@
 // Types
-import {Variable} from 'src/types'
+import {Variable, RemoteDataState} from 'src/types'
 
 export const createVariable = (
   name: string,
@@ -18,6 +18,7 @@ export const createVariable = (
       language: 'flux',
     },
   },
+  status: RemoteDataState.Done,
 })
 
 export const createMapVariable = (
@@ -34,4 +35,5 @@ export const createMapVariable = (
     type: 'map',
     values: {...map},
   },
+  status: RemoteDataState.Done,
 })

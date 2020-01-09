@@ -3,7 +3,7 @@ import {Provider} from 'react-redux'
 import {Router, createMemoryHistory} from 'react-router'
 
 import {render} from 'react-testing-library'
-import {initialState as initialVariablesState} from 'src/variables/reducers'
+import {initialState as initialVariablesState} from 'src/variables/reducers/variables'
 import {initialState as initialUserSettingsState} from 'src/userSettings/reducers'
 import configureStore from 'src/store/configureStore'
 import {RemoteDataState, TimeZone, LocalStorage, ResourceType} from 'src/types'
@@ -28,7 +28,6 @@ export const localState: LocalStorage = {
     '0349ecda531ea000': pastFifteenMinTimeRange,
   },
   autoRefresh: {},
-  variables: initialVariablesState(),
   userSettings: initialUserSettingsState(),
   resources: {
     [Orgs]: {
@@ -42,6 +41,7 @@ export const localState: LocalStorage = {
       org: {name: 'org', id: 'orgid'},
       status: Done,
     },
+    variables: initialVariablesState(),
   },
 }
 

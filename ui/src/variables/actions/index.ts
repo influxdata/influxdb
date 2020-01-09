@@ -69,6 +69,7 @@ export const addVariableDefaults = (variable: IVariable): Variable => {
   return {
     ...variable,
     labels: (variable.labels || []).map(addLabelDefaults),
+    status: RemoteDataState.NotStarted,
   }
 }
 

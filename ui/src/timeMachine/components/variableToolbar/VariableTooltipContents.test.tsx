@@ -17,11 +17,11 @@ const variableValues = {
 const setInitialState = (state: AppState) => {
   return {
     ...state,
-    variables: {
-      status: 'Done',
+    resources: {
       variables: {
-        '04960e76e5afe000': {
-          variable: {
+        status: 'Done',
+        byID: {
+          '04960e76e5afe000': {
             id: '04960e76e5afe000',
             orgID: '2e9f65b990c28374',
             name: 'example_map',
@@ -42,18 +42,18 @@ const setInitialState = (state: AppState) => {
           },
           status: 'Done',
         },
-      },
-      values: {
-        de: {
-          status: 'Done',
-          values: {
-            '04960e76e5afe000': {
-              valueType: 'string',
-              values: Object.keys(variableValues),
-              selectedValue: 'key1',
+        values: {
+          de: {
+            status: 'Done',
+            values: {
+              '04960e76e5afe000': {
+                valueType: 'string',
+                values: Object.keys(variableValues),
+                selectedValue: 'key1',
+              },
             },
+            order: ['04960e76e5afe000'],
           },
-          order: ['04960e76e5afe000'],
         },
       },
     },
