@@ -10,6 +10,7 @@ import NotesPortal from 'src/portals/NotesPortal'
 import Notifications from 'src/shared/components/notifications/Notifications'
 import OverlayController from 'src/overlays/components/OverlayController'
 import CloudNav from 'src/pageLayout/components/CloudNav'
+import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 
 // Types
 import {AppState} from 'src/types'
@@ -25,7 +26,9 @@ type Props = OwnProps & StateProps
 
 const App: SFC<Props> = ({children, inPresentationMode}) => (
   <>
-    <CloudNav />
+    <CloudOnly>
+      <CloudNav />
+    </CloudOnly>
     <AppWrapper presentationMode={inPresentationMode}>
       <Notifications />
       <TooltipPortal />
