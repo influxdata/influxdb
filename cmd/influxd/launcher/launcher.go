@@ -819,6 +819,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			endpoints.WithUserResourceMappingSVC(userResourceSvc),
 		)
 		notificationEndpointSVC = endpoints.MiddlewareTracing()(notificationEndpointSVC)
+		notificationEndpointSVC = endpoints.MiddlewareMetrics(m.reg)(notificationEndpointSVC)
 	}
 	m.apibackend.NotificationEndpointService = notificationEndpointSVC
 
