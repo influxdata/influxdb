@@ -30,6 +30,7 @@
 1. [16430](https://github.com/influxdata/influxdb/pull/16430): Added toggle to table thresholds to allow users to choose between setting threshold colors to text or background
 1. [16418](https://github.com/influxdata/influxdb/pull/16418): Add Developer Documentation
 1. [16260](https://github.com/influxdata/influxdb/pull/16260): Capture User-Agent header as query source for logging purposes
+1. [16469](https://github.com/influxdata/influxdb/pull/16469): Add support for configurable max batch size in points write handler
 
 ### Bug Fixes
 
