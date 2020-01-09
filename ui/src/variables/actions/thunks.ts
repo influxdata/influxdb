@@ -15,18 +15,9 @@ import {
 import * as schemas from 'src/schemas'
 
 // APIs
+import * as api from 'src/client'
 import {hydrateVars} from 'src/variables/utils/hydrateVars'
 import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/templates/api'
-import {
-  deleteVariable as apiDeleteVariable,
-  deleteVariablesLabel as apiDeleteVariablesLabel,
-  getVariable as apiGetVariable,
-  getVariables as apiGetVariables,
-  postVariable as apiPostVariable,
-  postVariablesLabel as apiPostVariablesLabel,
-  patchVariable as apiPatchVariable,
-  Variable as IVariable,
-} from 'src/client'
 
 // Utils
 import {getValueSelections, extractVariablesList} from 'src/variables/selectors'
@@ -58,7 +49,7 @@ import {
 
 type Action = VariableAction | EditorAction | NotifyAction
 
-export const addVariableDefaults = (variable: IVariable): Variable => {
+export const addVariableDefaults = (variable: api.Variable): Variable => {
   return {
     ...variable,
     labels: (variable.labels || []).map(addLabelDefaults),
@@ -73,7 +64,7 @@ export const getVariables = () => async (
   try {
     dispatch(setVariables(RemoteDataState.Loading))
     const org = getOrg(getState())
-    const resp = await apiGetVariables({query: {orgID: org.id}})
+    const resp = await api.getVariables({query: {orgID: org.id}})
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
@@ -97,7 +88,7 @@ export const getVariable = (id: string) => async (
   try {
     dispatch(setVariable(id, RemoteDataState.Loading))
 
-    const resp = await apiGetVariable({variableID: id})
+    const resp = await api.getVariable({variableID: id})
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
@@ -117,7 +108,7 @@ export const createVariable = (
 ) => async (dispatch: Dispatch<Action>, getState: GetState) => {
   try {
     const org = getOrg(getState())
-    const resp = await apiPostVariable({
+    const resp = await api.postVariable({
       data: {
         ...variable,
         orgID: org.id,
@@ -163,7 +154,7 @@ export const updateVariable = (id: string, props: Variable) => async (
 ) => {
   try {
     dispatch(setVariable(id, RemoteDataState.Loading))
-    const resp = await apiPatchVariable({
+    const resp = await api.patchVariable({
       variableID: id,
       data: props,
     })
@@ -188,7 +179,7 @@ export const deleteVariable = (id: string) => async (
 ) => {
   try {
     dispatch(setVariable(id, RemoteDataState.Loading))
-    const resp = await apiDeleteVariable({variableID: id})
+    const resp = await api.deleteVariable({variableID: id})
     if (resp.status !== 204) {
       throw new Error(resp.data.message)
     }
@@ -250,14 +241,14 @@ export const convertToTemplate = (variableID: string) => async (
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
     const org = getOrg(getState())
-    const resp = await apiGetVariable({variableID})
+    const resp = await api.getVariable({variableID})
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
 
     const variable = addVariableDefaults(resp.data)
-    const allVariables = await apiGetVariables({query: {orgID: org.id}})
+    const allVariables = await api.getVariables({query: {orgID: org.id}})
     if (allVariables.status !== 200) {
       throw new Error(allVariables.data.message)
     }
@@ -279,14 +270,14 @@ export const addVariableLabelAsync = (
   label: Label
 ) => async (dispatch): Promise<void> => {
   try {
-    const posted = await apiPostVariablesLabel({
+    const posted = await api.postVariablesLabel({
       variableID,
       data: {labelID: label.id},
     })
     if (posted.status !== 201) {
       throw new Error(posted.data.message)
     }
-    const resp = await apiGetVariable({variableID})
+    const resp = await api.getVariable({variableID})
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
@@ -306,14 +297,14 @@ export const removeVariableLabelAsync = (
   label: Label
 ) => async (dispatch): Promise<void> => {
   try {
-    const deleted = await apiDeleteVariablesLabel({
+    const deleted = await api.deleteVariablesLabel({
       variableID,
       labelID: label.id,
     })
     if (deleted.status !== 204) {
       throw new Error(deleted.data.message)
     }
-    const resp = await apiGetVariable({variableID})
+    const resp = await api.getVariable({variableID})
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
