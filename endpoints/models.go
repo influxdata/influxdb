@@ -6,3 +6,5 @@ const (
 	TypePagerDuty = "pagerduty"
 	TypeSlack     = "slack"
 )
+
+var availableTypes = []string{TypeHTTP, TypePagerDuty, TypeSlack}

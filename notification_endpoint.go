@@ -58,6 +58,8 @@ type EndpointBase struct {
 	OrgID       ID     `json:"orgID,omitempty"`
 	Status      Status `json:"status"`
 	CRUDLog
+
+	Labels []Label `json:"labels"`
 }
 
 func (b EndpointBase) Valid() error {
