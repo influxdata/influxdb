@@ -258,36 +258,5 @@ func TestIndexStore(t *testing.T) {
 			}
 			assert.Equal(t, expected, actuals)
 		})
-
-		t.Run("lookup via orgID", func(t *testing.T) {
-			base, done, kvStore := newFooIndexStore(t, "find_index_search")
-			defer done()
-
-			expectedEnts := []kv.Entity{
-				newFooEnt(1, 9000, "foo_0"),
-				newFooEnt(2, 9001, "foo_1"),
-				newFooEnt(3, 9003, "foo_2"),
-				newFooEnt(4, 9003, "foo_3"),
-			}
-
-			seedEnts(t, kvStore, base, expectedEnts...)
-
-			var actuals []interface{}
-			view(t, kvStore, func(tx kv.Tx) error {
-				return base.Find(context.TODO(), tx, kv.FindOpts{
-					Prefix: encodeID(t, 9003),
-					CaptureFn: func(key []byte, decodedVal interface{}) error {
-						actuals = append(actuals, decodedVal)
-						return nil
-					},
-				})
-			})
-
-			expected := []interface{}{
-				expectedEnts[2].Body,
-				expectedEnts[3].Body,
-			}
-			assert.Equal(t, expected, actuals)
-		})
 	})
 }
