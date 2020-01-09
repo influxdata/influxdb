@@ -1,5 +1,6 @@
 // Types
 import {
+  VariableEntities,
   VariableArgumentType,
   RemoteDataState,
   QueryArguments,
@@ -8,6 +9,10 @@ import {
   Variable,
   VariableValuesByID,
 } from 'src/types'
+import {NormalizedSchema} from 'normalizr'
+
+export const SET_VARIABLES = 'SET_VARIABLES'
+export const SET_VARIABLE = 'SET_VARIABLE'
 
 export type Action =
   | ReturnType<typeof setVariables>
@@ -17,13 +22,21 @@ export type Action =
   | ReturnType<typeof setValues>
   | ReturnType<typeof selectValue>
 
+// R is the type of the value of the "result" key in normalizr's normalization
+type VariablesSchema<R extends string | string[]> = NormalizedSchema<
+  VariableEntities,
+  R
+>
+
 export const setVariables = (
   status: RemoteDataState,
-  variables?: Variable[]
-) => ({
-  type: 'SET_VARIABLES' as 'SET_VARIABLES',
-  payload: {status, variables},
-})
+  schema?: VariablesSchema<string[]>
+) =>
+  ({
+    type: SET_VARIABLES,
+    status,
+    schema,
+  } as const)
 
 export const setVariable = (
   id: string,

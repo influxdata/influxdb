@@ -1,3 +1,6 @@
+// Libraries
+import {normalize} from 'normalizr'
+
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 import {setExportTemplate} from 'src/templates/actions'
@@ -7,6 +10,9 @@ import {
   setVariable,
   removeVariable,
 } from 'src/variables/actions/creators'
+
+// Schemas
+import * as schemas from 'src/schemas'
 
 // APIs
 import {hydrateVars} from 'src/variables/utils/hydrateVars'
@@ -41,6 +47,7 @@ import {
   VariableTemplate,
   Label,
   Variable,
+  VariableEntities,
   VariableValuesByID,
 } from 'src/types'
 import {Action as NotifyAction} from 'src/shared/actions/notifications'
@@ -71,7 +78,10 @@ export const getVariables = () => async (
       throw new Error(resp.data.message)
     }
 
-    const variables = resp.data.variables.map(v => addVariableDefaults(v))
+    const variables = normalize<Variable, VariableEntities, string[]>(
+      resp.data.variables,
+      schemas.arrayOfVariables
+    )
 
     dispatch(setVariables(RemoteDataState.Done, variables))
   } catch (e) {

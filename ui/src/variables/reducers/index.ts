@@ -3,8 +3,16 @@ import {produce} from 'immer'
 import {get} from 'lodash'
 
 // Types
-import {RemoteDataState, VariablesState} from 'src/types'
-import {Action} from 'src/variables/actions/creators'
+import {
+  Variable,
+  RemoteDataState,
+  VariablesState,
+  ResourceType,
+} from 'src/types'
+import {Action, SET_VARIABLES} from 'src/variables/actions/creators'
+
+// Utils
+import {setResource} from 'src/resources/reducers/helpers'
 
 export const initialState = (): VariablesState => ({
   status: RemoteDataState.NotStarted,
@@ -19,21 +27,8 @@ export const variablesReducer = (
 ): VariablesState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_VARIABLES': {
-        const {status, variables} = action.payload
-
-        draftState.status = status
-
-        if (variables) {
-          draftState.byID = {}
-
-          for (const variable of variables) {
-            draftState.byID[variable.id] = {
-              ...variable,
-              status: RemoteDataState.Done,
-            }
-          }
-        }
+      case SET_VARIABLES: {
+        setResource<Variable>(draftState, action, ResourceType.Variables)
 
         return
       }
