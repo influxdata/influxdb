@@ -65,8 +65,8 @@ export default class InlineLabelPopover extends PureComponent<Props> {
         position={PopoverPosition.Below}
         triggerRef={triggerRef}
         distanceFromTrigger={8}
-        showEvent={PopoverInteraction.Hover}
-        hideEvent={PopoverInteraction.Hover}
+        showEvent={PopoverInteraction.Click}
+        hideEvent={PopoverInteraction.Click}
         testID="inline-labels--popover"
         contents={() => (
           <span>

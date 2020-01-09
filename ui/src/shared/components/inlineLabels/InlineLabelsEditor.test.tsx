@@ -2,7 +2,6 @@
 import React from 'react'
 import {act} from 'react-dom/test-utils'
 import {fireEvent} from 'react-testing-library'
-import 'intersection-observer'
 
 // Components
 import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsEditor'
@@ -65,14 +64,11 @@ describe('Shared.Components.InlineLabelsEditor', () => {
   })
 
   describe('mouse interactions', () => {
-    it('hovering the plus button opens the popover', () => {
+    it('Clicking the plus button opens the popover', () => {
       const {getByTestId, getAllByTestId} = setup()
 
       const plusButton = getByTestId('inline-labels--add')
-
-      act(() => {
-        fireEvent.mouseOver(plusButton)
-      })
+      plusButton.click()
 
       const popover = getAllByTestId('inline-labels--popover-field')
 
@@ -83,9 +79,8 @@ describe('Shared.Components.InlineLabelsEditor', () => {
       const {getByTestId, getAllByTestId} = setup()
 
       const plusButton = getByTestId('inline-labels--add')
-      act(() => {
-        fireEvent.mouseOver(plusButton)
-      })
+      plusButton.click()
+
       const inputValue = 'yodelling is rad'
 
       const input = getByTestId('inline-labels--popover-field')
@@ -108,9 +103,8 @@ describe('Shared.Components.InlineLabelsEditor', () => {
       const onAddLabel = jest.fn()
       const {getByTestId} = setup({onAddLabel})
       const button = getByTestId('inline-labels--add')
-      act(() => {
-        fireEvent.mouseOver(button)
-      })
+      button.click()
+
       const secondListItem = getByTestId(`label-list--item ${secondLabel.name}`)
       fireEvent.click(secondListItem)
 

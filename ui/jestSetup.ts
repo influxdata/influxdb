@@ -1,5 +1,4 @@
 import {cleanup} from 'react-testing-library'
-import 'intersection-observer'
 
 jest.mock('honeybadger-js', () => () => null)
 

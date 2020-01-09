@@ -162,7 +162,7 @@ describe('Dashboard', () => {
             .should('equal', secondKey)
 
           // graph tips responds to mouse over
-          cy.getByTestID('graphtips-question-mark').trigger('mouseover')
+          cy.getByTestID('graphtips-question-mark').click()
         })
       })
     })

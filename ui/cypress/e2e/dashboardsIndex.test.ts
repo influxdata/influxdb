@@ -197,7 +197,7 @@ describe('Dashboards', () => {
           cy.createLabel(labelName, id).then(() => {
             cy.getByTestID(`inline-labels--add`)
               .first()
-              .trigger('mouseover')
+              .click()
 
             cy.getByTestID(`label--pill ${labelName}`).click()
 
@@ -213,7 +213,7 @@ describe('Dashboards', () => {
           cy.createLabel(labelName, id).then(() => {
             cy.getByTestID(`inline-labels--add`)
               .first()
-              .trigger('mouseover')
+              .click()
 
             cy.getByTestID(`label--pill ${labelName}`).click()
 
@@ -233,7 +233,7 @@ describe('Dashboards', () => {
           cy.createLabel(labelName, id).then(() => {
             cy.getByTestID(`inline-labels--add`)
               .first()
-              .trigger('mouseover')
+              .click()
 
             cy.getByTestID(`inline-labels--popover-field`).type(labelName)
 
@@ -249,7 +249,7 @@ describe('Dashboards', () => {
         cy.get('@org').then(() => {
           cy.getByTestID(`inline-labels--add`)
             .first()
-            .trigger('mouseover')
+            .click()
 
           cy.getByTestID(`inline-labels--popover-field`)
             .type(labelName)
@@ -262,7 +262,7 @@ describe('Dashboards', () => {
         const label = 'plerps'
         cy.getByTestID(`inline-labels--add`)
           .first()
-          .trigger('mouseover')
+          .click()
 
         cy.getByTestID('inline-labels--popover-field').type(label)
         cy.getByTestID('inline-labels--create-new').click()
