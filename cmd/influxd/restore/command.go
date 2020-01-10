@@ -183,7 +183,7 @@ func removeIfExists(path string) error {
 
 func restoreBolt() error {
 	backupBolt := filepath.Join(flags.backupPath, bolt.DefaultFilename)
-	f, err := os.OpenFile(backupBolt, os.O_RDONLY, 0666)
+	f, err := os.Open(backupBolt)
 	if err != nil {
 		return fmt.Errorf("no bolt file in backup: %v", err)
 	}
@@ -206,7 +206,7 @@ func restoreBolt() error {
 
 func restoreEngine() error {
 	dataDir := filepath.Join(flags.enginePath, "/data")
-	if err := os.Mkdir(dataDir, 0777); err != nil {
+	if err := os.MkdirAll(flags.enginePath, 0777); err != nil {
 		return err
 	}
 
@@ -224,6 +224,7 @@ func restoreEngine() error {
 			if err != nil {
 				return err
 			}
+			defer w.Close()
 
 			_, err = io.Copy(w, f)
 			if err != nil {
