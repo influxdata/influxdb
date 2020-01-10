@@ -161,7 +161,7 @@ func Test_Pkg(t *testing.T) {
 						{name: "description", val: "new desc"},
 						{name: "version", val: "new version"},
 					},
-					envVars: []struct{ key, val string }{{key: "INFLUX_ORG", val: "influxdata"}},
+					envVars: map[string]string{"INFLUX_ORG": "influxdata"},
 				},
 				expectedMeta: pkger.Metadata{
 					Name:        "new name",
@@ -179,7 +179,7 @@ func Test_Pkg(t *testing.T) {
 						{name: "description", val: "new desc"},
 						{name: "version", val: "new version"},
 					},
-					envVars: []struct{ key, val string }{{key: "INFLUX_ORG_ID", val: expectedOrgID.String()}},
+					envVars: map[string]string{"INFLUX_ORG_ID": expectedOrgID.String()},
 				},
 				expectedMeta: pkger.Metadata{
 					Name:        "new name",
@@ -518,13 +518,13 @@ type pkgFileArgs struct {
 	filename string
 	encoding pkger.Encoding
 	flags    []flagArg
-	envVars  []struct {
-		key, val string
-	}
+	envVars  map[string]string
 }
 
 func testPkgWrites(t *testing.T, newCmdFn func() *cobra.Command, args pkgFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) {
 	t.Helper()
+
+	defer addEnvVars(t, args.envVars)()
 
 	wrappedCmdFn := func() *cobra.Command {
 		cmd := newCmdFn()
@@ -532,27 +532,6 @@ func testPkgWrites(t *testing.T, newCmdFn func() *cobra.Command, args pkgFileArg
 		return cmd
 	}
 
-	var initialEnvVars []struct{ key, val string }
-	for _, envVar := range args.envVars {
-		if k := os.Getenv(envVar.key); k != "" {
-			initialEnvVars = append(initialEnvVars, struct{ key, val string }{
-				key: envVar.key,
-				val: k,
-			})
-		}
-
-		require.NoError(t, os.Setenv(envVar.key, envVar.val))
-	}
-
-	defer func() {
-		for _, envVar := range args.envVars {
-			require.NoError(t, os.Unsetenv(envVar.key))
-		}
-
-		for _, envVar := range initialEnvVars {
-			require.NoError(t, os.Setenv(envVar.key, envVar.val))
-		}
-	}()
 	t.Run(path.Join(args.name, "file"), testPkgWritesFile(wrappedCmdFn, args, assertFn))
 	t.Run(path.Join(args.name, "buffer"), testPkgWritesToBuffer(wrappedCmdFn, args, assertFn))
 }

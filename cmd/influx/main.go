@@ -50,7 +50,7 @@ func newHTTPClient() (*httpc.Client, error) {
 	return httpClient, nil
 }
 
-type genericCLIOptfn func(*genericCLIOpts)
+type genericCLIOptFn func(*genericCLIOpts)
 
 type genericCLIOpts struct {
 	in io.Reader
@@ -63,13 +63,13 @@ func (o genericCLIOpts) newCmd(use string) *cobra.Command {
 	return cmd
 }
 
-func in(r io.Reader) genericCLIOptfn {
+func in(r io.Reader) genericCLIOptFn {
 	return func(o *genericCLIOpts) {
 		o.in = r
 	}
 }
 
-func out(w io.Writer) genericCLIOptfn {
+func out(w io.Writer) genericCLIOptFn {
 	return func(o *genericCLIOpts) {
 		o.w = w
 	}
@@ -99,7 +99,7 @@ func influxCmd() *cobra.Command {
 
 	cmd.AddCommand(
 		cmdAuth(),
-		cmdBucket(),
+		cmdBucket(newBucketSVCs),
 		cmdDelete(),
 		cmdOrganization(),
 		cmdPing(),
@@ -341,4 +341,19 @@ func setViperOptions() {
 	viper.SetEnvPrefix("INFLUX")
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+}
+
+func newBucketService() (influxdb.BucketService, error) {
+	if flags.local {
+		return newLocalKVService()
+	}
+
+	client, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return &http.BucketService{
+		Client: client,
+	}, nil
 }
