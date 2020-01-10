@@ -19,6 +19,7 @@ type Props = {
   placeholder?: string
   submitInvalid?: boolean
   showDivider?: boolean
+  testID: string
 }
 
 const DurationInput: FC<Props> = ({
@@ -28,6 +29,7 @@ const DurationInput: FC<Props> = ({
   placeholder,
   submitInvalid = true,
   showDivider = true,
+  testID = 'duration-input',
 }) => {
   const [isFocused, setIsFocused] = useState(false)
 
@@ -70,6 +72,7 @@ const DurationInput: FC<Props> = ({
           status={inputStatus}
           onChange={e => onChange(e.target.value)}
           onFocus={() => setIsFocused(true)}
+          testID={testID}
         />
       </ClickOutside>
       {isFocused && (
