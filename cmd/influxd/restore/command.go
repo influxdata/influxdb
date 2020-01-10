@@ -206,7 +206,7 @@ func restoreBolt() error {
 
 func restoreEngine() error {
 	dataDir := filepath.Join(flags.enginePath, "/data")
-	if err := os.MkdirAll(flags.enginePath, 0777); err != nil {
+	if err := os.MkdirAll(dataDir, 0777); err != nil {
 		return err
 	}
 
