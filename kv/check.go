@@ -275,7 +275,11 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.CheckCreate
 
 	t, err := s.createCheckTask(ctx, tx, c)
 	if err != nil {
-		return err
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Could not create task from check",
+			Err:  err,
+		}
 	}
 	c.SetTaskID(t.ID)
 
