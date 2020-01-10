@@ -18,6 +18,7 @@ type Props = {
   value: string
   placeholder?: string
   submitInvalid?: boolean
+  showDivider?: boolean
 }
 
 const DurationInput: FC<Props> = ({
@@ -26,6 +27,7 @@ const DurationInput: FC<Props> = ({
   value,
   placeholder,
   submitInvalid = true,
+  showDivider = true,
 }) => {
   const [isFocused, setIsFocused] = useState(false)
 
@@ -76,7 +78,7 @@ const DurationInput: FC<Props> = ({
           noScrollX={true}
           noScrollY={true}
         >
-          <DropdownDivider text="Examples" />
+          {showDivider && <DropdownDivider text="Examples" />}
           {suggestions.map(s => (
             <DropdownItem
               key={s}
