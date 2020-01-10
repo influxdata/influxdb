@@ -1,6 +1,6 @@
 use crate::delorean::node::{Comparison, Value};
 use crate::delorean::{node, Node, Predicate};
-use crate::storage::rocksdb::StorageError;
+use crate::storage::StorageError;
 
 use std::iter::Peekable;
 use std::str::Chars;
