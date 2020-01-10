@@ -27,6 +27,9 @@ type APIBackend struct {
 	Logger     *zap.Logger
 	influxdb.HTTPErrorHandler
 	SessionRenewDisabled bool
+	// MaxBatchSizeBytes is the maximum number of bytes which can be written
+	// in a single points batch
+	MaxBatchSizeBytes int64
 
 	NewBucketService func(*influxdb.Source) (influxdb.BucketService, error)
 	NewQueryService  func(*influxdb.Source) (query.ProxyQueryService, error)
@@ -199,7 +202,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h.Mount(prefixVariables, NewVariableHandler(b.Logger, variableBackend))
 
 	writeBackend := NewWriteBackend(b.Logger.With(zap.String("handler", "write")), b)
-	h.Mount(prefixWrite, NewWriteHandler(b.Logger, writeBackend))
+	h.Mount(prefixWrite, NewWriteHandler(b.Logger, writeBackend, WithMaxBatchSizeBytes(b.MaxBatchSizeBytes)))
 
 	for _, o := range opts {
 		o(h)
