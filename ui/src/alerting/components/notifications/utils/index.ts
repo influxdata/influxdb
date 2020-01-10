@@ -81,6 +81,7 @@ export const changeStatusRule = (
 export const initRuleDraft = (orgID: string): NotificationRuleDraft => ({
   type: 'http',
   every: '10m',
+  offset: '0s',
   url: '',
   orgID,
   name: '',
