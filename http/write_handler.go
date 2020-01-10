@@ -146,24 +146,6 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		})
 	}()
 
-	var in io.ReadCloser = r.Body
-	defer in.Close()
-
-	if r.Header.Get("Content-Encoding") == "gzip" {
-		var err error
-		in, err = gzip.NewReader(r.Body)
-		if err != nil {
-			handleError(err, influxdb.EInvalid, errInvalidGzipHeader)
-			return
-		}
-	}
-
-	// given a limit is configured on the number of bytes in a
-	// batch then wrap the reader in a limited reader
-	if h.maxBatchSizeBytes > 0 {
-		in = newLimitedReadCloser(in, h.maxBatchSizeBytes)
-	}
-
 	a, err := pcontext.GetAuthorizer(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -229,28 +211,15 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO(jeff): we should be publishing with the org and bucket instead of
-	// parsing, rewriting, and publishing, but the interface isn't quite there yet.
-	// be sure to remove this when it is there!
-	span, _ = tracing.StartSpanFromContextWithOperationName(ctx, "read request body")
-	data, err := ioutil.ReadAll(in)
-	span.LogKV("request_bytes", len(data))
-	span.Finish()
+	data, err := readWriteRequest(ctx, r.Body, r.Header.Get("Content-Encoding"), h.maxBatchSizeBytes)
 	if err != nil {
-		log.Error("Error reading body", zap.Error(err))
-		handleError(err, influxdb.EInternal, "unable to read data")
-		return
-	}
-
-	// close the reader now that all bytes have been consumed
-	// this will return non-nil in the case of a configured limit
-	// being exceeded
-	if err := in.Close(); err != nil {
 		log.Error("Error reading body", zap.Error(err))
 
 		code := influxdb.EInternal
 		if errors.Is(err, ErrMaxBatchSizeExceeded) {
 			code = influxdb.ETooLarge
+		} else if errors.Is(err, gzip.ErrHeader) || errors.Is(err, gzip.ErrChecksum) {
+			code = influxdb.EInvalid
 		}
 
 		handleError(err, code, "unable to read data")
@@ -304,6 +273,39 @@ func decodeWriteRequest(ctx context.Context, r *http.Request) (*postWriteRequest
 		Org:       qp.Get("org"),
 		Precision: p,
 	}, nil
+}
+
+func readWriteRequest(ctx context.Context, rc io.ReadCloser, encoding string, maxBatchSizeBytes int64) (v []byte, err error) {
+	defer func() {
+		// close the reader now that all bytes have been consumed
+		// this will return non-nil in the case of a configured limit
+		// being exceeded
+		if cerr := rc.Close(); err == nil {
+			err = cerr
+		}
+	}()
+
+	switch encoding {
+	case "gzip", "x-gzip":
+		rc, err = gzip.NewReader(rc)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// given a limit is configured on the number of bytes in a
+	// batch then wrap the reader in a limited reader
+	if maxBatchSizeBytes > 0 {
+		rc = newLimitedReadCloser(rc, maxBatchSizeBytes)
+	}
+
+	span, _ := tracing.StartSpanFromContextWithOperationName(ctx, "read request body")
+	defer func() {
+		span.LogKV("request_bytes", len(v))
+		span.Finish()
+	}()
+
+	return ioutil.ReadAll(rc)
 }
 
 type postWriteRequest struct {
