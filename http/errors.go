@@ -157,4 +157,5 @@ var statusCodePlatformError = map[string]int{
 	platform.ETooManyRequests:     http.StatusTooManyRequests,
 	platform.EUnauthorized:        http.StatusUnauthorized,
 	platform.EMethodNotAllowed:    http.StatusMethodNotAllowed,
+	platform.ETooLarge:            http.StatusRequestEntityTooLarge,
 }

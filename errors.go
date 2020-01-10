@@ -24,6 +24,7 @@ const (
 	ETooManyRequests     = "too many requests"
 	EUnauthorized        = "unauthorized"
 	EMethodNotAllowed    = "method not allowed"
+	ETooLarge            = "request too large"
 )
 
 // Error is the error struct of platform.
