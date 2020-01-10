@@ -156,7 +156,7 @@ func moveEngine() error {
 		return err
 	}
 
-	return os.Mkdir(flags.enginePath, 0777)
+	return os.MkdirAll(flags.enginePath, 0777)
 }
 
 func tmpEnginePath() string {
