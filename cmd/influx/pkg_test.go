@@ -40,6 +40,8 @@ func Test_Pkg(t *testing.T) {
 		assert.Equal(t, expected, actual)
 	}
 
+	setViperOptions()
+
 	t.Run("new", func(t *testing.T) {
 		tests := []struct {
 			expectedMeta pkger.Metadata
@@ -159,7 +161,7 @@ func Test_Pkg(t *testing.T) {
 						{name: "description", val: "new desc"},
 						{name: "version", val: "new version"},
 					},
-					envVars: []struct{ key, val string }{{key: "ORG", val: "influxdata"}},
+					envVars: []struct{ key, val string }{{key: "INFLUX_ORG", val: "influxdata"}},
 				},
 				expectedMeta: pkger.Metadata{
 					Name:        "new name",
@@ -177,7 +179,7 @@ func Test_Pkg(t *testing.T) {
 						{name: "description", val: "new desc"},
 						{name: "version", val: "new version"},
 					},
-					envVars: []struct{ key, val string }{{key: "ORG_ID", val: expectedOrgID.String()}},
+					envVars: []struct{ key, val string }{{key: "INFLUX_ORG_ID", val: expectedOrgID.String()}},
 				},
 				expectedMeta: pkger.Metadata{
 					Name:        "new name",
@@ -522,6 +524,8 @@ type pkgFileArgs struct {
 }
 
 func testPkgWrites(t *testing.T, newCmdFn func() *cobra.Command, args pkgFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) {
+	t.Helper()
+
 	wrappedCmdFn := func() *cobra.Command {
 		cmd := newCmdFn()
 		cmd.SetArgs([]string{}) // clears mess from test runner coming into cobra cli via stdin

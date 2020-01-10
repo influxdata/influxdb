@@ -10,31 +10,34 @@ import (
 	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/query/influxql"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
-
-var transpileCmd = &cobra.Command{
-	Use:   "transpile [InfluxQL query]",
-	Short: "Transpile an InfluxQL query to Flux source code",
-	Long: `Transpile an InfluxQL query to Flux source code.
-
-The transpiled query assumes that the bucket name is the of the form '<database>/<retention policy>'.
-
-The transpiled query will be written for absolute time ranges using the provided now() time.`,
-	Args: cobra.ExactArgs(1),
-	RunE: transpileF,
-}
 
 var transpileFlags struct {
 	Now string
 }
 
-func init() {
-	transpileCmd.PersistentFlags().StringVar(&transpileFlags.Now, "now", "", "An RFC3339Nano formatted time to use as the now() time. Defaults to the current time.")
-	viper.BindEnv("NOW")
-	if h := viper.GetString("NOW"); h != "" {
-		transpileFlags.Now = h
+func cmdTranspile() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "transpile [InfluxQL query]",
+		Short: "Transpile an InfluxQL query to Flux source code",
+		Long: `Transpile an InfluxQL query to Flux source code.
+
+The transpiled query assumes that the bucket name is the of the form '<database>/<retention policy>'.
+
+The transpiled query will be written for absolute time ranges using the provided now() time.`,
+		Args: cobra.ExactArgs(1),
+		RunE: transpileF,
 	}
+	opts := flagOpts{
+		{
+			DestP: &transpileFlags.Now,
+			Flag:  "now",
+			Desc:  "An RFC3339Nano formatted time to use as the now() time. Defaults to the current time",
+		},
+	}
+	opts.mustRegister(cmd)
+
+	return cmd
 }
 
 func transpileF(cmd *cobra.Command, args []string) error {
@@ -58,8 +61,7 @@ func transpileF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-type dbrpMapper struct {
-}
+type dbrpMapper struct{}
 
 func (m dbrpMapper) FindBy(ctx context.Context, cluster string, db string, rp string) (*influxdb.DBRPMapping, error) {
 	return nil, errors.New("mapping not found")

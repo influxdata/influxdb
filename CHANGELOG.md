@@ -51,6 +51,7 @@
 1. [16439](https://github.com/influxdata/influxdb/pull/16439): Prevent negative zero and allow zero to have decimal places
 1. [16376](https://github.com/influxdata/influxdb/pull/16413): Limit data loader bucket selection to non system buckets
 1. [16458](https://github.com/influxdata/influxdb/pull/16458): Fix EOF error when manually running tasks from the Task Page.
+1. [16491](https://github.com/influxdata/influxdb/pull/16491): Add missing env vals to influx cli usage and fixes precedence of flag/env var priority
 
 ### UI Improvements
 1. [16444](https://github.com/influxdata/influxdb/pull/16444): Add honeybadger reporting to create checks

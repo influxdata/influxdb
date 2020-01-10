@@ -9,10 +9,9 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-func organizationCmd() *cobra.Command {
+func cmdOrganization() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "org",
 		Aliases: []string{"organization"},
@@ -31,12 +30,9 @@ func organizationCmd() *cobra.Command {
 	return cmd
 }
 
-// Create Command
-type OrganizationCreateFlags struct {
+var organizationCreateFlags struct {
 	name string
 }
-
-var organizationCreateFlags OrganizationCreateFlags
 
 func orgCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -94,13 +90,10 @@ func organizationCreateF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// Find Command
-type OrganizationFindFlags struct {
+var organizationFindFlags struct {
 	name string
 	id   string
 }
-
-var organizationFindFlags OrganizationFindFlags
 
 func orgFindCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -109,16 +102,23 @@ func orgFindCmd() *cobra.Command {
 		RunE:  wrapCheckSetup(organizationFindF),
 	}
 
-	cmd.Flags().StringVarP(&organizationFindFlags.name, "name", "n", "", "The organization name")
-	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
-		organizationFindFlags.name = h
+	opts := flagOpts{
+		{
+			DestP:  &organizationFindFlags.name,
+			Flag:   "name",
+			Short:  'n',
+			EnvVar: "ORG",
+			Desc:   "The organization name",
+		},
+		{
+			DestP:  &organizationFindFlags.id,
+			Flag:   "id",
+			Short:  'i',
+			EnvVar: "ORG_ID",
+			Desc:   "The organization ID",
+		},
 	}
-	cmd.Flags().StringVarP(&organizationFindFlags.id, "id", "i", "", "The organization ID")
-	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
-		organizationFindFlags.id = h
-	}
+	opts.mustRegister(cmd)
 
 	return cmd
 }
@@ -163,13 +163,10 @@ func organizationFindF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// Update Command
-type OrganizationUpdateFlags struct {
+var organizationUpdateFlags struct {
 	id   string
 	name string
 }
-
-var organizationUpdateFlags OrganizationUpdateFlags
 
 func orgUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -178,18 +175,24 @@ func orgUpdateCmd() *cobra.Command {
 		RunE:  wrapCheckSetup(organizationUpdateF),
 	}
 
-	cmd.Flags().StringVarP(&organizationUpdateFlags.id, "id", "i", "", "The organization ID (required)")
-	cmd.MarkFlagRequired("id")
-	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
-		organizationUpdateFlags.id = h
+	opts := flagOpts{
+		{
+			DestP:    &organizationUpdateFlags.id,
+			Flag:     "id",
+			Short:    'i',
+			EnvVar:   "ORG_ID",
+			Desc:     "The organization ID (required)",
+			Required: true,
+		},
+		{
+			DestP:  &organizationUpdateFlags.name,
+			Flag:   "name",
+			Short:  'n',
+			EnvVar: "ORG",
+			Desc:   "The organization name",
+		},
 	}
-
-	cmd.Flags().StringVarP(&organizationUpdateFlags.name, "name", "n", "", "The organization name")
-	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
-		organizationUpdateFlags.name = h
-	}
+	opts.mustRegister(cmd)
 
 	return cmd
 }
@@ -229,12 +232,9 @@ func organizationUpdateF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// OrganizationDeleteFlags contains the flag of the org delete command
-type OrganizationDeleteFlags struct {
+var organizationDeleteFlags struct {
 	id string
 }
-
-var organizationDeleteFlags OrganizationDeleteFlags
 
 func organizationDeleteF(cmd *cobra.Command, args []string) error {
 	orgSvc, err := newOrganizationService()
@@ -280,14 +280,24 @@ func orgDeleteCmd() *cobra.Command {
 		RunE:  wrapCheckSetup(organizationDeleteF),
 	}
 
-	cmd.Flags().StringVarP(&organizationDeleteFlags.id, "id", "i", "", "The organization ID (required)")
-	cmd.MarkFlagRequired("id")
-	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
-		organizationUpdateFlags.id = h
+	opts := flagOpts{
+		{
+			DestP:  &organizationFindFlags.id,
+			Flag:   "id",
+			Short:  'i',
+			EnvVar: "ORG_ID",
+			Desc:   "The organization ID",
+		},
 	}
+	opts.mustRegister(cmd)
 
 	return cmd
+}
+
+var orgMemberFlags struct {
+	name     string
+	id       string
+	memberID string
 }
 
 func orgMembersCmd() *cobra.Command {
@@ -296,6 +306,26 @@ func orgMembersCmd() *cobra.Command {
 		Short: "Organization membership commands",
 		Run:   seeHelp,
 	}
+
+	opts := flagOpts{
+		{
+			DestP:      &orgMemberFlags.name,
+			Flag:       "name",
+			Short:      'n',
+			EnvVar:     "ORG",
+			Desc:       "The organization name",
+			Persistent: true,
+		},
+		{
+			DestP:      &orgMemberFlags.id,
+			Flag:       "id",
+			Short:      'i',
+			EnvVar:     "ORG_ID",
+			Desc:       "The organization ID",
+			Persistent: true,
+		},
+	}
+	opts.mustRegister(cmd)
 
 	cmd.AddCommand(
 		orgMembersAddCmd(),
@@ -306,34 +336,26 @@ func orgMembersCmd() *cobra.Command {
 	return cmd
 }
 
-// List Members
-type OrganizationMembersListFlags struct {
-	name string
-	id   string
-}
-
-var organizationMembersListFlags OrganizationMembersListFlags
-
 func organizationMembersListF(cmd *cobra.Command, args []string) error {
 	orgSvc, err := newOrganizationService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
 
-	if organizationMembersListFlags.id == "" && organizationMembersListFlags.name == "" {
+	if orgMemberFlags.id == "" && orgMemberFlags.name == "" {
 		return fmt.Errorf("must specify exactly one of id and name")
 	}
 
 	filter := platform.OrganizationFilter{}
-	if organizationMembersListFlags.name != "" {
-		filter.Name = &organizationMembersListFlags.name
+	if orgMemberFlags.name != "" {
+		filter.Name = &orgMemberFlags.name
 	}
 
-	if organizationMembersListFlags.id != "" {
+	if orgMemberFlags.id != "" {
 		var fID platform.ID
-		err := fID.DecodeFromString(organizationMembersListFlags.id)
+		err := fID.DecodeFromString(orgMemberFlags.id)
 		if err != nil {
-			return fmt.Errorf("failed to decode org id %s: %v", organizationMembersListFlags.id, err)
+			return fmt.Errorf("failed to decode org id %s: %v", orgMemberFlags.id, err)
 		}
 		filter.ID = &fID
 	}
@@ -351,41 +373,19 @@ func organizationMembersListF(cmd *cobra.Command, args []string) error {
 }
 
 func orgMembersListCmd() *cobra.Command {
-	cmd := &cobra.Command{
+	return &cobra.Command{
 		Use:   "list",
 		Short: "List organization members",
 		RunE:  wrapCheckSetup(organizationMembersListF),
 	}
-
-	cmd.Flags().StringVarP(&organizationMembersListFlags.id, "id", "i", "", "The organization ID")
-	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
-		organizationMembersListFlags.id = h
-	}
-	cmd.Flags().StringVarP(&organizationMembersListFlags.name, "name", "n", "", "The organization name")
-	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
-		organizationMembersListFlags.name = h
-	}
-
-	return cmd
 }
-
-// OrganizationMembersAddFlags includes flags to add a member
-type OrganizationMembersAddFlags struct {
-	name     string
-	id       string
-	memberID string
-}
-
-var organizationMembersAddFlags OrganizationMembersAddFlags
 
 func organizationMembersAddF(cmd *cobra.Command, args []string) error {
-	if organizationMembersAddFlags.id == "" && organizationMembersAddFlags.name == "" {
+	if orgMemberFlags.id == "" && orgMemberFlags.name == "" {
 		return fmt.Errorf("must specify exactly one of id and name")
 	}
 
-	if organizationMembersAddFlags.id != "" && organizationMembersAddFlags.name != "" {
+	if orgMemberFlags.id != "" && orgMemberFlags.name != "" {
 		return fmt.Errorf("must specify exactly one of id and name")
 	}
 
@@ -395,15 +395,15 @@ func organizationMembersAddF(cmd *cobra.Command, args []string) error {
 	}
 
 	filter := platform.OrganizationFilter{}
-	if organizationMembersAddFlags.name != "" {
-		filter.Name = &organizationMembersListFlags.name
+	if orgMemberFlags.name != "" {
+		filter.Name = &orgMemberFlags.name
 	}
 
-	if organizationMembersAddFlags.id != "" {
+	if orgMemberFlags.id != "" {
 		var fID platform.ID
-		err := fID.DecodeFromString(organizationMembersAddFlags.id)
+		err := fID.DecodeFromString(orgMemberFlags.id)
 		if err != nil {
-			return fmt.Errorf("failed to decode org id %s: %v", organizationMembersAddFlags.id, err)
+			return fmt.Errorf("failed to decode org id %s: %v", orgMemberFlags.id, err)
 		}
 		filter.ID = &fID
 	}
@@ -415,9 +415,9 @@ func organizationMembersAddF(cmd *cobra.Command, args []string) error {
 	}
 
 	var memberID platform.ID
-	err = memberID.DecodeFromString(organizationMembersAddFlags.memberID)
+	err = memberID.DecodeFromString(orgMemberFlags.memberID)
 	if err != nil {
-		return fmt.Errorf("failed to decode member id %s: %v", organizationMembersAddFlags.memberID, err)
+		return fmt.Errorf("failed to decode member id %s: %v", orgMemberFlags.memberID, err)
 	}
 
 	return membersAddF(ctx, platform.UserResourceMapping{
@@ -436,38 +436,18 @@ func orgMembersAddCmd() *cobra.Command {
 		RunE:  wrapCheckSetup(organizationMembersAddF),
 	}
 
-	cmd.Flags().StringVarP(&organizationMembersAddFlags.id, "id", "i", "", "The organization ID")
-	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
-		organizationMembersAddFlags.id = h
-	}
-	cmd.Flags().StringVarP(&organizationMembersAddFlags.name, "name", "n", "", "The organization name")
-	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
-		organizationMembersAddFlags.name = h
-	}
-
-	cmd.Flags().StringVarP(&organizationMembersAddFlags.memberID, "member", "o", "", "The member ID")
+	cmd.Flags().StringVarP(&orgMemberFlags.memberID, "member", "o", "", "The member ID")
 	cmd.MarkFlagRequired("member")
 
 	return cmd
 }
 
-// OrganizationMembersRemoveFlags includes flags to remove a Member
-type OrganizationMembersRemoveFlags struct {
-	name     string
-	id       string
-	memberID string
-}
-
-var organizationMembersRemoveFlags OrganizationMembersRemoveFlags
-
 func organizationMembersRemoveF(cmd *cobra.Command, args []string) error {
-	if organizationMembersRemoveFlags.id == "" && organizationMembersRemoveFlags.name == "" {
+	if orgMemberFlags.id == "" && orgMemberFlags.name == "" {
 		return fmt.Errorf("must specify exactly one of id and name")
 	}
 
-	if organizationMembersRemoveFlags.id != "" && organizationMembersRemoveFlags.name != "" {
+	if orgMemberFlags.id != "" && orgMemberFlags.name != "" {
 		return fmt.Errorf("must specify exactly one of id and name")
 	}
 
@@ -477,15 +457,15 @@ func organizationMembersRemoveF(cmd *cobra.Command, args []string) error {
 	}
 
 	filter := platform.OrganizationFilter{}
-	if organizationMembersRemoveFlags.name != "" {
-		filter.Name = &organizationMembersRemoveFlags.name
+	if orgMemberFlags.name != "" {
+		filter.Name = &orgMemberFlags.name
 	}
 
-	if organizationMembersRemoveFlags.id != "" {
+	if orgMemberFlags.id != "" {
 		var fID platform.ID
-		err := fID.DecodeFromString(organizationMembersRemoveFlags.id)
+		err := fID.DecodeFromString(orgMemberFlags.id)
 		if err != nil {
-			return fmt.Errorf("failed to decode org id %s: %v", organizationMembersRemoveFlags.id, err)
+			return fmt.Errorf("failed to decode org id %s: %v", orgMemberFlags.id, err)
 		}
 		filter.ID = &fID
 	}
@@ -497,9 +477,9 @@ func organizationMembersRemoveF(cmd *cobra.Command, args []string) error {
 	}
 
 	var memberID platform.ID
-	err = memberID.DecodeFromString(organizationMembersRemoveFlags.memberID)
+	err = memberID.DecodeFromString(orgMemberFlags.memberID)
 	if err != nil {
-		return fmt.Errorf("failed to decode member id %s: %v", organizationMembersRemoveFlags.memberID, err)
+		return fmt.Errorf("failed to decode member id %s: %v", orgMemberFlags.memberID, err)
 	}
 
 	return membersRemoveF(ctx, organization.ID, memberID)
@@ -512,17 +492,7 @@ func orgMembersRemoveCmd() *cobra.Command {
 		RunE:  wrapCheckSetup(organizationMembersRemoveF),
 	}
 
-	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.id, "id", "i", "", "The organization ID")
-	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
-		organizationMembersAddFlags.id = h
-	}
-	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.name, "name", "n", "", "The organization name")
-	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
-		organizationMembersRemoveFlags.name = h
-	}
-	cmd.Flags().StringVarP(&organizationMembersRemoveFlags.memberID, "member", "o", "", "The member ID")
+	cmd.Flags().StringVarP(&orgMemberFlags.memberID, "member", "o", "", "The member ID")
 	cmd.MarkFlagRequired("member")
 
 	return cmd
