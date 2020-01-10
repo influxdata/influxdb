@@ -42,22 +42,22 @@ class AccountNavSubItem extends PureComponent<Props> {
             key="switch-orgs"
           />
         )}
-      <NavMenu.SubItem
-        titleLink={className => (
-          <Link to="/orgs/new" className={className}>
-            Create Organization
-          </Link>
-        )}
-        active={false}
-      />
-      <NavMenu.SubItem
-        titleLink={className => (
-          <Link to="/logout" className={className}>
-            Logout
-          </Link>
-        )}
-        active={false}
-        key="logout"
+        <NavMenu.SubItem
+          titleLink={className => (
+            <Link to="/orgs/new" className={className}>
+              Create Organization
+            </Link>
+          )}
+          active={false}
+        />
+        <NavMenu.SubItem
+          titleLink={className => (
+            <Link to="/logout" className={className}>
+              Logout
+            </Link>
+          )}
+          active={false}
+          key="logout"
         />
       </CloudExclude>
     )
