@@ -98,7 +98,7 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
 
-	b.org.register(cmd)
+	b.org.register(cmd, false)
 
 	cmd.Flags().BoolVarP(&b.hasColor, "color", "c", true, "Enable color in output, defaults true")
 	cmd.Flags().BoolVar(&b.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
@@ -338,7 +338,7 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 
-	b.org.register(cmd)
+	b.org.register(cmd, false)
 
 	cmd.Flags().StringVarP(&b.meta.Name, "name", "n", "", "name for new pkg")
 	cmd.Flags().StringVarP(&b.meta.Description, "description", "d", "", "description for new pkg")

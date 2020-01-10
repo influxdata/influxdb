@@ -7,12 +7,14 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/internal/fs"
+	"github.com/influxdata/influxdb/kit/cli"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/pkg/httpc"
 	"github.com/spf13/cobra"
@@ -73,6 +75,78 @@ func out(w io.Writer) genericCLIOptfn {
 	}
 }
 
+var flags struct {
+	token      string
+	host       string
+	local      bool
+	skipVerify bool
+}
+
+func influxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:          "influx",
+		Short:        "Influx Client",
+		SilenceUsage: true,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if err := checkSetup(flags.host); err != nil {
+				fmt.Printf("Note: %v\n", internal.ErrorFmt(err))
+			}
+			seeHelp(cmd, args)
+		},
+	}
+
+	setViperOptions()
+
+	cmd.AddCommand(
+		cmdAuth(),
+		cmdBucket(),
+		cmdDelete(),
+		cmdOrganization(),
+		cmdPing(),
+		cmdPkg(newPkgerSVC),
+		cmdQuery(),
+		cmdTranspile(),
+		cmdREPL(),
+		cmdSetup(),
+		cmdTask(),
+		cmdUser(),
+		cmdWrite(),
+	)
+
+	opts := flagOpts{
+		{
+			DestP:      &flags.token,
+			Flag:       "token",
+			Short:      't',
+			Desc:       "API token to be used throughout client calls",
+			Persistent: true,
+		},
+		{
+			DestP:      &flags.host,
+			Flag:       "host",
+			Default:    "http://localhost:9999",
+			Desc:       "HTTP address of Influx",
+			Persistent: true,
+		},
+	}
+	opts.mustRegister(cmd)
+
+	// this is after the flagOpts register b/c we don't want to show the default value
+	// in the usage display. This will add it as the token value, then if a token flag
+	// is provided too, the flag will take precedence.
+	flags.token = getTokenFromDefaultPath()
+
+	cmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
+	cmd.PersistentFlags().BoolVar(&flags.skipVerify, "skip-verify", false, "SkipVerify controls whether a client verifies the server's certificate chain and host name.")
+
+	// Update help description for all commands in command tree
+	walk(cmd, func(c *cobra.Command) {
+		c.Flags().BoolP("help", "h", false, fmt.Sprintf("Help for the %s command ", c.Name()))
+	})
+
+	return cmd
+}
+
 func fetchSubCommand(parent *cobra.Command, args []string) *cobra.Command {
 	var err error
 	var cmd *cobra.Command
@@ -101,73 +175,6 @@ func seeHelp(c *cobra.Command, args []string) {
 	c.Printf("See '%s -h' for help\n", c.CommandPath())
 }
 
-func influxCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:          "influx",
-		Short:        "Influx Client",
-		SilenceUsage: true,
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := checkSetup(flags.host); err != nil {
-				fmt.Printf("Note: %v\n", internal.ErrorFmt(err))
-			}
-			seeHelp(cmd, args)
-		},
-	}
-
-	viper.SetEnvPrefix("INFLUX")
-
-	cmd.AddCommand(
-		authCmd(),
-		bucketCmd,
-		deleteCmd,
-		organizationCmd(),
-		pingCmd,
-		cmdPkg(newPkgerSVC),
-		queryCmd,
-		transpileCmd,
-		replCmd,
-		setupCmd,
-		taskCmd,
-		userCmd(),
-		writeCmd,
-	)
-
-	cmd.PersistentFlags().StringVarP(&flags.token, "token", "t", "", "API token to be used throughout client calls")
-	viper.BindEnv("TOKEN")
-	if h := viper.GetString("TOKEN"); h != "" {
-		flags.token = h
-	} else if tok, err := getTokenFromDefaultPath(); err == nil {
-		flags.token = tok
-	}
-
-	cmd.PersistentFlags().StringVar(&flags.host, "host", "http://localhost:9999", "HTTP address of Influx")
-	viper.BindEnv("HOST")
-	if h := viper.GetString("HOST"); h != "" {
-		flags.host = h
-	}
-
-	cmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
-
-	cmd.PersistentFlags().BoolVar(&flags.skipVerify, "skip-verify", false, "SkipVerify controls whether a client verifies the server's certificate chain and host name.")
-
-	// Update help description for all commands in command tree
-	walk(cmd, func(c *cobra.Command) {
-		c.Flags().BoolP("help", "h", false, fmt.Sprintf("Help for the %s command ", c.Name()))
-	})
-
-	return cmd
-}
-
-// Flags contains all the CLI flag values for influx.
-type Flags struct {
-	token      string
-	host       string
-	local      bool
-	skipVerify bool
-}
-
-var flags Flags
-
 func defaultTokenPath() (string, string, error) {
 	dir, err := fs.InfluxDir()
 	if err != nil {
@@ -176,16 +183,16 @@ func defaultTokenPath() (string, string, error) {
 	return filepath.Join(dir, "credentials"), dir, nil
 }
 
-func getTokenFromDefaultPath() (string, error) {
+func getTokenFromDefaultPath() string {
 	path, _, err := defaultTokenPath()
 	if err != nil {
-		return "", err
+		return ""
 	}
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
-		return "", err
+		return ""
 	}
-	return string(b), nil
+	return string(b)
 }
 
 func writeTokenToPath(tok, path, dir string) error {
@@ -265,29 +272,35 @@ type organization struct {
 	id, name string
 }
 
-func (org *organization) register(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&org.id, "org-id", "", "", "The ID of the organization that owns the bucket")
-	viper.BindEnv("ORG_ID")
-	if h := viper.GetString("ORG_ID"); h != "" {
-		org.id = h
+func (o *organization) register(cmd *cobra.Command, persistent bool) {
+	opts := flagOpts{
+		{
+			DestP:      &o.id,
+			Flag:       "org-id",
+			Desc:       "The ID of the organization that owns the bucket",
+			Persistent: persistent,
+		},
+		{
+			DestP:      &o.name,
+			Flag:       "org",
+			Short:      'o',
+			Desc:       "The name of the organization that owns the bucket",
+			Persistent: persistent,
+		},
 	}
-	cmd.Flags().StringVarP(&org.name, "org", "o", "", "The name of the organization that owns the bucket")
-	viper.BindEnv("ORG")
-	if h := viper.GetString("ORG"); h != "" {
-		org.name = h
-	}
+	opts.mustRegister(cmd)
 }
 
-func (org *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, error) {
-	if org.id != "" {
-		influxOrgID, err := influxdb.IDFromString(org.id)
+func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, error) {
+	if o.id != "" {
+		influxOrgID, err := influxdb.IDFromString(o.id)
 		if err != nil {
 			return 0, fmt.Errorf("invalid org ID provided: %s", err.Error())
 		}
 		return *influxOrgID, nil
-	} else if org.name != "" {
+	} else if o.name != "" {
 		org, err := orgSVC.FindOrganization(context.Background(), influxdb.OrganizationFilter{
-			Name: &org.name,
+			Name: &o.name,
 		})
 		if err != nil {
 			return 0, fmt.Errorf("%v", err)
@@ -297,11 +310,35 @@ func (org *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID
 	return 0, fmt.Errorf("failed to locate an organization id")
 }
 
-func (org *organization) validOrgFlags() error {
-	if org.id == "" && org.name == "" {
+func (o *organization) validOrgFlags() error {
+	if o.id == "" && o.name == "" {
 		return fmt.Errorf("must specify org-id, or org name")
-	} else if org.id != "" && org.name != "" {
+	} else if o.id != "" && o.name != "" {
 		return fmt.Errorf("must specify org-id, or org name not both")
 	}
 	return nil
+}
+
+type flagOpts []cli.Opt
+
+func (f flagOpts) mustRegister(cmd *cobra.Command) {
+	for i := range f {
+		envVar := f[i].Flag
+		if e := f[i].EnvVar; e != "" {
+			envVar = e
+		}
+
+		f[i].Desc = fmt.Sprintf(
+			"%s; Maps to env var $INFLUX_%s",
+			f[i].Desc,
+			strings.ToUpper(strings.Replace(envVar, "-", "_", -1)),
+		)
+	}
+	cli.BindOptions(cmd, f)
+}
+
+func setViperOptions() {
+	viper.SetEnvPrefix("INFLUX")
+	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 }

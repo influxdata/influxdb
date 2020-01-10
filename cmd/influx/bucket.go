@@ -10,43 +10,48 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-// Bucket Command
-var bucketCmd = &cobra.Command{
-	Use:              "bucket",
-	Short:            "Bucket management commands",
-	TraverseChildren: true,
-	Run:              seeHelp,
+func cmdBucket() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:              "bucket",
+		Short:            "Bucket management commands",
+		TraverseChildren: true,
+		Run:              seeHelp,
+	}
+	cmd.AddCommand(
+		bucketCreateCmd(),
+		bucketDeleteCmd(),
+		bucketFindCmd(),
+		bucketUpdateCmd(),
+	)
+
+	return cmd
 }
 
-// BucketCreateFlags define the Create Command
-type BucketCreateFlags struct {
+var bucketCreateFlags struct {
 	name string
 	organization
 	retention time.Duration
 }
 
-var bucketCreateFlags BucketCreateFlags
-
-func init() {
-	bucketCreateCmd := &cobra.Command{
+func bucketCreateCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create bucket",
 		RunE:  wrapCheckSetup(bucketCreateF),
 	}
 
-	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.name, "name", "n", "", "Name of bucket that will be created")
-	bucketCreateCmd.Flags().DurationVarP(&bucketCreateFlags.retention, "retention", "r", 0, "Duration in nanoseconds data will live in bucket")
-	bucketCreateCmd.MarkFlagRequired("name")
-	bucketCreateFlags.organization.register(bucketCreateCmd)
+	cmd.Flags().StringVar(&bucketCreateFlags.name, "name", "n", "Name of bucket that will be created")
+	cmd.MarkFlagRequired("name")
+	cmd.Flags().DurationVarP(&bucketCreateFlags.retention, "retention", "r", 0, "Duration in nanoseconds data will live in bucket")
+	bucketCreateFlags.organization.register(cmd, false)
 
-	bucketCmd.AddCommand(bucketCreateCmd)
+	return cmd
 }
 
-func newBucketService(f Flags) (platform.BucketService, error) {
-	if f.local {
+func newBucketService() (platform.BucketService, error) {
+	if flags.local {
 		return newLocalKVService()
 	}
 
@@ -65,7 +70,7 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	s, err := newBucketService(flags)
+	s, err := newBucketService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize bucket service client: %v", err)
 	}
@@ -107,37 +112,40 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// BucketFindFlags define the Find Command
-type BucketFindFlags struct {
+var bucketFindFlags struct {
 	name    string
 	id      string
 	headers bool
 	organization
 }
 
-var bucketFindFlags BucketFindFlags
-
-func init() {
-	bucketFindCmd := &cobra.Command{
+func bucketFindCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "find",
 		Short: "Find buckets",
 		RunE:  wrapCheckSetup(bucketFindF),
 	}
 
-	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.name, "name", "n", "", "The bucket name")
-	viper.BindEnv("BUCKET_NAME")
-	if h := viper.GetString("BUCKET_NAME"); h != "" {
-		bucketFindFlags.name = h
+	opts := flagOpts{
+		{
+			DestP:  &bucketFindFlags.name,
+			Flag:   "name",
+			Short:  'n',
+			EnvVar: "BUCKET_NAME",
+			Desc:   "The bucket name",
+		},
 	}
-	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.id, "id", "i", "", "The bucket ID")
-	bucketFindCmd.Flags().BoolVar(&bucketFindFlags.headers, "headers", true, "To print the table headers; defaults true")
-	bucketFindFlags.organization.register(bucketFindCmd)
+	opts.mustRegister(cmd)
 
-	bucketCmd.AddCommand(bucketFindCmd)
+	cmd.Flags().StringVarP(&bucketFindFlags.id, "id", "i", "", "The bucket ID")
+	cmd.Flags().BoolVar(&bucketFindFlags.headers, "headers", true, "To print the table headers; defaults true")
+	bucketFindFlags.organization.register(cmd, false)
+
+	return cmd
 }
 
 func bucketFindF(cmd *cobra.Command, args []string) error {
-	s, err := newBucketService(flags)
+	s, err := newBucketService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize bucket service client: %v", err)
 	}
@@ -197,37 +205,39 @@ func bucketFindF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// BucketUpdateFlags define the Update Command
-type BucketUpdateFlags struct {
+var bucketUpdateFlags struct {
 	id        string
 	name      string
 	retention time.Duration
 }
 
-var bucketUpdateFlags BucketUpdateFlags
-
-func init() {
-	bucketUpdateCmd := &cobra.Command{
+func bucketUpdateCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update bucket",
 		RunE:  wrapCheckSetup(bucketUpdateF),
 	}
 
-	bucketUpdateCmd.Flags().StringVarP(&bucketUpdateFlags.id, "id", "i", "", "The bucket ID (required)")
-	bucketUpdateCmd.Flags().StringVarP(&bucketUpdateFlags.name, "name", "n", "", "New bucket name")
-	viper.BindEnv("BUCKET_NAME")
-	if h := viper.GetString("BUCKET_NAME"); h != "" {
-		bucketFindFlags.name = h
+	opts := flagOpts{
+		{
+			DestP:  &bucketUpdateFlags.name,
+			Flag:   "name",
+			Short:  'n',
+			EnvVar: "BUCKET_NAME",
+			Desc:   "New bucket name",
+		},
 	}
+	opts.mustRegister(cmd)
 
-	bucketUpdateCmd.Flags().DurationVarP(&bucketUpdateFlags.retention, "retention", "r", 0, "New duration data will live in bucket")
-	bucketUpdateCmd.MarkFlagRequired("id")
+	cmd.Flags().StringVarP(&bucketUpdateFlags.id, "id", "i", "", "The bucket ID (required)")
+	cmd.MarkFlagRequired("id")
+	cmd.Flags().DurationVarP(&bucketUpdateFlags.retention, "retention", "r", 0, "New duration data will live in bucket")
 
-	bucketCmd.AddCommand(bucketUpdateCmd)
+	return cmd
 }
 
 func bucketUpdateF(cmd *cobra.Command, args []string) error {
-	s, err := newBucketService(flags)
+	s, err := newBucketService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize bucket service client: %v", err)
 	}
@@ -268,15 +278,12 @@ func bucketUpdateF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// BucketDeleteFlags define the Delete command
-type BucketDeleteFlags struct {
+var bucketDeleteFlags struct {
 	id string
 }
 
-var bucketDeleteFlags BucketDeleteFlags
-
 func bucketDeleteF(cmd *cobra.Command, args []string) error {
-	s, err := newBucketService(flags)
+	s, err := newBucketService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize bucket service client: %v", err)
 	}
@@ -316,15 +323,15 @@ func bucketDeleteF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func init() {
-	bucketDeleteCmd := &cobra.Command{
+func bucketDeleteCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete bucket",
 		RunE:  wrapCheckSetup(bucketDeleteF),
 	}
 
-	bucketDeleteCmd.Flags().StringVarP(&bucketDeleteFlags.id, "id", "i", "", "The bucket ID (required)")
-	bucketDeleteCmd.MarkFlagRequired("id")
+	cmd.Flags().StringVar(&bucketDeleteFlags.id, "id", "i", "The bucket ID (required)")
+	cmd.MarkFlagRequired("id")
 
-	bucketCmd.AddCommand(bucketDeleteCmd)
+	return cmd
 }
