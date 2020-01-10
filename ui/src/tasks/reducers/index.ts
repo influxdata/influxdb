@@ -1,82 +1,94 @@
-import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
+// Libraries
+import {produce} from 'immer'
 
 // Types
-import {Action} from 'src/tasks/actions'
-import {Task, LogEvent, Run} from 'src/types'
-import {RemoteDataState} from '@influxdata/clockface'
+import {
+  Action,
+  ADD_TASK,
+  SET_TASKS,
+  CLEAR_TASK,
+  CLEAR_CURRENT_TASK,
+  SET_RUNS,
+  SET_TASK_OPTION,
+  SET_ALL_TASK_OPTIONS,
+  SET_NEW_SCRIPT,
+  SET_CURRENT_SCRIPT,
+  SET_CURRENT_TASK,
+  SET_SEARCH_TERM,
+  SET_SHOW_INACTIVE,
+  SET_LOGS,
+  EDIT_TASK,
+  REMOVE_TASK,
+} from 'src/tasks/actions/creators'
+import {ResourceType, ResourceState, TaskSchedule, Task} from 'src/types'
 
-export interface TasksState {
-  status: RemoteDataState
-  list: Task[]
-  newScript: string
-  currentScript: string
-  currentTask: Task
-  searchTerm: string
-  showInactive: boolean
-  taskOptions: TaskOptions
-  runs: Run[]
-  runStatus: RemoteDataState
-  logs: LogEvent[]
-}
+// Utils
+import {initialState, defaultOptions} from 'src/tasks/reducers/helpers'
+import {
+  setResource,
+  editResource,
+  removeResource,
+  addResource,
+} from 'src/resources/reducers/helpers'
 
-export const defaultTaskOptions: TaskOptions = {
-  name: '',
-  interval: '',
-  offset: '',
-  cron: '',
-  taskScheduleType: TaskSchedule.unselected,
-  orgID: '',
-  toBucketName: '',
-  toOrgName: '',
-}
-
-export const defaultState: TasksState = {
-  status: RemoteDataState.NotStarted,
-  list: [],
-  newScript: '',
-  currentTask: null,
-  currentScript: '',
-  searchTerm: '',
-  showInactive: true,
-  taskOptions: defaultTaskOptions,
-  runs: [],
-  runStatus: RemoteDataState.NotStarted,
-  logs: [],
-}
+type TasksState = ResourceState['tasks']
 
 export default (
-  state: TasksState = defaultState,
+  state: TasksState = initialState(),
   action: Action
-): TasksState => {
-  switch (action.type) {
-    case 'SET_TASKS':
-      return {
-        ...state,
-        list: action.payload.tasks,
-        status: RemoteDataState.Done,
-      }
-    case 'SET_TASKS_STATUS':
-      return {
-        ...state,
-        status: action.payload.status,
-      }
-    case 'CLEAR_TASK':
-      return {
-        ...state,
-        taskOptions: defaultTaskOptions,
-        currentScript: '',
-        newScript: '',
-      }
-    case 'SET_ALL_TASK_OPTIONS':
-      const {name, every, cron, orgID, offset} = action.payload
-      let taskScheduleType = TaskSchedule.interval
-      if (cron) {
-        taskScheduleType = TaskSchedule.cron
+): TasksState =>
+  produce(state, draftState => {
+    switch (action.type) {
+      case SET_TASKS: {
+        setResource<Task>(draftState, action, ResourceType.Tasks)
+
+        return
       }
 
-      return {
-        ...state,
-        taskOptions: {
+      case EDIT_TASK: {
+        editResource<Task>(draftState, action, ResourceType.Tasks)
+
+        return
+      }
+
+      case REMOVE_TASK: {
+        removeResource<Task>(draftState, action)
+
+        return
+      }
+
+      case ADD_TASK: {
+        addResource<Task>(draftState, action, ResourceType.Tasks)
+
+        return
+      }
+
+      case CLEAR_TASK: {
+        draftState.taskOptions = defaultOptions
+        draftState.currentScript = ''
+        draftState.newScript = ''
+
+        return
+      }
+
+      case CLEAR_CURRENT_TASK: {
+        draftState.currentScript = ''
+        draftState.currentTask = null
+
+        return
+      }
+
+      case SET_ALL_TASK_OPTIONS: {
+        const {schema} = action
+        const {entities, result} = schema
+        const {name, every, cron, orgID, offset} = entities.tasks[result]
+        let taskScheduleType = TaskSchedule.interval
+
+        if (cron) {
+          taskScheduleType = TaskSchedule.cron
+        }
+
+        draftState.taskOptions = {
           ...state.taskOptions,
           name,
           cron,
@@ -84,43 +96,72 @@ export default (
           orgID,
           taskScheduleType,
           offset,
-        },
-      }
-    case 'SET_TASK_OPTION':
-      const {key, value} = action.payload
-      return {
-        ...state,
-        taskOptions: {...state.taskOptions, [key]: value},
-      }
-    case 'SET_NEW_SCRIPT':
-      return {...state, newScript: action.payload.script}
-    case 'SET_CURRENT_SCRIPT':
-      return {...state, currentScript: action.payload.script}
-    case 'SET_CURRENT_TASK':
-      const {task} = action.payload
-      let currentScript = ''
-      if (task) {
-        currentScript = task.flux
-      }
-      return {...state, currentScript, currentTask: task}
-    case 'SET_SEARCH_TERM':
-      const {searchTerm} = action.payload
-      return {...state, searchTerm}
-    case 'SET_SHOW_INACTIVE':
-      return {...state, showInactive: !state.showInactive}
-    case 'UPDATE_TASK': {
-      const {task} = action.payload
-      const tasks = state.list.map(t => (t.id === task.id ? task : t))
+        }
 
-      return {...state, list: tasks}
+        return
+      }
+
+      case SET_TASK_OPTION: {
+        const {key, value} = action
+
+        draftState.taskOptions[`${key}`] = value
+
+        return
+      }
+
+      case SET_NEW_SCRIPT: {
+        draftState.newScript = action.script
+
+        return
+      }
+
+      case SET_CURRENT_SCRIPT: {
+        draftState.currentScript = action.script
+
+        return
+      }
+
+      case SET_CURRENT_TASK: {
+        const {schema} = action
+        const {entities, result} = schema
+
+        const task = entities.tasks[result]
+
+        const currentScript = task.flux || ''
+
+        draftState.currentScript = currentScript
+        draftState.currentTask = task
+
+        return
+      }
+
+      case SET_SEARCH_TERM: {
+        const {searchTerm} = action
+
+        draftState.searchTerm = searchTerm
+
+        return
+      }
+
+      case SET_SHOW_INACTIVE: {
+        draftState.showInactive = !state.showInactive
+
+        return
+      }
+
+      case SET_RUNS: {
+        const {runs, runStatus} = action
+
+        draftState.runs = runs
+        draftState.runStatus = runStatus
+
+        return
+      }
+
+      case SET_LOGS: {
+        draftState.logs = action.logs
+
+        return
+      }
     }
-    case 'SET_RUNS':
-      const {runs, runStatus} = action.payload
-      return {...state, runs, runStatus}
-    case 'SET_LOGS':
-      const {logs} = action.payload
-      return {...state, logs}
-    default:
-      return state
-  }
-}
+  })

@@ -104,7 +104,7 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.Flags().BoolVar(&b.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
 
 	b.applyOpts.secrets = []string{}
-	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the package; format should --secret=SECRET_KEY::SECRET_VALUE --secret=SECRET_KEY_2::SECRET_VALUE_2")
+	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the package; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
 
 	cmd.RunE = b.pkgApplyRunEFn()
 
@@ -147,7 +147,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 			providedSecrets[secretKey] = ""
 		}
 		for _, secretPair := range b.applyOpts.secrets {
-			pieces := strings.Split(secretPair, "::")
+			pieces := strings.SplitN(secretPair, "=", 2)
 			if len(pieces) < 2 {
 				continue
 			}

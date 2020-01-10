@@ -3,7 +3,6 @@ import {Notification} from 'src/types'
 import {TimeRange} from 'src/types/queries'
 import {TimeMachinesState} from 'src/timeMachine/reducers'
 import {AppState as AppPresentationState} from 'src/shared/reducers/app'
-import {TasksState} from 'src/tasks/reducers'
 import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/me'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
@@ -54,7 +53,6 @@ export interface AppState {
   resources: ResourceState
   routing: RouterState
   rules: NotificationRulesState
-  tasks: TasksState
   telegrafEditorPlugins: TelegrafEditorPluginState
   telegrafEditorActivePlugins: TelegrafEditorActivePluginState
   plugins: PluginResourceState

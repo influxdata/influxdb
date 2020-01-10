@@ -30,7 +30,7 @@ import * as copy from 'src/shared/copy/notifications'
 import {client} from 'src/utils/api'
 import {createDashboardFromTemplate} from 'src/dashboards/actions'
 import {createVariableFromTemplate} from 'src/variables/actions'
-import {createTaskFromTemplate} from 'src/tasks/actions'
+import {createTaskFromTemplate} from 'src/tasks/actions/thunks'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'

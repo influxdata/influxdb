@@ -835,27 +835,30 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgHTTPServer = http.NewHandlerPkg(pkgServerLogger, m.apibackend.HTTPErrorHandler, pkgSVC)
 	}
 
-	// HTTP server
-	var platformHandler nethttp.Handler = http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer))
-	m.reg.MustRegister(platformHandler.(*http.PlatformHandler).PrometheusCollectors()...)
-	httpLogger := m.log.With(zap.String("service", "http"))
-	if logconf.Level == zap.DebugLevel {
-		platformHandler = http.LoggingMW(httpLogger)(platformHandler)
-	}
+	{
+		platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer))
 
-	handler := http.NewHandlerFromRegistry(httpLogger, "platform", m.reg)
-	handler.Handler = platformHandler
+		httpLogger := m.log.With(zap.String("service", "http"))
+		m.httpServer.Handler = http.NewHandlerFromRegistry(
+			"platform",
+			m.reg,
+			http.WithLog(httpLogger),
+			http.WithAPIHandler(platformHandler),
+		)
 
-	m.httpServer.Handler = handler
-	// If we are in testing mode we allow all data to be flushed and removed.
-	if m.testing {
-		m.httpServer.Handler = http.DebugFlush(ctx, handler, flushers)
+		if logconf.Level == zap.DebugLevel {
+			m.httpServer.Handler = http.LoggingMW(httpLogger)(m.httpServer.Handler)
+		}
+		// If we are in testing mode we allow all data to be flushed and removed.
+		if m.testing {
+			m.httpServer.Handler = http.DebugFlush(ctx, m.httpServer.Handler, flushers)
+		}
 	}
 
 	ln, err := net.Listen("tcp", m.httpBindAddress)
 	if err != nil {
-		httpLogger.Error("failed http listener", zap.Error(err))
-		httpLogger.Info("Stopping")
+		m.log.Error("failed http listener", zap.Error(err))
+		m.log.Info("Stopping")
 		return err
 	}
 
@@ -867,8 +870,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		cer, err = tls.LoadX509KeyPair(m.httpTLSCert, m.httpTLSKey)
 
 		if err != nil {
-			httpLogger.Error("failed to load x509 key pair", zap.Error(err))
-			httpLogger.Info("Stopping")
+			m.log.Error("failed to load x509 key pair", zap.Error(err))
+			m.log.Info("Stopping")
 			return err
 		}
 		transport = "https"
@@ -895,7 +898,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			}
 		}
 		log.Info("Stopping")
-	}(httpLogger)
+	}(m.log)
 
 	return nil
 }

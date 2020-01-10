@@ -48,6 +48,8 @@ This project requires Go 1.13 and Go module support.
 
 Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed.
 
+The project also requires a recent stable version of Rust. We recommend using [rustup](https://rustup.rs/) to install Rust.
+
 If you are getting an `error loading module requirements` error with `bzr executable file not found in $PATH”` on `make`, then you need to ensure you have `bazaar`, `protobuf`, and `yarn` installed.
 
 - OSX: `brew install bazaar yarn`
@@ -186,6 +188,7 @@ Table: keys: [_start, _stop, _field, _measurement]
 2019-12-30T22:22:44.776351000Z  2019-12-30T23:22:44.776351000Z                       v                       m  2019-12-30T23:17:02.000000000Z                             2
 >
 ```
+
 
 ## Introducing Flux
 

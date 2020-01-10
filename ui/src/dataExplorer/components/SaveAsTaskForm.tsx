@@ -7,16 +7,15 @@ import {withRouter, WithRouterProps} from 'react-router'
 import TaskForm from 'src/tasks/components/TaskForm'
 
 // Actions
+import {saveNewScript} from 'src/tasks/actions/thunks'
 import {
-  saveNewScript,
   setTaskOption,
   clearTask,
   setNewScript,
-} from 'src/tasks/actions'
+} from 'src/tasks/actions/creators'
 import {refreshTimeMachineVariableValues} from 'src/timeMachine/actions/queries'
 
 // Utils
-import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {formatVarsOption} from 'src/variables/utils/formatVarsOption'
@@ -24,17 +23,20 @@ import {
   taskOptionsToFluxScript,
   addDestinationToFluxScript,
 } from 'src/utils/taskOptionsToFluxScript'
+import {getVariableAssignments} from 'src/variables/selectors'
 import {getOrg} from 'src/organizations/selectors'
+import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, TimeRange, VariableAssignment} from 'src/types'
 import {
+  AppState,
+  TimeRange,
+  VariableAssignment,
   TaskSchedule,
   TaskOptions,
   TaskOptionKeys,
-} from 'src/utils/taskOptionsToFluxScript'
-import {DashboardDraftQuery} from 'src/types/dashboards'
-import {getVariableAssignments} from 'src/variables/selectors'
+  DashboardDraftQuery,
+} from 'src/types'
 
 interface OwnProps {
   dismiss: () => void
@@ -163,10 +165,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    tasks: {newScript, taskOptions},
-  } = state
-
+  const {newScript, taskOptions} = state.resources.tasks
   const {timeRange} = getActiveTimeMachine(state)
   const activeQuery = getActiveQuery(state)
   const org = getOrg(state)

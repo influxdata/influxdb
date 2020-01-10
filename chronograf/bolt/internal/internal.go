@@ -246,6 +246,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 				Label:   q.Label,
 				Range:   r,
 				Source:  q.Source,
+				Type:    q.Type,
 			}
 
 			shifts := make([]*TimeShift, len(q.Shifts))
@@ -388,6 +389,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 				Command: q.Command,
 				Label:   q.Label,
 				Source:  q.Source,
+				Type:    q.Type,
 			}
 
 			if q.Range.Upper != q.Range.Lower {

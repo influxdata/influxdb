@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/pkg/httpc"
 	"go.uber.org/zap"
 )
@@ -72,7 +73,7 @@ const (
 	organizationsIDLabelsIDPath      = "/api/v2/orgs/:id/labels/:lid"
 )
 
-func checkOrganziationExists(handler *OrgHandler) Middleware {
+func checkOrganziationExists(handler *OrgHandler) kithttp.Middleware {
 	fn := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()

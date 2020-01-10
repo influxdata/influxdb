@@ -2,31 +2,31 @@ package http
 
 import "net/http"
 
-type statusResponseWriter struct {
+type StatusResponseWriter struct {
 	statusCode    int
 	responseBytes int
 	http.ResponseWriter
 }
 
-func newStatusResponseWriter(w http.ResponseWriter) *statusResponseWriter {
-	return &statusResponseWriter{
+func NewStatusResponseWriter(w http.ResponseWriter) *StatusResponseWriter {
+	return &StatusResponseWriter{
 		ResponseWriter: w,
 	}
 }
 
-func (w *statusResponseWriter) Write(b []byte) (int, error) {
+func (w *StatusResponseWriter) Write(b []byte) (int, error) {
 	n, err := w.ResponseWriter.Write(b)
 	w.responseBytes += n
 	return n, err
 }
 
 // WriteHeader writes the header and captures the status code.
-func (w *statusResponseWriter) WriteHeader(statusCode int) {
+func (w *StatusResponseWriter) WriteHeader(statusCode int) {
 	w.statusCode = statusCode
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 
-func (w *statusResponseWriter) code() int {
+func (w *StatusResponseWriter) Code() int {
 	code := w.statusCode
 	if code == 0 {
 		// When statusCode is 0 then WriteHeader was never called and we can assume that
@@ -36,9 +36,13 @@ func (w *statusResponseWriter) code() int {
 	return code
 }
 
-func (w *statusResponseWriter) statusCodeClass() string {
+func (w *StatusResponseWriter) ResponseBytes() int {
+	return w.responseBytes
+}
+
+func (w *StatusResponseWriter) StatusCodeClass() string {
 	class := "XXX"
-	switch w.code() / 100 {
+	switch w.Code() / 100 {
 	case 1:
 		class = "1XX"
 	case 2:

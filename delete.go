@@ -4,6 +4,7 @@ import "context"
 
 // Predicate is something that can match on a series key.
 type Predicate interface {
+	Clone() Predicate
 	Matches(key []byte) bool
 	Marshal() ([]byte, error)
 }

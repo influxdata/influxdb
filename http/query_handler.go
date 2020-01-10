@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/http/metric"
 	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
 	"github.com/pkg/errors"
@@ -120,15 +121,15 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	// Ideally this will be moved when we solve https://github.com/influxdata/influxdb/issues/13403
 	var orgID influxdb.ID
 	var requestBytes int
-	sw := newStatusResponseWriter(w)
+	sw := kithttp.NewStatusResponseWriter(w)
 	w = sw
 	defer func() {
 		h.EventRecorder.Record(ctx, metric.Event{
 			OrgID:         orgID,
 			Endpoint:      r.URL.Path, // This should be sufficient for the time being as it should only be single endpoint.
 			RequestBytes:  requestBytes,
-			ResponseBytes: sw.responseBytes,
-			Status:        sw.code(),
+			ResponseBytes: sw.ResponseBytes(),
+			Status:        sw.Code(),
 		})
 	}()
 

@@ -6,7 +6,6 @@ import {get} from 'lodash'
 
 // Components
 import {NavMenu, Icon} from '@influxdata/clockface'
-import CloudNav from 'src/pageLayout/components/CloudNav'
 import AccountNavSubItem from 'src/pageLayout/components/AccountNavSubItem'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
@@ -96,7 +95,7 @@ class SideNav extends PureComponent<Props, State> {
           <NavMenu.Item
             titleLink={className => (
               <Link className={className} to={orgPrefix}>
-                <CloudOnly>{me.name}</CloudOnly>
+                <CloudOnly>Getting Started</CloudOnly>
                 <CloudExclude>{`${me.name} (${orgName})`}</CloudExclude>
               </Link>
             )}
@@ -309,7 +308,6 @@ class SideNav extends PureComponent<Props, State> {
             key="profile"
           />
         </NavMenu.Item>
-        <CloudNav />
         <NavMenu.Item
           titleLink={className => (
             <a className={className} href={feedbackLink} target="_blank">

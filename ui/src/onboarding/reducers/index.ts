@@ -29,7 +29,7 @@ export default (state = INITIAL_STATE, action: Action): OnboardingState => {
       return {...state, stepStatuses}
     case 'SET_ORG_ID':
       return {...state, orgID: action.payload.orgID}
-    case 'SET_BUCKET_ID':
+    case 'SET_ONBOARDING_BUCKET_ID':
       return {...state, bucketID: action.payload.bucketID}
     default:
       return state

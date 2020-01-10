@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import ExportOverlay from 'src/shared/components/ExportOverlay'
 
 // Actions
-import {convertToTemplate as convertToTemplateAction} from 'src/tasks/actions'
+import {convertToTemplate as convertToTemplateAction} from 'src/tasks/actions/thunks'
 import {clearExportTemplate as clearExportTemplateAction} from 'src/templates/actions'
 
 // Types

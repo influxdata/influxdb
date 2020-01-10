@@ -284,9 +284,9 @@ func testFind(t *testing.T, fn func(t *testing.T, suffix string) (storeBase, fun
 
 	expectedEnts := []kv.Entity{
 		newFooEnt(1, 9000, "foo_0"),
-		newFooEnt(2, 9000, "foo_1"),
-		newFooEnt(3, 9003, "foo_2"),
-		newFooEnt(4, 9004, "foo_3"),
+		newFooEnt(2000, 9000, "foo_1"),
+		newFooEnt(3000000, 9003, "foo_2"),
+		newFooEnt(4000000000, 9004, "foo_3"),
 	}
 
 	tests := []struct {
@@ -329,6 +329,13 @@ func testFind(t *testing.T, fn func(t *testing.T, suffix string) (storeBase, fun
 				Offset:     1,
 			},
 			expected: toIfaces(expectedEnts[2]),
+		},
+		{
+			name: "with id prefix",
+			opts: kv.FindOpts{
+				Prefix: encodeID(t, 3000000)[:influxdb.IDLength-5],
+			},
+			expected: toIfaces(expectedEnts[2], expectedEnts[3]),
 		},
 	}
 

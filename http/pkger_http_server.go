@@ -36,10 +36,11 @@ func NewHandlerPkg(log *zap.Logger, errHandler influxdb.HTTPErrorHandler, svc pk
 	}
 
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(traceMW)
-	r.Use(middleware.Recoverer)
+	r.Use(
+		middleware.Recoverer,
+		middleware.RequestID,
+		middleware.RealIP,
+	)
 
 	{
 		r.With(middleware.AllowContentType("text/yml", "application/x-yaml", "application/json")).

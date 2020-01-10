@@ -1,5 +1,6 @@
 // Types
 import {
+  Task,
   Telegraf,
   Member,
   Bucket,
@@ -11,7 +12,7 @@ import {
 // TODO: make these Entities generic
 
 // AuthEntities defines the result of normalizr's normalization
-// of the "authorization" resource
+// of the "authorizations" resource
 export interface AuthEntities {
   buckets: {
     [uuid: string]: Authorization
@@ -19,7 +20,7 @@ export interface AuthEntities {
 }
 
 // BucketEntities defines the result of normalizr's normalization
-// of the "bucket" resource
+// of the "buckets" resource
 export interface BucketEntities {
   buckets: {
     [uuid: string]: Bucket
@@ -27,7 +28,7 @@ export interface BucketEntities {
 }
 
 // MemberEntities defines the result of normalizr's normalization
-// of the "member" resource
+// of the "members" resource
 export interface MemberEntities {
   members: {
     [uuid: string]: Member
@@ -35,7 +36,7 @@ export interface MemberEntities {
 }
 
 // OrgEntities defines the result of normalizr's normalization
-// of the "organization" resource
+// of the "organizations" resource
 export interface OrgEntities {
   orgs: {
     [uuid: string]: Organization
@@ -43,7 +44,7 @@ export interface OrgEntities {
 }
 
 // TelegrafEntities defines the result of normalizr's normalization
-// of the "telegraf" resource
+// of the "telegrafs" resource
 export interface TelegrafEntities {
   telegrafs: {
     [uuid: string]: Telegraf
@@ -51,9 +52,17 @@ export interface TelegrafEntities {
 }
 
 // ScraperEntities defines the result of normalizr's normalization
-// of the "scraper" resource
+// of the "scrapers" resource
 export interface ScraperEntities {
   scrapers: {
     [uuid: string]: Scraper
+  }
+}
+
+// TaskEntities defines the result of normalizr's normalization
+// of the "tasks" resource
+export interface TaskEntities {
+  tasks: {
+    [uuid: string]: Task
   }
 }

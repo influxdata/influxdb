@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage/wal"
 
 	"github.com/golang/snappy"
@@ -278,8 +279,9 @@ func TestCache_DeleteBucketRange_NonExistent(t *testing.T) {
 
 type stringPredicate string
 
-func (s stringPredicate) Matches(k []byte) bool    { return string(s) == string(k) }
-func (s stringPredicate) Marshal() ([]byte, error) { return nil, errors.New("unused") }
+func (s stringPredicate) Clone() influxdb.Predicate { return s }
+func (s stringPredicate) Matches(k []byte) bool     { return string(s) == string(k) }
+func (s stringPredicate) Marshal() ([]byte, error)  { return nil, errors.New("unused") }
 
 func TestCache_Cache_DeleteBucketRange_WithPredicate(t *testing.T) {
 	v0 := NewValue(1, 1.0)

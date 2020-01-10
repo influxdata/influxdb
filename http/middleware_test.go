@@ -108,6 +108,8 @@ func TestLoggingMW(t *testing.T) {
 
 	testEndpoint := func(tt testRun) func(t *testing.T) {
 		fn := func(t *testing.T) {
+			t.Helper()
+
 			log, buf := newDebugLogger(t)
 
 			reqURL := urlWithQueries(tt.path, tt.queryPairs...)
@@ -150,6 +152,7 @@ func TestLoggingMW(t *testing.T) {
 						continue
 					}
 					fallthrough
+				case "user_agent":
 				default:
 					if expectedV := expected[k]; expectedV != v {
 						t.Errorf("unexpected value(%q) for key(%q): expected=%q", v, k, expectedV)

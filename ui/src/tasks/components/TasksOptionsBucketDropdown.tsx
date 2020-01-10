@@ -46,6 +46,7 @@ class TaskOptionsBucketDropdown extends PureComponent<Props> {
             active={active}
             onClick={onClick}
             status={this.status}
+            testID="task-options-bucket-dropdown--button"
           >
             {selectedBucketName}
           </Dropdown.Button>
@@ -112,15 +113,21 @@ class TaskOptionsBucketDropdown extends PureComponent<Props> {
   }
 
   private setSelectedToFirst() {
-    const {buckets, onChangeBucketName} = this.props
+    const {buckets, selectedBucketName, onChangeBucketName} = this.props
     const firstBucketNameInList = get(buckets, '0.name', '')
+
+    if (firstBucketNameInList === selectedBucketName) {
+      return
+    }
 
     onChangeBucketName(firstBucketNameInList)
   }
 }
 
 const mstp = (state: AppState): StateProps => {
-  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets).filter(
+    (bucket: Bucket): boolean => bucket.type !== 'system'
+  )
   const status = getStatus(state, ResourceType.Buckets)
 
   return {
