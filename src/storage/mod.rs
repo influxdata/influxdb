@@ -9,6 +9,7 @@ pub mod inverted_index;
 pub mod predicate;
 pub mod rocksdb;
 pub mod series_store;
+pub mod memdb;
 
 pub struct Range {
     pub start: i64,

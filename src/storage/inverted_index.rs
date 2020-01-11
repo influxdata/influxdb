@@ -36,3 +36,158 @@ pub struct SeriesFilter {
     pub value_predicate: Option<Predicate>,
     pub series_type: SeriesDataType,
 }
+
+// Test helpers for other implementations to run
+#[cfg(test)]
+pub mod tests {
+    use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
+    use crate::line_parser::PointType;
+    use crate::storage::predicate::parse_predicate;
+    use crate::storage::SeriesDataType;
+
+    pub fn series_id_indexing(index: Box<dyn InvertedIndex>) {
+        let bucket_id = 1;
+        let bucket_2 = 2;
+        let p1 = PointType::new_i64("one".to_string(), 1, 0);
+        let p2 = PointType::new_i64("two".to_string(), 23, 40);
+        let p3 = PointType::new_i64("three".to_string(), 33, 86);
+
+            let mut points = vec![p1.clone(), p2.clone()];
+            index.get_or_create_series_ids_for_points(bucket_id, &mut points)
+                .unwrap();
+            assert_eq!(points[0].series_id(), Some(1));
+            assert_eq!(points[1].series_id(), Some(2));
+
+
+        // now put series in a different bucket, but make sure the IDs start from the beginning
+        let mut points = vec![p1.clone()];
+        index.get_or_create_series_ids_for_points(bucket_2, &mut points)
+            .unwrap();
+        assert_eq!(points[0].series_id(), Some(1));
+
+        // now insert a new series in the first bucket and make sure it shows up
+        let mut points = vec![p1.clone(), p3.clone()];
+            index.get_or_create_series_ids_for_points(bucket_id, &mut points)
+                .unwrap();
+            assert_eq!(points[0].series_id(), Some(1));
+            assert_eq!(points[1].series_id(), Some(3));
+    }
+
+    pub fn series_metadata_indexing(index: Box<dyn InvertedIndex>) {
+        let bucket_id = 1;
+        let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 0);
+        let p2 = PointType::new_i64("cpu,host=a,region=west\tusage_system".to_string(), 1, 0);
+        let p3 = PointType::new_i64("cpu,host=a,region=west\tusage_user".to_string(), 1, 0);
+        let p4 = PointType::new_i64("mem,host=b,region=west\tfree".to_string(), 1, 0);
+
+        let mut points = vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()];
+        index.get_or_create_series_ids_for_points(bucket_id, &mut points).unwrap();
+
+        let tag_keys: Vec<String> = index.get_tag_keys(bucket_id, None).unwrap().collect();
+        assert_eq!(tag_keys, vec!["_f", "_m", "host", "region"]);
+
+        let tag_values: Vec<String>= index.get_tag_values(bucket_id, "host", None).unwrap().collect();
+        assert_eq!(tag_values, vec!["a", "b"]);
+
+        // get all series
+
+        // get series with measurement = mem
+        let pred = parse_predicate("_m = \"cpu\"").unwrap();
+        let series: Vec<SeriesFilter> = index
+            .read_series_matching(bucket_id, Some(&pred))
+            .unwrap()
+            .collect();
+        assert_eq!(
+            series,
+            vec![
+                SeriesFilter {
+                    id: 1,
+                    key: "cpu,host=b,region=west\tusage_system".to_string(),
+                    value_predicate: None,
+                    series_type: SeriesDataType::I64
+                },
+                SeriesFilter {
+                    id: 2,
+                    key: "cpu,host=a,region=west\tusage_system".to_string(),
+                    value_predicate: None,
+                    series_type: SeriesDataType::I64
+                },
+                SeriesFilter {
+                    id: 3,
+                    key: "cpu,host=a,region=west\tusage_user".to_string(),
+                    value_predicate: None,
+                    series_type: SeriesDataType::I64
+                },
+            ]
+        );
+
+        // get series with host = a
+        let pred = parse_predicate("host = \"a\"").unwrap();
+        let series: Vec<SeriesFilter> = index
+            .read_series_matching(bucket_id, Some(&pred))
+            .unwrap()
+            .collect();
+        assert_eq!(
+            series,
+            vec![
+                SeriesFilter {
+                    id: 2,
+                    key: "cpu,host=a,region=west\tusage_system".to_string(),
+                    value_predicate: None,
+                    series_type: SeriesDataType::I64
+                },
+                SeriesFilter {
+                    id: 3,
+                    key: "cpu,host=a,region=west\tusage_user".to_string(),
+                    value_predicate: None,
+                    series_type: SeriesDataType::I64
+                },
+            ]
+        );
+
+        // get series with measurement = cpu and host = b
+        let pred = parse_predicate("_m = \"cpu\" and host = \"b\"").unwrap();
+        let series: Vec<SeriesFilter> = index
+            .read_series_matching(bucket_id, Some(&pred))
+            .unwrap()
+            .collect();
+        assert_eq!(
+            series,
+            vec![SeriesFilter {
+                id: 1,
+                key: "cpu,host=b,region=west\tusage_system".to_string(),
+                value_predicate: None,
+                series_type: SeriesDataType::I64
+            },]
+        );
+
+        let pred = parse_predicate("host = \"a\" OR _m = \"mem\"").unwrap();
+        let series: Vec<SeriesFilter> = index
+            .read_series_matching(bucket_id, Some(&pred))
+            .unwrap()
+            .collect();
+        assert_eq!(
+            series,
+            vec![
+                SeriesFilter {
+                    id: 2,
+                    key: "cpu,host=a,region=west\tusage_system".to_string(),
+                    value_predicate: None,
+                    series_type: SeriesDataType::I64
+                },
+                SeriesFilter {
+                    id: 3,
+                    key: "cpu,host=a,region=west\tusage_user".to_string(),
+                    value_predicate: None,
+                    series_type: SeriesDataType::I64
+                },
+                SeriesFilter {
+                    id: 4,
+                    key: "mem,host=b,region=west\tfree".to_string(),
+                    value_predicate: None,
+                    series_type: SeriesDataType::I64
+                },
+            ]
+        );
+    }
+}
