@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBucket(t *testing.T) {
+func TestCmdBucket(t *testing.T) {
 	setViperOptions()
 
 	orgID := influxdb.ID(9000)
@@ -113,7 +113,7 @@ func TestBucket(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
 				cmd := cmdFn(tt.expectedBucket)
-				cmd.Flags().Parse(tt.flags)
+				cmd.LocalFlags().Parse(tt.flags)
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -161,7 +161,7 @@ func TestBucket(t *testing.T) {
 			fn := func(t *testing.T) {
 				cmd := cmdFn(tt.expectedID)
 				idFlag := tt.flag + tt.expectedID.String()
-				cmd.Flags().Parse([]string{idFlag})
+				cmd.LocalFlags().Parse([]string{idFlag})
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -269,7 +269,7 @@ func TestBucket(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
 				cmd, calls := cmdFn()
-				cmd.Flags().Parse(tt.flags)
+				cmd.LocalFlags().Parse(tt.flags)
 
 				require.NoError(t, cmd.Execute())
 				assert.Equal(t, tt.expected, *calls)
@@ -363,7 +363,7 @@ func TestBucket(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
 				cmd := cmdFn(tt.expected)
-				cmd.Flags().Parse(tt.flags)
+				cmd.LocalFlags().Parse(tt.flags)
 				require.NoError(t, cmd.Execute())
 			}
 

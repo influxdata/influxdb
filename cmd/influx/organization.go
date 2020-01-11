@@ -3,51 +3,527 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
+
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/spf13/cobra"
 )
 
-func cmdOrganization() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "org",
-		Aliases: []string{"organization"},
-		Short:   "Organization management commands",
-		Run:     seeHelp,
+type orgSVCFn func() (influxdb.OrganizationService, influxdb.UserResourceMappingService, influxdb.UserService, error)
+
+func cmdOrganization(opts ...genericCLIOptFn) *cobra.Command {
+	return newCmdOrgBuilder(newOrgServices, opts...).cmd()
+}
+
+type cmdOrgBuilder struct {
+	genericCLIOpts
+
+	svcFn orgSVCFn
+
+	description string
+	id          string
+	memberID    string
+	name        string
+}
+
+func newCmdOrgBuilder(svcFn orgSVCFn, opts ...genericCLIOptFn) *cmdOrgBuilder {
+	opt := genericCLIOpts{
+		in: os.Stdin,
+		w:  os.Stdout,
+	}
+	for _, o := range opts {
+		o(&opt)
 	}
 
+	return &cmdOrgBuilder{
+		genericCLIOpts: opt,
+		svcFn:          svcFn,
+	}
+}
+
+func (b *cmdOrgBuilder) cmd() *cobra.Command {
+	cmd := b.newCmd("org", nil)
+	cmd.Aliases = []string{"organization"}
+	cmd.Short = "Organization management commands"
+	cmd.Run = seeHelp
+
 	cmd.AddCommand(
-		orgCreateCmd(),
-		orgDeleteCmd(),
-		orgFindCmd(),
-		orgMembersCmd(),
-		orgUpdateCmd(),
+		b.cmdCreate(),
+		b.cmdDelete(),
+		b.cmdFind(),
+		b.cmdMember(),
+		b.cmdUpdate(),
 	)
 
 	return cmd
 }
 
-var organizationCreateFlags struct {
-	name string
-}
+func (b *cmdOrgBuilder) cmdCreate() *cobra.Command {
+	cmd := b.newCmd("create", b.createRunEFn)
+	cmd.Short = "Create organization"
 
-func orgCreateCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create organization",
-		RunE:  wrapCheckSetup(organizationCreateF),
-	}
-
-	cmd.Flags().StringVarP(&organizationCreateFlags.name, "name", "n", "", "The name of organization that will be created")
+	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The name of organization that will be created")
 	cmd.MarkFlagRequired("name")
+	cmd.Flags().StringVarP(&b.description, "description", "d", "", "The description of the organization that will be created")
 
 	return cmd
 }
 
-func newOrganizationService() (platform.OrganizationService, error) {
+func (b *cmdOrgBuilder) createRunEFn(cmd *cobra.Command, args []string) error {
+	orgSvc, _, _, err := b.svcFn()
+	if err != nil {
+		return fmt.Errorf("failed to initialize org service client: %v", err)
+	}
+
+	org := &influxdb.Organization{
+		Name:        b.name,
+		Description: b.description,
+	}
+
+	if err := orgSvc.CreateOrganization(context.Background(), org); err != nil {
+		return fmt.Errorf("failed to create organization: %v", err)
+	}
+
+	w := internal.NewTabWriter(b.w)
+	w.WriteHeaders("ID", "Name")
+	w.Write(map[string]interface{}{
+		"ID":   org.ID.String(),
+		"Name": org.Name,
+	})
+	w.Flush()
+
+	return nil
+}
+
+func (b *cmdOrgBuilder) cmdDelete() *cobra.Command {
+	cmd := b.newCmd("delete", b.deleteRunEFn)
+	cmd.Short = "Delete organization"
+
+	opts := flagOpts{
+		{
+			DestP:  &b.id,
+			Flag:   "id",
+			Short:  'i',
+			EnvVar: "ORG_ID",
+			Desc:   "The organization ID",
+		},
+	}
+	opts.mustRegister(cmd)
+
+	return cmd
+}
+
+func (b *cmdOrgBuilder) deleteRunEFn(cmd *cobra.Command, args []string) error {
+	orgSvc, _, _, err := b.svcFn()
+	if err != nil {
+		return fmt.Errorf("failed to initialize org service client: %v", err)
+	}
+
+	var id influxdb.ID
+	if err := id.DecodeFromString(b.id); err != nil {
+		return fmt.Errorf("failed to decode org id %s: %v", b.id, err)
+	}
+
+	ctx := context.TODO()
+	o, err := orgSvc.FindOrganizationByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to find org with id %q: %v", id, err)
+	}
+
+	if err = orgSvc.DeleteOrganization(ctx, id); err != nil {
+		return fmt.Errorf("failed to delete org with id %q: %v", id, err)
+	}
+
+	w := internal.NewTabWriter(b.w)
+	w.WriteHeaders("ID", "Name", "Deleted")
+	w.Write(map[string]interface{}{
+		"ID":      o.ID.String(),
+		"Name":    o.Name,
+		"Deleted": true,
+	})
+	w.Flush()
+
+	return nil
+}
+
+func (b *cmdOrgBuilder) cmdFind() *cobra.Command {
+	cmd := b.newCmd("find", b.findRunEFn)
+	cmd.Short = "Find organizations"
+
+	opts := flagOpts{
+		{
+			DestP:  &b.name,
+			Flag:   "name",
+			Short:  'n',
+			EnvVar: "ORG",
+			Desc:   "The organization name",
+		},
+		{
+			DestP:  &b.id,
+			Flag:   "id",
+			Short:  'i',
+			EnvVar: "ORG_ID",
+			Desc:   "The organization ID",
+		},
+	}
+	opts.mustRegister(cmd)
+
+	return cmd
+}
+
+func (b *cmdOrgBuilder) findRunEFn(cmd *cobra.Command, args []string) error {
+	orgSvc, _, _, err := b.svcFn()
+	if err != nil {
+		return fmt.Errorf("failed to initialize org service client: %v", err)
+	}
+
+	filter := influxdb.OrganizationFilter{}
+	if b.name != "" {
+		filter.Name = &b.name
+	}
+
+	if b.id != "" {
+		id, err := influxdb.IDFromString(b.id)
+		if err != nil {
+			return fmt.Errorf("failed to decode org id %s: %v", b.id, err)
+		}
+		filter.ID = id
+	}
+
+	orgs, _, err := orgSvc.FindOrganizations(context.Background(), filter)
+	if err != nil {
+		return fmt.Errorf("failed find orgs: %v", err)
+	}
+
+	w := internal.NewTabWriter(b.w)
+	w.WriteHeaders("ID", "Name")
+	for _, o := range orgs {
+		w.Write(map[string]interface{}{
+			"ID":   o.ID.String(),
+			"Name": o.Name,
+		})
+	}
+	w.Flush()
+
+	return nil
+}
+
+func (b *cmdOrgBuilder) cmdUpdate() *cobra.Command {
+	cmd := b.newCmd("update", b.updateRunEFn)
+	cmd.Short = "Update organization"
+
+	opts := flagOpts{
+		{
+			DestP:    &b.id,
+			Flag:     "id",
+			Short:    'i',
+			EnvVar:   "ORG_ID",
+			Desc:     "The organization ID (required)",
+			Required: true,
+		},
+		{
+			DestP:  &b.name,
+			Flag:   "name",
+			Short:  'n',
+			EnvVar: "ORG",
+			Desc:   "The organization name",
+		},
+		{
+			DestP:  &b.description,
+			Flag:   "description",
+			Short:  'd',
+			EnvVar: "ORG_DESCRIPTION",
+			Desc:   "The organization name",
+		},
+	}
+	opts.mustRegister(cmd)
+
+	return cmd
+}
+
+func (b *cmdOrgBuilder) updateRunEFn(cmd *cobra.Command, args []string) error {
+	orgSvc, _, _, err := b.svcFn()
+	if err != nil {
+		return fmt.Errorf("failed to initialize org service client: %v", err)
+	}
+
+	var id influxdb.ID
+	if err := id.DecodeFromString(b.id); err != nil {
+		return fmt.Errorf("failed to decode org id %s: %v", b.id, err)
+	}
+
+	update := influxdb.OrganizationUpdate{}
+	if b.name != "" {
+		update.Name = &b.name
+	}
+	if b.description != "" {
+		update.Description = &b.description
+	}
+
+	o, err := orgSvc.UpdateOrganization(context.Background(), id, update)
+	if err != nil {
+		return fmt.Errorf("failed to update org: %v", err)
+	}
+
+	w := internal.NewTabWriter(b.w)
+	w.WriteHeaders("ID", "Name")
+	w.Write(map[string]interface{}{
+		"ID":   o.ID.String(),
+		"Name": o.Name,
+	})
+	w.Flush()
+
+	return nil
+}
+
+func (b *cmdOrgBuilder) cmdMember() *cobra.Command {
+	cmd := b.newCmd("members", nil)
+	cmd.Short = "Organization membership commands"
+	cmd.Run = seeHelp
+
+	cmd.AddCommand(
+		b.cmdMemberAdd(),
+		b.cmdMemberList(),
+		b.cmdMemberRemove(),
+	)
+
+	return cmd
+}
+
+func (b *cmdOrgBuilder) cmdMemberList() *cobra.Command {
+	cmd := b.newCmd("list", b.memberListRunEFn)
+	cmd.Short = "List organization members"
+
+	opts := flagOpts{
+		{
+			DestP:  &b.name,
+			Flag:   "name",
+			Short:  'n',
+			EnvVar: "ORG",
+			Desc:   "The organization name",
+		},
+		{
+			DestP:  &b.id,
+			Flag:   "id",
+			Short:  'i',
+			EnvVar: "ORG_ID",
+			Desc:   "The organization ID",
+		},
+	}
+	opts.mustRegister(cmd)
+	return cmd
+}
+
+func (b *cmdOrgBuilder) memberListRunEFn(cmd *cobra.Command, args []string) error {
+	orgSvc, urmSVC, userSVC, err := b.svcFn()
+	if err != nil {
+		return fmt.Errorf("failed to initialize org service client: %v", err)
+	}
+
+	if b.id == "" && b.name == "" {
+		return fmt.Errorf("must specify exactly one of id and name")
+	}
+
+	var filter influxdb.OrganizationFilter
+	if b.name != "" {
+		filter.Name = &b.name
+	}
+
+	if b.id != "" {
+		var fID influxdb.ID
+		err := fID.DecodeFromString(b.id)
+		if err != nil {
+			return fmt.Errorf("failed to decode org id %s: %v", b.id, err)
+		}
+		filter.ID = &fID
+	}
+
+	organization, err := orgSvc.FindOrganization(context.Background(), filter)
+	if err != nil {
+		return fmt.Errorf("failed to find org: %v", err)
+	}
+
+	ctx := context.Background()
+	return memberList(ctx, b.w, urmSVC, userSVC, influxdb.UserResourceMappingFilter{
+		ResourceType: influxdb.OrgsResourceType,
+		ResourceID:   organization.ID,
+		UserType:     influxdb.Member,
+	})
+}
+
+func (b *cmdOrgBuilder) cmdMemberAdd() *cobra.Command {
+	cmd := b.newCmd("add", b.memberAddRunEFn)
+	cmd.Short = "Add organization member"
+
+	cmd.Flags().StringVarP(&b.memberID, "member", "m", "", "The member ID")
+	cmd.MarkFlagRequired("member")
+
+	opts := flagOpts{
+		{
+			DestP:  &b.name,
+			Flag:   "name",
+			Short:  'n',
+			EnvVar: "ORG",
+			Desc:   "The organization name",
+		},
+		{
+			DestP:  &b.id,
+			Flag:   "id",
+			Short:  'i',
+			EnvVar: "ORG_ID",
+			Desc:   "The organization ID",
+		},
+	}
+	opts.mustRegister(cmd)
+
+	return cmd
+}
+
+func (b *cmdOrgBuilder) memberAddRunEFn(cmd *cobra.Command, args []string) error {
+	if b.id == "" && b.name == "" {
+		return fmt.Errorf("must specify exactly one of id and name")
+	}
+	if b.id != "" && b.name != "" {
+		return fmt.Errorf("must specify exactly one of id and name")
+	}
+
+	orgSvc, urmSVC, _, err := b.svcFn()
+	if err != nil {
+		return fmt.Errorf("failed to initialize org service client: %v", err)
+	}
+
+	var filter influxdb.OrganizationFilter
+	if b.name != "" {
+		filter.Name = &b.name
+	}
+
+	if b.id != "" {
+		var fID influxdb.ID
+		err := fID.DecodeFromString(b.id)
+		if err != nil {
+			return fmt.Errorf("failed to decode org id %s: %v", b.id, err)
+		}
+		filter.ID = &fID
+	}
+
+	ctx := context.Background()
+	organization, err := orgSvc.FindOrganization(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to find org: %v", err)
+	}
+
+	var memberID influxdb.ID
+	err = memberID.DecodeFromString(b.memberID)
+	if err != nil {
+		return fmt.Errorf("failed to decode member id %s: %v", b.memberID, err)
+	}
+
+	return addMember(ctx, b.w, urmSVC, influxdb.UserResourceMapping{
+		ResourceID:   organization.ID,
+		ResourceType: influxdb.OrgsResourceType,
+		MappingType:  influxdb.UserMappingType,
+		UserID:       memberID,
+		UserType:     influxdb.Member,
+	})
+}
+
+func (b *cmdOrgBuilder) cmdMemberRemove() *cobra.Command {
+	cmd := b.newCmd("remove", b.membersRemoveRunEFn)
+	cmd.Short = "Remove organization member"
+
+	opts := flagOpts{
+		{
+			DestP:  &b.name,
+			Flag:   "name",
+			Short:  'n',
+			EnvVar: "ORG",
+			Desc:   "The organization name",
+		},
+		{
+			DestP:  &b.id,
+			Flag:   "id",
+			Short:  'i',
+			EnvVar: "ORG_ID",
+			Desc:   "The organization ID",
+		},
+	}
+	opts.mustRegister(cmd)
+
+	cmd.Flags().StringVarP(&b.memberID, "member", "m", "", "The member ID")
+	cmd.MarkFlagRequired("member")
+
+	return cmd
+}
+
+func (b *cmdOrgBuilder) membersRemoveRunEFn(cmd *cobra.Command, args []string) error {
+	if b.id == "" && b.name == "" {
+		return fmt.Errorf("must specify exactly one of id and name")
+	}
+
+	if b.id != "" && b.name != "" {
+		return fmt.Errorf("must specify exactly one of id and name")
+	}
+
+	orgSvc, urmSVC, _, err := b.svcFn()
+	if err != nil {
+		return fmt.Errorf("failed to initialize org service client: %v", err)
+	}
+
+	var filter influxdb.OrganizationFilter
+	if b.name != "" {
+		filter.Name = &b.name
+	}
+
+	if b.id != "" {
+		var fID influxdb.ID
+		err := fID.DecodeFromString(b.id)
+		if err != nil {
+			return fmt.Errorf("failed to decode org id %s: %v", b.id, err)
+		}
+		filter.ID = &fID
+	}
+
+	ctx := context.Background()
+	organization, err := orgSvc.FindOrganization(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to find organization: %v", err)
+	}
+
+	var memberID influxdb.ID
+	err = memberID.DecodeFromString(b.memberID)
+	if err != nil {
+		return fmt.Errorf("failed to decode member id %s: %v", b.memberID, err)
+	}
+
+	return removeMember(ctx, b.w, urmSVC, organization.ID, memberID)
+}
+
+func newOrgServices() (influxdb.OrganizationService, influxdb.UserResourceMappingService, influxdb.UserService, error) {
+	if flags.local {
+		svc, err := newLocalKVService()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return svc, svc, svc, nil
+	}
+
+	client, err := newHTTPClient()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	orgSVC := &http.OrganizationService{Client: client}
+	urmSVC := &http.UserResourceMappingService{Client: client}
+	userSVC := &http.UserService{Client: client}
+
+	return orgSVC, urmSVC, userSVC, nil
+}
+
+func newOrganizationService() (influxdb.OrganizationService, error) {
 	if flags.local {
 		return newLocalKVService()
 	}
@@ -62,438 +538,75 @@ func newOrganizationService() (platform.OrganizationService, error) {
 	}, nil
 }
 
-func organizationCreateF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService()
+func memberList(ctx context.Context, w io.Writer, urmSVC influxdb.UserResourceMappingService, userSVC influxdb.UserService, f influxdb.UserResourceMappingFilter) error {
+	mps, _, err := urmSVC.FindUserResourceMappings(ctx, f)
 	if err != nil {
-		return fmt.Errorf("failed to initialize org service client: %v", err)
+		return fmt.Errorf("failed to find members: %v", err)
 	}
 
-	o := &platform.Organization{
-		Name: organizationCreateFlags.name,
-	}
-
-	if err := orgSvc.CreateOrganization(context.Background(), o); err != nil {
-		return fmt.Errorf("failed to create organization: %v", err)
-	}
-
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"Name",
-	)
-	w.Write(map[string]interface{}{
-		"ID":   o.ID.String(),
-		"Name": o.Name,
+	urs := make([]*influxdb.User, len(mps))
+	ursC := make(chan struct {
+		User  *influxdb.User
+		Index int
 	})
-	w.Flush()
-
-	return nil
-}
-
-var organizationFindFlags struct {
-	name string
-	id   string
-}
-
-func orgFindCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "find",
-		Short: "Find organizations",
-		RunE:  wrapCheckSetup(organizationFindF),
+	errC := make(chan error)
+	sem := make(chan struct{}, maxTCPConnections)
+	for k, v := range mps {
+		sem <- struct{}{}
+		go func(k int, v *influxdb.UserResourceMapping) {
+			defer func() { <-sem }()
+			usr, err := userSVC.FindUserByID(ctx, v.UserID)
+			if err != nil {
+				errC <- fmt.Errorf("failed to retrieve user details: %v", err)
+				return
+			}
+			ursC <- struct {
+				User  *influxdb.User
+				Index int
+			}{
+				User:  usr,
+				Index: k,
+			}
+		}(k, v)
 	}
-
-	opts := flagOpts{
-		{
-			DestP:  &organizationFindFlags.name,
-			Flag:   "name",
-			Short:  'n',
-			EnvVar: "ORG",
-			Desc:   "The organization name",
-		},
-		{
-			DestP:  &organizationFindFlags.id,
-			Flag:   "id",
-			Short:  'i',
-			EnvVar: "ORG_ID",
-			Desc:   "The organization ID",
-		},
-	}
-	opts.mustRegister(cmd)
-
-	return cmd
-}
-
-func organizationFindF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService()
-	if err != nil {
-		return fmt.Errorf("failed to initialize org service client: %v", err)
-	}
-
-	filter := platform.OrganizationFilter{}
-	if organizationFindFlags.name != "" {
-		filter.Name = &organizationFindFlags.name
-	}
-
-	if organizationFindFlags.id != "" {
-		id, err := platform.IDFromString(organizationFindFlags.id)
-		if err != nil {
-			return fmt.Errorf("failed to decode org id %s: %v", organizationFindFlags.id, err)
+	for i := 0; i < len(mps); i++ {
+		select {
+		case <-ctx.Done():
+			return &influxdb.Error{
+				Msg: "Timeout retrieving user details",
+			}
+		case err := <-errC:
+			return err
+		case item := <-ursC:
+			urs[item.Index] = item.User
 		}
-		filter.ID = id
 	}
 
-	orgs, _, err := orgSvc.FindOrganizations(context.Background(), filter)
-	if err != nil {
-		return fmt.Errorf("failed find orgs: %v", err)
-	}
-
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"Name",
-	)
-	for _, o := range orgs {
-		w.Write(map[string]interface{}{
-			"ID":   o.ID.String(),
-			"Name": o.Name,
+	tw := internal.NewTabWriter(w)
+	tw.WriteHeaders("ID", "Name", "Status")
+	for _, m := range urs {
+		tw.Write(map[string]interface{}{
+			"ID":     m.ID.String(),
+			"Name":   m.Name,
+			"Status": string(m.Status),
 		})
 	}
-	w.Flush()
-
+	tw.Flush()
 	return nil
 }
 
-var organizationUpdateFlags struct {
-	id   string
-	name string
+func addMember(ctx context.Context, w io.Writer, urmSVC influxdb.UserResourceMappingService, urm influxdb.UserResourceMapping) error {
+	if err := urmSVC.CreateUserResourceMapping(ctx, &urm); err != nil {
+		return fmt.Errorf("failed to add member: %v", err)
+	}
+	_, err := fmt.Fprintf(w, "user %s has been added as a %s of %s: %s\n", urm.UserID, urm.UserType, urm.ResourceType, urm.ResourceID)
+	return err
 }
 
-func orgUpdateCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "update",
-		Short: "Update organization",
-		RunE:  wrapCheckSetup(organizationUpdateF),
+func removeMember(ctx context.Context, w io.Writer, urmSVC influxdb.UserResourceMappingService, resourceID, userID influxdb.ID) error {
+	if err := urmSVC.DeleteUserResourceMapping(ctx, resourceID, userID); err != nil {
+		return fmt.Errorf("failed to remove member: %v", err)
 	}
-
-	opts := flagOpts{
-		{
-			DestP:    &organizationUpdateFlags.id,
-			Flag:     "id",
-			Short:    'i',
-			EnvVar:   "ORG_ID",
-			Desc:     "The organization ID (required)",
-			Required: true,
-		},
-		{
-			DestP:  &organizationUpdateFlags.name,
-			Flag:   "name",
-			Short:  'n',
-			EnvVar: "ORG",
-			Desc:   "The organization name",
-		},
-	}
-	opts.mustRegister(cmd)
-
-	return cmd
-}
-
-func organizationUpdateF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService()
-	if err != nil {
-		return fmt.Errorf("failed to initialize org service client: %v", err)
-	}
-
-	var id platform.ID
-	if err := id.DecodeFromString(organizationUpdateFlags.id); err != nil {
-		return fmt.Errorf("failed to decode org id %s: %v", organizationUpdateFlags.id, err)
-	}
-
-	update := platform.OrganizationUpdate{}
-	if organizationUpdateFlags.name != "" {
-		update.Name = &organizationUpdateFlags.name
-	}
-
-	o, err := orgSvc.UpdateOrganization(context.Background(), id, update)
-	if err != nil {
-		return fmt.Errorf("failed to update org: %v", err)
-	}
-
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"Name",
-	)
-	w.Write(map[string]interface{}{
-		"ID":   o.ID.String(),
-		"Name": o.Name,
-	})
-	w.Flush()
-
-	return nil
-}
-
-var organizationDeleteFlags struct {
-	id string
-}
-
-func organizationDeleteF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService()
-	if err != nil {
-		return fmt.Errorf("failed to initialize org service client: %v", err)
-	}
-
-	var id platform.ID
-	if err := id.DecodeFromString(organizationDeleteFlags.id); err != nil {
-		return fmt.Errorf("failed to decode org id %s: %v", organizationDeleteFlags.id, err)
-	}
-
-	ctx := context.TODO()
-	o, err := orgSvc.FindOrganizationByID(ctx, id)
-	if err != nil {
-		return fmt.Errorf("failed to find org with id %q: %v", id, err)
-	}
-
-	if err = orgSvc.DeleteOrganization(ctx, id); err != nil {
-		return fmt.Errorf("failed to delete org with id %q: %v", id, err)
-	}
-
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"Name",
-		"Deleted",
-	)
-	w.Write(map[string]interface{}{
-		"ID":      o.ID.String(),
-		"Name":    o.Name,
-		"Deleted": true,
-	})
-	w.Flush()
-
-	return nil
-}
-
-func orgDeleteCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "delete",
-		Short: "Delete organization",
-		RunE:  wrapCheckSetup(organizationDeleteF),
-	}
-
-	opts := flagOpts{
-		{
-			DestP:  &organizationFindFlags.id,
-			Flag:   "id",
-			Short:  'i',
-			EnvVar: "ORG_ID",
-			Desc:   "The organization ID",
-		},
-	}
-	opts.mustRegister(cmd)
-
-	return cmd
-}
-
-var orgMemberFlags struct {
-	name     string
-	id       string
-	memberID string
-}
-
-func orgMembersCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "members",
-		Short: "Organization membership commands",
-		Run:   seeHelp,
-	}
-
-	opts := flagOpts{
-		{
-			DestP:      &orgMemberFlags.name,
-			Flag:       "name",
-			Short:      'n',
-			EnvVar:     "ORG",
-			Desc:       "The organization name",
-			Persistent: true,
-		},
-		{
-			DestP:      &orgMemberFlags.id,
-			Flag:       "id",
-			Short:      'i',
-			EnvVar:     "ORG_ID",
-			Desc:       "The organization ID",
-			Persistent: true,
-		},
-	}
-	opts.mustRegister(cmd)
-
-	cmd.AddCommand(
-		orgMembersAddCmd(),
-		orgMembersListCmd(),
-		orgMembersRemoveCmd(),
-	)
-
-	return cmd
-}
-
-func organizationMembersListF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService()
-	if err != nil {
-		return fmt.Errorf("failed to initialize org service client: %v", err)
-	}
-
-	if orgMemberFlags.id == "" && orgMemberFlags.name == "" {
-		return fmt.Errorf("must specify exactly one of id and name")
-	}
-
-	filter := platform.OrganizationFilter{}
-	if orgMemberFlags.name != "" {
-		filter.Name = &orgMemberFlags.name
-	}
-
-	if orgMemberFlags.id != "" {
-		var fID platform.ID
-		err := fID.DecodeFromString(orgMemberFlags.id)
-		if err != nil {
-			return fmt.Errorf("failed to decode org id %s: %v", orgMemberFlags.id, err)
-		}
-		filter.ID = &fID
-	}
-
-	organization, err := orgSvc.FindOrganization(context.Background(), filter)
-	if err != nil {
-		return fmt.Errorf("failed to find org: %v", err)
-	}
-
-	return membersListF(context.Background(), platform.UserResourceMappingFilter{
-		ResourceType: platform.OrgsResourceType,
-		ResourceID:   organization.ID,
-		UserType:     platform.Member,
-	})
-}
-
-func orgMembersListCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "list",
-		Short: "List organization members",
-		RunE:  wrapCheckSetup(organizationMembersListF),
-	}
-}
-
-func organizationMembersAddF(cmd *cobra.Command, args []string) error {
-	if orgMemberFlags.id == "" && orgMemberFlags.name == "" {
-		return fmt.Errorf("must specify exactly one of id and name")
-	}
-
-	if orgMemberFlags.id != "" && orgMemberFlags.name != "" {
-		return fmt.Errorf("must specify exactly one of id and name")
-	}
-
-	orgSvc, err := newOrganizationService()
-	if err != nil {
-		return fmt.Errorf("failed to initialize org service client: %v", err)
-	}
-
-	filter := platform.OrganizationFilter{}
-	if orgMemberFlags.name != "" {
-		filter.Name = &orgMemberFlags.name
-	}
-
-	if orgMemberFlags.id != "" {
-		var fID platform.ID
-		err := fID.DecodeFromString(orgMemberFlags.id)
-		if err != nil {
-			return fmt.Errorf("failed to decode org id %s: %v", orgMemberFlags.id, err)
-		}
-		filter.ID = &fID
-	}
-
-	ctx := context.Background()
-	organization, err := orgSvc.FindOrganization(ctx, filter)
-	if err != nil {
-		return fmt.Errorf("failed to find org: %v", err)
-	}
-
-	var memberID platform.ID
-	err = memberID.DecodeFromString(orgMemberFlags.memberID)
-	if err != nil {
-		return fmt.Errorf("failed to decode member id %s: %v", orgMemberFlags.memberID, err)
-	}
-
-	return membersAddF(ctx, platform.UserResourceMapping{
-		ResourceID:   organization.ID,
-		ResourceType: platform.OrgsResourceType,
-		MappingType:  platform.UserMappingType,
-		UserID:       memberID,
-		UserType:     platform.Member,
-	})
-}
-
-func orgMembersAddCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "add",
-		Short: "Add organization member",
-		RunE:  wrapCheckSetup(organizationMembersAddF),
-	}
-
-	cmd.Flags().StringVarP(&orgMemberFlags.memberID, "member", "o", "", "The member ID")
-	cmd.MarkFlagRequired("member")
-
-	return cmd
-}
-
-func organizationMembersRemoveF(cmd *cobra.Command, args []string) error {
-	if orgMemberFlags.id == "" && orgMemberFlags.name == "" {
-		return fmt.Errorf("must specify exactly one of id and name")
-	}
-
-	if orgMemberFlags.id != "" && orgMemberFlags.name != "" {
-		return fmt.Errorf("must specify exactly one of id and name")
-	}
-
-	orgSvc, err := newOrganizationService()
-	if err != nil {
-		return fmt.Errorf("failed to initialize org service client: %v", err)
-	}
-
-	filter := platform.OrganizationFilter{}
-	if orgMemberFlags.name != "" {
-		filter.Name = &orgMemberFlags.name
-	}
-
-	if orgMemberFlags.id != "" {
-		var fID platform.ID
-		err := fID.DecodeFromString(orgMemberFlags.id)
-		if err != nil {
-			return fmt.Errorf("failed to decode org id %s: %v", orgMemberFlags.id, err)
-		}
-		filter.ID = &fID
-	}
-
-	ctx := context.Background()
-	organization, err := orgSvc.FindOrganization(ctx, filter)
-	if err != nil {
-		return fmt.Errorf("failed to find organization: %v", err)
-	}
-
-	var memberID platform.ID
-	err = memberID.DecodeFromString(orgMemberFlags.memberID)
-	if err != nil {
-		return fmt.Errorf("failed to decode member id %s: %v", orgMemberFlags.memberID, err)
-	}
-
-	return membersRemoveF(ctx, organization.ID, memberID)
-}
-
-func orgMembersRemoveCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "remove",
-		Short: "Remove organization member",
-		RunE:  wrapCheckSetup(organizationMembersRemoveF),
-	}
-
-	cmd.Flags().StringVarP(&orgMemberFlags.memberID, "member", "o", "", "The member ID")
-	cmd.MarkFlagRequired("member")
-
-	return cmd
+	_, err := fmt.Fprintf(w, "userID %s has been removed from ResourceID %s\n", userID, resourceID)
+	return err
 }
