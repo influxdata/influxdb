@@ -87,12 +87,6 @@ func influxCmd() *cobra.Command {
 		Use:          "influx",
 		Short:        "Influx Client",
 		SilenceUsage: true,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			if err := checkSetup(flags.host); err != nil {
-				fmt.Printf("Note: %v\n", internal.ErrorFmt(err))
-			}
-			seeHelp(cmd, args)
-		},
 	}
 
 	setViperOptions()
