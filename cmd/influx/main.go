@@ -50,16 +50,27 @@ func newHTTPClient() (*httpc.Client, error) {
 	return httpClient, nil
 }
 
-type genericCLIOptFn func(*genericCLIOpts)
+type (
+	runEWrapFn func(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error
+
+	genericCLIOptFn func(*genericCLIOpts)
+)
 
 type genericCLIOpts struct {
-	in io.Reader
-	w  io.Writer
+	in         io.Reader
+	w          io.Writer
+	runEWrapFn runEWrapFn
 }
 
-func (o genericCLIOpts) newCmd(use string) *cobra.Command {
-	cmd := &cobra.Command{Use: use}
-	cmd.SetOutput(o.w)
+func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:  use,
+		RunE: runE,
+	}
+	if runE != nil && o.runEWrapFn != nil {
+		cmd.RunE = o.runEWrapFn(runE)
+	}
+	cmd.SetOut(o.w)
 	return cmd
 }
 
@@ -75,6 +86,12 @@ func out(w io.Writer) genericCLIOptFn {
 	}
 }
 
+func runEWrap(fn runEWrapFn) genericCLIOptFn {
+	return func(opts *genericCLIOpts) {
+		opts.runEWrapFn = fn
+	}
+}
+
 var flags struct {
 	token      string
 	host       string
@@ -82,22 +99,30 @@ var flags struct {
 	skipVerify bool
 }
 
-func influxCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:          "influx",
-		Short:        "Influx Client",
-		SilenceUsage: true,
+func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
+	opt := genericCLIOpts{
+		in: os.Stdin,
+		w:  os.Stdout,
 	}
+	for _, o := range opts {
+		o(&opt)
+	}
+
+	cmd := opt.newCmd("influx", nil)
+	cmd.Short = "Influx Client"
+	cmd.SilenceUsage = true
 
 	setViperOptions()
 
+	runEWrapper := runEWrap(wrapCheckSetup)
+
 	cmd.AddCommand(
 		cmdAuth(),
-		cmdBucket(newBucketSVCs),
+		cmdBucket(runEWrapper),
 		cmdDelete(),
-		cmdOrganization(),
+		cmdOrganization(runEWrapper),
 		cmdPing(),
-		cmdPkg(newPkgerSVC),
+		cmdPkg(runEWrapper),
 		cmdQuery(),
 		cmdTranspile(),
 		cmdREPL(),
@@ -107,7 +132,7 @@ func influxCmd() *cobra.Command {
 		cmdWrite(),
 	)
 
-	opts := flagOpts{
+	fOpts := flagOpts{
 		{
 			DestP:      &flags.token,
 			Flag:       "token",
@@ -123,7 +148,7 @@ func influxCmd() *cobra.Command {
 			Persistent: true,
 		},
 	}
-	opts.mustRegister(cmd)
+	fOpts.mustRegister(cmd)
 
 	// this is after the flagOpts register b/c we don't want to show the default value
 	// in the usage display. This will add it as the token value, then if a token flag

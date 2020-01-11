@@ -14,8 +14,8 @@ import (
 
 type bucketSVCsFn func() (influxdb.BucketService, influxdb.OrganizationService, error)
 
-func cmdBucket(svcsFn bucketSVCsFn, opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdBucketBuilder(svcsFn, opts...).cmdBucket()
+func cmdBucket(opts ...genericCLIOptFn) *cobra.Command {
+	return newCmdBucketBuilder(newBucketSVCs, opts...).cmd()
 }
 
 type cmdBucketBuilder struct {
@@ -46,13 +46,11 @@ func newCmdBucketBuilder(svcsFn bucketSVCsFn, opts ...genericCLIOptFn) *cmdBucke
 	}
 }
 
-func (b *cmdBucketBuilder) cmdBucket() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:              "bucket",
-		Short:            "Bucket management commands",
-		TraverseChildren: true,
-		Run:              seeHelp,
-	}
+func (b *cmdBucketBuilder) cmd() *cobra.Command {
+	cmd := b.newCmd("bucket", nil)
+	cmd.Short = "Bucket management commands"
+	cmd.TraverseChildren = true
+	cmd.Run = seeHelp
 	cmd.AddCommand(
 		b.cmdCreate(),
 		b.cmdDelete(),
@@ -64,11 +62,8 @@ func (b *cmdBucketBuilder) cmdBucket() *cobra.Command {
 }
 
 func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create bucket",
-		RunE:  wrapCheckSetup(b.cmdCreateRunEFn),
-	}
+	cmd := b.newCmd("create", b.cmdCreateRunEFn)
+	cmd.Short = "Create bucket"
 
 	opts := flagOpts{
 		{
@@ -127,11 +122,8 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 }
 
 func (b *cmdBucketBuilder) cmdDelete() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "delete",
-		Short: "Delete bucket",
-		RunE:  wrapCheckSetup(b.cmdDeleteRunEFn),
-	}
+	cmd := b.newCmd("delete", b.cmdDeleteRunEFn)
+	cmd.Short = "Delete bucket"
 
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID (required)")
 	cmd.MarkFlagRequired("id")
@@ -175,11 +167,8 @@ func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 }
 
 func (b *cmdBucketBuilder) cmdFind() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "find",
-		Short: "Find buckets",
-		RunE:  wrapCheckSetup(b.cmdFindRunEFn),
-	}
+	cmd := b.newCmd("find", b.cmdFindRunEFn)
+	cmd.Short = "Find buckets"
 
 	opts := flagOpts{
 		{
@@ -253,11 +242,8 @@ func (b *cmdBucketBuilder) cmdFindRunEFn(cmd *cobra.Command, args []string) erro
 }
 
 func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "update",
-		Short: "Update bucket",
-		RunE:  wrapCheckSetup(b.cmdUpdateRunEFn),
-	}
+	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
+	cmd.Short = "Update bucket"
 
 	opts := flagOpts{
 		{

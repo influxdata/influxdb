@@ -60,21 +60,6 @@ func newUserService() (platform.UserService, error) {
 	}, nil
 }
 
-func newUserResourceMappingService() (platform.UserResourceMappingService, error) {
-	if flags.local {
-		return newLocalKVService()
-	}
-
-	c, err := newHTTPClient()
-	if err != nil {
-		return nil, err
-	}
-
-	return &http.UserResourceMappingService{
-		Client: c,
-	}, nil
-}
-
 func userUpdateF(cmd *cobra.Command, args []string) error {
 	s, err := newUserService()
 	if err != nil {

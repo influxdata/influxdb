@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Pkg(t *testing.T) {
+func TestCmdPkg(t *testing.T) {
 	fakeSVCFn := func(svc pkger.SVC) pkgSVCsFn {
 		return func() (pkger.SVC, influxdb.OrganizationService, error) {
 			return svc, &mock.OrganizationService{
