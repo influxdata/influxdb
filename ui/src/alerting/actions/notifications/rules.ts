@@ -139,6 +139,12 @@ export const createRule = (rule: NotificationRuleDraft) => async (
 export const updateRule = (rule: NotificationRuleDraft) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
+  if (rule.offset == '') {
+    throw new Error('Notification Rule offset field can not be empty')
+  }
+  if (rule.every == '') {
+    throw new Error('Notification Rule every field can not be empty')
+  }
   const resp = await api.putNotificationRule({
     ruleID: rule.id,
     data: draftRuleToPostRule(rule),

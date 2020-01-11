@@ -131,6 +131,7 @@ export const ruleToDraftRule = (
   const tagRules = rule.tagRules || []
   return {
     ...rule,
+    offset: rule.offset || '',
     statusRules: statusRules.map(value => ({cid: uuid.v4(), value})),
     tagRules: tagRules.map(value => ({cid: uuid.v4(), value})),
   }
