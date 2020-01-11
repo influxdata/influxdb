@@ -189,6 +189,9 @@ func restoreBolt() error {
 	}
 	defer f.Close()
 
+	if err := os.MkdirAll(filepath.Dir(flags.boltPath), 0777); err != nil {
+		return err
+	}
 	w, err := os.OpenFile(flags.boltPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil && !os.IsNotExist(err) {
 		return err
