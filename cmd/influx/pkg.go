@@ -48,6 +48,7 @@ type cmdPkgBuilder struct {
 	applyOpts struct {
 		force   string
 		secrets []string
+		url     string
 	}
 	exportOpts struct {
 		resourceType string
@@ -97,6 +98,7 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.MarkFlagFilename("file", "yaml", "yml", "json")
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
+	cmd.Flags().StringVarP(&b.applyOpts.url, "url", "u", "", "URL to retrieve a package.")
 
 	b.org.register(cmd, false)
 
@@ -132,7 +134,15 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 			return err
 		}
 
-		pkg, isTTY, err := b.readPkgStdInOrFile(b.file)
+		var (
+			pkg   *pkger.Pkg
+			isTTY bool
+		)
+		if b.applyOpts.url != "" {
+			pkg, err = pkger.Parse(pkger.EncodingSource, pkger.FromHTTPRequest(b.applyOpts.url))
+		} else {
+			pkg, isTTY, err = b.readPkgStdInOrFile(b.file)
+		}
 		if err != nil {
 			return err
 		}

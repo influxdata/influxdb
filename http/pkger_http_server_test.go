@@ -76,13 +76,32 @@ func TestPkgerHTTPServer(t *testing.T) {
 			tests := []struct {
 				name        string
 				contentType string
+				reqBody     fluxTTP.ReqApplyPkg
 			}{
 				{
 					name:        "app json",
 					contentType: "application/json",
+					reqBody: fluxTTP.ReqApplyPkg{
+						DryRun: true,
+						OrgID:  influxdb.ID(9000).String(),
+						Pkg:    bucketPkg(t, pkger.EncodingJSON),
+					},
 				},
 				{
 					name: "defaults json when no content type",
+					reqBody: fluxTTP.ReqApplyPkg{
+						DryRun: true,
+						OrgID:  influxdb.ID(9000).String(),
+						Pkg:    bucketPkg(t, pkger.EncodingJSON),
+					},
+				},
+				{
+					name: "retrieves package from a URL",
+					reqBody: fluxTTP.ReqApplyPkg{
+						DryRun: true,
+						OrgID:  influxdb.ID(9000).String(),
+						URL:    "https://gist.githubusercontent.com/jsteenb2/3a3b2b5fcbd6179b2494c2b54aa2feb0/raw/1717709ffadbeed5dfc88ff4cac5bf912c6930bf/bucket_pkg_json",
+					},
 				},
 			}
 
@@ -108,11 +127,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
-						PostJSON(t, "/api/v2/packages/apply", fluxTTP.ReqApplyPkg{
-							DryRun: true,
-							OrgID:  influxdb.ID(9000).String(),
-							Pkg:    bucketPkg(t, pkger.EncodingJSON),
-						}).
+						PostJSON(t, "/api/v2/packages/apply", tt.reqBody).
 						Headers("Content-Type", tt.contentType).
 						Do(svr).
 						ExpectStatus(http.StatusOK).
@@ -257,7 +272,6 @@ func bucketPkg(t *testing.T, encoding pkger.Encoding) *pkger.Pkg {
       {
         "kind": "Bucket",
         "name": "rucket_11",
-        "retention_period": "1h",
         "description": "bucket 1 description"
       }
     ]
@@ -275,7 +289,6 @@ spec:
   resources:
     - kind: Bucket
       name: rucket_11
-      retention_period: 1h
       description: bucket 1 description
 `
 	default:

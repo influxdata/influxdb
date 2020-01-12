@@ -7140,6 +7140,8 @@ components:
           type: object
           additionalProperties:
             type: string
+        url:
+          type: string
     PkgCreate:
       type: object
       properties:
