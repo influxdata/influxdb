@@ -125,6 +125,7 @@ type (
 	ReqApplyPkg struct {
 		DryRun  bool              `json:"dryRun" yaml:"dryRun"`
 		OrgID   string            `json:"orgID" yaml:"orgID"`
+		URL     string            `json:"url" yaml:"url"`
 		Pkg     *pkger.Pkg        `json:"package" yaml:"package"`
 		Secrets map[string]string `json:"secrets"`
 	}
@@ -146,6 +147,14 @@ func (s *HandlerPkg) applyPkg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if reqBody.URL != "" && reqBody.Pkg != nil {
+		s.HandleHTTPError(r.Context(), &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "must provide either url or pkg",
+		}, w)
+		return
+	}
+
 	orgID, err := influxdb.IDFromString(reqBody.OrgID)
 	if err != nil {
 		s.HandleHTTPError(r.Context(), &influxdb.Error{
@@ -163,6 +172,18 @@ func (s *HandlerPkg) applyPkg(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID()
 
 	parsedPkg := reqBody.Pkg
+	if reqBody.URL != "" {
+		parsedPkg, err = pkger.Parse(pkger.EncodingSource, pkger.FromHTTPRequest(reqBody.URL))
+		if err != nil {
+			s.HandleHTTPError(r.Context(), &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "failed to parse package from provided URL",
+				Err:  err,
+			}, w)
+			return
+		}
+	}
+
 	sum, diff, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg)
 	if pkger.IsParseErr(err) {
 		s.encJSONResp(r.Context(), w, http.StatusUnprocessableEntity, RespApplyPkg{

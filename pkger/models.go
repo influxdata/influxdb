@@ -1321,7 +1321,7 @@ func (l *label) toInfluxLabel() influxdb.Label {
 }
 
 func toSummaryLabels(labels ...*label) []SummaryLabel {
-	var iLabels []SummaryLabel
+	iLabels := make([]SummaryLabel, 0, len(labels))
 	for _, l := range labels {
 		iLabels = append(iLabels, l.summarize())
 	}

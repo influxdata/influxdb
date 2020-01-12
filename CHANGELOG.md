@@ -37,6 +37,7 @@
 1. [16418](https://github.com/influxdata/influxdb/pull/16418): Add Developer Documentation
 1. [16260](https://github.com/influxdata/influxdb/pull/16260): Capture User-Agent header as query source for logging purposes
 1. [16469](https://github.com/influxdata/influxdb/pull/16469): Add support for configurable max batch size in points write handler
+1. [16509](https://github.com/influxdata/influxdb/pull/16509): Add support for applying an influx package via a public facing URL
 
 ### Bug Fixes
 
