@@ -1,6 +1,5 @@
 use actix_web::http::StatusCode;
 use actix_web::ResponseError;
-use std::fs::read;
 use std::str::Chars;
 use std::{error, fmt};
 

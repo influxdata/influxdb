@@ -5,7 +5,7 @@ use crate::storage::iterators::{ReadPoint, SeriesIterator};
 
 use std::collections::HashMap;
 use std::io::Cursor;
-use std::sync::{Arc, Mutex, MutexGuard, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::SystemTime;
 use std::{error, fmt};
 

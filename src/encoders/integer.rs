@@ -3,7 +3,6 @@ use integer_encoding::*;
 use std::error::Error;
 
 /// Encoding describes the type of encoding used by an encoded integer block.
-#[allow(dead_code)]
 enum Encoding {
     Uncompressed = 0,
     Simple8b = 1,
@@ -75,14 +74,12 @@ pub fn encode_all<'a>(src: &mut Vec<i64>, dst: &'a mut Vec<u8>) -> Result<(), Bo
 // negative and positive values across even and odd numbers.
 //
 // Eg. [0,-1,1,-2] becomes [0, 1, 2, 3].
-#[allow(dead_code)]
 fn zig_zag_encode(v: i64) -> u64 {
     ((v << 1) ^ (v >> 63)) as u64
 }
 
 // zig_zag_decode converts a zig zag encoded unsigned integer into an signed
 // integer.
-#[allow(dead_code)]
 fn zig_zag_decode(v: u64) -> i64 {
     ((v >> 1) ^ ((((v & 1) as i64) << 63) >> 63) as u64) as i64
 }
@@ -90,17 +87,8 @@ fn zig_zag_decode(v: u64) -> i64 {
 // i64_to_u64_vector converts a Vec<i64> to Vec<u64>.
 // TODO(edd): this is expensive as it copies. There are cheap
 // but unsafe alternatives to look into such as std::mem::transmute
-#[allow(dead_code)]
 fn i64_to_u64_vector(src: &[i64]) -> Vec<u64> {
     src.into_iter().map(|x| *x as u64).collect::<Vec<u64>>()
-}
-
-// u64_to_i64_vector converts a Vec<u64> to Vec<i64>.
-// TODO(edd): this is expensive as it copies. There are cheap
-// but unsafe alternatives to look into such as std::mem::transmute
-#[allow(dead_code)]
-fn u64_to_i64_vector(src: &[u64]) -> Vec<i64> {
-    src.into_iter().map(|x| *x as i64).collect::<Vec<i64>>()
 }
 
 // encode_rle encodes the value v, delta and count into dst.
@@ -108,7 +96,6 @@ fn u64_to_i64_vector(src: &[u64]) -> Vec<i64> {
 // v should be the first element of a sequence, delta the difference that each
 // value in the sequence differs by, and count the total number of values in the
 // sequence.
-#[allow(dead_code)]
 fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
     let max_var_int_size = 10; // max number of bytes needed to store var int
     dst.push(0); // save a byte for encoding type
@@ -144,7 +131,6 @@ pub fn decode_all<'a>(src: &[u8], dst: &'a mut Vec<i64>) -> Result<(), Box<dyn E
     }
 }
 
-#[allow(dead_code)]
 fn decode_uncompressed(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
     if src.len() == 0 || src.len() & 0x7 != 0 {
         return Err(From::from("invalid uncompressed block length"));
@@ -168,7 +154,6 @@ fn decode_uncompressed(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Err
 
 // decode_rle decodes an RLE encoded slice containing only unsigned into the
 // destination vector.
-#[allow(dead_code)]
 fn decode_rle(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
     if src.len() < 8 {
         return Err(From::from("not enough data to decode using RLE"));
@@ -202,7 +187,6 @@ fn decode_rle(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[allow(dead_code)]
 fn decode_simple8b(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
     if src.len() < 9 {
         return Err(From::from("not enough data to decode packed timestamp"));
