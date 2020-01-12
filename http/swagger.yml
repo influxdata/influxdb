@@ -4319,6 +4319,9 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/PkgApply"
+          application/x-jsonnet:
+            schema:
+              $ref: "#/components/schemas/PkgApply"
           text/yml:
             schema:
               $ref: "#/components/schemas/PkgApply"

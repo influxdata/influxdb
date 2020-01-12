@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/pkg/jsonnet"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,6 +30,7 @@ type Encoding int
 const (
 	EncodingUnknown Encoding = iota
 	EncodingJSON
+	EncodingJsonnet
 	EncodingSource // EncodingSource draws the encoding type by inferring it from the source.
 	EncodingYAML
 )
@@ -38,6 +40,8 @@ func (e Encoding) String() string {
 	switch e {
 	case EncodingJSON:
 		return "json"
+	case EncodingJsonnet:
+		return "jsonnet"
 	case EncodingSource:
 		return "source"
 	case EncodingYAML:
@@ -61,6 +65,8 @@ func Parse(encoding Encoding, readerFn ReaderFn, opts ...ValidateOptFn) (*Pkg, e
 	switch encoding {
 	case EncodingJSON:
 		return parseJSON(r, opts...)
+	case EncodingJsonnet:
+		return parseJsonnet(r, opts...)
 	case EncodingSource:
 		return parseSource(r, opts...)
 	case EncodingYAML:
@@ -122,6 +128,10 @@ func parseJSON(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {
 	return parse(json.NewDecoder(r), opts...)
 }
 
+func parseJsonnet(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {
+	return parse(jsonnet.NewDecoder(r), opts...)
+}
+
 func parseSource(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {
 	var b []byte
 	if byter, ok := r.(interface{ Bytes() []byte }); ok {
@@ -136,10 +146,16 @@ func parseSource(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {
 
 	contentType := http.DetectContentType(b)
 	switch {
+	case strings.Contains(contentType, "jsonnet"):
+		// highly unlikely to fall in here with supported content type detection as is
+		return parseJsonnet(bytes.NewReader(b), opts...)
 	case strings.Contains(contentType, "json"):
 		return parseJSON(bytes.NewReader(b), opts...)
-	default:
+	case strings.Contains(contentType, "yaml"),
+		strings.Contains(contentType, "yml"):
 		return parseYAML(bytes.NewReader(b), opts...)
+	default:
+		return parseJsonnet(r, opts...)
 	}
 }
 

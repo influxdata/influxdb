@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/pkg/httpc"
+	"github.com/influxdata/influxdb/pkg/jsonnet"
 	"github.com/influxdata/influxdb/pkger"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -232,6 +233,9 @@ func decodeWithEncoding(r *http.Request, v interface{}) (pkger.Encoding, error) 
 		dec      interface{ Decode(interface{}) error }
 	)
 	switch contentType := r.Header.Get("Content-Type"); contentType {
+	case "application/x-jsonnet":
+		encoding = pkger.EncodingJsonnet
+		dec = jsonnet.NewDecoder(r.Body)
 	case "text/yml", "application/x-yaml":
 		encoding = pkger.EncodingYAML
 		dec = yaml.NewDecoder(r.Body)
