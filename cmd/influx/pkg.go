@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -95,7 +94,7 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.Short = "Apply a pkg to create resources"
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Path to package file")
-	cmd.MarkFlagFilename("file", "yaml", "yml", "json")
+	cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet")
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
 	cmd.Flags().StringVarP(&b.applyOpts.url, "url", "u", "", "URL to retrieve a package.")
@@ -551,14 +550,7 @@ func pkgFromReader(stdin io.Reader) (*pkger.Pkg, error) {
 		return nil, err
 	}
 
-	var enc pkger.Encoding
-	switch http.DetectContentType(b[0:512]) {
-	case "application/json":
-		enc = pkger.EncodingJSON
-	default:
-		enc = pkger.EncodingYAML
-	}
-	return pkger.Parse(enc, pkger.FromString(string(b)))
+	return pkger.Parse(pkger.EncodingSource, pkger.FromString(string(b)))
 }
 
 func pkgFromFile(path string) (*pkger.Pkg, error) {
@@ -568,6 +560,8 @@ func pkgFromFile(path string) (*pkger.Pkg, error) {
 		enc = pkger.EncodingYAML
 	case ".json":
 		enc = pkger.EncodingJSON
+	case ".jsonnet":
+		enc = pkger.EncodingJsonnet
 	default:
 		return nil, errors.New("file provided must be one of yaml/yml/json extension but got: " + ext)
 	}

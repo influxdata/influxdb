@@ -103,6 +103,15 @@ func TestPkgerHTTPServer(t *testing.T) {
 						URL:    "https://gist.githubusercontent.com/jsteenb2/3a3b2b5fcbd6179b2494c2b54aa2feb0/raw/1717709ffadbeed5dfc88ff4cac5bf912c6930bf/bucket_pkg_json",
 					},
 				},
+				{
+					name:        "app jsonnet",
+					contentType: "application/x-jsonnet",
+					reqBody: fluxTTP.ReqApplyPkg{
+						DryRun: true,
+						OrgID:  influxdb.ID(9000).String(),
+						Pkg:    bucketPkg(t, pkger.EncodingJsonnet),
+					},
+				},
 			}
 
 			for _, tt := range tests {
@@ -257,6 +266,29 @@ func bucketPkg(t *testing.T, encoding pkger.Encoding) *pkger.Pkg {
 
 	var pkgStr string
 	switch encoding {
+	case pkger.EncodingJsonnet:
+		pkgStr = `
+local Bucket(name, desc) = {
+    kind: 'Bucket',
+    name: name,
+    description: desc,
+};
+
+{
+   apiVersion: "0.1.0",
+   kind: "Package",
+   meta: {
+     pkgName: "pkg_name",
+     pkgVersion: "1",
+     description: "pack description"
+   },
+   spec: {
+     resources: [
+        Bucket(name="rucket_1", desc="bucket 1 description"),
+     ]
+   }
+}
+`
 	case pkger.EncodingJSON:
 		pkgStr = `
 {

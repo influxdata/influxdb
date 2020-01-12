@@ -4338,6 +4338,52 @@ spec:
 			require.True(t, ok)
 		})
 	})
+
+	t.Run("jsonnet support", func(t *testing.T) {
+		pkg := validParsedPkg(t, "testdata/bucket_associates_labels.jsonnet", EncodingJsonnet, baseAsserts{
+			version:     "0.1.0",
+			kind:        KindPackage,
+			description: "pack description",
+			metaName:    "pkg_name",
+			metaVersion: "1",
+		})
+
+		sum := pkg.Summary()
+
+		labels := []SummaryLabel{
+			{
+				Name: "label_1",
+				Properties: struct {
+					Color       string `json:"color"`
+					Description string `json:"description"`
+				}{Color: "#eee888", Description: "desc_1"},
+			},
+		}
+		assert.Equal(t, labels, sum.Labels)
+
+		bkts := []SummaryBucket{
+			{
+				Name:              "rucket_1",
+				Description:       "desc_1",
+				RetentionPeriod:   10000 * time.Second,
+				LabelAssociations: labels,
+			},
+			{
+				Name:              "rucket_2",
+				Description:       "desc_2",
+				RetentionPeriod:   20000 * time.Second,
+				LabelAssociations: labels,
+			},
+			{
+				Name:              "rucket_3",
+				Description:       "desc_3",
+				RetentionPeriod:   30000 * time.Second,
+				LabelAssociations: labels,
+			},
+		}
+		assert.Equal(t, bkts, sum.Buckets)
+	})
+
 }
 
 func Test_IsParseError(t *testing.T) {
