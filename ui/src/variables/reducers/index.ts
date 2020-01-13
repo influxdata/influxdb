@@ -13,6 +13,10 @@ import {
   Action,
   SET_VARIABLES,
   SET_VARIABLE,
+  REMOVE_VARIABLE,
+  MOVE_VARIABLE,
+  SET_VARIABLE_VALUES,
+  SELECT_VARIABLE_VALUE,
 } from 'src/variables/actions/creators'
 
 // Utils
@@ -54,14 +58,14 @@ export const variablesReducer = (
         return
       }
 
-      case 'REMOVE_VARIABLE': {
+      case REMOVE_VARIABLE: {
         removeResource<Variable>(draftState, action)
 
         return
       }
 
-      case 'SET_VARIABLE_VALUES': {
-        const {contextID, status, values} = action.payload
+      case SET_VARIABLE_VALUES: {
+        const {contextID, status, values} = action
         const prevOrder = get(draftState, `values.${contextID}.order`, [])
 
         if (values) {
@@ -83,8 +87,8 @@ export const variablesReducer = (
         return
       }
 
-      case 'SELECT_VARIABLE_VALUE': {
-        const {contextID, variableID, selectedValue} = action.payload
+      case SELECT_VARIABLE_VALUE: {
+        const {contextID, variableID, selectedValue} = action
 
         const valuesExist = !!get(
           draftState,
@@ -102,8 +106,8 @@ export const variablesReducer = (
         return
       }
 
-      case 'MOVE_VARIABLE': {
-        const {originalIndex, newIndex, contextID} = action.payload
+      case MOVE_VARIABLE: {
+        const {originalIndex, newIndex, contextID} = action
 
         const variableIDToMove = get(
           draftState,

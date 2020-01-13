@@ -13,6 +13,9 @@ import {NormalizedSchema} from 'normalizr'
 export const SET_VARIABLES = 'SET_VARIABLES'
 export const SET_VARIABLE = 'SET_VARIABLE'
 export const REMOVE_VARIABLE = 'REMOVE_VARIABLE'
+export const MOVE_VARIABLE = 'MOVE_VARIABLE'
+export const SET_VARIABLE_VALUES = 'SET_VARIABLE_VALUES'
+export const SELECT_VARIABLE_VALUE = 'SELECT_VARIABLE_VALUE'
 
 export type Action =
   | ReturnType<typeof setVariables>
@@ -60,28 +63,33 @@ export const moveVariable = (
   originalIndex: number,
   newIndex: number,
   contextID: string
-) => ({
-  type: 'MOVE_VARIABLE' as 'MOVE_VARIABLE',
-  payload: {originalIndex, newIndex, contextID},
-})
+) =>
+  ({
+    type: MOVE_VARIABLE,
+    originalIndex,
+    newIndex,
+    contextID,
+  } as const)
 
 export const setValues = (
   contextID: string,
   status: RemoteDataState,
   values?: VariableValuesByID
 ) => ({
-  type: 'SET_VARIABLE_VALUES' as 'SET_VARIABLE_VALUES',
-  payload: {contextID, status, values},
-})
+  type: SET_VARIABLE_VALUES,
+  contextID,
+  status,
+  values,
+} as const)
 
 export const selectValue = (
   contextID: string,
   variableID: string,
   selectedValue: string
 ) => ({
-  type: 'SELECT_VARIABLE_VALUE' as 'SELECT_VARIABLE_VALUE',
-  payload: {contextID, variableID, selectedValue},
-})
+  type: SELECT_VARIABLE_VALUE,
+  contextID, variableID, selectedValue,
+} as const)
 
 // Variable Editor Action Creators
 export type EditorAction =
