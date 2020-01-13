@@ -658,7 +658,11 @@ export const loadNewVEO = (dashboardID: string) => (
     })
   )
 
-  const values = get(getState(), `variables.values.${dashboardID}.values`, {})
+  const values = get(
+    state,
+    `resources.variables.values.${dashboardID}.values`,
+    {}
+  )
 
   if (!isEmpty(values)) {
     dispatch(setValues('veo', RemoteDataState.Done, values))

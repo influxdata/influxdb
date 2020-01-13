@@ -78,7 +78,11 @@ export const refreshTimeMachineVariableValues = (
   const contextID = state.timeMachines.activeTimeMachineID
 
   if (prevContextID) {
-    const values = get(state, `variables.values.${prevContextID}.values`) || {}
+    const values = get(
+      state,
+      `resources.variables.values.${prevContextID}.values`,
+      {}
+    )
     if (!isEmpty(values)) {
       dispatch(setValues(contextID, RemoteDataState.Done, values))
       return
