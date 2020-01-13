@@ -19,13 +19,9 @@ import {Dashboard, AppState, RemoteDataState} from 'src/types'
 
 interface OwnProps {
   onCreateDashboard: () => void
-  onCloneDashboard: (dashboard: Dashboard) => void
-  onDeleteDashboard: (dashboard: Dashboard) => void
-  onUpdateDashboard: (dashboard: Dashboard) => void
   onFilterChange: (searchTerm: string) => void
   searchTerm: string
   filterComponent?: JSX.Element
-  onImportDashboard: () => void
 }
 
 interface DispatchProps {
@@ -52,15 +48,11 @@ class DashboardsIndexContents extends Component<Props> {
 
   public render() {
     const {
-      onDeleteDashboard,
-      onCloneDashboard,
       onCreateDashboard,
-      onUpdateDashboard,
       searchTerm,
       dashboards,
       filterComponent,
       onFilterChange,
-      onImportDashboard,
     } = this.props
 
     return (
@@ -75,12 +67,8 @@ class DashboardsIndexContents extends Component<Props> {
             searchTerm={searchTerm}
             filterComponent={filterComponent}
             dashboards={filteredDashboards}
-            onDeleteDashboard={onDeleteDashboard}
             onCreateDashboard={onCreateDashboard}
-            onCloneDashboard={onCloneDashboard}
-            onUpdateDashboard={onUpdateDashboard}
             onFilterChange={onFilterChange}
-            onImportDashboard={onImportDashboard}
           />
         )}
       </FilterList>
