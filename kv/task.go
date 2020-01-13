@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/resource"
+
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/task/backend"
@@ -655,6 +657,20 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		OrgID:       task.OrganizationID,
 		Permissions: ps,
 	}
+
+	uid, _ := icontext.GetUserID(ctx)
+	if err := s.audit.Log(resource.Change{
+		Type:           resource.Create,
+		ResourceID:     task.ID,
+		ResourceType:   influxdb.TasksResourceType,
+		OrganizationID: task.OrganizationID,
+		UserID:         uid,
+		ResourceBody:   taskBytes,
+		Time:           time.Now(),
+	}); err != nil {
+		return nil, err
+	}
+
 	return task, nil
 }
 
@@ -790,7 +806,25 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		return nil, influxdb.ErrInternalTaskServiceError(err)
 	}
 
-	return task, bucket.Put(key, taskBytes)
+	err = bucket.Put(key, taskBytes)
+	if err != nil {
+		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
+	}
+
+	uid, _ := icontext.GetUserID(ctx)
+	if err := s.audit.Log(resource.Change{
+		Type:           resource.Update,
+		ResourceID:     task.ID,
+		ResourceType:   influxdb.TasksResourceType,
+		OrganizationID: task.OrganizationID,
+		UserID:         uid,
+		ResourceBody:   taskBytes,
+		Time:           time.Now(),
+	}); err != nil {
+		return nil, err
+	}
+
+	return task, nil
 }
 
 // DeleteTask removes a task by ID and purges all associated data and scheduled runs.
@@ -883,7 +917,15 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id influxdb.ID) error {
 		s.log.Info("Error deleting user resource mapping for task", zap.Stringer("taskID", task.ID), zap.Error(err))
 	}
 
-	return nil
+	uid, _ := icontext.GetUserID(ctx)
+	return s.audit.Log(resource.Change{
+		Type:           resource.Delete,
+		ResourceID:     task.ID,
+		ResourceType:   influxdb.TasksResourceType,
+		OrganizationID: task.OrganizationID,
+		UserID:         uid,
+		Time:           time.Now(),
+	})
 }
 
 // FindLogs returns logs for a run.

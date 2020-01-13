@@ -1,6 +1,9 @@
 package influxdb
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // Organization is an organization. 🎉
 type Organization struct {
@@ -25,6 +28,7 @@ const (
 	OpFindOrganization     = "FindOrganization"
 	OpFindOrganizations    = "FindOrganizations"
 	OpCreateOrganization   = "CreateOrganization"
+	OpPutOrganization      = "PutOrganization"
 	OpUpdateOrganization   = "UpdateOrganization"
 	OpDeleteOrganization   = "DeleteOrganization"
 )
@@ -69,4 +73,13 @@ var ErrInvalidOrgFilter = &Error{
 type OrganizationFilter struct {
 	Name *string
 	ID   *ID
+}
+
+func ErrInternalOrgServiceError(op string, err error) *Error {
+	return &Error{
+		Code: EInternal,
+		Msg:  fmt.Sprintf("unexpected error in organizations; Err: %v", err),
+		Op:   op,
+		Err:  err,
+	}
 }
