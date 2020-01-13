@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -11,7 +13,6 @@ import (
 	"github.com/influxdata/influxdb/chronograf"
 	"github.com/influxdata/influxdb/chronograf/bolt"
 	"github.com/influxdata/influxdb/pkger"
-	"gopkg.in/yaml.v3"
 )
 
 var chronografDBPath string
@@ -37,18 +38,7 @@ func exec(dbPath, out string) error {
 	}
 
 	pkg := &pkger.Pkg{
-		APIVersion: pkger.APIVersion,
-		Kind:       pkger.KindPackage,
-		Metadata: pkger.Metadata{
-			Description: "Dashboards from 1.x chronograf that are migrated to the new format",
-			Name:        "Migrated Dashboards",
-			Version:     "1",
-		},
-		Spec: struct {
-			Resources []pkger.Resource `yaml:"resources" json:"resources"`
-		}{
-			Resources: make([]pkger.Resource, 0),
-		},
+		Objects: make([]pkger.Object, 0),
 	}
 
 	hasVar := map[string]bool{}
@@ -58,7 +48,7 @@ func exec(dbPath, out string) error {
 			return err
 		}
 
-		pkg.Spec.Resources = append(pkg.Spec.Resources, pkger.DashboardToResource(d2, d2.Name))
+		pkg.Objects = append(pkg.Objects, pkger.DashboardToObject(d2, d2.Name))
 
 		for _, v := range vs {
 			name := strings.ToLower(v.Name)
@@ -69,7 +59,7 @@ func exec(dbPath, out string) error {
 			}
 			hasVar[name] = true
 
-			pkg.Spec.Resources = append(pkg.Spec.Resources, pkger.VariableToResource(v, name))
+			pkg.Objects = append(pkg.Objects, pkger.VariableToObject(v, name))
 		}
 	}
 
@@ -79,11 +69,12 @@ func exec(dbPath, out string) error {
 	}
 	defer f.Close()
 
-	if err := yaml.NewEncoder(f).Encode(pkg); err != nil {
+	b, err := pkg.Encode(pkger.EncodingYAML)
+	if err != nil {
 		return err
 	}
-
-	return nil
+	_, err = io.Copy(f, bytes.NewReader(b))
+	return err
 }
 
 func main() {

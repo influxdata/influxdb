@@ -1,6 +1,7 @@
 package pkger
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -1400,23 +1401,19 @@ func TestService(t *testing.T) {
 			}
 		}
 
-		t.Run("with metadata sets the new pkgs metadata", func(t *testing.T) {
-			svc := newTestService(WithLogger(zaptest.NewLogger(t)))
-
-			expectedMeta := Metadata{
-				Description: "desc",
-				Name:        "name",
-				Version:     "v1",
-			}
-			pkg, err := svc.CreatePkg(context.TODO(), CreateWithMetadata(expectedMeta))
-			require.NoError(t, err)
-
-			assert.Equal(t, APIVersion, pkg.APIVersion)
-			assert.Equal(t, expectedMeta, pkg.Metadata)
-			assert.NotNil(t, pkg.Spec.Resources)
-		})
-
 		t.Run("with existing resources", func(t *testing.T) {
+			encodeAndDecode := func(t *testing.T, pkg *Pkg) *Pkg {
+				t.Helper()
+
+				b, err := pkg.Encode(EncodingJSON)
+				require.NoError(t, err)
+
+				newPkg, err := Parse(EncodingJSON, FromReader(bytes.NewReader(b)))
+				require.NoError(t, err)
+
+				return newPkg
+			}
+
 			t.Run("bucket", func(t *testing.T) {
 				tests := []struct {
 					name    string
@@ -1458,7 +1455,9 @@ func TestService(t *testing.T) {
 						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 						require.NoError(t, err)
 
-						bkts := pkg.Summary().Buckets
+						newPkg := encodeAndDecode(t, pkg)
+
+						bkts := newPkg.Summary().Buckets
 						require.Len(t, bkts, 1)
 
 						actual := bkts[0]
@@ -1556,7 +1555,9 @@ func TestService(t *testing.T) {
 						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 						require.NoError(t, err)
 
-						checks := pkg.Summary().Checks
+						newPkg := encodeAndDecode(t, pkg)
+
+						checks := newPkg.Summary().Checks
 						require.Len(t, checks, 1)
 
 						actual := checks[0].Check
@@ -1855,7 +1856,9 @@ func TestService(t *testing.T) {
 						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 						require.NoError(t, err)
 
-						dashs := pkg.Summary().Dashboards
+						newPkg := encodeAndDecode(t, pkg)
+
+						dashs := newPkg.Summary().Dashboards
 						require.Len(t, dashs, 1)
 
 						actual := dashs[0]
@@ -1921,7 +1924,9 @@ func TestService(t *testing.T) {
 						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 						require.NoError(t, err)
 
-						newLabels := pkg.Summary().Labels
+						newPkg := encodeAndDecode(t, pkg)
+
+						newLabels := newPkg.Summary().Labels
 						require.Len(t, newLabels, 1)
 
 						actual := newLabels[0]
@@ -2047,7 +2052,9 @@ func TestService(t *testing.T) {
 						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 						require.NoError(t, err)
 
-						endpoints := pkg.Summary().NotificationEndpoints
+						newPkg := encodeAndDecode(t, pkg)
+
+						endpoints := newPkg.Summary().NotificationEndpoints
 						require.Len(t, endpoints, 1)
 
 						actual := endpoints[0].NotificationEndpoint
@@ -2171,9 +2178,12 @@ func TestService(t *testing.T) {
 						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 						require.NoError(t, err)
 
-						require.Len(t, pkg.Summary().NotificationRules, 1)
+						newPkg := encodeAndDecode(t, pkg)
 
-						actualRule := pkg.Summary().NotificationRules[0]
+						sum := newPkg.Summary()
+						require.Len(t, sum.NotificationRules, 1)
+
+						actualRule := sum.NotificationRules[0]
 						assert.Zero(t, actualRule.ID)
 						assert.Zero(t, actualRule.EndpointID)
 						assert.Zero(t, actualRule.EndpointType)
@@ -2279,7 +2289,11 @@ func TestService(t *testing.T) {
 						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 						require.NoError(t, err)
 
-						tasks := pkg.Summary().Tasks
+						newPkg := encodeAndDecode(t, pkg)
+
+						sum := newPkg.Summary()
+
+						tasks := sum.Tasks
 						require.Len(t, tasks, 1)
 
 						expectedName := tt.task.Name
@@ -2377,7 +2391,9 @@ func TestService(t *testing.T) {
 						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 						require.NoError(t, err)
 
-						newVars := pkg.Summary().Variables
+						newPkg := encodeAndDecode(t, pkg)
+
+						newVars := newPkg.Summary().Variables
 						require.Len(t, newVars, 1)
 
 						actual := newVars[0]
@@ -2429,7 +2445,10 @@ func TestService(t *testing.T) {
 					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 					require.NoError(t, err)
 
-					bkts := pkg.Summary().Buckets
+					newPkg := encodeAndDecode(t, pkg)
+					sum := newPkg.Summary()
+
+					bkts := sum.Buckets
 					require.Len(t, bkts, 1)
 
 					actual := bkts[0]
@@ -2440,7 +2459,7 @@ func TestService(t *testing.T) {
 					require.Len(t, actual.LabelAssociations, 1)
 					assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
 
-					labels := pkg.Summary().Labels
+					labels := sum.Labels
 					require.Len(t, labels, 1)
 					assert.Equal(t, "label_1", labels[0].Name)
 				})
@@ -2474,7 +2493,10 @@ func TestService(t *testing.T) {
 					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
 					require.NoError(t, err)
 
-					bkts := pkg.Summary().Buckets
+					newPkg := encodeAndDecode(t, pkg)
+					sum := newPkg.Summary()
+
+					bkts := sum.Buckets
 					require.Len(t, bkts, 2)
 
 					for i, actual := range bkts {
@@ -2484,7 +2506,7 @@ func TestService(t *testing.T) {
 						assert.Equal(t, "label_2", actual.LabelAssociations[1].Name)
 					}
 
-					labels := pkg.Summary().Labels
+					labels := sum.Labels
 					require.Len(t, labels, 2)
 					assert.Equal(t, "label_1", labels[0].Name)
 					assert.Equal(t, "label_2", labels[1].Name)
@@ -2508,7 +2530,9 @@ func TestService(t *testing.T) {
 					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 					require.NoError(t, err)
 
-					labels := pkg.Summary().Labels
+					newPkg := encodeAndDecode(t, pkg)
+
+					labels := newPkg.Summary().Labels
 					require.Len(t, labels, 1)
 					assert.Equal(t, "label_1", labels[0].Name)
 				})

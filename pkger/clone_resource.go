@@ -57,35 +57,38 @@ func uniqResourcesToClone(resources []ResourceToClone) []ResourceToClone {
 	return out
 }
 
-func bucketToResource(bkt influxdb.Bucket, name string) Resource {
+func bucketToObject(bkt influxdb.Bucket, name string) Object {
 	if name == "" {
 		name = bkt.Name
 	}
-	r := Resource{
-		fieldKind: KindBucket.title(),
-		fieldName: name,
+	k := Object{
+		Type:     KindBucket,
+		Metadata: Metadata{Name: name},
+		Spec:     make(Resource),
 	}
-	assignNonZeroStrings(r, map[string]string{fieldDescription: bkt.Description})
+	assignNonZeroStrings(k.Spec, map[string]string{fieldDescription: bkt.Description})
 	if bkt.RetentionPeriod != 0 {
-		r[fieldBucketRetentionRules] = retentionRules{newRetentionRule(bkt.RetentionPeriod)}
+		k.Spec[fieldBucketRetentionRules] = retentionRules{newRetentionRule(bkt.RetentionPeriod)}
 	}
-	return r
+	return k
 }
 
-func checkToResource(ch influxdb.Check, name string) Resource {
+func checkToObject(ch influxdb.Check, name string) Object {
 	if name == "" {
 		name = ch.GetName()
 	}
-	r := Resource{
-		fieldName:   name,
-		fieldStatus: string(influxdb.TaskStatusActive),
+	k := Object{
+		Metadata: Metadata{Name: name},
+		Spec: Resource{
+			fieldStatus: influxdb.TaskStatusActive,
+		},
 	}
-	assignNonZeroStrings(r, map[string]string{fieldDescription: ch.GetDescription()})
+	assignNonZeroStrings(k.Spec, map[string]string{fieldDescription: ch.GetDescription()})
 
 	assignBase := func(base icheck.Base) {
-		r[fieldQuery] = base.Query.Text
-		r[fieldCheckStatusMessageTemplate] = base.StatusMessageTemplate
-		assignNonZeroFluxDurs(r, map[string]*notification.Duration{
+		k.Spec[fieldQuery] = base.Query.Text
+		k.Spec[fieldCheckStatusMessageTemplate] = base.StatusMessageTemplate
+		assignNonZeroFluxDurs(k.Spec, map[string]*notification.Duration{
 			fieldEvery:  base.Every,
 			fieldOffset: base.Offset,
 		})
@@ -101,30 +104,30 @@ func checkToResource(ch influxdb.Check, name string) Resource {
 			})
 		}
 		if len(tags) > 0 {
-			r[fieldCheckTags] = tags
+			k.Spec[fieldCheckTags] = tags
 		}
 	}
 
 	switch cT := ch.(type) {
 	case *icheck.Deadman:
-		r[fieldKind] = KindCheckDeadman.title()
+		k.Type = KindCheckDeadman
 		assignBase(cT.Base)
-		assignNonZeroFluxDurs(r, map[string]*notification.Duration{
+		assignNonZeroFluxDurs(k.Spec, map[string]*notification.Duration{
 			fieldCheckTimeSince: cT.TimeSince,
 			fieldCheckStaleTime: cT.StaleTime,
 		})
-		r[fieldLevel] = cT.Level.String()
-		assignNonZeroBools(r, map[string]bool{fieldCheckReportZero: cT.ReportZero})
+		k.Spec[fieldLevel] = cT.Level.String()
+		assignNonZeroBools(k.Spec, map[string]bool{fieldCheckReportZero: cT.ReportZero})
 	case *icheck.Threshold:
-		r[fieldKind] = KindCheckThreshold.title()
+		k.Type = KindCheckThreshold
 		assignBase(cT.Base)
 		var thresholds []Resource
 		for _, th := range cT.Thresholds {
 			thresholds = append(thresholds, convertThreshold(th))
 		}
-		r[fieldCheckThresholds] = thresholds
+		k.Spec[fieldCheckThresholds] = thresholds
 	}
-	return r
+	return k
 }
 
 func convertThreshold(th icheck.ThresholdConfig) Resource {
@@ -164,6 +167,7 @@ func assignRangeThreshold(r Resource, rangeThreshold icheck.Range) {
 	r[fieldMax] = rangeThreshold.Max
 	r[fieldMin] = rangeThreshold.Min
 }
+
 func convertCellView(cell influxdb.Cell) chart {
 	var name string
 	if cell.View != nil {
@@ -350,8 +354,8 @@ func convertQueries(iQueries []influxdb.DashboardQuery) queries {
 	return out
 }
 
-// DashboardToResource converts an influxdb.Dashboard to a pkger.Resource.
-func DashboardToResource(dash influxdb.Dashboard, name string) Resource {
+// DashboardToObject converts an influxdb.Dashboard to a pkger.Resource.
+func DashboardToObject(dash influxdb.Dashboard, name string) Object {
 	if name == "" {
 		name = dash.Name
 	}
@@ -376,85 +380,91 @@ func DashboardToResource(dash influxdb.Dashboard, name string) Resource {
 		charts = append(charts, convertChartToResource(ch))
 	}
 
-	return Resource{
-		fieldKind:        KindDashboard.title(),
-		fieldName:        name,
-		fieldDescription: dash.Description,
-		fieldDashCharts:  charts,
+	return Object{
+		Type:     KindDashboard,
+		Metadata: Metadata{Name: name},
+		Spec: Resource{
+			fieldDescription: dash.Description,
+			fieldDashCharts:  charts,
+		},
 	}
 }
 
-func labelToResource(l influxdb.Label, name string) Resource {
+func labelToObject(l influxdb.Label, name string) Object {
 	if name == "" {
 		name = l.Name
 	}
-	r := Resource{
-		fieldKind: KindLabel.title(),
-		fieldName: name,
+	k := Object{
+		Type:     KindLabel,
+		Metadata: Metadata{Name: name},
+		Spec:     make(Resource),
 	}
 
-	assignNonZeroStrings(r, map[string]string{
+	assignNonZeroStrings(k.Spec, map[string]string{
 		fieldDescription: l.Properties["description"],
 		fieldLabelColor:  l.Properties["color"],
 	})
-	return r
+	return k
 }
 
-func endpointToResource(e influxdb.NotificationEndpoint, name string) Resource {
+func endpointKind(e influxdb.NotificationEndpoint, name string) Object {
 	if name == "" {
 		name = e.GetName()
 	}
-	r := Resource{
-		fieldName: name,
+	k := Object{
+		Metadata: Metadata{Name: name},
+		Spec:     make(Resource),
 	}
-	assignNonZeroStrings(r, map[string]string{
+	assignNonZeroStrings(k.Spec, map[string]string{
 		fieldDescription: e.GetDescription(),
 		fieldStatus:      string(e.GetStatus()),
 	})
 
 	switch actual := e.(type) {
 	case *endpoint.HTTP:
-		r[fieldKind] = KindNotificationEndpointHTTP.title()
-		r[fieldNotificationEndpointHTTPMethod] = actual.Method
-		r[fieldNotificationEndpointURL] = actual.URL
-		r[fieldType] = actual.AuthMethod
-		assignNonZeroSecrets(r, map[string]influxdb.SecretField{
+		k.Type = KindNotificationEndpointHTTP
+		k.Spec[fieldNotificationEndpointHTTPMethod] = actual.Method
+		k.Spec[fieldNotificationEndpointURL] = actual.URL
+		k.Spec[fieldType] = actual.AuthMethod
+		assignNonZeroSecrets(k.Spec, map[string]influxdb.SecretField{
 			fieldNotificationEndpointPassword: actual.Password,
 			fieldNotificationEndpointToken:    actual.Token,
 			fieldNotificationEndpointUsername: actual.Username,
 		})
 	case *endpoint.PagerDuty:
-		r[fieldKind] = KindNotificationEndpointPagerDuty.title()
-		r[fieldNotificationEndpointURL] = actual.ClientURL
-		assignNonZeroSecrets(r, map[string]influxdb.SecretField{
+		k.Type = KindNotificationEndpointPagerDuty
+		k.Spec[fieldNotificationEndpointURL] = actual.ClientURL
+		assignNonZeroSecrets(k.Spec, map[string]influxdb.SecretField{
 			fieldNotificationEndpointRoutingKey: actual.RoutingKey,
 		})
 	case *endpoint.Slack:
-		r[fieldKind] = KindNotificationEndpointSlack.title()
-		r[fieldNotificationEndpointURL] = actual.URL
-		assignNonZeroSecrets(r, map[string]influxdb.SecretField{
+		k.Type = KindNotificationEndpointSlack
+		k.Spec[fieldNotificationEndpointURL] = actual.URL
+		assignNonZeroSecrets(k.Spec, map[string]influxdb.SecretField{
 			fieldNotificationEndpointToken: actual.Token,
 		})
 	}
 
-	return r
+	return k
 }
 
-func ruleToResource(iRule influxdb.NotificationRule, endpointName, name string) Resource {
+func ruleToObject(iRule influxdb.NotificationRule, endpointName, name string) Object {
 	if name == "" {
 		name = iRule.GetName()
 	}
-	r := Resource{
-		fieldKind:                         KindNotificationRule.title(),
-		fieldName:                         name,
-		fieldNotificationRuleEndpointName: endpointName,
+	k := Object{
+		Type:     KindNotificationRule,
+		Metadata: Metadata{Name: name},
+		Spec: Resource{
+			fieldNotificationRuleEndpointName: endpointName,
+		},
 	}
-	assignNonZeroStrings(r, map[string]string{
+	assignNonZeroStrings(k.Spec, map[string]string{
 		fieldDescription: iRule.GetDescription(),
 	})
 
 	assignBase := func(base rule.Base) {
-		assignNonZeroFluxDurs(r, map[string]*notification.Duration{
+		assignNonZeroFluxDurs(k.Spec, map[string]*notification.Duration{
 			fieldEvery:  base.Every,
 			fieldOffset: base.Offset,
 		})
@@ -468,7 +478,7 @@ func ruleToResource(iRule influxdb.NotificationRule, endpointName, name string) 
 			})
 		}
 		if len(tagRes) > 0 {
-			r[fieldNotificationRuleTagRules] = tagRes
+			k.Spec[fieldNotificationRuleTagRules] = tagRes
 		}
 
 		var statusRuleRes []Resource
@@ -482,7 +492,7 @@ func ruleToResource(iRule influxdb.NotificationRule, endpointName, name string) 
 			statusRuleRes = append(statusRuleRes, sRes)
 		}
 		if len(statusRuleRes) > 0 {
-			r[fieldNotificationRuleStatusRules] = statusRuleRes
+			k.Spec[fieldNotificationRuleStatusRules] = statusRuleRes
 		}
 	}
 
@@ -491,93 +501,98 @@ func ruleToResource(iRule influxdb.NotificationRule, endpointName, name string) 
 		assignBase(t.Base)
 	case *rule.PagerDuty:
 		assignBase(t.Base)
-		r[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
+		k.Spec[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
 	case *rule.Slack:
 		assignBase(t.Base)
-		r[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
-		assignNonZeroStrings(r, map[string]string{fieldNotificationRuleChannel: t.Channel})
+		k.Spec[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
+		assignNonZeroStrings(k.Spec, map[string]string{fieldNotificationRuleChannel: t.Channel})
 	}
 
-	return r
+	return k
 }
 
 // regex used to rip out the hard coded task option stuffs
 var taskFluxRegex = regexp.MustCompile(`option task = {(.|\n)*?}`)
 
-func taskToResource(t influxdb.Task, name string) Resource {
+func taskToObject(t influxdb.Task, name string) Object {
 	if name == "" {
 		name = t.Name
 	}
 
 	query := strings.TrimSpace(taskFluxRegex.ReplaceAllString(t.Flux, ""))
 
-	r := Resource{
-		fieldKind:  KindTask.title(),
-		fieldName:  name,
-		fieldQuery: query,
+	k := Object{
+		Type:     KindTask,
+		Metadata: Metadata{Name: name},
+		Spec: Resource{
+			fieldQuery: query,
+		},
 	}
-	assignNonZeroStrings(r, map[string]string{
+	assignNonZeroStrings(k.Spec, map[string]string{
 		fieldTaskCron:    t.Cron,
 		fieldDescription: t.Description,
 		fieldEvery:       t.Every,
 		fieldOffset:      durToStr(t.Offset),
 	})
-	return r
+	return k
 }
 
-func telegrafToResource(t influxdb.TelegrafConfig, name string) Resource {
+func telegrafToObject(t influxdb.TelegrafConfig, name string) Object {
 	if name == "" {
 		name = t.Name
 	}
-	r := Resource{
-		fieldKind:           KindTelegraf.title(),
-		fieldName:           name,
-		fieldTelegrafConfig: t.Config,
+	k := Object{
+		Type:     KindTelegraf,
+		Metadata: Metadata{Name: name},
+		Spec: Resource{
+			fieldTelegrafConfig: t.Config,
+		},
 	}
-	assignNonZeroStrings(r, map[string]string{
+	assignNonZeroStrings(k.Spec, map[string]string{
 		fieldDescription: t.Description,
 	})
-	return r
+	return k
 }
 
-// VariableToResource converts an influxdb.Variable to a pkger.Resource.
-func VariableToResource(v influxdb.Variable, name string) Resource {
+// VariableToObject converts an influxdb.Variable to a pkger.Object.
+func VariableToObject(v influxdb.Variable, name string) Object {
 	if name == "" {
 		name = v.Name
 	}
 
-	r := Resource{
-		fieldKind: KindVariable.title(),
-		fieldName: name,
+	k := Object{
+		Type:     KindVariable,
+		Metadata: Metadata{Name: name},
+		Spec:     make(Resource),
 	}
-	assignNonZeroStrings(r, map[string]string{fieldDescription: v.Description})
+	assignNonZeroStrings(k.Spec, map[string]string{fieldDescription: v.Description})
 
 	args := v.Arguments
 	if args == nil {
-		return r
+		return k
 	}
-	r[fieldType] = args.Type
+	k.Spec[fieldType] = args.Type
 
 	switch args.Type {
 	case fieldArgTypeConstant:
 		vals, ok := args.Values.(influxdb.VariableConstantValues)
 		if ok {
-			r[fieldValues] = []string(vals)
+			k.Spec[fieldValues] = []string(vals)
 		}
 	case fieldArgTypeMap:
 		vals, ok := args.Values.(influxdb.VariableMapValues)
 		if ok {
-			r[fieldValues] = map[string]string(vals)
+			k.Spec[fieldValues] = map[string]string(vals)
 		}
 	case fieldArgTypeQuery:
 		vals, ok := args.Values.(influxdb.VariableQueryValues)
 		if ok {
-			r[fieldLanguage] = vals.Language
-			r[fieldQuery] = vals.Query
+			k.Spec[fieldLanguage] = vals.Language
+			k.Spec[fieldQuery] = vals.Query
 		}
 	}
 
-	return r
+	return k
 }
 
 func assignNonZeroFluxDurs(r Resource, m map[string]*notification.Duration) {
