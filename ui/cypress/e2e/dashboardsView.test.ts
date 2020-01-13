@@ -96,7 +96,7 @@ describe('Dashboard', () => {
     contextID: string,
     variableID: string
   ) => win => {
-    const {resources} = win.store.getState() as AppState
+    const {resources}: AppState = win.store.getState()
     return resources.variables.values[contextID].values[variableID]
       .selectedValue
   }
