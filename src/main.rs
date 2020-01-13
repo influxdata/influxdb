@@ -1,10 +1,9 @@
+use delorean::delorean::Bucket;
 use delorean::line_parser;
 use delorean::line_parser::index_pairs;
+use delorean::storage::database::Database;
 use delorean::storage::predicate::parse_predicate;
-use delorean::storage::rocksdb::Range;
-use delorean::storage::rocksdb::{
-    new_f64_points_iterator, new_i64_points_iterator, Database, SeriesDataType,
-};
+use delorean::storage::{Range, SeriesDataType};
 use delorean::time::{parse_duration, time_as_i64_nanos};
 
 use std::env::VarError;
@@ -37,6 +36,28 @@ async fn write(
     write_info: web::Query<WriteInfo>,
     s: web::Data<Arc<Server>>,
 ) -> Result<HttpResponse, AWError> {
+    let bucket = match s
+        .db
+        .get_bucket_by_name(write_info.org_id, &write_info.bucket_name)?
+    {
+        Some(b) => b,
+        None => {
+            // create this as the default bucket
+            let b = Bucket {
+                org_id: write_info.org_id,
+                id: 0,
+                name: write_info.bucket_name.clone(),
+                retention: "0".to_string(),
+                posting_list_rollover: 10_000,
+                index_levels: vec![],
+            };
+
+            let _ = s.db.create_bucket_if_not_exists(write_info.org_id, &b)?;
+            s.db.get_bucket_by_name(write_info.org_id, &write_info.bucket_name)?
+                .unwrap()
+        }
+    };
+
     let mut body = BytesMut::new();
     while let Some(chunk) = payload.next().await {
         let chunk = chunk?;
@@ -49,11 +70,9 @@ async fn write(
     let body = body.freeze();
     let body = str::from_utf8(&body).unwrap();
 
-    let points = line_parser::parse(body);
+    let mut points = line_parser::parse(body);
 
-    if let Err(err) =
-        s.db.write_points(write_info.org_id, &write_info.bucket_name, points)
-    {
+    if let Err(err) = s.db.write_points(write_info.org_id, &bucket, &mut points) {
         return Ok(HttpResponse::InternalServerError()
             .json(serde_json::json!({ "error": format!("{}", err) })));
     }
@@ -167,15 +186,21 @@ async fn read(
 
     let range = Range { start, stop };
 
-    let series = s.db.read_range(
-        read_info.org_id,
-        &read_info.bucket_name,
-        &range,
-        &predicate,
-        10,
-    )?;
+    let bucket = match s
+        .db
+        .get_bucket_by_name(read_info.org_id, &read_info.bucket_name)?
+    {
+        Some(b) => b,
+        None => {
+            return Ok(HttpResponse::NotFound().json(serde_json::json!({
+                "error": format!("bucket {} not found", read_info.bucket_name)
+            })))
+        }
+    };
 
-    let bucket_id = series.bucket_id;
+    let series =
+        s.db.read_series_matching_predicate_and_range(&bucket, Some(&predicate), Some(&range))?;
+
     let db = &s.db;
 
     let mut response_body = vec![];
@@ -205,8 +230,7 @@ async fn read(
 
         match s.series_type {
             SeriesDataType::I64 => {
-                let points =
-                    new_i64_points_iterator(read_info.org_id, bucket_id, &db, &s, &range, 10);
+                let points = db.read_i64_range(&bucket, &s, &range, 10)?;
 
                 for batch in points {
                     for p in batch {
@@ -220,8 +244,7 @@ async fn read(
                 }
             }
             SeriesDataType::F64 => {
-                let points =
-                    new_f64_points_iterator(read_info.org_id, bucket_id, &db, &s, &range, 10);
+                let points = db.read_f64_range(&bucket, &s, &range, 10)?;
 
                 for batch in points {
                     for p in batch {
