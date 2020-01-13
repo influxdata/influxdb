@@ -281,20 +281,6 @@ impl RocksDB {
             Some(b) => Ok(Some(b.clone())),
             None => Ok(None),
         }
-
-        //        let db = self.db.read().unwrap();
-        //        let buckets = db.cf_handle(BUCKET_CF).unwrap();
-        //
-        //        match db.get_cf(buckets, key) {
-        //            Ok(b) => match b {
-        //                Some(b) => {
-        //                    let bucket = Bucket::decode(b).unwrap();
-        //                    return Ok(Some(bucket));
-        //                }
-        //                None => return Ok(None),
-        //            },
-        //            Err(e) => return Err(StorageError{description: e.to_string()}),
-        //        }
     }
 
     // TODO: ensure that points with timestamps older than the first index level get matched against the appropriate index
