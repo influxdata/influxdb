@@ -168,6 +168,7 @@ describe('getting active tag values', () => {
     expect(actualTags).toEqual([
       ...activeQueryTags[0].values,
       ...activeQueryTags[1].values,
+      ...activeQueryTags[2].values,
     ])
   })
 })
