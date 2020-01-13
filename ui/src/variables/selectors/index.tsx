@@ -86,7 +86,7 @@ const getVariablesForDashboardMemoized = memoizeOne(
     const variablesForDash = []
 
     variableIDs.forEach(variableID => {
-      const variable = get(variables, `${variableID}.variable`)
+      const variable = get(variables, `${variableID}`)
 
       if (variable) {
         variablesForDash.push(variable)
