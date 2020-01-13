@@ -3,7 +3,15 @@ import {produce} from 'immer'
 
 // Types
 import {VariableEditorState} from 'src/types'
-import {EditorAction} from 'src/variables/actions/creators'
+import {
+  EditorAction,
+  CLEAR_VARIABLE_EDITOR,
+  CHANGE_VARIABLE_EDITOR_TYPE,
+  UPDATE_VARIABLE_EDITOR_NAME,
+  UPDATE_VARIABLE_EDITOR_QUERY,
+  UPDATE_VARIABLE_EDITOR_MAP,
+  UPDATE_VARIABLE_EDITOR_CONSTANT,
+} from 'src/variables/actions/creators'
 
 export const initialEditorState = (): VariableEditorState => ({
   name: '',
@@ -19,26 +27,26 @@ export const variableEditorReducer = (
 ): VariableEditorState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'CLEAR_VARIABLE_EDITOR': {
+      case CLEAR_VARIABLE_EDITOR: {
         return initialEditorState()
       }
-      case 'CHANGE_VARIABLE_EDITOR_TYPE': {
-        draftState.selected = action.payload
+      case CHANGE_VARIABLE_EDITOR_TYPE: {
+        draftState.selected = action.editorType
         return
       }
-      case 'UPDATE_VARIABLE_EDITOR_NAME': {
-        draftState.name = action.payload
+      case UPDATE_VARIABLE_EDITOR_NAME: {
+        draftState.name = action.name
         return
       }
-      case 'UPDATE_VARIABLE_EDITOR_QUERY': {
+      case UPDATE_VARIABLE_EDITOR_QUERY: {
         draftState.argsQuery = action.payload
         return
       }
-      case 'UPDATE_VARIABLE_EDITOR_MAP': {
+      case UPDATE_VARIABLE_EDITOR_MAP: {
         draftState.argsMap = action.payload
         return
       }
-      case 'UPDATE_VARIABLE_EDITOR_CONSTANT': {
+      case UPDATE_VARIABLE_EDITOR_CONSTANT: {
         draftState.argsConstant = action.payload
         return
       }

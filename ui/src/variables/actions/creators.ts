@@ -75,21 +75,25 @@ export const setValues = (
   contextID: string,
   status: RemoteDataState,
   values?: VariableValuesByID
-) => ({
-  type: SET_VARIABLE_VALUES,
-  contextID,
-  status,
-  values,
-} as const)
+) =>
+  ({
+    type: SET_VARIABLE_VALUES,
+    contextID,
+    status,
+    values,
+  } as const)
 
 export const selectValue = (
   contextID: string,
   variableID: string,
   selectedValue: string
-) => ({
-  type: SELECT_VARIABLE_VALUE,
-  contextID, variableID, selectedValue,
-} as const)
+) =>
+  ({
+    type: SELECT_VARIABLE_VALUE,
+    contextID,
+    variableID,
+    selectedValue,
+  } as const)
 
 // Variable Editor Action Creators
 export type EditorAction =
@@ -100,31 +104,44 @@ export type EditorAction =
   | ReturnType<typeof updateMap>
   | ReturnType<typeof updateConstant>
 
-export const clearEditor = () => ({
-  type: 'CLEAR_VARIABLE_EDITOR' as 'CLEAR_VARIABLE_EDITOR',
-})
+export const CLEAR_VARIABLE_EDITOR = 'CLEAR_VARIABLE_EDITOR'
+export const CHANGE_VARIABLE_EDITOR_TYPE = 'CHANCE_VARIABLE_EDITOR_TYPE'
+export const UPDATE_VARIABLE_EDITOR_NAME = 'UPDATE_VARIABLE_EDITOR_NAME'
+export const UPDATE_VARIABLE_EDITOR_QUERY = 'UPDATE_VARIABLE_EDITOR_QUERY'
+export const UPDATE_VARIABLE_EDITOR_MAP = 'UPDATE_VARIABLE_EDITOR_MAP'
+export const UPDATE_VARIABLE_EDITOR_CONSTANT = 'UPDATE_VARIABLE_EDITOR_CONSTANT'
 
-export const updateType = (type: VariableArgumentType) => ({
-  type: 'CHANGE_VARIABLE_EDITOR_TYPE' as 'CHANGE_VARIABLE_EDITOR_TYPE',
-  payload: type,
-})
+export const clearEditor = () =>
+  ({
+    type: CLEAR_VARIABLE_EDITOR,
+  } as const)
 
-export const updateName = (name: string) => ({
-  type: 'UPDATE_VARIABLE_EDITOR_NAME' as 'UPDATE_VARIABLE_EDITOR_NAME',
-  payload: name,
-})
+export const updateType = (editorType: VariableArgumentType) =>
+  ({
+    type: CHANGE_VARIABLE_EDITOR_TYPE,
+    editorType,
+  } as const)
 
-export const updateQuery = (arg: QueryArguments) => ({
-  type: 'UPDATE_VARIABLE_EDITOR_QUERY' as 'UPDATE_VARIABLE_EDITOR_QUERY',
-  payload: arg,
-})
+export const updateName = (name: string) =>
+  ({
+    type: UPDATE_VARIABLE_EDITOR_NAME,
+    name,
+  } as const)
 
-export const updateMap = (arg: MapArguments) => ({
-  type: 'UPDATE_VARIABLE_EDITOR_MAP' as 'UPDATE_VARIABLE_EDITOR_MAP',
-  payload: arg,
-})
+export const updateQuery = (arg: QueryArguments) =>
+  ({
+    type: UPDATE_VARIABLE_EDITOR_QUERY,
+    payload: arg,
+  } as const)
 
-export const updateConstant = (arg: CSVArguments) => ({
-  type: 'UPDATE_VARIABLE_EDITOR_CONSTANT' as 'UPDATE_VARIABLE_EDITOR_CONSTANT',
-  payload: arg,
-})
+export const updateMap = (arg: MapArguments) =>
+  ({
+    type: UPDATE_VARIABLE_EDITOR_MAP,
+    payload: arg,
+  } as const)
+
+export const updateConstant = (arg: CSVArguments) =>
+  ({
+    type: UPDATE_VARIABLE_EDITOR_CONSTANT,
+    payload: arg,
+  } as const)
