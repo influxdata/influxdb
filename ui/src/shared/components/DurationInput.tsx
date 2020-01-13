@@ -79,7 +79,6 @@ const DurationInput: FC<Props> = ({
         <DropdownMenu
           className="status-search-bar--suggestions"
           noScrollX={true}
-          noScrollY={true}
         >
           {showDivider && <DropdownDivider text="Examples" />}
           {suggestions.map(s => (
