@@ -115,7 +115,7 @@ export default class DashboardCards extends PureComponent<Props> {
       )
     } else {
       this.setState({
-        windowSize: this.state.windowSize - 2,
+        windowSize: this.state.windowSize,
         pages: 3,
         hasMeasured: true,
       })
