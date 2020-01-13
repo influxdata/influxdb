@@ -9,8 +9,6 @@ import {
   ComponentSize,
   PanelBody,
   TextBlock,
-  InputType,
-  Input,
   FlexDirection,
   InfluxColors,
 } from '@influxdata/clockface'
@@ -25,6 +23,8 @@ import {
 
 // Types
 import {CheckStatusLevel, AppState} from 'src/types'
+import DurationInput from 'src/shared/components/DurationInput'
+import {CHECK_OFFSET_OPTIONS} from 'src/alerting/constants'
 
 interface DispatchProps {
   onSetStaleTime: typeof setStaleTime
@@ -77,14 +77,11 @@ const DeadmanConditions: FC<Props> = ({
           >
             <TextBlock testID="when-value-text-block" text="for" />
             <FlexBox.Child testID="component-spacer--flex-child">
-              <Input
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  onSetTimeSince(e.target.value)
-                }
-                name="timeSince"
-                testID="input-field"
-                type={InputType.Text}
+              <DurationInput
+                suggestions={CHECK_OFFSET_OPTIONS}
+                onSubmit={onSetTimeSince}
                 value={timeSince}
+                showDivider={false}
               />
             </FlexBox.Child>
             <TextBlock testID="set-status-to-text-block" text="set status to" />
@@ -106,14 +103,11 @@ const DeadmanConditions: FC<Props> = ({
               text="And stop checking after"
             />
             <FlexBox.Child testID="component-spacer--flex-child">
-              <Input
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  onSetStaleTime(e.target.value)
-                }
-                name="staleTime"
-                testID="input-field"
-                type={InputType.Text}
+              <DurationInput
+                suggestions={CHECK_OFFSET_OPTIONS}
+                onSubmit={onSetStaleTime}
                 value={staleTime}
+                showDivider={false}
               />
             </FlexBox.Child>
           </FlexBox>

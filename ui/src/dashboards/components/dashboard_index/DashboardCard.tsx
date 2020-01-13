@@ -13,8 +13,8 @@ import {
   cloneDashboard,
   deleteDashboardAsync,
   updateDashboardAsync,
-  addDashboardLabelsAsync,
-  removeDashboardLabelsAsync,
+  addDashboardLabelAsync,
+  removeDashboardLabelAsync,
 } from 'src/dashboards/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
@@ -41,11 +41,11 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onAddDashboardLabels: typeof addDashboardLabelsAsync
-  onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
   onDeleteDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
+  onAddDashboardLabel: typeof addDashboardLabelAsync
+  onRemoveDashboardLabel: typeof removeDashboardLabelAsync
   onCreateLabel: typeof createLabelAsync
   onResetViews: typeof resetViews
 }
@@ -81,7 +81,7 @@ class DashboardCard extends PureComponent<Props> {
         }
         labels={
           <InlineLabels
-            selectedLabels={dashboard.labels as Label[]}
+            selectedLabels={dashboard.labels}
             labels={labels}
             onFilterChange={onFilterChange}
             onAddLabel={this.handleAddLabel}
@@ -165,15 +165,15 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private handleAddLabel = (label: Label) => {
-    const {dashboard, onAddDashboardLabels} = this.props
+    const {dashboard, onAddDashboardLabel} = this.props
 
-    onAddDashboardLabels(dashboard.id, [label])
+    onAddDashboardLabel(dashboard.id, label)
   }
 
   private handleRemoveLabel = (label: Label) => {
-    const {dashboard, onRemoveDashboardLabels} = this.props
+    const {dashboard, onRemoveDashboardLabel} = this.props
 
-    onRemoveDashboardLabels(dashboard.id, [label])
+    onRemoveDashboardLabel(dashboard.id, label)
   }
 
   private handleCreateLabel = async (label: Label) => {
@@ -199,8 +199,8 @@ const mstp = ({labels}: AppState): StateProps => {
 
 const mdtp: DispatchProps = {
   onCreateLabel: createLabelAsync,
-  onAddDashboardLabels: addDashboardLabelsAsync,
-  onRemoveDashboardLabels: removeDashboardLabelsAsync,
+  onAddDashboardLabel: addDashboardLabelAsync,
+  onRemoveDashboardLabel: removeDashboardLabelAsync,
   onResetViews: resetViews,
   onCloneDashboard: cloneDashboard,
   onDeleteDashboard: deleteDashboardAsync,

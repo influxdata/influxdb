@@ -456,11 +456,11 @@ describe('DataExplorer', () => {
           .click()
           .focused()
           .type(
-          `from(bucket: "defbuck")
+            `from(bucket: "defbuck")
   |> range(start: -10s)
   |> filter(fn: (r) => r._measurement == "no exist")`,
-          {force: true, delay: TYPE_DELAY}
-        )
+            {force: true, delay: TYPE_DELAY}
+          )
         cy.getByTestID('time-machine-submit-button').click()
       })
 
@@ -475,11 +475,11 @@ describe('DataExplorer', () => {
           .click()
           .focused()
           .type(
-          `from(bucket: "defbuck")
+            `from(bucket: "defbuck")
   |> range(start: -15m, stop: now())
   |> filter(fn: (r) => r._measurement == `,
-          {force: true, delay: TYPE_DELAY}
-        )
+            {force: true, delay: TYPE_DELAY}
+          )
       })
 
       cy.getByTestID('toolbar-tab').click()

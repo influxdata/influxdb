@@ -6,8 +6,8 @@ import {connect} from 'react-redux'
 import {Form, ComponentSize, ComponentColor, Grid} from '@influxdata/clockface'
 import DashedButton from 'src/shared/components/dashed_button/DashedButton'
 import CheckTagRow from 'src/alerting/components/builder/CheckTagRow'
-import DurationSelector from 'src/shared/components/DurationSelector'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
+import DurationInput from 'src/shared/components/DurationInput'
 
 // Actions
 import {
@@ -18,7 +18,8 @@ import {
 } from 'src/alerting/actions/alertBuilder'
 
 // Constants
-import {CHECK_EVERY_OPTIONS, CHECK_OFFSET_OPTIONS} from 'src/alerting/constants'
+import {CHECK_OFFSET_OPTIONS} from 'src/alerting/constants'
+import {DURATION_STRINGS} from 'src/timeMachine/constants/queryBuilder'
 
 // Types
 import {AppState, CheckTagSet} from 'src/types'
@@ -63,19 +64,19 @@ const CheckMetaCard: FC<Props> = ({
           <Grid.Row>
             <Grid.Column widthSM={6}>
               <Form.Element label="Schedule Every">
-                <DurationSelector
-                  selectedDuration={every}
-                  durations={CHECK_EVERY_OPTIONS}
-                  onSelectDuration={onSelectCheckEvery}
+                <DurationInput
+                  value={every}
+                  suggestions={DURATION_STRINGS}
+                  onSubmit={onSelectCheckEvery}
                 />
               </Form.Element>
             </Grid.Column>
             <Grid.Column widthSM={6}>
               <Form.Element label="Offset">
-                <DurationSelector
-                  selectedDuration={offset}
-                  durations={CHECK_OFFSET_OPTIONS}
-                  onSelectDuration={onSetOffset}
+                <DurationInput
+                  value={offset}
+                  suggestions={CHECK_OFFSET_OPTIONS}
+                  onSubmit={onSetOffset}
                 />
               </Form.Element>
             </Grid.Column>

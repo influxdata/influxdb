@@ -754,7 +754,7 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 		}
 	}
 
-	var diffs []DiffBucket
+	diffs := make([]DiffBucket, 0, len(mExistingBkts))
 	for _, diff := range mExistingBkts {
 		diffs = append(diffs, diff)
 	}
@@ -784,7 +784,7 @@ func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 		}
 	}
 
-	var diffs []DiffCheck
+	diffs := make([]DiffCheck, 0, len(mExistingChecks))
 	for _, diff := range mExistingChecks {
 		diffs = append(diffs, diff)
 	}
@@ -796,8 +796,10 @@ func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 }
 
 func (s *Service) dryRunDashboards(pkg *Pkg) []DiffDashboard {
-	var diffs []DiffDashboard
-	for _, d := range pkg.dashboards() {
+	dashs := pkg.dashboards()
+
+	diffs := make([]DiffDashboard, 0, len(dashs))
+	for _, d := range dashs {
 		diffs = append(diffs, newDiffDashboard(d))
 	}
 	return diffs
@@ -862,7 +864,7 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 		mExistingToNew[newEndpoint.Name()] = newDiffNotificationEndpoint(newEndpoint, existing)
 	}
 
-	var diffs []DiffNotificationEndpoint
+	diffs := make([]DiffNotificationEndpoint, 0, len(mExistingToNew))
 	for _, diff := range mExistingToNew {
 		diffs = append(diffs, diff)
 	}
@@ -885,7 +887,7 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 		mExisting[e.GetName()] = e
 	}
 
-	var diffs []DiffNotificationRule
+	diffs := make([]DiffNotificationRule, 0, len(mExisting))
 	for _, r := range pkg.notificationRules() {
 		e, ok := mExisting[r.endpointName]
 		if !ok {
@@ -929,8 +931,9 @@ func (s *Service) dryRunTasks(pkg *Pkg) []DiffTask {
 }
 
 func (s *Service) dryRunTelegraf(pkg *Pkg) []DiffTelegraf {
-	var diffs []DiffTelegraf
-	for _, t := range pkg.telegrafs() {
+	telegrafs := pkg.telegrafs()
+	diffs := make([]DiffTelegraf, 0, len(telegrafs))
+	for _, t := range telegrafs {
 		diffs = append(diffs, newDiffTelegraf(t))
 	}
 	return diffs
@@ -1008,7 +1011,7 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 		mapperVariables(pkg.variables()),
 	}
 
-	var diffs []DiffLabelMapping
+	diffs := make([]DiffLabelMapping, 0)
 	for _, mapper := range mappers {
 		for i := 0; i < mapper.Len(); i++ {
 			la := mapper.Association(i)

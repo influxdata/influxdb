@@ -20,6 +20,7 @@ import {addLabelDefaults} from 'src/labels/utils'
 
 // API
 import {
+  getDashboard as apiGetDashboard,
   getTask as apiGetTask,
   postTask as apiPostTask,
   postTasksLabel as apiPostTasksLabel,
@@ -29,30 +30,36 @@ import {
   getVariables as apiGetVariables,
   postVariable as apiPostVariable,
   postVariablesLabel as apiPostVariablesLabel,
+  postDashboard as apiPostDashboard,
+  postDashboardsLabel as apiPostDashboardsLabel,
+  postDashboardsCell as apiPostDashboardsCell,
+  patchDashboardsCellsView as apiPatchDashboardsCellsView,
 } from 'src/client'
-import {client} from 'src/utils/api'
+import {addDashboardDefaults} from 'src/dashboards/actions'
+// Create Dashboard Templates
 
 // Types
 import {
+  TaskEntities,
   DashboardTemplate,
+  Dashboard,
   TemplateType,
+  Cell,
   CellIncluded,
   LabelIncluded,
   ViewIncluded,
   TaskTemplate,
   TemplateBase,
-  TaskEntities,
   Task,
   VariableTemplate,
   Variable,
 } from 'src/types'
-import {IDashboard, Cell} from '@influxdata/influx'
 
 // Create Dashboard Templates
 export const createDashboardFromTemplate = async (
   template: DashboardTemplate,
   orgID: string
-): Promise<IDashboard> => {
+): Promise<Dashboard> => {
   const {content} = template
 
   if (
@@ -62,14 +69,18 @@ export const createDashboardFromTemplate = async (
     throw new Error('Cannot create dashboard from this template')
   }
 
-  const createdDashboard = await client.dashboards.create({
-    ...content.data.attributes,
-    orgID,
+  const resp = await apiPostDashboard({
+    data: {
+      orgID,
+      ...content.data.attributes,
+    },
   })
 
-  if (!createdDashboard || !createdDashboard.id) {
-    throw new Error('Failed to create dashboard from template')
+  if (resp.status !== 201) {
+    throw new Error(resp.data.message)
   }
+
+  const createdDashboard = addDashboardDefaults(resp.data)
 
   // associate imported label id with new label
   const labelMap = await createLabelsFromTemplate(template, orgID)
@@ -81,19 +92,36 @@ export const createDashboardFromTemplate = async (
 
   await createVariablesFromTemplate(template, labelMap, orgID)
 
-  const dashboard = await client.dashboards.get(createdDashboard.id)
+  const getResp = await apiGetDashboard({dashboardID: resp.data.id})
+
+  if (getResp.status !== 200) {
+    throw new Error(getResp.data.message)
+  }
+
+  const dashboard = addDashboardDefaults(getResp.data)
   return dashboard
 }
 
 const addDashboardLabelsFromTemplate = async (
   template: DashboardTemplate,
   labelMap: LabelMap,
-  dashboard: IDashboard
+  dashboard: Dashboard
 ) => {
-  const labelRelationships = getLabelRelationships(template.content.data)
-  const labelIDs = labelRelationships.map(l => labelMap[l.id] || '')
-
-  await client.dashboards.addLabels(dashboard.id, labelIDs)
+  try {
+    const labelRelationships = getLabelRelationships(template.content.data)
+    const labelIDs = labelRelationships.map(l => labelMap[l.id] || '')
+    const pending = labelIDs.map(labelID =>
+      apiPostDashboardsLabel({dashboardID: dashboard.id, data: {labelID}})
+    )
+    const resolved = await Promise.all(pending)
+    if (resolved.length > 0 && resolved.some(r => r.status !== 201)) {
+      throw new Error(
+        'An error occurred adding dashboard labels from the template'
+      )
+    }
+  } catch (e) {
+    console.error(e)
+  }
 }
 
 type LabelMap = {[importedID: string]: CreatedLabelID}
@@ -166,7 +194,7 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
 
 const createCellsFromTemplate = async (
   template: DashboardTemplate,
-  createdDashboard: IDashboard
+  createdDashboard: Dashboard
 ) => {
   const {
     content: {data, included},
@@ -187,14 +215,23 @@ const createCellsFromTemplate = async (
     const {
       attributes: {x, y, w, h},
     } = c
-    return client.dashboards.createCell(createdDashboard.id, {x, y, w, h})
+    return apiPostDashboardsCell({
+      dashboardID: createdDashboard.id,
+      data: {x, y, w, h},
+    })
   })
 
   const cellResponses = await Promise.all(pendingCells)
 
+  if (cellResponses.length > 0 && cellResponses.some(r => r.status !== 201)) {
+    throw new Error('An error occurred creating cells from the templates')
+  }
+
+  const responses = cellResponses.map(resp => resp.data as Cell)
+
   createViewsFromTemplate(
     template,
-    cellResponses,
+    responses,
     cellsToCreate,
     createdDashboard.id
   )
@@ -220,11 +257,11 @@ const createViewsFromTemplate = async (
   })
 
   const pendingViews = viewsToCreate.map((v, i) => {
-    return client.dashboards.updateView(
+    return apiPatchDashboardsCellsView({
       dashboardID,
-      cellResponses[i].id,
-      v.attributes
-    )
+      cellID: cellResponses[i].id,
+      data: v.attributes,
+    })
   })
 
   await Promise.all(pendingViews)
