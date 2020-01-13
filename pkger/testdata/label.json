@@ -1,26 +1,24 @@
-{
-    "apiVersion": "0.1.0",
-    "kind": "Package",
-    "meta": {
-      "pkgName": "pkg_name",
-      "pkgVersion": "1",
-      "description": "pack description"
+[
+  {
+    "apiVersion": "influxdata.com/v2alpha1",
+    "kind": "Label",
+    "metadata": {
+      "name": "label_2"
     },
     "spec": {
-      "resources": [
-        {
-          "kind": "Label",
-          "name": "label_1",
-          "color": "#FFFFFF",
-          "description": "label 1 description"
-        },
-        {
-            "kind": "Label",
-            "name": "label_2",
-            "color": "#000000",
-            "description": "label 2 description"
-          }
-      ]
+      "color": "#000000",
+      "description": "label 2 description"
+    }
+  },
+  {
+    "apiVersion": "influxdata.com/v2alpha1",
+    "kind": "Label",
+    "metadata": {
+      "name": "label_1"
+    },
+    "spec": {
+      "color": "#FFFFFF",
+      "description": "label 1 description"
     }
   }
-  
+]

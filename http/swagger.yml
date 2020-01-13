@@ -7148,12 +7148,10 @@ components:
     PkgCreate:
       type: object
       properties:
-        pkgName:
-          type: string
-        pkgDescription:
-          type: string
-        pkgVersion:
-          type: string
+        orgIDs:
+          type: array
+          items:
+            type: string
         resources:
           type: object
           properties:
@@ -7175,30 +7173,35 @@ components:
               type: string
           required: [id, kind]
     Pkg:
-      type: object
-      properties:
-        apiVersion:
-          type: string
-        kind:
-          type: string
-          enum:
-            - package
-        meta:
-          type: object
-          properties:
-            description:
-              type: string
-            pkgName:
-              type: string
-            pkgVersion:
-              type: string
-        spec:
-          type: object
-          properties:
-            resources:
-              type: array
-              items:
-                type: object
+      type: array
+      items:
+        type: object
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+            enum:
+              - Bucket
+              - CheckDeadman
+              - CheckThreshold
+              - Dashboard
+              - Label
+              - NotificationEndpointHTTP
+              - NotificationEndpointPagerDuty
+              - NotificationEndpointSlack
+              - NotificationRule
+              - NotificationEndpointHTTP
+              - Task
+              - Telegraf
+              - Variable
+          meta:
+            type: object
+            properties:
+              name:
+                type: string
+          spec:
+            type: object
     PkgSummary:
       type: object
       properties:

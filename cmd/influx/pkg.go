@@ -23,13 +23,12 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
-	"gopkg.in/yaml.v3"
 )
 
 type pkgSVCsFn func() (pkger.SVC, influxdb.OrganizationService, error)
 
 func cmdPkg(opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts...).cmdPkg()
+	return newCmdPkgBuilder(newPkgerSVC, opts...).cmd()
 }
 
 type cmdPkgBuilder struct {
@@ -40,7 +39,6 @@ type cmdPkgBuilder struct {
 	file            string
 	hasColor        bool
 	hasTableBorders bool
-	meta            pkger.Metadata
 	org             organization
 	quiet           bool
 
@@ -78,10 +76,9 @@ func newCmdPkgBuilder(svcFn pkgSVCsFn, opts ...genericCLIOptFn) *cmdPkgBuilder {
 	}
 }
 
-func (b *cmdPkgBuilder) cmdPkg() *cobra.Command {
+func (b *cmdPkgBuilder) cmd() *cobra.Command {
 	cmd := b.cmdPkgApply()
 	cmd.AddCommand(
-		b.cmdPkgNew(),
 		b.cmdPkgExport(),
 		b.cmdPkgSummary(),
 		b.cmdPkgValidate(),
@@ -213,54 +210,12 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(*cobra.Command, []string) error {
 	return nil
 }
 
-func (b *cmdPkgBuilder) cmdPkgNew() *cobra.Command {
-	cmd := b.newCmd("new", b.pkgNewRunEFn)
-	cmd.Short = "Create a reusable pkg to create resources in a declarative manner"
-
-	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
-	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "skip interactive mode")
-	cmd.Flags().StringVarP(&b.meta.Name, "name", "n", "", "name for new pkg")
-	cmd.Flags().StringVarP(&b.meta.Description, "description", "d", "", "description for new pkg")
-	cmd.Flags().StringVarP(&b.meta.Version, "version", "v", "", "version for new pkg")
-
-	return cmd
-}
-
-func (b *cmdPkgBuilder) pkgNewRunEFn(cmd *cobra.Command, args []string) error {
-	if !b.quiet {
-		ui := &input.UI{
-			Writer: b.w,
-			Reader: b.in,
-		}
-
-		if b.meta.Name == "" {
-			b.meta.Name = getInput(ui, "pkg name", "")
-		}
-		if b.meta.Description == "" {
-			b.meta.Description = getInput(ui, "pkg description", "")
-		}
-		if b.meta.Version == "" {
-			b.meta.Version = getInput(ui, "pkg version", "")
-		}
-	}
-
-	pkgSVC, _, err := b.svcFn()
-	if err != nil {
-		return err
-	}
-
-	return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, pkger.CreateWithMetadata(b.meta))
-}
-
 func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 	cmd := b.newCmd("export", b.pkgExportRunEFn)
 	cmd.Short = "Export existing resources as a package"
 	cmd.AddCommand(b.cmdPkgExportAll())
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
-	cmd.Flags().StringVarP(&b.meta.Name, "name", "n", "", "name for new pkg")
-	cmd.Flags().StringVarP(&b.meta.Description, "description", "d", "", "description for new pkg")
-	cmd.Flags().StringVarP(&b.meta.Version, "version", "v", "", "version for new pkg")
 	cmd.Flags().StringVar(&b.exportOpts.resourceType, "resource-type", "", "The resource type provided will be associated with all IDs via stdin.")
 	cmd.Flags().StringVar(&b.exportOpts.buckets, "buckets", "", "List of bucket ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.checks, "checks", "", "List of check ids comma separated")
@@ -281,7 +236,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 		return err
 	}
 
-	opts := []pkger.CreatePkgSetFn{pkger.CreateWithMetadata(b.meta)}
+	opts := []pkger.CreatePkgSetFn{}
 
 	resTypes := []struct {
 		kind   pkger.Kind
@@ -309,7 +264,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 		return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
 	}
 
-	kind := pkger.NewKind(b.exportOpts.resourceType)
+	kind := pkger.Kind(b.exportOpts.resourceType)
 	if err := kind.OK(); err != nil {
 		return errors.New("resource type must be one of bucket|dashboard|label|variable; got: " + b.exportOpts.resourceType)
 	}
@@ -337,10 +292,6 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 
 	b.org.register(cmd, false)
 
-	cmd.Flags().StringVarP(&b.meta.Name, "name", "n", "", "name for new pkg")
-	cmd.Flags().StringVarP(&b.meta.Description, "description", "d", "", "description for new pkg")
-	cmd.Flags().StringVarP(&b.meta.Version, "version", "v", "", "version for new pkg")
-
 	return cmd
 }
 
@@ -350,15 +301,12 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 		return err
 	}
 
-	opts := []pkger.CreatePkgSetFn{pkger.CreateWithMetadata(b.meta)}
-
 	orgID, err := b.org.getID(orgSVC)
 	if err != nil {
 		return err
 	}
-	opts = append(opts, pkger.CreateWithAllOrgResources(orgID))
 
-	return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
+	return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, pkger.CreateWithAllOrgResources(orgID))
 }
 
 func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
@@ -430,7 +378,7 @@ func (b *cmdPkgBuilder) readPkgStdInOrFile(file string) (*pkger.Pkg, bool, error
 		isTTY = true
 	}
 
-	pkg, err := pkgFromReader(b.in)
+	pkg, err := pkger.Parse(pkger.EncodingSource, pkger.FromReader(b.in))
 	return pkg, isTTY, err
 }
 
@@ -509,26 +457,19 @@ func toInfluxIDs(args []string) ([]influxdb.ID, error) {
 }
 
 func createPkgBuf(pkg *pkger.Pkg, outPath string) (*bytes.Buffer, error) {
-	var (
-		buf bytes.Buffer
-		enc interface {
-			Encode(interface{}) error
-		}
-	)
-
+	var encoding pkger.Encoding
 	switch ext := filepath.Ext(outPath); ext {
 	case ".json":
-		jsonEnc := json.NewEncoder(&buf)
-		jsonEnc.SetIndent("", "\t")
-		enc = jsonEnc
+		encoding = pkger.EncodingJSON
 	default:
-		enc = yaml.NewEncoder(&buf)
-	}
-	if err := enc.Encode(pkg); err != nil {
-		return nil, err
+		encoding = pkger.EncodingYAML
 	}
 
-	return &buf, nil
+	b, err := pkg.Encode(encoding)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewBuffer(b), nil
 }
 
 func newPkgerSVC() (pkger.SVC, influxdb.OrganizationService, error) {
@@ -542,15 +483,6 @@ func newPkgerSVC() (pkger.SVC, influxdb.OrganizationService, error) {
 	}
 
 	return &ihttp.PkgerService{Client: httpClient}, orgSvc, nil
-}
-
-func pkgFromReader(stdin io.Reader) (*pkger.Pkg, error) {
-	b, err := ioutil.ReadAll(stdin)
-	if err != nil {
-		return nil, err
-	}
-
-	return pkger.Parse(pkger.EncodingSource, pkger.FromString(string(b)))
 }
 
 func pkgFromFile(path string) (*pkger.Pkg, error) {

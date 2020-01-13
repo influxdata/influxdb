@@ -1,5 +1,9 @@
 ## v2.0.0-beta.2 [Unreleased]
 
+### Features
+
+1. [16523](https://github.com/influxdata/influxdb/pull/16523): Change influx packages to be CRD compliant
+
 ### UI Improvements
 
 1. [16203](https://github.com/influxdata/influxdb/pull/16203): Move cloud navigation to top of page instead of within left side navigation

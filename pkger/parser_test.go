@@ -17,102 +17,6 @@ import (
 )
 
 func TestParse(t *testing.T) {
-	t.Run("pkg has all necessary metadata", func(t *testing.T) {
-		t.Run("has valid metadata and at least 1 resource", func(t *testing.T) {
-			testfileRunner(t, "testdata/bucket", nil)
-		})
-
-		t.Run("malformed required metadata", func(t *testing.T) {
-			tests := []testPkgResourceError{
-				{
-					name: "missing apiVersion",
-					pkgStr: `kind: Package
-meta:
-  pkgName:      first_bucket_package
-  pkgVersion:   1
-spec:
-  resources:
-    - kind: Bucket
-      name: buck_1
-      retention_period: 1h
-`,
-					valFields: []string{"apiVersion"},
-				},
-				{
-					name: "apiVersion is invalid version",
-					pkgStr: `apiVersion: 222.2 #invalid apiVersion
-kind: Package
-meta:
-  pkgName:      first_bucket_package
-  pkgVersion:   1
-spec:
-  resources:
-    - kind: Bucket
-      name: buck_1
-      retention_period: 1h
-`,
-					valFields: []string{"apiVersion"},
-				},
-				{
-					name: "missing kind",
-					pkgStr: `apiVersion: 0.1.0
-meta:
-  pkgName:   first_bucket_package
-  pkgVersion:   1
-spec:
-  resources:
-    - kind: Bucket
-      name: buck_1
-      retention_period: 1h
-`,
-					valFields: []string{"kind"},
-				},
-				{
-					name: "missing pkgName",
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgVersion:   1
-spec:
-  resources:
-    - kind: Bucket
-      name: buck_1
-      retention_period: 1h
-`,
-					valFields: []string{"meta.pkgName"},
-				},
-				{
-					name: "missing pkgVersion",
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:   foo_name
-spec:
-  resources:
-    - kind: Bucket
-      name: buck_1
-      retention_period: 1h
-`,
-					valFields: []string{"meta.pkgVersion"},
-				},
-				{
-					name: "missing multiple",
-					pkgStr: `spec:
-  resources:
-    - kind: Bucket
-      name: buck_1
-      retention_period: 1h
-`,
-					valFields: []string{"apiVersion", "kind", "meta.pkgVersion", "meta.pkgName"},
-				},
-			}
-
-			for _, tt := range tests {
-				testPkgErrors(t, KindPackage, tt)
-			}
-		})
-	})
-
 	t.Run("pkg with a bucket", func(t *testing.T) {
 		t.Run("with valid bucket pkg should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
@@ -136,33 +40,25 @@ spec:
 					name:           "missing name",
 					validationErrs: 1,
 					valFields:      []string{fieldName},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      first_bucket_package
-  pkgVersion:   1
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
 spec:
-  resources:
-    - kind: Bucket
-      retention_period: 1h
 `,
 				},
 				{
 					name:           "mixed valid and missing name",
 					validationErrs: 1,
 					valFields:      []string{fieldName},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      first_bucket_package
-  pkgVersion:   1
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name:  rucket_11
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
 spec:
-  resources:
-    - kind: Bucket
-      retention_period: 1h
-      name: valid name
-    - kind: Bucket
-      retention_period: 1h
 `,
 				},
 				{
@@ -170,20 +66,20 @@ spec:
 					resourceErrs:   2,
 					validationErrs: 1,
 					valFields:      []string{fieldName},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      first_bucket_package
-  pkgVersion:   1
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name:  rucket_11
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
 spec:
-  resources:
-    - kind: Bucket
-      retention_period: 1h
-      name: valid name
-    - kind: Bucket
-      retention_period: 1h
-    - kind: Bucket
-      retention_period: 1h
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+spec:
 `,
 				},
 				{
@@ -191,19 +87,15 @@ spec:
 					resourceErrs:   1,
 					validationErrs: 1,
 					valFields:      []string{fieldName},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      first_bucket_package
-  pkgVersion:   1
-spec:
-  resources:
-    - kind: Bucket
-      retention_period: 1h
-      name: valid name
-    - kind: Bucket
-      retention_period: 1h
-      name: valid name
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name:  valid name
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name:  valid name
 `,
 				},
 			}
@@ -242,30 +134,27 @@ spec:
 					name:           "missing name",
 					validationErrs: 1,
 					valFields:      []string{"name"},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName: first_label_pkg 
-  pkgVersion:   1
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
 spec:
-  resources:
-    - kind: Label 
 `,
 				},
 				{
 					name:           "mixed valid and missing name",
 					validationErrs: 1,
 					valFields:      []string{"name"},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName: label_pkg
-  pkgVersion: 1
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: valid name
 spec:
-  resources:
-    - kind: Label
-      name: valid name
-    - kind: Label
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: a
+spec:
 `,
 				},
 				{
@@ -273,15 +162,12 @@ spec:
 					resourceErrs:   2,
 					validationErrs: 1,
 					valFields:      []string{"name"},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName: label_pkg
-  pkgVersion: 1
-spec:
-  resources:
-    - kind: Label
-    - kind: Label
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Label
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Label
+
 `,
 				},
 			}
@@ -293,63 +179,65 @@ spec:
 	})
 
 	t.Run("pkg with buckets and labels associated", func(t *testing.T) {
-		testfileRunner(t, "testdata/bucket_associates_label", func(t *testing.T, pkg *Pkg) {
-			sum := pkg.Summary()
-			require.Len(t, sum.Labels, 2)
+		t.Run("happy path", func(t *testing.T) {
+			testfileRunner(t, "testdata/bucket_associates_label", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.Labels, 2)
 
-			bkts := sum.Buckets
-			require.Len(t, bkts, 3)
+				bkts := sum.Buckets
+				require.Len(t, bkts, 3)
 
-			expectedLabels := []struct {
-				bktName string
-				labels  []string
-			}{
-				{
-					bktName: "rucket_1",
-					labels:  []string{"label_1"},
-				},
-				{
-					bktName: "rucket_2",
-					labels:  []string{"label_2"},
-				},
-				{
-					bktName: "rucket_3",
-					labels:  []string{"label_1", "label_2"},
-				},
-			}
-			for i, expected := range expectedLabels {
-				bkt := bkts[i]
-				require.Len(t, bkt.LabelAssociations, len(expected.labels))
-
-				for j, label := range expected.labels {
-					assert.Equal(t, label, bkt.LabelAssociations[j].Name)
+				expectedLabels := []struct {
+					bktName string
+					labels  []string
+				}{
+					{
+						bktName: "rucket_1",
+						labels:  []string{"label_1"},
+					},
+					{
+						bktName: "rucket_2",
+						labels:  []string{"label_2"},
+					},
+					{
+						bktName: "rucket_3",
+						labels:  []string{"label_1", "label_2"},
+					},
 				}
-			}
+				for i, expected := range expectedLabels {
+					bkt := bkts[i]
+					require.Len(t, bkt.LabelAssociations, len(expected.labels))
 
-			expectedMappings := []SummaryLabelMapping{
-				{
-					ResourceName: "rucket_1",
-					LabelName:    "label_1",
-				},
-				{
-					ResourceName: "rucket_2",
-					LabelName:    "label_2",
-				},
-				{
-					ResourceName: "rucket_3",
-					LabelName:    "label_1",
-				},
-				{
-					ResourceName: "rucket_3",
-					LabelName:    "label_2",
-				},
-			}
+					for j, label := range expected.labels {
+						assert.Equal(t, label, bkt.LabelAssociations[j].Name)
+					}
+				}
 
-			require.Len(t, sum.LabelMappings, len(expectedMappings))
-			for i, expected := range expectedMappings {
-				expected.ResourceType = influxdb.BucketsResourceType
-				assert.Equal(t, expected, sum.LabelMappings[i])
-			}
+				expectedMappings := []SummaryLabelMapping{
+					{
+						ResourceName: "rucket_1",
+						LabelName:    "label_1",
+					},
+					{
+						ResourceName: "rucket_2",
+						LabelName:    "label_2",
+					},
+					{
+						ResourceName: "rucket_3",
+						LabelName:    "label_1",
+					},
+					{
+						ResourceName: "rucket_3",
+						LabelName:    "label_2",
+					},
+				}
+
+				require.Len(t, sum.LabelMappings, len(expectedMappings))
+				for i, expected := range expectedMappings {
+					expected.ResourceType = influxdb.BucketsResourceType
+					assert.Equal(t, expected, sum.LabelMappings[i])
+				}
+			})
 		})
 
 		t.Run("association doesn't exist then provides an error", func(t *testing.T) {
@@ -358,84 +246,72 @@ spec:
 					name:    "no labels provided",
 					assErrs: 1,
 					assIdxs: []int{0},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName: label_pkg
-  pkgVersion: 1
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name: rucket_1
 spec:
-  resources:
-    - kind: Bucket
-      name: buck_1
-      associations:
-        - kind: Label
-          name: label_1
+  associations:
+    - kind: Label
+      name: label_1
 `,
 				},
 				{
 					name:    "mixed found and not found",
 					assErrs: 1,
 					assIdxs: []int{1},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName: label_pkg
-  pkgVersion: 1
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label_1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name: rucket_3
 spec:
-  resources:
+  associations:
     - kind: Label
       name: label_1
-    - kind: Bucket
-      name: buck_1
-      associations:
-        - kind: Label
-          name: label_1
-        - kind: Label
-          name: unfound label
+    - kind: Label
+      name: NOT TO BE FOUND
 `,
 				},
 				{
 					name:    "multiple not found",
 					assErrs: 1,
 					assIdxs: []int{0, 1},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName: label_pkg
-  pkgVersion: 1
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name: rucket_3
 spec:
-  resources:
+  associations:
     - kind: Label
       name: label_1
-    - kind: Bucket
-      name: buck_1
-      associations:
-        - kind: Label
-          name: not found 1
-        - kind: Label
-          name: unfound label
+    - kind: Label
+      name: label_2
 `,
 				},
 				{
 					name:    "duplicate valid nested labels",
 					assErrs: 1,
 					assIdxs: []int{1},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName: label_pkg
-  pkgVersion: 1
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label_1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name: rucket_3
 spec:
-  resources:
+  associations:
     - kind: Label
       name: label_1
-    - kind: Bucket
-      name: buck_1
-      associations:
-        - kind: Label
-          name: label_1
-        - kind: Label
-          name: label_1
+    - kind: Label
+      name: label_1
 `,
 				},
 			}
@@ -447,91 +323,93 @@ spec:
 	})
 
 	t.Run("pkg with checks", func(t *testing.T) {
-		testfileRunner(t, "testdata/checks", func(t *testing.T, pkg *Pkg) {
-			sum := pkg.Summary()
-			require.Len(t, sum.Checks, 2)
+		t.Run("happy path", func(t *testing.T) {
+			testfileRunner(t, "testdata/checks", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.Checks, 2)
 
-			check1 := sum.Checks[0]
-			thresholdCheck, ok := check1.Check.(*icheck.Threshold)
-			require.Truef(t, ok, "got: %#v", check1)
+				check1 := sum.Checks[0]
+				thresholdCheck, ok := check1.Check.(*icheck.Threshold)
+				require.Truef(t, ok, "got: %#v", check1)
 
-			expectedBase := icheck.Base{
-				Name:                  "check_0",
-				Description:           "desc_0",
-				Every:                 mustDuration(t, time.Minute),
-				Offset:                mustDuration(t, 15*time.Second),
-				StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
-				Tags: []influxdb.Tag{
-					{Key: "tag_1", Value: "val_1"},
-					{Key: "tag_2", Value: "val_2"},
-				},
-			}
-			expectedBase.Query.Text = "from(bucket: \"rucket_1\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_idle\")\n  |> aggregateWindow(every: 1m, fn: mean)\n  |> yield(name: \"mean\")"
-			assert.Equal(t, expectedBase, thresholdCheck.Base)
-
-			expectedThresholds := []icheck.ThresholdConfig{
-				icheck.Greater{
-					ThresholdConfigBase: icheck.ThresholdConfigBase{
-						AllValues: true,
-						Level:     notification.Critical,
+				expectedBase := icheck.Base{
+					Name:                  "check_0",
+					Description:           "desc_0",
+					Every:                 mustDuration(t, time.Minute),
+					Offset:                mustDuration(t, 15*time.Second),
+					StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
+					Tags: []influxdb.Tag{
+						{Key: "tag_1", Value: "val_1"},
+						{Key: "tag_2", Value: "val_2"},
 					},
-					Value: 50.0,
-				},
-				icheck.Lesser{
-					ThresholdConfigBase: icheck.ThresholdConfigBase{Level: notification.Warn},
-					Value:               49.9,
-				},
-				icheck.Range{
-					ThresholdConfigBase: icheck.ThresholdConfigBase{Level: notification.Info},
-					Within:              true,
-					Min:                 30.0,
-					Max:                 45.0,
-				},
-				icheck.Range{
-					ThresholdConfigBase: icheck.ThresholdConfigBase{Level: notification.Ok},
-					Min:                 30.0,
-					Max:                 35.0,
-				},
-			}
-			assert.Equal(t, expectedThresholds, thresholdCheck.Thresholds)
-			assert.Equal(t, influxdb.Inactive, check1.Status)
-			assert.Len(t, check1.LabelAssociations, 1)
+				}
+				expectedBase.Query.Text = "from(bucket: \"rucket_1\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_idle\")\n  |> aggregateWindow(every: 1m, fn: mean)\n  |> yield(name: \"mean\")"
+				assert.Equal(t, expectedBase, thresholdCheck.Base)
 
-			check2 := sum.Checks[1]
-			deadmanCheck, ok := check2.Check.(*icheck.Deadman)
-			require.Truef(t, ok, "got: %#v", check2)
+				expectedThresholds := []icheck.ThresholdConfig{
+					icheck.Greater{
+						ThresholdConfigBase: icheck.ThresholdConfigBase{
+							AllValues: true,
+							Level:     notification.Critical,
+						},
+						Value: 50.0,
+					},
+					icheck.Lesser{
+						ThresholdConfigBase: icheck.ThresholdConfigBase{Level: notification.Warn},
+						Value:               49.9,
+					},
+					icheck.Range{
+						ThresholdConfigBase: icheck.ThresholdConfigBase{Level: notification.Info},
+						Within:              true,
+						Min:                 30.0,
+						Max:                 45.0,
+					},
+					icheck.Range{
+						ThresholdConfigBase: icheck.ThresholdConfigBase{Level: notification.Ok},
+						Min:                 30.0,
+						Max:                 35.0,
+					},
+				}
+				assert.Equal(t, expectedThresholds, thresholdCheck.Thresholds)
+				assert.Equal(t, influxdb.Inactive, check1.Status)
+				assert.Len(t, check1.LabelAssociations, 1)
 
-			expectedBase = icheck.Base{
-				Name:                  "check_1",
-				Description:           "desc_1",
-				Every:                 mustDuration(t, 5*time.Minute),
-				Offset:                mustDuration(t, 10*time.Second),
-				StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
-				Tags: []influxdb.Tag{
-					{Key: "tag_1", Value: "val_1"},
-					{Key: "tag_2", Value: "val_2"},
-				},
-			}
-			expectedBase.Query.Text = "from(bucket: \"rucket_1\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_idle\")\n  |> aggregateWindow(every: 1m, fn: mean)\n  |> yield(name: \"mean\")"
-			assert.Equal(t, expectedBase, deadmanCheck.Base)
-			assert.Equal(t, influxdb.Active, check2.Status)
-			assert.Equal(t, mustDuration(t, 10*time.Minute), deadmanCheck.StaleTime)
-			assert.Equal(t, mustDuration(t, 90*time.Second), deadmanCheck.TimeSince)
-			assert.True(t, deadmanCheck.ReportZero)
-			assert.Len(t, check2.LabelAssociations, 1)
+				check2 := sum.Checks[1]
+				deadmanCheck, ok := check2.Check.(*icheck.Deadman)
+				require.Truef(t, ok, "got: %#v", check2)
 
-			containsLabelMappings(t, sum.LabelMappings,
-				labelMapping{
-					labelName: "label_1",
-					resName:   "check_0",
-					resType:   influxdb.ChecksResourceType,
-				},
-				labelMapping{
-					labelName: "label_1",
-					resName:   "check_1",
-					resType:   influxdb.ChecksResourceType,
-				},
-			)
+				expectedBase = icheck.Base{
+					Name:                  "check_1",
+					Description:           "desc_1",
+					Every:                 mustDuration(t, 5*time.Minute),
+					Offset:                mustDuration(t, 10*time.Second),
+					StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
+					Tags: []influxdb.Tag{
+						{Key: "tag_1", Value: "val_1"},
+						{Key: "tag_2", Value: "val_2"},
+					},
+				}
+				expectedBase.Query.Text = "from(bucket: \"rucket_1\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_idle\")\n  |> aggregateWindow(every: 1m, fn: mean)\n  |> yield(name: \"mean\")"
+				assert.Equal(t, expectedBase, deadmanCheck.Base)
+				assert.Equal(t, influxdb.Active, check2.Status)
+				assert.Equal(t, mustDuration(t, 10*time.Minute), deadmanCheck.StaleTime)
+				assert.Equal(t, mustDuration(t, 90*time.Second), deadmanCheck.TimeSince)
+				assert.True(t, deadmanCheck.ReportZero)
+				assert.Len(t, check2.LabelAssociations, 1)
+
+				containsLabelMappings(t, sum.LabelMappings,
+					labelMapping{
+						labelName: "label_1",
+						resName:   "check_0",
+						resType:   influxdb.ChecksResourceType,
+					},
+					labelMapping{
+						labelName: "label_1",
+						resName:   "check_1",
+						resType:   influxdb.ChecksResourceType,
+					},
+				)
+			})
 		})
 
 		t.Run("handles bad config", func(t *testing.T) {
@@ -540,39 +418,32 @@ spec:
 				resErr testPkgResourceError
 			}{
 				{
-					kind: KindCheckThreshold,
+					kind: KindCheckDeadman,
 					resErr: testPkgResourceError{
 						name:           "duplicate name",
 						validationErrs: 1,
 						valFields:      []string{fieldName},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: CheckDeadman
+metadata:
+  name: check_1
 spec:
-  resources:
-    - kind: Check_Threshold
-      name: check_0
-      every: 1m
-      query:  >
-        from(bucket: "rucket_1") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-      thresholds:
-        - type: greater
-          level: CRIT
-          value: 50.0
-    - kind: Check_Threshold
-      name: check_0
-      every: 1m
-      query:  >
-        from(bucket: "rucket_1") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-      thresholds:
-        - type: greater
-          level: CRIT
-          value: 50.0
+  every: 5m
+  level: cRiT
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+---
+apiVersion: influxdata.com/v2alpha1
+kind: CheckDeadman
+metadata:
+  name: check_1
+spec:
+  every: 5m
+  level: cRiT
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
 `,
 					},
 				},
@@ -582,23 +453,20 @@ spec:
 						name:           "missing every duration",
 						validationErrs: 1,
 						valFields:      []string{fieldEvery},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: CheckThreshold
+metadata:
+  name: check_0
 spec:
-  resources:
-    - kind: Check_Threshold
-      name: check_0
-      query:  >
-        from(bucket: "rucket_1") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-      thresholds:
-        - type: greater
-          level: CRIT
-          value: 50.0
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  thresholds:
+    - type: outside_range
+      level: ok
+      min: 30.0
+      max: 35.0
+
 `,
 					},
 				},
@@ -608,24 +476,19 @@ spec:
 						name:           "invalid threshold value provided",
 						validationErrs: 1,
 						valFields:      []string{fieldLevel},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: CheckThreshold
+metadata:
+  name: check_0
 spec:
-  resources:
-    - kind: Check_Threshold
-      name: check_0
-      every: 15s
-      query:  >
-        from(bucket: "rucket_1") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-      thresholds:
-        - type: greater
-          level: RANDO_WRONGO
-          value: 50.0
+  every: 1m
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  thresholds:
+    - type: greater
+      level: RANDO
+      value: 50.0
 `,
 					},
 				},
@@ -635,52 +498,42 @@ spec:
 						name:           "invalid threshold type provided",
 						validationErrs: 1,
 						valFields:      []string{fieldType},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: CheckThreshold
+metadata:
+  name: check_0
 spec:
-  resources:
-    - kind: Check_Threshold
-      name: check_0
-      every: 15s
-      query:  >
-        from(bucket: "rucket_1") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-      thresholds:
-        - type: RANDO_TYPE
-          level: CRIT
-          value: 50.0
+  every: 1m
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  thresholds:
+    - type: RANDO_TYPE
+      level: CRIT
+      value: 50.0
 `,
 					},
 				},
 				{
 					kind: KindCheckThreshold,
 					resErr: testPkgResourceError{
-						name:           "invalid threshold type provided",
+						name:           "invalid min for inside range",
 						validationErrs: 1,
 						valFields:      []string{fieldMin},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: CheckThreshold
+metadata:
+  name: check_0
 spec:
-  resources:
-    - kind: Check_Threshold
-      name: check_0
-      every: 15s
-      query:  >
-        from(bucket: "rucket_1") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-      thresholds:
-        - type: Inside_Range
-          level: CRIT
-          min: 35.0
-          max: 30.0
+  every: 1m
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  thresholds:
+    - type: inside_range
+      level: INfO
+      min: 45.0
+      max: 30.0
 `,
 					},
 				},
@@ -690,46 +543,37 @@ spec:
 						name:           "no threshold values provided",
 						validationErrs: 1,
 						valFields:      []string{fieldCheckThresholds},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `---
+apiVersion: influxdata.com/v2alpha1
+kind: CheckThreshold
+metadata:
+  name: check_0
 spec:
-  resources:
-    - kind: Check_Threshold
-      name: check_0
-      every: 10m
-      query:  >
-        from(bucket: "rucket_1") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-      thresholds:
+  every: 1m
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  thresholds:
 `,
 					},
 				},
 				{
 					kind: KindCheckThreshold,
 					resErr: testPkgResourceError{
-						name:           "missing query",
+						name:           "threshold missing query",
 						validationErrs: 1,
 						valFields:      []string{fieldQuery},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: CheckThreshold
+metadata:
+  name: check_0
 spec:
-  resources:
-    - kind: Check_Threshold
-      name: check_0
-      every: 15s
-      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-      thresholds:
-        - type: greater
-          level: CRIT
-          value: 50.0
+  every: 1m
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  thresholds:
+    - type: greater
+      level: CRIT
+      value: 50.0
 `,
 					},
 				},
@@ -739,24 +583,22 @@ spec:
 						name:           "invalid status provided",
 						validationErrs: 1,
 						valFields:      []string{fieldStatus},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `---
+apiVersion: influxdata.com/v2alpha1
+kind: CheckThreshold
+metadata:
+  name: check_0
 spec:
-  resources:
-    - kind: Check_Threshold
-      name: check_0
-      every: 15s
-      query: from("bucketer")
-      status: RANDO STATUS
-      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-      thresholds:
-        - type: greater
-          level: CRIT
-          value: 50.0
+  every: 1m
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  status: RANDO STATUS
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  thresholds:
+    - type: greater
+      level: CRIT
+      value: 50.0
+      allValues: true
 `,
 					},
 				},
@@ -766,22 +608,18 @@ spec:
 						name:           "missing status message template",
 						validationErrs: 1,
 						valFields:      []string{fieldCheckStatusMessageTemplate},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: CheckThreshold
+metadata:
+  name: check_0
 spec:
-  resources:
-    - kind: Check_Threshold
-      name: check_0
-      every: 15s
-      query: from("bucketer")
-      thresholds:
-        - type: greater
-          level: CRIT
-          value: 50.0
+  every: 1m
+  query:  >
+    from(bucket: "rucket_1")
+  thresholds:
+    - type: greater
+      level: CRIT
+      value: 50.0
 `,
 					},
 				},
@@ -791,47 +629,34 @@ spec:
 						name:           "missing every",
 						validationErrs: 1,
 						valFields:      []string{fieldEvery},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: CheckDeadman
+metadata:
+  name: check_1
 spec:
-  resources:
-    - kind: Check_Deadman
-      name: check_1
-      level: cRiT
-      query:  >
-        from(bucket: "rucket_1")
-          |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-      staleTime: 10m
-      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-      timeSince: 90s
+  level: cRiT
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  timeSince: 90s
 `,
 					},
 				},
 				{
 					kind: KindCheckDeadman,
 					resErr: testPkgResourceError{
-						name:           "missing every",
+						name:           "deadman missing every",
 						validationErrs: 1,
 						valFields:      []string{fieldQuery},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: CheckDeadman
+metadata:
+  name: check_1
 spec:
-  resources:
-    - kind: Check_Deadman
-      name: check_1
-      every: 1h
-      level: cRiT
-      staleTime: 10m
-      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-      timeSince: 90s
+  every: 5m
+  level: cRiT
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  timeSince: 90s
 `,
 					},
 				},
@@ -841,26 +666,20 @@ spec:
 						name:           "missing association label",
 						validationErrs: 1,
 						valFields:      []string{fieldAssociations},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: CheckDeadman
+metadata:
+  name: check_1
 spec:
-  resources:
-    - kind: Check_Deadman
-      name: check_1
-      every: 5m
-      level: cRiT
-      query:  >
-        from(bucket: "rucket_1")
-      staleTime: 10m
-      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-      timeSince: 90s
-      associations:
-        - kind: Label
-          name: label_1
+  every: 5m
+  level: cRiT
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  timeSince: 90s
+  associations:
+    - kind: Label
+      name: label_1
 `,
 					},
 				},
@@ -870,30 +689,27 @@ spec:
 						name:           "duplicate association labels",
 						validationErrs: 1,
 						valFields:      []string{fieldAssociations},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label_1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: CheckDeadman
+metadata:
+  name: check_1
 spec:
-  resources:
+  every: 5m
+  level: cRiT
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  timeSince: 90s
+  associations:
     - kind: Label
       name: label_1
-    - kind: Check_Deadman
-      name: check_1
-      every: 5m
-      level: cRiT
-      query:  >
-        from(bucket: "rucket_1")
-      staleTime: 10m
-      statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-      timeSince: 90s
-      associations:
-        - kind: Label
-          name: label_1
-        - kind: Label
-          name: label_1
+    - kind: Label
+      name: label_1
 `,
 					},
 				},
@@ -907,239 +723,148 @@ spec:
 
 	t.Run("pkg with single dashboard and single chart", func(t *testing.T) {
 		t.Run("single gauge chart", func(t *testing.T) {
-			testfileRunner(t, "testdata/dashboard_gauge", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
-				require.Len(t, sum.Dashboards, 1)
+			t.Run("happy path", func(t *testing.T) {
+				testfileRunner(t, "testdata/dashboard_gauge", func(t *testing.T, pkg *Pkg) {
+					sum := pkg.Summary()
+					require.Len(t, sum.Dashboards, 1)
 
-				actual := sum.Dashboards[0]
-				assert.Equal(t, "dash_1", actual.Name)
-				assert.Equal(t, "desc1", actual.Description)
+					actual := sum.Dashboards[0]
+					assert.Equal(t, "dash_1", actual.Name)
+					assert.Equal(t, "desc1", actual.Description)
 
-				require.Len(t, actual.Charts, 1)
-				actualChart := actual.Charts[0]
-				assert.Equal(t, 3, actualChart.Height)
-				assert.Equal(t, 6, actualChart.Width)
-				assert.Equal(t, 1, actualChart.XPosition)
-				assert.Equal(t, 2, actualChart.YPosition)
+					require.Len(t, actual.Charts, 1)
+					actualChart := actual.Charts[0]
+					assert.Equal(t, 3, actualChart.Height)
+					assert.Equal(t, 6, actualChart.Width)
+					assert.Equal(t, 1, actualChart.XPosition)
+					assert.Equal(t, 2, actualChart.YPosition)
 
-				props, ok := actualChart.Properties.(influxdb.GaugeViewProperties)
-				require.True(t, ok)
-				assert.Equal(t, "gauge", props.GetType())
-				assert.Equal(t, "gauge note", props.Note)
-				assert.True(t, props.ShowNoteWhenEmpty)
+					props, ok := actualChart.Properties.(influxdb.GaugeViewProperties)
+					require.True(t, ok)
+					assert.Equal(t, "gauge", props.GetType())
+					assert.Equal(t, "gauge note", props.Note)
+					assert.True(t, props.ShowNoteWhenEmpty)
 
-				require.Len(t, props.Queries, 1)
-				q := props.Queries[0]
-				queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
-				assert.Equal(t, queryText, q.Text)
-				assert.Equal(t, "advanced", q.EditMode)
+					require.Len(t, props.Queries, 1)
+					q := props.Queries[0]
+					queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
+					assert.Equal(t, queryText, q.Text)
+					assert.Equal(t, "advanced", q.EditMode)
 
-				require.Len(t, props.ViewColors, 3)
-				c := props.ViewColors[0]
-				assert.NotZero(t, c.ID)
-				assert.Equal(t, "laser", c.Name)
-				assert.Equal(t, "min", c.Type)
-				assert.Equal(t, "#8F8AF4", c.Hex)
-				assert.Equal(t, 0.0, c.Value)
+					require.Len(t, props.ViewColors, 3)
+					c := props.ViewColors[0]
+					assert.Equal(t, "laser", c.Name)
+					assert.Equal(t, "min", c.Type)
+					assert.Equal(t, "#8F8AF4", c.Hex)
+					assert.Equal(t, 0.0, c.Value)
+				})
 			})
 
 			t.Run("handles invalid config", func(t *testing.T) {
 				tests := []testPkgResourceError{
 					{
-						name:           "color a gauge type",
-						encoding:       EncodingJSON,
+						name:           "missing threshold color type",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].colors"},
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dash_1",
-			"description": "desc1",
-			"charts": [
-			{
-				"kind": "gauge",
-				"name": "gauge",
-				"prefix": "prefix",
-				"suffix": "suffix",
-				"note": "gauge note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"decimalPlaces": 1,
-				"xColumn": "_time",
-				"yColumn": "_value",
-				"queries": [
-				{
-					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == \"boltdb_writes_total\")  |> filter(fn: (r) => r._field == \"counter\")"
-				}
-				],
-				"colors": [
-				{
-					"name": "laser",
-					"type": "min",
-					"hex": "#8F8AF4",
-					"value": 0
-				},
-				{
-					"name": "comet",
-					"type": "max",
-					"hex": "#F4CF31",
-					"value": 5000
-					}
-				]
-			}
-			]
-		}
-		]
-	}
-}  
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+  description: desc1
+  charts:
+    - kind:   gauge
+      name:   gauge
+      note: gauge note
+      noteOnEmpty: true
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")
+      colors:
+        - name: laser
+          type: min
+          hex: "#8F8AF4"
+          value: 0
+        - name: laser
+          type: max
+          hex: "#8F8AF4"
+          value: 5000
 `,
 					},
 					{
 						name:           "color mixing a hex value",
-						encoding:       EncodingJSON,
 						validationErrs: 1,
 						valFields:      []string{"charts[0].colors[0].hex"},
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dash_1",
-			"description": "desc1",
-			"charts": [
-			{
-				"kind": "gauge",
-				"name": "gauge",
-				"prefix": "prefix",
-				"suffix": "suffix",
-				"note": "gauge note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"decimalPlaces": 1,
-				"xColumn": "_time",
-				"yColumn": "_value",
-				"queries": [
-				{
-					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == \"boltdb_writes_total\")  |> filter(fn: (r) => r._field == \"counter\")"
-				}
-				],
-				"colors": [
-				{
-					"name": "laser",
-					"type": "min",
-					"value": 0
-				},
-				{
-					"name": "pool",
-					"type": "threshold",
-					"hex": "#F4CF31",
-					"value": 700
-				},
-				{
-					"name": "comet",
-					"type": "max",
-					"hex": "#F4CF31",
-					"value": 5000
-					}
-				]
-			}
-			]
-		}
-		]
-	}
-}
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+  description: desc1
+  charts:
+    - kind:   gauge
+      name:   gauge
+      note: gauge note
+      noteOnEmpty: true
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")
+      colors:
+        - name: laser
+          type: min
+          value: 0
+        - name: laser
+          type: threshold
+          hex: "#8F8AF4"
+          value: 700
+        - name: laser
+          type: max
+          hex: "#8F8AF4"
+          value: 5000
 `,
 					},
 					{
 						name:           "missing a query value",
-						encoding:       EncodingJSON,
 						validationErrs: 1,
 						valFields:      []string{"charts[0].queries[0].query"},
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dash_1",
-			"description": "desc1",
-			"charts": [
-			{
-				"kind": "gauge",
-				"name": "gauge",
-				"prefix": "prefix",
-				"suffix": "suffix",
-				"note": "gauge note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"decimalPlaces": 1,
-				"xColumn": "_time",
-				"yColumn": "_value",
-				"queries": [
-					{
-						"query": null
-					}
-				],
-				"colors": [
-				{
-					"name": "laser",
-					"type": "min",
-					"hex": "#FFF000",
-					"value": 0
-				},
-				{
-					"name": "pool",
-					"type": "threshold",
-					"hex": "#F4CF31",
-					"value": 700
-				},
-				{
-					"name": "comet",
-					"type": "max",
-					"hex": "#F4CF31",
-					"value": 5000
-					}
-				]
-			}
-			]
-		}
-		]
-	}
-}
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+  description: desc1
+  charts:
+    - kind:   gauge
+      name:   gauge
+      note: gauge note
+      noteOnEmpty: true
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      queries:
+        - query:
+      colors:
+        - name: laser
+          type: min
+          hex: "#8F8AF4"
+          value: 0
+        - name: laser
+          type: threshold
+          hex: "#8F8AF4"
+          value: 700
+        - name: laser
+          type: max
+          hex: "#8F8AF4"
+          value: 5000
 `,
 					},
 				}
@@ -1151,243 +876,153 @@ spec:
 		})
 
 		t.Run("single heatmap chart", func(t *testing.T) {
-			testfileRunner(t, "testdata/dashboard_heatmap", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
-				require.Len(t, sum.Dashboards, 1)
+			t.Run("happy path", func(t *testing.T) {
+				testfileRunner(t, "testdata/dashboard_heatmap", func(t *testing.T, pkg *Pkg) {
+					sum := pkg.Summary()
+					require.Len(t, sum.Dashboards, 1)
 
-				actual := sum.Dashboards[0]
-				assert.Equal(t, "dashboard w/ single heatmap chart", actual.Name)
-				assert.Equal(t, "a dashboard w/ heatmap chart", actual.Description)
+					actual := sum.Dashboards[0]
+					assert.Equal(t, "dashboard w/ single heatmap chart", actual.Name)
+					assert.Equal(t, "a dashboard w/ heatmap chart", actual.Description)
 
-				require.Len(t, actual.Charts, 1)
-				actualChart := actual.Charts[0]
-				assert.Equal(t, 3, actualChart.Height)
-				assert.Equal(t, 6, actualChart.Width)
-				assert.Equal(t, 1, actualChart.XPosition)
-				assert.Equal(t, 2, actualChart.YPosition)
+					require.Len(t, actual.Charts, 1)
+					actualChart := actual.Charts[0]
+					assert.Equal(t, 3, actualChart.Height)
+					assert.Equal(t, 6, actualChart.Width)
+					assert.Equal(t, 1, actualChart.XPosition)
+					assert.Equal(t, 2, actualChart.YPosition)
 
-				props, ok := actualChart.Properties.(influxdb.HeatmapViewProperties)
-				require.True(t, ok)
-				assert.Equal(t, "heatmap", props.GetType())
-				assert.Equal(t, "heatmap note", props.Note)
-				assert.Equal(t, int32(10), props.BinSize)
-				assert.True(t, props.ShowNoteWhenEmpty)
+					props, ok := actualChart.Properties.(influxdb.HeatmapViewProperties)
+					require.True(t, ok)
+					assert.Equal(t, "heatmap", props.GetType())
+					assert.Equal(t, "heatmap note", props.Note)
+					assert.Equal(t, int32(10), props.BinSize)
+					assert.True(t, props.ShowNoteWhenEmpty)
 
-				assert.Equal(t, []float64{0, 10}, props.XDomain)
-				assert.Equal(t, []float64{0, 100}, props.YDomain)
+					assert.Equal(t, []float64{0, 10}, props.XDomain)
+					assert.Equal(t, []float64{0, 100}, props.YDomain)
 
-				require.Len(t, props.Queries, 1)
-				q := props.Queries[0]
-				queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
-				assert.Equal(t, queryText, q.Text)
-				assert.Equal(t, "advanced", q.EditMode)
+					require.Len(t, props.Queries, 1)
+					q := props.Queries[0]
+					queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
+					assert.Equal(t, queryText, q.Text)
+					assert.Equal(t, "advanced", q.EditMode)
 
-				require.Len(t, props.ViewColors, 12)
-				c := props.ViewColors[0]
-				assert.Equal(t, "#000004", c)
+					require.Len(t, props.ViewColors, 12)
+					c := props.ViewColors[0]
+					assert.Equal(t, "#000004", c)
+				})
 			})
 
 			t.Run("handles invalid config", func(t *testing.T) {
 				tests := []testPkgResourceError{
 					{
 						name:           "a color is missing a hex value",
-						encoding:       EncodingJSON,
 						validationErrs: 1,
 						valFields:      []string{"charts[0].colors[2].hex"},
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dashboard w/ single heatmap chart",
-			"description": "a dashboard w/ heatmap chart",
-			"charts": [
-			{
-				"kind": "heatmap",
-				"name": "heatmap chart",
-				"note": "heatmap note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"xCol": "_time",
-				"yCol": "_value",
-				"binSize": 10,
-				"queries": [
-				{
-					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
-				}
-				],
-				"axes":[
-				{
-					"name": "x",
-					"label": "x_label",
-					"prefix": "x_prefix",
-					"suffix": "x_suffix"
-				},
-				{
-					"name": "y",
-					"label": "y_label",
-					"prefix": "y_prefix",
-					"suffix": "y_suffix"
-				}
-				],
-				"colors": [
-				{
-					"hex": "#8F8AF4"
-				},
-				{
-					"hex": "#F4CF31"
-				},
-				{
-					"hex": null
-				}
-				]
-			}
-			]
-		}
-		]
-	}
-	}
-						  
-			`,
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dashboard w/ single heatmap chart
+spec:
+  charts:
+    - kind:   heatmap
+      name:   heatmap
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      binSize: 10
+      xCol: _time
+      yCol: _value
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - hex: "#fbb61a"
+        - hex: "#f4df53"
+        - hex: ""
+      axes:
+        - name: "x"
+          label: "x_label"
+          prefix: "x_prefix"
+          suffix: "x_suffix"
+          domain:
+            - 0
+            - 10
+        - name: "y"
+          label: "y_label"
+          prefix: "y_prefix"
+          suffix: "y_suffix"
+          domain:
+            - 0
+            - 100
+`,
 					},
 					{
 						name:           "missing axes",
-						encoding:       EncodingJSON,
 						validationErrs: 1,
-						valFields:      []string{"charts[0].axes", "charts[0].axes"},
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dashboard w/ single heatmap chart",
-			"description": "a dashboard w/ heatmap chart",
-			"charts": [
-			{
-				"kind": "heatmap",
-				"name": "heatmap chart",
-				"note": "heatmap note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"xCol": "_time",
-				"yCol": "_value",
-				"binSize": 10,
-				"queries": [
-				{
-					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
-				}
-				],
-				"colors": [
-				{
-					"hex": "#8F8AF4"
-				},
-				{
-					"hex": "#F4CF31"
-				},
-				{
-					"hex": "#FFFFFF"
-				}
-				]
-			}
-			]
-		}
-		]
-	}
-	}				  
-			`,
+						valFields:      []string{"charts[0].axes"},
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dashboard w/ single heatmap chart
+spec:
+  charts:
+    - kind:   heatmap
+      name:   heatmap
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      binSize: 10
+      xCol: _time
+      yCol: _value
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - hex: "#000004"
+`,
 					},
 					{
 						name:           "missing a query value",
-						encoding:       EncodingJSON,
 						validationErrs: 1,
 						valFields:      []string{"charts[0].queries[0].query"},
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dashboard w/ single heatmap chart",
-			"description": "a dashboard w/ heatmap chart",
-			"charts": [
-			{
-				"kind": "heatmap",
-				"name": "heatmap chart",
-				"note": "heatmap note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"xCol": "_time",
-				"yCol": "_value",
-				"binSize": 10,
-				"queries": [
-				{
-					"query": null
-				}
-				],
-				"axes":[
-				{
-					"name": "x",
-					"label": "x_label",
-					"prefix": "x_prefix",
-					"suffix": "x_suffix"
-				},
-				{
-					"name": "y",
-					"label": "y_label",
-					"prefix": "y_prefix",
-					"suffix": "y_suffix"
-				}
-				],
-				"colors": [
-				{
-					"hex": "#8F8AF4"
-				},
-				{
-					"hex": "#F4CF31"
-				},
-				{
-					"hex": "#FFFFFF"
-				}
-				]
-			}
-			]
-		}
-		]
-	}
-	}
-						  
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dashboard w/ single heatmap chart
+spec:
+  charts:
+    - kind:   heatmap
+      name:   heatmap
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      binSize: 10
+      xCol: _time
+      yCol: _value
+      queries:
+        - query:
+      colors:
+        - hex: "#000004"
+      axes:
+        - name: "x"
+          label: "x_label"
+          prefix: "x_prefix"
+          suffix: "x_suffix"
+          domain:
+            - 0
+            - 10
+        - name: "y"
+          label: "y_label"
+          prefix: "y_prefix"
+          suffix: "y_suffix"
+          domain:
+            - 0
+            - 100
 `,
 					},
 				}
@@ -1399,237 +1034,101 @@ spec:
 		})
 
 		t.Run("single histogram chart", func(t *testing.T) {
-			testfileRunner(t, "testdata/dashboard_histogram", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
-				require.Len(t, sum.Dashboards, 1)
+			t.Run("happy path", func(t *testing.T) {
+				testfileRunner(t, "testdata/dashboard_histogram", func(t *testing.T, pkg *Pkg) {
+					sum := pkg.Summary()
+					require.Len(t, sum.Dashboards, 1)
 
-				actual := sum.Dashboards[0]
-				assert.Equal(t, "dashboard w/ single histogram chart", actual.Name)
-				assert.Equal(t, "a dashboard w/ single histogram chart", actual.Description)
+					actual := sum.Dashboards[0]
+					assert.Equal(t, "dashboard w/ single histogram chart", actual.Name)
+					assert.Equal(t, "a dashboard w/ single histogram chart", actual.Description)
 
-				require.Len(t, actual.Charts, 1)
-				actualChart := actual.Charts[0]
-				assert.Equal(t, 3, actualChart.Height)
-				assert.Equal(t, 6, actualChart.Width)
+					require.Len(t, actual.Charts, 1)
+					actualChart := actual.Charts[0]
+					assert.Equal(t, 3, actualChart.Height)
+					assert.Equal(t, 6, actualChart.Width)
 
-				props, ok := actualChart.Properties.(influxdb.HistogramViewProperties)
-				require.True(t, ok)
-				assert.Equal(t, "histogram", props.GetType())
-				assert.Equal(t, "histogram note", props.Note)
-				assert.Equal(t, 30, props.BinCount)
-				assert.True(t, props.ShowNoteWhenEmpty)
-				assert.Equal(t, []float64{0, 10}, props.XDomain)
-				assert.Equal(t, []string{}, props.FillColumns)
-				require.Len(t, props.Queries, 1)
-				q := props.Queries[0]
-				queryText := `from(bucket: v.bucket) |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == "boltdb_reads_total") |> filter(fn: (r) => r._field == "counter")`
-				assert.Equal(t, queryText, q.Text)
-				assert.Equal(t, "advanced", q.EditMode)
+					props, ok := actualChart.Properties.(influxdb.HistogramViewProperties)
+					require.True(t, ok)
+					assert.Equal(t, "histogram", props.GetType())
+					assert.Equal(t, "histogram note", props.Note)
+					assert.Equal(t, 30, props.BinCount)
+					assert.True(t, props.ShowNoteWhenEmpty)
+					assert.Equal(t, []float64{0, 10}, props.XDomain)
+					assert.Equal(t, []string{}, props.FillColumns)
+					require.Len(t, props.Queries, 1)
+					q := props.Queries[0]
+					queryText := `from(bucket: v.bucket) |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == "boltdb_reads_total") |> filter(fn: (r) => r._field == "counter")`
+					assert.Equal(t, queryText, q.Text)
+					assert.Equal(t, "advanced", q.EditMode)
 
-				require.Len(t, props.ViewColors, 3)
-				assert.Equal(t, "#8F8AF4", props.ViewColors[0].Hex)
-				assert.Equal(t, "#F4CF31", props.ViewColors[1].Hex)
-				assert.Equal(t, "#FFFFFF", props.ViewColors[2].Hex)
+					require.Len(t, props.ViewColors, 3)
+					assert.Equal(t, "#8F8AF4", props.ViewColors[0].Hex)
+					assert.Equal(t, "#F4CF31", props.ViewColors[1].Hex)
+					assert.Equal(t, "#FFFFFF", props.ViewColors[2].Hex)
+				})
 			})
 
 			t.Run("handles invalid config", func(t *testing.T) {
 				tests := []testPkgResourceError{
 					{
-						name:           "missing x axis",
-						encoding:       EncodingJSON,
+						name:           "missing x-axis",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].axes"},
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dashboard w/ single histogram chart",
-			"description": "a dashboard w/ single histogram chart",
-			"charts": [
-			{
-				"kind": "histogram",
-				"name": "histogram chart",
-				"note": "histogram note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"xCol": "_time",
-				"yCol": "_value",
-				"position": "stacked",
-				"binCount": 30,
-				"queries": [
-				{
-					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
-				}
-				],
-				"axes":[],
-				"colors": [
-				{
-					"hex": "#8F8AF4"
-				},
-				{
-					"hex": "#F4CF31"
-				},
-				{
-					"hex": "#FFFFFF"
-				}
-				]
-			}
-			]
-		}
-		]
-	}
-	}
-						  
-			`,
-					},
-					{
-						name:           "missing x-axis",
-						encoding:       EncodingJSON,
-						validationErrs: 1,
-						valFields:      []string{"charts[0].axes", "charts[0].axes"},
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dashboard w/ single histogram chart",
-			"description": "a dashboard w/ single histogram chart",
-			"charts": [
-			{
-				"kind": "histogram",
-				"name": "histogram chart",
-				"note": "histogram note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"xCol": "_time",
-				"yCol": "_value",
-				"position": "stacked",
-				"binCount": 30,
-				"queries": [
-				{
-					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
-				}
-				],
-				"axes":[
-				{
-					"name": "y",
-					"label": "y_label",
-					"domain": [0, 10]
-				}
-				],
-				"colors": [
-				{
-					"hex": "#8F8AF4"
-				},
-				{
-					"hex": "#F4CF31"
-				},
-				{
-					"hex": "#FFFFFF"
-				}
-				]
-			}
-			]
-		}
-		]
-	}
-	}
-											
-			`,
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dashboard w/ single histogram chart
+spec:
+  description: a dashboard w/ single histogram chart
+  charts:
+    - kind: Histogram
+      name: histogram chart
+      xCol: _value
+      width:  6
+      height: 3
+      binCount: 30
+      queries:
+        - query: >
+            from(bucket: v.bucket) |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == "boltdb_reads_total") |> filter(fn: (r) => r._field == "counter")
+      colors:
+        - hex: "#8F8AF4"
+          type: scale
+          value: 0
+          name: mycolor
+      axes:
+`,
 					},
 					{
 						name:           "missing a query value",
-						encoding:       EncodingJSON,
 						validationErrs: 1,
 						valFields:      []string{"charts[0].queries[0].query"},
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dashboard w/ single heatmap chart",
-			"description": "a dashboard w/ heatmap chart",
-			"charts": [
-			{
-				"kind": "heatmap",
-				"name": "heatmap chart",
-				"note": "heatmap note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"xCol": "_time",
-				"yCol": "_value",
-				"binSize": 10,
-				"queries": [
-				{
-					"query": null
-				}
-				],
-				"axes":[
-				{
-					"name": "x",
-					"label": "x_label",
-					"prefix": "x_prefix",
-					"suffix": "x_suffix"
-				},
-				{
-					"name": "y",
-					"label": "y_label",
-					"prefix": "y_prefix",
-					"suffix": "y_suffix"
-				}
-				],
-				"colors": [
-				{
-					"hex": "#8F8AF4"
-				},
-				{
-					"hex": "#F4CF31"
-				},
-				{
-					"hex": "#FFFFFF"
-				}
-				]
-			}
-			]
-		}
-		]
-	}
-	}
-						  
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dashboard w/ single histogram chart
+spec:
+  description: a dashboard w/ single histogram chart
+  charts:
+    - kind: Histogram
+      name: histogram chart
+      xCol: _value
+      width:  6
+      height: 3
+      binCount: 30
+      queries:
+        - query:
+      colors:
+        - hex: "#8F8AF4"
+          type: scale
+          value: 0
+          name: mycolor
+      axes:
+        - name : "x"
+          label: x_label
+          domain:
+            - 0
+            - 10
 `,
 					},
 				}
@@ -1641,91 +1140,63 @@ spec:
 		})
 
 		t.Run("single markdown chart", func(t *testing.T) {
-			testfileRunner(t, "testdata/dashboard_markdown", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
-				require.Len(t, sum.Dashboards, 1)
+			t.Run("happy path", func(t *testing.T) {
+				testfileRunner(t, "testdata/dashboard_markdown", func(t *testing.T, pkg *Pkg) {
+					sum := pkg.Summary()
+					require.Len(t, sum.Dashboards, 1)
 
-				actual := sum.Dashboards[0]
-				assert.Equal(t, "dashboard w/ single markdown chart", actual.Name)
-				assert.Equal(t, "a dashboard w/ single markdown chart", actual.Description)
+					actual := sum.Dashboards[0]
+					assert.Equal(t, "dashboard w/ single markdown chart", actual.Name)
+					assert.Equal(t, "a dashboard w/ single markdown chart", actual.Description)
 
-				require.Len(t, actual.Charts, 1)
-				actualChart := actual.Charts[0]
+					require.Len(t, actual.Charts, 1)
+					actualChart := actual.Charts[0]
 
-				props, ok := actualChart.Properties.(influxdb.MarkdownViewProperties)
-				require.True(t, ok)
-				assert.Equal(t, "markdown", props.GetType())
-				assert.Equal(t, "## markdown note", props.Note)
-			})
-
-			t.Run("handles empty markdown note", func(t *testing.T) {
-				pkgStr := `{
-					"apiVersion": "0.1.0",
-					"kind": "Package",
-					"meta": {
-						"pkgName": "pkg_name",
-						"pkgVersion": "1",
-						"description": "pack description"
-					},
-					"spec": {
-						"resources": [
-							{
-								"kind": "Dashboard",
-								"name": "dashboard w/ single markdown chart",
-								"description": "a dashboard w/ markdown chart",
-								"charts": [
-									{
-										"kind": "markdown",
-										"name": "markdown chart"
-									}
-								]
-							}
-						]
-					}
-				}`
-
-				pkg, _ := Parse(EncodingJSON, FromString(pkgStr))
-				props, ok := pkg.Summary().Dashboards[0].Charts[0].Properties.(influxdb.MarkdownViewProperties)
-				require.True(t, ok)
-				assert.Equal(t, "", props.Note)
+					props, ok := actualChart.Properties.(influxdb.MarkdownViewProperties)
+					require.True(t, ok)
+					assert.Equal(t, "markdown", props.GetType())
+					assert.Equal(t, "## markdown note", props.Note)
+				})
 			})
 		})
 
 		t.Run("single scatter chart", func(t *testing.T) {
-			testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
-				require.Len(t, sum.Dashboards, 1)
+			t.Run("happy path", func(t *testing.T) {
+				testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, pkg *Pkg) {
+					sum := pkg.Summary()
+					require.Len(t, sum.Dashboards, 1)
 
-				actual := sum.Dashboards[0]
-				assert.Equal(t, "dashboard w/ single scatter chart", actual.Name)
-				assert.Equal(t, "a dashboard w/ single scatter chart", actual.Description)
+					actual := sum.Dashboards[0]
+					assert.Equal(t, "dashboard w/ single scatter chart", actual.Name)
+					assert.Equal(t, "a dashboard w/ single scatter chart", actual.Description)
 
-				require.Len(t, actual.Charts, 1)
-				actualChart := actual.Charts[0]
-				assert.Equal(t, 3, actualChart.Height)
-				assert.Equal(t, 6, actualChart.Width)
-				assert.Equal(t, 1, actualChart.XPosition)
-				assert.Equal(t, 2, actualChart.YPosition)
+					require.Len(t, actual.Charts, 1)
+					actualChart := actual.Charts[0]
+					assert.Equal(t, 3, actualChart.Height)
+					assert.Equal(t, 6, actualChart.Width)
+					assert.Equal(t, 1, actualChart.XPosition)
+					assert.Equal(t, 2, actualChart.YPosition)
 
-				props, ok := actualChart.Properties.(influxdb.ScatterViewProperties)
-				require.True(t, ok)
-				assert.Equal(t, "scatter note", props.Note)
-				assert.True(t, props.ShowNoteWhenEmpty)
+					props, ok := actualChart.Properties.(influxdb.ScatterViewProperties)
+					require.True(t, ok)
+					assert.Equal(t, "scatter note", props.Note)
+					assert.True(t, props.ShowNoteWhenEmpty)
 
-				require.Len(t, props.Queries, 1)
-				q := props.Queries[0]
-				expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
-				assert.Equal(t, expectedQuery, q.Text)
-				assert.Equal(t, "advanced", q.EditMode)
+					require.Len(t, props.Queries, 1)
+					q := props.Queries[0]
+					expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
+					assert.Equal(t, expectedQuery, q.Text)
+					assert.Equal(t, "advanced", q.EditMode)
 
-				assert.Equal(t, []float64{0, 10}, props.XDomain)
-				assert.Equal(t, []float64{0, 100}, props.YDomain)
-				assert.Equal(t, "x_label", props.XAxisLabel)
-				assert.Equal(t, "y_label", props.YAxisLabel)
-				assert.Equal(t, "x_prefix", props.XPrefix)
-				assert.Equal(t, "y_prefix", props.YPrefix)
-				assert.Equal(t, "x_suffix", props.XSuffix)
-				assert.Equal(t, "y_suffix", props.YSuffix)
+					assert.Equal(t, []float64{0, 10}, props.XDomain)
+					assert.Equal(t, []float64{0, 100}, props.YDomain)
+					assert.Equal(t, "x_label", props.XAxisLabel)
+					assert.Equal(t, "y_label", props.YAxisLabel)
+					assert.Equal(t, "x_prefix", props.XPrefix)
+					assert.Equal(t, "y_prefix", props.YPrefix)
+					assert.Equal(t, "x_suffix", props.XSuffix)
+					assert.Equal(t, "y_suffix", props.YSuffix)
+				})
 			})
 
 			t.Run("handles invalid config", func(t *testing.T) {
@@ -1733,533 +1204,310 @@ spec:
 					{
 						name:           "missing axes",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].axes", "charts[0].axes"},
-						encoding:       EncodingJSON,
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dashboard w/ single scatter chart",
-			"description": "a dashboard w/ single scatter chart",
-			"charts": [
-			{
-				"kind": "scatter",
-				"name": "scatter chart",
-				"note": "scatter note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"xCol": "_time",
-				"yCol": "_value",
-				"queries": [
-					{
-						"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
-					}
-				],
-				"colors": [
-					{
-						"hex": "#8F8AF4"
-					},
-					{
-						"hex": "#F4CF31"
-					},
-					{
-						"hex": "#FFFFFF"
-					}
-				]
-			}
-			]
-		}
-		]
-	}
-	}`,
+						valFields:      []string{"charts[0].axes"},
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name:  dashboard w/ single scatter chart
+spec:
+  description: a dashboard w/ single scatter chart
+  charts:
+    - kind:   Scatter
+      name:   scatter chart
+      xPos:  1
+      yPos:  2
+      xCol: _time
+      yCol: _value
+      width:  6
+      height: 3
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - hex: "#8F8AF4"
+        - hex: "#F4CF31"
+`,
 					},
 					{
 						name:           "missing query value",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].queries[0].query"},
-						encoding:       EncodingJSON,
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dashboard w/ single scatter chart",
-			"description": "a dashboard w/ single scatter chart",
-			"charts": [
-			{
-				"kind": "scatter",
-				"name": "scatter chart",
-				"note": "scatter note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"xCol": "_time",
-				"yCol": "_value",
-				"queries": [
-				{
-					"query": null
-				}
-				],
-				"axes":[
-				{
-					"name": "x",
-					"label": "x_label",
-					"prefix": "x_prefix",
-					"suffix": "x_suffix"
-				},
-				{
-					"name": "y",
-					"label": "y_label",
-					"prefix": "y_prefix",
-					"suffix": "y_suffix"
-				}
-				],
-				"colors": [
-				{
-					"hex": "#8F8AF4"
-				},
-				{
-					"hex": "#F4CF31"
-				},
-				{
-					"hex": "#FFFFFF"
-				}
-				]
-			}
-			]
-		}
-		]
-	}
-	}				  
-						`,
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name:  dashboard w/ single scatter chart
+spec:
+  description: a dashboard w/ single scatter chart
+  charts:
+    - kind:   Scatter
+      name:   scatter chart
+      xPos:  1
+      yPos:  2
+      xCol: _time
+      yCol: _value
+      width:  6
+      height: 3
+      queries:
+        - query:
+      colors:
+        - hex: "#8F8AF4"
+        - hex: "#F4CF31"
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          domain:
+            - 0
+            - 10
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          domain:
+            - 0
+            - 100
+`,
 					},
 					{
 						name:           "no queries provided",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].queries"},
-						encoding:       EncodingJSON,
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dashboard w/ single scatter chart",
-			"description": "a dashboard w/ single scatter chart",
-			"charts": [
-			{
-				"kind": "scatter",
-				"name": "scatter chart",
-				"note": "scatter note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"xCol": "_time",
-				"yCol": "_value",
-				"queries": [],
-				"axes":[
-				{
-					"name": "x",
-					"label": "x_label",
-					"prefix": "x_prefix",
-					"suffix": "x_suffix"
-				},
-				{
-					"name": "y",
-					"label": "y_label",
-					"prefix": "y_prefix",
-					"suffix": "y_suffix"
-				}
-				],
-				"colors": [
-				{
-					"hex": "#8F8AF4"
-				},
-				{
-					"hex": "#F4CF31"
-				},
-				{
-					"hex": "#FFFFFF"
-				}
-				]
-			}
-			]
-		}
-		]
-	}
-	}
-						  
-						`,
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name:  dashboard w/ single scatter chart
+spec:
+  description: a dashboard w/ single scatter chart
+  charts:
+    - kind:   Scatter
+      name:   scatter chart
+      xPos:  1
+      yPos:  2
+      xCol: _time
+      yCol: _value
+      width:  6
+      height: 3
+      colors:
+        - hex: "#8F8AF4"
+        - hex: "#F4CF31"
+        - hex: "#FFFFFF"
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          domain:
+            - 0
+            - 10
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          domain:
+            - 0
+            - 100
+`,
 					},
 					{
 						name:           "no width provided",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].width"},
-						encoding:       EncodingJSON,
-						pkgStr: `
-						{
-							"apiVersion": "0.1.0",
-							"kind": "Package",
-							"meta": {
-							  "pkgName": "pkg_name",
-							  "pkgVersion": "1",
-							  "description": "pack description"
-							},
-							"spec": {
-							  "resources": [
-								{
-								  "kind": "Dashboard",
-								  "name": "dashboard w/ single scatter chart",
-								  "description": "a dashboard w/ single scatter chart",
-								  "charts": [
-									{
-									  "kind": "scatter",
-									  "name": "scatter chart",
-									  "note": "scatter note",
-									  "noteOnEmpty": true,
-									  "xPos": 1,
-									  "yPos": 2,
-									  "height": 3,
-									  "xCol": "_time",
-									  "yCol": "_value",
-									  "queries": [
-										{
-										  "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
-										}
-									  ],
-									  "axes":[
-										{
-										  "name": "x",
-										  "label": "x_label",
-										  "prefix": "x_prefix",
-										  "suffix": "x_suffix"
-										},
-										{
-										  "name": "y",
-										  "label": "y_label",
-										  "prefix": "y_prefix",
-										  "suffix": "y_suffix"
-										}
-									  ],
-									  "colors": [
-										{
-										  "hex": "#8F8AF4"
-										},
-										{
-										  "hex": "#F4CF31"
-										},
-										{
-										  "hex": "#FFFFFF"
-										}
-									  ]
-									}
-								  ]
-								}
-							  ]
-							}
-						  }
-					  
-						`,
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name:  dashboard w/ single scatter chart
+spec:
+  description: a dashboard w/ single scatter chart
+  charts:
+    - kind:   Scatter
+      name:   scatter chart
+      xPos:  1
+      yPos:  2
+      xCol: _time
+      yCol: _value
+      height: 3
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - hex: "#8F8AF4"
+        - hex: "#F4CF31"
+        - hex: "#FFFFFF"
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          domain:
+            - 0
+            - 10
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          domain:
+            - 0
+            - 100
+`,
 					},
 					{
 						name:           "no height provided",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].height"},
-						encoding:       EncodingJSON,
-						pkgStr: `
-						{
-							"apiVersion": "0.1.0",
-							"kind": "Package",
-							"meta": {
-							  "pkgName": "pkg_name",
-							  "pkgVersion": "1",
-							  "description": "pack description"
-							},
-							"spec": {
-							  "resources": [
-								{
-								  "kind": "Dashboard",
-								  "name": "dashboard w/ single scatter chart",
-								  "description": "a dashboard w/ single scatter chart",
-								  "charts": [
-									{
-									  "kind": "scatter",
-									  "name": "scatter chart",
-									  "note": "scatter note",
-									  "noteOnEmpty": true,
-									  "xPos": 1,
-									  "yPos": 2,
-									  "width": 6,
-									  "xCol": "_time",
-									  "yCol": "_value",
-									  "queries": [
-										{
-										  "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
-										}
-									  ],
-									  "axes":[
-										{
-										  "name": "x",
-										  "label": "x_label",
-										  "prefix": "x_prefix",
-										  "suffix": "x_suffix"
-										},
-										{
-										  "name": "y",
-										  "label": "y_label",
-										  "prefix": "y_prefix",
-										  "suffix": "y_suffix"
-										}
-									  ],
-									  "colors": [
-										{
-										  "hex": "#8F8AF4"
-										},
-										{
-										  "hex": "#F4CF31"
-										},
-										{
-										  "hex": "#FFFFFF"
-										}
-									  ]
-									}
-								  ]
-								}
-							  ]
-							}
-						  }
-						  
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name:  dashboard w/ single scatter chart
+spec:
+  description: a dashboard w/ single scatter chart
+  charts:
+    - kind:   Scatter
+      name:   scatter chart
+      xPos:  1
+      yPos:  2
+      xCol: _time
+      yCol: _value
+      width:  6
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - hex: "#8F8AF4"
+        - hex: "#F4CF31"
+        - hex: "#FFFFFF"
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          domain:
+            - 0
+            - 10
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          domain:
+            - 0
+            - 100
 `,
 					},
 					{
 						name:           "missing hex color",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].colors[0].hex"},
-						encoding:       EncodingJSON,
-						pkgStr: `
-						{
-							"apiVersion": "0.1.0",
-							"kind": "Package",
-							"meta": {
-							  "pkgName": "pkg_name",
-							  "pkgVersion": "1",
-							  "description": "pack description"
-							},
-							"spec": {
-							  "resources": [
-								{
-								  "kind": "Dashboard",
-								  "name": "dashboard w/ single scatter chart",
-								  "description": "a dashboard w/ single scatter chart",
-								  "charts": [
-									{
-									  "kind": "scatter",
-									  "name": "scatter chart",
-									  "note": "scatter note",
-									  "noteOnEmpty": true,
-									  "xPos": 1,
-									  "yPos": 2,
-									  "width": 6,
-									  "height": 3,
-									  "xCol": "_time",
-									  "yCol": "_value",
-									  "queries": [
-										{
-										  "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
-										}
-									  ],
-									  "axes":[
-										{
-										  "name": "x",
-										  "label": "x_label",
-										  "prefix": "x_prefix",
-										  "suffix": "x_suffix"
-										},
-										{
-										  "name": "y",
-										  "label": "y_label",
-										  "prefix": "y_prefix",
-										  "suffix": "y_suffix"
-										}
-									  ],
-									  "colors": [
-										{
-
-										},
-										{
-										  "hex": "#F4CF31"
-										},
-										{
-										  "hex": "#FFFFFF"
-										}
-									  ]
-									}
-								  ]
-								}
-							  ]
-							}
-						  }
-						  
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name:  dashboard w/ single scatter chart
+spec:
+  description: a dashboard w/ single scatter chart
+  charts:
+    - kind:   Scatter
+      name:   scatter chart
+      note: scatter note
+      noteOnEmpty: true
+      prefix: sumtin
+      suffix: days
+      xPos:  1
+      yPos:  2
+      xCol: _time
+      yCol: _value
+      width:  6
+      height: 3
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - hex: ""
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          domain:
+            - 0
+            - 10
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          domain:
+            - 0
+            - 100
 `,
 					},
 					{
 						name:           "missing x axis",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].axes"},
-						encoding:       EncodingJSON,
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dashboard w/ single scatter chart",
-			"description": "a dashboard w/ single scatter chart",
-			"charts": [
-			{
-				"kind": "scatter",
-				"name": "scatter chart",
-				"note": "scatter note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"xCol": "_time",
-				"yCol": "_value",
-				"queries": [
-				{
-					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
-				}
-				],
-				"axes":[
-				{
-					"name": "y",
-					"label": "y_label",
-					"prefix": "y_prefix",
-					"suffix": "y_suffix"
-				}
-				],
-				"colors": [
-				{
-					"hex": "#8F8AF4"
-				},
-				{
-					"hex": "#F4CF31"
-				},
-				{
-					"hex": "#FFFFFF"
-				}
-				]
-			}
-			]
-		}
-		]
-	}
-	}
-						  
-						`,
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name:  dashboard w/ single scatter chart
+spec:
+  description: a dashboard w/ single scatter chart
+  charts:
+    - kind:   Scatter
+      name:   scatter chart
+      xPos:  1
+      yPos:  2
+      xCol: _time
+      yCol: _value
+      width:  6
+      height: 3
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - hex: "#8F8AF4"
+        - hex: "#F4CF31"
+        - hex: "#FFFFFF"
+      axes:
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          domain:
+            - 0
+            - 100
+`,
 					},
 					{
 						name:           "missing y axis",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].axes"},
-						encoding:       EncodingJSON,
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dashboard w/ single scatter chart",
-			"description": "a dashboard w/ single scatter chart",
-			"charts": [
-			{
-				"kind": "scatter",
-				"name": "scatter chart",
-				"note": "scatter note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"xCol": "_time",
-				"yCol": "_value",
-				"queries": [
-				{
-					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
-				}
-				],
-				"axes":[
-				{
-					"name": "y",
-					"label": "y_label",
-					"prefix": "y_prefix",
-					"suffix": "y_suffix"
-				}
-				],
-				"colors": [
-				{
-					"hex": "#8F8AF4"
-				},
-				{
-					"hex": "#F4CF31"
-				},
-				{
-					"hex": "#FFFFFF"
-				}
-				]
-			}
-			]
-		}
-		]
-	}
-	}
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name:  dashboard w/ single scatter chart
+spec:
+  description: a dashboard w/ single scatter chart
+  charts:
+    - kind:   Scatter
+      name:   scatter chart
+      xPos:  1
+      yPos:  2
+      xCol: _time
+      yCol: _value
+      width:  6
+      height: 3
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - hex: "#8F8AF4"
+        - hex: "#F4CF31"
+        - hex: "#FFFFFF"
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          domain:
+            - 0
+            - 10
 `,
 					},
 				}
@@ -2271,44 +1519,45 @@ spec:
 		})
 
 		t.Run("single stat chart", func(t *testing.T) {
-			testfileRunner(t, "testdata/dashboard", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
-				require.Len(t, sum.Dashboards, 1)
+			t.Run("happy path", func(t *testing.T) {
+				testfileRunner(t, "testdata/dashboard", func(t *testing.T, pkg *Pkg) {
+					sum := pkg.Summary()
+					require.Len(t, sum.Dashboards, 1)
 
-				actual := sum.Dashboards[0]
-				assert.Equal(t, "dash_1", actual.Name)
-				assert.Equal(t, "desc1", actual.Description)
+					actual := sum.Dashboards[0]
+					assert.Equal(t, "dash_1", actual.Name)
+					assert.Equal(t, "desc1", actual.Description)
 
-				require.Len(t, actual.Charts, 1)
-				actualChart := actual.Charts[0]
-				assert.Equal(t, 3, actualChart.Height)
-				assert.Equal(t, 6, actualChart.Width)
-				assert.Equal(t, 1, actualChart.XPosition)
-				assert.Equal(t, 2, actualChart.YPosition)
+					require.Len(t, actual.Charts, 1)
+					actualChart := actual.Charts[0]
+					assert.Equal(t, 3, actualChart.Height)
+					assert.Equal(t, 6, actualChart.Width)
+					assert.Equal(t, 1, actualChart.XPosition)
+					assert.Equal(t, 2, actualChart.YPosition)
 
-				props, ok := actualChart.Properties.(influxdb.SingleStatViewProperties)
-				require.True(t, ok)
-				assert.Equal(t, "single-stat", props.GetType())
-				assert.Equal(t, "single stat note", props.Note)
-				assert.True(t, props.ShowNoteWhenEmpty)
-				assert.True(t, props.DecimalPlaces.IsEnforced)
-				assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
-				assert.Equal(t, "days", props.Suffix)
-				assert.Equal(t, "sumtin", props.Prefix)
+					props, ok := actualChart.Properties.(influxdb.SingleStatViewProperties)
+					require.True(t, ok)
+					assert.Equal(t, "single-stat", props.GetType())
+					assert.Equal(t, "single stat note", props.Note)
+					assert.True(t, props.ShowNoteWhenEmpty)
+					assert.True(t, props.DecimalPlaces.IsEnforced)
+					assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
+					assert.Equal(t, "days", props.Suffix)
+					assert.Equal(t, "sumtin", props.Prefix)
 
-				require.Len(t, props.Queries, 1)
-				q := props.Queries[0]
-				queryText := `from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "processes") |> filter(fn: (r) => r._field == "running" or r._field == "blocked") |> aggregateWindow(every: v.windowPeriod, fn: max) |> yield(name: "max")`
-				assert.Equal(t, queryText, q.Text)
-				assert.Equal(t, "advanced", q.EditMode)
+					require.Len(t, props.Queries, 1)
+					q := props.Queries[0]
+					queryText := `from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "processes") |> filter(fn: (r) => r._field == "running" or r._field == "blocked") |> aggregateWindow(every: v.windowPeriod, fn: max) |> yield(name: "max")`
+					assert.Equal(t, queryText, q.Text)
+					assert.Equal(t, "advanced", q.EditMode)
 
-				require.Len(t, props.ViewColors, 1)
-				c := props.ViewColors[0]
-				assert.NotZero(t, c.ID)
-				assert.Equal(t, "laser", c.Name)
-				assert.Equal(t, "text", c.Type)
-				assert.Equal(t, "#8F8AF4", c.Hex)
-				assert.Equal(t, 3.0, c.Value)
+					require.Len(t, props.ViewColors, 1)
+					c := props.ViewColors[0]
+					assert.Equal(t, "laser", c.Name)
+					assert.Equal(t, "text", c.Type)
+					assert.Equal(t, "#8F8AF4", c.Hex)
+					assert.Equal(t, 3.0, c.Value)
+				})
 			})
 
 			t.Run("handles invalid config", func(t *testing.T) {
@@ -2317,148 +1566,123 @@ spec:
 						name:           "color missing hex value",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].colors[0].hex"},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      description: desc1
-      charts:
-        - kind:   Single_Stat
-          name:   single stat
-          suffix: days
-          width:  6
-          height: 3
-          shade: true
-          queries:
-            - query: >
-                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
-          colors:
-            - name: laser
-              type: text
+  description: desc1
+  charts:
+    - kind:   Single_Stat
+      name:   single stat
+      xPos: 1
+      yPos: 2
+      width:  6
+      height: 3
+      decimalPlaces: 1
+      shade: true
+      queries:
+        - query: "from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == \"processes\") |> filter(fn: (r) => r._field == \"running\" or r._field == \"blocked\") |> aggregateWindow(every: v.windowPeriod, fn: max) |> yield(name: \"max\")"
+      colors:
+        - name: laser
+          type: text
+          value: 3
 `,
 					},
 					{
 						name:           "query missing text value",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].queries[0].query"},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      description: desc1
-      charts:
-        - kind:   Single_Stat
-          name:   single stat
-          suffix: days
-          width:  6
-          height: 3
-          shade: true
-          queries:
-            - query: 
-          colors:
-            - name: laser
-              type: text
-              hex: "#aaa222"
+  description: desc1
+  charts:
+    - kind:   Single_Stat
+      name:   single stat
+      xPos: 1
+      yPos: 2
+      width:  6
+      height: 3
+      queries:
+        - query:
+      colors:
+        - name: laser
+          type: text
+          hex: "#8F8AF4"
 `,
 					},
 					{
 						name:           "no queries provided",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].queries"},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      description: desc1
-      charts:
-        - kind:   Single_Stat
-          name:   single stat
-          suffix: days
-          width:  6
-          height: 3
-          shade: true
-          colors:
-            - name: laser
-              type: text
-              hex: "#aaa222"
+  description: desc1
+  charts:
+    - kind:   Single_Stat
+      name:   single stat
+      xPos: 1
+      yPos: 2
+      width:  6
+      height: 3
+      colors:
+        - name: laser
+          type: text
+          hex: "#8F8AF4"
 `,
 					},
 					{
 						name:           "no width provided",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].width"},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      description: desc1
-      charts:
-        - kind:   Single_Stat
-          name:   single stat
-          suffix: days
-          height: 3
-          shade: true
-          queries:
-            - query: >
-                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
-          colors:
-            - name: laser
-              type: text
-              hex: "#aaa333"
+  description: desc1
+  charts:
+    - kind:   Single_Stat
+      name:   single stat
+      xPos: 1
+      yPos: 2
+      height: 3
+      queries:
+        - query: "from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == \"processes\") |> filter(fn: (r) => r._field == \"running\" or r._field == \"blocked\") |> aggregateWindow(every: v.windowPeriod, fn: max) |> yield(name: \"max\")"
+      colors:
+        - name: laser
+          type: text
+          hex: "#8F8AF4"
 `,
 					},
 					{
 						name:           "no height provided",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].height"},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      description: desc1
-      charts:
-        - kind:   Single_Stat
-          name:   single stat
-          suffix: days
-          width: 3
-          shade: true
-          queries:
-            - query: >
-                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
-          colors:
-            - name: laser
-              type: text
-              hex: "#aaa333"
+  description: desc1
+  charts:
+    - kind:   Single_Stat
+      name:   single stat
+      xPos: 1
+      yPos: 2
+      width: 3
+      queries:
+        - query: "from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == \"processes\") |> filter(fn: (r) => r._field == \"running\" or r._field == \"blocked\") |> aggregateWindow(every: v.windowPeriod, fn: max) |> yield(name: \"max\")"
+      colors:
+        - name: laser
+          type: text
+          hex: "#8F8AF4"
 `,
 					},
 				}
@@ -2470,63 +1694,63 @@ spec:
 		})
 
 		t.Run("single stat plus line chart", func(t *testing.T) {
-			testfileRunner(t, "testdata/dashboard_single_stat_plus_line", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
-				require.Len(t, sum.Dashboards, 1)
+			t.Run("happy path", func(t *testing.T) {
+				testfileRunner(t, "testdata/dashboard_single_stat_plus_line", func(t *testing.T, pkg *Pkg) {
+					sum := pkg.Summary()
+					require.Len(t, sum.Dashboards, 1)
 
-				actual := sum.Dashboards[0]
-				assert.Equal(t, "dash_1", actual.Name)
-				assert.Equal(t, "desc1", actual.Description)
+					actual := sum.Dashboards[0]
+					assert.Equal(t, "dash_1", actual.Name)
+					assert.Equal(t, "desc1", actual.Description)
 
-				require.Len(t, actual.Charts, 1)
-				actualChart := actual.Charts[0]
-				assert.Equal(t, 3, actualChart.Height)
-				assert.Equal(t, 6, actualChart.Width)
-				assert.Equal(t, 1, actualChart.XPosition)
-				assert.Equal(t, 2, actualChart.YPosition)
+					require.Len(t, actual.Charts, 1)
+					actualChart := actual.Charts[0]
+					assert.Equal(t, 3, actualChart.Height)
+					assert.Equal(t, 6, actualChart.Width)
+					assert.Equal(t, 1, actualChart.XPosition)
+					assert.Equal(t, 2, actualChart.YPosition)
 
-				props, ok := actualChart.Properties.(influxdb.LinePlusSingleStatProperties)
-				require.True(t, ok)
-				assert.Equal(t, "single stat plus line note", props.Note)
-				assert.True(t, props.ShowNoteWhenEmpty)
-				assert.True(t, props.DecimalPlaces.IsEnforced)
-				assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
-				assert.Equal(t, "days", props.Suffix)
-				assert.Equal(t, "sumtin", props.Prefix)
-				assert.Equal(t, "overlaid", props.Position)
-				assert.Equal(t, "leg_type", props.Legend.Type)
-				assert.Equal(t, "horizontal", props.Legend.Orientation)
+					props, ok := actualChart.Properties.(influxdb.LinePlusSingleStatProperties)
+					require.True(t, ok)
+					assert.Equal(t, "single stat plus line note", props.Note)
+					assert.True(t, props.ShowNoteWhenEmpty)
+					assert.True(t, props.DecimalPlaces.IsEnforced)
+					assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
+					assert.Equal(t, "days", props.Suffix)
+					assert.Equal(t, "sumtin", props.Prefix)
+					assert.Equal(t, "overlaid", props.Position)
+					assert.Equal(t, "leg_type", props.Legend.Type)
+					assert.Equal(t, "horizontal", props.Legend.Orientation)
 
-				require.Len(t, props.Queries, 1)
-				q := props.Queries[0]
-				expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
-				assert.Equal(t, expectedQuery, q.Text)
-				assert.Equal(t, "advanced", q.EditMode)
+					require.Len(t, props.Queries, 1)
+					q := props.Queries[0]
+					expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
+					assert.Equal(t, expectedQuery, q.Text)
+					assert.Equal(t, "advanced", q.EditMode)
 
-				for _, key := range []string{"x", "y"} {
-					xAxis, ok := props.Axes[key]
-					require.True(t, ok, "key="+key)
-					assert.Equal(t, "10", xAxis.Base, "key="+key)
-					assert.Equal(t, key+"_label", xAxis.Label, "key="+key)
-					assert.Equal(t, key+"_prefix", xAxis.Prefix, "key="+key)
-					assert.Equal(t, "linear", xAxis.Scale, "key="+key)
-					assert.Equal(t, key+"_suffix", xAxis.Suffix, "key="+key)
-				}
+					for _, key := range []string{"x", "y"} {
+						xAxis, ok := props.Axes[key]
+						require.True(t, ok, "key="+key)
+						assert.Equal(t, "10", xAxis.Base, "key="+key)
+						assert.Equal(t, key+"_label", xAxis.Label, "key="+key)
+						assert.Equal(t, key+"_prefix", xAxis.Prefix, "key="+key)
+						assert.Equal(t, "linear", xAxis.Scale, "key="+key)
+						assert.Equal(t, key+"_suffix", xAxis.Suffix, "key="+key)
+					}
 
-				require.Len(t, props.ViewColors, 2)
-				c := props.ViewColors[0]
-				assert.NotZero(t, c.ID)
-				assert.Equal(t, "laser", c.Name)
-				assert.Equal(t, "text", c.Type)
-				assert.Equal(t, "#8F8AF4", c.Hex)
-				assert.Equal(t, 3.0, c.Value)
+					require.Len(t, props.ViewColors, 2)
+					c := props.ViewColors[0]
+					assert.Equal(t, "laser", c.Name)
+					assert.Equal(t, "text", c.Type)
+					assert.Equal(t, "#8F8AF4", c.Hex)
+					assert.Equal(t, 3.0, c.Value)
 
-				c = props.ViewColors[1]
-				assert.NotZero(t, c.ID)
-				assert.Equal(t, "android", c.Name)
-				assert.Equal(t, "scale", c.Type)
-				assert.Equal(t, "#F4CF31", c.Hex)
-				assert.Equal(t, 1.0, c.Value)
+					c = props.ViewColors[1]
+					assert.Equal(t, "android", c.Name)
+					assert.Equal(t, "scale", c.Type)
+					assert.Equal(t, "#F4CF31", c.Hex)
+					assert.Equal(t, 1.0, c.Value)
+				})
 			})
 
 			t.Run("handles invalid config", func(t *testing.T) {
@@ -2535,304 +1759,336 @@ spec:
 						name:           "color missing hex value",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].colors[0].hex"},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      description: desc1
-      charts:
-        - kind:   Single_Stat_Plus_Line
-          name:   single stat plus line
-          width:  6
-          height: 3
-          queries:
-            - query: >
-                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
-          colors:
-            - name: laser
-              type: text
-            - name: android
-              type: scale
-              hex: "#F4CF31"
-          axes:
-            - name : "x"
-              label: x_label
-              base: 10
-              scale: linear
-            - name: "y"
-              label: y_label
-              base: 10
-              scale: linear
+  description: desc1
+  charts:
+    - kind:   Single_Stat_Plus_Line
+      name:   single stat plus line
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      position: overlaid
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - name: laser
+          type: text
+          value: 3
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          base: 10
+          scale: linear
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          base: 10
+          scale: linear
 `,
 					},
 					{
 						name:           "missing query value",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].queries[0].query"},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      description: desc1
-      charts:
-        - kind:   Single_Stat_Plus_Line
-          name:   single stat plus line
-          width:  6
-          height: 3
-          queries:
-            - query:  
-          colors:
-            - name: laser
-              type: text
-              hex: "#abcabc"
-            - name: android
-              type: scale
-              hex: "#F4CF31"
-          axes:
-            - name : "x"
-              label: x_label
-              base: 10
-              scale: linear
-            - name: "y"
-              label: y_label
-              base: 10
-              scale: linear
+  description: desc1
+  charts:
+    - kind:   Single_Stat_Plus_Line
+      name:   single stat plus line
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      position: overlaid
+      queries:
+        - query:
+      colors:
+        - name: laser
+          type: text
+          hex: "#8F8AF4"
+          value: 3
+        - name: android
+          type: scale
+          hex: "#F4CF31"
+          value: 1
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          base: 10
+          scale: linear
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          base: 10
+          scale: linear
 `,
 					},
 					{
 						name:           "no queries provided",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].queries"},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      description: desc1
-      charts:
-        - kind:   Single_Stat_Plus_Line
-          name:   single stat plus line
-          width:  6
-          height: 3
-          colors:
-            - name: laser
-              type: text
-              hex: "red"
-            - name: android
-              type: scale
-              hex: "#F4CF31"
-          axes:
-            - name : "x"
-              label: x_label
-              base: 10
-              scale: linear
-            - name: "y"
-              label: y_label
-              base: 10
-              scale: linear`,
+  description: desc1
+  charts:
+    - kind:   Single_Stat_Plus_Line
+      name:   single stat plus line
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      position: overlaid
+      colors:
+        - name: laser
+          type: text
+          hex: "#8F8AF4"
+          value: 3
+        - name: android
+          type: scale
+          hex: "#F4CF31"
+          value: 1
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          base: 10
+          scale: linear
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          base: 10
+          scale: linear
+`,
 					},
 					{
 						name:           "no width provided",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].width"},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      description: desc1
-      charts:
-        - kind:   Single_Stat_Plus_Line
-          name:   single stat plus line
-          height: 3
-          queries:
-            - query: >
-                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
-          colors:
-            - name: laser
-              type: text
-              hex: green
-            - name: android
-              type: scale
-              hex: "#F4CF31"
-          axes:
-            - name : "x"
-              label: x_label
-              base: 10
-              scale: linear
-            - name: "y"
-              label: y_label
-              base: 10
-              scale: linear`,
+  description: desc1
+  charts:
+    - kind:   Single_Stat_Plus_Line
+      name:   single stat plus line
+      xPos:  1
+      yPos:  2
+      height: 3
+      shade: true
+      position: overlaid
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - name: laser
+          type: text
+          hex: "#8F8AF4"
+          value: 3
+        - name: android
+          type: scale
+          hex: "#F4CF31"
+          value: 1
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          base: 10
+          scale: linear
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          base: 10
+          scale: linear
+`,
 					},
 					{
 						name:           "no height provided",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].height"},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      description: desc1
-      charts:
-        - kind:   Single_Stat_Plus_Line
-          name:   single stat plus line
-          width: 3
-          queries:
-            - query: >
-                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
-          colors:
-            - name: laser
-              type: text
-              hex: green
-            - name: android
-              type: scale
-              hex: "#F4CF31"
-          axes:
-            - name : "x"
-              label: x_label
-              base: 10
-              scale: linear
-            - name: "y"
-              label: y_label
-              base: 10
-              scale: linear`,
+  description: desc1
+  charts:
+    - kind:   Single_Stat_Plus_Line
+      name:   single stat plus line
+      xPos:  1
+      yPos:  2
+      width:  6
+      position: overlaid
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - name: laser
+          type: text
+          hex: "#8F8AF4"
+          value: 3
+        - name: android
+          type: scale
+          hex: "#F4CF31"
+          value: 1
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          base: 10
+          scale: linear
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          base: 10
+          scale: linear
+`,
 					},
 					{
 						name:           "missing text color but has scale color",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].colors"},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      description: desc1
-      charts:
-        - kind:   Single_Stat_Plus_Line
-          name:   single stat plus line
-          width: 3
-          height: 3
-          queries:
-            - query: >
-                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
-          colors:
-            - name: android
-              type: scale
-              hex: "#F4CF31"
-          axes:
-            - name : "x"
-              label: x_label
-              base: 10
-              scale: linear
-            - name: "y"
-              label: y_label
-              base: 10
-              scale: linear`,
+  description: desc1
+  charts:
+    - kind:   Single_Stat_Plus_Line
+      name:   single stat plus line
+      suffix: days
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      position: overlaid
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - name: android
+          type: scale
+          hex: "#F4CF31"
+          value: 1
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          base: 10
+          scale: linear
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          base: 10
+          scale: linear
+`,
 					},
 					{
 						name:           "missing x axis",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].axes"},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      description: desc1
-      charts:
-        - kind:   Single_Stat_Plus_Line
-          name:   single stat plus line
-          width: 3
-          height: 3
-          queries:
-            - query: >
-                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
-          colors:
-            - name: first
-              type: text
-              hex: "#aabbaa"
-            - name: android
-              type: scale
-              hex: "#F4CF31"
-          axes:
-            - name: "y"
-              label: y_label
-              base: 10
-              scale: linear`,
+  description: desc1
+  charts:
+    - kind:   Single_Stat_Plus_Line
+      name:   single stat plus line
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      position: overlaid
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - name: laser
+          type: text
+          hex: "#8F8AF4"
+          value: 3
+        - name: android
+          type: scale
+          hex: "#F4CF31"
+          value: 1
+      axes:
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          base: 10
+          scale: linear
+`,
 					},
 					{
 						name:           "missing y axis",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].axes"},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      description: desc1
-      charts:
-        - kind:   Single_Stat_Plus_Line
-          name:   single stat plus line
-          width: 3
-          height: 3
-          queries:
-            - query: >
-                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
-          colors:
-            - name: first
-              type: text
-              hex: "#aabbaa"
-            - name: android
-              type: scale
-              hex: "#F4CF31"
-          axes:
-            - name: "x"
-              base: 10
-              scale: linear`,
+  description: desc1
+  charts:
+    - kind:   Single_Stat_Plus_Line
+      name:   single stat plus line
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      position: overlaid
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
+      colors:
+        - name: laser
+          type: text
+          hex: "#8F8AF4"
+          value: 3
+        - name: android
+          type: scale
+          hex: "#F4CF31"
+          value: 1
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          base: 10
+          scale: linear
+`,
 					},
 				}
 
@@ -2843,7 +2099,7 @@ spec:
 		})
 
 		t.Run("single xy chart", func(t *testing.T) {
-			t.Run("xy chart", func(t *testing.T) {
+			t.Run("happy path", func(t *testing.T) {
 				testfileRunner(t, "testdata/dashboard_xy", func(t *testing.T, pkg *Pkg) {
 					sum := pkg.Summary()
 					require.Len(t, sum.Dashboards, 1)
@@ -2875,7 +2131,6 @@ spec:
 
 					require.Len(t, props.ViewColors, 1)
 					c := props.ViewColors[0]
-					assert.NotZero(t, c.ID)
 					assert.Equal(t, "laser", c.Name)
 					assert.Equal(t, "scale", c.Type)
 					assert.Equal(t, "#8F8AF4", c.Hex)
@@ -2887,152 +2142,85 @@ spec:
 				tests := []testPkgResourceError{
 					{
 						name:           "color missing hex value",
-						encoding:       EncodingJSON,
 						validationErrs: 1,
 						valFields:      []string{"charts[0].colors[0].hex"},
-						pkgStr: `{
-						"apiVersion": "0.1.0",
-						"kind": "Package",
-						"meta": {
-						  "pkgName": "pkg_name",
-						  "pkgVersion": "1",
-						  "description": "pack description"
-						},
-						"spec": {
-						  "resources": [
-							{
-							  "kind": "Dashboard",
-							  "name": "dash_1",
-							  "description": "desc1",
-							  "charts": [
-								{
-								  "kind": "XY",
-								  "name": "xy chart",
-								  "prefix": "sumtin",
-								  "note": "xy chart note",
-								  "noteOnEmpty": true,
-								  "xPos": 1,
-								  "yPos": 2,
-								  "width": 6,
-								  "height": 3,
-								  "decimalPlaces": 1,
-								  "shade": true,
-								  "xColumn": "_time",
-								  "yColumn": "_value",
-								  "legend": {},
-								  "queries": [
-									{
-									  "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == \"boltdb_writes_total\")  |> filter(fn: (r) => r._field == \"counter\")"
-									}
-								  ],
-								  "colors": [
-									{
-									  "name": "laser",
-									  "type": "scale",
-									  "value": 3
-									}
-								  ],
-								  "axes":[
-									{
-									  "name": "x",
-									  "label": "x_label",
-									  "prefix": "x_prefix",
-									  "suffix": "x_suffix",
-									  "base": "10",
-									  "scale": "linear"
-									},
-									{
-									  "name": "y",
-									  "label": "y_label",
-									  "prefix": "y_prefix",
-									  "suffix": "y_suffix",
-									  "base": "10",
-									  "scale": "linear"
-									}
-								  ],
-								  "geom": "line"
-								}
-							  ]
-							}
-						  ]
-						}
-					  }		  
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+  description: desc1
+  charts:
+    - kind:   XY
+      name:   xy chart
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      geom: line
+      position: stacked
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")
+      colors:
+        - name: laser
+          type: scale
+          value: 3
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          base: 10
+          scale: linear
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          base: 10
+          scale: linear
 `,
 					},
 					{
 						name:           "invalid geom flag",
-						encoding:       EncodingJSON,
 						validationErrs: 1,
 						valFields:      []string{"charts[0].geom"},
-						pkgStr: `
-					{
-						"apiVersion": "0.1.0",
-						"kind": "Package",
-						"meta": {
-						  "pkgName": "pkg_name",
-						  "pkgVersion": "1",
-						  "description": "pack description"
-						},
-						"spec": {
-						  "resources": [
-							{
-							  "kind": "Dashboard",
-							  "name": "dash_1",
-							  "description": "desc1",
-							  "charts": [
-								{
-								  "kind": "XY",
-								  "name": "xy chart",
-								  "prefix": "sumtin",
-								  "note": "xy chart note",
-								  "noteOnEmpty": true,
-								  "xPos": 1,
-								  "yPos": 2,
-								  "width": 6,
-								  "height": 3,
-								  "decimalPlaces": 1,
-								  "shade": true,
-								  "xColumn": "_time",
-								  "yColumn": "_value",
-								  "legend": {},
-								  "queries": [
-									{
-									  "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == \"boltdb_writes_total\")  |> filter(fn: (r) => r._field == \"counter\")"
-									}
-								  ],
-								  "colors": [
-									{
-									  "name": "laser",
-									  "type": "scale",
-									  "value": 3,
-									  "hex": "#FFF000"
-									}
-								  ],
-								  "axes":[
-									{
-									  "name": "x",
-									  "label": "x_label",
-									  "prefix": "x_prefix",
-									  "suffix": "x_suffix",
-									  "base": "10",
-									  "scale": "linear"
-									},
-									{
-									  "name": "y",
-									  "label": "y_label",
-									  "prefix": "y_prefix",
-									  "suffix": "y_suffix",
-									  "base": "10",
-									  "scale": "linear"
-									}
-								  ],
-								  "geom": "huzzah"
-								}
-							  ]
-							}
-						  ]
-						}
-					  }  
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+  description: desc1
+  charts:
+    - kind:   XY
+      name:   xy chart
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      position: stacked
+      legend:
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")
+      colors:
+        - name: laser
+          type: scale
+          hex: "#8F8AF4"
+          value: 3
+      axes:
+        - name : "x"
+          label: x_label
+          prefix: x_prefix
+          suffix: x_suffix
+          base: 10
+          scale: linear
+        - name: "y"
+          label: y_label
+          prefix: y_prefix
+          suffix: y_suffix
+          base: 10
+          scale: linear
 `,
 					},
 				}
@@ -3045,30 +2233,31 @@ spec:
 	})
 
 	t.Run("pkg with dashboard and labels associated", func(t *testing.T) {
-		testfileRunner(t, "testdata/dashboard_associates_label", func(t *testing.T, pkg *Pkg) {
-			sum := pkg.Summary()
-			require.Len(t, sum.Dashboards, 1)
+		t.Run("happy path", func(t *testing.T) {
+			testfileRunner(t, "testdata/dashboard_associates_label", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.Dashboards, 1)
 
-			actual := sum.Dashboards[0]
-			assert.Equal(t, "dash_1", actual.Name)
-			assert.Equal(t, "desc1", actual.Description)
+				actual := sum.Dashboards[0]
+				assert.Equal(t, "dash_1", actual.Name)
 
-			require.Len(t, actual.LabelAssociations, 1)
-			actualLabel := actual.LabelAssociations[0]
-			assert.Equal(t, "label_1", actualLabel.Name)
+				require.Len(t, actual.LabelAssociations, 1)
+				actualLabel := actual.LabelAssociations[0]
+				assert.Equal(t, "label_1", actualLabel.Name)
 
-			expectedMappings := []SummaryLabelMapping{
-				{
-					ResourceName: "dash_1",
-					LabelName:    "label_1",
-				},
-			}
-			require.Len(t, sum.LabelMappings, len(expectedMappings))
+				expectedMappings := []SummaryLabelMapping{
+					{
+						ResourceName: "dash_1",
+						LabelName:    "label_1",
+					},
+				}
+				require.Len(t, sum.LabelMappings, len(expectedMappings))
 
-			for i, expected := range expectedMappings {
-				expected.ResourceType = influxdb.DashboardsResourceType
-				assert.Equal(t, expected, sum.LabelMappings[i])
-			}
+				for i, expected := range expectedMappings {
+					expected.ResourceType = influxdb.DashboardsResourceType
+					assert.Equal(t, expected, sum.LabelMappings[i])
+				}
+			})
 		})
 
 		t.Run("association doesn't exist then provides an error", func(t *testing.T) {
@@ -3077,84 +2266,77 @@ spec:
 					name:    "no labels provided",
 					assErrs: 1,
 					assIdxs: []int{0},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName: label_pkg
-  pkgVersion: 1
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
-    - kind: Dashboard
-      name: dash_1
-      associations:
-        - kind: Label
-          name: label_1
+  associations:
+    - kind: Label
+      name: label_1
 `,
 				},
 				{
 					name:    "mixed found and not found",
 					assErrs: 1,
 					assIdxs: []int{1},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName: label_pkg
-  pkgVersion: 1
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label_1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
+  associations:
     - kind: Label
       name: label_1
-    - kind: Dashboard
-      name: dash_1
-      associations:
-        - kind: Label
-          name: label_1
-        - kind: Label
-          name: unfound label
+    - kind: Label
+      name: unfound label
 `,
 				},
 				{
 					name:    "multiple not found",
 					assErrs: 1,
 					assIdxs: []int{0, 1},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName: label_pkg
-  pkgVersion: 1
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label_1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
+  associations:
     - kind: Label
-      name: label_1
-    - kind: Dashboard
-      name: dash_1
-      associations:
-        - kind: Label
-          name: not found 1
-        - kind: Label
-          name: unfound label
+      name: not found 1
+    - kind: Label
+      name: unfound label
 `,
 				},
 				{
 					name:    "duplicate valid nested labels",
 					assErrs: 1,
 					assIdxs: []int{1},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName: label_pkg
-  pkgVersion: 1
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label_1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
 spec:
-  resources:
+  associations:
     - kind: Label
       name: label_1
-    - kind: Dashboard
-      name: dash_1
-      associations:
-        - kind: Label
-          name: label_1
-        - kind: Label
-          name: label_1
+    - kind: Label
+      name: label_1
 `,
 				},
 			}
@@ -3166,88 +2348,90 @@ spec:
 	})
 
 	t.Run("pkg with notification endpoints and labels associated", func(t *testing.T) {
-		testfileRunner(t, "testdata/notification_endpoint", func(t *testing.T, pkg *Pkg) {
-			expectedEndpoints := []SummaryNotificationEndpoint{
-				{
-					NotificationEndpoint: &endpoint.HTTP{
-						Base: endpoint.Base{
-							Name:        "http_basic_auth_notification_endpoint",
-							Description: "http basic auth desc",
-							Status:      influxdb.TaskStatusInactive,
+		t.Run("happy path", func(t *testing.T) {
+			testfileRunner(t, "testdata/notification_endpoint", func(t *testing.T, pkg *Pkg) {
+				expectedEndpoints := []SummaryNotificationEndpoint{
+					{
+						NotificationEndpoint: &endpoint.HTTP{
+							Base: endpoint.Base{
+								Name:        "http_basic_auth_notification_endpoint",
+								Description: "http basic auth desc",
+								Status:      influxdb.TaskStatusInactive,
+							},
+							URL:        "https://www.example.com/endpoint/basicauth",
+							AuthMethod: "basic",
+							Method:     "POST",
+							Username:   influxdb.SecretField{Value: strPtr("secret username")},
+							Password:   influxdb.SecretField{Value: strPtr("secret password")},
 						},
-						URL:        "https://www.example.com/endpoint/basicauth",
-						AuthMethod: "basic",
-						Method:     "POST",
-						Username:   influxdb.SecretField{Value: strPtr("secret username")},
-						Password:   influxdb.SecretField{Value: strPtr("secret password")},
 					},
-				},
-				{
-					NotificationEndpoint: &endpoint.HTTP{
-						Base: endpoint.Base{
-							Name:        "http_bearer_auth_notification_endpoint",
-							Description: "http bearer auth desc",
-							Status:      influxdb.TaskStatusActive,
+					{
+						NotificationEndpoint: &endpoint.HTTP{
+							Base: endpoint.Base{
+								Name:        "http_bearer_auth_notification_endpoint",
+								Description: "http bearer auth desc",
+								Status:      influxdb.TaskStatusActive,
+							},
+							URL:        "https://www.example.com/endpoint/bearerauth",
+							AuthMethod: "bearer",
+							Method:     "PUT",
+							Token:      influxdb.SecretField{Value: strPtr("secret token")},
 						},
-						URL:        "https://www.example.com/endpoint/bearerauth",
-						AuthMethod: "bearer",
-						Method:     "PUT",
-						Token:      influxdb.SecretField{Value: strPtr("secret token")},
 					},
-				},
-				{
-					NotificationEndpoint: &endpoint.HTTP{
-						Base: endpoint.Base{
-							Name:        "http_none_auth_notification_endpoint",
-							Description: "http none auth desc",
-							Status:      influxdb.TaskStatusActive,
+					{
+						NotificationEndpoint: &endpoint.HTTP{
+							Base: endpoint.Base{
+								Name:        "http_none_auth_notification_endpoint",
+								Description: "http none auth desc",
+								Status:      influxdb.TaskStatusActive,
+							},
+							URL:        "https://www.example.com/endpoint/noneauth",
+							AuthMethod: "none",
+							Method:     "GET",
 						},
-						URL:        "https://www.example.com/endpoint/noneauth",
-						AuthMethod: "none",
-						Method:     "GET",
 					},
-				},
-				{
-					NotificationEndpoint: &endpoint.PagerDuty{
-						Base: endpoint.Base{
-							Name:        "pager_duty_notification_endpoint",
-							Description: "pager duty desc",
-							Status:      influxdb.TaskStatusActive,
+					{
+						NotificationEndpoint: &endpoint.PagerDuty{
+							Base: endpoint.Base{
+								Name:        "pager_duty_notification_endpoint",
+								Description: "pager duty desc",
+								Status:      influxdb.TaskStatusActive,
+							},
+							ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
+							RoutingKey: influxdb.SecretField{Value: strPtr("secret routing-key")},
 						},
-						ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
-						RoutingKey: influxdb.SecretField{Value: strPtr("secret routing-key")},
 					},
-				},
-				{
-					NotificationEndpoint: &endpoint.Slack{
-						Base: endpoint.Base{
-							Name:        "slack_notification_endpoint",
-							Description: "slack desc",
-							Status:      influxdb.TaskStatusActive,
+					{
+						NotificationEndpoint: &endpoint.Slack{
+							Base: endpoint.Base{
+								Name:        "slack_notification_endpoint",
+								Description: "slack desc",
+								Status:      influxdb.TaskStatusActive,
+							},
+							URL:   "https://hooks.slack.com/services/bip/piddy/boppidy",
+							Token: influxdb.SecretField{Value: strPtr("tokenval")},
 						},
-						URL:   "https://hooks.slack.com/services/bip/piddy/boppidy",
-						Token: influxdb.SecretField{Value: strPtr("tokenval")},
 					},
-				},
-			}
+				}
 
-			sum := pkg.Summary()
-			endpoints := sum.NotificationEndpoints
-			require.Len(t, endpoints, len(expectedEndpoints))
-			require.Len(t, sum.LabelMappings, len(expectedEndpoints))
+				sum := pkg.Summary()
+				endpoints := sum.NotificationEndpoints
+				require.Len(t, endpoints, len(expectedEndpoints))
+				require.Len(t, sum.LabelMappings, len(expectedEndpoints))
 
-			for i := range expectedEndpoints {
-				expected, actual := expectedEndpoints[i], endpoints[i]
-				assert.Equalf(t, expected.NotificationEndpoint, actual.NotificationEndpoint, "index=%d", i)
-				require.Len(t, actual.LabelAssociations, 1)
-				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+				for i := range expectedEndpoints {
+					expected, actual := expectedEndpoints[i], endpoints[i]
+					assert.Equalf(t, expected.NotificationEndpoint, actual.NotificationEndpoint, "index=%d", i)
+					require.Len(t, actual.LabelAssociations, 1)
+					assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
 
-				containsLabelMappings(t, sum.LabelMappings, labelMapping{
-					labelName: "label_1",
-					resName:   expected.NotificationEndpoint.GetName(),
-					resType:   influxdb.NotificationEndpointResourceType,
-				})
-			}
+					containsLabelMappings(t, sum.LabelMappings, labelMapping{
+						labelName: "label_1",
+						resName:   expected.NotificationEndpoint.GetName(),
+						resType:   influxdb.NotificationEndpointResourceType,
+					})
+				}
+			})
 		})
 
 		t.Run("handles bad config", func(t *testing.T) {
@@ -3261,16 +2445,11 @@ spec:
 						name:           "missing slack url",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationEndpointURL},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointSlack
+metadata:
+  name: slack_notification_endpoint
 spec:
-  resources:
-    - kind: Notification_Endpoint_Slack
-      name: name1
 `,
 					},
 				},
@@ -3280,16 +2459,11 @@ spec:
 						name:           "missing pager duty url",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationEndpointURL},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointPagerDuty
+metadata:
+  name: pager_duty_notification_endpoint
 spec:
-  resources:
-    - kind: Notification_Endpoint_Pager_Duty
-      name: name1
 `,
 					},
 				},
@@ -3299,17 +2473,13 @@ spec:
 						name:           "missing http url",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationEndpointURL},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointHTTP
+metadata:
+  name: http_none_auth_notification_endpoint
 spec:
-  resources:
-    - kind: Notification_Endpoint_HTTP
-      name: name1
-      method: GET
+  type: none
+  method: get
 `,
 					},
 				},
@@ -3319,19 +2489,14 @@ spec:
 						name:           "bad url",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationEndpointURL},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointHTTP
+metadata:
+  name: http_none_auth_notification_endpoint
 spec:
-  resources:
-    - kind: Notification_Endpoint_HTTP
-      name: name1
-      type: none
-      method: POST
-      url: d_____-_8**(*https://www.examples.coms
+  type: none
+  method: get
+  url: d_____-_8**(*https://www.examples.coms
 `,
 					},
 				},
@@ -3341,18 +2506,13 @@ spec:
 						name:           "missing http method",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationEndpointHTTPMethod},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointHTTP
+metadata:
+  name: http_none_auth_notification_endpoint
 spec:
-  resources:
-    - kind: Notification_Endpoint_HTTP
-      name: name1
-      type: none
-      url: http://example.com
+  type: none
+  url:  https://www.example.com/endpoint/noneauth
 `,
 					},
 				},
@@ -3362,19 +2522,15 @@ spec:
 						name:           "invalid http method",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationEndpointHTTPMethod},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointHTTP
+metadata:
+  name: http_none_auth_notification_endpoint
 spec:
-  resources:
-    - kind: Notification_Endpoint_HTTP
-      name: name1
-      type: none
-      method: GUT
-      url: http://example.com
+  type: none
+  description: http none auth desc
+  method: GHOST
+  url:  https://www.example.com/endpoint/noneauth
 `,
 					},
 				},
@@ -3384,20 +2540,15 @@ spec:
 						name:           "missing basic username",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationEndpointUsername},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointHTTP
+metadata:
+  name: http_basic_auth_notification_endpoint
 spec:
-  resources:
-    - kind: Notification_Endpoint_HTTP
-      name: name1
-      type: basic
-      url: example.com
-      method: POST
-      password: password
+  type: basic
+  method: POST
+  url:  https://www.example.com/endpoint/basicauth
+  password: "secret password"
 `,
 					},
 				},
@@ -3407,20 +2558,15 @@ spec:
 						name:           "missing basic password",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationEndpointPassword},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointHTTP
+metadata:
+  name: http_basic_auth_notification_endpoint
 spec:
-  resources:
-    - kind: Notification_Endpoint_HTTP
-      name: name1
-      type: basic
-      method: POST
-      url: example.com
-      username: user
+  type: basic
+  method: POST
+  url:  https://www.example.com/endpoint/basicauth
+  username: username
 `,
 					},
 				},
@@ -3430,19 +2576,15 @@ spec:
 						name:           "missing basic password and username",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationEndpointPassword, fieldNotificationEndpointUsername},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointHTTP
+metadata:
+  name: http_basic_auth_notification_endpoint
 spec:
-  resources:
-    - kind: Notification_Endpoint_HTTP
-      name: name1
-      type: basic
-      method: POST
-      url: example.com
+  description: http basic auth desc
+  type: basic
+  method: pOsT
+  url:  https://www.example.com/endpoint/basicauth
 `,
 					},
 				},
@@ -3452,19 +2594,15 @@ spec:
 						name:           "missing bearer token",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationEndpointToken},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointHTTP
+metadata:
+  name: http_bearer_auth_notification_endpoint
 spec:
-  resources:
-    - kind: Notification_Endpoint_HTTP
-      name: name1
-      type: bearer
-      method: GET
-      url: example.com
+  description: http bearer auth desc
+  type: bearer
+  method: puT
+  url:  https://www.example.com/endpoint/bearerauth
 `,
 					},
 				},
@@ -3474,42 +2612,37 @@ spec:
 						name:           "invalid http type",
 						validationErrs: 1,
 						valFields:      []string{fieldType},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointHTTP
+metadata:
+  name: http_none_auth_notification_endpoint
 spec:
-  resources:
-    - kind: Notification_Endpoint_HTTP
-      name: name1
-      type: threeve
-      method: GET
-      url: example.com
+  type: RANDOM WRONG TYPE
+  description: http none auth desc
+  method: get
+  url:  https://www.example.com/endpoint/noneauth
 `,
 					},
 				},
 				{
 					kind: KindNotificationEndpointSlack,
 					resErr: testPkgResourceError{
-						name:           "duplicate ",
+						name:           "duplicate endpoints",
 						validationErrs: 1,
 						valFields:      []string{fieldName},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointSlack
+metadata:
+  name: slack_notification_endpoint
 spec:
-  resources:
-    - kind: Notification_Endpoint_Slack
-      name: dupe
-      url: example.com
-    - kind: Notification_Endpoint_Slack
-      name: dupe
-      url: example.com
+  url: https://hooks.slack.com/services/bip/piddy/boppidy
+---
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointSlack
+metadata:
+  name: slack_notification_endpoint
+spec:
+  url: https://hooks.slack.com/services/bip/piddy/boppidy
 `,
 					},
 				},
@@ -3519,18 +2652,14 @@ spec:
 						name:           "invalid status",
 						validationErrs: 1,
 						valFields:      []string{fieldStatus},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointSlack
+metadata:
+  name: slack_notification_endpoint
 spec:
-  resources:
-    - kind: Notification_Endpoint_Slack
-      name: dupe
-      url: example.com
-      status: rando bad status
+  description: slack desc
+  url: https://hooks.slack.com/services/bip/piddy/boppidy
+  status: RANDO STATUS
 `,
 					},
 				},
@@ -3543,35 +2672,37 @@ spec:
 	})
 
 	t.Run("pkg with notification rules", func(t *testing.T) {
-		testfileRunner(t, "testdata/notification_rule", func(t *testing.T, pkg *Pkg) {
-			sum := pkg.Summary()
-			rules := sum.NotificationRules
-			require.Len(t, rules, 1)
+		t.Run("happy path", func(t *testing.T) {
+			testfileRunner(t, "testdata/notification_rule", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				rules := sum.NotificationRules
+				require.Len(t, rules, 1)
 
-			rule := rules[0]
-			assert.Equal(t, "rule_0", rule.Name)
-			assert.Equal(t, "endpoint_0", rule.EndpointName)
-			assert.Equal(t, "desc_0", rule.Description)
-			assert.Equal(t, (10 * time.Minute).String(), rule.Every)
-			assert.Equal(t, (30 * time.Second).String(), rule.Offset)
-			expectedMsgTempl := "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
-			assert.Equal(t, expectedMsgTempl, rule.MessageTemplate)
-			assert.Equal(t, influxdb.Active, rule.Status)
+				rule := rules[0]
+				assert.Equal(t, "rule_0", rule.Name)
+				assert.Equal(t, "endpoint_0", rule.EndpointName)
+				assert.Equal(t, "desc_0", rule.Description)
+				assert.Equal(t, (10 * time.Minute).String(), rule.Every)
+				assert.Equal(t, (30 * time.Second).String(), rule.Offset)
+				expectedMsgTempl := "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+				assert.Equal(t, expectedMsgTempl, rule.MessageTemplate)
+				assert.Equal(t, influxdb.Active, rule.Status)
 
-			expectedStatusRules := []SummaryStatusRule{
-				{CurrentLevel: "CRIT", PreviousLevel: "OK"},
-				{CurrentLevel: "WARN"},
-			}
-			assert.Equal(t, expectedStatusRules, rule.StatusRules)
+				expectedStatusRules := []SummaryStatusRule{
+					{CurrentLevel: "CRIT", PreviousLevel: "OK"},
+					{CurrentLevel: "WARN"},
+				}
+				assert.Equal(t, expectedStatusRules, rule.StatusRules)
 
-			expectedTagRules := []SummaryTagRule{
-				{Key: "k1", Value: "v1", Operator: "equal"},
-				{Key: "k1", Value: "v2", Operator: "equal"},
-			}
-			assert.Equal(t, expectedTagRules, rule.TagRules)
+				expectedTagRules := []SummaryTagRule{
+					{Key: "k1", Value: "v1", Operator: "equal"},
+					{Key: "k1", Value: "v2", Operator: "equal"},
+				}
+				assert.Equal(t, expectedTagRules, rule.TagRules)
 
-			require.Len(t, sum.Labels, 1)
-			require.Len(t, rule.LabelAssociations, 1)
+				require.Len(t, sum.Labels, 1)
+				require.Len(t, rule.LabelAssociations, 1)
+			})
 		})
 
 		t.Run("handles bad config", func(t *testing.T) {
@@ -3585,20 +2716,15 @@ spec:
 						name:           "missing name",
 						validationErrs: 1,
 						valFields:      []string{fieldName},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
 spec:
-  resources:
-    - kind: Notification_Rule
-      endpointName: endpoint_0
-      every: 10m
-      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
-      statusRules:
-        - currentLevel: WARN
+  endpointName: endpoint_0
+  every: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: WARN
 `,
 					},
 				},
@@ -3608,43 +2734,33 @@ spec:
 						name:           "missing endpoint name",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationRuleEndpointName},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
 spec:
-  resources:
-    - kind: Notification_Rule
-      name: rule_0
-      every: 10m
-      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
-      statusRules:
-        - currentLevel: WARN
+  every: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: WARN
 `,
 					},
 				},
 				{
 					kind: KindNotificationRule,
 					resErr: testPkgResourceError{
-						name:           "missing endpoint name",
+						name:           "missing every",
 						validationErrs: 1,
 						valFields:      []string{fieldEvery},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
 spec:
-  resources:
-    - kind: Notification_Rule
-      name: rule_0
-      endpointName: endpoint_0
-      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
-      statusRules:
-        - currentLevel: WARN
+  endpointName: endpoint_0
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: WARN
 `,
 					},
 				},
@@ -3654,19 +2770,14 @@ spec:
 						name:           "missing status rules",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationRuleStatusRules},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
 spec:
-  resources:
-    - kind: Notification_Rule
-      name: rule_0
-      endpointName: endpoint_0
-      every: 10m
-      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  every: 10m
+  endpointName: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
 `,
 					},
 				},
@@ -3676,21 +2787,16 @@ spec:
 						name:           "bad current status rule level",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationRuleStatusRules},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
 spec:
-  resources:
-    - kind: Notification_Rule
-      name: rule_0
-      endpointName: endpoint_0
-      every: 10m
-      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
-      statusRules:
-        - currentLevel: WRONGO
+  every: 10m
+  endpointName: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: WRONGO
 `,
 					},
 				},
@@ -3700,22 +2806,17 @@ spec:
 						name:           "bad previous status rule level",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationRuleStatusRules},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
 spec:
-  resources:
-    - kind: Notification_Rule
-      name: rule_0
-      endpointName: endpoint_0
-      every: 10m
-      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
-      statusRules:
-        - currentLevel: CRIT
-          previousLevel: WRONGO
+  endpointName: endpoint_0
+  every: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: CRIT
+      previousLevel: WRONG
 `,
 					},
 				},
@@ -3725,25 +2826,20 @@ spec:
 						name:           "bad tag rule operator",
 						validationErrs: 1,
 						valFields:      []string{fieldNotificationRuleTagRules},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
 spec:
-  resources:
-    - kind: Notification_Rule
-      name: rule_0
-      endpointName: endpoint_0
-      every: 10m
-      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
-      statusRules:
-        - currentLevel: CRIT
-      tagRules:
-        - key: k1
-          value: v1
-          operator: WRONG
+  endpointName: endpoint_0
+  every: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: WARN
+  tagRules:
+    - key: k1
+      value: v2
+      operator: WRONG
 `,
 					},
 				},
@@ -3753,22 +2849,17 @@ spec:
 						name:           "bad status provided",
 						validationErrs: 1,
 						valFields:      []string{fieldStatus},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
 spec:
-  resources:
-    - kind: Notification_Rule
-      name: rule_0
-      endpointName: endpoint_0
-      every: 10m
-      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
-      status: RANDO 
-      statusRules:
-        - currentLevel: CRIT
+  endpointName: endpoint_0
+  every: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  status: RANDO STATUS
+  statusRules:
+    - currentLevel: WARN
 `,
 					},
 				},
@@ -3778,24 +2869,19 @@ spec:
 						name:           "label association does not exist",
 						validationErrs: 1,
 						valFields:      []string{fieldAssociations},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
 spec:
-  resources:
-    - kind: Notification_Rule
-      name: rule_0
-      endpointName: endpoint_0
-      every: 10m
-      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
-      statusRules:
-        - currentLevel: CRIT
-      associations:
-        - kind: Label
-          name: label_1
+  endpointName: endpoint_0
+  every: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: WARN
+  associations:
+    - kind: Label
+      name: label_1
 `,
 					},
 				},
@@ -3805,28 +2891,26 @@ spec:
 						name:           "label association dupe",
 						validationErrs: 1,
 						valFields:      []string{fieldAssociations},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label_1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
 spec:
-  resources:
+  endpointName: endpoint_0
+  every: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: WARN
+  associations:
     - kind: Label
       name: label_1
-    - kind: Notification_Rule
-      name: rule_0
-      endpointName: endpoint_0
-      every: 10m
-      messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
-      statusRules:
-        - currentLevel: CRIT
-      associations:
-        - kind: Label
-          name: label_1
-        - kind: Label
-          name: label_1
+    - kind: Label
+      name: label_1
 `,
 					},
 				},
@@ -3839,35 +2923,37 @@ spec:
 	})
 
 	t.Run("pkg with tasks", func(t *testing.T) {
-		testfileRunner(t, "testdata/tasks", func(t *testing.T, pkg *Pkg) {
-			sum := pkg.Summary()
-			tasks := sum.Tasks
-			require.Len(t, tasks, 2)
+		t.Run("happy path", func(t *testing.T) {
+			testfileRunner(t, "testdata/tasks", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				tasks := sum.Tasks
+				require.Len(t, tasks, 2)
 
-			baseEqual := func(t *testing.T, i int, status influxdb.Status, actual SummaryTask) {
-				t.Helper()
+				baseEqual := func(t *testing.T, i int, status influxdb.Status, actual SummaryTask) {
+					t.Helper()
 
-				assert.Equal(t, "task_"+strconv.Itoa(i), actual.Name)
-				assert.Equal(t, "desc_"+strconv.Itoa(i), actual.Description)
-				assert.Equal(t, status, actual.Status)
+					assert.Equal(t, "task_"+strconv.Itoa(i), actual.Name)
+					assert.Equal(t, "desc_"+strconv.Itoa(i), actual.Description)
+					assert.Equal(t, status, actual.Status)
 
-				expectedQuery := "from(bucket: \"rucket_1\")\n  |> range(start: -5d, stop: -1h)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_idle\")\n  |> aggregateWindow(every: 1m, fn: mean)\n  |> yield(name: \"mean\")"
-				assert.Equal(t, expectedQuery, actual.Query)
+					expectedQuery := "from(bucket: \"rucket_1\")\n  |> range(start: -5d, stop: -1h)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_idle\")\n  |> aggregateWindow(every: 1m, fn: mean)\n  |> yield(name: \"mean\")"
+					assert.Equal(t, expectedQuery, actual.Query)
 
-				require.Len(t, actual.LabelAssociations, 1)
-				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
-			}
+					require.Len(t, actual.LabelAssociations, 1)
+					assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+				}
 
-			require.Len(t, sum.Labels, 1)
+				require.Len(t, sum.Labels, 1)
 
-			task1 := tasks[0]
-			baseEqual(t, 0, influxdb.Inactive, task1)
-			assert.Equal(t, (10 * time.Minute).String(), task1.Every)
-			assert.Equal(t, (15 * time.Second).String(), task1.Offset)
+				task1 := tasks[0]
+				baseEqual(t, 0, influxdb.Inactive, task1)
+				assert.Equal(t, (10 * time.Minute).String(), task1.Every)
+				assert.Equal(t, (15 * time.Second).String(), task1.Offset)
 
-			task2 := tasks[1]
-			baseEqual(t, 1, influxdb.Active, task2)
-			assert.Equal(t, "15 * * * *", task2.Cron)
+				task2 := tasks[1]
+				baseEqual(t, 1, influxdb.Active, task2)
+				assert.Equal(t, "15 * * * *", task2.Cron)
+			})
 		})
 
 		t.Run("handles bad config", func(t *testing.T) {
@@ -3881,20 +2967,14 @@ spec:
 						name:           "missing name",
 						validationErrs: 1,
 						valFields:      []string{fieldName},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Task
+metadata:
 spec:
-  resources:
-    - kind: Task
-      description: desc_0
-      every: 10m
-      offset: 15s
-      query:  >
-        from(bucket: "rucket_1")
+  description: desc_1
+  cron: 15 * * * *
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
 `,
 					},
 				},
@@ -3904,21 +2984,15 @@ spec:
 						name:           "invalid status",
 						validationErrs: 1,
 						valFields:      []string{fieldStatus},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Task
+metadata:
+  name: task_0
 spec:
-  resources:
-    - kind: Task
-      name: task_0
-      description: desc_0
-      every: 10m
-      query:  >
-        from(bucket: "rucket_1")
-      status: RANDO WRONGO
+  cron: 15 * * * *
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  status: RANDO WRONGO
 `,
 					},
 				},
@@ -3928,18 +3002,14 @@ spec:
 						name:           "missing query",
 						validationErrs: 1,
 						valFields:      []string{fieldQuery},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Task
+metadata:
+  name: task_0
 spec:
-  resources:
-    - kind: Task
-      name: task_0
-      description: desc_0
-      every: 10m
+  description: desc_0
+  every: 10m
+  offset: 15s
 `,
 					},
 				},
@@ -3949,19 +3019,13 @@ spec:
 						name:           "missing every and cron fields",
 						validationErrs: 1,
 						valFields:      []string{fieldEvery, fieldTaskCron},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Task
+metadata:
+  name: task_0
 spec:
-  resources:
-    - kind: Task
-      name: task_0
-      description: desc_0
-      query:  >
-        from(bucket: "rucket_1")
+  description: desc_0
+  offset: 15s
 `,
 					},
 				},
@@ -3971,22 +3035,17 @@ spec:
 						name:           "invalid association",
 						validationErrs: 1,
 						valFields:      []string{fieldAssociations},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Task
+metadata:
+  name: task_1
 spec:
-  resources:
-    - kind: Task
-      name: task_0
-      cron: "* * * * * *"
-      query:  >
-        from(bucket: "rucket_1")
-      associations:
-        - kind: Label
-          name: label_1
+  cron: 15 * * * *
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  associations:
+    - kind: Label
+      name: label_1
 `,
 					},
 				},
@@ -3996,26 +3055,27 @@ spec:
 						name:           "duplicate association",
 						validationErrs: 1,
 						valFields:      []string{fieldAssociations},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+						pkgStr: `---
+apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label_1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Task
+metadata:
+  name: task_0
 spec:
-  resources:
+  every: 10m
+  offset: 15s
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  status: inactive
+  associations:
     - kind: Label
       name: label_1
-    - kind: Task
-      name: task_0
-      cron: "* * * * * *"
-      query:  >
-        from(bucket: "rucket_1")
-      associations:
-        - kind: Label
-          name: label_1
-        - kind: Label
-          name: label_1
+    - kind: Label
+      name: label_1
 `,
 					},
 				},
@@ -4056,17 +3116,11 @@ spec:
 					name:           "config missing",
 					validationErrs: 1,
 					valFields:      []string{"config"},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Telegraf
+metadata:
+  name: first_tele_config
 spec:
-  resources:
-    - kind: Telegraf
-      name: tele_name
-      description: desc
 `,
 				},
 			}
@@ -4137,131 +3191,108 @@ spec:
 					name:           "name missing",
 					validationErrs: 1,
 					valFields:      []string{"name"},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Variable
+metadata:
 spec:
-  resources:
-    - kind: Variable
-      type: map
-      values:
-        k1: v1
+  description: var_map_4 desc
+  type: map
+  values:
+    k1: v1
 `,
 				},
 				{
 					name:           "map var missing values",
 					validationErrs: 1,
 					valFields:      []string{"values"},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Variable
+metadata:
+  name:  var_map_4
 spec:
-  resources:
-    - kind: Variable
-      name: var
-      type: map
+  description: var_map_4 desc
+  type: map
 `,
 				},
 				{
 					name:           "const var missing values",
 					validationErrs: 1,
 					valFields:      []string{"values"},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Variable
+metadata:
+  name:  var_const_3
 spec:
-  resources:
-    - kind: Variable
-      name: var
-      type: constant
+  description: var_const_3 desc
+  type: constant
 `,
 				},
 				{
 					name:           "query var missing query",
 					validationErrs: 1,
 					valFields:      []string{"query"},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Variable
+metadata:
+  name:  var_query_2
 spec:
-  resources:
-    - kind: Variable
-      name: var
-      type: query
-      language: influxql
+  description: var_query_2 desc
+  type: query
+  language: influxql
 `,
 				},
 				{
 					name:           "query var missing query language",
 					validationErrs: 1,
 					valFields:      []string{"language"},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Variable
+metadata:
+  name:  var_query_2
 spec:
-  resources:
-    - kind: Variable
-      name: var
-      type: query
-      query: from(v.bucket) |> count()
+  description: var_query_2 desc
+  type: query
+  query: an influxql query of sorts
 `,
 				},
 				{
 					name:           "query var provides incorrect query language",
 					validationErrs: 1,
 					valFields:      []string{"language"},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Variable
+metadata:
+  name:  var_query_2
 spec:
-  resources:
-    - kind: Variable
-      name: var
-      type: query
-      query: from(v.bucket) |> count()
-      language: wrongo language
+  description: var_query_2 desc
+  type: query
+  query: an influxql query of sorts
+  language: wrong Language
 `,
 				},
 				{
 					name:           "duplicate var names",
 					validationErrs: 1,
 					valFields:      []string{"name"},
-					pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Variable
+metadata:
+  name:  var_query_2
 spec:
-  resources:
-    - kind: Variable
-      name: var
-      type: query
-      query: from(v.bucket) |> count()
-      language: flux
-    - kind: Variable
-      name: var
-      type: query
-      query: from(v.bucket) |> mean()
-      language: flux
+  description: var_query_2 desc
+  type: query
+  query: an influxql query of sorts
+  language: influxql
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Variable
+metadata:
+  name:  var_query_2
+spec:
+  description: var_query_2 desc
+  type: query
+  query: an influxql query of sorts
+  language: influxql
 `,
 				},
 			}
@@ -4383,7 +3414,6 @@ spec:
 		}
 		assert.Equal(t, bkts, sum.Buckets)
 	})
-
 }
 
 func Test_IsParseError(t *testing.T) {
@@ -4495,12 +3525,12 @@ func Test_PkgValidationErr(t *testing.T) {
 	errs := pErr.ValidationErrs()
 	require.Len(t, errs, 2)
 	assert.Equal(t, KindDashboard.String(), errs[0].Kind)
-	assert.Equal(t, []string{"spec.resources", "charts", "colors", "hex"}, errs[0].Fields)
+	assert.Equal(t, []string{"kinds", "charts", "colors", "hex"}, errs[0].Fields)
 	compIntSlcs(t, []int{0, 1, 0}, errs[0].Indexes)
 	assert.Equal(t, "hex value required", errs[0].Reason)
 
 	assert.Equal(t, KindDashboard.String(), errs[1].Kind)
-	assert.Equal(t, []string{"spec.resources", "charts", "kind"}, errs[1].Fields)
+	assert.Equal(t, []string{"kinds", "charts", "kind"}, errs[1].Fields)
 	compIntSlcs(t, []int{0, 1}, errs[1].Indexes)
 	assert.Equal(t, "chart kind must be provided", errs[1].Reason)
 }
@@ -4631,13 +3661,11 @@ func validParsedPkg(t *testing.T, path string, encoding Encoding, expected baseA
 	pkg, err := Parse(encoding, FromFile(path))
 	require.NoError(t, err)
 
-	require.Equal(t, expected.version, pkg.APIVersion)
-	require.True(t, pkg.Kind.is(expected.kind))
-	require.Equal(t, expected.description, pkg.Metadata.Description)
-	require.Equal(t, expected.metaName, pkg.Metadata.Name)
-	require.Equal(t, expected.metaVersion, pkg.Metadata.Version)
-	require.True(t, pkg.isParsed)
+	for _, k := range pkg.Objects {
+		require.Equal(t, APIVersion, k.APIVersion)
+	}
 
+	require.True(t, pkg.isParsed)
 	return pkg
 }
 
