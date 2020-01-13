@@ -4,9 +4,16 @@ import {getDeep} from 'src/utils/wrappers'
 import {defaultBuilderConfig} from 'src/shared/utils/view'
 import {viewableLabels} from 'src/labels/selectors'
 
-import {Task, Label, Dashboard, Cell, View, Variable} from 'src/types'
+import {
+  Task,
+  Label,
+  Dashboard,
+  DashboardQuery,
+  Cell,
+  View,
+  Variable,
+} from 'src/types'
 import {TemplateType, DocumentCreate, ITemplate} from '@influxdata/influx'
-import {DashboardQuery} from 'src/types/dashboards'
 
 const CURRENT_TEMPLATE_VERSION = '1'
 

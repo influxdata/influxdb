@@ -35,7 +35,6 @@ import {
   postDashboardsCell as apiPostDashboardsCell,
   patchDashboardsCellsView as apiPatchDashboardsCellsView,
 } from 'src/client'
-import {client} from 'src/utils/api'
 import {addDashboardDefaults} from 'src/dashboards/actions'
 // Create Dashboard Templates
 

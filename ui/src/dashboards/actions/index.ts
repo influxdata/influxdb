@@ -71,7 +71,6 @@ import * as copy from 'src/shared/copy/notifications'
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
-import {CreateCell} from '@influxdata/influx'
 import {
   Dashboard,
   NewView,
@@ -81,6 +80,7 @@ import {
   DashboardTemplate,
   Label,
   RemoteDataState,
+  NewCell,
 } from 'src/types'
 import {
   Dashboard as IDashboard,
@@ -529,7 +529,7 @@ export const createCellWithView = (
       dashboard = await getDashboardAJAX(dashboardID)
     }
 
-    const cell: CreateCell = getNewDashboardCell(dashboard, clonedCell)
+    const cell: NewCell = getNewDashboardCell(dashboard, clonedCell)
 
     // Create the cell
     const createdCell = await addCellAJAX(dashboardID, cell)

@@ -319,9 +319,9 @@ http.post(
       cy.get<Bucket>('@bucket').then(bucket => {
         cy.getByTestID('flux-editor').within(() => {
           cy.get('.react-monaco-editor-container')
-          .click()
-          .focused()
-          .type(flux(bucket), {force: true, delay: 2})
+            .click()
+            .focused()
+            .type(flux(bucket), {force: true, delay: 2})
         })
       })
       cy.getByTestID('task-save-btn').click()
