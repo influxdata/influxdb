@@ -12,6 +12,7 @@ import {
   FlexBox,
   AlignItems,
   ComponentSize,
+  JustifyContent
 } from '@influxdata/clockface'
 
 // Types
@@ -53,7 +54,7 @@ class Affixes extends PureComponent<Props> {
           </Form.Element>
         </Grid.Column>
         <Grid.Column widthXS={Columns.Six}>
-          <FlexBox alignItems={AlignItems.Center} margin={ComponentSize.Small}>
+          <FlexBox alignItems={AlignItems.Center} margin={ComponentSize.Small} justifyContent={JustifyContent.SpaceAround}>
             <Toggle
               id={'prefixoptional'}
               type={InputToggleType.Checkbox}
@@ -93,7 +94,6 @@ class Affixes extends PureComponent<Props> {
   }
   private handleUpdateTickSuffix = (e: string): void => {
     const {onUpdateTickSuffix} = this.props
-    console.log(e)
     if (e === 'false' || !!!e) {
       onUpdateTickSuffix('true')
     } else {
@@ -102,8 +102,11 @@ class Affixes extends PureComponent<Props> {
   }
   private handleUpdateTickPrefix = (e: string): void => {
     const {onUpdateTickPrefix} = this.props
-    const tickPrefix = e
-    onUpdateTickPrefix(tickPrefix)
+    if (e === 'false' || !!!e) {
+      onUpdateTickPrefix('true')
+    } else {
+      onUpdateTickPrefix('false')
+    }
   }
 }
 
