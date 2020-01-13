@@ -4,9 +4,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/influxdata/influxdb/resource/noop"
+
 	"github.com/benbjohnson/clock"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/rand"
+	"github.com/influxdata/influxdb/resource"
 	"github.com/influxdata/influxdb/snowflake"
 	"go.uber.org/zap"
 )
@@ -24,6 +27,7 @@ type Service struct {
 	log    *zap.Logger
 	clock  clock.Clock
 	Config ServiceConfig
+	audit  resource.Logger
 
 	IDGenerator influxdb.IDGenerator
 
@@ -52,6 +56,7 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		TokenGenerator: rand.NewTokenGenerator(64),
 		Hash:           &Bcrypt{},
 		kv:             kv,
+		audit:          noop.ResourceLogger{},
 		TimeGenerator:  influxdb.RealTimeGenerator{},
 		checkStore:     newCheckStore(),
 		endpointStore:  newEndpointStore(),
@@ -168,6 +173,11 @@ func (s *Service) Initialize(ctx context.Context) error {
 
 		return s.initializeUsers(ctx, tx)
 	})
+}
+
+// WithResourceLogger sets the resource audit logger for the service.
+func (s *Service) WithResourceLogger(audit resource.Logger) {
+	s.audit = audit
 }
 
 // WithStore sets kv store for the service.

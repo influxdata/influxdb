@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -68,6 +69,7 @@ var (
 	OpFindBucket     = "FindBucket"
 	OpFindBuckets    = "FindBuckets"
 	OpCreateBucket   = "CreateBucket"
+	OpPutBucket      = "PutBucket"
 	OpUpdateBucket   = "UpdateBucket"
 	OpDeleteBucket   = "DeleteBucket"
 )
@@ -152,4 +154,13 @@ func (f BucketFilter) String() string {
 		parts = append(parts, "Org Name: "+*f.Org)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+func ErrInternalBucketServiceError(op string, err error) *Error {
+	return &Error{
+		Code: EInternal,
+		Msg:  fmt.Sprintf("unexpected error in buckets; Err: %v", err),
+		Op:   op,
+		Err:  err,
+	}
 }

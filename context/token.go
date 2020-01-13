@@ -57,3 +57,12 @@ func GetToken(ctx context.Context) (string, error) {
 
 	return auth.Token, nil
 }
+
+// GetUserID retrieves the user ID from the authorizer on the context.
+func GetUserID(ctx context.Context) (influxdb.ID, error) {
+	a, err := GetAuthorizer(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return a.GetUserID(), nil
+}
