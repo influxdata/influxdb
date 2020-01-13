@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, createRef} from 'react'
+import React, {PureComponent} from 'react'
 import memoizeOne from 'memoize-one'
 
 // Components
@@ -87,7 +87,7 @@ export default class DashboardCards extends PureComponent<Props> {
     }
   }
 
-  private addMore() {
+  private addMore = () => {
     if (this.state.hasMeasured) {
       return
     }
@@ -111,7 +111,7 @@ export default class DashboardCards extends PureComponent<Props> {
         {
           windowSize: this.state.windowSize + 1,
         },
-        this.addMore
+        () => { this.addMore() }
       )
     } else {
       this.setState({

@@ -9,6 +9,7 @@ import {EmptyState, ResourceList} from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
 import {getDashboardsAsync} from 'src/dashboards/actions'
+import {getLabels} from 'src/labels/actions'
 
 // Types
 import {AppState, Dashboard, RemoteDataState} from 'src/types'
@@ -35,6 +36,7 @@ interface StateProps {
 
 interface DispatchProps {
   getDashboards: typeof getDashboardsAsync
+  getLabels: typeof getLabels
 }
 
 type SortKey = keyof Dashboard | 'meta.updatedAt'
@@ -50,6 +52,7 @@ class DashboardsTable extends PureComponent<Props, State> {
 
   public componentDidMount() {
     this.props.getDashboards()
+    this.props.getLabels()
   }
 
   public render() {
@@ -165,6 +168,7 @@ const mstp = (state: AppState): StateProps => {
 
 const mdtp: DispatchProps = {
   getDashboards: getDashboardsAsync,
+  getLabels: getLabels,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
