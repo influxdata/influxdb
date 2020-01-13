@@ -19,7 +19,7 @@ fn is_sentinel_u64(v: u64) -> bool {
 /// two is determined. Leading and trailing zero bits are then analysed and
 /// representations based on those are stored.
 #[allow(dead_code)]
-pub fn encode_all(src: &mut Vec<f64>, dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
+pub fn encode_all(src: &Vec<f64>, dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.truncate(0); // reset buffer.
     if src.len() == 0 {
         return Ok(());
@@ -492,11 +492,11 @@ mod tests {
 
     #[test]
     fn encode_all_no_values() {
-        let mut src: Vec<f64> = vec![];
+        let src: Vec<f64> = vec![];
         let mut dst = vec![];
 
         // check for error
-        super::encode_all(&mut src, &mut dst).expect("failed to encode src");
+        super::encode_all(&src, &mut dst).expect("failed to encode src");
 
         // verify encoded no values.
         let exp: Vec<u8> = Vec::new();
@@ -505,7 +505,7 @@ mod tests {
 
     #[test]
     fn encode_all_special_values() {
-        let mut src: Vec<f64> = vec![
+        let src: Vec<f64> = vec![
             100.0,
             222.12,
             f64::from_bits(0x7ff8000000000001), // Go representation of signalling NaN
@@ -523,7 +523,7 @@ mod tests {
         let mut dst = vec![];
 
         // check for error
-        super::encode_all(&mut src, &mut dst).expect("failed to encode src");
+        super::encode_all(&src, &mut dst).expect("failed to encode src");
 
         let mut got = vec![];
         super::decode_all(&dst, &mut got).expect("failed to decode");
@@ -532,11 +532,7 @@ mod tests {
         assert_eq!(got.len(), src.len());
 
         for (i, v) in got.iter().enumerate() {
-            if v.is_nan() || v.is_infinite() {
-                assert_eq!(src[i].to_bits(), v.to_bits());
-            } else {
-                assert_eq!(src[i], *v);
-            }
+            assert_eq!(src[i].to_bits(), v.to_bits());
         }
     }
 
@@ -1644,14 +1640,14 @@ mod tests {
         ];
         for test in tests {
             let mut dst = vec![];
-            let mut src = test.input.clone();
-            let exp = test.input;
-            super::encode_all(&mut src, &mut dst).expect("failed to encode");
+            let src = test.input;
+
+            super::encode_all(&src, &mut dst).expect("failed to encode");
 
             let mut got = vec![];
             super::decode_all(&dst, &mut got).expect("failed to decode");
             // verify got same values back
-            assert_eq!(got, exp, "{}", test.name);
+            assert_eq!(got, src, "{}", test.name);
         }
     }
 }
