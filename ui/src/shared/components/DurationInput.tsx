@@ -19,7 +19,7 @@ type Props = {
   placeholder?: string
   submitInvalid?: boolean
   showDivider?: boolean
-  testID: string
+  testID?: string
 }
 
 const DurationInput: FC<Props> = ({
