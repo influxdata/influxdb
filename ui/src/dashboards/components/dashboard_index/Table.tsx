@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import { connect } from 'react-redux'
+import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
@@ -53,12 +53,7 @@ class DashboardsTable extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      status,
-      dashboards,
-      filterComponent,
-      onFilterChange,
-    } = this.props
+    const {status, dashboards, filterComponent, onFilterChange} = this.props
 
     const {sortKey, sortDirection, sortType} = this.state
 
@@ -66,13 +61,13 @@ class DashboardsTable extends PureComponent<Props, State> {
 
     if (status === RemoteDataState.Done && !dashboards.length) {
       body = (
-        <ResourceList.Body emptyState={ null }>
-          { this.emptyState }
+        <ResourceList.Body emptyState={null}>
+          {this.emptyState}
         </ResourceList.Body>
       )
     } else {
       body = (
-        <ResourceList.Body style={{ height: '100%' }} emptyState={ null }>
+        <ResourceList.Body style={{height: '100%'}} emptyState={null}>
           <DashboardCards
             dashboards={dashboards}
             sortKey={sortKey}
@@ -100,7 +95,7 @@ class DashboardsTable extends PureComponent<Props, State> {
             onClick={this.handleClickColumn}
           />
         </ResourceList.Header>
-        { body }
+        {body}
       </ResourceList>
     )
   }
@@ -164,12 +159,12 @@ const mstp = (state: AppState): StateProps => {
   const status = state.dashboards.status
 
   return {
-    status
+    status,
   }
 }
 
 const mdtp: DispatchProps = {
-  getDashboards: getDashboardsAsync
+  getDashboards: getDashboardsAsync,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

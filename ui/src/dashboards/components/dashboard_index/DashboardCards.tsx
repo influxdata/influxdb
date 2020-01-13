@@ -4,7 +4,7 @@ import memoizeOne from 'memoize-one'
 
 // Components
 import DashboardCard from 'src/dashboards/components/dashboard_index/DashboardCard'
-import { TechnoSpinner } from '@influxdata/clockface'
+import {TechnoSpinner} from '@influxdata/clockface'
 
 // Selectors
 import {getSortedResources, SortTypes} from 'src/shared/utils/sort'
@@ -36,7 +36,7 @@ export default class DashboardCards extends PureComponent<Props> {
     this.setState({
       hasMeasured: false,
       page: 1,
-      windowSize: 0
+      windowSize: 0,
     })
   }
 
@@ -44,15 +44,15 @@ export default class DashboardCards extends PureComponent<Props> {
     this.addMore()
   }
 
-  private registerFrame = (elem) => {
+  private registerFrame = elem => {
     this._frame = elem
   }
 
-  private registerWindow = (elem) => {
+  private registerWindow = elem => {
     this._window = elem
   }
 
-  private registerSpinner = (elem) => {
+  private registerSpinner = elem => {
     this._spinner = elem
 
     if (!elem) return
@@ -69,16 +69,20 @@ export default class DashboardCards extends PureComponent<Props> {
 
     this._observer = new IntersectionObserver(this.measure, {
       threshold,
-      rootMargin: '60px 0px'
+      rootMargin: '60px 0px',
     })
 
     this._observer.observe(this._spinner)
   }
 
-  private measure = (entries) => {
-    if (entries.map(e => e.isIntersecting).reduce((prev, curr) => prev || curr, false)) {
+  private measure = entries => {
+    if (
+      entries
+        .map(e => e.isIntersecting)
+        .reduce((prev, curr) => prev || curr, false)
+    ) {
       this.setState({
-        pages: this.state.pages + 2
+        pages: this.state.pages + 2,
       })
     }
   }
@@ -88,7 +92,10 @@ export default class DashboardCards extends PureComponent<Props> {
       return
     }
 
-    if (this.state.windowSize * this.state.pages >= this.props.dashboards.length) {
+    if (
+      this.state.windowSize * this.state.pages >=
+      this.props.dashboards.length
+    ) {
       return
     }
 
@@ -100,14 +107,17 @@ export default class DashboardCards extends PureComponent<Props> {
     const win = this._window.getBoundingClientRect()
 
     if (frame.height == win.height) {
-      this.setState({
-        windowSize: this.state.windowSize + 1
-      }, this.addMore)
+      this.setState(
+        {
+          windowSize: this.state.windowSize + 1,
+        },
+        this.addMore
+      )
     } else {
       this.setState({
         windowSize: this.state.windowSize - 2,
         pages: 3,
-        hasMeasured: true
+        hasMeasured: true,
       })
     }
   }
@@ -127,23 +137,24 @@ export default class DashboardCards extends PureComponent<Props> {
       sortType
     )
 
-    const { windowSize, pages, hasMeasured } = this.state
+    const {windowSize, pages, hasMeasured} = this.state
 
     return (
-      <div style={{ height: '100%', display: 'grid' }} ref={ this.registerFrame }>
-        <div className="dashboards-card-grid" ref={ this.registerWindow }>
-          {
-            sortedDashboards.slice(0, pages * windowSize).map(dashboard => (
-              <DashboardCard
-                key={dashboard.id}
-                dashboard={dashboard}
-                onFilterChange={onFilterChange}
-              />
-            ))
-          }
+      <div style={{height: '100%', display: 'grid'}} ref={this.registerFrame}>
+        <div className="dashboards-card-grid" ref={this.registerWindow}>
+          {sortedDashboards.slice(0, pages * windowSize).map(dashboard => (
+            <DashboardCard
+              key={dashboard.id}
+              dashboard={dashboard}
+              onFilterChange={onFilterChange}
+            />
+          ))}
         </div>
-        { hasMeasured && windowSize * pages < dashboards.length && (
-          <div style={{ height: '140px', margin: '24px auto' }} ref={ this.registerSpinner }>
+        {hasMeasured && windowSize * pages < dashboards.length && (
+          <div
+            style={{height: '140px', margin: '24px auto'}}
+            ref={this.registerSpinner}
+          >
             <TechnoSpinner />
           </div>
         )}

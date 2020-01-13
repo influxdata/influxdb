@@ -20,9 +20,7 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {extractDashboardLimits} from 'src/cloud/utils/limits'
 
 // Actions
-import {
-  createDashboard as createDashboardAction,
-} from 'src/dashboards/actions'
+import {createDashboard as createDashboardAction} from 'src/dashboards/actions'
 
 // Types
 import {AppState} from 'src/types'
@@ -59,10 +57,7 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      createDashboard,
-      limitStatus,
-    } = this.props
+    const {createDashboard, limitStatus} = this.props
     const {searchTerm} = this.state
     return (
       <>
@@ -85,25 +80,29 @@ class DashboardIndex extends PureComponent<Props, State> {
               />
             </Page.HeaderRight>
           </Page.Header>
-          <Page.Contents className="dashboards-index__page-contents" fullWidth={false} scrollable={true}>
-              <GetAssetLimits>
-                <AssetLimitAlert
-                  resourceName="dashboards"
-                  limitStatus={limitStatus}
-                />
-                <DashboardsIndexContents
-                  filterComponent={
-                    <SearchWidget
-                      placeholderText="Filter dashboards..."
-                      onSearch={this.handleFilterDashboards}
-                      searchTerm={searchTerm}
-                    />
-                  }
-                  onCreateDashboard={createDashboard}
-                  searchTerm={searchTerm}
-                  onFilterChange={this.handleFilterDashboards}
-                />
-              </GetAssetLimits>
+          <Page.Contents
+            className="dashboards-index__page-contents"
+            fullWidth={false}
+            scrollable={true}
+          >
+            <GetAssetLimits>
+              <AssetLimitAlert
+                resourceName="dashboards"
+                limitStatus={limitStatus}
+              />
+              <DashboardsIndexContents
+                filterComponent={
+                  <SearchWidget
+                    placeholderText="Filter dashboards..."
+                    onSearch={this.handleFilterDashboards}
+                    searchTerm={searchTerm}
+                  />
+                }
+                onCreateDashboard={createDashboard}
+                searchTerm={searchTerm}
+                onFilterChange={this.handleFilterDashboards}
+              />
+            </GetAssetLimits>
           </Page.Contents>
         </Page>
         {this.props.children}
