@@ -89,8 +89,8 @@ export const getActiveWindowPeriod = (state: AppState) => {
   return getWindowPeriod(text, variables)
 }
 
-const getTablesMemoized = memoizeOne(
-  (files: string[]): FluxTable[] => (files ? flatMap(files, parseResponse) : [])
+const getTablesMemoized = memoizeOne((files: string[]): FluxTable[] =>
+  files ? flatMap(files, parseResponse) : []
 )
 
 export const getTables = (state: AppState): FluxTable[] =>
@@ -328,11 +328,7 @@ export const getActiveTagValues = (
     aggregateFunctionType === 'group'
   ) {
     const values = []
-    activeQueryBuilderTags.forEach((tag, i) => {
-      // if we don't skip the current set of tags, we'll double render them at the bottom of the selector list
-      if (i === index) {
-        return
-      }
+    activeQueryBuilderTags.forEach(tag => {
       tag.values.forEach(value => {
         values.push(value)
       })
