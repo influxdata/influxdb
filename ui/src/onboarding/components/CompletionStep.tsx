@@ -31,8 +31,8 @@ import {
   Columns,
   Grid,
 } from '@influxdata/clockface'
-import {Organization} from 'src/types'
-import {Dashboard, ScraperTargetRequest} from '@influxdata/influx'
+import {Dashboard, Organization} from 'src/types'
+import {ScraperTargetRequest} from '@influxdata/influx'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 
