@@ -8,8 +8,7 @@ import {MeState} from 'src/shared/reducers/me'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
-import {PredicatesState} from 'src/types'
-import {VariablesState, VariableEditorState} from 'src/variables/reducers'
+import {PredicatesState, VariableEditorState} from 'src/types'
 import {LabelsState} from 'src/labels/reducers'
 import {
   TelegrafEditorPluginState,
@@ -61,7 +60,6 @@ export interface AppState {
   timeMachines: TimeMachinesState
   timeRange: TimeRange
   userSettings: UserSettingsState
-  variables: VariablesState
   variableEditor: VariableEditorState
   VERSION: string
   views: ViewsState

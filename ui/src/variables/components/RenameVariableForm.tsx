@@ -12,7 +12,7 @@ import {validateVariableName} from 'src/variables/utils/validation'
 import {extractVariablesList} from 'src/variables/selectors'
 
 // Actions
-import {updateVariable} from 'src/variables/actions'
+import {updateVariable} from 'src/variables/actions/thunks'
 
 // Types
 import {AppState, Variable} from 'src/types'

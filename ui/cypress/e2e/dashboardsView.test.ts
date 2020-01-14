@@ -1,4 +1,4 @@
-import {Organization} from '../../src/types'
+import {Organization, AppState} from '../../src/types'
 
 const dispatch = action =>
   cy
@@ -92,9 +92,14 @@ describe('Dashboard', () => {
       })
   })
 
-  const getSelectedVariable = (contextID: string, variableID: string) => win =>
-    win.store.getState().variables.values[contextID].values[variableID]
+  const getSelectedVariable = (
+    contextID: string,
+    variableID: string
+  ) => win => {
+    const {resources} = win.store.getState() as AppState
+    return resources.variables.values[contextID].values[variableID]
       .selectedValue
+  }
 
   it('can manage variable state with a lot of pointing and clicking', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
@@ -140,11 +145,9 @@ describe('Dashboard', () => {
           // select 1st value in cell
           dispatch({
             type: 'SELECT_VARIABLE_VALUE',
-            payload: {
-              contextID: 'veo',
-              variableID: variable.id,
-              selectedValue: firstKey,
-            },
+            contextID: 'veo',
+            variableID: variable.id,
+            selectedValue: firstKey,
           })
 
           // selected value in cell context is 1st value

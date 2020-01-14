@@ -1,4 +1,11 @@
-import {Task, Dashboard, View, Label, Variable} from 'src/types'
+import {
+  Task,
+  Dashboard,
+  View,
+  Label,
+  Variable,
+  RemoteDataState,
+} from 'src/types'
 
 export const myDashboard: Dashboard = {
   id: 'dash_1',
@@ -114,4 +121,5 @@ export const myVariable: Variable = {
     },
   },
   labels: [],
+  status: RemoteDataState.Done,
 }

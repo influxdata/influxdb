@@ -38,16 +38,13 @@ import {
   DeleteTimeRangeAction,
 } from 'src/dashboards/actions/ranges'
 import {setView, SetViewAction, setViews} from 'src/dashboards/actions/views'
-import {
-  getVariables,
-  refreshVariableValues,
-  selectValue,
-} from 'src/variables/actions'
+import {selectValue} from 'src/variables/actions/creators'
+import {getVariables, refreshVariableValues} from 'src/variables/actions/thunks'
 import {setExportTemplate} from 'src/templates/actions'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
 
 // Utils
-import {addVariableDefaults} from 'src/variables/actions'
+import {addVariableDefaults} from 'src/variables/actions/thunks'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {
   extractVariablesList,
