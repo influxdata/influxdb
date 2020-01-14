@@ -39,6 +39,7 @@ import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 // Selectors
 import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
 import {getOrg} from 'src/organizations/selectors'
+import {getByID} from 'src/resources/selectors'
 
 // Types
 import {
@@ -52,6 +53,7 @@ import {
   AutoRefreshStatus,
   Organization,
   RemoteDataState,
+  ResourceType,
 } from 'src/types'
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
@@ -299,7 +301,6 @@ class DashboardPage extends Component<Props> {
 const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
   const {
     links,
-    dashboards,
     views: {views},
     userSettings: {showVariablesControls},
     cloud: {limits},
@@ -311,7 +312,11 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
 
   const autoRefresh = state.autoRefresh[dashboardID] || AUTOREFRESH_DEFAULT
 
-  const dashboard = dashboards.list.find(d => d.id === dashboardID)
+  const dashboard = getByID<Dashboard>(
+    state,
+    ResourceType.Dashboards,
+    dashboardID
+  )
 
   const limitedResources = extractRateLimitResources(limits)
   const limitStatus = extractRateLimitStatus(limits)

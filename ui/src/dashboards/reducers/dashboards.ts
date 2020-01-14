@@ -1,8 +1,15 @@
 // Libraries
 import {produce} from 'immer'
-import _ from 'lodash'
 
 // Types
+import {
+  RemoteDataState,
+  ResourceState,
+  Dashboard,
+  ResourceType,
+} from 'src/types'
+
+// Actions
 import {
   Action,
   SET_DASHBOARD,
@@ -13,15 +20,19 @@ import {
   ADD_DASHBOARD_LABEL,
   EDIT_DASHBOARD,
 } from 'src/dashboards/actions/creators'
-import {Dashboard, RemoteDataState} from 'src/types'
 
-export interface DashboardsState {
-  list: Dashboard[]
-  status: RemoteDataState
-}
+// Utils
+import {
+  setResource,
+  removeResource,
+  editResource,
+} from 'src/resources/reducers/helpers'
+
+type DashboardsState = ResourceState['dashboards']
 
 const initialState = () => ({
-  list: [],
+  byID: {},
+  allIDs: [],
   status: RemoteDataState.NotStarted,
 })
 
@@ -32,82 +43,65 @@ export const dashboardsReducer = (
   return produce(state, draftState => {
     switch (action.type) {
       case SET_DASHBOARDS: {
-        const {list, status} = action.payload
-
-        draftState.status = status
-        if (list) {
-          draftState.list = list
-        }
+        setResource<Dashboard>(draftState, action, ResourceType.Dashboards)
 
         return
       }
 
       case REMOVE_DASHBOARD: {
-        const {id} = action.payload
-        draftState.list = draftState.list.filter(l => l.id !== id)
+        removeResource<Dashboard>(draftState, action)
 
         return
       }
 
       case SET_DASHBOARD: {
-        const {dashboard} = action.payload
-        draftState.list = _.unionBy([dashboard], state.list, 'id')
+        const {schema} = action
+        const {entities, result} = schema
+
+        draftState.byID[result] = entities.dashboards[result]
+        const exists = draftState.allIDs.find(id => id === result)
+
+        if (!exists) {
+          draftState.allIDs.push(result)
+        }
 
         return
       }
 
       case EDIT_DASHBOARD: {
-        const {dashboard} = action.payload
-
-        draftState.list = draftState.list.map(d => {
-          if (d.id === dashboard.id) {
-            return dashboard
-          }
-          return d
-        })
+        editResource<Dashboard>(draftState, action, ResourceType.Dashboards)
 
         return
       }
 
       case REMOVE_CELL: {
-        const {dashboard, cell} = action.payload
-        draftState.list = draftState.list.map(d => {
-          if (d.id === dashboard.id) {
-            const cells = d.cells.filter(c => c.id !== cell.id)
-            d.cells = cells
-          }
+        const {dashboardID, cellID} = action
 
-          return d
-        })
+        const {cells} = draftState.byID[dashboardID]
+
+        draftState.byID[dashboardID].cells = cells.filter(
+          cell => cell.id !== cellID
+        )
 
         return
       }
 
       case ADD_DASHBOARD_LABEL: {
-        const {dashboardID, label} = action.payload
+        const {dashboardID, label} = action
 
-        draftState.list = draftState.list.map(d => {
-          if (d.id === dashboardID) {
-            d.labels = [...d.labels, label]
-          }
-
-          return d
-        })
+        draftState.byID[dashboardID].labels.push(label)
 
         return
       }
 
       case REMOVE_DASHBOARD_LABEL: {
-        const {dashboardID, label} = action.payload
-        draftState.list = draftState.list.map(d => {
-          if (d.id === dashboardID) {
-            const updatedLabels = d.labels.filter(el => !(label.id === el.id))
+        const {dashboardID, labelID} = action
 
-            d.labels = updatedLabels
-          }
+        const {labels} = draftState.byID[dashboardID]
 
-          return d
-        })
+        draftState.byID[dashboardID].labels = labels.filter(
+          label => label.id !== labelID
+        )
 
         return
       }

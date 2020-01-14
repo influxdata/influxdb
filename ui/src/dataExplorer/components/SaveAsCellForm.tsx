@@ -6,6 +6,7 @@ import {get, isEmpty} from 'lodash'
 // Selectors
 import {getSaveableView} from 'src/timeMachine/selectors'
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Components
 import {Form, Input, Button, Grid} from '@influxdata/clockface'
@@ -26,7 +27,7 @@ import {postDashboard} from 'src/client'
 import {notify} from 'src/shared/actions/notifications'
 
 // Types
-import {AppState, Dashboard, View} from 'src/types'
+import {AppState, Dashboard, View, ResourceType} from 'src/types'
 import {
   Columns,
   InputType,
@@ -243,12 +244,9 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    dashboards: {list: dashboards},
-  } = state
-
   const view = getSaveableView(state)
   const org = getOrg(state)
+  const dashboards = getAll<Dashboard>(state, ResourceType.Dashboards)
 
   return {dashboards, view, orgID: get(org, 'id', '')}
 }

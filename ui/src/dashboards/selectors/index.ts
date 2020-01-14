@@ -7,6 +7,8 @@ import {
   ViewType,
   RemoteDataState,
   TimeRange,
+  ResourceType,
+  Dashboard,
 } from 'src/types'
 
 import {
@@ -17,6 +19,7 @@ import {
 
 // Constants
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
+import {getByID} from 'src/resources/selectors'
 
 export const getView = (state: AppState, id: string): View => {
   return get(state, `views.views.${id}.view`)
@@ -47,8 +50,10 @@ export const getViewsForDashboard = (
   state: AppState,
   dashboardID: string
 ): View[] => {
-  const dashboard = state.dashboards.list.find(
-    dashboard => dashboard.id === dashboardID
+  const dashboard = getByID<Dashboard>(
+    state,
+    ResourceType.Dashboards,
+    dashboardID
   )
 
   const cellIDs = new Set(dashboard.cells.map(cell => cell.id))

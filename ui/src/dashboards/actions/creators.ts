@@ -1,4 +1,6 @@
-import {Dashboard, Cell, Label, RemoteDataState} from 'src/types'
+// Types
+import {Dashboard, Label, RemoteDataState, DashboardEntities} from 'src/types'
+import {NormalizedSchema} from 'normalizr'
 
 export const SET_DASHBOARDS = 'SET_DASHBOARDS'
 export const SET_DASHBOARD = 'SET_DASHBOARD'
@@ -19,48 +21,39 @@ export type Action =
   | ReturnType<typeof addDashboardLabel>
   | ReturnType<typeof removeDashboardLabel>
 
+// R is the type of the value of the "result" key in normalizr's normalization
+type DashboardSchema<R extends string | string[]> = NormalizedSchema<
+  DashboardEntities,
+  R
+>
+
 // Action Creators
-export const editDashboard = (dashboard: Dashboard) =>
+export const editDashboard = (schema: DashboardSchema<string>) =>
   ({
     type: EDIT_DASHBOARD,
-    payload: {dashboard},
+    schema,
   } as const)
 
-export const setDashboards = (status: RemoteDataState, list?: Dashboard[]) => {
-  if (list) {
-    list = list.map(obj => {
-      if (obj.name === undefined) {
-        obj.name = ''
-      }
-      if (obj.meta === undefined) {
-        obj.meta = {}
-      }
-      if (obj.meta.updatedAt === undefined) {
-        obj.meta.updatedAt = new Date().toDateString()
-      }
-      return obj
-    })
-  }
-
-  return {
+export const setDashboards = (
+  status: RemoteDataState,
+  schema?: DashboardSchema<string[]>
+) =>
+  ({
     type: SET_DASHBOARDS,
-    payload: {
-      status,
-      list,
-    },
-  } as const
-}
+    status,
+    schema,
+  } as const)
 
-export const setDashboard = (dashboard: Dashboard) =>
+export const setDashboard = (schema: DashboardSchema<string>) =>
   ({
     type: SET_DASHBOARD,
-    payload: {dashboard},
+    schema,
   } as const)
 
 export const removeDashboard = (id: string) =>
   ({
     type: REMOVE_DASHBOARD,
-    payload: {id},
+    id,
   } as const)
 
 export const deleteDashboardFailed = (dashboard: Dashboard) =>
@@ -69,20 +62,23 @@ export const deleteDashboardFailed = (dashboard: Dashboard) =>
     payload: {dashboard},
   } as const)
 
-export const removeCell = (dashboard: Dashboard, cell: Cell) =>
+export const removeCell = (dashboardID: string, cellID: string) =>
   ({
     type: REMOVE_CELL,
-    payload: {dashboard, cell},
+    dashboardID,
+    cellID,
   } as const)
 
 export const addDashboardLabel = (dashboardID: string, label: Label) =>
   ({
     type: ADD_DASHBOARD_LABEL,
-    payload: {dashboardID, label},
+    dashboardID,
+    label,
   } as const)
 
-export const removeDashboardLabel = (dashboardID: string, label: Label) =>
+export const removeDashboardLabel = (dashboardID: string, labelID: string) =>
   ({
     type: REMOVE_DASHBOARD_LABEL,
-    payload: {dashboardID, label},
+    dashboardID,
+    labelID,
   } as const)
