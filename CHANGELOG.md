@@ -44,6 +44,7 @@
 1. [16509](https://github.com/influxdata/influxdb/pull/16509): Add support for applying an influx package via a public facing URL
 1. [16511](https://github.com/influxdata/influxdb/pull/16511): Add jsonnet support for influx packages
 1. [14782](https://github.com/influxdata/influxdb/pull/16336): Add view page for Check
+1. [16537](https://github.com/influxdata/influxdb/pull/16537): Add update password for CLI
 
 ### Bug Fixes
 
@@ -68,6 +69,7 @@
 1. [16491](https://github.com/influxdata/influxdb/pull/16491): Add missing env vals to influx cli usage and fixes precedence of flag/env var priority
 
 ### UI Improvements
+
 1. [16444](https://github.com/influxdata/influxdb/pull/16444): Add honeybadger reporting to create checks
 
 ## v2.0.0-alpha.21 [2019-12-13]

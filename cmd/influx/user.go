@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
+	input "github.com/tcnksm/go-input"
 )
 
 func cmdUser() *cobra.Command {
@@ -22,6 +24,7 @@ func cmdUser() *cobra.Command {
 		userDeleteCmd(),
 		userFindCmd(),
 		userUpdateCmd(),
+		userUpdatePasswordCmd(),
 	)
 
 	return cmd
@@ -30,6 +33,19 @@ func cmdUser() *cobra.Command {
 var userUpdateFlags struct {
 	id   string
 	name string
+}
+
+func userUpdatePasswordCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "password",
+		Short: "Update user password",
+		RunE:  wrapCheckSetup(userUpdatePasswordF),
+	}
+
+	cmd.Flags().StringVarP(&userFindFlags.id, "id", "i", "", "The user ID")
+	cmd.Flags().StringVarP(&userFindFlags.name, "name", "n", "", "The user name")
+
+	return cmd
 }
 
 func userUpdateCmd() *cobra.Command {
@@ -46,6 +62,20 @@ func userUpdateCmd() *cobra.Command {
 	return cmd
 }
 
+func newPasswordService() (platform.PasswordsService, error) {
+	if flags.local {
+		return newLocalKVService()
+	}
+
+	client, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+	return &http.PasswordService{
+		Client: client,
+	}, nil
+}
+
 func newUserService() (platform.UserService, error) {
 	if flags.local {
 		return newLocalKVService()
@@ -58,6 +88,45 @@ func newUserService() (platform.UserService, error) {
 	return &http.UserService{
 		Client: client,
 	}, nil
+}
+
+func userUpdatePasswordF(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+	us, err := newUserService()
+	if err != nil {
+		return err
+	}
+
+	filter := platform.UserFilter{}
+	if userFindFlags.name != "" {
+		filter.Name = &userFindFlags.name
+	}
+	if userFindFlags.id != "" {
+		id, err := platform.IDFromString(userFindFlags.id)
+		if err != nil {
+			return err
+		}
+		filter.ID = id
+	}
+	u, err := us.FindUser(ctx, filter)
+	if err != nil {
+		return err
+	}
+	ui := &input.UI{
+		Writer: os.Stdout,
+		Reader: os.Stdin,
+	}
+	password := getPassword(ui, true)
+
+	ps, err := newPasswordService()
+	if err != nil {
+		return err
+	}
+	if err = ps.SetPassword(ctx, u.ID, password); err != nil {
+		return err
+	}
+	fmt.Println("Your password has been successfully updated.")
+	return nil
 }
 
 func userUpdateF(cmd *cobra.Command, args []string) error {
