@@ -92,8 +92,9 @@ func TestCmdPkg(t *testing.T) {
 
 					var pkg pkger.Pkg
 					pkg.Objects = append(pkg.Objects, pkger.Object{
-						Type:     pkger.KindBucket,
-						Metadata: pkger.Metadata{Name: "bucket1"},
+						APIVersion: pkger.APIVersion,
+						Type:       pkger.KindBucket,
+						Metadata:   pkger.Metadata{Name: "bucket1"},
 					})
 					return &pkg, nil
 				},
@@ -207,8 +208,9 @@ func TestCmdPkg(t *testing.T) {
 						}
 						name := rc.Kind.String() + strconv.Itoa(int(rc.ID))
 						pkg.Objects = append(pkg.Objects, pkger.Object{
-							Type:     rc.Kind,
-							Metadata: pkger.Metadata{Name: name},
+							APIVersion: pkger.APIVersion,
+							Type:       rc.Kind,
+							Metadata:   pkger.Metadata{Name: name},
 						})
 					}
 

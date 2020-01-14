@@ -952,7 +952,7 @@ func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(r Object) 
 				Idx:  intPtr(i),
 				ValidationErrs: []validationErr{
 					{
-						Field: "kind",
+						Field: fieldKind,
 						Msg:   err.Error(),
 					},
 				},
@@ -960,6 +960,20 @@ func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(r Object) 
 			continue
 		}
 		if !k.Type.is(resourceKind) {
+			continue
+		}
+
+		if k.APIVersion != APIVersion {
+			pErr.append(resourceErr{
+				Kind: k.Type.String(),
+				Idx:  intPtr(i),
+				ValidationErrs: []validationErr{
+					{
+						Field: fieldAPIVersion,
+						Msg:   fmt.Sprintf("invalid API version provided %q; must be 1 in [%s]", k.APIVersion, APIVersion),
+					},
+				},
+			})
 			continue
 		}
 
