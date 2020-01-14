@@ -1,97 +1,32 @@
 import {Dashboard, Cell, Label, RemoteDataState} from 'src/types'
 
-export enum ActionTypes {
-  SetDashboards = 'SET_DASHBOARDS',
-  SetDashboard = 'SET_DASHBOARD',
-  RemoveDashboard = 'REMOVE_DASHBOARD',
-  DeleteDashboardFailed = 'DELETE_DASHBOARD_FAILED',
-  EditDashboard = 'EDIT_DASHBOARD',
-  RemoveCell = 'REMOVE_CELL',
-  AddDashboardLabel = 'ADD_DASHBOARD_LABEL',
-  RemoveDashboardLabel = 'REMOVE_DASHBOARD_LABEL',
-}
+export const SET_DASHBOARDS = 'SET_DASHBOARDS'
+export const SET_DASHBOARD = 'SET_DASHBOARD'
+export const REMOVE_DASHBOARD = 'REMOVE_DASHBOARD'
+export const DELETE_DASHBOARD_FAILED = 'DELETE_DASHBOARD_FAILED'
+export const EDIT_DASHBOARD = 'EDIT_DASHBOARD'
+export const REMOVE_CELL = 'REMOVE_CELL'
+export const ADD_DASHBOARD_LABEL = 'ADD_DASHBOARD_LABEL'
+export const REMOVE_DASHBOARD_LABEL = 'REMOVE_DASHBOARD_LABEL'
 
 export type Action =
-  | SetDashboardsAction
-  | RemoveDashboardAction
-  | SetDashboardAction
-  | EditDashboardAction
-  | RemoveCellAction
-  | DeleteDashboardFailedAction
-  | AddDashboardLabelAction
-  | RemoveDashboardLabelAction
-
-interface RemoveCellAction {
-  type: ActionTypes.RemoveCell
-  payload: {
-    dashboard: Dashboard
-    cell: Cell
-  }
-}
-
-interface EditDashboardAction {
-  type: ActionTypes.EditDashboard
-  payload: {
-    dashboard: Dashboard
-  }
-}
-
-interface SetDashboardsAction {
-  type: ActionTypes.SetDashboards
-  payload: {
-    status: RemoteDataState
-    list: Dashboard[]
-  }
-}
-
-interface RemoveDashboardAction {
-  type: ActionTypes.RemoveDashboard
-  payload: {
-    id: string
-  }
-}
-
-interface DeleteDashboardFailedAction {
-  type: ActionTypes.DeleteDashboardFailed
-  payload: {
-    dashboard: Dashboard
-  }
-}
-
-interface SetDashboardAction {
-  type: ActionTypes.SetDashboard
-  payload: {
-    dashboard: Dashboard
-  }
-}
-
-interface AddDashboardLabelAction {
-  type: ActionTypes.AddDashboardLabel
-  payload: {
-    dashboardID: string
-    label: Label
-  }
-}
-
-interface RemoveDashboardLabelAction {
-  type: ActionTypes.RemoveDashboardLabel
-  payload: {
-    dashboardID: string
-    label: Label
-  }
-}
+  | ReturnType<typeof setDashboards>
+  | ReturnType<typeof removeDashboard>
+  | ReturnType<typeof setDashboard>
+  | ReturnType<typeof editDashboard>
+  | ReturnType<typeof removeCell>
+  | ReturnType<typeof deleteDashboardFailed>
+  | ReturnType<typeof addDashboardLabel>
+  | ReturnType<typeof removeDashboardLabel>
 
 // Action Creators
+export const editDashboard = (dashboard: Dashboard) =>
+  ({
+    type: EDIT_DASHBOARD,
+    payload: {dashboard},
+  } as const)
 
-export const editDashboard = (dashboard: Dashboard): EditDashboardAction => ({
-  type: ActionTypes.EditDashboard,
-  payload: {dashboard},
-})
-
-export const setDashboards = (
-  status: RemoteDataState,
-  list?: Dashboard[]
-): SetDashboardsAction => {
+export const setDashboards = (status: RemoteDataState, list?: Dashboard[]) => {
   if (list) {
     list = list.map(obj => {
       if (obj.name === undefined) {
@@ -108,51 +43,46 @@ export const setDashboards = (
   }
 
   return {
-    type: ActionTypes.SetDashboards,
+    type: SET_DASHBOARDS,
     payload: {
       status,
       list,
     },
-  }
+  } as const
 }
 
-export const setDashboard = (dashboard: Dashboard): SetDashboardAction => ({
-  type: ActionTypes.SetDashboard,
-  payload: {dashboard},
-})
+export const setDashboard = (dashboard: Dashboard) =>
+  ({
+    type: SET_DASHBOARD,
+    payload: {dashboard},
+  } as const)
 
-export const removeDashboard = (id: string): RemoveDashboardAction => ({
-  type: ActionTypes.RemoveDashboard,
-  payload: {id},
-})
+export const removeDashboard = (id: string) =>
+  ({
+    type: REMOVE_DASHBOARD,
+    payload: {id},
+  } as const)
 
-export const deleteDashboardFailed = (
-  dashboard: Dashboard
-): DeleteDashboardFailedAction => ({
-  type: ActionTypes.DeleteDashboardFailed,
-  payload: {dashboard},
-})
+export const deleteDashboardFailed = (dashboard: Dashboard) =>
+  ({
+    type: DELETE_DASHBOARD_FAILED,
+    payload: {dashboard},
+  } as const)
 
-export const removeCell = (
-  dashboard: Dashboard,
-  cell: Cell
-): RemoveCellAction => ({
-  type: ActionTypes.RemoveCell,
-  payload: {dashboard, cell},
-})
+export const removeCell = (dashboard: Dashboard, cell: Cell) =>
+  ({
+    type: REMOVE_CELL,
+    payload: {dashboard, cell},
+  } as const)
 
-export const addDashboardLabel = (
-  dashboardID: string,
-  label: Label
-): AddDashboardLabelAction => ({
-  type: ActionTypes.AddDashboardLabel,
-  payload: {dashboardID, label},
-})
+export const addDashboardLabel = (dashboardID: string, label: Label) =>
+  ({
+    type: ADD_DASHBOARD_LABEL,
+    payload: {dashboardID, label},
+  } as const)
 
-export const removeDashboardLabel = (
-  dashboardID: string,
-  label: Label
-): RemoveDashboardLabelAction => ({
-  type: ActionTypes.RemoveDashboardLabel,
-  payload: {dashboardID, label},
-})
+export const removeDashboardLabel = (dashboardID: string, label: Label) =>
+  ({
+    type: REMOVE_DASHBOARD_LABEL,
+    payload: {dashboardID, label},
+  } as const)

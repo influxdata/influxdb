@@ -3,7 +3,16 @@ import {produce} from 'immer'
 import _ from 'lodash'
 
 // Types
-import {Action, ActionTypes} from 'src/dashboards/actions/creators'
+import {
+  Action,
+  SET_DASHBOARD,
+  REMOVE_DASHBOARD,
+  SET_DASHBOARDS,
+  REMOVE_CELL,
+  REMOVE_DASHBOARD_LABEL,
+  ADD_DASHBOARD_LABEL,
+  EDIT_DASHBOARD,
+} from 'src/dashboards/actions/creators'
 import {Dashboard, RemoteDataState} from 'src/types'
 
 export interface DashboardsState {
@@ -22,7 +31,7 @@ export const dashboardsReducer = (
 ): DashboardsState => {
   return produce(state, draftState => {
     switch (action.type) {
-      case ActionTypes.SetDashboards: {
+      case SET_DASHBOARDS: {
         const {list, status} = action.payload
 
         draftState.status = status
@@ -33,21 +42,21 @@ export const dashboardsReducer = (
         return
       }
 
-      case ActionTypes.RemoveDashboard: {
+      case REMOVE_DASHBOARD: {
         const {id} = action.payload
         draftState.list = draftState.list.filter(l => l.id !== id)
 
         return
       }
 
-      case ActionTypes.SetDashboard: {
+      case SET_DASHBOARD: {
         const {dashboard} = action.payload
         draftState.list = _.unionBy([dashboard], state.list, 'id')
 
         return
       }
 
-      case ActionTypes.EditDashboard: {
+      case EDIT_DASHBOARD: {
         const {dashboard} = action.payload
 
         draftState.list = draftState.list.map(d => {
@@ -60,7 +69,7 @@ export const dashboardsReducer = (
         return
       }
 
-      case ActionTypes.RemoveCell: {
+      case REMOVE_CELL: {
         const {dashboard, cell} = action.payload
         draftState.list = draftState.list.map(d => {
           if (d.id === dashboard.id) {
@@ -74,7 +83,7 @@ export const dashboardsReducer = (
         return
       }
 
-      case ActionTypes.AddDashboardLabel: {
+      case ADD_DASHBOARD_LABEL: {
         const {dashboardID, label} = action.payload
 
         draftState.list = draftState.list.map(d => {
@@ -88,7 +97,7 @@ export const dashboardsReducer = (
         return
       }
 
-      case ActionTypes.RemoveDashboardLabel: {
+      case REMOVE_DASHBOARD_LABEL: {
         const {dashboardID, label} = action.payload
         draftState.list = draftState.list.map(d => {
           if (d.id === dashboardID) {
