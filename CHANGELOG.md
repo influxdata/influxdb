@@ -5,12 +5,12 @@ v1.8.0 [unreleased]
 
 -	[#14315](https://github.com/influxdata/influxdb/pull/14315): Update to go 1.12.7
 -	[#15222](https://github.com/influxdata/influxdb/pull/15222): Add options to authenticate pprof and ping endpoints.
-- [#16524](https://github.com/influxdata/influxdb/pull/16524): Upgrade compaction error log from `Info` to `Warn`.
 
 ### Bugfixes
 
 -	[#10503](https://github.com/influxdata/influxdb/pull/10503): Delete rebuilds series index when series to be deleted are only found in cache.
 -	[#10504](https://github.com/influxdata/influxdb/issue/10504): Delete rebuilds series index when series to be deleted are outside timerange.
+- [#16524](https://github.com/influxdata/influxdb/pull/16524): Upgrade compaction error log from `Info` to `Warn`.
 
 v1.7.0 [unreleased]
 -------------------
