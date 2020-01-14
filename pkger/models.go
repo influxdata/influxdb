@@ -767,6 +767,7 @@ type SummaryVariable struct {
 }
 
 const (
+	fieldAPIVersion   = "apiVersion"
 	fieldAssociations = "associations"
 	fieldDescription  = "description"
 	fieldEvery        = "every"
