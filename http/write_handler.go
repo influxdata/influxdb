@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"time"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
@@ -68,6 +67,10 @@ type WriteHandler struct {
 	EventRecorder metric.EventRecorder
 
 	maxBatchSizeBytes int64
+	parserOptions     []models.ParserOption
+	parserMaxBytes    int
+	parserMaxLines    int
+	parserMaxValues   int
 }
 
 // WriteHandlerOption is a functional option for a *WriteHandler
@@ -78,6 +81,30 @@ type WriteHandlerOption func(*WriteHandler)
 func WithMaxBatchSizeBytes(n int64) WriteHandlerOption {
 	return func(w *WriteHandler) {
 		w.maxBatchSizeBytes = n
+	}
+}
+
+// WithParserMaxBytes specifies the maximum number of bytes that may be allocated when processing a single
+// write request. When n is zero, there is no limit.
+func WithParserMaxBytes(n int) WriteHandlerOption {
+	return func(w *WriteHandler) {
+		w.parserMaxBytes = n
+	}
+}
+
+// WithParserMaxLines specifies the maximum number of lines that may be parsed when processing a single
+// write request. When n is zero, there is no limit.
+func WithParserMaxLines(n int) WriteHandlerOption {
+	return func(w *WriteHandler) {
+		w.parserMaxLines = n
+	}
+}
+
+// WithParserMaxValues specifies the maximum number of values that may be parsed when processing a single
+// write request. When n is zero, there is no limit.
+func WithParserMaxValues(n int) WriteHandlerOption {
+	return func(w *WriteHandler) {
+		w.parserMaxValues = n
 	}
 }
 
@@ -107,6 +134,17 @@ func NewWriteHandler(log *zap.Logger, b *WriteBackend, opts ...WriteHandlerOptio
 
 	for _, opt := range opts {
 		opt(h)
+	}
+
+	// cache configured options
+	if h.parserMaxBytes > 0 {
+		h.parserOptions = append(h.parserOptions, models.WithParserMaxBytes(h.parserMaxBytes))
+	}
+	if h.parserMaxLines > 0 {
+		h.parserOptions = append(h.parserOptions, models.WithParserMaxLines(h.parserMaxLines))
+	}
+	if h.parserMaxValues > 0 {
+		h.parserOptions = append(h.parserOptions, models.WithParserMaxValues(h.parserMaxValues))
 	}
 
 	h.HandlerFunc("POST", prefixWrite, h.handleWrite)
@@ -235,12 +273,31 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	span, _ = tracing.StartSpanFromContextWithOperationName(ctx, "encoding and parsing")
 	encoded := tsdb.EncodeName(org.ID, bucket.ID)
 	mm := models.EscapeMeasurement(encoded[:])
-	points, err := models.ParsePointsWithPrecision(data, mm, time.Now(), req.Precision)
+
+	var options []models.ParserOption
+	if len(h.parserOptions) > 0 {
+		options = make([]models.ParserOption, 0, len(h.parserOptions)+1)
+		options = append(options, h.parserOptions...)
+	}
+
+	if req.Precision != nil {
+		options = append(options, req.Precision)
+	}
+
+	points, err := models.ParsePointsWithOptions(data, mm, options...)
 	span.LogKV("values_total", len(points))
 	span.Finish()
 	if err != nil {
 		log.Error("Error parsing points", zap.Error(err))
-		handleError(err, influxdb.EInvalid, "")
+
+		code := influxdb.EInvalid
+		if errors.Is(err, models.ErrLimitMaxBytesExceeded) ||
+			errors.Is(err, models.ErrLimitMaxLinesExceeded) ||
+			errors.Is(err, models.ErrLimitMaxValuesExceeded) {
+			code = influxdb.ETooLarge
+		}
+
+		handleError(err, code, "")
 		return
 	}
 
@@ -268,10 +325,15 @@ func decodeWriteRequest(ctx context.Context, r *http.Request) (*postWriteRequest
 		}
 	}
 
+	var precision models.ParserOption
+	if p != "ns" {
+		precision = models.WithParserPrecision(p)
+	}
+
 	return &postWriteRequest{
 		Bucket:    qp.Get("bucket"),
 		Org:       qp.Get("org"),
-		Precision: p,
+		Precision: precision,
 	}, nil
 }
 
@@ -311,7 +373,7 @@ func readWriteRequest(ctx context.Context, rc io.ReadCloser, encoding string, ma
 type postWriteRequest struct {
 	Org       string
 	Bucket    string
-	Precision string
+	Precision models.ParserOption
 }
 
 // WriteService sends data over HTTP to influxdb via line protocol.

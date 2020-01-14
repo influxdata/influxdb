@@ -31,6 +31,18 @@ type APIBackend struct {
 	// in a single points batch
 	MaxBatchSizeBytes int64
 
+	// WriteParserMaxBytes specifies the maximum number of bytes that may be allocated when processing a single
+	// write request. A value of zero specifies there is no limit.
+	WriteParserMaxBytes int
+
+	// WriteParserMaxLines specifies the maximum number of lines that may be parsed when processing a single
+	// write request. A value of zero specifies there is no limit.
+	WriteParserMaxLines int
+
+	// WriteParserMaxValues specifies the maximum number of values that may be parsed when processing a single
+	// write request. A value of zero specifies there is no limit.
+	WriteParserMaxValues int
+
 	NewBucketService func(*influxdb.Source) (influxdb.BucketService, error)
 	NewQueryService  func(*influxdb.Source) (query.ProxyQueryService, error)
 
@@ -202,7 +214,12 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h.Mount(prefixVariables, NewVariableHandler(b.Logger, variableBackend))
 
 	writeBackend := NewWriteBackend(b.Logger.With(zap.String("handler", "write")), b)
-	h.Mount(prefixWrite, NewWriteHandler(b.Logger, writeBackend, WithMaxBatchSizeBytes(b.MaxBatchSizeBytes)))
+	h.Mount(prefixWrite, NewWriteHandler(b.Logger, writeBackend,
+		WithMaxBatchSizeBytes(b.MaxBatchSizeBytes),
+		WithParserMaxBytes(b.WriteParserMaxBytes),
+		WithParserMaxLines(b.WriteParserMaxLines),
+		WithParserMaxValues(b.WriteParserMaxValues),
+	))
 
 	for _, o := range opts {
 		o(h)
