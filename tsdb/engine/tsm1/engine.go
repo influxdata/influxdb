@@ -2206,7 +2206,7 @@ func (s *compactionStrategy) compactGroup() {
 			return
 		}
 
-		log.Info("Error compacting TSM files", zap.Error(err))
+		log.Warn("Error compacting TSM files", zap.Error(err))
 
 		// We hit a bad TSM file - rename so the next compaction can proceed.
 		if _, ok := err.(errBlockRead); ok {
