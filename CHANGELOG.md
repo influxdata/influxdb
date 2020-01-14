@@ -1,5 +1,9 @@
 ## v2.0.0-beta.2 [Unreleased]
 
+### Bug Fixes
+
+1. [16527](https://github.com/influxdata/influxdb/pull/16527): fix /telegrafs panics when using org=org_name parameter
+
 ### UI Improvements
 
 1. [16203](https://github.com/influxdata/influxdb/pull/16203): Move cloud navigation to top of page instead of within left side navigation
