@@ -39,6 +39,7 @@
 1. [16469](https://github.com/influxdata/influxdb/pull/16469): Add support for configurable max batch size in points write handler
 1. [16509](https://github.com/influxdata/influxdb/pull/16509): Add support for applying an influx package via a public facing URL
 1. [16511](https://github.com/influxdata/influxdb/pull/16511): Add jsonnet support for influx packages
+1. [14782](https://github.com/influxdata/influxdb/pull/16336): Add view page for Check
 
 ### Bug Fixes
 
