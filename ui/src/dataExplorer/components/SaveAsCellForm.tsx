@@ -22,7 +22,7 @@ import {
 
 // Actions
 import {getDashboardsAsync, createCellWithView} from 'src/dashboards/actions'
-import {createDashboard} from 'src/dashboards/apis'
+import {postDashboard} from 'src/client'
 import {notify} from 'src/shared/actions/notifications'
 
 // Types
@@ -199,8 +199,14 @@ class SaveAsCellForm extends PureComponent<Props, State> {
         name: dashboardName || DEFAULT_DASHBOARD_NAME,
         cells: [],
       }
-      const dashboard = await createDashboard(newDashboard)
-      onCreateCellWithView(dashboard.id, view)
+
+      const resp = await postDashboard({data: newDashboard})
+
+      if (resp.status !== 201) {
+        throw new Error(resp.data.message)
+      }
+
+      onCreateCellWithView(resp.data.id, view)
     } catch (error) {
       console.error(error)
     }

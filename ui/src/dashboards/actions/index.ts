@@ -620,8 +620,10 @@ export const updateCellsAsync = (dashboard: Dashboard, cells: Cell[]) => async (
   dispatch: Dispatch<Action>
 ): Promise<void> => {
   try {
-
-    const resp = await api.putDashboardsCells({dashboardID: dashboard.id, data: cells})
+    const resp = await api.putDashboardsCells({
+      dashboardID: dashboard.id,
+      data: cells,
+    })
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
@@ -741,7 +743,14 @@ export const convertToTemplate = (dashboardID: string) => async (
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
     const org = getOrg(getState())
-    const dashboard = await dashAPI.getDashboard(dashboardID)
+
+    const dashResp = await api.getDashboard({dashboardID})
+
+    if (dashResp.status !== 200) {
+      throw new Error(dashResp.data.message)
+    }
+
+    const dashboard = addDashboardDefaults(dashResp.data)
     const pendingViews = dashboard.cells.map(c =>
       dashAPI.getView(dashboardID, c.id)
     )
