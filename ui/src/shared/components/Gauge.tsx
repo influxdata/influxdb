@@ -281,7 +281,8 @@ class Gauge extends Component<Props> {
     minValue,
     maxValue
   ) => {
-    let {tickPrefix, prefix, tickSuffix, suffix, decimalPlaces} = this.props
+    const {tickPrefix, tickSuffix, decimalPlaces} = this.props
+    let {prefix, suffix} = this.props 
     const {degree, lineCount, labelColor, labelFontSize} = GAUGE_SPECS
 
     const tickValues = [

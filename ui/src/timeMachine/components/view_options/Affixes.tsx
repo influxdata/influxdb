@@ -56,7 +56,7 @@ class Affixes extends PureComponent<Props> {
         <Grid.Column widthXS={Columns.Six}>
           <FlexBox alignItems={AlignItems.Center} margin={ComponentSize.Small} justifyContent={JustifyContent.SpaceAround}>
             <Toggle
-              id={'prefixoptional'}
+              id='prefixoptional'
               type={InputToggleType.Checkbox}
               value={tickPrefix}
               onChange={this.handleUpdateTickPrefix}
@@ -68,7 +68,7 @@ class Affixes extends PureComponent<Props> {
         <Grid.Column widthXS={Columns.Six}>
           <FlexBox alignItems={AlignItems.Center} margin={ComponentSize.Small}>
             <Toggle
-              id={'suffixoptional'}
+              id='suffixoptional'
               type={InputToggleType.Checkbox}
               value={tickSuffix}
               onChange={this.handleUpdateTickSuffix}

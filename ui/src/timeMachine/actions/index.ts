@@ -67,7 +67,9 @@ export type Action =
   | SetYAxisBase
   | SetYAxisScale
   | SetPrefix
+  | SetTickPrefix
   | SetSuffix
+  | SetTickSuffix
   | SetActiveQueryIndexAction
   | AddQueryAction
   | RemoveQueryAction
