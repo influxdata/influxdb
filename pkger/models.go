@@ -50,7 +50,6 @@ var kinds = map[Kind]bool{
 	KindNotificationEndpointPagerDuty: true,
 	KindNotificationEndpointSlack:     true,
 	KindNotificationRule:              true,
-	KindPackage:                       true,
 	KindTask:                          true,
 	KindTelegraf:                      true,
 	KindVariable:                      true,

@@ -36,6 +36,7 @@ type cmdPkgBuilder struct {
 
 	svcFn pkgSVCsFn
 
+	encoding        string
 	file            string
 	hasColor        bool
 	hasTableBorders bool
@@ -90,14 +91,13 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd := b.newCmd("pkg", b.pkgApplyRunEFn)
 	cmd.Short = "Apply a pkg to create resources"
 
+	b.org.register(cmd, false)
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Path to package file")
 	cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet")
+	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
 	cmd.Flags().StringVarP(&b.applyOpts.url, "url", "u", "", "URL to retrieve a package.")
-
-	b.org.register(cmd, false)
-
 	cmd.Flags().BoolVarP(&b.hasColor, "color", "c", true, "Enable color in output, defaults true")
 	cmd.Flags().BoolVar(&b.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
 
@@ -132,7 +132,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(*cobra.Command, []string) error {
 		isTTY bool
 	)
 	if b.applyOpts.url != "" {
-		pkg, err = pkger.Parse(pkger.EncodingSource, pkger.FromHTTPRequest(b.applyOpts.url))
+		pkg, err = pkger.Parse(b.applyEncoding(), pkger.FromHTTPRequest(b.applyOpts.url))
 	} else {
 		pkg, isTTY, err = b.readPkgStdInOrFile(b.file)
 	}
@@ -342,6 +342,7 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 	cmd := b.newCmd("validate", runE)
 	cmd.Short = "Validate the provided package"
 
+	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "input file for pkg; if none provided will use TTY input")
 
 	return cmd
@@ -368,7 +369,7 @@ func (b *cmdPkgBuilder) writePkg(w io.Writer, pkgSVC pkger.SVC, outPath string, 
 
 func (b *cmdPkgBuilder) readPkgStdInOrFile(file string) (*pkger.Pkg, bool, error) {
 	if file != "" {
-		pkg, err := pkgFromFile(file)
+		pkg, err := pkger.Parse(b.applyEncoding(), pkger.FromFile(file))
 		return pkg, false, err
 	}
 
@@ -378,7 +379,7 @@ func (b *cmdPkgBuilder) readPkgStdInOrFile(file string) (*pkger.Pkg, bool, error
 		isTTY = true
 	}
 
-	pkg, err := pkger.Parse(pkger.EncodingSource, pkger.FromReader(b.in))
+	pkg, err := pkger.Parse(b.applyEncoding(), pkger.FromReader(b.in))
 	return pkg, isTTY, err
 }
 
@@ -413,6 +414,20 @@ func (b *cmdPkgBuilder) readLines(r io.Reader) ([]string, error) {
 		stdinInput = append(stdinInput, string(trimmed))
 	}
 	return stdinInput, nil
+}
+
+func (b *cmdPkgBuilder) applyEncoding() pkger.Encoding {
+	ext := filepath.Ext(b.file)
+	switch {
+	case ext == ".json" || b.encoding == "json":
+		return pkger.EncodingJSON
+	case ext == ".yml" || ext == ".yaml" || b.encoding == "yml" || b.encoding == "yaml":
+		return pkger.EncodingYAML
+	case ext == ".jsonnet" || b.encoding == "jsonnet":
+		return pkger.EncodingJsonnet
+	default:
+		return pkger.EncodingSource
+	}
 }
 
 func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn, error) {
@@ -483,22 +498,6 @@ func newPkgerSVC() (pkger.SVC, influxdb.OrganizationService, error) {
 	}
 
 	return &ihttp.PkgerService{Client: httpClient}, orgSvc, nil
-}
-
-func pkgFromFile(path string) (*pkger.Pkg, error) {
-	var enc pkger.Encoding
-	switch ext := filepath.Ext(path); ext {
-	case ".yaml", ".yml":
-		enc = pkger.EncodingYAML
-	case ".json":
-		enc = pkger.EncodingJSON
-	case ".jsonnet":
-		enc = pkger.EncodingJsonnet
-	default:
-		return nil, errors.New("file provided must be one of yaml/yml/json extension but got: " + ext)
-	}
-
-	return pkger.Parse(enc, pkger.FromFile(path))
 }
 
 func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {

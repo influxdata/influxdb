@@ -162,7 +162,7 @@ func parseSource(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {
 		strings.Contains(contentType, "yml"):
 		return parseYAML(bytes.NewReader(b), opts...)
 	default:
-		return parseJsonnet(bytes.NewReader(b), opts...)
+		return parseYAML(bytes.NewReader(b), opts...)
 	}
 }
 
