@@ -80,7 +80,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 	// state is the internal state of org and bucket services
 	type state struct {
 		org       *influxdb.Organization // org to return in org service
-		orgErr    error                  // err to return in org servce
+		orgErr    error                  // err to return in org service
 		bucket    *influxdb.Bucket       // bucket to return in bucket service
 		bucketErr error                  // err to return in bucket service
 		writeErr  error                  // err to return from the points writer
@@ -272,6 +272,60 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 			wants: wants{
 				code: 413,
 				body: `{"code":"request too large","message":"unable to read data: points batch is too large"}`,
+			},
+		},
+		{
+			name: "bytes limit rejected",
+			request: request{
+				org:    "043e0780ee2b1000",
+				bucket: "04504b356e23b000",
+				body:   "m1,t1=v1 f1=1",
+				auth:   bucketWritePermission("043e0780ee2b1000", "04504b356e23b000"),
+			},
+			state: state{
+				org:    testOrg("043e0780ee2b1000"),
+				bucket: testBucket("043e0780ee2b1000", "04504b356e23b000"),
+				opts:   []WriteHandlerOption{WithParserMaxBytes(5)},
+			},
+			wants: wants{
+				code: 413,
+				body: `{"code":"request too large","message":"points: number of allocated bytes exceeded"}`,
+			},
+		},
+		{
+			name: "lines limit rejected",
+			request: request{
+				org:    "043e0780ee2b1000",
+				bucket: "04504b356e23b000",
+				body:   "m1,t1=v1 f1=1\nm1,t1=v1 f1=1\nm1,t1=v1 f1=1\n",
+				auth:   bucketWritePermission("043e0780ee2b1000", "04504b356e23b000"),
+			},
+			state: state{
+				org:    testOrg("043e0780ee2b1000"),
+				bucket: testBucket("043e0780ee2b1000", "04504b356e23b000"),
+				opts:   []WriteHandlerOption{WithParserMaxLines(2)},
+			},
+			wants: wants{
+				code: 413,
+				body: `{"code":"request too large","message":"points: number of lines exceeded"}`,
+			},
+		},
+		{
+			name: "values limit rejected",
+			request: request{
+				org:    "043e0780ee2b1000",
+				bucket: "04504b356e23b000",
+				body:   "m1,t1=v1 f1=1,f2=2\nm1,t1=v1 f1=1,f2=2\nm1,t1=v1 f1=1,f2=2\n",
+				auth:   bucketWritePermission("043e0780ee2b1000", "04504b356e23b000"),
+			},
+			state: state{
+				org:    testOrg("043e0780ee2b1000"),
+				bucket: testBucket("043e0780ee2b1000", "04504b356e23b000"),
+				opts:   []WriteHandlerOption{WithParserMaxValues(4)},
+			},
+			wants: wants{
+				code: 413,
+				body: `{"code":"request too large","message":"points: number of values exceeded"}`,
 			},
 		},
 	}
