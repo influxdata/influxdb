@@ -621,17 +621,16 @@ func predicatePopTagEscape(series []byte) (tag, value []byte, rest []byte) {
 	for j := uint(0); j < uint(len(series)); {
 		i := bytes.IndexByte(series[j:], ',')
 		if i < 0 {
-			break
+			break // this is the last tag pair
 		}
-		ui := uint(i)
 
-		if ui > 0 && ui-1 < uint(len(series)) && series[ui-1] == '\\' {
+		ui := uint(i) + j                   // make index relative to full series slice
+		if ui > 0 && series[ui-1] == '\\' { // the comma is escaped
 			j = ui + 1
 			continue
 		}
 
-		idx := ui + j
-		series, rest = series[:idx], series[idx+1:]
+		series, rest = series[:ui], series[ui+1:]
 		break
 	}
 
@@ -639,17 +638,15 @@ func predicatePopTagEscape(series []byte) (tag, value []byte, rest []byte) {
 	for j := uint(0); j < uint(len(series)); {
 		i := bytes.IndexByte(series[j:], '=')
 		if i < 0 {
-			break
+			break // there is no tag value
 		}
-		ui := uint(i)
-
-		if ui > 0 && ui-1 < uint(len(series)) && series[ui-1] == '\\' {
+		ui := uint(i) + j                   // make index relative to full series slice
+		if ui > 0 && series[ui-1] == '\\' { // the equals is escaped
 			j = ui + 1
 			continue
 		}
 
-		idx := ui + j
-		tag, value = series[:idx], series[idx+1:]
+		tag, value = series[:ui], series[ui+1:]
 		break
 	}
 

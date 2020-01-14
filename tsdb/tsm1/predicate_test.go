@@ -8,6 +8,35 @@ import (
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 )
 
+func TestPredicatePopTagEscape(t *testing.T) {
+	cases := []struct {
+		Key   string
+		Tag   string
+		Value string
+		Rest  string
+	}{
+		{Key: "", Tag: "", Value: "", Rest: ""},
+		{Key: "invalid", Tag: "", Value: "", Rest: ""},
+		{Key: "region=west,server=b,foo=bar", Tag: "region", Value: "west", Rest: "server=b,foo=bar"},
+		{Key: "region=west", Tag: "region", Value: "west", Rest: ""},
+		{Key: `re\=gion=west,server=a`, Tag: `re=gion`, Value: "west", Rest: "server=a"},
+		{Key: `region=w\,est,server=a`, Tag: `region`, Value: "w,est", Rest: "server=a"},
+		{Key: `hi\ yo\ =w\,est,server=a`, Tag: `hi yo `, Value: "w,est", Rest: "server=a"},
+		{Key: `\ e\ \=o=world,server=a`, Tag: ` e =o`, Value: "world", Rest: "server=a"},
+	}
+
+	for _, c := range cases {
+		tag, value, rest := predicatePopTagEscape([]byte(c.Key))
+		if string(tag) != c.Tag {
+			t.Fatalf("got returned tag %q expected %q", tag, c.Tag)
+		} else if string(value) != c.Value {
+			t.Fatalf("got returned value %q expected %q", value, c.Value)
+		} else if string(rest) != c.Rest {
+			t.Fatalf("got returned remainder %q expected %q", rest, c.Rest)
+		}
+	}
+}
+
 func TestPredicate_Matches(t *testing.T) {
 	cases := []struct {
 		Name      string
