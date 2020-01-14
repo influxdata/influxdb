@@ -164,7 +164,6 @@ func assignRangeThreshold(r Resource, rangeThreshold icheck.Range) {
 	r[fieldMax] = rangeThreshold.Max
 	r[fieldMin] = rangeThreshold.Min
 }
-
 func convertCellView(cell influxdb.Cell) chart {
 	var name string
 	if cell.View != nil {
@@ -351,7 +350,8 @@ func convertQueries(iQueries []influxdb.DashboardQuery) queries {
 	return out
 }
 
-func dashboardToResource(dash influxdb.Dashboard, name string) Resource {
+// DashboardToResource converts an influxdb.Dashboard to a pkger.Resource.
+func DashboardToResource(dash influxdb.Dashboard, name string) Resource {
 	if name == "" {
 		name = dash.Name
 	}
@@ -540,7 +540,8 @@ func telegrafToResource(t influxdb.TelegrafConfig, name string) Resource {
 	return r
 }
 
-func variableToResource(v influxdb.Variable, name string) Resource {
+// VariableToResource converts an influxdb.Variable to a pkger.Resource.
+func VariableToResource(v influxdb.Variable, name string) Resource {
 	if name == "" {
 		name = v.Name
 	}

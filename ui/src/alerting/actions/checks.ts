@@ -13,6 +13,10 @@ import * as api from 'src/client'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {incrementCloneName} from 'src/utils/naming'
 import {reportError} from 'src/shared/utils/errors'
+import {isDurationParseable} from 'src/shared/utils/duration'
+import {checkThresholdsValid} from '../utils/checkValidate'
+import {createView} from 'src/shared/utils/view'
+import {getOrg} from 'src/organizations/selectors'
 
 // Actions
 import {
@@ -43,10 +47,6 @@ import {
   ThresholdCheck,
   DeadmanCheck,
 } from 'src/types'
-
-// Utils
-import {createView} from 'src/shared/utils/view'
-import {getOrg} from 'src/organizations/selectors'
 
 export type Action =
   | ReturnType<typeof setAllChecks>
@@ -187,6 +187,7 @@ export const saveCheckFromTimeMachine = () => async (
         tags,
         thresholds,
       } as ThresholdCheck
+      checkThresholdsValid(thresholds)
     } else if (check.type === 'deadman') {
       check = {
         ...check,
@@ -199,6 +200,16 @@ export const saveCheckFromTimeMachine = () => async (
         tags,
         timeSince,
       } as DeadmanCheck
+      if (!isDurationParseable(timeSince) || !isDurationParseable(staleTime)) {
+        throw new Error('Duration fields must contain valid duration')
+      }
+    }
+
+    if (!isDurationParseable(offset)) {
+      throw new Error('Check offset must be a valid duration')
+    }
+    if (!isDurationParseable(every)) {
+      throw new Error('Check every must be a valid duration')
     }
 
     const resp = check.id

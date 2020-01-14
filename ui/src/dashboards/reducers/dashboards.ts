@@ -74,12 +74,12 @@ export const dashboardsReducer = (
         return
       }
 
-      case ActionTypes.AddDashboardLabels: {
-        const {dashboardID, labels} = action.payload
+      case ActionTypes.AddDashboardLabel: {
+        const {dashboardID, label} = action.payload
 
         draftState.list = draftState.list.map(d => {
           if (d.id === dashboardID) {
-            d.labels = [...d.labels, ...labels]
+            d.labels = [...d.labels, label]
           }
 
           return d
@@ -88,15 +88,11 @@ export const dashboardsReducer = (
         return
       }
 
-      case ActionTypes.RemoveDashboardLabels: {
-        const {dashboardID, labels} = action.payload
+      case ActionTypes.RemoveDashboardLabel: {
+        const {dashboardID, label} = action.payload
         draftState.list = draftState.list.map(d => {
           if (d.id === dashboardID) {
-            const updatedLabels = d.labels.filter(el => {
-              const labelToRemove = labels.find(l => l.id === el.id)
-
-              return !labelToRemove
-            })
+            const updatedLabels = d.labels.filter(el => !(label.id === el.id))
 
             d.labels = updatedLabels
           }

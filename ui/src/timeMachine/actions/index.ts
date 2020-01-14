@@ -9,7 +9,7 @@ import {
   reloadTagSelectors,
   Action as QueryBuilderAction,
 } from 'src/timeMachine/actions/queryBuilder'
-import {setValues} from 'src/variables/actions'
+import {setValues} from 'src/variables/actions/creators'
 import {convertCheckToCustom} from 'src/alerting/actions/alertBuilder'
 
 // Selectors
@@ -658,7 +658,11 @@ export const loadNewVEO = (dashboardID: string) => (
     })
   )
 
-  const values = get(getState(), `variables.values.${dashboardID}.values`, {})
+  const values = get(
+    state,
+    `resources.variables.values.${dashboardID}.values`,
+    {}
+  )
 
   if (!isEmpty(values)) {
     dispatch(setValues('veo', RemoteDataState.Done, values))

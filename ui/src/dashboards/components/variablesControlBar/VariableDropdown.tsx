@@ -25,11 +25,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSelectValue: (
-    contextID: string,
-    variableID: string,
-    value: string
-  ) => Promise<void>
+  onSelectValue: typeof selectVariableValue
 }
 
 interface OwnProps {
@@ -114,7 +110,7 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
 }
 
 const mdtp = {
-  onSelectValue: selectVariableValue as any,
+  onSelectValue: selectVariableValue,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

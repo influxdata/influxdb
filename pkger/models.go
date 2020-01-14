@@ -1321,7 +1321,7 @@ func (l *label) toInfluxLabel() influxdb.Label {
 }
 
 func toSummaryLabels(labels ...*label) []SummaryLabel {
-	var iLabels []SummaryLabel
+	iLabels := make([]SummaryLabel, 0, len(labels))
 	for _, l := range labels {
 		iLabels = append(iLabels, l.summarize())
 	}
@@ -2545,8 +2545,8 @@ func (q queries) influxDashQueries() []influxdb.DashboardQuery {
 			Text:     qq.Query,
 			EditMode: "advanced",
 		}
-		// TODO: axe thsi buidler configs when issue https://github.com/influxdata/influxdb/issues/15708 is fixed up
-		newQuery.BuilderConfig.Tags = append(newQuery.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement"))
+		// TODO: axe this builder configs when issue https://github.com/influxdata/influxdb/issues/15708 is fixed up
+		newQuery.BuilderConfig.Tags = append(newQuery.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", ""))
 		iQueries = append(iQueries, newQuery)
 	}
 	return iQueries

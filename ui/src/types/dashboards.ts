@@ -9,6 +9,7 @@ import {
   RenamableField,
   BuilderConfig,
 } from 'src/client'
+import {Label} from 'src/types'
 
 export type FieldOption = RenamableField
 
@@ -38,6 +39,7 @@ export type NewCell = Omit<Cell, 'id' | 'links' | 'dashboardID'>
 
 export interface Dashboard extends Omit<GenDashboard, 'cells'> {
   cells: Cell[]
+  labels: Label[]
 }
 
 export type Base = Axis['base']

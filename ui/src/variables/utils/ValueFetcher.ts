@@ -8,8 +8,7 @@ import {parseResponse} from 'src/shared/parsing/flux/response'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 
 // Types
-import {VariableAssignment} from 'src/types/ast'
-import {VariableValues, FluxColumnType} from 'src/variables/types'
+import {VariableAssignment, VariableValues, FluxColumnType} from 'src/types'
 import {CancelBox} from 'src/types/promises'
 
 const cacheKey = (

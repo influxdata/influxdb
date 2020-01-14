@@ -1,27 +1,11 @@
 import React, {PureComponent} from 'react'
-import Loadable from 'react-loadable'
 
 // Components
 import MapVariableBuilder from 'src/variables/components/MapVariableBuilder'
 import CSVVariableBuilder from 'src/variables/components/CSVVariableBuilder'
 import {Form, Grid} from '@influxdata/clockface'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
-const spinner = <div />
-
-const FluxEditor = Loadable({
-  loader: () => import('src/shared/components/FluxEditor'),
-  loading() {
-    return spinner
-  },
-})
-
-const FluxMonacoEditor = Loadable({
-  loader: () => import('src/shared/components/FluxMonacoEditor'),
-  loading() {
-    return spinner
-  },
-})
+import FluxEditor from 'src/shared/components/FluxMonacoEditor'
 
 // Types
 import {KeyValueMap, VariableProperties} from 'src/types'
@@ -42,20 +26,10 @@ class VariableArgumentsEditor extends PureComponent<Props> {
           <Form.Element label="Script">
             <Grid.Column>
               <div className="overlay-flux-editor">
-                <FeatureFlag name="monacoEditor">
-                  <FluxMonacoEditor
-                    script={args.values.query}
-                    onChangeScript={this.handleChangeQuery}
-                  />
-                </FeatureFlag>
-                <FeatureFlag name="monacoEditor" equals={false}>
-                  <FluxEditor
-                    script={args.values.query}
-                    onChangeScript={this.handleChangeQuery}
-                    visibility="visible"
-                    suggestions={[]}
-                  />
-                </FeatureFlag>
+                <FluxEditor
+                  script={args.values.query}
+                  onChangeScript={this.handleChangeQuery}
+                />
               </div>
             </Grid.Column>
           </Form.Element>

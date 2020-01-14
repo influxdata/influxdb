@@ -19,9 +19,12 @@ describe('Variables', () => {
 
     cy.getByInputName('name').type('Little Variable')
     cy.getByTestID('flux-editor').within(() => {
-      cy.get('textarea').type('filter(fn: (r) => r._field == "cpu")', {
-        force: true,
-      })
+      cy.get('.react-monaco-editor-container')
+        .click()
+        .focused()
+        .type('filter(fn: (r) => r._field == "cpu")', {
+          force: true,
+        })
     })
 
     cy.get('form')

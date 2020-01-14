@@ -158,6 +158,7 @@ message Query {
 	Range Range               = 7; // Range is the upper and lower bound of the Y-Axis
 	string Source             = 8; // Source is the optional URI to the data source
 	repeated TimeShift Shifts = 9; // TimeShift represents a shift to apply to an influxql query's time range
+  string Type               = 10;
 }
 
 message TimeShift {

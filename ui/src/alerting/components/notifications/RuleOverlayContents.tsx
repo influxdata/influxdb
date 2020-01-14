@@ -40,6 +40,15 @@ const RuleOverlayContents: FC<Props> = ({saveButtonText, onSave}) => {
     })
   }
 
+  const handleChangeParameter = (key: keyof NotificationRuleDraft) => (
+    value: string
+  ) => {
+    dispatch({
+      type: 'UPDATE_RULE',
+      rule: {...rule, [key]: value} as NotificationRuleDraft,
+    })
+  }
+
   return (
     <Grid>
       <Form>
@@ -57,7 +66,7 @@ const RuleOverlayContents: FC<Props> = ({saveButtonText, onSave}) => {
                     onChange={handleChange}
                   />
                 </Form.Element>
-                <RuleSchedule rule={rule} onChange={handleChange} />
+                <RuleSchedule rule={rule} onChange={handleChangeParameter} />
               </Panel.Body>
             </Panel>
           </Grid.Column>

@@ -1,63 +1,111 @@
-import React, {PureComponent} from 'react'
+// Libraries
+import React, {FC} from 'react'
+import {Link} from 'react-router'
+import {connect} from 'react-redux'
 
 // Components
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
-import {NavMenu, Icon} from '@influxdata/clockface'
-import CloudOnly from 'src/shared/components/cloud/CloudOnly'
+import {
+  AppHeader,
+  PopNav,
+  Button,
+  ComponentColor,
+  FlexBox,
+  FlexDirection,
+  ComponentSize,
+} from '@influxdata/clockface'
+
+// Constants
 import {
   CLOUD_URL,
   CLOUD_USAGE_PATH,
   CLOUD_BILLING_PATH,
+  CLOUD_SIGNOUT_URL,
 } from 'src/shared/constants'
 
 // Types
-import {IconFont} from '@influxdata/clockface'
+import {AppState, Organization} from 'src/types'
 
-export default class CloudNav extends PureComponent {
-  render() {
+// Images
+import Logo from '../images/influxdata-logo.png'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
+interface StateProps {
+  org: Organization
+}
+
+const CloudNav: FC<StateProps> = ({org}) => {
+  const usageURL = `${CLOUD_URL}${CLOUD_USAGE_PATH}`
+  const billingURL = `${CLOUD_URL}${CLOUD_BILLING_PATH}`
+  const handleUpgradeClick = () => {
+    window.location.assign(billingURL)
+  }
+
+  if (!org) {
     return (
-      <CloudOnly>
-        <NavMenu.Item
-          active={false}
-          titleLink={className => (
-            <a className={className} href={this.usageURL}>
-              Usage
-            </a>
-          )}
-          iconLink={className => (
-            <a className={className} href={this.usageURL}>
-              <Icon glyph={IconFont.Cloud} />
-            </a>
-          )}
-        >
+      <AppHeader className="cloud-nav">
+        <AppHeader.Logo>
+          <img className="cloud-nav--logo" alt="InfluxData Logo" src={Logo} />
+        </AppHeader.Logo>
+      </AppHeader>
+    )
+  }
+
+  return (
+    <AppHeader className="cloud-nav">
+      <AppHeader.Logo>
+        <Link to={`/orgs/${org.id}`} className="cloud-nav--logo-link">
+          <img className="cloud-nav--logo" alt="InfluxData Logo" src={Logo} />
+        </Link>
+      </AppHeader.Logo>
+      <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Medium}>
+        <Button
+          color={ComponentColor.Success}
+          text="Upgrade"
+          onClick={handleUpgradeClick}
+          className="upgrade-payg--button"
+        />
+        <PopNav>
+          <p className="cloud-nav--account">
+            Logged in as <strong>{org.name}</strong>
+          </p>
+          <PopNav.Item
+            active={false}
+            titleLink={className => (
+              <a className={className} href={usageURL}>
+                Usage
+              </a>
+            )}
+          />
           <FeatureFlag name="cloudBilling">
-            <NavMenu.SubItem
+            <PopNav.Item
               active={false}
               titleLink={className => (
-                <a className={className} href={this.usageURL}>
-                  Usage
-                </a>
-              )}
-            />
-            <NavMenu.SubItem
-              active={false}
-              titleLink={className => (
-                <a className={className} href={this.billingURL}>
+                <a className={className} href={billingURL}>
                   Billing
                 </a>
               )}
             />
           </FeatureFlag>
-        </NavMenu.Item>
-      </CloudOnly>
-    )
-  }
-
-  private get usageURL(): string {
-    return `${CLOUD_URL}${CLOUD_USAGE_PATH}`
-  }
-
-  private get billingURL(): string {
-    return `${CLOUD_URL}${CLOUD_BILLING_PATH}`
-  }
+          <PopNav.Item
+            active={false}
+            titleLink={className => (
+              <a className={className} href={CLOUD_SIGNOUT_URL}>
+                Logout
+              </a>
+            )}
+          />
+        </PopNav>
+      </FlexBox>
+    </AppHeader>
+  )
 }
+
+const mstp = (state: AppState) => {
+  const org = getOrg(state)
+  return {org}
+}
+
+export default connect<StateProps>(mstp)(CloudNav)

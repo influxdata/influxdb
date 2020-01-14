@@ -5,6 +5,8 @@ import {shallow} from 'enzyme'
 // Components
 import {VariableFormContext} from 'src/variables/components/VariableFormContext'
 
+jest.mock('src/shared/components/FluxMonacoEditor', () => () => null)
+
 const setup = (override?) => {
   const actions = {
     name: jest.fn(),

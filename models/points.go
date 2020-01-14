@@ -241,9 +241,6 @@ type point struct {
 	// text encoding of field data
 	fields []byte
 
-	// text encoding of timestamp
-	ts []byte
-
 	// cached version of parsed fields from data
 	cachedFields map[string]interface{}
 
@@ -358,10 +355,10 @@ func ValidPrecision(precision string) bool {
 	}
 }
 
-// ParsePointsWithPrecisionV1 is similar to ParsePointsWithPrecision but does
-// not rewrite the measurement & field keys.
-func ParsePointsWithPrecisionV1(buf []byte, mm []byte, defaultTime time.Time, precision string) (_ []Point, err error) {
-	return parsePointsWithPrecision(buf, mm, defaultTime, precision, false)
+func ParsePointsWithOptions(buf []byte, mm []byte, opts ...ParserOption) (_ []Point, err error) {
+	pp := newPointsParser(mm, opts...)
+	err = pp.parsePoints(buf)
+	return pp.points, err
 }
 
 // ParsePointsWithPrecision is similar to ParsePoints, but allows the
@@ -370,168 +367,9 @@ func ParsePointsWithPrecisionV1(buf []byte, mm []byte, defaultTime time.Time, pr
 // NOTE: to minimize heap allocations, the returned Points will refer to subslices of buf.
 // This can have the unintended effect preventing buf from being garbage collected.
 func ParsePointsWithPrecision(buf []byte, mm []byte, defaultTime time.Time, precision string) (_ []Point, err error) {
-	return parsePointsWithPrecision(buf, mm, defaultTime, precision, true)
-}
-
-func parsePointsWithPrecision(buf []byte, mm []byte, defaultTime time.Time, precision string, rewrite bool) (_ []Point, err error) {
-	points := make([]Point, 0, bytes.Count(buf, []byte{'\n'})+1)
-	var (
-		pos    int
-		block  []byte
-		failed []string
-	)
-	for pos < len(buf) {
-		pos, block = scanLine(buf, pos)
-		pos++
-
-		if len(block) == 0 {
-			continue
-		}
-
-		// lines which start with '#' are comments
-		start := skipWhitespace(block, 0)
-
-		// If line is all whitespace, just skip it
-		if start >= len(block) {
-			continue
-		}
-
-		if block[start] == '#' {
-			continue
-		}
-
-		// strip the newline if one is present
-		if block[len(block)-1] == '\n' {
-			block = block[:len(block)-1]
-		}
-
-		points, err = parsePointsAppend(points, block[start:], mm, defaultTime, precision, rewrite)
-		if err != nil {
-			failed = append(failed, fmt.Sprintf("unable to parse '%s': %v", string(block[start:]), err))
-		}
-	}
-	if len(failed) > 0 {
-		return points, fmt.Errorf("%s", strings.Join(failed, "\n"))
-	}
-
-	return points, nil
-}
-
-func parsePointsAppend(points []Point, buf []byte, mm []byte, defaultTime time.Time, precision string, rewrite bool) ([]Point, error) {
-	// scan the first block which is measurement[,tag1=value1,tag2=value=2...]
-	pos, key, err := scanKey(buf, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	// measurement name is required
-	if len(key) == 0 {
-		return points, fmt.Errorf("missing measurement")
-	}
-
-	if len(key) > MaxKeyLength {
-		return points, fmt.Errorf("max key length exceeded: %v > %v", len(key), MaxKeyLength)
-	}
-
-	// Since the measurement is converted to a tag and measurements & tags have
-	// different escaping rules, we need to check if the measurement needs escaping.
-	_, i, _ := scanMeasurement(key, 0)
-	keyMeasurement := key[:i-1]
-	if rewrite && bytes.IndexByte(keyMeasurement, '=') != -1 {
-		escapedKeyMeasurement := bytes.Replace(keyMeasurement, []byte("="), []byte(`\=`), -1)
-
-		newKey := make([]byte, len(escapedKeyMeasurement)+(len(key)-len(keyMeasurement)))
-		copy(newKey, escapedKeyMeasurement)
-		copy(newKey[len(escapedKeyMeasurement):], key[len(keyMeasurement):])
-		key = newKey
-	}
-
-	// scan the second block is which is field1=value1[,field2=value2,...]
-	// at least one field is required
-	pos, fields, err := scanFields(buf, pos)
-	if err != nil {
-		return points, err
-	} else if len(fields) == 0 {
-		return points, fmt.Errorf("missing fields")
-	}
-
-	// scan the last block which is an optional integer timestamp
-	pos, ts, err := scanTime(buf, pos)
-	if err != nil {
-		return points, err
-	}
-
-	// Build point with timestamp only.
-	pt := point{ts: ts}
-
-	if len(ts) == 0 {
-		pt.time = defaultTime
-		pt.SetPrecision(precision)
-	} else {
-		ts, err := parseIntBytes(ts, 10, 64)
-		if err != nil {
-			return points, err
-		}
-		pt.time, err = SafeCalcTime(ts, precision)
-		if err != nil {
-			return points, err
-		}
-
-		// Determine if there are illegal non-whitespace characters after the
-		// timestamp block.
-		for pos < len(buf) {
-			if buf[pos] != ' ' {
-				return points, ErrInvalidPoint
-			}
-			pos++
-		}
-	}
-
-	// Loop over fields and split points while validating field.
-	var maxKeyErr error
-	if err := walkFields(fields, func(k, v, fieldBuf []byte) bool {
-		newKey := key
-
-		// Build new key with measurement & field as keys.
-		if rewrite {
-			newKey = newV2Key(key, mm, k)
-			if sz := seriesKeySizeV2(key, mm, k); sz > MaxKeyLength {
-				maxKeyErr = fmt.Errorf("max key length exceeded: %v > %v", sz, MaxKeyLength)
-				return false
-			}
-		}
-
-		other := pt
-		other.key = newKey
-		other.fields = fieldBuf
-		points = append(points, &other)
-
-		return true
-	}); err != nil {
-		return points, err
-	} else if maxKeyErr != nil {
-		return points, maxKeyErr
-	}
-
-	return points, nil
-}
-
-// newV2Key returns a new key by converting the old measurement & field into keys.
-func newV2Key(oldKey, mm, field []byte) []byte {
-	newKey := make([]byte, len(mm)+1+len(MeasurementTagKey)+1+len(oldKey)+1+len(FieldKeyTagKey)+1+len(field))
-	buf := newKey
-
-	copy(buf, mm)
-	buf = buf[len(mm):]
-
-	buf[0], buf[1], buf[2], buf = ',', MeasurementTagKeyBytes[0], '=', buf[3:]
-	copy(buf, oldKey)
-	buf = buf[len(oldKey):]
-
-	buf[0], buf[1], buf[2], buf = ',', FieldKeyTagKeyBytes[0], '=', buf[3:]
-	copy(buf, field)
-
-	return newKey
+	pp := newPointsParser(mm, WithParserDefaultTime(defaultTime), WithParserPrecision(precision))
+	err = pp.parsePoints(buf)
+	return pp.points, err
 }
 
 // GetPrecisionMultiplier will return a multiplier for the precision specified.

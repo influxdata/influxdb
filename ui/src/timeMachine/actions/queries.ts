@@ -11,11 +11,8 @@ import {
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Actions
-import {
-  refreshVariableValues,
-  selectValue,
-  setValues,
-} from 'src/variables/actions'
+import {selectValue, setValues} from 'src/variables/actions/creators'
+import {refreshVariableValues} from 'src/variables/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 
 // Constants
@@ -81,7 +78,11 @@ export const refreshTimeMachineVariableValues = (
   const contextID = state.timeMachines.activeTimeMachineID
 
   if (prevContextID) {
-    const values = get(state, `variables.values.${prevContextID}.values`) || {}
+    const values = get(
+      state,
+      `resources.variables.values.${prevContextID}.values`,
+      {}
+    )
     if (!isEmpty(values)) {
       dispatch(setValues(contextID, RemoteDataState.Done, values))
       return

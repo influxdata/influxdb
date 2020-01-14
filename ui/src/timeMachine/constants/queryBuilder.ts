@@ -16,6 +16,21 @@ export const DURATIONS = [
   {duration: '30d', displayText: 'Every 30 days'},
 ]
 
+export const DURATION_STRINGS = [
+  '5s',
+  '15s',
+  '1m',
+  '5m',
+  '15m',
+  '1h',
+  '6h',
+  '12h',
+  '24h',
+  '2d',
+  '7d',
+  '30d',
+]
+
 export interface QueryFn {
   name: string
   flux: (period?: string) => string

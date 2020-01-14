@@ -7,7 +7,7 @@ import VariableDropdown from 'src/dashboards/components/variablesControlBar/Vari
 
 // Utils
 import {renderWithRedux} from 'src/mockState'
-import {AppState} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 
 const values = {
   def: 'defbuck',
@@ -17,14 +17,16 @@ const values = {
   new: 'newBuck',
 }
 
-const setInitialState = (state: AppState) => {
+const setInitialState = (state: AppState): AppState => {
   return {
     ...state,
-    variables: {
-      status: 'Done',
+    resources: {
+      ...state.resources,
       variables: {
-        '03cbdc8a53a63000': {
-          variable: {
+        allIDs: ['03cbdc8a53a63000'],
+        status: RemoteDataState.Done,
+        byID: {
+          '03cbdc8a53a63000': {
             id: '03cbdc8a53a63000',
             orgID: '03c02466515c1000',
             name: 'map_buckets',
@@ -35,21 +37,21 @@ const setInitialState = (state: AppState) => {
               values,
             },
             labels: [],
+            status: RemoteDataState.Done,
           },
-          status: 'Done',
         },
-      },
-      values: {
-        '03c8070355fbd000': {
-          status: 'Done',
-          values: {
-            '03cbdc8a53a63000': {
-              valueType: 'string',
-              values: Object.values(values),
-              selectedValue: 'defbuck',
+        values: {
+          '03c8070355fbd000': {
+            status: RemoteDataState.Done,
+            values: {
+              '03cbdc8a53a63000': {
+                valueType: 'string',
+                values: Object.values(values),
+                selectedValue: 'defbuck',
+              },
             },
+            order: ['03cbdc8a53a63000'],
           },
-          order: ['03cbdc8a53a63000'],
         },
       },
     },

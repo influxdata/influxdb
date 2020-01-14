@@ -12,7 +12,7 @@ import {invalidJSON} from 'src/shared/copy/notifications'
 import {
   createVariableFromTemplate as createVariableFromTemplateAction,
   getVariables as getVariablesAction,
-} from 'src/variables/actions'
+} from 'src/variables/actions/thunks'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types

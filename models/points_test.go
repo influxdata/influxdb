@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"math/rand"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -13,7 +15,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 var (
@@ -293,6 +297,7 @@ func BenchmarkParsePointsTagsSorted5(b *testing.B) {
 }
 
 func BenchmarkParsePointsTagsSorted10(b *testing.B) {
+	b.ReportAllocs()
 	line := `cpu,env=prod,host=serverA,region=us-west,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5,target=servers,zone=1c value=1i 1000000000`
 	for i := 0; i < b.N; i++ {
 		models.ParsePoints([]byte(line), []byte("mm"))
@@ -2368,6 +2373,105 @@ cpu value=2i 2000000000`
 	}
 }
 
+func mustReadTestData(tb testing.TB, name string, repeat int) []byte {
+	tb.Helper()
+	filename := filepath.Join("testdata", name)
+	d, err := ioutil.ReadFile(filename)
+	if err != nil {
+		tb.Fatalf("error reading file %q: %v", filename, err)
+	}
+	var buf []byte
+	for i := 0; i < repeat; i++ {
+		buf = append(buf, d...)
+	}
+	return buf
+}
+
+func TestParsePointsWithOptions(t *testing.T) {
+	tests := []struct {
+		name string
+		file string
+		opts []models.ParserOption
+		exp  error
+	}{
+		{
+			name: "lines are limited",
+			file: "line-protocol.txt",
+			opts: []models.ParserOption{models.WithParserMaxLines(10)},
+			exp:  models.ErrLimitMaxLinesExceeded,
+		},
+		{
+			name: "lines are not limited with large value",
+			file: "line-protocol.txt",
+			opts: []models.ParserOption{models.WithParserMaxLines(1000)},
+			exp:  nil,
+		},
+		{
+			name: "lines are not limited",
+			file: "line-protocol.txt",
+			opts: []models.ParserOption{},
+			exp:  nil,
+		},
+
+		{
+			name: "values are limited",
+			file: "line-protocol.txt",
+			opts: []models.ParserOption{models.WithParserMaxValues(10)},
+			exp:  models.ErrLimitMaxValuesExceeded,
+		},
+		{
+			name: "values are not limited with large value",
+			file: "line-protocol.txt",
+			opts: []models.ParserOption{models.WithParserMaxValues(1000)},
+			exp:  nil,
+		},
+		{
+			name: "values are not limited",
+			file: "line-protocol.txt",
+			opts: []models.ParserOption{},
+			exp:  nil,
+		},
+
+		{
+			name: "bytes are limited",
+			file: "line-protocol.txt",
+			opts: []models.ParserOption{models.WithParserMaxBytes(10)},
+			exp:  models.ErrLimitMaxBytesExceeded,
+		},
+		{
+			name: "bytes are not limited with large value",
+			file: "line-protocol.txt",
+			opts: []models.ParserOption{models.WithParserMaxBytes(500000)},
+			exp:  nil,
+		},
+		{
+			name: "bytes are not limited",
+			file: "line-protocol.txt",
+			opts: []models.ParserOption{},
+			exp:  nil,
+		},
+	}
+
+	cmpopt := cmp.Transformer("error", func(e error) string {
+		return e.Error()
+	})
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			buf := mustReadTestData(t, test.file, 1)
+			encoded := tsdb.EncodeName(influxdb.ID(1000), influxdb.ID(2000))
+			mm := models.EscapeMeasurement(encoded[:])
+
+			var stats models.ParserStats
+			opts := append(test.opts, models.WithParserStats(&stats))
+			_, got := models.ParsePointsWithOptions(buf, mm, opts...)
+			if !cmp.Equal(got, test.exp, cmpopt) {
+				t.Errorf("unexpected error; -got/+exp\n%s", cmp.Diff(got, test.exp, cmpopt))
+			}
+		})
+	}
+}
+
 func TestNewPointsWithBytesWithCorruptData(t *testing.T) {
 	corrupted := []byte{0, 0, 0, 3, 102, 111, 111, 0, 0, 0, 4, 61, 34, 65, 34, 1, 0, 0, 0, 14, 206, 86, 119, 24, 32, 72, 233, 168, 2, 148}
 	p, err := models.NewPointFromBytes(corrupted)
@@ -2878,4 +2982,66 @@ func BenchmarkNewTagsKeyValues(b *testing.B) {
 			}
 		})
 	})
+}
+
+func benchParseFile(b *testing.B, name string, repeat int, fn func(b *testing.B, buf []byte, mm []byte, now time.Time)) {
+	b.Helper()
+	buf := mustReadTestData(b, name, repeat)
+	encoded := tsdb.EncodeName(influxdb.ID(1000), influxdb.ID(2000))
+	mm := models.EscapeMeasurement(encoded[:])
+	now := time.Now()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.SetBytes(int64(len(buf)))
+
+	fn(b, buf, mm, now)
+}
+
+func BenchmarkParsePointsWithPrecision(b *testing.B) {
+	cases := []struct {
+		name   string
+		repeat int
+	}{
+		{"line-protocol.txt", 1},
+		{"line-protocol.txt", 315},
+	}
+
+	for _, tc := range cases {
+		b.Run(fmt.Sprintf("%s/%d", tc.name, tc.repeat), func(b *testing.B) {
+			benchParseFile(b, tc.name, tc.repeat, func(b *testing.B, buf []byte, mm []byte, now time.Time) {
+				for i := 0; i < b.N; i++ {
+					pts, err := models.ParsePointsWithPrecision(buf, mm, now, "ns")
+					if err != nil {
+						b.Errorf("error parsing points: %v", err)
+					}
+					_ = pts
+				}
+			})
+		})
+	}
+}
+
+func BenchmarkParsePointsWithOptions(b *testing.B) {
+	cases := []struct {
+		name   string
+		repeat int
+	}{
+		{"line-protocol.txt", 1},
+		{"line-protocol.txt", 315},
+	}
+
+	for _, tc := range cases {
+		b.Run(fmt.Sprintf("%s/%d", tc.name, tc.repeat), func(b *testing.B) {
+			benchParseFile(b, tc.name, tc.repeat, func(b *testing.B, buf []byte, mm []byte, now time.Time) {
+				for i := 0; i < b.N; i++ {
+					pts, err := models.ParsePointsWithOptions(buf, mm)
+					if err != nil {
+						b.Errorf("error parsing points: %v", err)
+					}
+					_ = pts
+				}
+			})
+		})
+	}
 }
