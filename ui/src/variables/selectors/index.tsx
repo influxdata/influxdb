@@ -30,7 +30,7 @@ type ValuesState = ResourceState['variables']['values']['contextID']
 const extractVariablesListMemoized = memoizeOne(
   (variablesState: VariablesState): Variable[] => {
     return Object.values(variablesState).filter(
-      d => d.status === RemoteDataState.Done
+      v => v.status === RemoteDataState.Done
     )
   }
 )

@@ -27,9 +27,8 @@ export const addResource = <R>(
   resource: ResourceType
 ) => {
   const {result, entities} = action.schema
-  const r = entities[resource][result]
 
-  draftState.byID[result] = r
+  draftState.byID[result] = entities[resource][result]
   draftState.allIDs.push(result)
 }
 
@@ -40,8 +39,7 @@ export const editResource = <R>(
 ) => {
   const {entities, result} = action.schema
 
-  const r = entities[resource][result]
-  draftState.byID[result] = r
+  draftState.byID[result] = entities[resource][result]
 }
 
 interface RemoveAction {
