@@ -1,5 +1,5 @@
 // Libraries
-import React, {useState, FC} from 'react'
+import React, {useState, useEffect, FC} from 'react'
 import {
   Input,
   ComponentStatus,
@@ -20,6 +20,7 @@ type Props = {
   submitInvalid?: boolean
   showDivider?: boolean
   testID?: string
+  validFunction?: (input: string) => boolean
 }
 
 const DurationInput: FC<Props> = ({
@@ -30,14 +31,17 @@ const DurationInput: FC<Props> = ({
   submitInvalid = true,
   showDivider = true,
   testID = 'duration-input',
+  validFunction = _ => false,
 }) => {
   const [isFocused, setIsFocused] = useState(false)
 
   const [inputValue, setInputValue] = useState(value)
 
-  const inputStatus = isDurationParseable(inputValue)
-    ? ComponentStatus.Default
-    : ComponentStatus.Error
+  useEffect(() => {
+    if (value != inputValue) {
+      setInputValue(value)
+    }
+  }, [value])
 
   const handleClickSuggestion = (suggestion: string) => {
     setInputValue(suggestion)
@@ -56,9 +60,16 @@ const DurationInput: FC<Props> = ({
     }
   }
 
+  const isValid = (i: string): boolean =>
+    isDurationParseable(i) || validFunction(i)
+
+  const inputStatus = isValid(inputValue)
+    ? ComponentStatus.Default
+    : ComponentStatus.Error
+
   const onChange = (i: string) => {
     setInputValue(i)
-    if (submitInvalid || (!submitInvalid && isDurationParseable(i))) {
+    if (submitInvalid || (!submitInvalid && isValid(i))) {
       onSubmit(i)
     }
   }
