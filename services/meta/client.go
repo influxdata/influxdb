@@ -932,12 +932,7 @@ func (c *Client) DropSubscription(database, rp, name string) error {
 func (c *Client) SetData(data *Data) error {
 	c.mu.Lock()
 
-	// reset the index so the commit will fire a change event
-	c.cacheData.Index = 0
-
-	// increment the index to force the changed channel to fire
 	d := data.Clone()
-	d.Index++
 
 	if err := c.commit(d); err != nil {
 		return err
