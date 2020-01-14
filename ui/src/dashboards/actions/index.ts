@@ -261,8 +261,13 @@ export const createDashboard = () => async (
       orgID: org.id,
     }
 
-    const data = await dashAPI.createDashboard(newDashboard)
-    dispatch(push(`/orgs/${org.id}/dashboards/${data.id}`))
+    const resp = await api.postDashboard({data: newDashboard})
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(push(`/orgs/${org.id}/dashboards/${resp.data.id}`))
     dispatch(checkDashboardLimits())
   } catch (error) {
     console.error(error)
@@ -278,15 +283,17 @@ export const createDashboard = () => async (
 export const cloneUtilFunc = async (dash: Dashboard, id: string) => {
   const cells = dash.cells
   const pendingViews = cells.map(cell =>
-    api.getDashboardsCellsView({
-      dashboardID: dash.id,
-      cellID: cell.id,
-    }).then(res => {
-      return {
-        ...res,
+    api
+      .getDashboardsCellsView({
+        dashboardID: dash.id,
         cellID: cell.id,
-      }
-    })
+      })
+      .then(res => {
+        return {
+          ...res,
+          cellID: cell.id,
+        }
+      })
   )
   const views = await Promise.all(pendingViews)
 
@@ -385,15 +392,20 @@ export const cloneDashboard = (dashboard: Dashboard) => async (
 export const getDashboardsAsync = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
-): Promise<Dashboard[]> => {
+): Promise<void> => {
   try {
     const org = getOrg(getState())
 
     dispatch(setDashboards(RemoteDataState.Loading))
-    const dashboards = await dashAPI.getDashboards(org.id)
-    dispatch(setDashboards(RemoteDataState.Done, dashboards))
+    const resp = await api.getDashboards({query: {orgID: org.id}})
 
-    return dashboards
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const dashboards = resp.data.dashboards.map(addDashboardDefaults)
+
+    dispatch(setDashboards(RemoteDataState.Done, dashboards))
   } catch (error) {
     dispatch(setDashboards(RemoteDataState.Error))
     console.error(error)
@@ -409,7 +421,13 @@ export const createDashboardFromTemplate = (
 
     await tempAPI.createDashboardFromTemplate(template, org.id)
 
-    const dashboards = await dashAPI.getDashboards(org.id)
+    const resp = await api.getDashboards({query: {orgID: org.id}})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const dashboards = resp.data.dashboards.map(addDashboardDefaults)
 
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
     dispatch(notify(copy.importDashboardSucceeded()))
@@ -430,7 +448,12 @@ export const deleteDashboardAsync = (dashboard: Dashboard) => async (
   dispatch(deleteTimeRange(dashboard.id))
 
   try {
-    await dashAPI.deleteDashboard(dashboard)
+    const resp = await api.deleteDashboard({dashboardID: dashboard.id})
+
+    if (resp.data !== 204) {
+      throw new Error(resp.data.message)
+    }
+
     dispatch(notify(copy.dashboardDeleted(dashboard.name)))
     dispatch(checkDashboardLimits())
   } catch (error) {
@@ -458,10 +481,16 @@ export const getDashboardAsync = (dashboardID: string) => async (
 ): Promise<void> => {
   try {
     // Fetch the dashboard and all variables a user has access to
-    const [dashboard] = await Promise.all([
-      dashAPI.getDashboard(dashboardID),
+    const [resp] = await Promise.all([
+      api.getDashboard({dashboardID}),
       dispatch(getVariables()),
     ])
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const dashboard = addDashboardDefaults(resp.data)
 
     // Fetch all the views in use on the dashboard
     const views = await Promise.all(
@@ -488,7 +517,17 @@ export const updateDashboardAsync = (dashboard: Dashboard) => async (
   dispatch: Dispatch<Action | PublishNotificationAction>
 ): Promise<void> => {
   try {
-    const updatedDashboard = await dashAPI.updateDashboard(dashboard)
+    const resp = await api.patchDashboard({
+      dashboardID: dashboard.id,
+      data: dashboard,
+    })
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const updatedDashboard = addDashboardDefaults(resp.data)
+
     dispatch(editDashboard(updatedDashboard))
   } catch (error) {
     console.error(error)
@@ -504,14 +543,26 @@ export const createCellWithView = (
   try {
     const state = getState()
     let dashboard = state.dashboards.list.find(d => d.id === dashboardID)
+
     if (!dashboard) {
-      dashboard = await dashAPI.getDashboard(dashboardID)
+      const resp = await api.getDashboard({dashboardID})
+      if (resp.status !== 200) {
+        throw new Error(resp.data.message)
+      }
+
+      dashboard = addDashboardDefaults(dashboard)
     }
 
     const cell: NewCell = getNewDashboardCell(dashboard, clonedCell)
 
     // Create the cell
-    const createdCell = await dashAPI.addCell(dashboardID, cell)
+    const cellResp = await api.postDashboardsCell({dashboardID, data: cell})
+
+    if (cellResp.status !== 201) {
+      throw new Error(cellResp.data.message)
+    }
+
+    const createdCell = cellResp.data
 
     // Create the view and associate it with the cell
     const newView = await dashAPI.updateView(dashboardID, createdCell.id, view)
@@ -519,10 +570,16 @@ export const createCellWithView = (
     // Update the dashboard with the new cell
     let updatedDashboard: Dashboard = {
       ...dashboard,
-      cells: [...dashboard.cells, createdCell],
+      cells: [...dashboard.cells, {...cellResp.data, dashboardID}],
     }
 
-    updatedDashboard = await dashAPI.updateDashboard(dashboard)
+    const resp = await api.patchDashboard({dashboardID, data: dashboard})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    updatedDashboard = addDashboardDefaults(updatedDashboard)
 
     // Refresh variables in use on dashboard
     const views = [...getViewsForDashboard(state, dashboard.id), newView]
@@ -563,7 +620,14 @@ export const updateCellsAsync = (dashboard: Dashboard, cells: Cell[]) => async (
   dispatch: Dispatch<Action>
 ): Promise<void> => {
   try {
-    const updatedCells = await dashAPI.updateCells(dashboard.id, cells)
+
+    const resp = await api.putDashboardsCells({dashboardID: dashboard.id, data: cells})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const updatedCells = addDashboardIDToCells(resp.data.cells, dashboard.id)
     const updatedDashboard = {
       ...dashboard,
       cells: updatedCells,
@@ -585,7 +649,7 @@ export const deleteCellAsync = (dashboard: Dashboard, cell: Cell) => async (
     )
 
     await Promise.all([
-      dashAPI.deleteCell(dashboard.id, cell),
+      api.deleteDashboardsCell({dashboardID: dashboard.id, cellID: cell.id}),
       dispatch(refreshDashboardVariableValues(dashboard.id, views)),
     ])
 

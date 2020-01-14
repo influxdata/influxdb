@@ -16,7 +16,14 @@ import {
 } from 'src/client'
 
 // Types
-import {Cell, NewCell, Dashboard, View, CreateDashboardRequest} from 'src/types'
+import {
+  Cell,
+  NewCell,
+  Dashboard,
+  View,
+  CreateDashboardRequest,
+  NewView,
+} from 'src/types'
 
 // Utils
 import {
@@ -138,7 +145,7 @@ export const getView = async (
 export const updateView = async (
   dashboardID: string,
   cellID: string,
-  view: Partial<View>
+  view: NewView
 ): Promise<View> => {
   const resp = await apiPatchDashboardsCellsView({
     dashboardID,
