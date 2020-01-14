@@ -2,21 +2,6 @@ export const AGG_WINDOW_AUTO = 'auto'
 export const AGG_WINDOW_NONE = 'none'
 
 export const DURATIONS = [
-  {duration: '5s', displayText: 'Every 5 seconds'},
-  {duration: '15s', displayText: 'Every 15 seconds'},
-  {duration: '1m', displayText: 'Every minute'},
-  {duration: '5m', displayText: 'Every 5 minutes'},
-  {duration: '15m', displayText: 'Every 15 minutes'},
-  {duration: '1h', displayText: 'Every hour'},
-  {duration: '6h', displayText: 'Every 6 hours'},
-  {duration: '12h', displayText: 'Every 12 hours'},
-  {duration: '24h', displayText: 'Every 24 hours'},
-  {duration: '2d', displayText: 'Every 2 days'},
-  {duration: '7d', displayText: 'Every 7 days'},
-  {duration: '30d', displayText: 'Every 30 days'},
-]
-
-export const DURATION_STRINGS = [
   '5s',
   '15s',
   '1m',

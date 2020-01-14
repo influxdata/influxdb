@@ -19,7 +19,7 @@ import {
 
 // Constants
 import {CHECK_OFFSET_OPTIONS} from 'src/alerting/constants'
-import {DURATION_STRINGS} from 'src/timeMachine/constants/queryBuilder'
+import {DURATIONS} from 'src/timeMachine/constants/queryBuilder'
 
 // Types
 import {AppState, CheckTagSet} from 'src/types'
@@ -66,7 +66,7 @@ const CheckMetaCard: FC<Props> = ({
               <Form.Element label="Schedule Every">
                 <DurationInput
                   value={every}
-                  suggestions={DURATION_STRINGS}
+                  suggestions={DURATIONS}
                   onSubmit={onSelectCheckEvery}
                 />
               </Form.Element>

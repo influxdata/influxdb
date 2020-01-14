@@ -34,7 +34,7 @@ import {
   FUNCTIONS,
   AGG_WINDOW_AUTO,
   AGG_WINDOW_NONE,
-  DURATION_STRINGS,
+  DURATIONS,
 } from 'src/timeMachine/constants/queryBuilder'
 
 // Types
@@ -140,8 +140,8 @@ class FunctionSelector extends PureComponent<Props, State> {
 
   private get durations(): string[] {
     return this.props.isInCheckOverlay
-      ? DURATION_STRINGS
-      : [this.autoLabel, AGG_WINDOW_NONE, ...DURATION_STRINGS]
+      ? DURATIONS
+      : [this.autoLabel, AGG_WINDOW_NONE, ...DURATIONS]
   }
 
   private get functions(): string[] {
