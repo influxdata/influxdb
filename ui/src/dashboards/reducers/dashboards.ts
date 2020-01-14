@@ -3,7 +3,7 @@ import {produce} from 'immer'
 import _ from 'lodash'
 
 // Types
-import {Action, ActionTypes} from 'src/dashboards/actions'
+import {Action, ActionTypes} from 'src/dashboards/actions/creators'
 import {Dashboard, RemoteDataState} from 'src/types'
 
 export interface DashboardsState {

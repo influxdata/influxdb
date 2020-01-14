@@ -10,7 +10,7 @@ import {
   removeCell,
   addDashboardLabel,
   removeDashboardLabel,
-} from 'src/dashboards/actions/'
+} from 'src/dashboards/actions/creators'
 
 // Resources
 import {dashboard} from 'src/dashboards/resources'
