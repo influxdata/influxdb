@@ -75,11 +75,11 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  deleteCell: typeof dashboardActions.deleteCellAsync
-  copyCell: typeof dashboardActions.copyDashboardCellAsync
-  getDashboard: typeof dashboardActions.getDashboardAsync
-  updateDashboard: typeof dashboardActions.updateDashboardAsync
-  updateCells: typeof dashboardActions.updateCellsAsync
+  deleteCell: typeof dashboardActions.deleteCell
+  copyCell: typeof dashboardActions.copyDashboardCell
+  getDashboard: typeof dashboardActions.getDashboard
+  updateDashboard: typeof dashboardActions.updateDashboard
+  updateCells: typeof dashboardActions.updateCells
   updateQueryParams: typeof rangesActions.updateQueryParams
   setDashboardTimeRange: typeof rangesActions.setDashboardTimeRange
   handleChooseAutoRefresh: typeof setAutoRefreshInterval
@@ -335,11 +335,11 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  getDashboard: dashboardActions.getDashboardAsync,
-  updateDashboard: dashboardActions.updateDashboardAsync,
-  copyCell: dashboardActions.copyDashboardCellAsync,
-  deleteCell: dashboardActions.deleteCellAsync,
-  updateCells: dashboardActions.updateCellsAsync,
+  getDashboard: dashboardActions.getDashboard,
+  updateDashboard: dashboardActions.updateDashboard,
+  copyCell: dashboardActions.copyDashboardCell,
+  deleteCell: dashboardActions.deleteCell,
+  updateCells: dashboardActions.updateCells,
   handleChooseAutoRefresh: setAutoRefreshInterval,
   onSetAutoRefreshStatus: setAutoRefreshStatus,
   handleClickPresentationButton: appActions.delayEnablePresentationMode,

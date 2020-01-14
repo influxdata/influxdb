@@ -11,10 +11,10 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 // Actions
 import {
   cloneDashboard,
-  deleteDashboardAsync,
-  updateDashboardAsync,
-  addDashboardLabelAsync,
-  removeDashboardLabelAsync,
+  deleteDashboard,
+  updateDashboard,
+  addDashboardLabel,
+  removeDashboardLabel,
 } from 'src/dashboards/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
@@ -44,8 +44,8 @@ interface DispatchProps {
   onDeleteDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
-  onAddDashboardLabel: typeof addDashboardLabelAsync
-  onRemoveDashboardLabel: typeof removeDashboardLabelAsync
+  onAddDashboardLabel: typeof addDashboardLabel
+  onRemoveDashboardLabel: typeof removeDashboardLabel
   onCreateLabel: typeof createLabelAsync
   onResetViews: typeof resetViews
 }
@@ -199,12 +199,12 @@ const mstp = ({labels}: AppState): StateProps => {
 
 const mdtp: DispatchProps = {
   onCreateLabel: createLabelAsync,
-  onAddDashboardLabel: addDashboardLabelAsync,
-  onRemoveDashboardLabel: removeDashboardLabelAsync,
+  onAddDashboardLabel: addDashboardLabel,
+  onRemoveDashboardLabel: removeDashboardLabel,
   onResetViews: resetViews,
   onCloneDashboard: cloneDashboard,
-  onDeleteDashboard: deleteDashboardAsync,
-  onUpdateDashboard: updateDashboardAsync,
+  onDeleteDashboard: deleteDashboard,
+  onUpdateDashboard: updateDashboard,
 }
 
 export default connect<StateProps, DispatchProps, PassedProps>(

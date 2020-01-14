@@ -22,7 +22,7 @@ import {
 } from 'src/dashboards/constants'
 
 // Actions
-import {getDashboardsAsync, createCellWithView} from 'src/dashboards/actions'
+import {getDashboards, createCellWithView} from 'src/dashboards/actions'
 import {postDashboard} from 'src/client'
 import {notify} from 'src/shared/actions/notifications'
 
@@ -50,7 +50,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  handleGetDashboards: typeof getDashboardsAsync
+  onGetDashboards: typeof getDashboards
   onCreateCellWithView: typeof createCellWithView
   notify: typeof notify
 }
@@ -71,8 +71,8 @@ class SaveAsCellForm extends PureComponent<Props, State> {
   }
 
   public componentDidMount() {
-    const {handleGetDashboards} = this.props
-    handleGetDashboards()
+    const {onGetDashboards} = this.props
+    onGetDashboards()
   }
 
   public render() {
@@ -252,7 +252,7 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  handleGetDashboards: getDashboardsAsync,
+  onGetDashboards: getDashboards,
   onCreateCellWithView: createCellWithView,
   notify,
 }

@@ -9,7 +9,7 @@ import {getTelegrafs} from 'src/telegrafs/actions/thunks'
 import {getPlugins} from 'src/dataLoaders/actions/telegrafEditor'
 import {getVariables} from 'src/variables/actions/thunks'
 import {getScrapers} from 'src/scrapers/actions/thunks'
-import {getDashboardsAsync} from 'src/dashboards/actions'
+import {getDashboards} from 'src/dashboards/actions'
 import {getTasks} from 'src/tasks/actions/thunks'
 import {getAuthorizations} from 'src/authorizations/actions/thunks'
 import {getTemplates} from 'src/templates/actions'
@@ -40,7 +40,7 @@ interface DispatchProps {
   getVariables: typeof getVariables
   getScrapers: typeof getScrapers
   getAuthorizations: typeof getAuthorizations
-  getDashboards: typeof getDashboardsAsync
+  getDashboards: typeof getDashboards
   getTasks: typeof getTasks
   getTemplates: typeof getTemplates
   getMembers: typeof getMembers
@@ -160,7 +160,7 @@ const mdtp = {
   getVariables: getVariables,
   getScrapers: getScrapers,
   getAuthorizations: getAuthorizations,
-  getDashboards: getDashboardsAsync,
+  getDashboards: getDashboards,
   getTasks: getTasks,
   getTemplates: getTemplates,
   getMembers: getMembers,
