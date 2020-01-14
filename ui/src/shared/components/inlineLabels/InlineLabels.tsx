@@ -68,7 +68,7 @@ export default class InlineLabels extends Component<Props> {
           color={label.properties.color}
           description={label.properties.description}
           onDelete={onDelete}
-          onClick={this.handleLabelClick.bind(this,label.name)}
+          onClick={this.handleLabelClick.bind(this, label.name)}
         />
       ))
     }

@@ -18,7 +18,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Dashboard, AppState, RemoteDataState} from 'src/types'
 
 interface OwnProps {
-  onCreateDashboard: () => void
   onFilterChange: (searchTerm: string) => void
   searchTerm: string
   filterComponent?: JSX.Element
@@ -47,13 +46,7 @@ class DashboardsIndexContents extends Component<Props> {
   }
 
   public render() {
-    const {
-      onCreateDashboard,
-      searchTerm,
-      dashboards,
-      filterComponent,
-      onFilterChange,
-    } = this.props
+    const {searchTerm, dashboards, filterComponent, onFilterChange} = this.props
 
     return (
       <FilterList<Dashboard>
@@ -67,7 +60,6 @@ class DashboardsIndexContents extends Component<Props> {
             searchTerm={searchTerm}
             filterComponent={filterComponent}
             dashboards={filteredDashboards}
-            onCreateDashboard={onCreateDashboard}
             onFilterChange={onFilterChange}
           />
         )}

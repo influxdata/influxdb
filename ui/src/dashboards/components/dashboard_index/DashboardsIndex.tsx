@@ -98,7 +98,6 @@ class DashboardIndex extends PureComponent<Props, State> {
                     searchTerm={searchTerm}
                   />
                 }
-                onCreateDashboard={createDashboard}
                 searchTerm={searchTerm}
                 onFilterChange={this.handleFilterDashboards}
               />
