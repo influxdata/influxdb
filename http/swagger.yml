@@ -7143,8 +7143,14 @@ components:
           type: object
           additionalProperties:
             type: string
-        url:
-          type: string
+        remote:
+          type: object
+          properties:
+            url:
+              type: string
+            contentType:
+              type: string
+          required: ["url"]
     PkgCreate:
       type: object
       properties:

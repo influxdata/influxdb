@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -124,19 +125,41 @@ func (s *HandlerPkg) createPkg(w http.ResponseWriter, r *http.Request) {
 	s.encResp(r.Context(), w, enc, http.StatusOK, resp)
 }
 
+// PkgRemote provides a package via a remote (i.e. a gist). If content type is not
+// provided then the service will do its best to discern the content type of the
+// contents.
+type PkgRemote struct {
+	URL         string `json:"url"`
+	ContentType string `json:"contentType"`
+}
+
+// Encoding returns the encoding type that corresponds to the given content type.
+func (p PkgRemote) Encoding() pkger.Encoding {
+	switch strings.ToLower(p.ContentType) {
+	case "json":
+		return pkger.EncodingJSON
+	case "jsonnet":
+		return pkger.EncodingJsonnet
+	case "yml", "yaml":
+		return pkger.EncodingYAML
+	default:
+		return pkger.EncodingSource
+	}
+}
+
 // ReqApplyPkg is the request body for a json or yaml body for the apply pkg endpoint.
 type ReqApplyPkg struct {
 	DryRun  bool              `json:"dryRun" yaml:"dryRun"`
 	OrgID   string            `json:"orgID" yaml:"orgID"`
-	URL     string            `json:"url" yaml:"url"`
+	Remote  PkgRemote         `json:"remote" yaml:"remote"`
 	RawPkg  json.RawMessage   `json:"package" yaml:"package"`
 	Secrets map[string]string `json:"secrets"`
 }
 
 // Pkg returns a pkg parsed and validated from the RawPkg field.
 func (r ReqApplyPkg) Pkg(encoding pkger.Encoding) (*pkger.Pkg, error) {
-	if r.URL != "" {
-		return pkger.Parse(pkger.EncodingSource, pkger.FromHTTPRequest(r.URL))
+	if r.Remote.URL != "" {
+		return pkger.Parse(r.Remote.Encoding(), pkger.FromHTTPRequest(r.Remote.URL))
 	}
 
 	return pkger.Parse(encoding, pkger.FromReader(bytes.NewReader(r.RawPkg)))
