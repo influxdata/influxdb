@@ -68,7 +68,6 @@ export type Action =
   | SetYAxisScale
   | SetPrefix
   | SetSuffix
-  | SetOptionalSuffix
   | SetActiveQueryIndexAction
   | AddQueryAction
   | RemoveQueryAction
