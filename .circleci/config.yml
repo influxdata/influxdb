@@ -170,6 +170,34 @@ jobs:
           name: "Save Yarn Package Cache"
           paths:
             - ~/.cache/yarn
+  tsc:
+    docker:
+      - image: circleci/golang:1.13-node-browsers
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+          name: "Restore Yarn Package Cache"
+      - run:
+          command: |
+            set +e
+            cd ui
+            yarn install --frozen-lockfile
+          name: "Install Dependencies"
+      - run: make ui_client
+      - run:
+          name: tsc
+          command: |
+            set +e
+            cd ui
+            yarn tsc
+      - save_cache:
+          key: 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+          name: "Save Yarn Package Cache"
+          paths:
+            - ~/.cache/yarn
   jslint:
     docker:
       - image: circleci/golang:1.13-node-browsers
