@@ -73,7 +73,7 @@ all: subdirs generate $(CMDS)
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
 subdirs: $(SUBDIRS)
-	@for d in $^; do $(MAKE) -C $$d all; done
+	$(MAKE) -C $@ all
 
 #
 # Define targets for commands
