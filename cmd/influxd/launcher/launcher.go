@@ -827,6 +827,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			pkger.WithTelegrafSVC(authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)),
 			pkger.WithVariableSVC(authorizer.NewVariableService(b.VariableService)),
 		)
+		pkgSVC = pkger.MWTracing()(pkgSVC)
+		pkgSVC = pkger.MWLogging(pkgerLogger)(pkgSVC)
 	}
 
 	var pkgHTTPServer *http.HandlerPkg
