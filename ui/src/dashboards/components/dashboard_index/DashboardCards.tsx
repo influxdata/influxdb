@@ -10,11 +10,11 @@ import {TechnoSpinner} from '@influxdata/clockface'
 import {getSortedResources, SortTypes} from 'src/shared/utils/sort'
 
 // Types
-import {Dashboard} from 'src/types'
+import {Dashboard, Task} from 'src/types'
 import {Sort} from 'src/clockface'
 
 interface Props {
-  dashboards: Dashboard[]
+  dashboards: Task[]
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
