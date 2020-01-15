@@ -6,77 +6,93 @@ import (
 	"fmt"
 	"os"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
 )
 
-func cmdUser() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "user",
-		Short: "User management commands",
-		Run:   seeHelp,
+type userSVCsFn func() (
+	cmdUserDeps,
+	error,
+)
+
+type cmdUserDeps struct {
+	userSVC   influxdb.UserService
+	orgSvc    influxdb.OrganizationService
+	passSVC   influxdb.PasswordsService
+	urmSVC    influxdb.UserResourceMappingService
+	getPassFn func(*input.UI, bool) string
+}
+
+func cmdUser(opts ...genericCLIOptFn) *cobra.Command {
+	return newCmdUserBuilder(newUserSVC, opts...).cmd()
+}
+
+type cmdUserBuilder struct {
+	genericCLIOpts
+
+	svcFn userSVCsFn
+
+	id       string
+	name     string
+	password string
+	org      organization
+}
+
+func newCmdUserBuilder(svcsFn userSVCsFn, opts ...genericCLIOptFn) *cmdUserBuilder {
+	opt := genericCLIOpts{
+		in: os.Stdin,
+		w:  os.Stdout,
 	}
+	for _, o := range opts {
+		o(&opt)
+	}
+
+	return &cmdUserBuilder{
+		genericCLIOpts: opt,
+		svcFn:          svcsFn,
+	}
+}
+
+func (b *cmdUserBuilder) cmd() *cobra.Command {
+	cmd := b.newCmd("user", nil)
+	cmd.Short = "User management commands"
+	cmd.Run = seeHelp
 	cmd.AddCommand(
-		userCreateCmd(),
-		userDeleteCmd(),
-		userFindCmd(),
-		userUpdateCmd(),
-		userUpdatePasswordCmd(),
+		b.cmdCreate(),
+		b.cmdDelete(),
+		b.cmdFind(),
+		b.cmdUpdate(),
+		b.cmdPassword(),
 	)
 
 	return cmd
 }
 
-var userUpdateFlags struct {
-	id   string
-	name string
-}
+func (b *cmdUserBuilder) cmdPassword() *cobra.Command {
+	cmd := b.newCmd("password", b.cmdPasswordRunEFn)
+	cmd.Short = "Update user password"
 
-func userUpdatePasswordCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "password",
-		Short: "Update user password",
-		RunE:  wrapCheckSetup(userUpdatePasswordF),
-	}
-
-	cmd.Flags().StringVarP(&userFindFlags.id, "id", "i", "", "The user ID")
-	cmd.Flags().StringVarP(&userFindFlags.name, "name", "n", "", "The user name")
+	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID")
+	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The user name")
 
 	return cmd
 }
 
-func userUpdateCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "update",
-		Short: "Update user",
-		RunE:  wrapCheckSetup(userUpdateF),
-	}
+func (b *cmdUserBuilder) cmdUpdate() *cobra.Command {
+	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
+	cmd.Short = "Update user"
 
-	cmd.Flags().StringVarP(&userUpdateFlags.id, "id", "i", "", "The user ID (required)")
-	cmd.Flags().StringVarP(&userUpdateFlags.name, "name", "n", "", "The user name")
+	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID (required)")
+	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The user name")
 	cmd.MarkFlagRequired("id")
 
 	return cmd
 }
 
-func newPasswordService() (platform.PasswordsService, error) {
-	if flags.local {
-		return newLocalKVService()
-	}
-
-	client, err := newHTTPClient()
-	if err != nil {
-		return nil, err
-	}
-	return &http.PasswordService{
-		Client: client,
-	}, nil
-}
-
-func newUserService() (platform.UserService, error) {
+func newUserService() (influxdb.UserService, error) {
 	if flags.local {
 		return newLocalKVService()
 	}
@@ -90,67 +106,85 @@ func newUserService() (platform.UserService, error) {
 	}, nil
 }
 
-func userUpdatePasswordF(cmd *cobra.Command, args []string) error {
+func newUserSVC() (
+	cmdUserDeps,
+	error) {
+	httpClient, err := newHTTPClient()
+	if err != nil {
+		return cmdUserDeps{}, err
+	}
+	userSvc := &http.UserService{Client: httpClient}
+	orgSvc := &http.OrganizationService{Client: httpClient}
+	passSvc := &http.PasswordService{Client: httpClient}
+	urmSvc := &http.UserResourceMappingService{Client: httpClient}
+	getPassFn := getPassword
+
+	return cmdUserDeps{
+		userSVC:   userSvc,
+		orgSvc:    orgSvc,
+		passSVC:   passSvc,
+		urmSVC:    urmSvc,
+		getPassFn: getPassFn,
+	}, nil
+}
+
+func (b *cmdUserBuilder) cmdPasswordRunEFn(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
-	us, err := newUserService()
+	dep, err := b.svcFn()
 	if err != nil {
 		return err
 	}
 
-	filter := platform.UserFilter{}
-	if userFindFlags.name != "" {
-		filter.Name = &userFindFlags.name
+	filter := influxdb.UserFilter{}
+	if b.name != "" {
+		filter.Name = &b.name
 	}
-	if userFindFlags.id != "" {
-		id, err := platform.IDFromString(userFindFlags.id)
+	if b.id != "" {
+		id, err := influxdb.IDFromString(b.id)
 		if err != nil {
 			return err
 		}
 		filter.ID = id
 	}
-	u, err := us.FindUser(ctx, filter)
+	u, err := dep.userSVC.FindUser(ctx, filter)
 	if err != nil {
 		return err
 	}
 	ui := &input.UI{
-		Writer: os.Stdout,
-		Reader: os.Stdin,
+		Writer: b.genericCLIOpts.w,
+		Reader: b.genericCLIOpts.in,
 	}
-	password := getPassword(ui, true)
+	password := dep.getPassFn(ui, true)
 
-	ps, err := newPasswordService()
-	if err != nil {
+	if err = dep.passSVC.SetPassword(ctx, u.ID, password); err != nil {
 		return err
 	}
-	if err = ps.SetPassword(ctx, u.ID, password); err != nil {
-		return err
-	}
-	fmt.Println("Your password has been successfully updated.")
+	fmt.Fprintln(b.w, "Your password has been successfully updated.")
 	return nil
 }
 
-func userUpdateF(cmd *cobra.Command, args []string) error {
-	s, err := newUserService()
+func (b *cmdUserBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) error {
+	dep, err := b.svcFn()
 	if err != nil {
 		return err
 	}
 
-	var id platform.ID
-	if err := id.DecodeFromString(userUpdateFlags.id); err != nil {
+	var id influxdb.ID
+	if err := id.DecodeFromString(b.id); err != nil {
 		return err
 	}
 
-	update := platform.UserUpdate{}
-	if userUpdateFlags.name != "" {
-		update.Name = &userUpdateFlags.name
+	update := influxdb.UserUpdate{}
+	if b.name != "" {
+		update.Name = &b.name
 	}
 
-	user, err := s.UpdateUser(context.Background(), id, update)
+	user, err := dep.userSVC.UpdateUser(context.Background(), id, update)
 	if err != nil {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
+	w := internal.NewTabWriter(b.w)
 	w.WriteHeaders(
 		"ID",
 		"Name",
@@ -164,42 +198,43 @@ func userUpdateF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-var userCreateFlags struct {
-	name     string
-	password string
-	org      organization
-}
+func (b *cmdUserBuilder) cmdCreate() *cobra.Command {
+	cmd := b.newCmd("create", b.cmdCreateRunEFn)
+	cmd.Short = "Create user"
 
-func userCreateCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create user",
-		RunE:  wrapCheckSetup(userCreateF),
+	opts := flagOpts{
+		{
+			DestP:    &b.name,
+			Flag:     "name",
+			Short:    'n',
+			Desc:     "The user name (required)",
+			Required: true,
+		},
 	}
+	opts.mustRegister(cmd)
 
-	userCreateFlags.org.register(cmd, false)
-	cmd.Flags().StringVarP(&userCreateFlags.name, "name", "n", "", "The user name (required)")
-	cmd.MarkFlagRequired("name")
-	cmd.Flags().StringVarP(&userCreateFlags.password, "password", "p", "", "The user password")
+	cmd.Flags().StringVarP(&b.password, "password", "p", "", "The user password")
+	b.org.register(cmd, false)
 
 	return cmd
 }
 
-func userCreateF(cmd *cobra.Command, args []string) error {
-	if err := userCreateFlags.org.validOrgFlags(); err != nil {
+func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
+	ctx := context.Background()
+	if err := b.org.validOrgFlags(); err != nil {
 		return err
 	}
 
-	s, err := newUserService()
+	dep, err := b.svcFn()
 	if err != nil {
 		return err
 	}
 
-	user := &platform.User{
-		Name: userCreateFlags.name,
+	user := &influxdb.User{
+		Name: b.name,
 	}
 
-	if err := s.CreateUser(context.Background(), user); err != nil {
+	if err := dep.userSVC.CreateUser(ctx, user); err != nil {
 		return err
 	}
 
@@ -212,7 +247,7 @@ func userCreateF(cmd *cobra.Command, args []string) error {
 		for i, h := range headers {
 			m[h] = vals[i]
 		}
-		w := internal.NewTabWriter(os.Stdout)
+		w := internal.NewTabWriter(b.w)
 		w.WriteHeaders(headers...)
 		w.Write(m)
 		w.Flush()
@@ -220,17 +255,12 @@ func userCreateF(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	orgSVC, err := newOrganizationService()
+	orgID, err := b.org.getID(dep.orgSvc)
 	if err != nil {
 		return err
 	}
 
-	orgID, err := userCreateFlags.org.getID(orgSVC)
-	if err != nil {
-		return err
-	}
-
-	pass := userCreateFlags.password
+	pass := b.password
 	if orgID == 0 && pass == "" {
 		return writeOutput([]string{"ID", "Name"}, user.ID.String(), user.Name)
 	}
@@ -239,77 +269,57 @@ func userCreateF(cmd *cobra.Command, args []string) error {
 		return errors.New("an org id is required when providing a user password")
 	}
 
-	c, err := newHTTPClient()
-	if err != nil {
-		return err
-	}
-
-	userResMapSVC := &http.UserResourceMappingService{
-		Client: c,
-	}
-
-	err = userResMapSVC.CreateUserResourceMapping(context.Background(), &platform.UserResourceMapping{
+	err = dep.urmSVC.CreateUserResourceMapping(context.Background(), &influxdb.UserResourceMapping{
 		UserID:       user.ID,
-		UserType:     platform.Member,
-		ResourceType: platform.OrgsResourceType,
+		UserType:     influxdb.Member,
+		ResourceType: influxdb.OrgsResourceType,
 		ResourceID:   orgID,
 	})
 	if err != nil {
 		return err
 	}
 
-	passSVC := &http.PasswordService{Client: c}
-
-	ctx := context.Background()
-	if err := passSVC.SetPassword(ctx, user.ID, pass); err != nil {
+	if err := dep.passSVC.SetPassword(ctx, user.ID, pass); err != nil {
 		return err
 	}
 
 	return writeOutput([]string{"ID", "Name", "Organization ID"}, user.ID.String(), user.Name, orgID.String())
 }
 
-var userFindFlags struct {
-	id   string
-	name string
-}
+func (b *cmdUserBuilder) cmdFind() *cobra.Command {
+	cmd := b.newCmd("find", b.cmdFindRunEFn)
+	cmd.Short = "Find user"
 
-func userFindCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "find",
-		Short: "Find user",
-		RunE:  wrapCheckSetup(userFindF),
-	}
-
-	cmd.Flags().StringVarP(&userFindFlags.id, "id", "i", "", "The user ID")
-	cmd.Flags().StringVarP(&userFindFlags.name, "name", "n", "", "The user name")
+	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID")
+	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The user name")
 
 	return cmd
 }
 
-func userFindF(cmd *cobra.Command, args []string) error {
-	s, err := newUserService()
+func (b *cmdUserBuilder) cmdFindRunEFn(*cobra.Command, []string) error {
+	dep, err := b.svcFn()
 	if err != nil {
 		return err
 	}
 
-	filter := platform.UserFilter{}
-	if userFindFlags.name != "" {
-		filter.Name = &userFindFlags.name
+	filter := influxdb.UserFilter{}
+	if b.name != "" {
+		filter.Name = &b.name
 	}
-	if userFindFlags.id != "" {
-		id, err := platform.IDFromString(userFindFlags.id)
+	if b.id != "" {
+		id, err := influxdb.IDFromString(b.id)
 		if err != nil {
 			return err
 		}
 		filter.ID = id
 	}
 
-	users, _, err := s.FindUsers(context.Background(), filter)
+	users, _, err := dep.userSVC.FindUsers(context.Background(), filter)
 	if err != nil {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
+	w := internal.NewTabWriter(b.w)
 	w.WriteHeaders(
 		"ID",
 		"Name",
@@ -325,45 +335,38 @@ func userFindF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-var userDeleteFlags struct {
-	id string
-}
+func (b *cmdUserBuilder) cmdDelete() *cobra.Command {
+	cmd := b.newCmd("delete", b.cmdDeleteRunEFn)
+	cmd.Short = "Delete user"
 
-func userDeleteCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "delete",
-		Short: "Delete user",
-		RunE:  wrapCheckSetup(userDeleteF),
-	}
-
-	cmd.Flags().StringVarP(&userDeleteFlags.id, "id", "i", "", "The user ID (required)")
+	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID (required)")
 	cmd.MarkFlagRequired("id")
 
 	return cmd
 }
 
-func userDeleteF(cmd *cobra.Command, args []string) error {
-	s, err := newUserService()
+func (b *cmdUserBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) error {
+	dep, err := b.svcFn()
 	if err != nil {
 		return err
 	}
 
-	var id platform.ID
-	if err := id.DecodeFromString(userDeleteFlags.id); err != nil {
+	var id influxdb.ID
+	if err := id.DecodeFromString(b.id); err != nil {
 		return err
 	}
 
 	ctx := context.Background()
-	u, err := s.FindUserByID(ctx, id)
+	u, err := dep.userSVC.FindUserByID(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	if err := s.DeleteUser(ctx, id); err != nil {
+	if err := dep.userSVC.DeleteUser(ctx, id); err != nil {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
+	w := internal.NewTabWriter(b.w)
 	w.WriteHeaders(
 		"ID",
 		"Name",

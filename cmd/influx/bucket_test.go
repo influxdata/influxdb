@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"io/ioutil"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -102,7 +103,7 @@ func TestCmdBucket(t *testing.T) {
 				return nil
 			}
 
-			builder := newCmdBucketBuilder(fakeSVCFn(svc), out(new(bytes.Buffer)))
+			builder := newCmdBucketBuilder(fakeSVCFn(svc), out(ioutil.Discard))
 			cmd := builder.cmdCreate()
 			cmd.RunE = builder.cmdCreateRunEFn
 			return cmd
@@ -151,7 +152,7 @@ func TestCmdBucket(t *testing.T) {
 				return nil
 			}
 
-			builder := newCmdBucketBuilder(fakeSVCFn(svc), out(new(bytes.Buffer)))
+			builder := newCmdBucketBuilder(fakeSVCFn(svc), out(ioutil.Discard))
 			cmd := builder.cmdDelete()
 			cmd.RunE = builder.cmdDeleteRunEFn
 			return cmd
@@ -258,7 +259,7 @@ func TestCmdBucket(t *testing.T) {
 				return nil, 0, nil
 			}
 
-			builder := newCmdBucketBuilder(fakeSVCFn(svc), in(new(bytes.Buffer)), out(new(bytes.Buffer)))
+			builder := newCmdBucketBuilder(fakeSVCFn(svc), in(new(bytes.Buffer)), out(ioutil.Discard))
 			cmd := builder.cmdFind()
 			cmd.RunE = builder.cmdFindRunEFn
 			return cmd, calls
@@ -352,7 +353,7 @@ func TestCmdBucket(t *testing.T) {
 				return &influxdb.Bucket{}, nil
 			}
 
-			builder := newCmdBucketBuilder(fakeSVCFn(svc), out(new(bytes.Buffer)))
+			builder := newCmdBucketBuilder(fakeSVCFn(svc), out(ioutil.Discard))
 			cmd := builder.cmdUpdate()
 			cmd.RunE = builder.cmdUpdateRunEFn
 			return cmd

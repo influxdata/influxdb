@@ -128,7 +128,7 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 		cmdREPL(),
 		cmdSetup(),
 		cmdTask(),
-		cmdUser(),
+		cmdUser(runEWrapper),
 		cmdWrite(),
 	)
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"reflect"
 	"testing"
 
@@ -63,7 +64,7 @@ func TestCmdOrg(t *testing.T) {
 				return nil
 			}
 
-			builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), out(new(bytes.Buffer)))
+			builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), out(ioutil.Discard))
 			cmd := builder.cmdCreate()
 			return cmd
 		}
@@ -109,7 +110,7 @@ func TestCmdOrg(t *testing.T) {
 				return nil
 			}
 
-			builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), out(new(bytes.Buffer)))
+			builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), out(ioutil.Discard))
 			cmd := builder.cmdDelete()
 			return cmd
 		}
@@ -181,7 +182,7 @@ func TestCmdOrg(t *testing.T) {
 				return nil, 0, nil
 			}
 
-			builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), in(new(bytes.Buffer)), out(new(bytes.Buffer)))
+			builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), in(new(bytes.Buffer)), out(ioutil.Discard))
 			cmd := builder.cmdFind()
 			return cmd, calls
 		}
@@ -268,7 +269,7 @@ func TestCmdOrg(t *testing.T) {
 				return &influxdb.Organization{}, nil
 			}
 
-			builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), out(new(bytes.Buffer)))
+			builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), out(ioutil.Discard))
 			cmd := builder.cmdUpdate()
 			return cmd
 		}
@@ -366,7 +367,7 @@ func TestCmdOrg(t *testing.T) {
 					return &influxdb.Organization{ID: 1}, nil
 				}
 
-				builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), in(new(bytes.Buffer)), out(new(bytes.Buffer)))
+				builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), in(new(bytes.Buffer)), out(ioutil.Discard))
 				cmd := builder.cmdMemberList()
 				return cmd, calls
 			}
@@ -394,7 +395,7 @@ func TestCmdOrg(t *testing.T) {
 					return nil
 				}
 
-				builder := newCmdOrgBuilder(fakeOrgUrmSVCsFn(svc, urmSVC), in(new(bytes.Buffer)), out(new(bytes.Buffer)))
+				builder := newCmdOrgBuilder(fakeOrgUrmSVCsFn(svc, urmSVC), in(new(bytes.Buffer)), out(ioutil.Discard))
 				cmd := builder.cmdMemberAdd()
 				return cmd, calls
 			}
@@ -457,7 +458,7 @@ func TestCmdOrg(t *testing.T) {
 					return nil
 				}
 
-				builder := newCmdOrgBuilder(fakeOrgUrmSVCsFn(svc, urmSVC), in(new(bytes.Buffer)), out(new(bytes.Buffer)))
+				builder := newCmdOrgBuilder(fakeOrgUrmSVCsFn(svc, urmSVC), in(new(bytes.Buffer)), out(ioutil.Discard))
 				cmd := builder.cmdMemberRemove()
 				return cmd, calls
 			}
