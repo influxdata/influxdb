@@ -14,6 +14,7 @@ import meReducer from 'src/shared/reducers/me'
 import tasksReducer from 'src/tasks/reducers'
 import rangesReducer from 'src/dashboards/reducers/ranges'
 import {dashboardsReducer} from 'src/dashboards/reducers/dashboards'
+import {cellsReducer} from 'src/cells/reducers'
 import viewsReducer from 'src/dashboards/reducers/views'
 import {timeMachinesReducer} from 'src/timeMachine/reducers'
 import {orgsReducer} from 'src/organizations/reducers'
@@ -67,6 +68,7 @@ export const rootReducer = combineReducers<ReducerState>({
   ranges: rangesReducer,
   resources: combineReducers({
     buckets: bucketsReducer,
+    cells: cellsReducer,
     members: membersReducer,
     orgs: orgsReducer,
     scrapers: scrapersReducer,

@@ -1,4 +1,5 @@
 import {
+  Cell,
   Bucket,
   Dashboard,
   Authorization,
@@ -50,11 +51,12 @@ export interface TelegrafsState extends NormalizedState<Telegraf> {
 export interface ResourceState {
   [ResourceType.Authorizations]: NormalizedState<Authorization>
   [ResourceType.Buckets]: NormalizedState<Bucket>
+  [ResourceType.Cells]: NormalizedState<Cell>
+  [ResourceType.Dashboards]: NormalizedState<Dashboard>
   [ResourceType.Members]: NormalizedState<Member>
   [ResourceType.Orgs]: OrgsState
-  [ResourceType.Telegrafs]: TelegrafsState
   [ResourceType.Scrapers]: NormalizedState<Scraper>
   [ResourceType.Tasks]: TasksState
+  [ResourceType.Telegrafs]: TelegrafsState
   [ResourceType.Variables]: VariablesState
-  [ResourceType.Dashboards]: NormalizedState<Dashboard>
 }
