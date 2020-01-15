@@ -22,6 +22,11 @@ interface Props {
 }
 
 export default class DashboardCards extends PureComponent<Props> {
+  private _frame
+  private _window
+  private _observer
+  private _spinner
+
   private memGetSortedResources = memoizeOne<typeof getSortedResources>(
     getSortedResources
   )
