@@ -43,9 +43,8 @@ export const variablesReducer = (
 
       case SET_VARIABLE: {
         const {id, status, schema} = action
-        const {entities} = schema
 
-        const variable = get(entities, ['variables', id])
+        const variable = get(schema, ['entities', 'variables', id])
         const variableExists = !!draftState.byID[id]
 
         if (variable || !variableExists) {
