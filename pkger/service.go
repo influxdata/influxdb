@@ -24,6 +24,9 @@ type SVC interface {
 	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, error)
 }
 
+// SVCMiddleware is a service middleware func.
+type SVCMiddleware func(SVC) SVC
+
 type serviceOpt struct {
 	logger *zap.Logger
 
