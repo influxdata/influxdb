@@ -67,7 +67,7 @@ export const getWindowPeriod = (
     const queryDuration = getMinDurationFromAST(substitutedAST) // in ms
 
     const foundDuration = SELECTABLE_TIME_RANGES.find(
-      tr => tr.seconds * 1000 == queryDuration
+      tr => tr.seconds * 1000 === queryDuration
     )
 
     if (foundDuration) {
