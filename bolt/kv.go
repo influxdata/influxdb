@@ -1,6 +1,7 @@
 package bolt
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -275,7 +276,7 @@ func (c *Cursor) Last() ([]byte, []byte) {
 
 // Next retrieves the next key in the bucket.
 func (c *Cursor) Next() (k []byte, v []byte) {
-	if c.closed {
+	if c.closed || (c.key != nil && c.missingPrefix(c.key)) {
 		return nil, nil
 	}
 	// get and unset previously seeked values if they exist
@@ -290,7 +291,7 @@ func (c *Cursor) Next() (k []byte, v []byte) {
 	}
 
 	k, v = next()
-	if len(k) == 0 && len(v) == 0 {
+	if (len(k) == 0 && len(v) == 0) || c.missingPrefix(k) {
 		return nil, nil
 	}
 	return k, v
@@ -298,7 +299,7 @@ func (c *Cursor) Next() (k []byte, v []byte) {
 
 // Prev retrieves the previous key in the bucket.
 func (c *Cursor) Prev() (k []byte, v []byte) {
-	if c.closed {
+	if c.closed || (c.key != nil && c.missingPrefix(c.key)) {
 		return nil, nil
 	}
 	// get and unset previously seeked values if they exist
@@ -313,10 +314,14 @@ func (c *Cursor) Prev() (k []byte, v []byte) {
 	}
 
 	k, v = prev()
-	if len(k) == 0 && len(v) == 0 {
+	if (len(k) == 0 && len(v) == 0) || c.missingPrefix(k) {
 		return nil, nil
 	}
 	return k, v
+}
+
+func (c *Cursor) missingPrefix(key []byte) bool {
+	return c.config.Prefix != nil && !bytes.HasPrefix(key, c.config.Prefix)
 }
 
 // Err always returns nil as nothing can go wrong™ during iteration
