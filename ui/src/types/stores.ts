@@ -20,7 +20,6 @@ import {TemplatesState} from 'src/templates/reducers'
 import {RangeState} from 'src/dashboards/reducers/ranges'
 import {ViewsState} from 'src/dashboards/reducers/views'
 import {UserSettingsState} from 'src/userSettings/reducers'
-import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 import {OverlayState} from 'src/overlays/reducers/overlays'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
@@ -37,7 +36,6 @@ export interface AppState {
   autoRefresh: AutoRefreshState
   checks: ChecksState
   cloud: {limits: LimitsState}
-  dashboards: DashboardsState
   dataLoading: DataLoadingState
   endpoints: NotificationEndpointsState
   labels: LabelsState

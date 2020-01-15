@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import {
@@ -11,7 +10,7 @@ import {
 } from '@influxdata/clockface'
 
 // Actions
-import {selectVariableValue} from 'src/dashboards/actions/index'
+import {selectVariableValue} from 'src/dashboards/actions/thunks'
 
 // Utils
 import {getVariableValuesForDropdown} from 'src/dashboards/selectors'

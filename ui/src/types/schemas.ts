@@ -1,6 +1,7 @@
 // Types
 import {
   Task,
+  Dashboard,
   Variable,
   Telegraf,
   Member,
@@ -23,6 +24,14 @@ export interface AuthEntities {
 export interface BucketEntities {
   buckets: {
     [uuid: string]: Bucket
+  }
+}
+
+// DashboardEntities defines the result of normalizr's normalization
+// of the "dashboards" resource
+export interface DashboardEntities {
+  dashboards: {
+    [uuid: string]: Dashboard
   }
 }
 

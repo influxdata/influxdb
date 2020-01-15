@@ -1,5 +1,6 @@
 import {
   Bucket,
+  Dashboard,
   Authorization,
   Organization,
   Member,
@@ -13,6 +14,7 @@ import {
 export enum ResourceType {
   Authorizations = 'tokens',
   Buckets = 'buckets',
+  Cells = 'cells',
   Checks = 'checks',
   Dashboards = 'dashboards',
   Labels = 'labels',
@@ -54,4 +56,5 @@ export interface ResourceState {
   [ResourceType.Scrapers]: NormalizedState<Scraper>
   [ResourceType.Tasks]: TasksState
   [ResourceType.Variables]: VariablesState
+  [ResourceType.Dashboards]: NormalizedState<Dashboard>
 }

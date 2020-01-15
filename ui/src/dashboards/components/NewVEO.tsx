@@ -12,7 +12,7 @@ import VEOHeader from 'src/dashboards/components/VEOHeader'
 // Actions
 import {loadNewVEO} from 'src/timeMachine/actions'
 import {setName} from 'src/timeMachine/actions'
-import {saveVEOView} from 'src/dashboards/actions'
+import {saveVEOView} from 'src/dashboards/actions/thunks'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'

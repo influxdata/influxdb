@@ -35,7 +35,7 @@ import {
   postDashboardsCell as apiPostDashboardsCell,
   patchDashboardsCellsView as apiPatchDashboardsCellsView,
 } from 'src/client'
-import {addDashboardDefaults} from 'src/dashboards/actions'
+import {addDashboardDefaults} from 'src/schemas'
 // Create Dashboard Templates
 
 // Types
@@ -80,7 +80,7 @@ export const createDashboardFromTemplate = async (
     throw new Error(resp.data.message)
   }
 
-  const createdDashboard = addDashboardDefaults(resp.data)
+  const createdDashboard = addDashboardDefaults(resp.data as Dashboard)
 
   // associate imported label id with new label
   const labelMap = await createLabelsFromTemplate(template, orgID)
@@ -98,7 +98,7 @@ export const createDashboardFromTemplate = async (
     throw new Error(getResp.data.message)
   }
 
-  const dashboard = addDashboardDefaults(getResp.data)
+  const dashboard = addDashboardDefaults(getResp.data as Dashboard)
   return dashboard
 }
 

@@ -1,18 +1,38 @@
 // Libraries
 import {produce} from 'immer'
-import _ from 'lodash'
 
 // Types
-import {Action, ActionTypes} from 'src/dashboards/actions'
-import {Dashboard, RemoteDataState} from 'src/types'
+import {
+  RemoteDataState,
+  ResourceState,
+  Dashboard,
+  ResourceType,
+} from 'src/types'
 
-export interface DashboardsState {
-  list: Dashboard[]
-  status: RemoteDataState
-}
+// Actions
+import {
+  Action,
+  SET_DASHBOARD,
+  REMOVE_DASHBOARD,
+  SET_DASHBOARDS,
+  REMOVE_CELL,
+  REMOVE_DASHBOARD_LABEL,
+  ADD_DASHBOARD_LABEL,
+  EDIT_DASHBOARD,
+} from 'src/dashboards/actions/creators'
+
+// Utils
+import {
+  setResource,
+  removeResource,
+  editResource,
+} from 'src/resources/reducers/helpers'
+
+type DashboardsState = ResourceState['dashboards']
 
 const initialState = () => ({
-  list: [],
+  byID: {},
+  allIDs: [],
   status: RemoteDataState.NotStarted,
 })
 
@@ -22,83 +42,66 @@ export const dashboardsReducer = (
 ): DashboardsState => {
   return produce(state, draftState => {
     switch (action.type) {
-      case ActionTypes.SetDashboards: {
-        const {list, status} = action.payload
+      case SET_DASHBOARDS: {
+        setResource<Dashboard>(draftState, action, ResourceType.Dashboards)
 
-        draftState.status = status
-        if (list) {
-          draftState.list = list
+        return
+      }
+
+      case REMOVE_DASHBOARD: {
+        removeResource<Dashboard>(draftState, action)
+
+        return
+      }
+
+      case SET_DASHBOARD: {
+        const {schema} = action
+        const {entities, result} = schema
+
+        draftState.byID[result] = entities.dashboards[result]
+        const exists = draftState.allIDs.find(id => id === result)
+
+        if (!exists) {
+          draftState.allIDs.push(result)
         }
 
         return
       }
 
-      case ActionTypes.RemoveDashboard: {
-        const {id} = action.payload
-        draftState.list = draftState.list.filter(l => l.id !== id)
+      case EDIT_DASHBOARD: {
+        editResource<Dashboard>(draftState, action, ResourceType.Dashboards)
 
         return
       }
 
-      case ActionTypes.SetDashboard: {
-        const {dashboard} = action.payload
-        draftState.list = _.unionBy([dashboard], state.list, 'id')
+      case REMOVE_CELL: {
+        const {dashboardID, cellID} = action
+
+        const {cells} = draftState.byID[dashboardID]
+
+        draftState.byID[dashboardID].cells = cells.filter(
+          cell => cell.id !== cellID
+        )
 
         return
       }
 
-      case ActionTypes.EditDashboard: {
-        const {dashboard} = action.payload
+      case ADD_DASHBOARD_LABEL: {
+        const {dashboardID, label} = action
 
-        draftState.list = draftState.list.map(d => {
-          if (d.id === dashboard.id) {
-            return dashboard
-          }
-          return d
-        })
+        draftState.byID[dashboardID].labels.push(label)
 
         return
       }
 
-      case ActionTypes.RemoveCell: {
-        const {dashboard, cell} = action.payload
-        draftState.list = draftState.list.map(d => {
-          if (d.id === dashboard.id) {
-            const cells = d.cells.filter(c => c.id !== cell.id)
-            d.cells = cells
-          }
+      case REMOVE_DASHBOARD_LABEL: {
+        const {dashboardID, labelID} = action
 
-          return d
-        })
+        const {labels} = draftState.byID[dashboardID]
 
-        return
-      }
-
-      case ActionTypes.AddDashboardLabel: {
-        const {dashboardID, label} = action.payload
-
-        draftState.list = draftState.list.map(d => {
-          if (d.id === dashboardID) {
-            d.labels = [...d.labels, label]
-          }
-
-          return d
-        })
-
-        return
-      }
-
-      case ActionTypes.RemoveDashboardLabel: {
-        const {dashboardID, label} = action.payload
-        draftState.list = draftState.list.map(d => {
-          if (d.id === dashboardID) {
-            const updatedLabels = d.labels.filter(el => !(label.id === el.id))
-
-            d.labels = updatedLabels
-          }
-
-          return d
-        })
+        draftState.byID[dashboardID].labels = labels.filter(
+          label => label.id !== labelID
+        )
 
         return
       }

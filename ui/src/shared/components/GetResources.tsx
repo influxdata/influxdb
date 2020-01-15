@@ -3,20 +3,20 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Actions
-import {getLabels} from 'src/labels/actions'
-import {getBuckets} from 'src/buckets/actions/thunks'
-import {getTelegrafs} from 'src/telegrafs/actions/thunks'
-import {getPlugins} from 'src/dataLoaders/actions/telegrafEditor'
-import {getVariables} from 'src/variables/actions/thunks'
-import {getScrapers} from 'src/scrapers/actions/thunks'
-import {getDashboardsAsync} from 'src/dashboards/actions'
-import {getTasks} from 'src/tasks/actions/thunks'
 import {getAuthorizations} from 'src/authorizations/actions/thunks'
-import {getTemplates} from 'src/templates/actions'
-import {getMembers} from 'src/members/actions/thunks'
+import {getBuckets} from 'src/buckets/actions/thunks'
 import {getChecks} from 'src/alerting/actions/checks'
-import {getNotificationRules} from 'src/alerting/actions/notifications/rules'
+import {getDashboards} from 'src/dashboards/actions/thunks'
 import {getEndpoints} from 'src/alerting/actions/notifications/endpoints'
+import {getLabels} from 'src/labels/actions'
+import {getMembers} from 'src/members/actions/thunks'
+import {getNotificationRules} from 'src/alerting/actions/notifications/rules'
+import {getPlugins} from 'src/dataLoaders/actions/telegrafEditor'
+import {getScrapers} from 'src/scrapers/actions/thunks'
+import {getTasks} from 'src/tasks/actions/thunks'
+import {getTelegrafs} from 'src/telegrafs/actions/thunks'
+import {getTemplates} from 'src/templates/actions'
+import {getVariables} from 'src/variables/actions/thunks'
 
 // Types
 import {AppState, RemoteDataState, ResourceType} from 'src/types'
@@ -40,7 +40,7 @@ interface DispatchProps {
   getVariables: typeof getVariables
   getScrapers: typeof getScrapers
   getAuthorizations: typeof getAuthorizations
-  getDashboards: typeof getDashboardsAsync
+  getDashboards: typeof getDashboards
   getTasks: typeof getTasks
   getTemplates: typeof getTemplates
   getMembers: typeof getMembers
@@ -160,7 +160,7 @@ const mdtp = {
   getVariables: getVariables,
   getScrapers: getScrapers,
   getAuthorizations: getAuthorizations,
-  getDashboards: getDashboardsAsync,
+  getDashboards: getDashboards,
   getTasks: getTasks,
   getTemplates: getTemplates,
   getMembers: getMembers,

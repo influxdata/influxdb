@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {sortBy} from 'lodash'
 
 // Components
 import {
@@ -16,7 +16,7 @@ import TemplateBrowserEmpty from 'src/templates/components/createFromTemplateOve
 import GetResources from 'src/shared/components/GetResources'
 
 // Actions
-import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions'
+import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions/thunks'
 import {getTemplateByID} from 'src/templates/actions'
 
 // Constants
@@ -191,7 +191,7 @@ const mstp = ({templates: {items, status}}: AppState): StateProps => {
     t => !t.meta.type || t.meta.type === TemplateType.Dashboard
   )
 
-  const templates = _.sortBy(filteredTemplates, item =>
+  const templates = sortBy(filteredTemplates, item =>
     item.meta.name.toLocaleLowerCase()
   )
 
