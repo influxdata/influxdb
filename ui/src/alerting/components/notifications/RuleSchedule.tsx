@@ -7,7 +7,7 @@ import DurationInput from 'src/shared/components/DurationInput'
 
 // Types
 import {RuleState} from './RuleOverlay.reducer'
-import {DURATION_STRINGS} from 'src/timeMachine/constants/queryBuilder'
+import {DURATIONS} from 'src/timeMachine/constants/queryBuilder'
 import {NotificationRuleDraft} from 'src/types'
 import {CHECK_OFFSET_OPTIONS} from 'src/alerting/constants'
 
@@ -26,7 +26,7 @@ const RuleSchedule: FC<Props> = ({rule, onChange}) => {
           <DurationInput
             value={every || ''}
             onSubmit={onChange('every')}
-            suggestions={DURATION_STRINGS}
+            suggestions={DURATIONS}
             placeholder="1d3h30s"
             testID="rule-schedule-every--input"
           />
