@@ -64,7 +64,7 @@ class FunctionSelector extends PureComponent<Props, State> {
   public state: State = {searchTerm: ''}
 
   public render() {
-    const {onSelectAggregateWindow, isInCheckOverlay} = this.props
+    const {isInCheckOverlay} = this.props
 
     const {searchTerm} = this.state
     return (
@@ -101,7 +101,7 @@ class FunctionSelector extends PureComponent<Props, State> {
               />
               <FlexBox.Child grow={2} testID="component-spacer--flex-child">
                 <DurationInput
-                  onSubmit={onSelectAggregateWindow}
+                  onSubmit={this.handleSelectAggregateWindow}
                   value={this.duration}
                   suggestions={this.durations}
                   submitInvalid={false}
@@ -165,6 +165,14 @@ class FunctionSelector extends PureComponent<Props, State> {
     }
 
     onSelectFunction(functionName)
+  }
+
+  private handleSelectAggregateWindow = (input: string) => {
+    if (input.startsWith(AGG_WINDOW_AUTO)) {
+      this.props.onSelectAggregateWindow(AGG_WINDOW_AUTO)
+      return
+    }
+    this.props.onSelectAggregateWindow(input)
   }
 
   private windowInputValid = (input: string): boolean =>
