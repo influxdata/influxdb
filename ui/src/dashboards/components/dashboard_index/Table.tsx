@@ -8,7 +8,7 @@ import _ from 'lodash'
 import {EmptyState, ResourceList} from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
-import {createDashboard, getDashboardsAsync} from 'src/dashboards/actions'
+import {createDashboard, getDashboards} from 'src/dashboards/actions/thunks'
 import {getLabels} from 'src/labels/actions'
 
 // Types
@@ -34,7 +34,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  getDashboards: typeof getDashboardsAsync
+  getDashboards: typeof getDashboards
   onCreateDashboard: typeof createDashboard
   getLabels: typeof getLabels
 }
@@ -159,7 +159,7 @@ class DashboardsTable extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const status = state.dashboards.status
+  const status = state.resources.dashboards.status
 
   return {
     status,
@@ -167,7 +167,7 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  getDashboards: getDashboardsAsync,
+  getDashboards: getDashboards,
   onCreateDashboard: createDashboard,
   getLabels: getLabels,
 }
