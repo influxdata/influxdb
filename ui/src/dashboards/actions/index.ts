@@ -357,7 +357,7 @@ export const createCellWithView = (
         string
       >(resp.data, schemas.dashboard)
 
-      dashboard = entities[result]
+      dashboard = entities.dashboards[result]
     }
 
     const cell: NewCell = getNewDashboardCell(dashboard, clonedCell)
