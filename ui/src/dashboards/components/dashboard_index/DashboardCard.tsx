@@ -10,6 +10,9 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
 import {
+  cloneDashboard,
+  deleteDashboardAsync,
+  updateDashboardAsync,
   addDashboardLabelAsync,
   removeDashboardLabelAsync,
 } from 'src/dashboards/actions'
@@ -30,9 +33,6 @@ import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampForm
 
 interface PassedProps {
   dashboard: Dashboard
-  onDeleteDashboard: (dashboard: Dashboard) => void
-  onCloneDashboard: (dashboard: Dashboard) => void
-  onUpdateDashboard: (dashboard: Dashboard) => void
   onFilterChange: (searchTerm: string) => void
 }
 
@@ -41,6 +41,9 @@ interface StateProps {
 }
 
 interface DispatchProps {
+  onDeleteDashboard: (dashboard: Dashboard) => void
+  onUpdateDashboard: (dashboard: Dashboard) => void
+  onCloneDashboard: (dashboard: Dashboard) => void
   onAddDashboardLabel: typeof addDashboardLabelAsync
   onRemoveDashboardLabel: typeof removeDashboardLabelAsync
   onCreateLabel: typeof createLabelAsync
@@ -199,6 +202,9 @@ const mdtp: DispatchProps = {
   onAddDashboardLabel: addDashboardLabelAsync,
   onRemoveDashboardLabel: removeDashboardLabelAsync,
   onResetViews: resetViews,
+  onCloneDashboard: cloneDashboard,
+  onDeleteDashboard: deleteDashboardAsync,
+  onUpdateDashboard: updateDashboardAsync,
 }
 
 export default connect<StateProps, DispatchProps, PassedProps>(

@@ -68,7 +68,7 @@ export default class InlineLabels extends Component<Props> {
           color={label.properties.color}
           description={label.properties.description}
           onDelete={onDelete}
-          onClick={this.handleLabelClick}
+          onClick={this.handleLabelClick.bind(this, label.name)}
         />
       ))
     }
@@ -78,10 +78,8 @@ export default class InlineLabels extends Component<Props> {
     return this.props.editMode === LabelsEditMode.Editable
   }
 
-  private handleLabelClick = (labelID: string) => {
-    const {onFilterChange, labels} = this.props
-
-    const labelName = labels.find(l => l.id === labelID).name
+  private handleLabelClick = (labelName: string) => {
+    const {onFilterChange} = this.props
 
     onFilterChange(labelName)
   }

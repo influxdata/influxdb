@@ -13,7 +13,6 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
-import GetResources from 'src/shared/components/GetResources'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
 // Utils
@@ -21,23 +20,15 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {extractDashboardLimits} from 'src/cloud/utils/limits'
 
 // Actions
-import {
-  deleteDashboardAsync,
-  updateDashboardAsync,
-  createDashboard as createDashboardAction,
-  cloneDashboard as cloneDashboardAction,
-} from 'src/dashboards/actions'
+import {createDashboard as createDashboardAction} from 'src/dashboards/actions'
 
 // Types
-import {AppState, ResourceType} from 'src/types'
+import {AppState} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 import {ComponentStatus} from '@influxdata/clockface'
 
 interface DispatchProps {
-  handleDeleteDashboard: typeof deleteDashboardAsync
-  handleUpdateDashboard: typeof updateDashboardAsync
   createDashboard: typeof createDashboardAction
-  cloneDashboard: typeof cloneDashboardAction
 }
 
 interface StateProps {
@@ -66,13 +57,7 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      createDashboard,
-      cloneDashboard,
-      handleUpdateDashboard,
-      handleDeleteDashboard,
-      limitStatus,
-    } = this.props
+    const {createDashboard, limitStatus} = this.props
     const {searchTerm} = this.state
     return (
       <>
@@ -95,33 +80,28 @@ class DashboardIndex extends PureComponent<Props, State> {
               />
             </Page.HeaderRight>
           </Page.Header>
-          <Page.Contents fullWidth={false} scrollable={true}>
-            <GetResources
-              resources={[ResourceType.Dashboards, ResourceType.Labels]}
-            >
-              <GetAssetLimits>
-                <AssetLimitAlert
-                  resourceName="dashboards"
-                  limitStatus={limitStatus}
-                />
-                <DashboardsIndexContents
-                  filterComponent={
-                    <SearchWidget
-                      placeholderText="Filter dashboards..."
-                      onSearch={this.handleFilterDashboards}
-                      searchTerm={searchTerm}
-                    />
-                  }
-                  onDeleteDashboard={handleDeleteDashboard}
-                  onCreateDashboard={createDashboard}
-                  onCloneDashboard={cloneDashboard}
-                  onUpdateDashboard={handleUpdateDashboard}
-                  searchTerm={searchTerm}
-                  onFilterChange={this.handleFilterDashboards}
-                  onImportDashboard={this.summonImportOverlay}
-                />
-              </GetAssetLimits>
-            </GetResources>
+          <Page.Contents
+            className="dashboards-index__page-contents"
+            fullWidth={false}
+            scrollable={true}
+          >
+            <GetAssetLimits>
+              <AssetLimitAlert
+                resourceName="dashboards"
+                limitStatus={limitStatus}
+              />
+              <DashboardsIndexContents
+                filterComponent={
+                  <SearchWidget
+                    placeholderText="Filter dashboards..."
+                    onSearch={this.handleFilterDashboards}
+                    searchTerm={searchTerm}
+                  />
+                }
+                searchTerm={searchTerm}
+                onFilterChange={this.handleFilterDashboards}
+              />
+            </GetAssetLimits>
           </Page.Contents>
         </Page>
         {this.props.children}
@@ -169,10 +149,7 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  handleDeleteDashboard: deleteDashboardAsync,
-  handleUpdateDashboard: updateDashboardAsync,
   createDashboard: createDashboardAction,
-  cloneDashboard: cloneDashboardAction,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
