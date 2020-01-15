@@ -16,7 +16,7 @@ import LimitChecker from 'src/cloud/components/LimitChecker'
 import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 
 // Actions
-import * as dashboardActions from 'src/dashboards/actions'
+import * as dashboardActions from 'src/dashboards/actions/thunks'
 import * as rangesActions from 'src/dashboards/actions/ranges'
 import * as appActions from 'src/shared/actions/app'
 import {

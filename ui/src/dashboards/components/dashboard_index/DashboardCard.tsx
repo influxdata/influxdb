@@ -15,7 +15,7 @@ import {
   updateDashboard,
   addDashboardLabel,
   removeDashboardLabel,
-} from 'src/dashboards/actions'
+} from 'src/dashboards/actions/thunks'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Selectors
