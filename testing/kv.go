@@ -3,6 +3,7 @@ package testing
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -737,6 +738,24 @@ func KVForwardCursor(
 			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03"},
 		},
 		{
+			name: "prefix - does not prefix seek",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa/00",
+				until: "bbb/02",
+				opts: []kv.CursorOption{
+					kv.WithCursorPrefix([]byte("aab")),
+				},
+			},
+			expErr: kv.ErrSeekMissingPrefix,
+		},
+		{
 			name: "prefix hint",
 			fields: KVStoreFields{
 				Bucket: []byte("bucket"),
@@ -924,6 +943,11 @@ func KVForwardCursor(
 
 				cur, err := b.ForwardCursor([]byte(tt.args.seek), tt.args.opts...)
 				if err != nil {
+					if tt.expErr != nil && errors.Is(err, tt.expErr) {
+						// successfully returned expected error
+						return nil
+					}
+
 					t.Errorf("unexpected error: %v", err)
 					return err
 				}

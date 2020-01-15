@@ -201,13 +201,18 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 	var (
 		cursor     = b.bucket.Cursor()
 		key, value = cursor.Seek(seek)
+		config     = kv.NewCursorConfig(opts...)
 	)
+
+	if config.Prefix != nil && !bytes.HasPrefix(seek, config.Prefix) {
+		return nil, fmt.Errorf("seek bytes %q not prefixed with %q: %w", string(seek), string(config.Prefix), kv.ErrSeekMissingPrefix)
+	}
 
 	return &Cursor{
 		cursor: cursor,
 		key:    key,
 		value:  value,
-		config: kv.NewCursorConfig(opts...),
+		config: config,
 	}, nil
 }
 
