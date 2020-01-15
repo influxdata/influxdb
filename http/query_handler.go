@@ -491,7 +491,7 @@ func (s FluxQueryService) Check(ctx context.Context) check.Response {
 }
 
 // GetQueryResponse runs a flux query with common parameters and returns the response from the query service.
-func GetQueryResponse(addr, flux, org, token string, headers ...string) (*http.Response, error) {
+func GetQueryResponse(qr *QueryRequest, addr, org, token string, headers ...string) (*http.Response, error) {
 	if len(headers)%2 != 0 {
 		return nil, fmt.Errorf("headers must be key value pairs")
 	}
@@ -502,18 +502,6 @@ func GetQueryResponse(addr, flux, org, token string, headers ...string) (*http.R
 	params := url.Values{}
 	params.Set(Org, org)
 	u.RawQuery = params.Encode()
-
-	header := true
-	qr := &QueryRequest{
-		Type:  "flux",
-		Query: flux,
-		Dialect: QueryDialect{
-			Header:         &header,
-			Delimiter:      ",",
-			CommentPrefix:  "#",
-			DateTimeFormat: "RFC3339",
-		},
-	}
 
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(qr); err != nil {
@@ -552,7 +540,18 @@ func GetQueryResponseBody(res *http.Response) ([]byte, error) {
 
 // SimpleQuery runs a flux query with common parameters and returns CSV results.
 func SimpleQuery(addr, flux, org, token string, headers ...string) ([]byte, error) {
-	res, err := GetQueryResponse(addr, flux, org, token, headers...)
+	header := true
+	qr := &QueryRequest{
+		Type:  "flux",
+		Query: flux,
+		Dialect: QueryDialect{
+			Header:         &header,
+			Delimiter:      ",",
+			CommentPrefix:  "#",
+			DateTimeFormat: "RFC3339",
+		},
+	}
+	res, err := GetQueryResponse(qr, addr, org, token, headers...)
 	if err != nil {
 		return nil, err
 	}
