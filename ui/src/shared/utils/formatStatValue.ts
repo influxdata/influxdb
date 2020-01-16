@@ -45,7 +45,7 @@ export const formatStatValue = (
     return 'Data cannot be displayed'
   }
 
-  localeFormattedValue = preventNegativeZero(localeFormattedValue)
+  localeFormattedValue = '' + preventNegativeZero(localeFormattedValue)
   const formattedValue = `${prefix || ''}${localeFormattedValue}${suffix || ''}`
 
   return formattedValue

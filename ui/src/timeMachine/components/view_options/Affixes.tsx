@@ -54,7 +54,7 @@ class Affixes extends PureComponent<Props> {
           </Form.Element>
         </Grid.Column>
         <Grid.Column widthXS={Columns.Six}>
-          <FlexBox alignItems={AlignItems.Center} margin={ComponentSize.Small} justifyContent={JustifyContent.SpaceAround}>
+          <FlexBox alignItems={AlignItems.Center} margin={ComponentSize.Small}>
             <Toggle
               id='prefixoptional'
               type={InputToggleType.Checkbox}
