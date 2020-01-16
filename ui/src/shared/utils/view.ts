@@ -106,7 +106,9 @@ function defaultSingleStatViewProperties() {
     queries: [defaultViewQuery()],
     colors: DEFAULT_THRESHOLDS_LIST_COLORS as Color[],
     prefix: '',
+    tickPrefix:'',
     suffix: '',
+    tickSuffix:'',
     note: '',
     showNoteWhenEmpty: false,
     decimalPlaces: {
