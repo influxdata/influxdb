@@ -42,7 +42,7 @@ require (
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/influxdata/cron v0.0.0-20191112133922-ad5847cfab62
-	github.com/influxdata/flux v0.58.0
+	github.com/influxdata/flux v0.59.3
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
@@ -74,7 +74,7 @@ require (
 	github.com/prometheus/client_model v0.0.0-20190129233127-fd36f4220a90
 	github.com/prometheus/common v0.6.0
 	github.com/prometheus/procfs v0.0.3 // indirect
-	github.com/satori/go.uuid v1.2.0
+	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
 	github.com/spf13/cast v1.3.0
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.3
