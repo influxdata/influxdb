@@ -29,6 +29,7 @@ var goodBase = check.Base{
 	OwnerID:               influxTesting.MustIDBase16(id2),
 	OrgID:                 influxTesting.MustIDBase16(id3),
 	StatusMessageTemplate: "temp1",
+	Every:                 mustDuration("1m"),
 	Tags: []influxdb.Tag{
 		{Key: "k1", Value: "v1"},
 		{Key: "k2", Value: "v2"},
@@ -89,6 +90,60 @@ func TestValidCheck(t *testing.T) {
 			},
 		},
 		{
+			name: "nil every",
+			src: &check.Deadman{
+				Base: check.Base{
+					ID:                    influxTesting.MustIDBase16(id1),
+					Name:                  "name1",
+					OwnerID:               influxTesting.MustIDBase16(id2),
+					OrgID:                 influxTesting.MustIDBase16(id3),
+					StatusMessageTemplate: "temp1",
+					Tags:                  []influxdb.Tag{{Key: "key1"}},
+				},
+			},
+			err: &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "Check Every must exist",
+			},
+		},
+		{
+			name: "empty every",
+			src: &check.Deadman{
+				Base: check.Base{
+					ID:                    influxTesting.MustIDBase16(id1),
+					Name:                  "name1",
+					OwnerID:               influxTesting.MustIDBase16(id2),
+					OrgID:                 influxTesting.MustIDBase16(id3),
+					StatusMessageTemplate: "temp1",
+					Every:                 mustDuration("0"),
+					Tags:                  []influxdb.Tag{{Key: "key1"}},
+				},
+			},
+			err: &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "Check Every can't be empty",
+			},
+		},
+		{
+			name: "empty offset",
+			src: &check.Deadman{
+				Base: check.Base{
+					ID:                    influxTesting.MustIDBase16(id1),
+					Name:                  "name1",
+					OwnerID:               influxTesting.MustIDBase16(id2),
+					OrgID:                 influxTesting.MustIDBase16(id3),
+					StatusMessageTemplate: "temp1",
+					Every:                 mustDuration("1m"),
+					Offset:                mustDuration("0"),
+					Tags:                  []influxdb.Tag{{Key: "key1"}},
+				},
+			},
+			err: &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "Check Offset can't be empty",
+			},
+		},
+		{
 			name: "offset greater then interval",
 			src: &check.Deadman{
 				Base: check.Base{
@@ -114,6 +169,7 @@ func TestValidCheck(t *testing.T) {
 					OwnerID:               influxTesting.MustIDBase16(id2),
 					OrgID:                 influxTesting.MustIDBase16(id3),
 					StatusMessageTemplate: "temp1",
+					Every:                 mustDuration("1m"),
 					Tags:                  []influxdb.Tag{{Key: "key1"}},
 				},
 			},
