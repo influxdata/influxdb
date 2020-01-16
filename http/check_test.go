@@ -902,7 +902,6 @@ func TestService_handlePatchCheck(t *testing.T) {
 									Name:   "hello",
 									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
 									TaskID: 3,
-									Every:  mustDuration("1m"),
 								},
 								Level: notification.Critical,
 							}
@@ -1078,6 +1077,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 									Name:   "hello",
 									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
 									TaskID: 3,
+									Every:  mustDuration("1m"),
 								},
 							}
 
