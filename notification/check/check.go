@@ -61,7 +61,25 @@ func (b Base) Valid() error {
 			Msg:  "Check OrgID is invalid",
 		}
 	}
-	if b.Offset != nil && b.Every != nil && b.Offset.TimeDuration() >= b.Every.TimeDuration() {
+	if b.Every == nil {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Check Every must exist",
+		}
+	}
+	if len(b.Every.Values) == 0 {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Check Every can't be empty",
+		}
+	}
+	if b.Offset != nil && len(b.Offset.Values) == 0 {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Check Offset can't be empty",
+		}
+	}
+	if b.Offset != nil && b.Offset.TimeDuration() >= b.Every.TimeDuration() {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "Offset should not be equal or greater than the interval",
