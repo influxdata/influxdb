@@ -13,7 +13,7 @@ import {
 } from '@influxdata/clockface'
 import TemplateBrowser from 'src/templates/components/createFromTemplateOverlay/TemplateBrowser'
 import TemplateBrowserEmpty from 'src/templates/components/createFromTemplateOverlay/TemplateBrowserEmpty'
-import GetResources from 'src/shared/components/GetResources'
+import GetResources from 'src/resources/components/GetResources'
 
 // Actions
 import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions/thunks'

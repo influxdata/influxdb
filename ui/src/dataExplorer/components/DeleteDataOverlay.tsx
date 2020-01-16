@@ -7,7 +7,7 @@ import {get} from 'lodash'
 // Components
 import {Overlay} from '@influxdata/clockface'
 import DeleteDataForm from 'src/shared/components/DeleteDataForm/DeleteDataForm'
-import GetResources from 'src/shared/components/GetResources'
+import GetResources from 'src/resources/components/GetResources'
 
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'

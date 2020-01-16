@@ -21,7 +21,7 @@ import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPage
 import {FilteredList} from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
-import GetResources from 'src/shared/components/GetResources'
+import GetResources from 'src/resources/components/GetResources'
 
 // Actions
 import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions/thunks'

@@ -10,7 +10,7 @@ import {
   TelegrafEditorPlugin,
   TelegrafEditorActivePlugin,
 } from 'src/dataLoaders/reducers/telegrafEditor'
-import GetResources from 'src/shared/components/GetResources'
+import GetResources from 'src/resources/components/GetResources'
 import {
   Input,
   IconFont,

@@ -9,7 +9,7 @@ import CheckHistoryControls from 'src/alerting/components/CheckHistoryControls'
 import CheckHistoryVisualization from 'src/alerting/components/CheckHistoryVisualization'
 import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryParams'
 import EventTable from 'src/eventViewer/components/EventTable'
-import GetResources from 'src/shared/components/GetResources'
+import GetResources from 'src/resources/components/GetResources'
 
 //Context
 import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'
