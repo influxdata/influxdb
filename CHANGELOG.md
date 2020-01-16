@@ -7,9 +7,9 @@
 
 ### UI Improvements
 
+1. [16575](https://github.com/influxdata/influxdb/pull/16575): Swap billingURL with checkoutURL
 1. [16203](https://github.com/influxdata/influxdb/pull/16203): Move cloud navigation to top of page instead of within left side navigation
 1. [16536](https://github.com/influxdata/influxdb/pull/16536): Adjust aggregate window periods to be more "reasonable". Use duration input with validation.
-
 
 ## v2.0.0-beta.1 [2020-01-08]
 
