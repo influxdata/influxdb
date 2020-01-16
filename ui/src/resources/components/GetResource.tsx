@@ -29,7 +29,6 @@ export interface Resource {
 }
 
 interface OwnProps {
-  override: RemoteDataState | null
   resources: Resource[]
 }
 
@@ -75,8 +74,8 @@ class GetResources extends PureComponent<Props, StateProps> {
 }
 
 const mstp = (state: AppState, props: Props): StateProps => {
-  const {override, resources} = props
-  const remoteDataState = override || getResourceStatus(state, resources)
+  const {resources} = props
+  const remoteDataState = getResourceStatus(state, resources)
 
   return {
     remoteDataState,

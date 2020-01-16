@@ -6,6 +6,7 @@ import {get, isEqual} from 'lodash'
 
 // Components
 import GetResource from 'src/resources/components/GetResource'
+import GetTimeRange from 'src/dashboards/components/GetTimeRange'
 import {Page} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
@@ -162,8 +163,8 @@ class DashboardPage extends Component<Props> {
     return (
       <GetResource
         resources={[{type: ResourceType.Dashboards, id: dashboardID}]}
-        override={this.status}
       >
+        <GetTimeRange />
         <Page titleTag={this.pageTitle}>
           <LimitChecker>
             <HoverTimeProvider>
@@ -208,16 +209,6 @@ class DashboardPage extends Component<Props> {
         </Page>
       </GetResource>
     )
-  }
-
-  private get status() {
-    const {location} = this.props
-    const isLowerSet = get(location, 'query.lower')
-    if (isLowerSet) {
-      return null
-    }
-
-    return RemoteDataState.Loading
   }
 
   private handleChooseTimeRange = (timeRange: TimeRange): void => {
@@ -267,10 +258,12 @@ class DashboardPage extends Component<Props> {
   }
 
   private showNoteOverlay = (id?: string) => {
+    const {router} = this.props
+
     if (id) {
-      this.props.router.push(`${this.props.location.pathname}/notes/${id}/edit`)
+      router.push(`${this.props.location.pathname}/notes/${id}/edit`)
     } else {
-      this.props.router.push(`${this.props.location.pathname}/notes/new`)
+      router.push(`${this.props.location.pathname}/notes/new`)
     }
   }
 
