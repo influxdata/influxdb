@@ -89,7 +89,9 @@ function defaultGaugeViewProperties() {
     queries: [defaultViewQuery()],
     colors: DEFAULT_GAUGE_COLORS as Color[],
     prefix: '',
+    tickPrefix:'',
     suffix: '',
+    tickSuffix:'',
     note: '',
     showNoteWhenEmpty: false,
     decimalPlaces: {

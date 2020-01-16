@@ -67,7 +67,9 @@ export type Action =
   | SetYAxisBase
   | SetYAxisScale
   | SetPrefix
+  | SetTickPrefix
   | SetSuffix
+  | SetTickSuffix
   | SetActiveQueryIndexAction
   | AddQueryAction
   | RemoveQueryAction
@@ -299,6 +301,16 @@ export const setPrefix = (prefix: string): SetPrefix => ({
   payload: {prefix},
 })
 
+interface SetTickPrefix {
+  type: 'SET_TICK_PREFIX'
+  payload: {tickPrefix: string}
+}
+
+export const setTickPrefix = (tickPrefix: string): SetTickPrefix => ({
+  type: 'SET_TICK_PREFIX',
+  payload: {tickPrefix},
+})
+
 interface SetSuffix {
   type: 'SET_SUFFIX'
   payload: {suffix: string}
@@ -308,6 +320,17 @@ export const setSuffix = (suffix: string): SetSuffix => ({
   type: 'SET_SUFFIX',
   payload: {suffix},
 })
+
+interface SetTickSuffix {
+  type: 'SET_TICK_SUFFIX'
+  payload: {tickSuffix: string}
+}
+
+export const setTickSuffix = (tickSuffix: string): SetTickSuffix => ({
+  type: 'SET_TICK_SUFFIX',
+  payload: {tickSuffix},
+})
+
 
 interface SetStaticLegend {
   type: 'SET_STATIC_LEGEND'
