@@ -379,6 +379,7 @@ func (w *worker) executeQuery(p *promise) {
 			Now: sf,
 		},
 	}
+	req.WithReturnNoContent(true)
 	ctx = icontext.SetAuthorizer(ctx, p.task.Authorization)
 	it, err := w.e.qs.Query(ctx, req)
 	if err != nil {

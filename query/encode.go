@@ -13,7 +13,7 @@ const (
 	NoContentWErrDialectType = "no-content-with-error"
 )
 
-// AddDialectMappings adds the no-content dialects mappings.
+// AddDialectMappings adds the mappings for the no-content dialects.
 func AddDialectMappings(mappings flux.DialectMappings) error {
 	if err := mappings.Add(NoContentDialectType, func() flux.Dialect {
 		return NewNoContentDialect()

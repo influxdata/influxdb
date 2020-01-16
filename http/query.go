@@ -26,12 +26,6 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-const (
-	PreferHeaderKey                = "Prefer"
-	PreferNoContentHeaderValue     = "return-no-content"
-	PreferNoContentWErrHeaderValue = "return-no-content-with-error"
-)
-
 // QueryRequest is a flux query request.
 type QueryRequest struct {
 	Extern  *ast.File    `json:"extern,omitempty"`
@@ -372,10 +366,10 @@ func decodeQueryRequest(ctx context.Context, r *http.Request, svc influxdb.Organ
 		}
 	}
 
-	switch hv := r.Header.Get(PreferHeaderKey); hv {
-	case PreferNoContentHeaderValue:
+	switch hv := r.Header.Get(query.PreferHeaderKey); hv {
+	case query.PreferNoContentHeaderValue:
 		req.PreferNoContent = true
-	case PreferNoContentWErrHeaderValue:
+	case query.PreferNoContentWErrHeaderValue:
 		req.PreferNoContentWithError = true
 	}
 
