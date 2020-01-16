@@ -103,6 +103,10 @@ func restoreE(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to move existing bolt file: %v", err)
 	}
 
+	if err := moveCredentials(); err != nil {
+		return fmt.Errorf("failed to move existing credentials file: %v", err)
+	}
+
 	if err := moveEngine(); err != nil {
 		return fmt.Errorf("failed to move existing engine data: %v", err)
 	}
@@ -111,9 +115,14 @@ func restoreE(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to restore bolt file: %v", err)
 	}
 
+	if err := restoreCred(); err != nil {
+		return fmt.Errorf("failed to restore credentials file: %v", err)
+	}
+
 	if err := restoreEngine(); err != nil {
 		return fmt.Errorf("failed to restore all TSM files: %v", err)
 	}
+
 
 	if flags.rebuildTSI {
 		sFilePath := filepath.Join(flags.enginePath, storage.DefaultSeriesFileDirectoryName)
