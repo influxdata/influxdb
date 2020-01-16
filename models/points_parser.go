@@ -158,6 +158,15 @@ func (pp *pointsParser) parsePoints(buf []byte) (err error) {
 
 		err = pp.parsePointsAppend(block[start:])
 		if err != nil {
+			if errors.Is(err, errLimit) {
+				break
+			}
+
+			if !pp.checkAlloc(1, len(block[start:])) {
+				pp.state = parserStateBytesLimit
+				break
+			}
+
 			failed = append(failed, fmt.Sprintf("unable to parse '%s': %v", string(block[start:]), err))
 		}
 	}
@@ -292,6 +301,7 @@ func (pp *pointsParser) append(p point) error {
 func (pp *pointsParser) checkAlloc(n, size int) bool {
 	newBytes := pp.bytesN + (n * size)
 	if pp.maxBytes > 0 && newBytes > pp.maxBytes {
+		pp.state = parserStateBytesLimit
 		return false
 	}
 	pp.bytesN = newBytes
