@@ -5,7 +5,8 @@ import {withRouter} from 'react-router'
 import {get, isEqual} from 'lodash'
 
 // Components
-import {Page, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import GetResource from 'src/resources/components/GetResource'
+import {Page} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardComponent from 'src/dashboards/components/Dashboard'
@@ -120,8 +121,6 @@ class DashboardPage extends Component<Props> {
     if (autoRefresh.status === AutoRefreshStatus.Active) {
       GlobalAutoRefresher.poll(autoRefresh.interval)
     }
-
-    this.getDashboard()
   }
 
   public componentDidUpdate(prevProps: Props) {
@@ -144,6 +143,7 @@ class DashboardPage extends Component<Props> {
   public render() {
     const {
       org,
+      params,
       timeRange,
       dashboard,
       autoRefresh,
@@ -157,19 +157,12 @@ class DashboardPage extends Component<Props> {
       children,
     } = this.props
 
-    if (!dashboard || !this.lowerParam) {
-      return (
-        <SpinnerContainer
-          loading={RemoteDataState.Loading}
-          spinnerComponent={<TechnoSpinner />}
-        />
-      )
-    }
+    const {dashboardID} = params
 
     return (
-      <SpinnerContainer
-        loading={dashboard.status}
-        spinnerComponent={<TechnoSpinner />}
+      <GetResource
+        resources={[{type: ResourceType.Dashboards, id: dashboardID}]}
+        override={this.status}
       >
         <Page titleTag={this.pageTitle}>
           <LimitChecker>
@@ -196,38 +189,35 @@ class DashboardPage extends Component<Props> {
                 limitStatus={limitStatus}
                 className="dashboard--rate-alert"
               />
-              {showVariablesControls && !!dashboard && (
-                <VariablesControlBar dashboardID={dashboard.id} />
+              {showVariablesControls && (
+                <VariablesControlBar dashboardID={dashboardID} />
               )}
-              {!!dashboard && (
-                <DashboardComponent
-                  timeRange={timeRange}
-                  dashboardID={dashboard.id}
-                  manualRefresh={manualRefresh}
-                  onCloneCell={this.handleCloneCell}
-                  onEditView={this.handleEditView}
-                  onAddCell={this.handleAddCell}
-                  onEditNote={this.showNoteOverlay}
-                  onPositionChange={this.handlePositionChange}
-                />
-              )}
+              <DashboardComponent
+                timeRange={timeRange}
+                dashboardID={dashboardID}
+                manualRefresh={manualRefresh}
+                onCloneCell={this.handleCloneCell}
+                onEditView={this.handleEditView}
+                onAddCell={this.handleAddCell}
+                onEditNote={this.showNoteOverlay}
+                onPositionChange={this.handlePositionChange}
+              />
               {children}
             </HoverTimeProvider>
           </LimitChecker>
         </Page>
-      </SpinnerContainer>
+      </GetResource>
     )
   }
 
-  private get lowerParam() {
+  private get status() {
     const {location} = this.props
-    return get(location, 'query.lower')
-  }
+    const isLowerSet = get(location, 'query.lower')
+    if (isLowerSet) {
+      return null
+    }
 
-  private getDashboard = () => {
-    const {params, getDashboard} = this.props
-
-    getDashboard(params.dashboardID)
+    return RemoteDataState.Loading
   }
 
   private handleChooseTimeRange = (timeRange: TimeRange): void => {

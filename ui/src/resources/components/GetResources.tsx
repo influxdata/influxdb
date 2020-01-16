@@ -26,7 +26,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {TechnoSpinner, SpinnerContainer} from '@influxdata/clockface'
 
 // Selectors
-import {getResourcesStatus} from 'src/shared/selectors/getResourcesStatus'
+import {getResourcesStatus} from 'src/resources/selectors/getResourcesStatus'
 
 interface StateProps {
   remoteDataState: RemoteDataState
