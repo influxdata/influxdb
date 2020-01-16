@@ -106,7 +106,14 @@ const mstp = (state: AppState) => {
   const view = getActiveTimeMachine(state).view as NewView<
     SingleStatViewProperties
   >
-  const {colors, prefix, suffix, decimalPlaces, tickPrefix, tickSuffix} = view.properties
+  const {
+    colors,
+    prefix,
+    suffix,
+    decimalPlaces,
+    tickPrefix,
+    tickSuffix,
+  } = view.properties
 
   return {colors, prefix, suffix, decimalPlaces, tickPrefix, tickSuffix}
 }

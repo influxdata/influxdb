@@ -282,7 +282,7 @@ class Gauge extends Component<Props> {
     maxValue
   ) => {
     const {tickPrefix, tickSuffix, decimalPlaces} = this.props
-    let {prefix, suffix} = this.props 
+    let {prefix, suffix} = this.props
     const {degree, lineCount, labelColor, labelFontSize} = GAUGE_SPECS
 
     const tickValues = [
@@ -290,12 +290,12 @@ class Gauge extends Component<Props> {
       maxValue,
     ]
 
-    if(tickPrefix === "true"){
-      prefix = "";
+    if (tickPrefix === 'true') {
+      prefix = ''
     }
-    
-    if(tickSuffix === "true"){
-      suffix = "";
+
+    if (tickSuffix === 'true') {
+      suffix = ''
     }
 
     const labels = tickValues.map(tick =>
@@ -351,7 +351,7 @@ class Gauge extends Component<Props> {
     const textContent = formatStatValue(gaugePosition, {
       decimalPlaces,
       prefix,
-      suffix
+      suffix,
     })
 
     ctx.fillText(textContent, 0, textY)
