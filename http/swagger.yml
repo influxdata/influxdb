@@ -8502,7 +8502,9 @@ components:
         - note
         - showNoteWhenEmpty
         - prefix
+        - tickPrefix
         - suffix
+        - tickSuffix
         - legend
         - decimalPlaces
       properties:
@@ -8528,7 +8530,11 @@ components:
           type: boolean
         prefix:
           type: string
+        tickPrefix:
+          type: string
         suffix:
+          type: string
+        tickSuffix:
           type: string
         legend:
           $ref: '#/components/schemas/Legend'

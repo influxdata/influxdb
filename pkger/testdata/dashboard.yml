@@ -8,7 +8,9 @@ spec:
     - kind:   Single_Stat
       name:   single stat
       prefix: sumtin
+      tickPrefix: "true"
       suffix: days
+      tickSuffix: "true"
       note:   single stat note
       noteOnEmpty: true
       xPos: 1
