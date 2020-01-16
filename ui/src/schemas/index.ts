@@ -3,6 +3,7 @@ import {schema} from 'normalizr'
 
 // Types
 import {
+  Cell,
   ResourceType,
   Telegraf,
   Task,
@@ -30,24 +31,27 @@ export const arrayOfBuckets = [bucket]
 /* Cells */
 
 // Defines the schema for the "cells" resource
-// export const cell = new schema.Entity(
-//   ResourceType.Cells,
-//   {},
-//   {
-//     processStrategy: (cell: Cell, parent: Dashboard) => ({
-//       ...cell,
-//       dashboardID: parent.id,
-//     }),
-//   }
-// )
-// export const arrayOfCells = [cell]
+export const cell = new schema.Entity(
+  ResourceType.Cells,
+  {},
+  {
+    processStrategy: (cell: Cell, parent: Dashboard) => ({
+      ...cell,
+      dashboardID: parent.id,
+      status: RemoteDataState.Done,
+    }),
+  }
+)
+export const arrayOfCells = [cell]
 
 /* Dashboards */
 
 // Defines the schema for the "dashboards" resource
 export const dashboard = new schema.Entity(
   ResourceType.Dashboards,
-  {},
+  {
+    cells: arrayOfCells,
+  },
   {
     processStrategy: (dashboard: Dashboard) => addDashboardDefaults(dashboard),
   }

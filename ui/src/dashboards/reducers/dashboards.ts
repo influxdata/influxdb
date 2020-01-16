@@ -15,15 +15,20 @@ import {
   SET_DASHBOARD,
   REMOVE_DASHBOARD,
   SET_DASHBOARDS,
-  REMOVE_CELL,
   REMOVE_DASHBOARD_LABEL,
   ADD_DASHBOARD_LABEL,
   EDIT_DASHBOARD,
 } from 'src/dashboards/actions/creators'
+import {
+  REMOVE_CELL,
+  SET_CELL,
+  Action as CellAction,
+} from 'src/cells/actions/creators'
 
 // Utils
 import {
   setResource,
+  setResourceAtID,
   removeResource,
   editResource,
 } from 'src/resources/reducers/helpers'
@@ -38,7 +43,7 @@ const initialState = () => ({
 
 export const dashboardsReducer = (
   state: DashboardsState = initialState(),
-  action: Action
+  action: Action | CellAction
 ): DashboardsState => {
   return produce(state, draftState => {
     switch (action.type) {
@@ -55,15 +60,7 @@ export const dashboardsReducer = (
       }
 
       case SET_DASHBOARD: {
-        const {schema} = action
-        const {entities, result} = schema
-
-        draftState.byID[result] = entities.dashboards[result]
-        const exists = draftState.allIDs.find(id => id === result)
-
-        if (!exists) {
-          draftState.allIDs.push(result)
-        }
+        setResourceAtID<Dashboard>(draftState, action, ResourceType.Dashboards)
 
         return
       }
@@ -75,13 +72,22 @@ export const dashboardsReducer = (
       }
 
       case REMOVE_CELL: {
-        const {dashboardID, cellID} = action
+        const {dashboardID, id} = action
 
         const {cells} = draftState.byID[dashboardID]
 
-        draftState.byID[dashboardID].cells = cells.filter(
-          cell => cell.id !== cellID
-        )
+        draftState.byID[dashboardID].cells = cells.filter(cID => cID !== id)
+
+        return
+      }
+
+      case SET_CELL: {
+        const {id, schema} = action
+
+        const cell = schema.entities.cells[id]
+        const {cells} = draftState.byID[cell.dashboardID]
+
+        draftState.byID[cell.id].cells = cells.filter(cid => cid !== id)
 
         return
       }

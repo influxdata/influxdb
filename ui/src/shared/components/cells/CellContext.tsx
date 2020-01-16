@@ -1,5 +1,6 @@
 // Libraries
-import React, {FunctionComponent, useRef, RefObject, useState} from 'react'
+import React, {FC, useRef, RefObject, useState} from 'react'
+import {connect} from 'react-redux'
 import {get} from 'lodash'
 import classnames from 'classnames'
 
@@ -15,20 +16,28 @@ import CellContextItem from 'src/shared/components/cells/CellContextItem'
 import CellContextDangerItem from 'src/shared/components/cells/CellContextDangerItem'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
+// Actions
+import {deleteCell} from 'src/cells/actions/thunks'
+
 // Types
 import {Cell, View} from 'src/types'
 
-interface Props {
+interface DispatchProps {
+  onDeleteCell: typeof deleteCell
+}
+
+interface OwnProps {
   cell: Cell
   view: View
-  onDeleteCell: (cell: Cell) => void
   onCloneCell: (cell: Cell) => void
   onCSVDownload: () => void
   onEditCell: () => void
   onEditNote: (id: string) => void
 }
 
-const CellContext: FunctionComponent<Props> = ({
+type Props = OwnProps & DispatchProps
+
+const CellContext: FC<Props> = ({
   view,
   cell,
   onEditNote,
@@ -55,7 +64,9 @@ const CellContext: FunctionComponent<Props> = ({
   }
 
   const handleDeleteCell = (): void => {
-    onDeleteCell(cell)
+    const {dashboardID, id} = cell
+
+    onDeleteCell(dashboardID, id)
   }
 
   const popoverContents = (onHide): JSX.Element => {
@@ -150,4 +161,11 @@ const CellContext: FunctionComponent<Props> = ({
   )
 }
 
-export default CellContext
+const mdtp: DispatchProps = {
+  onDeleteCell: deleteCell,
+}
+
+export default connect(
+  null,
+  mdtp
+)(CellContext)

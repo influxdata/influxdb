@@ -2,7 +2,7 @@
 import * as api from 'src/client'
 
 // Types
-import {View, NewView, Dashboard} from 'src/types'
+import {Cell, View, NewView} from 'src/types'
 
 export const getView = async (
   dashboardID: string,
@@ -37,12 +37,11 @@ export const updateView = async (
   return viewWithIDs
 }
 
-export const cloneUtilFunc = async (dash: Dashboard, id: string) => {
-  const cells = dash.cells
+export const cloneUtilFunc = async (cells: Cell[], dashboardID: string) => {
   const pendingViews = cells.map(cell =>
     api
       .getDashboardsCellsView({
-        dashboardID: dash.id,
+        dashboardID,
         cellID: cell.id,
       })
       .then(res => {
@@ -62,9 +61,9 @@ export const cloneUtilFunc = async (dash: Dashboard, id: string) => {
     const view = v.data as View
     const cell = cells.find(c => c.id === view.id)
 
-    if (cell && id) {
+    if (cell && dashboardID) {
       const newCell = await api.postDashboardsCell({
-        dashboardID: id,
+        dashboardID,
         data: cell,
       })
 
@@ -73,7 +72,7 @@ export const cloneUtilFunc = async (dash: Dashboard, id: string) => {
       }
 
       return api.patchDashboardsCellsView({
-        dashboardID: id,
+        dashboardID,
         cellID: newCell.data.id,
         data: view,
       })

@@ -25,7 +25,6 @@ interface Props {
   timeRange: TimeRange
   manualRefresh: number
   onCloneCell?: (cell: Cell) => void
-  onDeleteCell?: (cell: Cell) => void
   onPositionChange?: (cells: Cell[]) => void
   onEditView: (cellID: string) => void
   onEditNote: (id: string) => void
@@ -36,7 +35,6 @@ class Cells extends Component<Props & WithRouterProps> {
   public render() {
     const {
       cells,
-      onDeleteCell,
       onCloneCell,
       timeRange,
       manualRefresh,
@@ -63,8 +61,7 @@ class Cells extends Component<Props & WithRouterProps> {
               manualRefresh={manualRefresh}
               timeRange={timeRange}
               onCloneCell={onCloneCell}
-              onDeleteCell={onDeleteCell}
-              onEditCell={this.handleEditCell(cell)}
+              onEditCell={this.handleEditCell(cell.id)}
               onEditNote={onEditNote}
             />
             {this.cellBorder}
@@ -133,10 +130,10 @@ class Cells extends Component<Props & WithRouterProps> {
     }
   }
 
-  private handleEditCell = (cell: Cell) => {
+  private handleEditCell = (cellID: string) => {
     const {onEditView} = this.props
 
-    return () => onEditView(cell.id)
+    return () => onEditView(cellID)
   }
 }
 

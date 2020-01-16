@@ -1,5 +1,6 @@
 // Types
 import {
+  Cell,
   Task,
   Dashboard,
   Variable,
@@ -27,11 +28,22 @@ export interface BucketEntities {
   }
 }
 
+// CellEntities defines the result of normalizr's normalization
+// of the "cells" resource
+export interface CellEntities {
+  cells: {
+    [uuid: string]: Cell
+  }
+}
+
 // DashboardEntities defines the result of normalizr's normalization
 // of the "dashboards" resource
 export interface DashboardEntities {
   dashboards: {
     [uuid: string]: Dashboard
+  }
+  cells: {
+    [uuid: string]: Cell
   }
 }
 

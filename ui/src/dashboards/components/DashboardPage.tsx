@@ -5,7 +5,7 @@ import {withRouter} from 'react-router'
 import {get, isEqual} from 'lodash'
 
 // Components
-import {Page} from '@influxdata/clockface'
+import {Page, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardComponent from 'src/dashboards/components/Dashboard'
@@ -16,6 +16,7 @@ import LimitChecker from 'src/cloud/components/LimitChecker'
 import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 
 // Actions
+import * as cellActions from 'src/cells/actions/thunks'
 import * as dashboardActions from 'src/dashboards/actions/thunks'
 import * as rangesActions from 'src/dashboards/actions/ranges'
 import * as appActions from 'src/shared/actions/app'
@@ -40,6 +41,7 @@ import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
 import {getOrg} from 'src/organizations/selectors'
 import {getByID} from 'src/resources/selectors'
+import {getCells} from 'src/cells/selectors'
 
 // Types
 import {
@@ -68,6 +70,7 @@ interface StateProps {
   org: Organization
   links: Links
   timeRange: TimeRange
+  cells: Cell[]
   dashboard: Dashboard
   autoRefresh: AutoRefresh
   showVariablesControls: boolean
@@ -75,7 +78,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  deleteCell: typeof dashboardActions.deleteCell
+  deleteCell: typeof cellActions.deleteCell
   copyCell: typeof dashboardActions.copyDashboardCell
   getDashboard: typeof dashboardActions.getDashboard
   updateDashboard: typeof dashboardActions.updateDashboard
@@ -85,7 +88,7 @@ interface DispatchProps {
   handleChooseAutoRefresh: typeof setAutoRefreshInterval
   onSetAutoRefreshStatus: typeof setAutoRefreshStatus
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
-  onCreateCellWithView: typeof dashboardActions.createCellWithView
+  onCreateCellWithView: typeof cellActions.createCellWithView
   onUpdateView: typeof dashboardActions.updateView
   onToggleShowVariablesControls: typeof toggleShowVariablesControls
 }
@@ -143,6 +146,7 @@ class DashboardPage extends Component<Props> {
   public render() {
     const {
       org,
+      cells,
       timeRange,
       dashboard,
       autoRefresh,
@@ -159,47 +163,51 @@ class DashboardPage extends Component<Props> {
     return (
       <Page titleTag={this.pageTitle}>
         <LimitChecker>
-          <HoverTimeProvider>
-            <DashboardHeader
-              org={org}
-              dashboard={dashboard}
-              timeRange={timeRange}
-              autoRefresh={autoRefresh}
-              onAddCell={this.handleAddCell}
-              onAddNote={this.showNoteOverlay}
-              onManualRefresh={onManualRefresh}
-              onRenameDashboard={this.handleRenameDashboard}
-              activeDashboard={dashboard ? dashboard.name : ''}
-              handleChooseAutoRefresh={this.handleChooseAutoRefresh}
-              onSetAutoRefreshStatus={this.handleSetAutoRefreshStatus}
-              handleChooseTimeRange={this.handleChooseTimeRange}
-              handleClickPresentationButton={handleClickPresentationButton}
-              toggleVariablesControlBar={onToggleShowVariablesControls}
-              isShowingVariablesControlBar={showVariablesControls}
-            />
-            <RateLimitAlert
-              resources={limitedResources}
-              limitStatus={limitStatus}
-              className="dashboard--rate-alert"
-            />
-            {showVariablesControls && !!dashboard && (
-              <VariablesControlBar dashboardID={dashboard.id} />
-            )}
-            {!!dashboard && (
-              <DashboardComponent
+          <SpinnerContainer
+            loading={dashboard.status}
+            spinnerComponent={<TechnoSpinner />}
+          >
+            <HoverTimeProvider>
+              <DashboardHeader
+                org={org}
                 dashboard={dashboard}
                 timeRange={timeRange}
-                manualRefresh={manualRefresh}
-                onCloneCell={this.handleCloneCell}
-                onPositionChange={this.handlePositionChange}
-                onDeleteCell={this.handleDeleteDashboardCell}
-                onEditView={this.handleEditView}
+                autoRefresh={autoRefresh}
                 onAddCell={this.handleAddCell}
-                onEditNote={this.showNoteOverlay}
+                onAddNote={this.showNoteOverlay}
+                onManualRefresh={onManualRefresh}
+                onRenameDashboard={this.handleRenameDashboard}
+                activeDashboard={dashboard ? dashboard.name : ''}
+                handleChooseAutoRefresh={this.handleChooseAutoRefresh}
+                onSetAutoRefreshStatus={this.handleSetAutoRefreshStatus}
+                handleChooseTimeRange={this.handleChooseTimeRange}
+                handleClickPresentationButton={handleClickPresentationButton}
+                toggleVariablesControlBar={onToggleShowVariablesControls}
+                isShowingVariablesControlBar={showVariablesControls}
               />
-            )}
-            {children}
-          </HoverTimeProvider>
+              <RateLimitAlert
+                resources={limitedResources}
+                limitStatus={limitStatus}
+                className="dashboard--rate-alert"
+              />
+              {showVariablesControls && !!dashboard && (
+                <VariablesControlBar dashboardID={dashboard.id} />
+              )}
+              {!!dashboard && (
+                <DashboardComponent
+                  cells={cells}
+                  timeRange={timeRange}
+                  manualRefresh={manualRefresh}
+                  onCloneCell={this.handleCloneCell}
+                  onPositionChange={this.handlePositionChange}
+                  onEditView={this.handleEditView}
+                  onAddCell={this.handleAddCell}
+                  onEditNote={this.showNoteOverlay}
+                />
+              )}
+              {children}
+            </HoverTimeProvider>
+          </SpinnerContainer>
         </LimitChecker>
       </Page>
     )
@@ -285,11 +293,6 @@ class DashboardPage extends Component<Props> {
     updateDashboard(renamedDashboard)
   }
 
-  private handleDeleteDashboardCell = (cell: Cell) => {
-    const {dashboard, deleteCell} = this.props
-    deleteCell(dashboard, cell)
-  }
-
   private get pageTitle(): string {
     const {dashboard} = this.props
     const dashboardName = get(dashboard, 'name', 'Loading...')
@@ -318,11 +321,14 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     dashboardID
   )
 
+  const cells = getCells(state, dashboardID)
+
   const limitedResources = extractRateLimitResources(limits)
   const limitStatus = extractRateLimitStatus(limits)
 
   return {
     org,
+    cells,
     links,
     views,
     timeRange,
@@ -338,14 +344,14 @@ const mdtp: DispatchProps = {
   getDashboard: dashboardActions.getDashboard,
   updateDashboard: dashboardActions.updateDashboard,
   copyCell: dashboardActions.copyDashboardCell,
-  deleteCell: dashboardActions.deleteCell,
   updateCells: dashboardActions.updateCells,
   handleChooseAutoRefresh: setAutoRefreshInterval,
   onSetAutoRefreshStatus: setAutoRefreshStatus,
   handleClickPresentationButton: appActions.delayEnablePresentationMode,
   setDashboardTimeRange: rangesActions.setDashboardTimeRange,
   updateQueryParams: rangesActions.updateQueryParams,
-  onCreateCellWithView: dashboardActions.createCellWithView,
+  deleteCell: cellActions.deleteCell,
+  onCreateCellWithView: cellActions.createCellWithView,
   onUpdateView: dashboardActions.updateView,
   onToggleShowVariablesControls: toggleShowVariablesControls,
 }

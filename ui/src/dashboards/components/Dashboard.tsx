@@ -7,17 +7,16 @@ import DashboardEmpty from 'src/dashboards/components/dashboard_empty/DashboardE
 import {Page} from '@influxdata/clockface'
 
 // Types
-import {Dashboard, Cell} from 'src/types'
+import {Cell} from 'src/types'
 import {TimeRange} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  dashboard: Dashboard
+  cells: Cell[]
   timeRange: TimeRange
   manualRefresh: number
-  onDeleteCell: (cell: Cell) => void
   onCloneCell: (cell: Cell) => void
   onPositionChange: (cells: Cell[]) => void
   onEditView: (cellID: string) => void
@@ -29,10 +28,9 @@ interface Props {
 class DashboardComponent extends PureComponent<Props> {
   public render() {
     const {
-      dashboard,
+      cells,
       timeRange,
       manualRefresh,
-      onDeleteCell,
       onCloneCell,
       onEditView,
       onPositionChange,
@@ -42,13 +40,12 @@ class DashboardComponent extends PureComponent<Props> {
 
     return (
       <Page.Contents fullWidth={true} scrollable={true} className="dashboard">
-        {dashboard.cells.length ? (
+        {!!cells.length ? (
           <Cells
+            cells={cells}
             timeRange={timeRange}
             manualRefresh={manualRefresh}
-            cells={dashboard.cells}
             onCloneCell={onCloneCell}
-            onDeleteCell={onDeleteCell}
             onPositionChange={onPositionChange}
             onEditView={onEditView}
             onEditNote={onEditNote}

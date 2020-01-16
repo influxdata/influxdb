@@ -56,7 +56,7 @@ export const getViewsForDashboard = (
     dashboardID
   )
 
-  const cellIDs = new Set(dashboard.cells.map(cell => cell.id))
+  const cellIDs = new Set(dashboard.cells.map(cellID => cellID))
 
   const views = Object.values(state.views.views)
     .map(d => d.view)

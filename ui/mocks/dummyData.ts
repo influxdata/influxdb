@@ -1,5 +1,12 @@
 import {ViewProperties} from 'src/client'
-import {Cell, Dashboard, Task, Links, ConfigurationState} from 'src/types'
+import {
+  Cell,
+  Dashboard,
+  Task,
+  Links,
+  ConfigurationState,
+  RemoteDataState,
+} from 'src/types'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {WithRouterProps} from 'react-router'
 import {NumericColumnData} from '@influxdata/giraffe'
@@ -203,6 +210,7 @@ export const cell: Cell = {
     self: 'self/link',
     view: 'view/link',
   },
+  status: RemoteDataState.Done,
 }
 
 export const orgs: Organization[] = [
