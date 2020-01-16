@@ -331,7 +331,6 @@ export const setTickSuffix = (tickSuffix: string): SetTickSuffix => ({
   payload: {tickSuffix},
 })
 
-
 interface SetStaticLegend {
   type: 'SET_STATIC_LEGEND'
   payload: {staticLegend: boolean}

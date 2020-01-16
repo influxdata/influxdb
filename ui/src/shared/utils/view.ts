@@ -89,9 +89,9 @@ function defaultGaugeViewProperties() {
     queries: [defaultViewQuery()],
     colors: DEFAULT_GAUGE_COLORS as Color[],
     prefix: '',
-    tickPrefix:'',
+    tickPrefix: '',
     suffix: '',
-    tickSuffix:'',
+    tickSuffix: '',
     note: '',
     showNoteWhenEmpty: false,
     decimalPlaces: {
@@ -106,9 +106,9 @@ function defaultSingleStatViewProperties() {
     queries: [defaultViewQuery()],
     colors: DEFAULT_THRESHOLDS_LIST_COLORS as Color[],
     prefix: '',
-    tickPrefix:'',
+    tickPrefix: '',
     suffix: '',
-    tickSuffix:'',
+    tickSuffix: '',
     note: '',
     showNoteWhenEmpty: false,
     decimalPlaces: {
