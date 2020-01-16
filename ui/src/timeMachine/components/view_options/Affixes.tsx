@@ -11,8 +11,7 @@ import {
   InputLabel,
   FlexBox,
   AlignItems,
-  ComponentSize,
-  JustifyContent
+  ComponentSize
 } from '@influxdata/clockface'
 
 // Types
