@@ -891,7 +891,7 @@ func TestService_handlePatchCheck(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "update a check name",
+			name: "update a check name 1",
 			fields: fields{
 				&mock.CheckService{
 					PatchCheckFn: func(ctx context.Context, id influxdb.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
@@ -1066,7 +1066,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "update a check name",
+			name: "update a check name 2",
 			fields: fields{
 				CheckService: &mock.CheckService{
 					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
@@ -1077,7 +1077,6 @@ func TestService_handleUpdateCheck(t *testing.T) {
 									Name:   "hello",
 									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
 									TaskID: 3,
-									Every:  mustDuration("1m"),
 								},
 							}
 
@@ -1100,6 +1099,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 						TaskID:  3,
 						OwnerID: 42,
 						OrgID:   influxTesting.MustIDBase16("020f755c3c082000"),
+						Every:   mustDuration("1m"),
 					},
 					Level: notification.Critical,
 				},
