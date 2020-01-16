@@ -2158,6 +2158,8 @@ const (
 	fieldChartPosition      = "position"
 	fieldChartQueries       = "queries"
 	fieldChartShade         = "shade"
+	fieldChartTickPrefix    = "tickPrefix"
+	fieldChartTickSuffix    = "tickSuffix"
 	fieldChartWidth         = "width"
 	fieldChartXCol          = "xCol"
 	fieldChartXPos          = "xPos"

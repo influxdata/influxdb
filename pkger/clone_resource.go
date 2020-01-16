@@ -305,13 +305,15 @@ func convertChartToResource(ch chart) Resource {
 	})
 
 	assignNonZeroStrings(r, map[string]string{
-		fieldChartNote:     ch.Note,
-		fieldPrefix:        ch.Prefix,
-		fieldSuffix:        ch.Suffix,
-		fieldChartGeom:     ch.Geom,
-		fieldChartXCol:     ch.XCol,
-		fieldChartYCol:     ch.YCol,
-		fieldChartPosition: ch.Position,
+		fieldChartNote:       ch.Note,
+		fieldPrefix:          ch.Prefix,
+		fieldSuffix:          ch.Suffix,
+		fieldChartGeom:       ch.Geom,
+		fieldChartXCol:       ch.XCol,
+		fieldChartYCol:       ch.YCol,
+		fieldChartPosition:   ch.Position,
+		fieldChartTickPrefix: ch.TickPrefix,
+		fieldChartTickSuffix: ch.TickSuffix,
 	})
 
 	assignNonZeroInts(r, map[string]int{
