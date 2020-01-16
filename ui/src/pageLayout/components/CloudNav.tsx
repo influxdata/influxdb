@@ -20,6 +20,7 @@ import {
   CLOUD_URL,
   CLOUD_USAGE_PATH,
   CLOUD_BILLING_PATH,
+  CLOUD_CHECKOUT_PATH,
   CLOUD_SIGNOUT_URL,
 } from 'src/shared/constants'
 
@@ -39,8 +40,9 @@ interface StateProps {
 const CloudNav: FC<StateProps> = ({org}) => {
   const usageURL = `${CLOUD_URL}${CLOUD_USAGE_PATH}`
   const billingURL = `${CLOUD_URL}${CLOUD_BILLING_PATH}`
+  const checkoutURL = `${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`
   const handleUpgradeClick = () => {
-    window.location.assign(billingURL)
+    window.location.assign(checkoutURL)
   }
 
   if (!org) {
