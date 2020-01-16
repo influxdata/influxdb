@@ -20,6 +20,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const DefaultTokenFile = "credentials"
+
 // BackupBackend is all services and associated parameters required to construct the BackupHandler.
 type BackupBackend struct {
 	Logger *zap.Logger
@@ -96,26 +98,32 @@ func (h *BackupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	internalBackupPath := h.BackupService.InternalBackupPath(id)
-	metaFilename := filepath.Join(internalBackupPath, bolt.DefaultFilename)
-	metaFile, err := os.OpenFile(metaFilename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0660)
-	if err != nil {
-		err = multierr.Append(err, os.RemoveAll(internalBackupPath))
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	if err = h.KVBackupService.Backup(ctx, metaFile); err != nil {
-		err = multierr.Append(err, os.RemoveAll(internalBackupPath))
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
+	h.addFile(ctx, w, internalBackupPath, bolt.DefaultFilename)
+	h.addFile(ctx, w, internalBackupPath, DefaultTokenFile)
 	files = append(files, bolt.DefaultFilename)
+	files = append(files, DefaultTokenFile)
 
 	b := backup{
 		ID:    id,
 		Files: files,
 	}
 	if err = json.NewEncoder(w).Encode(&b); err != nil {
+		err = multierr.Append(err, os.RemoveAll(internalBackupPath))
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+}
+
+func (h *BackupHandler) addFile(ctx context.Context, w http.ResponseWriter, internalBackupPath string, filename string) {
+	path := filepath.Join(internalBackupPath, filename)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0660)
+	if err != nil {
+		err = multierr.Append(err, os.RemoveAll(internalBackupPath))
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	if err = h.KVBackupService.Backup(ctx, file); err != nil {
 		err = multierr.Append(err, os.RemoveAll(internalBackupPath))
 		h.HandleHTTPError(ctx, err, w)
 		return

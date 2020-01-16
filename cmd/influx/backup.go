@@ -98,7 +98,7 @@ func backupF(cmd *cobra.Command, args []string) error {
 		}
 		err = backupService.FetchBackupFile(ctx, id, backupFilename, w)
 		if err != nil {
-			return multierr.Append(err, w.Close())
+			return multierr.Append(fmt.Errorf("error fetching file %s: %v", backupFilename, err), w.Close())
 		}
 		if err = w.Close(); err != nil {
 			return err

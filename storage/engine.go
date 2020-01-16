@@ -712,6 +712,21 @@ func (e *Engine) FetchBackupFile(ctx context.Context, backupID int, backupFile s
 		return ErrEngineClosed
 	}
 
+	if err := e.fetchBackup(ctx, backupID, backupFile, w); err != nil {
+		e.logger.Error("Failed to fetch file for backup", zap.Error(err), zap.Int("backup_id", backupID), zap.String("backup_file", backupFile))
+		return err
+	}
+
+	backupPath := e.engine.FileStore.InternalBackupPath(backupID)
+	backupFileFullPath := filepath.Join(backupPath, backupFile)
+	if err := os.Remove(backupFileFullPath); err != nil {
+		e.logger.Info("Failed to remove backup file after fetch", zap.Error(err), zap.Int("backup_id", backupID), zap.String("backup_file", backupFile))
+	}
+
+	return nil
+}
+
+func (e *Engine) fetchBackup(ctx context.Context, backupID int, backupFile string, w io.Writer) error {
 	backupPath := e.engine.FileStore.InternalBackupPath(backupID)
 	if fi, err := os.Stat(backupPath); err != nil {
 		if os.IsNotExist(err) {
@@ -739,10 +754,6 @@ func (e *Engine) FetchBackupFile(ctx context.Context, backupID int, backupFile s
 
 	if err = file.Close(); err != nil {
 		return errors.WithMessagef(err, "failed to close backup file %d/%s", backupID, backupFile)
-	}
-
-	if err = os.Remove(backupFileFullPath); err != nil {
-		e.logger.Info("Failed to remove backup file after fetch", zap.Error(err), zap.Int("backup_id", backupID), zap.String("backup_file", backupFile))
 	}
 
 	return nil

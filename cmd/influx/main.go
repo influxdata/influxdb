@@ -200,7 +200,7 @@ func defaultTokenPath() (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	return filepath.Join(dir, "credentials"), dir, nil
+	return filepath.Join(dir, http.DefaultTokenFile), dir, nil
 }
 
 func getTokenFromDefaultPath() string {

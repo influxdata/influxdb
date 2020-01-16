@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/cmd/influxd/inspect"
+	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kit/cli"
 	"github.com/influxdata/influxdb/storage"
@@ -41,6 +42,7 @@ NOTES:
 var flags struct {
 	boltPath   string
 	enginePath string
+	credPath   string
 	backupPath string
 	rebuildTSI bool
 }
@@ -67,6 +69,12 @@ func init() {
 			DestP:   &flags.enginePath,
 			Flag:    "engine-path",
 			Default: filepath.Join(dir, "engine"),
+			Desc:    "path to target persistent engine files",
+		},
+		{
+			DestP:   &flags.credPath,
+			Flag:    "credentials-path",
+			Default: filepath.Join(dir, http.DefaultTokenFile),
 			Desc:    "path to target persistent engine files",
 		},
 		{
@@ -141,6 +149,20 @@ func moveBolt() error {
 	return os.Rename(flags.boltPath, flags.boltPath+".tmp")
 }
 
+func moveCredentials() error {
+	if _, err := os.Stat(flags.credPath); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	if err := removeTmpCred(); err != nil {
+		return err
+	}
+
+	return os.Rename(flags.credPath, flags.credPath+".tmp")
+}
+
 func moveEngine() error {
 	if _, err := os.Stat(flags.enginePath); os.IsNotExist(err) {
 		return nil
@@ -171,6 +193,10 @@ func removeTmpEngine() error {
 	return removeIfExists(tmpEnginePath())
 }
 
+func removeTmpCred() error {
+	return removeIfExists(flags.credPath + ".tmp")
+}
+
 func removeIfExists(path string) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil
@@ -183,23 +209,8 @@ func removeIfExists(path string) error {
 
 func restoreBolt() error {
 	backupBolt := filepath.Join(flags.backupPath, bolt.DefaultFilename)
-	f, err := os.Open(backupBolt)
-	if err != nil {
-		return fmt.Errorf("no bolt file in backup: %v", err)
-	}
-	defer f.Close()
 
-	if err := os.MkdirAll(filepath.Dir(flags.boltPath), 0777); err != nil {
-		return err
-	}
-	w, err := os.OpenFile(flags.boltPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	defer w.Close()
-
-	_, err = io.Copy(w, f)
-	if err != nil {
+	if err := restoreFile(backupBolt, flags.boltPath, "bolt"); err != nil {
 		return err
 	}
 
@@ -240,4 +251,35 @@ func restoreEngine() error {
 	})
 	fmt.Printf("Restored %d TSM files to %v\n", count, dataDir)
 	return err
+}
+
+func restoreFile(backup string, target string, filetype string) error {
+	f, err := os.Open(backup)
+	if err != nil {
+		return fmt.Errorf("no %s file in backup: %v", filetype, err)
+	}
+	defer f.Close()
+
+	if err := os.MkdirAll(filepath.Dir(target), 0777); err != nil {
+		return err
+	}
+	w, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	defer w.Close()
+
+	_, err = io.Copy(w, f)
+	return err
+}
+
+func restoreCred() error {
+	backupCred := filepath.Join(flags.backupPath, http.DefaultTokenFile)
+
+	if err := restoreFile(backupCred, flags.credPath, "credentials"); err != nil {
+		return err
+	}
+
+	fmt.Printf("Restored credentials to %s from %s\n", flags.credPath, backupCred)
+	return nil
 }
