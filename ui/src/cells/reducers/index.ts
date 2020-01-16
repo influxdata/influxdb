@@ -10,12 +10,13 @@ import {
 } from 'src/dashboards/actions/creators'
 
 // Types
-import {Cell, ResourceState} from 'src/types'
+import {Cell, ResourceState, RemoteDataState} from 'src/types'
 
 type CellsState = ResourceState['cells']
 
 const initialState = () => ({
   byID: {},
+  status: RemoteDataState.NotStarted,
 })
 
 export const cellsReducer = (
@@ -25,7 +26,9 @@ export const cellsReducer = (
   produce(state, draftState => {
     switch (action.type) {
       case SET_DASHBOARD: {
-        const {schema} = action
+        const {schema, status} = action
+
+        draftState.status = status
 
         if (get(schema, ['entities', 'cells'])) {
           draftState.byID = schema.entities.cells

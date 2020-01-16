@@ -48,9 +48,7 @@ export interface TelegrafsState extends NormalizedState<Telegraf> {
 }
 
 // Cells "allIDs" are Dashboard.cells
-// All cells are loaded once the dashboard is fetched so, no need to duplicate 'status' state
-// However, individual cells will have a RemoteDataState status
-type CellsState = Omit<NormalizedState<Cell>, 'allIDs' | 'status'>
+type CellsState = Omit<NormalizedState<Cell>, 'allIDs'>
 
 // ResourceState defines the types for normalized resources
 export interface ResourceState {

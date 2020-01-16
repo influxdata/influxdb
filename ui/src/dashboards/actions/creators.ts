@@ -43,11 +43,13 @@ export const setDashboards = (
   } as const)
 
 export const setDashboard = (
+  id: string,
   status: RemoteDataState,
   schema?: DashboardSchema<string>
 ) =>
   ({
     type: SET_DASHBOARD,
+    id,
     status,
     schema,
   } as const)

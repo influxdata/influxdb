@@ -72,12 +72,14 @@ export const EMPTY_DASHBOARD: EmptyDefaultDashboard = {
   id: '0',
   name: '',
   cells: [NEW_DEFAULT_DASHBOARD_CELL],
+  status: RemoteDataState.Done,
 }
 
 export const DashboardTemplate: EmptyDefaultDashboard = {
   id: '0',
   name: 'Create a New Dashboard',
   cells: [],
+  status: RemoteDataState.Done,
 }
 
 type NewDefaultDashboard = Pick<

@@ -41,7 +41,6 @@ import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
 import {getOrg} from 'src/organizations/selectors'
 import {getByID} from 'src/resources/selectors'
-import {getCells} from 'src/cells/selectors'
 
 // Types
 import {
@@ -70,7 +69,6 @@ interface StateProps {
   org: Organization
   links: Links
   timeRange: TimeRange
-  cells: Cell[]
   dashboard: Dashboard
   autoRefresh: AutoRefresh
   showVariablesControls: boolean
@@ -146,7 +144,6 @@ class DashboardPage extends Component<Props> {
   public render() {
     const {
       org,
-      cells,
       timeRange,
       dashboard,
       autoRefresh,
@@ -160,13 +157,22 @@ class DashboardPage extends Component<Props> {
       children,
     } = this.props
 
+    if (!dashboard || !this.lowerParam) {
+      return (
+        <SpinnerContainer
+          loading={RemoteDataState.Loading}
+          spinnerComponent={<TechnoSpinner />}
+        />
+      )
+    }
+
     return (
-      <Page titleTag={this.pageTitle}>
-        <LimitChecker>
-          <SpinnerContainer
-            loading={dashboard.status}
-            spinnerComponent={<TechnoSpinner />}
-          >
+      <SpinnerContainer
+        loading={dashboard.status}
+        spinnerComponent={<TechnoSpinner />}
+      >
+        <Page titleTag={this.pageTitle}>
+          <LimitChecker>
             <HoverTimeProvider>
               <DashboardHeader
                 org={org}
@@ -195,22 +201,27 @@ class DashboardPage extends Component<Props> {
               )}
               {!!dashboard && (
                 <DashboardComponent
-                  cells={cells}
                   timeRange={timeRange}
+                  dashboardID={dashboard.id}
                   manualRefresh={manualRefresh}
                   onCloneCell={this.handleCloneCell}
-                  onPositionChange={this.handlePositionChange}
                   onEditView={this.handleEditView}
                   onAddCell={this.handleAddCell}
                   onEditNote={this.showNoteOverlay}
+                  onPositionChange={this.handlePositionChange}
                 />
               )}
               {children}
             </HoverTimeProvider>
-          </SpinnerContainer>
-        </LimitChecker>
-      </Page>
+          </LimitChecker>
+        </Page>
+      </SpinnerContainer>
     )
+  }
+
+  private get lowerParam() {
+    const {location} = this.props
+    return get(location, 'query.lower')
   }
 
   private getDashboard = () => {
@@ -321,14 +332,11 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     dashboardID
   )
 
-  const cells = getCells(state, dashboardID)
-
   const limitedResources = extractRateLimitResources(limits)
   const limitStatus = extractRateLimitStatus(limits)
 
   return {
     org,
-    cells,
     links,
     views,
     timeRange,

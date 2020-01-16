@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import Cells from 'src/shared/components/cells/Cells'
@@ -7,14 +8,20 @@ import DashboardEmpty from 'src/dashboards/components/dashboard_empty/DashboardE
 import {Page} from '@influxdata/clockface'
 
 // Types
-import {Cell} from 'src/types'
+import {Cell, AppState} from 'src/types'
 import {TimeRange} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
+// Utils
+import {getCells} from 'src/cells/selectors'
+
+interface StateProps {
   cells: Cell[]
+}
+interface OwnProps {
+  dashboardID: string
   timeRange: TimeRange
   manualRefresh: number
   onCloneCell: (cell: Cell) => void
@@ -23,6 +30,8 @@ interface Props {
   onAddCell: () => void
   onEditNote: () => void
 }
+
+type Props = OwnProps & StateProps
 
 @ErrorHandling
 class DashboardComponent extends PureComponent<Props> {
@@ -60,4 +69,8 @@ class DashboardComponent extends PureComponent<Props> {
   }
 }
 
-export default DashboardComponent
+const mstp = (state: AppState, props: OwnProps): StateProps => {
+  return {cells: getCells(state, props.dashboardID)}
+}
+
+export default connect(mstp)(DashboardComponent)

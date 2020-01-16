@@ -273,6 +273,8 @@ export const getDashboard = (dashboardID: string) => async (
       dispatch(getVariables()),
     ])
 
+    dispatch(creators.setDashboard(dashboardID, RemoteDataState.Loading))
+
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
@@ -295,7 +297,7 @@ export const getDashboard = (dashboardID: string) => async (
     await dispatch(refreshDashboardVariableValues(id, views))
 
     // Now that all the necessary state has been loaded, set the dashboard
-    dispatch(creators.setDashboard(normDash))
+    dispatch(creators.setDashboard(dashboardID, RemoteDataState.Done, normDash))
     dispatch(updateTimeRangeFromQueryParams(id))
   } catch (error) {
     const org = getOrg(getState())
@@ -376,7 +378,9 @@ export const updateCells = (dashboard: Dashboard, cells: Cell[]) => async (
       schemas.dashboard
     )
 
-    dispatch(creators.setDashboard(RemoteDataState.Done, normDash))
+    dispatch(
+      creators.setDashboard(dashboard.id, RemoteDataState.Done, normDash)
+    )
   } catch (error) {
     console.error(error)
   }
@@ -397,7 +401,9 @@ export const copyDashboardCell = (dashboard: Dashboard, cell: Cell) => (
       schemas.dashboard
     )
 
-    dispatch(creators.setDashboard(RemoteDataState.Done, normDash))
+    dispatch(
+      creators.setDashboard(dashboard.id, RemoteDataState.Done, normDash)
+    )
     dispatch(notify(copy.cellAdded()))
   } catch (error) {
     console.error(error)

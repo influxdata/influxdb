@@ -28,6 +28,7 @@ export const dashboard: Dashboard = {
   name: 'd1',
   orgID: '1',
   cells: [dbCell.id],
+  status: RemoteDataState.Done,
   labels: [],
   links: {
     self: '/v2/dashboards/1',

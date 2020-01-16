@@ -23,6 +23,7 @@ export const myDashboard: Dashboard = {
   description: '',
   cells: [myCell.id],
   labels: [],
+  status: RemoteDataState.NotStarted,
 }
 
 export const myView: View = {
