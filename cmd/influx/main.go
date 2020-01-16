@@ -211,7 +211,7 @@ func getTokenFromDefaultPath() string {
 	if err != nil {
 		return ""
 	}
-	return string(b)
+	return strings.TrimSpace(string(b))
 }
 
 func writeTokenToPath(tok, path, dir string) error {

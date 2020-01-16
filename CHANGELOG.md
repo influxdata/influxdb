@@ -3,6 +3,7 @@
 ### Features
 
 1. [16523](https://github.com/influxdata/influxdb/pull/16523): Change influx packages to be CRD compliant
+1. [16547](https://github.com/influxdata/influxdb/pull/16547): Allow trailing newline in credentials file and CLI integration
 
 ### UI Improvements
 
