@@ -1543,7 +1543,9 @@ spec:
 					assert.True(t, props.DecimalPlaces.IsEnforced)
 					assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
 					assert.Equal(t, "days", props.Suffix)
+					assert.Equal(t, "true", props.TickSuffix)
 					assert.Equal(t, "sumtin", props.Prefix)
+					assert.Equal(t, "true", props.TickPrefix)
 
 					require.Len(t, props.Queries, 1)
 					q := props.Queries[0]
