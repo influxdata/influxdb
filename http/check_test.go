@@ -891,7 +891,7 @@ func TestService_handlePatchCheck(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "update a check name 1",
+			name: "update a check name",
 			fields: fields{
 				&mock.CheckService{
 					PatchCheckFn: func(ctx context.Context, id influxdb.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
@@ -1066,7 +1066,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "update a check name 2",
+			name: "update a check name",
 			fields: fields{
 				CheckService: &mock.CheckService{
 					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
