@@ -490,17 +490,113 @@ func TestEngine_WriteConflictingBatch(t *testing.T) {
 	}
 }
 
+// BenchmarkWritePoints_100K demonstrates the impact that batch size has on
+// writing a fixed number of points into storage. In this case 100K points are
+// written according to varying batch sizes.
+//
+// Typical results from a laptop.
+//
+// BenchmarkWritePoints_100K/wal_on_batch_size_10-8         	       1	73067875393 ns/op	140772760 B/op	 1490501 allocs/op
+// BenchmarkWritePoints_100K/wal_on_batch_size_100-8        	       1	8485389740 ns/op	86121960 B/op	  700262 allocs/op
+// BenchmarkWritePoints_100K/wal_on_batch_size_1000-8       	       1	1102477562 ns/op	87796384 B/op	  561415 allocs/op
+// BenchmarkWritePoints_100K/wal_on_batch_size_10000-8      	       4	 305958369 ns/op	98445778 B/op	  756521 allocs/op
+// BenchmarkWritePoints_100K/wal_on_batch_size_100000-8     	       3	 399678388 ns/op	228627397 B/op	 2440186 allocs/op
+// BenchmarkWritePoints_100K/wal_off_batch_size_10-8        	       2	 565581060 ns/op	134326648 B/op	 1424452 allocs/op
+// BenchmarkWritePoints_100K/wal_off_batch_size_100-8       	       5	 219888477 ns/op	84745681 B/op	  689427 allocs/op
+// BenchmarkWritePoints_100K/wal_off_batch_size_1000-8      	       6	 184525844 ns/op	86766286 B/op	  556131 allocs/op
+// BenchmarkWritePoints_100K/wal_off_batch_size_10000-8     	       5	 216334467 ns/op	98397942 B/op	  756227 allocs/op
+// BenchmarkWritePoints_100K/wal_off_batch_size_100000-8    	       3	 360319162 ns/op	219879885 B/op	 2440234 allocs/op
+//
+func BenchmarkWritePoints_100K(b *testing.B) {
+	var engine *Engine
+
+	genBatch := func(n int) models.Points {
+		points := make([]models.Point, n)
+		for i := 0; i < n; i++ {
+			points[i] = models.MustNewPoint(
+				"cpu",
+				models.NewTags(map[string]string{
+					models.MeasurementTagKey: "cpu-1",
+					"host":                   "server",
+					"server":                 fmt.Sprint(i),
+					models.FieldKeyTagKey:    "temp",
+				}),
+				map[string]interface{}{"value": i},
+				time.Unix(1, 2),
+			)
+		}
+		return points
+	}
+
+	run := func(b *testing.B, setup func(), batchSize int) {
+		setup()
+		for i := 0; i < b.N; i++ {
+			for j := 0; j < 100000; j += batchSize {
+				b.StopTimer()
+				points := genBatch(batchSize) // create a new batch
+				b.StartTimer()
+				if err := engine.WritePoints(context.Background(), points); err != nil {
+					b.Fatal(err)
+				}
+			}
+
+			b.StopTimer()
+			if err := engine.Close(); err != nil {
+				panic(err)
+			}
+			setup()
+			b.StartTimer()
+		}
+	}
+
+	for i := 1; i <= 5; i++ {
+		batchSize := int(math.Pow10(i))
+		b.Run(fmt.Sprintf("wal_on_batch_size_%d", batchSize), func(b *testing.B) {
+			run(b, func() {
+				cfg := storage.NewConfig()
+				engine = NewEngine(cfg, rand.Int(), rand.Int())
+				engine.MustOpen()
+			}, batchSize)
+		})
+	}
+
+	for i := 1; i <= 5; i++ {
+		batchSize := int(math.Pow10(i))
+		b.Run(fmt.Sprintf("wal_off_batch_size_%d", batchSize), func(b *testing.B) {
+			run(b, func() {
+				cfg := storage.NewConfig()
+				cfg.WAL.Enabled = false // Disable WAL
+				engine = NewEngine(cfg, rand.Int(), rand.Int())
+				engine.MustOpen()
+			}, batchSize)
+		})
+	}
+}
+
+// Typical benchmarks on a laptop
+// pkg: github.com/influxdata/influxdb/storage
+// BenchmarkDeleteBucket/cardinality_10-8         	     162	   7242260 ns/op	    9584 B/op	     106 allocs/op
+// BenchmarkDeleteBucket/cardinality_100-8        	     163	   7514230 ns/op	   10407 B/op	     117 allocs/op
+// BenchmarkDeleteBucket/cardinality_1000-8       	     160	   7152721 ns/op	   19632 B/op	     237 allocs/op
+// BenchmarkDeleteBucket/cardinality_10000-8      	     160	   7343742 ns/op	  124481 B/op	    1420 allocs/op
+// BenchmarkDeleteBucket/cardinality_100000-8     	      99	  10482284 ns/op	 1915489 B/op	   21349 allocs/op
 func BenchmarkDeleteBucket(b *testing.B) {
 	var engine *Engine
 	setup := func(card int) {
-		engine = NewDefaultEngine()
+		cfg := storage.NewConfig()
+		cfg.WAL.Enabled = false // Disable WAL
+		engine = NewEngine(cfg, rand.Int(), rand.Int())
 		engine.MustOpen()
 
 		points := make([]models.Point, card)
 		for i := 0; i < card; i++ {
 			points[i] = models.MustNewPoint(
 				"cpu",
-				models.NewTags(map[string]string{"host": "server"}),
+				models.NewTags(map[string]string{
+					models.MeasurementTagKey: "cpu-1",
+					"host":                   "server",
+					models.FieldKeyTagKey:    "temp",
+				}),
 				map[string]interface{}{"value": i},
 				time.Unix(1, 2),
 			)
