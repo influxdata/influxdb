@@ -82,7 +82,7 @@ interface DispatchProps {
   copyCell: typeof dashboardActions.copyDashboardCell
   getDashboard: typeof dashboardActions.getDashboard
   updateDashboard: typeof dashboardActions.updateDashboard
-  updateCells: typeof dashboardActions.updateCells
+  updateCells: typeof cellActions.updateCells
   updateQueryParams: typeof rangesActions.updateQueryParams
   setDashboardTimeRange: typeof rangesActions.setDashboardTimeRange
   handleChooseAutoRefresh: typeof setAutoRefreshInterval
@@ -249,7 +249,7 @@ class DashboardPage extends Component<Props> {
 
   private handlePositionChange = (cells: Cell[]) => {
     const {dashboard, updateCells} = this.props
-    updateCells(dashboard, cells)
+    updateCells(dashboard.id, cells)
   }
 
   private handleAddCell = () => {
@@ -335,12 +335,12 @@ const mdtp: DispatchProps = {
   getDashboard: dashboardActions.getDashboard,
   updateDashboard: dashboardActions.updateDashboard,
   copyCell: dashboardActions.copyDashboardCell,
-  updateCells: dashboardActions.updateCells,
   handleChooseAutoRefresh: setAutoRefreshInterval,
   onSetAutoRefreshStatus: setAutoRefreshStatus,
   handleClickPresentationButton: appActions.delayEnablePresentationMode,
   setDashboardTimeRange: rangesActions.setDashboardTimeRange,
   updateQueryParams: rangesActions.updateQueryParams,
+  updateCells: cellActions.updateCells,
   deleteCell: cellActions.deleteCell,
   onCreateCellWithView: cellActions.createCellWithView,
   onUpdateView: dashboardActions.updateView,

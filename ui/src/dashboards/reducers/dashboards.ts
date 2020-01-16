@@ -20,6 +20,7 @@ import {
   EDIT_DASHBOARD,
 } from 'src/dashboards/actions/creators'
 import {
+  SET_CELLS,
   REMOVE_CELL,
   SET_CELL,
   Action as CellAction,
@@ -88,6 +89,20 @@ export const dashboardsReducer = (
         const {cells} = draftState.byID[cell.dashboardID]
 
         draftState.byID[cell.id].cells = cells.filter(cid => cid !== id)
+
+        return
+      }
+
+      case SET_CELLS: {
+        const {dashboardID, schema} = action
+
+        const cellIDs = schema && schema.result
+
+        if (!cellIDs) {
+          return
+        }
+
+        draftState.byID[dashboardID].cells = cellIDs
 
         return
       }

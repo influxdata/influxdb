@@ -355,37 +355,6 @@ export const updateView = (dashboardID: string, view: View) => async (
   }
 }
 
-export const updateCells = (dashboard: Dashboard, cells: Cell[]) => async (
-  dispatch: Dispatch<Action>
-): Promise<void> => {
-  try {
-    const resp = await api.putDashboardsCells({
-      dashboardID: dashboard.id,
-      data: cells,
-    })
-
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
-    }
-
-    const updatedDashboard = {
-      ...dashboard,
-      cells: resp.data.cells,
-    }
-
-    const normDash = normalize<Dashboard, DashboardEntities, string>(
-      updatedDashboard,
-      schemas.dashboard
-    )
-
-    dispatch(
-      creators.setDashboard(dashboard.id, RemoteDataState.Done, normDash)
-    )
-  } catch (error) {
-    console.error(error)
-  }
-}
-
 export const copyDashboardCell = (dashboard: Dashboard, cell: Cell) => (
   dispatch: Dispatch<Action | PublishNotificationAction>
 ) => {

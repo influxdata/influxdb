@@ -3,9 +3,13 @@ import {NormalizedSchema} from 'normalizr'
 import {RemoteDataState, CellEntities} from 'src/types'
 
 export const SET_CELL = 'SET_CELL'
+export const SET_CELLS = 'SET_CELLS'
 export const REMOVE_CELL = 'REMOVE_CELL'
 
-export type Action = ReturnType<typeof setCell> | ReturnType<typeof removeCell>
+export type Action =
+  | ReturnType<typeof setCell>
+  | ReturnType<typeof removeCell>
+  | ReturnType<typeof setCells>
 
 // R is the type of the value of the "result" key in normalizr's normalization
 type CellSchema<R extends string | string[]> = NormalizedSchema<CellEntities, R>
@@ -22,4 +26,16 @@ export const removeCell = ({dashboardID, id}: RemoveCellArgs) =>
     type: REMOVE_CELL,
     dashboardID,
     id,
+  } as const)
+
+export const setCells = (
+  dashboardID: string,
+  status: RemoteDataState,
+  schema?: CellSchema<string[]>
+) =>
+  ({
+    type: SET_CELLS,
+    dashboardID,
+    status,
+    schema,
   } as const)

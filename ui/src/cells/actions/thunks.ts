@@ -12,7 +12,7 @@ import * as schemas from 'src/schemas'
 import {refreshDashboardVariableValues} from 'src/dashboards/actions/thunks'
 import {setView} from 'src/dashboards/actions/views'
 import {notify} from 'src/shared/actions/notifications'
-import {setCell, removeCell} from 'src/cells/actions/creators'
+import {setCells, setCell, removeCell} from 'src/cells/actions/creators'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -114,5 +114,29 @@ export const createCellWithView = (
     dispatch(setCell(cellID, RemoteDataState.Done, normCell))
   } catch {
     notify(copy.cellAddFailed())
+  }
+}
+
+export const updateCells = (dashboardID: string, cells: Cell[]) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    const resp = await api.putDashboardsCells({
+      dashboardID,
+      data: cells,
+    })
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const normCells = normalize<Cell, CellEntities, string[]>(
+      resp.data.cells,
+      schemas.arrayOfCells
+    )
+
+    dispatch(setCells(dashboardID, RemoteDataState.Done, normCells))
+  } catch (error) {
+    console.error(error)
   }
 }

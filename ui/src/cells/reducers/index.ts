@@ -3,7 +3,12 @@ import {produce} from 'immer'
 import {get} from 'lodash'
 
 // Actions
-import {REMOVE_CELL, SET_CELL, Action} from 'src/cells/actions/creators'
+import {
+  SET_CELLS,
+  REMOVE_CELL,
+  SET_CELL,
+  Action,
+} from 'src/cells/actions/creators'
 import {
   SET_DASHBOARD,
   Action as DashboardAction,
@@ -32,6 +37,18 @@ export const cellsReducer = (
 
         if (get(schema, ['entities', 'cells'])) {
           draftState.byID = schema.entities.cells
+        }
+
+        return
+      }
+
+      case SET_CELLS: {
+        const {status, schema} = action
+
+        draftState.status = status
+
+        if (get(schema, ['entities', 'cells'])) {
+          draftState.byID = schema.entities['cells']
         }
 
         return
