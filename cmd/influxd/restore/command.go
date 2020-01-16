@@ -123,7 +123,6 @@ func restoreE(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to restore all TSM files: %v", err)
 	}
 
-
 	if flags.rebuildTSI {
 		sFilePath := filepath.Join(flags.enginePath, storage.DefaultSeriesFileDirectoryName)
 		indexPath := filepath.Join(flags.enginePath, storage.DefaultIndexDirectoryName)
