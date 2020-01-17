@@ -1,5 +1,6 @@
 // Libraries
 import React, {FC, useRef, RefObject, useState} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 import classnames from 'classnames'
@@ -30,18 +31,16 @@ interface OwnProps {
   cell: Cell
   view: View
   onCSVDownload: () => void
-  onEditCell: () => void
-  onEditNote: (id: string) => void
 }
 
-type Props = OwnProps & DispatchProps
+type Props = OwnProps & DispatchProps & WithRouterProps
 
 const CellContext: FC<Props> = ({
   view,
+  router,
+  location,
   cell,
   onCloneCell,
-  onEditNote,
-  onEditCell,
   onDeleteCell,
   onCSVDownload,
 }) => {
@@ -54,10 +53,6 @@ const CellContext: FC<Props> = ({
     'cell--context__active': popoverVisible,
   })
 
-  const handleEditNote = (): void => {
-    onEditNote(view.id)
-  }
-
   const handleCloneCell = () => {
     onCloneCell(cell.dashboardID, view, cell)
   }
@@ -66,6 +61,18 @@ const CellContext: FC<Props> = ({
     const {dashboardID, id} = cell
 
     onDeleteCell(dashboardID, id)
+  }
+
+  const handleEditNote = () => {
+    if (view.id) {
+      router.push(`${this.props.location.pathname}/notes/${view.id}/edit`)
+    } else {
+      router.push(`${this.props.location.pathname}/notes/new`)
+    }
+  }
+
+  const handleEditCell = (): void => {
+    router.push(`${location.pathname}/cells/${cell.id}/edit`)
   }
 
   const popoverContents = (onHide): JSX.Element => {
@@ -94,7 +101,7 @@ const CellContext: FC<Props> = ({
       <div className="cell--context-menu">
         <CellContextItem
           label="Configure"
-          onClick={onEditCell}
+          onClick={handleEditCell}
           icon={IconFont.Pencil}
           onHide={onHide}
           testID="cell-context--configure"
@@ -165,7 +172,9 @@ const mdtp: DispatchProps = {
   onCloneCell: createCellWithView,
 }
 
-export default connect(
-  null,
-  mdtp
-)(CellContext)
+export default withRouter<OwnProps>(
+  connect<{}, DispatchProps>(
+    null,
+    mdtp
+  )(CellContext)
+)

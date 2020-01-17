@@ -6,7 +6,7 @@ export const getCells = (
 ): Cell[] => {
   const dashboard = resources.dashboards.byID[dashboardID]
 
-  if (!dashboard) {
+  if (!dashboard || !dashboard.cells) {
     return []
   }
 

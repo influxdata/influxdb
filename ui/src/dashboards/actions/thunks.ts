@@ -271,8 +271,6 @@ export const getDashboard = (dashboardID: string) => async (
       dispatch(getVariables()),
     ])
 
-    dispatch(creators.setDashboard(dashboardID, RemoteDataState.Loading))
-
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
@@ -305,9 +303,23 @@ export const getDashboard = (dashboardID: string) => async (
   }
 }
 
-export const updateDashboard = (dashboard: Dashboard) => async (
-  dispatch: Dispatch<creators.Action | PublishNotificationAction>
+export const updateDashboard = (
+  id: string,
+  updates: Partial<Dashboard>
+) => async (
+  dispatch: Dispatch<creators.Action | PublishNotificationAction>,
+  getState: GetState
 ): Promise<void> => {
+  const state = getState()
+
+  const currentDashboard = getByID<Dashboard>(
+    state,
+    ResourceType.Dashboards,
+    id
+  )
+
+  const dashboard = {...currentDashboard, ...updates}
+
   try {
     const resp = await api.patchDashboard({
       dashboardID: dashboard.id,

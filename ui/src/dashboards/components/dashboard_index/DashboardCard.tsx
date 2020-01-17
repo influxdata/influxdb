@@ -42,8 +42,8 @@ interface StateProps {
 
 interface DispatchProps {
   onDeleteDashboard: (dashboard: Dashboard) => void
-  onUpdateDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
+  onUpdateDashboard: typeof updateDashboard
   onAddDashboardLabel: typeof addDashboardLabel
   onRemoveDashboardLabel: typeof removeDashboardLabel
   onCreateLabel: typeof createLabelAsync
@@ -103,7 +103,9 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private handleUpdateDashboard = (name: string) => {
-    this.props.onUpdateDashboard({...this.props.dashboard, name})
+    const {dashboard, onUpdateDashboard} = this.props
+
+    onUpdateDashboard(dashboard.id, {name})
   }
 
   private get contextMenu(): JSX.Element {
@@ -158,10 +160,9 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private handleUpdateDescription = (description: string) => {
-    const {onUpdateDashboard} = this.props
-    const dashboard = {...this.props.dashboard, description}
+    const {onUpdateDashboard, dashboard} = this.props
 
-    onUpdateDashboard(dashboard)
+    onUpdateDashboard(dashboard.id, {description})
   }
 
   private handleAddLabel = (label: Label) => {

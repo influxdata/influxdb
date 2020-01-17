@@ -25,14 +25,12 @@ interface Props {
   timeRange: TimeRange
   manualRefresh: number
   onPositionChange?: (cells: Cell[]) => void
-  onEditView: (cellID: string) => void
-  onEditNote: (id: string) => void
 }
 
 @ErrorHandling
 class Cells extends Component<Props & WithRouterProps> {
   public render() {
-    const {cells, timeRange, manualRefresh, onEditNote} = this.props
+    const {cells, timeRange, manualRefresh} = this.props
 
     return (
       <Grid
@@ -51,10 +49,8 @@ class Cells extends Component<Props & WithRouterProps> {
           <div key={cell.id} className="cell">
             <CellComponent
               cell={cell}
-              manualRefresh={manualRefresh}
               timeRange={timeRange}
-              onEditCell={this.handleEditCell(cell.id)}
-              onEditNote={onEditNote}
+              manualRefresh={manualRefresh}
             />
             {this.cellBorder}
           </div>
@@ -120,12 +116,6 @@ class Cells extends Component<Props & WithRouterProps> {
     if (changed) {
       this.props.onPositionChange(newCells)
     }
-  }
-
-  private handleEditCell = (cellID: string) => {
-    const {onEditView} = this.props
-
-    return () => onEditView(cellID)
   }
 }
 

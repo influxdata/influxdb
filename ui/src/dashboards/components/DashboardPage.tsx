@@ -2,10 +2,9 @@
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
-import {get, isEqual} from 'lodash'
+import {isEqual} from 'lodash'
 
 // Components
-import GetResource from 'src/resources/components/GetResource'
 import GetTimeRange from 'src/dashboards/components/GetTimeRange'
 import {Page} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -41,37 +40,35 @@ import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
 // Selectors
 import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
-import {getOrg} from 'src/organizations/selectors'
 import {getByID} from 'src/resources/selectors'
+import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {
   Links,
-  Dashboard,
   Cell,
   View,
   TimeRange,
   AppState,
   AutoRefresh,
   AutoRefreshStatus,
-  Organization,
   RemoteDataState,
   ResourceType,
+  Dashboard,
 } from 'src/types'
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
-import {Location} from 'history'
 import * as AppActions from 'src/types/actions/app'
-import * as ColorsModels from 'src/types/colors'
 import {LimitStatus} from 'src/cloud/actions/limits'
 
 interface StateProps {
+  status: RemoteDataState
+  orgName: string
+  dashboardName: string
   limitedResources: string[]
   limitStatus: LimitStatus
-  org: Organization
   links: Links
   timeRange: TimeRange
-  dashboard: Dashboard
   autoRefresh: AutoRefresh
   showVariablesControls: boolean
   views: {[cellID: string]: {view: View; status: RemoteDataState}}
@@ -91,22 +88,12 @@ interface DispatchProps {
   onToggleShowVariablesControls: typeof toggleShowVariablesControls
 }
 
-interface PassedProps {
-  params: {
-    dashboardID: string
-  }
-  location: Location
-  cellQueryStatus: {
-    queryID: string
-    status: object
-  }
-  thresholdsListType: string
-  thresholdsListColors: ColorsModels.Color[]
-  gaugeColors: ColorsModels.Color[]
-  lineColors: ColorsModels.Color[]
+interface OwnProps {
+  dashboardID: string
+  orgID: string
 }
 
-type Props = PassedProps &
+type Props = OwnProps &
   StateProps &
   DispatchProps &
   ManualRefreshProps &
@@ -141,10 +128,11 @@ class DashboardPage extends Component<Props> {
 
   public render() {
     const {
-      org,
+      orgName,
+      dashboardName,
+      status,
       params,
       timeRange,
-      dashboard,
       autoRefresh,
       limitStatus,
       limitedResources,
@@ -159,58 +147,57 @@ class DashboardPage extends Component<Props> {
     const {dashboardID} = params
 
     return (
-      <GetResource
-        resources={[{type: ResourceType.Dashboards, id: dashboardID}]}
-      >
+      <Page titleTag={this.pageTitle}>
         <GetTimeRange />
-        <Page titleTag={this.pageTitle}>
-          <LimitChecker>
-            <HoverTimeProvider>
-              <DashboardHeader
-                org={org}
-                dashboard={dashboard}
-                timeRange={timeRange}
-                autoRefresh={autoRefresh}
-                onAddCell={this.handleAddCell}
-                onAddNote={this.showNoteOverlay}
-                onManualRefresh={onManualRefresh}
-                onRenameDashboard={this.handleRenameDashboard}
-                activeDashboard={dashboard ? dashboard.name : ''}
-                handleChooseAutoRefresh={this.handleChooseAutoRefresh}
-                onSetAutoRefreshStatus={this.handleSetAutoRefreshStatus}
-                handleChooseTimeRange={this.handleChooseTimeRange}
-                handleClickPresentationButton={handleClickPresentationButton}
-                toggleVariablesControlBar={onToggleShowVariablesControls}
-                isShowingVariablesControlBar={showVariablesControls}
-              />
-              <RateLimitAlert
-                resources={limitedResources}
-                limitStatus={limitStatus}
-                className="dashboard--rate-alert"
-              />
-              {showVariablesControls && (
-                <VariablesControlBar dashboardID={dashboardID} />
-              )}
-              <DashboardComponent
-                timeRange={timeRange}
-                dashboardID={dashboardID}
-                manualRefresh={manualRefresh}
-                onEditView={this.handleEditView}
-                onAddCell={this.handleAddCell}
-                onEditNote={this.showNoteOverlay}
-                onPositionChange={this.handlePositionChange}
-              />
-              {children}
-            </HoverTimeProvider>
-          </LimitChecker>
-        </Page>
-      </GetResource>
+        <LimitChecker>
+          <HoverTimeProvider>
+            <DashboardHeader
+              orgName={orgName}
+              status={status}
+              dashboardName={dashboardName}
+              timeRange={timeRange}
+              autoRefresh={autoRefresh}
+              onAddNote={this.handleAddNote}
+              onAddCell={this.handleAddCell}
+              onManualRefresh={onManualRefresh}
+              onRenameDashboard={this.handleRenameDashboard}
+              handleChooseAutoRefresh={this.handleChooseAutoRefresh}
+              onSetAutoRefreshStatus={this.handleSetAutoRefreshStatus}
+              handleChooseTimeRange={this.handleChooseTimeRange}
+              handleClickPresentationButton={handleClickPresentationButton}
+              toggleVariablesControlBar={onToggleShowVariablesControls}
+              isShowingVariablesControlBar={showVariablesControls}
+            />
+            <RateLimitAlert
+              resources={limitedResources}
+              limitStatus={limitStatus}
+              className="dashboard--rate-alert"
+            />
+            {showVariablesControls && (
+              <VariablesControlBar dashboardID={dashboardID} />
+            )}
+            <DashboardComponent
+              timeRange={timeRange}
+              dashboardID={dashboardID}
+              manualRefresh={manualRefresh}
+              onAddCell={this.handleAddCell}
+              onPositionChange={this.handlePositionChange}
+            />
+            {children}
+          </HoverTimeProvider>
+        </LimitChecker>
+      </Page>
     )
   }
 
+  private handleAddNote = () => {
+    const {router, location} = this.props
+    router.push(`${location.pathname}/notes/new`)
+  }
+
   private handleChooseTimeRange = (timeRange: TimeRange): void => {
-    const {dashboard, setDashboardTimeRange, updateQueryParams} = this.props
-    setDashboardTimeRange(dashboard.id, timeRange)
+    const {setDashboardTimeRange, updateQueryParams, dashboardID} = this.props
+    setDashboardTimeRange(dashboardID, timeRange)
     updateQueryParams({
       lower: timeRange.lower,
       upper: timeRange.upper,
@@ -220,10 +207,7 @@ class DashboardPage extends Component<Props> {
   private handleSetAutoRefreshStatus = (
     autoRefreshStatus: AutoRefreshStatus
   ) => {
-    const {
-      onSetAutoRefreshStatus,
-      params: {dashboardID},
-    } = this.props
+    const {onSetAutoRefreshStatus, dashboardID} = this.props
 
     onSetAutoRefreshStatus(dashboardID, autoRefreshStatus)
   }
@@ -245,8 +229,8 @@ class DashboardPage extends Component<Props> {
   }
 
   private handlePositionChange = (cells: Cell[]) => {
-    const {dashboard, updateCells} = this.props
-    updateCells(dashboard.id, cells)
+    const {dashboardID, updateCells} = this.props
+    updateCells(dashboardID, cells)
   }
 
   private handleAddCell = () => {
@@ -254,37 +238,21 @@ class DashboardPage extends Component<Props> {
     router.push(`${location.pathname}/cells/new`)
   }
 
-  private showNoteOverlay = (id?: string) => {
-    const {router} = this.props
-
-    if (id) {
-      router.push(`${this.props.location.pathname}/notes/${id}/edit`)
-    } else {
-      router.push(`${this.props.location.pathname}/notes/new`)
-    }
-  }
-
-  private handleEditView = (cellID: string): void => {
-    const {router, location} = this.props
-    router.push(`${location.pathname}/cells/${cellID}/edit`)
-  }
-
   private handleRenameDashboard = (name: string) => {
-    const {dashboard, updateDashboard} = this.props
-    const renamedDashboard = {...dashboard, name}
+    const {params, updateDashboard} = this.props
 
-    updateDashboard(renamedDashboard)
+    updateDashboard(params.dashboardID, {name})
   }
 
   private get pageTitle(): string {
-    const {dashboard} = this.props
-    const dashboardName = get(dashboard, 'name', 'Loading...')
+    const {dashboardName} = this.props
+    const title = dashboardName ? dashboardName : 'Loading...'
 
-    return pageTitleSuffixer([dashboardName])
+    return pageTitleSuffixer([title])
   }
 }
 
-const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
+const mstp = (state: AppState, {dashboardID}: OwnProps): StateProps => {
   const {
     links,
     views: {views},
@@ -292,27 +260,25 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     cloud: {limits},
   } = state
 
-  const org = getOrg(state)
-
-  const timeRange = getTimeRangeByDashboardID(state, dashboardID)
-
-  const autoRefresh = state.autoRefresh[dashboardID] || AUTOREFRESH_DEFAULT
-
   const dashboard = getByID<Dashboard>(
     state,
     ResourceType.Dashboards,
     dashboardID
   )
 
+  const status = dashboard.status
+  const timeRange = getTimeRangeByDashboardID(state, dashboardID)
+  const autoRefresh = state.autoRefresh[dashboardID] || AUTOREFRESH_DEFAULT
   const limitedResources = extractRateLimitResources(limits)
   const limitStatus = extractRateLimitStatus(limits)
 
   return {
-    org,
     links,
     views,
+    status,
+    orgName: getOrg(state).name,
     timeRange,
-    dashboard,
+    dashboardName: dashboard.name,
     autoRefresh,
     limitStatus,
     limitedResources,
@@ -334,7 +300,11 @@ const mdtp: DispatchProps = {
   onToggleShowVariablesControls: toggleShowVariablesControls,
 }
 
-export default connect(
+export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(ManualRefresh<Props>(withRouter<Props>(DashboardPage)))
+)(
+  ManualRefresh<OwnProps>(
+    withRouter<OwnProps & ManualRefreshProps>(DashboardPage)
+  )
+)

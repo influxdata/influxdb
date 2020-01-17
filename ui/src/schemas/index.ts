@@ -68,6 +68,7 @@ export const addDashboardDefaults = (dashboard: Dashboard): Dashboard => {
     name: dashboard.name || '',
     orgID: dashboard.orgID || '',
     meta: addDashboardMetaDefaults(dashboard.meta),
+    status: RemoteDataState.Done,
   }
 }
 
