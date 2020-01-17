@@ -62,17 +62,15 @@ describe('Variables', () => {
     )
   })
 
-  it.skip('can delete a variable', () => {
+  it('can delete a variable', () => {
     cy.get<Organization>('@org').then(({id}) => {
-      cy.createVariable(id)
-      cy.createVariable(id)
+      cy.createVariable(id, 'anotherVariable')
     })
 
     cy.getByTestID('resource-card').should('have.length', 2)
 
-    cy.getByTestID('confirmation-button')
-      .first()
-      .click({force: true})
+    cy.getByTestID('context-delete-menu').first().click({force: true})
+    cy.getByTestID('context-delete-variable').first().click({force: true})
 
     cy.getByTestID('resource-card').should('have.length', 1)
   })
