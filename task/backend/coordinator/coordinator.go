@@ -76,18 +76,18 @@ func NewSchedulableTask(task *influxdb.Task) (SchedulableTask, error) {
 	}
 	effCron := task.EffectiveCron()
 	ts := task.CreatedAt
-	if !task.LatestScheduled.IsZero() {
-		ts = task.LatestScheduled
-	} else if !task.LatestCompleted.IsZero() {
+	if task.LatestScheduled.IsZero() || task.LatestScheduled.Before(task.LatestCompleted) {
 		ts = task.LatestCompleted
+	} else if !task.LatestScheduled.IsZero() {
+		ts = task.LatestScheduled
 	}
+
 	var sch scheduler.Schedule
 	var err error
 	sch, ts, err = scheduler.NewSchedule(effCron, ts)
 	if err != nil {
 		return SchedulableTask{}, err
 	}
-
 	return SchedulableTask{Task: task, sch: sch, lsc: ts}, nil
 }
 
