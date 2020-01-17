@@ -18,7 +18,7 @@ describe('Onboarding', () => {
     cy.visit('/')
   })
 
-  it('Can Onboard to Quick Start', () => {
+  it.skip('Can Onboard to Quick Start', () => {
     cy.server()
 
     //Will want to capture response from this

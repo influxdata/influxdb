@@ -172,7 +172,8 @@ export const createTask = (
 }
 
 export const createVariable = (
-  orgID?: string
+  orgID?: string,
+  name: string = 'Little Variable'
 ): Cypress.Chainable<Cypress.Response> => {
   const argumentsObj = {
     type: 'query',
@@ -186,7 +187,7 @@ export const createVariable = (
     method: 'POST',
     url: '/api/v2/variables',
     body: {
-      name: 'Little Variable',
+      name,
       orgID,
       arguments: argumentsObj,
     },
