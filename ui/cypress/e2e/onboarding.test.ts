@@ -111,11 +111,13 @@ describe('Onboarding', () => {
       //advance to Quick Start
       cy.getByTestID('button--quick-start').click()
 
+      cy.wait(20000)
+
       cy.location('pathname').should('equal', '/orgs/' + orgId)
     })
   })
 
-  it.skip('Can onboard to advanced', () => {
+  it('Can onboard to advanced', () => {
     cy.server()
 
     cy.route('POST', 'api/v2/setup').as('orgSetup')
@@ -148,13 +150,15 @@ describe('Onboarding', () => {
       cy.getByTestID('button--advanced').click()
 
       //wait for new page to load
+      cy.wait(1000)
+
       cy.location('pathname').should('match', /orgs\/.*\/buckets/)
 
       cy.location('pathname').should('include', orgId)
     })
   })
 
-  it.skip('Can onboard to configure later', () => {
+  it('Can onboard to configure later', () => {
     cy.server()
 
     cy.route('POST', 'api/v2/setup').as('orgSetup')
