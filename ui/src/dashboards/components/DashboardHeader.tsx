@@ -13,7 +13,6 @@ import {
   IconFont,
   ComponentColor,
   Page,
-  RemoteDataState,
 } from '@influxdata/clockface'
 
 // Constants
@@ -29,7 +28,6 @@ import {AutoRefresh, AutoRefreshStatus, TimeRange} from 'src/types'
 interface Props {
   orgName: string
   dashboardName: string
-  status: RemoteDataState
   timeRange: TimeRange
   autoRefresh: AutoRefresh
   handleChooseTimeRange: (timeRange: TimeRange) => void

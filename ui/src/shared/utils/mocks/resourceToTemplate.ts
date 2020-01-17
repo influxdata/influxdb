@@ -14,6 +14,7 @@ export const myCell = {
   y: 0,
   w: 4,
   h: 4,
+  status: RemoteDataState.Done,
 }
 
 export const myDashboard: Dashboard = {

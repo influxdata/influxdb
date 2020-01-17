@@ -62,7 +62,6 @@ import * as AppActions from 'src/types/actions/app'
 import {LimitStatus} from 'src/cloud/actions/limits'
 
 interface StateProps {
-  status: RemoteDataState
   orgName: string
   dashboardName: string
   limitedResources: string[]
@@ -130,7 +129,6 @@ class DashboardPage extends Component<Props> {
     const {
       orgName,
       dashboardName,
-      status,
       params,
       timeRange,
       autoRefresh,
@@ -153,7 +151,6 @@ class DashboardPage extends Component<Props> {
           <HoverTimeProvider>
             <DashboardHeader
               orgName={orgName}
-              status={status}
               dashboardName={dashboardName}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
@@ -266,7 +263,6 @@ const mstp = (state: AppState, {dashboardID}: OwnProps): StateProps => {
     dashboardID
   )
 
-  const status = dashboard.status
   const timeRange = getTimeRangeByDashboardID(state, dashboardID)
   const autoRefresh = state.autoRefresh[dashboardID] || AUTOREFRESH_DEFAULT
   const limitedResources = extractRateLimitResources(limits)
@@ -275,7 +271,6 @@ const mstp = (state: AppState, {dashboardID}: OwnProps): StateProps => {
   return {
     links,
     views,
-    status,
     orgName: getOrg(state).name,
     timeRange,
     dashboardName: dashboard.name,

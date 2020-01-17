@@ -432,7 +432,8 @@ export const convertToTemplate = (dashboardID: string) => async (
 ): Promise<void> => {
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
-    const org = getOrg(getState())
+    const state = getState()
+    const org = getOrg(state)
 
     const dashResp = await api.getDashboard({dashboardID})
 
@@ -445,11 +446,13 @@ export const convertToTemplate = (dashboardID: string) => async (
       schemas.dashboard
     )
 
-    const dashboard: Dashboard = entities.dashboards[result]
+    const dashboard = entities.dashboards[result]
+    const cells = dashboard.cells.map(cellID => entities.cells[cellID])
 
     const pendingViews = dashboard.cells.map(cellID =>
       dashAPI.getView(dashboardID, cellID)
     )
+
     const views = await Promise.all(pendingViews)
     const resp = await api.getVariables({query: {orgID: org.id}})
     if (resp.status !== 200) {
@@ -460,6 +463,7 @@ export const convertToTemplate = (dashboardID: string) => async (
     const exportedVariables = exportVariables(variables, vars)
     const dashboardTemplate = dashboardToTemplate(
       dashboard,
+      cells,
       views,
       exportedVariables
     )
