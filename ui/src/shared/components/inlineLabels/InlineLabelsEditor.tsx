@@ -244,7 +244,7 @@ class InlineLabelsEditor extends Component<Props, State> {
   }
 
   private handleStopCreatingLabel = (): void => {
-    this.setState({isCreatingLabel: OverlayState.Closed})
+    this.setState({isCreatingLabel: OverlayState.Closed, searchTerm: ''})
   }
 
   private handleEnsureUniqueLabelName = (name: string): string | null => {
