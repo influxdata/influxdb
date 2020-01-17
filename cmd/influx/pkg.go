@@ -36,12 +36,12 @@ type cmdPkgBuilder struct {
 
 	svcFn pkgSVCsFn
 
-	encoding        string
-	file            string
-	hasColor        bool
-	hasTableBorders bool
-	org             organization
-	quiet           bool
+	encoding            string
+	file                string
+	disableColor        bool
+	disableTableBorders bool
+	org                 organization
+	quiet               bool
 
 	applyOpts struct {
 		force   string
@@ -97,9 +97,9 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
-	cmd.Flags().StringVarP(&b.applyOpts.url, "url", "u", "", "URL to retrieve a package")
-	cmd.Flags().BoolVarP(&b.hasColor, "color", "c", true, "Enable color in output, defaults true")
-	cmd.Flags().BoolVar(&b.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
+	cmd.Flags().StringVarP(&b.applyOpts.url, "url", "u", "", "URL to retrieve a package.")
+	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
+	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
 
 	b.applyOpts.secrets = []string{}
 	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the package; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
@@ -111,7 +111,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(*cobra.Command, []string) error {
 	if err := b.org.validOrgFlags(); err != nil {
 		return err
 	}
-	color.NoColor = !b.hasColor
+	color.NoColor = b.disableColor
 
 	svc, orgSVC, err := b.svcFn()
 	if err != nil {
@@ -324,8 +324,8 @@ func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 	cmd.Short = "Summarize the provided package"
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "input file for pkg; if none provided will use TTY input")
-	cmd.Flags().BoolVarP(&b.hasColor, "color", "c", true, "Enable color in output, defaults true")
-	cmd.Flags().BoolVar(&b.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
+	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
+	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
 
 	return cmd
 }
@@ -837,7 +837,7 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 
 func (b *cmdPkgBuilder) tablePrinterGen() func(table string, headers []string, count int, rowFn func(i int) []string) {
 	return func(table string, headers []string, count int, rowFn func(i int) []string) {
-		tablePrinter(b.w, table, headers, count, b.hasColor, b.hasTableBorders, rowFn)
+		tablePrinter(b.w, table, headers, count, !b.disableColor, !b.disableTableBorders, rowFn)
 	}
 }
 
