@@ -296,14 +296,14 @@ func (o *organization) register(cmd *cobra.Command, persistent bool) {
 		{
 			DestP:      &o.id,
 			Flag:       "org-id",
-			Desc:       "The ID of the organization that owns the bucket",
+			Desc:       "The ID of the organization",
 			Persistent: persistent,
 		},
 		{
 			DestP:      &o.name,
 			Flag:       "org",
 			Short:      'o',
-			Desc:       "The name of the organization that owns the bucket",
+			Desc:       "The name of the organization",
 			Persistent: persistent,
 		},
 	}
