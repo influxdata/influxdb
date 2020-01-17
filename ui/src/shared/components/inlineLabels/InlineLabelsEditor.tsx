@@ -43,7 +43,7 @@ interface State {
 
 @ErrorHandling
 class InlineLabelsEditor extends Component<Props, State> {
-  private popoverTrigger = createRef<HTMLButtonElement>()
+  private popoverTrigger = createRef<HTMLDivElement>()
 
   constructor(props: Props) {
     super(props)
@@ -61,18 +61,20 @@ class InlineLabelsEditor extends Component<Props, State> {
 
     return (
       <>
-        <div className="inline-labels--editor">
+
+       <div className="inline-labels--editor">
+          <div className="inline-labels--add-wrapper" ref={this.popoverTrigger}>
           <div className="inline-labels--add">
             <SquareButton
               color={ComponentColor.Secondary}
               titleText="Add labels"
               icon={IconFont.Plus}
               testID="inline-labels--add"
-              ref={this.popoverTrigger}
             />
           </div>
-          {this.popover}
           {this.noLabelsIndicator}
+          </div>
+          {this.popover}
         </div>
         <CreateLabelOverlay
           isVisible={isCreatingLabel === OverlayState.Open}
