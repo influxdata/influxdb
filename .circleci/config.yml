@@ -151,6 +151,7 @@ jobs:
             set +e
             cd ui
             yarn install --frozen-lockfile
+            yarn prettier
           name: "Install Dependencies"
       - run: make ui_client
       - run:
