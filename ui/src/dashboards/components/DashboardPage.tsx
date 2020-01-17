@@ -2,7 +2,6 @@
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
-import {isEqual} from 'lodash'
 
 // Components
 import {Page} from '@influxdata/clockface'
@@ -27,15 +26,11 @@ import {
 import {toggleShowVariablesControls} from 'src/userSettings/actions'
 
 // Utils
-import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {
   extractRateLimitResources,
   extractRateLimitStatus,
 } from 'src/cloud/utils/limits'
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
-
-// Constants
-import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
 // Selectors
 import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
@@ -67,7 +62,6 @@ interface StateProps {
   limitStatus: LimitStatus
   links: Links
   timeRange: TimeRange
-  autoRefresh: AutoRefresh
   showVariablesControls: boolean
   views: {[cellID: string]: {view: View; status: RemoteDataState}}
 }
@@ -87,6 +81,7 @@ interface DispatchProps {
 }
 
 interface OwnProps {
+  autoRefresh: AutoRefresh
   dashboardID: string
   orgID: string
 }
@@ -99,31 +94,6 @@ type Props = OwnProps &
 
 @ErrorHandling
 class DashboardPage extends Component<Props> {
-  public componentDidMount() {
-    const {autoRefresh} = this.props
-
-    if (autoRefresh.status === AutoRefreshStatus.Active) {
-      GlobalAutoRefresher.poll(autoRefresh.interval)
-    }
-  }
-
-  public componentDidUpdate(prevProps: Props) {
-    const {autoRefresh} = this.props
-
-    if (!isEqual(autoRefresh, prevProps.autoRefresh)) {
-      if (autoRefresh.status === AutoRefreshStatus.Active) {
-        GlobalAutoRefresher.poll(autoRefresh.interval)
-        return
-      }
-
-      GlobalAutoRefresher.stopPolling()
-    }
-  }
-
-  public componentWillUnmount() {
-    GlobalAutoRefresher.stopPolling()
-  }
-
   public render() {
     const {
       orgName,
@@ -262,7 +232,6 @@ const mstp = (state: AppState, {dashboardID}: OwnProps): StateProps => {
   )
 
   const timeRange = getTimeRangeByDashboardID(state, dashboardID)
-  const autoRefresh = state.autoRefresh[dashboardID] || AUTOREFRESH_DEFAULT
   const limitedResources = extractRateLimitResources(limits)
   const limitStatus = extractRateLimitStatus(limits)
   const org = getOrg(state)
@@ -273,7 +242,6 @@ const mstp = (state: AppState, {dashboardID}: OwnProps): StateProps => {
     orgName: org && org.name,
     timeRange,
     dashboardName: dashboard && dashboard.name,
-    autoRefresh,
     limitStatus,
     limitedResources,
     showVariablesControls,
