@@ -69,8 +69,12 @@ describe('Variables', () => {
 
     cy.getByTestID('resource-card').should('have.length', 2)
 
-    cy.getByTestID('context-delete-menu').first().click({force: true})
-    cy.getByTestID('context-delete-variable').first().click({force: true})
+    cy.getByTestID('context-delete-menu')
+      .first()
+      .click({force: true})
+    cy.getByTestID('context-delete-variable')
+      .first()
+      .click({force: true})
 
     cy.getByTestID('resource-card').should('have.length', 1)
   })
