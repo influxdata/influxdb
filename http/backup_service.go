@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
@@ -15,6 +16,7 @@ import (
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
+	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -98,9 +100,41 @@ func (h *BackupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	internalBackupPath := h.BackupService.InternalBackupPath(id)
-	h.addFile(ctx, w, internalBackupPath, bolt.DefaultFilename)
-	h.addFile(ctx, w, internalBackupPath, DefaultTokenFile)
+
+	boltPath := filepath.Join(internalBackupPath, bolt.DefaultFilename)
+	boltFile, err := os.OpenFile(boltPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0660)
+	if err != nil {
+		err = multierr.Append(err, os.RemoveAll(internalBackupPath))
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	if err = h.KVBackupService.Backup(ctx, boltFile); err != nil {
+		err = multierr.Append(err, os.RemoveAll(internalBackupPath))
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
 	files = append(files, bolt.DefaultFilename)
+
+	credBackupPath := filepath.Join(internalBackupPath, DefaultTokenFile)
+
+	credPath, err := defaultTokenPath()
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+	token, err := ioutil.ReadFile(credPath)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	if err := ioutil.WriteFile(credBackupPath, []byte(token), 0600); err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
 	files = append(files, DefaultTokenFile)
 
 	b := backup{
@@ -108,22 +142,6 @@ func (h *BackupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		Files: files,
 	}
 	if err = json.NewEncoder(w).Encode(&b); err != nil {
-		err = multierr.Append(err, os.RemoveAll(internalBackupPath))
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-}
-
-func (h *BackupHandler) addFile(ctx context.Context, w http.ResponseWriter, internalBackupPath string, filename string) {
-	path := filepath.Join(internalBackupPath, filename)
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0660)
-	if err != nil {
-		err = multierr.Append(err, os.RemoveAll(internalBackupPath))
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	if err = h.KVBackupService.Backup(ctx, file); err != nil {
 		err = multierr.Append(err, os.RemoveAll(internalBackupPath))
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -227,6 +245,14 @@ func (s *BackupService) FetchBackupFile(ctx context.Context, backupID int, backu
 	}
 
 	return nil
+}
+
+func defaultTokenPath() (string, error) {
+	dir, err := fs.InfluxDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, DefaultTokenFile), nil
 }
 
 func (s *BackupService) InternalBackupPath(backupID int) string {
