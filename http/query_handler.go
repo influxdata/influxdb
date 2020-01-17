@@ -391,8 +391,13 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 	} else if s.Name != "" {
 		hreq.Header.Add("User-Agent", s.Name)
 	}
-	hreq = hreq.WithContext(ctx)
 
+	// Now that the request is all set, we can apply header mutators.
+	if err := r.Request.ApplyOptions(hreq.Header); err != nil {
+		return flux.Statistics{}, tracing.LogError(span, err)
+	}
+
+	hreq = hreq.WithContext(ctx)
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
 	if err != nil {
@@ -465,6 +470,11 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 		hreq.Header.Add("User-Agent", s.Name)
 	}
 	hreq = hreq.WithContext(ctx)
+
+	// Now that the request is all set, we can apply header mutators.
+	if err := r.ApplyOptions(hreq.Header); err != nil {
+		return nil, tracing.LogError(span, err)
+	}
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
