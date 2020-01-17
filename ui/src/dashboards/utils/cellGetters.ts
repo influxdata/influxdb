@@ -1,5 +1,10 @@
+// Libraries
+import uuid from 'uuid'
+
+// Types
 import {NewCell, Cell, Dashboard, AppState, RemoteDataState} from 'src/types'
 
+// Constants
 import {UNTITLED_GRAPH} from 'src/dashboards/constants'
 
 const getMostCommonValue = (values: number[]): number => {
@@ -59,6 +64,7 @@ export const getNewDashboardCell = (
   clonedCell?: Cell
 ): NewCell => {
   const defaultCell = {
+    id: uuid.v4(),
     x: 0,
     y: 0,
     h: 4,

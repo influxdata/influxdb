@@ -14,6 +14,9 @@ import {setView} from 'src/dashboards/actions/views'
 import {notify} from 'src/shared/actions/notifications'
 import {setCells, setCell, removeCell} from 'src/cells/actions/creators'
 
+// Utils
+import {getClonedDashboardCell} from 'src/dashboards/utils/cellGetters'
+
 // Constants
 import * as copy from 'src/shared/copy/notifications'
 
@@ -61,15 +64,15 @@ export const createCellWithView = (
   view: NewView,
   clonedCell?: Cell
 ) => async (dispatch, getState: GetState): Promise<void> => {
+  const state = getState()
+
+  let dashboard = getByID<Dashboard>(
+    state,
+    ResourceType.Dashboards,
+    dashboardID
+  )
+
   try {
-    const state = getState()
-
-    let dashboard = getByID<Dashboard>(
-      state,
-      ResourceType.Dashboards,
-      dashboardID
-    )
-
     if (!dashboard) {
       const resp = await api.getDashboard({dashboardID})
       if (resp.status !== 200) {
@@ -88,7 +91,6 @@ export const createCellWithView = (
     const cell: NewCell = getNewDashboardCell(state, dashboard, clonedCell)
 
     // Create the cell
-
     const cellResp = await api.postDashboardsCell({dashboardID, data: cell})
 
     if (cellResp.status !== 201) {
@@ -101,7 +103,7 @@ export const createCellWithView = (
     const newView = await dashAPI.updateView(dashboardID, cellID, view)
 
     const normCell = normalize<Cell, CellEntities, string>(
-      cellResp.data,
+      {...cellResp.data, dashboardID},
       schemas.cell
     )
 
@@ -126,16 +128,34 @@ export const updateCells = (dashboardID: string, cells: Cell[]) => async (
       data: cells,
     })
 
-    if (resp.status !== 200) {
+    if (resp.status !== 201) {
       throw new Error(resp.data.message)
     }
 
-    const normCells = normalize<Cell, CellEntities, string[]>(
-      resp.data.cells,
+    const updatedCells = cells.map(c => ({...c, dashboardID}))
+
+    const normCells = normalize<Dashboard, DashboardEntities, string[]>(
+      updatedCells,
       schemas.arrayOfCells
     )
 
     dispatch(setCells(dashboardID, RemoteDataState.Done, normCells))
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+export const copyCell = (dashboard: Dashboard, cell: Cell) => dispatch => {
+  try {
+    const clonedCell = getClonedDashboardCell(dashboard, cell)
+
+    const normCell = normalize<Dashboard, DashboardEntities, string>(
+      clonedCell,
+      schemas.cell
+    )
+
+    dispatch(setCell(cell.id, RemoteDataState.Done, normCell))
+    dispatch(notify(copy.cellAdded()))
   } catch (error) {
     console.error(error)
   }

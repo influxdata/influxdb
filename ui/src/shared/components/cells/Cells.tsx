@@ -24,7 +24,6 @@ interface Props {
   cells: Cell[]
   timeRange: TimeRange
   manualRefresh: number
-  onCloneCell?: (cell: Cell) => void
   onPositionChange?: (cells: Cell[]) => void
   onEditView: (cellID: string) => void
   onEditNote: (id: string) => void
@@ -33,13 +32,7 @@ interface Props {
 @ErrorHandling
 class Cells extends Component<Props & WithRouterProps> {
   public render() {
-    const {
-      cells,
-      onCloneCell,
-      timeRange,
-      manualRefresh,
-      onEditNote,
-    } = this.props
+    const {cells, timeRange, manualRefresh, onEditNote} = this.props
 
     return (
       <Grid
@@ -60,7 +53,6 @@ class Cells extends Component<Props & WithRouterProps> {
               cell={cell}
               manualRefresh={manualRefresh}
               timeRange={timeRange}
-              onCloneCell={onCloneCell}
               onEditCell={this.handleEditCell(cell.id)}
               onEditNote={onEditNote}
             />

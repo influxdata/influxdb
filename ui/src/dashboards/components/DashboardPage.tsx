@@ -79,7 +79,6 @@ interface StateProps {
 
 interface DispatchProps {
   deleteCell: typeof cellActions.deleteCell
-  copyCell: typeof dashboardActions.copyDashboardCell
   getDashboard: typeof dashboardActions.getDashboard
   updateDashboard: typeof dashboardActions.updateDashboard
   updateCells: typeof cellActions.updateCells
@@ -88,7 +87,6 @@ interface DispatchProps {
   handleChooseAutoRefresh: typeof setAutoRefreshInterval
   onSetAutoRefreshStatus: typeof setAutoRefreshStatus
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
-  onCreateCellWithView: typeof cellActions.createCellWithView
   onUpdateView: typeof dashboardActions.updateView
   onToggleShowVariablesControls: typeof toggleShowVariablesControls
 }
@@ -197,7 +195,6 @@ class DashboardPage extends Component<Props> {
                 timeRange={timeRange}
                 dashboardID={dashboardID}
                 manualRefresh={manualRefresh}
-                onCloneCell={this.handleCloneCell}
                 onEditView={this.handleEditView}
                 onAddCell={this.handleAddCell}
                 onEditNote={this.showNoteOverlay}
@@ -272,14 +269,6 @@ class DashboardPage extends Component<Props> {
     router.push(`${location.pathname}/cells/${cellID}/edit`)
   }
 
-  private handleCloneCell = (cell: Cell) => {
-    const {dashboard, onCreateCellWithView, views} = this.props
-    const viewEntry = views[cell.id]
-    if (viewEntry && viewEntry.view) {
-      onCreateCellWithView(dashboard.id, viewEntry.view, cell)
-    }
-  }
-
   private handleRenameDashboard = (name: string) => {
     const {dashboard, updateDashboard} = this.props
     const renamedDashboard = {...dashboard, name}
@@ -334,7 +323,6 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
 const mdtp: DispatchProps = {
   getDashboard: dashboardActions.getDashboard,
   updateDashboard: dashboardActions.updateDashboard,
-  copyCell: dashboardActions.copyDashboardCell,
   handleChooseAutoRefresh: setAutoRefreshInterval,
   onSetAutoRefreshStatus: setAutoRefreshStatus,
   handleClickPresentationButton: appActions.delayEnablePresentationMode,
@@ -342,7 +330,6 @@ const mdtp: DispatchProps = {
   updateQueryParams: rangesActions.updateQueryParams,
   updateCells: cellActions.updateCells,
   deleteCell: cellActions.deleteCell,
-  onCreateCellWithView: cellActions.createCellWithView,
   onUpdateView: dashboardActions.updateView,
   onToggleShowVariablesControls: toggleShowVariablesControls,
 }

@@ -26,7 +26,6 @@ interface OwnProps {
   cell: Cell
   timeRange: TimeRange
   manualRefresh: number
-  onCloneCell: (cell: Cell) => void
   onEditCell: () => void
   onEditNote: (id: string) => void
 }
@@ -40,7 +39,7 @@ type Props = StateProps & OwnProps
 @ErrorHandling
 class CellComponent extends Component<Props, State> {
   public render() {
-    const {onEditCell, onEditNote, onCloneCell, cell, view} = this.props
+    const {onEditCell, onEditNote, cell, view} = this.props
 
     return (
       <>
@@ -49,7 +48,6 @@ class CellComponent extends Component<Props, State> {
             <CellContext
               cell={cell}
               view={view}
-              onCloneCell={onCloneCell}
               onEditCell={onEditCell}
               onEditNote={onEditNote}
               onCSVDownload={this.handleCSVDownload}

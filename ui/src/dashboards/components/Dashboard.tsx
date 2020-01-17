@@ -24,7 +24,6 @@ interface OwnProps {
   dashboardID: string
   timeRange: TimeRange
   manualRefresh: number
-  onCloneCell: (cell: Cell) => void
   onPositionChange: (cells: Cell[]) => void
   onEditView: (cellID: string) => void
   onAddCell: () => void
@@ -40,7 +39,6 @@ class DashboardComponent extends PureComponent<Props> {
       cells,
       timeRange,
       manualRefresh,
-      onCloneCell,
       onEditView,
       onPositionChange,
       onAddCell,
@@ -54,7 +52,6 @@ class DashboardComponent extends PureComponent<Props> {
             cells={cells}
             timeRange={timeRange}
             manualRefresh={manualRefresh}
-            onCloneCell={onCloneCell}
             onPositionChange={onPositionChange}
             onEditView={onEditView}
             onEditNote={onEditNote}

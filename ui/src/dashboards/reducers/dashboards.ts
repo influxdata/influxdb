@@ -83,12 +83,17 @@ export const dashboardsReducer = (
       }
 
       case SET_CELL: {
-        const {id, schema} = action
+        const {schema} = action
 
-        const cell = schema.entities.cells[id]
+        const cellID = schema.result
+        const cell = schema.entities.cells[cellID]
         const {cells} = draftState.byID[cell.dashboardID]
 
-        draftState.byID[cell.id].cells = cells.filter(cid => cid !== id)
+        if (cells.includes(cellID)) {
+          return
+        }
+
+        draftState.byID[cell.dashboardID].cells.push(cellID)
 
         return
       }

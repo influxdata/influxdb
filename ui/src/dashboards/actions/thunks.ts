@@ -36,7 +36,6 @@ import {
   getHydratedVariables,
 } from 'src/variables/selectors'
 import {getViewsForDashboard} from 'src/dashboards/selectors'
-import {getClonedDashboardCell} from 'src/dashboards/utils/cellGetters'
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {exportVariables} from 'src/variables/utils/exportVariables'
 import {getSaveableView} from 'src/timeMachine/selectors'
@@ -53,7 +52,6 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 // Types
 import {
   Dashboard,
-  Cell,
   GetState,
   View,
   DashboardTemplate,
@@ -352,30 +350,6 @@ export const updateView = (dashboardID: string, view: View) => async (
     console.error(e)
     dispatch(notify(copy.cellUpdateFailed()))
     dispatch(setView(cellID, null, RemoteDataState.Error))
-  }
-}
-
-export const copyDashboardCell = (dashboard: Dashboard, cell: Cell) => (
-  dispatch: Dispatch<Action | PublishNotificationAction>
-) => {
-  try {
-    const clonedCell = getClonedDashboardCell(dashboard, cell)
-    const updatedDashboard = {
-      ...dashboard,
-      cells: [...dashboard.cells, clonedCell],
-    }
-
-    const normDash = normalize<Dashboard, DashboardEntities, string>(
-      updatedDashboard,
-      schemas.dashboard
-    )
-
-    dispatch(
-      creators.setDashboard(dashboard.id, RemoteDataState.Done, normDash)
-    )
-    dispatch(notify(copy.cellAdded()))
-  } catch (error) {
-    console.error(error)
   }
 }
 

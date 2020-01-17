@@ -17,19 +17,18 @@ import CellContextDangerItem from 'src/shared/components/cells/CellContextDanger
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
-import {deleteCell} from 'src/cells/actions/thunks'
+import {deleteCell, createCellWithView} from 'src/cells/actions/thunks'
 
 // Types
 import {Cell, View} from 'src/types'
-
 interface DispatchProps {
   onDeleteCell: typeof deleteCell
+  onCloneCell: typeof createCellWithView
 }
 
 interface OwnProps {
   cell: Cell
   view: View
-  onCloneCell: (cell: Cell) => void
   onCSVDownload: () => void
   onEditCell: () => void
   onEditNote: (id: string) => void
@@ -40,10 +39,10 @@ type Props = OwnProps & DispatchProps
 const CellContext: FC<Props> = ({
   view,
   cell,
+  onCloneCell,
   onEditNote,
   onEditCell,
   onDeleteCell,
-  onCloneCell,
   onCSVDownload,
 }) => {
   const [popoverVisible, setPopoverVisibility] = useState<boolean>(false)
@@ -59,8 +58,8 @@ const CellContext: FC<Props> = ({
     onEditNote(view.id)
   }
 
-  const handleCloneCell = (): void => {
-    onCloneCell(cell)
+  const handleCloneCell = () => {
+    onCloneCell(cell.dashboardID, view, cell)
   }
 
   const handleDeleteCell = (): void => {
@@ -163,6 +162,7 @@ const CellContext: FC<Props> = ({
 
 const mdtp: DispatchProps = {
   onDeleteCell: deleteCell,
+  onCloneCell: createCellWithView,
 }
 
 export default connect(

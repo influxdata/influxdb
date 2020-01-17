@@ -35,11 +35,13 @@ export const cell = new schema.Entity(
   ResourceType.Cells,
   {},
   {
-    processStrategy: (cell: Cell, parent: Dashboard) => ({
-      ...cell,
-      dashboardID: parent.id,
-      status: RemoteDataState.Done,
-    }),
+    processStrategy: (cell: Cell, parent: Dashboard) => {
+      return {
+        ...cell,
+        dashboardID: !cell.dashboardID ? parent.id : cell.dashboardID,
+        status: RemoteDataState.Done,
+      }
+    },
   }
 )
 export const arrayOfCells = [cell]
