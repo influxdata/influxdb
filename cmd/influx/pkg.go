@@ -95,9 +95,9 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Path to package file")
 	cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet")
 	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
-	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "disable output printing")
+	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
-	cmd.Flags().StringVarP(&b.applyOpts.url, "url", "u", "", "URL to retrieve a package.")
+	cmd.Flags().StringVarP(&b.applyOpts.url, "url", "u", "", "URL to retrieve a package")
 	cmd.Flags().BoolVarP(&b.hasColor, "color", "c", true, "Enable color in output, defaults true")
 	cmd.Flags().BoolVar(&b.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
 
