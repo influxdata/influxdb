@@ -240,7 +240,7 @@ export const deleteDashboard = (dashboard: Dashboard) => async (
   try {
     const resp = await api.deleteDashboard({dashboardID: dashboard.id})
 
-    if (resp.data !== 204) {
+    if (resp.status !== 204) {
       throw new Error(resp.data.message)
     }
 
