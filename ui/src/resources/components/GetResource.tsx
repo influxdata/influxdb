@@ -63,20 +63,19 @@ class GetResources extends PureComponent<Props, StateProps> {
     const {children, remoteDataState} = this.props
 
     return (
-      <SpinnerContainer
-        loading={remoteDataState}
-        spinnerComponent={<TechnoSpinner />}
-      >
+      <>
+        <SpinnerContainer
+          loading={remoteDataState}
+          spinnerComponent={<TechnoSpinner />}
+        />
         {remoteDataState === RemoteDataState.Done ? children : null}
-      </SpinnerContainer>
+      </>
     )
   }
 }
 
 const mstp = (state: AppState, props: Props): StateProps => {
-  let {resources} = props
-
-  const remoteDataState = getResourceStatus(state, resources)
+  const remoteDataState = getResourceStatus(state, props.resources)
 
   return {
     remoteDataState,

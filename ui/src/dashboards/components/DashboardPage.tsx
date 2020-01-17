@@ -5,7 +5,6 @@ import {withRouter} from 'react-router'
 import {isEqual} from 'lodash'
 
 // Components
-import GetTimeRange from 'src/dashboards/components/GetTimeRange'
 import {Page} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
@@ -146,7 +145,6 @@ class DashboardPage extends Component<Props> {
 
     return (
       <Page titleTag={this.pageTitle}>
-        <GetTimeRange />
         <LimitChecker>
           <HoverTimeProvider>
             <DashboardHeader
@@ -267,13 +265,14 @@ const mstp = (state: AppState, {dashboardID}: OwnProps): StateProps => {
   const autoRefresh = state.autoRefresh[dashboardID] || AUTOREFRESH_DEFAULT
   const limitedResources = extractRateLimitResources(limits)
   const limitStatus = extractRateLimitStatus(limits)
+  const org = getOrg(state)
 
   return {
     links,
     views,
-    orgName: getOrg(state).name,
+    orgName: org && org.name,
     timeRange,
-    dashboardName: dashboard.name,
+    dashboardName: dashboard && dashboard.name,
     autoRefresh,
     limitStatus,
     limitedResources,
