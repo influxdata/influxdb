@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -91,6 +92,30 @@ func Test_Coordinator_Executor_Methods(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewSchedulableTask(t *testing.T) {
+	now := time.Now().UTC()
+	one := influxdb.ID(1)
+	taskOne := &influxdb.Task{ID: one, CreatedAt: now, Cron: "* * * * *", LatestCompleted: now}
+	schedulableT, err := NewSchedulableTask(taskOne)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !schedulableT.LastScheduled().Truncate(time.Second).Equal(now.Truncate(time.Second)) {
+		fmt.Println(schedulableT.LastScheduled())
+		t.Fatalf("expected SchedulableTask's LatestScheduled to equal %s but it was %s", now.Truncate(time.Second), schedulableT.LastScheduled())
+	}
+
+	taskTwo := &influxdb.Task{ID: one, CreatedAt: now, Cron: "* * * * *", LatestCompleted: now, LatestScheduled: now.Add(-10 * time.Second)}
+	schedulableT, err = NewSchedulableTask(taskTwo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !schedulableT.LastScheduled().Truncate(time.Second).Equal(now.Truncate(time.Second)) {
+		t.Fatalf("expected SchedulableTask's LatestScheduled to equal %s but it was %s", now.Truncate(time.Second), schedulableT.LastScheduled())
+	}
+
 }
 
 func Test_Coordinator_Scheduler_Methods(t *testing.T) {
