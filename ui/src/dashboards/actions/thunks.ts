@@ -581,7 +581,7 @@ export const convertToTemplate = (dashboardID: string) => async (
       schemas.dashboard
     )
 
-    const dashboard: Dashboard = entities[result]
+    const dashboard: Dashboard = entities.dashboards[result]
 
     const pendingViews = dashboard.cells.map(c =>
       dashAPI.getView(dashboardID, c.id)
