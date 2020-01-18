@@ -31,13 +31,17 @@ import {resetViews} from 'src/dashboards/actions/views'
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
 
-interface PassedProps {
-  dashboard: Dashboard
+interface OwnProps {
+  id: string
+  name: string
+  description: string
+  updatedAt: string
+  labels: Label[]
   onFilterChange: (searchTerm: string) => void
 }
 
 interface StateProps {
-  labels: Label[]
+  allLabels: Label[]
 }
 
 interface DispatchProps {
@@ -50,12 +54,21 @@ interface DispatchProps {
   onResetViews: typeof resetViews
 }
 
-type Props = PassedProps & DispatchProps & StateProps & WithRouterProps
+type Props = OwnProps & DispatchProps & StateProps & WithRouterProps
 
 class DashboardCard extends PureComponent<Props> {
   public render() {
-    const {dashboard, onFilterChange, labels} = this.props
-    const {id} = dashboard
+    const {
+      id,
+      name,
+      description,
+      onFilterChange,
+      labels,
+      allLabels,
+      updatedAt,
+    } = this.props
+
+    const dashboardLabels = labels
 
     return (
       <ResourceCard
@@ -65,7 +78,7 @@ class DashboardCard extends PureComponent<Props> {
           <ResourceCard.EditableName
             onUpdate={this.handleUpdateDashboard}
             onClick={this.handleClickDashboard}
-            name={dashboard.name}
+            name={name}
             noNameString={DEFAULT_DASHBOARD_NAME}
             testID="dashboard-card--name"
             buttonTestID="dashboard-card--name-button"
@@ -75,14 +88,14 @@ class DashboardCard extends PureComponent<Props> {
         description={
           <ResourceCard.EditableDescription
             onUpdate={this.handleUpdateDescription}
-            description={dashboard.description}
-            placeholder={`Describe ${dashboard.name}`}
+            description={description}
+            placeholder={`Describe ${name}`}
           />
         }
         labels={
           <InlineLabels
-            selectedLabels={dashboard.labels}
-            labels={labels}
+            labels={allLabels}
+            selectedLabels={dashboardLabels}
             onFilterChange={onFilterChange}
             onAddLabel={this.handleAddLabel}
             onRemoveLabel={this.handleRemoveLabel}
@@ -90,12 +103,7 @@ class DashboardCard extends PureComponent<Props> {
           />
         }
         metaData={[
-          <>
-            {relativeTimestampFormatter(
-              dashboard.meta.updatedAt,
-              'Last modified '
-            )}
-          </>,
+          <>{relativeTimestampFormatter(updatedAt, 'Last modified ')}</>,
         ]}
         contextMenu={this.contextMenu}
       />
@@ -103,32 +111,24 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private handleUpdateDashboard = (name: string) => {
-    const {dashboard, onUpdateDashboard} = this.props
+    const {id, onUpdateDashboard} = this.props
 
-    onUpdateDashboard(dashboard.id, {name})
+    onUpdateDashboard(id, {name})
   }
 
   private get contextMenu(): JSX.Element {
-    const {dashboard, onDeleteDashboard, onCloneDashboard} = this.props
+    const {onDeleteDashboard, onCloneDashboard} = this.props
 
     return (
       <Context>
         <Context.Menu icon={IconFont.CogThick}>
-          <Context.Item
-            label="Export"
-            action={this.handleExport}
-            value={dashboard}
-          />
+          <Context.Item label="Export" action={this.handleExport} />
         </Context.Menu>
         <Context.Menu
           icon={IconFont.Duplicate}
           color={ComponentColor.Secondary}
         >
-          <Context.Item
-            label="Clone"
-            action={onCloneDashboard}
-            value={dashboard}
-          />
+          <Context.Item label="Clone" action={onCloneDashboard} />
         </Context.Menu>
         <Context.Menu
           icon={IconFont.Trash}
@@ -138,7 +138,6 @@ class DashboardCard extends PureComponent<Props> {
           <Context.Item
             label="Delete"
             action={onDeleteDashboard}
-            value={dashboard}
             testID="context-delete-dashboard"
           />
         </Context.Menu>
@@ -150,31 +149,31 @@ class DashboardCard extends PureComponent<Props> {
     const {
       onResetViews,
       router,
-      dashboard,
+      id,
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/dashboards/${dashboard.id}`)
+    router.push(`/orgs/${orgID}/dashboards/${id}`)
 
     onResetViews()
   }
 
   private handleUpdateDescription = (description: string) => {
-    const {onUpdateDashboard, dashboard} = this.props
+    const {onUpdateDashboard, params} = this.props
 
-    onUpdateDashboard(dashboard.id, {description})
+    onUpdateDashboard(params.dashboardID, {description})
   }
 
   private handleAddLabel = (label: Label) => {
-    const {dashboard, onAddDashboardLabel} = this.props
+    const {onAddDashboardLabel, id} = this.props
 
-    onAddDashboardLabel(dashboard.id, label)
+    onAddDashboardLabel(id, label)
   }
 
   private handleRemoveLabel = (label: Label) => {
-    const {dashboard, onRemoveDashboardLabel} = this.props
+    const {onRemoveDashboardLabel, id} = this.props
 
-    onRemoveDashboardLabel(dashboard.id, label)
+    onRemoveDashboardLabel(id, label)
   }
 
   private handleCreateLabel = async (label: Label) => {
@@ -184,17 +183,16 @@ class DashboardCard extends PureComponent<Props> {
   private handleExport = () => {
     const {
       router,
-      dashboard,
-      params: {orgID},
+      params: {orgID, dashboardID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/dashboards/${dashboard.id}/export`)
+    router.push(`/orgs/${orgID}/dashboards/${dashboardID}/export`)
   }
 }
 
 const mstp = ({labels}: AppState): StateProps => {
   return {
-    labels: viewableLabels(labels.list),
+    allLabels: viewableLabels(labels.list),
   }
 }
 
@@ -208,7 +206,7 @@ const mdtp: DispatchProps = {
   onUpdateDashboard: updateDashboard,
 }
 
-export default connect<StateProps, DispatchProps, PassedProps>(
+export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
 )(withRouter(DashboardCard))
