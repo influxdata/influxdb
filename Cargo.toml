@@ -38,6 +38,49 @@ prost = "0.5.0"
 # crate didn't offer.
 croaring = "0.4.2"
 
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "float_encoder_sequential_benchmark"
+harness = false
+
+[[bench]]
+name = "float_encoder_random_benchmark"
+harness = false
+
+[[bench]]
+name = "float_encoder_cpu_benchmark"
+harness = false
+
+[[bench]]
+name = "integer_encoder_sequential_benchmark"
+harness = false
+
+[[bench]]
+name = "integer_encoder_random_benchmark"
+harness = false
+
+[[bench]]
+name = "float_decoder_sequential_benchmark"
+harness = false
+
+[[bench]]
+name = "float_decoder_random_benchmark"
+harness = false
+
+[[bench]]
+name = "float_decoder_cpu_benchmark"
+harness = false
+
+[[bench]]
+name = "integer_decoder_random_benchmark"
+harness = false
+
+[[bench]]
+name = "integer_decoder_sequential_benchmark"
+harness = false
+
 [build-dependencies]
 #tonic-build = "0.1.0-alpha.6"
 prost-build = { version = "0.5.0" }

@@ -16,14 +16,14 @@ enum Encoding {
 /// further compressed if possible, either via bit-packing using simple8b or by
 /// run-length encoding the deltas if they're all the same.
 #[allow(dead_code)]
-pub fn encode_all<'a>(src: &mut Vec<i64>, dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
+pub fn encode_all<'a>(src: &Vec<i64>, dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.truncate(0); // reset buffer.
     if src.len() == 0 {
         return Ok(());
     }
 
     let mut max: u64 = 0;
-    let mut deltas = i64_to_u64_vector(src);
+    let mut deltas = i64_to_u64_vector(&src);
     for i in (1..deltas.len()).rev() {
         deltas[i] = zig_zag_encode(deltas[i].wrapping_sub(deltas[i - 1]) as i64);
         if deltas[i] > max {
@@ -227,11 +227,11 @@ mod tests {
 
     #[test]
     fn encode_all_no_values() {
-        let mut src: Vec<i64> = vec![];
+        let src: Vec<i64> = vec![];
         let mut dst = vec![];
 
         // check for error
-        encode_all(&mut src, &mut dst).expect("failed to encode src");
+        encode_all(&src, &mut dst).expect("failed to encode src");
 
         // verify encoded no values.
         assert_eq!(dst.to_vec().len(), 0);
@@ -239,11 +239,11 @@ mod tests {
 
     #[test]
     fn encode_all_uncompressed() {
-        let mut src: Vec<i64> = vec![-1000, 0, simple8b::MAX_VALUE as i64, 213123421];
+        let src: Vec<i64> = vec![-1000, 0, simple8b::MAX_VALUE as i64, 213123421];
         let mut dst = vec![];
 
         let exp = src.clone();
-        encode_all(&mut src, &mut dst).expect("failed to encode");
+        encode_all(&src, &mut dst).expect("failed to encode");
 
         // verify uncompressed encoding used
         assert_eq!(&dst[0] >> 4, Encoding::Uncompressed as u8);
@@ -290,9 +290,9 @@ mod tests {
 
         for test in tests {
             let mut dst = vec![];
-            let mut src = test.input.clone();
+            let src = test.input.clone();
             let exp = test.input;
-            encode_all(&mut src, &mut dst).expect("failed to encode");
+            encode_all(&src, &mut dst).expect("failed to encode");
 
             // verify RLE encoding used
             assert_eq!(&dst[0] >> 4, Encoding::Rle as u8);
@@ -327,9 +327,9 @@ mod tests {
 
         for test in tests {
             let mut dst = vec![];
-            let mut src = test.input.clone();
+            let src = test.input.clone();
             let exp = test.input;
-            encode_all(&mut src, &mut dst).expect("failed to encode");
+            encode_all(&src, &mut dst).expect("failed to encode");
             // verify Simple8b encoding used
             assert_eq!(&dst[0] >> 4, Encoding::Simple8b as u8);
 
