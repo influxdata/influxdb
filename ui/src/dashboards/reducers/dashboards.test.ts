@@ -13,10 +13,10 @@ import {
   setDashboards,
   removeDashboard,
   editDashboard,
-  removeCell,
   addDashboardLabel,
   removeDashboardLabel,
 } from 'src/dashboards/actions/creators'
+import {removeCell} from 'src/cells/actions/creators'
 
 // Resources
 import {dashboard} from 'src/dashboards/resources'
@@ -73,7 +73,10 @@ describe('dashboards reducer', () => {
 
     const state = initialState()
 
-    const actual = reducer(state, setDashboard(schema))
+    const actual = reducer(
+      state,
+      setDashboard(dashboard.id, RemoteDataState.Done, schema)
+    )
 
     expect(actual.byID[dashboard.id].name).toEqual(name)
   })
@@ -96,8 +99,8 @@ describe('dashboards reducer', () => {
   it('can remove a cell from a dashboard', () => {
     const state = initialState()
     const {id} = dashboard
-    const cellID = dashboard.cells[0].id
-    const actual = reducer(state, removeCell(id, cellID))
+    const cellID = dashboard.cells[0]
+    const actual = reducer(state, removeCell({dashboardID: id, id: cellID}))
 
     expect(actual.byID[id].cells).toEqual([])
   })

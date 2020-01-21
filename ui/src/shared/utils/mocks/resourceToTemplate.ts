@@ -7,22 +7,24 @@ import {
   RemoteDataState,
 } from 'src/types'
 
+export const myCell = {
+  dashboardID: 'dash_1',
+  id: 'cell_view_1',
+  x: 0,
+  y: 0,
+  w: 4,
+  h: 4,
+  status: RemoteDataState.Done,
+}
+
 export const myDashboard: Dashboard = {
   id: 'dash_1',
   orgID: 'org_1',
   name: 'MyDashboard',
   description: '',
-  cells: [
-    {
-      dashboardID: 'dash_1',
-      id: 'cell_view_1',
-      x: 0,
-      y: 0,
-      w: 4,
-      h: 4,
-    },
-  ],
+  cells: [myCell.id],
   labels: [],
+  status: RemoteDataState.NotStarted,
 }
 
 export const myView: View = {

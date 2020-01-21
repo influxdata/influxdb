@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {Page} from '@influxdata/clockface'
 import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
-import GetResources from 'src/shared/components/GetResources'
+import GetResources from 'src/resources/components/GetResources'
 import Scrapers from 'src/scrapers/components/Scrapers'
 
 // Utils

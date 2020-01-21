@@ -1,5 +1,7 @@
 // Libraries
-import React, {FunctionComponent, useRef, RefObject, useState} from 'react'
+import React, {FC, useRef, RefObject, useState} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 import {get} from 'lodash'
 import classnames from 'classnames'
 
@@ -15,26 +17,31 @@ import CellContextItem from 'src/shared/components/cells/CellContextItem'
 import CellContextDangerItem from 'src/shared/components/cells/CellContextDangerItem'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
+// Actions
+import {deleteCell, createCellWithView} from 'src/cells/actions/thunks'
+
 // Types
 import {Cell, View} from 'src/types'
-
-interface Props {
-  cell: Cell
-  view: View
-  onDeleteCell: (cell: Cell) => void
-  onCloneCell: (cell: Cell) => void
-  onCSVDownload: () => void
-  onEditCell: () => void
-  onEditNote: (id: string) => void
+interface DispatchProps {
+  onDeleteCell: typeof deleteCell
+  onCloneCell: typeof createCellWithView
 }
 
-const CellContext: FunctionComponent<Props> = ({
+interface OwnProps {
+  cell: Cell
+  view: View
+  onCSVDownload: () => void
+}
+
+type Props = OwnProps & DispatchProps & WithRouterProps
+
+const CellContext: FC<Props> = ({
   view,
+  router,
+  location,
   cell,
-  onEditNote,
-  onEditCell,
-  onDeleteCell,
   onCloneCell,
+  onDeleteCell,
   onCSVDownload,
 }) => {
   const [popoverVisible, setPopoverVisibility] = useState<boolean>(false)
@@ -46,16 +53,26 @@ const CellContext: FunctionComponent<Props> = ({
     'cell--context__active': popoverVisible,
   })
 
-  const handleEditNote = (): void => {
-    onEditNote(view.id)
-  }
-
-  const handleCloneCell = (): void => {
-    onCloneCell(cell)
+  const handleCloneCell = () => {
+    onCloneCell(cell.dashboardID, view, cell)
   }
 
   const handleDeleteCell = (): void => {
-    onDeleteCell(cell)
+    const {dashboardID, id} = cell
+
+    onDeleteCell(dashboardID, id)
+  }
+
+  const handleEditNote = () => {
+    if (view.id) {
+      router.push(`${this.props.location.pathname}/notes/${view.id}/edit`)
+    } else {
+      router.push(`${this.props.location.pathname}/notes/new`)
+    }
+  }
+
+  const handleEditCell = (): void => {
+    router.push(`${location.pathname}/cells/${cell.id}/edit`)
   }
 
   const popoverContents = (onHide): JSX.Element => {
@@ -84,7 +101,7 @@ const CellContext: FunctionComponent<Props> = ({
       <div className="cell--context-menu">
         <CellContextItem
           label="Configure"
-          onClick={onEditCell}
+          onClick={handleEditCell}
           icon={IconFont.Pencil}
           onHide={onHide}
           testID="cell-context--configure"
@@ -150,4 +167,14 @@ const CellContext: FunctionComponent<Props> = ({
   )
 }
 
-export default CellContext
+const mdtp: DispatchProps = {
+  onDeleteCell: deleteCell,
+  onCloneCell: createCellWithView,
+}
+
+export default withRouter<OwnProps>(
+  connect<{}, DispatchProps>(
+    null,
+    mdtp
+  )(CellContext)
+)

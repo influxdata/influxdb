@@ -6,26 +6,29 @@ import {
   FieldOption,
   DecimalPlaces,
   TableOptions,
+  RemoteDataState,
 } from 'src/types'
+
+export const dbCell: Cell = {
+  x: 1,
+  y: 2,
+  w: 3,
+  h: 4,
+  id: '1',
+  dashboardID: '1',
+  status: RemoteDataState.Done,
+  links: {
+    self: '/v2/dashboards/1/cells/1',
+    view: '/v2/dashboards/1/cells/1/views',
+  },
+}
 
 export const dashboard: Dashboard = {
   id: '1',
   name: 'd1',
   orgID: '1',
-  cells: [
-    {
-      x: 1,
-      y: 2,
-      w: 3,
-      h: 4,
-      id: '1',
-      dashboardID: '1',
-      links: {
-        self: '/v2/dashboards/1/cells/1',
-        view: '/v2/dashboards/1/cells/1/views',
-      },
-    },
-  ],
+  cells: [dbCell.id],
+  status: RemoteDataState.Done,
   labels: [],
   links: {
     self: '/v2/dashboards/1',
@@ -110,6 +113,7 @@ export const cell: Cell = {
     self: '/chronograf/v1/dashboards/9/cells/67435',
     view: '1',
   },
+  status: RemoteDataState.Done,
 }
 
 export const fullTimeRange = {

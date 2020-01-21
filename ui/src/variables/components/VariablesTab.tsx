@@ -15,7 +15,7 @@ import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader
 import VariableList from 'src/variables/components/VariableList'
 import FilterList from 'src/shared/components/Filter'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
-import GetResources from 'src/shared/components/GetResources'
+import GetResources from 'src/resources/components/GetResources'
 import {Sort} from '@influxdata/clockface'
 
 // Types

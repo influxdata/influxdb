@@ -2,7 +2,7 @@
 import {get, isUndefined} from 'lodash'
 
 // Actions
-import {createCellWithView} from 'src/dashboards/actions/thunks'
+import {createCellWithView} from 'src/cells/actions/thunks'
 import {updateView} from 'src/dashboards/actions/views'
 
 // Utils

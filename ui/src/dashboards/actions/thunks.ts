@@ -7,6 +7,7 @@ import {push} from 'react-router-redux'
 import * as dashAPI from 'src/dashboards/apis'
 import * as api from 'src/client'
 import * as tempAPI from 'src/templates/api'
+import {createCellWithView} from 'src/cells/actions/thunks'
 
 // Schemas
 import * as schemas from 'src/schemas'
@@ -35,10 +36,6 @@ import {
   getHydratedVariables,
 } from 'src/variables/selectors'
 import {getViewsForDashboard} from 'src/dashboards/selectors'
-import {
-  getNewDashboardCell,
-  getClonedDashboardCell,
-} from 'src/dashboards/utils/cellGetters'
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {exportVariables} from 'src/variables/utils/exportVariables'
 import {getSaveableView} from 'src/timeMachine/selectors'
@@ -55,14 +52,11 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 // Types
 import {
   Dashboard,
-  NewView,
-  Cell,
   GetState,
   View,
   DashboardTemplate,
   Label,
   RemoteDataState,
-  NewCell,
   DashboardEntities,
   ResourceType,
 } from 'src/types'
@@ -125,7 +119,8 @@ export const cloneDashboard = (dashboard: Dashboard) => async (
       schemas.dashboard
     )
 
-    const dash: Dashboard = entities[result]
+    const dash: Dashboard = entities.dashboards[result]
+    const cells = dash.cells.map(cellID => state.resources.cells.byID[cellID])
 
     const postResp = await api.postDashboard({
       data: {
@@ -152,7 +147,7 @@ export const cloneDashboard = (dashboard: Dashboard) => async (
       throw new Error('An error occurred cloning the labels for this dashboard')
     }
 
-    const clonedViews = await dashAPI.cloneUtilFunc(dash, postResp.data.id)
+    const clonedViews = await dashAPI.cloneUtilFunc(cells, postResp.data.id)
 
     const newViews = await Promise.all(clonedViews)
 
@@ -231,27 +226,23 @@ export const createDashboardFromTemplate = (
   }
 }
 
-export const deleteDashboard = (dashboard: Dashboard) => async (
+export const deleteDashboard = (dashboardID: string, name: string) => async (
   dispatch
 ): Promise<void> => {
-  dispatch(creators.removeDashboard(dashboard.id))
-  dispatch(deleteTimeRange(dashboard.id))
+  dispatch(creators.removeDashboard(dashboardID))
+  dispatch(deleteTimeRange(dashboardID))
 
   try {
-    const resp = await api.deleteDashboard({dashboardID: dashboard.id})
+    const resp = await api.deleteDashboard({dashboardID})
 
     if (resp.status !== 204) {
       throw new Error(resp.data.message)
     }
 
-    dispatch(notify(copy.dashboardDeleted(dashboard.name)))
+    dispatch(notify(copy.dashboardDeleted(name)))
     dispatch(checkDashboardLimits())
   } catch (error) {
-    dispatch(
-      notify(copy.dashboardDeleteFailed(dashboard.name, error.data.message))
-    )
-
-    dispatch(creators.deleteDashboardFailed(dashboard))
+    dispatch(notify(copy.dashboardDeleteFailed(name, error.data.message)))
   }
 }
 
@@ -284,11 +275,12 @@ export const getDashboard = (dashboardID: string) => async (
       resp.data,
       schemas.dashboard
     )
+
     const {cells, id}: Dashboard = normDash.entities.dashboards[normDash.result]
 
     // Fetch all the views in use on the dashboard
     const views = await Promise.all(
-      cells.map(cell => dashAPI.getView(id, cell.id))
+      cells.map(cellID => dashAPI.getView(id, cellID))
     )
 
     dispatch(setViews(RemoteDataState.Done, views))
@@ -297,7 +289,7 @@ export const getDashboard = (dashboardID: string) => async (
     await dispatch(refreshDashboardVariableValues(id, views))
 
     // Now that all the necessary state has been loaded, set the dashboard
-    dispatch(creators.setDashboard(normDash))
+    dispatch(creators.setDashboard(dashboardID, RemoteDataState.Done, normDash))
     dispatch(updateTimeRangeFromQueryParams(id))
   } catch (error) {
     const org = getOrg(getState())
@@ -307,9 +299,23 @@ export const getDashboard = (dashboardID: string) => async (
   }
 }
 
-export const updateDashboard = (dashboard: Dashboard) => async (
-  dispatch: Dispatch<creators.Action | PublishNotificationAction>
+export const updateDashboard = (
+  id: string,
+  updates: Partial<Dashboard>
+) => async (
+  dispatch: Dispatch<creators.Action | PublishNotificationAction>,
+  getState: GetState
 ): Promise<void> => {
+  const state = getState()
+
+  const currentDashboard = getByID<Dashboard>(
+    state,
+    ResourceType.Dashboards,
+    id
+  )
+
+  const dashboard = {...currentDashboard, ...updates}
+
   try {
     const resp = await api.patchDashboard({
       dashboardID: dashboard.id,
@@ -329,80 +335,6 @@ export const updateDashboard = (dashboard: Dashboard) => async (
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.dashboardUpdateFailed()))
-  }
-}
-
-export const createCellWithView = (
-  dashboardID: string,
-  view: NewView,
-  clonedCell?: Cell
-) => async (dispatch, getState: GetState): Promise<void> => {
-  try {
-    const state = getState()
-    let dashboard = getByID<Dashboard>(
-      state,
-      ResourceType.Dashboards,
-      dashboardID
-    )
-
-    if (!dashboard) {
-      const resp = await api.getDashboard({dashboardID})
-      if (resp.status !== 200) {
-        throw new Error(resp.data.message)
-      }
-
-      const {entities, result} = normalize<
-        Dashboard,
-        DashboardEntities,
-        string
-      >(resp.data, schemas.dashboard)
-
-      dashboard = entities.dashboards[result]
-    }
-
-    const cell: NewCell = getNewDashboardCell(dashboard, clonedCell)
-
-    // Create the cell
-    const cellResp = await api.postDashboardsCell({dashboardID, data: cell})
-
-    if (cellResp.status !== 201) {
-      throw new Error(cellResp.data.message)
-    }
-
-    const createdCell = cellResp.data
-
-    // Create the view and associate it with the cell
-    const newView = await dashAPI.updateView(dashboardID, createdCell.id, view)
-
-    // Update the dashboard with the new cell
-    let updatedDashboard: Dashboard = {
-      ...dashboard,
-      cells: [...dashboard.cells, {...cellResp.data, dashboardID}],
-    }
-
-    const resp = await api.patchDashboard({dashboardID, data: updatedDashboard})
-
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
-    }
-
-    const normDash = normalize<Dashboard, DashboardEntities, string>(
-      resp.data,
-      schemas.dashboard
-    )
-    const {entities, result} = normDash
-
-    updatedDashboard = entities[result]
-
-    // Refresh variables in use on dashboard
-    const views = [...getViewsForDashboard(state, dashboard.id), newView]
-
-    await dispatch(refreshDashboardVariableValues(dashboard.id, views))
-
-    dispatch(setView(createdCell.id, newView, RemoteDataState.Done))
-    dispatch(creators.editDashboard(normDash))
-  } catch {
-    notify(copy.cellAddFailed())
   }
 }
 
@@ -426,78 +358,6 @@ export const updateView = (dashboardID: string, view: View) => async (
     console.error(e)
     dispatch(notify(copy.cellUpdateFailed()))
     dispatch(setView(cellID, null, RemoteDataState.Error))
-  }
-}
-
-export const updateCells = (dashboard: Dashboard, cells: Cell[]) => async (
-  dispatch: Dispatch<Action>
-): Promise<void> => {
-  try {
-    const resp = await api.putDashboardsCells({
-      dashboardID: dashboard.id,
-      data: cells,
-    })
-
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
-    }
-
-    const updatedDashboard = {
-      ...dashboard,
-      cells: resp.data.cells,
-    }
-
-    const normDash = normalize<Dashboard, DashboardEntities, string>(
-      updatedDashboard,
-      schemas.dashboard
-    )
-
-    dispatch(creators.setDashboard(normDash))
-  } catch (error) {
-    console.error(error)
-  }
-}
-
-export const deleteCell = (dashboard: Dashboard, cell: Cell) => async (
-  dispatch,
-  getState: GetState
-): Promise<void> => {
-  try {
-    const views = getViewsForDashboard(getState(), dashboard.id).filter(
-      view => view.cellID !== cell.id
-    )
-
-    await Promise.all([
-      api.deleteDashboardsCell({dashboardID: dashboard.id, cellID: cell.id}),
-      dispatch(refreshDashboardVariableValues(dashboard.id, views)),
-    ])
-
-    dispatch(creators.removeCell(dashboard.id, cell.id))
-    dispatch(notify(copy.cellDeleted()))
-  } catch (error) {
-    console.error(error)
-  }
-}
-
-export const copyDashboardCell = (dashboard: Dashboard, cell: Cell) => (
-  dispatch: Dispatch<Action | PublishNotificationAction>
-) => {
-  try {
-    const clonedCell = getClonedDashboardCell(dashboard, cell)
-    const updatedDashboard = {
-      ...dashboard,
-      cells: [...dashboard.cells, clonedCell],
-    }
-
-    const normDash = normalize<Dashboard, DashboardEntities, string>(
-      updatedDashboard,
-      schemas.dashboard
-    )
-
-    dispatch(creators.setDashboard(normDash))
-    dispatch(notify(copy.cellAdded()))
-  } catch (error) {
-    console.error(error)
   }
 }
 
@@ -568,7 +428,8 @@ export const convertToTemplate = (dashboardID: string) => async (
 ): Promise<void> => {
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
-    const org = getOrg(getState())
+    const state = getState()
+    const org = getOrg(state)
 
     const dashResp = await api.getDashboard({dashboardID})
 
@@ -581,11 +442,13 @@ export const convertToTemplate = (dashboardID: string) => async (
       schemas.dashboard
     )
 
-    const dashboard: Dashboard = entities.dashboards[result]
+    const dashboard = entities.dashboards[result]
+    const cells = dashboard.cells.map(cellID => entities.cells[cellID])
 
-    const pendingViews = dashboard.cells.map(c =>
-      dashAPI.getView(dashboardID, c.id)
+    const pendingViews = dashboard.cells.map(cellID =>
+      dashAPI.getView(dashboardID, cellID)
     )
+
     const views = await Promise.all(pendingViews)
     const resp = await api.getVariables({query: {orgID: org.id}})
     if (resp.status !== 200) {
@@ -596,6 +459,7 @@ export const convertToTemplate = (dashboardID: string) => async (
     const exportedVariables = exportVariables(variables, vars)
     const dashboardTemplate = dashboardToTemplate(
       dashboard,
+      cells,
       views,
       exportedVariables
     )

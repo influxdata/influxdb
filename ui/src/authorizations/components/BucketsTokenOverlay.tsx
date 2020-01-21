@@ -18,7 +18,7 @@ import {
   Form,
 } from '@influxdata/clockface'
 import BucketsSelector from 'src/authorizations/components/BucketsSelector'
-import GetResources from 'src/shared/components/GetResources'
+import GetResources from 'src/resources/components/GetResources'
 
 // Utils
 import {

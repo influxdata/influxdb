@@ -52,12 +52,12 @@ class RenamablePageTitle extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {name, placeholder} = this.props
-    const {isEditing} = this.state
+    const {placeholder} = this.props
+    const {isEditing, workingName} = this.state
 
     let title = (
       <div className={this.titleClassName} onClick={this.handleStartEditing}>
-        <Page.Title title={name || placeholder} />
+        <Page.Title title={workingName || placeholder} />
         <Icon glyph={IconFont.Pencil} />
       </div>
     )

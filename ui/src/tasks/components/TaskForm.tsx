@@ -12,7 +12,7 @@ import {
 } from '@influxdata/clockface'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
 import TaskOptionsBucketDropdown from 'src/tasks/components/TasksOptionsBucketDropdown'
-import GetResources from 'src/shared/components/GetResources'
+import GetResources from 'src/resources/components/GetResources'
 
 // Types
 import {

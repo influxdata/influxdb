@@ -25,7 +25,7 @@ import TaskPage from 'src/tasks/containers/TaskPage'
 import TasksPage from 'src/tasks/containers/TasksPage'
 import TaskRunsPage from 'src/tasks/components/TaskRunsPage'
 import TaskEditPage from 'src/tasks/containers/TaskEditPage'
-import DashboardPage from 'src/dashboards/components/DashboardPage'
+import DashboardContainer from 'src/dashboards/components/DashboardContainer'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
@@ -250,7 +250,7 @@ class Root extends PureComponent {
                           </Route>
                           <Route
                             path="dashboards/:dashboardID"
-                            component={DashboardPage}
+                            component={DashboardContainer}
                           >
                             <Route path="cells">
                               <Route path="new" component={NewVEO} />

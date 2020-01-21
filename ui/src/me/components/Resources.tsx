@@ -5,7 +5,7 @@ import React, {PureComponent} from 'react'
 import Support from 'src/me/components/Support'
 import LogoutButton from 'src/me/components/LogoutButton'
 import DashboardsList from 'src/me/components/DashboardsList'
-import GetResources from 'src/shared/components/GetResources'
+import GetResources from 'src/resources/components/GetResources'
 import {
   Panel,
   FlexBox,

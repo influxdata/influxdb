@@ -1,11 +1,10 @@
 // Types
-import {Dashboard, Label, RemoteDataState, DashboardEntities} from 'src/types'
+import {Label, RemoteDataState, DashboardEntities} from 'src/types'
 import {NormalizedSchema} from 'normalizr'
 
 export const ADD_DASHBOARD_LABEL = 'ADD_DASHBOARD_LABEL'
 export const DELETE_DASHBOARD_FAILED = 'DELETE_DASHBOARD_FAILED'
 export const EDIT_DASHBOARD = 'EDIT_DASHBOARD'
-export const REMOVE_CELL = 'REMOVE_CELL'
 export const REMOVE_DASHBOARD = 'REMOVE_DASHBOARD'
 export const REMOVE_DASHBOARD_LABEL = 'REMOVE_DASHBOARD_LABEL'
 export const SET_DASHBOARD = 'SET_DASHBOARD'
@@ -13,9 +12,7 @@ export const SET_DASHBOARDS = 'SET_DASHBOARDS'
 
 export type Action =
   | ReturnType<typeof addDashboardLabel>
-  | ReturnType<typeof deleteDashboardFailed>
   | ReturnType<typeof editDashboard>
-  | ReturnType<typeof removeCell>
   | ReturnType<typeof removeDashboard>
   | ReturnType<typeof removeDashboardLabel>
   | ReturnType<typeof setDashboard>
@@ -44,9 +41,15 @@ export const setDashboards = (
     schema,
   } as const)
 
-export const setDashboard = (schema: DashboardSchema<string>) =>
+export const setDashboard = (
+  id: string,
+  status: RemoteDataState,
+  schema?: DashboardSchema<string>
+) =>
   ({
     type: SET_DASHBOARD,
+    id,
+    status,
     schema,
   } as const)
 
@@ -54,19 +57,6 @@ export const removeDashboard = (id: string) =>
   ({
     type: REMOVE_DASHBOARD,
     id,
-  } as const)
-
-export const deleteDashboardFailed = (dashboard: Dashboard) =>
-  ({
-    type: DELETE_DASHBOARD_FAILED,
-    payload: {dashboard},
-  } as const)
-
-export const removeCell = (dashboardID: string, cellID: string) =>
-  ({
-    type: REMOVE_CELL,
-    dashboardID,
-    cellID,
   } as const)
 
 export const addDashboardLabel = (dashboardID: string, label: Label) =>

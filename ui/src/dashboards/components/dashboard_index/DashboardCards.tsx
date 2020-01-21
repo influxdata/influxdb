@@ -149,13 +149,19 @@ export default class DashboardCards extends PureComponent<Props> {
     return (
       <div style={{height: '100%', display: 'grid'}} ref={this.registerFrame}>
         <div className="dashboards-card-grid" ref={this.registerWindow}>
-          {sortedDashboards.slice(0, pages * windowSize).map(dashboard => (
-            <DashboardCard
-              key={dashboard.id}
-              dashboard={dashboard}
-              onFilterChange={onFilterChange}
-            />
-          ))}
+          {sortedDashboards
+            .slice(0, pages * windowSize)
+            .map(({id, name, description, labels, meta}) => (
+              <DashboardCard
+                key={id}
+                id={id}
+                name={name}
+                labels={labels}
+                updatedAt={meta.updatedAt}
+                description={description}
+                onFilterChange={onFilterChange}
+              />
+            ))}
         </div>
         {hasMeasured && windowSize * pages < dashboards.length && (
           <div

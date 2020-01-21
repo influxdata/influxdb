@@ -22,7 +22,8 @@ import {
 } from 'src/dashboards/constants'
 
 // Actions
-import {getDashboards, createCellWithView} from 'src/dashboards/actions/thunks'
+import {getDashboards} from 'src/dashboards/actions/thunks'
+import {createCellWithView} from 'src/cells/actions/thunks'
 import {postDashboard} from 'src/client'
 import {notify} from 'src/shared/actions/notifications'
 
