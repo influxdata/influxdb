@@ -45,7 +45,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onDeleteDashboard: (dashboard: Dashboard) => void
+  onDeleteDashboard: typeof deleteDashboard
   onCloneDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: typeof updateDashboard
   onAddDashboardLabel: typeof addDashboardLabel
@@ -117,7 +117,7 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private get contextMenu(): JSX.Element {
-    const {onDeleteDashboard, onCloneDashboard} = this.props
+    const {onCloneDashboard} = this.props
 
     return (
       <Context>
@@ -137,12 +137,17 @@ class DashboardCard extends PureComponent<Props> {
         >
           <Context.Item
             label="Delete"
-            action={onDeleteDashboard}
+            action={this.handleDeleteDashboard}
             testID="context-delete-dashboard"
           />
         </Context.Menu>
       </Context>
     )
+  }
+
+  private handleDeleteDashboard = () => {
+    const {id, name, onDeleteDashboard} = this.props
+    onDeleteDashboard(id, name)
   }
 
   private handleClickDashboard = () => {

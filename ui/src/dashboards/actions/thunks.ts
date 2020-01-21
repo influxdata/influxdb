@@ -226,27 +226,25 @@ export const createDashboardFromTemplate = (
   }
 }
 
-export const deleteDashboard = (dashboard: Dashboard) => async (
+export const deleteDashboard = (dashboardID: string, name: string) => async (
   dispatch
 ): Promise<void> => {
-  dispatch(creators.removeDashboard(dashboard.id))
-  dispatch(deleteTimeRange(dashboard.id))
+  dispatch(creators.removeDashboard(dashboardID))
+  dispatch(deleteTimeRange(dashboardID))
 
   try {
-    const resp = await api.deleteDashboard({dashboardID: dashboard.id})
+    const resp = await api.deleteDashboard({dashboardID})
 
     if (resp.status !== 204) {
       throw new Error(resp.data.message)
     }
 
-    dispatch(notify(copy.dashboardDeleted(dashboard.name)))
+    dispatch(notify(copy.dashboardDeleted(name)))
     dispatch(checkDashboardLimits())
   } catch (error) {
     dispatch(
-      notify(copy.dashboardDeleteFailed(dashboard.name, error.data.message))
+      notify(copy.dashboardDeleteFailed(name, error.data.message))
     )
-
-    dispatch(creators.deleteDashboardFailed(dashboard))
   }
 }
 
