@@ -147,7 +147,7 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 		{
 			DestP:   &l.boltPath,
 			Flag:    "bolt-path",
-			Default: filepath.Join(dir, "influxd.bolt"),
+			Default: filepath.Join(dir, bolt.DefaultFilename),
 			Desc:    "path to boltdb database",
 		},
 		{
@@ -581,6 +581,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var (
 		deleteService platform.DeleteService = m.engine
 		pointsWriter  storage.PointsWriter   = m.engine
+		backupService platform.BackupService = m.engine
 	)
 
 	// TODO(cwolff): Figure out a good default per-query memory limit:
@@ -772,6 +773,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		NewQueryService:      source.NewQueryService,
 		PointsWriter:         pointsWriter,
 		DeleteService:        deleteService,
+		BackupService:        backupService,
+		KVBackupService:      m.kvService,
 		AuthorizationService: authSvc,
 		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
 		BucketService:                   storage.NewBucketService(bucketSvc, m.engine),

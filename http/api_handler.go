@@ -51,6 +51,8 @@ type APIBackend struct {
 
 	PointsWriter                    storage.PointsWriter
 	DeleteService                   influxdb.DeleteService
+	BackupService                   influxdb.BackupService
+	KVBackupService                 influxdb.KVBackupService
 	AuthorizationService            influxdb.AuthorizationService
 	BucketService                   influxdb.BucketService
 	SessionService                  influxdb.SessionService
@@ -213,6 +215,10 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	variableBackend.VariableService = authorizer.NewVariableService(b.VariableService)
 	h.Mount(prefixVariables, NewVariableHandler(b.Logger, variableBackend))
 
+	backupBackend := NewBackupBackend(b)
+	backupBackend.BackupService = authorizer.NewBackupService(backupBackend.BackupService)
+	h.Mount(prefixBackup, NewBackupHandler(backupBackend))
+
 	writeBackend := NewWriteBackend(b.Logger.With(zap.String("handler", "write")), b)
 	h.Mount(prefixWrite, NewWriteHandler(b.Logger, writeBackend,
 		WithMaxBatchSizeBytes(b.MaxBatchSizeBytes),
@@ -231,6 +237,7 @@ var apiLinks = map[string]interface{}{
 	// when adding new links, please take care to keep this list alphabetical
 	// as this makes it easier to verify values against the swagger document.
 	"authorizations": "/api/v2/authorizations",
+	"backup":         "/api/v2/backup",
 	"buckets":        "/api/v2/buckets",
 	"dashboards":     "/api/v2/dashboards",
 	"external": map[string]string{

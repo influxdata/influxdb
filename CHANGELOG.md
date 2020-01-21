@@ -5,6 +5,7 @@
 1. [16523](https://github.com/influxdata/influxdb/pull/16523): Change influx packages to be CRD compliant
 1. [16547](https://github.com/influxdata/influxdb/pull/16547): Allow trailing newline in credentials file and CLI integration
 1. [16545](https://github.com/influxdata/influxdb/pull/16545): Add support for prefixed cursor search to ForwardCursor types
+1. [16504](https://github.com/influxdata/influxdb/pull/16504): Add backup and restore
 
 ### UI Improvements
 
