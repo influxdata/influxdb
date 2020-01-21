@@ -189,13 +189,23 @@ func (i *Index) MeasurementIterator() (tsdb.MeasurementIterator, error) {
 func (i *Index) CreateSeriesListIfNotExists(seriesIDSet *tsdb.SeriesIDSet, measurements map[string]int,
 	keys, names [][]byte, tagsSlice []models.Tags, opt *tsdb.EngineOptions, ignoreLimits bool) error {
 
+	// Verify that the series will not exceed limit.
+	if !ignoreLimits {
+		i.mu.RLock()
+		if max := opt.Config.MaxSeriesPerDatabase; max > 0 && len(i.series)+len(keys) > max {
+			i.mu.RUnlock()
+			return errMaxSeriesPerDatabaseExceeded{limit: opt.Config.MaxSeriesPerDatabase}
+		}
+		i.mu.RUnlock()
+	}
+
 	seriesIDs, err := i.sfile.CreateSeriesListIfNotExists(names, tagsSlice)
 	if err != nil {
 		return err
 	}
 
 	i.mu.RLock()
-	// if there is a series for this ids, it's already been added
+	// If there is a series for this ID, it's already been added.
 	seriesList := make([]*series, len(seriesIDs))
 	for j, key := range keys {
 		seriesList[j] = i.series[string(key)]
@@ -256,13 +266,6 @@ func (i *Index) CreateSeriesListIfNotExists(seriesIDSet *tsdb.SeriesIDSet, measu
 	}
 	if newSeriesN == 0 {
 		return nil
-	}
-
-	// Verify that the series will not exceed limit.
-	if !ignoreLimits {
-		if max := opt.Config.MaxSeriesPerDatabase; max > 0 && len(i.series)+len(keys) > max {
-			return errMaxSeriesPerDatabaseExceeded{limit: opt.Config.MaxSeriesPerDatabase}
-		}
 	}
 
 	for j, key := range keys {
