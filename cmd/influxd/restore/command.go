@@ -235,14 +235,14 @@ func restoreEngine() error {
 	count := 0
 	err := filepath.Walk(flags.backupPath, func(path string, info os.FileInfo, err error) error {
 		if strings.Contains(path, ".tsm") {
-			f, err := os.OpenFile(path, os.O_RDONLY, 0600)
+			f, err := os.OpenFile(path, os.O_RDONLY, 0666)
 			if err != nil {
 				return fmt.Errorf("error opening TSM file: %v", err)
 			}
 			defer f.Close()
 
 			tsmPath := filepath.Join(dataDir, filepath.Base(path))
-			w, err := os.OpenFile(tsmPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0660)
+			w, err := os.OpenFile(tsmPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 			if err != nil {
 				return err
 			}

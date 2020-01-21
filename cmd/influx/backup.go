@@ -73,7 +73,7 @@ func backupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("must specify path")
 	}
 
-	err := os.MkdirAll(backupFlags.Path, 0770)
+	err := os.MkdirAll(backupFlags.Path, 0777)
 	if err != nil && !os.IsExist(err) {
 		return err
 	}
@@ -92,7 +92,7 @@ func backupF(cmd *cobra.Command, args []string) error {
 
 	for _, backupFilename := range backupFilenames {
 		dest := filepath.Join(backupFlags.Path, backupFilename)
-		w, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0660)
+		w, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 		if err != nil {
 			return err
 		}
