@@ -65,13 +65,13 @@ type Query struct {
 	NodeID int
 }
 
-func splitPath(v string) (string, string) {
-	parts := strings.Split(v, "/")
-
-	first := parts[0]
-	last := strings.Join(parts[1:], "/")
-
-	return first, last
+// SplitPath gets the path of a url
+func SplitPath(v string) (string, string) {
+	i := strings.Index(v, "/")
+	if i == -1 {
+		return v, ""
+	}
+	return v[:i] /* first */, v[i+1:] /* rest */
 }
 
 // ParseConnectionString will parse a string to create a valid connection URL
@@ -85,13 +85,13 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 		if path == "" {
 			host = DefaultHost
 		} else {
-			host, pth = splitPath(path)
+			host, pth = SplitPath(path)
 		}
 		// If they didn't specify a port, always use the default port
 		port = DefaultPort
 	} else {
 		host = h
-		prt, pt := splitPath(p)
+		prt, pt := SplitPath(p)
 		pth = pt
 
 		port, err = strconv.Atoi(prt)

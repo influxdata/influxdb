@@ -819,6 +819,10 @@ func TestClient_ParseConnectionString(t *testing.T) {
 			addr: "192.168.2.13:8086/boom",
 			exp:  "http://192.168.2.13:8086/boom",
 		},
+		{
+			addr: "",
+			exp:  "http://localhost:8086",
+		},
 	} {
 		name := tt.addr
 		if tt.ssl {
@@ -1022,5 +1026,51 @@ func TestClient_Proxy(t *testing.T) {
 
 	if !pinged {
 		t.Fatalf("no http request was received")
+	}
+}
+
+func TestSplitPath(t *testing.T) {
+	tests := map[string]struct {
+		input         string
+		expectedfirst string
+		expectedrest  string
+	}{
+		"empty": {
+			input:         "",
+			expectedfirst: "",
+			expectedrest:  "",
+		},
+		"noslash": {
+			input:         "foo",
+			expectedfirst: "foo",
+			expectedrest:  "",
+		},
+		"ideal": {
+			input:         "foo/bar/baz/cuux:8080",
+			expectedfirst: "foo",
+			expectedrest:  "bar/baz/cuux:8080",
+		},
+		"trailingslash": {
+			input:         "foo/",
+			expectedfirst: "foo",
+			expectedrest:  "",
+		},
+		"onlyslash": {
+			input:         "/",
+			expectedfirst: "",
+			expectedrest:  "",
+		},
+	}
+
+	t.Parallel()
+	for name, test := range tests {
+		name, test := name, test
+		t.Run(name, func(t *testing.T) {
+			first, rest := client.SplitPath(test.input)
+
+			if gotfirst, gotrest, expectedfirst, expectedrest := first, rest, test.expectedfirst, test.expectedrest; gotfirst != expectedfirst || gotrest != expectedrest {
+				t.Fatalf("splitPath(%q) returned (%q, %q); expected (%q, %q)", test.input, gotfirst, gotrest, expectedfirst, expectedrest)
+			}
+		})
 	}
 }

@@ -41,7 +41,7 @@ type CommandLine struct {
 	URL             url.URL
 	Host            string
 	Port            int
-	Path            string
+	PathPrefix      string
 	Database        string
 	Type            QueryLanguage
 	Ssl             bool
@@ -116,7 +116,7 @@ func (c *CommandLine) Run() error {
 		c.ClientConfig.Password = os.Getenv("INFLUX_PASSWORD")
 	}
 
-	addr := fmt.Sprintf("%s:%d/%s", c.Host, c.Port, c.Path)
+	addr := fmt.Sprintf("%s:%d/%s", c.Host, c.Port, c.PathPrefix)
 	url, err := client.ParseConnectionString(addr, c.Ssl)
 	if err != nil {
 		return err

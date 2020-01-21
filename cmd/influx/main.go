@@ -40,7 +40,7 @@ func main() {
 
 	fs := flag.NewFlagSet("InfluxDB shell version "+version, flag.ExitOnError)
 	fs.StringVar(&c.Host, "host", client.DefaultHost, "Influxdb host to connect to.")
-	fs.StringVar(&c.Path, "proxy-path", client.DefaultPath, "Influxdb url path (for running behind proxies)")
+	fs.StringVar(&c.PathPrefix, "path-prefix", client.DefaultPath, "Influxdb url path prefix (for running behind proxies)")
 	fs.IntVar(&c.Port, "port", client.DefaultPort, "Influxdb port to connect to.")
 	fs.StringVar(&c.ClientConfig.UnixSocket, "socket", "", "Influxdb unix socket to connect to.")
 	fs.StringVar(&c.ClientConfig.Username, "username", "", "Username to connect to the server.")
@@ -66,7 +66,7 @@ func main() {
 		fmt.Println(`Usage of influx:
   -version
 			Display the version and exit.
-  -proxy-path 'url path'
+  -path-prefix 'url path'
 			Path that follows the host and port
   -host 'host name'
 			Host to connect to.
