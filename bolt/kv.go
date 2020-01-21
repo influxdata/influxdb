@@ -1,6 +1,7 @@
 package bolt
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -200,13 +201,18 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 	var (
 		cursor     = b.bucket.Cursor()
 		key, value = cursor.Seek(seek)
+		config     = kv.NewCursorConfig(opts...)
 	)
+
+	if config.Prefix != nil && !bytes.HasPrefix(seek, config.Prefix) {
+		return nil, fmt.Errorf("seek bytes %q not prefixed with %q: %w", string(seek), string(config.Prefix), kv.ErrSeekMissingPrefix)
+	}
 
 	return &Cursor{
 		cursor: cursor,
 		key:    key,
 		value:  value,
-		config: kv.NewCursorConfig(opts...),
+		config: config,
 	}, nil
 }
 
@@ -275,7 +281,7 @@ func (c *Cursor) Last() ([]byte, []byte) {
 
 // Next retrieves the next key in the bucket.
 func (c *Cursor) Next() (k []byte, v []byte) {
-	if c.closed {
+	if c.closed || (c.key != nil && c.missingPrefix(c.key)) {
 		return nil, nil
 	}
 	// get and unset previously seeked values if they exist
@@ -290,7 +296,7 @@ func (c *Cursor) Next() (k []byte, v []byte) {
 	}
 
 	k, v = next()
-	if len(k) == 0 && len(v) == 0 {
+	if (len(k) == 0 && len(v) == 0) || c.missingPrefix(k) {
 		return nil, nil
 	}
 	return k, v
@@ -298,7 +304,7 @@ func (c *Cursor) Next() (k []byte, v []byte) {
 
 // Prev retrieves the previous key in the bucket.
 func (c *Cursor) Prev() (k []byte, v []byte) {
-	if c.closed {
+	if c.closed || (c.key != nil && c.missingPrefix(c.key)) {
 		return nil, nil
 	}
 	// get and unset previously seeked values if they exist
@@ -313,10 +319,14 @@ func (c *Cursor) Prev() (k []byte, v []byte) {
 	}
 
 	k, v = prev()
-	if len(k) == 0 && len(v) == 0 {
+	if (len(k) == 0 && len(v) == 0) || c.missingPrefix(k) {
 		return nil, nil
 	}
 	return k, v
+}
+
+func (c *Cursor) missingPrefix(key []byte) bool {
+	return c.config.Prefix != nil && !bytes.HasPrefix(key, c.config.Prefix)
 }
 
 // Err always returns nil as nothing can go wrong™ during iteration
