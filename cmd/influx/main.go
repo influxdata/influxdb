@@ -40,6 +40,7 @@ func main() {
 
 	fs := flag.NewFlagSet("InfluxDB shell version "+version, flag.ExitOnError)
 	fs.StringVar(&c.Host, "host", client.DefaultHost, "Influxdb host to connect to.")
+	fs.StringVar(&c.Path, "proxy-path", client.DefaultPath, "Influxdb url path (for running behind proxies)")
 	fs.IntVar(&c.Port, "port", client.DefaultPort, "Influxdb port to connect to.")
 	fs.StringVar(&c.ClientConfig.UnixSocket, "socket", "", "Influxdb unix socket to connect to.")
 	fs.StringVar(&c.ClientConfig.Username, "username", "", "Username to connect to the server.")
@@ -64,43 +65,45 @@ func main() {
 	fs.Usage = func() {
 		fmt.Println(`Usage of influx:
   -version
-       Display the version and exit.
+			Display the version and exit.
+  -proxy-path 'url path'
+			Path that follows the host and port
   -host 'host name'
-       Host to connect to.
+			Host to connect to.
   -port 'port #'
-       Port to connect to.
+			Port to connect to.
   -socket 'unix domain socket'
-       Unix socket to connect to.
+			Unix socket to connect to.
   -database 'database name'
-       Database to connect to the server.
+			Database to connect to the server.
   -password 'password'
-      Password to connect to the server.  Leaving blank will prompt for password (--password '').
+			Password to connect to the server.  Leaving blank will prompt for password (--password '').
   -username 'username'
-       Username to connect to the server.
+			Username to connect to the server.
   -ssl
-        Use https for requests.
+			Use https for requests.
   -unsafeSsl
-        Set this when connecting to the cluster using https and not use SSL verification.
+			Set this when connecting to the cluster using https and not use SSL verification.
   -execute 'command'
-       Execute command and quit.
+			Execute command and quit.
   -type 'influxql|flux'
-       Type specifies the query language for executing commands or when invoking the REPL.
+			Type specifies the query language for executing commands or when invoking the REPL.
   -format 'json|csv|column'
-       Format specifies the format of the server responses:  json, csv, or column.
+			Format specifies the format of the server responses:  json, csv, or column.
   -precision 'rfc3339|h|m|s|ms|u|ns'
-       Precision specifies the format of the timestamp:  rfc3339, h, m, s, ms, u or ns.
+			Precision specifies the format of the timestamp:  rfc3339, h, m, s, ms, u or ns.
   -consistency 'any|one|quorum|all'
-       Set write consistency level: any, one, quorum, or all
+			Set write consistency level: any, one, quorum, or all
   -pretty
-       Turns on pretty print for the json format.
+			Turns on pretty print for the json format.
   -import
-       Import a previous database export from file
+			Import a previous database export from file
   -pps
-       How many points per second the import will allow.  By default it is zero and will not throttle importing.
+			How many points per second the import will allow.  By default it is zero and will not throttle importing.
   -path
-       Path to file to import
+			Path to file to import
   -compressed
-       Set to true if the import file is compressed
+			Set to true if the import file is compressed
 
 Examples:
 

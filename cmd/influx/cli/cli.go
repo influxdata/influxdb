@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -26,7 +26,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/influxdata/influxdb/client"
-	"github.com/influxdata/influxdb/importer/v8"
+	v8 "github.com/influxdata/influxdb/importer/v8"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"github.com/peterh/liner"
@@ -38,8 +38,10 @@ var ErrBlankCommand = errors.New("empty input")
 // CommandLine holds CLI configuration and state.
 type CommandLine struct {
 	Line            *liner.State
+	URL             url.URL
 	Host            string
 	Port            int
+	Path            string
 	Database        string
 	Type            QueryLanguage
 	Ssl             bool
@@ -114,6 +116,14 @@ func (c *CommandLine) Run() error {
 		c.ClientConfig.Password = os.Getenv("INFLUX_PASSWORD")
 	}
 
+	addr := fmt.Sprintf("%s:%d/%s", c.Host, c.Port, c.Path)
+	url, err := client.ParseConnectionString(addr, c.Ssl)
+	if err != nil {
+		return err
+	}
+
+	c.URL = url
+
 	if err := c.Connect(""); err != nil {
 		msg := "Please check your connection settings and ensure 'influxd' is running."
 		if !c.Ssl && strings.Contains(err.Error(), "malformed HTTP response") {
@@ -158,17 +168,11 @@ func (c *CommandLine) Run() error {
 	}
 
 	if c.Import {
-		addr := net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
-		u, e := client.ParseConnectionString(addr, c.Ssl)
-		if e != nil {
-			return e
-		}
-
 		// Copy the latest importer config and inject the latest client config
 		// into it.
 		config := c.ImporterConfig
 		config.Config = c.ClientConfig
-		config.URL = u
+		config.URL = c.URL
 
 		i := v8.NewImporter(config)
 		if err := i.Import(); err != nil {
@@ -207,7 +211,7 @@ func (c *CommandLine) Run() error {
 	c.Version()
 
 	if c.Type == QueryLanguageFlux {
-		repl, err := getFluxREPL(c.Host, c.Port, c.Ssl, c.ClientConfig.Username, c.ClientConfig.Password)
+		repl, err := getFluxREPL(c.URL, c.ClientConfig.Username, c.ClientConfig.Password)
 		if err != nil {
 			return err
 		}
@@ -339,11 +343,19 @@ func (c *CommandLine) Connect(cmd string) error {
 	// normalize cmd
 	cmd = strings.ToLower(cmd)
 
+	ClientConfig := c.ClientConfig
+
 	// Remove the "connect" keyword if it exists
 	addr := strings.TrimSpace(strings.Replace(cmd, "connect", "", -1))
 	if addr == "" {
-		// If they didn't provide a connection string, use the current settings
-		addr = net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
+		ClientConfig.URL = c.URL
+	} else {
+		url, err := client.ParseConnectionString(addr, c.Ssl)
+		if err != nil {
+			return err
+		}
+
+		ClientConfig.URL = url
 	}
 
 	URL, err := client.ParseConnectionString(addr, c.Ssl)
@@ -351,8 +363,6 @@ func (c *CommandLine) Connect(cmd string) error {
 		return err
 	}
 
-	// Create copy of the current client config and create a new client.
-	ClientConfig := c.ClientConfig
 	ClientConfig.UserAgent = "InfluxDBShell/" + c.ClientVersion
 	ClientConfig.URL = URL
 	ClientConfig.Proxy = http.ProxyFromEnvironment
@@ -370,12 +380,7 @@ func (c *CommandLine) Connect(cmd string) error {
 	c.ServerVersion = v
 
 	// Update the command with the current connection information
-	if host, port, err := net.SplitHostPort(ClientConfig.URL.Host); err == nil {
-		c.Host = host
-		if i, err := strconv.Atoi(port); err == nil {
-			c.Port = i
-		}
-	}
+	c.URL = ClientConfig.URL
 
 	return nil
 }
@@ -1042,11 +1047,7 @@ func (c *CommandLine) Settings() {
 	w.Init(os.Stdout, 0, 1, 1, ' ', 0)
 	fmt.Fprintln(w, "Setting\tValue")
 	fmt.Fprintln(w, "--------\t--------")
-	if c.Port > 0 {
-		fmt.Fprintf(w, "Host\t%s:%d\n", c.Host, c.Port)
-	} else {
-		fmt.Fprintf(w, "Host\t%s\n", c.Host)
-	}
+	fmt.Fprintf(w, "URL\t%s\n", c.URL.String())
 	fmt.Fprintf(w, "Username\t%s\n", c.ClientConfig.Username)
 	fmt.Fprintf(w, "Database\t%s\n", c.Database)
 	fmt.Fprintf(w, "RetentionPolicy\t%s\n", c.RetentionPolicy)
@@ -1188,7 +1189,7 @@ func (c *CommandLine) ExecuteFluxQuery(query string) error {
 		}()
 	}
 
-	repl, err := getFluxREPL(c.Host, c.Port, c.Ssl, c.ClientConfig.Username, c.ClientConfig.Password)
+	repl, err := getFluxREPL(c.URL, c.ClientConfig.Username, c.ClientConfig.Password)
 	if err != nil {
 		return err
 	}

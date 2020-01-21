@@ -815,6 +815,10 @@ func TestClient_ParseConnectionString(t *testing.T) {
 			addr: "localhost:443",
 			exp:  "http://localhost:443",
 		},
+		{
+			addr: "192.168.2.13:8086/boom",
+			exp:  "http://192.168.2.13:8086/boom",
+		},
 	} {
 		name := tt.addr
 		if tt.ssl {

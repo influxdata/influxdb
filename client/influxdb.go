@@ -31,6 +31,7 @@ const (
 
 	// DefaultTimeout is the default connection timeout used to connect to an InfluxDB instance
 	DefaultTimeout = 0
+	DefaultPath    = ""
 )
 
 // Query is used to send a command to the server. Both Command and Database are required.
@@ -64,23 +65,36 @@ type Query struct {
 	NodeID int
 }
 
+func splitPath(v string) (string, string) {
+	parts := strings.Split(v, "/")
+
+	first := parts[0]
+	last := strings.Join(parts[1:], "/")
+
+	return first, last
+}
+
 // ParseConnectionString will parse a string to create a valid connection URL
 func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 	var host string
 	var port int
+	var pth string = ""
 
 	h, p, err := net.SplitHostPort(path)
 	if err != nil {
 		if path == "" {
 			host = DefaultHost
 		} else {
-			host = path
+			host, pth = splitPath(path)
 		}
 		// If they didn't specify a port, always use the default port
 		port = DefaultPort
 	} else {
 		host = h
-		port, err = strconv.Atoi(p)
+		prt, pt := splitPath(p)
+		pth = pt
+
+		port, err = strconv.Atoi(prt)
 		if err != nil {
 			return url.URL{}, fmt.Errorf("invalid port number %q: %s\n", path, err)
 		}
@@ -89,6 +103,7 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 	u := url.URL{
 		Scheme: "http",
 		Host:   host,
+		Path:   pth,
 	}
 	if ssl {
 		u.Scheme = "https"
