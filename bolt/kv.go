@@ -200,9 +200,15 @@ func (b *Bucket) Delete(key []byte) error {
 func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.ForwardCursor, error) {
 	var (
 		cursor     = b.bucket.Cursor()
-		key, value = cursor.Seek(seek)
 		config     = kv.NewCursorConfig(opts...)
+		key, value []byte
 	)
+
+	if len(seek) == 0 && config.Direction == kv.CursorDescending {
+		seek, _ = cursor.Last()
+	}
+
+	key, value = cursor.Seek(seek)
 
 	if config.Prefix != nil && !bytes.HasPrefix(seek, config.Prefix) {
 		return nil, fmt.Errorf("seek bytes %q not prefixed with %q: %w", string(seek), string(config.Prefix), kv.ErrSeekMissingPrefix)
@@ -307,6 +313,7 @@ func (c *Cursor) Prev() (k []byte, v []byte) {
 	if c.closed || (c.key != nil && c.missingPrefix(c.key)) {
 		return nil, nil
 	}
+
 	// get and unset previously seeked values if they exist
 	k, v, c.key, c.value = c.key, c.value, nil, nil
 	if len(k) > 0 && len(v) > 0 {
