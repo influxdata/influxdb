@@ -1182,6 +1182,66 @@ func TestStore_Cardinality_Compactions(t *testing.T) {
 	}
 }
 
+func TestStore_Cardinality_Limit_On_InMem_Index(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
+	}
+
+	store := NewStore("inmem")
+	store.EngineOptions.Config.MaxSeriesPerDatabase = 100000
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+
+	// Generate 200,000 series to write.
+	series := genTestSeries(64, 5, 5)
+
+	// Add 1 point to each series.
+	points := make([]models.Point, 0, len(series))
+	for _, s := range series {
+		points = append(points, models.MustNewPoint(s.Measurement, s.Tags, map[string]interface{}{"value": 1.0}, time.Now()))
+	}
+
+	// Create shards to write points into.
+	numShards := 10
+	for shardID := 0; shardID < numShards; shardID++ {
+		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+			t.Fatalf("create shard: %s", err)
+		}
+	}
+
+	// Write series / points to the shards.
+	pointsPerShard := len(points) / numShards
+
+	for shardID := 0; shardID < numShards; shardID++ {
+		from := shardID * pointsPerShard
+		to := from + pointsPerShard
+
+		if err := store.Store.WriteToShard(uint64(shardID), points[from:to]); err != nil {
+			if !strings.Contains(err.Error(), "partial write: max-series-per-database limit exceeded:") {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	// Get updated series cardinality from store after writing data.
+	cardinality, err := store.Store.SeriesCardinality("db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expCardinality := store.EngineOptions.Config.MaxSeriesPerDatabase
+
+	// Estimated cardinality should be well within 1.5% of the actual cardinality.
+	got := math.Abs(float64(cardinality)-float64(expCardinality)) / float64(expCardinality)
+	exp := 0.015
+	if got > exp {
+		t.Errorf("got epsilon of %v for series cardinality %d (expected %d), which is larger than expected %v", got, cardinality, expCardinality, exp)
+	}
+}
+
 func TestStore_Sketches(t *testing.T) {
 	t.Parallel()
 
