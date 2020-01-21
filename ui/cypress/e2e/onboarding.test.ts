@@ -5,7 +5,7 @@ interface TestUser {
   bucket: string
 }
 
-describe('Onboarding', () => {
+describe('Onboarding Redirect', () => {
   let user: TestUser
 
   beforeEach(() => {
@@ -17,6 +17,24 @@ describe('Onboarding', () => {
 
     cy.visit('/')
   })
+  it('Can redirect to onboarding page', () => {
+    cy.get('[data-testid="init-step--head-main"]', {timeout: 5000})
+    cy.location('pathname').should('include', 'onboarding/0')
+  })
+})
+
+describe('Onboarding', () => {
+  let user: TestUser
+
+  beforeEach(() => {
+    cy.flush()
+
+    cy.fixture('user').then(u => {
+      user = u
+    })
+
+    cy.visit('onboarding/0')
+  })
 
   it('Can Onboard to Quick Start', () => {
     cy.server()
@@ -25,8 +43,6 @@ describe('Onboarding', () => {
     cy.route('POST', 'api/v2/setup').as('orgSetup')
 
     //Check and visit splash page
-    cy.visit('onboarding/0')
-    cy.location('pathname').should('include', 'onboarding/0')
     cy.getByTestID('init-step--head-main').contains('Welcome to InfluxDB 2.0')
     cy.getByTestID('credits').contains('Powered by')
     cy.getByTestID('credits').contains('InfluxData')
@@ -121,10 +137,6 @@ describe('Onboarding', () => {
 
     cy.route('POST', 'api/v2/setup').as('orgSetup')
 
-    //Check and visit splash page
-    cy.visit('onboarding/0')
-    cy.location('pathname').should('include', 'onboarding/0')
-
     //Continue
     cy.getByTestID('onboarding-get-started').click()
     cy.location('pathname').should('include', 'onboarding/1')
@@ -150,6 +162,7 @@ describe('Onboarding', () => {
       cy.getByTestID('button--advanced').click()
 
       //wait for new page to load
+
       cy.location('pathname').should('match', /orgs\/.*\/buckets/)
 
       cy.location('pathname').should('include', orgId)
@@ -160,10 +173,6 @@ describe('Onboarding', () => {
     cy.server()
 
     cy.route('POST', 'api/v2/setup').as('orgSetup')
-
-    //Check and visit splash page
-    cy.visit('onboarding/0')
-    cy.location('pathname').should('include', 'onboarding/0')
 
     //Continue
     cy.getByTestID('onboarding-get-started').click()
@@ -194,10 +203,6 @@ describe('Onboarding', () => {
   })
 
   it('respects field requirements', () => {
-    //Check and visit splash page
-    cy.visit('onboarding/0')
-    cy.location('pathname').should('include', 'onboarding/0')
-
     //Continue
     cy.getByTestID('onboarding-get-started').click()
 
