@@ -1,11 +1,8 @@
-// Utils
-import {getView as getViewFromState} from 'src/dashboards/selectors'
-
 // APIs
 import {
   getView as getViewAJAX,
   updateView as updateViewAJAX,
-} from 'src/dashboards/apis/'
+} from 'src/dashboards/apis'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -14,59 +11,16 @@ import * as copy from 'src/shared/copy/notifications'
 import {notify} from 'src/shared/actions/notifications'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
+import {setView, Action} from 'src/views/actions/creators'
 
 // Selectors
 import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
+import {getView as getViewFromState} from 'src/views/selectors'
 
 // Types
-import {RemoteDataState, QueryView, GetState} from 'src/types'
+import {RemoteDataState, QueryView, GetState, View} from 'src/types'
 import {Dispatch} from 'redux'
-import {View} from 'src/types'
 import {TimeMachineID} from 'src/types'
-
-export type Action = SetViewAction | SetViewsAction | ResetViewsAction
-
-export interface SetViewsAction {
-  type: 'SET_VIEWS'
-  payload: {
-    views?: View[]
-    status: RemoteDataState
-  }
-}
-
-export const setViews = (
-  status: RemoteDataState,
-  views: View[]
-): SetViewsAction => ({
-  type: 'SET_VIEWS',
-  payload: {views, status},
-})
-
-export interface SetViewAction {
-  type: 'SET_VIEW'
-  payload: {
-    id: string
-    view: View
-    status: RemoteDataState
-  }
-}
-
-export const setView = (
-  id: string,
-  view: View,
-  status: RemoteDataState
-): SetViewAction => ({
-  type: 'SET_VIEW',
-  payload: {id, view, status},
-})
-
-export interface ResetViewsAction {
-  type: 'RESET_VIEWS'
-}
-
-export const resetViews = (): ResetViewsAction => ({
-  type: 'RESET_VIEWS',
-})
 
 export const getView = (dashboardID: string, cellID: string) => async (
   dispatch: Dispatch<Action>

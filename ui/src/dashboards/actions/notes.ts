@@ -3,11 +3,12 @@ import {get, isUndefined} from 'lodash'
 
 // Actions
 import {createCellWithView} from 'src/cells/actions/thunks'
-import {updateView} from 'src/dashboards/actions/views'
+import {updateView} from 'src/views/actions/thunks'
 
 // Utils
-import {createView} from 'src/shared/utils/view'
-import {getView} from 'src/dashboards/selectors'
+import {createView} from 'src/views/helpers'
+import {getView} from 'src/views/selectors'
+import {getByID} from 'src/resources/selectors'
 
 // Types
 import {
@@ -19,7 +20,6 @@ import {
 } from 'src/types'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {Dispatch} from 'react'
-import {getByID} from 'src/resources/selectors'
 
 export type Action =
   | CloseNoteEditorAction
@@ -113,16 +113,14 @@ export const loadNote = (id: string) => (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
-  const {
-    views: {views},
-  } = getState()
-  const currentViewState = views[id]
+  const state = getState()
+  const currentViewState = getView(state, id)
 
   if (!currentViewState) {
     return
   }
 
-  const view = currentViewState.view
+  const view = currentViewState
 
   const note: string = get(view, 'properties.note', '')
   const showNoteWhenEmpty: boolean = get(

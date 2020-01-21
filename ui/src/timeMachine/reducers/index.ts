@@ -3,7 +3,7 @@ import {cloneDeep, isNumber, get, map} from 'lodash'
 import {produce} from 'immer'
 
 // Utils
-import {createView, defaultViewQuery} from 'src/shared/utils/view'
+import {createView, defaultViewQuery} from 'src/views/helpers'
 import {isConfigValid, buildQuery} from 'src/timeMachine/utils/queryBuilder'
 
 // Constants

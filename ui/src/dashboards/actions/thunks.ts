@@ -21,7 +21,7 @@ import {
   deleteTimeRange,
   updateTimeRangeFromQueryParams,
 } from 'src/dashboards/actions/ranges'
-import {setView, setViews} from 'src/dashboards/actions/views'
+import {setView, setViews} from 'src/views/actions/creators'
 import {selectValue} from 'src/variables/actions/creators'
 import {getVariables, refreshVariableValues} from 'src/variables/actions/thunks'
 import {setExportTemplate} from 'src/templates/actions'
@@ -35,7 +35,7 @@ import {
   extractVariablesList,
   getHydratedVariables,
 } from 'src/variables/selectors'
-import {getViewsForDashboard} from 'src/dashboards/selectors'
+import {getViewsForDashboard} from 'src/views/selectors'
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {exportVariables} from 'src/variables/utils/exportVariables'
 import {getSaveableView} from 'src/timeMachine/selectors'

@@ -185,10 +185,10 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({noteEditor, views, overlays}: AppState): StateProps => {
+const mstp = ({noteEditor, resources, overlays}: AppState): StateProps => {
   const {params} = overlays
   const {mode} = noteEditor
-  const {status} = views
+  const {status} = resources.views
 
   const cellID = get(params, 'cellID', undefined)
   const dashboardID = get(params, 'dashboardID', undefined)

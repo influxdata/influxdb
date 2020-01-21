@@ -29,6 +29,7 @@ export interface View<T extends ViewProperties = ViewProperties>
   properties: T
   cellID?: string
   dashboardID?: string
+  status: RemoteDataState
 }
 
 export interface Cell extends GenCell {

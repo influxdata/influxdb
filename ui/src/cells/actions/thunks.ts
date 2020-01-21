@@ -10,7 +10,7 @@ import * as schemas from 'src/schemas'
 
 // Actions
 import {refreshDashboardVariableValues} from 'src/dashboards/actions/thunks'
-import {setView} from 'src/dashboards/actions/views'
+import {setView} from 'src/views/actions/creators'
 import {notify} from 'src/shared/actions/notifications'
 import {setCells, setCell, removeCell} from 'src/cells/actions/creators'
 
@@ -34,7 +34,7 @@ import {
 } from 'src/types'
 
 // Utils
-import {getViewsForDashboard} from 'src/dashboards/selectors'
+import {getViewsForDashboard} from 'src/views/selectors'
 import {getNewDashboardCell} from 'src/dashboards/utils/cellGetters'
 import {getByID} from 'src/resources/selectors'
 

@@ -7,17 +7,17 @@ import {viewProperties} from 'mocks/dummyData'
 import {getView} from 'src/dashboards/apis'
 jest.mock('src/dashboards/apis/index')
 
-import {getView as getViewFromState} from 'src/dashboards/selectors'
+import {getView as getViewFromState} from 'src/views/selectors'
 jest.mock('src/dashboards/selectors')
 
 // Types
 import {RemoteDataState} from 'src/types'
 
 // Reducers
-import viewsReducer from 'src/dashboards/reducers/views'
+import viewsReducer from 'src/views/reducers'
 
 // Actions
-import {getViewForTimeMachine} from 'src/dashboards/actions/views'
+import {getViewForTimeMachine} from 'src/views/actions/thunks'
 
 const dashboardID = '04960a1f5dafe000'
 const viewID = '04960a1fbdafe000'

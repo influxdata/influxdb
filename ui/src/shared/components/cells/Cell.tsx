@@ -12,7 +12,7 @@ import {SpinnerContainer} from '@influxdata/clockface'
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 
 // Utils
-import {getView, getViewStatus} from 'src/dashboards/selectors'
+import {getView, getViewStatus} from 'src/views/selectors'
 
 // Types
 import {AppState, View, Cell, TimeRange, RemoteDataState} from 'src/types'

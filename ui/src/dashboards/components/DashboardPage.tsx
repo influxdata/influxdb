@@ -41,12 +41,10 @@ import {getOrg} from 'src/organizations/selectors'
 import {
   Links,
   Cell,
-  View,
   TimeRange,
   AppState,
   AutoRefresh,
   AutoRefreshStatus,
-  RemoteDataState,
   ResourceType,
   Dashboard,
 } from 'src/types'
@@ -63,7 +61,6 @@ interface StateProps {
   links: Links
   timeRange: TimeRange
   showVariablesControls: boolean
-  views: {[cellID: string]: {view: View; status: RemoteDataState}}
 }
 
 interface DispatchProps {
@@ -220,7 +217,6 @@ class DashboardPage extends Component<Props> {
 const mstp = (state: AppState, {dashboardID}: OwnProps): StateProps => {
   const {
     links,
-    views: {views},
     userSettings: {showVariablesControls},
     cloud: {limits},
   } = state
@@ -238,7 +234,6 @@ const mstp = (state: AppState, {dashboardID}: OwnProps): StateProps => {
 
   return {
     links,
-    views,
     orgName: org && org.name,
     timeRange,
     dashboardName: dashboard && dashboard.name,
