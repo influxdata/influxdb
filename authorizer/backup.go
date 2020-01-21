@@ -38,7 +38,7 @@ func (b BackupService) FetchBackupFile(ctx context.Context, backupID int, backup
 	defer span.Finish()
 
 	if err := IsAllowedAll(ctx, influxdb.ReadAllPermissions()); err != nil {
-		return nil
+		return err
 	}
 	return b.s.FetchBackupFile(ctx, backupID, backupFile, w)
 }

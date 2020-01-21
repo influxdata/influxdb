@@ -50,7 +50,7 @@ var flags struct {
 func init() {
 	dir, err := fs.InfluxDir()
 	if err != nil {
-		panic(fmt.Errorf("failed to determine influx directory: %v", err))
+		panic(fmt.Errorf("failed to determine influx directory: %s", err))
 	}
 
 	Command.Flags().SortFlags = false
