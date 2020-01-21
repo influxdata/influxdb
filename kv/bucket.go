@@ -566,31 +566,24 @@ func (s *Service) forEachBucket(ctx context.Context, tx Tx, descending bool, fn 
 		return err
 	}
 
-	cur, err := bkt.Cursor()
+	direction := CursorAscending
+	if descending {
+		direction = CursorDescending
+	}
+
+	cur, err := bkt.ForwardCursor(nil, WithCursorDirection(direction))
 	if err != nil {
 		return err
 	}
 
-	var k, v []byte
-	if descending {
-		k, v = cur.Last()
-	} else {
-		k, v = cur.First()
-	}
-
-	for k != nil {
+	for k, v := cur.Next(); k != nil; k, v = cur.Next() {
 		b := &influxdb.Bucket{}
 		if err := json.Unmarshal(v, b); err != nil {
 			return err
 		}
+
 		if !fn(b) {
 			break
-		}
-
-		if descending {
-			k, v = cur.Prev()
-		} else {
-			k, v = cur.Next()
 		}
 	}
 

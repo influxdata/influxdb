@@ -278,6 +278,10 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 
 		if config.Direction == kv.CursorDescending {
 			iterate = b.descend
+			if len(seek) == 0 {
+				seek = b.btree.Max().(*item).key
+
+			}
 		}
 
 		iterate(seek, config, func(i btree.Item) bool {
