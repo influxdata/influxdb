@@ -12,6 +12,10 @@ $inline-labels--popover-caret: 12px;
   align-items: center;
 }
 
+.inline-labels--add-wrapper {
+  display:flex;
+}
+
 .inline-labels--popover {
   position: absolute;
   top: calc(100% + #{$inline-labels--popover-caret - $ix-marg-a});
