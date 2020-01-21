@@ -286,8 +286,8 @@ github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NH
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/cron v0.0.0-20191112133922-ad5847cfab62 h1:YipnPuvJKPAzyBhr7eXIMA49L2Eooga/NSytWdLLI8U=
 github.com/influxdata/cron v0.0.0-20191112133922-ad5847cfab62/go.mod h1:XabtPPW2qsCg0tl+kjaPU+cFS+CjQXEXbT1VJvHT4og=
-github.com/influxdata/flux v0.59.3 h1:Q8XXG6tfpJ9GLQNiP1zXxldata45gd8QTBzfDyOn8g4=
-github.com/influxdata/flux v0.59.3/go.mod h1:T5bbA6I4vC3gEf4uqdCKBYrXiZfTOoB69OsAZO881vQ=
+github.com/influxdata/flux v0.59.4 h1:JOiYbPRsGQ1hfSq6xlIZBREhiNaM8ZlmpnzWpKOn9x8=
+github.com/influxdata/flux v0.59.4/go.mod h1:T5bbA6I4vC3gEf4uqdCKBYrXiZfTOoB69OsAZO881vQ=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69 h1:WQsmW0fXO4ZE/lFGIE84G6rIV5SJN3P3sjIXAP1a8eU=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69/go.mod h1:pwymjR6SrP3gD3pRj9RJwdl1j5s3doEEV8gS4X9qSzA=
 github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6/go.mod h1:KpVI7okXjK6PRi3Z5B+mtKZli+R1DnZgb3N+tzevNgo=
