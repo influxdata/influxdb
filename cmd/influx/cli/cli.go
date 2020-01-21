@@ -358,13 +358,7 @@ func (c *CommandLine) Connect(cmd string) error {
 		ClientConfig.URL = url
 	}
 
-	URL, err := client.ParseConnectionString(addr, c.Ssl)
-	if err != nil {
-		return err
-	}
-
 	ClientConfig.UserAgent = "InfluxDBShell/" + c.ClientVersion
-	ClientConfig.URL = URL
 	ClientConfig.Proxy = http.ProxyFromEnvironment
 
 	client, err := client.NewClient(ClientConfig)
