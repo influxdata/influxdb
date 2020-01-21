@@ -119,7 +119,7 @@ export const cloneDashboard = (dashboard: Dashboard) => async (
       schemas.dashboard
     )
 
-    const dash: Dashboard = entities[result]
+    const dash: Dashboard = entities.dashboards[result]
     const cells = dash.cells.map(cellID => state.resources.cells.byID[cellID])
 
     const postResp = await api.postDashboard({
@@ -242,9 +242,7 @@ export const deleteDashboard = (dashboardID: string, name: string) => async (
     dispatch(notify(copy.dashboardDeleted(name)))
     dispatch(checkDashboardLimits())
   } catch (error) {
-    dispatch(
-      notify(copy.dashboardDeleteFailed(name, error.data.message))
-    )
+    dispatch(notify(copy.dashboardDeleteFailed(name, error.data.message)))
   }
 }
 
