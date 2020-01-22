@@ -1,6 +1,4 @@
-import * as monacoType from 'monaco-editor/esm/vs/editor/editor.api'
-
-export type MonacoType = typeof monacoType
+import {MonacoType, EditorType} from 'src/types'
 
 const toggleCommenting = (s: string, isTogglingOn: boolean) => {
   if (isTogglingOn) {
@@ -11,10 +9,7 @@ const toggleCommenting = (s: string, isTogglingOn: boolean) => {
 
 const isCommented = (s: string) => !!s.match(/^\s*(\/\/(.*)$)/g)
 
-export function addKeyBindings(
-  editor: monacoType.editor.IStandaloneCodeEditor,
-  monaco: MonacoType
-) {
+export function addKeyBindings(editor: EditorType, monaco: MonacoType) {
   editor.addAction({
     // An unique identifier of the contributed action.
     id: 'toggle-comment',
@@ -25,7 +20,7 @@ export function addKeyBindings(
     // An optional array of keybindings for the action.
     keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.US_SLASH],
 
-    run: function(ed: monacoType.editor.IStandaloneCodeEditor) {
+    run: function(ed: EditorType) {
       const values = ed.getValue().split('\n')
 
       const selection = ed.getSelection()

@@ -1,4 +1,7 @@
-export const addSnippets = monaco => {
+// Types
+import {MonacoType} from 'src/types'
+
+export const addSnippets = (monaco: MonacoType) => {
   monaco.languages.registerCompletionItemProvider('flux', {
     provideCompletionItems: () => {
       const suggestions = [
@@ -10,7 +13,7 @@ export const addSnippets = monaco => {
             monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
           documentation: 'From-Statement',
         },
-      ]
+      ] as any[]
       return {suggestions: suggestions}
     },
   })
