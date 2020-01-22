@@ -15,8 +15,7 @@ import {fastMap} from 'src/utils/fast'
 import {LAYOUT_MARGIN, DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 
 // Types
-import {Cell} from 'src/types'
-import {TimeRange} from 'src/types'
+import {Cell, TimeRange, RemoteDataState} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
