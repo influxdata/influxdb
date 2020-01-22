@@ -41,10 +41,7 @@ class CellComponent extends Component<Props, State> {
     const {cell, view} = this.props
 
     return (
-      <SpinnerContainer
-        loading={view.status || RemoteDataState.Loading}
-        spinnerComponent={spinnerComponent}
-      >
+      <>
         <CellHeader name={this.viewName} note={this.viewNote}>
           <CellContext
             cell={cell}
@@ -55,7 +52,7 @@ class CellComponent extends Component<Props, State> {
         <div className="cell--view" data-testid="cell--view-empty">
           {this.view}
         </div>
-      </SpinnerContainer>
+      </>
     )
   }
 
@@ -72,7 +69,7 @@ class CellComponent extends Component<Props, State> {
   private get viewNote(): string {
     const {view} = this.props
 
-    if (!view) {
+    if (!view || !view.properties || !view.properties.type) {
       return ''
     }
 
@@ -109,7 +106,9 @@ class CellComponent extends Component<Props, State> {
 }
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
-  return {view: getByID<View>(state, ResourceType.Views, ownProps.cell.id)}
+  const view = getByID<View>(state, ResourceType.Views, ownProps.cell.id)
+
+  return {view}
 }
 
 export default connect<StateProps, {}, OwnProps>(

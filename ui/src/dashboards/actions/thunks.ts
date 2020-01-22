@@ -263,7 +263,7 @@ export const getDashboard = (dashboardID: string) => async (
   getState: GetState
 ): Promise<void> => {
   try {
-    // Fetch the dashboard and all variables a user has access to
+    // Fetch the dashboard, views, and all variables a user has access to
     const [resp] = await Promise.all([
       api.getDashboard({dashboardID, query: {include: 'properties'}}),
       dispatch(getVariables()),

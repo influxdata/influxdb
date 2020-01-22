@@ -25,6 +25,7 @@ import {getCells} from 'src/cells/selectors'
 interface StateProps {
   cells: Cell[]
   status: RemoteDataState
+  viewsStatus: RemoteDataState
 }
 interface OwnProps {
   dashboardID: string
@@ -46,24 +47,34 @@ class DashboardComponent extends PureComponent<Props> {
       manualRefresh,
       onPositionChange,
       onAddCell,
+      viewsStatus,
     } = this.props
 
     return (
       <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
-        <Page.Contents fullWidth={true} scrollable={true} className="dashboard">
-          {!!cells.length ? (
-            <Cells
-              cells={cells}
-              timeRange={timeRange}
-              manualRefresh={manualRefresh}
-              onPositionChange={onPositionChange}
-            />
-          ) : (
-            <DashboardEmpty onAddCell={onAddCell} />
-          )}
-          {/* This element is used as a portal container for note tooltips in cell headers */}
-          <div className="cell-header-note-tooltip-container" />
-        </Page.Contents>
+        <SpinnerContainer
+          loading={viewsStatus}
+          spinnerComponent={<TechnoSpinner />}
+        >
+          <Page.Contents
+            fullWidth={true}
+            scrollable={true}
+            className="dashboard"
+          >
+            {!!cells.length ? (
+              <Cells
+                cells={cells}
+                timeRange={timeRange}
+                manualRefresh={manualRefresh}
+                onPositionChange={onPositionChange}
+              />
+            ) : (
+              <DashboardEmpty onAddCell={onAddCell} />
+            )}
+            {/* This element is used as a portal container for note tooltips in cell headers */}
+            <div className="cell-header-note-tooltip-container" />
+          </Page.Contents>
+        </SpinnerContainer>
       </SpinnerContainer>
     )
   }
@@ -73,6 +84,7 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
   return {
     cells: getCells(state, props.dashboardID),
     status: state.resources.cells.status,
+    viewsStatus: state.resources.views.status,
   }
 }
 
