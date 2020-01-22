@@ -197,61 +197,38 @@ func (s *Service) forEachLogEntry(ctx context.Context, tx Tx, k []byte, opts pla
 		return err
 	}
 
-	cur, err := bkt.Cursor()
-	if err != nil {
-		return err
-	}
-
-	next := cur.Next
 	startKey, stopKey, err := b.Bounds(k)
 	if err != nil {
 		return err
 	}
 
+	direction := CursorAscending
 	if opts.Descending {
-		next = cur.Prev
+		direction = CursorDescending
 		startKey, stopKey = stopKey, startKey
 	}
-
-	k, v := cur.Seek(startKey)
-	if !bytes.Equal(k, startKey) {
-		return fmt.Errorf("the first key not the key found in the log bounds. This should be impossible. Please report this error")
+	cur, err := bkt.ForwardCursor(startKey, WithCursorDirection(direction))
+	if err != nil {
+		return err
 	}
 
 	count := 0
 
-	if opts.Offset == 0 {
-		// Seek returns the kv at the position that was seeked to which should be the first element
-		// in the sequence of keyValues. If this condition is reached we need to start of iteration
-		// at 1 instead of 0.
-		_, ts, err := decodeLogEntryKey(k)
-		if err != nil {
-			return err
-		}
-		if err := fn(v, ts); err != nil {
-			return err
-		}
-		count++
-		if bytes.Equal(startKey, stopKey) {
-			// If the start and stop are the same, then there is only a single entry in the log
-			return nil
-		}
-	} else {
+	if opts.Offset > 0 {
 		// Skip offset many items
-		for i := 0; i < opts.Offset-1; i++ {
-			k, _ := next()
+		for i := 0; i < opts.Offset; i++ {
+			k, _ := cur.Next()
 			if bytes.Equal(k, stopKey) {
 				return nil
 			}
 		}
 	}
 
-	for {
+	for k, v := cur.Next(); k != nil; k, v = cur.Next() {
+
 		if count >= opts.Limit && opts.Limit != 0 {
 			break
 		}
-
-		k, v := next()
 
 		_, ts, err := decodeLogEntryKey(k)
 		if err != nil {
