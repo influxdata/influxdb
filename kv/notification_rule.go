@@ -404,31 +404,23 @@ func (s *Service) forEachNotificationRule(ctx context.Context, tx Tx, descending
 		return err
 	}
 
-	cur, err := bkt.Cursor()
+	direction := CursorAscending
+	if descending {
+		direction = CursorDescending
+	}
+
+	cur, err := bkt.ForwardCursor(nil, WithCursorDirection(direction))
 	if err != nil {
 		return err
 	}
 
-	var k, v []byte
-	if descending {
-		k, v = cur.Last()
-	} else {
-		k, v = cur.First()
-	}
-
-	for k != nil {
+	for k, v := cur.Next(); k != nil; k, v = cur.Next() {
 		nr, err := rule.UnmarshalJSON(v)
 		if err != nil {
 			return err
 		}
 		if !fn(nr) {
 			break
-		}
-
-		if descending {
-			k, v = cur.Prev()
-		} else {
-			k, v = cur.Next()
 		}
 	}
 
