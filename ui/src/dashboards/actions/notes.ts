@@ -1,5 +1,5 @@
 // Libraries
-import {get, isUndefined} from 'lodash'
+import {get} from 'lodash'
 
 // Actions
 import {createCellWithView} from 'src/cells/actions/thunks'
@@ -7,7 +7,6 @@ import {updateView} from 'src/views/actions/thunks'
 
 // Utils
 import {createView} from 'src/views/helpers'
-import {getView} from 'src/views/selectors'
 import {getByID} from 'src/resources/selectors'
 
 // Types
@@ -17,6 +16,7 @@ import {
   NoteEditorMode,
   ResourceType,
   Dashboard,
+  View,
 } from 'src/types'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {Dispatch} from 'react'
@@ -114,7 +114,7 @@ export const loadNote = (id: string) => (
   getState: GetState
 ) => {
   const state = getState()
-  const currentViewState = getView(state, id)
+  const currentViewState = getByID<View>(state, ResourceType.Views, id)
 
   if (!currentViewState) {
     return
@@ -145,13 +145,9 @@ export const updateViewNote = (id: string) => (
 ) => {
   const state = getState()
   const {note, showNoteWhenEmpty} = state.noteEditor
-  const view: any = getView(state, id)
+  const view = getByID<View>(state, ResourceType.Views, id)
 
-  if (!view) {
-    throw new Error(`could not find view with id "${id}"`)
-  }
-
-  if (isUndefined(view.properties.note)) {
+  if (view.properties.type === 'check') {
     throw new Error(
       `view type "${view.properties.type}" does not support notes`
     )

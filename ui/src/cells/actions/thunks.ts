@@ -31,6 +31,8 @@ import {
   DashboardEntities,
   ResourceType,
   CellEntities,
+  View,
+  ViewEntities,
 } from 'src/types'
 
 // Utils
@@ -112,7 +114,12 @@ export const createCellWithView = (
 
     await dispatch(refreshDashboardVariableValues(dashboardID, views))
 
-    dispatch(setView(cellID, newView, RemoteDataState.Done))
+    const normView = normalize<View, ViewEntities, string>(
+      newView,
+      schemas.view
+    )
+
+    dispatch(setView(cellID, RemoteDataState.Done, normView))
     dispatch(setCell(cellID, RemoteDataState.Done, normCell))
   } catch {
     notify(copy.cellAddFailed())

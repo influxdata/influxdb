@@ -7,8 +7,8 @@ import {viewProperties} from 'mocks/dummyData'
 import {getView} from 'src/dashboards/apis'
 jest.mock('src/dashboards/apis/index')
 
-import {getView as getViewFromState} from 'src/views/selectors'
-jest.mock('src/dashboards/selectors')
+import {getByID} from 'src/resources/selectors'
+jest.mock('src/resources/selectors')
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -61,7 +61,7 @@ describe('Dashboards.Actions.getViewForTimeMachine', () => {
   it('dispatches a SET_VIEW action and fetches the view if there is no view in the store', async () => {
     store = createStore(viewsReducer, unpopulatedViewState)
 
-    mocked(getViewFromState).mockImplementation(() => undefined)
+    mocked(getByID).mockImplementation(() => undefined)
     mocked(getView).mockImplementation(() => Promise.resolve(memoryUsageView))
 
     const mockedDispatch = jest.fn()
@@ -94,7 +94,7 @@ describe('Dashboards.Actions.getViewForTimeMachine', () => {
   it('does not dispatch a SET_VIEW action and does not fetch the view if there is already a view in the store', async () => {
     store = createStore(viewsReducer, populatedViewState)
     // `getViewFromState` expects dashboard-like state, which has additional keys that are beyond the scope of this spec
-    mocked(getViewFromState).mockImplementation(() => memoryUsageView)
+    mocked(getByID).mockImplementation(() => memoryUsageView)
 
     const mockedDispatch = jest.fn()
     await getViewForTimeMachine(dashboardID, viewID, timeMachineId)(

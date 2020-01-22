@@ -19,6 +19,7 @@ import * as cellActions from 'src/cells/actions/thunks'
 import * as dashboardActions from 'src/dashboards/actions/thunks'
 import * as rangesActions from 'src/dashboards/actions/ranges'
 import * as appActions from 'src/shared/actions/app'
+import {updateViewAndVariables} from 'src/views/actions/thunks'
 import {
   setAutoRefreshInterval,
   setAutoRefreshStatus,
@@ -73,7 +74,7 @@ interface DispatchProps {
   handleChooseAutoRefresh: typeof setAutoRefreshInterval
   onSetAutoRefreshStatus: typeof setAutoRefreshStatus
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
-  onUpdateView: typeof dashboardActions.updateView
+  onUpdateView: typeof updateViewAndVariables
   onToggleShowVariablesControls: typeof toggleShowVariablesControls
 }
 
@@ -253,7 +254,7 @@ const mdtp: DispatchProps = {
   updateQueryParams: rangesActions.updateQueryParams,
   updateCells: cellActions.updateCells,
   deleteCell: cellActions.deleteCell,
-  onUpdateView: dashboardActions.updateView,
+  onUpdateView: updateViewAndVariables,
   onToggleShowVariablesControls: toggleShowVariablesControls,
 }
 

@@ -1,46 +1,45 @@
 // Types
-import {RemoteDataState, View} from 'src/types'
+import {RemoteDataState, ViewEntities} from 'src/types'
+import {NormalizedSchema} from 'normalizr'
 
-export type Action = SetViewAction | SetViewsAction | ResetViewsAction
+// Actions
+import {setDashboard} from 'src/dashboards/actions/creators'
 
-export interface SetViewsAction {
-  type: 'SET_VIEWS'
-  payload: {
-    views?: View[]
-    status: RemoteDataState
-  }
-}
+export type Action =
+  | ReturnType<typeof resetViews>
+  | ReturnType<typeof setView>
+  | ReturnType<typeof setViews>
+  | ReturnType<typeof setDashboard>
+
+export const RESET_VIEWS = 'RESET_VIEWS'
+export const SET_VIEW = 'SET_VIEW'
+export const SET_VIEWS = 'SET_VIEWS'
+
+type ViewSchema<R extends string | string[]> = NormalizedSchema<ViewEntities, R>
+
+export const resetViews = () =>
+  ({
+    type: RESET_VIEWS,
+  } as const)
 
 export const setViews = (
   status: RemoteDataState,
-  views: View[]
-): SetViewsAction => ({
-  type: 'SET_VIEWS',
-  payload: {views, status},
-})
-
-export interface SetViewAction {
-  type: 'SET_VIEW'
-  payload: {
-    id: string
-    view: View
-    status: RemoteDataState
-  }
-}
+  schema?: ViewSchema<string[]>
+) =>
+  ({
+    type: SET_VIEWS,
+    status,
+    schema,
+  } as const)
 
 export const setView = (
   id: string,
-  view: View,
-  status: RemoteDataState
-): SetViewAction => ({
-  type: 'SET_VIEW',
-  payload: {id, view, status},
-})
-
-export interface ResetViewsAction {
-  type: 'RESET_VIEWS'
-}
-
-export const resetViews = (): ResetViewsAction => ({
-  type: 'RESET_VIEWS',
-})
+  status: RemoteDataState,
+  schema?: ViewSchema<string>
+) =>
+  ({
+    type: SET_VIEW,
+    id,
+    status,
+    schema,
+  } as const)

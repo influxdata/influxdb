@@ -8,17 +8,16 @@ import CellHeader from 'src/shared/components/cells/CellHeader'
 import CellContext from 'src/shared/components/cells/CellContext'
 import ViewComponent from 'src/shared/components/cells/View'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {SpinnerContainer} from '@influxdata/clockface'
+import {SpinnerContainer, RemoteDataState} from '@influxdata/clockface'
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 
 // Utils
-import {getView, getViewStatus} from 'src/views/selectors'
+import {getByID} from 'src/resources/selectors'
 
 // Types
-import {AppState, View, Cell, TimeRange, RemoteDataState} from 'src/types'
+import {AppState, View, Cell, TimeRange, ResourceType} from 'src/types'
 
 interface StateProps {
-  viewsStatus: RemoteDataState
   view: View
 }
 
@@ -85,11 +84,11 @@ class CellComponent extends Component<Props, State> {
   }
 
   private get view(): JSX.Element {
-    const {timeRange, manualRefresh, view, viewsStatus} = this.props
+    const {timeRange, manualRefresh, view} = this.props
 
     return (
       <SpinnerContainer
-        loading={viewsStatus}
+        loading={view.status || RemoteDataState.Loading}
         spinnerComponent={<EmptyGraphMessage message="Loading..." />}
       >
         <ViewComponent
@@ -107,11 +106,7 @@ class CellComponent extends Component<Props, State> {
 }
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
-  const view = getView(state, ownProps.cell.id)
-
-  const status = getViewStatus(state, ownProps.cell.id)
-
-  return {view, viewsStatus: status}
+  return {view: getByID<View>(state, ResourceType.Views, ownProps.cell.id)}
 }
 
 export default connect<StateProps, {}, OwnProps>(

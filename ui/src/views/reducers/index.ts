@@ -2,8 +2,17 @@
 import {produce} from 'immer'
 
 // Types
-import {Action} from 'src/views/actions/creators'
-import {RemoteDataState, ResourceState} from 'src/types'
+import {
+  SET_VIEW,
+  SET_VIEWS,
+  RESET_VIEWS,
+  Action,
+} from 'src/views/actions/creators'
+import {SET_DASHBOARD} from 'src/dashboards/actions/creators'
+import {View, RemoteDataState, ResourceState, ResourceType} from 'src/types'
+
+// Helpers
+import {setResource, setResourceAtID} from 'src/resources/reducers/helpers'
 
 export type ViewsState = ResourceState['views']
 
@@ -19,42 +28,21 @@ const viewsReducer = (
 ): ViewsState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_VIEWS': {
-        return
-        // const {status} = action.payload
-        // if (!action.payload.views) {
-        //   return {
-        //     ...state,
-        //     status,
-        //   }
-        // }
-        // const views = action.payload.views.reduce<ViewsState['views']>(
-        //   (acc, view) => ({
-        //     ...acc,
-        //     [view.id]: {
-        //       view,
-        //       status: RemoteDataState.Done,
-        //     },
-        //   }),
-        //   {}
-        // )
-        // return {
-        //   status,
-        //   views,
-        // }
+      case SET_DASHBOARD: {
+        setResource<View>(draftState, action, ResourceType.Views)
       }
-      case 'SET_VIEW': {
+
+      case SET_VIEWS: {
+        setResource<View>(draftState, action, ResourceType.Views)
+
         return
-        // const {id, view, status} = action.payload
-        // return {
-        //   ...state,
-        //   views: {
-        //     ...state.views,
-        //     [id]: {view, status},
-        //   },
-        // }
       }
-      case 'RESET_VIEWS': {
+      case SET_VIEW: {
+        setResourceAtID<View>(draftState, action, ResourceType.Views)
+
+        return
+      }
+      case RESET_VIEWS: {
         return initialState()
       }
     }

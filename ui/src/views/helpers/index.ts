@@ -33,7 +33,7 @@ import {
   XYViewProperties,
 } from 'src/types'
 
-function defaultView(name = DEFAULT_CELL_NAME) {
+export const defaultView = (name: string = DEFAULT_CELL_NAME) => {
   return {
     name,
     status: RemoteDataState.Done,
@@ -58,7 +58,7 @@ export function defaultBuilderConfig(): BuilderConfig {
   }
 }
 
-function defaultLineViewProperties() {
+export function defaultLineViewProperties() {
   return {
     queries: [defaultViewQuery()],
     colors: DEFAULT_LINE_COLORS as Color[],

@@ -1,3 +1,6 @@
+// Libraries
+import {normalize} from 'normalizr'
+
 // APIs
 import {
   getView as getViewAJAX,
@@ -6,6 +9,7 @@ import {
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
+import * as schemas from 'src/schemas'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -14,24 +18,36 @@ import {executeQueries} from 'src/timeMachine/actions/queries'
 import {setView, Action} from 'src/views/actions/creators'
 
 // Selectors
+import {getViewsForDashboard} from 'src/views/selectors'
 import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
-import {getView as getViewFromState} from 'src/views/selectors'
+import {getByID} from 'src/resources/selectors'
+
+import {refreshDashboardVariableValues} from 'src/dashboards/actions/thunks'
 
 // Types
-import {RemoteDataState, QueryView, GetState, View} from 'src/types'
+import {
+  RemoteDataState,
+  QueryView,
+  GetState,
+  View,
+  ViewEntities,
+  TimeMachineID,
+  ResourceType,
+} from 'src/types'
 import {Dispatch} from 'redux'
-import {TimeMachineID} from 'src/types'
 
 export const getView = (dashboardID: string, cellID: string) => async (
   dispatch: Dispatch<Action>
 ): Promise<void> => {
-  dispatch(setView(cellID, null, RemoteDataState.Loading))
+  dispatch(setView(cellID, RemoteDataState.Loading))
   try {
     const view = await getViewAJAX(dashboardID, cellID)
 
-    dispatch(setView(cellID, view, RemoteDataState.Done))
+    const normView = normalize<View, ViewEntities, string>(view, schemas.view)
+
+    dispatch(setView(cellID, RemoteDataState.Done, normView))
   } catch {
-    dispatch(setView(cellID, null, RemoteDataState.Error))
+    dispatch(setView(cellID, RemoteDataState.Error))
   }
 }
 
@@ -40,16 +56,50 @@ export const updateView = (dashboardID: string, view: View) => async (
 ): Promise<View> => {
   const viewID = view.cellID
 
-  dispatch(setView(viewID, view, RemoteDataState.Loading))
+  dispatch(setView(viewID, RemoteDataState.Loading))
 
   try {
     const newView = await updateViewAJAX(dashboardID, viewID, view)
 
-    dispatch(setView(viewID, newView, RemoteDataState.Done))
+    const normView = normalize<View, ViewEntities, string>(
+      newView,
+      schemas.view
+    )
+
+    dispatch(setView(viewID, RemoteDataState.Done, normView))
 
     return newView
-  } catch {
-    dispatch(setView(viewID, null, RemoteDataState.Error))
+  } catch (error) {
+    console.error(error)
+    dispatch(setView(viewID, RemoteDataState.Error))
+  }
+}
+
+export const updateViewAndVariables = (
+  dashboardID: string,
+  view: View
+) => async (dispatch, getState: GetState) => {
+  const cellID = view.cellID
+
+  try {
+    const newView = await updateViewAJAX(dashboardID, cellID, view)
+
+    const views = getViewsForDashboard(getState(), dashboardID)
+
+    views.splice(views.findIndex(v => v.id === newView.id), 1, newView)
+
+    await dispatch(refreshDashboardVariableValues(dashboardID, views))
+
+    const normView = normalize<View, ViewEntities, string>(
+      newView,
+      schemas.view
+    )
+
+    dispatch(setView(cellID, RemoteDataState.Done, normView))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.cellUpdateFailed()))
+    dispatch(setView(cellID, RemoteDataState.Error))
   }
 }
 
@@ -60,19 +110,19 @@ export const getViewForTimeMachine = (
 ) => async (dispatch, getState: GetState): Promise<void> => {
   try {
     const state = getState()
-    let view = getViewFromState(state, cellID) as QueryView
+    let view = getByID<View>(state, ResourceType.Views, cellID) as QueryView
 
     const timeRange = getTimeRangeByDashboardID(state, dashboardID)
 
     if (!view) {
-      dispatch(setView(cellID, null, RemoteDataState.Loading))
+      dispatch(setView(cellID, RemoteDataState.Loading))
       view = (await getViewAJAX(dashboardID, cellID)) as QueryView
     }
 
     dispatch(setActiveTimeMachine(timeMachineID, {view, timeRange}))
     dispatch(executeQueries(dashboardID))
-  } catch (e) {
-    dispatch(notify(copy.getViewFailed(e.message)))
-    dispatch(setView(cellID, null, RemoteDataState.Error))
+  } catch (error) {
+    dispatch(notify(copy.getViewFailed(error.message)))
+    dispatch(setView(cellID, RemoteDataState.Error))
   }
 }

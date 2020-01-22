@@ -1,11 +1,5 @@
 // Types
-import {
-  AppState,
-  View,
-  ResourceType,
-  Dashboard,
-  RemoteDataState,
-} from 'src/types'
+import {AppState, View, ResourceType, Dashboard} from 'src/types'
 
 // Selectors
 import {getByID} from 'src/resources/selectors'
@@ -27,13 +21,4 @@ export const getViewsForDashboard = (
   )
 
   return views
-}
-
-export const getView = (state: AppState, id: string): View => {
-  return getByID<View>(state, ResourceType.Views, id)
-}
-
-export const getViewStatus = (state: AppState, id: string): RemoteDataState => {
-  const view = getView(state, id)
-  return (view && view.status) || RemoteDataState.Loading
 }
