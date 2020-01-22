@@ -33,33 +33,36 @@ interface State {
 
 type Props = StateProps & OwnProps
 
+const spinnerComponent = <EmptyGraphMessage message="Loading..." />
+
 @ErrorHandling
 class CellComponent extends Component<Props, State> {
   public render() {
     const {cell, view} = this.props
 
     return (
-      <>
+      <SpinnerContainer
+        loading={view.status || RemoteDataState.Loading}
+        spinnerComponent={spinnerComponent}
+      >
         <CellHeader name={this.viewName} note={this.viewNote}>
-          {view && (
-            <CellContext
-              cell={cell}
-              view={view}
-              onCSVDownload={this.handleCSVDownload}
-            />
-          )}
+          <CellContext
+            cell={cell}
+            view={view}
+            onCSVDownload={this.handleCSVDownload}
+          />
         </CellHeader>
         <div className="cell--view" data-testid="cell--view-empty">
           {this.view}
         </div>
-      </>
+      </SpinnerContainer>
     )
   }
 
   private get viewName(): string {
     const {view} = this.props
 
-    if (view && view.properties.type !== 'markdown') {
+    if (view && view.properties && view.properties.type !== 'markdown') {
       return view.name
     }
 
@@ -89,7 +92,7 @@ class CellComponent extends Component<Props, State> {
     return (
       <SpinnerContainer
         loading={view.status || RemoteDataState.Loading}
-        spinnerComponent={<EmptyGraphMessage message="Loading..." />}
+        spinnerComponent={spinnerComponent}
       >
         <ViewComponent
           view={view}
