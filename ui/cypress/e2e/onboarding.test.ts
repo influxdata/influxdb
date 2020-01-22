@@ -6,7 +6,6 @@ interface TestUser {
 }
 
 describe('Onboarding Redirect', () => {
-  
   beforeEach(() => {
     cy.flush()
     cy.visit('/')
