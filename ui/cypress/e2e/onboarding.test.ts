@@ -7,7 +7,6 @@ interface TestUser {
 
 describe('Onboarding Redirect', () => {
   let user: TestUser
-
   beforeEach(() => {
     cy.flush()
 
