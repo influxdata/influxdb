@@ -191,19 +191,19 @@ func (s *Service) findOrganizationDashboards(ctx context.Context, tx Tx, orgID i
 		return nil, err
 	}
 
-	// TODO(desa): support find options.
-	cur, err := idx.Cursor()
-	if err != nil {
-		return nil, err
-	}
-
 	prefix, err := orgID.Encode()
 	if err != nil {
 		return nil, err
 	}
 
+	// TODO(desa): support find options.
+	cur, err := idx.ForwardCursor(prefix, WithCursorPrefix(prefix))
+	if err != nil {
+		return nil, err
+	}
+
 	ds := []*influxdb.Dashboard{}
-	for k, _ := cur.Seek(prefix); bytes.HasPrefix(k, prefix); k, _ = cur.Next() {
+	for k, _ := cur.Next(); k != nil; k, _ = cur.Next() {
 		_, id, err := decodeOrgDashboardIndexKey(k)
 		if err != nil {
 			return nil, err
@@ -763,19 +763,17 @@ func (s *Service) forEachDashboard(ctx context.Context, tx Tx, descending bool, 
 		return err
 	}
 
-	cur, err := b.Cursor()
+	direction := CursorAscending
+	if descending {
+		direction = CursorDescending
+	}
+
+	cur, err := b.ForwardCursor(nil, WithCursorDirection(direction))
 	if err != nil {
 		return err
 	}
 
-	var k, v []byte
-	if descending {
-		k, v = cur.Last()
-	} else {
-		k, v = cur.First()
-	}
-
-	for k != nil {
+	for k, v := cur.Next(); k != nil; k, v = cur.Next() {
 		d := &influxdb.Dashboard{}
 		if err := json.Unmarshal(v, d); err != nil {
 			return err
@@ -783,12 +781,6 @@ func (s *Service) forEachDashboard(ctx context.Context, tx Tx, descending bool, 
 
 		if !fn(d) {
 			break
-		}
-
-		if descending {
-			k, v = cur.Prev()
-		} else {
-			k, v = cur.Next()
 		}
 	}
 
