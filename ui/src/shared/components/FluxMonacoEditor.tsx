@@ -7,6 +7,7 @@ import addFluxTheme, {THEME_NAME} from 'src/external/monaco.fluxTheme'
 import {addSnippets} from 'src/external/monaco.fluxCompletions'
 import {addSyntax} from 'src/external/monaco.fluxSyntax'
 import {OnChangeScript} from 'src/types/flux'
+import {addKeyBindings} from 'src/external/monaco.keyBindings'
 import './FluxMonacoEditor.scss'
 
 interface Position {
@@ -27,7 +28,9 @@ const FluxEditorMonaco: FC<Props> = props => {
     addSnippets(monaco)
     addSyntax(monaco)
   }
-  const editorDidMount = editor => {
+
+  const editorDidMount = (editor, monaco) => {
+    addKeyBindings(editor, monaco)
     editor.onDidChangeCursorPosition(evt => {
       const {position} = evt
       const {onCursorChange} = props
