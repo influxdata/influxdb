@@ -22,7 +22,7 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Types
-import {AppState, Dashboard, Label} from 'src/types'
+import {AppState, Label} from 'src/types'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
@@ -123,8 +123,6 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private get contextMenu(): JSX.Element {
-    const {onCloneDashboard} = this.props
-
     return (
       <Context>
         <Context.Menu icon={IconFont.CogThick}>
