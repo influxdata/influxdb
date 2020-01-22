@@ -304,7 +304,7 @@ func (c *Cursor) Next() (k []byte, v []byte) {
 	}
 	// get and unset previously seeked values if they exist
 	k, v, c.key, c.value = c.key, c.value, nil, nil
-	if len(k) > 0 && len(v) > 0 {
+	if len(k) > 0 || len(v) > 0 {
 		return
 	}
 
