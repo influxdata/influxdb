@@ -1,13 +1,13 @@
 import {MonacoType, EditorType} from 'src/types'
 
-const toggleCommenting = (s: string, isTogglingOn: boolean) => {
+export const toggleCommenting = (s: string, isTogglingOn: boolean) => {
   if (isTogglingOn) {
     return `// ${s}`
   }
   return s.replace(/\/\/\s*/, '')
 }
 
-const isCommented = (s: string) => !!s.match(/^\s*(\/\/(.*)$)/g)
+export const isCommented = (s: string) => !!s.match(/^\s*(\/\/(.*)$)/g)
 
 export function addKeyBindings(editor: EditorType, monaco: MonacoType) {
   editor.addAction({
