@@ -67,15 +67,15 @@ class Cells extends Component<Props & WithRouterProps> {
 
   private get cells(): Layout[] {
     return this.props.cells
-    .filter(c => c.status === RemoteDataState.Done)
-    .map(c => ({
-      ...c,
-      x: c.x,
-      y: c.y,
-      h: c.h,
-      w: c.w,
-      i: c.id,
-    }))
+      .filter(c => c.status === RemoteDataState.Done)
+      .map(c => ({
+        ...c,
+        x: c.x,
+        y: c.y,
+        h: c.h,
+        w: c.w,
+        i: c.id,
+      }))
   }
 
   private get isDashboard(): boolean {
