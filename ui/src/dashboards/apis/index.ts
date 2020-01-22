@@ -28,7 +28,7 @@ export const updateView = async (
     data: view as View,
   })
 
-  if (resp.status !== 200) {
+  if (resp.status !== 201 ) {
     throw new Error(resp.data.message)
   }
 

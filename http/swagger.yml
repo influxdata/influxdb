@@ -2448,7 +2448,7 @@ paths:
           required: true
           description: The ID of the cell to update.
       responses:
-        '200':
+        '201':
           description: Updated dashboard cell
           content:
             application/json:

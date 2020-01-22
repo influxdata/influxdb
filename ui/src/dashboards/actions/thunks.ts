@@ -151,7 +151,7 @@ export const cloneDashboard = (
 
     const newViews = await Promise.all(clonedViews)
 
-    if (newViews.length > 0 && newViews.some(v => v.status !== 200)) {
+    if (newViews.length > 0 && newViews.some(v => (v.status !== 200 || v.status !== 201))) {
       throw new Error('An error occurred cloning the dashboard')
     }
 
