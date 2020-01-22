@@ -66,7 +66,9 @@ class Cells extends Component<Props & WithRouterProps> {
   }
 
   private get cells(): Layout[] {
-    return this.props.cells.map(c => ({
+    return this.props.cells
+    .filter(c => c.status === RemoteDataState.Done)
+    .map(c => ({
       ...c,
       x: c.x,
       y: c.y,
