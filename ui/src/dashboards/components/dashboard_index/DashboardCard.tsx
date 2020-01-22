@@ -46,7 +46,7 @@ interface StateProps {
 
 interface DispatchProps {
   onDeleteDashboard: typeof deleteDashboard
-  onCloneDashboard: (dashboard: Dashboard) => void
+  onCloneDashboard: typeof cloneDashboard
   onUpdateDashboard: typeof updateDashboard
   onAddDashboardLabel: typeof addDashboardLabel
   onRemoveDashboardLabel: typeof removeDashboardLabel
@@ -116,6 +116,12 @@ class DashboardCard extends PureComponent<Props> {
     onUpdateDashboard(id, {name})
   }
 
+  private handleCloneDashboard = () => {
+    const {id, name, onCloneDashboard} = this.props
+
+    onCloneDashboard(id, name)
+  }
+
   private get contextMenu(): JSX.Element {
     const {onCloneDashboard} = this.props
 
@@ -128,7 +134,7 @@ class DashboardCard extends PureComponent<Props> {
           icon={IconFont.Duplicate}
           color={ComponentColor.Secondary}
         >
-          <Context.Item label="Clone" action={onCloneDashboard} />
+          <Context.Item label="Clone" action={this.handleCloneDashboard} />
         </Context.Menu>
         <Context.Menu
           icon={IconFont.Trash}
@@ -188,10 +194,11 @@ class DashboardCard extends PureComponent<Props> {
   private handleExport = () => {
     const {
       router,
-      params: {orgID, dashboardID},
+      params: {orgID},
+      id,
     } = this.props
 
-    router.push(`/orgs/${orgID}/dashboards/${dashboardID}/export`)
+    router.push(`/orgs/${orgID}/dashboards/${id}/export`)
   }
 }
 
