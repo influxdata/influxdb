@@ -44,10 +44,7 @@ const ClientRubyOverlay: FunctionComponent<Props> = props => {
         </a>
       </p>
       <h5>Install the Gem</h5>
-      <TemplatedCodeSnippet
-        template={initializeGemCodeSnippet}
-        label="Code"
-      />
+      <TemplatedCodeSnippet template={initializeGemCodeSnippet} label="Code" />
       <h5>Initialize the Client</h5>
       <TemplatedCodeSnippet
         template={initializeClientCodeSnippet}
