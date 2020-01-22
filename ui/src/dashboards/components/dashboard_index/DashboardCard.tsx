@@ -22,7 +22,7 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Types
-import {AppState, Dashboard, Label} from 'src/types'
+import {AppState, Label} from 'src/types'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
@@ -46,7 +46,7 @@ interface StateProps {
 
 interface DispatchProps {
   onDeleteDashboard: typeof deleteDashboard
-  onCloneDashboard: (dashboard: Dashboard) => void
+  onCloneDashboard: typeof cloneDashboard
   onUpdateDashboard: typeof updateDashboard
   onAddDashboardLabel: typeof addDashboardLabel
   onRemoveDashboardLabel: typeof removeDashboardLabel
@@ -116,9 +116,13 @@ class DashboardCard extends PureComponent<Props> {
     onUpdateDashboard(id, {name})
   }
 
-  private get contextMenu(): JSX.Element {
-    const {onCloneDashboard} = this.props
+  private handleCloneDashboard = () => {
+    const {id, name, onCloneDashboard} = this.props
 
+    onCloneDashboard(id, name)
+  }
+
+  private get contextMenu(): JSX.Element {
     return (
       <Context>
         <Context.Menu icon={IconFont.CogThick}>
@@ -128,7 +132,7 @@ class DashboardCard extends PureComponent<Props> {
           icon={IconFont.Duplicate}
           color={ComponentColor.Secondary}
         >
-          <Context.Item label="Clone" action={onCloneDashboard} />
+          <Context.Item label="Clone" action={this.handleCloneDashboard} />
         </Context.Menu>
         <Context.Menu
           icon={IconFont.Trash}
@@ -188,10 +192,11 @@ class DashboardCard extends PureComponent<Props> {
   private handleExport = () => {
     const {
       router,
-      params: {orgID, dashboardID},
+      params: {orgID},
+      id,
     } = this.props
 
-    router.push(`/orgs/${orgID}/dashboards/${dashboardID}/export`)
+    router.push(`/orgs/${orgID}/dashboards/${id}/export`)
   }
 }
 

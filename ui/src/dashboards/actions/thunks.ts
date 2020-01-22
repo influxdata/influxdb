@@ -96,19 +96,19 @@ export const createDashboard = () => async (
   }
 }
 
-export const cloneDashboard = (dashboard: Dashboard) => async (
-  dispatch,
-  getState: GetState
-): Promise<void> => {
+export const cloneDashboard = (
+  dashboardID: string,
+  dashboardName: string
+) => async (dispatch, getState: GetState): Promise<void> => {
   try {
     const state = getState()
 
     const org = getOrg(state)
     const dashboards = getAll<Dashboard>(state, ResourceType.Dashboards)
     const allDashboardNames = dashboards.map(d => d.name)
-    const clonedName = incrementCloneName(allDashboardNames, dashboard.name)
+    const clonedName = incrementCloneName(allDashboardNames, dashboardName)
 
-    const getResp = await api.getDashboard({dashboardID: dashboard.id})
+    const getResp = await api.getDashboard({dashboardID})
 
     if (getResp.status !== 200) {
       throw new Error(getResp.data.message)
