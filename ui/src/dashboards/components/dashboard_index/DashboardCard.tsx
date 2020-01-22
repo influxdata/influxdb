@@ -168,9 +168,9 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private handleUpdateDescription = (description: string) => {
-    const {onUpdateDashboard, params} = this.props
+    const {id, onUpdateDashboard} = this.props
 
-    onUpdateDashboard(params.dashboardID, {description})
+    onUpdateDashboard(id, {description})
   }
 
   private handleAddLabel = (label: Label) => {
