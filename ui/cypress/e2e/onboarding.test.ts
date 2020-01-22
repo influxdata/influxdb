@@ -6,18 +6,14 @@ interface TestUser {
 }
 
 describe('Onboarding Redirect', () => {
-  let user: TestUser
+  
   beforeEach(() => {
     cy.flush()
-
-    cy.fixture('user').then(u => {
-      user = u
-    })
-
     cy.visit('/')
   })
+
   it('Can redirect to onboarding page', () => {
-    cy.get('[data-testid="init-step--head-main"]', {timeout: 5000})
+    cy.getByTestID('init-step--head-main')
     cy.location('pathname').should('include', 'onboarding/0')
   })
 })
