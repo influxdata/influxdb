@@ -106,7 +106,7 @@ var (
 func init() {
 	ticker = &instaTicker{
 		tick:   make(chan struct{}, 1),
-		timeCh: time.Tick(time.Minute * 59),
+		timeCh: time.NewTicker(time.Minute * 59).C,
 	}
 
 	ticker.tick <- struct{}{}
