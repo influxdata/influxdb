@@ -52,7 +52,7 @@ type Engine struct {
 	nodeID   *int // Not used by default.
 
 	mu      sync.RWMutex
-	closing chan struct{} //closing returns the zero value when the engine is shutting down.
+	closing chan struct{} // closing returns the zero value when the engine is shutting down.
 	index   *tsi1.Index
 	sfile   *tsdb.SeriesFile
 	engine  *tsm1.Engine
@@ -703,7 +703,7 @@ func (e *Engine) CreateBackup(ctx context.Context) (int, []string, error) {
 // FetchBackupFile writes a given backup file to the provided writer.
 // After a successful write, the internal copy is removed.
 func (e *Engine) FetchBackupFile(ctx context.Context, backupID int, backupFile string, w io.Writer) error {
-	span, _ := tracing.StartSpanFromContext(ctx)
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	e.mu.RLock()
@@ -762,6 +762,11 @@ func (e *Engine) fetchBackup(ctx context.Context, backupID int, backupFile strin
 // InternalBackupPath provides the internal, full path directory name of the backup.
 // This should not be exposed via API.
 func (e *Engine) InternalBackupPath(backupID int) string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closing == nil {
+		return ""
+	}
 	return e.engine.FileStore.InternalBackupPath(backupID)
 }
 
@@ -793,10 +798,20 @@ func (e *Engine) ApplyFnToSeriesIDSet(fn func(*tsdb.SeriesIDSet)) {
 
 // MeasurementCardinalityStats returns cardinality stats for all measurements.
 func (e *Engine) MeasurementCardinalityStats() (tsi1.MeasurementCardinalityStats, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closing == nil {
+		return nil, ErrEngineClosed
+	}
 	return e.index.MeasurementCardinalityStats()
 }
 
 // MeasurementStats returns the current measurement stats for the engine.
 func (e *Engine) MeasurementStats() (tsm1.MeasurementStats, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closing == nil {
+		return nil, ErrEngineClosed
+	}
 	return e.engine.MeasurementStats()
 }
