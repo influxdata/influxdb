@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"net/url"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
@@ -30,8 +31,8 @@ func (q *replQuerier) Query(ctx context.Context, deps flux.Dependencies, compile
 	return q.client.Query(ctx, req)
 }
 
-func getFluxREPL(host string, port int, ssl bool, username, password string) (*repl.REPL, error) {
-	c, err := client.NewHTTP(host, port, ssl)
+func getFluxREPL(u url.URL, username, password string) (*repl.REPL, error) {
+	c, err := client.NewHTTP(u)
 	if err != nil {
 		return nil, err
 	}

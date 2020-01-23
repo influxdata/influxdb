@@ -17,7 +17,7 @@ func TestTRIX(t *testing.T) {
 		}
 	}
 
-	if diff := diffFloats(expList, actList, 1E-7); diff != "" {
+	if diff := diffFloats(expList, actList, 1e-7); diff != "" {
 		t.Errorf("unexpected floats:\n%s", diff)
 	}
 }

@@ -8,16 +8,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"mime"
-	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/repl"
-	iclient "github.com/influxdata/influxdb/client"
 	"github.com/pkg/errors"
 )
 
@@ -44,13 +41,7 @@ type HTTP struct {
 }
 
 // NewHTTP creates a HTTP client
-func NewHTTP(host string, port int, ssl bool) (*HTTP, error) {
-	addr := net.JoinHostPort(host, strconv.Itoa(port))
-	u, e := iclient.ParseConnectionString(addr, ssl)
-	if e != nil {
-		return nil, e
-	}
-	u.Path = fluxPath
+func NewHTTP(u url.URL) (*HTTP, error) {
 	return &HTTP{url: &u}, nil
 }
 
