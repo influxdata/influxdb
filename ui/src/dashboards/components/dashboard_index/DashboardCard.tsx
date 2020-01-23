@@ -129,7 +129,11 @@ class DashboardCard extends PureComponent<Props> {
           icon={IconFont.Duplicate}
           color={ComponentColor.Secondary}
         >
-          <Context.Item label="Clone" action={this.handleCloneDashboard} />
+          <Context.Item
+            label="Clone"
+            action={this.handleCloneDashboard}
+            testID="clone-dashboard"
+          />
         </Context.Menu>
         <Context.Menu
           icon={IconFont.Trash}

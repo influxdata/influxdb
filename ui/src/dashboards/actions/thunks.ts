@@ -54,6 +54,7 @@ import {
   Dashboard,
   GetState,
   View,
+  Cell,
   DashboardTemplate,
   Label,
   RemoteDataState,
@@ -110,7 +111,10 @@ export const cloneDashboard = (
     const allDashboardNames = dashboards.map(d => d.name)
     const clonedName = incrementCloneName(allDashboardNames, dashboardName)
 
-    const getResp = await api.getDashboard({dashboardID})
+    const getResp = await api.getDashboard({
+      dashboardID,
+      query: {include: 'properties'},
+    })
 
     if (getResp.status !== 200) {
       throw new Error(getResp.data.message)
@@ -122,7 +126,7 @@ export const cloneDashboard = (
     )
 
     const dash: Dashboard = entities.dashboards[result]
-    const cells = dash.cells.map(cellID => state.resources.cells.byID[cellID])
+    const cells = Object.values<Cell>(entities.cells || {})
 
     const postResp = await api.postDashboard({
       data: {
@@ -136,7 +140,7 @@ export const cloneDashboard = (
       throw new Error(postResp.data.message)
     }
 
-    const pendingLabels = dash.labels.map(l =>
+    const pendingLabels = getResp.data.labels.map(l =>
       api.postDashboardsLabel({
         dashboardID: postResp.data.id,
         data: {labelID: l.id},
@@ -149,7 +153,13 @@ export const cloneDashboard = (
       throw new Error('An error occurred cloning the labels for this dashboard')
     }
 
-    const clonedViews = await dashAPI.cloneUtilFunc(cells, postResp.data.id)
+    const clonedDashboardID = postResp.data.id
+
+    const clonedViews = await dashAPI.cloneUtilFunc(
+      cells,
+      dashboardID,
+      clonedDashboardID
+    )
 
     const newViews = await Promise.all(clonedViews)
 
