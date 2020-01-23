@@ -112,11 +112,8 @@ func init() {
 	ticker.tick <- struct{}{}
 
 	go func() {
-		for {
-			select {
-			case <-ticker.timeCh:
-				ticker.tick <- struct{}{}
-			}
+		for range ticker.timeCh {
+			ticker.tick <- struct{}{}
 		}
 	}()
 }
