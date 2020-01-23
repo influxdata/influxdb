@@ -16,7 +16,7 @@ import {
 
 import TagRuleOperatorDropdown, {
   Operator,
-} from 'src/alerting/components/notifications/TagRuleOperatorDropdown'
+} from 'src/notifications/rules/components/TagRuleOperatorDropdown'
 
 // Utils
 import {useRuleDispatch} from './RuleOverlayProvider'

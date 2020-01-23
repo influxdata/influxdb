@@ -3,7 +3,7 @@ import React, {FC} from 'react'
 
 // Components
 import {Panel, ComponentSize} from '@influxdata/clockface'
-import StatusLevels from 'src/alerting/components/notifications/StatusLevels'
+import StatusLevels from 'src/notifications/rules/components/StatusLevels'
 
 // Types
 import {StatusRuleDraft} from 'src/types'

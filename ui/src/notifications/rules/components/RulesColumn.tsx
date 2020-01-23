@@ -13,7 +13,7 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import NotificationRuleCards from 'src/alerting/components/notifications/RuleCards'
+import NotificationRuleCards from 'src/notifications/rules/components/RuleCards'
 import AlertsColumn from 'src/alerting/components/AlertsColumn'
 
 interface StateProps {

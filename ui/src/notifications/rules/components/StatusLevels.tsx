@@ -8,9 +8,9 @@ import {
   FlexDirection,
   ComponentSize,
 } from '@influxdata/clockface'
-import RuleLevelsDropdown from 'src/alerting/components/notifications/RuleLevelsDropdown'
-import StatusChangeDropdown from 'src/alerting/components/notifications/StatusChangeDropdown'
-import {LevelType} from 'src/alerting/components/notifications/RuleOverlay.reducer'
+import RuleLevelsDropdown from 'src/notifications/rules/components/RuleLevelsDropdown'
+import StatusChangeDropdown from 'src/notifications/rules/components/StatusChangeDropdown'
+import {LevelType} from 'src/notifications/rules/components/RuleOverlay.reducer'
 
 // Utils
 import {useRuleDispatch} from './RuleOverlayProvider'

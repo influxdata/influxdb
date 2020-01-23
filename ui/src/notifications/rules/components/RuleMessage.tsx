@@ -4,8 +4,8 @@ import {connect} from 'react-redux'
 
 // Components
 import {Form, Panel, Grid, Columns} from '@influxdata/clockface'
-import RuleEndpointDropdown from 'src/alerting/components/notifications/RuleEndpointDropdown'
-import RuleMessageContents from 'src/alerting/components/notifications/RuleMessageContents'
+import RuleEndpointDropdown from 'src/notifications/rules/components/RuleEndpointDropdown'
+import RuleMessageContents from 'src/notifications/rules/components/RuleMessageContents'
 
 // Utils
 import {getRuleVariantDefaults} from 'src/alerting/components/notifications/utils'

@@ -11,10 +11,10 @@ import {
   Form,
   Input,
 } from '@influxdata/clockface'
-import RuleSchedule from 'src/alerting/components/notifications/RuleSchedule'
-import RuleConditions from 'src/alerting/components/notifications/RuleConditions'
-import RuleMessage from 'src/alerting/components/notifications/RuleMessage'
-import RuleOverlayFooter from 'src/alerting/components/notifications/RuleOverlayFooter'
+import RuleSchedule from 'src/notifications/rules/components/RuleSchedule'
+import RuleConditions from 'src/notifications/rules/components/RuleConditions'
+import RuleMessage from 'src/notifications/rules/components/RuleMessage'
+import RuleOverlayFooter from 'src/notifications/rules/components/RuleOverlayFooter'
 
 // Utils
 import {useRuleState, useRuleDispatch} from './RuleOverlayProvider'

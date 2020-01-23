@@ -2,7 +2,7 @@
 import React, {FC} from 'react'
 
 // Components
-import NotificationRuleCard from 'src/alerting/components/notifications/RuleCard'
+import NotificationRuleCard from 'src/notifications/rules/components/RuleCard'
 import {EmptyState, ResourceList} from '@influxdata/clockface'
 import FilterList from 'src/shared/components/Filter'
 

@@ -8,7 +8,7 @@ import {getNotificationRuleFailed} from 'src/shared/copy/notifications'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
-import RuleOverlayContents from 'src/alerting/components/notifications/RuleOverlayContents'
+import RuleOverlayContents from 'src/notifications/rules/components/RuleOverlayContents'
 
 // Actions
 import {updateRule} from 'src/notifications/rules/actions'

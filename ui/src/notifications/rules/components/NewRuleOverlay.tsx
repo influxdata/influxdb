@@ -7,11 +7,11 @@ import {connect} from 'react-redux'
 import {createRule} from 'src/notifications/rules/actions'
 
 // Components
-import RuleOverlayContents from 'src/alerting/components/notifications/RuleOverlayContents'
+import RuleOverlayContents from 'src/notifications/rules/components/RuleOverlayContents'
 import {Overlay} from '@influxdata/clockface'
 
 // Utils
-import RuleOverlayProvider from 'src/alerting/components/notifications/RuleOverlayProvider'
+import RuleOverlayProvider from 'src/notifications/rules/components/RuleOverlayProvider'
 import {initRuleDraft} from 'src/alerting/components/notifications/utils'
 
 // Types

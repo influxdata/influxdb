@@ -11,8 +11,8 @@ import {
   ComponentColor,
   AlignItems,
 } from '@influxdata/clockface'
-import StatusRuleComponent from 'src/alerting/components/notifications/StatusRule'
-import TagRuleComponent from 'src/alerting/components/notifications/TagRule'
+import StatusRuleComponent from 'src/notifications/rules/components/StatusRule'
+import TagRuleComponent from 'src/notifications/rules/components/TagRule'
 import DashedButton from 'src/shared/components/dashed_button/DashedButton'
 
 // Utils
