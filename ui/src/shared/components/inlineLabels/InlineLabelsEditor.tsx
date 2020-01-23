@@ -33,8 +33,7 @@ interface DispatchProps {
   onCreateLabel: typeof createLabel
 }
 
-interface StateProps {
-}
+interface StateProps {}
 
 interface OwnProps {
   selectedLabels: Label[]
@@ -139,7 +138,6 @@ class InlineLabelsEditor extends Component<Props, State> {
   private handleAddLabel = async (labelID: string) => {
     const {onAddLabel, labels} = this.props
 
-    debugger
     const label = labels.find(label => label.id === labelID)
 
     if (label) {
@@ -267,12 +265,11 @@ class InlineLabelsEditor extends Component<Props, State> {
 }
 
 const mstp = (): StateProps => {
-  return {
-  }
+  return {}
 }
 
 const mdtp: DispatchProps = {
-  onCreateLabel: createLabel
+  onCreateLabel: createLabel,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
