@@ -65,9 +65,9 @@ const CellContext: FC<Props> = ({
 
   const handleEditNote = () => {
     if (view.id) {
-      router.push(`${this.props.location.pathname}/notes/${view.id}/edit`)
+      router.push(`${location.pathname}/notes/${view.id}/edit`)
     } else {
-      router.push(`${this.props.location.pathname}/notes/new`)
+      router.push(`${location.pathname}/notes/new`)
     }
   }
 

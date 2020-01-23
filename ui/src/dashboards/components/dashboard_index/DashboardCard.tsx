@@ -17,6 +17,7 @@ import {
   removeDashboardLabel,
 } from 'src/dashboards/actions/thunks'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
+import {resetViews} from 'src/views/actions/creators'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
@@ -26,7 +27,6 @@ import {AppState, Label} from 'src/types'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
-import {resetViews} from 'src/dashboards/actions/views'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
@@ -168,9 +168,9 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private handleUpdateDescription = (description: string) => {
-    const {onUpdateDashboard, params} = this.props
+    const {id, onUpdateDashboard} = this.props
 
-    onUpdateDashboard(params.dashboardID, {description})
+    onUpdateDashboard(id, {description})
   }
 
   private handleAddLabel = (label: Label) => {

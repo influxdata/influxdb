@@ -594,12 +594,12 @@ func (s *Service) findDocuments(ctx context.Context, tx Tx, ns string, ds *[]*in
 		return err
 	}
 
-	cur, err := metab.Cursor()
+	cur, err := metab.ForwardCursor(nil)
 	if err != nil {
 		return err
 	}
 
-	for k, v := cur.First(); len(k) != 0; k, v = cur.Next() {
+	for k, v := cur.Next(); len(k) != 0; k, v = cur.Next() {
 		d := &influxdb.Document{}
 		if err := d.ID.Decode(k); err != nil {
 			return err

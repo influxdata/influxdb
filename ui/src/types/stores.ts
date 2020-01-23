@@ -18,7 +18,6 @@ import {
 } from 'src/dataLoaders/reducers/telegrafEditor'
 import {TemplatesState} from 'src/templates/reducers'
 import {RangeState} from 'src/dashboards/reducers/ranges'
-import {ViewsState} from 'src/dashboards/reducers/views'
 import {UserSettingsState} from 'src/userSettings/reducers'
 import {OverlayState} from 'src/overlays/reducers/overlays'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
@@ -60,7 +59,6 @@ export interface AppState {
   userSettings: UserSettingsState
   variableEditor: VariableEditorState
   VERSION: string
-  views: ViewsState
 }
 
 export type GetState = () => AppState

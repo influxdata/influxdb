@@ -15,7 +15,7 @@ import tasksReducer from 'src/tasks/reducers'
 import rangesReducer from 'src/dashboards/reducers/ranges'
 import {dashboardsReducer} from 'src/dashboards/reducers/dashboards'
 import {cellsReducer} from 'src/cells/reducers'
-import viewsReducer from 'src/dashboards/reducers/views'
+import viewsReducer from 'src/views/reducers'
 import {timeMachinesReducer} from 'src/timeMachine/reducers'
 import {orgsReducer} from 'src/organizations/reducers'
 import overlaysReducer from 'src/overlays/reducers/overlays'
@@ -69,6 +69,7 @@ export const rootReducer = combineReducers<ReducerState>({
   resources: combineReducers({
     buckets: bucketsReducer,
     cells: cellsReducer,
+    dashboards: dashboardsReducer,
     members: membersReducer,
     orgs: orgsReducer,
     scrapers: scrapersReducer,
@@ -76,7 +77,7 @@ export const rootReducer = combineReducers<ReducerState>({
     telegrafs: telegrafsReducer,
     tokens: authsReducer,
     variables: variablesReducer,
-    dashboards: dashboardsReducer,
+    views: viewsReducer,
   }),
   routing: routerReducer,
   rules: rulesReducer,
@@ -87,7 +88,6 @@ export const rootReducer = combineReducers<ReducerState>({
   timeMachines: timeMachinesReducer,
   userSettings: userSettingsReducer,
   variableEditor: variableEditorReducer,
-  views: viewsReducer,
   VERSION: () => '',
 })
 

@@ -18,7 +18,7 @@ import {
 } from 'src/alerting/actions/alertBuilder'
 
 // Utils
-import {createView} from 'src/shared/utils/view'
+import {createView} from 'src/views/helpers'
 
 // Types
 import {AppState, RemoteDataState, CheckViewProperties} from 'src/types'

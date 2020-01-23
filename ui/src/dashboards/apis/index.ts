@@ -2,7 +2,7 @@
 import * as api from 'src/client'
 
 // Types
-import {Cell, View, NewView} from 'src/types'
+import {Cell, View, NewView, RemoteDataState} from 'src/types'
 
 export const getView = async (
   dashboardID: string,
@@ -14,7 +14,7 @@ export const getView = async (
     throw new Error(resp.data.message)
   }
 
-  return {...resp.data, dashboardID, cellID}
+  return {...resp.data, dashboardID, cellID, status: RemoteDataState.Done}
 }
 
 export const updateView = async (
@@ -32,7 +32,12 @@ export const updateView = async (
     throw new Error(resp.data.message)
   }
 
-  const viewWithIDs: View = {...resp.data, dashboardID, cellID}
+  const viewWithIDs: View = {
+    ...resp.data,
+    dashboardID,
+    cellID,
+    status: RemoteDataState.Done,
+  }
 
   return viewWithIDs
 }

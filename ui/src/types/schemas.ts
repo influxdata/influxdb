@@ -1,15 +1,16 @@
 // Types
 import {
-  Cell,
-  Task,
-  Dashboard,
-  Variable,
-  Telegraf,
-  Member,
-  Bucket,
-  Scraper,
-  Organization,
   Authorization,
+  Bucket,
+  Cell,
+  Dashboard,
+  Member,
+  Organization,
+  Scraper,
+  Task,
+  Telegraf,
+  Variable,
+  View,
 } from 'src/types'
 
 // AuthEntities defines the result of normalizr's normalization
@@ -92,5 +93,11 @@ export interface TaskEntities {
 export interface VariableEntities {
   variables: {
     [uuid: string]: Variable
+  }
+}
+
+export interface ViewEntities {
+  views: {
+    [uuid: string]: View
   }
 }

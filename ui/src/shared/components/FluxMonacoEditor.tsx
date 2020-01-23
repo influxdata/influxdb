@@ -3,10 +3,17 @@ import React, {FC} from 'react'
 
 // Components
 import MonacoEditor from 'react-monaco-editor'
+
+// Utils
 import addFluxTheme, {THEME_NAME} from 'src/external/monaco.fluxTheme'
 import {addSnippets} from 'src/external/monaco.fluxCompletions'
 import {addSyntax} from 'src/external/monaco.fluxSyntax'
 import {OnChangeScript} from 'src/types/flux'
+import {addKeyBindings} from 'src/external/monaco.keyBindings'
+
+// Types
+import {MonacoType, EditorType} from 'src/types'
+
 import './FluxMonacoEditor.scss'
 
 interface Position {
@@ -22,12 +29,14 @@ interface Props {
 }
 
 const FluxEditorMonaco: FC<Props> = props => {
-  const editorWillMount = monaco => {
+  const editorWillMount = (monaco: MonacoType) => {
     addFluxTheme(monaco)
     addSnippets(monaco)
     addSyntax(monaco)
   }
-  const editorDidMount = editor => {
+
+  const editorDidMount = (editor: EditorType, monaco: MonacoType) => {
+    addKeyBindings(editor, monaco)
     editor.onDidChangeCursorPosition(evt => {
       const {position} = evt
       const {onCursorChange} = props
