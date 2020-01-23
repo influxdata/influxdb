@@ -11,7 +11,6 @@ import {
   ResourceType,
   Task,
   Telegraf,
-  TemplateSummary,
   Variable,
   View,
 } from 'src/types'
