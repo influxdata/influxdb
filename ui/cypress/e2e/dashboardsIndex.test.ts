@@ -142,6 +142,23 @@ describe('Dashboards', () => {
       cy.getByTestID('dashboard-card').should('have.length', 1)
     })
 
+    it('can clone a dashboard', () => {
+      cy.getByTestID('dashboard-card').should('have.length', 2)
+
+      cy.getByTestID('dashboard-card')
+        .getByTestID('clone-dashboard')
+        .first()
+        .click({force: true})
+
+      cy.fixture('routes').then(({orgs}) => {
+        cy.get('@org').then(({id}: Organization) => {
+          cy.visit(`${orgs}/${id}/dashboards`)
+        })
+      })
+
+      cy.getByTestID('dashboard-card').should('have.length', 3)
+    })
+
     it('can edit a dashboards name', () => {
       const newName = 'new 🅱️ashboard'
 

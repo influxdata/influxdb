@@ -126,7 +126,7 @@ export const cloneDashboard = (
     )
 
     const dash: Dashboard = entities.dashboards[result]
-    const cells = Object.values<Cell>(entities.cells)
+    const cells = Object.values<Cell>(entities.cells || {})
 
     const postResp = await api.postDashboard({
       data: {
