@@ -8,14 +8,20 @@ import CellHeader from 'src/shared/components/cells/CellHeader'
 import CellContext from 'src/shared/components/cells/CellContext'
 import ViewComponent from 'src/shared/components/cells/View'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {SpinnerContainer, RemoteDataState} from '@influxdata/clockface'
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 
 // Utils
 import {getByID} from 'src/resources/selectors'
 
 // Types
-import {AppState, View, Cell, TimeRange, ResourceType} from 'src/types'
+import {
+  RemoteDataState,
+  AppState,
+  View,
+  Cell,
+  TimeRange,
+  ResourceType,
+} from 'src/types'
 
 interface StateProps {
   view: View
@@ -32,8 +38,6 @@ interface State {
 }
 
 type Props = StateProps & OwnProps
-
-const spinnerComponent = <EmptyGraphMessage message="Loading..." />
 
 @ErrorHandling
 class CellComponent extends Component<Props, State> {
@@ -86,17 +90,16 @@ class CellComponent extends Component<Props, State> {
   private get view(): JSX.Element {
     const {timeRange, manualRefresh, view} = this.props
 
+    if (!view || view.status !== RemoteDataState.Done) {
+      return <EmptyGraphMessage message="Loading..." />
+    }
+
     return (
-      <SpinnerContainer
-        loading={view.status || RemoteDataState.Loading}
-        spinnerComponent={spinnerComponent}
-      >
-        <ViewComponent
-          view={view}
-          timeRange={timeRange}
-          manualRefresh={manualRefresh}
-        />
-      </SpinnerContainer>
+      <ViewComponent
+        view={view}
+        timeRange={timeRange}
+        manualRefresh={manualRefresh}
+      />
     )
   }
 

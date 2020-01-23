@@ -35,7 +35,7 @@ interface OwnProps {
 export type Props = StateProps & DispatchProps & OwnProps
 
 @ErrorHandling
-class GetResources extends PureComponent<Props, StateProps> {
+class GetResource extends PureComponent<Props, StateProps> {
   public componentDidMount() {
     const {resources} = this.props
     const promises = []
@@ -67,8 +67,10 @@ class GetResources extends PureComponent<Props, StateProps> {
         <SpinnerContainer
           loading={remoteDataState}
           spinnerComponent={<TechnoSpinner />}
-        />
-        {remoteDataState === RemoteDataState.Done ? children : null}
+          testID="dashboard-container--spinner"
+        >
+          {children}
+        </SpinnerContainer>
       </>
     )
   }
@@ -89,4 +91,4 @@ const mdtp = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(GetResources)
+)(GetResource)
