@@ -42,11 +42,15 @@ export const updateView = async (
   return viewWithIDs
 }
 
-export const cloneUtilFunc = async (cells: Cell[], dashboardID: string) => {
+export const cloneUtilFunc = async (
+  cells: Cell[],
+  oldDashID: string,
+  clonedDashID: string
+) => {
   const pendingViews = cells.map(cell =>
     api
       .getDashboardsCellsView({
-        dashboardID,
+        dashboardID: oldDashID,
         cellID: cell.id,
       })
       .then(res => {
@@ -66,9 +70,9 @@ export const cloneUtilFunc = async (cells: Cell[], dashboardID: string) => {
     const view = v.data as View
     const cell = cells.find(c => c.id === view.id)
 
-    if (cell && dashboardID) {
+    if (cell) {
       const newCell = await api.postDashboardsCell({
-        dashboardID,
+        dashboardID: clonedDashID,
         data: cell,
       })
 
@@ -77,7 +81,7 @@ export const cloneUtilFunc = async (cells: Cell[], dashboardID: string) => {
       }
 
       return api.patchDashboardsCellsView({
-        dashboardID,
+        dashboardID: clonedDashID,
         cellID: newCell.data.id,
         data: view,
       })
