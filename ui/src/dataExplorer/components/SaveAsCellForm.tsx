@@ -68,7 +68,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
     targetDashboardIDs: [],
     cellName: '',
     isNameDashVisible: false,
-    newDashboardName: '',
+    newDashboardName: DEFAULT_DASHBOARD_NAME,
   }
 
   public componentDidMount() {
@@ -78,7 +78,12 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 
   public render() {
     const {dismiss, dashboards} = this.props
-    const {cellName, isNameDashVisible, targetDashboardIDs} = this.state
+    const {
+      cellName,
+      isNameDashVisible,
+      targetDashboardIDs,
+      newDashboardName,
+    } = this.state
     return (
       <Form onSubmit={this.handleSubmit}>
         <Grid>
@@ -89,6 +94,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
                   onSelect={this.handleSelectDashboardID}
                   selectedIDs={targetDashboardIDs}
                   dashboards={dashboards}
+                  newDashboardName={newDashboardName}
                 />
               </Form.Element>
             </Grid.Column>
@@ -219,7 +225,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
       targetDashboardIDs: [],
       cellName: '',
       isNameDashVisible: false,
-      newDashboardName: '',
+      newDashboardName: DEFAULT_DASHBOARD_NAME,
     })
   }
 

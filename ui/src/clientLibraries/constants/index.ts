@@ -4,6 +4,7 @@ import GoLogo from '../graphics/GoLogo'
 import JavaLogo from '../graphics/JavaLogo'
 import JSLogo from '../graphics/JSLogo'
 import PythonLogo from '../graphics/PythonLogo'
+import RubyLogo from '../graphics/RubyLogo'
 
 export interface ClientLibrary {
   id: string
@@ -107,10 +108,10 @@ export const clientJavaLibrary = {
   buildWithMavenCodeSnippet: `<dependency>
   <groupId>com.influxdb</groupId>
   <artifactId>influxdb-client-java</artifactId>
-  <version>1.1.0</version>
+  <version>1.4.0</version>
 </dependency>`,
   buildWithGradleCodeSnippet: `dependencies {
-  compile "com.influxdb:influxdb-client-java:1.1.0"
+  compile "com.influxdb:influxdb-client-java:1.4.0"
 }`,
   initializeClientCodeSnippet: `package example;
 
@@ -198,10 +199,48 @@ write_client.write("<%= bucket %>", "<%= org %>", point)`,
 write_client.write("<%= bucket %>", "<%= org %>", sequence)`,
 }
 
+export const clientRubyLibrary = {
+  id: 'ruby',
+  name: 'Ruby',
+  url: 'https://github.com/influxdata/influxdb-client-ruby',
+  image: RubyLogo,
+  initializeGemCodeSnippet: `gem install influxdb-client -v 1.0.0.beta`,
+  initializeClientCodeSnippet: `## You can generate a Token from the "Tokens Tab" in the UI
+client = InfluxDB2::Client.new('<%= server %>', '<%= token %>')`,
+  writingDataLineProtocolCodeSnippet: `data = 'mem,host=host1 used_percent=23.43234543 1556896326'
+write_client.write(data: data, bucket: '<%= bucket %>', org: '<%= org %>')`,
+  writingDataPointCodeSnippet: `point = InfluxDB2::Point.new(name: 'mem')
+  .add_tag('host', 'host1')
+  .add_field('used_percent', 23.43234543)
+  .time(1_556_896_326, WritePrecision.NS)
+
+write_client.write(data: point, bucket: '<%= bucket %>', org: '<%= org %>')`,
+  writingDataHashCodeSnippet: `hash = { name: 'h2o',
+  tags: { host: 'aws', region: 'us' },
+  fields: { level: 5, saturation: '99%' },
+  time: 123 }
+
+write_client.write(data: hash, bucket: '<%= bucket %>', org: '<%= org %>')`,
+  writingDataBatchCodeSnippet: `point = InfluxDB2::Point.new(name: 'mem')
+  .add_tag('host', 'host1')
+  .add_field('used_percent', 23.43234543)
+  .time(1_556_896_326, WritePrecision.NS)
+ 
+hash = { name: 'h2o',
+  tags: { host: 'aws', region: 'us' },
+  fields: { level: 5, saturation: '99%' },
+  time: 123 }
+  
+data = 'mem,host=host1 used_percent=23.43234543 1556896326'   
+            
+write_client.write(data: [point, hash, data], bucket: '<%= bucket %>', org: '<%= org %>')`,
+}
+
 export const clientLibraries: ClientLibrary[] = [
   clientCSharpLibrary,
   clientGoLibrary,
   clientJavaLibrary,
   clientJSLibrary,
   clientPythonLibrary,
+  clientRubyLibrary,
 ]

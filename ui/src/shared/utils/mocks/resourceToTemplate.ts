@@ -82,6 +82,7 @@ export const myView: View = {
     yColumn: null,
     position: 'overlaid',
   },
+  status: RemoteDataState.Done,
 }
 
 export const myfavelabel: Label = {

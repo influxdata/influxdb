@@ -16,6 +16,7 @@ import {
   addDashboardLabel,
   removeDashboardLabel,
 } from 'src/dashboards/actions/thunks'
+import {resetViews} from 'src/views/actions/creators'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
@@ -25,7 +26,6 @@ import {AppState, Label} from 'src/types'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
-import {resetViews} from 'src/dashboards/actions/views'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'

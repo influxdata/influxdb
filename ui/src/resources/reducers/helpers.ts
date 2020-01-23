@@ -20,8 +20,11 @@ export const setResourceAtID = <R extends {status: RemoteDataState}>(
     return
   }
 
+  if (!draftState.allIDs.includes(id)) {
+    draftState.allIDs.push(id)
+  }
+
   draftState.byID[id] = {...r, status}
-  draftState.allIDs.push(id)
   draftState.byID[id].status = status
 }
 

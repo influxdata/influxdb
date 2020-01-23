@@ -12,7 +12,7 @@ import {
   FlexDirection,
   InfluxColors,
 } from '@influxdata/clockface'
-import CheckLevelsDropdown from 'src/alerting/components/builder/CheckLevelsDropdown'
+import CheckLevelsDropdown from 'src/checks/components/CheckLevelsDropdown'
 
 // Actions
 import {
