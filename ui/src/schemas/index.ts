@@ -180,13 +180,7 @@ export const arrayOfTelegrafs = [telegraf]
 /* Templates */
 
 // Defines the schema for the "templates" resource
-export const template = new schema.Entity(
-  ResourceType.Templates,
-  {},
-  {
-    processStrategy: (t: TemplateSummary): TemplateSummary => t,
-  }
-)
+export const template = new schema.Entity(ResourceType.Templates)
 export const arrayOfTemplates = [template]
 
 /* Scrapers */
