@@ -366,12 +366,12 @@ func forEachOrganization(ctx context.Context, tx Tx, fn func(*influxdb.Organizat
 		return err
 	}
 
-	cur, err := b.Cursor()
+	cur, err := b.ForwardCursor(nil)
 	if err != nil {
 		return err
 	}
 
-	for k, v := cur.First(); k != nil; k, v = cur.Next() {
+	for k, v := cur.Next(); k != nil; k, v = cur.Next() {
 		o := &influxdb.Organization{}
 		if err := json.Unmarshal(v, o); err != nil {
 			return err
