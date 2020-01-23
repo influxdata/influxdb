@@ -19,7 +19,7 @@ import {STATUS_FIELDS} from 'src/alerting/constants/history'
 
 // Utils
 import {loadStatuses, getInitialState} from 'src/alerting/utils/history'
-import {getCheckIDs} from 'src/alerting/selectors'
+import {getCheckIDs} from 'src/checks/selectors'
 
 // Types
 import {ResourceIDs} from 'src/checks/reducers'
