@@ -6,7 +6,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Actions and Selectors
-import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {viewableLabels} from 'src/labels/selectors'
 import {
   addEndpointLabel,
@@ -43,7 +42,6 @@ interface DispatchProps {
   onDeleteEndpoint: typeof deleteEndpoint
   onAddEndpointLabel: typeof addEndpointLabel
   onRemoveEndpointLabel: typeof deleteEndpointLabel
-  onCreateLabel: typeof createLabelAsync
   onUpdateEndpointProperties: typeof updateEndpointProperties
   onCloneEndpoint: typeof cloneEndpoint
 }
@@ -71,7 +69,6 @@ const EndpointCard: FC<Props> = ({
   router,
   params: {orgID},
   endpoint,
-  onCreateLabel,
   onUpdateEndpointProperties,
   onCloneEndpoint,
   onDeleteEndpoint,
@@ -137,9 +134,6 @@ const EndpointCard: FC<Props> = ({
     />
   )
 
-  const handleCreateLabel = (label: Label) => {
-    onCreateLabel(label.name, label.properties)
-  }
   const handleAddEndpointLabel = (label: Label) => {
     onAddEndpointLabel(id, label)
   }
@@ -152,7 +146,6 @@ const EndpointCard: FC<Props> = ({
       labels={labels}
       onAddLabel={handleAddEndpointLabel}
       onRemoveLabel={handleRemoveEndpointLabel}
-      onCreateLabel={handleCreateLabel}
     />
   )
 
@@ -186,7 +179,6 @@ const EndpointCard: FC<Props> = ({
 
 const mdtp: DispatchProps = {
   onDeleteEndpoint: deleteEndpoint,
-  onCreateLabel: createLabelAsync,
   onAddEndpointLabel: addEndpointLabel,
   onRemoveEndpointLabel: deleteEndpointLabel,
   onUpdateEndpointProperties: updateEndpointProperties,

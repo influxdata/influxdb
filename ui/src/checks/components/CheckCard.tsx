@@ -21,7 +21,6 @@ import {
   deleteCheckLabel,
   cloneCheck,
 } from 'src/checks/actions'
-import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {viewableLabels} from 'src/labels/selectors'
 import {notify} from 'src/shared/actions/notifications'
 import {updateCheckFailed} from 'src/shared/copy/notifications'
@@ -37,7 +36,6 @@ interface DispatchProps {
   deleteCheck: typeof deleteCheck
   onAddCheckLabel: typeof addCheckLabel
   onRemoveCheckLabel: typeof deleteCheckLabel
-  onCreateLabel: typeof createLabelAsync
   onCloneCheck: typeof cloneCheck
   onNotify: typeof notify
 }
@@ -55,7 +53,6 @@ type Props = OwnProps & DispatchProps & WithRouterProps & StateProps
 const CheckCard: FunctionComponent<Props> = ({
   onRemoveCheckLabel,
   onAddCheckLabel,
-  onCreateLabel,
   onCloneCheck,
   onNotify,
   check,
@@ -119,10 +116,6 @@ const CheckCard: FunctionComponent<Props> = ({
     onRemoveCheckLabel(check.id, label)
   }
 
-  const handleCreateLabel = async (label: Label) => {
-    await onCreateLabel(label.name, label.properties)
-  }
-
   return (
     <ResourceCard
       key={`check-id--${check.id}`}
@@ -159,7 +152,6 @@ const CheckCard: FunctionComponent<Props> = ({
           labels={labels}
           onAddLabel={handleAddCheckLabel}
           onRemoveLabel={handleRemoveCheckLabel}
-          onCreateLabel={handleCreateLabel}
         />
       }
       disabled={check.status === 'inactive'}
@@ -187,7 +179,6 @@ const mdtp: DispatchProps = {
   onUpdateCheckDisplayProperties: updateCheckDisplayProperties,
   deleteCheck: deleteCheck,
   onAddCheckLabel: addCheckLabel,
-  onCreateLabel: createLabelAsync,
   onRemoveCheckLabel: deleteCheckLabel,
   onCloneCheck: cloneCheck,
   onNotify: notify,

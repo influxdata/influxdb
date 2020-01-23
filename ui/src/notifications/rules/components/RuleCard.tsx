@@ -25,7 +25,6 @@ import {
   cloneRule,
 } from 'src/notifications/rules/actions'
 import {viewableLabels} from 'src/labels/selectors'
-import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Types
 import {
@@ -43,7 +42,6 @@ interface DispatchProps {
   deleteNotificationRule: typeof deleteRule
   onAddRuleLabel: typeof addRuleLabel
   onRemoveRuleLabel: typeof deleteRuleLabel
-  onCreateLabel: typeof createLabelAsync
   onCloneRule: typeof cloneRule
 }
 
@@ -65,7 +63,6 @@ const RuleCard: FC<Props> = ({
   onCloneRule,
   onAddRuleLabel,
   onRemoveRuleLabel,
-  onCreateLabel,
   params: {orgID},
   router,
 }) => {
@@ -114,10 +111,6 @@ const RuleCard: FC<Props> = ({
     onRemoveRuleLabel(rule.id, label)
   }
 
-  const handleCreateLabel = (label: Label) => {
-    onCreateLabel(label.name, label.properties)
-  }
-
   return (
     <ResourceCard
       key={`rule-id--${rule.id}`}
@@ -154,7 +147,6 @@ const RuleCard: FC<Props> = ({
           labels={labels}
           onAddLabel={handleAddRuleLabel}
           onRemoveLabel={handleRemoveRuleLabel}
-          onCreateLabel={handleCreateLabel}
         />
       }
       disabled={rule.status === 'inactive'}
@@ -181,7 +173,6 @@ const RuleCard: FC<Props> = ({
 const mdtp: DispatchProps = {
   onUpdateRuleProperties: updateRuleProperties,
   deleteNotificationRule: deleteRule,
-  onCreateLabel: createLabelAsync,
   onAddRuleLabel: addRuleLabel,
   onRemoveRuleLabel: deleteRuleLabel,
   onCloneRule: cloneRule,

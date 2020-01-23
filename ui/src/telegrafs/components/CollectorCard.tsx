@@ -14,7 +14,6 @@ import {
   addTelegrafLabelsAsync,
   removeTelegrafLabelsAsync,
 } from 'src/telegrafs/actions/thunks'
-import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
@@ -41,7 +40,6 @@ interface StateProps {
 interface DispatchProps {
   onAddLabels: typeof addTelegrafLabelsAsync
   onRemoveLabels: typeof removeTelegrafLabelsAsync
-  onCreateLabel: typeof createLabelAsync
 }
 
 type Props = OwnProps & StateProps & DispatchProps
@@ -127,7 +125,6 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
         onFilterChange={onFilterChange}
         onAddLabel={this.handleAddLabel}
         onRemoveLabel={this.handleRemoveLabel}
-        onCreateLabel={this.handleCreateLabel}
       />
     )
   }
@@ -142,11 +139,6 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
     const {collector, onRemoveLabels} = this.props
 
     await onRemoveLabels(collector.id, [label])
-  }
-
-  private handleCreateLabel = async (label: Label) => {
-    const {name, properties} = label
-    await this.props.onCreateLabel(name, properties)
   }
 
   private handleNameClick = (e: MouseEvent) => {
@@ -174,7 +166,6 @@ const mstp = (state: AppState): StateProps => {
 const mdtp: DispatchProps = {
   onAddLabels: addTelegrafLabelsAsync,
   onRemoveLabels: removeTelegrafLabelsAsync,
-  onCreateLabel: createLabelAsync,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

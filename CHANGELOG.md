@@ -8,6 +8,9 @@
 1. [16504](https://github.com/influxdata/influxdb/pull/16504): Add backup and restore
 1. [16522](https://github.com/influxdata/influxdb/pull/16522): Introduce resource logger to tasks, buckets and organizations
 
+### Bug Fixes
+1. [16656](https://github.com/influxdata/influxdb/pull/16656): Check engine closed before collecting index metrics
+
 ### UI Improvements
 
 1. [16575](https://github.com/influxdata/influxdb/pull/16575): Swap billingURL with checkoutURL
