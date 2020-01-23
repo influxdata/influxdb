@@ -19,6 +19,7 @@ import * as cellActions from 'src/cells/actions/thunks'
 import * as dashboardActions from 'src/dashboards/actions/thunks'
 import * as rangesActions from 'src/dashboards/actions/ranges'
 import * as appActions from 'src/shared/actions/app'
+import {updateViewAndVariables} from 'src/views/actions/thunks'
 import {
   setAutoRefreshInterval,
   setAutoRefreshStatus,
@@ -41,12 +42,10 @@ import {getOrg} from 'src/organizations/selectors'
 import {
   Links,
   Cell,
-  View,
   TimeRange,
   AppState,
   AutoRefresh,
   AutoRefreshStatus,
-  RemoteDataState,
   ResourceType,
   Dashboard,
 } from 'src/types'
@@ -63,7 +62,6 @@ interface StateProps {
   links: Links
   timeRange: TimeRange
   showVariablesControls: boolean
-  views: {[cellID: string]: {view: View; status: RemoteDataState}}
 }
 
 interface DispatchProps {
@@ -76,7 +74,7 @@ interface DispatchProps {
   handleChooseAutoRefresh: typeof setAutoRefreshInterval
   onSetAutoRefreshStatus: typeof setAutoRefreshStatus
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
-  onUpdateView: typeof dashboardActions.updateView
+  onUpdateView: typeof updateViewAndVariables
   onToggleShowVariablesControls: typeof toggleShowVariablesControls
 }
 
@@ -220,7 +218,6 @@ class DashboardPage extends Component<Props> {
 const mstp = (state: AppState, {dashboardID}: OwnProps): StateProps => {
   const {
     links,
-    views: {views},
     userSettings: {showVariablesControls},
     cloud: {limits},
   } = state
@@ -238,7 +235,6 @@ const mstp = (state: AppState, {dashboardID}: OwnProps): StateProps => {
 
   return {
     links,
-    views,
     orgName: org && org.name,
     timeRange,
     dashboardName: dashboard && dashboard.name,
@@ -258,7 +254,7 @@ const mdtp: DispatchProps = {
   updateQueryParams: rangesActions.updateQueryParams,
   updateCells: cellActions.updateCells,
   deleteCell: cellActions.deleteCell,
-  onUpdateView: dashboardActions.updateView,
+  onUpdateView: updateViewAndVariables,
   onToggleShowVariablesControls: toggleShowVariablesControls,
 }
 

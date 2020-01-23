@@ -8,6 +8,7 @@ import {
   RemoteDataState,
   Telegraf,
   Scraper,
+  View,
   TasksState,
   VariablesState,
 } from 'src/types'
@@ -29,6 +30,7 @@ export enum ResourceType {
   Templates = 'templates',
   Telegrafs = 'telegrafs',
   Variables = 'variables',
+  Views = 'views',
 }
 
 export interface NormalizedState<R> {
@@ -62,4 +64,5 @@ export interface ResourceState {
   [ResourceType.Tasks]: TasksState
   [ResourceType.Telegrafs]: TelegrafsState
   [ResourceType.Variables]: VariablesState
+  [ResourceType.Views]: NormalizedState<View>
 }

@@ -15,7 +15,7 @@ import {incrementCloneName} from 'src/utils/naming'
 import {reportError} from 'src/shared/utils/errors'
 import {isDurationParseable} from 'src/shared/utils/duration'
 import {checkThresholdsValid} from '../utils/checkValidate'
-import {createView} from 'src/shared/utils/view'
+import {createView} from 'src/views/helpers'
 import {getOrg} from 'src/organizations/selectors'
 
 // Actions

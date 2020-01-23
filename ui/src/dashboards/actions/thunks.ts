@@ -21,11 +21,12 @@ import {
   deleteTimeRange,
   updateTimeRangeFromQueryParams,
 } from 'src/dashboards/actions/ranges'
-import {setView, setViews} from 'src/dashboards/actions/views'
+import {setViews} from 'src/views/actions/creators'
 import {selectValue} from 'src/variables/actions/creators'
 import {getVariables, refreshVariableValues} from 'src/variables/actions/thunks'
 import {setExportTemplate} from 'src/templates/actions'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
+import {updateViewAndVariables} from 'src/views/actions/thunks'
 import * as creators from 'src/dashboards/actions/creators'
 
 // Utils
@@ -35,7 +36,6 @@ import {
   extractVariablesList,
   getHydratedVariables,
 } from 'src/variables/selectors'
-import {getViewsForDashboard} from 'src/dashboards/selectors'
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {exportVariables} from 'src/variables/utils/exportVariables'
 import {getSaveableView} from 'src/timeMachine/selectors'
@@ -58,8 +58,10 @@ import {
   Label,
   RemoteDataState,
   DashboardEntities,
+  ViewEntities,
   ResourceType,
 } from 'src/types'
+import {CellsWithViewProperties} from 'src/client'
 
 type Action = creators.Action
 
@@ -261,9 +263,11 @@ export const getDashboard = (dashboardID: string) => async (
   getState: GetState
 ): Promise<void> => {
   try {
-    // Fetch the dashboard and all variables a user has access to
+    dispatch(creators.setDashboard(dashboardID, RemoteDataState.Loading))
+
+    // Fetch the dashboard, views, and all variables a user has access to
     const [resp] = await Promise.all([
-      api.getDashboard({dashboardID}),
+      api.getDashboard({dashboardID, query: {include: 'properties'}}),
       dispatch(getVariables()),
     ])
 
@@ -276,21 +280,22 @@ export const getDashboard = (dashboardID: string) => async (
       schemas.dashboard
     )
 
-    const {cells, id}: Dashboard = normDash.entities.dashboards[normDash.result]
+    const cellViews: CellsWithViewProperties = resp.data.cells || []
+    const viewsData = schemas.viewsFromCells(cellViews, dashboardID)
 
-    // Fetch all the views in use on the dashboard
-    const views = await Promise.all(
-      cells.map(cellID => dashAPI.getView(id, cellID))
+    const normViews = normalize<View, ViewEntities, string[]>(
+      viewsData,
+      schemas.arrayOfViews
     )
 
-    dispatch(setViews(RemoteDataState.Done, views))
+    dispatch(setViews(RemoteDataState.Done, normViews))
 
     // Ensure the values for the variables in use on the dashboard are populated
-    await dispatch(refreshDashboardVariableValues(id, views))
+    await dispatch(refreshDashboardVariableValues(dashboardID, viewsData))
 
     // Now that all the necessary state has been loaded, set the dashboard
     dispatch(creators.setDashboard(dashboardID, RemoteDataState.Done, normDash))
-    dispatch(updateTimeRangeFromQueryParams(id))
+    dispatch(updateTimeRangeFromQueryParams(dashboardID))
   } catch (error) {
     const org = getOrg(getState())
     dispatch(push(`/orgs/${org.id}/dashboards`))
@@ -335,29 +340,6 @@ export const updateDashboard = (
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.dashboardUpdateFailed()))
-  }
-}
-
-export const updateView = (dashboardID: string, view: View) => async (
-  dispatch,
-  getState: GetState
-) => {
-  const cellID = view.cellID
-
-  try {
-    const newView = await dashAPI.updateView(dashboardID, cellID, view)
-
-    const views = getViewsForDashboard(getState(), dashboardID)
-
-    views.splice(views.findIndex(v => v.id === newView.id), 1, newView)
-
-    await dispatch(refreshDashboardVariableValues(dashboardID, views))
-
-    dispatch(setView(cellID, newView, RemoteDataState.Done))
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.cellUpdateFailed()))
-    dispatch(setView(cellID, null, RemoteDataState.Error))
   }
 }
 
@@ -479,7 +461,7 @@ export const saveVEOView = (dashboardID: string) => async (
 
   try {
     if (view.id) {
-      await dispatch(updateView(dashboardID, view))
+      await dispatch(updateViewAndVariables(dashboardID, view))
     } else {
       await dispatch(createCellWithView(dashboardID, view))
     }

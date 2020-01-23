@@ -1,7 +1,7 @@
 // Constants
 import {INFERNO, NINETEEN_EIGHTY_FOUR} from '@influxdata/giraffe'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
-import {DEFAULT_CELL_NAME} from 'src/dashboards/constants/index'
+import {DEFAULT_CELL_NAME} from 'src/dashboards/constants'
 import {
   DEFAULT_GAUGE_COLORS,
   DEFAULT_THRESHOLDS_LIST_COLORS,
@@ -11,30 +11,32 @@ import {DEFAULT_CHECK_EVERY} from 'src/alerting/constants'
 
 // Types
 import {
-  ViewType,
-  Base,
-  XYViewProperties,
-  HistogramViewProperties,
-  HeatmapViewProperties,
-  ScatterViewProperties,
-  LinePlusSingleStatProperties,
-  SingleStatViewProperties,
-  MarkdownViewProperties,
-  TableViewProperties,
-  GaugeViewProperties,
-  NewView,
-  ViewProperties,
-  DashboardQuery,
-  BuilderConfig,
   Axis,
-  Color,
-  CheckViewProperties,
+  Base,
+  BuilderConfig,
   CheckType,
+  CheckViewProperties,
+  Color,
+  DashboardQuery,
+  GaugeViewProperties,
+  HeatmapViewProperties,
+  HistogramViewProperties,
+  LinePlusSingleStatProperties,
+  MarkdownViewProperties,
+  NewView,
+  RemoteDataState,
+  ScatterViewProperties,
+  SingleStatViewProperties,
+  TableViewProperties,
+  ViewProperties,
+  ViewType,
+  XYViewProperties,
 } from 'src/types'
 
-function defaultView() {
+export const defaultView = (name: string = DEFAULT_CELL_NAME) => {
   return {
-    name: DEFAULT_CELL_NAME,
+    name,
+    status: RemoteDataState.Done,
   }
 }
 
@@ -56,7 +58,7 @@ export function defaultBuilderConfig(): BuilderConfig {
   }
 }
 
-function defaultLineViewProperties() {
+export function defaultLineViewProperties() {
   return {
     queries: [defaultViewQuery()],
     colors: DEFAULT_LINE_COLORS as Color[],
@@ -255,7 +257,7 @@ const NEW_VIEW_CREATORS = {
     },
   }),
   threshold: (): NewView<CheckViewProperties> => ({
-    name: 'check',
+    ...defaultView('check'),
     properties: {
       type: 'check',
       shape: 'chronograf-v2',
@@ -277,7 +279,7 @@ const NEW_VIEW_CREATORS = {
     },
   }),
   deadman: (): NewView<CheckViewProperties> => ({
-    name: 'check',
+    ...defaultView('check'),
     properties: {
       type: 'check',
       shape: 'chronograf-v2',

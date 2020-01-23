@@ -1,5 +1,6 @@
 // Libraries
 import {schema} from 'normalizr'
+import {omit} from 'lodash'
 
 // Types
 import {
@@ -11,10 +12,13 @@ import {
   RemoteDataState,
   Variable,
   Dashboard,
+  View,
 } from 'src/types'
+import {CellsWithViewProperties} from 'src/client'
 
 // Utils
 import {addLabelDefaults} from 'src/labels/utils'
+import {defaultView} from 'src/views/helpers'
 
 /* Authorizations */
 
@@ -28,6 +32,30 @@ export const arrayOfAuths = [auth]
 export const bucket = new schema.Entity(ResourceType.Buckets)
 export const arrayOfBuckets = [bucket]
 
+/* Views */
+
+// Defines the schema for the "views" resource
+
+export const viewsFromCells = (
+  cells: CellsWithViewProperties,
+  dashboardID: string
+): View[] => {
+  return cells.map(cell => {
+    const {properties, id, name} = cell
+
+    return {
+      id,
+      ...defaultView(name),
+      cellID: id,
+      properties,
+      dashboardID,
+    }
+  })
+}
+
+export const view = new schema.Entity(ResourceType.Views)
+export const arrayOfViews = [view]
+
 /* Cells */
 
 // Defines the schema for the "cells" resource
@@ -37,8 +65,8 @@ export const cell = new schema.Entity(
   {
     processStrategy: (cell: Cell, parent: Dashboard) => {
       return {
-        ...cell,
-        dashboardID: !cell.dashboardID ? parent.id : cell.dashboardID,
+        ...omit<Cell>(cell, 'properties'),
+        dashboardID: cell.dashboardID ? cell.dashboardID : parent.id,
         status: RemoteDataState.Done,
       }
     },
@@ -53,6 +81,7 @@ export const dashboard = new schema.Entity(
   ResourceType.Dashboards,
   {
     cells: arrayOfCells,
+    views: arrayOfViews,
   },
   {
     processStrategy: (dashboard: Dashboard) => addDashboardDefaults(dashboard),
@@ -172,6 +201,7 @@ export const variable = new schema.Entity(
 )
 export const arrayOfVariables = [variable]
 
+// Defaults
 const addStatus = <R extends {status: RemoteDataState}>(resource: R) => {
   return resource.status ? resource.status : RemoteDataState.Done
 }

@@ -6,15 +6,16 @@ import {get} from 'lodash'
 import {Plot} from '@influxdata/giraffe'
 import CheckPlot from 'src/shared/components/CheckPlot'
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
+import TimeSeries from 'src/shared/components/TimeSeries'
 
 // Types
 import {ResourceIDs} from 'src/alerting/reducers/checks'
-import {Check, TimeZone, CheckViewProperties} from 'src/types'
-import TimeSeries from 'src/shared/components/TimeSeries'
-import {createView} from 'src/shared/utils/view'
+import {Check, TimeZone, CheckViewProperties, TimeRange} from 'src/types'
+
+// Utils
+import {createView} from 'src/views/helpers'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
-import {TimeRange} from 'src/types'
 
 export const ResourceIDsContext = createContext<ResourceIDs>(null)
 

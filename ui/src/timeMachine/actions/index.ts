@@ -17,7 +17,7 @@ import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
 import {getActiveQuery} from 'src/timeMachine/selectors'
 
 // Utils
-import {createView} from 'src/shared/utils/view'
+import {createView} from 'src/views/helpers'
 import {createCheckQueryFromAlertBuilder} from 'src/alerting/utils/customCheck'
 
 // Types
