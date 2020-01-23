@@ -104,8 +104,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						DryRun: true,
 						OrgID:  influxdb.ID(9000).String(),
 						Remote: fluxTTP.PkgRemote{
-							URL:         "https://gist.githubusercontent.com/jsteenb2/3a3b2b5fcbd6179b2494c2b54aa2feb0/raw/540e65305a18bfca6123714e6c8868b1b465c7ef/bucket_pkg_json",
-							ContentType: "jsonnet",
+							URL: "https://gist.githubusercontent.com/jsteenb2/3a3b2b5fcbd6179b2494c2b54aa2feb0/raw/989d361db7a851a3c388eaed0b59dce7fca7fdf3/bucket_pkg.json",
 						},
 					},
 				},

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/go-chi/chi"
@@ -135,12 +136,14 @@ type PkgRemote struct {
 
 // Encoding returns the encoding type that corresponds to the given content type.
 func (p PkgRemote) Encoding() pkger.Encoding {
-	switch strings.ToLower(p.ContentType) {
-	case "json":
-		return pkger.EncodingJSON
-	case "jsonnet":
+	ct := strings.ToLower(p.ContentType)
+	urlBase := path.Ext(p.URL)
+	switch {
+	case ct == "jsonnet" || urlBase == ".jsonnet":
 		return pkger.EncodingJsonnet
-	case "yml", "yaml":
+	case ct == "json" || urlBase == ".json":
+		return pkger.EncodingJSON
+	case ct == "yml" || ct == "yaml" || urlBase == ".yml" || urlBase == ".yaml":
 		return pkger.EncodingYAML
 	default:
 		return pkger.EncodingSource

@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -417,13 +418,16 @@ func (b *cmdPkgBuilder) readLines(r io.Reader) ([]string, error) {
 }
 
 func (b *cmdPkgBuilder) applyEncoding() pkger.Encoding {
+	urlBase := path.Ext(b.applyOpts.url)
 	ext := filepath.Ext(b.file)
 	switch {
-	case ext == ".json" || b.encoding == "json":
+	case ext == ".json" || b.encoding == "json" || urlBase == ".json":
 		return pkger.EncodingJSON
-	case ext == ".yml" || ext == ".yaml" || b.encoding == "yml" || b.encoding == "yaml":
+	case ext == ".yml" || ext == ".yaml" ||
+		b.encoding == "yml" || b.encoding == "yaml" ||
+		urlBase == ".yml" || urlBase == ".yaml":
 		return pkger.EncodingYAML
-	case ext == ".jsonnet" || b.encoding == "jsonnet":
+	case ext == ".jsonnet" || b.encoding == "jsonnet" || urlBase == ".jsonnet":
 		return pkger.EncodingJsonnet
 	default:
 		return pkger.EncodingSource
