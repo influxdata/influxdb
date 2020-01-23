@@ -84,7 +84,6 @@ export const rootReducer = combineReducers<ReducerState>({
   telegrafEditor: editorReducer,
   telegrafEditorActivePlugins: activePluginsReducer,
   telegrafEditorPlugins: pluginsReducer,
-  templates: templatesReducer,
   timeMachines: timeMachinesReducer,
   userSettings: userSettingsReducer,
   variableEditor: variableEditorReducer,

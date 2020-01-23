@@ -111,7 +111,7 @@ export const updateTemplate = (id: string, props: TemplateSummary) => async (
       string
     >(item, schemas.template)
 
-    dispatch(setTemplateSummary(id, templateSummary))
+    dispatch(setTemplateSummary(id, RemoteDataState.Done, templateSummary))
     dispatch(notify(copy.updateTemplateSucceeded()))
   } catch (e) {
     console.error(e)
@@ -226,7 +226,9 @@ export const addTemplateLabelsAsync = (
       string
     >(item, schemas.template)
 
-    dispatch(setTemplateSummary(templateID, templateSummary))
+    dispatch(
+      setTemplateSummary(templateID, RemoteDataState.Done, templateSummary)
+    )
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.addTemplateLabelFailed()))
@@ -246,7 +248,9 @@ export const removeTemplateLabelsAsync = (
       string
     >(item, schemas.template)
 
-    dispatch(setTemplateSummary(templateID, templateSummary))
+    dispatch(
+      setTemplateSummary(templateID, RemoteDataState.Done, templateSummary)
+    )
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.removeTemplateLabelFailed()))

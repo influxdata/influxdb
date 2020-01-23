@@ -30,6 +30,9 @@ import {
   ResourceType,
 } from 'src/types'
 
+// Selectors
+import {getAll} from 'src/resources/selectors'
+
 interface StateProps {
   templates: TemplateSummary[]
   templateStatus: RemoteDataState
@@ -138,7 +141,13 @@ class TaskImportFromTemplateOverlay extends PureComponent<
   }
 }
 
-const mstp = ({templates: {items, status}}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {
+    resources: {
+      templates: {status},
+    },
+  } = state
+  const items = getAll<TemplateSummary>(state, ResourceType.Templates)
   const filteredTemplates = items.filter(
     t => !t.meta.type || t.meta.type === TemplateType.Task
   )

@@ -62,8 +62,8 @@ class VariableExportOverlay extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => ({
-  variableTemplate: state.templates.exportTemplate.item,
-  status: state.templates.exportTemplate.status,
+  variableTemplate: state.resources.templates.exportTemplate.item,
+  status: state.resources.templates.exportTemplate.status,
 })
 
 const mdtp: DispatchProps = {

@@ -9,7 +9,7 @@ import {
   Scraper,
   TasksState,
   Telegraf,
-  Template,
+  TemplatesState,
   VariablesState,
 } from 'src/types'
 
@@ -62,6 +62,6 @@ export interface ResourceState {
   [ResourceType.Scrapers]: NormalizedState<Scraper>
   [ResourceType.Tasks]: TasksState
   [ResourceType.Telegrafs]: TelegrafsState
-  [ResourceType.Templates]: NormalizedState<Template>
+  [ResourceType.Templates]: TemplatesState
   [ResourceType.Variables]: VariablesState
 }

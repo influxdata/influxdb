@@ -62,8 +62,8 @@ class TaskExportOverlay extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => ({
-  taskTemplate: state.templates.exportTemplate.item,
-  status: state.templates.exportTemplate.status,
+  taskTemplate: state.resources.templates.exportTemplate.item,
+  status: state.resources.templates.exportTemplate.status,
 })
 
 const mdtp: DispatchProps = {

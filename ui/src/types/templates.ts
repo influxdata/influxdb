@@ -17,6 +17,7 @@ import {
 
 export interface TemplateSummary extends DocumentListEntry {
   labels: ILabel[]
+  status: RemoteDataState
 }
 
 export interface TemplatesState extends NormalizedState<TemplateSummary> {

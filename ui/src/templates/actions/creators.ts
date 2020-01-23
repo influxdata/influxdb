@@ -14,12 +14,11 @@ export const SET_TEMPLATES_STATUS = 'SET_TEMPLATES_STATUS'
 export type Action =
   | ReturnType<typeof addTemplateSummary>
   | ReturnType<typeof populateTemplateSummaries>
+  | ReturnType<typeof removeTemplateSummary>
   | ReturnType<typeof setExportTemplate>
   | ReturnType<typeof setTemplatesStatus>
-  | ReturnType<typeof removeTemplateSummary>
   | ReturnType<typeof setTemplateSummary>
 
-// R
 type TemplateSummarySchema<R extends string | string[]> = NormalizedSchema<
   TemplateSummaryEntities,
   R
@@ -57,20 +56,20 @@ export const setTemplatesStatus = (status: RemoteDataState) =>
     status,
   } as const)
 
-export const removeTemplateSummary = (templateID: string) =>
+export const removeTemplateSummary = (id: string) =>
   ({
     type: REMOVE_TEMPLATE_SUMMARY,
-    templateID,
+    id,
   } as const)
 
 export const setTemplateSummary = (
-  templateID: string,
+  id: string,
   status: RemoteDataState,
   schema: TemplateSummarySchema<string>
 ) =>
   ({
     type: SET_TEMPLATE_SUMMARY,
-    templateID,
+    id,
     status,
     schema,
   } as const)
