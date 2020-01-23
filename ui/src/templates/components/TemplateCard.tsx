@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get} from 'lodash'
 import {withRouter, WithRouterProps} from 'react-router'
 import {
   Button,
@@ -116,8 +116,8 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
 
   private get description(): JSX.Element {
     const {template} = this.props
-    const description = _.get(template, 'meta.description', '')
-    const name = _.get(template, 'meta.name', '')
+    const description = get(template, 'meta.description', '')
+    const name = get(template, 'meta.name', '')
 
     return (
       <ResourceCard.EditableDescription
@@ -133,7 +133,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
 
     return (
       <div className="resource-list--meta-item">
-        {_.get(template, 'meta.type', '')}
+        {get(template, 'meta.type', '')}
       </div>
     )
   }
@@ -217,7 +217,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleCreateLabel = (label: Label) => {
-    this.props.onCreateLabel(label.name, label.properties)
+    return this.props.onCreateLabel(label.name, label.properties)
   }
 }
 

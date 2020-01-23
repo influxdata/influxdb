@@ -11,7 +11,7 @@ import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 import {validateLabelUniqueness} from 'src/labels/utils/'
 
 // Types
-import {Label} from 'src/types'
+import {AppThunk, Label} from 'src/types'
 import {OverlayState} from 'src/types/overlay'
 
 // Constants
@@ -30,8 +30,8 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   selectedLabels: Label[]
   labels: Label[]
-  onAddLabel: (label: Label) => Promise<void> | void
-  onCreateLabel: (label: Label) => Promise<void> | void
+  onAddLabel: (label: Label) => Promise<void>
+  onCreateLabel: (label: Label) => AppThunk<Promise<void>>
 }
 
 interface State {
@@ -129,6 +129,7 @@ class InlineLabelsEditor extends Component<Props, State> {
   private handleAddLabel = async (labelID: string) => {
     const {onAddLabel, labels} = this.props
 
+    debugger
     const label = labels.find(label => label.id === labelID)
 
     if (label) {
@@ -230,14 +231,14 @@ class InlineLabelsEditor extends Component<Props, State> {
     return _.differenceBy(labels, selectedLabels, label => label.name)
   }
 
-  private handleCreateLabel = async (label: Label) => {
+  private handleCreateLabel = (label: Label) => {
     const {onCreateLabel, onAddLabel} = this.props
 
-    try {
-      await onCreateLabel(label)
-      const newLabel = this.props.labels.find(l => l.name === label.name)
-      await onAddLabel(newLabel)
-    } catch (error) {}
+    return onCreateLabel(label)
+      .then(() => {
+        const newLabel = this.props.labels.find(l => l.name === label.name)
+        return onAddLabel(newLabel)
+      })
   }
 
   private handleStartCreatingLabel = (): void => {

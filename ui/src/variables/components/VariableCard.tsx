@@ -105,9 +105,9 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
     onRemoveVariableLabel(variable.id, label)
   }
 
-  private handleCreateLabel = (label: Label): void => {
+  private handleCreateLabel = (label: Label): Promise<void> => {
     const {name, properties} = label
-    this.props.onCreateLabel(name, properties)
+    return this.props.onCreateLabel(name, properties)
   }
 
   private handleExport = () => {

@@ -115,7 +115,7 @@ const RuleCard: FC<Props> = ({
   }
 
   const handleCreateLabel = (label: Label) => {
-    onCreateLabel(label.name, label.properties)
+    return onCreateLabel(label.name, label.properties)
   }
 
   return (

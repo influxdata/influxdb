@@ -1,13 +1,12 @@
 // Libraries
 import React, {Component} from 'react'
-import _ from 'lodash'
 
 // Components
 import {Label as LabelComponent} from '@influxdata/clockface'
 import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsEditor'
 
 // Types
-import {Label} from 'src/types'
+import {AppThunk, Label} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -23,7 +22,7 @@ interface Props {
   labels: Label[]
   onRemoveLabel?: (label: Label) => void
   onAddLabel?: (label: Label) => void
-  onCreateLabel?: (label: Label) => void
+  onCreateLabel?: (label: Label) => AppThunk<Promise<void>>
   onFilterChange?: (searchTerm: string) => void
 }
 

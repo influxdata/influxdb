@@ -200,7 +200,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleCreateLabel = (label: Label) => {
-    this.props.onCreateLabel(label.name, label.properties)
+    return this.props.onCreateLabel(label.name, label.properties)
   }
 
   private get isTaskActive(): boolean {
