@@ -1,11 +1,16 @@
-v1.7.10 [unreleased]
+v1.7.11 [unreleased]
+--------------------
+
+v1.7.10 [2020-01-23]
 --------------------
 
 ### Bugfixes
 
+-	[#15609](https://github.com/influxdata/influxdb/pull/15609): fix(storage): Renaming corrupt data files fails.
 -	[#15881](https://github.com/influxdata/influxdb/pull/15881): fix(tsm1): make digest safe for concurrent use.
 -	[#15863](https://github.com/influxdata/influxdb/pull/15863): fix(tsi1): index defect with negated equality filters
 -	[#15970](https://github.com/influxdata/influxdb/pull/15970): Fix compaction logic on infrequent cache snapshots.
+-	[#16621](https://github.com/influxdata/influxdb/pull/16221): fix(storage): skip TSM files with block read errors.
 
 v1.7.9 [2019-10-27]
 -------------------
