@@ -6,7 +6,7 @@ import {get} from 'lodash'
 
 // Components
 import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
-import CheckEOHeader from 'src/alerting/components/CheckEOHeader'
+import CheckEOHeader from 'src/checks/components/CheckEOHeader'
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
 
 // Utils

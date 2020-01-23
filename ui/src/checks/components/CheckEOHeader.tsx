@@ -11,8 +11,8 @@ import {
   IconFont,
   Page,
 } from '@influxdata/clockface'
-import CheckAlertingButton from 'src/alerting/components/CheckAlertingButton'
-import CheckEOSaveButton from 'src/alerting/components/CheckEOSaveButton'
+import CheckAlertingButton from 'src/checks/components/CheckAlertingButton'
+import CheckEOSaveButton from 'src/checks/components/CheckEOSaveButton'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'

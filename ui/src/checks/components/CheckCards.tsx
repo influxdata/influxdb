@@ -2,7 +2,7 @@
 import React, {FunctionComponent} from 'react'
 
 //Components
-import CheckCard from 'src/alerting/components/CheckCard'
+import CheckCard from 'src/checks/components/CheckCard'
 import FilterList from 'src/shared/components/Filter'
 import {
   EmptyState,

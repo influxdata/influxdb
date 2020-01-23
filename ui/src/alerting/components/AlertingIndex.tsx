@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 //Components
 import {Grid, GridRow, GridColumn, Page} from '@influxdata/clockface'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
-import ChecksColumn from 'src/alerting/components/ChecksColumn'
+import ChecksColumn from 'src/checks/components/ChecksColumn'
 import RulesColumn from 'src/notifications/rules/components/RulesColumn'
 import EndpointsColumn from 'src/alerting/components/EndpointsColumn'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'

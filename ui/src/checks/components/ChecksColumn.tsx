@@ -7,9 +7,9 @@ import {connect} from 'react-redux'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Components
-import CheckCards from 'src/alerting/components/CheckCards'
+import CheckCards from 'src/checks/components/CheckCards'
 import AlertsColumn from 'src/alerting/components/AlertsColumn'
-import CreateCheckDropdown from 'src/alerting/components/CreateCheckDropdown'
+import CreateCheckDropdown from 'src/checks/components/CreateCheckDropdown'
 
 // Types
 import {Check, NotificationRuleDraft, AppState} from 'src/types'

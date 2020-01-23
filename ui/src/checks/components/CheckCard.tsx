@@ -5,7 +5,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
-import CheckCardContext from 'src/alerting/components/CheckCardContext'
+import CheckCardContext from 'src/checks/components/CheckCardContext'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import LastRunTaskStatus from 'src/shared/components/lastRunTaskStatus/LastRunTaskStatus'
 
