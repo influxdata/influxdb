@@ -8,13 +8,7 @@ import {
 
 // Types
 import {Dispatch} from 'react'
-import {
-  RemoteDataState,
-  AppThunk,
-  LabelProperties,
-  GetState,
-  Label,
-} from 'src/types'
+import {RemoteDataState, LabelProperties, GetState, Label} from 'src/types'
 
 // Actions
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
@@ -111,10 +105,7 @@ export const getLabels = () => async (
 export const createLabel = (
   name: string,
   properties: LabelProperties
-): AppThunk<Promise<void>> => async (
-  dispatch: Dispatch<Action>,
-  getState: GetState
-): Promise<void> => {
+) => async (dispatch: Dispatch<Action>, getState: GetState): Promise<void> => {
   const org = getOrg(getState())
   try {
     const resp = await apiPostLabel({

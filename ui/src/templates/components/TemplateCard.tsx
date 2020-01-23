@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get} from 'lodash'
 import {withRouter, WithRouterProps} from 'react-router'
 import {
   Button,
@@ -25,7 +25,6 @@ import {
   removeTemplateLabelsAsync,
   addTemplateLabelsAsync,
 } from 'src/templates/actions'
-import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
@@ -51,7 +50,6 @@ interface DispatchProps {
   onCreateFromTemplate: typeof createResourceFromTemplate
   onAddTemplateLabels: typeof addTemplateLabelsAsync
   onRemoveTemplateLabels: typeof removeTemplateLabelsAsync
-  onCreateLabel: typeof createLabelAsync
 }
 
 interface StateProps {
@@ -88,7 +86,6 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
             onFilterChange={onFilterChange}
             onAddLabel={this.handleAddLabel}
             onRemoveLabel={this.handleRemoveLabel}
-            onCreateLabel={this.handleCreateLabel}
           />
         }
         metaData={[this.templateType]}
@@ -116,8 +113,8 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
 
   private get description(): JSX.Element {
     const {template} = this.props
-    const description = _.get(template, 'meta.description', '')
-    const name = _.get(template, 'meta.name', '')
+    const description = get(template, 'meta.description', '')
+    const name = get(template, 'meta.name', '')
 
     return (
       <ResourceCard.EditableDescription
@@ -133,7 +130,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
 
     return (
       <div className="resource-list--meta-item">
-        {_.get(template, 'meta.type', '')}
+        {get(template, 'meta.type', '')}
       </div>
     )
   }
@@ -215,10 +212,6 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
 
     onRemoveTemplateLabels(template.id, [label])
   }
-
-  private handleCreateLabel = (label: Label) => {
-    this.props.onCreateLabel(label.name, label.properties)
-  }
 }
 
 const mstp = (state: AppState): StateProps => {
@@ -236,7 +229,6 @@ const mdtp: DispatchProps = {
   onCreateFromTemplate: createResourceFromTemplate,
   onAddTemplateLabels: addTemplateLabelsAsync,
   onRemoveTemplateLabels: removeTemplateLabelsAsync,
-  onCreateLabel: createLabelAsync,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

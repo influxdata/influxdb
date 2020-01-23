@@ -22,7 +22,6 @@ import {
   deleteTaskLabel,
   selectTask,
 } from 'src/tasks/actions/thunks'
-import {createLabel} from 'src/labels/actions'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
@@ -52,7 +51,6 @@ interface StateProps {
 interface DispatchProps {
   onAddTaskLabel: typeof addTaskLabel
   onDeleteTaskLabel: typeof deleteTaskLabel
-  onCreateLabel: typeof createLabel
 }
 
 type Props = PassedProps & StateProps & DispatchProps
@@ -182,7 +180,6 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
         onFilterChange={onFilterChange}
         onAddLabel={this.handleAddLabel}
         onRemoveLabel={this.handleRemoveLabel}
-        onCreateLabel={this.handleCreateLabel}
       />
     )
   }
@@ -197,10 +194,6 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
     const {task, onDeleteTaskLabel} = this.props
 
     onDeleteTaskLabel(task.id, label)
-  }
-
-  private handleCreateLabel = (label: Label) => {
-    this.props.onCreateLabel(label.name, label.properties)
   }
 
   private get isTaskActive(): boolean {
@@ -243,7 +236,6 @@ const mstp = ({labels}: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  onCreateLabel: createLabel,
   onAddTaskLabel: addTaskLabel,
   onDeleteTaskLabel: deleteTaskLabel,
 }

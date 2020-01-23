@@ -16,7 +16,6 @@ import {
   addDashboardLabel,
   removeDashboardLabel,
 } from 'src/dashboards/actions/thunks'
-import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {resetViews} from 'src/views/actions/creators'
 
 // Selectors
@@ -50,7 +49,6 @@ interface DispatchProps {
   onUpdateDashboard: typeof updateDashboard
   onAddDashboardLabel: typeof addDashboardLabel
   onRemoveDashboardLabel: typeof removeDashboardLabel
-  onCreateLabel: typeof createLabelAsync
   onResetViews: typeof resetViews
 }
 
@@ -99,7 +97,6 @@ class DashboardCard extends PureComponent<Props> {
             onFilterChange={onFilterChange}
             onAddLabel={this.handleAddLabel}
             onRemoveLabel={this.handleRemoveLabel}
-            onCreateLabel={this.handleCreateLabel}
           />
         }
         metaData={[
@@ -185,10 +182,6 @@ class DashboardCard extends PureComponent<Props> {
     onRemoveDashboardLabel(id, label)
   }
 
-  private handleCreateLabel = async (label: Label) => {
-    await this.props.onCreateLabel(label.name, label.properties) // eslint-disable-line
-  }
-
   private handleExport = () => {
     const {
       router,
@@ -207,7 +200,6 @@ const mstp = ({labels}: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  onCreateLabel: createLabelAsync,
   onAddDashboardLabel: addDashboardLabel,
   onRemoveDashboardLabel: removeDashboardLabel,
   onResetViews: resetViews,
