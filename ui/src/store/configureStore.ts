@@ -34,8 +34,8 @@ import {membersReducer} from 'src/members/reducers'
 import {autoRefreshReducer} from 'src/shared/reducers/autoRefresh'
 import {limitsReducer, LimitsState} from 'src/cloud/reducers/limits'
 import checksReducer from 'src/checks/reducers'
-import rulesReducer from 'src/alerting/reducers/notifications/rules'
-import endpointsReducer from 'src/alerting/reducers/notifications/endpoints'
+import rulesReducer from 'src/notifications/rules/reducers'
+import endpointsReducer from 'src/notifications/endpoints/reducers'
 import {
   pluginsReducer,
   activePluginsReducer,

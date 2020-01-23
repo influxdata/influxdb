@@ -1,6 +1,6 @@
 import rulesReducer, {
   defaultNotificationRulesState,
-} from 'src/alerting/reducers/notifications/rules'
+} from 'src/notifications/rules/reducers'
 
 import {
   setAllNotificationRules,
