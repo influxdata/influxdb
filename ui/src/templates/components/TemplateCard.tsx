@@ -24,7 +24,7 @@ import {
   createResourceFromTemplate,
   removeTemplateLabelsAsync,
   addTemplateLabelsAsync,
-} from 'src/templates/actions'
+} from 'src/templates/actions/thunks'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Selectors

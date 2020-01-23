@@ -11,7 +11,7 @@ import {createTaskFromTemplate as createTaskFromTemplateAJAX} from 'src/template
 import * as schemas from 'src/schemas'
 
 // Actions
-import {setExportTemplate} from 'src/templates/actions'
+import {setExportTemplate} from 'src/templates/actions/creators'
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {
   addTask,

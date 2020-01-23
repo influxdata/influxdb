@@ -74,6 +74,7 @@ export const rootReducer = combineReducers<ReducerState>({
     scrapers: scrapersReducer,
     tasks: tasksReducer,
     telegrafs: telegrafsReducer,
+    templates: templatesReducer,
     tokens: authsReducer,
     variables: variablesReducer,
     dashboards: dashboardsReducer,

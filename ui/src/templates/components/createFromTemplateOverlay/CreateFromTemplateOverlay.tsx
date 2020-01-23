@@ -17,7 +17,7 @@ import GetResources from 'src/resources/components/GetResources'
 
 // Actions
 import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions/thunks'
-import {getTemplateByID} from 'src/templates/actions'
+import {getTemplateByID} from 'src/templates/actions/thunks'
 
 // Constants
 import {influxdbTemplateList} from 'src/templates/constants/defaultTemplates'

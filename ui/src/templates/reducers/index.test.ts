@@ -1,5 +1,5 @@
 import templatesReducer, {defaultState} from 'src/templates/reducers'
-import {setTemplateSummary} from 'src/templates/actions'
+import {setTemplateSummary} from 'src/templates/actions/creators'
 
 describe('templatesReducer', () => {
   describe('setTemplateSummary', () => {

@@ -9,7 +9,7 @@ import ExportOverlay from 'src/shared/components/ExportOverlay'
 import {
   convertToTemplate as convertToTemplateAction,
   clearExportTemplate as clearExportTemplateAction,
-} from 'src/templates/actions'
+} from 'src/templates/actions/thunks'
 
 // Types
 import {DocumentCreate} from '@influxdata/influx'

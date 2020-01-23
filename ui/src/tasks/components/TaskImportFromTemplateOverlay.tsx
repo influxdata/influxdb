@@ -17,7 +17,7 @@ import GetResources from 'src/resources/components/GetResources'
 
 // Actions
 import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/tasks/actions/thunks'
-import {getTemplateByID} from 'src/templates/actions'
+import {getTemplateByID} from 'src/templates/actions/thunks'
 
 // Types
 import {

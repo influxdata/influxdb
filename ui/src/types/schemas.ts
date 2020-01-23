@@ -1,15 +1,16 @@
 // Types
 import {
-  Cell,
-  Task,
-  Dashboard,
-  Variable,
-  Telegraf,
-  Member,
-  Bucket,
-  Scraper,
-  Organization,
   Authorization,
+  Bucket,
+  Cell,
+  Dashboard,
+  Member,
+  Organization,
+  Scraper,
+  Task,
+  Telegraf,
+  TemplateSummary,
+  Variable,
 } from 'src/types'
 
 // AuthEntities defines the result of normalizr's normalization
@@ -84,6 +85,14 @@ export interface ScraperEntities {
 export interface TaskEntities {
   tasks: {
     [uuid: string]: Task
+  }
+}
+
+// TemplateSummaryEntities defines the result of normalizr's normalization
+// of the "templates resource"
+export interface TemplateSummaryEntities {
+  templates: {
+    [uuid: string]: TemplateSummary
   }
 }
 

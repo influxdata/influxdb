@@ -24,7 +24,7 @@ import {
 import {setView, setViews} from 'src/dashboards/actions/views'
 import {selectValue} from 'src/variables/actions/creators'
 import {getVariables, refreshVariableValues} from 'src/variables/actions/thunks'
-import {setExportTemplate} from 'src/templates/actions'
+import {setExportTemplate} from 'src/templates/actions/creators'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
 import * as creators from 'src/dashboards/actions/creators'
 

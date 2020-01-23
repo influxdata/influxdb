@@ -4,13 +4,14 @@ import {schema} from 'normalizr'
 // Types
 import {
   Cell,
-  ResourceType,
-  Telegraf,
-  Task,
+  Dashboard,
   Label,
   RemoteDataState,
+  ResourceType,
+  Task,
+  Telegraf,
+  TemplateSummary,
   Variable,
-  Dashboard,
 } from 'src/types'
 
 // Utils
@@ -146,6 +147,18 @@ export const telegraf = new schema.Entity(
 )
 
 export const arrayOfTelegrafs = [telegraf]
+
+/* Templates */
+
+// Defines the schema for the "templates" resource
+export const template = new schema.Entity(
+  ResourceType.Templates,
+  {},
+  {
+    processStrategy: (t: TemplateSummary): TemplateSummary => t,
+  }
+)
+export const arrayOfTemplates = [template]
 
 /* Scrapers */
 

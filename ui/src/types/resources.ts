@@ -1,14 +1,15 @@
 import {
-  Cell,
-  Bucket,
-  Dashboard,
   Authorization,
-  Organization,
+  Bucket,
+  Cell,
+  Dashboard,
   Member,
+  Organization,
   RemoteDataState,
-  Telegraf,
   Scraper,
   TasksState,
+  Telegraf,
+  Template,
   VariablesState,
 } from 'src/types'
 
@@ -61,5 +62,6 @@ export interface ResourceState {
   [ResourceType.Scrapers]: NormalizedState<Scraper>
   [ResourceType.Tasks]: TasksState
   [ResourceType.Telegrafs]: TelegrafsState
+  [ResourceType.Templates]: NormalizedState<Template>
   [ResourceType.Variables]: VariablesState
 }
