@@ -23,7 +23,7 @@ import {
   addRuleLabel,
   deleteRuleLabel,
   cloneRule,
-} from 'src/alerting/actions/notifications/rules'
+} from 'src/notifications/rules/actions'
 import {viewableLabels} from 'src/labels/selectors'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 

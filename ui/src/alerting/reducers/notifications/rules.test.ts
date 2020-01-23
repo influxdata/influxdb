@@ -7,7 +7,7 @@ import {
   setRule,
   setCurrentRule,
   removeRule,
-} from 'src/alerting/actions/notifications/rules'
+} from 'src/notifications/rules/actions'
 
 import {initRuleDraft} from 'src/alerting/components/notifications/utils'
 

@@ -3,7 +3,7 @@ import {produce} from 'immer'
 
 // Types
 import {RemoteDataState, Check} from 'src/types'
-import {Action} from 'src/alerting/actions/checks'
+import {Action} from 'src/checks/actions'
 
 export interface ChecksState {
   status: RemoteDataState

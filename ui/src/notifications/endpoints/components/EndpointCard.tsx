@@ -14,11 +14,11 @@ import {
   deleteEndpoint,
   updateEndpointProperties,
   cloneEndpoint,
-} from 'src/alerting/actions/notifications/endpoints'
+} from 'src/notifications/endpoints/actions'
 
 // Components
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
-import EndpointCardMenu from 'src/alerting/components/endpoints/EndpointCardMenu'
+import EndpointCardMenu from 'src/notifications/endpoints/components/EndpointCardMenu'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Constants
@@ -34,7 +34,7 @@ import {
   AppState,
   AlertHistoryType,
 } from 'src/types'
-import {Action} from 'src/alerting/actions/notifications/endpoints'
+import {Action} from 'src/notifications/endpoints/actions'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'

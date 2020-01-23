@@ -7,13 +7,13 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {getEndpointFailed} from 'src/shared/copy/notifications'
 
 // Actions
-import {updateEndpoint} from 'src/alerting/actions/notifications/endpoints'
+import {updateEndpoint} from 'src/notifications/endpoints/actions'
 import {notify} from 'src/shared/actions/notifications'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
-import {EndpointOverlayProvider} from 'src/alerting/components/endpoints/EndpointOverlayProvider'
-import EndpointOverlayContents from 'src/alerting/components/endpoints/EndpointOverlayContents'
+import {EndpointOverlayProvider} from 'src/notifications/endpoints/components/EndpointOverlayProvider'
+import EndpointOverlayContents from 'src/notifications/endpoints/components/EndpointOverlayContents'
 
 // Types
 import {NotificationEndpoint, AppState} from 'src/types'

@@ -10,8 +10,8 @@ import {
   Grid,
   Columns,
 } from '@influxdata/clockface'
-import MethodTypeDropdown from 'src/alerting/components/endpoints/MethodTypeDropdown'
-import AuthMethodTypeDropdown from 'src/alerting/components/endpoints/AuthMethodTypeDropdown'
+import MethodTypeDropdown from 'src/notifications/endpoints/components/MethodTypeDropdown'
+import AuthMethodTypeDropdown from 'src/notifications/endpoints/components/AuthMethodTypeDropdown'
 
 // Types
 import {HTTPNotificationEndpoint} from 'src/types'

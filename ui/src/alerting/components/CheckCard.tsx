@@ -20,7 +20,7 @@ import {
   addCheckLabel,
   deleteCheckLabel,
   cloneCheck,
-} from 'src/alerting/actions/checks'
+} from 'src/checks/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {viewableLabels} from 'src/labels/selectors'
 import {notify} from 'src/shared/actions/notifications'

@@ -13,9 +13,9 @@ import {
   ComponentColor,
   IconFont,
 } from '@influxdata/clockface'
-import EndpointOptions from 'src/alerting/components/endpoints/EndpointOptions'
-import EndpointTypeDropdown from 'src/alerting/components/endpoints/EndpointTypeDropdown'
-import EndpointOverlayFooter from 'src/alerting/components/endpoints/EndpointOverlayFooter'
+import EndpointOptions from 'src/notifications/endpoints/components/EndpointOptions'
+import EndpointTypeDropdown from 'src/notifications/endpoints/components/EndpointTypeDropdown'
+import EndpointOverlayFooter from 'src/notifications/endpoints/components/EndpointOverlayFooter'
 
 // Hooks
 import {useEndpointReducer} from './EndpointOverlayProvider'

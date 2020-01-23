@@ -11,7 +11,7 @@ import {Overlay} from '@influxdata/clockface'
 import RuleOverlayContents from 'src/alerting/components/notifications/RuleOverlayContents'
 
 // Actions
-import {updateRule} from 'src/alerting/actions/notifications/rules'
+import {updateRule} from 'src/notifications/rules/actions'
 import {notify} from 'src/shared/actions/notifications'
 
 // Utils

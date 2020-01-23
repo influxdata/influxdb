@@ -16,7 +16,7 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {
   saveCheckFromTimeMachine,
   getCheckForTimeMachine,
-} from 'src/alerting/actions/checks'
+} from 'src/checks/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 import {resetAlertBuilder, updateName} from 'src/alerting/actions/alertBuilder'
 

@@ -1,5 +1,5 @@
 import checksReducer, {defaultChecksState} from 'src/alerting/reducers/checks'
-import {setAllChecks, setCheck, removeCheck} from 'src/alerting/actions/checks'
+import {setAllChecks, setCheck, removeCheck} from 'src/checks/actions'
 import {
   RemoteDataState,
   DashboardQuery,

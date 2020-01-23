@@ -3,7 +3,7 @@ import {produce} from 'immer'
 
 // Types
 import {RemoteDataState, NotificationRuleDraft} from 'src/types'
-import {Action} from 'src/alerting/actions/notifications/rules'
+import {Action} from 'src/notifications/rules/actions'
 
 export interface NotificationRulesState {
   status: RemoteDataState

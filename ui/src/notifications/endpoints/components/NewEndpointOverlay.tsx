@@ -4,12 +4,12 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Actions
-import {createEndpoint} from 'src/alerting/actions/notifications/endpoints'
+import {createEndpoint} from 'src/notifications/endpoints/actions'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
-import {EndpointOverlayProvider} from 'src/alerting/components/endpoints/EndpointOverlayProvider'
-import EndpointOverlayContents from 'src/alerting/components/endpoints/EndpointOverlayContents'
+import {EndpointOverlayProvider} from 'src/notifications/endpoints/components/EndpointOverlayProvider'
+import EndpointOverlayContents from 'src/notifications/endpoints/components/EndpointOverlayContents'
 
 // Constants
 import {NEW_ENDPOINT_DRAFT} from 'src/alerting/constants'

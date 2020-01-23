@@ -87,8 +87,8 @@ import NewDeadmanCheckEO from 'src/alerting/components/NewDeadmanCheckEO'
 import EditCheckEO from 'src/alerting/components/EditCheckEO'
 import NewRuleOverlay from 'src/alerting/components/notifications/NewRuleOverlay'
 import EditRuleOverlay from 'src/alerting/components/notifications/EditRuleOverlay'
-import NewEndpointOverlay from 'src/alerting/components/endpoints/NewEndpointOverlay'
-import EditEndpointOverlay from 'src/alerting/components/endpoints/EditEndpointOverlay'
+import NewEndpointOverlay from 'src/notifications/endpoints/components/NewEndpointOverlay'
+import EditEndpointOverlay from 'src/notifications/endpoints/components/EditEndpointOverlay'
 import NoOrgsPage from 'src/organizations/containers/NoOrgsPage'
 
 // Overlays

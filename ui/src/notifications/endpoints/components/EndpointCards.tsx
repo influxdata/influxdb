@@ -2,7 +2,7 @@
 import React, {FC} from 'react'
 
 // Components
-import EndpointCard from 'src/alerting/components/endpoints/EndpointCard'
+import EndpointCard from 'src/notifications/endpoints/components/EndpointCard'
 import {EmptyState, ResourceList, ComponentSize} from '@influxdata/clockface'
 import FilterList from 'src/shared/components/Filter'
 

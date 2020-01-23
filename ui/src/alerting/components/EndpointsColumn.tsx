@@ -5,7 +5,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
-import EndpointCards from 'src/alerting/components/endpoints/EndpointCards'
+import EndpointCards from 'src/notifications/endpoints/components/EndpointCards'
 import AlertsColumn from 'src/alerting/components/AlertsColumn'
 import {AppState} from 'src/types'
 

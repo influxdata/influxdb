@@ -4,7 +4,7 @@ import produce from 'immer'
 // Types
 import {NotificationEndpoint} from 'src/types'
 import {RemoteDataState} from '@influxdata/clockface'
-import {Action} from 'src/alerting/actions/notifications/endpoints'
+import {Action} from 'src/notifications/endpoints/actions'
 
 export interface NotificationEndpointsState {
   status: RemoteDataState
