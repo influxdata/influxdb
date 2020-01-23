@@ -20,20 +20,20 @@ import {
   updateMap,
   updateConstant,
   clearEditor,
-  createVariable,
-} from 'src/variables/actions'
+} from 'src/variables/actions/creators'
+import {createVariable} from 'src/variables/actions/thunks'
 
 // Component
 import VariableForm from 'src/variables/components/VariableForm'
 
 // Types
-import {IVariable as Variable} from '@influxdata/influx'
 import {
   AppState,
   VariableArgumentType,
   QueryArguments,
   CSVArguments,
   MapArguments,
+  Variable,
 } from 'src/types'
 
 interface ComponentProps {
@@ -67,9 +67,10 @@ type Props = ComponentProps & DispatchProps & StateProps
 class VariableFormContext extends PureComponent<Props> {
   render() {
     const props = {
-      onHideOverlay: this.handleHideOverlay,
       ...this.props,
+      onHideOverlay: this.handleHideOverlay,
     }
+
     return <VariableForm {...props} />
   }
 

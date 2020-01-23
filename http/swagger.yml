@@ -2361,7 +2361,7 @@ paths:
           required: true
           description: The ID of the dashboard to update.
       responses:
-        '200':
+        '201':
           description: Replaced dashboard cells
           content:
             application/json:
@@ -4319,6 +4319,9 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/PkgApply"
+          application/x-jsonnet:
+            schema:
+              $ref: "#/components/schemas/PkgApply"
           text/yml:
             schema:
               $ref: "#/components/schemas/PkgApply"
@@ -4805,7 +4808,7 @@ paths:
             schema:
               $ref: "#/components/schemas/LabelMapping"
       responses:
-        '200':
+        '201':
           description: A list of all labels for a task
           content:
             application/json:
@@ -5580,7 +5583,7 @@ paths:
             type: string
         - in: query
           name: tag
-          description: Only show notification rules that match a tag pair. Uses `AND` to specify multiple tags.
+          description: Only return notification rules that "would match" statuses which contain the tag key value pairs provided.
           schema:
             type: string
             pattern: ^[a-zA-Z0-9_]+:[a-zA-Z0-9_]+$
@@ -7140,15 +7143,21 @@ components:
           type: object
           additionalProperties:
             type: string
+        remote:
+          type: object
+          properties:
+            url:
+              type: string
+            contentType:
+              type: string
+          required: ["url"]
     PkgCreate:
       type: object
       properties:
-        pkgName:
-          type: string
-        pkgDescription:
-          type: string
-        pkgVersion:
-          type: string
+        orgIDs:
+          type: array
+          items:
+            type: string
         resources:
           type: object
           properties:
@@ -7170,30 +7179,35 @@ components:
               type: string
           required: [id, kind]
     Pkg:
-      type: object
-      properties:
-        apiVersion:
-          type: string
-        kind:
-          type: string
-          enum:
-            - package
-        meta:
-          type: object
-          properties:
-            description:
-              type: string
-            pkgName:
-              type: string
-            pkgVersion:
-              type: string
-        spec:
-          type: object
-          properties:
-            resources:
-              type: array
-              items:
-                type: object
+      type: array
+      items:
+        type: object
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+            enum:
+              - Bucket
+              - CheckDeadman
+              - CheckThreshold
+              - Dashboard
+              - Label
+              - NotificationEndpointHTTP
+              - NotificationEndpointPagerDuty
+              - NotificationEndpointSlack
+              - NotificationRule
+              - NotificationEndpointHTTP
+              - Task
+              - Telegraf
+              - Variable
+          meta:
+            type: object
+            properties:
+              name:
+                type: string
+          spec:
+            type: object
     PkgSummary:
       type: object
       properties:
@@ -8488,7 +8502,9 @@ components:
         - note
         - showNoteWhenEmpty
         - prefix
+        - tickPrefix
         - suffix
+        - tickSuffix
         - legend
         - decimalPlaces
       properties:
@@ -8514,7 +8530,11 @@ components:
           type: boolean
         prefix:
           type: string
+        tickPrefix:
+          type: string
         suffix:
+          type: string
+        tickSuffix:
           type: string
         legend:
           $ref: '#/components/schemas/Legend'
@@ -8576,17 +8596,7 @@ components:
           type: integer
     GaugeViewProperties:
       type: object
-      required:
-        - type
-        - queries
-        - colors
-        - shape
-        - note
-        - showNoteWhenEmpty
-        - prefix
-        - suffix
-        - legend
-        - decimalPlaces
+      required: [type, queries, colors, shape, note, showNoteWhenEmpty, prefix, tickPrefix, suffix, tickSuffix, legend, decimalPlaces]
       properties:
         type:
           type: string
@@ -8610,7 +8620,11 @@ components:
           type: boolean
         prefix:
           type: string
+        tickPrefix:
+          type: string
         suffix:
+          type: string
+        tickSuffix:
           type: string
         legend:
           $ref: '#/components/schemas/Legend'

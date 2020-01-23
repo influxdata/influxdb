@@ -2,8 +2,6 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
-import _ from 'lodash'
-
 // Components
 import {Form, Overlay} from '@influxdata/clockface'
 import LineProtocolTabs from 'src/dataLoaders/components/lineProtocolWizard/configure/LineProtocolTabs'
@@ -25,6 +23,9 @@ import {AppState} from 'src/types/index'
 import {WritePrecision} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 import {LineProtocolStepProps} from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
 
 type OwnProps = LineProtocolStepProps
 
@@ -83,14 +84,15 @@ export class LineProtocol extends PureComponent<Props> {
   }
 }
 
-const mstp = ({
-  dataLoading: {
+const mstp = (state: AppState): StateProps => {
+  const {dataLoading} = state
+  const {
     dataLoaders: {lineProtocolBody, precision},
     steps: {bucket},
-  },
-  orgs,
-}: AppState): StateProps => {
-  return {lineProtocolBody, precision, bucket, org: orgs.org.name}
+  } = dataLoading
+  const org = getOrg(state).name
+
+  return {lineProtocolBody, precision, bucket, org}
 }
 
 const mdtp: DispatchProps = {

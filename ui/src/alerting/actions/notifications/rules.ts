@@ -19,6 +19,7 @@ import {
   ruleToDraftRule,
   draftRuleToPostRule,
 } from 'src/alerting/components/notifications/utils'
+import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
@@ -80,12 +81,7 @@ export const getNotificationRules = () => async (
 ) => {
   try {
     dispatch(setAllNotificationRules(RemoteDataState.Loading))
-    const {
-      orgs: {
-        org: {id: orgID},
-      },
-    } = getState()
-
+    const {id: orgID} = getOrg(getState())
     const resp = await api.getNotificationRules({query: {orgID}})
 
     if (resp.status !== 200) {
@@ -143,6 +139,12 @@ export const createRule = (rule: NotificationRuleDraft) => async (
 export const updateRule = (rule: NotificationRuleDraft) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
+  if (rule.offset == '') {
+    throw new Error('Notification Rule offset field can not be empty')
+  }
+  if (rule.every == '') {
+    throw new Error('Notification Rule every field can not be empty')
+  }
   const resp = await api.putNotificationRule({
     ruleID: rule.id,
     data: draftRuleToPostRule(rule),

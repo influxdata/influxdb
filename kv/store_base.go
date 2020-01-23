@@ -1,22 +1,20 @@
 package kv
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 type Entity struct {
-	ID    influxdb.ID
-	Name  string
-	OrgID influxdb.ID
-	Body  interface{}
+	PK        EncodeFn
+	UniqueKey EncodeFn
+
+	Body interface{}
 }
 
 // EncodeEntFn encodes the entity. This is used both for the key and vals in the store base.
@@ -24,16 +22,20 @@ type EncodeEntFn func(ent Entity) ([]byte, string, error)
 
 // EncIDKey encodes an entity into a key that represents the encoded ID provided.
 func EncIDKey(ent Entity) ([]byte, string, error) {
-	id, err := ent.ID.Encode()
-	return id, "ID", err
+	if ent.PK == nil {
+		return nil, "ID", errors.New("no ID provided")
+	}
+	key, err := ent.PK()
+	return key, "ID", err
 }
 
-// EncOrgIDNameKey encodes an organization id and name key.
-func EncOrgIDNameKey(caseSensitive bool) func(ent Entity) ([]byte, string, error) {
-	return func(ent Entity) ([]byte, string, error) {
-		key, err := indexByOrgNameKey(ent.OrgID, ent.Name, caseSensitive)
-		return key, "organization ID and name", err
+// EncUniqKey encodes the unique key.
+func EncUniqKey(ent Entity) ([]byte, string, error) {
+	if ent.UniqueKey == nil {
+		return nil, "Unique Key", errors.New("no unique key provided")
 	}
+	key, err := ent.UniqueKey()
+	return key, "Unique Key", err
 }
 
 // EncBodyJSON JSON encodes the entity body and returns the raw bytes and indicates
@@ -70,11 +72,11 @@ func DecodeOrgNameKey(k []byte) (influxdb.ID, string, error) {
 func NewOrgNameKeyStore(resource string, bktName []byte, caseSensitive bool) *StoreBase {
 	var decValToEntFn ConvertValToEntFn = func(k []byte, v interface{}) (Entity, error) {
 		id, ok := v.(influxdb.ID)
-		if err := errUnexpectedDecodeVal(ok); err != nil {
+		if err := IsErrUnexpectedDecodeVal(ok); err != nil {
 			return Entity{}, err
 		}
 
-		ent := Entity{ID: id}
+		ent := Entity{PK: Encode(EncID(id))}
 		if len(k) == 0 {
 			return ent, nil
 		}
@@ -83,12 +85,15 @@ func NewOrgNameKeyStore(resource string, bktName []byte, caseSensitive bool) *St
 		if err != nil {
 			return Entity{}, err
 		}
-		ent.OrgID = orgID
-		ent.Name = name
+		nameEnc := EncString(name)
+		if !caseSensitive {
+			nameEnc = EncStringCaseInsensitive(name)
+		}
+		ent.UniqueKey = Encode(EncID(orgID), nameEnc)
 		return ent, nil
 	}
 
-	return NewStoreBase(resource, bktName, EncOrgIDNameKey(caseSensitive), EncIDKey, DecIndexID, decValToEntFn)
+	return NewStoreBase(resource, bktName, EncUniqKey, EncIDKey, DecIndexID, decValToEntFn)
 }
 
 // StoreBase is the base behavior for accessing buckets in kv. It provides mechanisms that can
@@ -97,21 +102,21 @@ type StoreBase struct {
 	Resource string
 	BktName  []byte
 
-	EncodeEntKeyFn  EncodeEntFn
-	EncodeEntBodyFn EncodeEntFn
-	DecodeEntFn     DecodeBucketValFn
-	DecodeToEntFn   ConvertValToEntFn
+	EncodeEntKeyFn    EncodeEntFn
+	EncodeEntBodyFn   EncodeEntFn
+	DecodeEntFn       DecodeBucketValFn
+	ConvertValToEntFn ConvertValToEntFn
 }
 
 // NewStoreBase creates a new store base.
 func NewStoreBase(resource string, bktName []byte, encKeyFn, encBodyFn EncodeEntFn, decFn DecodeBucketValFn, decToEntFn ConvertValToEntFn) *StoreBase {
 	return &StoreBase{
-		Resource:        resource,
-		BktName:         bktName,
-		EncodeEntKeyFn:  encKeyFn,
-		EncodeEntBodyFn: encBodyFn,
-		DecodeEntFn:     decFn,
-		DecodeToEntFn:   decToEntFn,
+		Resource:          resource,
+		BktName:           bktName,
+		EncodeEntKeyFn:    encKeyFn,
+		EncodeEntBodyFn:   encBodyFn,
+		DecodeEntFn:       decFn,
+		ConvertValToEntFn: decToEntFn,
 	}
 }
 
@@ -269,10 +274,53 @@ func (s *StoreBase) FindEnt(ctx context.Context, tx Tx, ent Entity) (interface{}
 	return s.decodeEnt(ctx, body)
 }
 
+type (
+	putOption struct {
+		isNew    bool
+		isUpdate bool
+	}
+
+	// PutOptionFn provides a hint to the store to make some guarantees about the
+	// put action. I.e. If it is new, then will validate there is no existing entity
+	// by the given PK.
+	PutOptionFn func(o *putOption) error
+)
+
+// PutNew will create an entity that is not does not already exist. Guarantees uniqueness
+// by the store's uniqueness guarantees.
+func PutNew() PutOptionFn {
+	return func(o *putOption) error {
+		o.isNew = true
+		return nil
+	}
+}
+
+// PutUpdate will update an entity that must already exist.
+func PutUpdate() PutOptionFn {
+	return func(o *putOption) error {
+		o.isUpdate = true
+		return nil
+	}
+}
+
 // Put will persist the entity.
-func (s *StoreBase) Put(ctx context.Context, tx Tx, ent Entity) error {
+func (s *StoreBase) Put(ctx context.Context, tx Tx, ent Entity, opts ...PutOptionFn) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
+
+	var opt putOption
+	for _, o := range opts {
+		if err := o(&opt); err != nil {
+			return &influxdb.Error{
+				Code: influxdb.EConflict,
+				Err:  err,
+			}
+		}
+	}
+
+	if err := s.putValidate(ctx, tx, ent, opt); err != nil {
+		return err
+	}
 
 	encodedID, err := s.EntKey(ctx, ent)
 	if err != nil {
@@ -285,6 +333,25 @@ func (s *StoreBase) Put(ctx context.Context, tx Tx, ent Entity) error {
 	}
 
 	return s.bucketPut(ctx, tx, encodedID, body)
+}
+
+func (s *StoreBase) putValidate(ctx context.Context, tx Tx, ent Entity, opt putOption) error {
+	if !opt.isUpdate && !opt.isNew {
+		return nil
+	}
+
+	_, err := s.FindEnt(ctx, tx, ent)
+	if opt.isNew {
+		if err == nil || influxdb.ErrorCode(err) != influxdb.ENotFound {
+			return &influxdb.Error{
+				Code: influxdb.EConflict,
+				Msg:  fmt.Sprintf("%s is not unique", s.Resource),
+				Err:  err,
+			}
+		}
+		return nil
+	}
+	return err
 }
 
 func (s *StoreBase) bucket(ctx context.Context, tx Tx) (Bucket, error) {
@@ -410,6 +477,13 @@ func (s *StoreBase) encodeEnt(ctx context.Context, ent Entity, fn EncodeEntFn) (
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
+	if fn == nil {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("no key was provided for %s", s.Resource),
+		}
+	}
+
 	encoded, field, err := fn(ent)
 	if err != nil {
 		return encoded, &influxdb.Error{
@@ -430,52 +504,37 @@ type iterator struct {
 	offset     int
 	prefix     []byte
 
-	seekChan <-chan struct{ k, v []byte }
+	nextFn func() (key, val []byte)
 
 	decodeFn func(key, val []byte) (k []byte, decodedVal interface{}, err error)
 	filterFn FilterFn
 }
 
 func (i *iterator) Next(ctx context.Context) (key []byte, val interface{}, err error) {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if i.limit > 0 && i.counter >= i.limit+i.offset {
 		return nil, nil, nil
 	}
 
-	var (
-		k, vRaw []byte
-		nextFn  func() ([]byte, []byte)
-	)
+	var k, vRaw []byte
 	switch {
+	case i.nextFn != nil:
+		k, vRaw = i.nextFn()
 	case len(i.prefix) > 0:
-		i.seek(ctx)
-		nextFn = func() ([]byte, []byte) {
-			select {
-			case <-ctx.Done():
-				return nil, nil
-			case kv := <-i.seekChan:
-				return kv.k, kv.v
-			}
-		}
-		k, vRaw = nextFn()
-	case i.counter == 0 && i.descending:
-		k, vRaw = i.cursor.Last()
-		nextFn = i.cursor.Prev
-	case i.counter == 0:
-		k, vRaw = i.cursor.First()
-		nextFn = i.cursor.Next
+		k, vRaw = i.cursor.Seek(i.prefix)
+		i.nextFn = i.cursor.Next
 	case i.descending:
-		k, vRaw = i.cursor.Prev()
-		nextFn = i.cursor.Prev
+		k, vRaw = i.cursor.Last()
+		i.nextFn = i.cursor.Prev
 	default:
-		k, vRaw = i.cursor.Next()
-		nextFn = i.cursor.Next
+		k, vRaw = i.cursor.First()
+		i.nextFn = i.cursor.Next
 	}
 
 	k, decodedVal, err := i.decodeFn(k, vRaw)
-	for ; ; k, decodedVal, err = i.decodeFn(nextFn()) {
+	for ; ; k, decodedVal, err = i.decodeFn(i.nextFn()) {
 		if err != nil {
 			return nil, nil, err
 		}
@@ -510,62 +569,7 @@ func (i *iterator) isNext(k []byte, v interface{}) bool {
 	return true
 }
 
-func (i *iterator) seek(ctx context.Context) {
-	if i.seekChan != nil || len(i.prefix) == 0 {
-		return
-	}
-	out := make(chan struct{ k, v []byte })
-	i.seekChan = out
-
-	go func() {
-		defer close(out)
-
-		for k, v := i.cursor.Seek(i.prefix); bytes.HasPrefix(k, i.prefix); k, v = i.cursor.Next() {
-			if len(k) == 0 {
-				return
-			}
-
-			select {
-			case <-ctx.Done():
-				return
-			case out <- struct{ k, v []byte }{k: k, v: v}:
-			}
-		}
-	}()
-
-}
-
-func indexByOrgNameKey(orgID influxdb.ID, name string, caseSensitive bool) ([]byte, error) {
-	orgIDEncoded, err := orgID.Encode()
-	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  fmt.Sprintf("invalid org ID provided: %q", orgID.String()),
-			Err:  err,
-		}
-	}
-	k := make([]byte, influxdb.IDLength+len(name))
-	copy(k, orgIDEncoded)
-
-	if name == "" {
-		// purposefully returning a partial key here b/c it allows for
-		// a key of just the orgID to be used. An Error can be ignored
-		// and then the key useful to the caller. It is used in the Index
-		// Store when needing to lookup by orgID and hte name isn't provided.
-		return k, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "name must be provided",
-		}
-	}
-
-	if !caseSensitive {
-		name = strings.ToLower(name)
-	}
-	copy(k[influxdb.IDLength:], name)
-	return k, nil
-}
-
-func errUnexpectedDecodeVal(ok bool) error {
+func IsErrUnexpectedDecodeVal(ok bool) error {
 	if ok {
 		return nil
 	}

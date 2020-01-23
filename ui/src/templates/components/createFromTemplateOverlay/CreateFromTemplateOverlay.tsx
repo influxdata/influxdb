@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {sortBy} from 'lodash'
 
 // Components
 import {
@@ -13,9 +13,10 @@ import {
 } from '@influxdata/clockface'
 import TemplateBrowser from 'src/templates/components/createFromTemplateOverlay/TemplateBrowser'
 import TemplateBrowserEmpty from 'src/templates/components/createFromTemplateOverlay/TemplateBrowserEmpty'
+import GetResources from 'src/resources/components/GetResources'
 
 // Actions
-import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions'
+import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions/thunks'
 import {getTemplateByID} from 'src/templates/actions'
 
 // Constants
@@ -30,8 +31,8 @@ import {
   AppState,
   RemoteDataState,
   DashboardTemplate,
+  ResourceType,
 } from 'src/types'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 interface StateProps {
   templates: TemplateSummary[]
@@ -190,12 +191,12 @@ const mstp = ({templates: {items, status}}: AppState): StateProps => {
     t => !t.meta.type || t.meta.type === TemplateType.Dashboard
   )
 
-  const templates = _.sortBy(filteredTemplates, item =>
+  const templates = sortBy(filteredTemplates, item =>
     item.meta.name.toLocaleLowerCase()
   )
 
   return {
-    templates: [...templates, ...influxdbTemplateList],
+    templates: [...templates, ...(influxdbTemplateList as TemplateSummary[])],
     templateStatus: status,
   }
 }

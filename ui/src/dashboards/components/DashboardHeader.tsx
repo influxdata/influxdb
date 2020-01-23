@@ -1,6 +1,5 @@
 // Libraries
 import React, {Component} from 'react'
-import _ from 'lodash'
 
 // Components
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
@@ -24,18 +23,11 @@ import {
 
 // Types
 import * as AppActions from 'src/types/actions/app'
-import {
-  Dashboard,
-  AutoRefresh,
-  AutoRefreshStatus,
-  Organization,
-  TimeRange,
-} from 'src/types'
+import {AutoRefresh, AutoRefreshStatus, TimeRange} from 'src/types'
 
 interface Props {
-  org: Organization
-  activeDashboard: string
-  dashboard: Dashboard
+  orgName: string
+  dashboardName: string
   timeRange: TimeRange
   autoRefresh: AutoRefresh
   handleChooseTimeRange: (timeRange: TimeRange) => void
@@ -44,23 +36,23 @@ interface Props {
   onManualRefresh: () => void
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   onAddCell: () => void
+  onAddNote: () => void
   onRenameDashboard: (name: string) => void
   toggleVariablesControlBar: () => void
   isShowingVariablesControlBar: boolean
-  onAddNote: () => void
 }
 
 export default class DashboardHeader extends Component<Props> {
   public render() {
     const {
-      org,
+      orgName,
       handleChooseAutoRefresh,
       onManualRefresh,
       toggleVariablesControlBar,
       isShowingVariablesControlBar,
       onRenameDashboard,
       onAddCell,
-      activeDashboard,
+      dashboardName,
       autoRefresh,
       timeRange,
     } = this.props
@@ -69,10 +61,10 @@ export default class DashboardHeader extends Component<Props> {
       <Page.Header fullWidth={true}>
         <Page.HeaderLeft>
           <RenamablePageTitle
-            prefix={_.get(org, 'name', '')}
+            prefix={orgName}
             maxLength={DASHBOARD_NAME_MAX_LENGTH}
             onRename={onRenameDashboard}
-            name={activeDashboard}
+            name={dashboardName}
             placeholder={DEFAULT_DASHBOARD_NAME}
           />
         </Page.HeaderLeft>

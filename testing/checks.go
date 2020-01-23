@@ -552,7 +552,7 @@ func CreateCheck(
 				err: &influxdb.Error{
 					Code: influxdb.EConflict,
 					Op:   influxdb.OpCreateCheck,
-					Msg:  fmt.Sprintf("check with name name1 already exists"),
+					Msg:  fmt.Sprintf("check is not unique"),
 				},
 			},
 		},
@@ -1706,7 +1706,7 @@ func PatchCheck(
 		upd influxdb.CheckUpdate
 	}
 	type wants struct {
-		err   error
+		err   *influxdb.Error
 		check influxdb.Check
 	}
 
@@ -1840,7 +1840,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 			wants: wants{
 				err: &influxdb.Error{
 					Code: influxdb.EConflict,
-					Msg:  "check name is not unique",
+					Msg:  "check entity update conflicts with an existing entity",
 				},
 			},
 		},
@@ -1848,12 +1848,12 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, _, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			check, err := s.PatchCheck(ctx, tt.args.id, tt.args.upd)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			influxErrsEqual(t, tt.wants.err, err)
 
 			if diff := cmp.Diff(check, tt.wants.check, checkCmpOptions...); diff != "" {
 				t.Errorf("check is different -got/+want\ndiff %s", diff)

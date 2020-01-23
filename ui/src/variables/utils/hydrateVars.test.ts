@@ -6,7 +6,7 @@ import {hydrateVars} from 'src/variables/utils/hydrateVars'
 import {createMapVariable, createVariable} from 'src/variables/mocks'
 
 // Types
-import {CancellationError} from 'src/types/promises'
+import {Variable, CancellationError, RemoteDataState} from 'src/types'
 
 class FakeFetcher implements ValueFetcher {
   responses = {}
@@ -179,7 +179,7 @@ describe('hydrate vars', () => {
   test('works with map template variables', async () => {
     const a = createVariable('a', 'f(x: v.b)')
 
-    const b = {
+    const b: Variable = {
       id: 'b',
       name: 'b',
       orgID: '',
@@ -190,6 +190,7 @@ describe('hydrate vars', () => {
           k: 'v',
         },
       },
+      status: RemoteDataState.NotStarted,
     }
 
     const vars = [a, b]
@@ -213,7 +214,7 @@ describe('hydrate vars', () => {
     }).promise
 
     // Basic test for now, we would need an icky mock to assert that the
-    // approriate substitution is actually taking place
+    // appropriate substitution is actually taking place
     expect(actual.a.error).toBeFalsy()
     expect(actual.b.error).toBeFalsy()
   })
@@ -221,7 +222,7 @@ describe('hydrate vars', () => {
   test('works with constant template variables', async () => {
     const a = createVariable('a', 'f(x: v.b)')
 
-    const b = {
+    const b: Variable = {
       id: 'b',
       name: 'b',
       orgID: '',
@@ -230,6 +231,7 @@ describe('hydrate vars', () => {
         type: 'constant',
         values: ['v1', 'v2'],
       },
+      status: RemoteDataState.NotStarted,
     }
 
     const vars = [a, b]

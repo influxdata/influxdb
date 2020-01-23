@@ -57,7 +57,7 @@ const ThresholdSetting: FunctionComponent<Props> = ({
   } else if (type === COLOR_TYPE_MAX) {
     label = 'Maximum'
   } else {
-    label = 'Value is <='
+    label = 'Value is >='
   }
 
   const isRemoveable =

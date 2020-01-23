@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
 import {connect} from 'react-redux'
 import memoizeOne from 'memoize-one'
 
@@ -12,8 +11,11 @@ import FilterList from 'src/shared/components/Filter'
 // Types
 import {Sort} from '@influxdata/clockface'
 import {SortTypes, getSortedResources} from 'src/shared/utils/sort'
-import {AppState, Telegraf} from 'src/types'
-import {updateTelegraf, deleteTelegraf} from '../actions'
+import {AppState, Telegraf, ResourceType} from 'src/types'
+import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions/thunks'
+
+// Selectors
+import {getAll} from 'src/resources/selectors'
 
 type SortKey = keyof Telegraf
 
@@ -73,6 +75,7 @@ class CollectorList extends PureComponent<Props> {
       onUpdateTelegraf,
       onFilterChange,
     } = this.props
+
     const sortedCollectors = this.memGetSortedResources(
       collectors,
       sortKey,
@@ -97,7 +100,7 @@ class CollectorList extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => ({
-  collectors: state.telegrafs.list,
+  collectors: getAll<Telegraf>(state, ResourceType.Telegrafs),
 })
 
 const mdtp: DispatchProps = {

@@ -4,14 +4,16 @@ import {getDeep} from 'src/utils/wrappers'
 import {defaultBuilderConfig} from 'src/shared/utils/view'
 import {viewableLabels} from 'src/labels/selectors'
 
-import {Task, Label, Dashboard, Cell, View} from 'src/types'
 import {
-  TemplateType,
-  DocumentCreate,
-  ITemplate,
-  IVariable as Variable,
-} from '@influxdata/influx'
-import {DashboardQuery} from 'src/types/dashboards'
+  Task,
+  Label,
+  Dashboard,
+  DashboardQuery,
+  Cell,
+  View,
+  Variable,
+} from 'src/types'
+import {TemplateType, DocumentCreate, ITemplate} from '@influxdata/influx'
 
 const CURRENT_TEMPLATE_VERSION = '1'
 
@@ -239,6 +241,7 @@ const variableToRelationship = (v: Variable) => ({
 
 export const dashboardToTemplate = (
   dashboard: Dashboard,
+  cells: Cell[],
   views: View[],
   variables: Variable[],
   baseTemplate = blankDashboardTemplate()
@@ -252,7 +255,6 @@ export const dashboardToTemplate = (
   const dashboardIncludedLabels = dashboardLabels.map(l => labelToIncluded(l))
   const relationshipsLabels = dashboardLabels.map(l => labelToRelationship(l))
 
-  const cells = getDeep<Cell[]>(dashboard, 'cells', [])
   const includedCells = cells.map(c => cellToIncluded(c, views))
   const relationshipsCells = cells.map(c => cellToRelationship(c))
 

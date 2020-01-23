@@ -1077,6 +1077,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 									Name:   "hello",
 									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
 									TaskID: 3,
+									Every:  mustDuration("1m"),
 								},
 							}
 
@@ -1099,6 +1100,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 						TaskID:  3,
 						OwnerID: 42,
 						OrgID:   influxTesting.MustIDBase16("020f755c3c082000"),
+						Every:   mustDuration("1m"),
 					},
 					Level: notification.Critical,
 				},
@@ -1118,6 +1120,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 		  "createdAt": "0001-01-01T00:00:00Z",
 		  "updatedAt": "0001-01-01T00:00:00Z",
 		  "id": "020f755c3c082000",
+		  "every": "1m",
 		  "orgID": "020f755c3c082000",
 		  "ownerID": "000000000000002a",
 		  "level": "CRIT",
@@ -1166,6 +1169,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 						Name:    "example",
 						OwnerID: 42,
 						OrgID:   influxTesting.MustIDBase16("020f755c3c082000"),
+						Every:   mustDuration("1m"),
 					},
 				},
 			},

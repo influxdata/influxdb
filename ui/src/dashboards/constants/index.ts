@@ -2,7 +2,7 @@ import {
   DEFAULT_VERTICAL_TIME_AXIS,
   DEFAULT_FIX_FIRST_COLUMN,
 } from 'src/shared/constants/tableGraph'
-import {Cell, Dashboard} from 'src/types'
+import {Cell, Dashboard, RemoteDataState} from 'src/types'
 import {DecimalPlaces} from 'src/types'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
@@ -55,6 +55,7 @@ export const NEW_DEFAULT_DASHBOARD_CELL: NewDefaultCell = {
   y: 0,
   w: 4,
   h: 4,
+  status: RemoteDataState.Done,
 }
 
 export type EmptyDefaultDashboard = Pick<
@@ -71,12 +72,14 @@ export const EMPTY_DASHBOARD: EmptyDefaultDashboard = {
   id: '0',
   name: '',
   cells: [NEW_DEFAULT_DASHBOARD_CELL],
+  status: RemoteDataState.Done,
 }
 
 export const DashboardTemplate: EmptyDefaultDashboard = {
   id: '0',
   name: 'Create a New Dashboard',
   cells: [],
+  status: RemoteDataState.Done,
 }
 
 type NewDefaultDashboard = Pick<

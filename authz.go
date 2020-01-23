@@ -335,6 +335,16 @@ func OperPermissions() []Permission {
 	return ps
 }
 
+// ReadAllPermissions represents permission to read all data and metadata.
+// Like OperPermissions, but allows read-only users.
+func ReadAllPermissions() []Permission {
+	ps := make([]Permission, len(AllResourceTypes))
+	for i, t := range AllResourceTypes {
+		ps[i] = Permission{Action: ReadAction, Resource: Resource{Type: t}}
+	}
+	return ps
+}
+
 // OwnerPermissions are the default permissions for those who own a resource.
 func OwnerPermissions(orgID ID) []Permission {
 	ps := []Permission{}

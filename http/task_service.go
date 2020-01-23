@@ -1085,8 +1085,11 @@ func decodeForceRunRequest(ctx context.Context, r *http.Request) (forceRunReques
 	var req struct {
 		ScheduledFor string `json:"scheduledFor"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return forceRunRequest{}, err
+
+	if r.ContentLength != 0 && r.ContentLength < 1000 { // prevent attempts to use up memory since r.Body should include at most one item (RunManually)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			return forceRunRequest{}, err
+		}
 	}
 
 	var t time.Time

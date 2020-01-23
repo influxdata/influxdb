@@ -15,8 +15,7 @@ import {fastMap} from 'src/utils/fast'
 import {LAYOUT_MARGIN, DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 
 // Types
-import {Cell} from 'src/types'
-import {TimeRange} from 'src/types'
+import {Cell, TimeRange, RemoteDataState} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -24,24 +23,13 @@ interface Props {
   cells: Cell[]
   timeRange: TimeRange
   manualRefresh: number
-  onCloneCell?: (cell: Cell) => void
-  onDeleteCell?: (cell: Cell) => void
   onPositionChange?: (cells: Cell[]) => void
-  onEditView: (cellID: string) => void
-  onEditNote: (id: string) => void
 }
 
 @ErrorHandling
 class Cells extends Component<Props & WithRouterProps> {
   public render() {
-    const {
-      cells,
-      onDeleteCell,
-      onCloneCell,
-      timeRange,
-      manualRefresh,
-      onEditNote,
-    } = this.props
+    const {cells, timeRange, manualRefresh} = this.props
 
     return (
       <Grid
@@ -60,12 +48,8 @@ class Cells extends Component<Props & WithRouterProps> {
           <div key={cell.id} className="cell">
             <CellComponent
               cell={cell}
-              manualRefresh={manualRefresh}
               timeRange={timeRange}
-              onCloneCell={onCloneCell}
-              onDeleteCell={onDeleteCell}
-              onEditCell={this.handleEditCell(cell)}
-              onEditNote={onEditNote}
+              manualRefresh={manualRefresh}
             />
             {this.cellBorder}
           </div>
@@ -81,14 +65,16 @@ class Cells extends Component<Props & WithRouterProps> {
   }
 
   private get cells(): Layout[] {
-    return this.props.cells.map(c => ({
-      ...c,
-      x: c.x,
-      y: c.y,
-      h: c.h,
-      w: c.w,
-      i: c.id,
-    }))
+    return this.props.cells
+      .filter(c => c.status === RemoteDataState.Done)
+      .map(c => ({
+        ...c,
+        x: c.x,
+        y: c.y,
+        h: c.h,
+        w: c.w,
+        i: c.id,
+      }))
   }
 
   private get isDashboard(): boolean {
@@ -131,12 +117,6 @@ class Cells extends Component<Props & WithRouterProps> {
     if (changed) {
       this.props.onPositionChange(newCells)
     }
-  }
-
-  private handleEditCell = (cell: Cell) => {
-    const {onEditView} = this.props
-
-    return () => onEditView(cell.id)
   }
 }
 

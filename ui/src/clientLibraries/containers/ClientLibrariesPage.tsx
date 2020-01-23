@@ -14,6 +14,7 @@ import {AppState, Organization} from 'src/types'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {getOrg} from 'src/organizations/selectors'
 
 interface StateProps {
   org: Organization
@@ -38,8 +39,8 @@ class ClientLibrariesPage extends PureComponent<StateProps> {
   }
 }
 
-const mstp = ({orgs: {org}}: AppState): StateProps => ({
-  org,
+const mstp = (state: AppState): StateProps => ({
+  org: getOrg(state),
 })
 
 export default connect<StateProps>(mstp)(ClientLibrariesPage)

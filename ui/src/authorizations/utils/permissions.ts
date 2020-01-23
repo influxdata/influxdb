@@ -1,115 +1,73 @@
 import {Bucket, Permission} from 'src/types'
 
-export const allAccessPermissions = (orgID: string): Permission[] => [
-  {
-    action: 'read',
-    resource: {type: 'orgs', id: orgID},
-  },
-  {
-    action: 'read',
-    resource: {type: 'authorizations', orgID},
-  },
-  {
-    action: 'write',
-    resource: {type: 'authorizations', orgID},
-  },
-  {
-    action: 'read',
-    resource: {type: 'buckets', orgID},
-  },
-  {
-    action: 'write',
-    resource: {type: 'buckets', orgID},
-  },
-  {
-    action: 'read',
-    resource: {type: 'dashboards', orgID},
-  },
-  {
-    action: 'write',
-    resource: {type: 'dashboards', orgID},
-  },
-  {
-    action: 'read',
-    resource: {type: 'sources', orgID},
-  },
-  {
-    action: 'write',
-    resource: {type: 'sources', orgID},
-  },
-  {
-    action: 'read',
-    resource: {type: 'tasks', orgID},
-  },
-  {
-    action: 'write',
-    resource: {type: 'tasks', orgID},
-  },
-  {
-    action: 'read',
-    resource: {type: 'telegrafs', orgID},
-  },
-  {
-    action: 'write',
-    resource: {type: 'telegrafs', orgID},
-  },
-  {
-    action: 'read',
-    resource: {type: 'users', orgID},
-  },
-  {
-    action: 'write',
-    resource: {type: 'users', orgID},
-  },
-  {
-    action: 'read',
-    resource: {type: 'variables', orgID},
-  },
-  {
-    action: 'write',
-    resource: {type: 'variables', orgID},
-  },
-  {
-    action: 'read',
-    resource: {type: 'scrapers', orgID},
-  },
-  {
-    action: 'write',
-    resource: {type: 'scrapers', orgID},
-  },
-  {
-    action: 'read',
-    resource: {type: 'secrets', orgID},
-  },
-  {
-    action: 'write',
-    resource: {type: 'secrets', orgID},
-  },
-  {
-    action: 'read',
-    resource: {type: 'labels', orgID},
-  },
-  {
-    action: 'write',
-    resource: {type: 'labels', orgID},
-  },
-  {
-    action: 'read',
-    resource: {type: 'views', orgID},
-  },
-  {
-    action: 'write',
-    resource: {type: 'views', orgID},
-  },
-  {
-    action: 'read',
-    resource: {type: 'documents', orgID},
-  },
-  {
-    action: 'write',
-    resource: {type: 'documents', orgID},
-  },
+type PermissionTypes = Permission['resource']['type']
+
+function assertNever(x: never): never {
+  throw new Error('Unexpected object: ' + x)
+}
+
+const allPermissionTypes: PermissionTypes[] = [
+  'authorizations',
+  'buckets',
+  'checks',
+  'dashboards',
+  'documents',
+  'labels',
+  'notificationRules',
+  'notificationEndpoints',
+  'orgs',
+  'secrets',
+  'scrapers',
+  'sources',
+  'tasks',
+  'telegrafs',
+  'users',
+  'variables',
+  'views',
 ]
+
+// The switch statement below will cause a TS error
+// if all allowable PermissionTypes generated in the client
+// generatedRoutes are not included in the switch statement BUT
+// they will need to be added to both the switch statement AND the allPermissionTypes array.
+const ensureT = (orgID: string) => (t: PermissionTypes) => {
+  switch (t) {
+    case 'authorizations':
+    case 'buckets':
+    case 'checks':
+    case 'dashboards':
+    case 'documents':
+    case 'labels':
+    case 'notificationRules':
+    case 'notificationEndpoints':
+    case 'orgs':
+    case 'secrets':
+    case 'scrapers':
+    case 'sources':
+    case 'tasks':
+    case 'telegrafs':
+    case 'users':
+    case 'variables':
+    case 'views':
+      return [
+        {
+          action: 'read' as 'read',
+          resource: {type: t, orgID},
+        },
+        {
+          action: 'write' as 'write',
+          resource: {type: t, orgID},
+        },
+      ]
+    default:
+      return assertNever(t)
+  }
+}
+
+export const allAccessPermissions = (orgID: string): Permission[] => {
+  const withOrgID = ensureT(orgID)
+  return allPermissionTypes.flatMap(withOrgID)
+}
 
 export const specificBucketsPermissions = (
   buckets: Bucket[],

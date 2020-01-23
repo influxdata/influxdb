@@ -3,6 +3,7 @@ package kv
 import (
 	"context"
 	"errors"
+	"io"
 )
 
 var (
@@ -11,6 +12,9 @@ var (
 	// ErrTxNotWritable is the error returned when an mutable operation is called during
 	// a non-writable transaction.
 	ErrTxNotWritable = errors.New("transaction is not writable")
+	// ErrSeekMissingPrefix is returned when seek bytes is missing the prefix defined via
+	// WithCursorPrefix
+	ErrSeekMissingPrefix = errors.New("seek missing prefix bytes")
 )
 
 // IsNotFound returns a boolean indicating whether the error is known to report that a key or was not found.
@@ -26,6 +30,8 @@ type Store interface {
 	View(context.Context, func(Tx) error) error
 	// Update opens up a transaction that will mutate data.
 	Update(context.Context, func(Tx) error) error
+	// Backup copies all K:Vs to a writer, file format determined by implementation.
+	Backup(ctx context.Context, w io.Writer) error
 }
 
 // Tx is a transaction in the store.
@@ -141,6 +147,7 @@ const (
 type CursorConfig struct {
 	Direction CursorDirection
 	Hints     CursorHints
+	Prefix    []byte
 }
 
 // NewCursorConfig constructs and configures a CursorConfig used to configure
@@ -169,5 +176,17 @@ func WithCursorHints(hints ...CursorHint) CursorOption {
 		for _, hint := range hints {
 			hint(&c.Hints)
 		}
+	}
+}
+
+// WithCursorPrefix configures the forward cursor to retrieve keys
+// with a particular prefix. This implies the cursor will start and end
+// at a specific location based on the prefix [prefix, prefix + 1).
+//
+// The value of the seek bytes must be prefixed with the provided
+// prefix, otherwise an error will be returned.
+func WithCursorPrefix(prefix []byte) CursorOption {
+	return func(c *CursorConfig) {
+		c.Prefix = prefix
 	}
 }

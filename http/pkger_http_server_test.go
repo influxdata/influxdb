@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
@@ -36,9 +37,6 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 			testttp.
 				PostJSON(t, "/api/v2/packages", fluxTTP.ReqCreatePkg{
-					PkgName:        "name1",
-					PkgDescription: "desc1",
-					PkgVersion:     "v1",
 					Resources: []pkger.ResourceToClone{
 						{
 							Kind: pkger.KindLabel,
@@ -51,22 +49,27 @@ func TestPkgerHTTPServer(t *testing.T) {
 				Do(svr).
 				ExpectStatus(http.StatusOK).
 				ExpectBody(func(buf *bytes.Buffer) {
-					var resp fluxTTP.RespCreatePkg
-					decodeBody(t, buf, &resp)
+					pkg, err := pkger.Parse(pkger.EncodingJSON, pkger.FromReader(buf))
+					require.NoError(t, err)
 
-					pkg := resp.Pkg
+					require.NotNil(t, pkg)
 					require.NoError(t, pkg.Validate())
-					assert.Equal(t, pkger.APIVersion, pkg.APIVersion)
-					assert.Equal(t, pkger.KindPackage, pkg.Kind)
 
-					meta := pkg.Metadata
-					assert.Equal(t, "name1", meta.Name)
-					assert.Equal(t, "desc1", meta.Description)
-					assert.Equal(t, "v1", meta.Version)
-
-					assert.Len(t, pkg.Spec.Resources, 1)
+					assert.Len(t, pkg.Objects, 1)
 					assert.Len(t, pkg.Summary().Labels, 1)
 				})
+
+		})
+
+		t.Run("should be invalid if not org ids or resources provided", func(t *testing.T) {
+			pkgHandler := fluxTTP.NewHandlerPkg(zap.NewNop(), fluxTTP.ErrorHandler(0), nil)
+			svr := newMountedHandler(pkgHandler, 1)
+
+			testttp.
+				PostJSON(t, "/api/v2/packages", fluxTTP.ReqCreatePkg{}).
+				Headers("Content-Type", "application/json").
+				Do(svr).
+				ExpectStatus(http.StatusUnprocessableEntity)
 
 		})
 	})
@@ -76,13 +79,44 @@ func TestPkgerHTTPServer(t *testing.T) {
 			tests := []struct {
 				name        string
 				contentType string
+				reqBody     fluxTTP.ReqApplyPkg
 			}{
 				{
 					name:        "app json",
 					contentType: "application/json",
+					reqBody: fluxTTP.ReqApplyPkg{
+						DryRun: true,
+						OrgID:  influxdb.ID(9000).String(),
+						RawPkg: bucketPkgKinds(t, pkger.EncodingJSON),
+					},
 				},
 				{
 					name: "defaults json when no content type",
+					reqBody: fluxTTP.ReqApplyPkg{
+						DryRun: true,
+						OrgID:  influxdb.ID(9000).String(),
+						RawPkg: bucketPkgKinds(t, pkger.EncodingJSON),
+					},
+				},
+				{
+					name: "retrieves package from a URL",
+					reqBody: fluxTTP.ReqApplyPkg{
+						DryRun: true,
+						OrgID:  influxdb.ID(9000).String(),
+						Remote: fluxTTP.PkgRemote{
+							URL:         "https://gist.githubusercontent.com/jsteenb2/3a3b2b5fcbd6179b2494c2b54aa2feb0/raw/540e65305a18bfca6123714e6c8868b1b465c7ef/bucket_pkg_json",
+							ContentType: "jsonnet",
+						},
+					},
+				},
+				{
+					name:        "app jsonnet",
+					contentType: "application/x-jsonnet",
+					reqBody: fluxTTP.ReqApplyPkg{
+						DryRun: true,
+						OrgID:  influxdb.ID(9000).String(),
+						RawPkg: bucketPkgKinds(t, pkger.EncodingJsonnet),
+					},
 				},
 			}
 
@@ -108,11 +142,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
-						PostJSON(t, "/api/v2/packages/apply", fluxTTP.ReqApplyPkg{
-							DryRun: true,
-							OrgID:  influxdb.ID(9000).String(),
-							Pkg:    bucketPkg(t, pkger.EncodingJSON),
-						}).
+						PostJSON(t, "/api/v2/packages/apply", tt.reqBody).
 						Headers("Content-Type", tt.contentType).
 						Do(svr).
 						ExpectStatus(http.StatusOK).
@@ -221,7 +251,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			PostJSON(t, "/api/v2/packages/apply", fluxTTP.ReqApplyPkg{
 				OrgID:   influxdb.ID(9000).String(),
 				Secrets: map[string]string{"secret1": "val1"},
-				Pkg:     bucketPkg(t, pkger.EncodingJSON),
+				RawPkg:  bucketPkgKinds(t, pkger.EncodingJSON),
 			}).
 			Do(svr).
 			ExpectStatus(http.StatusCreated).
@@ -237,54 +267,60 @@ func TestPkgerHTTPServer(t *testing.T) {
 	})
 }
 
-func bucketPkg(t *testing.T, encoding pkger.Encoding) *pkger.Pkg {
+func bucketPkgKinds(t *testing.T, encoding pkger.Encoding) []byte {
 	t.Helper()
 
 	var pkgStr string
 	switch encoding {
-	case pkger.EncodingJSON:
+	case pkger.EncodingJsonnet:
 		pkgStr = `
-{
-  "apiVersion": "0.1.0",
-  "kind": "Package",
-  "meta": {
-    "pkgName": "pkg_name",
-    "pkgVersion": "1",
-    "description": "pack description"
-  },
-  "spec": {
-    "resources": [
-      {
-        "kind": "Bucket",
-        "name": "rucket_11",
-        "retention_period": "1h",
-        "description": "bucket 1 description"
-      }
-    ]
+local Bucket(name, desc) = {
+    apiVersion: '%[1]s',
+    kind: 'Bucket',
+    metadata: {
+        name: name
+    },
+    spec: {
+        description: desc
+    }
+};
+
+[
+  Bucket(name="rucket_1", desc="bucket 1 description"),
+]
+`
+	case pkger.EncodingJSON:
+		pkgStr = `[
+  {
+    "apiVersion": "%[1]s",
+    "kind": "Bucket",
+    "metadata": {
+      "name": "rucket_11"
+    },
+    "spec": {
+      "description": "bucket 1 description"
+    }
   }
-}
+]
 `
 	case pkger.EncodingYAML:
-		pkgStr = `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
+		pkgStr = `apiVersion: %[1]s
+kind: Bucket
+metadata:
+  name:  rucket_11
 spec:
-  resources:
-    - kind: Bucket
-      name: rucket_11
-      retention_period: 1h
-      description: bucket 1 description
+  description: bucket 1 description
 `
 	default:
 		require.FailNow(t, "invalid encoding provided: "+encoding.String())
 	}
 
-	pkg, err := pkger.Parse(encoding, pkger.FromString(pkgStr))
+	pkg, err := pkger.Parse(encoding, pkger.FromString(fmt.Sprintf(pkgStr, pkger.APIVersion)))
 	require.NoError(t, err)
-	return pkg
+
+	b, err := pkg.Encode(encoding)
+	require.NoError(t, err)
+	return b
 }
 
 func newReqApplyYMLBody(t *testing.T, orgID influxdb.ID, dryRun bool) *bytes.Buffer {
@@ -294,7 +330,7 @@ func newReqApplyYMLBody(t *testing.T, orgID influxdb.ID, dryRun bool) *bytes.Buf
 	err := yaml.NewEncoder(&buf).Encode(fluxTTP.ReqApplyPkg{
 		DryRun: dryRun,
 		OrgID:  orgID.String(),
-		Pkg:    bucketPkg(t, pkger.EncodingYAML),
+		RawPkg: bucketPkgKinds(t, pkger.EncodingYAML),
 	})
 	require.NoError(t, err)
 	return &buf

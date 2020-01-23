@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
 	"sort"
 	"strings"
 	"sync"
@@ -16,7 +15,7 @@ import (
 )
 
 // APIVersion marks the current APIVersion for influx packages.
-const APIVersion = "0.1.0"
+const APIVersion = "influxdata.com/v2alpha1"
 
 // SVC is the packages service interface.
 type SVC interface {
@@ -24,6 +23,9 @@ type SVC interface {
 	DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (Summary, Diff, error)
 	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, error)
 }
+
+// SVCMiddleware is a service middleware func.
+type SVCMiddleware func(SVC) SVC
 
 type serviceOpt struct {
 	logger *zap.Logger
@@ -174,17 +176,8 @@ type CreatePkgSetFn func(opt *CreateOpt) error
 
 // CreateOpt are the options for creating a new package.
 type CreateOpt struct {
-	Metadata  Metadata
 	OrgIDs    map[influxdb.ID]bool
 	Resources []ResourceToClone
-}
-
-// CreateWithMetadata sets the metadata on the pkg in a CreatePkg call.
-func CreateWithMetadata(meta Metadata) CreatePkgSetFn {
-	return func(opt *CreateOpt) error {
-		opt.Metadata = meta
-		return nil
-	}
 }
 
 // CreateWithExistingResources allows the create method to clone existing resources.
@@ -194,7 +187,6 @@ func CreateWithExistingResources(resources ...ResourceToClone) CreatePkgSetFn {
 			if err := r.OK(); err != nil {
 				return err
 			}
-			r.Kind = NewKind(string(r.Kind))
 		}
 		opt.Resources = append(opt.Resources, resources...)
 		return nil
@@ -226,22 +218,7 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	}
 
 	pkg := &Pkg{
-		APIVersion: APIVersion,
-		Kind:       KindPackage,
-		Metadata:   opt.Metadata,
-		Spec: struct {
-			Resources []Resource `yaml:"resources" json:"resources"`
-		}{
-			Resources: make([]Resource, 0, len(opt.Resources)),
-		},
-	}
-	if pkg.Metadata.Name == "" {
-		// sudo randomness, this is not an attempt at making charts unique
-		// that is a problem for the consumer.
-		pkg.Metadata.Name = fmt.Sprintf("new_%7d", rand.Int())
-	}
-	if pkg.Metadata.Version == "" {
-		pkg.Metadata.Version = "v1"
+		Objects: make([]Object, 0, len(opt.Resources)),
 	}
 
 	cloneAssFn := s.resourceCloneAssociationsGen()
@@ -254,14 +231,14 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	}
 
 	for _, r := range uniqResourcesToClone(opt.Resources) {
-		newResources, err := s.resourceCloneToResource(ctx, r, cloneAssFn)
+		newKinds, err := s.resourceCloneToKind(ctx, r, cloneAssFn)
 		if err != nil {
 			return nil, internalErr(err)
 		}
-		pkg.Spec.Resources = append(pkg.Spec.Resources, newResources...)
+		pkg.Objects = append(pkg.Objects, newKinds...)
 	}
 
-	pkg.Spec.Resources = uniqResources(pkg.Spec.Resources)
+	pkg.Objects = uniqResources(pkg.Objects)
 
 	if err := pkg.Validate(ValidWithoutResources()); err != nil {
 		return nil, failedValidationErr(err)
@@ -281,10 +258,9 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 		KindDashboard:                     11,
 	}
 
-	sort.Slice(pkg.Spec.Resources, func(i, j int) bool {
-		iName, jName := pkg.Spec.Resources[i].Name(), pkg.Spec.Resources[j].Name()
-		iKind, _ := pkg.Spec.Resources[i].kind()
-		jKind, _ := pkg.Spec.Resources[j].kind()
+	sort.Slice(pkg.Objects, func(i, j int) bool {
+		iName, jName := pkg.Objects[i].Name(), pkg.Objects[j].Name()
+		iKind, jKind := pkg.Objects[i].Type, pkg.Objects[j].Type
 
 		if iKind.is(jKind) {
 			return iName < jName
@@ -535,7 +511,7 @@ func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID) ([]R
 	return resources, nil
 }
 
-func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) (newResources []Resource, e error) {
+func (s *Service) resourceCloneToKind(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) (newKinds []Object, e error) {
 	defer func() {
 		if e != nil {
 			e = ierrors.Wrap(e, "cloning resource")
@@ -543,8 +519,8 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 	}()
 
 	var (
-		newResource      Resource
-		sidecarResources []Resource
+		newKind      Object
+		sidecarKinds []Object
 	)
 	switch {
 	case r.Kind.is(KindBucket):
@@ -552,7 +528,7 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 		if err != nil {
 			return nil, err
 		}
-		newResource = bucketToResource(*bkt, r.Name)
+		newKind = bucketToObject(*bkt, r.Name)
 	case r.Kind.is(KindCheck),
 		r.Kind.is(KindCheckDeadman),
 		r.Kind.is(KindCheckThreshold):
@@ -560,19 +536,19 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 		if err != nil {
 			return nil, err
 		}
-		newResource = checkToResource(ch, r.Name)
+		newKind = checkToObject(ch, r.Name)
 	case r.Kind.is(KindDashboard):
 		dash, err := s.findDashboardByIDFull(ctx, r.ID)
 		if err != nil {
 			return nil, err
 		}
-		newResource = dashboardToResource(*dash, r.Name)
+		newKind = DashboardToObject(*dash, r.Name)
 	case r.Kind.is(KindLabel):
 		l, err := s.labelSVC.FindLabelByID(ctx, r.ID)
 		if err != nil {
 			return nil, err
 		}
-		newResource = labelToResource(*l, r.Name)
+		newKind = labelToObject(*l, r.Name)
 	case r.Kind.is(KindNotificationEndpoint),
 		r.Kind.is(KindNotificationEndpointHTTP),
 		r.Kind.is(KindNotificationEndpointPagerDuty),
@@ -581,31 +557,31 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 		if err != nil {
 			return nil, err
 		}
-		newResource = endpointToResource(e, r.Name)
+		newKind = endpointKind(e, r.Name)
 	case r.Kind.is(KindNotificationRule):
 		ruleRes, endpointRes, err := s.exportNotificationRule(ctx, r)
 		if err != nil {
 			return nil, err
 		}
-		newResource, sidecarResources = ruleRes, append(sidecarResources, endpointRes)
+		newKind, sidecarKinds = ruleRes, append(sidecarKinds, endpointRes)
 	case r.Kind.is(KindTask):
 		t, err := s.taskSVC.FindTaskByID(ctx, r.ID)
 		if err != nil {
 			return nil, err
 		}
-		newResource = taskToResource(*t, r.Name)
+		newKind = taskToObject(*t, r.Name)
 	case r.Kind.is(KindTelegraf):
 		t, err := s.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
 		if err != nil {
 			return nil, err
 		}
-		newResource = telegrafToResource(*t, r.Name)
+		newKind = telegrafToObject(*t, r.Name)
 	case r.Kind.is(KindVariable):
 		v, err := s.varSVC.FindVariableByID(ctx, r.ID)
 		if err != nil {
 			return nil, err
 		}
-		newResource = variableToResource(*v, r.Name)
+		newKind = VariableToObject(*v, r.Name)
 	default:
 		return nil, errors.New("unsupported kind provided: " + string(r.Kind))
 	}
@@ -615,30 +591,30 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 		return nil, err
 	}
 	if len(ass.associations) > 0 {
-		newResource[fieldAssociations] = ass.associations
+		newKind.Spec[fieldAssociations] = ass.associations
 	}
 
-	return append(ass.newLableResources, append(sidecarResources, newResource)...), nil
+	return append(ass.newLableResources, append(sidecarKinds, newKind)...), nil
 }
 
-func (s *Service) exportNotificationRule(ctx context.Context, r ResourceToClone) (Resource, Resource, error) {
+func (s *Service) exportNotificationRule(ctx context.Context, r ResourceToClone) (Object, Object, error) {
 	rule, err := s.ruleSVC.FindNotificationRuleByID(ctx, r.ID)
 	if err != nil {
-		return nil, nil, err
+		return Object{}, Object{}, err
 	}
 
 	ruleEndpoint, err := s.endpointSVC.FindNotificationEndpointByID(ctx, rule.GetEndpointID())
 	if err != nil {
-		return nil, nil, err
+		return Object{}, Object{}, err
 	}
 
-	return ruleToResource(rule, ruleEndpoint.GetName(), r.Name), endpointToResource(ruleEndpoint, ""), nil
+	return ruleToObject(rule, ruleEndpoint.GetName(), r.Name), endpointKind(ruleEndpoint, ""), nil
 }
 
 type (
 	associations struct {
 		associations      []Resource
-		newLableResources []Resource
+		newLableResources []Object
 	}
 
 	cloneAssociationsFn func(context.Context, ResourceToClone) (associations, error)
@@ -675,7 +651,7 @@ func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
 				continue
 			}
 			m[k] = true
-			ass.newLableResources = append(ass.newLableResources, labelToResource(*l, ""))
+			ass.newLableResources = append(ass.newLableResources, labelToObject(*l, ""))
 		}
 		return ass, nil
 	}
@@ -754,7 +730,7 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 		}
 	}
 
-	var diffs []DiffBucket
+	diffs := make([]DiffBucket, 0, len(mExistingBkts))
 	for _, diff := range mExistingBkts {
 		diffs = append(diffs, diff)
 	}
@@ -784,7 +760,7 @@ func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 		}
 	}
 
-	var diffs []DiffCheck
+	diffs := make([]DiffCheck, 0, len(mExistingChecks))
 	for _, diff := range mExistingChecks {
 		diffs = append(diffs, diff)
 	}
@@ -796,8 +772,10 @@ func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 }
 
 func (s *Service) dryRunDashboards(pkg *Pkg) []DiffDashboard {
-	var diffs []DiffDashboard
-	for _, d := range pkg.dashboards() {
+	dashs := pkg.dashboards()
+
+	diffs := make([]DiffDashboard, 0, len(dashs))
+	for _, d := range dashs {
 		diffs = append(diffs, newDiffDashboard(d))
 	}
 	return diffs
@@ -862,7 +840,7 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 		mExistingToNew[newEndpoint.Name()] = newDiffNotificationEndpoint(newEndpoint, existing)
 	}
 
-	var diffs []DiffNotificationEndpoint
+	diffs := make([]DiffNotificationEndpoint, 0, len(mExistingToNew))
 	for _, diff := range mExistingToNew {
 		diffs = append(diffs, diff)
 	}
@@ -885,7 +863,7 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 		mExisting[e.GetName()] = e
 	}
 
-	var diffs []DiffNotificationRule
+	diffs := make([]DiffNotificationRule, 0, len(mExisting))
 	for _, r := range pkg.notificationRules() {
 		e, ok := mExisting[r.endpointName]
 		if !ok {
@@ -929,8 +907,9 @@ func (s *Service) dryRunTasks(pkg *Pkg) []DiffTask {
 }
 
 func (s *Service) dryRunTelegraf(pkg *Pkg) []DiffTelegraf {
-	var diffs []DiffTelegraf
-	for _, t := range pkg.telegrafs() {
+	telegrafs := pkg.telegrafs()
+	diffs := make([]DiffTelegraf, 0, len(telegrafs))
+	for _, t := range telegrafs {
 		diffs = append(diffs, newDiffTelegraf(t))
 	}
 	return diffs
@@ -1008,7 +987,7 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 		mapperVariables(pkg.variables()),
 	}
 
-	var diffs []DiffLabelMapping
+	diffs := make([]DiffLabelMapping, 0)
 	for _, mapper := range mappers {
 		for i := 0; i < mapper.Len(); i++ {
 			la := mapper.Association(i)

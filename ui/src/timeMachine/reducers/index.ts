@@ -484,6 +484,22 @@ export const timeMachineReducer = (
       }
     }
 
+    case 'SET_TICK_PREFIX': {
+      const {tickPrefix} = action.payload
+
+      switch (state.view.properties.type) {
+        case 'gauge':
+        case 'single-stat':
+        case 'line-plus-single-stat':
+          return setViewProperties(state, {tickPrefix})
+        case 'check':
+        case 'xy':
+          return setYAxis(state, {tickPrefix})
+        default:
+          return state
+      }
+    }
+
     case 'SET_SUFFIX': {
       const {suffix} = action.payload
 
@@ -495,6 +511,22 @@ export const timeMachineReducer = (
         case 'check':
         case 'xy':
           return setYAxis(state, {suffix})
+        default:
+          return state
+      }
+    }
+
+    case 'SET_TICK_SUFFIX': {
+      const {tickSuffix} = action.payload
+
+      switch (state.view.properties.type) {
+        case 'gauge':
+        case 'single-stat':
+        case 'line-plus-single-stat':
+          return setViewProperties(state, {tickSuffix})
+        case 'check':
+        case 'xy':
+          return setYAxis(state, {tickSuffix})
         default:
           return state
       }
@@ -752,8 +784,6 @@ export const timeMachineReducer = (
 
         draftState.queryBuilder.tags[index].values = values
         draftState.queryBuilder.tags[index].valuesStatus = RemoteDataState.Done
-
-        buildActiveQuery(draftState)
       })
     }
 
@@ -1027,12 +1057,12 @@ const initialQueryResultsState = (): QueryResultsState => ({
   statuses: null,
 })
 
-const buildActiveQuery = (draftState: TimeMachineState) => {
+export const buildActiveQuery = (draftState: TimeMachineState) => {
   const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
 
   if (isConfigValid(draftQuery.builderConfig)) {
     draftQuery.text = buildQuery(draftQuery.builderConfig)
-  } else {
+  } else if (!draftQuery.text) {
     draftQuery.text = ''
   }
 }

@@ -15,7 +15,7 @@ import {extractBucketMaxRetentionSeconds} from 'src/cloud/utils/limits'
 // Types
 import {AppState} from 'src/types'
 
-export const DEFAULT_SECONDS = 259200 // 72 hours
+export const DEFAULT_SECONDS = 30 * 24 * 60 * 60 // 30 days
 
 export const DURATION_OPTIONS: DurationOption[] = [
   {duration: '1h', displayText: '1 hour'},

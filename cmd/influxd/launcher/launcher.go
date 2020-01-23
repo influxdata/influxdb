@@ -45,7 +45,7 @@ import (
 	"github.com/influxdata/influxdb/storage/readservice"
 	taskbackend "github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/coordinator"
-	taskexecutor "github.com/influxdata/influxdb/task/backend/executor"
+	"github.com/influxdata/influxdb/task/backend/executor"
 	"github.com/influxdata/influxdb/task/backend/middleware"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
 	"github.com/influxdata/influxdb/telemetry"
@@ -147,7 +147,7 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 		{
 			DestP:   &l.boltPath,
 			Flag:    "bolt-path",
-			Default: filepath.Join(dir, "influxd.bolt"),
+			Default: filepath.Join(dir, bolt.DefaultFilename),
 			Desc:    "path to boltdb database",
 		},
 		{
@@ -259,12 +259,6 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Default: "",
 			Desc:    "TLS key for HTTPs",
 		},
-		{
-			DestP:   &l.EnableNewScheduler,
-			Flag:    "feature-enable-new-scheduler",
-			Default: false,
-			Desc:    "feature flag that enables using the new treescheduler",
-		},
 	}
 
 	cli.BindOptions(cmd, opts)
@@ -308,9 +302,8 @@ type Launcher struct {
 	natsServer *nats.Server
 	natsPort   int
 
-	EnableNewScheduler bool
-	scheduler          *taskbackend.TickScheduler
-	treeScheduler      *scheduler.TreeScheduler
+	scheduler          *scheduler.TreeScheduler
+	executor           *executor.Executor
 	taskControlService taskbackend.TaskControlService
 
 	jaegerTracerCloser io.Closer
@@ -374,11 +367,8 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 	m.httpServer.Shutdown(ctx)
 
 	m.log.Info("Stopping", zap.String("service", "task"))
-	if m.EnableNewScheduler {
-		m.treeScheduler.Stop()
-	} else {
-		m.scheduler.Stop()
-	}
+
+	m.scheduler.Stop()
 
 	m.log.Info("Stopping", zap.String("service", "nats"))
 	m.natsServer.Close()
@@ -591,6 +581,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var (
 		deleteService platform.DeleteService = m.engine
 		pointsWriter  storage.PointsWriter   = m.engine
+		backupService platform.BackupService = m.engine
 	)
 
 	// TODO(cwolff): Figure out a good default per-query memory limit:
@@ -631,96 +622,72 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
 	var taskSvc platform.TaskService
 	{
-		// create the task stack:
-		// validation(coordinator(analyticalstore(kv.Service)))
+		// create the task stack
 		combinedTaskService := taskbackend.NewAnalyticalStorage(m.log.With(zap.String("service", "task-analytical-store")), m.kvService, m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
-		if m.EnableNewScheduler {
-			executor, executorMetrics := taskexecutor.NewExecutor(
-				m.log.With(zap.String("service", "task-executor")),
-				query.QueryServiceBridge{AsyncQueryService: m.queryController},
-				authSvc,
-				combinedTaskService,
-				combinedTaskService,
-			)
-			m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)
-			schLogger := m.log.With(zap.String("service", "task-scheduler"))
 
-			sch, sm, err := scheduler.NewScheduler(
-				executor,
-				taskbackend.NewSchedulableTaskService(m.kvService),
-				scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledFor time.Time, err error) {
-					schLogger.Info(
-						"error in scheduler run",
-						zap.String("taskID", platform.ID(taskID).String()),
-						zap.Time("scheduledFor", scheduledFor),
-						zap.Error(err))
-				}),
-			)
-			if err != nil {
-				m.log.Fatal("could not start task scheduler", zap.Error(err))
-			}
-			m.treeScheduler = sch
-			m.reg.MustRegister(sm.PrometheusCollectors()...)
-			coordLogger := m.log.With(zap.String("service", "task-coordinator"))
-			taskCoord := coordinator.NewCoordinator(
-				coordLogger,
-				sch,
-				executor)
+		executor, executorMetrics := executor.NewExecutor(
+			m.log.With(zap.String("service", "task-executor")),
+			query.QueryServiceBridge{AsyncQueryService: m.queryController},
+			authSvc,
+			combinedTaskService,
+			combinedTaskService,
+		)
+		m.executor = executor
+		m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)
+		schLogger := m.log.With(zap.String("service", "task-scheduler"))
 
-			taskSvc = middleware.New(combinedTaskService, taskCoord)
-			m.taskControlService = combinedTaskService
-			if err := taskbackend.TaskNotifyCoordinatorOfExisting(
-				ctx,
-				taskSvc,
-				combinedTaskService,
-				taskCoord,
-				func(ctx context.Context, taskID platform.ID, runID platform.ID) error {
-					_, err := executor.ResumeCurrentRun(ctx, taskID, runID)
-					return err
-				},
-				coordLogger); err != nil {
-				m.log.Error("Failed to resume existing tasks", zap.Error(err))
-			}
-		} else {
-
-			// define the executor and build analytical storage middleware
-			executor := taskexecutor.NewAsyncQueryServiceExecutor(m.log.With(zap.String("service", "task-executor")), m.queryController, authSvc, combinedTaskService)
-
-			// create the scheduler
-			m.scheduler = taskbackend.NewScheduler(m.log.With(zap.String("svc", "taskd/scheduler")), combinedTaskService, executor, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond))
-			m.scheduler.Start(ctx)
-			m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
-
-			logger := m.log.With(zap.String("service", "task-coordinator"))
-			coordinator := coordinator.New(logger, m.scheduler)
-
-			// resume existing task claims from task service
-			if err := taskbackend.NotifyCoordinatorOfExisting(ctx, logger, combinedTaskService, coordinator); err != nil {
-				logger.Error("Failed to resume existing tasks", zap.Error(err))
-			}
-
-			taskSvc = middleware.New(combinedTaskService, coordinator)
-			taskSvc = authorizer.NewTaskService(m.log.With(zap.String("service", "task-authz-validator")), taskSvc)
-			m.taskControlService = combinedTaskService
+		sch, sm, err := scheduler.NewScheduler(
+			executor,
+			taskbackend.NewSchedulableTaskService(m.kvService),
+			scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledAt time.Time, err error) {
+				schLogger.Info(
+					"error in scheduler run",
+					zap.String("taskID", platform.ID(taskID).String()),
+					zap.Time("scheduledAt", scheduledAt),
+					zap.Error(err))
+			}),
+		)
+		if err != nil {
+			m.log.Fatal("could not start task scheduler", zap.Error(err))
 		}
+		m.scheduler = sch
+		m.reg.MustRegister(sm.PrometheusCollectors()...)
+		coordLogger := m.log.With(zap.String("service", "task-coordinator"))
+		taskCoord := coordinator.NewCoordinator(
+			coordLogger,
+			sch,
+			executor)
 
+		taskSvc = middleware.New(combinedTaskService, taskCoord)
+		m.taskControlService = combinedTaskService
+		if err := taskbackend.TaskNotifyCoordinatorOfExisting(
+			ctx,
+			taskSvc,
+			combinedTaskService,
+			taskCoord,
+			func(ctx context.Context, taskID platform.ID, runID platform.ID) error {
+				_, err := executor.ResumeCurrentRun(ctx, taskID, runID)
+				return err
+			},
+			coordLogger); err != nil {
+			m.log.Error("Failed to resume existing tasks", zap.Error(err))
+		}
 	}
 
 	var checkSvc platform.CheckService
 	{
-		coordinator := coordinator.New(m.log, m.scheduler)
+		coordinator := coordinator.NewCoordinator(m.log, m.scheduler, m.executor)
 		checkSvc = middleware.NewCheckService(m.kvService, m.kvService, coordinator)
 	}
 
 	var notificationRuleSvc platform.NotificationRuleStore
 	{
-		coordinator := coordinator.New(m.log, m.scheduler)
+		coordinator := coordinator.NewCoordinator(m.log, m.scheduler, m.executor)
 		notificationRuleSvc = middleware.NewNotificationRuleStore(m.kvService, m.kvService, coordinator)
 	}
 
 	// NATS streaming server
 	natsOpts := nats.NewDefaultServerOptions()
-	nextPort := int64(4222)
 
 	// Welcome to ghetto land. It doesn't seem possible to tell NATS to initialise
 	// a random port. In some integration-style tests, this launcher gets initialised
@@ -728,26 +695,35 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	// still open.
 	//
 	// This atrocity checks if the port is free, and if it's not, moves on to the
-	// next one.
+	// next one. This best-effort approach may still fail occasionally when, for example,
+	// two tests race on isAddressPortAvailable.
 	var total int
 	for {
-		l, err := net.Listen("tcp", fmt.Sprintf(":%d", nextPort))
-		if err == nil {
-			if err := l.Close(); err != nil {
+		portAvailable, err := isAddressPortAvailable(natsOpts.Host, natsOpts.Port)
+		if err != nil {
+			return err
+		}
+		if portAvailable && natsOpts.Host == "" {
+			// Double-check localhost to accommodate tests
+			time.Sleep(100 * time.Millisecond)
+			portAvailable, err = isAddressPortAvailable("localhost", natsOpts.Port)
+			if err != nil {
 				return err
 			}
+		}
+		if portAvailable {
 			break
 		}
-		time.Sleep(time.Second)
-		nextPort++
+
+		time.Sleep(100 * time.Millisecond)
+		natsOpts.Port++
 		total++
 		if total > 50 {
 			return errors.New("unable to find free port for Nats server")
 		}
 	}
-	natsOpts.Port = int(nextPort)
 	m.natsServer = nats.NewServer(&natsOpts)
-	m.natsPort = int(nextPort)
+	m.natsPort = natsOpts.Port
 
 	if err := m.natsServer.Open(); err != nil {
 		m.log.Error("Failed to start nats streaming server", zap.Error(err))
@@ -797,6 +773,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		NewQueryService:      source.NewQueryService,
 		PointsWriter:         pointsWriter,
 		DeleteService:        deleteService,
+		BackupService:        backupService,
+		KVBackupService:      m.kvService,
 		AuthorizationService: authSvc,
 		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
 		BucketService:                   storage.NewBucketService(bucketSvc, m.engine),
@@ -852,6 +830,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			pkger.WithTelegrafSVC(authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)),
 			pkger.WithVariableSVC(authorizer.NewVariableService(b.VariableService)),
 		)
+		pkgSVC = pkger.MWTracing()(pkgSVC)
+		pkgSVC = pkger.MWLogging(pkgerLogger)(pkgSVC)
 	}
 
 	var pkgHTTPServer *http.HandlerPkg
@@ -860,27 +840,30 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgHTTPServer = http.NewHandlerPkg(pkgServerLogger, m.apibackend.HTTPErrorHandler, pkgSVC)
 	}
 
-	// HTTP server
-	var platformHandler nethttp.Handler = http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer))
-	m.reg.MustRegister(platformHandler.(*http.PlatformHandler).PrometheusCollectors()...)
-	httpLogger := m.log.With(zap.String("service", "http"))
-	if logconf.Level == zap.DebugLevel {
-		platformHandler = http.LoggingMW(httpLogger)(platformHandler)
-	}
+	{
+		platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer))
 
-	handler := http.NewHandlerFromRegistry(httpLogger, "platform", m.reg)
-	handler.Handler = platformHandler
+		httpLogger := m.log.With(zap.String("service", "http"))
+		m.httpServer.Handler = http.NewHandlerFromRegistry(
+			"platform",
+			m.reg,
+			http.WithLog(httpLogger),
+			http.WithAPIHandler(platformHandler),
+		)
 
-	m.httpServer.Handler = handler
-	// If we are in testing mode we allow all data to be flushed and removed.
-	if m.testing {
-		m.httpServer.Handler = http.DebugFlush(ctx, handler, flushers)
+		if logconf.Level == zap.DebugLevel {
+			m.httpServer.Handler = http.LoggingMW(httpLogger)(m.httpServer.Handler)
+		}
+		// If we are in testing mode we allow all data to be flushed and removed.
+		if m.testing {
+			m.httpServer.Handler = http.DebugFlush(ctx, m.httpServer.Handler, flushers)
+		}
 	}
 
 	ln, err := net.Listen("tcp", m.httpBindAddress)
 	if err != nil {
-		httpLogger.Error("failed http listener", zap.Error(err))
-		httpLogger.Info("Stopping")
+		m.log.Error("failed http listener", zap.Error(err))
+		m.log.Info("Stopping")
 		return err
 	}
 
@@ -892,8 +875,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		cer, err = tls.LoadX509KeyPair(m.httpTLSCert, m.httpTLSKey)
 
 		if err != nil {
-			httpLogger.Error("failed to load x509 key pair", zap.Error(err))
-			httpLogger.Info("Stopping")
+			m.log.Error("failed to load x509 key pair", zap.Error(err))
+			m.log.Info("Stopping")
 			return err
 		}
 		transport = "https"
@@ -920,9 +903,21 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			}
 		}
 		log.Info("Stopping")
-	}(httpLogger)
+	}(m.log)
 
 	return nil
+}
+
+// isAddressPortAvailable checks whether the address:port is available to listen,
+// by using net.Listen to verify that the port opens successfully, then closes the listener.
+func isAddressPortAvailable(address string, port int) (bool, error) {
+	if l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", address, port)); err == nil {
+		if err := l.Close(); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 // OrganizationService returns the internal organization service.
@@ -963,12 +958,6 @@ func (m *Launcher) TaskService() platform.TaskService {
 // TaskControlService returns the internal store service.
 func (m *Launcher) TaskControlService() taskbackend.TaskControlService {
 	return m.taskControlService
-}
-
-// TaskScheduler returns the internal scheduler service.
-// TODO(docmerlin): remove this when we delete the old scheduler
-func (m *Launcher) TaskScheduler() taskbackend.Scheduler {
-	return m.scheduler
 }
 
 // KeyValueService returns the internal key-value service.

@@ -335,15 +335,36 @@ func (b *Base) ClearPrivateData() {
 	b.TaskID = 0
 }
 
-// HasTag returns true if the Rule has a matching tagRule
-func (b *Base) HasTag(key, value string) bool {
-	for _, tr := range b.TagRules {
-		if tr.Operator == influxdb.Equal && tr.Key == key && tr.Value == value {
-			return true
+// MatchesTags returns true if the Rule matches all of the tags
+func (b *Base) MatchesTags(tags []influxdb.Tag) bool {
+	if len(tags) == 0 {
+		return true
+	}
+	// for each tag in NR
+	// if there exists
+	// a key value match with operator == equal in tags
+	// or
+	// a key match with a value mismatch with operator == notequal in tags
+	// then true
+
+	for _, NRtag := range b.TagRules {
+		isNRTagInFilterTags := false
+
+		for _, filterTag := range tags {
+			if NRtag.Key == filterTag.Key {
+				if NRtag.Operator == influxdb.Equal && NRtag.Value == filterTag.Value {
+					isNRTagInFilterTags = true
+				}
+				if NRtag.Operator == influxdb.NotEqual && NRtag.Value != filterTag.Value {
+					isNRTagInFilterTags = true
+				}
+			}
+		}
+		if !isNRTagInFilterTags {
+			return false
 		}
 	}
-
-	return false
+	return true
 }
 
 // GetOwnerID returns the owner id.

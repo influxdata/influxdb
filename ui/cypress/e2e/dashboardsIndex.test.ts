@@ -190,6 +190,22 @@ describe('Dashboards', () => {
           })
       })
 
+      it('clicking a list item adds a label and leaves open the popover with the next item highlighted', () => {
+        const labelName = 'clicky'
+
+        cy.get('@org').then(({id}: Organization) => {
+          cy.createLabel(labelName, id).then(() => {
+            cy.getByTestID(`inline-labels--add`)
+              .first()
+              .click()
+
+            cy.getByTestID(`label--pill ${labelName}`).click()
+
+            cy.getByTestID(`label--pill bar`).should('be.visible')
+          })
+        })
+      })
+
       it('can add an existing label to a dashboard', () => {
         const labelName = 'swogglez'
 
@@ -199,9 +215,7 @@ describe('Dashboards', () => {
               .first()
               .click()
 
-            cy.getByTestID('inline-labels--popover').within(() => {
-              cy.getByTestID(`label--pill ${labelName}`).click()
-            })
+            cy.getByTestID(`label--pill ${labelName}`).click()
 
             cy.getByTestID('dashboard-card')
               .first()
@@ -212,16 +226,46 @@ describe('Dashboards', () => {
         })
       })
 
+      it('typing in the input updates the list', () => {
+        const labelName = 'banana'
+
+        cy.get('@org').then(({id}: Organization) => {
+          cy.createLabel(labelName, id).then(() => {
+            cy.getByTestID(`inline-labels--add`)
+              .first()
+              .click()
+
+            cy.getByTestID(`inline-labels--popover-field`).type(labelName)
+
+            cy.getByTestID(`label--pill ${labelName}`).should('be.visible')
+            cy.getByTestID('inline-labels--list').should('have.length', 1)
+          })
+        })
+      })
+
+      it('typing a new label name and pressing ENTER starts label creation flow', () => {
+        const labelName = 'choco'
+
+        cy.get('@org').then(() => {
+          cy.getByTestID(`inline-labels--add`)
+            .first()
+            .click()
+
+          cy.getByTestID(`inline-labels--popover-field`)
+            .type(labelName)
+            .type('{enter}')
+          cy.getByTestID('overlay--body').should('be.visible')
+        })
+      })
+
       it('can create a label and add to a dashboard', () => {
         const label = 'plerps'
         cy.getByTestID(`inline-labels--add`)
           .first()
           .click()
 
-        cy.getByTestID('inline-labels--popover').within(() => {
-          cy.getByTestID('inline-labels--popover-field').type(label)
-          cy.getByTestID('inline-labels--create-new').click()
-        })
+        cy.getByTestID('inline-labels--popover-field').type(label)
+        cy.getByTestID('inline-labels--create-new').click()
 
         cy.getByTestID('overlay--container').within(() => {
           cy.getByTestID('create-label-form--name').should('have.value', label)
@@ -275,7 +319,7 @@ describe('Dashboards', () => {
     it('should route the user to the dashboard index page', () => {
       const nonexistentID = '/0499992503cd3700'
 
-      // visitng the dashboard edit page
+      // visiting the dashboard edit page
       cy.get('@org').then(({id}: Organization) => {
         cy.fixture('routes').then(({orgs, dashboards}) => {
           cy.visit(`${orgs}/${id}${dashboards}${nonexistentID}`)

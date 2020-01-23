@@ -11,11 +11,8 @@ import {
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Actions
-import {
-  refreshVariableValues,
-  selectValue,
-  setValues,
-} from 'src/variables/actions'
+import {selectValue, setValues} from 'src/variables/actions/creators'
+import {refreshVariableValues} from 'src/variables/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 
 // Constants
@@ -40,6 +37,9 @@ import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 // Types
 import {CancelBox} from 'src/types/promises'
 import {GetState, RemoteDataState, StatusRow} from 'src/types'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
 
 export type Action = SaveDraftQueriesAction | SetQueryResults
 
@@ -78,7 +78,11 @@ export const refreshTimeMachineVariableValues = (
   const contextID = state.timeMachines.activeTimeMachineID
 
   if (prevContextID) {
-    const values = get(state, `variables.values.${prevContextID}.values`) || {}
+    const values = get(
+      state,
+      `resources.variables.values.${prevContextID}.values`,
+      {}
+    )
     if (!isEmpty(values)) {
       dispatch(setValues(contextID, RemoteDataState.Done, values))
       return
@@ -117,9 +121,6 @@ export const executeQueries = (dashboardID?: string) => async (
   const queries = view.properties.queries.filter(({text}) => !!text.trim())
   const {
     alertBuilder: {id: checkID},
-    orgs: {
-      org: {id: orgID},
-    },
   } = state
 
   if (!queries.length) {
@@ -132,6 +133,7 @@ export const executeQueries = (dashboardID?: string) => async (
     await dispatch(refreshTimeMachineVariableValues(dashboardID))
 
     const variableAssignments = getVariableAssignments(state)
+    const orgID = getOrg(state).id
 
     const startTime = Date.now()
 
@@ -202,12 +204,7 @@ export const saveAndExecuteQueries = () => dispatch => {
 export const executeCheckQuery = () => async (dispatch, getState: GetState) => {
   const state = getState()
   const {text} = getActiveQuery(state)
-
-  const {
-    orgs: {
-      org: {id: orgID},
-    },
-  } = state
+  const {id: orgID} = getOrg(state)
 
   if (text == '') {
     dispatch(setQueryResults(RemoteDataState.Done, [], null))

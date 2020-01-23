@@ -9,6 +9,7 @@ import {
   RenamableField,
   BuilderConfig,
 } from 'src/client'
+import {Label, RemoteDataState} from 'src/types'
 
 export type FieldOption = RenamableField
 
@@ -32,12 +33,15 @@ export interface View<T extends ViewProperties = ViewProperties>
 
 export interface Cell extends GenCell {
   dashboardID: string
+  status: RemoteDataState
 }
 
 export type NewCell = Omit<Cell, 'id' | 'links' | 'dashboardID'>
 
 export interface Dashboard extends Omit<GenDashboard, 'cells'> {
-  cells: Cell[]
+  cells: string[]
+  labels: Label[]
+  status: RemoteDataState
 }
 
 export type Base = Axis['base']

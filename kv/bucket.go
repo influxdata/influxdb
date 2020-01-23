@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/resource"
 )
 
 var (
@@ -477,14 +478,28 @@ func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) (
 		}
 	}
 
-	if err := s.putBucket(ctx, tx, b); err != nil {
+	v, err := json.Marshal(b)
+	if err != nil {
+		return influxdb.ErrInternalBucketServiceError(influxdb.OpCreateBucket, err)
+	}
+	if err := s.putBucket(ctx, tx, b, v); err != nil {
 		return err
 	}
 
 	if err := s.createUserResourceMappingForOrg(ctx, tx, b.OrgID, b.ID, influxdb.BucketsResourceType); err != nil {
 		return err
 	}
-	return nil
+
+	uid, _ := icontext.GetUserID(ctx)
+	return s.audit.Log(resource.Change{
+		Type:           resource.Create,
+		ResourceID:     b.ID,
+		ResourceType:   influxdb.BucketsResourceType,
+		OrganizationID: b.OrgID,
+		UserID:         uid,
+		ResourceBody:   v,
+		Time:           time.Now(),
+	})
 }
 
 func (s *Service) generateBucketID(ctx context.Context, tx Tx) (influxdb.ID, error) {
@@ -494,20 +509,31 @@ func (s *Service) generateBucketID(ctx context.Context, tx Tx) (influxdb.ID, err
 // PutBucket will put a bucket without setting an ID.
 func (s *Service) PutBucket(ctx context.Context, b *influxdb.Bucket) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		return s.putBucket(ctx, tx, b)
+		v, err := json.Marshal(b)
+		if err != nil {
+			return influxdb.ErrInternalBucketServiceError(influxdb.OpPutBucket, err)
+		}
+
+		if err := s.putBucket(ctx, tx, b, v); err != nil {
+			return err
+		}
+
+		uid, _ := icontext.GetUserID(ctx)
+		return s.audit.Log(resource.Change{
+			Type:           resource.Put,
+			ResourceID:     b.ID,
+			ResourceType:   influxdb.BucketsResourceType,
+			OrganizationID: b.OrgID,
+			UserID:         uid,
+			ResourceBody:   v,
+			Time:           time.Now(),
+		})
 	})
 }
 
-func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
+func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket, v []byte) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-
-	v, err := json.Marshal(b)
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
 
 	encodedID, err := b.ID.Encode()
 	if err != nil {
@@ -566,31 +592,24 @@ func (s *Service) forEachBucket(ctx context.Context, tx Tx, descending bool, fn 
 		return err
 	}
 
-	cur, err := bkt.Cursor()
+	direction := CursorAscending
+	if descending {
+		direction = CursorDescending
+	}
+
+	cur, err := bkt.ForwardCursor(nil, WithCursorDirection(direction))
 	if err != nil {
 		return err
 	}
 
-	var k, v []byte
-	if descending {
-		k, v = cur.Last()
-	} else {
-		k, v = cur.First()
-	}
-
-	for k != nil {
+	for k, v := cur.Next(); k != nil; k, v = cur.Next() {
 		b := &influxdb.Bucket{}
 		if err := json.Unmarshal(v, b); err != nil {
 			return err
 		}
+
 		if !fn(b) {
 			break
-		}
-
-		if descending {
-			k, v = cur.Prev()
-		} else {
-			k, v = cur.Next()
 		}
 	}
 
@@ -689,8 +708,28 @@ func (s *Service) updateBucket(ctx context.Context, tx Tx, id influxdb.ID, upd i
 		return nil, err
 	}
 
-	if err := s.putBucket(ctx, tx, b); err != nil {
+	v, err := json.Marshal(b)
+	if err != nil {
+		return nil, influxdb.ErrInternalBucketServiceError(influxdb.OpUpdateBucket, err)
+	}
+
+	if err := s.putBucket(ctx, tx, b, v); err != nil {
 		return nil, err
+	}
+
+	uid, _ := icontext.GetUserID(ctx)
+	if err := s.audit.Log(resource.Change{
+		Type:           resource.Update,
+		ResourceID:     b.ID,
+		ResourceType:   influxdb.BucketsResourceType,
+		OrganizationID: b.OrgID,
+		UserID:         uid,
+		ResourceBody:   v,
+		Time:           time.Now(),
+	}); err != nil {
+		return nil, &influxdb.Error{
+			Err: err,
+		}
 	}
 
 	return b, nil
@@ -699,8 +738,6 @@ func (s *Service) updateBucket(ctx context.Context, tx Tx, id influxdb.ID, upd i
 // DeleteBucket deletes a bucket and prunes it from the index.
 func (s *Service) DeleteBucket(ctx context.Context, id influxdb.ID) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		var err error
-
 		bucket, err := s.findBucketByID(ctx, tx, id)
 		if err != nil && !IsNotFound(err) {
 			return err
@@ -713,10 +750,19 @@ func (s *Service) DeleteBucket(ctx context.Context, id influxdb.ID) error {
 			}
 		}
 
-		if pe := s.deleteBucket(ctx, tx, id); pe != nil {
-			err = pe
+		if err := s.deleteBucket(ctx, tx, id); err != nil {
+			return err
 		}
-		return err
+
+		uid, _ := icontext.GetUserID(ctx)
+		return s.audit.Log(resource.Change{
+			Type:           resource.Delete,
+			ResourceID:     id,
+			ResourceType:   influxdb.BucketsResourceType,
+			OrganizationID: bucket.OrgID,
+			UserID:         uid,
+			Time:           time.Now(),
+		})
 	})
 }
 

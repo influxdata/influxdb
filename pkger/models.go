@@ -18,24 +18,24 @@ import (
 	"github.com/influxdata/influxdb/notification/rule"
 )
 
-// Package kinds.
+// Package kind types.
 const (
 	KindUnknown                       Kind = ""
-	KindBucket                        Kind = "bucket"
-	KindCheck                         Kind = "check"
-	KindCheckDeadman                  Kind = "check_deadman"
-	KindCheckThreshold                Kind = "check_threshold"
-	KindDashboard                     Kind = "dashboard"
-	KindLabel                         Kind = "label"
-	KindNotificationEndpoint          Kind = "notification_endpoint"
-	KindNotificationEndpointPagerDuty Kind = "notification_endpoint_pager_duty"
-	KindNotificationEndpointHTTP      Kind = "notification_endpoint_http"
-	KindNotificationEndpointSlack     Kind = "notification_endpoint_slack"
-	KindNotificationRule              Kind = "notification_rule"
-	KindPackage                       Kind = "package"
-	KindTask                          Kind = "task"
-	KindTelegraf                      Kind = "telegraf"
-	KindVariable                      Kind = "variable"
+	KindBucket                        Kind = "Bucket"
+	KindCheck                         Kind = "Check"
+	KindCheckDeadman                  Kind = "CheckDeadman"
+	KindCheckThreshold                Kind = "CheckThreshold"
+	KindDashboard                     Kind = "Dashboard"
+	KindLabel                         Kind = "Label"
+	KindNotificationEndpoint          Kind = "NotificationEndpoint"
+	KindNotificationEndpointHTTP      Kind = "NotificationEndpointHTTP"
+	KindNotificationEndpointPagerDuty Kind = "NotificationEndpointPagerDuty"
+	KindNotificationEndpointSlack     Kind = "NotificationEndpointSlack"
+	KindNotificationRule              Kind = "NotificationRule"
+	KindPackage                       Kind = "Package"
+	KindTask                          Kind = "Task"
+	KindTelegraf                      Kind = "Telegraf"
+	KindVariable                      Kind = "Variable"
 )
 
 var kinds = map[Kind]bool{
@@ -50,7 +50,6 @@ var kinds = map[Kind]bool{
 	KindNotificationEndpointPagerDuty: true,
 	KindNotificationEndpointSlack:     true,
 	KindNotificationRule:              true,
-	KindPackage:                       true,
 	KindTask:                          true,
 	KindTelegraf:                      true,
 	KindVariable:                      true,
@@ -72,11 +71,6 @@ var kindsUniqByName = map[Kind]bool{
 // Kind is a resource kind.
 type Kind string
 
-// NewKind returns the kind parsed from the provided string.
-func NewKind(s string) Kind {
-	return Kind(normStr(s))
-}
-
 // String provides the kind in human readable form.
 func (k Kind) String() string {
 	if kinds[k] {
@@ -90,11 +84,10 @@ func (k Kind) String() string {
 
 // OK validates the kind is valid.
 func (k Kind) OK() error {
-	newKind := NewKind(string(k))
-	if newKind == KindUnknown {
+	if k == KindUnknown {
 		return errors.New("invalid kind")
 	}
-	if !kinds[newKind] {
+	if !kinds[k] {
 		return errors.New("unsupported kind provided")
 	}
 	return nil
@@ -129,18 +122,9 @@ func (k Kind) ResourceType() influxdb.ResourceType {
 	}
 }
 
-func (k Kind) title() string {
-	pieces := strings.Split(string(k), "_")
-	for i := range pieces {
-		pieces[i] = strings.Title(pieces[i])
-	}
-	return strings.Join(pieces, "_")
-}
-
 func (k Kind) is(comps ...Kind) bool {
-	normed := Kind(strings.TrimSpace(strings.ToLower(string(k))))
 	for _, c := range comps {
-		if c == normed {
+		if c == k {
 			return true
 		}
 	}
@@ -166,9 +150,7 @@ func (s SafeID) String() string {
 // Metadata is the pkg metadata. This data describes the user
 // defined identifiers.
 type Metadata struct {
-	Description string `yaml:"description" json:"description"`
-	Name        string `yaml:"pkgName" json:"pkgName"`
-	Version     string `yaml:"pkgVersion" json:"pkgVersion"`
+	Name string `yaml:"name" json:"name"`
 }
 
 // Diff is the result of a service DryRun call. The diff outlines
@@ -784,6 +766,7 @@ type SummaryVariable struct {
 }
 
 const (
+	fieldAPIVersion   = "apiVersion"
 	fieldAssociations = "associations"
 	fieldDescription  = "description"
 	fieldEvery        = "every"
@@ -1321,7 +1304,7 @@ func (l *label) toInfluxLabel() influxdb.Label {
 }
 
 func toSummaryLabels(labels ...*label) []SummaryLabel {
-	var iLabels []SummaryLabel
+	iLabels := make([]SummaryLabel, 0, len(labels))
 	for _, l := range labels {
 		iLabels = append(iLabels, l.summarize())
 	}
@@ -2175,6 +2158,8 @@ const (
 	fieldChartPosition      = "position"
 	fieldChartQueries       = "queries"
 	fieldChartShade         = "shade"
+	fieldChartTickPrefix    = "tickPrefix"
+	fieldChartTickSuffix    = "tickSuffix"
 	fieldChartWidth         = "width"
 	fieldChartXCol          = "xCol"
 	fieldChartXPos          = "xPos"
@@ -2186,7 +2171,9 @@ type chart struct {
 	Kind            chartKind
 	Name            string
 	Prefix          string
+	TickPrefix      string
 	Suffix          string
+	TickSuffix      string
 	Note            string
 	NoteOnEmpty     bool
 	DecimalPlaces   int
@@ -2213,7 +2200,9 @@ func (c chart) properties() influxdb.ViewProperties {
 			Type:       influxdb.ViewPropertyTypeGauge,
 			Queries:    c.Queries.influxDashQueries(),
 			Prefix:     c.Prefix,
+			TickPrefix: c.TickPrefix,
 			Suffix:     c.Suffix,
+			TickSuffix: c.TickSuffix,
 			ViewColors: c.Colors.influxViewColors(),
 			DecimalPlaces: influxdb.DecimalPlaces{
 				IsEnforced: c.EnforceDecimals,
@@ -2282,9 +2271,11 @@ func (c chart) properties() influxdb.ViewProperties {
 		}
 	case chartKindSingleStat:
 		return influxdb.SingleStatViewProperties{
-			Type:   influxdb.ViewPropertyTypeSingleStat,
-			Prefix: c.Prefix,
-			Suffix: c.Suffix,
+			Type:       influxdb.ViewPropertyTypeSingleStat,
+			Prefix:     c.Prefix,
+			TickPrefix: c.TickPrefix,
+			Suffix:     c.Suffix,
+			TickSuffix: c.TickSuffix,
 			DecimalPlaces: influxdb.DecimalPlaces{
 				IsEnforced: c.EnforceDecimals,
 				Digits:     int32(c.DecimalPlaces),
@@ -2441,7 +2432,6 @@ const (
 )
 
 type color struct {
-	id   string
 	Name string `json:"name,omitempty" yaml:"name,omitempty"`
 	Type string `json:"type,omitempty" yaml:"type,omitempty"`
 	Hex  string `json:"hex,omitempty" yaml:"hex,omitempty"`
@@ -2467,9 +2457,6 @@ func (c colors) influxViewColors() []influxdb.ViewColor {
 	var iColors []influxdb.ViewColor
 	for _, cc := range c {
 		iColors = append(iColors, influxdb.ViewColor{
-			// need to figure out where to add this, feels best to put it in here for now
-			// until we figure out what to do with sharing colors, or if that is even necessary
-			ID:    cc.id,
 			Type:  cc.Type,
 			Hex:   cc.Hex,
 			Name:  cc.Name,
@@ -2545,8 +2532,8 @@ func (q queries) influxDashQueries() []influxdb.DashboardQuery {
 			Text:     qq.Query,
 			EditMode: "advanced",
 		}
-		// TODO: axe thsi buidler configs when issue https://github.com/influxdata/influxdb/issues/15708 is fixed up
-		newQuery.BuilderConfig.Tags = append(newQuery.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement"))
+		// TODO: axe this builder configs when issue https://github.com/influxdata/influxdb/issues/15708 is fixed up
+		newQuery.BuilderConfig.Tags = append(newQuery.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", ""))
 		iQueries = append(iQueries, newQuery)
 	}
 	return iQueries

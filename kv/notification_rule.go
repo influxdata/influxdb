@@ -404,19 +404,17 @@ func (s *Service) forEachNotificationRule(ctx context.Context, tx Tx, descending
 		return err
 	}
 
-	cur, err := bkt.Cursor()
+	direction := CursorAscending
+	if descending {
+		direction = CursorDescending
+	}
+
+	cur, err := bkt.ForwardCursor(nil, WithCursorDirection(direction))
 	if err != nil {
 		return err
 	}
 
-	var k, v []byte
-	if descending {
-		k, v = cur.Last()
-	} else {
-		k, v = cur.First()
-	}
-
-	for k != nil {
+	for k, v := cur.Next(); k != nil; k, v = cur.Next() {
 		nr, err := rule.UnmarshalJSON(v)
 		if err != nil {
 			return err
@@ -424,26 +422,16 @@ func (s *Service) forEachNotificationRule(ctx context.Context, tx Tx, descending
 		if !fn(nr) {
 			break
 		}
-
-		if descending {
-			k, v = cur.Prev()
-		} else {
-			k, v = cur.Next()
-		}
 	}
 
 	return nil
 }
 
-func filterNotificationRulesFn(
-	idMap map[influxdb.ID]bool,
-	filter influxdb.NotificationRuleFilter) func(nr influxdb.NotificationRule) bool {
+func filterNotificationRulesFn(idMap map[influxdb.ID]bool, filter influxdb.NotificationRuleFilter) func(nr influxdb.NotificationRule) bool {
 	if filter.OrgID != nil {
 		return func(nr influxdb.NotificationRule) bool {
-			for _, ft := range filter.Tags {
-				if !nr.HasTag(ft.Key, ft.Value) {
-					return false
-				}
+			if !nr.MatchesTags(filter.Tags) {
+				return false
 			}
 
 			_, ok := idMap[nr.GetID()]
@@ -452,10 +440,8 @@ func filterNotificationRulesFn(
 	}
 
 	return func(nr influxdb.NotificationRule) bool {
-		for _, ft := range filter.Tags {
-			if !nr.HasTag(ft.Key, ft.Value) {
-				return false
-			}
+		if !nr.MatchesTags(filter.Tags) {
+			return false
 		}
 
 		_, ok := idMap[nr.GetID()]

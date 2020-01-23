@@ -1,10 +1,12 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get, isEmpty} from 'lodash'
 
-// Utils
+// Selectors
 import {getSaveableView} from 'src/timeMachine/selectors'
+import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Components
 import {Form, Input, Button, Grid} from '@influxdata/clockface'
@@ -20,12 +22,13 @@ import {
 } from 'src/dashboards/constants'
 
 // Actions
-import {getDashboardsAsync, createCellWithView} from 'src/dashboards/actions'
-import {createDashboard} from 'src/dashboards/apis'
+import {getDashboards} from 'src/dashboards/actions/thunks'
+import {createCellWithView} from 'src/cells/actions/thunks'
+import {postDashboard} from 'src/client'
 import {notify} from 'src/shared/actions/notifications'
 
 // Types
-import {AppState, Dashboard, View} from 'src/types'
+import {AppState, Dashboard, View, ResourceType} from 'src/types'
 import {
   Columns,
   InputType,
@@ -48,7 +51,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  handleGetDashboards: typeof getDashboardsAsync
+  onGetDashboards: typeof getDashboards
   onCreateCellWithView: typeof createCellWithView
   notify: typeof notify
 }
@@ -65,17 +68,22 @@ class SaveAsCellForm extends PureComponent<Props, State> {
     targetDashboardIDs: [],
     cellName: '',
     isNameDashVisible: false,
-    newDashboardName: '',
+    newDashboardName: DEFAULT_DASHBOARD_NAME,
   }
 
   public componentDidMount() {
-    const {handleGetDashboards} = this.props
-    handleGetDashboards()
+    const {onGetDashboards} = this.props
+    onGetDashboards()
   }
 
   public render() {
     const {dismiss, dashboards} = this.props
-    const {cellName, isNameDashVisible, targetDashboardIDs} = this.state
+    const {
+      cellName,
+      isNameDashVisible,
+      targetDashboardIDs,
+      newDashboardName,
+    } = this.state
     return (
       <Form onSubmit={this.handleSubmit}>
         <Grid>
@@ -86,6 +94,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
                   onSelect={this.handleSelectDashboardID}
                   selectedIDs={targetDashboardIDs}
                   dashboards={dashboards}
+                  newDashboardName={newDashboardName}
                 />
               </Form.Element>
             </Grid.Column>
@@ -151,7 +160,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 
   private get isFormValid(): boolean {
     const {targetDashboardIDs} = this.state
-    return !_.isEmpty(targetDashboardIDs)
+    return !isEmpty(targetDashboardIDs)
   }
 
   private handleSubmit = () => {
@@ -198,8 +207,14 @@ class SaveAsCellForm extends PureComponent<Props, State> {
         name: dashboardName || DEFAULT_DASHBOARD_NAME,
         cells: [],
       }
-      const dashboard = await createDashboard(newDashboard)
-      onCreateCellWithView(dashboard.id, view)
+
+      const resp = await postDashboard({data: newDashboard})
+
+      if (resp.status !== 201) {
+        throw new Error(resp.data.message)
+      }
+
+      onCreateCellWithView(resp.data.id, view)
     } catch (error) {
       console.error(error)
     }
@@ -210,7 +225,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
       targetDashboardIDs: [],
       cellName: '',
       isNameDashVisible: false,
-      newDashboardName: '',
+      newDashboardName: DEFAULT_DASHBOARD_NAME,
     })
   }
 
@@ -236,18 +251,15 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    dashboards: {list: dashboards},
-    orgs: {org},
-  } = state
-
   const view = getSaveableView(state)
+  const org = getOrg(state)
+  const dashboards = getAll<Dashboard>(state, ResourceType.Dashboards)
 
-  return {dashboards, view, orgID: _.get(org, 'id', '')}
+  return {dashboards, view, orgID: get(org, 'id', '')}
 }
 
 const mdtp: DispatchProps = {
-  handleGetDashboards: getDashboardsAsync,
+  onGetDashboards: getDashboards,
   onCreateCellWithView: createCellWithView,
   notify,
 }

@@ -13,9 +13,10 @@ import {
 } from '@influxdata/clockface'
 import TemplateBrowser from 'src/templates/components/createFromTemplateOverlay/TemplateBrowser'
 import TemplateBrowserEmpty from 'src/tasks/components/TemplateBrowserEmpty'
+import GetResources from 'src/resources/components/GetResources'
 
 // Actions
-import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/tasks/actions'
+import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/tasks/actions/thunks'
 import {getTemplateByID} from 'src/templates/actions'
 
 // Types
@@ -26,8 +27,8 @@ import {
   AppState,
   RemoteDataState,
   TaskTemplate,
+  ResourceType,
 } from 'src/types'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 interface StateProps {
   templates: TemplateSummary[]

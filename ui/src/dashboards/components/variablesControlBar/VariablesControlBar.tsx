@@ -20,11 +20,10 @@ import {
 } from 'src/variables/selectors'
 
 // Actions
-import {moveVariable} from 'src/variables/actions'
+import {moveVariable} from 'src/variables/actions/creators'
 
 // Types
-import {AppState} from 'src/types'
-import {IVariable as Variable} from '@influxdata/influx'
+import {AppState, Variable} from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
 
 // Decorators

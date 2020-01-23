@@ -50,7 +50,7 @@ const setup = (override?) => {
   return {wrapper, actions}
 }
 
-jest.mock('src/shared/components/FluxEditor')
+jest.mock('src/shared/components/FluxMonacoEditor', () => () => null)
 
 describe('Variables.Components.VariableForm', () => {
   describe('rendering', () => {

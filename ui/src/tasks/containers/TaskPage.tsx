@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import Loadable from 'react-loadable'
 import {InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
 
@@ -8,32 +7,16 @@ import {connect} from 'react-redux'
 import TaskForm from 'src/tasks/components/TaskForm'
 import TaskHeader from 'src/tasks/components/TaskHeader'
 import {Page} from '@influxdata/clockface'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
-const spinner = <div />
-
-const FluxEditor = Loadable({
-  loader: () => import('src/shared/components/FluxEditor'),
-  loading() {
-    return spinner
-  },
-})
-
-const FluxMonacoEditor = Loadable({
-  loader: () => import('src/shared/components/FluxMonacoEditor'),
-  loading() {
-    return spinner
-  },
-})
+import FluxEditor from 'src/shared/components/FluxMonacoEditor'
 
 // Actions
 import {
   setNewScript,
-  saveNewScript,
   setTaskOption,
   clearTask,
-  cancel,
-} from 'src/tasks/actions'
+} from 'src/tasks/actions/creators'
+import {saveNewScript, cancel} from 'src/tasks/actions/thunks'
 
 // Utils
 import {
@@ -43,12 +26,7 @@ import {
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
-import {AppState} from 'src/types'
-import {
-  TaskOptions,
-  TaskOptionKeys,
-  TaskSchedule,
-} from 'src/utils/taskOptionsToFluxScript'
+import {AppState, TaskOptions, TaskOptionKeys, TaskSchedule} from 'src/types'
 
 interface OwnProps {
   router: InjectedRouter
@@ -73,6 +51,7 @@ class TaskPage extends PureComponent<Props> {
   constructor(props) {
     super(props)
   }
+
   public componentDidMount() {
     this.props.setTaskOption({
       key: 'taskScheduleType',
@@ -106,20 +85,10 @@ class TaskPage extends PureComponent<Props> {
               />
             </div>
             <div className="task-form--editor">
-              <FeatureFlag name="monacoEditor">
-                <FluxMonacoEditor
-                  script={newScript}
-                  onChangeScript={this.handleChangeScript}
-                />
-              </FeatureFlag>
-              <FeatureFlag name="monacoEditor" equals={false}>
-                <FluxEditor
-                  script={newScript}
-                  onChangeScript={this.handleChangeScript}
-                  visibility="visible"
-                  suggestions={[]}
-                />
-              </FeatureFlag>
+              <FluxEditor
+                script={newScript}
+                onChangeScript={this.handleChangeScript}
+              />
             </div>
           </div>
         </Page.Contents>
@@ -141,8 +110,8 @@ class TaskPage extends PureComponent<Props> {
     this.props.setNewScript(script)
   }
 
-  private handleChangeScheduleType = (schedule: TaskSchedule) => {
-    this.props.setTaskOption({key: 'taskScheduleType', value: schedule})
+  private handleChangeScheduleType = (value: TaskSchedule) => {
+    this.props.setTaskOption({key: 'taskScheduleType', value})
   }
 
   private handleSave = () => {
@@ -167,10 +136,13 @@ class TaskPage extends PureComponent<Props> {
   }
 }
 
-const mstp = ({tasks}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {tasks} = state.resources
+  const {taskOptions, newScript} = tasks
+
   return {
-    taskOptions: tasks.taskOptions,
-    newScript: tasks.newScript,
+    taskOptions,
+    newScript,
   }
 }
 

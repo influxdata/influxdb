@@ -72,9 +72,10 @@ func (r *Req) Do(handler http.Handler) *Resp {
 	handler.ServeHTTP(rec, r.req)
 
 	return &Resp{
-		t:   r.t,
-		Req: r.req,
-		Rec: rec,
+		t:     r.t,
+		debug: true,
+		Req:   r.req,
+		Rec:   rec,
 	}
 }
 
@@ -107,8 +108,17 @@ func (r *Req) WrapCtx(fn func(ctx context.Context) context.Context) *Req {
 type Resp struct {
 	t testing.TB
 
+	debug bool
+
 	Req *http.Request
 	Rec *httptest.ResponseRecorder
+}
+
+// Debug sets the debugger. If true, the debugger will print the body of the response
+// when the expected status is not received.
+func (r *Resp) Debug(b bool) *Resp {
+	r.debug = b
+	return r
 }
 
 // Expect allows the assertions against the raw Resp.
@@ -123,6 +133,9 @@ func (r *Resp) ExpectStatus(code int) *Resp {
 
 	if r.Rec.Code != code {
 		r.t.Errorf("unexpected status code: expected=%d got=%d", code, r.Rec.Code)
+		if r.debug {
+			r.t.Logf("body: %v", r.Rec.Body.String())
+		}
 	}
 	return r
 }

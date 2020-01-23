@@ -6,29 +6,35 @@ describe('Variables', () => {
 
     cy.signin().then(({body}) => {
       cy.wrap(body.org).as('org')
+      cy.createVariable(body.org.id)
       cy.visit(`orgs/${body.org.id}/settings/variables`)
     })
   })
 
   it('can create a variable', () => {
-    cy.get('.cf-empty-state').within(() => {
-      cy.contains('Create').click()
-    })
+    cy.getByTestID('resource-card').should('have.length', 1)
+
+    cy.getByTestID('add-resource-dropdown--button').click()
+
+    cy.getByTestID('add-resource-dropdown--new').should('have.length', 1)
 
     cy.getByTestID('add-resource-dropdown--new').click()
 
-    cy.getByInputName('name').type('Little Variable')
+    cy.getByInputName('name').type('a Second Variable')
     cy.getByTestID('flux-editor').within(() => {
-      cy.get('textarea').type('filter(fn: (r) => r._field == "cpu")', {
-        force: true,
-      })
+      cy.get('.react-monaco-editor-container')
+        .click()
+        .focused()
+        .type('filter(fn: (r) => r._field == "cpu")', {
+          force: true,
+        })
     })
 
     cy.get('form')
       .contains('Create')
       .click()
 
-    cy.getByTestID('resource-card').should('have.length', 1)
+    cy.getByTestID('resource-card').should('have.length', 2)
   })
 
   it('keeps user input in text area when attempting to import invalid JSON', () => {
@@ -56,18 +62,40 @@ describe('Variables', () => {
     )
   })
 
-  it.skip('can delete a variable', () => {
+  it('can delete a variable', () => {
     cy.get<Organization>('@org').then(({id}) => {
-      cy.createVariable(id)
-      cy.createVariable(id)
+      cy.createVariable(id, 'anotherVariable')
     })
 
     cy.getByTestID('resource-card').should('have.length', 2)
 
-    cy.getByTestID('confirmation-button')
+    cy.getByTestID('context-delete-menu')
+      .first()
+      .click({force: true})
+    cy.getByTestID('context-delete-variable')
       .first()
       .click({force: true})
 
     cy.getByTestID('resource-card').should('have.length', 1)
+  })
+
+  it('can rename a variable', () => {
+    cy.getByTestID('resource-card').should('have.length', 1)
+
+    cy.getByTestID('context-menu')
+      .first()
+      .click({force: true})
+
+    cy.getByTestID('context-rename-variable').click({force: true})
+
+    cy.getByTestID('danger-confirmation-button').click()
+
+    cy.getByInputName('name').type('-renamed')
+
+    cy.getByTestID('rename-variable-submit').click()
+
+    cy.get('.cf-resource-name--text').should($s =>
+      expect($s).to.contain('-renamed')
+    )
   })
 })

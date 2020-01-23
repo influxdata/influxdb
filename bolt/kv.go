@@ -1,8 +1,10 @@
 package bolt
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -123,6 +125,17 @@ func (s *KVStore) Update(ctx context.Context, fn func(tx kv.Tx) error) error {
 	})
 }
 
+// Backup copies all K:Vs to a writer, in BoltDB format.
+func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	return s.db.View(func(tx *bolt.Tx) error {
+		_, err := tx.WriteTo(w)
+		return err
+	})
+}
+
 // Tx is a light wrapper around a boltdb transaction. It implements kv.Tx.
 type Tx struct {
 	tx  *bolt.Tx
@@ -199,14 +212,25 @@ func (b *Bucket) Delete(key []byte) error {
 func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.ForwardCursor, error) {
 	var (
 		cursor     = b.bucket.Cursor()
-		key, value = cursor.Seek(seek)
+		config     = kv.NewCursorConfig(opts...)
+		key, value []byte
 	)
+
+	if len(seek) == 0 && config.Direction == kv.CursorDescending {
+		seek, _ = cursor.Last()
+	}
+
+	key, value = cursor.Seek(seek)
+
+	if config.Prefix != nil && !bytes.HasPrefix(seek, config.Prefix) {
+		return nil, fmt.Errorf("seek bytes %q not prefixed with %q: %w", string(seek), string(config.Prefix), kv.ErrSeekMissingPrefix)
+	}
 
 	return &Cursor{
 		cursor: cursor,
 		key:    key,
 		value:  value,
-		config: kv.NewCursorConfig(opts...),
+		config: config,
 	}, nil
 }
 
@@ -275,12 +299,12 @@ func (c *Cursor) Last() ([]byte, []byte) {
 
 // Next retrieves the next key in the bucket.
 func (c *Cursor) Next() (k []byte, v []byte) {
-	if c.closed {
+	if c.closed || (c.key != nil && c.missingPrefix(c.key)) {
 		return nil, nil
 	}
 	// get and unset previously seeked values if they exist
 	k, v, c.key, c.value = c.key, c.value, nil, nil
-	if len(k) > 0 && len(v) > 0 {
+	if len(k) > 0 || len(v) > 0 {
 		return
 	}
 
@@ -290,7 +314,7 @@ func (c *Cursor) Next() (k []byte, v []byte) {
 	}
 
 	k, v = next()
-	if len(k) == 0 && len(v) == 0 {
+	if (len(k) == 0 && len(v) == 0) || c.missingPrefix(k) {
 		return nil, nil
 	}
 	return k, v
@@ -298,9 +322,10 @@ func (c *Cursor) Next() (k []byte, v []byte) {
 
 // Prev retrieves the previous key in the bucket.
 func (c *Cursor) Prev() (k []byte, v []byte) {
-	if c.closed {
+	if c.closed || (c.key != nil && c.missingPrefix(c.key)) {
 		return nil, nil
 	}
+
 	// get and unset previously seeked values if they exist
 	k, v, c.key, c.value = c.key, c.value, nil, nil
 	if len(k) > 0 && len(v) > 0 {
@@ -313,10 +338,14 @@ func (c *Cursor) Prev() (k []byte, v []byte) {
 	}
 
 	k, v = prev()
-	if len(k) == 0 && len(v) == 0 {
+	if (len(k) == 0 && len(v) == 0) || c.missingPrefix(k) {
 		return nil, nil
 	}
 	return k, v
+}
+
+func (c *Cursor) missingPrefix(key []byte) bool {
+	return c.config.Prefix != nil && !bytes.HasPrefix(key, c.config.Prefix)
 }
 
 // Err always returns nil as nothing can go wrong™ during iteration

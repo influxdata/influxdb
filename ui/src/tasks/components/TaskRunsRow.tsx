@@ -8,7 +8,7 @@ import {Overlay, IndexList} from '@influxdata/clockface'
 import RunLogsOverlay from 'src/tasks/components/RunLogsList'
 
 // Actions
-import {getLogs} from 'src/tasks/actions'
+import {getLogs} from 'src/tasks/actions/thunks'
 
 // Types
 import {ComponentSize, ComponentColor, Button} from '@influxdata/clockface'
@@ -102,9 +102,8 @@ class TaskRunsRow extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    tasks: {logs},
-  } = state
+  const {logs} = state.resources.tasks
+
   return {logs}
 }
 

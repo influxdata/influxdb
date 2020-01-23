@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/http/metric"
 	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
 	"github.com/pkg/errors"
@@ -120,15 +121,15 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	// Ideally this will be moved when we solve https://github.com/influxdata/influxdb/issues/13403
 	var orgID influxdb.ID
 	var requestBytes int
-	sw := newStatusResponseWriter(w)
+	sw := kithttp.NewStatusResponseWriter(w)
 	w = sw
 	defer func() {
 		h.EventRecorder.Record(ctx, metric.Event{
 			OrgID:         orgID,
 			Endpoint:      r.URL.Path, // This should be sufficient for the time being as it should only be single endpoint.
 			RequestBytes:  requestBytes,
-			ResponseBytes: sw.responseBytes,
-			Status:        sw.code(),
+			ResponseBytes: sw.ResponseBytes(),
+			Status:        sw.Code(),
 		})
 	}()
 
@@ -155,6 +156,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	req.Request.Source = r.Header.Get("User-Agent")
 	orgID = req.Request.OrganizationID
 	requestBytes = n
 
@@ -349,6 +351,7 @@ var _ query.ProxyQueryService = (*FluxService)(nil)
 type FluxService struct {
 	Addr               string
 	Token              string
+	Name               string
 	InsecureSkipVerify bool
 }
 
@@ -383,8 +386,18 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/csv")
-	hreq = hreq.WithContext(ctx)
+	if r.Request.Source != "" {
+		hreq.Header.Add("User-Agent", r.Request.Source)
+	} else if s.Name != "" {
+		hreq.Header.Add("User-Agent", s.Name)
+	}
 
+	// Now that the request is all set, we can apply header mutators.
+	if err := r.Request.ApplyOptions(hreq.Header); err != nil {
+		return flux.Statistics{}, tracing.LogError(span, err)
+	}
+
+	hreq = hreq.WithContext(ctx)
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
 	if err != nil {
@@ -412,6 +425,7 @@ var _ query.QueryService = (*FluxQueryService)(nil)
 type FluxQueryService struct {
 	Addr               string
 	Token              string
+	Name               string
 	InsecureSkipVerify bool
 }
 
@@ -450,7 +464,17 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/csv")
+	if r.Source != "" {
+		hreq.Header.Add("User-Agent", r.Source)
+	} else if s.Name != "" {
+		hreq.Header.Add("User-Agent", s.Name)
+	}
 	hreq = hreq.WithContext(ctx)
+
+	// Now that the request is all set, we can apply header mutators.
+	if err := r.ApplyOptions(hreq.Header); err != nil {
+		return nil, tracing.LogError(span, err)
+	}
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
@@ -476,8 +500,11 @@ func (s FluxQueryService) Check(ctx context.Context) check.Response {
 	return QueryHealthCheck(s.Addr, s.InsecureSkipVerify)
 }
 
-// SimpleQuery runs a flux query with common parameters and returns CSV results.
-func SimpleQuery(addr, flux, org, token string) ([]byte, error) {
+// GetQueryResponse runs a flux query with common parameters and returns the response from the query service.
+func GetQueryResponse(qr *QueryRequest, addr, org, token string, headers ...string) (*http.Response, error) {
+	if len(headers)%2 != 0 {
+		return nil, fmt.Errorf("headers must be key value pairs")
+	}
 	u, err := NewURL(addr, prefixQuery)
 	if err != nil {
 		return nil, err
@@ -485,18 +512,6 @@ func SimpleQuery(addr, flux, org, token string) ([]byte, error) {
 	params := url.Values{}
 	params.Set(Org, org)
 	u.RawQuery = params.Encode()
-
-	header := true
-	qr := &QueryRequest{
-		Type:  "flux",
-		Query: flux,
-		Dialect: QueryDialect{
-			Header:         &header,
-			Delimiter:      ",",
-			CommentPrefix:  "#",
-			DateTimeFormat: "RFC3339",
-		},
-	}
 
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(qr); err != nil {
@@ -510,22 +525,47 @@ func SimpleQuery(addr, flux, org, token string) ([]byte, error) {
 
 	SetToken(token, req)
 
+	// Default headers.
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/csv")
+	// Apply custom headers.
+	for i := 0; i < len(headers); i += 2 {
+		req.Header.Set(headers[i], headers[i+1])
+	}
 
 	insecureSkipVerify := false
 	hc := NewClient(u.Scheme, insecureSkipVerify)
-	res, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
+	return hc.Do(req)
+}
 
+// GetQueryResponseBody reads the body of a response from some query service.
+// It also checks for errors in the response.
+func GetQueryResponseBody(res *http.Response) ([]byte, error) {
 	if err := CheckError(res); err != nil {
 		return nil, err
 	}
-
 	defer res.Body.Close()
 	return ioutil.ReadAll(res.Body)
+}
+
+// SimpleQuery runs a flux query with common parameters and returns CSV results.
+func SimpleQuery(addr, flux, org, token string, headers ...string) ([]byte, error) {
+	header := true
+	qr := &QueryRequest{
+		Type:  "flux",
+		Query: flux,
+		Dialect: QueryDialect{
+			Header:         &header,
+			Delimiter:      ",",
+			CommentPrefix:  "#",
+			DateTimeFormat: "RFC3339",
+		},
+	}
+	res, err := GetQueryResponse(qr, addr, org, token, headers...)
+	if err != nil {
+		return nil, err
+	}
+	return GetQueryResponseBody(res)
 }
 
 func QueryHealthCheck(url string, insecureSkipVerify bool) check.Response {

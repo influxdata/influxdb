@@ -21,25 +21,26 @@ import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPage
 import {FilteredList} from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/resources/components/GetResources'
 
 // Actions
-import {setBucketInfo} from 'src/dataLoaders/actions/steps'
-import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions'
+import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions/thunks'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Telegraf, OverlayState, AppState, Bucket} from 'src/types'
+import {Telegraf, OverlayState, AppState, Bucket, ResourceType} from 'src/types'
 import {
-  setDataLoadersType,
   setTelegrafConfigID,
   setTelegrafConfigName,
   clearDataLoaders,
 } from 'src/dataLoaders/actions/dataLoaders'
-import {DataLoaderType} from 'src/types/dataLoaders'
 import {SortTypes} from 'src/shared/utils/sort'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
 
 interface StateProps {
   hasTelegrafs: boolean
@@ -48,8 +49,6 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSetBucketInfo: typeof setBucketInfo
-  onSetDataLoadersType: typeof setDataLoadersType
   onSetTelegrafConfigID: typeof setTelegrafConfigID
   onSetTelegrafConfigName: typeof setTelegrafConfigName
   onClearDataLoaders: typeof clearDataLoaders
@@ -189,19 +188,9 @@ class Collectors extends PureComponent<Props, State> {
 
   private handleAddCollector = () => {
     const {
-      buckets,
-      onSetBucketInfo,
-      onSetDataLoadersType,
       router,
       params: {orgID},
     } = this.props
-
-    if (buckets && buckets.length) {
-      const {orgID, name, id} = buckets[0]
-      onSetBucketInfo(orgID, name, id)
-    }
-
-    onSetDataLoadersType(DataLoaderType.Scraping)
 
     router.push(`/orgs/${orgID}/load-data/telegrafs/new`)
   }
@@ -255,17 +244,20 @@ class Collectors extends PureComponent<Props, State> {
     this.setState({searchTerm})
   }
 }
-const mstp = ({telegrafs, orgs: {org}, buckets}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {telegrafs} = state.resources
+  const orgName = getOrg(state).name
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
+  const hasTelegrafs = !!telegrafs.allIDs.length
+
   return {
-    hasTelegrafs: telegrafs.list && telegrafs.list.length > 0,
-    orgName: org.name,
-    buckets: buckets.list,
+    hasTelegrafs,
+    orgName,
+    buckets,
   }
 }
 
 const mdtp: DispatchProps = {
-  onSetBucketInfo: setBucketInfo,
-  onSetDataLoadersType: setDataLoadersType,
   onSetTelegrafConfigID: setTelegrafConfigID,
   onSetTelegrafConfigName: setTelegrafConfigName,
   onClearDataLoaders: clearDataLoaders,

@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {isEmpty} from 'lodash'
 
 // Components
 import {Button, EmptyState, Sort} from '@influxdata/clockface'
@@ -12,25 +12,28 @@ import ScraperList from 'src/scrapers/components/ScraperList'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
 
 // Actions
-import {updateScraper, deleteScraper} from 'src/scrapers/actions'
+import {updateScraper, deleteScraper} from 'src/scrapers/actions/thunks'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SortTypes} from 'src/shared/utils/sort'
 
 // Types
-import {ScraperTargetResponse} from '@influxdata/influx'
 import {
   IconFont,
   ComponentSize,
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {AppState, Bucket, Organization} from 'src/types'
+import {AppState, Bucket, Scraper, Organization, ResourceType} from 'src/types'
 import FilterList from 'src/shared/components/Filter'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
+
 interface StateProps {
-  scrapers: ScraperTargetResponse[]
+  scrapers: Scraper[]
   buckets: Bucket[]
   org: Organization
 }
@@ -49,7 +52,7 @@ interface State {
   sortType: SortTypes
 }
 
-type SortKey = keyof ScraperTargetResponse
+type SortKey = keyof Scraper
 
 @ErrorHandling
 class Scrapers extends PureComponent<Props, State> {
@@ -79,7 +82,7 @@ class Scrapers extends PureComponent<Props, State> {
           {this.createScraperButton('create-scraper-button-header')}
         </SettingsTabbedPageHeader>
         <NoBucketsWarning visible={this.hasNoBuckets} resourceName="Scrapers" />
-        <FilterList<ScraperTargetResponse>
+        <FilterList<Scraper>
           searchTerm={searchTerm}
           searchKeys={['name', 'url']}
           list={scrapers}
@@ -142,7 +145,7 @@ class Scrapers extends PureComponent<Props, State> {
     const {org} = this.props
     const {searchTerm} = this.state
 
-    if (_.isEmpty(searchTerm)) {
+    if (isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text>
@@ -161,12 +164,12 @@ class Scrapers extends PureComponent<Props, State> {
     )
   }
 
-  private handleUpdateScraper = (scraper: ScraperTargetResponse) => {
+  private handleUpdateScraper = (scraper: Scraper) => {
     const {onUpdateScraper} = this.props
     onUpdateScraper(scraper)
   }
 
-  private handleDeleteScraper = (scraper: ScraperTargetResponse) => {
+  private handleDeleteScraper = (scraper: Scraper) => {
     const {onDeleteScraper} = this.props
     onDeleteScraper(scraper)
   }
@@ -186,10 +189,10 @@ class Scrapers extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({scrapers, buckets, orgs}: AppState): StateProps => ({
-  scrapers: scrapers.list,
-  buckets: buckets.list,
-  org: orgs.org,
+const mstp = (state: AppState): StateProps => ({
+  scrapers: getAll<Scraper>(state, ResourceType.Scrapers),
+  buckets: getAll<Bucket>(state, ResourceType.Buckets),
+  org: getOrg(state),
 })
 
 const mdtp: DispatchProps = {

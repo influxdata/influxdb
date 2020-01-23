@@ -1,4 +1,20 @@
-## v2.0.0-alpha.22 [unreleased]
+## v2.0.0-beta.2 [Unreleased]
+
+### Features
+
+1. [16523](https://github.com/influxdata/influxdb/pull/16523): Change influx packages to be CRD compliant
+1. [16547](https://github.com/influxdata/influxdb/pull/16547): Allow trailing newline in credentials file and CLI integration
+1. [16545](https://github.com/influxdata/influxdb/pull/16545): Add support for prefixed cursor search to ForwardCursor types
+1. [16504](https://github.com/influxdata/influxdb/pull/16504): Add backup and restore
+1. [16522](https://github.com/influxdata/influxdb/pull/16522): Introduce resource logger to tasks, buckets and organizations
+
+### UI Improvements
+
+1. [16575](https://github.com/influxdata/influxdb/pull/16575): Swap billingURL with checkoutURL
+1. [16203](https://github.com/influxdata/influxdb/pull/16203): Move cloud navigation to top of page instead of within left side navigation
+1. [16536](https://github.com/influxdata/influxdb/pull/16536): Adjust aggregate window periods to be more "reasonable". Use duration input with validation.
+
+## v2.0.0-beta.1 [2020-01-08]
 
 ### Features
 
@@ -25,6 +41,16 @@
 1. [16336](https://github.com/influxdata/influxdb/pull/16336): Manual Overrides for Readiness Endpoint
 1. [16347](https://github.com/influxdata/influxdb/pull/16347): Drop legacy inmem service implementation in favor of kv service with inmem dependency
 1. [16348](https://github.com/influxdata/influxdb/pull/16348): Drop legacy bolt service implementation in favor of kv service with bolt dependency
+1. [16014](https://github.com/influxdata/influxdb/pull/16014): While creating check, also display notification rules that would match check based on tag rules
+1. [16389](https://github.com/influxdata/influxdb/pull/16389): Increase default bucket retention period to 30 days
+1. [16430](https://github.com/influxdata/influxdb/pull/16430): Added toggle to table thresholds to allow users to choose between setting threshold colors to text or background
+1. [16418](https://github.com/influxdata/influxdb/pull/16418): Add Developer Documentation
+1. [16260](https://github.com/influxdata/influxdb/pull/16260): Capture User-Agent header as query source for logging purposes
+1. [16469](https://github.com/influxdata/influxdb/pull/16469): Add support for configurable max batch size in points write handler
+1. [16509](https://github.com/influxdata/influxdb/pull/16509): Add support for applying an influx package via a public facing URL
+1. [16511](https://github.com/influxdata/influxdb/pull/16511): Add jsonnet support for influx packages
+1. [14782](https://github.com/influxdata/influxdb/pull/16336): Add view page for Check
+1. [16537](https://github.com/influxdata/influxdb/pull/16537): Add update password for CLI
 
 ### Bug Fixes
 
@@ -37,8 +63,20 @@
 1. [16268](https://github.com/influxdata/influxdb/pull/16268): Fixed test flakiness that stemmed from multiple flush/signins being called in the same test suite
 1. [16346](https://github.com/influxdata/influxdb/pull/16346): Update pkger task export to only trim out option task and not all vars provided
 1. [16374](https://github.com/influxdata/influxdb/pull/16374): Update influx CLI, only show "see help" message, instead of the whole usage.
+1. [16380](https://github.com/influxdata/influxdb/pull/16380): Fix notification tag matching rules and enable tests to verify
+1. [16376](https://github.com/influxdata/influxdb/pull/16376): Extend the y-axis when stacked graph is selected
+1. [16404](https://github.com/influxdata/influxdb/pull/16404): Fixed query reset bug that was resetting query in script editor whenever dates were changed
+1. [16430](https://github.com/influxdata/influxdb/pull/16430): Fixed table threshold bug that was defaulting set colors to the background.
+1. [16435](https://github.com/influxdata/influxdb/pull/16435): Time labels are no longer squished to the left
+1. [16427](https://github.com/influxdata/influxdb/pull/16427): Fixed underlying issue with disappearing queries made in Advanced Mode
+1. [16439](https://github.com/influxdata/influxdb/pull/16439): Prevent negative zero and allow zero to have decimal places
+1. [16376](https://github.com/influxdata/influxdb/pull/16413): Limit data loader bucket selection to non system buckets
+1. [16458](https://github.com/influxdata/influxdb/pull/16458): Fix EOF error when manually running tasks from the Task Page.
+1. [16491](https://github.com/influxdata/influxdb/pull/16491): Add missing env vals to influx cli usage and fixes precedence of flag/env var priority
 
 ### UI Improvements
+
+1. [16444](https://github.com/influxdata/influxdb/pull/16444): Add honeybadger reporting to create checks
 
 ## v2.0.0-alpha.21 [2019-12-13]
 

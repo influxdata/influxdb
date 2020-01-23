@@ -45,7 +45,12 @@ import {reset} from 'src/dataLoaders/actions/telegrafEditor'
 // Types
 import {Links} from 'src/types/links'
 import {Substep, TelegrafPlugin} from 'src/types/dataLoaders'
-import {AppState, Bucket, Organization} from 'src/types'
+import {AppState, Bucket, Organization, ResourceType} from 'src/types'
+
+// Selectors
+import {getAll} from 'src/resources/selectors'
+import {getOrg} from 'src/organizations/selectors'
+import {isSystemBucket} from 'src/buckets/selectors'
 
 export interface CollectorsStepProps {
   currentStepIndex: number
@@ -80,24 +85,17 @@ interface StateProps {
   org: Organization
 }
 
-interface State {
-  buckets: Bucket[]
-}
-
 type Props = StateProps & DispatchProps
 type AllProps = Props & WithRouterProps
 
 @ErrorHandling
-class CollectorsWizard extends PureComponent<AllProps, State> {
-  constructor(props: AllProps) {
-    super(props)
-    this.state = {
-      buckets: [],
-    }
-  }
-
+class CollectorsWizard extends PureComponent<AllProps> {
   public componentDidMount() {
-    this.handleSetBucketInfo()
+    const {bucket, buckets} = this.props
+    if (!bucket && (buckets && buckets.length)) {
+      const {orgID, name, id} = buckets[0]
+      this.props.onSetBucketInfo(orgID, name, id)
+    }
     this.props.onSetCurrentStepIndex(0)
   }
 
@@ -128,15 +126,6 @@ class CollectorsWizard extends PureComponent<AllProps, State> {
         </Overlay.Container>
       </Overlay>
     )
-  }
-
-  private handleSetBucketInfo = () => {
-    const {bucket, buckets} = this.props
-    if (!bucket && (buckets && buckets.length)) {
-      const {orgID, name, id} = buckets[0]
-
-      this.props.onSetBucketInfo(orgID, name, id)
-    }
   }
 
   private handleDismiss = () => {
@@ -171,27 +160,37 @@ class CollectorsWizard extends PureComponent<AllProps, State> {
   }
 }
 
-const mstp = ({
-  links,
-  buckets,
-  dataLoading: {
-    dataLoaders: {telegrafPlugins},
-    steps: {currentStep, substep, bucket},
-  },
-  me: {name},
-  orgs: {org},
-  telegrafEditor,
-}: AppState): StateProps => ({
-  links,
-  telegrafPlugins,
-  text: telegrafEditor.text,
-  currentStepIndex: currentStep,
-  substep,
-  username: name,
-  bucket,
-  buckets: buckets.list,
-  org: org,
-})
+const mstp = (state: AppState): StateProps => {
+  const {
+    links,
+    dataLoading: {
+      dataLoaders: {telegrafPlugins},
+      steps: {currentStep, substep, bucket},
+    },
+    me: {name},
+    telegrafEditor,
+  } = state
+
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
+
+  const nonSystemBuckets = buckets.filter(
+    bucket => !isSystemBucket(bucket.name)
+  )
+
+  const org = getOrg(state)
+
+  return {
+    links,
+    telegrafPlugins,
+    text: telegrafEditor.text,
+    currentStepIndex: currentStep,
+    substep,
+    username: name,
+    bucket,
+    buckets: nonSystemBuckets,
+    org,
+  }
+}
 
 const mdtp: DispatchProps = {
   notify: notifyAction,

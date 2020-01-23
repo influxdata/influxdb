@@ -11,6 +11,7 @@ export const pastHourTimeRange: SelectableDurationTimeRange = {
   label: 'Past 1h',
   duration: '1h',
   type: 'selectable-duration',
+  windowPeriod: 10000, // 10s
 }
 
 export const pastThirtyDaysTimeRange: SelectableDurationTimeRange = {
@@ -20,6 +21,7 @@ export const pastThirtyDaysTimeRange: SelectableDurationTimeRange = {
   label: 'Past 30d',
   duration: '30d',
   type: 'selectable-duration',
+  windowPeriod: 3600000, // 1h
 }
 
 export const pastFifteenMinTimeRange: SelectableDurationTimeRange = {
@@ -29,6 +31,7 @@ export const pastFifteenMinTimeRange: SelectableDurationTimeRange = {
   label: 'Past 15m',
   duration: '15m',
   type: 'selectable-duration',
+  windowPeriod: 10000, // 10s
 }
 
 export const CUSTOM_TIME_RANGE: {label: string; type: 'custom'} = {
@@ -44,6 +47,7 @@ export const SELECTABLE_TIME_RANGES: SelectableDurationTimeRange[] = [
     label: 'Past 5m',
     duration: '5m',
     type: 'selectable-duration',
+    windowPeriod: 10000, // 10s
   },
   pastFifteenMinTimeRange,
   pastHourTimeRange,
@@ -54,6 +58,7 @@ export const SELECTABLE_TIME_RANGES: SelectableDurationTimeRange[] = [
     label: 'Past 6h',
     duration: '6h',
     type: 'selectable-duration',
+    windowPeriod: 60000, // 1m
   },
   {
     seconds: 43200,
@@ -62,6 +67,7 @@ export const SELECTABLE_TIME_RANGES: SelectableDurationTimeRange[] = [
     label: 'Past 12h',
     duration: '12h',
     type: 'selectable-duration',
+    windowPeriod: 120000, // 2m
   },
   {
     seconds: 86400,
@@ -70,6 +76,7 @@ export const SELECTABLE_TIME_RANGES: SelectableDurationTimeRange[] = [
     label: 'Past 24h',
     duration: '24h',
     type: 'selectable-duration',
+    windowPeriod: 300000, // 5m
   },
   {
     seconds: 172800,
@@ -78,6 +85,7 @@ export const SELECTABLE_TIME_RANGES: SelectableDurationTimeRange[] = [
     label: 'Past 2d',
     duration: '2d',
     type: 'selectable-duration',
+    windowPeriod: 600000, // 10m
   },
   {
     seconds: 604800,
@@ -86,6 +94,7 @@ export const SELECTABLE_TIME_RANGES: SelectableDurationTimeRange[] = [
     label: 'Past 7d',
     duration: '7d',
     type: 'selectable-duration',
+    windowPeriod: 1800000, // 30 min
   },
   pastThirtyDaysTimeRange,
 ]

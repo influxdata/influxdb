@@ -9,7 +9,7 @@ import {
   reloadTagSelectors,
   Action as QueryBuilderAction,
 } from 'src/timeMachine/actions/queryBuilder'
-import {setValues} from 'src/variables/actions'
+import {setValues} from 'src/variables/actions/creators'
 import {convertCheckToCustom} from 'src/alerting/actions/alertBuilder'
 
 // Selectors
@@ -67,7 +67,9 @@ export type Action =
   | SetYAxisBase
   | SetYAxisScale
   | SetPrefix
+  | SetTickPrefix
   | SetSuffix
+  | SetTickSuffix
   | SetActiveQueryIndexAction
   | AddQueryAction
   | RemoveQueryAction
@@ -299,6 +301,16 @@ export const setPrefix = (prefix: string): SetPrefix => ({
   payload: {prefix},
 })
 
+interface SetTickPrefix {
+  type: 'SET_TICK_PREFIX'
+  payload: {tickPrefix: string}
+}
+
+export const setTickPrefix = (tickPrefix: string): SetTickPrefix => ({
+  type: 'SET_TICK_PREFIX',
+  payload: {tickPrefix},
+})
+
 interface SetSuffix {
   type: 'SET_SUFFIX'
   payload: {suffix: string}
@@ -307,6 +319,16 @@ interface SetSuffix {
 export const setSuffix = (suffix: string): SetSuffix => ({
   type: 'SET_SUFFIX',
   payload: {suffix},
+})
+
+interface SetTickSuffix {
+  type: 'SET_TICK_SUFFIX'
+  payload: {tickSuffix: string}
+}
+
+export const setTickSuffix = (tickSuffix: string): SetTickSuffix => ({
+  type: 'SET_TICK_SUFFIX',
+  payload: {tickSuffix},
 })
 
 interface SetStaticLegend {
@@ -658,7 +680,11 @@ export const loadNewVEO = (dashboardID: string) => (
     })
   )
 
-  const values = get(getState(), `variables.values.${dashboardID}.values`, {})
+  const values = get(
+    state,
+    `resources.variables.values.${dashboardID}.values`,
+    {}
+  )
 
   if (!isEmpty(values)) {
     dispatch(setValues('veo', RemoteDataState.Done, values))

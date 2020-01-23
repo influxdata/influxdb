@@ -1,4 +1,3 @@
-import {Doc} from 'codemirror'
 import {Organization} from '../../src/types'
 import {VIS_TYPES} from '../../src/timeMachine/constants'
 import {
@@ -11,14 +10,21 @@ import {
   STRINGS_TRIM,
 } from '../../src/shared/constants/fluxFunctions'
 
-interface HTMLElementCM extends HTMLElement {
-  CodeMirror: {
-    doc: CodeMirror.Doc
-  }
+const TYPE_DELAY = 0
+
+function getTimeMachineText() {
+  return cy
+    .wrap({
+      text: () => {
+        const store = cy.state().window.store.getState().timeMachines
+        const timeMachine = store.timeMachines[store.activeTimeMachineID]
+        const query =
+          timeMachine.draftQueries[timeMachine.activeQueryIndex].text
+        return query
+      },
+    })
+    .invoke('text')
 }
-
-type $CM = JQuery<HTMLElementCM>
-
 describe('DataExplorer', () => {
   beforeEach(() => {
     cy.flush()
@@ -349,26 +355,37 @@ describe('DataExplorer', () => {
     })
   })
 
-  // todo: investigate flakiness of this test: https://github.com/influxdata/influxdb/issues/16330
-  describe.skip('raw script editing', () => {
+  describe('raw script editing', () => {
     beforeEach(() => {
       cy.getByTestID('switch-to-script-editor').click()
     })
 
-    it('enables the submit button when a query is typed', () => {
+    // TODO: fix flakeyness of this test
+    it.skip('enables the submit button when a query is typed', () => {
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
 
       cy.getByTestID('flux-editor').within(() => {
-        cy.get('textarea').type('yo', {force: true})
+        cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type('yo', {force: true, delay: TYPE_DELAY})
         cy.getByTestID('time-machine-submit-button').should('not.be.disabled')
       })
     })
 
     it('disables submit when a query is deleted', () => {
       cy.getByTestID('time-machine--bottom').then(() => {
-        cy.get('textarea').type('from(bucket: "foo")', {force: true})
+        cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type('from(bucket: "foo")', {force: true, delay: TYPE_DELAY})
+
         cy.getByTestID('time-machine-submit-button').should('not.be.disabled')
-        cy.get('textarea').type('{selectall} {backspace}', {force: true})
+
+        cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type('{selectall} {backspace}', {force: true, delay: TYPE_DELAY})
       })
 
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
@@ -377,12 +394,6 @@ describe('DataExplorer', () => {
     it('imports the appropriate packages to build a query', () => {
       cy.getByTestID('functions-toolbar-tab').click()
 
-      cy.get<$CM>('.CodeMirror').then($cm => {
-        const cm = $cm[0].CodeMirror
-        cy.wrap(cm.doc).as('flux')
-        expect(cm.doc.getValue()).to.eq('')
-      })
-
       cy.getByTestID('flux-function from').click()
       cy.getByTestID('flux-function range').click()
       cy.getByTestID('flux-function math.abs').click()
@@ -390,8 +401,9 @@ describe('DataExplorer', () => {
       cy.getByTestID('flux-function strings.title').click()
       cy.getByTestID('flux-function strings.trim').click()
 
-      cy.get<Doc>('@flux').then(doc => {
-        const actual = doc.getValue()
+      cy.wait(100)
+
+      getTimeMachineText().then(text => {
         const expected = `
         import"${STRINGS_TITLE.package}"
         import"${MATH_ABS.package}"
@@ -402,44 +414,35 @@ describe('DataExplorer', () => {
         ${STRINGS_TITLE.example}|>
         ${STRINGS_TRIM.example}`
 
-        cy.fluxEqual(actual, expected).should('be.true')
+        cy.fluxEqual(text, expected).should('be.true')
       })
     })
 
     it('can use the function selector to build a query', () => {
       cy.getByTestID('functions-toolbar-tab').click()
 
-      cy.get<$CM>('.CodeMirror').then($cm => {
-        const cm = $cm[0].CodeMirror
-        cy.wrap(cm.doc).as('flux')
-        expect(cm.doc.getValue()).to.eq('')
-      })
-
       cy.getByTestID('flux-function from').click()
 
-      cy.get<Doc>('@flux').then(doc => {
-        const actual = doc.getValue()
+      getTimeMachineText().then(text => {
         const expected = FROM.example
 
-        cy.fluxEqual(actual, expected).should('be.true')
+        cy.fluxEqual(text, expected).should('be.true')
       })
 
       cy.getByTestID('flux-function range').click()
 
-      cy.get<Doc>('@flux').then(doc => {
-        const actual = doc.getValue()
+      getTimeMachineText().then(text => {
         const expected = `${FROM.example}|>${RANGE.example}`
 
-        cy.fluxEqual(actual, expected).should('be.true')
+        cy.fluxEqual(text, expected).should('be.true')
       })
 
       cy.getByTestID('flux-function mean').click()
 
-      cy.get<Doc>('@flux').then(doc => {
-        const actual = doc.getValue()
+      getTimeMachineText().then(text => {
         const expected = `${FROM.example}|>${RANGE.example}|>${MEAN.example}`
 
-        cy.fluxEqual(actual, expected).should('be.true')
+        cy.fluxEqual(text, expected).should('be.true')
       })
     })
 
@@ -450,12 +453,15 @@ describe('DataExplorer', () => {
 
     it('shows the empty state when the query returns no results', () => {
       cy.getByTestID('time-machine--bottom').within(() => {
-        cy.get('textarea').type(
-          `from(bucket: "defbuck")
+        cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type(
+            `from(bucket: "defbuck")
   |> range(start: -10s)
   |> filter(fn: (r) => r._measurement == "no exist")`,
-          {force: true}
-        )
+            {force: true, delay: TYPE_DELAY}
+          )
         cy.getByTestID('time-machine-submit-button').click()
       })
 
@@ -466,12 +472,15 @@ describe('DataExplorer', () => {
       const taskName = 'tax'
       // begin flux
       cy.getByTestID('flux-editor').within(() => {
-        cy.get('textarea').type(
-          `from(bucket: "defbuck")
+        cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type(
+            `from(bucket: "defbuck")
   |> range(start: -15m, stop: now())
   |> filter(fn: (r) => r._measurement == `,
-          {force: true}
-        )
+            {force: true, delay: TYPE_DELAY}
+          )
       })
 
       cy.getByTestID('toolbar-tab').click()
@@ -479,7 +488,10 @@ describe('DataExplorer', () => {
       cy.get('.variables-toolbar--label').click()
       // finish flux
       cy.getByTestID('flux-editor').within(() => {
-        cy.get('textarea').type(`)`, {force: true})
+        cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type(`)`, {force: true, delay: TYPE_DELAY})
       })
 
       cy.getByTestID('save-query-as').click()
@@ -546,11 +558,17 @@ describe('DataExplorer', () => {
         cy.getByTestID('switch-to-script-editor').click()
 
         cy.getByTestID('time-machine--bottom').within(() => {
-          cy.get('textarea').type('from(', {force: true})
+          const remove = cy.state().window.store.subscribe(() => {
+            remove()
+            cy.getByTestID('time-machine-submit-button').click()
+            cy.getByTestID('empty-graph--error').should('exist')
+          })
+          cy.get('.react-monaco-editor-container')
+            .click()
+            .focused()
+            .type('from(', {force: true, delay: 2})
           cy.getByTestID('time-machine-submit-button').click()
         })
-
-        cy.getByTestID('empty-graph--error').should('exist')
       })
     })
 
@@ -630,6 +648,30 @@ describe('DataExplorer', () => {
               expect(num < prev).to.equal(true)
               prev = num
             }
+          })
+        })
+      })
+    })
+  })
+
+  describe('saving', () => {
+    beforeEach(() => {
+      cy.fixture('routes').then(({orgs, explorer}) => {
+        cy.get<Organization>('@org').then(({id}) => {
+          cy.visit(`${orgs}/${id}${explorer}/save`)
+        })
+      })
+    })
+
+    describe('as a task', () => {
+      beforeEach(() => {
+        cy.getByTestID('task--radio-button').click()
+      })
+
+      it('should autoselect the first bucket', () => {
+        cy.getByTestID('task-options-bucket-dropdown--button').within(() => {
+          cy.get('span.cf-dropdown--selected').then(elem => {
+            expect(elem.text()).to.include('defbuck')
           })
         })
       })

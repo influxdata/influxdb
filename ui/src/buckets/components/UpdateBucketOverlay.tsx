@@ -20,7 +20,7 @@ import {
 import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
 // Actions
-import {updateBucket} from 'src/buckets/actions'
+import {updateBucket} from 'src/buckets/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 
 // APIs

@@ -1,5 +1,4 @@
 // Libraries
-import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
@@ -13,7 +12,7 @@ import {
 } from '@influxdata/clockface'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
 import TaskOptionsBucketDropdown from 'src/tasks/components/TasksOptionsBucketDropdown'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/resources/components/GetResources'
 
 // Types
 import {
@@ -26,7 +25,7 @@ import {
   AlignItems,
   ComponentSize,
 } from '@influxdata/clockface'
-import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
+import {ResourceType, TaskOptions, TaskSchedule} from 'src/types'
 
 interface Props {
   taskOptions: TaskOptions

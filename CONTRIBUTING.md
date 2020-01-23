@@ -59,9 +59,9 @@ Please be clear about your requirements and goals, help us to understand what yo
 If you find your feature request already exists as a Github issue please indicate your support for that feature by using the "thumbs up" reaction.
 
 ## Contributing to the source code
-InfluxDB requires Go 1.12 and uses Go modules.
+InfluxDB requires Go 1.13 and uses Go modules.
 
-You should read our [coding guide](https://github.com/influxdata/influxdb/blob/master/CODING_GUIDELINES.md), to understand better how to write code for InfluxDB.
+You should read our [coding guide](https://github.com/influxdata/influxdb/blob/master/DEVELOPMENT.md), to understand better how to write code for InfluxDB.
 
 ## Submitting a pull request
 To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork.
@@ -92,15 +92,15 @@ More details about security vulnerability reporting, including our GPG key, [can
 If you are going to be contributing back to InfluxDB please take a second to sign our CLA, which can be found [on our website](https://influxdata.com/community/cla/).
 
 ## Installing Go
-InfluxDB requires Go 1.12.
+InfluxDB requires Go 1.13.
 
 At InfluxData we find `gvm`, a Go version manager, useful for installing Go.
 For instructions on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
 
 After installing gvm you can install and set the default go version by running the following:
 ```bash
-$ gvm install go1.12
-$ gvm use go1.12 --default
+$ gvm install go1.13
+$ gvm use go1.13 --default
 ```
 
 ## Revision Control Systems
@@ -138,17 +138,26 @@ $ go install ./...
 
 ### Testing
 
+This project is built from various languages. To run test for all langauges and components use:
+
 ```bash
-$ go test -v ./...
-
-# run tests that match some pattern
-$ go test -run=TestDatabase . -v
-
-# run tests and show coverage
-$ go test -coverprofile /tmp/cover . && go tool cover -html /tmp/cover
+$ make test
 ```
 
+To run tests for just the Javascript component use:
+
+```bash
+$ make test-js
+
+To run tests for just the Go/Rust components use:
+
+```bash
+$ make test-go
+```
+
+
 ## Generated Google Protobuf code
+
 Most changes to the source do not require that the generated protocol buffer code be changed.
 But if you need to modify the protocol buffer code, you'll first need to install the protocol buffers toolchain.
 

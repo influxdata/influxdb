@@ -12,11 +12,10 @@ import {validateVariableName} from 'src/variables/utils/validation'
 import {extractVariablesList} from 'src/variables/selectors'
 
 // Actions
-import {updateVariable} from 'src/variables/actions'
+import {updateVariable} from 'src/variables/actions/thunks'
 
 // Types
-import {AppState} from 'src/types'
-import {IVariable as Variable} from '@influxdata/influx'
+import {AppState, Variable} from 'src/types'
 import {
   ButtonType,
   ComponentColor,
@@ -73,6 +72,7 @@ class RenameVariableOverlayForm extends PureComponent<Props, State> {
                       value={workingVariable.name}
                       onChange={this.handleChangeInput}
                       status={status}
+                      testID="rename-variable-input"
                     />
                   )}
                 </Form.ValidationElement>
@@ -96,6 +96,7 @@ class RenameVariableOverlayForm extends PureComponent<Props, State> {
                       ? ComponentStatus.Default
                       : ComponentStatus.Disabled
                   }
+                  testID="rename-variable-submit"
                 />
               </Form.Footer>
             </Grid.Column>

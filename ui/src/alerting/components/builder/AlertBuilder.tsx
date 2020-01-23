@@ -6,6 +6,8 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 import CheckMetaCard from 'src/alerting/components/builder/CheckMetaCard'
 import CheckMessageCard from 'src/alerting/components/builder/CheckMessageCard'
 import CheckConditionsCard from 'src/alerting/components/builder/CheckConditionsCard'
+import CheckMatchingRulesCard from 'src/alerting/components/builder/CheckMatchingRulesCard'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 const AlertBuilder: FC = () => {
   return (
@@ -16,6 +18,9 @@ const AlertBuilder: FC = () => {
             <CheckMetaCard />
             <CheckMessageCard />
             <CheckConditionsCard />
+            {isFlagEnabled('matchingNotificationRules') && (
+              <CheckMatchingRulesCard />
+            )}
           </div>
         </FancyScrollbar>
       </div>

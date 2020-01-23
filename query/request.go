@@ -4,12 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb"
 )
 
-// Request respresents the query to run.
+const (
+	PreferHeaderKey                = "Prefer"
+	PreferNoContentHeaderValue     = "return-no-content"
+	PreferNoContentWErrHeaderValue = "return-no-content-with-error"
+)
+
+// Request represents the query to run.
+// Options to mutate the header associated to this Request can be specified
+// via `WithOption` or associated methods.
+// One should always `Request.ApplyOptions()` before encoding and sending the request.
 type Request struct {
 	// Scope
 	Authorization  *platform.Authorization `json:"authorization,omitempty"`
@@ -20,8 +30,48 @@ type Request struct {
 	// Compiler converts the query to a specification to run against the data.
 	Compiler flux.Compiler `json:"compiler"`
 
+	// Source represents the ultimate source of the request.
+	Source string `json:"source"`
+
 	// compilerMappings maps compiler types to creation methods
 	compilerMappings flux.CompilerMappings
+
+	options []RequestHeaderOption
+}
+
+// SetReturnNoContent sets the header for a Request to return no content.
+func SetReturnNoContent(header http.Header, withError bool) {
+	if withError {
+		header.Set(PreferHeaderKey, PreferNoContentWErrHeaderValue)
+	} else {
+		header.Set(PreferHeaderKey, PreferNoContentHeaderValue)
+	}
+}
+
+// RequestHeaderOption is a function that mutates the header associated to a Request.
+type RequestHeaderOption = func(header http.Header) error
+
+// WithOption adds a RequestHeaderOption to this Request.
+func (r *Request) WithOption(option RequestHeaderOption) {
+	r.options = append(r.options, option)
+}
+
+// WithReturnNoContent makes this Request return no content.
+func (r *Request) WithReturnNoContent(withError bool) {
+	r.WithOption(func(header http.Header) error {
+		SetReturnNoContent(header, withError)
+		return nil
+	})
+}
+
+// ApplyOptions applies every option added to this Request to the given header.
+func (r *Request) ApplyOptions(header http.Header) error {
+	for _, visitor := range r.options {
+		if err := visitor(header); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // WithCompilerMappings sets the query type mappings on the request.
@@ -79,7 +129,7 @@ func ContextWithRequest(ctx context.Context, req *Request) context.Context {
 	return context.WithValue(ctx, activeContextKey, req)
 }
 
-//RequestFromContext retrieves a *Request from a context.
+// RequestFromContext retrieves a *Request from a context.
 // If not request exists on the context nil is returned.
 func RequestFromContext(ctx context.Context) *Request {
 	v := ctx.Value(activeContextKey)

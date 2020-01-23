@@ -42,7 +42,7 @@ class TableCell extends PureComponent<Props> {
           onClick={this.handleClick}
           data-column-index={columnIndex}
           data-row-index={rowIndex}
-          data-testID={`${data}-table-header`}
+          data-testid={`${data}-table-header`}
           onMouseOver={onHover}
           title={this.contents}
         >

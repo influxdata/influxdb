@@ -423,15 +423,7 @@ func FindNotificationEndpointByID(
 			ctx := context.Background()
 
 			edp, err := s.FindNotificationEndpointByID(ctx, tt.args.id)
-			if err != nil {
-				if tt.wants.err == nil {
-					require.NoError(t, err)
-				}
-				iErr, ok := err.(*influxdb.Error)
-				require.True(t, ok)
-				assert.Equal(t, tt.wants.err.Code, iErr.Code)
-				assert.Truef(t, strings.HasPrefix(iErr.Error(), tt.wants.err.Error()), "got err: %s", err.Error())
-			}
+			influxErrsEqual(t, tt.wants.err, err)
 			if diff := cmp.Diff(edp, tt.wants.notificationEndpoint, notificationEndpointCmpOptions...); diff != "" {
 				t.Errorf("notification endpoint is different -got/+want\ndiff %s", diff)
 			}
@@ -2175,5 +2167,5 @@ func influxErrsEqual(t *testing.T, expected *influxdb.Error, actual error) {
 	iErr, ok := actual.(*influxdb.Error)
 	require.True(t, ok)
 	assert.Equal(t, expected.Code, iErr.Code)
-	assert.Truef(t, strings.HasPrefix(iErr.Error(), expected.Error()), "got err: %s", actual.Error())
+	assert.Truef(t, strings.HasPrefix(iErr.Error(), expected.Error()), "expected: %s got err: %s", expected.Error(), actual.Error())
 }

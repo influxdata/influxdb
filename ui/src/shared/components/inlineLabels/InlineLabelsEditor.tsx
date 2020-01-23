@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, ChangeEvent} from 'react'
+import React, {Component, ChangeEvent, createRef} from 'react'
 import _ from 'lodash'
 
 // Components
@@ -43,6 +43,8 @@ interface State {
 
 @ErrorHandling
 class InlineLabelsEditor extends Component<Props, State> {
+  private popoverTrigger = createRef<HTMLDivElement>()
+
   constructor(props: Props) {
     super(props)
 
@@ -60,17 +62,18 @@ class InlineLabelsEditor extends Component<Props, State> {
     return (
       <>
         <div className="inline-labels--editor">
-          <div className="inline-labels--add">
-            <SquareButton
-              color={ComponentColor.Secondary}
-              titleText="Add labels"
-              onClick={this.handleShowPopover}
-              icon={IconFont.Plus}
-              testID="inline-labels--add"
-            />
+          <div className="inline-labels--add-wrapper" ref={this.popoverTrigger}>
+            <div className="inline-labels--add">
+              <SquareButton
+                color={ComponentColor.Secondary}
+                titleText="Add labels"
+                icon={IconFont.Plus}
+                testID="inline-labels--add"
+              />
+            </div>
+            {this.noLabelsIndicator}
           </div>
           {this.popover}
-          {this.noLabelsIndicator}
         </div>
         <CreateLabelOverlay
           isVisible={isCreatingLabel === OverlayState.Open}
@@ -85,26 +88,24 @@ class InlineLabelsEditor extends Component<Props, State> {
 
   private get popover(): JSX.Element {
     const {labels, selectedLabels} = this.props
-    const {searchTerm, isPopoverVisible, selectedItemID} = this.state
+    const {searchTerm, selectedItemID} = this.state
 
     const labelsUsed =
       labels.length > 0 && labels.length === selectedLabels.length
 
-    if (isPopoverVisible) {
-      return (
-        <InlineLabelPopover
-          searchTerm={searchTerm}
-          selectedItemID={selectedItemID}
-          onUpdateSelectedItemID={this.handleUpdateSelectedItemID}
-          allLabelsUsed={labelsUsed}
-          onDismiss={this.handleDismissPopover}
-          onStartCreatingLabel={this.handleStartCreatingLabel}
-          onInputChange={this.handleInputChange}
-          filteredLabels={this.filterLabels(searchTerm)}
-          onAddLabel={this.handleAddLabel}
-        />
-      )
-    }
+    return (
+      <InlineLabelPopover
+        searchTerm={searchTerm}
+        triggerRef={this.popoverTrigger}
+        selectedItemID={selectedItemID}
+        onUpdateSelectedItemID={this.handleUpdateSelectedItemID}
+        allLabelsUsed={labelsUsed}
+        onStartCreatingLabel={this.handleStartCreatingLabel}
+        onInputChange={this.handleInputChange}
+        filteredLabels={this.filterLabels(searchTerm)}
+        onAddLabel={this.handleAddLabel}
+      />
+    )
   }
 
   private get noLabelsIndicator(): JSX.Element {
@@ -166,14 +167,9 @@ class InlineLabelsEditor extends Component<Props, State> {
     this.setState({isPopoverVisible: true, selectedItemID, searchTerm: ''})
   }
 
-  private handleDismissPopover = () => {
-    this.setState({isPopoverVisible: false})
-  }
-
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
     const searchTerm = e.target.value
     const filteredLabels = this.filterLabels(searchTerm)
-
     if (filteredLabels.length) {
       const selectedItemID = filteredLabels[0].id
       this.setState({searchTerm, selectedItemID})
@@ -241,18 +237,15 @@ class InlineLabelsEditor extends Component<Props, State> {
       await onCreateLabel(label)
       const newLabel = this.props.labels.find(l => l.name === label.name)
       await onAddLabel(newLabel)
-    } catch (error) {
-      console.error(error)
-    }
+    } catch (error) {}
   }
 
   private handleStartCreatingLabel = (): void => {
     this.setState({isCreatingLabel: OverlayState.Open})
-    this.handleDismissPopover()
   }
 
   private handleStopCreatingLabel = (): void => {
-    this.setState({isCreatingLabel: OverlayState.Closed})
+    this.setState({isCreatingLabel: OverlayState.Closed, searchTerm: ''})
   }
 
   private handleEnsureUniqueLabelName = (name: string): string | null => {

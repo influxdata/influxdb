@@ -10,6 +10,7 @@ import {WINDOW_PERIOD} from 'src/variables/constants'
 
 // Types
 import {VariableAssignment, Package} from 'src/types/ast'
+import {SELECTABLE_TIME_RANGES} from 'src/shared/constants/timeRanges'
 
 const DESIRED_POINTS_PER_GRAPH = 360
 const FALLBACK_WINDOW_PERIOD = 15000
@@ -63,7 +64,15 @@ export const getWindowPeriod = (
       files: [ast, buildVarsOption(variables)],
     }
 
-    const queryDuration = getMinDurationFromAST(substitutedAST)
+    const queryDuration = getMinDurationFromAST(substitutedAST) // in ms
+
+    const foundDuration = SELECTABLE_TIME_RANGES.find(
+      tr => tr.seconds * 1000 === queryDuration
+    )
+
+    if (foundDuration) {
+      return foundDuration.windowPeriod
+    }
 
     return Math.round(queryDuration / DESIRED_POINTS_PER_GRAPH)
   } catch (error) {

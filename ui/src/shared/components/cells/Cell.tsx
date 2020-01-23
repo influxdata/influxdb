@@ -26,10 +26,6 @@ interface OwnProps {
   cell: Cell
   timeRange: TimeRange
   manualRefresh: number
-  onDeleteCell: (cell: Cell) => void
-  onCloneCell: (cell: Cell) => void
-  onEditCell: () => void
-  onEditNote: (id: string) => void
 }
 
 interface State {
@@ -41,14 +37,7 @@ type Props = StateProps & OwnProps
 @ErrorHandling
 class CellComponent extends Component<Props, State> {
   public render() {
-    const {
-      onEditCell,
-      onEditNote,
-      onDeleteCell,
-      onCloneCell,
-      cell,
-      view,
-    } = this.props
+    const {cell, view} = this.props
 
     return (
       <>
@@ -57,10 +46,6 @@ class CellComponent extends Component<Props, State> {
             <CellContext
               cell={cell}
               view={view}
-              onDeleteCell={onDeleteCell}
-              onCloneCell={onCloneCell}
-              onEditCell={onEditCell}
-              onEditNote={onEditNote}
               onCSVDownload={this.handleCSVDownload}
             />
           )}
@@ -100,7 +85,7 @@ class CellComponent extends Component<Props, State> {
   }
 
   private get view(): JSX.Element {
-    const {timeRange, manualRefresh, view, onEditCell, viewsStatus} = this.props
+    const {timeRange, manualRefresh, view, viewsStatus} = this.props
 
     return (
       <SpinnerContainer
@@ -111,7 +96,6 @@ class CellComponent extends Component<Props, State> {
           view={view}
           timeRange={timeRange}
           manualRefresh={manualRefresh}
-          onEditCell={onEditCell}
         />
       </SpinnerContainer>
     )

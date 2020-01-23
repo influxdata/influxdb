@@ -17,7 +17,7 @@ import {
 import VariableArgumentsEditor from 'src/variables/components/VariableArgumentsEditor'
 
 // Actions
-import {updateVariable} from 'src/variables/actions'
+import {updateVariable} from 'src/variables/actions/thunks'
 
 // Utils
 import {extractVariablesList} from 'src/variables/selectors'
@@ -26,13 +26,12 @@ import {extractVariablesList} from 'src/variables/selectors'
 import {variableItemTypes} from 'src/variables/constants'
 
 // Types
-import {IVariable as Variable} from '@influxdata/influx'
 import {
   ButtonType,
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {VariableArguments, AppState} from 'src/types'
+import {VariableArguments, AppState, Variable} from 'src/types'
 
 interface State {
   workingVariable: Variable

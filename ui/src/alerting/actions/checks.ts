@@ -12,8 +12,13 @@ import * as api from 'src/client'
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {incrementCloneName} from 'src/utils/naming'
+import {reportError} from 'src/shared/utils/errors'
+import {isDurationParseable} from 'src/shared/utils/duration'
+import {checkThresholdsValid} from '../utils/checkValidate'
+import {createView} from 'src/shared/utils/view'
+import {getOrg} from 'src/organizations/selectors'
 
-//Actions
+// Actions
 import {
   notify,
   Action as NotificationAction,
@@ -42,7 +47,6 @@ import {
   ThresholdCheck,
   DeadmanCheck,
 } from 'src/types'
-import {createView} from 'src/shared/utils/view'
 
 export type Action =
   | ReturnType<typeof setAllChecks>
@@ -84,11 +88,7 @@ export const getChecks = () => async (
 ) => {
   try {
     dispatch(setAllChecks(RemoteDataState.Loading))
-    const {
-      orgs: {
-        org: {id: orgID},
-      },
-    } = getState()
+    const {id: orgID} = getOrg(getState())
 
     const resp = await api.getChecks({query: {orgID}})
 
@@ -111,9 +111,7 @@ export const getCheckForTimeMachine = (checkID: string) => async (
   >,
   getState: GetState
 ) => {
-  const {
-    orgs: {org},
-  } = getState()
+  const org = getOrg(getState())
   try {
     dispatch(setAlertBuilderCheckStatus(RemoteDataState.Loading))
 
@@ -151,9 +149,6 @@ export const saveCheckFromTimeMachine = () => async (
   try {
     const state = getState()
     const {
-      orgs: {
-        org: {id: orgID},
-      },
       alertBuilder: {
         type,
         id,
@@ -170,6 +165,7 @@ export const saveCheckFromTimeMachine = () => async (
         thresholds,
       },
     } = state
+    const {id: orgID} = getOrg(state)
 
     const {draftQueries} = getActiveTimeMachine(state)
 
@@ -191,6 +187,7 @@ export const saveCheckFromTimeMachine = () => async (
         tags,
         thresholds,
       } as ThresholdCheck
+      checkThresholdsValid(thresholds)
     } else if (check.type === 'deadman') {
       check = {
         ...check,
@@ -203,6 +200,16 @@ export const saveCheckFromTimeMachine = () => async (
         tags,
         timeSince,
       } as DeadmanCheck
+      if (!isDurationParseable(timeSince) || !isDurationParseable(staleTime)) {
+        throw new Error('Duration fields must contain valid duration')
+      }
+    }
+
+    if (!isDurationParseable(offset)) {
+      throw new Error('Check offset must be a valid duration')
+    }
+    if (!isDurationParseable(every)) {
+      throw new Error('Check every must be a valid duration')
     }
 
     const resp = check.id
@@ -218,9 +225,13 @@ export const saveCheckFromTimeMachine = () => async (
     } else {
       throw new Error(resp.data.message)
     }
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.createCheckFailed(e.message)))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.createCheckFailed(error.message)))
+    reportError(error, {
+      context: {state: getState()},
+      name: 'saveCheckFromTimeMachine function',
+    })
   }
 }
 

@@ -36,6 +36,23 @@ type QueryRequest struct {
 	Dialect QueryDialect `json:"dialect"`
 
 	Org *influxdb.Organization `json:"-"`
+
+	// PreferNoContent specifies if the Response to this request should
+	// contain any result. This is done for avoiding unnecessary
+	// bandwidth consumption in certain cases. For example, when the
+	// query produces side effects and the results do not matter. E.g.:
+	// 	from(...) |> ... |> to()
+	// For example, tasks do not use the results of queries, but only
+	// care about their side effects.
+	// To obtain a QueryRequest with no result, add the header
+	// `Prefer: return-no-content` to the HTTP request.
+	PreferNoContent bool
+	// PreferNoContentWithError is the same as above, but it forces the
+	// Response to contain an error if that is a Flux runtime error encoded
+	// in the response body.
+	// To obtain a QueryRequest with no result but runtime errors,
+	// add the header `Prefer: return-no-content-with-error` to the HTTP request.
+	PreferNoContentWithError bool
 }
 
 // QueryDialect is the formatting options for the query response.
@@ -255,20 +272,34 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 		noHeader = !*r.Dialect.Header
 	}
 
-	// TODO(nathanielc): Use commentPrefix and dateTimeFormat
-	// once they are supported.
+	var dialect flux.Dialect
+	if r.PreferNoContent {
+		dialect = &query.NoContentDialect{}
+	} else {
+		// TODO(nathanielc): Use commentPrefix and dateTimeFormat
+		// once they are supported.
+		encConfig := csv.ResultEncoderConfig{
+			NoHeader:    noHeader,
+			Delimiter:   delimiter,
+			Annotations: r.Dialect.Annotations,
+		}
+		if r.PreferNoContentWithError {
+			dialect = &query.NoContentWithErrorDialect{
+				ResultEncoderConfig: encConfig,
+			}
+		} else {
+			dialect = &csv.Dialect{
+				ResultEncoderConfig: encConfig,
+			}
+		}
+	}
+
 	return &query.ProxyRequest{
 		Request: query.Request{
 			OrganizationID: r.Org.ID,
 			Compiler:       compiler,
 		},
-		Dialect: &csv.Dialect{
-			ResultEncoderConfig: csv.ResultEncoderConfig{
-				NoHeader:    noHeader,
-				Delimiter:   delimiter,
-				Annotations: r.Dialect.Annotations,
-			},
-		},
+		Dialect: dialect,
 	}, nil
 }
 
@@ -298,10 +329,13 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 		qr.Dialect.CommentPrefix = "#"
 		qr.Dialect.DateTimeFormat = "RFC3339"
 		qr.Dialect.Annotations = d.ResultEncoderConfig.Annotations
+	case *query.NoContentDialect:
+		qr.PreferNoContent = true
+	case *query.NoContentWithErrorDialect:
+		qr.PreferNoContentWithError = true
 	default:
 		return nil, fmt.Errorf("unsupported dialect %T", d)
 	}
-
 	return qr, nil
 }
 
@@ -330,6 +364,13 @@ func decodeQueryRequest(ctx context.Context, r *http.Request, svc influxdb.Organ
 		if err := json.NewDecoder(body).Decode(&req); err != nil {
 			return nil, body.bytesRead, err
 		}
+	}
+
+	switch hv := r.Header.Get(query.PreferHeaderKey); hv {
+	case query.PreferNoContentHeaderValue:
+		req.PreferNoContent = true
+	case query.PreferNoContentWErrHeaderValue:
+		req.PreferNoContentWithError = true
 	}
 
 	req = req.WithDefaults()

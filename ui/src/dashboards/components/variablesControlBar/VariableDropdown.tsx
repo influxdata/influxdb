@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import {
@@ -11,7 +10,7 @@ import {
 } from '@influxdata/clockface'
 
 // Actions
-import {selectVariableValue} from 'src/dashboards/actions/index'
+import {selectVariableValue} from 'src/dashboards/actions/thunks'
 
 // Utils
 import {getVariableValuesForDropdown} from 'src/dashboards/selectors'
@@ -25,11 +24,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSelectValue: (
-    contextID: string,
-    variableID: string,
-    value: string
-  ) => Promise<void>
+  onSelectValue: typeof selectVariableValue
 }
 
 interface OwnProps {
@@ -114,7 +109,7 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
 }
 
 const mdtp = {
-  onSelectValue: selectVariableValue as any,
+  onSelectValue: selectVariableValue,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

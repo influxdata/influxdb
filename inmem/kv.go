@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sync"
 
 	"github.com/google/btree"
@@ -54,6 +55,10 @@ func (s *KVStore) Update(ctx context.Context, fn func(kv.Tx) error) error {
 		writable: true,
 		ctx:      ctx,
 	})
+}
+
+func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
+	panic("not implemented")
 }
 
 // Flush removes all data from the buckets.  Used for testing.
@@ -240,6 +245,11 @@ type pair struct {
 
 // ForwardCursor returns a directional cursor which starts at the provided seeked key
 func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.ForwardCursor, error) {
+	config := kv.NewCursorConfig(opts...)
+	if config.Prefix != nil && !bytes.HasPrefix(seek, config.Prefix) {
+		return nil, fmt.Errorf("seek bytes %q not prefixed with %q: %w", string(seek), string(config.Prefix), kv.ErrSeekMissingPrefix)
+	}
+
 	var (
 		pairs = make(chan []pair)
 		stop  = make(chan struct{})
@@ -262,20 +272,19 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 
 		var (
 			batch   []pair
-			config  = kv.NewCursorConfig(opts...)
 			fn      = config.Hints.PredicateFn
-			iterate = func(it btree.ItemIterator) {
-				b.btree.AscendGreaterOrEqual(&item{key: seek}, it)
-			}
+			iterate = b.ascend
 		)
 
 		if config.Direction == kv.CursorDescending {
-			iterate = func(it btree.ItemIterator) {
-				b.btree.DescendLessOrEqual(&item{key: seek}, it)
+			iterate = b.descend
+			if len(seek) == 0 {
+				seek = b.btree.Max().(*item).key
+
 			}
 		}
 
-		iterate(func(i btree.Item) bool {
+		iterate(seek, config, func(i btree.Item) bool {
 			select {
 			case <-stop:
 				// if signalled to stop then exit iteration
@@ -287,6 +296,10 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 			if !ok {
 				batch = append(batch, pair{err: fmt.Errorf("error item is type %T not *item", i)})
 
+				return false
+			}
+
+			if config.Prefix != nil && !bytes.HasPrefix(j.key, config.Prefix) {
 				return false
 			}
 
@@ -315,6 +328,14 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 	}()
 
 	return &ForwardCursor{pairs: pairs, stop: stop}, nil
+}
+
+func (b *Bucket) ascend(seek []byte, config kv.CursorConfig, it btree.ItemIterator) {
+	b.btree.AscendGreaterOrEqual(&item{key: seek}, it)
+}
+
+func (b *Bucket) descend(seek []byte, config kv.CursorConfig, it btree.ItemIterator) {
+	b.btree.DescendLessOrEqual(&item{key: seek}, it)
 }
 
 // ForwardCursor is a kv.ForwardCursor which iterates over an in-memory btree

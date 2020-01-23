@@ -11,20 +11,8 @@ import (
 // TaskControlService is a low-level controller interface, intended to be passed to
 // task executors and schedulers, which allows creation, completion, and status updates of runs.
 type TaskControlService interface {
-	// CreateNextRun attempts to create a new run.
-	// The new run's ScheduledFor is assigned the earliest possible time according to task's cron,
-	// that is later than any in-progress run and LatestCompleted run.
-	// If the run's ScheduledFor would be later than the passed-in now, CreateNextRun returns an ErrRunNotDueYet.
-	CreateNextRun(ctx context.Context, taskID influxdb.ID, now int64) (RunCreation, error)
 
-	// NextDueRun returns the Unix timestamp of when the next call to CreateNextRun will be ready.
-	// The returned timestamp reflects the task's offset, so it does not necessarily exactly match the schedule time.
-	NextDueRun(ctx context.Context, taskID influxdb.ID) (int64, error)
-
-	// CreateRun creates a run with a schedule for time.
-	// This differs from CreateNextRun in that it should not to use some scheduling system to determine when the run
-	// should happen.
-	// TODO(lh): remove comment once we no longer need create next run.
+	// CreateRun creates a run with a scheduled for time.
 	CreateRun(ctx context.Context, taskID influxdb.ID, scheduledFor time.Time, runAt time.Time) (*influxdb.Run, error)
 
 	CurrentlyRunning(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error)
