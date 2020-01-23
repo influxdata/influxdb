@@ -13,7 +13,6 @@ import {
   Telegraf,
   TemplateSummary,
   Variable,
-  Dashboard,
   View,
 } from 'src/types'
 import {CellsWithViewProperties} from 'src/client'
