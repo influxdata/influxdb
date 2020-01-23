@@ -88,7 +88,7 @@ func checkToObject(ch influxdb.Check, name string) Object {
 	assignNonZeroStrings(k.Spec, map[string]string{fieldDescription: ch.GetDescription()})
 
 	assignBase := func(base icheck.Base) {
-		k.Spec[fieldQuery] = base.Query.Text
+		k.Spec[fieldQuery] = strings.TrimSpace(base.Query.Text)
 		k.Spec[fieldCheckStatusMessageTemplate] = base.StatusMessageTemplate
 		assignNonZeroFluxDurs(k.Spec, map[string]*notification.Duration{
 			fieldEvery:  base.Every,
@@ -357,7 +357,7 @@ func convertColors(iColors []influxdb.ViewColor) colors {
 func convertQueries(iQueries []influxdb.DashboardQuery) queries {
 	out := make(queries, 0, len(iQueries))
 	for _, iq := range iQueries {
-		out = append(out, query{Query: iq.Text})
+		out = append(out, query{Query: strings.TrimSpace(iq.Text)})
 	}
 	return out
 }
@@ -538,7 +538,7 @@ func taskToObject(t influxdb.Task, name string) Object {
 		Type:       KindTask,
 		Metadata:   Metadata{Name: name},
 		Spec: Resource{
-			fieldQuery: query,
+			fieldQuery: strings.TrimSpace(query),
 		},
 	}
 	assignNonZeroStrings(k.Spec, map[string]string{
@@ -603,7 +603,7 @@ func VariableToObject(v influxdb.Variable, name string) Object {
 		vals, ok := args.Values.(influxdb.VariableQueryValues)
 		if ok {
 			k.Spec[fieldLanguage] = vals.Language
-			k.Spec[fieldQuery] = vals.Query
+			k.Spec[fieldQuery] = strings.TrimSpace(vals.Query)
 		}
 	}
 
