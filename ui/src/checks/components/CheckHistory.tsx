@@ -22,7 +22,7 @@ import {loadStatuses, getInitialState} from 'src/alerting/utils/history'
 import {getCheckIDs} from 'src/alerting/selectors'
 
 // Types
-import {ResourceIDs} from 'src/alerting/reducers/checks'
+import {ResourceIDs} from 'src/checks/reducers'
 import {AppState, Check, TimeZone, ResourceType} from 'src/types'
 
 interface OwnProps {

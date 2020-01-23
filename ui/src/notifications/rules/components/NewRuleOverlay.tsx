@@ -12,7 +12,7 @@ import {Overlay} from '@influxdata/clockface'
 
 // Utils
 import RuleOverlayProvider from 'src/notifications/rules/components/RuleOverlayProvider'
-import {initRuleDraft} from 'src/alerting/components/notifications/utils'
+import {initRuleDraft} from 'src/notifications/rules/utils'
 
 // Types
 import {NotificationRuleDraft} from 'src/types'

@@ -18,7 +18,7 @@ import {checkRulesLimits} from 'src/cloud/actions/limits'
 import {
   ruleToDraftRule,
   draftRuleToPostRule,
-} from 'src/alerting/components/notifications/utils'
+} from 'src/notifications/rules/utils'
 import {getOrg} from 'src/organizations/selectors'
 
 // Types

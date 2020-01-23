@@ -13,7 +13,7 @@ import {
   CHANGES,
   changeStatusRule,
   activeChange,
-} from 'src/alerting/components/notifications/utils'
+} from 'src/notifications/rules/utils'
 
 interface Props {
   status: StatusRuleDraft

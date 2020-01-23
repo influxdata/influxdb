@@ -19,7 +19,7 @@ import DashedButton from 'src/shared/components/dashed_button/DashedButton'
 import {useRuleDispatch} from './RuleOverlayProvider'
 
 // Constants
-import {newTagRuleDraft} from 'src/alerting/components/notifications/utils'
+import {newTagRuleDraft} from 'src/notifications/rules/utils'
 
 // Types
 import {RuleState} from './RuleOverlay.reducer'

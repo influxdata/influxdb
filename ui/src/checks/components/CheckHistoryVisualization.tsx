@@ -9,7 +9,7 @@ import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import TimeSeries from 'src/shared/components/TimeSeries'
 
 // Types
-import {ResourceIDs} from 'src/alerting/reducers/checks'
+import {ResourceIDs} from 'src/checks/reducers'
 import {Check, TimeZone, CheckViewProperties, TimeRange} from 'src/types'
 
 // Utils

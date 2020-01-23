@@ -26,7 +26,7 @@ import {
 import {getCheckIDs, getEndpointIDs, getRuleIDs} from 'src/alerting/selectors'
 
 // Types
-import {ResourceIDs} from 'src/alerting/reducers/checks'
+import {ResourceIDs} from 'src/checks/reducers'
 import {ResourceType, AlertHistoryType, AppState} from 'src/types'
 
 export const ResourceIDsContext = createContext<ResourceIDs>(null)

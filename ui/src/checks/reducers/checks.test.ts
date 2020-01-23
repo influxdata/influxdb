@@ -1,4 +1,4 @@
-import checksReducer, {defaultChecksState} from 'src/alerting/reducers/checks'
+import checksReducer, {defaultChecksState} from 'src/checks/reducers'
 import {setAllChecks, setCheck, removeCheck} from 'src/checks/actions'
 import {
   RemoteDataState,

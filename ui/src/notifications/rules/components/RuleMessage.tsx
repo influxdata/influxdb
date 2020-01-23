@@ -8,7 +8,7 @@ import RuleEndpointDropdown from 'src/notifications/rules/components/RuleEndpoin
 import RuleMessageContents from 'src/notifications/rules/components/RuleMessageContents'
 
 // Utils
-import {getRuleVariantDefaults} from 'src/alerting/components/notifications/utils'
+import {getRuleVariantDefaults} from 'src/notifications/rules/utils'
 import {getResourceList} from 'src/alerting/selectors'
 import {useRuleDispatch} from './RuleOverlayProvider'
 

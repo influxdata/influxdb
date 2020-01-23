@@ -9,7 +9,7 @@ import {
   removeRule,
 } from 'src/notifications/rules/actions'
 
-import {initRuleDraft} from 'src/alerting/components/notifications/utils'
+import {initRuleDraft} from 'src/notifications/rules/utils'
 
 import {RemoteDataState} from 'src/types'
 
