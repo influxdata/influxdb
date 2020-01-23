@@ -11,6 +11,7 @@ import {
   Telegraf,
   TemplateSummary,
   Variable,
+  View,
 } from 'src/types'
 
 // AuthEntities defines the result of normalizr's normalization
@@ -101,5 +102,11 @@ export interface TemplateSummaryEntities {
 export interface VariableEntities {
   variables: {
     [uuid: string]: Variable
+  }
+}
+
+export interface ViewEntities {
+  views: {
+    [uuid: string]: View
   }
 }

@@ -1,7 +1,7 @@
 import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
 
-import {defaultBuilderConfig} from 'src/shared/utils/view'
+import {defaultBuilderConfig} from 'src/views/helpers'
 import {viewableLabels} from 'src/labels/selectors'
 
 import {

@@ -15,6 +15,7 @@ interface Props {
   onSelect: (selectedIDs: string[], value: Dashboard) => void
   selectedIDs: string[]
   dashboards: Dashboard[]
+  newDashboardName: string
 }
 
 @ErrorHandling
@@ -43,7 +44,7 @@ class DashboardsDropdown extends PureComponent<Props> {
   private handleSelectDashboard = (dashboard: Dashboard): void => {
     const {onSelect, selectedIDs} = this.props
 
-    let updatedSelection
+    let updatedSelection: string[]
 
     if (selectedIDs.includes(dashboard.id)) {
       updatedSelection = selectedIDs.filter(id => id !== dashboard.id)
@@ -55,13 +56,18 @@ class DashboardsDropdown extends PureComponent<Props> {
   }
 
   private get dropdownLabel(): string {
-    const {dashboards, selectedIDs} = this.props
+    const {dashboards, selectedIDs, newDashboardName} = this.props
 
     if (!selectedIDs.length) {
       return 'Choose at least 1 dashboard'
     }
 
-    return dashboards
+    const dashboardsWithNew = [
+      ...dashboards,
+      {...DashboardTemplate, name: newDashboardName},
+    ]
+
+    return dashboardsWithNew
       .filter(d => selectedIDs.includes(d.id))
       .map(d => d.name)
       .join(', ')

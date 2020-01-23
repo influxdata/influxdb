@@ -1,9 +1,9 @@
 // Components
 import LevelTableField from 'src/alerting/components/LevelTableField'
 import TimeTableField from 'src/alerting/components/TimeTableField'
-import CheckTableField from 'src/alerting/components/CheckTableField'
+import CheckTableField from 'src/checks/components/CheckTableField'
 import NotificationRuleTableField from 'src/alerting/components/NotificationRuleTableField'
-import NotificationEndpointTableField from 'src/alerting/components/NotificationEndpointTableField'
+import NotificationEndpointTableField from 'src/notifications/endpoints/components/NotificationEndpointTableField'
 import SentTableField from 'src/alerting/components/SentTableField'
 
 // Types

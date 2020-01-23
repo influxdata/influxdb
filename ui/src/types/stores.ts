@@ -17,14 +17,13 @@ import {
   TelegrafEditorState,
 } from 'src/dataLoaders/reducers/telegrafEditor'
 import {RangeState} from 'src/dashboards/reducers/ranges'
-import {ViewsState} from 'src/dashboards/reducers/views'
 import {UserSettingsState} from 'src/userSettings/reducers'
 import {OverlayState} from 'src/overlays/reducers/overlays'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
-import {ChecksState} from 'src/alerting/reducers/checks'
-import {NotificationRulesState} from 'src/alerting/reducers/notifications/rules'
-import {NotificationEndpointsState} from 'src/alerting/reducers/notifications/endpoints'
+import {ChecksState} from 'src/checks/reducers'
+import {NotificationRulesState} from 'src/notifications/rules/reducers'
+import {NotificationEndpointsState} from 'src/notifications/endpoints/reducers'
 import {AlertBuilderState} from 'src/alerting/reducers/alertBuilder'
 
 import {ResourceState} from 'src/types'
@@ -58,7 +57,6 @@ export interface AppState {
   userSettings: UserSettingsState
   variableEditor: VariableEditorState
   VERSION: string
-  views: ViewsState
 }
 
 export type GetState = () => AppState

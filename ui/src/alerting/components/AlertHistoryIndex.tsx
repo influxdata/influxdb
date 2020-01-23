@@ -23,10 +23,12 @@ import {
   getInitialHistoryType,
   getInitialState,
 } from 'src/alerting/utils/history'
-import {getCheckIDs, getEndpointIDs, getRuleIDs} from 'src/alerting/selectors'
+import {getCheckIDs} from 'src/checks/selectors'
+import {getEndpointIDs} from 'src/notifications/endpoints/selectors'
+import {getRuleIDs} from 'src/notifications/rules/selectors'
 
 // Types
-import {ResourceIDs} from 'src/alerting/reducers/checks'
+import {ResourceIDs} from 'src/checks/reducers'
 import {ResourceType, AlertHistoryType, AppState} from 'src/types'
 
 export const ResourceIDsContext = createContext<ResourceIDs>(null)
