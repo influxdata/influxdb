@@ -6,7 +6,7 @@ import {Label as LabelComponent} from '@influxdata/clockface'
 import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsEditor'
 
 // Types
-import {AppThunk, Label} from 'src/types'
+import {Label} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -22,7 +22,6 @@ interface Props {
   labels: Label[]
   onRemoveLabel?: (label: Label) => void
   onAddLabel?: (label: Label) => void
-  onCreateLabel?: (label: Label) => AppThunk<Promise<void>>
   onFilterChange?: (searchTerm: string) => void
 }
 
@@ -37,7 +36,7 @@ export default class InlineLabels extends Component<Props> {
   }
 
   private get selectedLabels(): JSX.Element {
-    const {selectedLabels, labels, onAddLabel, onCreateLabel} = this.props
+    const {selectedLabels, labels, onAddLabel} = this.props
 
     return (
       <div className="inline-labels--container">
@@ -46,7 +45,6 @@ export default class InlineLabels extends Component<Props> {
             labels={labels}
             selectedLabels={selectedLabels}
             onAddLabel={onAddLabel}
-            onCreateLabel={onCreateLabel}
           />
         )}
         {this.currentLabels}

@@ -1,5 +1,6 @@
 // Libraries
 import React, {Component, ChangeEvent, createRef} from 'react'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -11,8 +12,9 @@ import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 import {validateLabelUniqueness} from 'src/labels/utils/'
 
 // Types
-import {AppThunk, Label} from 'src/types'
+import {Label} from 'src/types'
 import {OverlayState} from 'src/types/overlay'
+import {createLabel} from 'src/labels/actions'
 
 // Constants
 export const ADD_NEW_LABEL_ITEM_ID = 'add-new-label'
@@ -27,12 +29,20 @@ export const ADD_NEW_LABEL_LABEL: Label = {
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
+interface DispatchProps {
+  onCreateLabel: typeof createLabel
+}
+
+interface StateProps {
+}
+
+interface OwnProps {
   selectedLabels: Label[]
   labels: Label[]
-  onAddLabel: (label: Label) => Promise<void>
-  onCreateLabel: (label: Label) => AppThunk<Promise<void>>
+  onAddLabel: (label: Label) => void
 }
+
+type Props = DispatchProps & StateProps & OwnProps
 
 interface State {
   searchTerm: string
@@ -231,14 +241,13 @@ class InlineLabelsEditor extends Component<Props, State> {
     return _.differenceBy(labels, selectedLabels, label => label.name)
   }
 
-  private handleCreateLabel = (label: Label) => {
+  private handleCreateLabel = async (label: Label) => {
     const {onCreateLabel, onAddLabel} = this.props
+    const {name, properties} = label
 
-    return onCreateLabel(label)
-      .then(() => {
-        const newLabel = this.props.labels.find(l => l.name === label.name)
-        return onAddLabel(newLabel)
-      })
+    await onCreateLabel(name, properties)
+    const newLabel = this.props.labels.find(l => l.name === label.name)
+    onAddLabel(newLabel)
   }
 
   private handleStartCreatingLabel = (): void => {
@@ -257,4 +266,16 @@ class InlineLabelsEditor extends Component<Props, State> {
   }
 }
 
-export default InlineLabelsEditor
+const mstp = (): StateProps => {
+  return {
+  }
+}
+
+const mdtp: DispatchProps = {
+  onCreateLabel: createLabel
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(InlineLabelsEditor)

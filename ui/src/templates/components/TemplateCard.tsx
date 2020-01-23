@@ -25,7 +25,6 @@ import {
   removeTemplateLabelsAsync,
   addTemplateLabelsAsync,
 } from 'src/templates/actions'
-import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
@@ -51,7 +50,6 @@ interface DispatchProps {
   onCreateFromTemplate: typeof createResourceFromTemplate
   onAddTemplateLabels: typeof addTemplateLabelsAsync
   onRemoveTemplateLabels: typeof removeTemplateLabelsAsync
-  onCreateLabel: typeof createLabelAsync
 }
 
 interface StateProps {
@@ -88,7 +86,6 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
             onFilterChange={onFilterChange}
             onAddLabel={this.handleAddLabel}
             onRemoveLabel={this.handleRemoveLabel}
-            onCreateLabel={this.handleCreateLabel}
           />
         }
         metaData={[this.templateType]}
@@ -215,10 +212,6 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
 
     onRemoveTemplateLabels(template.id, [label])
   }
-
-  private handleCreateLabel = (label: Label) => {
-    return this.props.onCreateLabel(label.name, label.properties)
-  }
 }
 
 const mstp = (state: AppState): StateProps => {
@@ -236,7 +229,6 @@ const mdtp: DispatchProps = {
   onCreateFromTemplate: createResourceFromTemplate,
   onAddTemplateLabels: addTemplateLabelsAsync,
   onRemoveTemplateLabels: removeTemplateLabelsAsync,
-  onCreateLabel: createLabelAsync,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

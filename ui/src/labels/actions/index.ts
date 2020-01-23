@@ -10,7 +10,6 @@ import {
 import {Dispatch} from 'react'
 import {
   RemoteDataState,
-  AppThunk,
   LabelProperties,
   GetState,
   Label,
@@ -111,7 +110,7 @@ export const getLabels = () => async (
 export const createLabel = (
   name: string,
   properties: LabelProperties
-): AppThunk<Promise<void>> => async (
+) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ): Promise<void> => {
