@@ -18,10 +18,7 @@ import {
   setLevel,
   updateThresholds,
 } from 'src/alerting/actions/alertBuilder'
-import {
-  CHECK_FIXTURE_1,
-  CHECK_FIXTURE_3,
-} from 'src/alerting/reducers/checks.test'
+import {CHECK_FIXTURE_1, CHECK_FIXTURE_3} from 'src/checks/reducers/checks.test'
 import {RemoteDataState, Threshold} from 'src/types'
 
 const mockState = (): AlertBuilderState => ({
