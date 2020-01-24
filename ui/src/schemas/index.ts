@@ -5,13 +5,13 @@ import {omit} from 'lodash'
 // Types
 import {
   Cell,
-  ResourceType,
-  Telegraf,
-  Task,
+  Dashboard,
   Label,
   RemoteDataState,
+  ResourceType,
+  Task,
+  Telegraf,
   Variable,
-  Dashboard,
   View,
 } from 'src/types'
 import {CellsWithViewProperties} from 'src/client'
@@ -175,6 +175,12 @@ export const telegraf = new schema.Entity(
 )
 
 export const arrayOfTelegrafs = [telegraf]
+
+/* Templates */
+
+// Defines the schema for the "templates" resource
+export const template = new schema.Entity(ResourceType.Templates)
+export const arrayOfTemplates = [template]
 
 /* Scrapers */
 

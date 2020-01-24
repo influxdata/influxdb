@@ -15,7 +15,7 @@ import {getPlugins} from 'src/dataLoaders/actions/telegrafEditor'
 import {getScrapers} from 'src/scrapers/actions/thunks'
 import {getTasks} from 'src/tasks/actions/thunks'
 import {getTelegrafs} from 'src/telegrafs/actions/thunks'
-import {getTemplates} from 'src/templates/actions'
+import {getTemplates} from 'src/templates/actions/thunks'
 import {getVariables} from 'src/variables/actions/thunks'
 
 // Types

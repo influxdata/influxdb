@@ -24,16 +24,15 @@ import {
   createResourceFromTemplate,
   removeTemplateLabelsAsync,
   addTemplateLabelsAsync,
-} from 'src/templates/actions'
+} from 'src/templates/actions/thunks'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
 import {getOrg} from 'src/organizations/selectors'
 
 // Types
-import {TemplateSummary} from '@influxdata/influx'
 import {ComponentColor} from '@influxdata/clockface'
-import {AppState, Organization, Label} from 'src/types'
+import {AppState, Organization, Label, TemplateSummary} from 'src/types'
 
 // Constants
 import {DEFAULT_TEMPLATE_NAME} from 'src/templates/constants'

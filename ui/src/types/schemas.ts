@@ -9,6 +9,7 @@ import {
   Scraper,
   Task,
   Telegraf,
+  TemplateSummary,
   Variable,
   View,
 } from 'src/types'
@@ -85,6 +86,14 @@ export interface ScraperEntities {
 export interface TaskEntities {
   tasks: {
     [uuid: string]: Task
+  }
+}
+
+// TemplateSummaryEntities defines the result of normalizr's normalization
+// of the "templates resource"
+export interface TemplateSummaryEntities {
+  templates: {
+    [uuid: string]: TemplateSummary
   }
 }
 

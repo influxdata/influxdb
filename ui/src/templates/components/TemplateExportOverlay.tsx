@@ -9,7 +9,7 @@ import ExportOverlay from 'src/shared/components/ExportOverlay'
 import {
   convertToTemplate as convertToTemplateAction,
   clearExportTemplate as clearExportTemplateAction,
-} from 'src/templates/actions'
+} from 'src/templates/actions/thunks'
 
 // Types
 import {DocumentCreate} from '@influxdata/influx'
@@ -63,8 +63,8 @@ class TemplateExportOverlay extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => ({
-  exportTemplate: state.templates.exportTemplate.item,
-  status: state.templates.exportTemplate.status,
+  exportTemplate: state.resources.templates.exportTemplate.item,
+  status: state.resources.templates.exportTemplate.status,
 })
 
 const mdtp: DispatchProps = {

@@ -20,7 +20,7 @@ export const formatStatValue = (
   value: number | string = 0,
   {decimalPlaces, prefix, suffix}: FormatStatValueOptions = {}
 ): string => {
-  let localeFormattedValue // undefined, string, or number
+  let localeFormattedValue: undefined | string | number
 
   if (isNumber(value)) {
     let digits: number

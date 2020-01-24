@@ -15,7 +15,7 @@ import {
 import {ResourceCard} from '@influxdata/clockface'
 
 // Actions
-import {createResourceFromStaticTemplate} from 'src/templates/actions'
+import {createResourceFromStaticTemplate} from 'src/templates/actions/thunks'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'

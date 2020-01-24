@@ -16,7 +16,6 @@ import {
   TelegrafEditorActivePluginState,
   TelegrafEditorState,
 } from 'src/dataLoaders/reducers/telegrafEditor'
-import {TemplatesState} from 'src/templates/reducers'
 import {RangeState} from 'src/dashboards/reducers/ranges'
 import {UserSettingsState} from 'src/userSettings/reducers'
 import {OverlayState} from 'src/overlays/reducers/overlays'
@@ -53,7 +52,6 @@ export interface AppState {
   telegrafEditorActivePlugins: TelegrafEditorActivePluginState
   plugins: PluginResourceState
   telegrafEditor: TelegrafEditorState
-  templates: TemplatesState
   timeMachines: TimeMachinesState
   timeRange: TimeRange
   userSettings: UserSettingsState

@@ -13,7 +13,7 @@ import GetResources from 'src/resources/components/GetResources'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 
 // Types
-import {TemplateSummary, AppState, ResourceType} from 'src/types'
+import {AppState, ResourceType, Template, TemplateSummary} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {
   Sort,
@@ -28,14 +28,19 @@ import {
 
 import {staticTemplates as statics} from 'src/templates/constants/defaultTemplates'
 
+// Selectors
+import {getAll} from 'src/resources/selectors/getAll'
+
+type TemplateOrSummary = Template | TemplateSummary
+
 interface StaticTemplate {
   name: string
-  template: TemplateSummary
+  template: TemplateOrSummary
 }
 
 const staticTemplates: StaticTemplate[] = _.map(statics, (template, name) => ({
   name,
-  template: template as TemplateSummary,
+  template: template as TemplateOrSummary,
 }))
 
 interface OwnProps {
@@ -198,8 +203,8 @@ class TemplatesPage extends PureComponent<Props, State> {
     this.setState({searchTerm})
   }
 }
-const mstp = ({templates}: AppState): StateProps => ({
-  templates: templates.items,
+const mstp = (state: AppState): StateProps => ({
+  templates: getAll(state, ResourceType.Templates),
 })
 
 export default connect<StateProps, {}, {}>(

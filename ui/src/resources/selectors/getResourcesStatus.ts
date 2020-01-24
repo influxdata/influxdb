@@ -8,14 +8,15 @@ export const getResourcesStatus = (
   const statuses = resources.map(resource => {
     switch (resource) {
       // Normalized resource statuses
-      case ResourceType.Members:
+      case ResourceType.Authorizations:
       case ResourceType.Buckets:
-      case ResourceType.Telegrafs:
-      case ResourceType.Tasks:
-      case ResourceType.Scrapers:
-      case ResourceType.Variables:
       case ResourceType.Dashboards:
-      case ResourceType.Authorizations: {
+      case ResourceType.Members:
+      case ResourceType.Scrapers:
+      case ResourceType.Tasks:
+      case ResourceType.Telegrafs:
+      case ResourceType.Templates:
+      case ResourceType.Variables: {
         return state.resources[resource].status
       }
 

@@ -17,7 +17,7 @@ import GetResources from 'src/resources/components/GetResources'
 
 // Actions
 import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions/thunks'
-import {getTemplateByID} from 'src/templates/actions'
+import {getTemplateByID} from 'src/templates/actions/thunks'
 
 // Constants
 import {influxdbTemplateList} from 'src/templates/constants/defaultTemplates'
@@ -33,6 +33,9 @@ import {
   DashboardTemplate,
   ResourceType,
 } from 'src/types'
+
+// Selectors
+import {getAll} from 'src/resources/selectors/getAll'
 
 interface StateProps {
   templates: TemplateSummary[]
@@ -186,7 +189,13 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   }
 }
 
-const mstp = ({templates: {items, status}}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {
+    resources: {
+      templates: {status},
+    },
+  } = state
+  const items = getAll(state, ResourceType.Templates)
   const filteredTemplates = items.filter(
     t => !t.meta.type || t.meta.type === TemplateType.Dashboard
   )
@@ -196,7 +205,7 @@ const mstp = ({templates: {items, status}}: AppState): StateProps => {
   )
 
   return {
-    templates: [...templates, ...(influxdbTemplateList as TemplateSummary[])],
+    templates: [...templates, ...(influxdbTemplateList as any)],
     templateStatus: status,
   }
 }

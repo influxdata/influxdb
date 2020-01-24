@@ -7,7 +7,7 @@ import ExportOverlay from 'src/shared/components/ExportOverlay'
 
 // Actions
 import {convertToTemplate as convertToTemplateAction} from 'src/variables/actions/thunks'
-import {clearExportTemplate as clearExportTemplateAction} from 'src/templates/actions'
+import {clearExportTemplate as clearExportTemplateAction} from 'src/templates/actions/thunks'
 
 // Types
 import {AppState} from 'src/types'
@@ -62,8 +62,8 @@ class VariableExportOverlay extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => ({
-  variableTemplate: state.templates.exportTemplate.item,
-  status: state.templates.exportTemplate.status,
+  variableTemplate: state.resources.templates.exportTemplate.item,
+  status: state.resources.templates.exportTemplate.status,
 })
 
 const mdtp: DispatchProps = {

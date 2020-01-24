@@ -1,17 +1,30 @@
 import {produce} from 'immer'
-import {Actions, ActionTypes} from 'src/templates/actions/'
-import {TemplateSummary, DocumentCreate} from '@influxdata/influx'
-import {RemoteDataState} from 'src/types'
-
-export interface TemplatesState {
-  status: RemoteDataState
-  items: TemplateSummary[]
-  exportTemplate: {status: RemoteDataState; item: DocumentCreate}
-}
+import {
+  Action,
+  ADD_TEMPLATE_SUMMARY,
+  POPULATE_TEMPLATE_SUMMARIES,
+  REMOVE_TEMPLATE_SUMMARY,
+  SET_EXPORT_TEMPLATE,
+  SET_TEMPLATE_SUMMARY,
+  SET_TEMPLATES_STATUS,
+} from 'src/templates/actions/creators'
+import {
+  ResourceType,
+  RemoteDataState,
+  TemplateSummary,
+  TemplatesState,
+} from 'src/types'
+import {
+  addResource,
+  removeResource,
+  setResource,
+  setResourceAtID,
+} from 'src/resources/reducers/helpers'
 
 export const defaultState = (): TemplatesState => ({
   status: RemoteDataState.NotStarted,
-  items: [],
+  byID: {},
+  allIDs: [],
   exportTemplate: {
     status: RemoteDataState.NotStarted,
     item: null,
@@ -20,43 +33,34 @@ export const defaultState = (): TemplatesState => ({
 
 export const templatesReducer = (
   state: TemplatesState = defaultState(),
-  action: Actions
+  action: Action
 ): TemplatesState =>
   produce(state, draftState => {
     switch (action.type) {
-      case ActionTypes.PopulateTemplateSummaries: {
-        const {status, items} = action.payload
-        draftState.status = status
-        if (items) {
-          draftState.items = items
-        } else {
-          draftState.items = null
-        }
+      case POPULATE_TEMPLATE_SUMMARIES: {
+        setResource<TemplateSummary>(draftState, action, ResourceType.Templates)
+
         return
       }
 
-      case ActionTypes.SetTemplatesStatus: {
-        const {status} = action.payload
+      case SET_TEMPLATES_STATUS: {
+        const {status} = action
         draftState.status = status
         return
       }
 
-      case ActionTypes.SetTemplateSummary: {
-        const updated = draftState.items.map(t => {
-          if (t.id === action.payload.id) {
-            return action.payload.templateSummary
-          }
-
-          return t
-        })
-
-        draftState.items = updated
+      case SET_TEMPLATE_SUMMARY: {
+        setResourceAtID<TemplateSummary>(
+          draftState,
+          action,
+          ResourceType.Templates
+        )
 
         return
       }
 
-      case ActionTypes.SetExportTemplate: {
-        const {status, item} = action.payload
+      case SET_EXPORT_TEMPLATE: {
+        const {status, item} = action
         draftState.exportTemplate.status = status
 
         if (item) {
@@ -67,21 +71,14 @@ export const templatesReducer = (
         return
       }
 
-      case ActionTypes.RemoveTemplateSummary: {
-        const {templateID} = action.payload
-        const {items} = draftState
-        draftState.items = items.filter(l => {
-          return l.id !== templateID
-        })
+      case REMOVE_TEMPLATE_SUMMARY: {
+        removeResource<TemplateSummary>(draftState, action)
 
         return
       }
 
-      case ActionTypes.AddTemplateSummary: {
-        const {item} = action.payload
-        const {items} = draftState
-
-        draftState.items = [...items, item]
+      case ADD_TEMPLATE_SUMMARY: {
+        addResource<TemplateSummary>(draftState, action, ResourceType.Templates)
 
         return
       }
