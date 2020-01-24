@@ -37,7 +37,7 @@ describe('DataExplorer', () => {
 
     cy.fixture('routes').then(({orgs, explorer}) => {
       cy.get<Organization>('@org').then(({id}) => {
-        cy.visit(`${orgs}/${id}${explorer}`)
+        cy.visit(`${orgs}/${id}${explorer}`, {timeout: 3000})
       })
     })
   })
@@ -357,15 +357,18 @@ describe('DataExplorer', () => {
 
   describe('raw script editing', () => {
     beforeEach(() => {
-      cy.getByTestID('switch-to-script-editor').click()
+      cy.getByTestID('switch-to-script-editor')
+        .should('be.visible')
+        .click()
     })
 
     // TODO: fix flakeyness of this test
-    it.skip('enables the submit button when a query is typed', () => {
+    it('enables the submit button when a query is typed', () => {
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
 
       cy.getByTestID('flux-editor').within(() => {
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type('yo', {force: true, delay: TYPE_DELAY})
@@ -376,6 +379,7 @@ describe('DataExplorer', () => {
     it('disables submit when a query is deleted', () => {
       cy.getByTestID('time-machine--bottom').then(() => {
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type('from(bucket: "foo")', {force: true, delay: TYPE_DELAY})
@@ -383,6 +387,7 @@ describe('DataExplorer', () => {
         cy.getByTestID('time-machine-submit-button').should('not.be.disabled')
 
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type('{selectall} {backspace}', {force: true, delay: TYPE_DELAY})
@@ -455,6 +460,7 @@ describe('DataExplorer', () => {
     it.skip('shows the empty state when the query returns no results', () => {
       cy.getByTestID('time-machine--bottom').within(() => {
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type(
@@ -474,6 +480,7 @@ describe('DataExplorer', () => {
       // begin flux
       cy.getByTestID('flux-editor').within(() => {
         cy.get('.react-monaco-editor-container')
+          .should('exist')
           .click()
           .focused()
           .type(
@@ -490,6 +497,7 @@ describe('DataExplorer', () => {
       // finish flux
       cy.getByTestID('flux-editor').within(() => {
         cy.get('.react-monaco-editor-container')
+          .should('exist')
           .click()
           .focused()
           .type(`)`, {force: true, delay: TYPE_DELAY})
