@@ -18,16 +18,31 @@ import (
 	"github.com/influxdata/influxdb/pkg/escape"
 )
 
-// Values used to store the field key and measurement name as special internal tags.
 const (
+	// Values used to store the field key and measurement name as special internal tags.
 	FieldKeyTagKey    = "\xff"
 	MeasurementTagKey = "\x00"
+
+	// reserved tag keys which when present cause the point to be discarded
+	// and an error returned
+	reservedFieldTagKey       = "_field"
+	reservedMeasurementTagKey = "_measurement"
+	reservedTimeTagKey        = "time"
 )
 
-// Predefined byte representations of special tag keys.
 var (
+	// Predefined byte representations of special tag keys.
 	FieldKeyTagKeyBytes    = []byte(FieldKeyTagKey)
 	MeasurementTagKeyBytes = []byte(MeasurementTagKey)
+
+	// set of reserved tag keys which cannot be present when a point is being parsed.
+	reservedTagKeys = [][]byte{
+		FieldKeyTagKeyBytes,
+		MeasurementTagKeyBytes,
+		[]byte(reservedFieldTagKey),
+		[]byte(reservedMeasurementTagKey),
+		[]byte(reservedTimeTagKey),
+	}
 )
 
 type escapeSet struct {
@@ -419,6 +434,18 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 		i, commas, indices, err = scanTags(buf, i, indices)
 		if err != nil {
 			return i, buf[start:i], err
+		}
+	}
+
+	// Iterate over tags keys ensure that we do not encounter any
+	// of the reserved tag keys such as _measurement or _field.
+	for j := 0; j < commas; j++ {
+		_, key := scanTo(buf[indices[j]:indices[j+1]-1], 0, '=')
+
+		for _, reserved := range reservedTagKeys {
+			if bytes.Equal(key, reserved) {
+				return i, buf[start:i], fmt.Errorf("cannot use reserved tag key %q", key)
+			}
 		}
 	}
 

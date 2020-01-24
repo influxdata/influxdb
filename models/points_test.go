@@ -2,6 +2,7 @@ package models_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -106,24 +107,35 @@ func TestPoint_Tags(t *testing.T) {
 	examples := []struct {
 		Point string
 		Tags  models.Tags
+		Err   error
 	}{
-		{`cpu value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value"})},
-		{"cpu,tag0=v0 value=1", models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": "v0"})},
-		{"cpu,tag0=v0,tag1=v0 value=1", models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": "v0", "tag1": "v0"})},
-		{`cpu,tag0=v\ 0 value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": "v 0"})},
-		{`cpu,tag0=v\ 0\ 1,tag1=v2 value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": "v 0 1", "tag1": "v2"})},
-		{`cpu,tag0=\, value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": ","})},
-		{`cpu,ta\ g0=\, value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "ta g0": ","})},
-		{`cpu,tag0=\,1 value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": ",1"})},
-		{`cpu,tag0=1\"\",t=k value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": `1\"\"`, "t": "k"})},
+		{`cpu value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value"}), nil},
+		{"cpu,tag0=v0 value=1", models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": "v0"}), nil},
+		{"cpu,tag0=v0,tag1=v0 value=1", models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": "v0", "tag1": "v0"}), nil},
+		{`cpu,tag0=v\ 0 value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": "v 0"}), nil},
+		{`cpu,tag0=v\ 0\ 1,tag1=v2 value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": "v 0 1", "tag1": "v2"}), nil},
+		{`cpu,tag0=\, value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": ","}), nil},
+		{`cpu,ta\ g0=\, value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "ta g0": ","}), nil},
+		{`cpu,tag0=\,1 value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": ",1"}), nil},
+		{`cpu,tag0=1\"\",t=k value=1`, models.NewTags(map[string]string{models.MeasurementTagKey: "cpu", models.FieldKeyTagKey: "value", "tag0": `1\"\"`, "t": "k"}), nil},
+		{"cpu,_measurement=v0,tag0=v0 value=1", nil, errors.New(`unable to parse 'cpu,_measurement=v0,tag0=v0 value=1': cannot use reserved tag key "_measurement"`)},
+		// the following are all unsorted tag keys to ensure this works for both cases
+		{"cpu,tag0=v0,_measurement=v0 value=1", nil, errors.New(`unable to parse 'cpu,tag0=v0,_measurement=v0 value=1': cannot use reserved tag key "_measurement"`)},
+		{"cpu,tag0=v0,_field=v0 value=1", nil, errors.New(`unable to parse 'cpu,tag0=v0,_field=v0 value=1': cannot use reserved tag key "_field"`)},
+		{"cpu,tag0=v0,time=v0 value=1", nil, errors.New(`unable to parse 'cpu,tag0=v0,time=v0 value=1': cannot use reserved tag key "time"`)},
 	}
 
 	for _, example := range examples {
 		t.Run(example.Point, func(t *testing.T) {
 			pts, err := models.ParsePointsString(example.Point, "mm")
 			if err != nil {
-				t.Fatal(err)
-			} else if len(pts) != 1 {
+				if !reflect.DeepEqual(example.Err, err) {
+					t.Fatalf("expected %#v, found %#v", example.Err, err)
+				}
+				return
+			}
+
+			if len(pts) != 1 {
 				t.Fatalf("parsed %d points, expected 1", len(pts))
 			}
 
