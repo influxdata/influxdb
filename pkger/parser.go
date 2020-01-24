@@ -62,7 +62,7 @@ func (e Encoding) String() string {
 var ErrInvalidEncoding = errors.New("invalid encoding provided")
 
 // Parse parses a pkg defined by the encoding and readerFns. As of writing this
-// we can parse both a YAML and JSON format of the Pkg model.
+// we can parse both a YAML, JSON, and Jsonnet formats of the Pkg model.
 func Parse(encoding Encoding, readerFn ReaderFn, opts ...ValidateOptFn) (*Pkg, error) {
 	r, err := readerFn()
 	if err != nil {
@@ -1532,7 +1532,7 @@ func (e *parseErr) ValidationErrs() []ValidationErr {
 		}
 
 		rootErr.Indexes = []*int{r.Idx}
-		rootErr.Fields = []string{"kinds"}
+		rootErr.Fields = []string{"root"}
 		for _, v := range append(r.ValidationErrs, r.AssociationErrs...) {
 			errs = append(errs, traverseErrs(rootErr, v)...)
 		}

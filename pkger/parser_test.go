@@ -3527,12 +3527,12 @@ func Test_PkgValidationErr(t *testing.T) {
 	errs := pErr.ValidationErrs()
 	require.Len(t, errs, 2)
 	assert.Equal(t, KindDashboard.String(), errs[0].Kind)
-	assert.Equal(t, []string{"kinds", "charts", "colors", "hex"}, errs[0].Fields)
+	assert.Equal(t, []string{"root", "charts", "colors", "hex"}, errs[0].Fields)
 	compIntSlcs(t, []int{0, 1, 0}, errs[0].Indexes)
 	assert.Equal(t, "hex value required", errs[0].Reason)
 
 	assert.Equal(t, KindDashboard.String(), errs[1].Kind)
-	assert.Equal(t, []string{"kinds", "charts", "kind"}, errs[1].Fields)
+	assert.Equal(t, []string{"root", "charts", "kind"}, errs[1].Fields)
 	compIntSlcs(t, []int{0, 1}, errs[1].Indexes)
 	assert.Equal(t, "chart kind must be provided", errs[1].Reason)
 }
