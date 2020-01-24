@@ -113,12 +113,27 @@ func (s *Service) listTargets(ctx context.Context, tx Tx, filter influxdb.Scrape
 		return nil, err
 	}
 
-	cur, err := bucket.Cursor()
+	cur, err := bucket.ForwardCursor(nil)
 	if err != nil {
 		return nil, UnexpectedScrapersBucketError(err)
 	}
 
-	for k, v := cur.First(); k != nil; k, v = cur.Next() {
+	var org *influxdb.Organization
+	if filter.Org != nil {
+		org, err = s.findOrganizationByName(ctx, tx, *filter.Org)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if filter.OrgID != nil {
+		org, err = s.findOrganizationByID(ctx, tx, *filter.OrgID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for k, v := cur.Next(); k != nil; k, v = cur.Next() {
 		target, err := unmarshalScraper(v)
 		if err != nil {
 			return nil, err
@@ -131,24 +146,11 @@ func (s *Service) listTargets(ctx context.Context, tx Tx, filter influxdb.Scrape
 		if filter.Name != nil && target.Name != *filter.Name {
 			continue
 		}
-		if filter.Org != nil {
-			o, err := s.findOrganizationByName(ctx, tx, *filter.Org)
-			if err != nil {
-				return nil, err
-			}
-			if target.OrgID != o.ID {
-				continue
-			}
+
+		if org != nil && target.OrgID != org.ID {
+			continue
 		}
-		if filter.OrgID != nil {
-			o, err := s.findOrganizationByID(ctx, tx, *filter.OrgID)
-			if err != nil {
-				return nil, err
-			}
-			if target.OrgID != o.ID {
-				continue
-			}
-		}
+
 		targets = append(targets, *target)
 	}
 	return targets, nil
