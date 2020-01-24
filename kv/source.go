@@ -238,12 +238,12 @@ func (s *Service) forEachSource(ctx context.Context, tx Tx, fn func(*influxdb.So
 		return err
 	}
 
-	cur, err := b.Cursor()
+	cur, err := b.ForwardCursor(nil)
 	if err != nil {
 		return err
 	}
 
-	for k, v := cur.First(); k != nil; k, v = cur.Next() {
+	for k, v := cur.Next(); k != nil; k, v = cur.Next() {
 		s := &influxdb.Source{}
 		if err := json.Unmarshal(v, s); err != nil {
 			return err
