@@ -164,7 +164,11 @@ class InlineLabelsEditor extends Component<Props, State> {
     const {availableLabels} = this
     const {isPopoverVisible} = this.state
 
-    if (_.isEmpty(availableLabels) && !isPopoverVisible) {
+    if (_.isEmpty(availableLabels)) {
+      if (isPopoverVisible) {
+        return
+      }
+
       return this.setState({
         isPopoverVisible: true,
         selectedItemID: null,
