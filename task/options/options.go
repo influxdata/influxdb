@@ -224,7 +224,7 @@ func FromScript(script string) (Options, error) {
 		return opt, ErrMissingRequiredTaskOption("task")
 	}
 	// check to make sure task is an object
-	if err := checkNature(task.PolyType().Nature(), semantic.Object); err != nil {
+	if err := checkNature(task.Type().Nature(), semantic.Object); err != nil {
 		return opt, err
 	}
 	optObject := task.Object()
@@ -237,7 +237,7 @@ func FromScript(script string) (Options, error) {
 		return opt, ErrMissingRequiredTaskOption("name")
 	}
 
-	if err := checkNature(nameVal.PolyType().Nature(), semantic.String); err != nil {
+	if err := checkNature(nameVal.Type().Nature(), semantic.String); err != nil {
 		return opt, err
 	}
 	opt.Name = nameVal.Str()
@@ -252,14 +252,14 @@ func FromScript(script string) (Options, error) {
 	}
 
 	if cronOK {
-		if err := checkNature(crVal.PolyType().Nature(), semantic.String); err != nil {
+		if err := checkNature(crVal.Type().Nature(), semantic.String); err != nil {
 			return opt, err
 		}
 		opt.Cron = crVal.Str()
 	}
 
 	if everyOK {
-		if err := checkNature(everyVal.PolyType().Nature(), semantic.Duration); err != nil {
+		if err := checkNature(everyVal.Type().Nature(), semantic.Duration); err != nil {
 			return opt, err
 		}
 		dur, ok := durTypes["every"]
@@ -280,7 +280,7 @@ func FromScript(script string) (Options, error) {
 	}
 
 	if offsetVal, ok := optObject.Get(optOffset); ok {
-		if err := checkNature(offsetVal.PolyType().Nature(), semantic.Duration); err != nil {
+		if err := checkNature(offsetVal.Type().Nature(), semantic.Duration); err != nil {
 			return opt, err
 		}
 		dur, ok := durTypes["offset"]
@@ -300,14 +300,14 @@ func FromScript(script string) (Options, error) {
 	}
 
 	if concurrencyVal, ok := optObject.Get(optConcurrency); ok {
-		if err := checkNature(concurrencyVal.PolyType().Nature(), semantic.Int); err != nil {
+		if err := checkNature(concurrencyVal.Type().Nature(), semantic.Int); err != nil {
 			return opt, err
 		}
 		opt.Concurrency = pointer.Int64(concurrencyVal.Int())
 	}
 
 	if retryVal, ok := optObject.Get(optRetry); ok {
-		if err := checkNature(retryVal.PolyType().Nature(), semantic.Int); err != nil {
+		if err := checkNature(retryVal.Type().Nature(), semantic.Int); err != nil {
 			return opt, err
 		}
 		opt.Retry = pointer.Int64(retryVal.Int())

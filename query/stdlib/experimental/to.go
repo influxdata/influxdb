@@ -33,19 +33,8 @@ type ToOpSpec struct {
 }
 
 func init() {
-	toSignature := flux.FunctionSignature(
-		map[string]semantic.PolyType{
-			"bucket":   semantic.String,
-			"bucketID": semantic.String,
-			"org":      semantic.String,
-			"orgID":    semantic.String,
-			"host":     semantic.String,
-			"token":    semantic.String,
-		},
-		[]string{},
-	)
-
-	flux.ReplacePackageValue("experimental", "to", flux.FunctionValueWithSideEffect("to", createToOpSpec, toSignature))
+	toSignature := semantic.MustLookupBuiltinType("experimental", "to")
+	flux.ReplacePackageValue("experimental", "to", flux.MustValue(flux.FunctionValueWithSideEffect("to", createToOpSpec, toSignature)))
 	flux.RegisterOpSpec(ExperimentalToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ExperimentalToKind, newToProcedure, ExperimentalToKind)
 	execute.RegisterTransformation(ExperimentalToKind, createToTransformation)
@@ -437,7 +426,7 @@ func (t *ToTransformation) writeTable(ctx context.Context, tbl flux.Table) error
 				}
 
 				var fields models.Fields
-				switch fieldVal.Type() {
+				switch fieldVal.Type().Nature() {
 				case semantic.Float:
 					fields = models.Fields{lao.Label: fieldVal.Float()}
 				case semantic.Int:
