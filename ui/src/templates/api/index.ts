@@ -173,7 +173,10 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
     return apiPostLabel({
       data: lab,
     })
-      .then(res => get(res, 'res.data.label', ''))
+      .then(res => {
+        const out = get(res, 'data.label', '')
+        return out
+      })
       .then(lab => addLabelDefaults(lab))
   })
 
