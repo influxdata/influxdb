@@ -48,29 +48,8 @@ type ToOpSpec struct {
 }
 
 func init() {
-	toSignature := flux.FunctionSignature(
-		map[string]semantic.PolyType{
-			"bucket":            semantic.String,
-			"bucketID":          semantic.String,
-			"org":               semantic.String,
-			"orgID":             semantic.String,
-			"host":              semantic.String,
-			"token":             semantic.String,
-			"timeColumn":        semantic.String,
-			"measurementColumn": semantic.String,
-			"tagColumns":        semantic.Array,
-			"fieldFn": semantic.NewFunctionPolyType(semantic.FunctionPolySignature{
-				Parameters: map[string]semantic.PolyType{
-					"r": semantic.Tvar(1),
-				},
-				Required: semantic.LabelSet{"r"},
-				Return:   semantic.Tvar(2),
-			}),
-		},
-		[]string{},
-	)
-
-	flux.ReplacePackageValue("influxdata/influxdb", "to", flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature))
+	toSignature := semantic.MustLookupBuiltinType("influxdata/influxdb", ToKind)
+	flux.ReplacePackageValue("influxdata/influxdb", "to", flux.MustValue(flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature)))
 	flux.RegisterOpSpec(ToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ToKind, newToProcedure, ToKind)
 	execute.RegisterTransformation(ToKind, createToTransformation)
@@ -562,7 +541,6 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 		var points models.Points
 		var tags models.Tags
 		kv := make([][]byte, 2, er.Len()*2+2) // +2 for field key, value
-		var fieldValues values.Object
 		for i := 0; i < er.Len(); i++ {
 			measurementName = ""
 			fields := make(models.Fields)
@@ -601,6 +579,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 				}
 			}
 
+			var fieldValues values.Object
 			if spec.FieldFn.Fn == nil {
 				if fieldValues, err = defaultFieldMapping(er, i); err != nil {
 					return err
@@ -614,7 +593,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 					fields[k] = nil
 					return
 				}
-				switch v.Type() {
+				switch v.Type().Nature() {
 				case semantic.Float:
 					fields[k] = v.Float()
 				case semantic.Int:
@@ -693,10 +672,14 @@ func defaultFieldMapping(er flux.ColReader, row int) (values.Object, error) {
 	}
 
 	value := execute.ValueForRow(er, row, valueColumnIdx)
-
-	fieldValueMapping := values.NewObject()
 	field := execute.ValueForRow(er, row, fieldColumnIdx)
+	props := []semantic.PropertyType{
+		{
+			Key: []byte(field.Str()),
+			Value: value.Type(),
+		},
+	}
+	fieldValueMapping := values.NewObject(semantic.NewObjectType(props))
 	fieldValueMapping.Set(field.Str(), value)
-
 	return fieldValueMapping, nil
 }
