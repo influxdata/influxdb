@@ -35,7 +35,7 @@ import {
 } from 'src/types'
 
 // Selectors
-import {getAll} from 'src/resources/selectors'
+import {getAll} from 'src/resources/selectors/getAll'
 
 interface StateProps {
   templates: TemplateSummary[]
@@ -195,7 +195,7 @@ const mstp = (state: AppState): StateProps => {
       templates: {status},
     },
   } = state
-  const items = getAll<TemplateSummary>(state, ResourceType.Templates)
+  const items = getAll(state, ResourceType.Templates)
   const filteredTemplates = items.filter(
     t => !t.meta.type || t.meta.type === TemplateType.Dashboard
   )

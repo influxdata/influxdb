@@ -103,6 +103,7 @@ export const createTemplateFromResource = (
 export const updateTemplate = (id: string, props: TemplateSummary) => async (
   dispatch: Dispatch<Action>
 ): Promise<void> => {
+  setTemplateSummary(id, RemoteDataState.Loading)
   try {
     const item = await client.templates.update(id, props)
     const templateSummary = normalize<

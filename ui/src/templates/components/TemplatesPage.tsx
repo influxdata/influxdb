@@ -29,7 +29,7 @@ import {
 import {staticTemplates as statics} from 'src/templates/constants/defaultTemplates'
 
 // Selectors
-import {getAll} from 'src/resources/selectors'
+import {getAll} from 'src/resources/selectors/getAll'
 
 type TemplateOrSummary = Template | TemplateSummary
 
@@ -204,7 +204,7 @@ class TemplatesPage extends PureComponent<Props, State> {
   }
 }
 const mstp = (state: AppState): StateProps => ({
-  templates: getAll<TemplateSummary>(state, ResourceType.Templates),
+  templates: getAll(state, ResourceType.Templates),
 })
 
 export default connect<StateProps, {}, {}>(

@@ -65,7 +65,7 @@ export const removeTemplateSummary = (id: string) =>
 export const setTemplateSummary = (
   id: string,
   status: RemoteDataState,
-  schema: TemplateSummarySchema<string>
+  schema?: TemplateSummarySchema<string>
 ) =>
   ({
     type: SET_TEMPLATE_SUMMARY,

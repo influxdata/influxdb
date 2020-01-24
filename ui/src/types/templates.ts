@@ -21,7 +21,6 @@ export interface TemplateSummary extends DocumentListEntry {
 }
 
 export interface TemplatesState extends NormalizedState<TemplateSummary> {
-  // status: RemoteDataState
   exportTemplate: {status: RemoteDataState; item: DocumentCreate}
 }
 
