@@ -480,7 +480,7 @@ describe('DataExplorer', () => {
       // begin flux
       cy.getByTestID('flux-editor').within(() => {
         cy.get('.react-monaco-editor-container')
-          .should('exist')
+          .should('be.visible')
           .click()
           .focused()
           .type(
