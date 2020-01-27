@@ -13,7 +13,7 @@ import {
   deleteEndpoint,
   updateEndpointProperties,
   cloneEndpoint,
-} from 'src/notifications/endpoints/actions'
+} from 'src/notifications/endpoints/actions/thunks'
 
 // Components
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'

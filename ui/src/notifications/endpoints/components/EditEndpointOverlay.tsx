@@ -7,7 +7,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {getEndpointFailed} from 'src/shared/copy/notifications'
 
 // Actions
-import {updateEndpoint} from 'src/notifications/endpoints/actions'
+import {updateEndpoint} from 'src/notifications/endpoints/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 
 // Components
