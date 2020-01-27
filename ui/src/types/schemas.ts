@@ -12,6 +12,7 @@ import {
   TemplateSummary,
   Variable,
   View,
+  NotificationEndpoint,
 } from 'src/types'
 
 // AuthEntities defines the result of normalizr's normalization
@@ -46,6 +47,14 @@ export interface DashboardEntities {
   }
   cells: {
     [uuid: string]: Cell
+  }
+}
+
+// EndpointEntities defines the result of normalizr's normalization of
+// the "notification_endpoint" resource
+export interface EndpointEntities {
+  endpoints: {
+    [uuid: string]: NotificationEndpoint
   }
 }
 

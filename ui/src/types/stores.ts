@@ -23,7 +23,6 @@ import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
 import {ChecksState} from 'src/checks/reducers'
 import {NotificationRulesState} from 'src/notifications/rules/reducers'
-import {NotificationEndpointsState} from 'src/notifications/endpoints/reducers'
 import {AlertBuilderState} from 'src/alerting/reducers/alertBuilder'
 
 import {ResourceState} from 'src/types'
@@ -35,7 +34,6 @@ export interface AppState {
   checks: ChecksState
   cloud: {limits: LimitsState}
   dataLoading: DataLoadingState
-  endpoints: NotificationEndpointsState
   labels: LabelsState
   links: Links
   me: MeState

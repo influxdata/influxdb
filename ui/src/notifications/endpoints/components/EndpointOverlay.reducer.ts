@@ -1,9 +1,8 @@
 import {omit} from 'lodash'
 
 // Types
-import {NotificationEndpoint} from 'src/types'
+import {NotificationEndpoint, NotificationEndpointBase} from 'src/types'
 import {DEFAULT_ENDPOINT_URLS} from 'src/alerting/constants'
-import {NotificationEndpointBase} from 'src/client'
 
 export type Action =
   | {type: 'UPDATE_ENDPOINT'; endpoint: NotificationEndpoint}
@@ -36,6 +35,7 @@ export const reducer = (
           'clientURL',
           'routingKey',
         ])
+
         switch (endpoint.type) {
           case 'pagerduty':
             return {

@@ -13,6 +13,7 @@ import {
   Telegraf,
   Variable,
   View,
+  NotificationEndpoint,
 } from 'src/types'
 import {CellsWithViewProperties} from 'src/client'
 
@@ -111,6 +112,27 @@ const addDashboardMetaDefaults = (meta: Dashboard['meta']) => {
   }
 
   return meta
+}
+
+/* Endpoints */
+export const endpoint = new schema.Entity(
+  ResourceType.NotificationEndpoints,
+  {},
+  {
+    processStrategy: point => addEndpointDefaults(point),
+  }
+)
+
+export const arrayOfEndpoints = [endpoint]
+
+const addEndpointDefaults = (
+  point: NotificationEndpoint
+): NotificationEndpoint => {
+  return {
+    ...point,
+    loadingStatus: RemoteDataState.Done,
+    labels: point.labels.map(addLabelDefaults),
+  }
 }
 
 /* Members */

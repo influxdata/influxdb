@@ -33,7 +33,7 @@ import {
   AppState,
   AlertHistoryType,
 } from 'src/types'
-import {Action} from 'src/notifications/endpoints/actions'
+import {Action} from 'src/notifications/endpoints/actions/creators'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
@@ -138,8 +138,9 @@ const EndpointCard: FC<Props> = ({
     onAddEndpointLabel(id, label)
   }
   const handleRemoveEndpointLabel = (label: Label) => {
-    onRemoveEndpointLabel(id, label)
+    onRemoveEndpointLabel(id, label.id)
   }
+
   const labelsComponent = (
     <InlineLabels
       selectedLabels={endpoint.labels as Label[]}
