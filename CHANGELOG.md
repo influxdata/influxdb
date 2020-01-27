@@ -13,6 +13,10 @@
 1. [16656](https://github.com/influxdata/influxdb/pull/16656): Check engine closed before collecting index metrics
 1. [16412](https://github.com/influxdata/influxdb/pull/16412): Reject writes which use any of the reserved tag keys
 
+### Bug Fixes
+
+1. [16527](https://github.com/influxdata/influxdb/pull/16527): fix /telegrafs panics when using org=org_name parameter
+
 ### UI Improvements
 
 1. [16575](https://github.com/influxdata/influxdb/pull/16575): Swap billingURL with checkoutURL
