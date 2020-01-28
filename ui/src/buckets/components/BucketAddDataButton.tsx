@@ -70,7 +70,7 @@ export default class BucketAddDataButton extends PureComponent<Props> {
               >
                 <div
                   className="bucket-add-data--option-header"
-                  data-testid="bucket-add-line-protocol"
+                  data-testid="bucket-add-client-library"
                 >
                   Client Library
                 </div>
