@@ -393,6 +393,7 @@ describe('Collectors', () => {
         })
         cy.reload()
       })
+
       it('Can add label', () => {
         cy.getByTestID('inline-labels--add').click()
         cy.getByTestID('inline-labels--popover-field').type('zoe')

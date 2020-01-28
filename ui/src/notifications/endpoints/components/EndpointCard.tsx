@@ -1,5 +1,3 @@
-/* eslint no-console: 0 */
-
 // Libraries
 import React, {FC, Dispatch} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
@@ -16,7 +14,13 @@ import {
 } from 'src/notifications/endpoints/actions/thunks'
 
 // Components
-import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
+import {
+  SlideToggle,
+  ComponentSize,
+  ResourceCard,
+  SpinnerContainer,
+  TechnoSpinner,
+} from '@influxdata/clockface'
 import EndpointCardMenu from 'src/notifications/endpoints/components/EndpointCardMenu'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
@@ -101,6 +105,7 @@ const EndpointCard: FC<Props> = ({
     const toStatus = status === 'active' ? 'inactive' : 'active'
     onUpdateEndpointProperties(id, {status: toStatus})
   }
+
   const toggle = (
     <SlideToggle
       active={status === 'active'}
@@ -162,19 +167,26 @@ const EndpointCard: FC<Props> = ({
   )
 
   return (
-    <ResourceCard
-      key={id}
-      toggle={toggle}
-      name={nameComponent}
-      contextMenu={contextMenu}
-      description={descriptionComponent}
-      labels={labelsComponent}
-      disabled={status === 'inactive'}
-      metaData={[
-        <>{relativeTimestampFormatter(endpoint.updatedAt, 'Last updated ')}</>,
-      ]}
-      testID={`endpoint-card ${name}`}
-    />
+    <SpinnerContainer
+      spinnerComponent={<TechnoSpinner />}
+      loading={endpoint.loadingStatus}
+    >
+      <ResourceCard
+        key={id}
+        toggle={toggle}
+        name={nameComponent}
+        contextMenu={contextMenu}
+        description={descriptionComponent}
+        labels={labelsComponent}
+        disabled={status === 'inactive'}
+        metaData={[
+          <>
+            {relativeTimestampFormatter(endpoint.updatedAt, 'Last updated ')}
+          </>,
+        ]}
+        testID={`endpoint-card ${name}`}
+      />
+    </SpinnerContainer>
   )
 }
 

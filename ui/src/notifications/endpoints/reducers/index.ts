@@ -57,7 +57,7 @@ export default (
         if (!endpoint) {
           draftState.byID[id] = ({
             id,
-            status,
+            loadingStatus: status,
           } as unknown) as NotificationEndpoint
 
           return

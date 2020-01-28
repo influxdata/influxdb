@@ -100,11 +100,10 @@ export const createEndpoint = (endpoint: NotificationEndpoint) => async (
       string
     >(resp.data, schemas.endpoint)
 
-    dispatch(setEndpoint(endpoint.id, RemoteDataState.Done, newEndpoint))
+    dispatch(setEndpoint(resp.data.id, RemoteDataState.Done, newEndpoint))
     dispatch(checkEndpointsLimits())
   } catch (error) {
     console.error(error)
-    dispatch(setEndpoint(endpoint.id, RemoteDataState.Error))
   }
 }
 
