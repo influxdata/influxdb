@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"time"
+	"context"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
@@ -370,8 +371,12 @@ func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
 // Err returns an error channel that multiplexes all out of band errors received from all services.
 func (s *Server) Err() <-chan error { return s.err }
 
-// Open opens the meta and data store and all services.
 func (s *Server) Open() error {
+	return s.OpenWithContext(context.TODO())
+}
+
+// Open opens the meta and data store and all services.
+func (s *Server) OpenWithContext(ctx context.Context) error {
 	// Start profiling, if set.
 	startProfile(s.CPUProfile, s.MemProfile)
 
