@@ -107,6 +107,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
           <BucketAddDataButton
             onAddCollector={this.handleAddCollector}
             onAddLineProtocol={this.handleAddLineProtocol}
+            onAddClientLibrary={this.handleAddClientLibrary}
             onAddScraper={this.handleAddScraper}
           />
           <Button
@@ -172,6 +173,15 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
 
     const link = `/orgs/${orgID}/load-data/buckets/${id}/line-protocols/new`
     this.props.onAddData(this.props.bucket, DataLoaderType.LineProtocol, link)
+  }
+
+  private handleAddClientLibrary = (): void => {
+    const {
+      params: {orgID},
+    } = this.props
+
+    const link = `/orgs/${orgID}/load-data/client-libraries`
+    this.props.onAddData(this.props.bucket, DataLoaderType.ClientLibrary, link)
   }
 
   private handleAddScraper = (): void => {
