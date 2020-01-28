@@ -169,7 +169,7 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
     properties: get(l, 'attributes.properties', {}),
   }))
 
-  const promisedLabels = foundLabelsToCreate.map(async lab => {
+  const promisedLabels = foundLabelsToCreate.map(lab => {
     return apiPostLabel({
       data: lab,
     })
