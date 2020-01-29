@@ -1,7 +1,6 @@
 package run
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -12,6 +11,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"time"
+	"context"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
