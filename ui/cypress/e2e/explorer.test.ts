@@ -37,7 +37,7 @@ describe('DataExplorer', () => {
 
     cy.fixture('routes').then(({orgs, explorer}) => {
       cy.get<Organization>('@org').then(({id}) => {
-        cy.visit(`${orgs}/${id}${explorer}`, {timeout: 3000})
+        cy.visit(`${orgs}/${id}${explorer}`)
       })
     })
   })
@@ -362,7 +362,6 @@ describe('DataExplorer', () => {
         .click()
     })
 
-    // TODO: fix flakeyness of this test
     it('enables the submit button when a query is typed', () => {
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
 
