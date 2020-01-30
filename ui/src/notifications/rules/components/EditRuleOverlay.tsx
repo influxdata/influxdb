@@ -16,9 +16,10 @@ import {notify} from 'src/shared/actions/notifications'
 
 // Utils
 import RuleOverlayProvider from './RuleOverlayProvider'
+import {getByID} from 'src/resources/selectors'
 
 // Types
-import {NotificationRuleDraft, AppState} from 'src/types'
+import {NotificationRuleDraft, AppState, ResourceType} from 'src/types'
 
 interface StateProps {
   stateRule: NotificationRuleDraft
@@ -74,8 +75,14 @@ const EditRuleOverlay: FC<Props> = ({
   )
 }
 
-const mstp = ({rules}: AppState, {params}: Props): StateProps => {
-  const stateRule = rules.list.find(r => r.id === params.ruleID)
+const mstp = (state: AppState, {params}: Props): StateProps => {
+  const {ruleID} = params
+
+  const stateRule = getByID<NotificationRuleDraft>(
+    state,
+    ResourceType.NotificationRules,
+    ruleID
+  )
 
   return {
     stateRule,

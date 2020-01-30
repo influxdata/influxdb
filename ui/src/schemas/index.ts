@@ -14,12 +14,14 @@ import {
   Variable,
   View,
   NotificationEndpoint,
+  NotificationRule,
 } from 'src/types'
 import {CellsWithViewProperties} from 'src/client'
 
 // Utils
 import {addLabelDefaults} from 'src/labels/utils'
 import {defaultView} from 'src/views/helpers'
+import {ruleToDraftRule} from 'src/notifications/rules/utils'
 
 /* Authorizations */
 
@@ -146,6 +148,21 @@ export const arrayOfMembers = [member]
 // Defines the schema for the "organizations" resource
 export const org = new schema.Entity(ResourceType.Orgs)
 export const arrayOfOrgs = [org]
+
+/* Rules */
+export const rule = new schema.Entity(
+  ResourceType.NotificationRules,
+  {},
+  {
+    processStrategy: (rule: NotificationRule) => ({
+      ...ruleToDraftRule(rule),
+      labels: addLabels(rule),
+      loadingStatus: RemoteDataState.Done,
+    }),
+  }
+)
+
+export const arrayOfRules = [rule]
 
 /* Tasks */
 

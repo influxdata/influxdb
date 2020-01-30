@@ -10,6 +10,7 @@ import {
   ThresholdCheck,
   DeadmanCheck,
   CustomCheck,
+  NotificationRule as GenRule,
   NotificationEndpoint as GenEndpoint,
   NotificationEndpointBase as GenBaseEndpoint,
 } from 'src/client'
@@ -27,6 +28,10 @@ export type NotificationEndpoint = GenEndpoint & {
 }
 
 export type NotificationEndpointBase = GenBaseEndpoint & {
+  loadingStatus: RemoteDataState
+}
+
+export type NotificationRule = GenRule & {
   loadingStatus: RemoteDataState
 }
 
@@ -100,7 +105,6 @@ export {
   CustomCheck,
   PostNotificationEndpoint,
   NotificationRuleBase,
-  NotificationRule,
   NotificationRuleUpdate,
   NotificationEndpointType,
   SMTPNotificationRuleBase,

@@ -108,7 +108,7 @@ const RuleCard: FC<Props> = ({
   }
 
   const handleRemoveRuleLabel = (label: Label) => {
-    onRemoveRuleLabel(rule.id, label)
+    onRemoveRuleLabel(rule.id, label.id)
   }
 
   return (

@@ -343,12 +343,12 @@ export const checkChecksLimits = () => (dispatch, getState: GetState) => {
 export const checkRulesLimits = () => (dispatch, getState: GetState) => {
   try {
     const {
-      rules: {list: rulesList},
+      resources,
       cloud: {limits},
     } = getState()
 
     const rulesMax = extractRulesMax(limits)
-    const rulesCount = rulesList.length
+    const rulesCount = resources.rules.allIDs.length
 
     if (rulesCount >= rulesMax) {
       dispatch(setRulesLimitStatus(LimitStatus.EXCEEDED))

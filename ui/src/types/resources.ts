@@ -53,7 +53,7 @@ export interface TelegrafsState extends NormalizedState<Telegraf> {
 }
 
 export interface RulesState extends NormalizedState<NotificationRule> {
-  current: {status: RemoteDataState; rule: null}
+  current: {status: RemoteDataState; rule: NotificationRule}
 }
 
 // Cells "allIDs" are Dashboard.cells

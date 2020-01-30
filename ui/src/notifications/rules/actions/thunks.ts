@@ -1,11 +1,15 @@
 // Libraries
 import {Dispatch} from 'react'
+import {normalize} from 'normalizr'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
 
 // APIs
 import * as api from 'src/client'
+
+// Schemas
+import * as schemas from 'src/schemas'
 
 // Actions
 import {
@@ -24,11 +28,9 @@ import {
 import {checkRulesLimits} from 'src/cloud/actions/limits'
 
 // Utils
-import {
-  ruleToDraftRule,
-  draftRuleToPostRule,
-} from 'src/notifications/rules/utils'
+import {draftRuleToPostRule} from 'src/notifications/rules/utils'
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Types
 import {
@@ -37,6 +39,9 @@ import {
   NotificationRuleDraft,
   Label,
   RemoteDataState,
+  NotificationRule,
+  RuleEntities,
+  ResourceType,
 } from 'src/types'
 import {incrementCloneName} from 'src/utils/naming'
 
@@ -55,9 +60,12 @@ export const getNotificationRules = () => async (
       throw new Error(resp.data.message)
     }
 
-    const draftRules = resp.data.notificationRules.map(ruleToDraftRule)
+    const rules = normalize<NotificationRule, RuleEntities, string[]>(
+      resp.data,
+      schemas.arrayOfRules
+    )
 
-    dispatch(setRules(RemoteDataState.Done, draftRules))
+    dispatch(setRules(RemoteDataState.Done, rules))
     dispatch(checkRulesLimits())
   } catch (error) {
     console.error(error)
@@ -78,7 +86,12 @@ export const getCurrentRule = (ruleID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setCurrentRule(RemoteDataState.Done, ruleToDraftRule(resp.data)))
+    const rule = normalize<NotificationRule, RuleEntities, string>(
+      resp.data,
+      schemas.rule
+    )
+
+    dispatch(setCurrentRule(RemoteDataState.Done, rule))
   } catch (error) {
     console.error(error)
     dispatch(setCurrentRule(RemoteDataState.Error))
@@ -100,7 +113,12 @@ export const createRule = (rule: NotificationRuleDraft) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setRule(ruleToDraftRule(resp.data)))
+    const rule = normalize<NotificationRule, RuleEntities, string>(
+      resp.data,
+      schemas.rule
+    )
+
+    dispatch(setRule(resp.data.id, RemoteDataState.Done, rule))
     dispatch(checkRulesLimits())
   } catch (error) {
     console.error(error)
@@ -117,6 +135,8 @@ export const updateRule = (rule: NotificationRuleDraft) => async (
     throw new Error('Notification Rule every field can not be empty')
   }
 
+  dispatch(setRule(rule.id, RemoteDataState.Loading))
+
   try {
     const resp = await api.putNotificationRule({
       ruleID: rule.id,
@@ -127,7 +147,12 @@ export const updateRule = (rule: NotificationRuleDraft) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setRule(ruleToDraftRule(resp.data)))
+    const normRule = normalize<NotificationRule, RuleEntities, string>(
+      resp.data,
+      schemas.rule
+    )
+
+    dispatch(setRule(resp.data.id, RemoteDataState.Done, normRule))
   } catch (error) {
     console.error(error)
   }
@@ -137,6 +162,8 @@ export const updateRuleProperties = (
   ruleID: string,
   properties: NotificationRuleUpdate
 ) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+  dispatch(setRule(ruleID, RemoteDataState.Loading))
+
   try {
     const resp = await api.patchNotificationRule({
       ruleID,
@@ -147,7 +174,12 @@ export const updateRuleProperties = (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setRule(ruleToDraftRule(resp.data)))
+    const rule = normalize<NotificationRule, RuleEntities, string>(
+      resp.data,
+      schemas.rule
+    )
+
+    dispatch(setRule(ruleID, RemoteDataState.Loading, rule))
   } catch (error) {
     console.error(error)
   }
@@ -217,13 +249,15 @@ export const cloneRule = (draftRule: NotificationRuleDraft) => async (
   getState: GetState
 ): Promise<void> => {
   try {
-    const {
-      rules: {list},
-    } = getState()
+    const state = getState()
+    const rules = getAll<NotificationRule>(
+      state,
+      ResourceType.NotificationRules
+    )
 
     const rule = draftRuleToPostRule(draftRule)
 
-    const allRuleNames = list.map(r => r.name)
+    const allRuleNames = rules.map(r => r.name)
 
     const clonedName = incrementCloneName(allRuleNames, rule.name)
 
@@ -235,7 +269,12 @@ export const cloneRule = (draftRule: NotificationRuleDraft) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setRule(ruleToDraftRule(resp.data)))
+    const normRule = normalize<NotificationRule, RuleEntities, string>(
+      resp.data,
+      schemas.rule
+    )
+
+    dispatch(setRule(resp.data.id, RemoteDataState.Done, normRule))
     dispatch(checkRulesLimits())
   } catch (error) {
     console.error(error)
