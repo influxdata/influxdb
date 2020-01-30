@@ -13,7 +13,7 @@ function isQueryViewProperties(vp: ViewProperties): vp is QueryViewProperties {
   variables that are used in at least one of the view queries.
 */
 export const filterUnusedVars = (variables: Variable[], views: View[]) => {
-  const viewProperties = views.map(v => v.properties)
+  const viewProperties = views.map(v => v.properties).filter(vp => !!vp)
   const queryViewProperties = viewProperties.filter(isQueryViewProperties)
 
   const queryTexts = queryViewProperties.reduce(

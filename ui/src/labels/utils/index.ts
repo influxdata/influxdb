@@ -59,12 +59,16 @@ export const validateHexCode = (colorHex: string): string | null => {
 
 const DEFAULT_LABEL_COLOR = '#326BBA'
 
-export const addLabelDefaults = (l: GenLabel): Label => ({
-  ...l,
-  properties: {
-    ...l.properties,
-    // add default color hex if missing
-    color: (l.properties || {}).color || DEFAULT_LABEL_COLOR,
-    description: (l.properties || {}).description || '',
-  },
-})
+export const addLabelDefaults = (l: GenLabel): Label => {
+  const out = {
+    ...l,
+    properties: {
+      ...l.properties,
+      // add default color hex if missing
+      color: (l.properties || {}).color || DEFAULT_LABEL_COLOR,
+      description: (l.properties || {}).description || '',
+    },
+  }
+
+  return out
+}
