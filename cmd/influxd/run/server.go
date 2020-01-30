@@ -89,8 +89,10 @@ type Server struct {
 	reportingDisabled bool
 
 	// Profiling
-	CPUProfile string
-	MemProfile string
+	CPUProfile     string
+	CPUProfileFile *os.File
+	MemProfile     string
+	MemProfileFile *os.File
 
 	// httpAPIAddr is the host:port combination for the main HTTP API for querying and writing data
 	httpAPIAddr string
@@ -372,8 +374,10 @@ func (s *Server) Err() <-chan error { return s.err }
 
 // Open opens the meta and data store and all services.
 func (s *Server) Open() error {
-	// Start profiling, if set.
-	startProfile(s.CPUProfile, s.MemProfile)
+	// Start profiling if requested.
+	if err := s.startProfile(); err != nil {
+		return err
+	}
 
 	// Open shared TCP connection.
 	ln, err := net.Listen("tcp", s.BindAddress)
@@ -465,7 +469,7 @@ func (s *Server) Open() error {
 
 // Close shuts down the meta and data stores and all services.
 func (s *Server) Close() error {
-	stopProfile()
+	s.stopProfile()
 
 	// Close the listener first to stop any new connections
 	if s.Listener != nil {
@@ -581,47 +585,56 @@ type Service interface {
 }
 
 // prof stores the file locations of active profiles.
-var prof struct {
-	cpu *os.File
-	mem *os.File
-}
-
 // StartProfile initializes the cpu and memory profile, if specified.
-func startProfile(cpuprofile, memprofile string) {
-	if cpuprofile != "" {
-		f, err := os.Create(cpuprofile)
+func (s *Server) startProfile() error {
+	if s.CPUProfile != "" {
+		f, err := os.Create(s.CPUProfile)
 		if err != nil {
-			log.Fatalf("cpuprofile: %v", err)
+			return fmt.Errorf("cpuprofile: %v", err)
 		}
-		log.Printf("writing CPU profile to: %s\n", cpuprofile)
-		prof.cpu = f
-		pprof.StartCPUProfile(prof.cpu)
+
+		s.CPUProfileFile = f
+		if err := pprof.StartCPUProfile(s.CPUProfileFile); err != nil {
+			return err
+		}
+
+		log.Printf("writing CPU profile to: %s\n", s.CPUProfile)
 	}
 
-	if memprofile != "" {
-		f, err := os.Create(memprofile)
+	if s.MemProfile != "" {
+		f, err := os.Create(s.MemProfile)
 		if err != nil {
-			log.Fatalf("memprofile: %v", err)
+			return fmt.Errorf("memprofile: %v", err)
 		}
-		log.Printf("writing mem profile to: %s\n", memprofile)
-		prof.mem = f
+
+		s.MemProfileFile = f
 		runtime.MemProfileRate = 4096
+
+		log.Printf("writing mem profile to: %s\n", s.MemProfile)
 	}
 
+	return nil
 }
 
 // StopProfile closes the cpu and memory profiles if they are running.
-func stopProfile() {
-	if prof.cpu != nil {
+func (s *Server) stopProfile() error {
+	if s.CPUProfileFile != nil {
 		pprof.StopCPUProfile()
-		prof.cpu.Close()
+		if err := s.CPUProfileFile.Close(); err != nil {
+			return err
+		}
 		log.Println("CPU profile stopped")
 	}
-	if prof.mem != nil {
-		pprof.Lookup("heap").WriteTo(prof.mem, 0)
-		prof.mem.Close()
+
+	if s.MemProfileFile != nil {
+		pprof.Lookup("heap").WriteTo(s.MemProfileFile, 0)
+		if err := s.MemProfileFile.Close(); err != nil {
+			return err
+		}
 		log.Println("mem profile stopped")
 	}
+
+	return nil
 }
 
 // monitorPointsWriter is a wrapper around `coordinator.PointsWriter` that helps
