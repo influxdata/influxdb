@@ -22,7 +22,6 @@ import {OverlayState} from 'src/overlays/reducers/overlays'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
 import {ChecksState} from 'src/checks/reducers'
-import {NotificationRulesState} from 'src/notifications/rules/reducers'
 import {AlertBuilderState} from 'src/alerting/reducers/alertBuilder'
 
 import {ResourceState} from 'src/types'
@@ -45,7 +44,6 @@ export interface AppState {
   ranges: RangeState
   resources: ResourceState
   routing: RouterState
-  rules: NotificationRulesState
   telegrafEditorPlugins: TelegrafEditorPluginState
   telegrafEditorActivePlugins: TelegrafEditorActivePluginState
   plugins: PluginResourceState

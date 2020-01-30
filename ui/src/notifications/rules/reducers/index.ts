@@ -2,25 +2,20 @@
 import {produce} from 'immer'
 
 // Types
-import {RemoteDataState, NotificationRuleDraft} from 'src/types'
-import {Action} from 'src/notifications/rules/actions'
+import {RemoteDataState, RulesState} from 'src/types'
+import {Action} from 'src/notifications/rules/actions/creators'
 
-export interface NotificationRulesState {
-  status: RemoteDataState
-  list: NotificationRuleDraft[]
-  current: {status: RemoteDataState; rule: NotificationRuleDraft}
-}
-
-export const defaultNotificationRulesState: NotificationRulesState = {
+export const defaultNotificationRulesState: RulesState = {
   status: RemoteDataState.NotStarted,
-  list: [],
+  byID: {},
+  allIDs: [],
   current: {status: RemoteDataState.NotStarted, rule: null},
 }
 
 export default (
-  state: NotificationRulesState = defaultNotificationRulesState,
+  state: RulesState = defaultNotificationRulesState,
   action: Action
-): NotificationRulesState =>
+): RulesState =>
   produce(state, draftState => {
     switch (action.type) {
       case 'SET_ALL_NOTIFICATION_RULES':

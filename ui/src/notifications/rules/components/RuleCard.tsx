@@ -23,7 +23,7 @@ import {
   addRuleLabel,
   deleteRuleLabel,
   cloneRule,
-} from 'src/notifications/rules/actions'
+} from 'src/notifications/rules/actions/thunks'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Types

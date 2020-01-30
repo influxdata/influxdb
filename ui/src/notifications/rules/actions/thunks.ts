@@ -12,6 +12,7 @@ import {
   notify,
   Action as NotificationAction,
 } from 'src/shared/actions/notifications'
+import {Action} from 'src/notifications/rules/actions/creators'
 import {checkRulesLimits} from 'src/cloud/actions/limits'
 
 // Utils
@@ -22,56 +23,14 @@ import {
 import {getOrg} from 'src/organizations/selectors'
 
 // Types
-import {RemoteDataState} from '@influxdata/clockface'
 import {
   NotificationRuleUpdate,
   GetState,
   NotificationRuleDraft,
   Label,
+  RemoteDataState,
 } from 'src/types'
 import {incrementCloneName} from 'src/utils/naming'
-
-export type Action =
-  | ReturnType<typeof setAllNotificationRules>
-  | ReturnType<typeof setRule>
-  | ReturnType<typeof setCurrentRule>
-  | ReturnType<typeof removeRule>
-  | {
-      type: 'ADD_LABEL_TO_RULE'
-      ruleID: string
-      label: Label
-    }
-  | {
-      type: 'REMOVE_LABEL_FROM_RULE'
-      ruleID: string
-      label: Label
-    }
-
-export const setAllNotificationRules = (
-  status: RemoteDataState,
-  rules?: NotificationRuleDraft[]
-) => ({
-  type: 'SET_ALL_NOTIFICATION_RULES' as 'SET_ALL_NOTIFICATION_RULES',
-  payload: {status, rules},
-})
-
-export const setRule = (rule: NotificationRuleDraft) => ({
-  type: 'SET_NOTIFICATION_RULE' as 'SET_NOTIFICATION_RULE',
-  payload: {rule},
-})
-
-export const setCurrentRule = (
-  status: RemoteDataState,
-  rule?: NotificationRuleDraft
-) => ({
-  type: 'SET_CURRENT_NOTIFICATION_RULE' as 'SET_CURRENT_NOTIFICATION_RULE',
-  payload: {status, rule},
-})
-
-export const removeRule = (ruleID: string) => ({
-  type: 'REMOVE_NOTIFICATION_RULE' as 'REMOVE_NOTIFICATION_RULE',
-  payload: {ruleID},
-})
 
 export const getNotificationRules = () => async (
   dispatch: Dispatch<

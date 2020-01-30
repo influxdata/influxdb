@@ -4,7 +4,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Actions
-import {createRule} from 'src/notifications/rules/actions'
+import {createRule} from 'src/notifications/rules/actions/thunks'
 
 // Components
 import RuleOverlayContents from 'src/notifications/rules/components/RuleOverlayContents'
