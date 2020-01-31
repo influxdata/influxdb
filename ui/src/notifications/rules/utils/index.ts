@@ -79,11 +79,7 @@ export const changeStatusRule = (
   return {...status, value: newValue}
 }
 
-export const initRuleDraft = (
-  orgID: string,
-  id: string = ''
-): NotificationRuleDraft => ({
-  id,
+export const initRuleDraft = (orgID: string): NotificationRuleDraft => ({
   type: 'http',
   every: '10m',
   offset: '0s',

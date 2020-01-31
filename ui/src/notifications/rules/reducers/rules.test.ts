@@ -21,7 +21,11 @@ import {initRuleDraft} from 'src/notifications/rules/utils'
 import {RemoteDataState, RuleEntities, NotificationRule} from 'src/types'
 
 const ruleID = '1'
-const NEW_RULE_DRAFT = {...initRuleDraft('', ruleID), statusRules: []}
+const NEW_RULE_DRAFT = {
+  ...initRuleDraft(''),
+  id: ruleID,
+  statusRules: [],
+}
 
 describe('rulesReducer', () => {
   describe('setAllNotificationRules', () => {

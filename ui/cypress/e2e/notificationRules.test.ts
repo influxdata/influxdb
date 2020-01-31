@@ -232,6 +232,18 @@ describe('NotificationRules', () => {
 
       cy.getByTestID('rule-overlay-save--button').click()
 
+      // Add a label
+      cy.getByTestID(`rule-card ${ruleName}`).within(() => {
+        cy.getByTestID('inline-labels--add').click()
+      })
+
+      const labelName = 'l1'
+      cy.getByTestID('inline-labels--popover--contents').type(labelName)
+      cy.getByTestID('inline-labels--create-new').click()
+      cy.getByTestID('create-label-form--submit').click()
+
+      cy.getByTestID(`label--pill ${labelName}`).should('exist')
+
       // Filter for the new rule
       cy.getByTestID('filter--input rules').type(ruleName)
 

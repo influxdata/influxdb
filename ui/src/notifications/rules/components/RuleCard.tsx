@@ -114,7 +114,7 @@ const RuleCard: FC<Props> = ({
   return (
     <ResourceCard
       key={`rule-id--${rule.id}`}
-      testID="rule-card"
+      testID={`rule-card ${rule.name}`}
       name={
         <ResourceCard.EditableName
           onUpdate={onUpdateName}
