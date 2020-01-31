@@ -1,5 +1,6 @@
 // Libraries
 import {Dispatch} from 'react'
+import {normalize} from 'normalizr'
 
 // Actions
 import {
@@ -7,6 +8,17 @@ import {
   Action as NotificationAction,
 } from 'src/shared/actions/notifications'
 import {checkEndpointsLimits} from 'src/cloud/actions/limits'
+import {
+  setEndpoints,
+  setEndpoint,
+  Action,
+  removeEndpoint,
+  addLabelToEndpoint,
+  removeLabelFromEndpoint,
+} from 'src/notifications/endpoints/actions/creators'
+
+// Schemas
+import * as schemas from 'src/schemas'
 
 // APIs
 import * as api from 'src/client'
@@ -14,6 +26,7 @@ import * as api from 'src/client'
 // Utils
 import {incrementCloneName} from 'src/utils/naming'
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
@@ -23,27 +36,10 @@ import {
   Label,
   NotificationEndpointUpdate,
   PostNotificationEndpoint,
+  RemoteDataState,
+  EndpointEntities,
+  ResourceType,
 } from 'src/types'
-import {RemoteDataState} from '@influxdata/clockface'
-
-export type Action =
-  | {type: 'SET_ENDPOINT'; endpoint: NotificationEndpoint}
-  | {type: 'REMOVE_ENDPOINT'; endpointID: string}
-  | {
-      type: 'SET_ALL_ENDPOINTS'
-      status: RemoteDataState
-      endpoints?: NotificationEndpoint[]
-    }
-  | {
-      type: 'ADD_LABEL_TO_ENDPOINT'
-      endpointID: string
-      label: Label
-    }
-  | {
-      type: 'REMOVE_LABEL_FROM_ENDPOINT'
-      endpointID: string
-      label: Label
-    }
 
 export const getEndpoints = () => async (
   dispatch: Dispatch<
@@ -52,10 +48,7 @@ export const getEndpoints = () => async (
   getState: GetState
 ) => {
   try {
-    dispatch({
-      type: 'SET_ALL_ENDPOINTS',
-      status: RemoteDataState.Loading,
-    })
+    dispatch(setEndpoints(RemoteDataState.Loading))
 
     const {id: orgID} = getOrg(getState())
 
@@ -67,16 +60,18 @@ export const getEndpoints = () => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch({
-      type: 'SET_ALL_ENDPOINTS',
-      status: RemoteDataState.Done,
-      endpoints: resp.data.notificationEndpoints,
-    })
+    const endpoints = normalize<
+      NotificationEndpoint,
+      EndpointEntities,
+      string[]
+    >(resp.data.notificationEndpoints, schemas.arrayOfEndpoints)
+
+    dispatch(setEndpoints(RemoteDataState.Done, endpoints))
     dispatch(checkEndpointsLimits())
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.getEndpointsFailed(e.message)))
-    dispatch({type: 'SET_ALL_ENDPOINTS', status: RemoteDataState.Error})
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.getEndpointsFailed(error.message)))
+    dispatch(setEndpoints(RemoteDataState.Error))
   }
 }
 
@@ -92,35 +87,51 @@ export const createEndpoint = (endpoint: NotificationEndpoint) => async (
     labels: labels.map(l => l.id),
   } as PostNotificationEndpoint
 
-  const resp = await api.postNotificationEndpoint({data})
+  try {
+    const resp = await api.postNotificationEndpoint({data})
 
-  if (resp.status !== 201) {
-    throw new Error(resp.data.message)
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    const newEndpoint = normalize<
+      NotificationEndpoint,
+      EndpointEntities,
+      string
+    >(resp.data, schemas.endpoint)
+
+    dispatch(setEndpoint(resp.data.id, RemoteDataState.Done, newEndpoint))
+    dispatch(checkEndpointsLimits())
+  } catch (error) {
+    console.error(error)
   }
-
-  dispatch({
-    type: 'SET_ENDPOINT',
-    endpoint: resp.data,
-  })
-  dispatch(checkEndpointsLimits())
 }
 
 export const updateEndpoint = (endpoint: NotificationEndpoint) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
-  const resp = await api.putNotificationEndpoint({
-    endpointID: endpoint.id,
-    data: endpoint,
-  })
+  dispatch(setEndpoint(endpoint.id, RemoteDataState.Loading))
 
-  if (resp.status !== 200) {
-    throw new Error(resp.data.message)
+  try {
+    const resp = await api.putNotificationEndpoint({
+      endpointID: endpoint.id,
+      data: endpoint,
+    })
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const updates = normalize<NotificationEndpoint, EndpointEntities, string>(
+      resp.data,
+      schemas.endpoint
+    )
+
+    dispatch(setEndpoint(endpoint.id, RemoteDataState.Done, updates))
+  } catch (error) {
+    console.error(error)
+    dispatch(setEndpoint(endpoint.id, RemoteDataState.Error))
   }
-
-  dispatch({
-    type: 'SET_ENDPOINT',
-    endpoint: resp.data,
-  })
 }
 
 export const updateEndpointProperties = (
@@ -137,12 +148,15 @@ export const updateEndpointProperties = (
       throw new Error(resp.data.message)
     }
 
-    dispatch({
-      type: 'SET_ENDPOINT',
-      endpoint: resp.data,
-    })
-  } catch (e) {
-    dispatch(notify(copy.updateEndpointFailed(e.message)))
+    const updates = normalize<NotificationEndpoint, EndpointEntities, string>(
+      resp.data,
+      schemas.endpoint
+    )
+
+    dispatch(setEndpoint(endpointID, RemoteDataState.Done, updates))
+  } catch (error) {
+    dispatch(notify(copy.updateEndpointFailed(error.message)))
+    dispatch(setEndpoint(endpointID, RemoteDataState.Error))
   }
 }
 
@@ -158,13 +172,10 @@ export const deleteEndpoint = (endpointID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch({
-      type: 'REMOVE_ENDPOINT',
-      endpointID,
-    })
+    dispatch(removeEndpoint(endpointID))
     dispatch(checkEndpointsLimits())
-  } catch (e) {
-    dispatch(notify(copy.deleteEndpointFailed(e.message)))
+  } catch (error) {
+    dispatch(notify(copy.deleteEndpointFailed(error.message)))
   }
 }
 
@@ -181,36 +192,29 @@ export const addEndpointLabel = (endpointID: string, label: Label) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch({
-      type: 'ADD_LABEL_TO_ENDPOINT',
-      endpointID,
-      label,
-    })
-  } catch (e) {
-    console.error(e)
+    dispatch(addLabelToEndpoint(endpointID, label))
+  } catch (error) {
+    console.error(error)
   }
 }
 
-export const deleteEndpointLabel = (endpointID: string, label: Label) => async (
-  dispatch: Dispatch<Action | NotificationAction>
-) => {
+export const deleteEndpointLabel = (
+  endpointID: string,
+  labelID: string
+) => async (dispatch: Dispatch<Action | NotificationAction>) => {
   try {
     const resp = await api.deleteNotificationEndpointsLabel({
       endpointID,
-      labelID: label.id,
+      labelID,
     })
 
     if (resp.status !== 204) {
       throw new Error(resp.data.message)
     }
 
-    dispatch({
-      type: 'REMOVE_LABEL_FROM_ENDPOINT',
-      endpointID,
-      label,
-    })
-  } catch (e) {
-    console.error(e)
+    dispatch(removeLabelFromEndpoint(endpointID, labelID))
+  } catch (error) {
+    console.error(error)
   }
 }
 
@@ -221,11 +225,13 @@ export const cloneEndpoint = (endpoint: NotificationEndpoint) => async (
   getState: GetState
 ): Promise<void> => {
   try {
-    const {
-      endpoints: {list},
-    } = getState()
+    const state = getState()
+    const endpoints = getAll<NotificationEndpoint>(
+      state,
+      ResourceType.NotificationEndpoints
+    )
 
-    const allEndpointNames = list.map(r => r.name)
+    const allEndpointNames = endpoints.map(r => r.name)
 
     const clonedName = incrementCloneName(allEndpointNames, endpoint.name)
 
@@ -243,7 +249,12 @@ export const cloneEndpoint = (endpoint: NotificationEndpoint) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch({type: 'SET_ENDPOINT', endpoint: resp.data})
+    const clone = normalize<NotificationEndpoint, EndpointEntities, string>(
+      resp.data,
+      schemas.endpoint
+    )
+
+    dispatch(setEndpoint(resp.data.id, RemoteDataState.Done, clone))
     dispatch(checkEndpointsLimits())
   } catch (error) {
     console.error(error)

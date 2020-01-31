@@ -12,6 +12,7 @@ import {
   Telegraf,
   TemplatesState,
   VariablesState,
+  NotificationEndpoint,
 } from 'src/types'
 
 export enum ResourceType {
@@ -67,4 +68,5 @@ export interface ResourceState {
   [ResourceType.Templates]: TemplatesState
   [ResourceType.Variables]: VariablesState
   [ResourceType.Views]: NormalizedState<View>
+  [ResourceType.NotificationEndpoints]: NormalizedState<NotificationEndpoint>
 }

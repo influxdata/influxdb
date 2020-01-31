@@ -25,6 +25,7 @@ function getTimeMachineText() {
     })
     .invoke('text')
 }
+
 describe('DataExplorer', () => {
   beforeEach(() => {
     cy.flush()
@@ -48,6 +49,7 @@ describe('DataExplorer', () => {
       cy.getByTestID(`view-type--histogram`).click()
       cy.getByTestID('cog-cell--button').click()
     })
+
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input').within(() => {
@@ -64,6 +66,7 @@ describe('DataExplorer', () => {
         })
       })
     })
+
     it('should not have the input field in error status when input becomes valid', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input').within(() => {
@@ -82,6 +85,7 @@ describe('DataExplorer', () => {
       cy.getByTestID(`view-type--heatmap`).click()
       cy.getByTestID('cog-cell--button').click()
     })
+
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('grid--column').within(() => {
@@ -112,6 +116,7 @@ describe('DataExplorer', () => {
         })
       })
     })
+
     it('should not have input field in error status when "10" becomes valid input such as "5"', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('grid--column').within(() => {
@@ -132,6 +137,7 @@ describe('DataExplorer', () => {
       cy.getByTestID(`view-type--single-stat`).click()
       cy.getByTestID('cog-cell--button').click()
     })
+
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input--input').within(() => {
@@ -159,6 +165,7 @@ describe('DataExplorer', () => {
         })
       })
     })
+
     it('should not have input field in error status when "2" becomes valid input such as "11"', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input--input').within(() => {
@@ -202,6 +209,7 @@ describe('DataExplorer', () => {
         cy.getByTestID('dropdown-item-customtimerange').click()
         cy.getByTestID('timerange-popover--dialog').should('have.length', 1)
       })
+
       it.skip('should error when submitting stop dates that are before start dates', () => {
         // TODO: complete with issue #15632
         // https://github.com/influxdata/influxdb/issues/15632
@@ -316,11 +324,18 @@ describe('DataExplorer', () => {
       cy.getByTestID('query-builder').should('exist')
 
       // can revert back to query builder mode (with confirmation)
-      cy.getByTestID('switch-to-script-editor').click()
+      cy.getByTestID('switch-to-script-editor')
+        .should('be.visible')
+        .click()
       cy.getByTestID('flux-editor').should('exist')
       cy.getByTestID('flux-editor').within(() => {
         cy.get('textarea').type('yoyoyoyoyo', {force: true})
       })
+
+      // can hover over flux functions
+      cy.getByTestID('toolbar-popover--contents').should('not.exist')
+      cy.getByTestID('flux-function aggregateWindow').trigger('mouseover')
+      cy.getByTestID('toolbar-popover--contents').should('exist')
 
       cy.getByTestID('switch-query-builder-confirm--button').click()
 
@@ -331,27 +346,6 @@ describe('DataExplorer', () => {
       )
 
       cy.getByTestID('query-builder').should('exist')
-    })
-
-    it('should display the popover when hovering', () => {
-      cy.getByTestID('selector-list my_meas')
-        .click()
-        .then(() => {
-          cy.getByTestID('selector-list my_field')
-            .click()
-            .then(() => {
-              cy.getByTestID('switch-to-script-editor').click()
-              cy.getByTestID('flux-editor').should('exist')
-
-              cy.getByTestID('toolbar-popover--contents').should('not.exist')
-
-              cy.getByTestID('flux-function aggregateWindow').trigger(
-                'mouseover'
-              )
-
-              cy.getByTestID('toolbar-popover--contents').should('exist')
-            })
-        })
     })
   })
 

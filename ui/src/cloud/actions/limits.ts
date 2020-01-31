@@ -362,20 +362,16 @@ export const checkRulesLimits = () => (dispatch, getState: GetState) => {
 
 export const checkEndpointsLimits = () => (dispatch, getState: GetState) => {
   try {
-    const {
-      endpoints: {list: endpointsList},
-      cloud: {limits},
-    } = getState()
-
-    const endpointsMax = extractEndpointsMax(limits)
-    const endpointsCount = endpointsList.length
+    const state = getState()
+    const endpointsCount = state.resources.endpoints.allIDs.length
+    const endpointsMax = extractEndpointsMax(state.cloud.limits)
 
     if (endpointsCount >= endpointsMax) {
       dispatch(setEndpointsLimitStatus(LimitStatus.EXCEEDED))
     } else {
       dispatch(setEndpointsLimitStatus(LimitStatus.OK))
     }
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
   }
 }

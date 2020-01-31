@@ -1,76 +1,99 @@
 // Libraries
 import produce from 'immer'
+import {get} from 'lodash'
 
 // Types
-import {NotificationEndpoint} from 'src/types'
-import {RemoteDataState} from '@influxdata/clockface'
-import {Action} from 'src/notifications/endpoints/actions'
+import {
+  ResourceState,
+  NotificationEndpoint,
+  RemoteDataState,
+  ResourceType,
+} from 'src/types'
+import {
+  Action,
+  SET_ENDPOINTS,
+  SET_ENDPOINT,
+  REMOVE_ENDPOINT,
+  ADD_LABEL_TO_ENDPOINT,
+  REMOVE_LABEL_FROM_ENDPOINT,
+} from 'src/notifications/endpoints/actions/creators'
 
-export interface NotificationEndpointsState {
-  status: RemoteDataState
-  list: NotificationEndpoint[]
-}
+// Helpers
+import {setResource, removeResource} from 'src/resources/reducers/helpers'
+
+type EndpointsState = ResourceState['endpoints']
 
 const initialState = {
   status: RemoteDataState.NotStarted,
-  list: [],
+  byID: {},
+  allIDs: [],
 }
 
-type State = NotificationEndpointsState
-
 export default (
-  state: State = initialState,
+  state: EndpointsState = initialState,
   action: Action
-): NotificationEndpointsState =>
+): EndpointsState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_ALL_ENDPOINTS': {
-        const {status, endpoints} = action
-
-        if (endpoints) {
-          draftState.list = endpoints
-        }
-
-        draftState.status = status
+      case SET_ENDPOINTS: {
+        setResource<NotificationEndpoint>(
+          draftState,
+          action,
+          ResourceType.NotificationEndpoints
+        )
 
         return
       }
 
-      case 'SET_ENDPOINT': {
-        const {endpoint} = action
-        const index = state.list.findIndex(ep => ep.id === endpoint.id)
+      case SET_ENDPOINT: {
+        const {schema, status, id} = action
 
-        if (index === -1) {
-          draftState.list.push(endpoint)
+        const endpoint: NotificationEndpoint = get(schema, [
+          'entities',
+          ResourceType.NotificationEndpoints,
+          id,
+        ])
+
+        if (!endpoint) {
+          draftState.byID[id] = ({
+            id,
+            loadingStatus: status,
+          } as unknown) as NotificationEndpoint
+
           return
         }
 
-        draftState.list[index] = endpoint
+        if (!draftState.allIDs.includes(id)) {
+          draftState.allIDs.push(id)
+        }
+
+        draftState.byID[id] = {...endpoint, loadingStatus: status}
+
         return
       }
 
-      case 'REMOVE_ENDPOINT': {
-        const {endpointID} = action
+      case REMOVE_ENDPOINT: {
+        removeResource<NotificationEndpoint>(draftState, action)
 
-        draftState.list = state.list.filter(ep => ep.id !== endpointID)
         return
       }
-      case 'ADD_LABEL_TO_ENDPOINT': {
-        draftState.list = draftState.list.map(e => {
-          if (e.id === action.endpointID) {
-            e.labels = [...e.labels, action.label]
-          }
-          return e
-        })
+
+      case ADD_LABEL_TO_ENDPOINT: {
+        const {endpointID, label} = action
+
+        draftState.byID[endpointID].labels.push(label)
+
         return
       }
-      case 'REMOVE_LABEL_FROM_ENDPOINT': {
-        draftState.list = draftState.list.map(e => {
-          if (e.id === action.endpointID) {
-            e.labels = e.labels.filter(label => label.id !== action.label.id)
-          }
-          return e
-        })
+
+      case REMOVE_LABEL_FROM_ENDPOINT: {
+        const {endpointID, labelID} = action
+
+        const labels = draftState.byID[endpointID].labels
+
+        draftState.byID[endpointID].labels = labels.filter(
+          l => l.id !== labelID
+        )
         return
       }
     }

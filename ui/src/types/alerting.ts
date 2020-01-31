@@ -10,6 +10,8 @@ import {
   ThresholdCheck,
   DeadmanCheck,
   CustomCheck,
+  NotificationEndpoint as GenEndpoint,
+  NotificationEndpointBase as GenBaseEndpoint,
 } from 'src/client'
 
 type Omit<T, U> = Pick<T, Exclude<keyof T, U>>
@@ -18,6 +20,14 @@ type Overwrite<T, U> = Omit<T, keyof U> & U
 interface WithClientID<T> {
   cid: string
   value: T
+}
+
+export type NotificationEndpoint = GenEndpoint & {
+  loadingStatus: RemoteDataState
+}
+
+export type NotificationEndpointBase = GenBaseEndpoint & {
+  loadingStatus: RemoteDataState
 }
 
 export type StatusRuleDraft = WithClientID<StatusRule>
@@ -88,7 +98,6 @@ export {
   ThresholdCheck,
   DeadmanCheck,
   CustomCheck,
-  NotificationEndpoint,
   PostNotificationEndpoint,
   NotificationRuleBase,
   NotificationRule,
@@ -106,12 +115,12 @@ export {
   SlackNotificationEndpoint,
   HTTPNotificationEndpoint,
   NotificationEndpointUpdate,
-  NotificationEndpointBase,
   PostNotificationRule,
   CheckPatch,
 } from '../client'
 
 import {Threshold, HTTPNotificationEndpoint} from '../client'
+import {RemoteDataState} from '@influxdata/clockface'
 
 export type Check = ThresholdCheck | DeadmanCheck | CustomCheck
 
