@@ -15,6 +15,7 @@ import {
   RuleStatusLevel,
   PostNotificationRule,
 } from 'src/types'
+import {RemoteDataState} from '@influxdata/clockface'
 
 type RuleVariantFields =
   | SlackNotificationRuleBase
@@ -78,7 +79,11 @@ export const changeStatusRule = (
   return {...status, value: newValue}
 }
 
-export const initRuleDraft = (orgID: string): NotificationRuleDraft => ({
+export const initRuleDraft = (
+  orgID: string,
+  id: string = ''
+): NotificationRuleDraft => ({
+  id,
   type: 'http',
   every: '10m',
   offset: '0s',
@@ -88,6 +93,7 @@ export const initRuleDraft = (orgID: string): NotificationRuleDraft => ({
   status: 'active',
   endpointID: '',
   tagRules: [],
+  labels: [],
   statusRules: [
     {
       cid: uuid.v4(),
@@ -99,6 +105,7 @@ export const initRuleDraft = (orgID: string): NotificationRuleDraft => ({
     },
   ],
   description: '',
+  loadingStatus: RemoteDataState.NotStarted,
 })
 
 // Prepare a newly created rule for persistence

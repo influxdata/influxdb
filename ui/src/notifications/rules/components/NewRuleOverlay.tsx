@@ -43,6 +43,7 @@ const NewRuleOverlay: FC<Props> = ({params: {orgID}, router, onCreateRule}) => {
           <Overlay.Header
             title="Create a Notification Rule"
             onDismiss={handleDismiss}
+            testID="dismiss-overlay"
           />
           <Overlay.Body>
             <RuleOverlayContents

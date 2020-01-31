@@ -61,7 +61,7 @@ export const getNotificationRules = () => async (
     }
 
     const rules = normalize<NotificationRule, RuleEntities, string[]>(
-      resp.data,
+      resp.data.notificationRules,
       schemas.arrayOfRules
     )
 

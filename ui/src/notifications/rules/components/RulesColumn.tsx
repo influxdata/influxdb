@@ -84,6 +84,7 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
 
   return (
     <AlertsColumn
+      type={ResourceType.NotificationRules}
       title="Notification Rules"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}

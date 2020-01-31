@@ -74,6 +74,7 @@ const ChecksColumn: FunctionComponent<Props> = ({
 
   return (
     <AlertsColumn
+      type={ResourceType.Checks}
       title="Checks"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}

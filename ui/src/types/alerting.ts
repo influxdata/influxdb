@@ -49,11 +49,9 @@ export type NotificationRuleBaseDraft = Overwrite<
   }
 >
 
-export type NotificationRuleDraft =
-  | SlackRule
-  | SMTPRule
-  | PagerDutyRule
-  | HTTPRule
+type RuleDraft = SlackRule | SMTPRule | PagerDutyRule | HTTPRule
+
+export type NotificationRuleDraft = RuleDraft & {loadingStatus: RemoteDataState}
 
 type SlackRule = NotificationRuleBaseDraft & SlackNotificationRuleBase
 type SMTPRule = NotificationRuleBaseDraft & SMTPNotificationRuleBase

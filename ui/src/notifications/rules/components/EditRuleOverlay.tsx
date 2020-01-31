@@ -62,6 +62,7 @@ const EditRuleOverlay: FC<Props> = ({
           <Overlay.Header
             title="Edit this Notification Rule"
             onDismiss={handleDismiss}
+            testID="dismiss-overlay"
           />
           <Overlay.Body>
             <RuleOverlayContents
