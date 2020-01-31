@@ -33,6 +33,14 @@ import {
   setAlertBuilderCheckStatus,
   resetAlertBuilder,
 } from 'src/alerting/actions/alertBuilder'
+import {
+  Action,
+  setAllChecks,
+  setCheck,
+  removeCheck,
+  addLabelToCheck,
+  removeLabelFromCheck,
+} from 'src/checks/actions/creators'
 import {checkChecksLimits} from 'src/cloud/actions/limits'
 
 // Types
@@ -47,38 +55,6 @@ import {
   ThresholdCheck,
   DeadmanCheck,
 } from 'src/types'
-
-export type Action =
-  | ReturnType<typeof setAllChecks>
-  | ReturnType<typeof setCheck>
-  | ReturnType<typeof removeCheck>
-  | ReturnType<typeof addLabelToCheck>
-  | ReturnType<typeof removeLabelFromCheck>
-
-export const setAllChecks = (status: RemoteDataState, checks?: Check[]) => ({
-  type: 'SET_ALL_CHECKS' as 'SET_ALL_CHECKS',
-  payload: {status, checks},
-})
-
-export const setCheck = (check: Check) => ({
-  type: 'SET_CHECK' as 'SET_CHECK',
-  payload: {check},
-})
-
-export const removeCheck = (checkID: string) => ({
-  type: 'REMOVE_CHECK' as 'REMOVE_CHECK',
-  payload: {checkID},
-})
-
-export const addLabelToCheck = (checkID: string, label: Label) => ({
-  type: 'ADD_LABEL_TO_CHECK' as 'ADD_LABEL_TO_CHECK',
-  payload: {checkID, label},
-})
-
-export const removeLabelFromCheck = (checkID: string, label: Label) => ({
-  type: 'REMOVE_LABEL_FROM_CHECK' as 'REMOVE_LABEL_FROM_CHECK',
-  payload: {checkID, label},
-})
 
 export const getChecks = () => async (
   dispatch: Dispatch<

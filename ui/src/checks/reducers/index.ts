@@ -3,7 +3,14 @@ import {produce} from 'immer'
 
 // Types
 import {RemoteDataState, Check} from 'src/types'
-import {Action} from 'src/checks/actions'
+import {
+  Action,
+  SET_CHECKS,
+  SET_CHECK,
+  REMOVE_CHECK,
+  ADD_LABEL_TO_CHECK,
+  REMOVE_LABEL_FROM_CHECK,
+} from 'src/checks/actions/creators'
 
 export interface ChecksState {
   status: RemoteDataState
@@ -27,7 +34,7 @@ export default (
 ): ChecksState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_ALL_CHECKS':
+      case SET_CHECKS:
         const {status, checks} = action.payload
         draftState.status = status
         if (checks) {
@@ -35,7 +42,7 @@ export default (
         }
         return
 
-      case 'SET_CHECK':
+      case SET_CHECK:
         const newCheck = action.payload.check
         const checkIndex = state.list.findIndex(c => c.id == newCheck.id)
 
@@ -46,12 +53,12 @@ export default (
         }
         return
 
-      case 'REMOVE_CHECK':
+      case REMOVE_CHECK:
         const {checkID} = action.payload
         draftState.list = draftState.list.filter(c => c.id != checkID)
         return
 
-      case 'ADD_LABEL_TO_CHECK':
+      case ADD_LABEL_TO_CHECK:
         draftState.list = draftState.list.map(c => {
           if (c.id === action.payload.checkID) {
             c.labels = [...c.labels, action.payload.label]
@@ -60,7 +67,7 @@ export default (
         })
         return
 
-      case 'REMOVE_LABEL_FROM_CHECK':
+      case REMOVE_LABEL_FROM_CHECK:
         draftState.list = draftState.list.map(c => {
           if (c.id === action.payload.checkID) {
             c.labels = c.labels.filter(

@@ -9,7 +9,7 @@ import CheckEOHeader from 'src/checks/components/CheckEOHeader'
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
 
 // Actions
-import {saveCheckFromTimeMachine} from 'src/checks/actions'
+import {saveCheckFromTimeMachine} from 'src/checks/actions/thunks'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {
   resetAlertBuilder,
