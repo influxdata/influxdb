@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent, useState, useEffect} from 'react'
+import React, {FC, useState, useEffect} from 'react'
 import {connect} from 'react-redux'
 import {uniq} from 'lodash'
 import {fromFlux} from '@influxdata/giraffe'
@@ -34,7 +34,7 @@ interface StateProps {
   queryResults: string[] | null
 }
 
-const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
+const CheckMatchingRulesCard: FC<StateProps> = ({
   orgID,
   tags,
   queryResults,
@@ -75,8 +75,13 @@ const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
       return
     }
 
+    const matchingRules = resp.data.notificationRules.map(r => ({
+      ...r,
+      loadingStatus: RemoteDataState.Done,
+    }))
+
     setMatchingRules({
-      matchingRules: resp.data.notificationRules,
+      matchingRules,
       status: RemoteDataState.Done,
     })
   }
@@ -104,7 +109,7 @@ const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
     contents = (
       <SpinnerContainer spinnerComponent={<TechnoSpinner />} loading={status} />
     )
-  } else if (matchingRules.length === 0) {
+  } else if (!matchingRules.length) {
     contents = (
       <EmptyState
         size={ComponentSize.Small}
@@ -162,7 +167,7 @@ const mstp = (state: AppState): StateProps => {
   return {tags, orgID, queryResults: files}
 }
 
-export default connect<StateProps, {}, {}>(
+export default connect<StateProps>(
   mstp,
   null
 )(CheckMatchingRulesCard)

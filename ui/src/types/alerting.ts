@@ -10,6 +10,7 @@ import {
   ThresholdCheck,
   DeadmanCheck,
   CustomCheck,
+  NotificationRule as GenRule,
   NotificationEndpoint as GenEndpoint,
   NotificationEndpointBase as GenBaseEndpoint,
 } from 'src/client'
@@ -30,6 +31,10 @@ export type NotificationEndpointBase = GenBaseEndpoint & {
   loadingStatus: RemoteDataState
 }
 
+export type NotificationRule = GenRule & {
+  loadingStatus: RemoteDataState
+}
+
 export type StatusRuleDraft = WithClientID<StatusRule>
 
 export type TagRuleDraft = WithClientID<TagRule>
@@ -44,11 +49,9 @@ export type NotificationRuleBaseDraft = Overwrite<
   }
 >
 
-export type NotificationRuleDraft =
-  | SlackRule
-  | SMTPRule
-  | PagerDutyRule
-  | HTTPRule
+type RuleDraft = SlackRule | SMTPRule | PagerDutyRule | HTTPRule
+
+export type NotificationRuleDraft = RuleDraft & {loadingStatus: RemoteDataState}
 
 type SlackRule = NotificationRuleBaseDraft & SlackNotificationRuleBase
 type SMTPRule = NotificationRuleBaseDraft & SMTPNotificationRuleBase
@@ -100,7 +103,6 @@ export {
   CustomCheck,
   PostNotificationEndpoint,
   NotificationRuleBase,
-  NotificationRule,
   NotificationRuleUpdate,
   NotificationEndpointType,
   SMTPNotificationRuleBase,

@@ -54,6 +54,7 @@ const EndpointsColumn: FC<Props> = ({router, params, endpoints}) => {
 
   return (
     <AlertsColumn
+      type={ResourceType.NotificationEndpoints}
       title="Notification Endpoints"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}

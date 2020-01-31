@@ -84,6 +84,7 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
 
   return (
     <AlertsColumn
+      type={ResourceType.NotificationRules}
       title="Notification Rules"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
@@ -96,9 +97,10 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
 }
 
 const mstp = (state: AppState) => {
-  const {
-    rules: {list: rules},
-  } = state
+  const rules = getAll<NotificationRuleDraft>(
+    state,
+    ResourceType.NotificationRules
+  )
 
   const endpoints = getAll<NotificationEndpoint>(
     state,
@@ -108,7 +110,7 @@ const mstp = (state: AppState) => {
   return {rules, endpoints}
 }
 
-export default connect<StateProps, {}, {}>(
+export default connect<StateProps>(
   mstp,
   null
 )(withRouter(NotificationRulesColumn))

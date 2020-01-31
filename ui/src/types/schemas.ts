@@ -12,6 +12,7 @@ import {
   TemplateSummary,
   Variable,
   View,
+  NotificationRule,
   NotificationEndpoint,
 } from 'src/types'
 
@@ -74,11 +75,11 @@ export interface OrgEntities {
   }
 }
 
-// TelegrafEntities defines the result of normalizr's normalization
-// of the "telegrafs" resource
-export interface TelegrafEntities {
-  telegrafs: {
-    [uuid: string]: Telegraf
+// RuleEntities defines the result of normalizr's normalization
+// of the "notification rules" resource
+export interface RuleEntities {
+  rules: {
+    [uuid: string]: NotificationRule
   }
 }
 
@@ -95,6 +96,14 @@ export interface ScraperEntities {
 export interface TaskEntities {
   tasks: {
     [uuid: string]: Task
+  }
+}
+
+// TelegrafEntities defines the result of normalizr's normalization
+// of the "telegrafs" resource
+export interface TelegrafEntities {
+  telegrafs: {
+    [uuid: string]: Telegraf
   }
 }
 

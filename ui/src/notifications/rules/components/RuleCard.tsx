@@ -23,7 +23,7 @@ import {
   addRuleLabel,
   deleteRuleLabel,
   cloneRule,
-} from 'src/notifications/rules/actions'
+} from 'src/notifications/rules/actions/thunks'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Types
@@ -108,13 +108,13 @@ const RuleCard: FC<Props> = ({
   }
 
   const handleRemoveRuleLabel = (label: Label) => {
-    onRemoveRuleLabel(rule.id, label)
+    onRemoveRuleLabel(rule.id, label.id)
   }
 
   return (
     <ResourceCard
       key={`rule-id--${rule.id}`}
-      testID="rule-card"
+      testID={`rule-card ${rule.name}`}
       name={
         <ResourceCard.EditableName
           onUpdate={onUpdateName}

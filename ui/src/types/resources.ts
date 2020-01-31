@@ -13,6 +13,7 @@ import {
   TemplatesState,
   VariablesState,
   NotificationEndpoint,
+  NotificationRule,
 } from 'src/types'
 
 export enum ResourceType {
@@ -51,6 +52,10 @@ export interface TelegrafsState extends NormalizedState<Telegraf> {
   currentConfig: {status: RemoteDataState; item: string}
 }
 
+export interface RulesState extends NormalizedState<NotificationRule> {
+  current: {status: RemoteDataState; rule: NotificationRule}
+}
+
 // Cells "allIDs" are Dashboard.cells
 type CellsState = Omit<NormalizedState<Cell>, 'allIDs'>
 
@@ -69,4 +74,5 @@ export interface ResourceState {
   [ResourceType.Variables]: VariablesState
   [ResourceType.Views]: NormalizedState<View>
   [ResourceType.NotificationEndpoints]: NormalizedState<NotificationEndpoint>
+  [ResourceType.NotificationRules]: RulesState
 }

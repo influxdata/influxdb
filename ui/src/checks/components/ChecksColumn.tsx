@@ -74,6 +74,7 @@ const ChecksColumn: FunctionComponent<Props> = ({
 
   return (
     <AlertsColumn
+      type={ResourceType.Checks}
       title="Checks"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
@@ -95,12 +96,16 @@ const mstp = (state: AppState) => {
   const {
     checks: {list: checks},
     labels: {list: labels},
-    rules: {list: rules},
   } = state
 
   const endpoints = getAll<NotificationEndpoint>(
     state,
     ResourceType.NotificationEndpoints
+  )
+
+  const rules = getAll<NotificationRuleDraft>(
+    state,
+    ResourceType.NotificationRules
   )
 
   return {

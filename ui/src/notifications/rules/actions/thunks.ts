@@ -1,5 +1,6 @@
 // Libraries
 import {Dispatch} from 'react'
+import {normalize} from 'normalizr'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -7,71 +8,42 @@ import * as copy from 'src/shared/copy/notifications'
 // APIs
 import * as api from 'src/client'
 
+// Schemas
+import * as schemas from 'src/schemas'
+
 // Actions
 import {
   notify,
   Action as NotificationAction,
 } from 'src/shared/actions/notifications'
+import {
+  Action,
+  setRules,
+  setRule,
+  setCurrentRule,
+  removeRule,
+  addLabelToRule,
+  removeLabelFromRule,
+} from 'src/notifications/rules/actions/creators'
 import {checkRulesLimits} from 'src/cloud/actions/limits'
 
 // Utils
-import {
-  ruleToDraftRule,
-  draftRuleToPostRule,
-} from 'src/notifications/rules/utils'
+import {draftRuleToPostRule} from 'src/notifications/rules/utils'
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Types
-import {RemoteDataState} from '@influxdata/clockface'
 import {
   NotificationRuleUpdate,
   GetState,
   NotificationRuleDraft,
   Label,
+  RemoteDataState,
+  NotificationRule,
+  RuleEntities,
+  ResourceType,
 } from 'src/types'
 import {incrementCloneName} from 'src/utils/naming'
-
-export type Action =
-  | ReturnType<typeof setAllNotificationRules>
-  | ReturnType<typeof setRule>
-  | ReturnType<typeof setCurrentRule>
-  | ReturnType<typeof removeRule>
-  | {
-      type: 'ADD_LABEL_TO_RULE'
-      ruleID: string
-      label: Label
-    }
-  | {
-      type: 'REMOVE_LABEL_FROM_RULE'
-      ruleID: string
-      label: Label
-    }
-
-export const setAllNotificationRules = (
-  status: RemoteDataState,
-  rules?: NotificationRuleDraft[]
-) => ({
-  type: 'SET_ALL_NOTIFICATION_RULES' as 'SET_ALL_NOTIFICATION_RULES',
-  payload: {status, rules},
-})
-
-export const setRule = (rule: NotificationRuleDraft) => ({
-  type: 'SET_NOTIFICATION_RULE' as 'SET_NOTIFICATION_RULE',
-  payload: {rule},
-})
-
-export const setCurrentRule = (
-  status: RemoteDataState,
-  rule?: NotificationRuleDraft
-) => ({
-  type: 'SET_CURRENT_NOTIFICATION_RULE' as 'SET_CURRENT_NOTIFICATION_RULE',
-  payload: {status, rule},
-})
-
-export const removeRule = (ruleID: string) => ({
-  type: 'REMOVE_NOTIFICATION_RULE' as 'REMOVE_NOTIFICATION_RULE',
-  payload: {ruleID},
-})
 
 export const getNotificationRules = () => async (
   dispatch: Dispatch<
@@ -80,7 +52,7 @@ export const getNotificationRules = () => async (
   getState: GetState
 ) => {
   try {
-    dispatch(setAllNotificationRules(RemoteDataState.Loading))
+    dispatch(setRules(RemoteDataState.Loading))
     const {id: orgID} = getOrg(getState())
     const resp = await api.getNotificationRules({query: {orgID}})
 
@@ -88,14 +60,17 @@ export const getNotificationRules = () => async (
       throw new Error(resp.data.message)
     }
 
-    const draftRules = resp.data.notificationRules.map(ruleToDraftRule)
+    const rules = normalize<NotificationRule, RuleEntities, string[]>(
+      resp.data.notificationRules,
+      schemas.arrayOfRules
+    )
 
-    dispatch(setAllNotificationRules(RemoteDataState.Done, draftRules))
+    dispatch(setRules(RemoteDataState.Done, rules))
     dispatch(checkRulesLimits())
-  } catch (e) {
-    console.error(e)
-    dispatch(setAllNotificationRules(RemoteDataState.Error))
-    dispatch(notify(copy.getNotificationRulesFailed(e.message)))
+  } catch (error) {
+    console.error(error)
+    dispatch(setRules(RemoteDataState.Error))
+    dispatch(notify(copy.getNotificationRulesFailed(error.message)))
   }
 }
 
@@ -111,11 +86,16 @@ export const getCurrentRule = (ruleID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setCurrentRule(RemoteDataState.Done, ruleToDraftRule(resp.data)))
-  } catch (e) {
-    console.error(e)
+    const rule = normalize<NotificationRule, RuleEntities, string>(
+      resp.data,
+      schemas.rule
+    )
+
+    dispatch(setCurrentRule(RemoteDataState.Done, rule))
+  } catch (error) {
+    console.error(error)
     dispatch(setCurrentRule(RemoteDataState.Error))
-    dispatch(notify(copy.getNotificationRuleFailed(e.message)))
+    dispatch(notify(copy.getNotificationRuleFailed(error.message)))
   }
 }
 
@@ -126,14 +106,23 @@ export const createRule = (rule: NotificationRuleDraft) => async (
 ) => {
   const data = draftRuleToPostRule(rule)
 
-  const resp = await api.postNotificationRule({data})
+  try {
+    const resp = await api.postNotificationRule({data})
 
-  if (resp.status !== 201) {
-    throw new Error(resp.data.message)
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    const rule = normalize<NotificationRule, RuleEntities, string>(
+      resp.data,
+      schemas.rule
+    )
+
+    dispatch(setRule(resp.data.id, RemoteDataState.Done, rule))
+    dispatch(checkRulesLimits())
+  } catch (error) {
+    console.error(error)
   }
-
-  dispatch(setRule(ruleToDraftRule(resp.data)))
-  dispatch(checkRulesLimits())
 }
 
 export const updateRule = (rule: NotificationRuleDraft) => async (
@@ -145,32 +134,55 @@ export const updateRule = (rule: NotificationRuleDraft) => async (
   if (rule.every == '') {
     throw new Error('Notification Rule every field can not be empty')
   }
-  const resp = await api.putNotificationRule({
-    ruleID: rule.id,
-    data: draftRuleToPostRule(rule),
-  })
 
-  if (resp.status !== 200) {
-    throw new Error(resp.data.message)
+  dispatch(setRule(rule.id, RemoteDataState.Loading))
+
+  try {
+    const resp = await api.putNotificationRule({
+      ruleID: rule.id,
+      data: draftRuleToPostRule(rule),
+    })
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const normRule = normalize<NotificationRule, RuleEntities, string>(
+      resp.data,
+      schemas.rule
+    )
+
+    dispatch(setRule(resp.data.id, RemoteDataState.Done, normRule))
+  } catch (error) {
+    console.error(error)
   }
-
-  dispatch(setRule(ruleToDraftRule(resp.data)))
 }
 
 export const updateRuleProperties = (
   ruleID: string,
   properties: NotificationRuleUpdate
 ) => async (dispatch: Dispatch<Action | NotificationAction>) => {
-  const resp = await api.patchNotificationRule({
-    ruleID,
-    data: properties,
-  })
+  dispatch(setRule(ruleID, RemoteDataState.Loading))
 
-  if (resp.status !== 200) {
-    throw new Error(resp.data.message)
+  try {
+    const resp = await api.patchNotificationRule({
+      ruleID,
+      data: properties,
+    })
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const rule = normalize<NotificationRule, RuleEntities, string>(
+      resp.data,
+      schemas.rule
+    )
+
+    dispatch(setRule(ruleID, RemoteDataState.Loading, rule))
+  } catch (error) {
+    console.error(error)
   }
-
-  dispatch(setRule(ruleToDraftRule(resp.data)))
 }
 
 export const deleteRule = (ruleID: string) => async (
@@ -178,14 +190,18 @@ export const deleteRule = (ruleID: string) => async (
     Action | NotificationAction | ReturnType<typeof checkRulesLimits>
   >
 ) => {
-  const resp = await api.deleteNotificationRule({ruleID})
+  try {
+    const resp = await api.deleteNotificationRule({ruleID})
 
-  if (resp.status !== 204) {
-    throw new Error(resp.data.message)
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(removeRule(ruleID))
+    dispatch(checkRulesLimits())
+  } catch (error) {
+    console.error(error)
   }
-
-  dispatch(removeRule(ruleID))
-  dispatch(checkRulesLimits())
 }
 
 export const addRuleLabel = (ruleID: string, label: Label) => async (
@@ -201,28 +217,28 @@ export const addRuleLabel = (ruleID: string, label: Label) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch({type: 'ADD_LABEL_TO_RULE', ruleID, label})
-  } catch (e) {
-    console.error(e)
+    dispatch(addLabelToRule(ruleID, label))
+  } catch (error) {
+    console.error(error)
   }
 }
 
-export const deleteRuleLabel = (ruleID: string, label: Label) => async (
+export const deleteRuleLabel = (ruleID: string, labelID: string) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
     const resp = await api.deleteNotificationRulesLabel({
       ruleID,
-      labelID: label.id,
+      labelID,
     })
 
     if (resp.status !== 204) {
       throw new Error(resp.data.message)
     }
 
-    dispatch({type: 'REMOVE_LABEL_FROM_RULE', ruleID, label})
-  } catch (e) {
-    console.error(e)
+    dispatch(removeLabelFromRule(ruleID, labelID))
+  } catch (error) {
+    console.error(error)
   }
 }
 
@@ -233,13 +249,15 @@ export const cloneRule = (draftRule: NotificationRuleDraft) => async (
   getState: GetState
 ): Promise<void> => {
   try {
-    const {
-      rules: {list},
-    } = getState()
+    const state = getState()
+    const rules = getAll<NotificationRule>(
+      state,
+      ResourceType.NotificationRules
+    )
 
     const rule = draftRuleToPostRule(draftRule)
 
-    const allRuleNames = list.map(r => r.name)
+    const allRuleNames = rules.map(r => r.name)
 
     const clonedName = incrementCloneName(allRuleNames, rule.name)
 
@@ -251,7 +269,12 @@ export const cloneRule = (draftRule: NotificationRuleDraft) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setRule(ruleToDraftRule(resp.data)))
+    const normRule = normalize<NotificationRule, RuleEntities, string>(
+      resp.data,
+      schemas.rule
+    )
+
+    dispatch(setRule(resp.data.id, RemoteDataState.Done, normRule))
     dispatch(checkRulesLimits())
   } catch (error) {
     console.error(error)

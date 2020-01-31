@@ -13,6 +13,7 @@ export const getResourcesStatus = (
       case ResourceType.Dashboards:
       case ResourceType.Members:
       case ResourceType.NotificationEndpoints:
+      case ResourceType.NotificationRules:
       case ResourceType.Scrapers:
       case ResourceType.Tasks:
       case ResourceType.Telegrafs:
