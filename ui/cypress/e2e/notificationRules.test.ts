@@ -54,6 +54,7 @@ describe('NotificationRules', () => {
         cy.getByTestID('create-threshold-check').click()
       })
     })
+
     describe('when threshold is above', () => {
       it('should put input field in error status and stay in error status when input is invalid or empty', () => {
         cy.getByTestID('checkeo--header alerting-tab').click()
@@ -78,6 +79,7 @@ describe('NotificationRules', () => {
           })
         })
       })
+
       it('should allow "20" to be deleted and then allow numeric input to get out of error status', () => {
         cy.getByTestID('checkeo--header alerting-tab').click()
         cy.getByTestID('add-threshold-condition-CRIT').click()
@@ -94,6 +96,7 @@ describe('NotificationRules', () => {
         })
       })
     })
+
     describe('when threshold is inside range', () => {
       it('should put input field in error status and stay in error status when input is invalid or empty', () => {
         cy.getByTestID('checkeo--header alerting-tab').click()
@@ -124,6 +127,7 @@ describe('NotificationRules', () => {
           })
         })
       })
+
       it('should allow "20" to be deleted and then allow numeric input to get out of error status', () => {
         cy.getByTestID('checkeo--header alerting-tab').click()
         cy.getByTestID('add-threshold-condition-CRIT').click()
