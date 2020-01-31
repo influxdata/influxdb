@@ -151,7 +151,7 @@ describe('NotificationRules', () => {
     })
   })
 
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 25; i++) {
     it('can create a notification rule', () => {
       const ruleName = 'my-new-rule'
       cy.getByTestID('create-rule').click()
