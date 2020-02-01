@@ -36,12 +36,16 @@ import {
   DashboardDraftQuery,
   Threshold,
 } from 'src/types'
+import {
+  createCheckFromTimeMachine,
+  updateCheckFromTimeMachine,
+} from 'src/checks/actions/thunks'
 
 interface OwnProps {
   name: string
   onSetName: (name: string) => void
   onCancel: () => void
-  onSave: () => void
+  onSave: typeof createCheckFromTimeMachine | typeof updateCheckFromTimeMachine
 }
 
 interface StateProps {

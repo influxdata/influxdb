@@ -242,7 +242,9 @@ export const getReadWriteCardinalityLimits = () => async (
     } else {
       dispatch(setCardinalityLimitStatus(LimitStatus.OK))
     }
-  } catch (e) {}
+  } catch (error) {
+    console.error(error)
+  }
 }
 
 export const getAssetLimits = () => async (dispatch, getState: GetState) => {
@@ -253,7 +255,8 @@ export const getAssetLimits = () => async (dispatch, getState: GetState) => {
     const limits = await getLimitsAJAX(org.id)
     dispatch(setLimits(limits))
     dispatch(setLimitsStatus(RemoteDataState.Done))
-  } catch (e) {
+  } catch (error) {
+    console.error(error)
     dispatch(setLimitsStatus(RemoteDataState.Error))
   }
 }
@@ -297,8 +300,8 @@ export const checkBucketLimits = () => (dispatch, getState: GetState) => {
     } else {
       dispatch(setBucketLimitStatus(LimitStatus.OK))
     }
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
   }
 }
 
@@ -316,27 +319,27 @@ export const checkTaskLimits = () => (dispatch, getState: GetState) => {
     } else {
       dispatch(setTaskLimitStatus(LimitStatus.OK))
     }
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
   }
 }
 
 export const checkChecksLimits = () => (dispatch, getState: GetState) => {
   try {
     const {
-      checks: {list: checksList},
+      resources,
       cloud: {limits},
     } = getState()
 
     const checksMax = extractChecksMax(limits)
-    const checksCount = checksList.length
+    const checksCount = resources.checks.allIDs.length
     if (checksCount >= checksMax) {
       dispatch(setChecksLimitStatus(LimitStatus.EXCEEDED))
     } else {
       dispatch(setChecksLimitStatus(LimitStatus.OK))
     }
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
   }
 }
 
@@ -355,8 +358,8 @@ export const checkRulesLimits = () => (dispatch, getState: GetState) => {
     } else {
       dispatch(setRulesLimitStatus(LimitStatus.OK))
     }
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
   }
 }
 

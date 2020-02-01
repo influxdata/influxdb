@@ -7,7 +7,7 @@ import {ResourceCard} from '@influxdata/clockface'
 
 // Types
 import {
-  NotificationRule,
+  NotificationRuleDraft,
   AppState,
   NotificationEndpoint,
   ResourceType,
@@ -17,7 +17,7 @@ import {
 import {getAll} from 'src/resources/selectors'
 
 interface OwnProps {
-  rule: NotificationRule
+  rule: NotificationRuleDraft
 }
 
 interface StateProps {

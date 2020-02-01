@@ -24,6 +24,7 @@ import {getCheckIDs} from 'src/checks/selectors'
 // Types
 import {ResourceIDs} from 'src/checks/reducers'
 import {AppState, Check, TimeZone, ResourceType} from 'src/types'
+import {getByID} from 'src/resources/selectors'
 
 interface OwnProps {
   params: {orgID: string; checkID: string}
@@ -96,9 +97,9 @@ const CheckHistory: FC<Props> = ({
 }
 
 const mstp = (state: AppState, props: OwnProps) => {
-  const check = state.checks.list.find(({id}) => id === props.params.checkID)
   const timeZone = state.app.persisted.timeZone
   const checkIDs = getCheckIDs(state)
+  const check = getByID<Check>(state, ResourceType.Checks, props.params.checkID)
 
   const resourceIDs = {
     checkIDs,

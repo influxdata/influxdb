@@ -2,18 +2,19 @@ import {
   Authorization,
   Bucket,
   Cell,
+  Check,
   Dashboard,
   Member,
+  NotificationEndpoint,
+  NotificationRule,
   Organization,
   RemoteDataState,
   Scraper,
-  View,
   TasksState,
   Telegraf,
   TemplatesState,
   VariablesState,
-  NotificationEndpoint,
-  NotificationRule,
+  View,
 } from 'src/types'
 
 export enum ResourceType {
@@ -75,4 +76,5 @@ export interface ResourceState {
   [ResourceType.Views]: NormalizedState<View>
   [ResourceType.NotificationEndpoints]: NormalizedState<NotificationEndpoint>
   [ResourceType.NotificationRules]: RulesState
+  [ResourceType.Checks]: NormalizedState<Check>
 }

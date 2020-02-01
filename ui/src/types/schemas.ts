@@ -3,6 +3,7 @@ import {
   Authorization,
   Bucket,
   Cell,
+  Check,
   Dashboard,
   Member,
   Organization,
@@ -37,6 +38,14 @@ export interface BucketEntities {
 export interface CellEntities {
   cells: {
     [uuid: string]: Cell
+  }
+}
+
+// CheckEntities defines the result of normalizr's normalization of
+// the "checks" resource
+export interface CheckEntities {
+  checks: {
+    [uuid: string]: Check
   }
 }
 

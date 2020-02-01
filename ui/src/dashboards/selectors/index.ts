@@ -23,9 +23,7 @@ export const getCheckForView = (
   const viewType: ViewType = get(view, 'properties.type')
   const checkID = get(view, 'properties.checkID')
 
-  return viewType === 'check'
-    ? state.checks.list.find(c => c.id === checkID)
-    : null
+  return viewType === 'check' ? state.resources.checks.byID[checkID] : null
 }
 
 interface DropdownValues {

@@ -1,8 +1,9 @@
 // Types
-import {Check, RemoteDataState, Label} from 'src/types'
+import {RemoteDataState, Label, CheckEntities} from 'src/types'
+import {NormalizedSchema} from 'normalizr'
 
 export type Action =
-  | ReturnType<typeof setAllChecks>
+  | ReturnType<typeof setChecks>
   | ReturnType<typeof setCheck>
   | ReturnType<typeof removeCheck>
   | ReturnType<typeof addLabelToCheck>
@@ -14,32 +15,49 @@ export const REMOVE_CHECK = 'REMOVE_CHECK'
 export const ADD_LABEL_TO_CHECK = 'ADD_LABEL_TO_CHECK'
 export const REMOVE_LABEL_FROM_CHECK = 'REMOVE_LABEL_FROM_CHECK'
 
-export const setAllChecks = (status: RemoteDataState, checks?: Check[]) =>
+type ChecksSchema<R extends string | string[]> = NormalizedSchema<
+  CheckEntities,
+  R
+>
+
+export const setChecks = (
+  status: RemoteDataState,
+  schema?: ChecksSchema<string[]>
+) =>
   ({
     type: SET_CHECKS,
-    payload: {status, checks},
+    status,
+    schema,
   } as const)
 
-export const setCheck = (check: Check) =>
+export const setCheck = (
+  id: string,
+  status: RemoteDataState,
+  schema?: ChecksSchema<string>
+) =>
   ({
     type: SET_CHECK,
-    payload: {check},
+    id,
+    status,
+    schema,
   } as const)
 
-export const removeCheck = (checkID: string) =>
+export const removeCheck = (id: string) =>
   ({
     type: REMOVE_CHECK,
-    payload: {checkID},
+    id,
   } as const)
 
 export const addLabelToCheck = (checkID: string, label: Label) =>
   ({
     type: ADD_LABEL_TO_CHECK,
-    payload: {checkID, label},
+    checkID,
+    label,
   } as const)
 
-export const removeLabelFromCheck = (checkID: string, label: Label) =>
+export const removeLabelFromCheck = (checkID: string, labelID: string) =>
   ({
     type: REMOVE_LABEL_FROM_CHECK,
-    payload: {checkID, label},
+    checkID,
+    labelID,
   } as const)

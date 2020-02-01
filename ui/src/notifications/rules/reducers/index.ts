@@ -1,6 +1,5 @@
 // Libraries
 import {produce} from 'immer'
-import {get} from 'lodash'
 
 // Types
 import {
@@ -18,7 +17,11 @@ import {
   ADD_LABEL_TO_RULE,
   REMOVE_LABEL_FROM_RULE,
 } from 'src/notifications/rules/actions/creators'
-import {setResource, removeResource} from 'src/resources/reducers/helpers'
+import {
+  setResource,
+  removeResource,
+  setResourceAtID,
+} from 'src/resources/reducers/helpers'
 
 export const defaultNotificationRulesState: RulesState = {
   status: RemoteDataState.NotStarted,
@@ -44,29 +47,11 @@ export default (
       }
 
       case SET_RULE: {
-        const {schema, status, id} = action
-
-        const rule: NotificationRule = get(schema, [
-          'entities',
-          ResourceType.NotificationRules,
-          id,
-        ])
-
-        if (!rule) {
-          draftState.byID[id] = ({
-            id,
-            loadingStatus: status,
-          } as unknown) as NotificationRule
-
-          return
-        }
-
-        if (!draftState.allIDs.includes(id)) {
-          draftState.allIDs.push(id)
-        }
-
-        draftState.byID[id] = {...rule}
-        draftState.byID[id].loadingStatus = status
+        setResourceAtID<NotificationRule>(
+          draftState,
+          action,
+          ResourceType.NotificationRules
+        )
 
         return
       }
