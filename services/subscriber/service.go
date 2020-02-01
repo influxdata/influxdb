@@ -3,6 +3,7 @@
 package subscriber // import "github.com/influxdata/influxdb/services/subscriber"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -75,7 +76,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the subscription service.
-func (s *Service) Open() error {
+func (s *Service) Open(ctx context.Context) error {
 	if !s.conf.Enabled {
 		return nil // Service disabled.
 	}
@@ -103,6 +104,8 @@ func (s *Service) Open() error {
 	}()
 
 	s.Logger.Info("Opened service")
+
+	<-ctx.Done()
 	return nil
 }
 

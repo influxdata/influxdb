@@ -2,6 +2,7 @@
 package precreator // import "github.com/influxdata/influxdb/services/precreator"
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -39,7 +40,7 @@ func (s *Service) WithLogger(log *zap.Logger) {
 }
 
 // Open starts the precreation service.
-func (s *Service) Open() error {
+func (s *Service) Open(ctx context.Context) error {
 	if s.done != nil {
 		return nil
 	}

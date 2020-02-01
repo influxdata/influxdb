@@ -3,6 +3,7 @@ package graphite // import "github.com/influxdata/influxdb/services/graphite"
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"math"
 	"net"
@@ -125,7 +126,7 @@ func NewService(c Config) (*Service, error) {
 }
 
 // Open starts the Graphite input processing data.
-func (s *Service) Open() error {
+func (s *Service) Open(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -165,6 +166,9 @@ func (s *Service) Open() error {
 	s.logger.Info("Listening",
 		zap.String("protocol", s.protocol),
 		zap.Stringer("addr", s.addr))
+
+	<-ctx.Done()
+
 	return nil
 }
 

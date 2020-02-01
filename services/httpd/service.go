@@ -2,6 +2,7 @@
 package httpd // import "github.com/influxdata/influxdb/services/httpd"
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -97,7 +98,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the service.
-func (s *Service) Open() error {
+func (s *Service) Open(ctx context.Context) error {
 	s.Logger.Info("Starting HTTP service", zap.Bool("authentication", s.Handler.Config.AuthEnabled))
 
 	s.Handler.Open()
@@ -184,6 +185,9 @@ func (s *Service) Open() error {
 
 	// Begin listening for requests in a separate goroutine.
 	go s.serveTCP()
+
+	<-ctx.Done()
+
 	return nil
 }
 

@@ -2,6 +2,7 @@
 package udp // import "github.com/influxdata/influxdb/services/udp"
 
 import (
+	"context"
 	"errors"
 	"net"
 	"sync"
@@ -74,7 +75,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the service.
-func (s *Service) Open() (err error) {
+func (s *Service) Open(ctx context.Context) (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -121,6 +122,8 @@ func (s *Service) Open() (err error) {
 	go s.serve()
 	go s.parser()
 	go s.writer()
+
+	<-ctx.Done()
 
 	return nil
 }

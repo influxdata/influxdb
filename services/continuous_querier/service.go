@@ -2,6 +2,7 @@
 package continuous_querier // import "github.com/influxdata/influxdb/services/continuous_querier"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -117,7 +118,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the service.
-func (s *Service) Open() error {
+func (s *Service) Open(ctx context.Context) error {
 	s.Logger.Info("Starting continuous query service")
 
 	if s.stop != nil {
@@ -131,6 +132,8 @@ func (s *Service) Open() error {
 	s.wg = &sync.WaitGroup{}
 	s.wg.Add(1)
 	go s.backgroundLoop()
+
+	<-ctx.Done()
 	return nil
 }
 
