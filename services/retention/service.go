@@ -2,6 +2,7 @@
 package retention // import "github.com/influxdata/influxdb/services/retention"
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -38,7 +39,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts retention policy enforcement.
-func (s *Service) Open() error {
+func (s *Service) Open(ctx context.Context) error {
 	if !s.config.Enabled || s.done != nil {
 		return nil
 	}
@@ -49,6 +50,9 @@ func (s *Service) Open() error {
 
 	s.wg.Add(1)
 	go func() { defer s.wg.Done(); s.run() }()
+
+	<-ctx.Done()
+
 	return nil
 }
 

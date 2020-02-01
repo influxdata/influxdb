@@ -4,6 +4,7 @@ package opentsdb // import "github.com/influxdata/influxdb/services/opentsdb"
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"io"
 	"net"
@@ -108,7 +109,7 @@ func NewService(c Config) (*Service, error) {
 }
 
 // Open starts the service.
-func (s *Service) Open() error {
+func (s *Service) Open(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -159,6 +160,8 @@ func (s *Service) Open() error {
 	s.wg.Add(2)
 	go func() { defer s.wg.Done(); s.serve() }()
 	go func() { defer s.wg.Done(); s.serveHTTP() }()
+
+	<-ctx.Done()
 
 	return nil
 }

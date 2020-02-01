@@ -3,6 +3,7 @@
 package monitor // import "github.com/influxdata/influxdb/monitor"
 
 import (
+	"context"
 	"errors"
 	"expvar"
 	"fmt"
@@ -93,7 +94,7 @@ func (m *Monitor) open() bool {
 
 // Open opens the monitoring system, using the given clusterID, node ID, and hostname
 // for identification purpose.
-func (m *Monitor) Open() error {
+func (m *Monitor) Open(ctx context.Context) error {
 	if m.open() {
 		m.Logger.Info("Monitor is already open")
 		return nil
@@ -125,6 +126,8 @@ func (m *Monitor) Open() error {
 		m.wg.Add(1)
 		go m.storeStatistics()
 	}
+
+	<-ctx.Done()
 
 	return nil
 }
@@ -210,7 +213,9 @@ func (m *Monitor) SetPointsWriter(pw PointsWriter) error {
 	m.mu.Unlock()
 
 	// Subsequent calls to an already open Monitor are just a no-op.
-	return m.Open()
+
+	// FIXME: should we be running m.Open() here?
+	return m.Open(context.TODO())
 }
 
 // WithLogger sets the logger for the Monitor.

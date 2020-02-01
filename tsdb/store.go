@@ -2,6 +2,7 @@ package tsdb // import "github.com/influxdata/influxdb/tsdb"
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -199,7 +200,7 @@ func (s *Store) Path() string { return s.path }
 
 // Open initializes the store, creating all necessary directories, loading all
 // shards as well as initializing periodic maintenance of them.
-func (s *Store) Open() error {
+func (s *Store) Open(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -231,6 +232,8 @@ func (s *Store) Open() error {
 			s.monitorShards()
 		}()
 	}
+
+	<-ctx.Done()
 
 	return nil
 }

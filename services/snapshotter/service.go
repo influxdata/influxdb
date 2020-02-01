@@ -3,6 +3,7 @@ package snapshotter // import "github.com/influxdata/influxdb/services/snapshott
 
 import (
 	"bytes"
+	"context"
 	"encoding"
 	"encoding/binary"
 	"encoding/json"
@@ -61,11 +62,13 @@ func NewService() *Service {
 }
 
 // Open starts the service.
-func (s *Service) Open() error {
+func (s *Service) Open(ctx context.Context) error {
 	s.Logger.Info("Starting snapshot service")
 
 	s.wg.Add(1)
 	go s.serve()
+
+	<-ctx.Done()
 	return nil
 }
 

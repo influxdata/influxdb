@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -120,10 +121,12 @@ func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
 }
 
 // Open opens the communication channel with the point writer.
-func (w *PointsWriter) Open() error {
+func (w *PointsWriter) Open(ctx context.Context) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.closing = make(chan struct{})
+
+	<-ctx.Done()
 	return nil
 }
 
