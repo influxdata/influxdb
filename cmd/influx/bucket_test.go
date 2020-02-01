@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
-	"io/ioutil"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -114,7 +114,7 @@ func TestCmdBucket(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
 				cmd := cmdFn(tt.expectedBucket)
-				cmd.LocalFlags().Parse(tt.flags)
+				cmd.SetArgs(tt.flags)
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -162,7 +162,7 @@ func TestCmdBucket(t *testing.T) {
 			fn := func(t *testing.T) {
 				cmd := cmdFn(tt.expectedID)
 				idFlag := tt.flag + tt.expectedID.String()
-				cmd.LocalFlags().Parse([]string{idFlag})
+				cmd.SetArgs([]string{idFlag})
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -187,6 +187,7 @@ func TestCmdBucket(t *testing.T) {
 			{
 				name:     "org id",
 				flags:    []string{"--org-id=" + influxdb.ID(3).String()},
+				envVars:  envVarsZeroMap,
 				expected: called{orgID: 3},
 			},
 			{
@@ -195,6 +196,7 @@ func TestCmdBucket(t *testing.T) {
 					"--id=" + influxdb.ID(2).String(),
 					"--org-id=" + influxdb.ID(3).String(),
 				},
+				envVars: envVarsZeroMap,
 				expected: called{
 					id:    2,
 					orgID: 3,
@@ -203,11 +205,13 @@ func TestCmdBucket(t *testing.T) {
 			{
 				name:     "org",
 				flags:    []string{"--org=rg"},
+				envVars:  envVarsZeroMap,
 				expected: called{org: "rg"},
 			},
 			{
 				name:     "name",
 				flags:    []string{"--org=rg", "--name=name1"},
+				envVars:  envVarsZeroMap,
 				expected: called{org: "rg", name: "name1"},
 			},
 			{
@@ -217,6 +221,7 @@ func TestCmdBucket(t *testing.T) {
 					"-n=name1",
 					"-i=" + influxdb.ID(1).String(),
 				},
+				envVars:  envVarsZeroMap,
 				expected: called{org: "rg", name: "name1", id: 1},
 			},
 			{
@@ -231,6 +236,7 @@ func TestCmdBucket(t *testing.T) {
 			{
 				name: "env vars 2",
 				envVars: map[string]string{
+					"INFLUX_ORG":         "",
 					"INFLUX_ORG_ID":      influxdb.ID(2).String(),
 					"INFLUX_BUCKET_NAME": "name1",
 				},
@@ -270,7 +276,7 @@ func TestCmdBucket(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
 				cmd, calls := cmdFn()
-				cmd.LocalFlags().Parse(tt.flags)
+				cmd.SetArgs(tt.flags)
 
 				require.NoError(t, cmd.Execute())
 				assert.Equal(t, tt.expected, *calls)
@@ -364,7 +370,7 @@ func TestCmdBucket(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
 				cmd := cmdFn(tt.expected)
-				cmd.LocalFlags().Parse(tt.flags)
+				cmd.SetArgs(tt.flags)
 				require.NoError(t, cmd.Execute())
 			}
 
