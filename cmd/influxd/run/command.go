@@ -125,6 +125,7 @@ func (cmd *Command) Run(ctx context.Context, args ...string) error {
 	if err := cmd.writePIDFile(options.PIDFile); err != nil {
 		return fmt.Errorf("write pid file: %s", err)
 	}
+	defer cmd.removePIDFile()
 	cmd.pidfile = options.PIDFile
 
 	if config.HTTPD.PprofEnabled {
@@ -148,36 +149,28 @@ func (cmd *Command) Run(ctx context.Context, args ...string) error {
 	s.CPUProfile = options.CPUProfile
 	s.MemProfile = options.MemProfile
 
+	// Begin monitoring the server's error channel.
+	go cmd.monitorServerErrors(ctx)
+	cmd.Server = s
+
 	if err := s.OpenWithContext(ctx); err != nil {
 		return fmt.Errorf("open server: %s", err)
 	}
-	cmd.Server = s
-
-	// Begin monitoring the server's error channel.
-	go cmd.monitorServerErrors()
 
 	return nil
 }
 
-// Close shuts down the server.
-func (cmd *Command) Close() error {
-	defer close(cmd.Closed)
-	defer cmd.removePIDFile()
-	close(cmd.closing)
-	if err := cmd.Server.Close(cmd.Closed); err {
-		return err
-	}
-	return nil
-}
-
-func (cmd *Command) monitorServerErrors() {
+func (cmd *Command) monitorServerErrors(ctx context.Context) {
 	logger := log.New(cmd.Stderr, "", log.LstdFlags)
 	for {
 		select {
-		case err := <-cmd.Server.Err():
-			logger.Println(err)
+		case <-ctx.Done():
+			// stop consuming errors if cancelled.
+			return
 		case <-cmd.closing:
 			return
+		case err := <-cmd.Server.Err():
+			logger.Println(err)
 		}
 	}
 }
