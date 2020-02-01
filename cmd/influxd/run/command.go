@@ -164,8 +164,8 @@ func (cmd *Command) Close() error {
 	defer close(cmd.Closed)
 	defer cmd.removePIDFile()
 	close(cmd.closing)
-	if cmd.Server != nil {
-		return cmd.Server.Close()
+	if err := cmd.Server.Close(cmd.Closed); err {
+		return err
 	}
 	return nil
 }
