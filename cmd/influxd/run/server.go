@@ -397,6 +397,7 @@ func (s *Server) Open() error {
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
 	s.appendHTTPDService(s.config.HTTPD)
 	s.appendRetentionPolicyService(s.config.Retention)
+
 	for _, i := range s.config.GraphiteInputs {
 		if err := s.appendGraphiteService(i); err != nil {
 			return err
@@ -410,6 +411,8 @@ func (s *Server) Open() error {
 			return err
 		}
 	}
+
+	// append usp services
 	for _, i := range s.config.UDPInputs {
 		s.appendUDPService(i)
 	}
@@ -436,27 +439,14 @@ func (s *Server) Open() error {
 	s.SnapshotterService.WithLogger(s.Logger)
 	s.Monitor.WithLogger(s.Logger)
 
-	// Open TSDB store.
-	if err := s.TSDBStore.Open(); err != nil {
-		return fmt.Errorf("open tsdb store: %s", err)
-	}
-
-	// Open the subscriber service
-	if err := s.Subscriber.Open(); err != nil {
-		return fmt.Errorf("open subscriber: %s", err)
-	}
-
-	// Open the points writer service
-	if err := s.PointsWriter.Open(); err != nil {
-		return fmt.Errorf("open points writer: %s", err)
-	}
+	// append TSDB Store, Subcriber, and PointsWriter services to our Services slice.
+	s.Services = append(s.Services, s.TSDBStore, s.Subscriber, s.PointsWriter)
 
 	s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
 
+	// asyncronously start all services.
 	for _, service := range s.Services {
-		if err := service.Open(); err != nil {
-			return fmt.Errorf("open service: %s", err)
-		}
+		go func() { s.err <- service.Open() }()
 	}
 
 	// Start the reporting service, if not disabled.
