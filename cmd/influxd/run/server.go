@@ -450,7 +450,14 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 	// asyncronously start all services.
 	for _, service := range s.Services {
 		service := service
-		go func() { log.Printf("service starting."); s.err <- service.Open(ctx); log.Printf("service ended.") }()
+		go func() {
+			if err := service.Open(ctx); err != nil {
+				s.err <- err
+			}
+			log.Printf("closing service")
+			s.err <- service.Close()
+			log.Printf("done.")
+		}()
 	}
 
 	// Start the reporting service, if not disabled.
