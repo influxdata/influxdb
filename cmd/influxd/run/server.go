@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -372,6 +373,10 @@ func (s *Server) Err() <-chan error { return s.err }
 
 // Open opens the meta and data store and all services.
 func (s *Server) Open() error {
+	return s.OpenWithContext(context.Background())
+}
+
+func (s *Server) OpenWithContext(ctx context.Context) error {
 	// Start profiling, if set.
 	startProfile(s.CPUProfile, s.MemProfile)
 
@@ -442,7 +447,8 @@ func (s *Server) Open() error {
 
 	// asyncronously start all services.
 	for _, service := range s.Services {
-		go func() { s.err <- service.Open() }()
+		service := service
+		go func() { log.Printf("service starting."); s.err <- service.Open(ctx); log.Printf("service ended.") }()
 	}
 
 	// Start the reporting service, if not disabled.
@@ -566,7 +572,7 @@ func (s *Server) reportServer() {
 // Service represents a service attached to the server.
 type Service interface {
 	WithLogger(log *zap.Logger)
-	Open() error
+	Open(context.Context) error
 	Close() error
 }
 
