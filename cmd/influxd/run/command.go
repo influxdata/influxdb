@@ -2,6 +2,7 @@
 package run
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -66,7 +67,7 @@ func NewCommand() *Command {
 }
 
 // Run parses the config from args and runs the server.
-func (cmd *Command) Run(args ...string) error {
+func (cmd *Command) Run(ctx context.Context, args ...string) error {
 	// Parse the command line flags.
 	options, err := cmd.ParseFlags(args...)
 	if err != nil {
@@ -146,7 +147,8 @@ func (cmd *Command) Run(args ...string) error {
 	s.Logger = cmd.Logger
 	s.CPUProfile = options.CPUProfile
 	s.MemProfile = options.MemProfile
-	if err := s.Open(); err != nil {
+
+	if err := s.OpenWithContext(ctx); err != nil {
 		return fmt.Errorf("open server: %s", err)
 	}
 	cmd.Server = s
