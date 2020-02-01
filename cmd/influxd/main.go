@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -78,7 +79,9 @@ func (m *Main) Run(args ...string) error {
 		cmd.Commit = commit
 		cmd.Branch = branch
 
-		if err := cmd.Run(args...); err != nil {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		if err := cmd.Run(ctx, args...); err != nil {
 			return fmt.Errorf("run: %s", err)
 		}
 
@@ -89,7 +92,8 @@ func (m *Main) Run(args ...string) error {
 		// Block until one of the signals above is received
 		<-signalCh
 		cmd.Logger.Info("Signal received, initializing clean shutdown...")
-		go cmd.Close()
+		// go cmd.Close()
+		cancel() // cancel our services
 
 		// Block again until another signal is received, a shutdown timeout elapses,
 		// or the Command is gracefully closed
