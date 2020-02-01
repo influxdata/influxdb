@@ -64,8 +64,9 @@ type BuildInfo struct {
 type Server struct {
 	buildInfo BuildInfo
 
-	err     chan error
-	closing chan struct{}
+	numServices int32
+	err         chan error
+	closing     chan struct{}
 
 	BindAddress string
 	Listener    net.Listener
@@ -446,65 +447,51 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 	s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
 
 	// asyncronously start all services.
-	for _, service := range s.Services {
-		service := service
-		go func() {
-			if err := service.Open(ctx); err != nil {
-				s.err <- err
-			}
-			log.Printf("closing service")
-			s.err <- service.Close()
-			log.Printf("done.")
-		}()
-	}
+	sem := make(chan struct{}, len(s.Services))
+	go func() {
+		for i, service := range s.Services {
+			go func(i int, svc Service) {
+				// start servie
+				if err := svc.Open(ctx); err != nil {
+					// if there was an error, report it to s.err
+					// s.err <- err
+					log.Print(err)
+				} else {
+					// if there was no error starting the service, the at this point svc.Open() should be unblocked
+					// and we're free to send the result of svc.Close() to s.err.
+					if err := svc.Close(); err != nil {
+						log.Print(err)
+					}
+					// s.err <- svc.Close()
+				}
+				// indicate that this service is done by signaling our semaphore.
+				sem <- struct{}{}
+			}(i, service)
+		}
+	}()
 
 	// Start the reporting service, if not disabled.
 	if !s.reportingDisabled {
 		go s.startServerReporting()
 	}
 
-	return nil
-}
-
-// Close shuts down the meta and data stores and all services.
-func (s *Server) Close() error {
-	stopProfile()
+	// wait for a cancellation signal
+	<-ctx.Done()
+	log.Printf("got cancellation signal.")
 
 	// Close the listener first to stop any new connections
 	if s.Listener != nil {
 		s.Listener.Close()
 	}
 
-	// Close services to allow any inflight requests to complete
-	// and prevent new requests from being accepted.
-	for _, service := range s.Services {
-		service.Close()
+	// wait for services to complete.
+	for i, end := 0, len(s.Services); i < end; i++ {
+		// receive signal when service has ended.
+		<-sem
 	}
 
 	s.config.deregisterDiagnostics(s.Monitor)
 
-	if s.PointsWriter != nil {
-		s.PointsWriter.Close()
-	}
-
-	if s.QueryExecutor != nil {
-		s.QueryExecutor.Close()
-	}
-
-	// Close the TSDBStore, no more reads or writes at this point
-	if s.TSDBStore != nil {
-		s.TSDBStore.Close()
-	}
-
-	if s.Subscriber != nil {
-		s.Subscriber.Close()
-	}
-
-	if s.MetaClient != nil {
-		s.MetaClient.Close()
-	}
-
-	close(s.closing)
 	return nil
 }
 

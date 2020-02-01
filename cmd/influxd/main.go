@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -73,38 +74,53 @@ func (m *Main) Run(args ...string) error {
 	switch name {
 	case "", "run":
 		cmd := run.NewCommand()
-
 		// Tell the server the build details.
 		cmd.Version = version
 		cmd.Commit = commit
 		cmd.Branch = branch
 
-		ctx, cancel := context.WithCancel(context.Background())
-
-		if err := cmd.Run(ctx, args...); err != nil {
-			return fmt.Errorf("run: %s", err)
-		}
-
+		// set up signal handler
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 		cmd.Logger.Info("Listening for signals")
 
-		// Block until one of the signals above is received
-		<-signalCh
-		cmd.Logger.Info("Signal received, initializing clean shutdown...")
-		// go cmd.Close()
-		cancel() // cancel our services
+		ctx, cancel := context.WithCancel(context.Background())
 
-		// Block again until another signal is received, a shutdown timeout elapses,
-		// or the Command is gracefully closed
-		cmd.Logger.Info("Waiting for clean shutdown...")
-		select {
-		case <-signalCh:
-			cmd.Logger.Info("Second signal received, initializing hard shutdown")
-		case <-time.After(time.Second * 30):
-			cmd.Logger.Info("Time limit reached, initializing hard shutdown")
-		case <-cmd.Closed:
-			cmd.Logger.Info("Server shutdown completed")
+		run := func() error {
+			// start server in a new go routine
+			cmd.Logger.Info("Starting services")
+			errCh := make(chan error, 1)
+			go func() { errCh <- cmd.Run(ctx, args...) }()
+
+			// wait for message on errCh or signalCh
+			select {
+			case err := <-errCh:
+				// if we've received a value on our errCh at this point, then the
+				// server has stopped and we should exit.
+				return err
+
+			case <-signalCh:
+				// if we received a signal, lets cancel our services.
+				cmd.Logger.Info("Signal received, initializing clean shutdown...")
+				cancel()
+				deadline := time.Second * 30
+				t := time.NewTicker(deadline)
+				defer t.Stop() // clean up ticker when done
+
+				select {
+				case err := <-errCh:
+					return err
+				case <-signalCh:
+					return fmt.Errorf("got another signal; forcibly shutting down")
+				case <-t.C:
+					// timeout expired before we cleanly shutdown
+					return fmt.Errorf("server failed to shutdown after %v", deadline)
+				}
+			}
+		}
+
+		if err := run(); err != nil {
+			log.Fatal(err)
 		}
 
 		// goodbye.
