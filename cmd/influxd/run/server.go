@@ -446,29 +446,52 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 
 	s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
 
-	// asyncronously start all services.
+	// asyncronously start all services. we run this loop in a go routine so we
+	// can block on the supplied context as soon as possible.  FIXME: this might
+	// be unnessesary.
 	sem := make(chan struct{}, len(s.Services))
-	go func() {
-		for i, service := range s.Services {
-			go func(i int, svc Service) {
-				// start servie
-				if err := svc.Open(ctx); err != nil {
-					// if there was an error, report it to s.err
-					// s.err <- err
-					log.Print(err)
-				} else {
-					// if there was no error starting the service, the at this point svc.Open() should be unblocked
-					// and we're free to send the result of svc.Close() to s.err.
-					if err := svc.Close(); err != nil {
-						log.Print(err)
-					}
-					// s.err <- svc.Close()
+	for _, service := range s.Services {
+		go func(svc Service) {
+			// start service
+
+			// we start by "incrementing" our semaphore to indicate that a service
+			// has started.
+			//
+			// as the services exit, we read back from the same channel to remove our
+			// place in the queue.
+			//
+			// to test if all services are complete, we can attempt to write to the
+			// channel len(s.Services) times which will block if all services haven't
+			// exited.
+			sem <- struct{}{}
+			if err := svc.Open(ctx); err != nil {
+				// if there was an error, report it to s.err s.err <- err
+				//
+				// subtle: we want to report errors to s.err but if nothing is
+				// receiving messages on that channel, we do not want to block!
+				select {
+				case s.err <- svc.Close():
+				default:
 				}
-				// indicate that this service is done by signaling our semaphore.
-				sem <- struct{}{}
-			}(i, service)
-		}
-	}()
+			} else {
+				// if there was no error starting the service, the at this point
+				// svc.Open() should be unblocked and we're free to send the result
+				// of svc.Close() to s.err.
+				if err := svc.Close(); err != nil {
+					// if there was an error, report it to s.err s.err <- err
+					//
+					// subtle: we want to report errors to s.err but if nothing is
+					// receiving messages on that channel, we do not want to block!
+					select {
+					case s.err <- svc.Close():
+					default:
+					}
+				}
+			}
+			// indicate that this service is done by decrementing our semaphore.
+			<-sem
+		}(service)
+	}
 
 	// Start the reporting service, if not disabled.
 	if !s.reportingDisabled {
@@ -487,7 +510,7 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 	// wait for services to complete.
 	for i, end := 0, len(s.Services); i < end; i++ {
 		// receive signal when service has ended.
-		<-sem
+		sem <- struct{}{}
 	}
 
 	s.config.deregisterDiagnostics(s.Monitor)
@@ -501,6 +524,7 @@ func (s *Server) startServerReporting(ctx context.Context) {
 
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
