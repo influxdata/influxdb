@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -66,6 +65,57 @@ func NewMain() *Main {
 	}
 }
 
+func (m *Main) run(args ...string) error {
+	cmd := run.NewCommand()
+	// Tell the server the build details.
+	cmd.Version = version
+	cmd.Commit = commit
+	cmd.Branch = branch
+
+	// set up signal handler
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+	cmd.Logger.Info("Listening for signals")
+
+	// start server in a new go routine
+	cmd.Logger.Info("Starting services")
+	errCh := make(chan error, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { errCh <- cmd.Run(ctx, args...) }()
+
+	// wait for message on errCh or signalCh
+	select {
+	case err := <-errCh:
+		// if we've received a value on our errCh at this point, then the
+		// server has stopped and we should exit.
+		return err
+
+	case <-signalCh:
+		// if we received a signal, lets cancel our services.
+		cmd.Logger.Info("Signal received, initializing clean shutdown...")
+		cancel()
+
+		// we store the deadline duration so that we can print it later.
+		deadline := time.Second * 30
+		t := time.NewTicker(deadline)
+		defer t.Stop() // clean up ticker when done
+
+		select {
+		case err := <-errCh:
+			// cmd.Run() has completed.
+			return err
+		case <-signalCh:
+			// we got another signal before cmd.Run() has gracefully shut down.
+			return fmt.Errorf("got another signal; forcibly shutting down")
+		case <-t.C:
+			// timeout expired before we cleanly shutdown
+			return fmt.Errorf("server failed to shutdown after %v", deadline)
+		}
+	}
+
+	return nil
+}
+
 // Run determines and runs the command specified by the CLI args.
 func (m *Main) Run(args ...string) error {
 	name, args := cmd.ParseCommandName(args)
@@ -73,57 +123,7 @@ func (m *Main) Run(args ...string) error {
 	// Extract name from args.
 	switch name {
 	case "", "run":
-		cmd := run.NewCommand()
-		// Tell the server the build details.
-		cmd.Version = version
-		cmd.Commit = commit
-		cmd.Branch = branch
-
-		// set up signal handler
-		signalCh := make(chan os.Signal, 1)
-		signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
-		cmd.Logger.Info("Listening for signals")
-
-		ctx, cancel := context.WithCancel(context.Background())
-
-		run := func() error {
-			// start server in a new go routine
-			cmd.Logger.Info("Starting services")
-			errCh := make(chan error, 1)
-			go func() { errCh <- cmd.Run(ctx, args...) }()
-
-			// wait for message on errCh or signalCh
-			select {
-			case err := <-errCh:
-				// if we've received a value on our errCh at this point, then the
-				// server has stopped and we should exit.
-				return err
-
-			case <-signalCh:
-				// if we received a signal, lets cancel our services.
-				cmd.Logger.Info("Signal received, initializing clean shutdown...")
-				cancel()
-				deadline := time.Second * 30
-				t := time.NewTicker(deadline)
-				defer t.Stop() // clean up ticker when done
-
-				select {
-				case err := <-errCh:
-					return err
-				case <-signalCh:
-					return fmt.Errorf("got another signal; forcibly shutting down")
-				case <-t.C:
-					// timeout expired before we cleanly shutdown
-					return fmt.Errorf("server failed to shutdown after %v", deadline)
-				}
-			}
-		}
-
-		if err := run(); err != nil {
-			log.Fatal(err)
-		}
-
-		// goodbye.
+		return m.run(args...)
 
 	case "backup":
 		name := backup.NewCommand()
