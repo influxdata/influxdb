@@ -53,7 +53,7 @@ class Affixes extends PureComponent<Props> {
           </Form.Element>
         </Grid.Column>
         <Grid.Column widthXS={Columns.Six}>
-          <FlexBox alignItems={AlignItems.Center} margin={ComponentSize.Small}>
+          <FlexBox alignItems={AlignItems.Center} margin={ComponentSize.Small} className="view-options--checkbox">
             <Toggle
               id="prefixoptional"
               type={InputToggleType.Checkbox}
@@ -65,7 +65,7 @@ class Affixes extends PureComponent<Props> {
           </FlexBox>
         </Grid.Column>
         <Grid.Column widthXS={Columns.Six}>
-          <FlexBox alignItems={AlignItems.Center} margin={ComponentSize.Small}>
+          <FlexBox alignItems={AlignItems.Center} margin={ComponentSize.Small} className="view-options--checkbox">
             <Toggle
               id="suffixoptional"
               type={InputToggleType.Checkbox}
