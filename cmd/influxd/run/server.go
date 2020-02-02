@@ -66,7 +66,6 @@ type Server struct {
 
 	numServices int32
 	err         chan error
-	closing     chan struct{}
 
 	BindAddress string
 	Listener    net.Listener
@@ -169,7 +168,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s := &Server{
 		buildInfo: *buildInfo,
 		err:       make(chan error),
-		closing:   make(chan struct{}),
 
 		BindAddress: bind,
 
@@ -474,7 +472,7 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 
 	// Start the reporting service, if not disabled.
 	if !s.reportingDisabled {
-		go s.startServerReporting()
+		go s.startServerReporting(ctx)
 	}
 
 	// wait for a cancellation signal
@@ -498,14 +496,14 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 }
 
 // startServerReporting starts periodic server reporting.
-func (s *Server) startServerReporting() {
+func (s *Server) startServerReporting(ctx context.Context) {
 	s.reportServer()
 
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-s.closing:
+		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			s.reportServer()

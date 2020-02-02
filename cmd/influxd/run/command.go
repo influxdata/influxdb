@@ -39,7 +39,6 @@ type Command struct {
 	Commit    string
 	BuildTime string
 
-	closing chan struct{}
 	pidfile string
 	Closed  chan struct{}
 
@@ -57,12 +56,11 @@ type Command struct {
 // NewCommand return a new instance of Command.
 func NewCommand() *Command {
 	return &Command{
-		closing: make(chan struct{}),
-		Closed:  make(chan struct{}),
-		Stdin:   os.Stdin,
-		Stdout:  os.Stdout,
-		Stderr:  os.Stderr,
-		Logger:  zap.NewNop(),
+		Closed: make(chan struct{}),
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+		Logger: zap.NewNop(),
 	}
 }
 
@@ -166,8 +164,6 @@ func (cmd *Command) monitorServerErrors(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			// stop consuming errors if cancelled.
-			return
-		case <-cmd.closing:
 			return
 		case err := <-cmd.Server.Err():
 			logger.Println(err)
