@@ -229,7 +229,7 @@ func (s *Store) Open(ctx context.Context) error {
 		s.wg.Add(1)
 		go func() {
 			s.wg.Done()
-			s.monitorShards()
+			s.monitorShards(ctx)
 		}()
 	}
 
@@ -1905,14 +1905,14 @@ func mergeTagValues(valueIdxs [][2]int, tvs ...tagValues) TagValues {
 	return result
 }
 
-func (s *Store) monitorShards() {
+func (s *Store) monitorShards(ctx context.Context) {
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
 	t2 := time.NewTicker(time.Minute)
 	defer t2.Stop()
 	for {
 		select {
-		case <-s.closing:
+		case <-ctx.Done():
 			return
 		case <-t.C:
 			s.mu.RLock()
