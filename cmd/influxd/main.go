@@ -123,7 +123,9 @@ func (m *Main) Run(args ...string) error {
 	// Extract name from args.
 	switch name {
 	case "", "run":
-		return m.run(args...)
+		if err := m.run(args...); err != nil {
+			return fmt.Errorf("run: %s", err)
+		}
 
 	case "backup":
 		name := backup.NewCommand()
