@@ -475,7 +475,6 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 
 	// wait for a cancellation signal
 	<-ctx.Done()
-	log.Printf("got cancellation signal.")
 
 	// Close the listener first to stop any new connections
 	if s.Listener != nil {

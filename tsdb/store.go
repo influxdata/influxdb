@@ -226,11 +226,7 @@ func (s *Store) Open(ctx context.Context) error {
 	s.opened = true
 
 	if !s.EngineOptions.MonitorDisabled {
-		s.wg.Add(1)
-		go func() {
-			s.wg.Done()
-			s.monitorShards(ctx)
-		}()
+		go s.monitorShards(ctx)
 	}
 
 	<-ctx.Done()
