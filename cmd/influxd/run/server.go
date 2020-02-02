@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -377,6 +378,44 @@ func (s *Server) Open() error {
 	return s.OpenWithContext(context.Background())
 }
 
+type ServiceRegistry interface {
+	IsRunning(string) bool   // indicates if a service is running by name
+	Register(string) error   // register a service as running
+	Unregister(string) error // remove a running service
+}
+
+type localRegistry struct {
+	sync.RWMutex
+	s map[string]struct{}
+}
+
+func (l *localRegistry) IsRunning(s string) bool {
+	l.RLock()
+	defer l.RUnlock()
+	_, ok := l.s[s]
+	return ok
+}
+
+func (l *localRegistry) Register(s string) error {
+	l.Lock()
+	defer l.Unlock()
+	if _, ok := l.s[s]; ok {
+		return fmt.Errorf("%s already registered", s)
+	}
+	l.s[s] = struct{}{}
+	return nil
+}
+
+func (l *localRegistry) Unregister(s string) error {
+	l.Lock()
+	defer l.Unlock()
+	if _, ok := l.s[s]; !ok {
+		return fmt.Errorf("%s not registered", s)
+	}
+	delete(l.s, s)
+	return nil
+}
+
 func (s *Server) OpenWithContext(ctx context.Context) error {
 	// Start profiling, if set.
 	s.startProfile()
@@ -457,11 +496,11 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 			// we start by "incrementing" our semaphore to indicate that a service
 			// has started.
 			//
-			// as the services exit, we read back from the same channel to remove our
+			// as services exit, we read back from the same channel to remove our
 			// place in the queue.
 			//
 			// to test if all services are complete, we can attempt to write to the
-			// channel len(s.Services) times which will block if all services haven't
+			// channel len(s.Services) times which will block until all services have
 			// exited.
 			sem <- struct{}{}
 			if err := svc.Open(ctx); err != nil {
@@ -470,7 +509,7 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 				// subtle: we want to report errors to s.err but if nothing is
 				// receiving messages on that channel, we do not want to block!
 				select {
-				case s.err <- svc.Close():
+				case s.err <- err
 				default:
 				}
 			} else {
@@ -483,7 +522,7 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 					// subtle: we want to report errors to s.err but if nothing is
 					// receiving messages on that channel, we do not want to block!
 					select {
-					case s.err <- svc.Close():
+					case s.err <- err
 					default:
 					}
 				}
