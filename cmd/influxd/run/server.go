@@ -492,8 +492,8 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 	for _, service := range s.Services {
 		go func(svc Service) {
 			// start service
-
-			// we start by "incrementing" our semaphore to indicate that a service
+			//
+			// we begin by "incrementing" our semaphore to indicate that a service
 			// has started.
 			//
 			// as services exit, we read back from the same channel to remove our
@@ -509,7 +509,7 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 				// subtle: we want to report errors to s.err but if nothing is
 				// receiving messages on that channel, we do not want to block!
 				select {
-				case s.err <- err
+				case s.err <- err:
 				default:
 				}
 			} else {
@@ -522,7 +522,7 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 					// subtle: we want to report errors to s.err but if nothing is
 					// receiving messages on that channel, we do not want to block!
 					select {
-					case s.err <- err
+					case s.err <- err:
 					default:
 					}
 				}
