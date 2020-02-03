@@ -2354,9 +2354,7 @@ func (c chart) validProperties() []validationErr {
 	case chartKindScatter:
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
 	case chartKindSingleStat:
-		fails = append(fails, c.Colors.hasTypes(colorTypeText)...)
 	case chartKindSingleStatPlusLine:
-		fails = append(fails, c.Colors.hasTypes(colorTypeText)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
 		fails = append(fails, validPosition(c.Position)...)
 	case chartKindXY:
@@ -2420,11 +2418,12 @@ func (c chart) validBaseProps() []validationErr {
 }
 
 const (
-	colorTypeMin       = "min"
-	colorTypeMax       = "max"
-	colorTypeScale     = "scale"
-	colorTypeText      = "text"
-	colorTypeThreshold = "threshold"
+	colorTypeBackground = "background"
+	colorTypeMin        = "min"
+	colorTypeMax        = "max"
+	colorTypeScale      = "scale"
+	colorTypeText       = "text"
+	colorTypeThreshold  = "threshold"
 )
 
 const (

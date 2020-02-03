@@ -1973,48 +1973,6 @@ spec:
 `,
 					},
 					{
-						name:           "missing text color but has scale color",
-						validationErrs: 1,
-						valFields:      []string{"charts[0].colors"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
-kind: Dashboard
-metadata:
-  name: dash_1
-spec:
-  description: desc1
-  charts:
-    - kind:   Single_Stat_Plus_Line
-      name:   single stat plus line
-      suffix: days
-      xPos:  1
-      yPos:  2
-      width:  6
-      height: 3
-      position: overlaid
-      queries:
-        - query: >
-            from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
-      colors:
-        - name: android
-          type: scale
-          hex: "#F4CF31"
-          value: 1
-      axes:
-        - name : "x"
-          label: x_label
-          prefix: x_prefix
-          suffix: x_suffix
-          base: 10
-          scale: linear
-        - name: "y"
-          label: y_label
-          prefix: y_prefix
-          suffix: y_suffix
-          base: 10
-          scale: linear
-`,
-					},
-					{
 						name:           "missing x axis",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].axes"},
@@ -3373,13 +3331,7 @@ spec:
 	})
 
 	t.Run("jsonnet support", func(t *testing.T) {
-		pkg := validParsedPkg(t, "testdata/bucket_associates_labels.jsonnet", EncodingJsonnet, baseAsserts{
-			version:     "0.1.0",
-			kind:        KindPackage,
-			description: "pack description",
-			metaName:    "pkg_name",
-			metaVersion: "1",
-		})
+		pkg := validParsedPkg(t, "testdata/bucket_associates_labels.jsonnet", EncodingJsonnet)
 
 		sum := pkg.Summary()
 
@@ -3649,15 +3601,7 @@ func nextField(t *testing.T, field string) (string, int) {
 	return "", -1
 }
 
-type baseAsserts struct {
-	version     string
-	kind        Kind
-	description string
-	metaName    string
-	metaVersion string
-}
-
-func validParsedPkg(t *testing.T, path string, encoding Encoding, expected baseAsserts) *Pkg {
+func validParsedPkg(t *testing.T, path string, encoding Encoding) *Pkg {
 	t.Helper()
 
 	pkg, err := Parse(encoding, FromFile(path))
@@ -3705,13 +3649,7 @@ func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, pkg *Pk
 		fn := func(t *testing.T) {
 			t.Helper()
 
-			pkg := validParsedPkg(t, path+tt.extension, tt.encoding, baseAsserts{
-				version:     "0.1.0",
-				kind:        KindPackage,
-				description: "pack description",
-				metaName:    "pkg_name",
-				metaVersion: "1",
-			})
+			pkg := validParsedPkg(t, path+tt.extension, tt.encoding)
 			if testFn != nil {
 				testFn(t, pkg)
 			}
