@@ -1,7 +1,6 @@
 // Libraries
 import {Dispatch} from 'react'
 import {push} from 'react-router-redux'
-import {get} from 'lodash'
 import {normalize} from 'normalizr'
 
 // Constants
@@ -16,7 +15,8 @@ import {incrementCloneName} from 'src/utils/naming'
 import {reportError} from 'src/shared/utils/errors'
 import {createView} from 'src/views/helpers'
 import {getOrg} from 'src/organizations/selectors'
-import {toPostCheck} from 'src/checks/utils'
+import {toPostCheck, builderToPostCheck} from 'src/checks/utils'
+import {getAll} from 'src/resources/selectors'
 
 // Actions
 import {
@@ -50,9 +50,9 @@ import {
   RemoteDataState,
   CheckViewProperties,
   Label,
-  PostCheck,
   CheckPatch,
   CheckEntities,
+  ResourceType,
 } from 'src/types'
 
 export const getChecks = () => async (
@@ -142,7 +142,7 @@ export const createCheckFromTimeMachine = () => async (
 ): Promise<void> => {
   try {
     const state = getState()
-    const check = toPostCheck(state)
+    const check = builderToPostCheck(state)
     const resp = await api.postCheck({data: check})
     if (resp.status !== 201) {
       throw new Error(resp.data.message)
@@ -173,7 +173,7 @@ export const updateCheckFromTimeMachine = () => async (
   getState: GetState
 ) => {
   const state = getState()
-  const check = toPostCheck(state)
+  const check = builderToPostCheck(state)
   // todo: refactor after https://github.com/influxdata/influxdb/issues/16317
   try {
     const getCheckResponse = await api.getCheck({checkID: check.id})
@@ -215,14 +215,22 @@ export const updateCheckDisplayProperties = (
   checkID: string,
   update: CheckPatch
 ) => async (dispatch: Dispatch<Action | NotificationAction>) => {
-  const resp = await api.patchCheck({checkID, data: update})
+  try {
+    dispatch(setCheck(checkID, RemoteDataState.Loading))
+    const resp = await api.patchCheck({checkID, data: update})
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
 
-  if (resp.status === 200) {
-    dispatch(setCheck(resp.data))
-  } else {
-    throw new Error(resp.data.message)
+    const check = normalize<Check, CheckEntities, string>(
+      resp.data,
+      checkSchema
+    )
+
+    dispatch(setCheck(checkID, RemoteDataState.Done, check))
+  } catch (error) {
+    console.error(error)
   }
-  dispatch(setCheck(resp.data))
 }
 
 export const deleteCheck = (checkID: string) => async (
@@ -231,9 +239,7 @@ export const deleteCheck = (checkID: string) => async (
   try {
     const resp = await api.deleteCheck({checkID})
 
-    if (resp.status === 204) {
-      dispatch(removeCheck(checkID))
-    } else {
+    if (resp.status !== 204) {
       throw new Error(resp.data.message)
     }
 
@@ -287,26 +293,25 @@ export const cloneCheck = (check: Check) => async (
   getState: GetState
 ): Promise<void> => {
   try {
-    const {
-      checks: {list},
-    } = getState()
-
-    const allCheckNames = list.map(c => c.name)
-
+    const state = getState()
+    const checks = getAll<Check>(state, ResourceType.Checks)
+    const allCheckNames = checks.map(c => c.name)
     const clonedName = incrementCloneName(allCheckNames, check.name)
-    const labels = get(check, 'labels', []) as Label[]
-    const data = {
-      ...check,
-      name: clonedName,
-      labels: labels.map(l => l.id),
-    } as PostCheck
+
+    const data = toPostCheck({...check, name: clonedName})
+
     const resp = await api.postCheck({data})
 
     if (resp.status !== 201) {
       throw new Error(resp.data.message)
     }
 
-    dispatch(setCheck(resp.data))
+    const normCheck = normalize<Check, CheckEntities, string>(
+      resp.data,
+      checkSchema
+    )
+
+    dispatch(setCheck(resp.data.id, RemoteDataState.Done, normCheck))
     dispatch(checkChecksLimits())
   } catch (error) {
     console.error(error)

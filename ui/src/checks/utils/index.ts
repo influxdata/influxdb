@@ -10,7 +10,21 @@ import {getOrg} from 'src/organizations/selectors'
 
 type AlertBuilder = AppState['alertBuilder']
 
-export const toPostCheck = (state: AppState) => {
+export const toPostCheck = (check: Check): PostCheck => {
+  // TODO: type PostCheck properly github.com/influxdata/influxdb/issues/16704
+  const status = check.checkStatus
+
+  delete check.status
+  delete check.checkStatus
+
+  return {
+    ...check,
+    status,
+    labels: (check.labels || []).map(l => l.id),
+  } as PostCheck
+}
+
+export const builderToPostCheck = (state: AppState) => {
   const {alertBuilder} = state
   const check = genCheckBase(state)
 

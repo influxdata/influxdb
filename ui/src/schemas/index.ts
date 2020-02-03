@@ -99,6 +99,8 @@ export const checkSchema = new schema.Entity(
   }
 )
 
+export const arrayOfChecks = [checkSchema]
+
 /* Dashboards */
 
 // Defines the schema for the "dashboards" resource
