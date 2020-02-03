@@ -61,14 +61,17 @@ describe('the Time Machine reducer', () => {
             {
               key: '_measurement',
               values: ['mem'],
+              aggregateFunctionType: 'filter',
             },
             {
               key: '_field',
               values: ['active'],
+              aggregateFunctionType: 'filter',
             },
             {
               key: 'host',
               values: [],
+              aggregateFunctionType: 'filter',
             },
           ],
           functions: [

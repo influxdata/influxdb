@@ -32,7 +32,6 @@ import {
 
 // Utils
 import DefaultDebouncer from 'src/shared/utils/debouncer'
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 import {
   getActiveQuery,
@@ -106,17 +105,12 @@ class TagSelector extends PureComponent<Props> {
   private get header() {
     const {aggregateFunctionType, index} = this.props
 
-    return isFlagEnabled('queryBuilderGrouping') ? (
+    return (
       <BuilderCard.DropdownHeader
         options={['filter', 'group']}
         selectedOption={this.renderAggregateFunctionType(aggregateFunctionType)}
         onDelete={index !== 0 && this.handleRemoveTagSelector}
         onSelect={this.handleAggregateFunctionSelect}
-      />
-    ) : (
-      <BuilderCard.Header
-        title={this.renderAggregateFunctionType(aggregateFunctionType)}
-        onDelete={index !== 0 && this.handleRemoveTagSelector}
       />
     )
   }

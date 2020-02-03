@@ -1,8 +1,3 @@
-// Funcs
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
-import {mocked} from 'ts-jest/utils'
-jest.mock('src/shared/utils/featureFlag')
-
 import {
   getActiveTagValues,
   getStartTime,
@@ -137,33 +132,13 @@ describe('getting active tag values', () => {
       values: ['foo_computer'],
     },
   ]
-  beforeEach(() => {
-    mocked(isFlagEnabled).mockReset()
-  })
 
-  it("returns the active query tag values when the isFlagEnabled('queryBuilderGrouping') is toggled off", () => {
-    mocked(isFlagEnabled).mockImplementation(() => {
-      return false
-    })
-
+  it('returns the active query tag values when the function is filter', () => {
     const actualTags = getActiveTagValues(activeQueryTags, 'filter', 2)
     expect(actualTags).toEqual(activeQueryTags[2].values)
   })
 
-  it("returns the active query tag values when the isFlagEnabled('queryBuilderGrouping') is toggled on, but the function is filter", () => {
-    mocked(isFlagEnabled).mockImplementation(() => {
-      return true
-    })
-
-    const actualTags = getActiveTagValues(activeQueryTags, 'filter', 2)
-    expect(actualTags).toEqual(activeQueryTags[2].values)
-  })
-
-  it("returns all previous tag values when the isFlagEnabled('queryBuilderGrouping') is toggled on and the function is group", () => {
-    mocked(isFlagEnabled).mockImplementation(() => {
-      return true
-    })
-
+  it('returns all previous tag values when the function is group', () => {
     const actualTags = getActiveTagValues(activeQueryTags, 'group', 2)
     expect(actualTags).toEqual([
       ...activeQueryTags[0].values,
