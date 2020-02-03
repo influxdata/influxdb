@@ -1,4 +1,4 @@
-package http
+package pkger
 
 import (
 	"bytes"
@@ -14,26 +14,24 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/pkg/httpc"
 	"github.com/influxdata/influxdb/pkg/jsonnet"
-	"github.com/influxdata/influxdb/pkger"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
-const prefixPackages = "/api/v2/packages"
+const RoutePrefix = "/api/v2/packages"
 
-// HandlerPkg is a server that manages the packages HTTP transport.
-type HandlerPkg struct {
+// HTTPServer is a server that manages the packages HTTP transport.
+type HTTPServer struct {
 	chi.Router
 	influxdb.HTTPErrorHandler
 	logger *zap.Logger
-	svc    pkger.SVC
+	svc    SVC
 }
 
-// NewHandlerPkg constructs a new http server.
-func NewHandlerPkg(log *zap.Logger, errHandler influxdb.HTTPErrorHandler, svc pkger.SVC) *HandlerPkg {
-	svr := &HandlerPkg{
+// NewHTTPServer constructs a new http server.
+func NewHTTPServer(log *zap.Logger, errHandler influxdb.HTTPErrorHandler, svc SVC) *HTTPServer {
+	svr := &HTTPServer{
 		HTTPErrorHandler: errHandler,
 		logger:           log,
 		svc:              svc,
@@ -58,22 +56,22 @@ func NewHandlerPkg(log *zap.Logger, errHandler influxdb.HTTPErrorHandler, svc pk
 }
 
 // Prefix provides the prefix to this route tree.
-func (s *HandlerPkg) Prefix() string {
-	return prefixPackages
+func (s *HTTPServer) Prefix() string {
+	return RoutePrefix
 }
 
 type (
 	// ReqCreatePkg is a request body for the create pkg endpoint.
 	ReqCreatePkg struct {
-		OrgIDs    []string                `json:"orgIDs"`
-		Resources []pkger.ResourceToClone `json:"resources"`
+		OrgIDs    []string          `json:"orgIDs"`
+		Resources []ResourceToClone `json:"resources"`
 	}
 
 	// RespCreatePkg is a response body for the create pkg endpoint.
-	RespCreatePkg []pkger.Object
+	RespCreatePkg []Object
 )
 
-func (s *HandlerPkg) createPkg(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	encoding := pkgEncoding(r.Header)
 
 	var reqBody ReqCreatePkg
@@ -91,15 +89,15 @@ func (s *HandlerPkg) createPkg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := []pkger.CreatePkgSetFn{
-		pkger.CreateWithExistingResources(reqBody.Resources...),
+	opts := []CreatePkgSetFn{
+		CreateWithExistingResources(reqBody.Resources...),
 	}
 	for _, orgIDStr := range reqBody.OrgIDs {
 		orgID, err := influxdb.IDFromString(orgIDStr)
 		if err != nil {
 			continue
 		}
-		opts = append(opts, pkger.CreateWithAllOrgResources(*orgID))
+		opts = append(opts, CreateWithAllOrgResources(*orgID))
 	}
 
 	newPkg, err := s.svc.CreatePkg(r.Context(), opts...)
@@ -111,12 +109,12 @@ func (s *HandlerPkg) createPkg(w http.ResponseWriter, r *http.Request) {
 
 	resp := RespCreatePkg(newPkg.Objects)
 	if resp == nil {
-		resp = []pkger.Object{}
+		resp = []Object{}
 	}
 
 	var enc encoder
 	switch encoding {
-	case pkger.EncodingYAML:
+	case EncodingYAML:
 		enc = yaml.NewEncoder(w)
 		w.Header().Set("Content-Type", "application/x-yaml")
 	default:
@@ -135,18 +133,18 @@ type PkgRemote struct {
 }
 
 // Encoding returns the encoding type that corresponds to the given content type.
-func (p PkgRemote) Encoding() pkger.Encoding {
+func (p PkgRemote) Encoding() Encoding {
 	ct := strings.ToLower(p.ContentType)
 	urlBase := path.Ext(p.URL)
 	switch {
 	case ct == "jsonnet" || urlBase == ".jsonnet":
-		return pkger.EncodingJsonnet
+		return EncodingJsonnet
 	case ct == "json" || urlBase == ".json":
-		return pkger.EncodingJSON
+		return EncodingJSON
 	case ct == "yml" || ct == "yaml" || urlBase == ".yml" || urlBase == ".yaml":
-		return pkger.EncodingYAML
+		return EncodingYAML
 	default:
-		return pkger.EncodingSource
+		return EncodingSource
 	}
 }
 
@@ -160,23 +158,23 @@ type ReqApplyPkg struct {
 }
 
 // Pkg returns a pkg parsed and validated from the RawPkg field.
-func (r ReqApplyPkg) Pkg(encoding pkger.Encoding) (*pkger.Pkg, error) {
+func (r ReqApplyPkg) Pkg(encoding Encoding) (*Pkg, error) {
 	if r.Remote.URL != "" {
-		return pkger.Parse(r.Remote.Encoding(), pkger.FromHTTPRequest(r.Remote.URL))
+		return Parse(r.Remote.Encoding(), FromHTTPRequest(r.Remote.URL))
 	}
 
-	return pkger.Parse(encoding, pkger.FromReader(bytes.NewReader(r.RawPkg)))
+	return Parse(encoding, FromReader(bytes.NewReader(r.RawPkg)))
 }
 
 // RespApplyPkg is the response body for the apply pkg endpoint.
 type RespApplyPkg struct {
-	Diff    pkger.Diff    `json:"diff" yaml:"diff"`
-	Summary pkger.Summary `json:"summary" yaml:"summary"`
+	Diff    Diff    `json:"diff" yaml:"diff"`
+	Summary Summary `json:"summary" yaml:"summary"`
 
-	Errors []pkger.ValidationErr `json:"errors,omitempty" yaml:"errors,omitempty"`
+	Errors []ValidationErr `json:"errors,omitempty" yaml:"errors,omitempty"`
 }
 
-func (s *HandlerPkg) applyPkg(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReqApplyPkg
 	encoding, err := decodeWithEncoding(r, &reqBody)
 	if err != nil {
@@ -211,7 +209,7 @@ func (s *HandlerPkg) applyPkg(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sum, diff, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg)
-	if pkger.IsParseErr(err) {
+	if IsParseErr(err) {
 		s.encJSONResp(r.Context(), w, http.StatusUnprocessableEntity, RespApplyPkg{
 			Diff:    diff,
 			Summary: sum,
@@ -234,8 +232,8 @@ func (s *HandlerPkg) applyPkg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sum, err = s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, pkger.ApplyWithSecrets(reqBody.Secrets))
-	if err != nil && !pkger.IsParseErr(err) {
+	sum, err = s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, ApplyWithSecrets(reqBody.Secrets))
+	if err != nil && !IsParseErr(err) {
 		s.logger.Error("failed to apply pkg", zap.Error(err))
 		s.HandleHTTPError(r.Context(), err, w)
 		return
@@ -252,14 +250,14 @@ type encoder interface {
 	Encode(interface{}) error
 }
 
-func decodeWithEncoding(r *http.Request, v interface{}) (pkger.Encoding, error) {
+func decodeWithEncoding(r *http.Request, v interface{}) (Encoding, error) {
 	encoding := pkgEncoding(r.Header)
 
 	var dec interface{ Decode(interface{}) error }
 	switch encoding {
-	case pkger.EncodingJsonnet:
+	case EncodingJsonnet:
 		dec = jsonnet.NewDecoder(r.Body)
-	case pkger.EncodingYAML:
+	case EncodingYAML:
 		dec = yaml.NewDecoder(r.Body)
 	default:
 		dec = json.NewDecoder(r.Body)
@@ -268,14 +266,14 @@ func decodeWithEncoding(r *http.Request, v interface{}) (pkger.Encoding, error) 
 	return encoding, dec.Decode(v)
 }
 
-func pkgEncoding(headers http.Header) pkger.Encoding {
+func pkgEncoding(headers http.Header) Encoding {
 	switch contentType := headers.Get("Content-Type"); contentType {
 	case "application/x-jsonnet":
-		return pkger.EncodingJsonnet
+		return EncodingJsonnet
 	case "text/yml", "application/x-yaml":
-		return pkger.EncodingYAML
+		return EncodingYAML
 	default:
-		return pkger.EncodingJSON
+		return EncodingJSON
 	}
 }
 
@@ -285,7 +283,7 @@ func newJSONEnc(w io.Writer) encoder {
 	return enc
 }
 
-func (s *HandlerPkg) encResp(ctx context.Context, w http.ResponseWriter, enc encoder, code int, res interface{}) {
+func (s *HTTPServer) encResp(ctx context.Context, w http.ResponseWriter, enc encoder, code int, res interface{}) {
 	w.WriteHeader(code)
 	if err := enc.Encode(res); err != nil {
 		s.HandleHTTPError(ctx, &influxdb.Error{
@@ -296,112 +294,12 @@ func (s *HandlerPkg) encResp(ctx context.Context, w http.ResponseWriter, enc enc
 	}
 }
 
-func (s *HandlerPkg) encJSONResp(ctx context.Context, w http.ResponseWriter, code int, res interface{}) {
+func (s *HTTPServer) encJSONResp(ctx context.Context, w http.ResponseWriter, code int, res interface{}) {
 	s.encResp(ctx, w, newJSONEnc(w), code, res)
 }
 
-// PkgerService provides an http client that is fluent in all things pkger.
-type PkgerService struct {
-	Client *httpc.Client
-}
-
-var _ pkger.SVC = (*PkgerService)(nil)
-
-// CreatePkg will produce a pkg from the parameters provided.
-func (s *PkgerService) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
-	var opt pkger.CreateOpt
-	for _, setter := range setters {
-		if err := setter(&opt); err != nil {
-			return nil, err
-		}
-	}
-	var orgIDs []string
-	for orgID := range opt.OrgIDs {
-		orgIDs = append(orgIDs, orgID.String())
-	}
-
-	reqBody := ReqCreatePkg{
-		OrgIDs:    orgIDs,
-		Resources: opt.Resources,
-	}
-
-	var newPkg *pkger.Pkg
-	err := s.Client.
-		PostJSON(reqBody, prefixPackages).
-		Decode(func(resp *http.Response) error {
-			pkg, err := pkger.Parse(pkger.EncodingJSON, pkger.FromReader(resp.Body))
-			newPkg = pkg
-			return err
-		}).
-		Do(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := newPkg.Validate(pkger.ValidWithoutResources()); err != nil {
-		return nil, err
-	}
-	return newPkg, nil
-}
-
-// DryRun provides a dry run of the pkg application. The pkg will be marked verified
-// for later calls to Apply. This func will be run on an Apply if it has not been run
-// already.
-func (s *PkgerService) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error) {
-	b, err := pkg.Encode(pkger.EncodingJSON)
-	if err != nil {
-		return pkger.Summary{}, pkger.Diff{}, err
-	}
-
-	reqBody := ReqApplyPkg{
-		OrgID:  orgID.String(),
-		DryRun: true,
-		RawPkg: b,
-	}
-	return s.apply(ctx, reqBody)
-}
-
-// Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
-// in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
-// from before the pkg was applied.
-func (s *PkgerService) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error) {
-	var opt pkger.ApplyOpt
-	for _, o := range opts {
-		if err := o(&opt); err != nil {
-			return pkger.Summary{}, err
-		}
-	}
-
-	b, err := pkg.Encode(pkger.EncodingJSON)
-	if err != nil {
-		return pkger.Summary{}, err
-	}
-
-	reqBody := ReqApplyPkg{
-		OrgID:   orgID.String(),
-		Secrets: opt.MissingSecrets,
-		RawPkg:  b,
-	}
-
-	sum, _, err := s.apply(ctx, reqBody)
-	return sum, err
-}
-
-func (s *PkgerService) apply(ctx context.Context, reqBody ReqApplyPkg) (pkger.Summary, pkger.Diff, error) {
-	var resp RespApplyPkg
-	err := s.Client.
-		PostJSON(reqBody, prefixPackages, "/apply").
-		DecodeJSON(&resp).
-		Do(ctx)
-	if err != nil {
-		return pkger.Summary{}, pkger.Diff{}, err
-	}
-
-	return resp.Summary, resp.Diff, pkger.NewParseError(resp.Errors...)
-}
-
-func convertParseErr(err error) []pkger.ValidationErr {
-	pErr, ok := err.(pkger.ParseError)
+func convertParseErr(err error) []ValidationErr {
+	pErr, ok := err.(ParseError)
 	if !ok {
 		return nil
 	}

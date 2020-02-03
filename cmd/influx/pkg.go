@@ -501,7 +501,7 @@ func newPkgerSVC() (pkger.SVC, influxdb.OrganizationService, error) {
 		Client: httpClient,
 	}
 
-	return &ihttp.PkgerService{Client: httpClient}, orgSvc, nil
+	return &pkger.HTTPRemoteService{Client: httpClient}, orgSvc, nil
 }
 
 func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {

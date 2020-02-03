@@ -836,10 +836,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgSVC = pkger.MWLogging(pkgerLogger)(pkgSVC)
 	}
 
-	var pkgHTTPServer *http.HandlerPkg
+	var pkgHTTPServer *pkger.HTTPServer
 	{
 		pkgServerLogger := m.log.With(zap.String("handler", "pkger"))
-		pkgHTTPServer = http.NewHandlerPkg(pkgServerLogger, m.apibackend.HTTPErrorHandler, pkgSVC)
+		pkgHTTPServer = pkger.NewHTTPServer(pkgServerLogger, m.apibackend.HTTPErrorHandler, pkgSVC)
 	}
 
 	{
