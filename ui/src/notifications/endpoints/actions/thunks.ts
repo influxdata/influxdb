@@ -134,6 +134,7 @@ export const updateEndpointProperties = (
   endpointID: string,
   properties: NotificationEndpointUpdate
 ) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+  dispatch(setEndpoint(endpointID, RemoteDataState.Loading))
   try {
     const resp = await api.patchNotificationEndpoint({
       endpointID,
