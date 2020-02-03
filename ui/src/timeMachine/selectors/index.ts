@@ -22,8 +22,6 @@ import {
   durationToMilliseconds,
 } from 'src/shared/utils/duration'
 
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
-
 // Types
 import {
   QueryView,
@@ -252,10 +250,7 @@ export const getActiveTagValues = (
   index: number
 ): string[] => {
   // if we're grouping, we want to be able to group on all previous tags
-  if (
-    isFlagEnabled('queryBuilderGrouping') &&
-    aggregateFunctionType === 'group'
-  ) {
+  if (aggregateFunctionType === 'group') {
     const values = []
     activeQueryBuilderTags.forEach(tag => {
       tag.values.forEach(value => {

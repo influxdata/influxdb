@@ -5,7 +5,6 @@ export const OSS_FLAGS = {
   deleteWithPredicate: false,
   downloadCellCSV: false,
   telegrafEditor: false,
-  queryBuilderGrouping: false,
   customCheckQuery: false,
   matchingNotificationRules: false,
 }
@@ -15,7 +14,6 @@ export const CLOUD_FLAGS = {
   cloudBilling: CLOUD_BILLING_VISIBLE, // should be visible in dev and acceptance, but not in cloud
   downloadCellCSV: false,
   telegrafEditor: false,
-  queryBuilderGrouping: false,
   customCheckQuery: false,
   matchingNotificationRules: false,
 }
