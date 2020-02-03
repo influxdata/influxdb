@@ -216,7 +216,6 @@ export const updateCheckDisplayProperties = (
   update: CheckPatch
 ) => async (dispatch: Dispatch<Action | NotificationAction>) => {
   try {
-    dispatch(setCheck(checkID, RemoteDataState.Loading))
     const resp = await api.patchCheck({checkID, data: update})
     if (resp.status !== 200) {
       throw new Error(resp.data.message)

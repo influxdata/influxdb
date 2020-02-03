@@ -93,7 +93,7 @@ export const checkSchema = new schema.Entity(
         ...check,
         status: RemoteDataState.Done,
         checkStatus: check.status,
-        labels: check.labels.map(addLabelDefaults),
+        labels: addLabels(check),
       }
     },
   }
@@ -156,7 +156,7 @@ const addEndpointDefaults = (point: GenEndpoint): NotificationEndpoint => {
     ...point,
     status: RemoteDataState.Done,
     endpointStatus: point.status,
-    labels: point.labels.map(addLabelDefaults),
+    labels: addLabels(point),
   }
 }
 

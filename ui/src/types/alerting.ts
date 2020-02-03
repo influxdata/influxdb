@@ -36,6 +36,7 @@ type EndpointOverrides = {
   status: RemoteDataState
   endpointStatus: TaskStatusType
 }
+// GenEndpoint is the shape of a NotificationEndpoint from the server -- before any UI specific fields are or modified
 export type GenEndpoint = GenEndpoint
 export type NotificationEndpoint =
   | Omit<SlackNotificationEndpoint, 'status'> & EndpointOverrides
@@ -46,6 +47,7 @@ export type NotificationEndpointBase = GenEndpointBase & EndpointOverrides
 /* Rule */
 type RuleOverrides = {status: RemoteDataState; ruleStatus: TaskStatusType}
 
+// GenRule is the shape of a NotificationRule from the server -- before any UI specific fields are added or modified
 export type GenRule = GenRule
 export type NotificationRule = GenRule & RuleOverrides
 
@@ -118,7 +120,10 @@ export interface NotificationRow {
 type CheckOverrides = {status: RemoteDataState; checkStatus: TaskStatusType}
 export type CheckBase = Omit<GenCheckBase, 'status'> & CheckOverrides
 
+// GenCheck is the shape of a Check from the server -- before UI specific properties are added
 export type GenCheck = GenCheck
+export type GenThresholdCheck = GenThresholdCheck
+export type GenDeadmanCheck = GenDeadmanCheck
 
 export type ThresholdCheck = Omit<GenThresholdCheck, 'status'> & CheckOverrides
 
@@ -167,4 +172,5 @@ export {
   NotificationEndpointUpdate,
   PostNotificationRule,
   CheckPatch,
+  TaskStatusType,
 } from '../client'

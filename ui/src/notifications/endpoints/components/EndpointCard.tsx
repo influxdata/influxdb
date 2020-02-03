@@ -14,13 +14,7 @@ import {
 } from 'src/notifications/endpoints/actions/thunks'
 
 // Components
-import {
-  SlideToggle,
-  ComponentSize,
-  ResourceCard,
-  SpinnerContainer,
-  TechnoSpinner,
-} from '@influxdata/clockface'
+import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import EndpointCardMenu from 'src/notifications/endpoints/components/EndpointCardMenu'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
@@ -168,26 +162,19 @@ const EndpointCard: FC<Props> = ({
   )
 
   return (
-    <SpinnerContainer
-      spinnerComponent={<TechnoSpinner />}
-      loading={endpoint.status}
-    >
-      <ResourceCard
-        key={id}
-        toggle={toggle}
-        name={nameComponent}
-        contextMenu={contextMenu}
-        description={descriptionComponent}
-        labels={labelsComponent}
-        disabled={endpointStatus === 'inactive'}
-        metaData={[
-          <>
-            {relativeTimestampFormatter(endpoint.updatedAt, 'Last updated ')}
-          </>,
-        ]}
-        testID={`endpoint-card ${name}`}
-      />
-    </SpinnerContainer>
+    <ResourceCard
+      key={id}
+      toggle={toggle}
+      name={nameComponent}
+      contextMenu={contextMenu}
+      description={descriptionComponent}
+      labels={labelsComponent}
+      disabled={endpointStatus === 'inactive'}
+      metaData={[
+        <>{relativeTimestampFormatter(endpoint.updatedAt, 'Last updated ')}</>,
+      ]}
+      testID={`endpoint-card ${name}`}
+    />
   )
 }
 

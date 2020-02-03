@@ -97,7 +97,7 @@ const mstp = (state: AppState) => {
     labels: {list: labels},
   } = state
 
-  const checks = getAll<Check>(state, ResourceType.NotificationEndpoints)
+  const checks = getAll<Check>(state, ResourceType.Checks)
 
   const endpoints = getAll<NotificationEndpoint>(
     state,

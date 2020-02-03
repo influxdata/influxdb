@@ -139,8 +139,8 @@ export default (
       )
     }
 
-    case 'SET_ALERT_BUILER_CHECK_STATUS': {
-      return {...state, status: action.payload.checkStatus}
+    case 'SET_ALERT_BUILDER_STATUS': {
+      return {...state, status: action.payload.status}
     }
 
     case 'SET_ALERT_BUILDER_EVERY': {

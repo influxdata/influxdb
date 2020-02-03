@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FC} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -50,7 +50,7 @@ interface OwnProps {
 
 type Props = OwnProps & DispatchProps & WithRouterProps & StateProps
 
-const CheckCard: FunctionComponent<Props> = ({
+const CheckCard: FC<Props> = ({
   onRemoveCheckLabel,
   onAddCheckLabel,
   onCloneCheck,

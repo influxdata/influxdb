@@ -10,7 +10,7 @@ export const getResourcesStatus = (
       // Normalized resource statuses
       case ResourceType.Authorizations:
       case ResourceType.Buckets:
-      case ResourceType.Labels:
+      case ResourceType.Checks:
       case ResourceType.Dashboards:
       case ResourceType.Members:
       case ResourceType.NotificationEndpoints:
