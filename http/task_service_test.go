@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/mock"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
@@ -392,7 +393,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			taskBackend := NewMockTaskBackend(t)
-			taskBackend.HTTPErrorHandler = ErrorHandler(0)
+			taskBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			taskBackend.LabelService = tt.fields.labelService
 			h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
@@ -559,7 +560,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			taskBackend := NewMockTaskBackend(t)
-			taskBackend.HTTPErrorHandler = ErrorHandler(0)
+			taskBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 			h.handlePostTask(w, r)
@@ -673,7 +674,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &platform.Authorization{Permissions: platform.OperPermissions()}))
 			w := httptest.NewRecorder()
 			taskBackend := NewMockTaskBackend(t)
-			taskBackend.HTTPErrorHandler = ErrorHandler(0)
+			taskBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 			h.handleGetRun(w, r)
@@ -791,7 +792,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &platform.Authorization{Permissions: platform.OperPermissions()}))
 			w := httptest.NewRecorder()
 			taskBackend := NewMockTaskBackend(t)
-			taskBackend.HTTPErrorHandler = ErrorHandler(0)
+			taskBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 			h.handleGetRuns(w, r)
@@ -822,7 +823,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 
 	im := newInMemKVSVC(t)
 	taskBackend := NewMockTaskBackend(t)
-	taskBackend.HTTPErrorHandler = ErrorHandler(0)
+	taskBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 	h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 	h.UserResourceMappingService = im
 	h.LabelService = im
@@ -1345,7 +1346,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 	newHandler := func(t *testing.T, ts *mock.TaskService) *TaskHandler {
 		return NewTaskHandler(zaptest.NewLogger(t), &TaskBackend{
-			HTTPErrorHandler: ErrorHandler(0),
+			HTTPErrorHandler: kithttp.ErrorHandler(0),
 			log:              zaptest.NewLogger(t),
 
 			TaskService:                ts,

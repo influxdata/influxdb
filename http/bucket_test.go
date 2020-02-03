@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/pkg/httpc"
@@ -324,7 +325,7 @@ func TestService_handleGetBucket(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bucketBackend := NewMockBucketBackend(t)
-			bucketBackend.HTTPErrorHandler = ErrorHandler(0)
+			bucketBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			bucketBackend.BucketService = tt.fields.BucketService
 			h := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
 
@@ -463,7 +464,7 @@ func TestService_handlePostBucket(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bucketBackend := NewMockBucketBackend(t)
-			bucketBackend.HTTPErrorHandler = ErrorHandler(0)
+			bucketBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			bucketBackend.BucketService = tt.fields.BucketService
 			bucketBackend.OrganizationService = tt.fields.OrganizationService
 			h := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
@@ -562,7 +563,7 @@ func TestService_handleDeleteBucket(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bucketBackend := NewMockBucketBackend(t)
-			bucketBackend.HTTPErrorHandler = ErrorHandler(0)
+			bucketBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			bucketBackend.BucketService = tt.fields.BucketService
 			h := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
 
@@ -929,7 +930,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bucketBackend := NewMockBucketBackend(t)
-			bucketBackend.HTTPErrorHandler = ErrorHandler(0)
+			bucketBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			bucketBackend.BucketService = tt.fields.BucketService
 			h := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
 
@@ -1198,7 +1199,7 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 	}
 
 	bucketBackend := NewMockBucketBackend(t)
-	bucketBackend.HTTPErrorHandler = ErrorHandler(0)
+	bucketBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 	bucketBackend.BucketService = svc
 	bucketBackend.OrganizationService = svc
 	handler := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
