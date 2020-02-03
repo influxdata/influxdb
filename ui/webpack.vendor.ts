@@ -20,6 +20,24 @@ module.exports = {
   entry: {
     vendor,
   },
+  resolve: {
+    alias: {
+      vscode: path.resolve(
+        './node_modules/monaco-languageclient/lib/vscode-compatibility'
+      ),
+    },
+  },
+  node: {
+    fs: 'empty',
+    global: true,
+    crypto: 'empty',
+    tls: 'empty',
+    net: 'empty',
+    process: true,
+    module: false,
+    clearImmediate: false,
+    setImmediate: true,
+  },
   output: {
     path: path.join(__dirname, 'build'),
     filename: '[name].bundle.js',
