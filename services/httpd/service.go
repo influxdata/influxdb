@@ -132,6 +132,8 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 		zap.Stringer("addr", s.ln.Addr()),
 		zap.Bool("https", s.https))
 
+	reg.Register("http")
+
 	// Open unix socket listener.
 	if s.unixSocket {
 		if runtime.GOOS == "windows" {
