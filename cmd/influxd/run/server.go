@@ -276,11 +276,11 @@ func (s *Server) appendRetentionPolicyService(c retention.Config) {
 	s.Services = append(s.Services, srv)
 }
 
-func (s *Server) appendHTTPDService(c httpd.Config) {
+func (s *Server) appendHTTPDService(c httpd.Config, reg services.Registry) {
 	if !c.Enabled {
 		return
 	}
-	srv := httpd.NewService(c)
+	srv := httpd.NewService(c, reg)
 	srv.Handler.MetaClient = s.MetaClient
 	authorizer := meta.NewQueryAuthorizer(s.MetaClient)
 	srv.Handler.QueryAuthorizer = authorizer
@@ -391,12 +391,14 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 	mux := tcp.NewMux()
 	go mux.Serve(ln)
 
+	reg := services.NewRegistry()
+
 	// Append services.
 	s.appendMonitorService()
 	s.appendPrecreatorService(s.config.Precreator)
 	s.appendSnapshotterService()
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
-	s.appendHTTPDService(s.config.HTTPD)
+	s.appendHTTPDService(s.config.HTTPD, reg)
 	s.appendRetentionPolicyService(s.config.Retention)
 
 	for _, i := range s.config.GraphiteInputs {
@@ -444,8 +446,6 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 	s.Services = append(s.Services, s.TSDBStore, s.Subscriber, s.PointsWriter)
 
 	s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
-
-	reg := services.NewRegistry()
 
 	// asyncronously start all services. we run this loop in a go routine so we
 	// can block on the supplied context as soon as possible.  FIXME: this might
