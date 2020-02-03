@@ -319,6 +319,7 @@ http.post(
       cy.get<Bucket>('@bucket').then(bucket => {
         cy.getByTestID('flux-editor').within(() => {
           cy.get('.react-monaco-editor-container')
+            .should('be.visible')
             .click()
             .focused()
             .type(flux(bucket), {force: true, delay: 2})
@@ -414,6 +415,7 @@ function createFirstTask(
   cy.get<Bucket>('@bucket').then(bucket => {
     cy.getByTestID('flux-editor').within(() => {
       cy.get('.react-monaco-editor-container')
+        .should('be.visible')
         .click()
         .focused()
         .type(flux(bucket), {force: true, delay: 2})
