@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"go.uber.org/zap"
 )
@@ -39,7 +40,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts retention policy enforcement.
-func (s *Service) Open(ctx context.Context) error {
+func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 	if !s.config.Enabled || s.done != nil {
 		return nil
 	}

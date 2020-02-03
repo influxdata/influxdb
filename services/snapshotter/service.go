@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -62,7 +63,7 @@ func NewService() *Service {
 }
 
 // Open starts the service.
-func (s *Service) Open(ctx context.Context) error {
+func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 	s.Logger.Info("Starting snapshot service")
 
 	s.wg.Add(1)

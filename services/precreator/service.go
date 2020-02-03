@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/services"
 	"go.uber.org/zap"
 )
 
@@ -40,7 +41,7 @@ func (s *Service) WithLogger(log *zap.Logger) {
 }
 
 // Open starts the precreation service.
-func (s *Service) Open(ctx context.Context) error {
+func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 	if s.done != nil {
 		return nil
 	}

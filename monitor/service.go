@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/services"
 	"go.uber.org/zap"
 )
 
@@ -94,7 +95,7 @@ func (m *Monitor) open() bool {
 
 // Open opens the monitoring system, using the given clusterID, node ID, and hostname
 // for identification purpose.
-func (m *Monitor) Open(ctx context.Context) error {
+func (m *Monitor) Open(ctx context.Context, reg services.Registry) error {
 	if m.open() {
 		m.Logger.Info("Monitor is already open")
 		return nil
@@ -215,7 +216,7 @@ func (m *Monitor) SetPointsWriter(pw PointsWriter) error {
 	// Subsequent calls to an already open Monitor are just a no-op.
 
 	// FIXME: should we be running m.Open() here?
-	return m.Open(context.TODO())
+	return m.Open(context.TODO(), nil)
 }
 
 // WithLogger sets the logger for the Monitor.

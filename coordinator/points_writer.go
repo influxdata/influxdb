@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -121,7 +122,7 @@ func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
 }
 
 // Open opens the communication channel with the point writer.
-func (w *PointsWriter) Open(ctx context.Context) error {
+func (w *PointsWriter) Open(ctx context.Context, reg services.Registry) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.closing = make(chan struct{})

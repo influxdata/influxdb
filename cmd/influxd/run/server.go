@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
-	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -21,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/graphite"
@@ -376,44 +376,6 @@ func (s *Server) Open() error {
 	return s.OpenWithContext(context.Background())
 }
 
-type ServiceRegistry interface {
-	IsRunning(string) bool   // indicates if a service is running by name
-	Register(string) error   // register a service as running
-	Unregister(string) error // remove a running service
-}
-
-type localRegistry struct {
-	sync.RWMutex
-	s map[string]struct{}
-}
-
-func (l *localRegistry) IsRunning(s string) bool {
-	l.RLock()
-	defer l.RUnlock()
-	_, ok := l.s[s]
-	return ok
-}
-
-func (l *localRegistry) Register(s string) error {
-	l.Lock()
-	defer l.Unlock()
-	if _, ok := l.s[s]; ok {
-		return fmt.Errorf("%s already registered", s)
-	}
-	l.s[s] = struct{}{}
-	return nil
-}
-
-func (l *localRegistry) Unregister(s string) error {
-	l.Lock()
-	defer l.Unlock()
-	if _, ok := l.s[s]; !ok {
-		return fmt.Errorf("%s not registered", s)
-	}
-	delete(l.s, s)
-	return nil
-}
-
 func (s *Server) OpenWithContext(ctx context.Context) error {
 	// Start profiling, if set.
 	startProfile(s.CPUProfile, s.MemProfile)
@@ -483,6 +445,8 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 
 	s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
 
+	reg := services.NewRegistry()
+
 	// asyncronously start all services. we run this loop in a go routine so we
 	// can block on the supplied context as soon as possible.  FIXME: this might
 	// be unnessesary.
@@ -501,7 +465,7 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 			// channel len(s.Services) times which will block until all services have
 			// exited.
 			sem <- struct{}{}
-			if err := svc.Open(ctx); err != nil {
+			if err := svc.Open(ctx, reg); err != nil {
 				// if there was an error, report it to s.err s.err <- err
 				//
 				// subtle: we want to report errors to s.err but if nothing is
@@ -626,7 +590,7 @@ func (s *Server) reportServer() {
 // Service represents a service attached to the server.
 type Service interface {
 	WithLogger(log *zap.Logger)
-	Open(context.Context) error
+	Open(context.Context, services.Registry) error
 	Close() error
 }
 
