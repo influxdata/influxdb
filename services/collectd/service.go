@@ -71,8 +71,7 @@ type Service struct {
 	addr    net.Addr
 
 	mu    sync.RWMutex
-	ready bool          // Has the required database been created?
-	done  chan struct{} // Is the service closing or closed?
+	ready bool // Has the required database been created?
 
 	// expvar-based stats.
 	stats       *Statistics
@@ -97,11 +96,6 @@ func NewService(c Config) *Service {
 func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	if s.done != nil {
-		return nil // Already open.
-	}
-	s.done = make(chan struct{})
 
 	s.Logger.Info("Starting collectd service")
 
@@ -207,7 +201,7 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 	// Create waitgroup for signalling goroutines to stop and start goroutines
 	// that process collectd packets.
 	s.wg.Add(2)
-	go func() { defer s.wg.Done(); s.serve() }()
+	go func() { defer s.wg.Done(); s.serve(ctx) }()
 	go func() { defer s.wg.Done(); s.writePoints(ctx) }()
 
 	<-ctx.Done()
@@ -220,11 +214,6 @@ func (s *Service) Close() error {
 	if wait := func() bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-
-		if s.closed() {
-			return false
-		}
-		close(s.done)
 
 		// Close the connection, and wait for the goroutine to exit.
 		if s.conn != nil {
@@ -248,18 +237,7 @@ func (s *Service) Close() error {
 	s.conn = nil
 	s.batcher = nil
 	s.Logger.Info("Closed collectd service")
-	s.done = nil
 	return nil
-}
-
-func (s *Service) closed() bool {
-	select {
-	case <-s.done:
-		// Service is closing.
-		return true
-	default:
-	}
-	return s.done == nil
 }
 
 // createInternalStorage ensures that the required database has been created.
@@ -329,7 +307,7 @@ func (s *Service) Addr() net.Addr {
 	return s.conn.LocalAddr()
 }
 
-func (s *Service) serve() {
+func (s *Service) serve(ctx context.Context) {
 	// From https://collectd.org/wiki/index.php/Binary_protocol
 	//   1024 bytes (payload only, not including UDP / IP headers)
 	//   In versions 4.0 through 4.7, the receive buffer has a fixed size
@@ -342,8 +320,7 @@ func (s *Service) serve() {
 
 	for {
 		select {
-		case <-s.done:
-			// We closed the connection, time to go.
+		case <-ctx.Done():
 			return
 		default:
 			// Keep processing.
@@ -353,7 +330,7 @@ func (s *Service) serve() {
 		if err != nil {
 			if strings.Contains(err.Error(), "use of closed network connection") {
 				select {
-				case <-s.done:
+				case <-ctx.Done():
 					return
 				default:
 					// The socket wasn't closed by us so consider it an error.

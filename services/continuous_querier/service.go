@@ -132,7 +132,7 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 	s.stop = make(chan struct{})
 	s.wg = &sync.WaitGroup{}
 	s.wg.Add(1)
-	go s.backgroundLoop()
+	go s.backgroundLoop(ctx)
 
 	<-ctx.Done()
 	return nil
@@ -210,14 +210,14 @@ func (s *Service) Run(database, name string, t time.Time) error {
 }
 
 // backgroundLoop runs on a go routine and periodically executes CQs.
-func (s *Service) backgroundLoop() {
+func (s *Service) backgroundLoop(ctx context.Context) {
 	leaseName := "continuous_querier"
 	t := time.NewTimer(s.RunInterval)
 	defer t.Stop()
 	defer s.wg.Done()
 	for {
 		select {
-		case <-s.stop:
+		case <-ctx.Done():
 			s.Logger.Info("Terminating continuous query service")
 			return
 		case req := <-s.RunCh:
