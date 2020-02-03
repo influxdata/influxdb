@@ -114,6 +114,9 @@ func (s *SeriesSegment) Open() error {
 	return nil
 }
 
+// Path returns the file path to the segment.
+func (s *SeriesSegment) Path() string { return s.path }
+
 // InitForWrite initializes a write handle for the segment.
 // This is only used for the last segment in the series file.
 func (s *SeriesSegment) InitForWrite() (err error) {
@@ -260,6 +263,48 @@ func (s *SeriesSegment) Clone() *SeriesSegment {
 		data: s.data,
 		size: s.size,
 	}
+}
+
+// CompactToPath rewrites the segment to a new file and removes tombstoned entries.
+func (s *SeriesSegment) CompactToPath(path string, index *SeriesIndex) error {
+	dst, err := CreateSeriesSegment(s.id, path)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+
+	if err = dst.InitForWrite(); err != nil {
+		return err
+	}
+
+	// Iterate through the segment and write any entries to a new segment
+	// that exist in the index.
+	var buf []byte
+	if err = s.ForEachEntry(func(flag uint8, id uint64, _ int64, key []byte) error {
+		if index.IsDeleted(id) {
+			return nil // series id has been deleted from index
+		} else if flag == SeriesEntryTombstoneFlag {
+			return fmt.Errorf("[series id %d]: tombstone entry but exists in index", id)
+		}
+
+		// copy entry over to new segment
+		buf = AppendSeriesEntry(buf[:0], flag, id, key)
+		if _, err := dst.WriteLogEntry(buf); err != nil {
+			return err
+		}
+		return err
+	}); err != nil {
+		return err
+	}
+
+	// Close the segment and truncate it to its maximum size.
+	size := dst.size
+	if err := dst.Close(); err != nil {
+		return err
+	} else if err := os.Truncate(dst.path, int64(size)); err != nil {
+		return err
+	}
+	return nil
 }
 
 // CloneSeriesSegments returns a copy of a slice of segments.
