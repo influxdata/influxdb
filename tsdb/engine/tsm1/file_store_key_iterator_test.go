@@ -149,34 +149,36 @@ func (t *mockTSMFile) KeyAt(idx int) ([]byte, byte) {
 	return []byte(t.keys[idx]), BlockFloat64
 }
 
-func (*mockTSMFile) Path() string                                               { panic("implement me") }
-func (*mockTSMFile) Read(key []byte, t int64) ([]Value, error)                  { panic("implement me") }
-func (*mockTSMFile) ReadAt(entry *IndexEntry, values []Value) ([]Value, error)  { panic("implement me") }
-func (*mockTSMFile) Entries(key []byte) []IndexEntry                            { panic("implement me") }
-func (*mockTSMFile) ReadEntries(key []byte, entries *[]IndexEntry) []IndexEntry { panic("implement me") }
-func (*mockTSMFile) ContainsValue(key []byte, t int64) bool                     { panic("implement me") }
-func (*mockTSMFile) Contains(key []byte) bool                                   { panic("implement me") }
-func (*mockTSMFile) OverlapsTimeRange(min, max int64) bool                      { panic("implement me") }
-func (*mockTSMFile) OverlapsKeyRange(min, max []byte) bool                      { panic("implement me") }
-func (*mockTSMFile) TimeRange() (int64, int64)                                  { panic("implement me") }
-func (*mockTSMFile) TombstoneRange(key []byte) []TimeRange                      { panic("implement me") }
-func (*mockTSMFile) KeyRange() ([]byte, []byte)                                 { panic("implement me") }
-func (*mockTSMFile) Type(key []byte) (byte, error)                              { panic("implement me") }
-func (*mockTSMFile) BatchDelete() BatchDeleter                                  { panic("implement me") }
-func (*mockTSMFile) Delete(keys [][]byte) error                                 { panic("implement me") }
-func (*mockTSMFile) DeleteRange(keys [][]byte, min, max int64) error            { panic("implement me") }
-func (*mockTSMFile) HasTombstones() bool                                        { panic("implement me") }
-func (*mockTSMFile) TombstoneFiles() []FileStat                                 { panic("implement me") }
-func (*mockTSMFile) Close() error                                               { panic("implement me") }
-func (*mockTSMFile) Size() uint32                                               { panic("implement me") }
-func (*mockTSMFile) Rename(path string) error                                   { panic("implement me") }
-func (*mockTSMFile) Remove() error                                              { panic("implement me") }
-func (*mockTSMFile) InUse() bool                                                { panic("implement me") }
-func (*mockTSMFile) Ref()                                                       { panic("implement me") }
-func (*mockTSMFile) Unref()                                                     { panic("implement me") }
-func (*mockTSMFile) Stats() FileStat                                            { panic("implement me") }
-func (*mockTSMFile) BlockIterator() *BlockIterator                              { panic("implement me") }
-func (*mockTSMFile) Free() error                                                { panic("implement me") }
+func (*mockTSMFile) Path() string                                              { panic("implement me") }
+func (*mockTSMFile) Read(key []byte, t int64) ([]Value, error)                 { panic("implement me") }
+func (*mockTSMFile) ReadAt(entry *IndexEntry, values []Value) ([]Value, error) { panic("implement me") }
+func (*mockTSMFile) Entries(key []byte) []IndexEntry                           { panic("implement me") }
+func (*mockTSMFile) ReadEntries(key []byte, entries *[]IndexEntry) []IndexEntry {
+	panic("implement me")
+}
+func (*mockTSMFile) ContainsValue(key []byte, t int64) bool          { panic("implement me") }
+func (*mockTSMFile) Contains(key []byte) bool                        { panic("implement me") }
+func (*mockTSMFile) OverlapsTimeRange(min, max int64) bool           { panic("implement me") }
+func (*mockTSMFile) OverlapsKeyRange(min, max []byte) bool           { panic("implement me") }
+func (*mockTSMFile) TimeRange() (int64, int64)                       { panic("implement me") }
+func (*mockTSMFile) TombstoneRange(key []byte) []TimeRange           { panic("implement me") }
+func (*mockTSMFile) KeyRange() ([]byte, []byte)                      { panic("implement me") }
+func (*mockTSMFile) Type(key []byte) (byte, error)                   { panic("implement me") }
+func (*mockTSMFile) BatchDelete() BatchDeleter                       { panic("implement me") }
+func (*mockTSMFile) Delete(keys [][]byte) error                      { panic("implement me") }
+func (*mockTSMFile) DeleteRange(keys [][]byte, min, max int64) error { panic("implement me") }
+func (*mockTSMFile) HasTombstones() bool                             { panic("implement me") }
+func (*mockTSMFile) TombstoneFiles() []FileStat                      { panic("implement me") }
+func (*mockTSMFile) Close() error                                    { panic("implement me") }
+func (*mockTSMFile) Size() uint32                                    { panic("implement me") }
+func (*mockTSMFile) Rename(path string) error                        { panic("implement me") }
+func (*mockTSMFile) Remove() error                                   { panic("implement me") }
+func (*mockTSMFile) InUse() bool                                     { panic("implement me") }
+func (*mockTSMFile) Ref()                                            { panic("implement me") }
+func (*mockTSMFile) Unref()                                          { panic("implement me") }
+func (*mockTSMFile) Stats() FileStat                                 { panic("implement me") }
+func (*mockTSMFile) BlockIterator() *BlockIterator                   { panic("implement me") }
+func (*mockTSMFile) Free() error                                     { panic("implement me") }
 
 func (*mockTSMFile) ReadFloatBlockAt(*IndexEntry, *[]FloatValue) ([]FloatValue, error) {
 	panic("implement me")
