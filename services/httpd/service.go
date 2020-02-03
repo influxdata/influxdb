@@ -70,7 +70,7 @@ type Service struct {
 }
 
 // NewService returns a new instance of Service.
-func NewService(c Config) *Service {
+func NewService(c Config, reg services.Registry) *Service {
 	s := &Service{
 		addr:           c.BindAddress,
 		https:          c.HTTPSEnabled,
@@ -82,7 +82,7 @@ func NewService(c Config) *Service {
 		unixSocket:     c.UnixSocketEnabled,
 		unixSocketPerm: uint32(c.UnixSocketPermissions),
 		bindSocket:     c.BindSocket,
-		Handler:        NewHandler(c),
+		Handler:        NewHandler(c, reg),
 		Logger:         zap.NewNop(),
 	}
 	if s.tlsConfig == nil {

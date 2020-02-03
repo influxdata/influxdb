@@ -230,6 +230,8 @@ func (s *Store) Open(ctx context.Context, reg services.Registry) error {
 		go s.monitorShards(ctx)
 	}
 
+	reg.Register("tsdb")
+
 	<-ctx.Done()
 
 	return nil

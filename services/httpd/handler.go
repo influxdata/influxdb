@@ -36,6 +36,7 @@ import (
 	"github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/storage/reads"
@@ -136,7 +137,7 @@ type Handler struct {
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(c Config) *Handler {
+func NewHandler(c Config, reg services.Registry) *Handler {
 	h := &Handler{
 		mux:            pat.New(),
 		Config:         &c,
@@ -188,7 +189,12 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{
 			"write", // Data-ingest route.
-			"POST", "/write", true, writeLogEnabled, h.serveWrite,
+			"POST", "/write", true, writeLogEnabled,
+			func(w http.ResponseWriter, r *http.Request, user meta.User) {
+				if reg.IsRunning("tsqb") {
+					h.serveWrite(w, r, user)
+				}
+			},
 		},
 		Route{
 			"prometheus-write", // Prometheus remote write

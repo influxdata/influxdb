@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
