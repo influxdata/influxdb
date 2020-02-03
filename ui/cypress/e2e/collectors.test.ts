@@ -403,6 +403,7 @@ describe('Collectors', () => {
         cy.getByTestID('label--pill zoe').should('exist')
         //can search by label
         cy.getByTestID('search-widget')
+          .should('be.visible')
           .clear()
           .type('zoe')
 

@@ -319,6 +319,7 @@ http.post(
       cy.get<Bucket>('@bucket').then(bucket => {
         cy.getByTestID('flux-editor').within(() => {
           cy.get('.react-monaco-editor-container')
+            .should('be.visible')
             .click()
             .focused()
             .type(flux(bucket), {force: true, delay: 2})
@@ -334,7 +335,7 @@ http.post(
         .click()
     })
 
-    it('when navigating using the navbar', () => {
+    it.only('when navigating using the navbar', () => {
       // verify that the previously input data exists
       cy.getByInputValue(firstTask)
       // navigate home
@@ -414,6 +415,7 @@ function createFirstTask(
   cy.get<Bucket>('@bucket').then(bucket => {
     cy.getByTestID('flux-editor').within(() => {
       cy.get('.react-monaco-editor-container')
+        .should('be.visible')
         .click()
         .focused()
         .type(flux(bucket), {force: true, delay: 2})
