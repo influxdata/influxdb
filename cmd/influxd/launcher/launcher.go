@@ -30,6 +30,7 @@ import (
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/signals"
 	"github.com/influxdata/influxdb/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/kv"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/nats"
@@ -766,7 +767,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
-		HTTPErrorHandler:     http.ErrorHandler(0),
+		HTTPErrorHandler:     kithttp.ErrorHandler(0),
 		Logger:               m.log,
 		SessionRenewDisabled: m.sessionRenewDisabled,
 		NewBucketService:     source.NewBucketService,

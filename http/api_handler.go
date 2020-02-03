@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/chronograf/server"
 	"github.com/influxdata/influxdb/http/metric"
 	"github.com/influxdata/influxdb/kit/prom"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/prometheus/client_golang/prometheus"
@@ -99,20 +100,12 @@ func (b *APIBackend) PrometheusCollectors() []prometheus.Collector {
 	return cs
 }
 
-// ResourceHandler is an HTTP handler for a resource. The prefix
-// describes the url path prefix that relates to the handler
-// endpoints.
-type ResourceHandler interface {
-	Prefix() string
-	http.Handler
-}
-
 // APIHandlerOptFn is a functional input param to set parameters on
 // the APIHandler.
 type APIHandlerOptFn func(chi.Router)
 
 // WithResourceHandler registers a resource handler on the APIHandler.
-func WithResourceHandler(resHandler ResourceHandler) APIHandlerOptFn {
+func WithResourceHandler(resHandler kithttp.ResourceHandler) APIHandlerOptFn {
 	return func(h chi.Router) {
 		h.Mount(resHandler.Prefix(), resHandler)
 	}

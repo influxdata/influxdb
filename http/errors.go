@@ -15,11 +15,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	// PlatformErrorCodeHeader shows the error code of platform error.
-	PlatformErrorCodeHeader = "X-Platform-Error-Code"
-)
-
 // AuthzError is returned for authorization errors. When this error type is returned,
 // the user can be presented with a generic "authorization failed" error, but
 // the system can log the underlying AuthzError() so that operators have insight
@@ -94,40 +89,6 @@ func CheckError(resp *http.Response) (err error) {
 	}
 }
 
-// ErrorHandler is the error handler in http package.
-type ErrorHandler int
-
-// HandleHTTPError encodes err with the appropriate status code and format,
-// sets the X-Platform-Error-Code headers on the response.
-// We're no longer using X-Influx-Error and X-Influx-Reference.
-// and sets the response status to the corresponding status code.
-func (h ErrorHandler) HandleHTTPError(ctx context.Context, err error, w http.ResponseWriter) {
-	if err == nil {
-		return
-	}
-
-	code := platform.ErrorCode(err)
-	httpCode, ok := statusCodePlatformError[code]
-	if !ok {
-		httpCode = http.StatusBadRequest
-	}
-	w.Header().Set(PlatformErrorCodeHeader, code)
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(httpCode)
-	var e struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	}
-	e.Code = platform.ErrorCode(err)
-	if err, ok := err.(*platform.Error); ok {
-		e.Message = err.Error()
-	} else {
-		e.Message = "An internal error has occurred"
-	}
-	b, _ := json.Marshal(e)
-	_, _ = w.Write(b)
-}
-
 // UnauthorizedError encodes a error message and status code for unauthorized access.
 func UnauthorizedError(ctx context.Context, h platform.HTTPErrorHandler, w http.ResponseWriter) {
 	h.HandleHTTPError(ctx, &platform.Error{
@@ -142,20 +103,4 @@ func InactiveUserError(ctx context.Context, h platform.HTTPErrorHandler, w http.
 		Code: platform.EForbidden,
 		Msg:  "User is inactive",
 	}, w)
-}
-
-// statusCodePlatformError is the map convert platform.Error to error
-var statusCodePlatformError = map[string]int{
-	platform.EInternal:            http.StatusInternalServerError,
-	platform.EInvalid:             http.StatusBadRequest,
-	platform.EUnprocessableEntity: http.StatusUnprocessableEntity,
-	platform.EEmptyValue:          http.StatusBadRequest,
-	platform.EConflict:            http.StatusUnprocessableEntity,
-	platform.ENotFound:            http.StatusNotFound,
-	platform.EUnavailable:         http.StatusServiceUnavailable,
-	platform.EForbidden:           http.StatusForbidden,
-	platform.ETooManyRequests:     http.StatusTooManyRequests,
-	platform.EUnauthorized:        http.StatusUnauthorized,
-	platform.EMethodNotAllowed:    http.StatusMethodNotAllowed,
-	platform.ETooLarge:            http.StatusRequestEntityTooLarge,
 }
