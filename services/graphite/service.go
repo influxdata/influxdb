@@ -74,8 +74,7 @@ type Service struct {
 	wg sync.WaitGroup
 
 	mu    sync.RWMutex
-	ready bool          // Has the required database been created?
-	done  chan struct{} // Is the service closing or closed?
+	ready bool // Has the required database been created?
 
 	Monitor interface {
 		RegisterDiagnosticsClient(name string, client diagnostics.Client)
@@ -131,11 +130,6 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.done != nil {
-		return nil // Already open.
-	}
-	s.done = make(chan struct{})
-
 	s.logger.Info("Starting graphite service",
 		zap.Int("batch_size", s.batchSize),
 		logger.DurationLiteral("batch_timeout", s.batchTimeout))
@@ -150,7 +144,7 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 
 	// Start processing batches.
 	s.wg.Add(1)
-	go s.processBatches(s.batcher)
+	go s.processBatches(ctx, s.batcher)
 
 	var err error
 	if strings.ToLower(s.protocol) == "tcp" {
@@ -187,11 +181,6 @@ func (s *Service) Close() error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
-		if s.closed() {
-			return false
-		}
-		close(s.done)
-
 		s.closeAllConnections()
 
 		if s.ln != nil {
@@ -215,28 +204,7 @@ func (s *Service) Close() error {
 
 	s.wg.Wait()
 
-	s.mu.Lock()
-	s.done = nil
-	s.mu.Unlock()
-
 	return nil
-}
-
-// Closed returns true if the service is currently closed.
-func (s *Service) Closed() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.closed()
-}
-
-func (s *Service) closed() bool {
-	select {
-	case <-s.done:
-		// Service is closing.
-		return true
-	default:
-	}
-	return s.done == nil
 }
 
 // createInternalStorage ensures that the required database has been created.
@@ -452,7 +420,7 @@ func (s *Service) handleLine(line string) {
 }
 
 // processBatches continually drains the given batcher and writes the batches to the database.
-func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
+func (s *Service) processBatches(ctx context.Context, batcher *tsdb.PointBatcher) {
 	defer s.wg.Done()
 	for {
 		select {
@@ -472,7 +440,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 
-		case <-s.done:
+		case <-ctx.Done():
 			return
 		}
 	}
