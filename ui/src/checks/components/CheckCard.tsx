@@ -62,7 +62,7 @@ const CheckCard: FC<Props> = ({
   labels,
   router,
 }) => {
-  const {id, checkStatus, name, description} = check
+  const {id, activeStatus, name, description} = check
 
   const onUpdateName = (name: string) => {
     try {
@@ -89,7 +89,7 @@ const CheckCard: FC<Props> = ({
   }
 
   const onToggle = () => {
-    const status = checkStatus === 'active' ? 'inactive' : 'active'
+    const status = activeStatus === 'active' ? 'inactive' : 'active'
 
     try {
       onUpdateCheckDisplayProperties(id, {status})
@@ -135,7 +135,7 @@ const CheckCard: FC<Props> = ({
       }
       toggle={
         <SlideToggle
-          active={checkStatus === 'active'}
+          active={activeStatus === 'active'}
           size={ComponentSize.ExtraSmall}
           onChange={onToggle}
           testID="check-card--slide-toggle"
@@ -156,7 +156,7 @@ const CheckCard: FC<Props> = ({
           onRemoveLabel={handleRemoveCheckLabel}
         />
       }
-      disabled={checkStatus === 'inactive'}
+      disabled={activeStatus === 'inactive'}
       contextMenu={
         <CheckCardContext
           onView={onView}

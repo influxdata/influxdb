@@ -86,7 +86,7 @@ export const initRuleDraft = (orgID: string): NotificationRuleDraft => ({
   url: '',
   orgID,
   name: '',
-  ruleStatus: 'active',
+  activeStatus: 'active',
   status: RemoteDataState.NotStarted,
   endpointID: '',
   tagRules: [],
@@ -110,7 +110,7 @@ export const draftRuleToPostRule = (
 ): PostNotificationRule => {
   return {
     ...draftRule,
-    status: draftRule.ruleStatus,
+    status: draftRule.activeStatus,
     statusRules: draftRule.statusRules.map(r => r.value),
     tagRules: draftRule.tagRules
       .map(r => r.value)
@@ -134,7 +134,7 @@ export const ruleToDraftRule = (rule: GenRule): NotificationRuleDraft => {
   return {
     ...rule,
     status: RemoteDataState.Done,
-    ruleStatus: rule.status,
+    activeStatus: rule.status,
     offset: rule.offset || '',
     statusRules: statusRules.map(value => ({cid: uuid.v4(), value})),
     tagRules: tagRules.map(value => ({cid: uuid.v4(), value})),

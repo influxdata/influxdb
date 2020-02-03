@@ -17,7 +17,7 @@ import {
 } from 'src/alerting/constants'
 
 type FromBase = Required<
-  Pick<CheckBase, 'name' | 'id' | 'checkStatus' | 'status'>
+  Pick<CheckBase, 'name' | 'id' | 'activeStatus' | 'status'>
 >
 
 type FromThreshold = Required<
@@ -40,7 +40,7 @@ export interface AlertBuilderState
 
 export const initialState = (): AlertBuilderState => ({
   id: null,
-  checkStatus: 'active',
+  activeStatus: 'active',
   status: RemoteDataState.NotStarted,
   type: 'threshold',
   name: DEFAULT_CHECK_NAME,

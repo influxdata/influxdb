@@ -23,20 +23,20 @@ import {RemoteDataState, Threshold, TaskStatusType} from 'src/types'
 
 const check_1 = {
   ...CHECK_FIXTURE_1,
-  checkStatus: 'inactive' as TaskStatusType,
+  activeStatus: 'inactive' as TaskStatusType,
   status: RemoteDataState.Done,
 }
 
 const check_3 = {
   ...CHECK_FIXTURE_3,
-  checkStatus: 'active' as TaskStatusType,
+  activeStatus: 'active' as TaskStatusType,
   status: RemoteDataState.Done,
 }
 
 const mockState = (): AlertBuilderState => ({
   id: '3',
   type: 'deadman',
-  checkStatus: 'active',
+  activeStatus: 'active',
   name: 'just',
   every: '1m',
   offset: '2m',

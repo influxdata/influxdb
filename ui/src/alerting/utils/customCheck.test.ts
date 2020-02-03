@@ -9,7 +9,7 @@ const bc1: BuilderConfig = {
 }
 
 const ab1: AlertBuilderState = {
-  checkStatus: 'active',
+  activeStatus: 'active',
   status: RemoteDataState.Done,
   statusMessageTemplate: 'this is staus message',
   tags: [{key: 'k1', value: 'v1'}],
@@ -30,7 +30,7 @@ const ab1: AlertBuilderState = {
 }
 
 const ab2: AlertBuilderState = {
-  checkStatus: 'active',
+  activeStatus: 'active',
   status: RemoteDataState.Done,
   statusMessageTemplate: 'this is staus message',
   tags: [{key: 'k1', value: 'v1'}],

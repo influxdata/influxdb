@@ -73,7 +73,7 @@ const EndpointCard: FC<Props> = ({
   onAddEndpointLabel,
   onRemoveEndpointLabel,
 }) => {
-  const {id, name, description, endpointStatus} = endpoint
+  const {id, name, description, activeStatus} = endpoint
 
   const handleUpdateName = (name: string) => {
     onUpdateEndpointProperties(id, {name})
@@ -97,13 +97,13 @@ const EndpointCard: FC<Props> = ({
   )
 
   const handleToggle = () => {
-    const toStatus = endpointStatus === 'active' ? 'inactive' : 'active'
+    const toStatus = activeStatus === 'active' ? 'inactive' : 'active'
     onUpdateEndpointProperties(id, {status: toStatus})
   }
 
   const toggle = (
     <SlideToggle
-      active={endpointStatus === 'active'}
+      active={activeStatus === 'active'}
       size={ComponentSize.ExtraSmall}
       onChange={handleToggle}
       testID="endpoint-card--slide-toggle"
@@ -169,7 +169,7 @@ const EndpointCard: FC<Props> = ({
       contextMenu={contextMenu}
       description={descriptionComponent}
       labels={labelsComponent}
-      disabled={endpointStatus === 'inactive'}
+      disabled={activeStatus === 'inactive'}
       metaData={[
         <>{relativeTimestampFormatter(endpoint.updatedAt, 'Last updated ')}</>,
       ]}

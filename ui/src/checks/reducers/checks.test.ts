@@ -110,12 +110,12 @@ describe('checksReducer', () => {
 
       expect(actual.byID[cid_1]).toEqual({
         ...CHECK_FIXTURE_1,
-        checkStatus: 'active',
+        activeStatus: 'active',
         status: RemoteDataState.Done,
       })
       expect(actual.byID[cid_2]).toEqual({
         ...CHECK_FIXTURE_2,
-        checkStatus: 'active',
+        activeStatus: 'active',
         status: RemoteDataState.Done,
       })
       expect(actual.allIDs).toEqual([cid_1, cid_2])
@@ -141,7 +141,7 @@ describe('checksReducer', () => {
       expect(actual.byID[id]).toEqual({
         ...CHECK_FIXTURE_2,
         status: RemoteDataState.Done,
-        checkStatus: 'active',
+        activeStatus: 'active',
       })
 
       expect(actual.allIDs).toEqual([id])
@@ -156,7 +156,7 @@ describe('checksReducer', () => {
       initialState.byID[id] = {
         ...CHECK_FIXTURE_1,
         status: RemoteDataState.Done,
-        checkStatus: 'active',
+        activeStatus: 'active',
       }
 
       initialState.allIDs = [id]

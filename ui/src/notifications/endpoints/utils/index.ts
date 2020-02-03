@@ -7,7 +7,7 @@ export const toPostNotificationEndpoint = (
 
   return {
     ...endpoint,
-    status: endpoint.endpointStatus,
+    status: endpoint.activeStatus,
     labels: labels.map(l => l.id),
   }
 }

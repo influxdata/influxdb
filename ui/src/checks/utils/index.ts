@@ -12,10 +12,9 @@ type AlertBuilder = AppState['alertBuilder']
 
 export const toPostCheck = (check: Check): PostCheck => {
   // TODO: type PostCheck properly github.com/influxdata/influxdb/issues/16704
-  const status = check.checkStatus
+  const status = check.activeStatus
 
-  delete check.status
-  delete check.checkStatus
+  delete check.activeStatus
 
   return {
     ...check,
@@ -52,7 +51,7 @@ const toDeadManPostCheck = (
     statusMessageTemplate,
     tags,
     timeSince,
-    checkStatus,
+    activeStatus,
   } = alertBuilder
 
   if (!isDurationParseable(timeSince) || !isDurationParseable(staleTime)) {
@@ -69,7 +68,7 @@ const toDeadManPostCheck = (
     statusMessageTemplate,
     tags,
     timeSince,
-    status: checkStatus,
+    status: activeStatus,
   }
 }
 
@@ -78,7 +77,7 @@ const toThresholdPostCheck = (
   check: ThresholdCheck
 ): PostCheck => {
   const {
-    checkStatus,
+    activeStatus,
     every,
     offset,
     statusMessageTemplate,
@@ -95,7 +94,7 @@ const toThresholdPostCheck = (
     statusMessageTemplate,
     tags,
     thresholds,
-    status: checkStatus,
+    status: activeStatus,
   }
 }
 
@@ -110,7 +109,7 @@ const validateBuilder = (alertBuilder: AlertBuilder) => {
 }
 
 const genCheckBase = (state: AppState) => {
-  const {type, id, status, checkStatus, name} = state.alertBuilder
+  const {type, id, status, activeStatus, name} = state.alertBuilder
   const {draftQueries} = getActiveTimeMachine(state)
   const {id: orgID} = getOrg(state)
 
@@ -118,7 +117,7 @@ const genCheckBase = (state: AppState) => {
     id,
     type,
     status,
-    checkStatus,
+    activeStatus,
     name,
     query: draftQueries[0],
     orgID,

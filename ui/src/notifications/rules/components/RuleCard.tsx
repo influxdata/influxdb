@@ -68,7 +68,7 @@ const RuleCard: FC<Props> = ({
 }) => {
   const {
     id,
-    ruleStatus,
+    activeStatus,
     name,
     lastRunError,
     lastRunStatus,
@@ -93,7 +93,7 @@ const RuleCard: FC<Props> = ({
   }
 
   const onToggle = () => {
-    const status = ruleStatus === 'active' ? 'inactive' : 'active'
+    const status = activeStatus === 'active' ? 'inactive' : 'active'
 
     onUpdateRuleProperties(id, {status})
   }
@@ -138,7 +138,7 @@ const RuleCard: FC<Props> = ({
       }
       toggle={
         <SlideToggle
-          active={ruleStatus === 'active'}
+          active={activeStatus === 'active'}
           size={ComponentSize.ExtraSmall}
           onChange={onToggle}
           testID="rule-card--slide-toggle"
@@ -159,7 +159,7 @@ const RuleCard: FC<Props> = ({
           onRemoveLabel={handleRemoveRuleLabel}
         />
       }
-      disabled={ruleStatus === 'inactive'}
+      disabled={activeStatus === 'inactive'}
       contextMenu={
         <NotificationRuleCardContext
           onView={onView}

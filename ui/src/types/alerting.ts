@@ -34,7 +34,7 @@ interface WithClientID<T> {
 /* Endpoints */
 type EndpointOverrides = {
   status: RemoteDataState
-  endpointStatus: TaskStatusType
+  activeStatus: TaskStatusType
 }
 // GenEndpoint is the shape of a NotificationEndpoint from the server -- before any UI specific fields are or modified
 export type GenEndpoint = GenEndpoint
@@ -45,7 +45,7 @@ export type NotificationEndpoint =
 export type NotificationEndpointBase = GenEndpointBase & EndpointOverrides
 
 /* Rule */
-type RuleOverrides = {status: RemoteDataState; ruleStatus: TaskStatusType}
+type RuleOverrides = {status: RemoteDataState; activeStatus: TaskStatusType}
 
 // GenRule is the shape of a NotificationRule from the server -- before any UI specific fields are added or modified
 export type GenRule = GenRule
@@ -60,7 +60,7 @@ export type NotificationRuleBaseDraft = Overwrite<
   {
     id?: string
     status: RemoteDataState
-    ruleStatus: TaskStatusType
+    activeStatus: TaskStatusType
     statusRules: StatusRuleDraft[]
     tagRules: TagRuleDraft[]
     labels?: Label[]
@@ -117,7 +117,7 @@ export interface NotificationRow {
 }
 
 /* Checks */
-type CheckOverrides = {status: RemoteDataState; checkStatus: TaskStatusType}
+type CheckOverrides = {status: RemoteDataState; activeStatus: TaskStatusType}
 export type CheckBase = Omit<GenCheckBase, 'status'> & CheckOverrides
 
 // GenCheck is the shape of a Check from the server -- before UI specific properties are added
