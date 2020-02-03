@@ -831,6 +831,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			pkger.WithVariableSVC(authorizer.NewVariableService(b.VariableService)),
 		)
 		pkgSVC = pkger.MWTracing()(pkgSVC)
+		pkgSVC = pkger.MWMetrics(m.reg)(pkgSVC)
 		pkgSVC = pkger.MWLogging(pkgerLogger)(pkgSVC)
 	}
 
