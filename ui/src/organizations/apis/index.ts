@@ -15,6 +15,7 @@ export const getDashboards = async (
 ): Promise<Dashboard[]> => {
   try {
     let result
+    console.log('org: ', org)
     if (org) {
       result = await apiGetDashboards({query: {orgID: org.id}})
     } else {
@@ -25,7 +26,7 @@ export const getDashboards = async (
       throw new Error(result.data.message)
     }
 
-    const dashboards = result.data.map(d => addDashboardDefaults(d))
+    const dashboards = result.data.dashboards.map(d => addDashboardDefaults(d))
 
     return dashboards
   } catch (error) {
