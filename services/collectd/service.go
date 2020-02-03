@@ -208,7 +208,7 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 	// that process collectd packets.
 	s.wg.Add(2)
 	go func() { defer s.wg.Done(); s.serve() }()
-	go func() { defer s.wg.Done(); s.writePoints() }()
+	go func() { defer s.wg.Done(); s.writePoints(ctx) }()
 
 	<-ctx.Done()
 
@@ -391,10 +391,10 @@ func (s *Service) handleMessage(buffer []byte) {
 	}
 }
 
-func (s *Service) writePoints() {
+func (s *Service) writePoints(ctx context.Context) {
 	for {
 		select {
-		case <-s.done:
+		case <-ctx.Done():
 			return
 		case batch := <-s.batcher.Out():
 			// Will attempt to create database if not yet created.
