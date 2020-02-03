@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -200,7 +201,7 @@ func (s *Store) Path() string { return s.path }
 
 // Open initializes the store, creating all necessary directories, loading all
 // shards as well as initializing periodic maintenance of them.
-func (s *Store) Open(ctx context.Context) error {
+func (s *Store) Open(ctx context.Context, reg services.Registry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services"
 	"go.uber.org/zap"
 )
 
@@ -98,7 +99,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the service.
-func (s *Service) Open(ctx context.Context) error {
+func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 	s.Logger.Info("Starting HTTP service", zap.Bool("authentication", s.Handler.Config.AuthEnabled))
 
 	s.Handler.Open()

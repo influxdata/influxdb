@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -75,7 +76,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the service.
-func (s *Service) Open(ctx context.Context) (err error) {
+func (s *Service) Open(ctx context.Context, reg services.Registry) (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
