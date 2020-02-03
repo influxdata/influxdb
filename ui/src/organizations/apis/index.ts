@@ -15,7 +15,7 @@ export const getDashboards = async (
 ): Promise<Dashboard[]> => {
   try {
     let result
-    console.log('org: ', org)
+
     if (org) {
       result = await apiGetDashboards({query: {orgID: org.id}})
     } else {
