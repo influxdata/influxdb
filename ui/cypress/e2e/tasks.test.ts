@@ -335,7 +335,7 @@ http.post(
         .click()
     })
 
-    it.only('when navigating using the navbar', () => {
+    it('when navigating using the navbar', () => {
       // verify that the previously input data exists
       cy.getByInputValue(firstTask)
       // navigate home
