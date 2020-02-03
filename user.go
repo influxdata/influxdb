@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"context"
+	"fmt"
 )
 
 // UserStatus indicates whether a user is active or inactive
@@ -35,6 +36,7 @@ const (
 	OpFindUser     = "FindUser"
 	OpFindUsers    = "FindUsers"
 	OpCreateUser   = "CreateUser"
+	OpPutUser      = "PutUser"
 	OpUpdateUser   = "UpdateUser"
 	OpDeleteUser   = "DeleteUser"
 )
@@ -83,4 +85,13 @@ func (uu UserUpdate) Valid() error {
 type UserFilter struct {
 	ID   *ID
 	Name *string
+}
+
+func ErrInternalUserServiceError(op string, err error) *Error {
+	return &Error{
+		Code: EInternal,
+		Msg:  fmt.Sprintf("unexpected error in users; Err: %v", err),
+		Op:   op,
+		Err:  err,
+	}
 }

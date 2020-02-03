@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/influxdb/resource"
+
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 )
@@ -241,21 +243,51 @@ func (s *Service) createUser(ctx context.Context, tx Tx, u *influxdb.User) error
 		return err
 	}
 
-	return s.putUser(ctx, tx, u)
+	v, err := MarshalUser(u)
+	if err != nil {
+		return influxdb.ErrInternalUserServiceError(influxdb.OpCreateUser, err)
+	}
+
+	if err := s.putUser(ctx, tx, u, v); err != nil {
+		return err
+	}
+
+	uid, _ := icontext.GetUserID(ctx)
+	return s.audit.Log(resource.Change{
+		Type:         resource.Create,
+		ResourceID:   u.ID,
+		ResourceType: influxdb.UsersResourceType,
+		UserID:       uid,
+		ResourceBody: v,
+		Time:         time.Now(),
+	})
 }
 
 // PutUser will put a user without setting an ID.
 func (s *Service) PutUser(ctx context.Context, u *influxdb.User) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		return s.putUser(ctx, tx, u)
+		v, err := MarshalUser(u)
+		if err != nil {
+			return influxdb.ErrInternalUserServiceError(influxdb.OpPutUser, err)
+		}
+
+		if err := s.putUser(ctx, tx, u, v); err != nil {
+			return err
+		}
+
+		uid, _ := icontext.GetUserID(ctx)
+		return s.audit.Log(resource.Change{
+			Type:         resource.Put,
+			ResourceID:   u.ID,
+			ResourceType: influxdb.UsersResourceType,
+			UserID:       uid,
+			ResourceBody: v,
+			Time:         time.Now(),
+		})
 	})
 }
 
-func (s *Service) putUser(ctx context.Context, tx Tx, u *influxdb.User) error {
-	v, err := MarshalUser(u)
-	if err != nil {
-		return err
-	}
+func (s *Service) putUser(ctx context.Context, tx Tx, u *influxdb.User, v []byte) error {
 	encodedID, err := u.ID.Encode()
 	if err != nil {
 		return InvalidUserIDError(err)
@@ -379,8 +411,25 @@ func (s *Service) updateUser(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		return nil, err
 	}
 
-	if err := s.putUser(ctx, tx, u); err != nil {
+	v, err := MarshalUser(u)
+	if err != nil {
+		return nil, influxdb.ErrInternalUserServiceError(influxdb.OpUpdateUser, err)
+	}
+
+	if err := s.putUser(ctx, tx, u, v); err != nil {
 		return nil, err
+	}
+
+	uid, _ := icontext.GetUserID(ctx)
+	if err := s.audit.Log(resource.Change{
+		Type:         resource.Update,
+		ResourceID:   u.ID,
+		ResourceType: influxdb.UsersResourceType,
+		UserID:       uid,
+		ResourceBody: v,
+		Time:         time.Now(),
+	}); err != nil {
+		return nil, influxdb.ErrInternalUserServiceError(influxdb.OpUpdateUser, err)
 	}
 
 	return u, nil
@@ -404,7 +453,18 @@ func (s *Service) removeUserFromIndex(ctx context.Context, tx Tx, id influxdb.ID
 // DeleteUser deletes a user and prunes it from the index.
 func (s *Service) DeleteUser(ctx context.Context, id influxdb.ID) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		return s.deleteUser(ctx, tx, id)
+		if err := s.deleteUser(ctx, tx, id); err != nil {
+			return err
+		}
+
+		uid, _ := icontext.GetUserID(ctx)
+		return s.audit.Log(resource.Change{
+			Type:         resource.Delete,
+			ResourceID:   id,
+			ResourceType: influxdb.UsersResourceType,
+			UserID:       uid,
+			Time:         time.Now(),
+		})
 	})
 }
 
