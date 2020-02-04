@@ -90,9 +90,9 @@ type Server struct {
 
 	// Profiling
 	CPUProfile     string
-	CPUProfileFile *os.File
+	CPUProfileFile io.WriteCloser
 	MemProfile     string
-	MemProfileFile *os.File
+	MemProfileFile io.WriteCloser
 
 	// httpAPIAddr is the host:port combination for the main HTTP API for querying and writing data
 	httpAPIAddr string
@@ -598,7 +598,7 @@ func (s *Server) startProfile() error {
 			return err
 		}
 
-		log.Printf("writing CPU profile to: %s\n", s.CPUProfile)
+		log.Printf("Writing CPU profile to: %s\n", s.CPUProfile)
 	}
 
 	if s.MemProfile != "" {
@@ -610,7 +610,7 @@ func (s *Server) startProfile() error {
 		s.MemProfileFile = f
 		runtime.MemProfileRate = 4096
 
-		log.Printf("writing mem profile to: %s\n", s.MemProfile)
+		log.Printf("Writing mem profile to: %s\n", s.MemProfile)
 	}
 
 	return nil
