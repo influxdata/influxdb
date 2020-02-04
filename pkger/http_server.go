@@ -2,7 +2,6 @@ package pkger
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +13,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/pkg/jsonnet"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -24,17 +24,17 @@ const RoutePrefix = "/api/v2/packages"
 // HTTPServer is a server that manages the packages HTTP transport.
 type HTTPServer struct {
 	chi.Router
-	influxdb.HTTPErrorHandler
+	api    *kithttp.API
 	logger *zap.Logger
 	svc    SVC
 }
 
 // NewHTTPServer constructs a new http server.
-func NewHTTPServer(log *zap.Logger, errHandler influxdb.HTTPErrorHandler, svc SVC) *HTTPServer {
+func NewHTTPServer(log *zap.Logger, svc SVC) *HTTPServer {
 	svr := &HTTPServer{
-		HTTPErrorHandler: errHandler,
-		logger:           log,
-		svc:              svc,
+		api:    kithttp.NewAPI(kithttp.WithLog(log)),
+		logger: log,
+		svc:    svc,
 	}
 
 	r := chi.NewRouter()
@@ -75,17 +75,17 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	encoding := pkgEncoding(r.Header)
 
 	var reqBody ReqCreatePkg
-	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		s.HandleHTTPError(r.Context(), newDecodeErr("json", err), w)
+	if err := s.api.DecodeJSON(r.Body, &reqBody); err != nil {
+		s.api.Err(w, err)
 		return
 	}
 	defer r.Body.Close()
 
 	if len(reqBody.Resources) == 0 && len(reqBody.OrgIDs) == 0 {
-		s.HandleHTTPError(r.Context(), &influxdb.Error{
+		s.api.Err(w, &influxdb.Error{
 			Code: influxdb.EUnprocessableEntity,
 			Msg:  "at least 1 resource or 1 org id must be provided",
-		}, w)
+		})
 		return
 	}
 
@@ -102,8 +102,7 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 
 	newPkg, err := s.svc.CreatePkg(r.Context(), opts...)
 	if err != nil {
-		s.logger.Error("failed to create pkg", zap.Error(err))
-		s.HandleHTTPError(r.Context(), err, w)
+		s.api.Err(w, err)
 		return
 	}
 
@@ -121,7 +120,8 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 		enc = newJSONEnc(w)
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	}
-	s.encResp(r.Context(), w, enc, http.StatusOK, resp)
+
+	s.encResp(w, enc, http.StatusOK, resp)
 }
 
 // PkgRemote provides a package via a remote (i.e. a gist). If content type is not
@@ -178,39 +178,38 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReqApplyPkg
 	encoding, err := decodeWithEncoding(r, &reqBody)
 	if err != nil {
-		s.HandleHTTPError(r.Context(), newDecodeErr(encoding.String(), err), w)
+		s.api.Err(w, newDecodeErr(encoding.String(), err))
 		return
 	}
 
 	orgID, err := influxdb.IDFromString(reqBody.OrgID)
 	if err != nil {
-		s.HandleHTTPError(r.Context(), &influxdb.Error{
+		s.api.Err(w, &influxdb.Error{
 			Code: influxdb.EConflict,
 			Msg:  fmt.Sprintf("invalid organization ID provided: %q", reqBody.OrgID),
-		}, w)
+		})
 		return
 	}
 
 	auth, err := pctx.GetAuthorizer(r.Context())
 	if err != nil {
-		s.HandleHTTPError(r.Context(), err, w)
+		s.api.Err(w, err)
 		return
 	}
 	userID := auth.GetUserID()
 
 	parsedPkg, err := reqBody.Pkg(encoding)
 	if err != nil {
-		s.HandleHTTPError(r.Context(), &influxdb.Error{
+		s.api.Err(w, &influxdb.Error{
 			Code: influxdb.EInvalid,
-			Msg:  "failed to parse package from provided URL",
 			Err:  err,
-		}, w)
+		})
 		return
 	}
 
 	sum, diff, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg)
 	if IsParseErr(err) {
-		s.encJSONResp(r.Context(), w, http.StatusUnprocessableEntity, RespApplyPkg{
+		s.api.Respond(w, http.StatusUnprocessableEntity, RespApplyPkg{
 			Diff:    diff,
 			Summary: sum,
 			Errors:  convertParseErr(err),
@@ -218,14 +217,13 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		s.logger.Error("failed to dry run pkg", zap.Error(err))
-		s.HandleHTTPError(r.Context(), err, w)
+		s.api.Err(w, err)
 		return
 	}
 
 	// if only a dry run, then we exit before anything destructive
 	if reqBody.DryRun {
-		s.encJSONResp(r.Context(), w, http.StatusOK, RespApplyPkg{
+		s.api.Respond(w, http.StatusOK, RespApplyPkg{
 			Diff:    diff,
 			Summary: sum,
 		})
@@ -234,12 +232,11 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 
 	sum, err = s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, ApplyWithSecrets(reqBody.Secrets))
 	if err != nil && !IsParseErr(err) {
-		s.logger.Error("failed to apply pkg", zap.Error(err))
-		s.HandleHTTPError(r.Context(), err, w)
+		s.api.Err(w, err)
 		return
 	}
 
-	s.encJSONResp(r.Context(), w, http.StatusCreated, RespApplyPkg{
+	s.api.Respond(w, http.StatusCreated, RespApplyPkg{
 		Diff:    diff,
 		Summary: sum,
 		Errors:  convertParseErr(err),
@@ -283,19 +280,15 @@ func newJSONEnc(w io.Writer) encoder {
 	return enc
 }
 
-func (s *HTTPServer) encResp(ctx context.Context, w http.ResponseWriter, enc encoder, code int, res interface{}) {
+func (s *HTTPServer) encResp(w http.ResponseWriter, enc encoder, code int, res interface{}) {
 	w.WriteHeader(code)
 	if err := enc.Encode(res); err != nil {
-		s.HandleHTTPError(ctx, &influxdb.Error{
+		s.api.Err(w, &influxdb.Error{
 			Msg:  fmt.Sprintf("unable to marshal; Err: %v", err),
 			Code: influxdb.EInternal,
 			Err:  err,
-		}, w)
+		})
 	}
-}
-
-func (s *HTTPServer) encJSONResp(ctx context.Context, w http.ResponseWriter, code int, res interface{}) {
-	s.encResp(ctx, w, newJSONEnc(w), code, res)
 }
 
 func convertParseErr(err error) []ValidationErr {

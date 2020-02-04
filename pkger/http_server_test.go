@@ -32,7 +32,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				}, nil
 			}
 			svc := pkger.NewService(pkger.WithLabelSVC(fakeLabelSVC))
-			pkgHandler := pkger.NewHTTPServer(zap.NewNop(), kithttp.ErrorHandler(0), svc)
+			pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
@@ -62,7 +62,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 		})
 
 		t.Run("should be invalid if not org ids or resources provided", func(t *testing.T) {
-			pkgHandler := pkger.NewHTTPServer(zap.NewNop(), kithttp.ErrorHandler(0), nil)
+			pkgHandler := pkger.NewHTTPServer(zap.NewNop(), nil)
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
@@ -137,7 +137,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						},
 					}
 
-					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), kithttp.ErrorHandler(0), svc)
+					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -191,7 +191,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						},
 					}
 
-					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), kithttp.ErrorHandler(0), svc)
+					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					body := newReqApplyYMLBody(t, influxdb.ID(9000), true)
@@ -243,7 +243,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			},
 		}
 
-		pkgHandler := pkger.NewHTTPServer(zap.NewNop(), kithttp.ErrorHandler(0), svc)
+		pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
 		svr := newMountedHandler(pkgHandler, 1)
 
 		testttp.
