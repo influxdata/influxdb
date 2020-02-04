@@ -27,6 +27,7 @@ import * as api from 'src/client'
 import {incrementCloneName} from 'src/utils/naming'
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
+import {toPostNotificationEndpoint} from 'src/notifications/endpoints/utils'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
@@ -35,7 +36,6 @@ import {
   GetState,
   Label,
   NotificationEndpointUpdate,
-  PostNotificationEndpoint,
   RemoteDataState,
   EndpointEntities,
   ResourceType,
@@ -80,12 +80,7 @@ export const createEndpoint = (endpoint: NotificationEndpoint) => async (
     Action | NotificationAction | ReturnType<typeof checkEndpointsLimits>
   >
 ) => {
-  const labels = endpoint.labels || []
-
-  const data = {
-    ...endpoint,
-    labels: labels.map(l => l.id),
-  } as PostNotificationEndpoint
+  const data = toPostNotificationEndpoint(endpoint)
 
   try {
     const resp = await api.postNotificationEndpoint({data})
@@ -111,11 +106,12 @@ export const updateEndpoint = (endpoint: NotificationEndpoint) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   dispatch(setEndpoint(endpoint.id, RemoteDataState.Loading))
+  const data = toPostNotificationEndpoint(endpoint)
 
   try {
     const resp = await api.putNotificationEndpoint({
       endpointID: endpoint.id,
-      data: endpoint,
+      data,
     })
 
     if (resp.status !== 200) {
@@ -138,6 +134,7 @@ export const updateEndpointProperties = (
   endpointID: string,
   properties: NotificationEndpointUpdate
 ) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+  dispatch(setEndpoint(endpointID, RemoteDataState.Loading))
   try {
     const resp = await api.patchNotificationEndpoint({
       endpointID,
@@ -235,14 +232,11 @@ export const cloneEndpoint = (endpoint: NotificationEndpoint) => async (
 
     const clonedName = incrementCloneName(allEndpointNames, endpoint.name)
 
-    const labels = endpoint.labels || []
-
     const resp = await api.postNotificationEndpoint({
       data: {
-        ...endpoint,
+        ...toPostNotificationEndpoint(endpoint),
         name: clonedName,
-        labels: labels.map(l => l.id),
-      } as PostNotificationEndpoint,
+      },
     })
 
     if (resp.status !== 201) {

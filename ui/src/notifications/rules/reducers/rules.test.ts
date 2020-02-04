@@ -18,17 +18,24 @@ import {
 
 import {initRuleDraft} from 'src/notifications/rules/utils'
 
-import {RemoteDataState, RuleEntities, NotificationRule} from 'src/types'
+import {
+  GenRule,
+  RemoteDataState,
+  RuleEntities,
+  NotificationRule,
+} from 'src/types'
 
 const ruleID = '1'
-const NEW_RULE_DRAFT = {
+const NEW_RULE_DRAFT: GenRule = {
   ...initRuleDraft(''),
   id: ruleID,
+  status: 'active',
   statusRules: [],
+  tagRules: [],
 }
 
 describe('rulesReducer', () => {
-  describe('setAllNotificationRules', () => {
+  describe('setRules', () => {
     it('sets list and status properties of state.', () => {
       const initialState = defaultNotificationRulesState
 
@@ -44,7 +51,7 @@ describe('rulesReducer', () => {
 
       const expected = {
         ...NEW_RULE_DRAFT,
-        loadingStatus: RemoteDataState.Done,
+        status: RemoteDataState.Done,
       }
 
       expect(actual.status).toEqual(RemoteDataState.Done)
@@ -69,7 +76,7 @@ describe('rulesReducer', () => {
 
       const expected = {
         ...NEW_RULE_DRAFT,
-        loadingStatus: RemoteDataState.Done,
+        status: RemoteDataState.Done,
       }
 
       expect(actual.byID[ruleID]).toEqual(expected)
@@ -92,7 +99,7 @@ describe('rulesReducer', () => {
 
       const expected = {
         ...rule,
-        loadingStatus: RemoteDataState.Done,
+        status: RemoteDataState.Done,
       }
 
       expect(actual.byID[ruleID]).toEqual(expected)
@@ -126,7 +133,7 @@ describe('rulesReducer', () => {
       expect(actual.current.status).toEqual(RemoteDataState.Done)
       expect(actual.current.rule).toEqual({
         ...NEW_RULE_DRAFT,
-        loadingStatus: RemoteDataState.Done,
+        status: RemoteDataState.Done,
       })
     })
   })

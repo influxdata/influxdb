@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 // Actions
 import {getAuthorizations} from 'src/authorizations/actions/thunks'
 import {getBuckets} from 'src/buckets/actions/thunks'
-import {getChecks} from 'src/checks/actions'
+import {getChecks} from 'src/checks/actions/thunks'
 import {getDashboards} from 'src/dashboards/actions/thunks'
 import {getEndpoints} from 'src/notifications/endpoints/actions/thunks'
 import {getLabels} from 'src/labels/actions'

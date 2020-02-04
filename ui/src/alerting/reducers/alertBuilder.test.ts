@@ -19,12 +19,24 @@ import {
   updateThresholds,
 } from 'src/alerting/actions/alertBuilder'
 import {CHECK_FIXTURE_1, CHECK_FIXTURE_3} from 'src/checks/reducers/checks.test'
-import {RemoteDataState, Threshold} from 'src/types'
+import {RemoteDataState, Threshold, TaskStatusType} from 'src/types'
+
+const check_1 = {
+  ...CHECK_FIXTURE_1,
+  activeStatus: 'inactive' as TaskStatusType,
+  status: RemoteDataState.Done,
+}
+
+const check_3 = {
+  ...CHECK_FIXTURE_3,
+  activeStatus: 'active' as TaskStatusType,
+  status: RemoteDataState.Done,
+}
 
 const mockState = (): AlertBuilderState => ({
   id: '3',
   type: 'deadman',
-  status: 'active',
+  activeStatus: 'active',
   name: 'just',
   every: '1m',
   offset: '2m',
@@ -35,7 +47,7 @@ const mockState = (): AlertBuilderState => ({
   staleTime: '2m',
   level: 'OK',
   thresholds: [],
-  checkStatus: RemoteDataState.Done,
+  status: RemoteDataState.Done,
 })
 
 describe('alertBuilderReducer', () => {
@@ -52,10 +64,10 @@ describe('alertBuilderReducer', () => {
     it('Loads threshold check properties in to alert builder', () => {
       const actual = alertBuilderReducer(
         initialState(),
-        setAlertBuilderCheck(CHECK_FIXTURE_1)
+        setAlertBuilderCheck(check_1)
       )
 
-      const expected = CHECK_FIXTURE_1
+      const expected = check_1
 
       expect(actual.type).toEqual(expected.type)
       expect(actual.name).toEqual(expected.name)
@@ -66,16 +78,16 @@ describe('alertBuilderReducer', () => {
       )
       expect(actual.tags).toEqual(expected.tags)
       expect(actual.thresholds).toEqual(expected.thresholds)
-      expect(actual.checkStatus).toEqual(RemoteDataState.Done)
+      expect(actual.status).toEqual(RemoteDataState.Done)
     })
 
     it('Loads deadman check properties in to alert builder', () => {
       const actual = alertBuilderReducer(
         initialState(),
-        setAlertBuilderCheck(CHECK_FIXTURE_3)
+        setAlertBuilderCheck(check_3)
       )
 
-      const expected = CHECK_FIXTURE_3
+      const expected = check_3
 
       expect(actual.type).toEqual(expected.type)
       expect(actual.name).toEqual(expected.name)
@@ -90,13 +102,13 @@ describe('alertBuilderReducer', () => {
       expect(actual.staleTime).toEqual(expected.staleTime)
       expect(actual.reportZero).toEqual(expected.reportZero)
       expect(actual.level).toEqual(expected.level)
-      expect(actual.checkStatus).toEqual(RemoteDataState.Done)
+      expect(actual.status).toEqual(RemoteDataState.Done)
     })
   })
 
   describe('setAlertBuilderCheckStatus', () => {
     it('check status is initialized to Not Started', () => {
-      expect(initialState().checkStatus).toEqual(RemoteDataState.NotStarted)
+      expect(initialState().status).toEqual(RemoteDataState.NotStarted)
     })
     it('sets check status', () => {
       const newStatus = RemoteDataState.Error
@@ -104,7 +116,7 @@ describe('alertBuilderReducer', () => {
         initialState(),
         setAlertBuilderCheckStatus(newStatus)
       )
-      expect(actual.checkStatus).toEqual(newStatus)
+      expect(actual.status).toEqual(newStatus)
     })
   })
 

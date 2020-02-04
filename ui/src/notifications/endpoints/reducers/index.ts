@@ -1,6 +1,5 @@
 // Libraries
 import produce from 'immer'
-import {get} from 'lodash'
 
 // Types
 import {
@@ -19,7 +18,11 @@ import {
 } from 'src/notifications/endpoints/actions/creators'
 
 // Helpers
-import {setResource, removeResource} from 'src/resources/reducers/helpers'
+import {
+  setResource,
+  removeResource,
+  setResourceAtID,
+} from 'src/resources/reducers/helpers'
 
 type EndpointsState = ResourceState['endpoints']
 
@@ -46,28 +49,11 @@ export default (
       }
 
       case SET_ENDPOINT: {
-        const {schema, status, id} = action
-
-        const endpoint: NotificationEndpoint = get(schema, [
-          'entities',
-          ResourceType.NotificationEndpoints,
-          id,
-        ])
-
-        if (!endpoint) {
-          draftState.byID[id] = ({
-            id,
-            loadingStatus: status,
-          } as unknown) as NotificationEndpoint
-
-          return
-        }
-
-        if (!draftState.allIDs.includes(id)) {
-          draftState.allIDs.push(id)
-        }
-
-        draftState.byID[id] = {...endpoint, loadingStatus: status}
+        setResourceAtID<NotificationEndpoint>(
+          draftState,
+          action,
+          ResourceType.NotificationEndpoints
+        )
 
         return
       }

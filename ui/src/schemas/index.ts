@@ -14,7 +14,11 @@ import {
   Variable,
   View,
   NotificationEndpoint,
-  NotificationRule,
+  GenCheck,
+  Check,
+  GenEndpoint,
+  GenRule,
+  NotificationRuleDraft,
 } from 'src/types'
 import {CellsWithViewProperties} from 'src/client'
 
@@ -77,6 +81,26 @@ export const cell = new schema.Entity(
 )
 export const arrayOfCells = [cell]
 
+/* Checks */
+
+// Defines the schema for the "checks" resource
+export const checkSchema = new schema.Entity(
+  ResourceType.Checks,
+  {},
+  {
+    processStrategy: (check: GenCheck): Check => {
+      return {
+        ...check,
+        status: RemoteDataState.Done,
+        activeStatus: check.status,
+        labels: addLabels(check),
+      }
+    },
+  }
+)
+
+export const arrayOfChecks = [checkSchema]
+
 /* Dashboards */
 
 // Defines the schema for the "dashboards" resource
@@ -127,13 +151,12 @@ export const endpoint = new schema.Entity(
 
 export const arrayOfEndpoints = [endpoint]
 
-const addEndpointDefaults = (
-  point: NotificationEndpoint
-): NotificationEndpoint => {
+const addEndpointDefaults = (point: GenEndpoint): NotificationEndpoint => {
   return {
     ...point,
-    loadingStatus: RemoteDataState.Done,
-    labels: point.labels.map(addLabelDefaults),
+    status: RemoteDataState.Done,
+    activeStatus: point.status,
+    labels: addLabels(point),
   }
 }
 
@@ -154,10 +177,9 @@ export const rule = new schema.Entity(
   ResourceType.NotificationRules,
   {},
   {
-    processStrategy: (rule: NotificationRule) => ({
+    processStrategy: (rule: GenRule): NotificationRuleDraft => ({
       ...ruleToDraftRule(rule),
       labels: addLabels(rule),
-      loadingStatus: RemoteDataState.Done,
     }),
   }
 )

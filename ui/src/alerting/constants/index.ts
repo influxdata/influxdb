@@ -54,7 +54,7 @@ export const LEVEL_COMPONENT_COLORS = {
 export const DEFAULT_THRESHOLD_CHECK: Partial<ThresholdCheck> = {
   name: DEFAULT_CHECK_NAME,
   type: 'threshold',
-  status: 'active',
+  activeStatus: 'active',
   thresholds: [],
   every: DEFAULT_CHECK_EVERY,
   offset: DEFAULT_CHECK_OFFSET,
@@ -79,11 +79,11 @@ export const DEFAULT_ENDPOINT_URLS = {
 export const NEW_ENDPOINT_DRAFT: NotificationEndpoint = {
   name: 'Name this Endpoint',
   description: '',
-  status: 'active',
+  activeStatus: 'active',
   type: 'slack',
   token: '',
   url: DEFAULT_ENDPOINT_URLS['slack'],
-  loadingStatus: RemoteDataState.Done,
+  status: RemoteDataState.Done,
 }
 
 export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
@@ -93,11 +93,11 @@ export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
     userID: '1',
     description: 'interrupt everyone at work',
     name: 'Slack',
-    status: 'active',
+    activeStatus: 'active',
     type: 'slack',
     url: 'insert.slack.url.here',
     token: 'plerps',
-    loadingStatus: RemoteDataState.Done,
+    status: RemoteDataState.Done,
   },
   {
     id: '3',
@@ -105,10 +105,10 @@ export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
     userID: '1',
     description: 'interrupt someone by all means known to man',
     name: 'PagerDuty',
-    status: 'active',
+    activeStatus: 'active',
     type: 'pagerduty',
     clientURL: 'insert.pagerduty.client.url.here',
     routingKey: 'plerps',
-    loadingStatus: RemoteDataState.Done,
+    status: RemoteDataState.Done,
   },
 ]

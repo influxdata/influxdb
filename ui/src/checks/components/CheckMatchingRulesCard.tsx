@@ -14,19 +14,24 @@ import {
   AlignItems,
 } from '@influxdata/clockface'
 
-// Selectors
+// Selectors & Utils
 import {getOrg} from 'src/organizations/selectors'
+import {ruleToDraftRule} from 'src/notifications/rules/utils'
 
 // API
 import {getNotificationRules as apiGetNotificationRules} from 'src/client'
 
 //Types
-import {NotificationRule, AppState, CheckTagSet} from 'src/types'
+import {
+  NotificationRule,
+  AppState,
+  CheckTagSet,
+  GenRule,
+  NotificationRuleDraft,
+} from 'src/types'
 import {EmptyState, ComponentSize, RemoteDataState} from '@influxdata/clockface'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-
-// Selectors
 
 interface StateProps {
   tags: CheckTagSet[]
@@ -75,10 +80,9 @@ const CheckMatchingRulesCard: FC<StateProps> = ({
       return
     }
 
-    const matchingRules = resp.data.notificationRules.map(r => ({
-      ...r,
-      loadingStatus: RemoteDataState.Done,
-    }))
+    const matchingRules: NotificationRuleDraft[] = resp.data.notificationRules.map(
+      (r: GenRule) => ruleToDraftRule(r)
+    )
 
     setMatchingRules({
       matchingRules,
@@ -87,7 +91,7 @@ const CheckMatchingRulesCard: FC<StateProps> = ({
   }
 
   const [{matchingRules, status}, setMatchingRules] = useState<{
-    matchingRules: NotificationRule[]
+    matchingRules: NotificationRuleDraft[]
     status: RemoteDataState
   }>({matchingRules: [], status: RemoteDataState.NotStarted})
 

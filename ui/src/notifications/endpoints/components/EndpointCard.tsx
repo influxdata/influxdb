@@ -14,13 +14,7 @@ import {
 } from 'src/notifications/endpoints/actions/thunks'
 
 // Components
-import {
-  SlideToggle,
-  ComponentSize,
-  ResourceCard,
-  SpinnerContainer,
-  TechnoSpinner,
-} from '@influxdata/clockface'
+import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import EndpointCardMenu from 'src/notifications/endpoints/components/EndpointCardMenu'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
@@ -79,13 +73,14 @@ const EndpointCard: FC<Props> = ({
   onAddEndpointLabel,
   onRemoveEndpointLabel,
 }) => {
-  const {id, name, status, description} = endpoint
+  const {id, name, description, activeStatus} = endpoint
 
   const handleUpdateName = (name: string) => {
     onUpdateEndpointProperties(id, {name})
   }
+
   const handleClick = () => {
-    router.push(`orgs/${orgID}/alerting/endpoints/${endpoint.id}/edit`)
+    router.push(`orgs/${orgID}/alerting/endpoints/${id}/edit`)
   }
 
   const nameComponent = (
@@ -102,13 +97,13 @@ const EndpointCard: FC<Props> = ({
   )
 
   const handleToggle = () => {
-    const toStatus = status === 'active' ? 'inactive' : 'active'
+    const toStatus = activeStatus === 'active' ? 'inactive' : 'active'
     onUpdateEndpointProperties(id, {status: toStatus})
   }
 
   const toggle = (
     <SlideToggle
-      active={status === 'active'}
+      active={activeStatus === 'active'}
       size={ComponentSize.ExtraSmall}
       onChange={handleToggle}
       testID="endpoint-card--slide-toggle"
@@ -120,7 +115,7 @@ const EndpointCard: FC<Props> = ({
 
     const queryParams = new URLSearchParams({
       [HISTORY_TYPE_QUERY_PARAM]: historyType,
-      [SEARCH_QUERY_PARAM]: `"notificationEndpointID" == "${endpoint.id}"`,
+      [SEARCH_QUERY_PARAM]: `"notificationEndpointID" == "${id}"`,
     })
 
     router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
@@ -167,26 +162,19 @@ const EndpointCard: FC<Props> = ({
   )
 
   return (
-    <SpinnerContainer
-      spinnerComponent={<TechnoSpinner />}
-      loading={endpoint.loadingStatus}
-    >
-      <ResourceCard
-        key={id}
-        toggle={toggle}
-        name={nameComponent}
-        contextMenu={contextMenu}
-        description={descriptionComponent}
-        labels={labelsComponent}
-        disabled={status === 'inactive'}
-        metaData={[
-          <>
-            {relativeTimestampFormatter(endpoint.updatedAt, 'Last updated ')}
-          </>,
-        ]}
-        testID={`endpoint-card ${name}`}
-      />
-    </SpinnerContainer>
+    <ResourceCard
+      key={id}
+      toggle={toggle}
+      name={nameComponent}
+      contextMenu={contextMenu}
+      description={descriptionComponent}
+      labels={labelsComponent}
+      disabled={activeStatus === 'inactive'}
+      metaData={[
+        <>{relativeTimestampFormatter(endpoint.updatedAt, 'Last updated ')}</>,
+      ]}
+      testID={`endpoint-card ${name}`}
+    />
   )
 }
 

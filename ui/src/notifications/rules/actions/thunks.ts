@@ -152,7 +152,7 @@ export const updateRule = (rule: NotificationRuleDraft) => async (
       schemas.rule
     )
 
-    dispatch(setRule(resp.data.id, RemoteDataState.Done, normRule))
+    dispatch(setRule(rule.id, RemoteDataState.Done, normRule))
   } catch (error) {
     console.error(error)
   }
@@ -162,8 +162,6 @@ export const updateRuleProperties = (
   ruleID: string,
   properties: NotificationRuleUpdate
 ) => async (dispatch: Dispatch<Action | NotificationAction>) => {
-  dispatch(setRule(ruleID, RemoteDataState.Loading))
-
   try {
     const resp = await api.patchNotificationRule({
       ruleID,
@@ -179,7 +177,7 @@ export const updateRuleProperties = (
       schemas.rule
     )
 
-    dispatch(setRule(ruleID, RemoteDataState.Loading, rule))
+    dispatch(setRule(ruleID, RemoteDataState.Done, rule))
   } catch (error) {
     console.error(error)
   }

@@ -94,9 +94,10 @@ const ChecksColumn: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState) => {
   const {
-    checks: {list: checks},
     labels: {list: labels},
   } = state
+
+  const checks = getAll<Check>(state, ResourceType.Checks)
 
   const endpoints = getAll<NotificationEndpoint>(
     state,

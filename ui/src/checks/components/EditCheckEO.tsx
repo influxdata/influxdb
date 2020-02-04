@@ -14,9 +14,9 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Actions
 import {
-  saveCheckFromTimeMachine,
+  updateCheckFromTimeMachine,
   getCheckForTimeMachine,
-} from 'src/checks/actions'
+} from 'src/checks/actions/thunks'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 import {resetAlertBuilder, updateName} from 'src/alerting/actions/alertBuilder'
 
@@ -24,7 +24,7 @@ import {resetAlertBuilder, updateName} from 'src/alerting/actions/alertBuilder'
 import {AppState, RemoteDataState, TimeMachineID, QueryView} from 'src/types'
 
 interface DispatchProps {
-  onSaveCheckFromTimeMachine: typeof saveCheckFromTimeMachine
+  onSaveCheckFromTimeMachine: typeof updateCheckFromTimeMachine
   onGetCheckForTimeMachine: typeof getCheckForTimeMachine
   onExecuteQueries: typeof executeQueries
   onResetAlertBuilder: typeof resetAlertBuilder
@@ -33,7 +33,7 @@ interface DispatchProps {
 
 interface StateProps {
   view: QueryView | null
-  checkStatus: RemoteDataState
+  status: RemoteDataState
   activeTimeMachineID: TimeMachineID
   loadedCheckID: string
   checkName: string
@@ -48,7 +48,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onExecuteQueries,
   onGetCheckForTimeMachine,
   activeTimeMachineID,
-  checkStatus,
+  status,
   router,
   params: {checkID, orgID},
   checkName,
@@ -70,11 +70,11 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
 
   let loadingStatus = RemoteDataState.Loading
 
-  if (checkStatus === RemoteDataState.Error) {
+  if (status === RemoteDataState.Error) {
     loadingStatus = RemoteDataState.Error
   }
   if (
-    checkStatus === RemoteDataState.Done &&
+    status === RemoteDataState.Done &&
     activeTimeMachineID === 'alerting' &&
     loadedCheckID === checkID
   ) {
@@ -106,7 +106,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
 const mstp = (state: AppState): StateProps => {
   const {
     timeMachines: {activeTimeMachineID},
-    alertBuilder: {checkStatus, name, id},
+    alertBuilder: {status, name, id},
   } = state
 
   const {view} = getActiveTimeMachine(state)
@@ -114,7 +114,7 @@ const mstp = (state: AppState): StateProps => {
   return {
     loadedCheckID: id,
     checkName: name,
-    checkStatus,
+    status,
     activeTimeMachineID,
     view,
   }
@@ -122,7 +122,7 @@ const mstp = (state: AppState): StateProps => {
 
 const mdtp: DispatchProps = {
   onGetCheckForTimeMachine: getCheckForTimeMachine,
-  onSaveCheckFromTimeMachine: saveCheckFromTimeMachine,
+  onSaveCheckFromTimeMachine: updateCheckFromTimeMachine,
   onExecuteQueries: executeQueries,
   onResetAlertBuilder: resetAlertBuilder,
   onUpdateAlertBuilderName: updateName,
