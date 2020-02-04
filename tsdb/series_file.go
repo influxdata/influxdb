@@ -161,6 +161,18 @@ func (f *SeriesFile) Wait() {
 	defer f.refs.Unlock()
 }
 
+// FileSize returns the size of all partitions, in bytes.
+func (f *SeriesFile) FileSize() (n int64, err error) {
+	for _, p := range f.partitions {
+		v, err := p.FileSize()
+		n += v
+		if err != nil {
+			return n, err
+		}
+	}
+	return n, err
+}
+
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The returned ids slice returns IDs for every name+tags, creating new series IDs as needed.
 func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) ([]uint64, error) {
