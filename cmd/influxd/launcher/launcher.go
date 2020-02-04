@@ -839,7 +839,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var pkgHTTPServer *pkger.HTTPServer
 	{
 		pkgServerLogger := m.log.With(zap.String("handler", "pkger"))
-		pkgHTTPServer = pkger.NewHTTPServer(pkgServerLogger, m.apibackend.HTTPErrorHandler, pkgSVC)
+		pkgHTTPServer = pkger.NewHTTPServer(pkgServerLogger, pkgSVC)
 	}
 
 	{
