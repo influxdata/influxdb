@@ -99,7 +99,7 @@ func (h *SetupHandler) handlePostSetup(w http.ResponseWriter, r *http.Request) {
 type onboardingResponse struct {
 	User         *UserResponse   `json:"user"`
 	Bucket       *bucketResponse `json:"bucket"`
-	Organization *orgResponse    `json:"org"`
+	Organization orgResponse     `json:"org"`
 	Auth         *authResponse   `json:"auth"`
 }
 
@@ -119,7 +119,7 @@ func newOnboardingResponse(results *platform.OnboardingResults) *onboardingRespo
 	return &onboardingResponse{
 		User:         newUserResponse(results.User),
 		Bucket:       newBucketResponse(results.Bucket, []*platform.Label{}),
-		Organization: newOrgResponse(results.Org),
+		Organization: newOrgResponse(*results.Org),
 		Auth:         newAuthResponse(results.Auth, results.Org, results.User, ps),
 	}
 }

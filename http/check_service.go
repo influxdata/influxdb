@@ -360,7 +360,7 @@ func decodeCheckFilter(ctx context.Context, r *http.Request) (*influxdb.CheckFil
 		},
 	}
 
-	opts, err := decodeFindOptions(ctx, r)
+	opts, err := decodeFindOptions(r)
 	if err != nil {
 		return f, nil, err
 	}
