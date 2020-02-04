@@ -3,7 +3,13 @@ import {produce} from 'immer'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {Action} from 'src/labels/actions'
+import {
+  Action,
+  SET_LABELS,
+  SET_LABEL,
+  EDIT_LABEL,
+  REMOVE_LABEL,
+} from 'src/labels/actions/creators'
 import {Label} from 'src/types'
 
 const initialState = (): LabelsState => ({
@@ -22,7 +28,7 @@ export const labelsReducer = (
 ): LabelsState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_LABELS': {
+      case SET_LABELS: {
         const {status, list} = action.payload
 
         draftState.status = status
@@ -34,7 +40,7 @@ export const labelsReducer = (
         return
       }
 
-      case 'ADD_LABEL': {
+      case SET_LABEL: {
         const {label} = action.payload
 
         draftState.list.push(label)
@@ -42,7 +48,7 @@ export const labelsReducer = (
         return
       }
 
-      case 'EDIT_LABEL': {
+      case EDIT_LABEL: {
         const {label} = action.payload
         const {list} = draftState
 
@@ -57,7 +63,7 @@ export const labelsReducer = (
         return
       }
 
-      case 'REMOVE_LABEL': {
+      case REMOVE_LABEL: {
         const {id} = action.payload
         const {list} = draftState
         const deleted = list.filter(l => {

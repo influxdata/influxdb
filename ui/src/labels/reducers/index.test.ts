@@ -2,7 +2,12 @@
 import {labelsReducer} from 'src/labels/reducers'
 
 // Actions
-import {setLabels, addLabel, editLabel, removeLabel} from 'src/labels/actions'
+import {
+  setLabels,
+  addLabel,
+  editLabel,
+  removeLabel,
+} from 'src/labels/actions/creators'
 import {RemoteDataState} from 'src/types'
 
 // Mock Label

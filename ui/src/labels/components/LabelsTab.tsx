@@ -11,7 +11,7 @@ import LabelList from 'src/labels/components/LabelList'
 import FilterList from 'src/shared/components/Filter'
 
 // Actions
-import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions'
+import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions/thunks'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'

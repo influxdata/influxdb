@@ -11,72 +11,24 @@ import {Dispatch} from 'react'
 import {RemoteDataState, LabelProperties, GetState, Label} from 'src/types'
 
 // Actions
-import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
+import {notify} from 'src/shared/actions/notifications'
 import {
   getLabelsFailed,
   createLabelFailed,
   updateLabelFailed,
   deleteLabelFailed,
 } from 'src/shared/copy/notifications'
+import {
+  setLabels,
+  setLabel,
+  editLabel,
+  removeLabel,
+  Action,
+} from 'src/labels/actions/creators'
 
 // Utils
 import {addLabelDefaults} from 'src/labels/utils/'
 import {getOrg} from 'src/organizations/selectors'
-
-export type Action =
-  | SetLabels
-  | AddLabel
-  | EditLabel
-  | RemoveLabel
-  | NotifyAction
-
-interface SetLabels {
-  type: 'SET_LABELS'
-  payload: {
-    status: RemoteDataState
-    list: Label[]
-  }
-}
-
-export const setLabels = (
-  status: RemoteDataState,
-  list?: Label[]
-): SetLabels => ({
-  type: 'SET_LABELS',
-  payload: {status, list},
-})
-
-interface AddLabel {
-  type: 'ADD_LABEL'
-  payload: {
-    label: Label
-  }
-}
-
-export const addLabel = (label: Label): AddLabel => ({
-  type: 'ADD_LABEL',
-  payload: {label},
-})
-
-interface EditLabel {
-  type: 'EDIT_LABEL'
-  payload: {label}
-}
-
-export const editLabel = (label: Label): EditLabel => ({
-  type: 'EDIT_LABEL',
-  payload: {label},
-})
-
-interface RemoveLabel {
-  type: 'REMOVE_LABEL'
-  payload: {id}
-}
-
-export const removeLabel = (id: string): RemoveLabel => ({
-  type: 'REMOVE_LABEL',
-  payload: {id},
-})
 
 export const getLabels = () => async (
   dispatch: Dispatch<Action>,
@@ -122,7 +74,7 @@ export const createLabel = (
 
     const createdLabel = addLabelDefaults(resp.data.label)
 
-    dispatch(addLabel(createdLabel))
+    dispatch(setLabel(createdLabel))
   } catch (e) {
     console.error(e)
     dispatch(notify(createLabelFailed()))
