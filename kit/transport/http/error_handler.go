@@ -8,9 +8,6 @@ import (
 	"github.com/influxdata/influxdb"
 )
 
-// PlatformErrorCodeHeader shows the error code of platform error.
-const PlatformErrorCodeHeader = "X-Platform-Error-Code"
-
 // ErrorHandler is the error handler in http package.
 type ErrorHandler int
 
@@ -43,20 +40,4 @@ func (h ErrorHandler) HandleHTTPError(ctx context.Context, err error, w http.Res
 	}
 	b, _ := json.Marshal(e)
 	_, _ = w.Write(b)
-}
-
-// statusCodePlatformError is the map convert platform.Error to error
-var statusCodePlatformError = map[string]int{
-	influxdb.EInternal:            http.StatusInternalServerError,
-	influxdb.EInvalid:             http.StatusBadRequest,
-	influxdb.EUnprocessableEntity: http.StatusUnprocessableEntity,
-	influxdb.EEmptyValue:          http.StatusBadRequest,
-	influxdb.EConflict:            http.StatusUnprocessableEntity,
-	influxdb.ENotFound:            http.StatusNotFound,
-	influxdb.EUnavailable:         http.StatusServiceUnavailable,
-	influxdb.EForbidden:           http.StatusForbidden,
-	influxdb.ETooManyRequests:     http.StatusTooManyRequests,
-	influxdb.EUnauthorized:        http.StatusUnauthorized,
-	influxdb.EMethodNotAllowed:    http.StatusMethodNotAllowed,
-	influxdb.ETooLarge:            http.StatusRequestEntityTooLarge,
 }
