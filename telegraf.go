@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/telegraf/plugins"
@@ -68,6 +69,27 @@ type TelegrafConfig struct {
 	Description string                 `json:"description,omitempty"` // Decription of this config object.
 	Config      string                 `json:"config,omitempty"`      // ConfigTOML contains the raw toml config.
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`    // Metadata for the config.
+}
+
+var pluginCount = regexp.MustCompilePOSIX(`\[\[(inputs\..*|outputs\..*|aggregators\..*|processors\..*)\]\]`)
+
+// CountPlugins returns a map of the number of times each plugin is used.
+func (tc *TelegrafConfig) CountPlugins() map[string]float64 {
+	plugins := map[string]float64{}
+	founds := pluginCount.FindAllStringSubmatch(tc.Config, -1)
+
+	for _, v := range founds {
+		if len(v) < 2 {
+			continue
+		}
+		if _, ok := plugins[v[1]]; ok {
+			plugins[v[1]]++
+		} else {
+			plugins[v[1]] = 1
+		}
+	}
+
+	return plugins
 }
 
 // UnmarshalJSON implement the json.Unmarshaler interface.
