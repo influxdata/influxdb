@@ -456,7 +456,7 @@ func TestService_handlePostBucket(t *testing.T) {
 				},
 			},
 			wants: wants{
-				statusCode: http.StatusBadRequest,
+				statusCode: http.StatusUnprocessableEntity,
 			},
 		},
 	}

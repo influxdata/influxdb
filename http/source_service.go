@@ -258,7 +258,7 @@ func decodeGetSourceBucketsRequest(ctx context.Context, r *http.Request) (*getSo
 	if err != nil {
 		return nil, err
 	}
-	getBucketsReq, err := decodeGetBucketsRequest(ctx, r)
+	getBucketsReq, err := decodeGetBucketsRequest(r)
 	if err != nil {
 		return nil, err
 	}
