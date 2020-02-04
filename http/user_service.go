@@ -378,7 +378,7 @@ func decodeGetUserLogRequest(ctx context.Context, r *http.Request) (*getUserLogR
 		return nil, err
 	}
 
-	opts, err := decodeFindOptions(ctx, r)
+	opts, err := decodeFindOptions(r)
 	if err != nil {
 		return nil, err
 	}

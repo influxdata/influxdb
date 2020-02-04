@@ -14,6 +14,7 @@
 1. [16656](https://github.com/influxdata/influxdb/pull/16656): Check engine closed before collecting index metrics
 1. [16412](https://github.com/influxdata/influxdb/pull/16412): Reject writes which use any of the reserved tag keys
 1. [16715](https://github.com/influxdata/influxdb/pull/16715): Fixed dashboard mapping for getDashboards to map correct prop
+1. [16716](https://github.com/influxdata/influxdb/pull/16716): Improve the lacking error responses for unmarshal errors in org service
 
 ### Bug Fixes
 

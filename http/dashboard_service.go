@@ -399,7 +399,7 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 	qp := r.URL.Query()
 	req := &getDashboardsRequest{}
 
-	opts, err := decodeFindOptions(ctx, r)
+	opts, err := decodeFindOptions(r)
 	if err != nil {
 		return nil, err
 	}
@@ -591,7 +591,7 @@ func decodeGetDashboardLogRequest(ctx context.Context, r *http.Request) (*getDas
 		return nil, err
 	}
 
-	opts, err := decodeFindOptions(ctx, r)
+	opts, err := decodeFindOptions(r)
 	if err != nil {
 		return nil, err
 	}

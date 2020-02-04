@@ -291,39 +291,6 @@ func CreateOrganization(
 				},
 			},
 		},
-		{
-			name: "names should be unique",
-			fields: OrganizationFields{
-				IDGenerator:   mock.NewMockIDGenerator(),
-				OrgBucketIDs:  orgBucketsIDGenerator,
-				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Organizations: []*influxdb.Organization{
-					{
-						ID:   MustIDBase16(orgOneID),
-						Name: "organization1",
-					},
-				},
-			},
-			args: args{
-				organization: &influxdb.Organization{
-					ID:   MustIDBase16(orgOneID),
-					Name: "organization1",
-				},
-			},
-			wants: wants{
-				organizations: []*influxdb.Organization{
-					{
-						ID:   MustIDBase16(orgOneID),
-						Name: "organization1",
-					},
-				},
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
-					Op:   influxdb.OpCreateOrganization,
-					Msg:  "organization with name organization1 already exists",
-				},
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -337,7 +304,6 @@ func CreateOrganization(
 			// Delete only newly created organizations
 			// if tt.args.organization.ID != nil {
 			defer s.DeleteOrganization(ctx, tt.args.organization.ID)
-			// }
 
 			organizations, _, err := s.FindOrganizations(ctx, influxdb.OrganizationFilter{})
 			diffPlatformErrors(tt.name, err, nil, opPrefix, t)

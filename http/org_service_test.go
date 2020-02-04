@@ -68,7 +68,6 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 }
 
 func TestOrganizationService(t *testing.T) {
-
 	t.Parallel()
 	platformtesting.OrganizationService(initOrganizationService, t)
 }
@@ -344,7 +343,9 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 			orgBackend.SecretService = tt.fields.SecretService
 			h := NewOrgHandler(zaptest.NewLogger(t), orgBackend)
 
-			b, err := json.Marshal(deleteSecretsRequest{
+			b, err := json.Marshal(struct {
+				Secrets []string `json:"secrets"`
+			}{
 				Secrets: tt.args.secrets,
 			})
 			if err != nil {

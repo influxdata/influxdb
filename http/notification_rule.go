@@ -354,7 +354,7 @@ func decodeNotificationRuleFilter(ctx context.Context, r *http.Request) (*influx
 		f.UserResourceMappingFilter = *urm
 	}
 
-	opts, err := decodeFindOptions(ctx, r)
+	opts, err := decodeFindOptions(r)
 	if err != nil {
 		return f, nil, err
 	}

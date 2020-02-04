@@ -115,7 +115,7 @@ type getVariablesRequest struct {
 }
 
 func decodeGetVariablesRequest(ctx context.Context, r *http.Request) (*getVariablesRequest, error) {
-	opts, err := decodeFindOptions(ctx, r)
+	opts, err := decodeFindOptions(r)
 	if err != nil {
 		return nil, err
 	}

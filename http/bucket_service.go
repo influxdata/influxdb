@@ -479,7 +479,7 @@ func decodeGetBucketLogRequest(ctx context.Context, r *http.Request) (*getBucket
 		return nil, err
 	}
 
-	opts, err := decodeFindOptions(ctx, r)
+	opts, err := decodeFindOptions(r)
 	if err != nil {
 		return nil, err
 	}
@@ -602,7 +602,7 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 	qp := r.URL.Query()
 	req := &getBucketsRequest{}
 
-	opts, err := decodeFindOptions(ctx, r)
+	opts, err := decodeFindOptions(r)
 	if err != nil {
 		return nil, err
 	}
