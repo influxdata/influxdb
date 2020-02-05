@@ -1,5 +1,7 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useEffect, useRef} from 'react'
+import {Server} from '@influxdata/flux-lsp-browser'
+import {get} from 'lodash'
 
 // Components
 import MonacoEditor from 'react-monaco-editor'
@@ -28,18 +30,94 @@ interface Props {
   onCursorChange?: (position: Position) => void
 }
 
-const FluxEditorMonaco: FC<Props> = props => {
+const initialize = {
+  jsonrpc: '2.0',
+  id: 1,
+  method: 'initialize',
+  params: {},
+}
+
+const didOpen = {
+  jsonrpc: '2.0',
+  id: 1,
+  method: 'textDocument/didOpen',
+  params: {
+    textDocument: {
+      uri: 'editor',
+      languageId: 'flux',
+      version: 0,
+      text: 'from.',
+    },
+  },
+}
+
+const didChange = (newText: string) => ({
+  jsonrpc: '2.0',
+  id: 2,
+  method: 'textDocument/didChange',
+  params: {
+    textDocument: {
+      uri: 'editor',
+      version: 1,
+    },
+    contentChanges: [
+      {
+        text: newText,
+      },
+    ],
+  },
+})
+
+const parseResponse = resp => {
+  const message = resp.get_message()
+  if (message) {
+    const split = message.split('\n')
+    return get(split, '2', 'unknown response')
+  } else {
+    const error = resp.get_error()
+    const split = error.split('\n')
+    return get(split, '2', 'unknown error')
+  }
+}
+
+const sendMessage = (message, server) => {
+  const stringifiedMessage = JSON.stringify(message)
+  const size = stringifiedMessage.length
+
+  const resp = server.process(
+    `Content-Length: ${size}\r\n\r\n` + stringifiedMessage
+  )
+
+  parseResponse(resp)
+  const m = resp.get_message()
+  const n = m.split('\n')
+  console.log('message', JSON.parse(n[2]))
+  console.log('error', resp.get_error())
+}
+
+const FluxEditorMonaco: FC<Props> = ({
+  script,
+  onChangeScript,
+  onSubmitScript,
+  onCursorChange,
+}) => {
+  const lspServer = useRef(new Server(false))
+
+  useEffect(() => {
+    sendMessage(initialize, lspServer.current)
+    sendMessage(didOpen, lspServer.current)
+  }, [])
+
   const editorWillMount = (monaco: MonacoType) => {
     addFluxTheme(monaco)
-    addSnippets(monaco)
     addSyntax(monaco)
+    addSnippets(monaco)
   }
 
   const editorDidMount = (editor: EditorType, monaco: MonacoType) => {
     addKeyBindings(editor, monaco)
     editor.onDidChangeCursorPosition(evt => {
       const {position} = evt
-      const {onCursorChange} = props
       const pos = {
         line: position.lineNumber - 1,
         ch: position.column,
@@ -52,7 +130,6 @@ const FluxEditorMonaco: FC<Props> = props => {
 
     editor.onKeyUp(evt => {
       const {ctrlKey, code} = evt
-      const {onSubmitScript} = props
       if (ctrlKey && code === 'Enter') {
         if (onSubmitScript) {
           onSubmitScript()
@@ -60,7 +137,11 @@ const FluxEditorMonaco: FC<Props> = props => {
       }
     })
   }
-  const {script, onChangeScript} = props
+
+  const onChange = (text: string) => {
+    sendMessage(didChange(text), lspServer.current)
+    onChangeScript(text)
+  }
 
   return (
     <div className="time-machine-editor" data-testid="flux-editor">
@@ -68,7 +149,7 @@ const FluxEditorMonaco: FC<Props> = props => {
         language="flux"
         theme={THEME_NAME}
         value={script}
-        onChange={onChangeScript}
+        onChange={onChange}
         options={{
           fontSize: 13,
           fontFamily: '"RobotoMono", monospace',
