@@ -1,3 +1,9 @@
+## Undecided
+
+### Bug Fixes
+
+1. [16733](https://github.com/influxdata/influxdb/pull/16733): Fix notification rule renaming panics from UI
+
 ## v2.0.0-beta.2 [2020-01-24]
 
 ### Features
