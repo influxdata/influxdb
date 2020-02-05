@@ -865,9 +865,9 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 
 	diffs := make([]DiffNotificationRule, 0, len(mExisting))
 	for _, r := range pkg.notificationRules() {
-		e, ok := mExisting[r.endpointName]
+		e, ok := mExisting[r.endpointName.String()]
 		if !ok {
-			pkgerEndpoint, ok := pkg.mNotificationEndpoints[r.endpointName]
+			pkgerEndpoint, ok := pkg.mNotificationEndpoints[r.endpointName.String()]
 			if !ok {
 				err := fmt.Errorf("failed to find endpoint by name: %q", r.endpointName)
 				return nil, &influxdb.Error{Code: influxdb.EUnprocessableEntity, Err: err}
@@ -1660,7 +1660,7 @@ func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID inf
 
 	var errs applyErrs
 	for _, r := range rules {
-		v, ok := mEndpoints[r.endpointName]
+		v, ok := mEndpoints[r.endpointName.String()]
 		if !ok {
 			errs = append(errs, &applyErrBody{
 				name: r.Name(),
@@ -1851,7 +1851,7 @@ func (s *Service) applyTelegrafs(teles []*telegraf) applier {
 		var cfg influxdb.TelegrafConfig
 		mutex.Do(func() {
 			teles[i].config.OrgID = orgID
-			cfg = teles[i].config
+			cfg = teles[i].summarize().TelegrafConfig
 		})
 
 		err := s.teleSVC.CreateTelegrafConfig(ctx, &cfg, userID)

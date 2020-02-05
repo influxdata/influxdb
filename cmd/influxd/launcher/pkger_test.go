@@ -553,6 +553,91 @@ metadata:
     envRef:
       key: "bkt-1-name-ref"
 spec:
+---
+apiVersion: %[1]s
+kind: Label
+metadata:
+  name:
+    envRef:
+      key: "label-1-name-ref"
+spec:
+---
+apiVersion: influxdata.com/v2alpha1
+kind: CheckDeadman
+metadata:
+  name:
+    envRef:
+      key: check-1-name-ref
+spec:
+  every: 5m
+  level: cRiT
+  query:  >
+    from(bucket: "rucket_1") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name:
+    envRef:
+      key: dash-1-name-ref
+spec:
+---
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointSlack
+metadata:
+  name:
+    envRef:
+      key: endpoint-1-name-ref
+spec:
+  url: https://hooks.slack.com/services/bip/piddy/boppidy
+---
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name:
+    envRef:
+      key: rule-1-name-ref
+spec:
+  endpointName:
+    envRef:
+      key: endpoint-1-name-ref
+  every: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: WARN
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Telegraf
+metadata:
+  name:
+    envRef:
+      key: telegraf-1-name-ref
+spec:
+  config: |
+    [agent]
+      interval = "10s"
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Task
+metadata:
+  name:
+    envRef:
+      key: task-1-name-ref
+spec:
+  cron: 15 * * * *
+  query:  >
+    from(bucket: "rucket_1")
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Variable
+metadata:
+  name:
+    envRef:
+      key: var-1-name-ref
+spec:
+  type: constant
+  values: [first val]
 `, pkger.APIVersion)
 
 		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
@@ -563,14 +648,59 @@ spec:
 
 		require.Len(t, sum.Buckets, 1)
 		assert.Equal(t, "$bkt-1-name-ref", sum.Buckets[0].Name)
-		assert.Equal(t, []string{"bkt-1-name-ref"}, sum.MissingEnvs)
+		require.Len(t, sum.Checks, 1)
+		assert.Equal(t, "$check-1-name-ref", sum.Checks[0].Check.GetName())
+		require.Len(t, sum.Dashboards, 1)
+		assert.Equal(t, "$dash-1-name-ref", sum.Dashboards[0].Name)
+		require.Len(t, sum.Labels, 1)
+		assert.Equal(t, "$label-1-name-ref", sum.Labels[0].Name)
+		require.Len(t, sum.NotificationEndpoints, 1)
+		assert.Equal(t, "$endpoint-1-name-ref", sum.NotificationEndpoints[0].NotificationEndpoint.GetName())
+		require.Len(t, sum.NotificationRules, 1)
+		assert.Equal(t, "$rule-1-name-ref", sum.NotificationRules[0].Name)
+		require.Len(t, sum.TelegrafConfigs, 1)
+		assert.Equal(t, "$task-1-name-ref", sum.Tasks[0].Name)
+		require.Len(t, sum.TelegrafConfigs, 1)
+		assert.Equal(t, "$telegraf-1-name-ref", sum.TelegrafConfigs[0].TelegrafConfig.Name)
+		require.Len(t, sum.Variables, 1)
+		assert.Equal(t, "$var-1-name-ref", sum.Variables[0].Name)
+
+		expectedMissingEnvs := []string{
+			"bkt-1-name-ref",
+			"check-1-name-ref",
+			"dash-1-name-ref",
+			"endpoint-1-name-ref",
+			"label-1-name-ref",
+			"rule-1-name-ref",
+			"task-1-name-ref",
+			"telegraf-1-name-ref",
+			"var-1-name-ref",
+		}
+		assert.Equal(t, expectedMissingEnvs, sum.MissingEnvs)
 
 		sum, err = svc.Apply(timedCtx(time.Second), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
-			"bkt-1-name-ref": "rucket_threeve",
+			"bkt-1-name-ref":      "rucket_threeve",
+			"check-1-name-ref":    "check_threeve",
+			"dash-1-name-ref":     "dash_threeve",
+			"endpoint-1-name-ref": "endpoint_threeve",
+			"label-1-name-ref":    "label_threeve",
+			"rule-1-name-ref":     "rule_threeve",
+			"telegraf-1-name-ref": "telegraf_threeve",
+			"task-1-name-ref":     "task_threeve",
+			"var-1-name-ref":      "var_threeve",
 		}))
 		require.NoError(t, err)
 
 		assert.Equal(t, "rucket_threeve", sum.Buckets[0].Name)
+		assert.Equal(t, "check_threeve", sum.Checks[0].Check.GetName())
+		assert.Equal(t, "dash_threeve", sum.Dashboards[0].Name)
+		assert.Equal(t, "endpoint_threeve", sum.NotificationEndpoints[0].NotificationEndpoint.GetName())
+		assert.Equal(t, "label_threeve", sum.Labels[0].Name)
+		assert.Equal(t, "rule_threeve", sum.NotificationRules[0].Name)
+		assert.Equal(t, "endpoint_threeve", sum.NotificationRules[0].EndpointName)
+		assert.Equal(t, "telegraf_threeve", sum.TelegrafConfigs[0].TelegrafConfig.Name)
+		assert.Equal(t, "task_threeve", sum.Tasks[0].Name)
+		assert.Equal(t, "var_threeve", sum.Variables[0].Name)
 		assert.Empty(t, sum.MissingEnvs)
 	})
 }
