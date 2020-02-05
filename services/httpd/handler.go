@@ -191,7 +191,7 @@ func NewHandler(c Config, reg services.Registry) *Handler {
 			"write", // Data-ingest route.
 			"POST", "/write", true, writeLogEnabled,
 			func(w http.ResponseWriter, r *http.Request, user meta.User) {
-				if reg.IsRunning("tsqb") {
+				if reg.IsRunning("tsdb") {
 					h.serveWrite(w, r, user)
 				}
 			},
