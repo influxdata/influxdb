@@ -6,7 +6,7 @@ export const getResourcesStatus = (
   resources: Array<ResourceType>
 ): RemoteDataState => {
   const statuses = resources.map(resource => {
-    if (!state[resource] || !state[resource].status) {
+    if (!state.resources || !state.resources[resource].status) {
       throw new Error(
         `RemoteDataState status for resource "${resource}" is undefined in getResourcesStatus`
       )

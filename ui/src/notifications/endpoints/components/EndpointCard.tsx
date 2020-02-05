@@ -4,7 +4,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Actions and Selectors
-import {viewableLabels} from 'src/labels/selectors'
+import {getAll} from 'src/resources/selectors'
 import {
   addEndpointLabel,
   deleteEndpointLabel,
@@ -30,6 +30,7 @@ import {
   Label,
   AppState,
   AlertHistoryType,
+  ResourceType,
 } from 'src/types'
 import {Action} from 'src/notifications/endpoints/actions/creators'
 
@@ -186,8 +187,8 @@ const mdtp: DispatchProps = {
   onCloneEndpoint: cloneEndpoint,
 }
 
-const mstp = ({labels}: AppState): StateProps => ({
-  labels: viewableLabels(labels.list),
+const mstp = (state: AppState): StateProps => ({
+  labels: getAll<Label>(state, ResourceType.Labels),
 })
 
 export default connect<StateProps, DispatchProps, {}>(

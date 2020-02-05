@@ -3,7 +3,6 @@ import {
   DocumentCreate,
   DocumentListEntry,
   DocumentMeta,
-  ILabel,
 } from '@influxdata/influx'
 import {
   Cell,
@@ -13,10 +12,11 @@ import {
   RemoteDataState,
   Variable,
   View,
+  GenLabel,
 } from 'src/types'
 
 export interface TemplateSummary extends DocumentListEntry {
-  labels: ILabel[]
+  labels: Label[]
   status: RemoteDataState
 }
 
@@ -114,7 +114,7 @@ export interface CellIncluded extends TemplateIncluded {
 
 export interface LabelIncluded extends TemplateIncluded {
   type: TemplateType.Label
-  attributes: Label
+  attributes: GenLabel
 }
 
 export interface VariableIncluded extends TemplateIncluded {

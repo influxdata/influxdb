@@ -9,7 +9,6 @@ import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
 import {PredicatesState, VariableEditorState} from 'src/types'
-import {LabelsState} from 'src/labels/reducers'
 import {
   TelegrafEditorPluginState,
   PluginResourceState,
@@ -31,7 +30,6 @@ export interface AppState {
   autoRefresh: AutoRefreshState
   cloud: {limits: LimitsState}
   dataLoading: DataLoadingState
-  labels: LabelsState
   links: Links
   me: MeState
   noteEditor: NoteEditorState

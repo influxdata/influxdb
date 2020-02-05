@@ -9,10 +9,10 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import VariableContextMenu from 'src/variables/components/VariableContextMenu'
 
 // Types
-import {AppState, Label, Variable} from 'src/types'
+import {AppState, Label, Variable, ResourceType} from 'src/types'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Actions
 import {
@@ -77,7 +77,7 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
 
   private get labels(): JSX.Element {
     const {variable, labels, onFilterChange} = this.props
-    const collectorLabels = viewableLabels(variable.labels)
+    const collectorLabels = variable.labels
 
     return (
       <InlineLabels
@@ -122,9 +122,11 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const labels = getAll<Label>(state, ResourceType.Labels)
+
   return {
-    labels: viewableLabels(labels.list),
+    labels,
   }
 }
 

@@ -24,11 +24,11 @@ import {
 } from 'src/tasks/actions/thunks'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {AppState, Task, Label} from 'src/types'
+import {AppState, Task, Label, ResourceType} from 'src/types'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
@@ -229,10 +229,10 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
-  return {
-    labels: viewableLabels(labels.list),
-  }
+const mstp = (state: AppState): StateProps => {
+  const labels = getAll<Label>(state, ResourceType.Labels)
+
+  return {labels}
 }
 
 const mdtp: DispatchProps = {

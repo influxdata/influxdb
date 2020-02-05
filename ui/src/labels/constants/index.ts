@@ -1,5 +1,5 @@
 // Labels can use a different set of brand colors than single stats or gauges
-import {Label} from 'src/types'
+import {Label, RemoteDataState} from 'src/types'
 import {LabelColor, LabelColorType} from 'src/types/colors'
 
 export const INFLUX_LABEL_PREFIX = '@influxdata'
@@ -11,6 +11,7 @@ export const DEFAULT_LABEL_COLOR_HEX = '#326BBA'
 
 export const EMPTY_LABEL: Label = {
   name: '',
+  status: RemoteDataState.Done,
   properties: {
     description: '',
     color: DEFAULT_LABEL_COLOR_HEX,

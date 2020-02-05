@@ -24,7 +24,7 @@ import {
   deleteRuleLabel,
   cloneRule,
 } from 'src/notifications/rules/actions/thunks'
-import {viewableLabels} from 'src/labels/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Types
 import {
@@ -32,6 +32,7 @@ import {
   AppState,
   Label,
   AlertHistoryType,
+  ResourceType,
 } from 'src/types'
 
 // Utilities
@@ -188,9 +189,10 @@ const mdtp: DispatchProps = {
   onCloneRule: cloneRule,
 }
 
-const mstp = ({labels}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const labels = getAll<Label>(state, ResourceType.Labels)
   return {
-    labels: viewableLabels(labels.list),
+    labels,
   }
 }
 

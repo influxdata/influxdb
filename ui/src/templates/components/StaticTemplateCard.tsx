@@ -18,13 +18,13 @@ import {ResourceCard} from '@influxdata/clockface'
 import {createResourceFromStaticTemplate} from 'src/templates/actions/thunks'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Types
 import {TemplateSummary} from '@influxdata/influx'
 import {ComponentColor} from '@influxdata/clockface'
-import {AppState, Organization, Label} from 'src/types'
+import {AppState, Organization, Label, ResourceType} from 'src/types'
 
 // Constants
 interface OwnProps {
@@ -120,9 +120,11 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
 }
 
 const mstp = (state: AppState): StateProps => {
+  const labels = getAll<Label>(state, ResourceType.Labels)
+
   return {
     org: getOrg(state),
-    labels: viewableLabels(state.labels.list),
+    labels,
   }
 }
 

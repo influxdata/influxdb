@@ -12,6 +12,8 @@ import {
   Cell,
   View,
   Variable,
+  LabelRelationship,
+  LabelIncluded,
 } from 'src/types'
 import {TemplateType, DocumentCreate, ITemplate} from '@influxdata/influx'
 
@@ -59,11 +61,11 @@ const blankDashboardTemplate = () => {
   }
 }
 
-export const labelToRelationship = (l: Label) => {
+export const labelToRelationship = (l: Label): LabelRelationship => {
   return {type: TemplateType.Label, id: l.id}
 }
 
-export const labelToIncluded = (l: Label) => {
+export const labelToIncluded = (l: Label): LabelIncluded => {
   return {
     type: TemplateType.Label,
     id: l.id,

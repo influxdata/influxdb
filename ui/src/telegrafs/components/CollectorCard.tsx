@@ -18,12 +18,13 @@ import {
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Constants
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
 // Types
-import {AppState, Organization, Label, Telegraf} from 'src/types'
+import {AppState, Organization, Label, Telegraf, ResourceType} from 'src/types'
 
 interface OwnProps {
   collector: Telegraf
@@ -158,9 +159,10 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {labels} = state
   const org = getOrg(state)
-  return {org, labels: viewableLabels(labels.list)}
+  const labels = getAll<Label>(state, ResourceType.Labels)
+
+  return {org, labels}
 }
 
 const mdtp: DispatchProps = {

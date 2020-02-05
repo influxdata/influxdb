@@ -27,12 +27,18 @@ import {
 } from 'src/templates/actions/thunks'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {AppState, Organization, Label, TemplateSummary} from 'src/types'
+import {
+  AppState,
+  Organization,
+  Label,
+  TemplateSummary,
+  ResourceType,
+} from 'src/types'
 
 // Constants
 import {DEFAULT_TEMPLATE_NAME} from 'src/templates/constants'
@@ -214,10 +220,11 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {labels} = state
+  const labels = getAll<Label>(state, ResourceType.Labels)
+
   return {
     org: getOrg(state),
-    labels: viewableLabels(labels.list),
+    labels,
   }
 }
 

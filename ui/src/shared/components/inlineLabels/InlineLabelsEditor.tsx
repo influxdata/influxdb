@@ -12,7 +12,7 @@ import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 import {validateLabelUniqueness} from 'src/labels/utils'
 
 // Types
-import {Label} from 'src/types'
+import {Label, RemoteDataState} from 'src/types'
 import {OverlayState} from 'src/types/overlay'
 import {createLabel} from 'src/labels/actions/thunks'
 
@@ -25,6 +25,7 @@ export const ADD_NEW_LABEL_LABEL: Label = {
     color: '#000000',
     description: '',
   },
+  status: RemoteDataState.NotStarted,
 }
 
 import {ErrorHandling} from 'src/shared/decorators/errors'

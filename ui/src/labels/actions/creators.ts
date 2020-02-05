@@ -1,39 +1,47 @@
 // Types
-import {RemoteDataState, Label} from 'src/types'
+import {RemoteDataState, LabelEntities} from 'src/types'
 import {Action as NotifyAction} from 'src/shared/actions/notifications'
+import {NormalizedSchema} from 'normalizr'
 
 export type Action =
   | ReturnType<typeof removeLabel>
-  | ReturnType<typeof editLabel>
   | ReturnType<typeof setLabel>
   | ReturnType<typeof setLabels>
   | NotifyAction
 
 export const SET_LABELS = 'SET_LABELS'
 export const SET_LABEL = 'SET_LABEL'
-export const EDIT_LABEL = 'EDIT_LABEL'
 export const REMOVE_LABEL = 'REMOVE_LABEL'
 
-export const setLabels = (status: RemoteDataState, list?: Label[]) =>
+type LabelsSchema<R extends string | string[]> = NormalizedSchema<
+  LabelEntities,
+  R
+>
+
+export const setLabels = (
+  status: RemoteDataState,
+  schema?: LabelsSchema<string[]>
+) =>
   ({
     type: SET_LABELS,
-    payload: {status, list},
+    status,
+    schema,
   } as const)
 
-export const setLabel = (label: Label) =>
+export const setLabel = (
+  id: string,
+  status: RemoteDataState,
+  schema?: LabelsSchema<string>
+) =>
   ({
     type: SET_LABEL,
-    payload: {label},
-  } as const)
-
-export const editLabel = (label: Label) =>
-  ({
-    type: EDIT_LABEL,
-    payload: {label},
+    id,
+    status,
+    schema,
   } as const)
 
 export const removeLabel = (id: string) =>
   ({
     type: REMOVE_LABEL,
-    payload: {id},
+    id,
   } as const)

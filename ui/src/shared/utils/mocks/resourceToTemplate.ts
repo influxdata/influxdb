@@ -89,6 +89,7 @@ export const myfavelabel: Label = {
   id: '1',
   name: '1label',
   properties: {color: 'fffff', description: 'omg'},
+  status: RemoteDataState.Done,
 }
 
 export const myfavetask: Task = {
@@ -102,6 +103,7 @@ export const myfavetask: Task = {
       id: '037b0c86a92a2000',
       name: 'yum',
       properties: {color: '#FF8564', description: ''},
+      status: RemoteDataState.Done,
     },
   ],
   name: 'lala',

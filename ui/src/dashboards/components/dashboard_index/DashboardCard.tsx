@@ -19,10 +19,10 @@ import {
 import {resetViews} from 'src/views/actions/creators'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Types
-import {AppState, Label} from 'src/types'
+import {AppState, Label, ResourceType} from 'src/types'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
@@ -197,9 +197,11 @@ class DashboardCard extends PureComponent<Props> {
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const allLabels = getAll<Label>(state, ResourceType.Labels)
+
   return {
-    allLabels: viewableLabels(labels.list),
+    allLabels,
   }
 }
 

@@ -14,13 +14,13 @@ import FilterList from 'src/shared/components/Filter'
 import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions/thunks'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Utils
 import {validateLabelUniqueness} from 'src/labels/utils/'
 
 // Types
-import {AppState, Label} from 'src/types'
+import {AppState, Label, ResourceType} from 'src/types'
 import {
   IconFont,
   ComponentSize,
@@ -33,7 +33,7 @@ import {SortTypes} from 'src/shared/utils/sort'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface StateProps {
-  labels: AppState['labels']['list']
+  labels: Label[]
 }
 
 interface State {
@@ -186,12 +186,8 @@ class Labels extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    labels: {list},
-  } = state
-  return {
-    labels: viewableLabels(list),
-  }
+  const labels = getAll<Label>(state, ResourceType.Labels)
+  return {labels}
 }
 
 const mdtp: DispatchProps = {
