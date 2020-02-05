@@ -553,6 +553,11 @@ metadata:
     envRef:
       key: "bkt-1-name-ref"
 spec:
+  associations:
+    - kind: Label
+      name:
+        envRef:
+          key: label-1-name-ref
 ---
 apiVersion: %[1]s
 kind: Label
@@ -648,6 +653,7 @@ spec:
 
 		require.Len(t, sum.Buckets, 1)
 		assert.Equal(t, "$bkt-1-name-ref", sum.Buckets[0].Name)
+		assert.Len(t, sum.Buckets[0].LabelAssociations, 1)
 		require.Len(t, sum.Checks, 1)
 		assert.Equal(t, "$check-1-name-ref", sum.Checks[0].Check.GetName())
 		require.Len(t, sum.Dashboards, 1)

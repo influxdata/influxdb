@@ -3348,14 +3348,17 @@ spec:
 
 			require.Len(t, sum.Buckets, 1)
 			assert.Equal(t, "$bkt-1-name-ref", sum.Buckets[0].Name)
+			assert.Len(t, sum.Buckets[0].LabelAssociations, 1)
 			hasEnv(t, pkg.mEnv, "bkt-1-name-ref")
 
 			require.Len(t, sum.Checks, 1)
 			assert.Equal(t, "$check-1-name-ref", sum.Checks[0].Check.GetName())
+			assert.Len(t, sum.Checks[0].LabelAssociations, 1)
 			hasEnv(t, pkg.mEnv, "check-1-name-ref")
 
 			require.Len(t, sum.Dashboards, 1)
 			assert.Equal(t, "$dash-1-name-ref", sum.Dashboards[0].Name)
+			assert.Len(t, sum.Dashboards[0].LabelAssociations, 1)
 			hasEnv(t, pkg.mEnv, "dash-1-name-ref")
 
 			require.Len(t, sum.NotificationEndpoints, 1)

@@ -1102,7 +1102,8 @@ func (p *Pkg) parseNestedLabel(nr Resource, fn func(lb *label) error) *validatio
 		return nil
 	}
 
-	lb, found := p.mLabels[nr.Name()]
+	nameRef := nr.references(fieldName)
+	lb, found := p.mLabels[nameRef.String()]
 	if !found {
 		return &validationErr{
 			Field: fieldAssociations,
