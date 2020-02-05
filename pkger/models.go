@@ -147,12 +147,6 @@ func (s SafeID) String() string {
 	return influxdb.ID(s).String()
 }
 
-// Metadata is the pkg metadata. This data describes the user
-// defined identifiers.
-type Metadata struct {
-	Name string `yaml:"name" json:"name"`
-}
-
 // Diff is the result of a service DryRun call. The diff outlines
 // what is new and or updated from the current state of the platform.
 type Diff struct {
@@ -523,6 +517,7 @@ type Summary struct {
 	NotificationRules     []SummaryNotificationRule     `json:"notificationRules"`
 	Labels                []SummaryLabel                `json:"labels"`
 	LabelMappings         []SummaryLabelMapping         `json:"labelMappings"`
+	MissingEnvs           []string                      `json:"missingEnvRefs"`
 	MissingSecrets        []string                      `json:"missingSecrets"`
 	Tasks                 []SummaryTask                 `json:"summaryTask"`
 	TelegrafConfigs       []SummaryTelegraf             `json:"telegrafConfigs"`
@@ -796,7 +791,7 @@ type bucket struct {
 	id             influxdb.ID
 	OrgID          influxdb.ID
 	Description    string
-	name           string
+	name           *references
 	RetentionRules retentionRules
 	labels         sortedLabels
 
@@ -818,7 +813,7 @@ func (b *bucket) Labels() []*label {
 }
 
 func (b *bucket) Name() string {
-	return b.name
+	return b.name.String()
 }
 
 func (b *bucket) ResourceType() influxdb.ResourceType {
@@ -1355,13 +1350,13 @@ type notificationEndpoint struct {
 	name        string
 	description string
 	method      string
-	password    references
-	routingKey  references
+	password    *references
+	routingKey  *references
 	status      string
-	token       references
+	token       *references
 	httpType    string
 	url         string
-	username    references
+	username    *references
 
 	labels sortedLabels
 
@@ -2644,19 +2639,31 @@ func (l legend) influxLegend() influxdb.Legend {
 }
 
 const (
+	fieldReferencesEnv    = "envRef"
 	fieldReferencesSecret = "secretRef"
 )
 
 type references struct {
 	val    interface{}
-	Secret string `json:"secretRef"`
+	EnvRef string
+	Secret string
 }
 
-func (r references) hasValue() bool {
-	return r.Secret != "" || r.val != nil
+func (r *references) hasValue() bool {
+	return r.EnvRef != "" || r.Secret != "" || r.val != nil
 }
 
-func (r references) String() string {
+func (r *references) String() string {
+	if v := r.StringVal(); v != "" {
+		return v
+	}
+	if r.EnvRef != "" {
+		return "$" + r.EnvRef
+	}
+	return ""
+}
+
+func (r *references) StringVal() string {
 	if r.val != nil {
 		s, _ := r.val.(string)
 		return s
@@ -2664,11 +2671,11 @@ func (r references) String() string {
 	return ""
 }
 
-func (r references) SecretField() influxdb.SecretField {
+func (r *references) SecretField() influxdb.SecretField {
 	if secret := r.Secret; secret != "" {
 		return influxdb.SecretField{Key: secret}
 	}
-	if str := r.String(); str != "" {
+	if str := r.StringVal(); str != "" {
 		return influxdb.SecretField{Value: &str}
 	}
 	return influxdb.SecretField{}

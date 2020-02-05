@@ -95,7 +95,7 @@ func TestCmdPkg(t *testing.T) {
 					pkg.Objects = append(pkg.Objects, pkger.Object{
 						APIVersion: pkger.APIVersion,
 						Type:       pkger.KindBucket,
-						Metadata:   pkger.Metadata{Name: "bucket1"},
+						Metadata:   pkger.Resource{"name": "bucket1"},
 					})
 					return &pkg, nil
 				},
@@ -211,7 +211,7 @@ func TestCmdPkg(t *testing.T) {
 						pkg.Objects = append(pkg.Objects, pkger.Object{
 							APIVersion: pkger.APIVersion,
 							Type:       rc.Kind,
-							Metadata:   pkger.Metadata{Name: name},
+							Metadata:   pkger.Resource{"name": name},
 						})
 					}
 

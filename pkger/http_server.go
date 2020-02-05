@@ -154,6 +154,7 @@ type ReqApplyPkg struct {
 	OrgID   string            `json:"orgID" yaml:"orgID"`
 	Remote  PkgRemote         `json:"remote" yaml:"remote"`
 	RawPkg  json.RawMessage   `json:"package" yaml:"package"`
+	EnvRefs map[string]string `json:"envRefs"`
 	Secrets map[string]string `json:"secrets"`
 }
 
@@ -230,7 +231,7 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sum, err = s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, ApplyWithSecrets(reqBody.Secrets))
+	sum, err = s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, ApplyWithEnvRefs(reqBody.EnvRefs), ApplyWithSecrets(reqBody.Secrets))
 	if err != nil && !IsParseErr(err) {
 		s.api.Err(w, err)
 		return

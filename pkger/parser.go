@@ -212,13 +212,13 @@ func parse(dec decoder, opts ...ValidateOptFn) (*Pkg, error) {
 type Object struct {
 	APIVersion string   `json:"apiVersion" yaml:"apiVersion"`
 	Type       Kind     `json:"kind" yaml:"kind"`
-	Metadata   Metadata `json:"metadata" yaml:"metadata"`
+	Metadata   Resource `json:"metadata" yaml:"metadata"`
 	Spec       Resource `json:"spec" yaml:"spec"`
 }
 
 // Name returns the name of the kind.
 func (k Object) Name() string {
-	return k.Metadata.Name
+	return k.Metadata.references("name").String()
 }
 
 // Pkg is the model for a package. The resources are more generic that one might
@@ -240,6 +240,7 @@ type Pkg struct {
 	mTelegrafs             []*telegraf
 	mVariables             map[string]*variable
 
+	mEnv     map[string][]*references
 	mSecrets map[string]bool
 
 	isVerified bool // dry run has verified pkg resources with existing resources
@@ -286,6 +287,7 @@ func (p *Pkg) Summary() Summary {
 		NotificationEndpoints: []SummaryNotificationEndpoint{},
 		NotificationRules:     []SummaryNotificationRule{},
 		Labels:                []SummaryLabel{},
+		MissingEnvs:           p.missingEnvRefs(),
 		MissingSecrets:        []string{},
 		Tasks:                 []SummaryTask{},
 		TelegrafConfigs:       []SummaryTelegraf{},
@@ -336,6 +338,14 @@ func (p *Pkg) Summary() Summary {
 	}
 
 	return sum
+}
+
+func (p *Pkg) applyEnvRefs(envRefs map[string]string) {
+	for k, v := range envRefs {
+		for _, ref := range p.mEnv[k] {
+			ref.val = v
+		}
+	}
 }
 
 func (p *Pkg) applySecrets(secrets map[string]string) {
@@ -410,7 +420,7 @@ func (p *Pkg) buckets() []*bucket {
 		buckets = append(buckets, b)
 	}
 
-	sort.Slice(buckets, func(i, j int) bool { return buckets[i].name < buckets[j].name })
+	sort.Slice(buckets, func(i, j int) bool { return buckets[i].name.String() < buckets[j].name.String() })
 
 	return buckets
 }
@@ -462,6 +472,20 @@ func (p *Pkg) notificationRules() []*notificationRule {
 	rules := p.mNotificationRules[:]
 	sort.Slice(rules, func(i, j int) bool { return rules[i].name < rules[j].name })
 	return rules
+}
+
+func (p *Pkg) missingEnvRefs() []string {
+	envRefs := make([]string, 0)
+	for envRef, refs := range p.mEnv {
+		for _, ref := range refs {
+			if ref.val != nil {
+				continue
+			}
+			envRefs = append(envRefs, envRef)
+			break
+		}
+	}
+	return envRefs
 }
 
 func (p *Pkg) missingSecrets() []string {
@@ -550,6 +574,9 @@ func (p *Pkg) validResources() error {
 }
 
 func (p *Pkg) graphResources() error {
+	if p.mEnv == nil {
+		p.mEnv = make(map[string][]*references)
+	}
 	p.mSecrets = make(map[string]bool)
 
 	graphFns := []func() *parseErr{
@@ -586,15 +613,16 @@ func (p *Pkg) graphResources() error {
 func (p *Pkg) graphBuckets() *parseErr {
 	p.mBuckets = make(map[string]*bucket)
 	return p.eachResource(KindBucket, 2, func(k Object) []validationErr {
-		if _, ok := p.mBuckets[k.Name()]; ok {
+		nameRef := k.Metadata.references("name")
+		if _, ok := p.mBuckets[nameRef.String()]; ok {
 			return []validationErr{{
 				Field: "name",
-				Msg:   "duplicate name: " + k.Name(),
+				Msg:   "duplicate name: " + nameRef.String(),
 			}}
 		}
 
 		bkt := &bucket{
-			name:        k.Name(),
+			name:        nameRef,
 			Description: k.Spec.stringShort(fieldDescription),
 		}
 		if rules, ok := k.Spec[fieldBucketRetentionRules].(retentionRules); ok {
@@ -607,6 +635,7 @@ func (p *Pkg) graphBuckets() *parseErr {
 				})
 			}
 		}
+		p.setRefs(bkt.name)
 
 		failures := p.parseNestedLabels(k.Spec, func(l *label) error {
 			bkt.labels = append(bkt.labels, l)
@@ -796,12 +825,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 			})
 			sort.Sort(endpoint.labels)
 
-			refs := []references{endpoint.password, endpoint.routingKey, endpoint.token, endpoint.username}
-			for _, ref := range refs {
-				if secret := ref.Secret; secret != "" {
-					p.mSecrets[secret] = false
-				}
-			}
+			p.setRefs(endpoint.password, endpoint.routingKey, endpoint.token, endpoint.username)
 
 			p.mNotificationEndpoints[endpoint.Name()] = endpoint
 			return append(failures, endpoint.valid()...)
@@ -1075,6 +1099,17 @@ func (p *Pkg) parseNestedLabel(nr Resource, fn func(lb *label) error) *validatio
 	return nil
 }
 
+func (p *Pkg) setRefs(refs ...*references) {
+	for _, ref := range refs {
+		if ref.Secret != "" {
+			p.mSecrets[ref.Secret] = false
+		}
+		if ref.EnvRef != "" {
+			p.mEnv[ref.EnvRef] = append(p.mEnv[ref.EnvRef], ref)
+		}
+	}
+}
+
 func parseChart(r Resource) (chart, []validationErr) {
 	ck, err := r.chartKind()
 	if err != nil {
@@ -1270,27 +1305,32 @@ func (r Resource) intShort(key string) int {
 	return i
 }
 
-func (r Resource) references(key string) references {
+func (r Resource) references(key string) *references {
 	v, ok := r[key]
 	if !ok {
-		return references{}
+		return &references{}
 	}
 
 	var ref references
-	for _, f := range []string{fieldReferencesSecret} {
+	for _, f := range []string{fieldReferencesSecret, fieldReferencesEnv} {
 		resBody, ok := ifaceToResource(v)
 		if !ok {
 			continue
 		}
 		if keyRes, ok := ifaceToResource(resBody[f]); ok {
-			ref.Secret = keyRes.stringShort(fieldKey)
+			switch f {
+			case fieldReferencesEnv:
+				ref.EnvRef = keyRes.stringShort(fieldKey)
+			case fieldReferencesSecret:
+				ref.Secret = keyRes.stringShort(fieldKey)
+			}
 		}
 	}
-	if ref.Secret != "" {
-		return ref
+	if ref.hasValue() {
+		return &ref
 	}
 
-	return references{val: v}
+	return &references{val: v}
 }
 
 func (r Resource) string(key string) (string, bool) {

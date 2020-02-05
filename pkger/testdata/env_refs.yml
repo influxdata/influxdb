@@ -1,0 +1,18 @@
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointPagerDuty
+metadata:
+  name: pager_duty_notification_endpoint
+spec:
+  description: pager duty desc
+  url:  http://localhost:8080/orgs/7167eb6719fa34e5/alert-history
+  routingKey:
+    envRef:
+      key: "routing-key"
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name:
+    envRef:
+      key: "bkt-1-name-ref"
+spec:

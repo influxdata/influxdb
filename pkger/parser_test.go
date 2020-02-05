@@ -3305,6 +3305,13 @@ spec:
 	})
 
 	t.Run("referencing secrets", func(t *testing.T) {
+		hasSecret := func(t *testing.T, refs map[string]bool, key string) {
+			t.Helper()
+			b, ok := refs[key]
+			assert.True(t, ok)
+			assert.False(t, b)
+		}
+
 		testfileRunner(t, "testdata/notification_endpoint_secrets.yml", func(t *testing.T, pkg *Pkg) {
 			sum := pkg.Summary()
 
@@ -3317,7 +3324,7 @@ spec:
 					Status: influxdb.TaskStatusActive,
 				},
 				ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
-				RoutingKey: influxdb.SecretField{Key: "-routing-key", Value: strPtr("not emtpy")},
+				RoutingKey: influxdb.SecretField{Key: "-routing-key", Value: strPtr("not empty")},
 			}
 			actual, ok := endpoints[0].NotificationEndpoint.(*endpoint.PagerDuty)
 			require.True(t, ok)
@@ -3325,8 +3332,41 @@ spec:
 			require.Nil(t, actual.RoutingKey.Value)
 			assert.Equal(t, "routing-key", actual.RoutingKey.Key)
 
-			_, ok = pkg.mSecrets["routing-key"]
+			hasSecret(t, pkg.mSecrets, "routing-key")
+		})
+	})
+
+	t.Run("referencing env", func(t *testing.T) {
+		hasEnv := func(t *testing.T, refs map[string][]*references, key string) {
+			t.Helper()
+			_, ok := refs[key]
+			assert.True(t, ok)
+		}
+
+		testfileRunner(t, "testdata/env_refs.yml", func(t *testing.T, pkg *Pkg) {
+			sum := pkg.Summary()
+
+			bkts := sum.Buckets
+			require.Len(t, bkts, 1)
+			assert.Equal(t, "$bkt-1-name-ref", bkts[0].Name)
+			hasEnv(t, pkg.mEnv, "bkt-1-name-ref")
+
+			endpoints := sum.NotificationEndpoints
+			require.Len(t, endpoints, 1)
+
+			expected := &endpoint.PagerDuty{
+				Base: endpoint.Base{
+					Name:   "pager_duty_notification_endpoint",
+					Status: influxdb.TaskStatusActive,
+				},
+				ClientURL: "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
+			}
+			actual, ok := endpoints[0].NotificationEndpoint.(*endpoint.PagerDuty)
 			require.True(t, ok)
+			assert.Equal(t, expected.Base.Name, actual.Name)
+			require.Nil(t, actual.RoutingKey.Value)
+
+			hasEnv(t, pkg.mEnv, "routing-key")
 		})
 	})
 

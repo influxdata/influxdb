@@ -543,6 +543,36 @@ spec:
 			assert.Equal(t, vars[0].Description, v.Description)
 		})
 	})
+
+	t.Run("apply a package with env refs", func(t *testing.T) {
+		pkgStr := fmt.Sprintf(`
+apiVersion: %[1]s
+kind: Bucket
+metadata:
+  name:
+    envRef:
+      key: "bkt-1-name-ref"
+spec:
+`, pkger.APIVersion)
+
+		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
+		require.NoError(t, err)
+
+		sum, _, err := svc.DryRun(timedCtx(time.Second), l.Org.ID, l.User.ID, pkg)
+		require.NoError(t, err)
+
+		require.Len(t, sum.Buckets, 1)
+		assert.Equal(t, "$bkt-1-name-ref", sum.Buckets[0].Name)
+		assert.Equal(t, []string{"bkt-1-name-ref"}, sum.MissingEnvs)
+
+		sum, err = svc.Apply(timedCtx(time.Second), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
+			"bkt-1-name-ref": "rucket_threeve",
+		}))
+		require.NoError(t, err)
+
+		assert.Equal(t, "rucket_threeve", sum.Buckets[0].Name)
+		assert.Empty(t, sum.MissingEnvs)
+	})
 }
 
 func timedCtx(d time.Duration) context.Context {
