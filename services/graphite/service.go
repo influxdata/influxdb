@@ -164,6 +164,8 @@ func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 
 	<-ctx.Done()
 
+	return s.cleanup()
+
 	return nil
 }
 
@@ -176,7 +178,7 @@ func (s *Service) closeAllConnections() {
 }
 
 // Close stops all data processing on the Graphite input.
-func (s *Service) Stop() error {
+func (s *Service) cleanup() error {
 	if wait := func() bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()

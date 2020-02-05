@@ -65,8 +65,7 @@ type BuildInfo struct {
 type Server struct {
 	buildInfo BuildInfo
 
-	numServices int32
-	err         chan error
+	err chan error
 
 	BindAddress string
 	Listener    net.Listener
@@ -478,20 +477,6 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 				case s.err <- err:
 				default:
 				}
-			} else {
-				// if there was no error starting the service, the at this point
-				// svc.Open() should be unblocked and we're free to send the result
-				// of svc.Close() to s.err.
-				if err := svc.Stop(); err != nil {
-					// if there was an error, report it to s.err s.err <- err
-					//
-					// subtle: we want to report errors to s.err but if nothing is
-					// receiving messages on that channel, we do not want to block!
-					select {
-					case s.err <- err:
-					default:
-					}
-				}
 			}
 			// indicate that this service is done by decrementing our semaphore.
 			<-sem
@@ -597,7 +582,6 @@ func (s *Server) reportServer() {
 type Service interface {
 	WithLogger(log *zap.Logger)
 	Start(context.Context, services.Registry) error
-	Stop() error
 }
 
 // prof stores the file locations of active profiles.

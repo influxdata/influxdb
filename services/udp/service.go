@@ -43,8 +43,7 @@ type Service struct {
 	wg   sync.WaitGroup
 
 	mu    sync.RWMutex
-	ready bool          // Has the required database been created?
-	done  chan struct{} // Is the service closing or closed?
+	ready bool // Has the required database been created?
 
 	parserChan chan []byte
 	batcher    *tsdb.PointBatcher
@@ -79,11 +78,6 @@ func NewService(c Config) *Service {
 func (s *Service) Start(ctx context.Context, reg services.Registry) (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	if !s.closed() {
-		return nil // Already open.
-	}
-	s.done = make(chan struct{})
 
 	if s.config.BindAddress == "" {
 		return errors.New("bind address has to be specified in config")
@@ -120,12 +114,13 @@ func (s *Service) Start(ctx context.Context, reg services.Registry) (err error) 
 	s.Logger.Info("Started listening on UDP", zap.String("addr", s.config.BindAddress))
 
 	s.wg.Add(3)
-	go s.serve()
-	go s.parser()
-	go s.writer()
+	go s.serve(ctx)
+	go s.parser(ctx)
+	go s.writer(ctx)
 
-	<-ctx.Done()
+	s.wg.Wait()
 
+	s.Logger.Info("Service closed")
 	return nil
 }
 
@@ -157,7 +152,7 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 	}}
 }
 
-func (s *Service) writer() {
+func (s *Service) writer(ctx context.Context) {
 	defer s.wg.Done()
 
 	for {
@@ -178,20 +173,19 @@ func (s *Service) writer() {
 					logger.Database(s.config.Database), zap.Error(err))
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
-
-		case <-s.done:
+		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func (s *Service) serve() {
+func (s *Service) serve(ctx context.Context) {
 	defer s.wg.Done()
 
 	buf := make([]byte, MaxUDPPayload)
 	for {
 		select {
-		case <-s.done:
+		case <-ctx.Done():
 			// We closed the connection, time to go.
 			return
 		default:
@@ -211,12 +205,12 @@ func (s *Service) serve() {
 	}
 }
 
-func (s *Service) parser() {
+func (s *Service) parser(ctx context.Context) {
 	defer s.wg.Done()
 
 	for {
 		select {
-		case <-s.done:
+		case <-ctx.Done():
 			return
 		case buf := <-s.parserChan:
 			points, err := models.ParsePointsWithPrecision(buf, time.Now().UTC(), s.config.Precision)
@@ -232,59 +226,6 @@ func (s *Service) parser() {
 			atomic.AddInt64(&s.stats.PointsReceived, int64(len(points)))
 		}
 	}
-}
-
-// Close closes the service and the underlying listener.
-func (s *Service) Stop() error {
-	if wait := func() bool {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		if s.closed() {
-			return false // Already closed.
-		}
-		close(s.done)
-
-		if s.conn != nil {
-			s.conn.Close()
-		}
-
-		if s.batcher != nil {
-			s.batcher.Stop()
-		}
-		return true
-	}(); !wait {
-		return nil
-	}
-	s.wg.Wait()
-
-	// Release all remaining resources.
-	s.mu.Lock()
-	s.done = nil
-	s.conn = nil
-	s.batcher = nil
-	s.mu.Unlock()
-
-	s.Logger.Info("Service closed")
-
-	return nil
-}
-
-// Closed returns true if the service is currently closed.
-func (s *Service) Closed() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.closed()
-}
-
-func (s *Service) closed() bool {
-	select {
-	case <-s.done:
-		// Service is closing.
-		return true
-	default:
-	}
-	return s.done == nil
 }
 
 // createInternalStorage ensures that the required database has been created.

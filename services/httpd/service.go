@@ -191,13 +191,12 @@ func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 
 	<-ctx.Done()
 
-	return nil
+	return s.cleanup()
 }
 
 // Close closes the underlying listener.
-func (s *Service) Stop() error {
+func (s *Service) cleanup() error {
 	s.Handler.Close()
-
 	if s.ln != nil {
 		if err := s.ln.Close(); err != nil {
 			return err

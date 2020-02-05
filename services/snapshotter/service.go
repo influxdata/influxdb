@@ -70,11 +70,7 @@ func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	go s.serve()
 
 	<-ctx.Done()
-	return nil
-}
 
-// Close implements the Service interface.
-func (s *Service) Stop() error {
 	if s.Listener != nil {
 		if err := s.Listener.Close(); err != nil {
 			return err

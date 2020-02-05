@@ -18,8 +18,7 @@ type Service struct {
 
 	Logger *zap.Logger
 
-	done chan struct{}
-	wg   sync.WaitGroup
+	wg sync.WaitGroup
 
 	MetaClient interface {
 		PrecreateShardGroups(now, cutoff time.Time) error
@@ -42,47 +41,27 @@ func (s *Service) WithLogger(log *zap.Logger) {
 
 // Open starts the precreation service.
 func (s *Service) Start(ctx context.Context, reg services.Registry) error {
-	if s.done != nil {
-		return nil
-	}
 
 	s.Logger.Info("Starting precreation service",
 		logger.DurationLiteral("check_interval", s.checkInterval),
 		logger.DurationLiteral("advance_period", s.advancePeriod))
 
-	s.done = make(chan struct{})
-
 	s.wg.Add(1)
-	go s.runPrecreation()
-	return nil
-}
-
-// Close stops the precreation service.
-func (s *Service) Stop() error {
-	if s.done == nil {
-		return nil
-	}
-
-	close(s.done)
-	s.wg.Wait()
-	s.done = nil
-
-	return nil
+	return s.runPrecreation(ctx)
 }
 
 // runPrecreation continually checks if resources need precreation.
-func (s *Service) runPrecreation() {
+func (s *Service) runPrecreation(ctx context.Context) error {
 	defer s.wg.Done()
-
 	for {
 		select {
 		case <-time.After(s.checkInterval):
 			if err := s.precreate(time.Now().UTC()); err != nil {
 				s.Logger.Info("Failed to precreate shards", zap.Error(err))
 			}
-		case <-s.done:
+		case <-ctx.Done():
 			s.Logger.Info("Terminating precreation service")
-			return
+			return nil
 		}
 	}
 }

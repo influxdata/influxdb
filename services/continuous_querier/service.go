@@ -97,8 +97,6 @@ type Service struct {
 	// lastRuns maps CQ name to last time it was run.
 	mu       sync.RWMutex
 	lastRuns map[string]time.Time
-	stop     chan struct{}
-	wg       *sync.WaitGroup
 }
 
 // NewService returns a new instance of Service.
@@ -122,31 +120,20 @@ func NewService(c Config) *Service {
 func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	s.Logger.Info("Starting continuous query service")
 
-	if s.stop != nil {
-		return nil
-	}
-
 	assert(s.MetaClient != nil, "MetaClient is nil")
 	assert(s.QueryExecutor != nil, "QueryExecutor is nil")
 
-	s.stop = make(chan struct{})
-	s.wg = &sync.WaitGroup{}
-	s.wg.Add(1)
-	go s.backgroundLoop(ctx)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 
+	go func() { s.backgroundLoop(ctx); wg.Done() }()
+
+	// wait for cancellation signal
 	<-ctx.Done()
-	return nil
-}
 
-// Close stops the service.
-func (s *Service) Stop() error {
-	if s.stop == nil {
-		return nil
-	}
-	close(s.stop)
-	s.wg.Wait()
-	s.wg = nil
-	s.stop = nil
+	// wait for s.backgroundLoop() to complete.
+	wg.Wait()
+
 	return nil
 }
 
@@ -214,7 +201,6 @@ func (s *Service) backgroundLoop(ctx context.Context) {
 	leaseName := "continuous_querier"
 	t := time.NewTimer(s.RunInterval)
 	defer t.Stop()
-	defer s.wg.Done()
 	for {
 		select {
 		case <-ctx.Done():
