@@ -6,13 +6,13 @@ import {
   Links,
   ConfigurationState,
   RemoteDataState,
+  Label,
 } from 'src/types'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {WithRouterProps} from 'react-router'
 import {NumericColumnData} from '@influxdata/giraffe'
 import {
   Source,
-  ILabel,
   TelegrafPluginInputCpu,
   TelegrafPluginInputRedis,
   TelegrafPluginInputDisk,
@@ -165,7 +165,7 @@ export const dashboard: Dashboard = {
   status: RemoteDataState.Done,
 }
 
-export const labels: ILabel[] = [
+export const labels: Label[] = [
   {
     id: '0001',
     name: 'Trogdor',
@@ -173,6 +173,7 @@ export const labels: ILabel[] = [
       color: '#44ffcc',
       description: 'Burninating the countryside',
     },
+    status: RemoteDataState.Done,
   },
   {
     id: '0002',
@@ -181,6 +182,7 @@ export const labels: ILabel[] = [
       color: '#ff0054',
       description: 'It is a great fruit',
     },
+    status: RemoteDataState.Done,
   },
 ]
 

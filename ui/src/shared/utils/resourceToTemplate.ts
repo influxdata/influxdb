@@ -1,10 +1,11 @@
-import _ from 'lodash'
+import {get, pick, flatMap, uniqBy} from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
 
 import {defaultBuilderConfig} from 'src/views/helpers'
 import {viewableLabels} from 'src/labels/selectors'
 
 import {
+  AppState,
   Task,
   Label,
   Dashboard,
@@ -80,10 +81,10 @@ export const taskToTemplate = (
   task: Task,
   baseTemplate = blankTaskTemplate()
 ): DocumentCreate => {
-  const taskName = _.get(task, 'name', '')
+  const taskName = get(task, 'name', '')
   const templateName = `${taskName}-Template`
 
-  const taskAttributes = _.pick(task, [
+  const taskAttributes = pick(task, [
     'status',
     'name',
     'flux',
@@ -154,7 +155,7 @@ const cellToIncluded = (cell: Cell, views: View[]) => {
   const cellView = views.find(v => v.id === cell.id)
   const viewRelationship = viewToRelationship(cellView)
 
-  const cellAttributes = _.pick(cell, ['x', 'y', 'w', 'h'])
+  const cellAttributes = pick(cell, ['x', 'y', 'w', 'h'])
 
   return {
     id: cell.id,
@@ -174,20 +175,28 @@ const cellToRelationship = (cell: Cell) => ({
 })
 
 export const variableToTemplate = (
+  state: AppState,
   v: Variable,
   dependencies: Variable[],
   baseTemplate = blankVariableTemplate()
 ) => {
-  const variableName = _.get(v, 'name', '')
+  const labelsByID = state.resources.labels.byID
+  const variableName = get(v, 'name', '')
   const templateName = `${variableName}-Template`
-  const variableData = variableToIncluded(v)
+  const variableData = variableToIncluded(v, labelsByID)
   const variableRelationships = dependencies.map(d => variableToRelationship(d))
-  const includedDependencies = dependencies.map(d => variableToIncluded(d))
-  const includedLabels = v.labels.map(l => labelToIncluded(l))
-  const labelRelationships = v.labels.map(l => labelToRelationship(l))
+  const includedDependencies = dependencies.map(d =>
+    variableToIncluded(d, labelsByID)
+  )
 
-  const includedDependentLabels = _.flatMap(dependencies, d =>
-    d.labels.map(l => labelToIncluded(l))
+  const includedLabels = v.labels.map(labelID =>
+    labelToIncluded(labelsByID[labelID])
+  )
+  const labelRelationships = v.labels.map(labelID =>
+    labelToRelationship(labelsByID[labelID])
+  )
+  const includedDependentLabels = flatMap(dependencies, d =>
+    d.labels.map(labelID => labelToIncluded(labelsByID[labelID]))
   )
 
   return {
@@ -220,9 +229,13 @@ export const variableToTemplate = (
   }
 }
 
-const variableToIncluded = (v: Variable) => {
-  const variableAttributes = _.pick(v, ['name', 'arguments', 'selected'])
-  const labelRelationships = v.labels.map(l => labelToRelationship(l))
+type LabelsByID = AppState['resources']['labels']['byID']
+
+const variableToIncluded = (v: Variable, labelsByID: LabelsByID) => {
+  const variableAttributes = pick(v, ['name', 'arguments', 'selected'])
+  const labelRelationships = v.labels.map(labelID =>
+    labelToRelationship(labelsByID[labelID])
+  )
 
   return {
     id: v.id,
@@ -242,16 +255,18 @@ const variableToRelationship = (v: Variable) => ({
 })
 
 export const dashboardToTemplate = (
+  state: AppState,
   dashboard: Dashboard,
   cells: Cell[],
   views: View[],
   variables: Variable[],
   baseTemplate = blankDashboardTemplate()
 ): DocumentCreate => {
-  const dashboardName = _.get(dashboard, 'name', '')
+  const labelsByID = state.resources.labels.byID
+  const dashboardName = get(dashboard, 'name', '')
   const templateName = `${dashboardName}-Template`
 
-  const dashboardAttributes = _.pick(dashboard, ['name', 'description'])
+  const dashboardAttributes = pick(dashboard, ['name', 'description'])
 
   const dashboardLabels = getDeep<Label[]>(dashboard, 'labels', [])
   const dashboardIncludedLabels = dashboardLabels.map(l => labelToIncluded(l))
@@ -260,14 +275,16 @@ export const dashboardToTemplate = (
   const includedCells = cells.map(c => cellToIncluded(c, views))
   const relationshipsCells = cells.map(c => cellToRelationship(c))
 
-  const includedVariables = variables.map(v => variableToIncluded(v))
-  const variableIncludedLabels = _.flatMap(variables, v =>
-    v.labels.map(l => labelToIncluded(l))
+  const includedVariables = variables.map(v =>
+    variableToIncluded(v, labelsByID)
+  )
+  const variableIncludedLabels = flatMap(variables, v =>
+    v.labels.map(labelID => labelToIncluded(labelsByID[labelID]))
   )
   const relationshipsVariables = variables.map(v => variableToRelationship(v))
 
   const includedViews = views.map(v => viewToIncluded(v))
-  const includedLabels = _.uniqBy(
+  const includedLabels = uniqBy(
     [...dashboardIncludedLabels, ...variableIncludedLabels],
     'id'
   )
@@ -305,7 +322,7 @@ export const dashboardToTemplate = (
 }
 
 export const templateToExport = (template: ITemplate): DocumentCreate => {
-  const pickedTemplate = _.pick(template, ['meta', 'content'])
+  const pickedTemplate = pick(template, ['meta', 'content'])
   const labelsArray = template.labels.map(l => l.name)
   const templateWithLabels = {...pickedTemplate, labels: labelsArray}
   return templateWithLabels

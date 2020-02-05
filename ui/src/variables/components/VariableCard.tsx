@@ -12,7 +12,7 @@ import VariableContextMenu from 'src/variables/components/VariableContextMenu'
 import {AppState, Label, Variable, ResourceType} from 'src/types'
 
 // Selectors
-import {getAll} from 'src/resources/selectors'
+import {getAll, getLabels} from 'src/resources/selectors'
 
 // Actions
 import {
@@ -29,6 +29,7 @@ interface OwnProps {
 
 interface StateProps {
   labels: Label[]
+  selectedLabels: Label[]
 }
 
 interface DispatchProps {
@@ -76,13 +77,12 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private get labels(): JSX.Element {
-    const {variable, labels, onFilterChange} = this.props
-    const collectorLabels = variable.labels
+    const {labels, onFilterChange, selectedLabels} = this.props
 
     return (
       <InlineLabels
-        selectedLabels={collectorLabels}
         labels={labels}
+        selectedLabels={selectedLabels}
         onFilterChange={onFilterChange}
         onAddLabel={this.handleAddLabel}
         onRemoveLabel={this.handleRemoveLabel}
@@ -122,11 +122,13 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState, props: OwnProps): StateProps => {
   const labels = getAll<Label>(state, ResourceType.Labels)
+  const selectedLabels = getLabels(state, props.variable.labels)
 
   return {
     labels,
+    selectedLabels,
   }
 }
 

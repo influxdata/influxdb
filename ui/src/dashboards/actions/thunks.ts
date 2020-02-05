@@ -30,7 +30,6 @@ import {updateViewAndVariables} from 'src/views/actions/thunks'
 import * as creators from 'src/dashboards/actions/creators'
 
 // Utils
-import {addVariableDefaults} from 'src/variables/actions/thunks'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {
   extractVariablesList,
@@ -61,8 +60,11 @@ import {
   DashboardEntities,
   ViewEntities,
   ResourceType,
+  VariableEntities,
+  Variable,
 } from 'src/types'
 import {CellsWithViewProperties} from 'src/client'
+import { arrayOfVariables } from 'src/schemas/variables'
 
 type Action = creators.Action
 
@@ -446,10 +448,18 @@ export const convertToTemplate = (dashboardID: string) => async (
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
-    const vars = resp.data.variables.map(v => addVariableDefaults(v))
+
+    const normVars = normalize<Variable, VariableEntities, string>(
+      resp.data,
+      arrayOfVariables
+    )
+
+    const vars = Object.values(normVars.entities.variables)
+
     const variables = filterUnusedVars(vars, views)
     const exportedVariables = exportVariables(variables, vars)
     const dashboardTemplate = dashboardToTemplate(
+      state,
       dashboard,
       cells,
       views,

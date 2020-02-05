@@ -2,7 +2,7 @@
 import {get} from 'lodash'
 
 // Types
-import {AppState, ResourceType, RemoteDataState} from 'src/types'
+import {AppState, ResourceType, RemoteDataState, Label} from 'src/types'
 
 export const getStatus = (
   {resources}: AppState,
@@ -34,4 +34,8 @@ export const getByID = <R>(
   const resource = get(byID, `${id}`)
 
   return resource
+}
+
+export const getLabels = (state: AppState, labelIDs: string[]): Label[] => {
+  return labelIDs.map(labelID => getByID(state, ResourceType.Labels, labelID))
 }

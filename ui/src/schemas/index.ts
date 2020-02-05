@@ -11,7 +11,6 @@ import {
   ResourceType,
   Task,
   Telegraf,
-  Variable,
   View,
   NotificationEndpoint,
   GenCheck,
@@ -249,29 +248,6 @@ export const arrayOfTemplates = [template]
 
 export const scraper = new schema.Entity(ResourceType.Scrapers)
 export const arrayOfScrapers = [scraper]
-
-/* Variables */
-
-// Defines the schema for the "variables" resource
-export const variable = new schema.Entity(
-  ResourceType.Variables,
-  {},
-  {
-    processStrategy: (v: Variable): Variable => {
-      return {
-        ...v,
-        labels: addLabels(v),
-        status: addStatus(v),
-      }
-    },
-  }
-)
-export const arrayOfVariables = [variable]
-
-// Defaults
-const addStatus = <R extends {status: RemoteDataState}>(resource: R) => {
-  return resource.status ? resource.status : RemoteDataState.Done
-}
 
 export const addLabels = <R extends {labels?: Label[]}>(
   resource: R

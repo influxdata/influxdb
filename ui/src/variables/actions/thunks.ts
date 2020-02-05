@@ -12,7 +12,7 @@ import {
 } from 'src/variables/actions/creators'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {variableSchema, arrayOfVariables} from 'src/schemas/variables'
 
 // APIs
 import * as api from 'src/client'
@@ -24,8 +24,8 @@ import {getValueSelections, extractVariablesList} from 'src/variables/selectors'
 import {CancelBox} from 'src/types/promises'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {findDependentVariables} from 'src/variables/utils/exportVariables'
-import {addLabelDefaults} from 'src/labels/utils'
 import {getOrg} from 'src/organizations/selectors'
+import {getLabels} from 'src/resources/selectors'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -49,14 +49,6 @@ import {
 
 type Action = VariableAction | EditorAction | NotifyAction
 
-export const addVariableDefaults = (variable: api.Variable): Variable => {
-  return {
-    ...variable,
-    labels: (variable.labels || []).map(addLabelDefaults),
-    status: RemoteDataState.NotStarted,
-  }
-}
-
 export const getVariables = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
@@ -71,7 +63,7 @@ export const getVariables = () => async (
 
     const variables = normalize<Variable, VariableEntities, string[]>(
       resp.data.variables,
-      schemas.arrayOfVariables
+      arrayOfVariables
     )
 
     dispatch(setVariables(RemoteDataState.Done, variables))
@@ -95,7 +87,7 @@ export const getVariable = (id: string) => async (
 
     const variable = normalize<Variable, VariableEntities, string>(
       resp.data,
-      schemas.variable
+      variableSchema
     )
 
     dispatch(setVariable(id, RemoteDataState.Done, variable))
@@ -124,7 +116,7 @@ export const createVariable = (
 
     const createdVar = normalize<Variable, VariableEntities, string>(
       resp.data,
-      schemas.variable
+      variableSchema
     )
 
     dispatch(setVariable(resp.data.id, RemoteDataState.Done, createdVar))
@@ -139,12 +131,13 @@ export const createVariableFromTemplate = (
   template: VariableTemplate
 ) => async (dispatch: Dispatch<Action>, getState: GetState) => {
   try {
-    const org = getOrg(getState())
+    const state = getState()
+    const org = getOrg(state)
     const resp = await createVariableFromTemplateAJAX(template, org.id)
 
     const createdVar = normalize<Variable, VariableEntities, string>(
       resp,
-      schemas.variable
+      variableSchema
     )
 
     dispatch(setVariable(resp.id, RemoteDataState.Done, createdVar))
@@ -156,14 +149,21 @@ export const createVariableFromTemplate = (
 }
 
 export const updateVariable = (id: string, props: Variable) => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action>,
+  getState: GetState
 ) => {
   try {
     dispatch(setVariable(id, RemoteDataState.Loading))
 
+    const state = getState()
+    const labels = getLabels(state, props.labels)
+
     const resp = await api.patchVariable({
       variableID: id,
-      data: props,
+      data: {
+        ...props,
+        labels,
+      },
     })
 
     if (resp.status !== 200) {
@@ -172,7 +172,7 @@ export const updateVariable = (id: string, props: Variable) => async (
 
     const variable = normalize<Variable, VariableEntities, string>(
       resp.data,
-      schemas.variable
+      variableSchema
     )
 
     dispatch(setVariable(id, RemoteDataState.Done, variable))
@@ -195,10 +195,10 @@ export const deleteVariable = (id: string) => async (
     }
     dispatch(removeVariable(id))
     dispatch(notify(copy.deleteVariableSuccess()))
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
     dispatch(setVariable(id, RemoteDataState.Done))
-    dispatch(notify(copy.deleteVariableFailed(e.message)))
+    dispatch(notify(copy.deleteVariableFailed(error.message)))
   }
 }
 
@@ -234,12 +234,12 @@ export const refreshVariableValues = (
     const values = await pendingValueRequests[contextID].promise
 
     dispatch(setValues(contextID, RemoteDataState.Done, values))
-  } catch (e) {
-    if (e.name === 'CancellationError') {
+  } catch (error) {
+    if (error.name === 'CancellationError') {
       return
     }
 
-    console.error(e)
+    console.error(error)
     dispatch(setValues(contextID, RemoteDataState.Error))
   }
 }
@@ -250,23 +250,35 @@ export const convertToTemplate = (variableID: string) => async (
 ): Promise<void> => {
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
-    const org = getOrg(getState())
+    const state = getState()
+    const org = getOrg(state)
     const resp = await api.getVariable({variableID})
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
 
-    const variable = addVariableDefaults(resp.data)
     const allVariables = await api.getVariables({query: {orgID: org.id}})
+
     if (allVariables.status !== 200) {
       throw new Error(allVariables.data.message)
     }
-    const variables = allVariables.data.variables.map(v =>
-      addVariableDefaults(v)
+
+    const normVariable = normalize<Variable, VariableEntities, string>(
+      resp.data,
+      variableSchema
     )
+
+    const normVariables = normalize<Variable, VariableEntities, string>(
+      allVariables.data.variables,
+      arrayOfVariables
+    )
+
+    const variable = normVariable.entities.variables[normVariable.result]
+    const variables = Object.values(normVariables.entities.variables)
+
     const dependencies = findDependentVariables(variable, variables)
-    const variableTemplate = variableToTemplate(variable, dependencies)
+    const variableTemplate = variableToTemplate(state, variable, dependencies)
 
     dispatch(setExportTemplate(RemoteDataState.Done, variableTemplate))
   } catch (error) {
@@ -284,9 +296,11 @@ export const addVariableLabelAsync = (
       variableID,
       data: {labelID: label.id},
     })
+
     if (posted.status !== 201) {
       throw new Error(posted.data.message)
     }
+
     const resp = await api.getVariable({variableID})
 
     if (resp.status !== 200) {
@@ -295,7 +309,7 @@ export const addVariableLabelAsync = (
 
     const variable = normalize<Variable, VariableEntities, string>(
       resp.data,
-      schemas.variable
+      variableSchema
     )
 
     dispatch(setVariable(variableID, RemoteDataState.Done, variable))
@@ -314,9 +328,11 @@ export const removeVariableLabelAsync = (
       variableID,
       labelID: label.id,
     })
+
     if (deleted.status !== 204) {
       throw new Error(deleted.data.message)
     }
+
     const resp = await api.getVariable({variableID})
 
     if (resp.status !== 200) {
@@ -325,7 +341,7 @@ export const removeVariableLabelAsync = (
 
     const variable = normalize<Variable, VariableEntities, string>(
       resp.data,
-      schemas.variable
+      variableSchema
     )
 
     dispatch(setVariable(variableID, RemoteDataState.Done, variable))

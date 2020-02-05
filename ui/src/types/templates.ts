@@ -13,6 +13,7 @@ import {
   Variable,
   View,
   GenLabel,
+  PostVariable,
 } from 'src/types'
 
 export interface TemplateSummary extends DocumentListEntry {
@@ -156,7 +157,7 @@ interface DashboardTemplateData extends TemplateData {
 
 interface VariableTemplateData extends TemplateData {
   type: TemplateType.Variable
-  attributes: Variable
+  attributes: PostVariable
   relationships: {
     [TemplateType.Label]: {data: LabelRelationship[]}
     [TemplateType.Variable]: {data: VariableRelationship[]}

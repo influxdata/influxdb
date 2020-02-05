@@ -4,6 +4,7 @@ import {normalize} from 'normalizr'
 
 // Schemas
 import * as schemas from 'src/schemas'
+import {arrayOfVariables, variableSchema} from 'src/schemas/variables'
 
 // Utils
 import {
@@ -15,7 +16,6 @@ import {
   hasLabelsRelationships,
   getLabelRelationships,
 } from 'src/templates/utils/'
-import {addVariableDefaults} from 'src/variables/actions/thunks'
 import {addLabelDefaults} from 'src/labels/utils'
 
 // API
@@ -36,7 +36,6 @@ import {
   patchDashboardsCellsView as apiPatchDashboardsCellsView,
 } from 'src/client'
 import {addDashboardDefaults} from 'src/schemas'
-// Create Dashboard Templates
 
 // Types
 import {
@@ -53,6 +52,8 @@ import {
   Task,
   VariableTemplate,
   Variable,
+  VariableEntities,
+  PostVariable,
 } from 'src/types'
 
 // Create Dashboard Templates
@@ -284,12 +285,17 @@ const createVariablesFromTemplate = async (
   const variablesIncluded = findIncludedVariables(included)
 
   const resp = await apiGetVariables({query: {orgID}})
+
   if (resp.status !== 200) {
     throw new Error(resp.data.message)
   }
 
-  // TODO: normalize
-  const variables = resp.data.variables.map(v => addVariableDefaults(v))
+  const normVariables = normalize<Variable, VariableEntities, string[]>(
+    resp.data.variables,
+    arrayOfVariables
+  )
+
+  const variables = Object.values(normVariables.entities.variables)
 
   const variablesToCreate = findVariablesToCreate(
     variables,
@@ -297,10 +303,11 @@ const createVariablesFromTemplate = async (
   ).map(v => ({...v.attributes, orgID}))
 
   const pendingVariables = variablesToCreate.map(vars =>
-    apiPostVariable({data: vars})
+    apiPostVariable({data: vars as PostVariable})
   )
 
   const resolvedVariables = await Promise.all(pendingVariables)
+
   if (
     resolvedVariables.length > 0 &&
     resolvedVariables.every(r => r.status !== 201)
@@ -308,11 +315,17 @@ const createVariablesFromTemplate = async (
     throw new Error('An error occurred creating the variables from templates')
   }
 
-  const createdVariables = await Promise.all(pendingVariables).then(vars =>
-    vars.map(res => addVariableDefaults(res.data as Variable))
-  )
+  const createdVariables = await Promise.all(pendingVariables)
 
-  const allVars = [...variables, ...createdVariables]
+  const normCreated = createdVariables.map(v => {
+    const normVar = normalize<Variable, VariableEntities, string>(
+      v.data,
+      variableSchema
+    )
+    return normVar.entities.variables[normVar.result]
+  })
+
+  const allVars = [...variables, ...normCreated]
 
   const addLabelsToVars = variablesIncluded.map(async includedVar => {
     const variable = allVars.find(v => v.name === includedVar.attributes.name)
@@ -387,8 +400,8 @@ const addTaskLabelsFromTemplate = async (
     if (resolved.length > 0 && resolved.some(r => r.status !== 201)) {
       throw new Error('An error occurred adding task labels from the templates')
     }
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
   }
 }
 
@@ -427,8 +440,8 @@ export const createVariableFromTemplate = async (
       throw new Error(variable.data.message)
     }
 
-    return addVariableDefaults(variable.data)
-  } catch (e) {
-    console.error(e)
+    return variable.data
+  } catch (error) {
+    console.error(error)
   }
 }
