@@ -203,14 +203,9 @@ func (s *Store) Start(ctx context.Context, reg services.Registry) error {
 	if err := s.OpenWithContext(ctx); err != nil {
 		return err
 	}
-
 	reg.Register("tsdb")
 	<-ctx.Done()
 	reg.Unregister("tsdb")
-	return nil
-}
-
-func (s *Store) Stop() error {
 	return s.Close()
 }
 
