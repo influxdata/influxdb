@@ -51,14 +51,14 @@ func TestPkg(t *testing.T) {
 					"2": {
 						id:          influxdb.ID(2),
 						OrgID:       influxdb.ID(100),
-						name:        "name2",
+						name:        &references{val: "name2"},
 						Description: "desc2",
 						Color:       "blurple",
 					},
 					"1": {
 						id:          influxdb.ID(1),
 						OrgID:       influxdb.ID(100),
-						name:        "name1",
+						name:        &references{val: "name1"},
 						Description: "desc1",
 						Color:       "peru",
 					},
@@ -91,7 +91,7 @@ func TestPkg(t *testing.T) {
 			label1 := &label{
 				id:          influxdb.ID(2),
 				OrgID:       influxdb.ID(100),
-				name:        "name2",
+				name:        &references{val: "name2"},
 				Description: "desc2",
 				Color:       "blurple",
 				associationMapping: associationMapping{

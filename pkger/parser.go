@@ -449,7 +449,7 @@ func (p *Pkg) labels() []*label {
 
 func (p *Pkg) dashboards() []*dashboard {
 	dashes := p.mDashboards[:]
-	sort.Slice(dashes, func(i, j int) bool { return dashes[i].name < dashes[j].name })
+	sort.Slice(dashes, func(i, j int) bool { return dashes[i].Name() < dashes[j].Name() })
 	return dashes
 }
 
@@ -470,7 +470,7 @@ func (p *Pkg) notificationEndpoints() []*notificationEndpoint {
 
 func (p *Pkg) notificationRules() []*notificationRule {
 	rules := p.mNotificationRules[:]
-	sort.Slice(rules, func(i, j int) bool { return rules[i].name < rules[j].name })
+	sort.Slice(rules, func(i, j int) bool { return rules[i].Name() < rules[j].Name() })
 	return rules
 }
 
@@ -485,6 +485,7 @@ func (p *Pkg) missingEnvRefs() []string {
 			break
 		}
 	}
+	sort.Strings(envRefs)
 	return envRefs
 }
 
@@ -508,7 +509,11 @@ func (p *Pkg) tasks() []*task {
 }
 
 func (p *Pkg) telegrafs() []*telegraf {
-	teles := p.mTelegrafs[:]
+	teles := make([]*telegraf, 0, len(p.mTelegrafs))
+	for _, t := range p.mTelegrafs {
+		t.config.Name = t.Name()
+		teles = append(teles, t)
+	}
 	sort.Slice(teles, func(i, j int) bool { return teles[i].Name() < teles[j].Name() })
 	return teles
 }
@@ -519,7 +524,7 @@ func (p *Pkg) variables() []*variable {
 		vars = append(vars, v)
 	}
 
-	sort.Slice(vars, func(i, j int) bool { return vars[i].name < vars[j].name })
+	sort.Slice(vars, func(i, j int) bool { return vars[i].Name() < vars[j].Name() })
 
 	return vars
 }
@@ -613,10 +618,10 @@ func (p *Pkg) graphResources() error {
 func (p *Pkg) graphBuckets() *parseErr {
 	p.mBuckets = make(map[string]*bucket)
 	return p.eachResource(KindBucket, 2, func(k Object) []validationErr {
-		nameRef := k.Metadata.references("name")
+		nameRef := k.Metadata.references(fieldName)
 		if _, ok := p.mBuckets[nameRef.String()]; ok {
 			return []validationErr{{
-				Field: "name",
+				Field: fieldName,
 				Msg:   "duplicate name: " + nameRef.String(),
 			}}
 		}
@@ -653,17 +658,21 @@ func (p *Pkg) graphBuckets() *parseErr {
 func (p *Pkg) graphLabels() *parseErr {
 	p.mLabels = make(map[string]*label)
 	return p.eachResource(KindLabel, 2, func(k Object) []validationErr {
-		if _, ok := p.mLabels[k.Name()]; ok {
+		nameRef := k.Metadata.references(fieldName)
+		if _, ok := p.mLabels[nameRef.String()]; ok {
 			return []validationErr{{
-				Field: "name",
+				Field: fieldName,
 				Msg:   "duplicate name: " + k.Name(),
 			}}
 		}
-		p.mLabels[k.Name()] = &label{
-			name:        k.Name(),
+
+		l := &label{
+			name:        nameRef,
 			Color:       k.Spec.stringShort(fieldLabelColor),
 			Description: k.Spec.stringShort(fieldDescription),
 		}
+		p.mLabels[l.Name()] = l
+		p.setRefs(nameRef)
 
 		return nil
 	})
@@ -682,16 +691,17 @@ func (p *Pkg) graphChecks() *parseErr {
 	var pErr parseErr
 	for _, checkKind := range checkKinds {
 		err := p.eachResource(checkKind.kind, 1, func(k Object) []validationErr {
-			if _, ok := p.mChecks[k.Name()]; ok {
+			nameRef := k.Metadata.references(fieldName)
+			if _, ok := p.mChecks[nameRef.String()]; ok {
 				return []validationErr{{
-					Field: "name",
+					Field: fieldName,
 					Msg:   "duplicate name: " + k.Name(),
 				}}
 			}
 
 			ch := &check{
 				kind:          checkKind.checkKind,
-				name:          k.Name(),
+				name:          nameRef,
 				description:   k.Spec.stringShort(fieldDescription),
 				every:         k.Spec.durationShort(fieldEvery),
 				level:         k.Spec.stringShort(fieldLevel),
@@ -728,6 +738,7 @@ func (p *Pkg) graphChecks() *parseErr {
 			sort.Sort(ch.labels)
 
 			p.mChecks[ch.Name()] = ch
+			p.setRefs(nameRef)
 			return append(failures, ch.valid()...)
 		})
 		if err != nil {
@@ -743,8 +754,9 @@ func (p *Pkg) graphChecks() *parseErr {
 func (p *Pkg) graphDashboards() *parseErr {
 	p.mDashboards = make([]*dashboard, 0)
 	return p.eachResource(KindDashboard, 2, func(k Object) []validationErr {
+		nameRef := k.Metadata.references(fieldName)
 		dash := &dashboard{
-			name:        k.Name(),
+			name:        nameRef,
 			Description: k.Spec.stringShort(fieldDescription),
 		}
 
@@ -769,6 +781,7 @@ func (p *Pkg) graphDashboards() *parseErr {
 		}
 
 		p.mDashboards = append(p.mDashboards, dash)
+		p.setRefs(nameRef)
 
 		return failures
 	})
@@ -798,16 +811,17 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 	var pErr parseErr
 	for _, nk := range notificationKinds {
 		err := p.eachResource(nk.kind, 1, func(k Object) []validationErr {
-			if _, ok := p.mNotificationEndpoints[k.Name()]; ok {
+			nameRef := k.Metadata.references(fieldName)
+			if _, ok := p.mNotificationEndpoints[nameRef.String()]; ok {
 				return []validationErr{{
-					Field: "name",
+					Field: fieldName,
 					Msg:   "duplicate name: " + k.Name(),
 				}}
 			}
 
 			endpoint := &notificationEndpoint{
 				kind:        nk.notificationKind,
-				name:        k.Name(),
+				name:        nameRef,
 				description: k.Spec.stringShort(fieldDescription),
 				method:      strings.TrimSpace(strings.ToUpper(k.Spec.stringShort(fieldNotificationEndpointHTTPMethod))),
 				httpType:    normStr(k.Spec.stringShort(fieldType)),
@@ -825,7 +839,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 			})
 			sort.Sort(endpoint.labels)
 
-			p.setRefs(endpoint.password, endpoint.routingKey, endpoint.token, endpoint.username)
+			p.setRefs(nameRef, endpoint.password, endpoint.routingKey, endpoint.token, endpoint.username)
 
 			p.mNotificationEndpoints[endpoint.Name()] = endpoint
 			return append(failures, endpoint.valid()...)
@@ -844,8 +858,8 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 	p.mNotificationRules = make([]*notificationRule, 0)
 	return p.eachResource(KindNotificationRule, 1, func(k Object) []validationErr {
 		rule := &notificationRule{
-			name:         k.Name(),
-			endpointName: k.Spec.stringShort(fieldNotificationRuleEndpointName),
+			name:         k.Metadata.references(fieldName),
+			endpointName: k.Spec.references(fieldNotificationRuleEndpointName),
 			description:  k.Spec.stringShort(fieldDescription),
 			channel:      k.Spec.stringShort(fieldNotificationRuleChannel),
 			every:        k.Spec.durationShort(fieldEvery),
@@ -877,6 +891,7 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 		sort.Sort(rule.labels)
 
 		p.mNotificationRules = append(p.mNotificationRules, rule)
+		p.setRefs(rule.name, rule.endpointName)
 		return append(failures, rule.valid()...)
 	})
 }
@@ -885,7 +900,7 @@ func (p *Pkg) graphTasks() *parseErr {
 	p.mTasks = make([]*task, 0)
 	return p.eachResource(KindTask, 1, func(k Object) []validationErr {
 		t := &task{
-			name:        k.Name(),
+			name:        k.Metadata.references(fieldName),
 			cron:        k.Spec.stringShort(fieldTaskCron),
 			description: k.Spec.stringShort(fieldDescription),
 			every:       k.Spec.durationShort(fieldEvery),
@@ -902,6 +917,7 @@ func (p *Pkg) graphTasks() *parseErr {
 		sort.Sort(t.labels)
 
 		p.mTasks = append(p.mTasks, t)
+		p.setRefs(t.name)
 		return append(failures, t.valid()...)
 	})
 }
@@ -909,8 +925,9 @@ func (p *Pkg) graphTasks() *parseErr {
 func (p *Pkg) graphTelegrafs() *parseErr {
 	p.mTelegrafs = make([]*telegraf, 0)
 	return p.eachResource(KindTelegraf, 0, func(k Object) []validationErr {
-		tele := new(telegraf)
-		tele.config.Name = k.Name()
+		tele := &telegraf{
+			name: k.Metadata.references(fieldName),
+		}
 		tele.config.Description = k.Spec.stringShort(fieldDescription)
 
 		failures := p.parseNestedLabels(k.Spec, func(l *label) error {
@@ -929,6 +946,7 @@ func (p *Pkg) graphTelegrafs() *parseErr {
 		}
 
 		p.mTelegrafs = append(p.mTelegrafs, tele)
+		p.setRefs(tele.name)
 
 		return failures
 	})
@@ -937,15 +955,16 @@ func (p *Pkg) graphTelegrafs() *parseErr {
 func (p *Pkg) graphVariables() *parseErr {
 	p.mVariables = make(map[string]*variable)
 	return p.eachResource(KindVariable, 1, func(k Object) []validationErr {
-		if _, ok := p.mVariables[k.Name()]; ok {
+		nameRef := k.Metadata.references(fieldName)
+		if _, ok := p.mVariables[nameRef.String()]; ok {
 			return []validationErr{{
 				Field: "name",
-				Msg:   "duplicate name: " + k.Name(),
+				Msg:   "duplicate name: " + nameRef.String(),
 			}}
 		}
 
 		newVar := &variable{
-			name:        k.Name(),
+			name:        nameRef,
 			Description: k.Spec.stringShort(fieldDescription),
 			Type:        normStr(k.Spec.stringShort(fieldType)),
 			Query:       strings.TrimSpace(k.Spec.stringShort(fieldQuery)),
@@ -962,6 +981,7 @@ func (p *Pkg) graphVariables() *parseErr {
 		sort.Sort(newVar.labels)
 
 		p.mVariables[k.Name()] = newVar
+		p.setRefs(newVar.name)
 
 		return append(failures, newVar.valid()...)
 	})
