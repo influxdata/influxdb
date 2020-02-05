@@ -37,6 +37,7 @@ class Affixes extends PureComponent<Props> {
         <Grid.Column widthXS={Columns.Six}>
           <Form.Element label="Prefix">
             <Input
+              testID="prefix-input"
               value={prefix}
               onChange={this.handleUpdatePrefix}
               placeholder="%, MPH, etc."
@@ -46,6 +47,7 @@ class Affixes extends PureComponent<Props> {
         <Grid.Column widthXS={Columns.Six}>
           <Form.Element label="Suffix">
             <Input
+              testID="suffix-input"
               value={suffix}
               onChange={this.handleUpdateSuffix}
               placeholder="%, MPH, etc."
@@ -60,6 +62,7 @@ class Affixes extends PureComponent<Props> {
           >
             <Toggle
               id="prefixoptional"
+              testID="tickprefix-input"
               type={InputToggleType.Checkbox}
               value={tickPrefix}
               onChange={this.handleUpdateTickPrefix}
@@ -76,6 +79,7 @@ class Affixes extends PureComponent<Props> {
           >
             <Toggle
               id="suffixoptional"
+              testID="ticksuffix-input"
               type={InputToggleType.Checkbox}
               value={tickSuffix}
               onChange={this.handleUpdateTickSuffix}

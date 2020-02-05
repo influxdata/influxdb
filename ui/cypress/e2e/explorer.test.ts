@@ -181,6 +181,48 @@ describe('DataExplorer', () => {
     })
   })
 
+  describe('Optional suffix and prefix in gauge', () => {
+    beforeEach(() => {
+      cy.getByTestID('view-type--dropdown').click()
+      cy.getByTestID(`view-type--gauge`).click()
+      cy.getByTestID('cog-cell--button').click()
+    })
+    it('can add prefix and suffix values', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('prefix-input')
+          .click()
+          .type('mph')
+          .invoke('val')
+          .should('equal', 'mph')
+          .getByTestID('input-field--error')
+          .should('have.length', 0)
+        cy.getByTestID('suffix-input')
+          .click()
+          .type('mph')
+          .invoke('val')
+          .should('equal', 'mph')
+          .getByTestID('input-field--error')
+          .should('have.length', 0)
+      })
+    })
+    it('can add and remove tick values', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('tickprefix-input')
+          .click()
+          .invoke('val')
+          .should('equal', '')
+          .getByTestID('input-field--error')
+          .should('have.length', 0)
+        cy.getByTestID('ticksuffix-input')
+          .click()
+          .invoke('val')
+          .should('equal', '')
+          .getByTestID('input-field--error')
+          .should('have.length', 0)
+      })
+    })
+  })
+
   describe('select time range to query', () => {
     it('can select different time ranges', () => {
       // find initial value
@@ -449,8 +491,7 @@ describe('DataExplorer', () => {
       cy.getByTestID('toolbar-function').should('have.length', 1)
     })
 
-    // TODO: fix flakeyness of focused() command
-    it.skip('shows the empty state when the query returns no results', () => {
+    it('shows the empty state when the query returns no results', () => {
       cy.getByTestID('time-machine--bottom').within(() => {
         cy.get('.react-monaco-editor-container')
           .should('be.visible')
