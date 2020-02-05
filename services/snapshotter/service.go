@@ -63,7 +63,7 @@ func NewService() *Service {
 }
 
 // Open starts the service.
-func (s *Service) Open(ctx context.Context, reg services.Registry) error {
+func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	s.Logger.Info("Starting snapshot service")
 
 	s.wg.Add(1)
@@ -74,7 +74,7 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 }
 
 // Close implements the Service interface.
-func (s *Service) Close() error {
+func (s *Service) Stop() error {
 	if s.Listener != nil {
 		if err := s.Listener.Close(); err != nil {
 			return err

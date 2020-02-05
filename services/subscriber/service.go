@@ -77,7 +77,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the subscription service.
-func (s *Service) Open(ctx context.Context, reg services.Registry) error {
+func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	if !s.conf.Enabled {
 		return nil // Service disabled.
 	}
@@ -112,7 +112,7 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 
 // Close terminates the subscription service.
 // It will panic if called multiple times or without first opening the service.
-func (s *Service) Close() error {
+func (s *Service) Stop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

@@ -469,7 +469,7 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 			// channel len(s.Services) times which will block until all services have
 			// exited.
 			sem <- struct{}{}
-			if err := svc.Open(ctx, reg); err != nil {
+			if err := svc.Start(ctx, reg); err != nil {
 				// if there was an error, report it to s.err s.err <- err
 				//
 				// subtle: we want to report errors to s.err but if nothing is
@@ -482,7 +482,7 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 				// if there was no error starting the service, the at this point
 				// svc.Open() should be unblocked and we're free to send the result
 				// of svc.Close() to s.err.
-				if err := svc.Close(); err != nil {
+				if err := svc.Stop(); err != nil {
 					// if there was an error, report it to s.err s.err <- err
 					//
 					// subtle: we want to report errors to s.err but if nothing is
@@ -505,11 +505,7 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 
 	// wait for a cancellation signal
 	<-ctx.Done()
-	return nil
-}
 
-// Close shuts down the meta and data stores and all services.
-func (s *Server) Close() error {
 	s.stopProfile()
 
 	// Close the listener first to stop any new connections
@@ -600,8 +596,8 @@ func (s *Server) reportServer() {
 // Service represents a service attached to the server.
 type Service interface {
 	WithLogger(log *zap.Logger)
-	Open(context.Context, services.Registry) error
-	Close() error
+	Start(context.Context, services.Registry) error
+	Stop() error
 }
 
 // prof stores the file locations of active profiles.

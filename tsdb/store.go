@@ -199,9 +199,28 @@ func (s *Store) IndexBytes() int {
 // Path returns the store's root path.
 func (s *Store) Path() string { return s.path }
 
+func (s *Store) Start(ctx context.Context, reg services.Registry) error {
+	if err := s.OpenWithContext(ctx); err != nil {
+		return err
+	}
+
+	reg.Register("tsdb")
+	<-ctx.Done()
+	reg.Unregister("tsdb")
+	return nil
+}
+
+func (s *Store) Stop() error {
+	return s.Close()
+}
+
 // Open initializes the store, creating all necessary directories, loading all
 // shards as well as initializing periodic maintenance of them.
-func (s *Store) Open(ctx context.Context, reg services.Registry) error {
+func (s *Store) Open() error {
+	return s.OpenWithContext(context.Background())
+}
+
+func (s *Store) OpenWithContext(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -229,10 +248,6 @@ func (s *Store) Open(ctx context.Context, reg services.Registry) error {
 	if !s.EngineOptions.MonitorDisabled {
 		go s.monitorShards(ctx)
 	}
-
-	reg.Register("tsdb")
-
-	<-ctx.Done()
 
 	return nil
 }

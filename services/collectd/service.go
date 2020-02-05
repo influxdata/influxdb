@@ -93,7 +93,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the service.
-func (s *Service) Open(ctx context.Context, reg services.Registry) error {
+func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -210,7 +210,7 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 }
 
 // Close stops the service.
-func (s *Service) Close() error {
+func (s *Service) Stop() error {
 	if wait := func() bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()

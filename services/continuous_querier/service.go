@@ -119,7 +119,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the service.
-func (s *Service) Open(ctx context.Context, reg services.Registry) error {
+func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	s.Logger.Info("Starting continuous query service")
 
 	if s.stop != nil {
@@ -139,7 +139,7 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 }
 
 // Close stops the service.
-func (s *Service) Close() error {
+func (s *Service) Stop() error {
 	if s.stop == nil {
 		return nil
 	}

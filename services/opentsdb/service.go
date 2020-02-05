@@ -110,7 +110,7 @@ func NewService(c Config) (*Service, error) {
 }
 
 // Open starts the service.
-func (s *Service) Open(ctx context.Context, reg services.Registry) error {
+func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -168,7 +168,7 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 }
 
 // Close closes the openTSDB service.
-func (s *Service) Close() error {
+func (s *Service) Stop() error {
 	if wait, err := func() (bool, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()

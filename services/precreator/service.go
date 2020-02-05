@@ -41,7 +41,7 @@ func (s *Service) WithLogger(log *zap.Logger) {
 }
 
 // Open starts the precreation service.
-func (s *Service) Open(ctx context.Context, reg services.Registry) error {
+func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	if s.done != nil {
 		return nil
 	}
@@ -58,7 +58,7 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 }
 
 // Close stops the precreation service.
-func (s *Service) Close() error {
+func (s *Service) Stop() error {
 	if s.done == nil {
 		return nil
 	}

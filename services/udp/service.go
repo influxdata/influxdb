@@ -76,7 +76,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the service.
-func (s *Service) Open(ctx context.Context, reg services.Registry) (err error) {
+func (s *Service) Start(ctx context.Context, reg services.Registry) (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -235,7 +235,7 @@ func (s *Service) parser() {
 }
 
 // Close closes the service and the underlying listener.
-func (s *Service) Close() error {
+func (s *Service) Stop() error {
 	if wait := func() bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()

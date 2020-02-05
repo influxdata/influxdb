@@ -126,7 +126,7 @@ func NewService(c Config) (*Service, error) {
 }
 
 // Open starts the Graphite input processing data.
-func (s *Service) Open(ctx context.Context, reg services.Registry) error {
+func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -176,7 +176,7 @@ func (s *Service) closeAllConnections() {
 }
 
 // Close stops all data processing on the Graphite input.
-func (s *Service) Close() error {
+func (s *Service) Stop() error {
 	if wait := func() bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
