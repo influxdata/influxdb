@@ -121,14 +121,26 @@ func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
 	s.Shards[shardInfo.ID] = shardInfo
 }
 
+func (w *PointsWriter) Start(ctx context.Context, reg services.Registry) error {
+	w.OpenWithContext(ctx)
+	<-ctx.Done()
+		return nil
+}
+
+func (w *PointsWriter) Stop() error {
+	return w.Close()
+}
+
 // Open opens the communication channel with the point writer.
-func (w *PointsWriter) Open(ctx context.Context, reg services.Registry) error {
+func (w *PointsWriter) OpenWithContext(ctx context.Context) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.closing = make(chan struct{})
-
-	<-ctx.Done()
 	return nil
+}
+
+func (w *PointsWriter) Open() error {
+	return w.OpenWithContext(context.Background())
 }
 
 // Close closes the communication channel with the point writer.

@@ -99,7 +99,7 @@ func NewService(c Config, reg services.Registry) *Service {
 }
 
 // Open starts the service.
-func (s *Service) Open(ctx context.Context, reg services.Registry) error {
+func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	s.Logger.Info("Starting HTTP service", zap.Bool("authentication", s.Handler.Config.AuthEnabled))
 
 	s.Handler.Open()
@@ -191,13 +191,12 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 
 	<-ctx.Done()
 
-	return nil
+	return s.cleanup()
 }
 
 // Close closes the underlying listener.
-func (s *Service) Close() error {
+func (s *Service) cleanup() error {
 	s.Handler.Close()
-
 	if s.ln != nil {
 		if err := s.ln.Close(); err != nil {
 			return err

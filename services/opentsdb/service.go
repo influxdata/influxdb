@@ -110,7 +110,7 @@ func NewService(c Config) (*Service, error) {
 }
 
 // Open starts the service.
-func (s *Service) Open(ctx context.Context, reg services.Registry) error {
+func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -159,16 +159,16 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 
 	// Begin listening for connections.
 	s.wg.Add(2)
-	go func() { defer s.wg.Done(); s.serve() }()
+	go func() { defer s.wg.Done(); s.serve(ctx) }()
 	go func() { defer s.wg.Done(); s.serveHTTP() }()
 
 	<-ctx.Done()
 
-	return nil
+	return s.cleanup()
 }
 
 // Close closes the openTSDB service.
-func (s *Service) Close() error {
+func (s *Service) cleanup() error {
 	if wait, err := func() (bool, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -301,21 +301,43 @@ func (s *Service) Addr() net.Addr {
 }
 
 // serve serves the handler from the listener.
-func (s *Service) serve() {
-	for {
-		// Wait for next connection.
-		conn, err := s.ln.Accept()
-		if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
-			s.Logger.Info("OpenTSDB TCP listener closed")
-			return
-		} else if err != nil {
-			s.Logger.Info("Error accepting OpenTSDB", zap.Error(err))
-			continue
-		}
+func (s *Service) serve(ctx context.Context) error {
 
-		// Handle connection in separate goroutine.
-		go s.handleConn(conn)
+	conChan := make(chan net.Conn)
+	errChan := make(chan error)
+
+	go func() {
+		for {
+			// Wait for next connection.
+			c, err := s.ln.Accept()
+			if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
+				s.Logger.Info("OpenTSDB TCP listener closed")
+				errChan <- err
+				return
+			} else if err != nil {
+				s.Logger.Info("Error accepting OpenTSDB", zap.Error(err))
+				continue
+			}
+			conChan <- c
+		}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+
+		case conn := <-conChan:
+			// Handle connection in separate goroutine.
+			go s.handleConn(conn)
+
+		case err := <-errChan:
+			s.ln.Close()
+			return err
+		}
 	}
+
+	return nil
 }
 
 // handleConn processes conn. This is run in a separate goroutine.

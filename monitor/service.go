@@ -93,9 +93,21 @@ func (m *Monitor) open() bool {
 	return m.done != nil
 }
 
+func (m *Monitor) Start(ctx context.Context, reg services.Registry) error {
+	if err := m.Open(); err != nil {
+		return err
+	}
+	<-ctx.Done()
+	return nil
+}
+
+func (m *Monitor) Stop() error {
+	return m.Close()
+}
+
 // Open opens the monitoring system, using the given clusterID, node ID, and hostname
 // for identification purpose.
-func (m *Monitor) Open(ctx context.Context, reg services.Registry) error {
+func (m *Monitor) Open() error {
 	if m.open() {
 		m.Logger.Info("Monitor is already open")
 		return nil
@@ -127,8 +139,6 @@ func (m *Monitor) Open(ctx context.Context, reg services.Registry) error {
 		m.wg.Add(1)
 		go m.storeStatistics()
 	}
-
-	<-ctx.Done()
 
 	return nil
 }
@@ -216,7 +226,7 @@ func (m *Monitor) SetPointsWriter(pw PointsWriter) error {
 	// Subsequent calls to an already open Monitor are just a no-op.
 
 	// FIXME: should we be running m.Open() here?
-	return m.Open(context.TODO(), nil)
+	return m.Open()
 }
 
 // WithLogger sets the logger for the Monitor.

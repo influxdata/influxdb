@@ -93,7 +93,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the service.
-func (s *Service) Open(ctx context.Context, reg services.Registry) error {
+func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -206,37 +206,26 @@ func (s *Service) Open(ctx context.Context, reg services.Registry) error {
 
 	<-ctx.Done()
 
-	return nil
+	// cleanup after receiving cancellation signal
+	return s.cleanup()
 }
 
-// Close stops the service.
-func (s *Service) Close() error {
-	if wait := func() bool {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		// Close the connection, and wait for the goroutine to exit.
-		if s.conn != nil {
-			s.conn.Close()
-		}
-		if s.batcher != nil {
-			s.batcher.Stop()
-		}
-		return true
-	}(); !wait {
-		return nil // Already closed.
-	}
-
-	// Wait with the lock unlocked.
-	s.wg.Wait()
-
-	// Release all remaining resources.
+func (s *Service) cleanup() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// Close the connection, and wait for the goroutine to exit.
+	if s.conn != nil {
+		s.conn.Close()
+	}
+	if s.batcher != nil {
+		s.batcher.Stop()
+	}
 
 	s.conn = nil
 	s.batcher = nil
 	s.Logger.Info("Closed collectd service")
+
 	return nil
 }
 
