@@ -64,7 +64,7 @@ func bucketToObject(bkt influxdb.Bucket, name string) Object {
 	k := Object{
 		APIVersion: APIVersion,
 		Type:       KindBucket,
-		Metadata:   Metadata{Name: name},
+		Metadata:   convertToMetadataResource(name),
 		Spec:       make(Resource),
 	}
 	assignNonZeroStrings(k.Spec, map[string]string{fieldDescription: bkt.Description})
@@ -80,7 +80,7 @@ func checkToObject(ch influxdb.Check, name string) Object {
 	}
 	k := Object{
 		APIVersion: APIVersion,
-		Metadata:   Metadata{Name: name},
+		Metadata:   convertToMetadataResource(name),
 		Spec: Resource{
 			fieldStatus: influxdb.TaskStatusActive,
 		},
@@ -391,7 +391,7 @@ func DashboardToObject(dash influxdb.Dashboard, name string) Object {
 	return Object{
 		APIVersion: APIVersion,
 		Type:       KindDashboard,
-		Metadata:   Metadata{Name: name},
+		Metadata:   convertToMetadataResource(name),
 		Spec: Resource{
 			fieldDescription: dash.Description,
 			fieldDashCharts:  charts,
@@ -406,7 +406,7 @@ func labelToObject(l influxdb.Label, name string) Object {
 	k := Object{
 		APIVersion: APIVersion,
 		Type:       KindLabel,
-		Metadata:   Metadata{Name: name},
+		Metadata:   convertToMetadataResource(name),
 		Spec:       make(Resource),
 	}
 
@@ -423,7 +423,7 @@ func endpointKind(e influxdb.NotificationEndpoint, name string) Object {
 	}
 	k := Object{
 		APIVersion: APIVersion,
-		Metadata:   Metadata{Name: name},
+		Metadata:   convertToMetadataResource(name),
 		Spec:       make(Resource),
 	}
 	assignNonZeroStrings(k.Spec, map[string]string{
@@ -466,7 +466,7 @@ func ruleToObject(iRule influxdb.NotificationRule, endpointName, name string) Ob
 	k := Object{
 		APIVersion: APIVersion,
 		Type:       KindNotificationRule,
-		Metadata:   Metadata{Name: name},
+		Metadata:   convertToMetadataResource(name),
 		Spec: Resource{
 			fieldNotificationRuleEndpointName: endpointName,
 		},
@@ -536,7 +536,7 @@ func taskToObject(t influxdb.Task, name string) Object {
 	k := Object{
 		APIVersion: APIVersion,
 		Type:       KindTask,
-		Metadata:   Metadata{Name: name},
+		Metadata:   convertToMetadataResource(name),
 		Spec: Resource{
 			fieldQuery: strings.TrimSpace(query),
 		},
@@ -557,7 +557,7 @@ func telegrafToObject(t influxdb.TelegrafConfig, name string) Object {
 	k := Object{
 		APIVersion: APIVersion,
 		Type:       KindTelegraf,
-		Metadata:   Metadata{Name: name},
+		Metadata:   convertToMetadataResource(name),
 		Spec: Resource{
 			fieldTelegrafConfig: t.Config,
 		},
@@ -577,7 +577,7 @@ func VariableToObject(v influxdb.Variable, name string) Object {
 	k := Object{
 		APIVersion: APIVersion,
 		Type:       KindVariable,
-		Metadata:   Metadata{Name: name},
+		Metadata:   convertToMetadataResource(name),
 		Spec:       make(Resource),
 	}
 	assignNonZeroStrings(k.Spec, map[string]string{fieldDescription: v.Description})
@@ -608,6 +608,12 @@ func VariableToObject(v influxdb.Variable, name string) Object {
 	}
 
 	return k
+}
+
+func convertToMetadataResource(name string) Resource {
+	return Resource{
+		"name": name,
+	}
 }
 
 func assignNonZeroFluxDurs(r Resource, m map[string]*notification.Duration) {

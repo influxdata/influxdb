@@ -1066,11 +1066,20 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 
 // ApplyOpt is an option for applying a package.
 type ApplyOpt struct {
+	EnvRefs        map[string]string
 	MissingSecrets map[string]string
 }
 
 // ApplyOptFn updates the ApplyOpt per the functional option.
 type ApplyOptFn func(opt *ApplyOpt) error
+
+// ApplyWithEnvRefs provides env refs to saturate the missing reference fields in the pkg.
+func ApplyWithEnvRefs(envRefs map[string]string) ApplyOptFn {
+	return func(o *ApplyOpt) error {
+		o.EnvRefs = envRefs
+		return nil
+	}
+}
 
 // ApplyWithSecrets provides secrets to the platform that the pkg will need.
 func ApplyWithSecrets(secrets map[string]string) ApplyOptFn {
@@ -1096,6 +1105,8 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 			return Summary{}, internalErr(err)
 		}
 	}
+
+	pkg.applyEnvRefs(opt.EnvRefs)
 
 	if !pkg.isVerified {
 		if _, _, err := s.DryRun(ctx, orgID, userID, pkg); err != nil {

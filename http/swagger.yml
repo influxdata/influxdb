@@ -7284,6 +7284,10 @@ components:
                     type: string
                   labelID:
                     type: string
+            missingEnvRefs:
+              type: array
+              items:
+                type: string
             missingSecrets:
               type: array
               items:

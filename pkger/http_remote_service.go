@@ -87,6 +87,7 @@ func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID
 
 	reqBody := ReqApplyPkg{
 		OrgID:   orgID.String(),
+		EnvRefs: opt.EnvRefs,
 		Secrets: opt.MissingSecrets,
 		RawPkg:  b,
 	}
