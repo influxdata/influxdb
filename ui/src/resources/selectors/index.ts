@@ -31,11 +31,13 @@ export const getByID = <R>(
     throw new Error(`"${type}" resource has yet not been set`)
   }
 
-  const resource = get(byID, `${id}`)
+  const resource = get(byID, `${id}`, null)
 
   return resource
 }
 
 export const getLabels = (state: AppState, labelIDs: string[]): Label[] => {
-  return labelIDs.map(labelID => getByID(state, ResourceType.Labels, labelID))
+  return labelIDs
+    .map(labelID => getByID<Label>(state, ResourceType.Labels, labelID))
+    .filter(label => !!label)
 }

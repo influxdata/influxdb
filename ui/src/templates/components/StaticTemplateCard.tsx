@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
-import _ from 'lodash'
+import {get} from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 import {
@@ -19,12 +19,10 @@ import {createResourceFromStaticTemplate} from 'src/templates/actions/thunks'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/resources/selectors'
 
 // Types
-import {TemplateSummary} from '@influxdata/influx'
 import {ComponentColor} from '@influxdata/clockface'
-import {AppState, Organization, Label, ResourceType} from 'src/types'
+import {AppState, Organization, TemplateSummary} from 'src/types'
 
 // Constants
 interface OwnProps {
@@ -38,7 +36,6 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  labels: Label[]
   org: Organization
 }
 
@@ -84,7 +81,7 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
 
   private get description(): JSX.Element {
     const {template} = this.props
-    const description = _.get(template, 'content.data.attributes.description')
+    const description = get(template, 'content.data.attributes.description')
 
     return (
       <ResourceCard.Description description={description || 'No description'} />
@@ -96,7 +93,7 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
 
     return (
       <div className="resource-list--meta-item">
-        {_.get(template, 'content.data.type')}
+        {get(template, 'content.data.type')}
       </div>
     )
   }
@@ -120,11 +117,8 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const labels = getAll<Label>(state, ResourceType.Labels)
-
   return {
     org: getOrg(state),
-    labels,
   }
 }
 

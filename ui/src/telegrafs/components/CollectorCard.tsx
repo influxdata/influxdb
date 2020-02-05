@@ -16,15 +16,13 @@ import {
 } from 'src/telegrafs/actions/thunks'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/resources/selectors'
 
 // Constants
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
 // Types
-import {AppState, Organization, Label, Telegraf, ResourceType} from 'src/types'
+import {AppState, Organization, Label, Telegraf} from 'src/types'
 
 interface OwnProps {
   collector: Telegraf
@@ -34,7 +32,6 @@ interface OwnProps {
 }
 
 interface StateProps {
-  labels: Label[]
   org: Organization
 }
 
@@ -116,13 +113,11 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private get labels(): JSX.Element {
-    const {collector, labels, onFilterChange} = this.props
-    const collectorLabels = viewableLabels(collector.labels as Label[])
+    const {collector, onFilterChange} = this.props
 
     return (
       <InlineLabels
-        selectedLabels={collectorLabels}
-        labels={labels}
+        selectedLabelIDs={collector.labels}
         onFilterChange={onFilterChange}
         onAddLabel={this.handleAddLabel}
         onRemoveLabel={this.handleRemoveLabel}
@@ -160,9 +155,8 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
 
 const mstp = (state: AppState): StateProps => {
   const org = getOrg(state)
-  const labels = getAll<Label>(state, ResourceType.Labels)
 
-  return {org, labels}
+  return {org}
 }
 
 const mdtp: DispatchProps = {

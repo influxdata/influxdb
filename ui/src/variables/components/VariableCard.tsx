@@ -9,10 +9,7 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import VariableContextMenu from 'src/variables/components/VariableContextMenu'
 
 // Types
-import {AppState, Label, Variable, ResourceType} from 'src/types'
-
-// Selectors
-import {getAll, getLabels} from 'src/resources/selectors'
+import {Label, Variable} from 'src/types'
 
 // Actions
 import {
@@ -27,17 +24,12 @@ interface OwnProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface StateProps {
-  labels: Label[]
-  selectedLabels: Label[]
-}
-
 interface DispatchProps {
   onAddVariableLabel: typeof addVariableLabelAsync
   onRemoveVariableLabel: typeof removeVariableLabelAsync
 }
 
-type Props = OwnProps & DispatchProps & StateProps
+type Props = OwnProps & DispatchProps
 
 class VariableCard extends PureComponent<Props & WithRouterProps> {
   public render() {
@@ -77,12 +69,11 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private get labels(): JSX.Element {
-    const {labels, onFilterChange, selectedLabels} = this.props
+    const {variable, onFilterChange} = this.props
 
     return (
       <InlineLabels
-        labels={labels}
-        selectedLabels={selectedLabels}
+        selectedLabelIDs={variable.labels}
         onFilterChange={onFilterChange}
         onAddLabel={this.handleAddLabel}
         onRemoveLabel={this.handleRemoveLabel}
@@ -122,22 +113,12 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = (state: AppState, props: OwnProps): StateProps => {
-  const labels = getAll<Label>(state, ResourceType.Labels)
-  const selectedLabels = getLabels(state, props.variable.labels)
-
-  return {
-    labels,
-    selectedLabels,
-  }
-}
-
 const mdtp: DispatchProps = {
   onAddVariableLabel: addVariableLabelAsync,
   onRemoveVariableLabel: removeVariableLabelAsync,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
   mdtp
 )(withRouter<Props>(VariableCard))

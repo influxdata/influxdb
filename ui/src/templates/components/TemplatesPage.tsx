@@ -6,14 +6,17 @@ import {connect} from 'react-redux'
 // Components
 import FilterList from 'src/shared/components/Filter'
 import TemplatesList from 'src/templates/components/TemplatesList'
-import StaticTemplatesList from 'src/templates/components/StaticTemplatesList'
+import StaticTemplatesList, {
+  StaticTemplate,
+  TemplateOrSummary,
+} from 'src/templates/components/StaticTemplatesList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import GetResources from 'src/resources/components/GetResources'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 
 // Types
-import {AppState, ResourceType, Template, TemplateSummary} from 'src/types'
+import {AppState, ResourceType, TemplateSummary} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {
   Sort,
@@ -30,13 +33,6 @@ import {staticTemplates as statics} from 'src/templates/constants/defaultTemplat
 
 // Selectors
 import {getAll} from 'src/resources/selectors/getAll'
-
-type TemplateOrSummary = Template | TemplateSummary
-
-interface StaticTemplate {
-  name: string
-  template: TemplateOrSummary
-}
 
 const staticTemplates: StaticTemplate[] = _.map(statics, (template, name) => ({
   name,
@@ -207,7 +203,7 @@ const mstp = (state: AppState): StateProps => ({
   templates: getAll(state, ResourceType.Templates),
 })
 
-export default connect<StateProps, {}, {}>(
+export default connect<StateProps>(
   mstp,
   null
 )(TemplatesPage)

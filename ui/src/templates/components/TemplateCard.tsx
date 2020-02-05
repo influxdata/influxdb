@@ -28,17 +28,10 @@ import {
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/resources/selectors'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {
-  AppState,
-  Organization,
-  Label,
-  TemplateSummary,
-  ResourceType,
-} from 'src/types'
+import {AppState, Organization, Label, TemplateSummary} from 'src/types'
 
 // Constants
 import {DEFAULT_TEMPLATE_NAME} from 'src/templates/constants'
@@ -58,7 +51,6 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  labels: Label[]
   org: Organization
 }
 
@@ -66,7 +58,7 @@ type Props = DispatchProps & OwnProps & StateProps
 
 class TemplateCard extends PureComponent<Props & WithRouterProps> {
   public render() {
-    const {template, labels, onFilterChange} = this.props
+    const {template, onFilterChange} = this.props
 
     return (
       <ResourceCard
@@ -86,8 +78,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
         description={this.description}
         labels={
           <InlineLabels
-            selectedLabels={template.labels}
-            labels={labels}
+            selectedLabelIDs={template.labels}
             onFilterChange={onFilterChange}
             onAddLabel={this.handleAddLabel}
             onRemoveLabel={this.handleRemoveLabel}
@@ -220,11 +211,8 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const labels = getAll<Label>(state, ResourceType.Labels)
-
   return {
     org: getOrg(state),
-    labels,
   }
 }
 
