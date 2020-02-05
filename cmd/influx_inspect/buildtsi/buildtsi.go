@@ -145,6 +145,7 @@ func (cmd *Command) compactDatabaseSeriesFile(dbName, path string) error {
 	for _, path := range paths {
 		pathCh <- path
 	}
+	close(pathCh)
 
 	// Concurrently process each partition in the series file
 	var g errgroup.Group
@@ -188,6 +189,11 @@ func (cmd *Command) compactSeriesFilePartition(path string) error {
 	}
 
 	indexPath := filepath.Join(path, "index")
+	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+		fmt.Fprintf(cmd.Stdout, "no index file available, skipping %q\n", path)
+		return nil
+	}
+
 	index := tsdb.NewSeriesIndex(indexPath)
 	if err := index.Open(); err != nil {
 		return err
@@ -203,7 +209,7 @@ func (cmd *Command) compactSeriesFilePartition(path string) error {
 		segmentPath := filepath.Join(path, fi.Name())
 		fmt.Fprintf(cmd.Stdout, "processing segment %q %d\n", path, segmentID)
 
-		segment := tsdb.NewSeriesSegment(segmentID, path)
+		segment := tsdb.NewSeriesSegment(segmentID, segmentPath)
 		if err = segment.Open(); err != nil {
 			return err
 		} else if err := segment.CompactToPath(segmentPath+tmpExt, index); err != nil {
@@ -243,7 +249,7 @@ func (cmd *Command) seriesFilePartitionPaths(path string) ([]string, error) {
 
 	var paths []string
 	for _, partition := range sfile.Partitions() {
-		paths = append(paths, partition.IndexPath())
+		paths = append(paths, partition.Path())
 	}
 	if err := sfile.Close(); err != nil {
 		return nil, err
