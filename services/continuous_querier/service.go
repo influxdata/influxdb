@@ -123,18 +123,7 @@ func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	assert(s.MetaClient != nil, "MetaClient is nil")
 	assert(s.QueryExecutor != nil, "QueryExecutor is nil")
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-
-	go func() { s.backgroundLoop(ctx); wg.Done() }()
-
-	// wait for cancellation signal
-	<-ctx.Done()
-
-	// wait for s.backgroundLoop() to complete.
-	wg.Wait()
-
-	return nil
+	return s.backgroundLoop(ctx)
 }
 
 // WithLogger sets the logger on the service.
@@ -197,7 +186,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 }
 
 // backgroundLoop runs on a go routine and periodically executes CQs.
-func (s *Service) backgroundLoop(ctx context.Context) {
+func (s *Service) backgroundLoop(ctx context.Context) error {
 	leaseName := "continuous_querier"
 	t := time.NewTimer(s.RunInterval)
 	defer t.Stop()
@@ -205,7 +194,7 @@ func (s *Service) backgroundLoop(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			s.Logger.Info("Terminating continuous query service")
-			return
+			return nil
 		case req := <-s.RunCh:
 			if !s.hasContinuousQueries() {
 				continue
@@ -225,6 +214,7 @@ func (s *Service) backgroundLoop(ctx context.Context) {
 			t.Reset(s.RunInterval)
 		}
 	}
+	return nil
 }
 
 // hasContinuousQueries returns true if any CQs exist.
