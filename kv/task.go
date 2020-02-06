@@ -367,7 +367,10 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		return nil, 0, influxdb.ErrInvalidTaskID
 	}
 
-	key := prefix
+	var (
+		key  = prefix
+		opts []CursorOption
+	)
 	// we can filter by orgID
 	if filter.After != nil {
 		key, err = taskOrgKey(org.ID, *filter.After)
@@ -375,11 +378,13 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 			return nil, 0, err
 		}
 
-		// append a extra character because we want to skip "after" record
-		key = []byte(string(key) + "\x00")
+		opts = append(opts, WithCursorSkipFirstItem())
 	}
 
-	c, err := indexBucket.ForwardCursor(key, WithCursorPrefix(prefix))
+	c, err := indexBucket.ForwardCursor(
+		key,
+		append(opts, WithCursorPrefix(prefix))...,
+	)
 	if err != nil {
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
@@ -476,18 +481,21 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	var seek []byte
+	var (
+		seek []byte
+		opts []CursorOption
+	)
+
 	if filter.After != nil {
 		seek, err = taskKey(*filter.After)
 		if err != nil {
 			return nil, 0, err
 		}
 
-		// append a extra character because we want to skip "after" record
-		seek = []byte(string(seek) + "\x00")
+		opts = append(opts, WithCursorSkipFirstItem())
 	}
 
-	c, err := taskBucket.ForwardCursor(seek)
+	c, err := taskBucket.ForwardCursor(seek, opts...)
 	if err != nil {
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}

@@ -738,6 +738,25 @@ func KVForwardCursor(
 			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03"},
 		},
 		{
+			name: "prefix - skip first",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa/00",
+				until: "bbb/02",
+				opts: []kv.CursorOption{
+					kv.WithCursorPrefix([]byte("aaa")),
+					kv.WithCursorSkipFirstItem(),
+				},
+			},
+			exp: []string{"aaa/01", "aaa/02", "aaa/03"},
+		},
+		{
 			name: "prefix - does not prefix seek",
 			fields: KVStoreFields{
 				Bucket: []byte("bucket"),

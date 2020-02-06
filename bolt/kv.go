@@ -226,12 +226,18 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 		return nil, fmt.Errorf("seek bytes %q not prefixed with %q: %w", string(seek), string(config.Prefix), kv.ErrSeekMissingPrefix)
 	}
 
-	return &Cursor{
+	c := &Cursor{
 		cursor: cursor,
-		key:    key,
-		value:  value,
 		config: config,
-	}, nil
+	}
+
+	// only remember first seeked item if not skipped
+	if !config.SkipFirst {
+		c.key = key
+		c.value = value
+	}
+
+	return c, nil
 }
 
 // Cursor retrieves a cursor for iterating through the entries
