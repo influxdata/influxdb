@@ -10,6 +10,7 @@ import * as api from 'src/client'
 
 // Schemas
 import {ruleSchema, arrayOfRules} from 'src/schemas/rules'
+import {labelSchema} from 'src/schemas/labels'
 
 // Actions
 import {
@@ -22,10 +23,10 @@ import {
   setRule,
   setCurrentRule,
   removeRule,
-  addLabelToRule,
   removeLabelFromRule,
 } from 'src/notifications/rules/actions/creators'
 import {checkRulesLimits} from 'src/cloud/actions/limits'
+import {setLabelOnResource} from 'src/labels/actions/creators'
 
 // Utils
 import {draftRuleToPostRule} from 'src/notifications/rules/utils'
@@ -38,6 +39,7 @@ import {
   GetState,
   NotificationRuleDraft,
   Label,
+  LabelEntities,
   RemoteDataState,
   NotificationRule,
   RuleEntities,
@@ -215,7 +217,12 @@ export const addRuleLabel = (ruleID: string, label: Label) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(addLabelToRule(ruleID, label))
+    const normLabel = normalize<Label, LabelEntities, string>(
+      resp.data.label,
+      labelSchema
+    )
+
+    dispatch(setLabelOnResource(ruleID, normLabel))
   } catch (error) {
     console.error(error)
   }

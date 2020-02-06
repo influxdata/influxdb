@@ -4,7 +4,7 @@ import _ from 'lodash'
 import {connect} from 'react-redux'
 
 // Components
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 import TemplatesList from 'src/templates/components/TemplatesList'
 import StaticTemplatesList, {
   StaticTemplate,
@@ -58,6 +58,9 @@ interface State {
 }
 
 type SortKey = 'meta.name'
+
+const FilterStaticTemplates = FilterList<StaticTemplate>()
+const FilterTemplateSummaries = FilterList<TemplateSummary>()
 
 @ErrorHandling
 class TemplatesPage extends PureComponent<Props, State> {
@@ -132,7 +135,7 @@ class TemplatesPage extends PureComponent<Props, State> {
 
     if (activeTab === 'static-templates') {
       return (
-        <FilterList<StaticTemplate>
+        <FilterStaticTemplates
           searchTerm={searchTerm}
           searchKeys={['template.meta.name', 'labels[].name']}
           list={staticTemplates}
@@ -151,14 +154,14 @@ class TemplatesPage extends PureComponent<Props, State> {
               />
             )
           }}
-        </FilterList>
+        </FilterStaticTemplates>
       )
     }
 
     if (activeTab === 'user-templates') {
       return (
         <GetResources resources={[ResourceType.Labels]}>
-          <FilterList<TemplateSummary>
+          <FilterTemplateSummaries
             searchTerm={searchTerm}
             searchKeys={['meta.name', 'labels[].name']}
             list={templates}
@@ -177,7 +180,7 @@ class TemplatesPage extends PureComponent<Props, State> {
                 />
               )
             }}
-          </FilterList>
+          </FilterTemplateSummaries>
         </GetResources>
       )
     }

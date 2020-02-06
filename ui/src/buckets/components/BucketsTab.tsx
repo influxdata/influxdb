@@ -19,7 +19,7 @@ import {
 } from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 import BucketList from 'src/buckets/components/BucketList'
 import {PrettyBucket} from 'src/buckets/components/BucketCard'
 import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
@@ -77,6 +77,8 @@ interface State {
 type Props = DispatchProps & StateProps
 
 type SortKey = keyof PrettyBucket
+
+const FilterBuckets = FilterList<PrettyBucket>()
 
 @ErrorHandling
 class BucketsTab extends PureComponent<Props, State> {
@@ -136,7 +138,7 @@ class BucketsTab extends PureComponent<Props, State> {
               widthSM={Columns.Eight}
               widthMD={Columns.Ten}
             >
-              <FilterList<PrettyBucket>
+              <FilterBuckets
                 searchTerm={searchTerm}
                 searchKeys={['name', 'ruleString', 'labels[].name']}
                 list={prettyBuckets(buckets)}
@@ -154,7 +156,7 @@ class BucketsTab extends PureComponent<Props, State> {
                     onClickColumn={this.handleClickColumn}
                   />
                 )}
-              </FilterList>
+              </FilterBuckets>
             </Grid.Column>
             <Grid.Column
               widthXS={Columns.Twelve}

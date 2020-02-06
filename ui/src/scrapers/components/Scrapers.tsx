@@ -10,6 +10,7 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import ScraperList from 'src/scrapers/components/ScraperList'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
+import FilterList from 'src/shared/components/FilterList'
 
 // Actions
 import {updateScraper, deleteScraper} from 'src/scrapers/actions/thunks'
@@ -26,7 +27,6 @@ import {
   ComponentStatus,
 } from '@influxdata/clockface'
 import {AppState, Bucket, Scraper, Organization, ResourceType} from 'src/types'
-import FilterList from 'src/shared/components/Filter'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
@@ -53,6 +53,8 @@ interface State {
 }
 
 type SortKey = keyof Scraper
+
+const FilterScrapers = FilterList<Scraper>()
 
 @ErrorHandling
 class Scrapers extends PureComponent<Props, State> {
@@ -82,7 +84,7 @@ class Scrapers extends PureComponent<Props, State> {
           {this.createScraperButton('create-scraper-button-header')}
         </SettingsTabbedPageHeader>
         <NoBucketsWarning visible={this.hasNoBuckets} resourceName="Scrapers" />
-        <FilterList<Scraper>
+        <FilterScrapers
           searchTerm={searchTerm}
           searchKeys={['name', 'url']}
           list={scrapers}
@@ -99,7 +101,7 @@ class Scrapers extends PureComponent<Props, State> {
               onClickColumn={this.handleClickColumn}
             />
           )}
-        </FilterList>
+        </FilterScrapers>
       </>
     )
   }

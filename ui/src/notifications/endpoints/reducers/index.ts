@@ -13,6 +13,7 @@ import {
   SET_ENDPOINTS,
   SET_ENDPOINT,
   REMOVE_ENDPOINT,
+  REMOVE_LABEL_FROM_ENDPOINT,
 } from 'src/notifications/endpoints/actions/creators'
 
 import {SET_LABEL_ON_RESOURCE} from 'src/labels/actions/creators'
@@ -75,6 +76,16 @@ export default (
           labelID,
           resourceID
         )
+
+        return
+      }
+
+      case REMOVE_LABEL_FROM_ENDPOINT: {
+        const {endpointID, labelID} = action
+
+        const labels = draftState.byID[endpointID].labels
+
+        draftState.byID[endpointID].labels = labels.filter(id => id !== labelID)
 
         return
       }

@@ -1,5 +1,5 @@
 // Types
-import {RemoteDataState, Label, CheckEntities} from 'src/types'
+import {RemoteDataState, CheckEntities} from 'src/types'
 import {NormalizedSchema} from 'normalizr'
 import {setLabelOnResource} from 'src/labels/actions/creators'
 
@@ -7,7 +7,6 @@ export type Action =
   | ReturnType<typeof setChecks>
   | ReturnType<typeof setCheck>
   | ReturnType<typeof removeCheck>
-  | ReturnType<typeof addLabelToCheck>
   | ReturnType<typeof removeLabelFromCheck>
   | ReturnType<typeof setLabelOnResource>
 
@@ -48,13 +47,6 @@ export const removeCheck = (id: string) =>
   ({
     type: REMOVE_CHECK,
     id,
-  } as const)
-
-export const addLabelToCheck = (checkID: string, label: Label) =>
-  ({
-    type: ADD_LABEL_TO_CHECK,
-    checkID,
-    label,
   } as const)
 
 export const removeLabelFromCheck = (checkID: string, labelID: string) =>

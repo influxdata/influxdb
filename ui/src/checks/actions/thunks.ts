@@ -40,10 +40,10 @@ import {
   setChecks,
   setCheck,
   removeCheck,
-  addLabelToCheck,
   removeLabelFromCheck,
 } from 'src/checks/actions/creators'
 import {checkChecksLimits} from 'src/cloud/actions/limits'
+import {setLabelOnResource} from 'src/labels/actions/creators'
 
 // Types
 import {
@@ -52,10 +52,12 @@ import {
   RemoteDataState,
   CheckViewProperties,
   Label,
+  LabelEntities,
   CheckPatch,
   CheckEntities,
   ResourceType,
 } from 'src/types'
+import {labelSchema} from 'src/schemas/labels'
 
 export const getChecks = () => async (
   dispatch: Dispatch<
@@ -262,7 +264,12 @@ export const addCheckLabel = (checkID: string, label: Label) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(addLabelToCheck(checkID, label))
+    const normLabel = normalize<Label, LabelEntities>(
+      resp.data.label,
+      labelSchema
+    )
+
+    dispatch(setLabelOnResource(checkID, normLabel))
   } catch (error) {
     console.error(error)
   }

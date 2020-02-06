@@ -8,7 +8,7 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import LabelList from 'src/labels/components/LabelList'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 
 // Actions
 import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions/thunks'
@@ -54,6 +54,7 @@ type Props = DispatchProps & StateProps
 
 type SortKey = keyof Label
 
+const FilterLabels = FilterList<Label>()
 @ErrorHandling
 class Labels extends PureComponent<Props, State> {
   constructor(props) {
@@ -94,7 +95,7 @@ class Labels extends PureComponent<Props, State> {
             testID="button-create"
           />
         </TabbedPageHeader>
-        <FilterList<Label>
+        <FilterLabels
           list={labels}
           searchKeys={['name', 'properties.description']}
           searchTerm={searchTerm}
@@ -111,7 +112,7 @@ class Labels extends PureComponent<Props, State> {
               onClickColumn={this.handleClickColumn}
             />
           )}
-        </FilterList>
+        </FilterLabels>
         <CreateLabelOverlay
           isVisible={isOverlayVisible}
           onDismiss={this.handleDismissOverlay}
