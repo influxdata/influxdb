@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	authBucket = []byte("authorizationsv1")
-	authIndex  = []byte("authorizationindexv1")
+	authBucket      = []byte("authorizationsv1")
+	authIndex       = []byte("authorizationindexv1")
+	authByUserIndex = []byte("authorizationbyuserindexv1")
 )
 
 var _ influxdb.AuthorizationService = (*Service)(nil)
@@ -129,6 +130,108 @@ func (s *Service) findAuthorizationByToken(ctx context.Context, tx Tx, n string)
 	return s.findAuthorizationByID(ctx, tx, id)
 }
 
+// FindAuthorizationsByUser returns all authorizations associated to the specified user ID.
+func (s *Service) FindAuthorizationsByUser(ctx context.Context, userID influxdb.ID) (auths []*influxdb.Authorization, n int, err error) {
+	var foundInIndex bool
+	err = s.kv.View(ctx, func(tx Tx) error {
+		var err error
+		auths, err = s.findAuthorizationsByUser(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
+
+		// found in index
+		if n = len(auths); n > 0 {
+			foundInIndex = true
+			return nil
+		}
+
+		// filtered search
+		auths, err = s.findAuthorizations(ctx, tx, influxdb.AuthorizationFilter{
+			UserID: &userID,
+		})
+		if err != nil {
+			return err
+		}
+
+		n = len(auths)
+
+		return nil
+	})
+
+	if !foundInIndex {
+		var authIDs [][]byte
+		for _, a := range auths {
+			id, err := a.ID.Encode()
+			if err != nil {
+				return nil, 0, err
+			}
+
+			authIDs = append(authIDs, id)
+		}
+
+		s.indexer.AddToIndex(authByUserIndex, authIDs)
+	}
+
+	return
+}
+
+func (s *Service) findAuthorizationsByUser(ctx context.Context, tx Tx, userID influxdb.ID) (auths []*influxdb.Authorization, _ error) {
+	bkt, err := tx.Bucket(authBucket)
+	if err != nil {
+		return nil, err
+	}
+
+	idx, err := authByUserIndexBucket(tx)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		prefix       = authByUserIndexPrefix(userID)
+		wrapInternal = func(err error) *influxdb.Error {
+			return &influxdb.Error{
+				Code: influxdb.EInternal,
+				Err:  err,
+			}
+		}
+	)
+
+	// index scan
+	cursor, err := idx.ForwardCursor(prefix, WithCursorPrefix(prefix))
+	if err != nil {
+		return nil, wrapInternal(err)
+	}
+
+	for k, v := cursor.Next(); k != nil && v != nil; k, v = cursor.Next() {
+		v, err := bkt.Get(v)
+		if err != nil {
+			return nil, err
+		}
+
+		// preallocate Permissions to reduce multiple slice re-allocations
+		a := &influxdb.Authorization{
+			Permissions: make([]influxdb.Permission, 64),
+		}
+
+		if err := decodeAuthorization(v, a); err != nil {
+			return nil, err
+		}
+
+		auths = append(auths, a)
+	}
+
+	if err := cursor.Err(); err != nil {
+		return nil, wrapInternal(err)
+	}
+
+	if err := cursor.Close(); err != nil {
+		return nil, wrapInternal(err)
+	}
+
+	return
+}
+
 func authorizationsPredicateFn(f influxdb.AuthorizationFilter) CursorPredicateFunc {
 	// if any errors occur reading the JSON data, the predicate will always return true
 	// to ensure the value is included and handled higher up.
@@ -241,6 +344,27 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter influxdb.Author
 		}
 
 		return []*influxdb.Authorization{a}, 1, nil
+	}
+
+	if filter.User != nil || filter.UserID != nil {
+		var userID influxdb.ID
+
+		if filter.User != nil {
+			if err := s.kv.View(ctx, func(tx Tx) error {
+				u, err := s.findUserByName(ctx, tx, *filter.User)
+				if err != nil {
+					return err
+				}
+
+				userID = u.ID
+
+				return nil
+			}); err != nil {
+				return nil, 0, err
+			}
+		}
+
+		return s.FindAuthorizationsByUser(ctx, userID)
 	}
 
 	as := []*influxdb.Authorization{}
@@ -414,6 +538,11 @@ func authIndexKey(n string) []byte {
 	return []byte(n)
 }
 
+func authByUserIndexPrefix(userID influxdb.ID) []byte {
+	id, _ := userID.Encode()
+	return append(id, '/')
+}
+
 func decodeAuthorization(b []byte, a *influxdb.Authorization) error {
 	if err := json.Unmarshal(b, a); err != nil {
 		return err
@@ -536,7 +665,16 @@ func (s *Service) updateAuthorization(ctx context.Context, tx Tx, id influxdb.ID
 }
 
 func authIndexBucket(tx Tx) (Bucket, error) {
-	b, err := tx.Bucket([]byte(authIndex))
+	b, err := tx.Bucket(authIndex)
+	if err != nil {
+		return nil, UnexpectedAuthIndexError(err)
+	}
+
+	return b, nil
+}
+
+func authByUserIndexBucket(tx Tx) (Bucket, error) {
+	b, err := tx.Bucket(authByUserIndex)
 	if err != nil {
 		return nil, UnexpectedAuthIndexError(err)
 	}
