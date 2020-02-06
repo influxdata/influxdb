@@ -193,7 +193,9 @@ func NewHandler(c Config, reg services.Registry) *Handler {
 			func(w http.ResponseWriter, r *http.Request, user meta.User) {
 				if reg.IsRunning("tsdb") {
 					h.serveWrite(w, r, user)
+					return
 				}
+				h.httpError(w, "tsdb store is not ready", http.StatusServiceUnavailable)
 			},
 		},
 		Route{
