@@ -53,9 +53,13 @@ func Metrics(name string, reqMetric *prometheus.CounterVec, durMetric *prometheu
 
 func SkipOptions(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "OPTIONS" {
+		// Preflight CORS requests from the browser will send an options request,
+		// so we need to make sure we satisfy them
+		if origin := r.Header.Get("Origin"); origin == "" && r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+
 		next.ServeHTTP(w, r)
 	}
 	return http.HandlerFunc(fn)
