@@ -60,47 +60,52 @@ import {
 export const createDashboardFromTemplate = async (
   template: DashboardTemplate,
   orgID: string
-): Promise<Dashboard> => {
-  const {content} = template
+): Promise<void> => {
+  try {
+    const {content} = template
 
-  if (
-    content.data.type !== TemplateType.Dashboard ||
-    template.meta.version !== '1'
-  ) {
-    throw new Error('Cannot create dashboard from this template')
+    if (
+      content.data.type !== TemplateType.Dashboard ||
+      template.meta.version !== '1'
+    ) {
+      throw new Error('Cannot create dashboard from this template')
+    }
+
+    const resp = await apiPostDashboard({
+      data: {
+        orgID,
+        ...content.data.attributes,
+      },
+    })
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    const createdDashboard = addDashboardDefaults(resp.data as Dashboard)
+
+    // associate imported label id with new label
+    const labelMap = await createLabelsFromTemplate(template, orgID)
+
+    await Promise.all([
+      await addDashboardLabelsFromTemplate(
+        template,
+        labelMap,
+        createdDashboard
+      ),
+      await createCellsFromTemplate(template, createdDashboard),
+    ])
+
+    await createVariablesFromTemplate(template, labelMap, orgID)
+
+    const getResp = await apiGetDashboard({dashboardID: resp.data.id})
+
+    if (getResp.status !== 200) {
+      throw new Error(getResp.data.message)
+    }
+  } catch (error) {
+    console.error(error)
   }
-
-  const resp = await apiPostDashboard({
-    data: {
-      orgID,
-      ...content.data.attributes,
-    },
-  })
-
-  if (resp.status !== 201) {
-    throw new Error(resp.data.message)
-  }
-
-  const createdDashboard = addDashboardDefaults(resp.data as Dashboard)
-
-  // associate imported label id with new label
-  const labelMap = await createLabelsFromTemplate(template, orgID)
-
-  await Promise.all([
-    await addDashboardLabelsFromTemplate(template, labelMap, createdDashboard),
-    await createCellsFromTemplate(template, createdDashboard),
-  ])
-
-  await createVariablesFromTemplate(template, labelMap, orgID)
-
-  const getResp = await apiGetDashboard({dashboardID: resp.data.id})
-
-  if (getResp.status !== 200) {
-    throw new Error(getResp.data.message)
-  }
-
-  const dashboard = addDashboardDefaults(getResp.data as Dashboard)
-  return dashboard
 }
 
 const addDashboardLabelsFromTemplate = async (
@@ -295,7 +300,9 @@ const createVariablesFromTemplate = async (
     arrayOfVariables
   )
 
-  const variables = Object.values(normVariables.entities.variables)
+  const variables = Object.values<Variable>(
+    get(normVariables, 'entities.variables', {})
+  )
 
   const variablesToCreate = findVariablesToCreate(
     variables,
