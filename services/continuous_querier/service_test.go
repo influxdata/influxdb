@@ -1,6 +1,7 @@
 package continuous_querier
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -20,25 +21,8 @@ var (
 	errUnexpected = errors.New("unexpected error")
 )
 
-// Test closing never opened, open, open already open, close, and close already closed.
-func TestOpenAndClose(t *testing.T) {
-	s := NewTestService(t)
-
-	if err := s.Close(); err != nil {
-		t.Error(err)
-	} else if err = s.Open(); err != nil {
-		t.Error(err)
-	} else if err = s.Open(); err != nil {
-		t.Error(err)
-	} else if err = s.Close(); err != nil {
-		t.Error(err)
-	} else if err = s.Close(); err != nil {
-		t.Error(err)
-	}
-}
-
-// Test Run method.
-func TestContinuousQueryService_Run(t *testing.T) {
+// Test Execute method.
+func TestContinuousQueryService_Execute(t *testing.T) {
 	s := NewTestService(t)
 
 	// Set RunInterval high so we can trigger using Run method.
@@ -64,33 +48,48 @@ func TestContinuousQueryService_Run(t *testing.T) {
 	// what the actual time is. Truncate to 10 minutes we are starting on an interval.
 	now := time.Now().Truncate(10 * time.Minute)
 
-	s.Open()
-	// Trigger service to run all CQs.
-	s.Run("", "", now)
-	// Shouldn't time out.
-	if err := wait(done, 100*time.Millisecond); err != nil {
-		t.Error(err)
-	}
-	// This time it should timeout because ExecuteQuery should not get called again.
-	if err := wait(done, 100*time.Millisecond); err == nil {
-		t.Error("too many queries executed")
-	}
-	s.Close()
+	errChan := make(chan error)
 
-	// Now test just one query.
-	expectCallCnt = 1
-	callCnt = 0
-	s.Open()
-	s.Run("db", "cq", now)
-	// Shouldn't time out.
-	if err := wait(done, 100*time.Millisecond); err != nil {
-		t.Error(err)
-	}
-	// This time it should timeout because ExecuteQuery should not get called again.
-	if err := wait(done, 100*time.Millisecond); err == nil {
-		t.Error("too many queries executed")
-	}
-	s.Close()
+	func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() { errChan <- s.Run(ctx, nil) }()
+
+		// Trigger service to run all CQs.
+		s.Execute("", "", now)
+		// Shouldn't time out.
+		if err := wait(done, 100*time.Millisecond); err != nil {
+			t.Error(err)
+		}
+		// This time it should timeout because ExecuteQuery should not get called again.
+		if err := wait(done, 100*time.Millisecond); err == nil {
+			t.Error("too many queries executed")
+		}
+		cancel()
+
+		<-errChan
+	}()
+
+	func() {
+		// Now test just one query.
+		expectCallCnt = 1
+		callCnt = 0
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() { errChan <- s.Run(ctx, nil) }()
+
+		s.Execute("db", "cq", now)
+		// Shouldn't time out.
+		if err := wait(done, 100*time.Millisecond); err != nil {
+			t.Error(err)
+		}
+		// This time it should timeout because ExecuteQuery should not get called again.
+		if err := wait(done, 100*time.Millisecond); err == nil {
+			t.Error("too many queries executed")
+		}
+		cancel()
+
+		<-errChan
+	}()
 }
 
 func TestContinuousQueryService_ResampleOptions(t *testing.T) {
@@ -137,8 +136,9 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 		},
 	}
 
-	s.Open()
-	defer s.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { s.Run(ctx, nil) }()
 
 	// Set the 'now' time to the start of a 10 minute interval. Then trigger a run.
 	// This should trigger two queries (one for the current time interval, one for the previous).
@@ -166,7 +166,7 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 	// young and only one interval matches the FOR duration.
 	expected.min = now.Add(-time.Minute)
 	expected.max = now.Add(-1)
-	s.Run("", "", now.Add(5*time.Second))
+	s.Execute("", "", now.Add(5*time.Second))
 
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Fatal(err)
@@ -219,8 +219,9 @@ func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
 		},
 	}
 
-	s.Open()
-	defer s.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { s.Run(ctx, nil) }()
 
 	// Set the 'now' time to the start of a 10 minute interval. Then trigger a run.
 	// This should trigger two queries (one for the current time interval, one for the previous)
@@ -289,8 +290,9 @@ func TestContinuousQueryService_GroupByOffset(t *testing.T) {
 		},
 	}
 
-	s.Open()
-	defer s.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { s.Run(ctx, nil) }()
 
 	// Set the 'now' time to the start of a 10 minute interval with a 30 second offset.
 	// Then trigger a run. This should trigger two queries (one for the current time
@@ -322,14 +324,20 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 		},
 	}
 
-	s.Open()
+	ctx, cancel := context.WithCancel(context.Background())
+	errChan := make(chan error)
+	go func() { errChan <- s.Run(ctx, nil) }()
 	// Trigger service to run CQs.
 	s.RunCh <- &RunRequest{Now: time.Now()}
 	// Expect timeout error because ExecuteQuery callback wasn't called.
 	if err := wait(done, 100*time.Millisecond); err == nil {
 		t.Error(err)
 	}
-	s.Close()
+	cancel()
+
+	if err := <-errChan; err != nil {
+		t.Fatalf("s.Run() returned %v; expected nil", err)
+	}
 }
 
 // Test ExecuteContinuousQuery with invalid queries.
@@ -451,8 +459,9 @@ func TestExecuteContinuousQuery_TimeRange(t *testing.T) {
 				},
 			}
 
-			s.Open()
-			defer s.Close()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go func() { s.Run(ctx, nil) }()
 
 			// Send an initial run request one nanosecond after the start to
 			// prime the last CQ map.
@@ -566,8 +575,9 @@ func TestExecuteContinuousQuery_TimeZone(t *testing.T) {
 				},
 			}
 
-			s.Open()
-			defer s.Close()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go func() { s.Run(ctx, nil) }()
 
 			// Send an initial run request one nanosecond after the start to
 			// prime the last CQ map.
