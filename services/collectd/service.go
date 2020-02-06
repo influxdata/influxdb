@@ -224,6 +224,8 @@ func (s *Service) cleanup() error {
 
 	s.conn = nil
 	s.batcher = nil
+
+	s.wg.Wait()
 	s.Logger.Info("Closed collectd service")
 
 	return nil
