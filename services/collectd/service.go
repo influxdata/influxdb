@@ -93,7 +93,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the service.
-func (s *Service) Start(ctx context.Context, reg services.Registry) error {
+func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

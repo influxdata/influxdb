@@ -40,7 +40,7 @@ func (s *Service) WithLogger(log *zap.Logger) {
 }
 
 // Open starts the precreation service.
-func (s *Service) Start(ctx context.Context, reg services.Registry) error {
+func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 
 	s.Logger.Info("Starting precreation service",
 		logger.DurationLiteral("check_interval", s.checkInterval),

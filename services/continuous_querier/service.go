@@ -39,7 +39,7 @@ const (
 // ContinuousQuerier represents a service that executes continuous queries.
 type ContinuousQuerier interface {
 	// Run executes the named query in the named database.  Blank database or name matches all.
-	Run(database, name string, t time.Time) error
+	Execute(database, name string, t time.Time) error
 }
 
 // metaClient is an internal interface to make testing easier.
@@ -117,7 +117,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the service.
-func (s *Service) Start(ctx context.Context, reg services.Registry) error {
+func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 	s.Logger.Info("Starting continuous query service")
 
 	assert(s.MetaClient != nil, "MetaClient is nil")
@@ -150,7 +150,7 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 }
 
 // Run runs the specified continuous query, or all CQs if none is specified.
-func (s *Service) Run(database, name string, t time.Time) error {
+func (s *Service) Execute(database, name string, t time.Time) error {
 	var dbs []meta.DatabaseInfo
 
 	if database != "" {

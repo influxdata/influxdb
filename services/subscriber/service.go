@@ -77,7 +77,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts the subscription service.
-func (s *Service) Start(ctx context.Context, reg services.Registry) error {
+func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 	if !s.conf.Enabled {
 		return nil // Service disabled.
 	}

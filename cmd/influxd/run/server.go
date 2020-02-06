@@ -466,7 +466,7 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 			// channel len(s.Services) times which will block until all services have
 			// exited.
 			sem <- struct{}{}
-			if err := svc.Start(ctx, reg); err != nil {
+			if err := svc.Run(ctx, reg); err != nil {
 				// if there was an error, report it to s.err s.err <- err
 				//
 				// subtle: we want to report errors to s.err but if nothing is
@@ -578,7 +578,7 @@ func (s *Server) reportServer() {
 // Service represents a service attached to the server.
 type Service interface {
 	WithLogger(log *zap.Logger)
-	Start(context.Context, services.Registry) error
+	Run(context.Context, services.Registry) error
 }
 
 // prof stores the file locations of active profiles.

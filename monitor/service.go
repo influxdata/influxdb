@@ -93,7 +93,7 @@ func (m *Monitor) open() bool {
 	return m.done != nil
 }
 
-func (m *Monitor) Start(ctx context.Context, reg services.Registry) error {
+func (m *Monitor) Run(ctx context.Context, reg services.Registry) error {
 	if err := m.Open(); err != nil {
 		return err
 	}

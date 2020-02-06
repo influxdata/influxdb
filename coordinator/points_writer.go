@@ -121,7 +121,7 @@ func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
 	s.Shards[shardInfo.ID] = shardInfo
 }
 
-func (w *PointsWriter) Start(ctx context.Context, reg services.Registry) error {
+func (w *PointsWriter) Run(ctx context.Context, reg services.Registry) error {
 	w.OpenWithContext(ctx)
 	<-ctx.Done()
 	return nil
