@@ -3337,7 +3337,7 @@ spec:
 	})
 
 	t.Run("referencing env", func(t *testing.T) {
-		hasEnv := func(t *testing.T, refs map[string][]*references, key string) {
+		hasEnv := func(t *testing.T, refs map[string]map[int]*references, key string) {
 			t.Helper()
 			_, ok := refs[key]
 			assert.True(t, ok)
