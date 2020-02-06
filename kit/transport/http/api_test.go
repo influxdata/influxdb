@@ -233,7 +233,6 @@ func expectInfluxdbError(t *testing.T, expectedCode string, err error) {
 	if err == nil {
 		t.Fatal("expected an error")
 	}
-
 	iErr, ok := err.(*influxdb.Error)
 	if !ok {
 		t.Fatalf("expected an influxdb error; got=%#v", err)
