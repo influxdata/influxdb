@@ -19,7 +19,7 @@ func TestIndexer(t *testing.T) {
 		[]byte("3"),
 		[]byte("4"),
 	}
-	indexer.AddIndex([]byte("bucket"), indexes)
+	indexer.AddToIndex([]byte("bucket"), indexes)
 	indexer.Stop()
 
 	count := 0

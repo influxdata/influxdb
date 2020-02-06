@@ -19,7 +19,7 @@ var (
 )
 
 type indexer interface {
-	AddIndex([]byte, [][]byte)
+	AddToIndex([]byte, [][]byte)
 	Stop()
 }
 

@@ -37,7 +37,7 @@ func NewIndexer(log *zap.Logger, kv Store) *kvIndexer {
 	return i
 }
 
-func (i *kvIndexer) AddIndex(bucketName []byte, keys [][]byte) {
+func (i *kvIndexer) AddToIndex(bucketName []byte, keys [][]byte) {
 	// check for close
 	select {
 	case <-i.ctx.Done():
