@@ -363,6 +363,17 @@ func (p *Pkg) applySecrets(secrets map[string]string) {
 	}
 }
 
+// Combine combines pkgs together. Is useful when you want to take multiple disparate pkgs
+// and compile them into one to take advantage of the parser and service guarantees.
+func Combine(pkgs ...*Pkg) (*Pkg, error) {
+	newPkg := new(Pkg)
+	for _, p := range pkgs {
+		newPkg.Objects = append(newPkg.Objects, p.Objects...)
+	}
+
+	return newPkg, newPkg.Validate()
+}
+
 type (
 	validateOpt struct {
 		minResources bool

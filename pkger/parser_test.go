@@ -2,6 +2,7 @@ package pkger
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -3409,7 +3410,7 @@ spec:
 	})
 
 	t.Run("jsonnet support", func(t *testing.T) {
-		pkg := validParsedPkg(t, "testdata/bucket_associates_labels.jsonnet", EncodingJsonnet)
+		pkg := validParsedPkgFromFile(t, "testdata/bucket_associates_labels.jsonnet", EncodingJsonnet)
 
 		sum := pkg.Summary()
 
@@ -3445,6 +3446,111 @@ spec:
 			},
 		}
 		assert.Equal(t, bkts, sum.Buckets)
+	})
+}
+
+func TestCombine(t *testing.T) {
+	newPkgFromYmlStr := func(t *testing.T, pkgStr string) *Pkg {
+		t.Helper()
+		return newParsedPkg(t, FromString(pkgStr), EncodingYAML, ValidSkipParseError())
+	}
+
+	associationsEqual := func(t *testing.T, summaryLabels []SummaryLabel, names ...string) {
+		t.Helper()
+
+		require.Len(t, summaryLabels, len(names))
+
+		m := make(map[string]bool)
+		for _, n := range names {
+			m[n] = true
+		}
+
+		for _, l := range summaryLabels {
+			if !m[l.Name] {
+				assert.Fail(t, "did not find label: "+l.Name)
+			}
+			delete(m, l.Name)
+		}
+
+		if len(m) > 0 {
+			var unexpectedLabels []string
+			for name := range m {
+				unexpectedLabels = append(unexpectedLabels, name)
+			}
+			assert.Failf(t, "additional labels found", "got: %v", unexpectedLabels)
+		}
+	}
+
+	t.Run("multiple pkgs with associations across files", func(t *testing.T) {
+		var pkgs []*Pkg
+		numLabels := 5
+		for i := 0; i < numLabels; i++ {
+			pkg := newPkgFromYmlStr(t, fmt.Sprintf(`
+apiVersion: %[1]s
+kind: Label
+metadata:
+  name: label_%d
+`, APIVersion, i))
+			pkgs = append(pkgs, pkg)
+		}
+
+		pkgs = append(pkgs, newPkgFromYmlStr(t, fmt.Sprintf(`
+apiVersion: %[1]s
+kind: Bucket
+metadata:
+  name: rucket_1
+spec:
+  associations:
+    - kind: Label
+      name: label_1
+`, APIVersion)))
+
+		pkgs = append(pkgs, newPkgFromYmlStr(t, fmt.Sprintf(`
+apiVersion: %[1]s
+kind: Bucket
+metadata:
+  name: rucket_2
+spec:
+  associations:
+    - kind: Label
+      name: label_2
+`, APIVersion)))
+
+		pkgs = append(pkgs, newPkgFromYmlStr(t, fmt.Sprintf(`
+apiVersion: %[1]s
+kind: Bucket
+metadata:
+  name: rucket_3
+spec:
+  associations:
+    - kind: Label
+      name: label_1
+    - kind: Label
+      name: label_2
+`, APIVersion)))
+
+		combinedPkg, err := Combine(pkgs...)
+		require.NoError(t, err)
+
+		sum := combinedPkg.Summary()
+
+		require.Len(t, sum.Labels, numLabels)
+		for i := 0; i < numLabels; i++ {
+			assert.Equal(t, fmt.Sprintf("label_%d", i), sum.Labels[i].Name)
+		}
+
+		require.Len(t, sum.Labels, numLabels)
+		for i := 0; i < numLabels; i++ {
+			assert.Equal(t, fmt.Sprintf("label_%d", i), sum.Labels[i].Name)
+		}
+
+		require.Len(t, sum.Buckets, 3)
+		assert.Equal(t, "rucket_1", sum.Buckets[0].Name)
+		associationsEqual(t, sum.Buckets[0].LabelAssociations, "label_1")
+		assert.Equal(t, "rucket_2", sum.Buckets[1].Name)
+		associationsEqual(t, sum.Buckets[1].LabelAssociations, "label_2")
+		assert.Equal(t, "rucket_3", sum.Buckets[2].Name)
+		associationsEqual(t, sum.Buckets[2].LabelAssociations, "label_1", "label_2")
 	})
 }
 
@@ -3679,10 +3785,15 @@ func nextField(t *testing.T, field string) (string, int) {
 	return "", -1
 }
 
-func validParsedPkg(t *testing.T, path string, encoding Encoding) *Pkg {
+func validParsedPkgFromFile(t *testing.T, path string, encoding Encoding) *Pkg {
+	t.Helper()
+	return newParsedPkg(t, FromFile(path), encoding)
+}
+
+func newParsedPkg(t *testing.T, fn ReaderFn, encoding Encoding, opts ...ValidateOptFn) *Pkg {
 	t.Helper()
 
-	pkg, err := Parse(encoding, FromFile(path))
+	pkg, err := Parse(encoding, fn, opts...)
 	require.NoError(t, err)
 
 	for _, k := range pkg.Objects {
@@ -3727,7 +3838,7 @@ func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, pkg *Pk
 		fn := func(t *testing.T) {
 			t.Helper()
 
-			pkg := validParsedPkg(t, path+tt.extension, tt.encoding)
+			pkg := validParsedPkgFromFile(t, path+tt.extension, tt.encoding)
 			if testFn != nil {
 				testFn(t, pkg)
 			}
