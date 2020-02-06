@@ -1,5 +1,4 @@
 import {Organization, Bucket} from '../../src/types'
-import _ from 'lodash'
 
 describe('Tasks', () => {
   beforeEach(() => {
