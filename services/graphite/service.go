@@ -126,7 +126,7 @@ func NewService(c Config) (*Service, error) {
 }
 
 // Open starts the Graphite input processing data.
-func (s *Service) Start(ctx context.Context, reg services.Registry) error {
+func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

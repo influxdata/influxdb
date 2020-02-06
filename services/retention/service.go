@@ -39,7 +39,7 @@ func NewService(c Config) *Service {
 }
 
 // Open starts retention policy enforcement.
-func (s *Service) Start(ctx context.Context, reg services.Registry) error {
+func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 	if !s.config.Enabled {
 		return nil
 	}

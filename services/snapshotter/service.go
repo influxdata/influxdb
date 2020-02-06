@@ -63,7 +63,7 @@ func NewService() *Service {
 }
 
 // Open starts the service.
-func (s *Service) Start(ctx context.Context, reg services.Registry) error {
+func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 	s.Logger.Info("Starting snapshot service")
 
 	s.wg.Add(1)

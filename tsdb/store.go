@@ -199,7 +199,7 @@ func (s *Store) IndexBytes() int {
 // Path returns the store's root path.
 func (s *Store) Path() string { return s.path }
 
-func (s *Store) Start(ctx context.Context, reg services.Registry) error {
+func (s *Store) Run(ctx context.Context, reg services.Registry) error {
 	if err := s.OpenWithContext(ctx); err != nil {
 		return err
 	}
