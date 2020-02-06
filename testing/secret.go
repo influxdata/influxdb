@@ -354,6 +354,10 @@ func PatchSecrets(
 			for k, v := range tt.args.secrets {
 				val, err := s.LoadSecret(ctx, tt.args.orgID, k)
 				if err != nil {
+					if platform.ErrorCode(err) == platform.EMethodNotAllowed {
+						// skip value checking for http service testing
+						break
+					}
 					t.Fatalf("unexpected error %v", err)
 				}
 
