@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +46,7 @@ type cmdPkgBuilder struct {
 	quiet               bool
 
 	applyOpts struct {
+		envRefs []string
 		force   string
 		secrets []string
 		url     string
@@ -104,11 +106,12 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 
 	b.applyOpts.secrets = []string{}
 	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the package; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
+	cmd.Flags().StringSliceVar(&b.applyOpts.envRefs, "env-ref", nil, "Environment references to provide alongside the package; format should --env-ref=REF_KEY=REF_VALUE --env-ref=REF_KEY_2=REF_VALUE_2")
 
 	return cmd
 }
 
-func (b *cmdPkgBuilder) pkgApplyRunEFn(*cobra.Command, []string) error {
+func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error {
 	if err := b.org.validOrgFlags(); err != nil {
 		return err
 	}
@@ -141,36 +144,25 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
-	drySum, diff, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg)
+	providedEnvRefs := mapKeys(pkg.Summary().MissingEnvs, b.applyOpts.envRefs)
+	if !isTTY {
+		for _, envRef := range missingValKeys(providedEnvRefs) {
+			prompt := "Please provide environment reference value for key " + envRef
+			providedEnvRefs[envRef] = b.getInput(prompt, "")
+		}
+	}
+
+	drySum, diff, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg, pkger.ApplyWithEnvRefs(providedEnvRefs))
 	if err != nil {
 		return err
 	}
 
-	providedSecrets := make(map[string]string)
-	for _, secretKey := range drySum.MissingSecrets {
-		providedSecrets[secretKey] = ""
-	}
-	for _, secretPair := range b.applyOpts.secrets {
-		pieces := strings.SplitN(secretPair, "=", 2)
-		if len(pieces) < 2 {
-			continue
-		}
-		providedSecrets[pieces[0]] = pieces[1]
-	}
-
+	providedSecrets := mapKeys(drySum.MissingSecrets, b.applyOpts.secrets)
 	if !isTTY {
-		for secretKey, existinVal := range providedSecrets {
-			if existinVal != "" {
-				continue
-			}
-			ui := &input.UI{
-				Writer: os.Stdout,
-				Reader: os.Stdin,
-			}
-
-			const skipDefault = "skip-this-key"
+		const skipDefault = "$$skip-this-key$$"
+		for _, secretKey := range missingValKeys(providedSecrets) {
 			prompt := "Please provide secret value for key " + secretKey + " (optional, press enter to skip)"
-			secretVal := getInput(ui, prompt, skipDefault)
+			secretVal := b.getInput(prompt, skipDefault)
 			if secretVal != "" && secretVal != skipDefault {
 				providedSecrets[secretKey] = secretVal
 			}
@@ -183,14 +175,9 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(*cobra.Command, []string) error {
 
 	isForced, _ := strconv.ParseBool(b.applyOpts.force)
 	if !isTTY && !isForced && b.applyOpts.force != "conflict" {
-		ui := &input.UI{
-			Writer: os.Stdout,
-			Reader: os.Stdin,
-		}
-
-		confirm := getInput(ui, "Confirm application of the above resources (y/n)", "n")
+		confirm := b.getInput("Confirm application of the above resources (y/n)", "n")
 		if strings.ToLower(confirm) != "y" {
-			fmt.Fprintln(os.Stdout, "aborted application of package")
+			fmt.Fprintln(b.w, "aborted application of package")
 			return nil
 		}
 	}
@@ -199,7 +186,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(*cobra.Command, []string) error {
 		return errors.New("package has conflicts with existing resources and cannot safely apply")
 	}
 
-	summary, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, pkger.ApplyWithSecrets(providedSecrets))
+	summary, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, pkger.ApplyWithEnvRefs(providedEnvRefs), pkger.ApplyWithSecrets(providedSecrets))
 	if err != nil {
 		return err
 	}
@@ -415,6 +402,14 @@ func (b *cmdPkgBuilder) readLines(r io.Reader) ([]string, error) {
 		stdinInput = append(stdinInput, string(trimmed))
 	}
 	return stdinInput, nil
+}
+
+func (b *cmdPkgBuilder) getInput(msg, defaultVal string) string {
+	ui := &input.UI{
+		Writer: b.w,
+		Reader: b.in,
+	}
+	return getInput(ui, msg, defaultVal)
 }
 
 func (b *cmdPkgBuilder) applyEncoding() pkger.Encoding {
@@ -846,7 +841,7 @@ func (b *cmdPkgBuilder) tablePrinterGen() func(table string, headers []string, c
 }
 
 func tablePrinter(wr io.Writer, table string, headers []string, count int, hasColor, hasTableBorders bool, rowFn func(i int) []string) {
-	color.New(color.FgYellow, color.Bold).Fprintln(os.Stdout, strings.ToUpper(table))
+	color.New(color.FgYellow, color.Bold).Fprintln(wr, strings.ToUpper(table))
 
 	w := tablewriter.NewWriter(wr)
 	w.SetBorder(hasTableBorders)
@@ -894,7 +889,7 @@ func tablePrinter(wr io.Writer, table string, headers []string, count int, hasCo
 	}
 
 	w.Render()
-	fmt.Fprintln(os.Stdout)
+	fmt.Fprintln(wr)
 }
 
 func printVarArgs(a *influxdb.VariableArguments) string {
@@ -934,6 +929,42 @@ func formatDuration(d time.Duration) string {
 		return "inf"
 	}
 	return d.String()
+}
+
+func mapKeys(provided, kvPairs []string) map[string]string {
+	out := make(map[string]string)
+	for _, k := range provided {
+		out[k] = ""
+	}
+
+	for _, pair := range kvPairs {
+		pieces := strings.SplitN(pair, "=", 2)
+		if len(pieces) < 2 {
+			continue
+		}
+
+		k, v := pieces[0], pieces[1]
+		if _, ok := out[k]; !ok {
+			continue
+		}
+		out[k] = v
+	}
+
+	return out
+}
+
+func missingValKeys(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k, v := range m {
+		if v != "" {
+			continue
+		}
+		out = append(out, k)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i] < out[j]
+	})
+	return out
 }
 
 func find(needle string, haystack []string) int {

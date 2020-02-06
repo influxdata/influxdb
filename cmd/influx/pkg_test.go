@@ -389,7 +389,7 @@ func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSe
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error) {
+func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
 	if f.dryRunFn != nil {
 		return f.dryRunFn(ctx, orgID, userID, pkg)
 	}

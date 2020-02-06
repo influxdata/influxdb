@@ -208,7 +208,7 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sum, diff, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg)
+	sum, diff, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg, ApplyWithEnvRefs(reqBody.EnvRefs))
 	if IsParseErr(err) {
 		s.api.Respond(w, http.StatusUnprocessableEntity, RespApplyPkg{
 			Diff:    diff,

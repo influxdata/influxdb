@@ -55,50 +55,41 @@ func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgS
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
-func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (Summary, Diff, error) {
-	b, err := pkg.Encode(EncodingJSON)
-	if err != nil {
-		return Summary{}, Diff{}, err
-	}
-
-	reqBody := ReqApplyPkg{
-		OrgID:  orgID.String(),
-		DryRun: true,
-		RawPkg: b,
-	}
-	return s.apply(ctx, reqBody)
+func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error) {
+	return s.apply(ctx, orgID, pkg, true, opts...)
 }
 
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg was applied.
 func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, error) {
+	sum, _, err := s.apply(ctx, orgID, pkg, false, opts...)
+	return sum, err
+}
+
+func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg, dryRun bool, opts ...ApplyOptFn) (Summary, Diff, error) {
 	var opt ApplyOpt
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
-			return Summary{}, err
+			return Summary{}, Diff{}, err
 		}
 	}
 
 	b, err := pkg.Encode(EncodingJSON)
 	if err != nil {
-		return Summary{}, err
+		return Summary{}, Diff{}, err
 	}
 
 	reqBody := ReqApplyPkg{
 		OrgID:   orgID.String(),
+		DryRun:  dryRun,
 		EnvRefs: opt.EnvRefs,
 		Secrets: opt.MissingSecrets,
 		RawPkg:  b,
 	}
 
-	sum, _, err := s.apply(ctx, reqBody)
-	return sum, err
-}
-
-func (s *HTTPRemoteService) apply(ctx context.Context, reqBody ReqApplyPkg) (Summary, Diff, error) {
 	var resp RespApplyPkg
-	err := s.Client.
+	err = s.Client.
 		PostJSON(reqBody, RoutePrefix, "/apply").
 		DecodeJSON(&resp).
 		Do(ctx)

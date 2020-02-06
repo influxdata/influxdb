@@ -3385,6 +3385,26 @@ spec:
 			require.Len(t, sum.Variables, 1)
 			assert.Equal(t, "$var-1-name-ref", sum.Variables[0].Name)
 			hasEnv(t, pkg.mEnv, "var-1-name-ref")
+
+			t.Log("applying env vars should populate env fields")
+			{
+				pkg.applyEnvRefs(map[string]string{
+					"bkt-1-name-ref":   "bucket-1",
+					"label-1-name-ref": "label-1",
+				})
+				require.NoError(t, pkg.Validate())
+
+				sum := pkg.Summary()
+
+				require.Len(t, sum.Buckets, 1)
+				assert.Equal(t, "bucket-1", sum.Buckets[0].Name)
+				assert.Len(t, sum.Buckets[0].LabelAssociations, 1)
+				hasEnv(t, pkg.mEnv, "bkt-1-name-ref")
+
+				require.Len(t, sum.Labels, 1)
+				assert.Equal(t, "label-1", sum.Labels[0].Name)
+				hasEnv(t, pkg.mEnv, "label-1-name-ref")
+			}
 		})
 	})
 
