@@ -890,7 +890,7 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 		if !ok {
 			influxEndpoint, ok := mPkgEndpoints[r.endpointName.String()]
 			if !ok {
-				err := fmt.Errorf("failed to find notification endpoint dependency for notification rule %q; endpointName: %q", r.Name(), r.endpointName)
+				err := fmt.Errorf("failed to find notification endpoint %q dependency for notification rule %q", r.endpointName, r.Name())
 				return nil, &influxdb.Error{Code: influxdb.EUnprocessableEntity, Err: err}
 			}
 			e = influxEndpoint
