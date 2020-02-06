@@ -1,6 +1,7 @@
 package subscriber_test
 
 import (
+	"context"
 	"net/url"
 	"testing"
 	"time"
@@ -70,8 +71,10 @@ func TestService_IgnoreNonMatch(t *testing.T) {
 	s := subscriber.NewService(subscriber.NewConfig())
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
-	s.Open()
-	defer s.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s.OpenWithContext(ctx)
+	defer cancel()
 
 	// Signal that data has changed
 	dataChanged <- struct{}{}
@@ -145,8 +148,10 @@ func TestService_ModeALL(t *testing.T) {
 	s := subscriber.NewService(subscriber.NewConfig())
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
-	s.Open()
-	defer s.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.OpenWithContext(ctx)
 
 	// Signal that data has changed
 	dataChanged <- struct{}{}
@@ -223,8 +228,11 @@ func TestService_ModeANY(t *testing.T) {
 	s := subscriber.NewService(subscriber.NewConfig())
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
-	s.Open()
-	defer s.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s.OpenWithContext(ctx)
 
 	// Signal that data has changed
 	dataChanged <- struct{}{}
@@ -311,8 +319,10 @@ func TestService_Multiple(t *testing.T) {
 	s := subscriber.NewService(subscriber.NewConfig())
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
-	s.Open()
-	defer s.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.OpenWithContext(ctx)
 
 	// Signal that data has changed
 	dataChanged <- struct{}{}
@@ -401,7 +411,9 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	s := subscriber.NewService(subscriber.NewConfig())
 	s.MetaClient = ms
 	// Explicitly closed below for testing
-	s.Open()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s.OpenWithContext(ctx)
 
 	// Should be called once during open
 	select {
@@ -433,7 +445,8 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	}
 
 	//Close service ensure not called
-	s.Close()
+	cancel()
+
 	dataChanged <- struct{}{}
 	select {
 	case <-calls:

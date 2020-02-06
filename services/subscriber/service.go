@@ -78,6 +78,14 @@ func NewService(c Config) *Service {
 
 // Open starts the subscription service.
 func (s *Service) Run(ctx context.Context, reg services.Registry) error {
+	if err := s.OpenWithContext(ctx); err != nil {
+		return err
+	}
+	s.wg.Wait()
+	return nil
+}
+
+func (s *Service) OpenWithContext(ctx context.Context) error {
 	if !s.conf.Enabled {
 		return nil // Service disabled.
 	}
@@ -102,8 +110,6 @@ func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 		s.waitForMetaUpdates(ctx)
 		s.wg.Done()
 	}()
-
-	s.wg.Wait()
 
 	return nil
 }
