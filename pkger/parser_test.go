@@ -3337,7 +3337,7 @@ spec:
 	})
 
 	t.Run("referencing env", func(t *testing.T) {
-		hasEnv := func(t *testing.T, refs map[string]map[int]*references, key string) {
+		hasEnv := func(t *testing.T, refs map[string]bool, key string) {
 			t.Helper()
 			_, ok := refs[key]
 			assert.True(t, ok)
@@ -3388,11 +3388,11 @@ spec:
 
 			t.Log("applying env vars should populate env fields")
 			{
-				pkg.applyEnvRefs(map[string]string{
+				err := pkg.applyEnvRefs(map[string]string{
 					"bkt-1-name-ref":   "bucket-1",
 					"label-1-name-ref": "label-1",
 				})
-				require.NoError(t, pkg.Validate())
+				require.NoError(t, err)
 
 				sum := pkg.Summary()
 

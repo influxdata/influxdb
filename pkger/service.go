@@ -682,8 +682,7 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 	}
 
 	if len(opt.EnvRefs) > 0 {
-		pkg.applyEnvRefs(opt.EnvRefs)
-		err := pkg.Validate()
+		err := pkg.applyEnvRefs(opt.EnvRefs)
 		if err != nil && !IsParseErr(err) {
 			return Summary{}, Diff{}, internalErr(err)
 		}
@@ -891,7 +890,7 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 		if !ok {
 			influxEndpoint, ok := mPkgEndpoints[r.endpointName.String()]
 			if !ok {
-				err := fmt.Errorf("failed to find endpoint by name: %q", r.endpointName)
+				err := fmt.Errorf("failed to find notification endpoint dependency for notification rule %q; endpointName: %q", r.Name(), r.endpointName)
 				return nil, &influxdb.Error{Code: influxdb.EUnprocessableEntity, Err: err}
 			}
 			e = influxEndpoint
@@ -1128,7 +1127,9 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		}
 	}
 
-	pkg.applyEnvRefs(opt.EnvRefs)
+	if err := pkg.applyEnvRefs(opt.EnvRefs); err != nil {
+		return Summary{}, failedValidationErr(err)
+	}
 
 	if !pkg.isVerified {
 		if _, _, err := s.DryRun(ctx, orgID, userID, pkg); err != nil {
