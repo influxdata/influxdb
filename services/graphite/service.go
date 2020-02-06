@@ -168,8 +168,6 @@ func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	<-ctx.Done()
 
 	return s.cleanup()
-
-	return nil
 }
 
 func (s *Service) closeAllConnections() {
