@@ -15,74 +15,7 @@ import (
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 )
-
-func TestMonitor_Open(t *testing.T) {
-	s := monitor.New(nil, monitor.Config{})
-	if err := s.Open(); err != nil {
-		t.Fatalf("unexpected open error: %s", err)
-	}
-
-	// Verify that opening twice is fine.
-	if err := s.Open(); err != nil {
-		s.Close()
-		t.Fatalf("unexpected error on second open: %s", err)
-	}
-
-	if err := s.Close(); err != nil {
-		t.Fatalf("unexpected close error: %s", err)
-	}
-
-	// Verify that closing twice is fine.
-	if err := s.Close(); err != nil {
-		t.Fatalf("unexpected error on second close: %s", err)
-	}
-}
-
-func TestMonitor_SetPointsWriter_StoreEnabled(t *testing.T) {
-	var mc MetaClient
-	mc.CreateDatabaseWithRetentionPolicyFn = func(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error) {
-		return &meta.DatabaseInfo{Name: name}, nil
-	}
-
-	config := monitor.NewConfig()
-	s := monitor.New(nil, config)
-	s.MetaClient = &mc
-	core, logs := observer.New(zap.DebugLevel)
-	s.WithLogger(zap.New(core))
-
-	// Setting the points writer should open the monitor.
-	var pw PointsWriter
-	if err := s.SetPointsWriter(&pw); err != nil {
-		t.Fatalf("unexpected open error: %s", err)
-	}
-	defer s.Close()
-
-	// Verify that the monitor was opened by looking at the log messages.
-	if logs.FilterMessage("Starting monitor service").Len() == 0 {
-		t.Errorf("monitor system was never started")
-	}
-}
-
-func TestMonitor_SetPointsWriter_StoreDisabled(t *testing.T) {
-	s := monitor.New(nil, monitor.Config{})
-	core, logs := observer.New(zap.DebugLevel)
-	s.WithLogger(zap.New(core))
-
-	// Setting the points writer should open the monitor.
-	var pw PointsWriter
-	if err := s.SetPointsWriter(&pw); err != nil {
-		t.Fatalf("unexpected open error: %s", err)
-	}
-	defer s.Close()
-
-	// Verify that the monitor was not opened by looking at the log messages.
-	if logs.FilterMessage("Starting monitor system").Len() > 0 {
-		t.Errorf("monitor system should not have been started")
-	}
-}
 
 func TestMonitor_StoreStatistics(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -138,11 +71,13 @@ func TestMonitor_StoreStatistics(t *testing.T) {
 	s.MetaClient = &mc
 	s.PointsWriter = &pw
 
-	if err := s.Open(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+	{
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		if err := s.OpenWithContext(ctx); err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
 	}
-	defer s.Close()
-	defer cancel()
 
 	timer := time.NewTimer(100 * time.Millisecond)
 	select {
@@ -214,11 +149,13 @@ func TestMonitor_Reporter(t *testing.T) {
 	s.MetaClient = &mc
 	s.PointsWriter = &pw
 
-	if err := s.Open(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+	{
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		if err := s.OpenWithContext(ctx); err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
 	}
-	defer s.Close()
-	defer cancel()
 
 	timer := time.NewTimer(100 * time.Millisecond)
 	select {
@@ -338,11 +275,13 @@ func TestMonitor_Expvar(t *testing.T) {
 	bad.Set("badentry")
 	expvar.Publish("expvar4", bad)
 
-	if err := s.Open(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+	{
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		if err := s.OpenWithContext(ctx); err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
 	}
-	defer s.Close()
-	defer cancel()
 
 	hostname, _ := os.Hostname()
 	timer := time.NewTimer(100 * time.Millisecond)
@@ -404,11 +343,10 @@ func TestMonitor_QuickClose(t *testing.T) {
 	s.MetaClient = &mc
 	s.PointsWriter = &pw
 
-	if err := s.Open(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	if err := s.Close(); err != nil {
+	if err := s.OpenWithContext(ctx); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }

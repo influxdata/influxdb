@@ -1,6 +1,7 @@
 package monitor_test
 
 import (
+	"context"
 	"reflect"
 	"runtime"
 	"testing"
@@ -10,10 +11,13 @@ import (
 
 func TestDiagnostics_GoRuntime(t *testing.T) {
 	s := monitor.New(nil, monitor.Config{})
-	if err := s.Open(); err != nil {
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.OpenWithContext(ctx); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	defer s.Close()
 
 	d, err := s.Diagnostics()
 	if err != nil {

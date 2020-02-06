@@ -48,7 +48,6 @@ type Monitor struct {
 	globalTags        map[string]string
 	diagRegistrations map[string]diagnostics.Client
 	reporter          Reporter
-	done              chan struct{}
 	storeCreated      bool
 	storeEnabled      bool
 
@@ -86,33 +85,21 @@ func New(r Reporter, c Config) *Monitor {
 	}
 }
 
-// open returns whether the monitor service is open.
-func (m *Monitor) open() bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.done != nil
-}
-
 func (m *Monitor) Run(ctx context.Context, reg services.Registry) error {
-	if err := m.Open(); err != nil {
+	if err := m.OpenWithContext(ctx); err != nil {
 		return err
 	}
 	<-ctx.Done()
 	return nil
 }
 
-func (m *Monitor) Stop() error {
-	return m.Close()
+func (m *Monitor) Open() error {
+	return m.OpenWithContext(context.Background())
 }
 
 // Open opens the monitoring system, using the given clusterID, node ID, and hostname
 // for identification purpose.
-func (m *Monitor) Open() error {
-	if m.open() {
-		m.Logger.Info("Monitor is already open")
-		return nil
-	}
-
+func (m *Monitor) OpenWithContext(ctx context.Context) error {
 	m.Logger.Info("Starting monitor service")
 
 	// Self-register various stats and diagnostics.
@@ -122,13 +109,10 @@ func (m *Monitor) Open() error {
 		Branch:  m.Branch,
 		Time:    m.BuildTime,
 	})
+
 	m.RegisterDiagnosticsClient("runtime", &goRuntime{})
 	m.RegisterDiagnosticsClient("network", &network{})
 	m.RegisterDiagnosticsClient("system", &system{})
-
-	m.mu.Lock()
-	m.done = make(chan struct{})
-	m.mu.Unlock()
 
 	// If enabled, record stats in a InfluxDB system.
 	if m.storeEnabled {
@@ -137,7 +121,7 @@ func (m *Monitor) Open() error {
 
 		// Start periodic writes to system.
 		m.wg.Add(1)
-		go m.storeStatistics()
+		go m.storeStatistics(ctx)
 	}
 
 	return nil
@@ -171,31 +155,6 @@ func (m *Monitor) writePoints(p models.Points) error {
 	return nil
 }
 
-// Close closes the monitor system.
-func (m *Monitor) Close() error {
-	if !m.open() {
-		m.Logger.Info("Monitor is already closed")
-		return nil
-	}
-
-	m.Logger.Info("Shutting down monitor service")
-	m.mu.Lock()
-	close(m.done)
-	m.mu.Unlock()
-
-	m.wg.Wait()
-
-	m.mu.Lock()
-	m.done = nil
-	m.mu.Unlock()
-
-	m.DeregisterDiagnosticsClient("build")
-	m.DeregisterDiagnosticsClient("runtime")
-	m.DeregisterDiagnosticsClient("network")
-	m.DeregisterDiagnosticsClient("system")
-	return nil
-}
-
 // SetGlobalTag can be used to set tags that will appear on all points
 // written by the Monitor.
 func (m *Monitor) SetGlobalTag(key string, value interface{}) {
@@ -211,22 +170,6 @@ type RemoteWriterConfig struct {
 	Username   string
 	Password   string
 	ClusterID  uint64
-}
-
-// SetPointsWriter can be used to set a writer for the monitoring points.
-func (m *Monitor) SetPointsWriter(pw PointsWriter) error {
-	if !m.storeEnabled {
-		// not enabled, nothing to do
-		return nil
-	}
-	m.mu.Lock()
-	m.PointsWriter = pw
-	m.mu.Unlock()
-
-	// Subsequent calls to an already open Monitor are just a no-op.
-
-	// FIXME: should we be running m.Open() here?
-	return m.Open()
 }
 
 // WithLogger sets the logger for the Monitor.
@@ -418,7 +361,7 @@ func (m *Monitor) createInternalStorage() {
 }
 
 // waitUntilInterval waits until we are on an even interval for the duration.
-func (m *Monitor) waitUntilInterval(d time.Duration) error {
+func (m *Monitor) waitUntilInterval(ctx context.Context, d time.Duration) error {
 	now := time.Now()
 	until := now.Truncate(d).Add(d)
 	timer := time.NewTimer(until.Sub(now))
@@ -427,19 +370,19 @@ func (m *Monitor) waitUntilInterval(d time.Duration) error {
 	select {
 	case <-timer.C:
 		return nil
-	case <-m.done:
+	case <-ctx.Done():
 		return errors.New("interrupted")
 	}
 }
 
 // storeStatistics writes the statistics to an InfluxDB system.
-func (m *Monitor) storeStatistics() {
+func (m *Monitor) storeStatistics(ctx context.Context) {
 	defer m.wg.Done()
 	m.Logger.Info("Storing statistics", logger.Database(m.storeDatabase), logger.RetentionPolicy(m.storeRetentionPolicy), logger.DurationLiteral("interval", m.storeInterval))
 
 	// Wait until an even interval to start recording monitor statistics.
 	// If we are interrupted before the interval for some reason, exit early.
-	if err := m.waitUntilInterval(m.storeInterval); err != nil {
+	if err := m.waitUntilInterval(ctx, m.storeInterval); err != nil {
 		return
 	}
 
@@ -482,7 +425,7 @@ func (m *Monitor) storeStatistics() {
 			if len(batch) > 0 {
 				m.writePoints(batch)
 			}
-		case <-m.done:
+		case <-ctx.Done():
 			m.Logger.Info("Terminating storage of statistics")
 			return
 		}

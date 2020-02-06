@@ -1,6 +1,7 @@
 package monitor_test
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -14,10 +15,13 @@ func TestDiagnostics_BuildInfo(t *testing.T) {
 	s.Branch = "1.2"
 	s.BuildTime = "10m30s"
 
-	if err := s.Open(); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	if err := s.OpenWithContext(ctx); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	defer s.Close()
+
+	defer cancel()
 
 	d, err := s.Diagnostics()
 	if err != nil {
