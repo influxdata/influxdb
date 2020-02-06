@@ -4,6 +4,7 @@
 
 1. [16765](https://github.com/influxdata/influxdb/pull/16765): Extend influx cli pkg command with ability to take multiple files and directories
 1. [16767](https://github.com/influxdata/influxdb/pull/16767): Extend influx cli pkg command with ability to take multiple urls, files, directories, and stdin at the same time
+1. [16786](https://github.com/influxdata/influxdb/pull/16786): influx cli can manage secrets.
 
 ### Bug Fixes
 
