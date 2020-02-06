@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -303,6 +304,77 @@ metadata:
 	})
 }
 
+func Test_readFilesFromPath(t *testing.T) {
+	t.Run("single file", func(t *testing.T) {
+		dir := newTempDir(t)
+		defer os.RemoveAll(dir)
+
+		f := newTempFile(t, dir)
+
+		files, err := readFilesFromPath(f.Name(), false)
+		require.NoError(t, err)
+		assert.Equal(t, []string{f.Name()}, files)
+
+		files, err = readFilesFromPath(f.Name(), true)
+		require.NoError(t, err)
+		assert.Equal(t, []string{f.Name()}, files)
+	})
+
+	t.Run("dir with no files", func(t *testing.T) {
+		dir := newTempDir(t)
+		defer os.RemoveAll(dir)
+
+		files, err := readFilesFromPath(dir, false)
+		require.NoError(t, err)
+		assert.Empty(t, files)
+	})
+
+	t.Run("dir with only files", func(t *testing.T) {
+		dir := newTempDir(t)
+		defer os.RemoveAll(dir)
+
+		filePaths := []string{
+			newTempFile(t, dir).Name(),
+			newTempFile(t, dir).Name(),
+		}
+		sort.Strings(filePaths)
+
+		files, err := readFilesFromPath(dir, false)
+		require.NoError(t, err)
+		sort.Strings(files)
+		assert.Equal(t, filePaths, files)
+
+		files, err = readFilesFromPath(dir, true)
+		require.NoError(t, err)
+		sort.Strings(files)
+		assert.Equal(t, filePaths, files)
+	})
+
+	t.Run("dir with nested dir that has files", func(t *testing.T) {
+		dir := newTempDir(t)
+		defer os.RemoveAll(dir)
+
+		nestedDir := filepath.Join(dir, "/nested/twice")
+		require.NoError(t, os.MkdirAll(nestedDir, os.ModePerm))
+
+		filePaths := []string{
+			newTempFile(t, nestedDir).Name(),
+			newTempFile(t, nestedDir).Name(),
+		}
+		sort.Strings(filePaths)
+
+		files, err := readFilesFromPath(dir, false)
+		require.NoError(t, err)
+		sort.Strings(files)
+		assert.Empty(t, files)
+
+		files, err = readFilesFromPath(dir, true)
+		require.NoError(t, err)
+		sort.Strings(files)
+		assert.Equal(t, filePaths, files)
+	})
+}
+
 type flagArg struct{ name, val string }
 
 func (s flagArg) String() string {
@@ -412,6 +484,14 @@ func newTempDir(t *testing.T) string {
 	tempDir, err := ioutil.TempDir("", "")
 	require.NoError(t, err)
 	return tempDir
+}
+
+func newTempFile(t *testing.T, dir string) *os.File {
+	t.Helper()
+
+	f, err := ioutil.TempFile(dir, "")
+	require.NoError(t, err)
+	return f
 }
 
 func idsStr(ids ...influxdb.ID) string {
