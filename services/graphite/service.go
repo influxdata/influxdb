@@ -147,13 +147,16 @@ func (s *Service) Start(ctx context.Context, reg services.Registry) error {
 	go s.processBatches(ctx, s.batcher)
 
 	var err error
-	if strings.ToLower(s.protocol) == "tcp" {
+
+	switch protocol := strings.ToLower(s.protocol); protocol {
+	case "tcp":
 		s.addr, err = s.openTCPServer()
-	} else if strings.ToLower(s.protocol) == "udp" {
+	case "udp":
 		s.addr, err = s.openUDPServer()
-	} else {
+	default:
 		return fmt.Errorf("unrecognized Graphite input protocol %s", s.protocol)
 	}
+
 	if err != nil {
 		return err
 	}
