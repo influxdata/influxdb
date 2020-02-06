@@ -37,7 +37,7 @@ func (s *loggingMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (p
 	return s.next.CreatePkg(ctx, setters...)
 }
 
-func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (sum Summary, diff Diff, err error) {
+func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, diff Diff, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -51,7 +51,7 @@ func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *
 		}
 		s.logger.Info("pkg dry run successful", append(s.summaryLogFields(sum), dur)...)
 	}(time.Now())
-	return s.next.DryRun(ctx, orgID, userID, pkg)
+	return s.next.DryRun(ctx, orgID, userID, pkg, opts...)
 }
 
 func (s *loggingMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (sum Summary, err error) {
@@ -64,6 +64,7 @@ func (s *loggingMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *P
 				zap.Error(err),
 				dur,
 			)
+			return
 		}
 		s.logger.Info("pkg apply successful", append(s.summaryLogFields(sum), dur)...)
 	}(time.Now())

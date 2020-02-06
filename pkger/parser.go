@@ -241,6 +241,7 @@ type Pkg struct {
 	mVariables             map[string]*variable
 
 	mEnv     map[string]map[int]*references
+	mEnvVals map[string]string
 	mSecrets map[string]bool
 
 	isVerified bool // dry run has verified pkg resources with existing resources
@@ -341,7 +342,12 @@ func (p *Pkg) Summary() Summary {
 }
 
 func (p *Pkg) applyEnvRefs(envRefs map[string]string) {
+	if p.mEnvVals == nil {
+		p.mEnvVals = make(map[string]string)
+	}
+
 	for k, v := range envRefs {
+		p.mEnvVals[k] = v
 		for _, ref := range p.mEnv[k] {
 			ref.val = v
 		}
@@ -617,8 +623,8 @@ func (p *Pkg) graphResources() error {
 
 func (p *Pkg) graphBuckets() *parseErr {
 	p.mBuckets = make(map[string]*bucket)
-	return p.eachResource(KindBucket, 2, func(idx int, k Object) []validationErr {
-		nameRef := k.Metadata.references(fieldName)
+	return p.eachResource(KindBucket, 2, func(idx int, o Object) []validationErr {
+		nameRef := p.getRefWithKnownEnvs(o.Metadata)
 		if _, ok := p.mBuckets[nameRef.String()]; ok {
 			return []validationErr{{
 				Field: fieldName,
@@ -628,12 +634,12 @@ func (p *Pkg) graphBuckets() *parseErr {
 
 		bkt := &bucket{
 			name:        nameRef,
-			Description: k.Spec.stringShort(fieldDescription),
+			Description: o.Spec.stringShort(fieldDescription),
 		}
-		if rules, ok := k.Spec[fieldBucketRetentionRules].(retentionRules); ok {
+		if rules, ok := o.Spec[fieldBucketRetentionRules].(retentionRules); ok {
 			bkt.RetentionRules = rules
 		} else {
-			for _, r := range k.Spec.slcResource(fieldBucketRetentionRules) {
+			for _, r := range o.Spec.slcResource(fieldBucketRetentionRules) {
 				bkt.RetentionRules = append(bkt.RetentionRules, retentionRule{
 					Type:    r.stringShort(fieldType),
 					Seconds: r.intShort(fieldRetentionRulesEverySeconds),
@@ -642,14 +648,14 @@ func (p *Pkg) graphBuckets() *parseErr {
 		}
 		p.setRefs(idx, bkt.name)
 
-		failures := p.parseNestedLabels(k.Spec, func(l *label) error {
+		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			bkt.labels = append(bkt.labels, l)
 			p.mLabels[l.Name()].setMapping(bkt, false)
 			return nil
 		})
 		sort.Sort(bkt.labels)
 
-		p.mBuckets[k.Name()] = bkt
+		p.mBuckets[o.Name()] = bkt
 
 		return append(failures, bkt.valid()...)
 	})
@@ -657,19 +663,19 @@ func (p *Pkg) graphBuckets() *parseErr {
 
 func (p *Pkg) graphLabels() *parseErr {
 	p.mLabels = make(map[string]*label)
-	return p.eachResource(KindLabel, 2, func(idx int, k Object) []validationErr {
-		nameRef := k.Metadata.references(fieldName)
+	return p.eachResource(KindLabel, 2, func(idx int, o Object) []validationErr {
+		nameRef := p.getRefWithKnownEnvs(o.Metadata)
 		if _, ok := p.mLabels[nameRef.String()]; ok {
 			return []validationErr{{
 				Field: fieldName,
-				Msg:   "duplicate name: " + k.Name(),
+				Msg:   "duplicate name: " + o.Name(),
 			}}
 		}
 
 		l := &label{
 			name:        nameRef,
-			Color:       k.Spec.stringShort(fieldLabelColor),
-			Description: k.Spec.stringShort(fieldDescription),
+			Color:       o.Spec.stringShort(fieldLabelColor),
+			Description: o.Spec.stringShort(fieldDescription),
 		}
 		p.mLabels[l.Name()] = l
 		p.setRefs(idx, nameRef)
@@ -690,36 +696,36 @@ func (p *Pkg) graphChecks() *parseErr {
 	}
 	var pErr parseErr
 	for _, checkKind := range checkKinds {
-		err := p.eachResource(checkKind.kind, 1, func(idx int, k Object) []validationErr {
-			nameRef := k.Metadata.references(fieldName)
+		err := p.eachResource(checkKind.kind, 1, func(idx int, o Object) []validationErr {
+			nameRef := p.getRefWithKnownEnvs(o.Metadata)
 			if _, ok := p.mChecks[nameRef.String()]; ok {
 				return []validationErr{{
 					Field: fieldName,
-					Msg:   "duplicate name: " + k.Name(),
+					Msg:   "duplicate name: " + o.Name(),
 				}}
 			}
 
 			ch := &check{
 				kind:          checkKind.checkKind,
 				name:          nameRef,
-				description:   k.Spec.stringShort(fieldDescription),
-				every:         k.Spec.durationShort(fieldEvery),
-				level:         k.Spec.stringShort(fieldLevel),
-				offset:        k.Spec.durationShort(fieldOffset),
-				query:         strings.TrimSpace(k.Spec.stringShort(fieldQuery)),
-				reportZero:    k.Spec.boolShort(fieldCheckReportZero),
-				staleTime:     k.Spec.durationShort(fieldCheckStaleTime),
-				status:        normStr(k.Spec.stringShort(fieldStatus)),
-				statusMessage: k.Spec.stringShort(fieldCheckStatusMessageTemplate),
-				timeSince:     k.Spec.durationShort(fieldCheckTimeSince),
+				description:   o.Spec.stringShort(fieldDescription),
+				every:         o.Spec.durationShort(fieldEvery),
+				level:         o.Spec.stringShort(fieldLevel),
+				offset:        o.Spec.durationShort(fieldOffset),
+				query:         strings.TrimSpace(o.Spec.stringShort(fieldQuery)),
+				reportZero:    o.Spec.boolShort(fieldCheckReportZero),
+				staleTime:     o.Spec.durationShort(fieldCheckStaleTime),
+				status:        normStr(o.Spec.stringShort(fieldStatus)),
+				statusMessage: o.Spec.stringShort(fieldCheckStatusMessageTemplate),
+				timeSince:     o.Spec.durationShort(fieldCheckTimeSince),
 			}
-			for _, tagRes := range k.Spec.slcResource(fieldCheckTags) {
+			for _, tagRes := range o.Spec.slcResource(fieldCheckTags) {
 				ch.tags = append(ch.tags, struct{ k, v string }{
 					k: tagRes.stringShort(fieldKey),
 					v: tagRes.stringShort(fieldValue),
 				})
 			}
-			for _, th := range k.Spec.slcResource(fieldCheckThresholds) {
+			for _, th := range o.Spec.slcResource(fieldCheckThresholds) {
 				ch.thresholds = append(ch.thresholds, threshold{
 					threshType: thresholdType(normStr(th.stringShort(fieldType))),
 					allVals:    th.boolShort(fieldCheckAllValues),
@@ -730,7 +736,7 @@ func (p *Pkg) graphChecks() *parseErr {
 				})
 			}
 
-			failures := p.parseNestedLabels(k.Spec, func(l *label) error {
+			failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 				ch.labels = append(ch.labels, l)
 				p.mLabels[l.Name()].setMapping(ch, false)
 				return nil
@@ -753,21 +759,21 @@ func (p *Pkg) graphChecks() *parseErr {
 
 func (p *Pkg) graphDashboards() *parseErr {
 	p.mDashboards = make([]*dashboard, 0)
-	return p.eachResource(KindDashboard, 2, func(idx int, k Object) []validationErr {
-		nameRef := k.Metadata.references(fieldName)
+	return p.eachResource(KindDashboard, 2, func(idx int, o Object) []validationErr {
+		nameRef := p.getRefWithKnownEnvs(o.Metadata)
 		dash := &dashboard{
 			name:        nameRef,
-			Description: k.Spec.stringShort(fieldDescription),
+			Description: o.Spec.stringShort(fieldDescription),
 		}
 
-		failures := p.parseNestedLabels(k.Spec, func(l *label) error {
+		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			dash.labels = append(dash.labels, l)
 			p.mLabels[l.Name()].setMapping(dash, false)
 			return nil
 		})
 		sort.Sort(dash.labels)
 
-		for i, cr := range k.Spec.slcResource(fieldDashCharts) {
+		for i, cr := range o.Spec.slcResource(fieldDashCharts) {
 			ch, fails := parseChart(cr)
 			if fails != nil {
 				failures = append(failures, validationErr{
@@ -810,29 +816,29 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 
 	var pErr parseErr
 	for _, nk := range notificationKinds {
-		err := p.eachResource(nk.kind, 1, func(idx int, k Object) []validationErr {
-			nameRef := k.Metadata.references(fieldName)
+		err := p.eachResource(nk.kind, 1, func(idx int, o Object) []validationErr {
+			nameRef := p.getRefWithKnownEnvs(o.Metadata)
 			if _, ok := p.mNotificationEndpoints[nameRef.String()]; ok {
 				return []validationErr{{
 					Field: fieldName,
-					Msg:   "duplicate name: " + k.Name(),
+					Msg:   "duplicate name: " + o.Name(),
 				}}
 			}
 
 			endpoint := &notificationEndpoint{
 				kind:        nk.notificationKind,
 				name:        nameRef,
-				description: k.Spec.stringShort(fieldDescription),
-				method:      strings.TrimSpace(strings.ToUpper(k.Spec.stringShort(fieldNotificationEndpointHTTPMethod))),
-				httpType:    normStr(k.Spec.stringShort(fieldType)),
-				password:    k.Spec.references(fieldNotificationEndpointPassword),
-				routingKey:  k.Spec.references(fieldNotificationEndpointRoutingKey),
-				status:      normStr(k.Spec.stringShort(fieldStatus)),
-				token:       k.Spec.references(fieldNotificationEndpointToken),
-				url:         k.Spec.stringShort(fieldNotificationEndpointURL),
-				username:    k.Spec.references(fieldNotificationEndpointUsername),
+				description: o.Spec.stringShort(fieldDescription),
+				method:      strings.TrimSpace(strings.ToUpper(o.Spec.stringShort(fieldNotificationEndpointHTTPMethod))),
+				httpType:    normStr(o.Spec.stringShort(fieldType)),
+				password:    o.Spec.references(fieldNotificationEndpointPassword),
+				routingKey:  o.Spec.references(fieldNotificationEndpointRoutingKey),
+				status:      normStr(o.Spec.stringShort(fieldStatus)),
+				token:       o.Spec.references(fieldNotificationEndpointToken),
+				url:         o.Spec.stringShort(fieldNotificationEndpointURL),
+				username:    o.Spec.references(fieldNotificationEndpointUsername),
 			}
-			failures := p.parseNestedLabels(k.Spec, func(l *label) error {
+			failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 				endpoint.labels = append(endpoint.labels, l)
 				p.mLabels[l.Name()].setMapping(endpoint, false)
 				return nil
@@ -856,26 +862,26 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 
 func (p *Pkg) graphNotificationRules() *parseErr {
 	p.mNotificationRules = make([]*notificationRule, 0)
-	return p.eachResource(KindNotificationRule, 1, func(idx int, k Object) []validationErr {
+	return p.eachResource(KindNotificationRule, 1, func(idx int, o Object) []validationErr {
 		rule := &notificationRule{
-			name:         k.Metadata.references(fieldName),
-			endpointName: k.Spec.references(fieldNotificationRuleEndpointName),
-			description:  k.Spec.stringShort(fieldDescription),
-			channel:      k.Spec.stringShort(fieldNotificationRuleChannel),
-			every:        k.Spec.durationShort(fieldEvery),
-			msgTemplate:  k.Spec.stringShort(fieldNotificationRuleMessageTemplate),
-			offset:       k.Spec.durationShort(fieldOffset),
-			status:       normStr(k.Spec.stringShort(fieldStatus)),
+			name:         p.getRefWithKnownEnvs(o.Metadata),
+			endpointName: o.Spec.references(fieldNotificationRuleEndpointName),
+			description:  o.Spec.stringShort(fieldDescription),
+			channel:      o.Spec.stringShort(fieldNotificationRuleChannel),
+			every:        o.Spec.durationShort(fieldEvery),
+			msgTemplate:  o.Spec.stringShort(fieldNotificationRuleMessageTemplate),
+			offset:       o.Spec.durationShort(fieldOffset),
+			status:       normStr(o.Spec.stringShort(fieldStatus)),
 		}
 
-		for _, sRule := range k.Spec.slcResource(fieldNotificationRuleStatusRules) {
+		for _, sRule := range o.Spec.slcResource(fieldNotificationRuleStatusRules) {
 			rule.statusRules = append(rule.statusRules, struct{ curLvl, prevLvl string }{
 				curLvl:  strings.TrimSpace(strings.ToUpper(sRule.stringShort(fieldNotificationRuleCurrentLevel))),
 				prevLvl: strings.TrimSpace(strings.ToUpper(sRule.stringShort(fieldNotificationRulePreviousLevel))),
 			})
 		}
 
-		for _, tRule := range k.Spec.slcResource(fieldNotificationRuleTagRules) {
+		for _, tRule := range o.Spec.slcResource(fieldNotificationRuleTagRules) {
 			rule.tagRules = append(rule.tagRules, struct{ k, v, op string }{
 				k:  tRule.stringShort(fieldKey),
 				v:  tRule.stringShort(fieldValue),
@@ -883,7 +889,7 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 			})
 		}
 
-		failures := p.parseNestedLabels(k.Spec, func(l *label) error {
+		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			rule.labels = append(rule.labels, l)
 			p.mLabels[l.Name()].setMapping(rule, false)
 			return nil
@@ -898,18 +904,18 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 
 func (p *Pkg) graphTasks() *parseErr {
 	p.mTasks = make([]*task, 0)
-	return p.eachResource(KindTask, 1, func(idx int, k Object) []validationErr {
+	return p.eachResource(KindTask, 1, func(idx int, o Object) []validationErr {
 		t := &task{
-			name:        k.Metadata.references(fieldName),
-			cron:        k.Spec.stringShort(fieldTaskCron),
-			description: k.Spec.stringShort(fieldDescription),
-			every:       k.Spec.durationShort(fieldEvery),
-			offset:      k.Spec.durationShort(fieldOffset),
-			query:       strings.TrimSpace(k.Spec.stringShort(fieldQuery)),
-			status:      normStr(k.Spec.stringShort(fieldStatus)),
+			name:        p.getRefWithKnownEnvs(o.Metadata),
+			cron:        o.Spec.stringShort(fieldTaskCron),
+			description: o.Spec.stringShort(fieldDescription),
+			every:       o.Spec.durationShort(fieldEvery),
+			offset:      o.Spec.durationShort(fieldOffset),
+			query:       strings.TrimSpace(o.Spec.stringShort(fieldQuery)),
+			status:      normStr(o.Spec.stringShort(fieldStatus)),
 		}
 
-		failures := p.parseNestedLabels(k.Spec, func(l *label) error {
+		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			t.labels = append(t.labels, l)
 			p.mLabels[l.Name()].setMapping(t, false)
 			return nil
@@ -924,20 +930,20 @@ func (p *Pkg) graphTasks() *parseErr {
 
 func (p *Pkg) graphTelegrafs() *parseErr {
 	p.mTelegrafs = make([]*telegraf, 0)
-	return p.eachResource(KindTelegraf, 0, func(idx int, k Object) []validationErr {
+	return p.eachResource(KindTelegraf, 0, func(idx int, o Object) []validationErr {
 		tele := &telegraf{
-			name: k.Metadata.references(fieldName),
+			name: p.getRefWithKnownEnvs(o.Metadata),
 		}
-		tele.config.Description = k.Spec.stringShort(fieldDescription)
+		tele.config.Description = o.Spec.stringShort(fieldDescription)
 
-		failures := p.parseNestedLabels(k.Spec, func(l *label) error {
+		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			tele.labels = append(tele.labels, l)
 			p.mLabels[l.Name()].setMapping(tele, false)
 			return nil
 		})
 		sort.Sort(tele.labels)
 
-		tele.config.Config = k.Spec.stringShort(fieldTelegrafConfig)
+		tele.config.Config = o.Spec.stringShort(fieldTelegrafConfig)
 		if tele.config.Config == "" {
 			failures = append(failures, validationErr{
 				Field: fieldTelegrafConfig,
@@ -954,8 +960,8 @@ func (p *Pkg) graphTelegrafs() *parseErr {
 
 func (p *Pkg) graphVariables() *parseErr {
 	p.mVariables = make(map[string]*variable)
-	return p.eachResource(KindVariable, 1, func(idx int, k Object) []validationErr {
-		nameRef := k.Metadata.references(fieldName)
+	return p.eachResource(KindVariable, 1, func(idx int, o Object) []validationErr {
+		nameRef := p.getRefWithKnownEnvs(o.Metadata)
 		if _, ok := p.mVariables[nameRef.String()]; ok {
 			return []validationErr{{
 				Field: "name",
@@ -965,22 +971,22 @@ func (p *Pkg) graphVariables() *parseErr {
 
 		newVar := &variable{
 			name:        nameRef,
-			Description: k.Spec.stringShort(fieldDescription),
-			Type:        normStr(k.Spec.stringShort(fieldType)),
-			Query:       strings.TrimSpace(k.Spec.stringShort(fieldQuery)),
-			Language:    normStr(k.Spec.stringShort(fieldLanguage)),
-			ConstValues: k.Spec.slcStr(fieldValues),
-			MapValues:   k.Spec.mapStrStr(fieldValues),
+			Description: o.Spec.stringShort(fieldDescription),
+			Type:        normStr(o.Spec.stringShort(fieldType)),
+			Query:       strings.TrimSpace(o.Spec.stringShort(fieldQuery)),
+			Language:    normStr(o.Spec.stringShort(fieldLanguage)),
+			ConstValues: o.Spec.slcStr(fieldValues),
+			MapValues:   o.Spec.mapStrStr(fieldValues),
 		}
 
-		failures := p.parseNestedLabels(k.Spec, func(l *label) error {
+		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			newVar.labels = append(newVar.labels, l)
 			p.mLabels[l.Name()].setMapping(newVar, false)
 			return nil
 		})
 		sort.Sort(newVar.labels)
 
-		p.mVariables[k.Name()] = newVar
+		p.mVariables[o.Name()] = newVar
 		p.setRefs(idx, newVar.name)
 
 		return append(failures, newVar.valid()...)
@@ -1102,7 +1108,7 @@ func (p *Pkg) parseNestedLabel(nr Resource, fn func(lb *label) error) *validatio
 		return nil
 	}
 
-	nameRef := nr.references(fieldName)
+	nameRef := p.getRefWithKnownEnvs(nr)
 	lb, found := p.mLabels[nameRef.String()]
 	if !found {
 		return &validationErr{
@@ -1120,6 +1126,14 @@ func (p *Pkg) parseNestedLabel(nr Resource, fn func(lb *label) error) *validatio
 	return nil
 }
 
+func (p *Pkg) getRefWithKnownEnvs(r Resource) *references {
+	nameRef := r.references(fieldName)
+	if v, ok := p.mEnvVals[nameRef.EnvRef]; ok {
+		nameRef.val = v
+	}
+	return nameRef
+}
+
 func (p *Pkg) setRefs(idx int, refs ...*references) {
 	for _, ref := range refs {
 		if ref.Secret != "" {
@@ -1129,8 +1143,13 @@ func (p *Pkg) setRefs(idx int, refs ...*references) {
 			if _, ok := p.mEnv[ref.EnvRef]; !ok {
 				p.mEnv[ref.EnvRef] = make(map[int]*references)
 			}
+
 			m := p.mEnv[ref.EnvRef]
+			if existing, ok := m[idx]; ok && existing.val != nil && ref.val == nil {
+				ref.val = existing.val
+			}
 			m[idx] = ref
+
 			p.mEnv[ref.EnvRef] = m
 		}
 	}

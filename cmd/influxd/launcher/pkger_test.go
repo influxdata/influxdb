@@ -201,6 +201,46 @@ func TestLauncher_Pkger(t *testing.T) {
 		}, varArgs.Values)
 	})
 
+	t.Run("dry run package with env ref", func(t *testing.T) {
+		pkgStr := fmt.Sprintf(`
+apiVersion: %[1]s
+kind: Label
+metadata:
+  name:
+    envRef:
+      key: label-1-name-ref
+spec:
+---
+apiVersion: %[1]s
+kind: Bucket
+metadata:
+  name:
+    envRef:
+      key: bkt-1-name-ref
+spec:
+  associations:
+    - kind: Label
+      name:
+        envRef:
+          key: label-1-name-ref
+`, pkger.APIVersion)
+
+		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
+		require.NoError(t, err)
+
+		sum, _, err := svc.DryRun(context.Background(), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
+			"bkt-1-name-ref":   "new-bkt-name",
+			"label-1-name-ref": "new-label-name",
+		}))
+		require.NoError(t, err)
+
+		require.Len(t, sum.Buckets, 1)
+		assert.Equal(t, "new-bkt-name", sum.Buckets[0].Name)
+
+		require.Len(t, sum.Labels, 1)
+		assert.Equal(t, "new-label-name", sum.Labels[0].Name)
+	})
+
 	t.Run("apply a package of all new resources", func(t *testing.T) {
 		// this initial test is also setup for the sub tests
 		sum1, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, newPkg(t))

@@ -33,9 +33,9 @@ func (s *mwMetrics) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*
 	return pkg, rec(err)
 }
 
-func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (Summary, Diff, error) {
+func (s *mwMetrics) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error) {
 	rec := s.rec.Record("dry_run")
-	sum, diff, err := s.next.DryRun(ctx, orgID, userID, pkg)
+	sum, diff, err := s.next.DryRun(ctx, orgID, userID, pkg, opts...)
 	return sum, diff, rec(err)
 }
 
