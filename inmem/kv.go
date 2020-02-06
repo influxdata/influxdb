@@ -281,13 +281,13 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 	)
 
 	go func() {
-
 		defer close(pairs)
 
 		var (
-			batch   []pair
-			fn      = config.Hints.PredicateFn
-			iterate = b.ascend
+			batch     []pair
+			fn        = config.Hints.PredicateFn
+			iterate   = b.ascend
+			skipFirst = config.SkipFirst
 		)
 
 		if config.Direction == kv.CursorDescending {
@@ -300,12 +300,17 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 
 		b.mu.RLock()
 		iterate(seek, config, func(i btree.Item) bool {
-
 			select {
 			case <-stop:
 				// if signalled to stop then exit iteration
 				return false
 			default:
+			}
+
+			// if skip first
+			if skipFirst {
+				skipFirst = false
+				return true
 			}
 
 			j, ok := i.(*item)
