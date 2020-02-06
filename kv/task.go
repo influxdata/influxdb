@@ -482,6 +482,9 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 		if err != nil {
 			return nil, 0, err
 		}
+
+		// append a extra character because we want to skip "after" record
+		seek = []byte(string(seek) + "\x00")
 	}
 
 	c, err := taskBucket.ForwardCursor(seek)
