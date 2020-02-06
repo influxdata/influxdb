@@ -3,8 +3,8 @@ import {get, isEmpty, flatMap} from 'lodash'
 import {normalize} from 'normalizr'
 
 // Schemas
-import * as schemas from 'src/schemas'
 import {arrayOfVariables, variableSchema} from 'src/schemas/variables'
+import {taskSchema} from 'src/schemas/tasks'
 
 // Utils
 import {
@@ -363,7 +363,7 @@ export const createTaskFromTemplate = async (
 
     const {entities, result} = normalize<Task, TaskEntities, string>(
       postResp.data,
-      schemas.task
+      taskSchema
     )
 
     const postedTask = entities.tasks[result]

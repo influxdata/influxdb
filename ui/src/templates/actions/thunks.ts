@@ -40,7 +40,6 @@ import {
   Template,
   TaskTemplate,
 } from 'src/types'
-import {ITemplate} from '@influxdata/influx'
 
 // Utils
 import {templateToExport} from 'src/shared/utils/resourceToTemplate'
@@ -49,8 +48,8 @@ import {getLabels} from 'src/resources/selectors'
 
 type Action = TemplateAction | NotifyAction
 
-export const getTemplateByID = async (id: string): Promise<ITemplate> => {
-  const template = await client.templates.get(id)
+export const getTemplateByID = async (id: string): Promise<Template> => {
+  const template: Template = (await client.templates.get(id)) as any
   return template
 }
 

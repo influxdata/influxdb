@@ -21,12 +21,11 @@ import {
   deleteCheckLabel,
   cloneCheck,
 } from 'src/checks/actions/thunks'
-import {getAll} from 'src/resources/selectors'
 import {notify} from 'src/shared/actions/notifications'
 import {updateCheckFailed} from 'src/shared/copy/notifications'
 
 // Types
-import {Check, Label, AppState, ResourceType} from 'src/types'
+import {Check, Label} from 'src/types'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
@@ -40,15 +39,11 @@ interface DispatchProps {
   onNotify: typeof notify
 }
 
-interface StateProps {
-  labels: Label[]
-}
-
 interface OwnProps {
   check: Check
 }
 
-type Props = OwnProps & DispatchProps & WithRouterProps & StateProps
+type Props = OwnProps & DispatchProps & WithRouterProps
 
 const CheckCard: FC<Props> = ({
   onRemoveCheckLabel,
@@ -59,7 +54,6 @@ const CheckCard: FC<Props> = ({
   onUpdateCheckDisplayProperties,
   deleteCheck,
   params: {orgID},
-  labels,
   router,
 }) => {
   const {id, activeStatus, name, description} = check
@@ -150,8 +144,7 @@ const CheckCard: FC<Props> = ({
       }
       labels={
         <InlineLabels
-          selectedLabels={check.labels as Label[]}
-          labels={labels}
+          selectedLabelIDs={check.labels}
           onAddLabel={handleAddCheckLabel}
           onRemoveLabel={handleRemoveCheckLabel}
         />
@@ -186,14 +179,7 @@ const mdtp: DispatchProps = {
   onNotify: notify,
 }
 
-const mstp = (state: AppState): StateProps => {
-  const labels = getAll<Label>(state, ResourceType.Labels)
-  return {
-    labels,
-  }
-}
-
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
+export default connect<{}, DispatchProps>(
+  null,
   mdtp
 )(withRouter(CheckCard))

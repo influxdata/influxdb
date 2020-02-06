@@ -11,6 +11,7 @@ import {createCellWithView} from 'src/cells/actions/thunks'
 
 // Schemas
 import * as schemas from 'src/schemas'
+import {labelSchema} from 'src/schemas/labels'
 
 // Actions
 import {
@@ -27,6 +28,7 @@ import {getVariables, refreshVariableValues} from 'src/variables/actions/thunks'
 import {setExportTemplate} from 'src/templates/actions/creators'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
 import {updateViewAndVariables} from 'src/views/actions/thunks'
+import {setLabelOnResource} from 'src/labels/actions/creators'
 import * as creators from 'src/dashboards/actions/creators'
 
 // Utils
@@ -41,7 +43,6 @@ import {getSaveableView} from 'src/timeMachine/selectors'
 import {incrementCloneName} from 'src/utils/naming'
 import {isLimitError} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
-import {addLabelDefaults} from 'src/labels/utils'
 import {getAll, getByID} from 'src/resources/selectors'
 
 // Constants
@@ -62,9 +63,10 @@ import {
   ResourceType,
   VariableEntities,
   Variable,
+  LabelEntities,
 } from 'src/types'
 import {CellsWithViewProperties} from 'src/client'
-import { arrayOfVariables } from 'src/schemas/variables'
+import {arrayOfVariables} from 'src/schemas/variables'
 
 type Action = creators.Action
 
@@ -368,9 +370,12 @@ export const addDashboardLabel = (dashboardID: string, label: Label) => async (
       throw new Error(resp.data.message)
     }
 
-    const lab = addLabelDefaults(resp.data.label)
+    const normLabel = normalize<Label, LabelEntities, string>(
+      resp.data.label,
+      labelSchema
+    )
 
-    dispatch(creators.addDashboardLabel(dashboardID, lab))
+    dispatch(setLabelOnResource(dashboardID, normLabel))
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.addDashboardLabelFailed()))

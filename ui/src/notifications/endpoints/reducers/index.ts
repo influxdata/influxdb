@@ -13,15 +13,16 @@ import {
   SET_ENDPOINTS,
   SET_ENDPOINT,
   REMOVE_ENDPOINT,
-  ADD_LABEL_TO_ENDPOINT,
-  REMOVE_LABEL_FROM_ENDPOINT,
 } from 'src/notifications/endpoints/actions/creators'
+
+import {SET_LABEL_ON_RESOURCE} from 'src/labels/actions/creators'
 
 // Helpers
 import {
   setResource,
   removeResource,
   setResourceAtID,
+  setRelation,
 } from 'src/resources/reducers/helpers'
 
 type EndpointsState = ResourceState['endpoints']
@@ -64,22 +65,17 @@ export default (
         return
       }
 
-      case ADD_LABEL_TO_ENDPOINT: {
-        const {endpointID, label} = action
+      case SET_LABEL_ON_RESOURCE: {
+        const {resourceID, schema} = action
+        const labelID = schema.result
 
-        draftState.byID[endpointID].labels.push(label)
-
-        return
-      }
-
-      case REMOVE_LABEL_FROM_ENDPOINT: {
-        const {endpointID, labelID} = action
-
-        const labels = draftState.byID[endpointID].labels
-
-        draftState.byID[endpointID].labels = labels.filter(
-          l => l.id !== labelID
+        setRelation<NotificationEndpoint>(
+          draftState,
+          ResourceType.Labels,
+          labelID,
+          resourceID
         )
+
         return
       }
     }

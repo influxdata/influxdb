@@ -2,7 +2,6 @@ import {get, pick, flatMap, uniqBy} from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
 
 import {defaultBuilderConfig} from 'src/views/helpers'
-import {viewableLabels} from 'src/labels/selectors'
 
 import {
   AppState,
@@ -78,6 +77,7 @@ export const labelToIncluded = (l: Label): LabelIncluded => {
 }
 
 export const taskToTemplate = (
+  state: AppState,
   task: Task,
   baseTemplate = blankTaskTemplate()
 ): DocumentCreate => {
@@ -93,9 +93,13 @@ export const taskToTemplate = (
     'offset',
   ])
 
-  const labels = viewableLabels(task.labels)
-  const includedLabels = labels.map(l => labelToIncluded(l))
-  const relationshipsLabels = labels.map(l => labelToRelationship(l))
+  const labelsByID = state.resources.labels.byID
+  const includedLabels = task.labels.map(labelID =>
+    labelToIncluded(labelsByID[labelID])
+  )
+  const relationshipsLabels = task.labels.map(labelID =>
+    labelToRelationship(labelsByID[labelID])
+  )
 
   const template = {
     ...baseTemplate,

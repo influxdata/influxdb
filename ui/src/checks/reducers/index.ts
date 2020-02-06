@@ -8,13 +8,16 @@ import {
   SET_CHECKS,
   SET_CHECK,
   REMOVE_CHECK,
-  ADD_LABEL_TO_CHECK,
   REMOVE_LABEL_FROM_CHECK,
 } from 'src/checks/actions/creators'
+
+import {SET_LABEL_ON_RESOURCE} from 'src/labels/actions/creators'
+
 import {
   setResource,
   setResourceAtID,
   removeResource,
+  setRelation,
 } from 'src/resources/reducers/helpers'
 
 export type ChecksState = ResourceState['checks']
@@ -55,11 +58,11 @@ export default (
         return
       }
 
-      case ADD_LABEL_TO_CHECK: {
-        const {checkID, label} = action
+      case SET_LABEL_ON_RESOURCE: {
+        const {resourceID, schema} = action
+        const labelID = schema.result
 
-        const labels = draftState.byID[checkID].labels
-        draftState.byID[checkID].labels = [...labels, label]
+        setRelation<Check>(draftState, ResourceType.Labels, labelID, resourceID)
 
         return
       }
@@ -67,7 +70,7 @@ export default (
       case REMOVE_LABEL_FROM_CHECK: {
         const {checkID, labelID} = action
         const labels = draftState.byID[checkID].labels
-        draftState.byID[checkID].labels = labels.filter(l => l.id !== labelID)
+        draftState.byID[checkID].labels = labels.filter(id => id !== labelID)
 
         return
       }

@@ -12,6 +12,7 @@ export type Action =
 export const SET_LABELS = 'SET_LABELS'
 export const SET_LABEL = 'SET_LABEL'
 export const REMOVE_LABEL = 'REMOVE_LABEL'
+export const SET_LABEL_ON_RESOURCE = 'SET_LABEL_ON_RESOURCE'
 
 type LabelsSchema<R extends string | string[]> = NormalizedSchema<
   LabelEntities,
@@ -44,4 +45,14 @@ export const removeLabel = (id: string) =>
   ({
     type: REMOVE_LABEL,
     id,
+  } as const)
+
+export const setLabelOnResource = (
+  resourceID: string,
+  schema: LabelsSchema<string>
+) =>
+  ({
+    type: SET_LABEL_ON_RESOURCE,
+    resourceID,
+    schema,
   } as const)

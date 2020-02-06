@@ -8,7 +8,9 @@ import * as copy from 'src/shared/copy/notifications'
 
 // APIs
 import * as api from 'src/client'
-import {checkSchema, arrayOfChecks} from 'src/schemas'
+
+// Schemas
+import {checkSchema, arrayOfChecks} from 'src/schemas/checks'
 
 // Utils
 import {incrementCloneName} from 'src/utils/naming'

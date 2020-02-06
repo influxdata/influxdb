@@ -9,22 +9,14 @@ import {
   Label,
   RemoteDataState,
   ResourceType,
-  Task,
-  Telegraf,
   View,
-  NotificationEndpoint,
-  GenCheck,
-  Check,
-  GenEndpoint,
-  GenRule,
-  NotificationRuleDraft,
 } from 'src/types'
 import {CellsWithViewProperties} from 'src/client'
 
 // Utils
 import {addLabelDefaults} from 'src/labels/utils'
 import {defaultView} from 'src/views/helpers'
-import {ruleToDraftRule} from 'src/notifications/rules/utils'
+import {arrayOfLabels} from './labels'
 
 /* Authorizations */
 
@@ -41,7 +33,6 @@ export const arrayOfBuckets = [bucket]
 /* Views */
 
 // Defines the schema for the "views" resource
-
 export const viewsFromCells = (
   cells: CellsWithViewProperties,
   dashboardID: string
@@ -80,32 +71,13 @@ export const cell = new schema.Entity(
 )
 export const arrayOfCells = [cell]
 
-/* Checks */
-
-// Defines the schema for the "checks" resource
-export const checkSchema = new schema.Entity(
-  ResourceType.Checks,
-  {},
-  {
-    processStrategy: (check: GenCheck): Check => {
-      return {
-        ...check,
-        status: RemoteDataState.Done,
-        activeStatus: check.status,
-        labels: addLabels(check),
-      }
-    },
-  }
-)
-
-export const arrayOfChecks = [checkSchema]
-
 /* Dashboards */
 
 // Defines the schema for the "dashboards" resource
 export const dashboard = new schema.Entity(
   ResourceType.Dashboards,
   {
+    labels: arrayOfLabels,
     cells: arrayOfCells,
     views: arrayOfViews,
   },
@@ -119,7 +91,6 @@ export const addDashboardDefaults = (dashboard: Dashboard): Dashboard => {
   return {
     ...dashboard,
     id: dashboard.id || '',
-    labels: (dashboard.labels || []).map(addLabelDefaults),
     name: dashboard.name || '',
     orgID: dashboard.orgID || '',
     meta: addDashboardMetaDefaults(dashboard.meta),
@@ -139,26 +110,6 @@ const addDashboardMetaDefaults = (meta: Dashboard['meta']) => {
   return meta
 }
 
-/* Endpoints */
-export const endpoint = new schema.Entity(
-  ResourceType.NotificationEndpoints,
-  {},
-  {
-    processStrategy: point => addEndpointDefaults(point),
-  }
-)
-
-export const arrayOfEndpoints = [endpoint]
-
-const addEndpointDefaults = (point: GenEndpoint): NotificationEndpoint => {
-  return {
-    ...point,
-    status: RemoteDataState.Done,
-    activeStatus: point.status,
-    labels: addLabels(point),
-  }
-}
-
 /* Members */
 
 // Defines the schema for the "members" resource
@@ -170,71 +121,6 @@ export const arrayOfMembers = [member]
 // Defines the schema for the "organizations" resource
 export const org = new schema.Entity(ResourceType.Orgs)
 export const arrayOfOrgs = [org]
-
-/* Rules */
-export const rule = new schema.Entity(
-  ResourceType.NotificationRules,
-  {},
-  {
-    processStrategy: (rule: GenRule): NotificationRuleDraft => ({
-      ...ruleToDraftRule(rule),
-      labels: addLabels(rule),
-    }),
-  }
-)
-
-export const arrayOfRules = [rule]
-
-/* Tasks */
-
-// Defines the schema for the tasks resource
-export const task = new schema.Entity(
-  ResourceType.Tasks,
-  {},
-  {
-    processStrategy: (task: Task): Task => ({
-      ...task,
-      labels: addLabels(task),
-    }),
-  }
-)
-
-export const arrayOfTasks = [task]
-
-/* Telegrafs */
-
-// Defines the schema for the "telegrafs" resource
-export const telegraf = new schema.Entity(
-  ResourceType.Telegrafs,
-  {},
-  {
-    // add buckets to metadata if not present
-    processStrategy: (t: Telegraf): Telegraf => {
-      if (!t.metadata) {
-        return {
-          ...t,
-          metadata: {
-            buckets: [],
-          },
-        }
-      }
-
-      if (!t.metadata.buckets) {
-        return {
-          ...t,
-          metadata: {
-            ...t.metadata,
-            buckets: [],
-          },
-        }
-      }
-
-      return t
-    },
-  }
-)
-
-export const arrayOfTelegrafs = [telegraf]
 
 /* Scrapers */
 

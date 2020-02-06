@@ -186,6 +186,8 @@ export const labels: Label[] = [
   },
 ]
 
+const labelIDs = labels.map(l => l.id)
+
 export const dashboardWithLabels: Dashboard = {
   id: '1',
   cells: [],
@@ -200,7 +202,7 @@ export const dashboardWithLabels: Dashboard = {
     updatedAt: '2019-01-08T12:57:31.562048-08:00',
   },
   status: RemoteDataState.Done,
-  labels,
+  labels: labelIDs,
 }
 
 export const cell: Cell = {
@@ -251,7 +253,7 @@ export const tasks: Task[] = [
       'option task = {\n  name: "somename",\n  every: 1m,\n}\nfrom(bucket: "inbucket") \n|> range(start: -task.every)',
     every: '1m0s',
     org: 'default',
-    labels,
+    labels: labelIDs,
   },
 ]
 

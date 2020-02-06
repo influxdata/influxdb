@@ -19,7 +19,6 @@ export const toPostCheck = (check: Check): PostCheck => {
   return {
     ...check,
     status,
-    labels: (check.labels || []).map(l => l.id),
   } as PostCheck
 }
 
@@ -108,7 +107,7 @@ const validateBuilder = (alertBuilder: AlertBuilder) => {
   }
 }
 
-const genCheckBase = (state: AppState) => {
+const genCheckBase = (state: AppState): Check => {
   const {type, id, status, activeStatus, name} = state.alertBuilder
   const {draftQueries} = getActiveTimeMachine(state)
   const {id: orgID} = getOrg(state)
@@ -121,5 +120,6 @@ const genCheckBase = (state: AppState) => {
     name,
     query: draftQueries[0],
     orgID,
+    labels: [],
   } as Check
 }

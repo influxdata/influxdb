@@ -98,14 +98,7 @@ export const myfavetask: Task = {
   flux:
     'option task = {name: "lala", every: 24h0m0s, offset: 1m0s}\n\nfrom(bucket: "defnuck")\n\t|> range(start: -task.every)',
   id: '037b0877b359a000',
-  labels: [
-    {
-      id: '037b0c86a92a2000',
-      name: 'yum',
-      properties: {color: '#FF8564', description: ''},
-      status: RemoteDataState.Done,
-    },
-  ],
+  labels: [myfavelabel.id],
   name: 'lala',
   offset: '1m0s',
   org: 'org',

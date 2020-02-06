@@ -6,7 +6,7 @@ import {
   RenamableField,
   BuilderConfig,
 } from 'src/client'
-import {Label, RemoteDataState} from 'src/types'
+import {RemoteDataState} from 'src/types'
 
 export type FieldOption = RenamableField
 
@@ -28,9 +28,9 @@ export interface Cell extends GenCell {
 
 export type NewCell = Omit<Cell, 'id' | 'links' | 'dashboardID'>
 
-export interface Dashboard extends Omit<GenDashboard, 'cells'> {
+export interface Dashboard extends Omit<GenDashboard, 'cells' | 'labels'> {
   cells: string[]
-  labels: Label[]
+  labels: string[]
   status: RemoteDataState
 }
 

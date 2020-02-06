@@ -9,7 +9,7 @@ import * as copy from 'src/shared/copy/notifications'
 import * as api from 'src/client'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {ruleSchema, arrayOfRules} from 'src/schemas/rules'
 
 // Actions
 import {
@@ -62,7 +62,7 @@ export const getNotificationRules = () => async (
 
     const rules = normalize<NotificationRule, RuleEntities, string[]>(
       resp.data.notificationRules,
-      schemas.arrayOfRules
+      arrayOfRules
     )
 
     dispatch(setRules(RemoteDataState.Done, rules))
@@ -88,7 +88,7 @@ export const getCurrentRule = (ruleID: string) => async (
 
     const rule = normalize<NotificationRule, RuleEntities, string>(
       resp.data,
-      schemas.rule
+      ruleSchema
     )
 
     dispatch(setCurrentRule(RemoteDataState.Done, rule))
@@ -115,7 +115,7 @@ export const createRule = (rule: NotificationRuleDraft) => async (
 
     const rule = normalize<NotificationRule, RuleEntities, string>(
       resp.data,
-      schemas.rule
+      ruleSchema
     )
 
     dispatch(setRule(resp.data.id, RemoteDataState.Done, rule))
@@ -149,7 +149,7 @@ export const updateRule = (rule: NotificationRuleDraft) => async (
 
     const normRule = normalize<NotificationRule, RuleEntities, string>(
       resp.data,
-      schemas.rule
+      ruleSchema
     )
 
     dispatch(setRule(rule.id, RemoteDataState.Done, normRule))
@@ -174,7 +174,7 @@ export const updateRuleProperties = (
 
     const rule = normalize<NotificationRule, RuleEntities, string>(
       resp.data,
-      schemas.rule
+      ruleSchema
     )
 
     dispatch(setRule(ruleID, RemoteDataState.Done, rule))
@@ -269,7 +269,7 @@ export const cloneRule = (draftRule: NotificationRuleDraft) => async (
 
     const normRule = normalize<NotificationRule, RuleEntities, string>(
       resp.data,
-      schemas.rule
+      ruleSchema
     )
 
     dispatch(setRule(resp.data.id, RemoteDataState.Done, normRule))
