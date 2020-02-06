@@ -283,7 +283,10 @@ func TestCmdPkg(t *testing.T) {
 	t.Run("validate", func(t *testing.T) {
 		t.Run("pkg is valid returns no error", func(t *testing.T) {
 			cmd := newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC))).cmdPkgValidate()
-			cmd.SetArgs([]string{"--file=" + "../../pkger/testdata/bucket.yml"})
+			cmd.SetArgs([]string{
+				"--file=../../pkger/testdata/bucket.yml",
+				"-f=../../pkger/testdata/label.yml",
+			})
 			require.NoError(t, cmd.Execute())
 		})
 

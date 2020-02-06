@@ -40,6 +40,7 @@ type cmdPkgBuilder struct {
 
 	encoding            string
 	file                string
+	files               []string
 	disableColor        bool
 	disableTableBorders bool
 	org                 organization
@@ -95,8 +96,6 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.Short = "Apply a pkg to create resources"
 
 	b.org.register(cmd, false)
-	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Path to package file")
-	cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet")
 	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
@@ -105,6 +104,8 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
 
 	b.applyOpts.secrets = []string{}
+	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "Path to package file")
+	cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet")
 	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the package; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
 	cmd.Flags().StringSliceVar(&b.applyOpts.envRefs, "env-ref", nil, "Environment references to provide alongside the package; format should --env-ref=REF_KEY=REF_VALUE --env-ref=REF_KEY_2=REF_VALUE_2")
 
@@ -138,7 +139,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 	if b.applyOpts.url != "" {
 		pkg, err = pkger.Parse(b.applyEncoding(), pkger.FromHTTPRequest(b.applyOpts.url))
 	} else {
-		pkg, isTTY, err = b.readPkgStdInOrFile(b.file)
+		pkg, isTTY, err = b.readPkgStdInOrFile(b.files)
 	}
 	if err != nil {
 		return err
@@ -299,7 +300,7 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 
 func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 	runE := func(cmd *cobra.Command, args []string) error {
-		pkg, _, err := b.readPkgStdInOrFile(b.file)
+		pkg, _, err := b.readPkgStdInOrFile(b.files)
 		if err != nil {
 			return err
 		}
@@ -311,7 +312,7 @@ func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 	cmd := b.newCmd("summary", runE)
 	cmd.Short = "Summarize the provided package"
 
-	cmd.Flags().StringVarP(&b.file, "file", "f", "", "input file for pkg; if none provided will use TTY input")
+	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "input file for pkg; if none provided will use TTY input")
 	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
 	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
 
@@ -320,7 +321,7 @@ func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 
 func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 	runE := func(cmd *cobra.Command, args []string) error {
-		pkg, _, err := b.readPkgStdInOrFile(b.file)
+		pkg, _, err := b.readPkgStdInOrFile(b.files)
 		if err != nil {
 			return err
 		}
@@ -331,7 +332,7 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 	cmd.Short = "Validate the provided package"
 
 	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
-	cmd.Flags().StringVarP(&b.file, "file", "f", "", "input file for pkg; if none provided will use TTY input")
+	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "input file for pkg; if none provided will use TTY input")
 
 	return cmd
 }
@@ -355,9 +356,17 @@ func (b *cmdPkgBuilder) writePkg(w io.Writer, pkgSVC pkger.SVC, outPath string, 
 	return ioutil.WriteFile(outPath, buf.Bytes(), os.ModePerm)
 }
 
-func (b *cmdPkgBuilder) readPkgStdInOrFile(file string) (*pkger.Pkg, bool, error) {
-	if file != "" {
-		pkg, err := pkger.Parse(b.applyEncoding(), pkger.FromFile(file))
+func (b *cmdPkgBuilder) readPkgStdInOrFile(files []string) (*pkger.Pkg, bool, error) {
+	if len(files) > 0 {
+		var rawPkgs []*pkger.Pkg
+		for _, file := range files {
+			pkg, err := pkger.Parse(b.applyEncoding(), pkger.FromFile(file), pkger.ValidSkipParseError())
+			if err != nil {
+				return nil, false, err
+			}
+			rawPkgs = append(rawPkgs, pkg)
+		}
+		pkg, err := pkger.Combine(rawPkgs...)
 		return pkg, false, err
 	}
 
