@@ -97,7 +97,8 @@ describe('Checks', () => {
       })
     })
 
-    it('can toggle a check to on / off', () => {
+    it('can edit the check card', () => {
+      // toggle on / off
       cy.get('.cf-resource-card__disabled').should('not.exist')
       cy.getByTestID('check-card--slide-toggle').click()
       cy.getByTestID('notification-error').should('not.exist')
@@ -105,14 +106,27 @@ describe('Checks', () => {
       cy.getByTestID('check-card--slide-toggle').click()
       cy.getByTestID('notification-error').should('not.exist')
       cy.get('.cf-resource-card__disabled').should('not.exist')
-    })
 
-    it('can display the last run status', () => {
+      // last run status
       cy.getByTestID('last-run-status--icon').should('exist')
       cy.getByTestID('last-run-status--icon').trigger('mouseover')
       cy.getByTestID('popover--dialog')
         .should('exist')
         .contains('Last Run Status:')
+
+      // create a label
+      cy.getByTestID('check-card').within(() => {
+        cy.getByTestID('inline-labels--add').click()
+      })
+
+      const labelName = 'l1'
+      cy.getByTestID('inline-labels--popover--contents').type(labelName)
+      cy.getByTestID('inline-labels--create-new').click()
+      cy.getByTestID('create-label-form--submit').click()
+
+      // delete the label
+      cy.getByTestID(`label--pill--delete ${labelName}`).click({force: true})
+      cy.getByTestID('inline-labels--empty').should('exist')
     })
   })
 })
