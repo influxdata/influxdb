@@ -240,7 +240,7 @@ type Pkg struct {
 	mTelegrafs             []*telegraf
 	mVariables             map[string]*variable
 
-	mEnv     map[string][]*references
+	mEnv     map[string]map[int]*references
 	mSecrets map[string]bool
 
 	isVerified bool // dry run has verified pkg resources with existing resources
@@ -580,7 +580,7 @@ func (p *Pkg) validResources() error {
 
 func (p *Pkg) graphResources() error {
 	if p.mEnv == nil {
-		p.mEnv = make(map[string][]*references)
+		p.mEnv = make(map[string]map[int]*references)
 	}
 	p.mSecrets = make(map[string]bool)
 
@@ -617,7 +617,7 @@ func (p *Pkg) graphResources() error {
 
 func (p *Pkg) graphBuckets() *parseErr {
 	p.mBuckets = make(map[string]*bucket)
-	return p.eachResource(KindBucket, 2, func(k Object) []validationErr {
+	return p.eachResource(KindBucket, 2, func(idx int, k Object) []validationErr {
 		nameRef := k.Metadata.references(fieldName)
 		if _, ok := p.mBuckets[nameRef.String()]; ok {
 			return []validationErr{{
@@ -640,7 +640,7 @@ func (p *Pkg) graphBuckets() *parseErr {
 				})
 			}
 		}
-		p.setRefs(bkt.name)
+		p.setRefs(idx, bkt.name)
 
 		failures := p.parseNestedLabels(k.Spec, func(l *label) error {
 			bkt.labels = append(bkt.labels, l)
@@ -657,7 +657,7 @@ func (p *Pkg) graphBuckets() *parseErr {
 
 func (p *Pkg) graphLabels() *parseErr {
 	p.mLabels = make(map[string]*label)
-	return p.eachResource(KindLabel, 2, func(k Object) []validationErr {
+	return p.eachResource(KindLabel, 2, func(idx int, k Object) []validationErr {
 		nameRef := k.Metadata.references(fieldName)
 		if _, ok := p.mLabels[nameRef.String()]; ok {
 			return []validationErr{{
@@ -672,7 +672,7 @@ func (p *Pkg) graphLabels() *parseErr {
 			Description: k.Spec.stringShort(fieldDescription),
 		}
 		p.mLabels[l.Name()] = l
-		p.setRefs(nameRef)
+		p.setRefs(idx, nameRef)
 
 		return nil
 	})
@@ -690,7 +690,7 @@ func (p *Pkg) graphChecks() *parseErr {
 	}
 	var pErr parseErr
 	for _, checkKind := range checkKinds {
-		err := p.eachResource(checkKind.kind, 1, func(k Object) []validationErr {
+		err := p.eachResource(checkKind.kind, 1, func(idx int, k Object) []validationErr {
 			nameRef := k.Metadata.references(fieldName)
 			if _, ok := p.mChecks[nameRef.String()]; ok {
 				return []validationErr{{
@@ -738,7 +738,7 @@ func (p *Pkg) graphChecks() *parseErr {
 			sort.Sort(ch.labels)
 
 			p.mChecks[ch.Name()] = ch
-			p.setRefs(nameRef)
+			p.setRefs(idx, nameRef)
 			return append(failures, ch.valid()...)
 		})
 		if err != nil {
@@ -753,7 +753,7 @@ func (p *Pkg) graphChecks() *parseErr {
 
 func (p *Pkg) graphDashboards() *parseErr {
 	p.mDashboards = make([]*dashboard, 0)
-	return p.eachResource(KindDashboard, 2, func(k Object) []validationErr {
+	return p.eachResource(KindDashboard, 2, func(idx int, k Object) []validationErr {
 		nameRef := k.Metadata.references(fieldName)
 		dash := &dashboard{
 			name:        nameRef,
@@ -781,7 +781,7 @@ func (p *Pkg) graphDashboards() *parseErr {
 		}
 
 		p.mDashboards = append(p.mDashboards, dash)
-		p.setRefs(nameRef)
+		p.setRefs(idx, nameRef)
 
 		return failures
 	})
@@ -810,7 +810,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 
 	var pErr parseErr
 	for _, nk := range notificationKinds {
-		err := p.eachResource(nk.kind, 1, func(k Object) []validationErr {
+		err := p.eachResource(nk.kind, 1, func(idx int, k Object) []validationErr {
 			nameRef := k.Metadata.references(fieldName)
 			if _, ok := p.mNotificationEndpoints[nameRef.String()]; ok {
 				return []validationErr{{
@@ -839,7 +839,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 			})
 			sort.Sort(endpoint.labels)
 
-			p.setRefs(nameRef, endpoint.password, endpoint.routingKey, endpoint.token, endpoint.username)
+			p.setRefs(idx, nameRef, endpoint.password, endpoint.routingKey, endpoint.token, endpoint.username)
 
 			p.mNotificationEndpoints[endpoint.Name()] = endpoint
 			return append(failures, endpoint.valid()...)
@@ -856,7 +856,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 
 func (p *Pkg) graphNotificationRules() *parseErr {
 	p.mNotificationRules = make([]*notificationRule, 0)
-	return p.eachResource(KindNotificationRule, 1, func(k Object) []validationErr {
+	return p.eachResource(KindNotificationRule, 1, func(idx int, k Object) []validationErr {
 		rule := &notificationRule{
 			name:         k.Metadata.references(fieldName),
 			endpointName: k.Spec.references(fieldNotificationRuleEndpointName),
@@ -891,14 +891,14 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 		sort.Sort(rule.labels)
 
 		p.mNotificationRules = append(p.mNotificationRules, rule)
-		p.setRefs(rule.name, rule.endpointName)
+		p.setRefs(idx, rule.name, rule.endpointName)
 		return append(failures, rule.valid()...)
 	})
 }
 
 func (p *Pkg) graphTasks() *parseErr {
 	p.mTasks = make([]*task, 0)
-	return p.eachResource(KindTask, 1, func(k Object) []validationErr {
+	return p.eachResource(KindTask, 1, func(idx int, k Object) []validationErr {
 		t := &task{
 			name:        k.Metadata.references(fieldName),
 			cron:        k.Spec.stringShort(fieldTaskCron),
@@ -917,14 +917,14 @@ func (p *Pkg) graphTasks() *parseErr {
 		sort.Sort(t.labels)
 
 		p.mTasks = append(p.mTasks, t)
-		p.setRefs(t.name)
+		p.setRefs(idx, t.name)
 		return append(failures, t.valid()...)
 	})
 }
 
 func (p *Pkg) graphTelegrafs() *parseErr {
 	p.mTelegrafs = make([]*telegraf, 0)
-	return p.eachResource(KindTelegraf, 0, func(k Object) []validationErr {
+	return p.eachResource(KindTelegraf, 0, func(idx int, k Object) []validationErr {
 		tele := &telegraf{
 			name: k.Metadata.references(fieldName),
 		}
@@ -946,7 +946,7 @@ func (p *Pkg) graphTelegrafs() *parseErr {
 		}
 
 		p.mTelegrafs = append(p.mTelegrafs, tele)
-		p.setRefs(tele.name)
+		p.setRefs(idx, tele.name)
 
 		return failures
 	})
@@ -954,7 +954,7 @@ func (p *Pkg) graphTelegrafs() *parseErr {
 
 func (p *Pkg) graphVariables() *parseErr {
 	p.mVariables = make(map[string]*variable)
-	return p.eachResource(KindVariable, 1, func(k Object) []validationErr {
+	return p.eachResource(KindVariable, 1, func(idx int, k Object) []validationErr {
 		nameRef := k.Metadata.references(fieldName)
 		if _, ok := p.mVariables[nameRef.String()]; ok {
 			return []validationErr{{
@@ -981,13 +981,13 @@ func (p *Pkg) graphVariables() *parseErr {
 		sort.Sort(newVar.labels)
 
 		p.mVariables[k.Name()] = newVar
-		p.setRefs(newVar.name)
+		p.setRefs(idx, newVar.name)
 
 		return append(failures, newVar.valid()...)
 	})
 }
 
-func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(r Object) []validationErr) *parseErr {
+func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(idx int, r Object) []validationErr) *parseErr {
 	var pErr parseErr
 	for i, k := range p.Objects {
 		if err := k.Type.OK(); err != nil {
@@ -1035,7 +1035,7 @@ func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(r Object) 
 			continue
 		}
 
-		if failures := fn(k); failures != nil {
+		if failures := fn(i, k); failures != nil {
 			err := resourceErr{
 				Kind: resourceKind.String(),
 				Idx:  intPtr(i),
@@ -1120,13 +1120,18 @@ func (p *Pkg) parseNestedLabel(nr Resource, fn func(lb *label) error) *validatio
 	return nil
 }
 
-func (p *Pkg) setRefs(refs ...*references) {
+func (p *Pkg) setRefs(idx int, refs ...*references) {
 	for _, ref := range refs {
 		if ref.Secret != "" {
 			p.mSecrets[ref.Secret] = false
 		}
 		if ref.EnvRef != "" {
-			p.mEnv[ref.EnvRef] = append(p.mEnv[ref.EnvRef], ref)
+			if _, ok := p.mEnv[ref.EnvRef]; !ok {
+				p.mEnv[ref.EnvRef] = make(map[int]*references)
+			}
+			m := p.mEnv[ref.EnvRef]
+			m[idx] = ref
+			p.mEnv[ref.EnvRef] = m
 		}
 	}
 }
