@@ -306,6 +306,12 @@ func (s *Service) serve(ctx context.Context) error {
 	conChan := make(chan net.Conn)
 	errChan := make(chan error)
 
+	// send accepted connections to our conChan so that we can multiplex over
+	// conChand and ctx.Done() in the next for loop.
+	//
+	// this go routine is cancelled once the s.ln listener is closed.
+	//
+	// FIXME: this logic needs to be looked at closely.
 	go func() {
 		for {
 			// Wait for next connection.
@@ -322,9 +328,12 @@ func (s *Service) serve(ctx context.Context) error {
 		}
 	}()
 
+	// handle new incoming connections, errors, and cancellation signal.
 	for {
 		select {
 		case <-ctx.Done():
+			// we're done.  close our listener immediately so we don't accept new connections.
+			s.ln.Close()
 			return nil
 
 		case conn := <-conChan:
