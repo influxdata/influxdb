@@ -124,7 +124,7 @@ func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
 func (w *PointsWriter) Start(ctx context.Context, reg services.Registry) error {
 	w.OpenWithContext(ctx)
 	<-ctx.Done()
-		return nil
+	return nil
 }
 
 func (w *PointsWriter) Stop() error {
