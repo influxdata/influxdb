@@ -1,5 +1,9 @@
 ## Undecided
 
+### Features
+
+1. [16765](https://github.com/influxdata/influxdb/pull/16765): Extend influx cli pkg command with ability to take multiple files and directories
+
 ### Bug Fixes
 
 1. [16733](https://github.com/influxdata/influxdb/pull/16733): Fix notification rule renaming panics from UI
