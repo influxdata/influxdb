@@ -1,6 +1,7 @@
 package snapshotter_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -78,22 +79,6 @@ func init() {
 	data.SetAdminPrivilege("admin", true)
 }
 
-func TestSnapshotter_Open(t *testing.T) {
-	s, l, err := NewTestService()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer l.Close()
-
-	if err := s.Open(); err != nil {
-		t.Fatalf("unexpected open error: %s", err)
-	}
-
-	if err := s.Close(); err != nil {
-		t.Fatalf("unexpected close error: %s", err)
-	}
-}
-
 func TestSnapshotter_RequestShardBackup(t *testing.T) {
 	s, l, err := NewTestService()
 	if err != nil {
@@ -115,10 +100,13 @@ func TestSnapshotter_RequestShardBackup(t *testing.T) {
 	}
 	s.TSDBStore = &tsdb
 
-	if err := s.Open(); err != nil {
-		t.Fatalf("unexpected open error: %s", err)
-	}
-	defer s.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	errChan := make(chan error)
+	defer func() {
+		cancel()
+		<-errChan
+	}()
+	go func() { errChan <- s.Run(ctx, nil) }()
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	if err != nil {
@@ -164,10 +152,14 @@ func TestSnapshotter_RequestMetastoreBackup(t *testing.T) {
 	defer l.Close()
 
 	s.MetaClient = &MetaClient{Data: data}
-	if err := s.Open(); err != nil {
-		t.Fatalf("unexpected open error: %s", err)
-	}
-	defer s.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errChan := make(chan error)
+	defer func() {
+		cancel()
+		<-errChan
+	}()
+	go func() { errChan <- s.Run(ctx, nil) }()
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	if err != nil {
@@ -214,10 +206,14 @@ func TestSnapshotter_RequestDatabaseInfo(t *testing.T) {
 
 	s.MetaClient = &MetaClient{Data: data}
 	s.TSDBStore = &tsdbStore
-	if err := s.Open(); err != nil {
-		t.Fatalf("unexpected open error: %s", err)
-	}
-	defer s.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errChan := make(chan error)
+	defer func() {
+		cancel()
+		<-errChan
+	}()
+	go func() { errChan <- s.Run(ctx, nil) }()
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	if err != nil {
@@ -268,10 +264,14 @@ func TestSnapshotter_RequestDatabaseInfo_ErrDatabaseNotFound(t *testing.T) {
 	defer l.Close()
 
 	s.MetaClient = &MetaClient{Data: data}
-	if err := s.Open(); err != nil {
-		t.Fatalf("unexpected open error: %s", err)
-	}
-	defer s.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errChan := make(chan error)
+	defer func() {
+		cancel()
+		<-errChan
+	}()
+	go func() { errChan <- s.Run(ctx, nil) }()
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	if err != nil {
@@ -332,10 +332,14 @@ func TestSnapshotter_RequestRetentionPolicyInfo(t *testing.T) {
 
 	s.MetaClient = &MetaClient{Data: data}
 	s.TSDBStore = &tsdbStore
-	if err := s.Open(); err != nil {
-		t.Fatalf("unexpected open error: %s", err)
-	}
-	defer s.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errChan := make(chan error)
+	defer func() {
+		cancel()
+		<-errChan
+	}()
+	go func() { errChan <- s.Run(ctx, nil) }()
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	if err != nil {
@@ -386,10 +390,13 @@ func TestSnapshotter_InvalidRequest(t *testing.T) {
 	}
 	defer l.Close()
 
-	if err := s.Open(); err != nil {
-		t.Fatalf("unexpected open error: %s", err)
-	}
-	defer s.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	errChan := make(chan error)
+	defer func() {
+		cancel()
+		<-errChan
+	}()
+	go func() { errChan <- s.Run(ctx, nil) }()
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	if err != nil {
