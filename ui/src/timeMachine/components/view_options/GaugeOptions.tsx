@@ -67,7 +67,7 @@ class GaugeOptions extends PureComponent<Props> {
           prefix={prefix}
           tickPrefix={tickPrefix}
           suffix={suffix}
-          type={"gauge"}
+          type={'gauge'}
           tickSuffix={tickSuffix}
           onUpdatePrefix={onUpdatePrefix}
           onUpdateTickPrefix={onUpdateTickPrefix}
