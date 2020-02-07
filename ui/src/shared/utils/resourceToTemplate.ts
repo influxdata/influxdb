@@ -1,6 +1,7 @@
 import {get, pick, flatMap, uniqBy} from 'lodash'
 
 import {defaultBuilderConfig} from 'src/views/helpers'
+import {getLabels} from 'src/resources/selectors'
 
 import {
   AppState,
@@ -92,12 +93,10 @@ export const taskToTemplate = (
     'offset',
   ])
 
-  const labelsByID = state.resources.labels.byID
-  const includedLabels = task.labels.map(labelID =>
-    labelToIncluded(labelsByID[labelID])
-  )
-  const relationshipsLabels = task.labels.map(labelID =>
-    labelToRelationship(labelsByID[labelID])
+  const taskLabels = getLabels(state, task.labels)
+  const includedLabels = taskLabels.map(label => labelToIncluded(label))
+  const relationshipsLabels = taskLabels.map(label =>
+    labelToRelationship(label)
   )
 
   const template = {
@@ -192,15 +191,14 @@ export const variableToTemplate = (
     variableToIncluded(d, labelsByID)
   )
 
-  const includedLabels = v.labels.map(labelID =>
-    labelToIncluded(labelsByID[labelID])
-  )
-  const labelRelationships = v.labels.map(labelID =>
-    labelToRelationship(labelsByID[labelID])
-  )
-  const includedDependentLabels = flatMap(dependencies, d =>
-    d.labels.map(labelID => labelToIncluded(labelsByID[labelID]))
-  )
+  const vLabels = getLabels(state, v.labels)
+
+  const includedLabels = vLabels.map(label => labelToIncluded(label))
+  const labelRelationships = vLabels.map(label => labelToRelationship(label))
+  const includedDependentLabels = flatMap(dependencies, d => {
+    const dLabels = getLabels(state, d.labels)
+    return dLabels.map(label => labelToIncluded(label))
+  })
 
   return {
     ...baseTemplate,
@@ -236,9 +234,16 @@ type LabelsByID = AppState['resources']['labels']['byID']
 
 const variableToIncluded = (v: Variable, labelsByID: LabelsByID) => {
   const variableAttributes = pick(v, ['name', 'arguments', 'selected'])
-  const labelRelationships = v.labels.map(labelID =>
-    labelToRelationship(labelsByID[labelID])
-  )
+  const labelRelationships = v.labels
+    .map(labelID => {
+      const label = labelsByID[labelID]
+      if (!label) {
+        return null
+      }
+
+      return labelToRelationship(label)
+    })
+    .filter(label => !!label)
 
   return {
     id: v.id,
@@ -271,12 +276,12 @@ export const dashboardToTemplate = (
 
   const dashboardAttributes = pick(dashboard, ['name', 'description'])
 
-  const dashboardLabels = dashboard.labels
-  const dashboardIncludedLabels = dashboardLabels.map(labelID =>
-    labelToIncluded(labelsByID[labelID])
+  const dashboardLabels = getLabels(state, dashboard.labels)
+  const dashboardIncludedLabels = dashboardLabels.map(label =>
+    labelToIncluded(label)
   )
-  const relationshipsLabels = dashboardLabels.map(labelID =>
-    labelToRelationship(labelsByID[labelID])
+  const relationshipsLabels = dashboardLabels.map(label =>
+    labelToRelationship(label)
   )
 
   const includedCells = cells.map(c => cellToIncluded(c, views))
@@ -285,9 +290,11 @@ export const dashboardToTemplate = (
   const includedVariables = variables.map(v =>
     variableToIncluded(v, labelsByID)
   )
+
   const variableIncludedLabels = flatMap(variables, v =>
-    v.labels.map(labelID => labelToIncluded(labelsByID[labelID]))
+    getLabels(state, v.labels).map(label => labelToIncluded(label))
   )
+
   const relationshipsVariables = variables.map(v => variableToRelationship(v))
 
   const includedViews = views.map(v => viewToIncluded(v))
