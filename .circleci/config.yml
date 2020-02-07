@@ -1,0 +1,86 @@
+version: 2.1
+
+# Adding these commands but need confirmation of cache location
+commands:
+  install_clang:
+    description: Install clang
+    steps:
+      - run:
+          name: Install clang
+          command: sudo apt install -y clang
+  rust_nightly:
+    description: Install nightly tools
+    steps:
+      - run:
+          name: Install nightly
+          command: rustup toolchain install nightly
+      - run:
+          name: rustup component
+          command: rustup component add rustfmt clippy
+  cache_restore:
+    description: Restore Cargo Cache
+    steps:
+      - restore_cache:
+          name: Restoring Cargo Cache
+          keys:
+            - cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+  cache_save:
+    description: Save Cargo Cache
+    steps:
+      - save_cache:
+          name: Save Cargo Cache
+          paths:
+            - /usr/local/cargo/registry
+          key: cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+
+jobs:
+  fmt:
+    docker:
+      - image: circleci/rust:latest
+    steps:
+      - checkout
+      - rust_nightly
+      - run:
+          name: Rust fmt
+          command: cargo fmt --all -- --check
+  lint:
+    docker:
+      - image: circleci/rust:latest
+    steps:
+      - checkout
+      - rust_nightly
+      - install_clang
+      - run:
+          name: Clippy
+          command: cargo clippy --all
+  test:
+    docker:
+      - image: circleci/rust:latest
+    steps:
+      - checkout
+      - cache_restore
+      - install_clang
+      - run:
+          name: Cargo test
+          command: cargo test
+      - cache_save
+  build:
+    docker:
+      - image: circleci/rust:latest
+    steps:
+      - checkout
+      - cache_restore
+      - install_clang
+      - run:
+          name: Cargo build
+          command: cargo build
+      - cache_save
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - fmt
+      - lint
+      - test
+      - build
