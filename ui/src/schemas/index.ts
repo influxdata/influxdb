@@ -18,12 +18,6 @@ import {addLabelDefaults} from 'src/labels/utils'
 import {defaultView} from 'src/views/helpers'
 import {arrayOfLabels} from './labels'
 
-/* Buckets */
-
-// Defines the schema for the "buckets" resource
-export const bucket = new schema.Entity(ResourceType.Buckets)
-export const arrayOfBuckets = [bucket]
-
 /* Views */
 
 // Defines the schema for the "views" resource
@@ -128,3 +122,14 @@ export const addLabels = <R extends {labels?: Label[]}>(
 ): Label[] => {
   return (resource.labels || []).map(addLabelDefaults)
 }
+
+export {authSchema, arrayOfAuths} from './authorizations'
+export {bucketSchema, arrayOfBuckets} from './buckets'
+export {checkSchema, arrayOfChecks} from './checks'
+export {endpointSchema, arrayOfEndpoints} from './endpoints'
+export {labelSchema, arrayOfLabels} from './labels'
+export {ruleSchema, arrayOfRules} from './rules'
+export {taskSchema, arrayOfTasks} from './tasks'
+export {telegrafSchema, arrayOfTelegrafs} from './telegrafs'
+export {templateSchema, arrayOfTemplates} from './templates'
+export {variableSchema, arrayOfVariables} from './variables'

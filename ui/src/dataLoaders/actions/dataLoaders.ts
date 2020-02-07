@@ -9,7 +9,7 @@ import {createAuthorization} from 'src/authorizations/apis'
 import {postWrite as apiPostWrite, postLabel as apiPostLabel} from 'src/client'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {authSchema} from 'src/schemas'
 import {telegrafSchema} from 'src/schemas/telegrafs'
 
 // Utils
@@ -455,7 +455,7 @@ const createTelegraf = async (dispatch, getState: GetState, plugins) => {
 
     const normAuth = normalize<Authorization, AuthEntities, string>(
       createdToken,
-      schemas.auth
+      authSchema
     )
 
     // add token to authorizations state
