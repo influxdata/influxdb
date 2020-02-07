@@ -23,7 +23,9 @@ commands:
       - restore_cache:
           name: Restoring Cargo Cache
           keys:
-            - cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+            - cargo-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Cargo.lock" }}
+            - cargo-cache-{{ arch }}-{{ .Branch }}
+            - cargo-cache
   cache_save:
     description: Save Cargo Cache
     steps:
@@ -31,7 +33,7 @@ commands:
           name: Save Cargo Cache
           paths:
             - /usr/local/cargo/registry
-          key: cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+          key: cargo-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Cargo.lock" }}
 
 jobs:
   fmt:
