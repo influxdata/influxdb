@@ -278,7 +278,7 @@ type bucketResponse struct {
 	Labels []influxdb.Label  `json:"labels"`
 }
 
-func newBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResponse {
+func NewBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResponse {
 	res := &bucketResponse{
 		Links: map[string]string{
 			"labels":  fmt.Sprintf("/api/v2/buckets/%s/labels", b.ID),
@@ -309,7 +309,7 @@ func newBucketsResponse(ctx context.Context, opts influxdb.FindOptions, f influx
 	rs := make([]*bucketResponse, 0, len(bs))
 	for _, b := range bs {
 		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID})
-		rs = append(rs, newBucketResponse(b, labels))
+		rs = append(rs, NewBucketResponse(b, labels))
 	}
 	return &bucketsResponse{
 		Links:   newPagingLinks(prefixBuckets, opts, f, len(bs)),
@@ -332,7 +332,7 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 	}
 	h.log.Debug("Bucket created", zap.String("bucket", fmt.Sprint(bucket)))
 
-	h.api.Respond(w, http.StatusCreated, newBucketResponse(bucket, []*influxdb.Label{}))
+	h.api.Respond(w, http.StatusCreated, NewBucketResponse(bucket, []*influxdb.Label{}))
 }
 
 type postBucketRequest struct {
@@ -413,7 +413,7 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 
 	h.log.Debug("Bucket retrieved", zap.String("bucket", fmt.Sprint(b)))
 
-	h.api.Respond(w, http.StatusOK, newBucketResponse(b, labels))
+	h.api.Respond(w, http.StatusOK, NewBucketResponse(b, labels))
 }
 
 func bucketIDPath(id influxdb.ID) string {
@@ -608,7 +608,7 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 	}
 	h.log.Debug("Bucket updated", zap.String("bucket", fmt.Sprint(b)))
 
-	h.api.Respond(w, http.StatusOK, newBucketResponse(b, labels))
+	h.api.Respond(w, http.StatusOK, NewBucketResponse(b, labels))
 }
 
 // BucketService connects to Influx via HTTP using tokens to manage buckets
