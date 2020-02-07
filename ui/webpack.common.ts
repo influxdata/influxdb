@@ -2,6 +2,7 @@ const path = require('path')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
+const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin')
 const {CleanWebpackPlugin} = require('clean-webpack-plugin')
 const webpack = require('webpack')
 const {
@@ -28,6 +29,17 @@ module.exports = {
       react: path.resolve('./node_modules/react'),
     },
     extensions: ['.tsx', '.ts', '.js', '.wasm'],
+  },
+  node: {
+    fs: 'empty',
+    global: true,
+    crypto: 'empty',
+    tls: 'empty',
+    net: 'empty',
+    process: true,
+    module: false,
+    clearImmediate: false,
+    setImmediate: true,
   },
   module: {
     rules: [
@@ -123,6 +135,10 @@ module.exports = {
       GIT_SHA,
       API_PREFIX: API_BASE_PATH,
       STATIC_PREFIX: BASE_PATH,
+    }),
+    new MonacoWebpackPlugin({
+      languages: ['json', 'javascript', 'go', 'markdown'],
+      features: ['!gotoSymbol'],
     }),
   ],
   stats: {

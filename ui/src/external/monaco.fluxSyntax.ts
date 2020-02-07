@@ -8,8 +8,6 @@ import {MonacoType} from 'src/types'
 export async function addSyntax(monaco: MonacoType) {
   await loader()
 
-  monaco.languages.register({id: 'flux'})
-
   const registry = new Registry({
     // TODO: this is maintained in influxdata/vsflux, which is currently
     // a private repo, so we can't use it yet (alex)
@@ -26,6 +24,10 @@ export async function addSyntax(monaco: MonacoType) {
   // map of monaco "language id's" to TextMate scopeNames
   const grammars = new Map()
   grammars.set('flux', 'flux')
+
+  monaco.languages.setLanguageConfiguration('flux', {
+    autoClosingPairs: [{open: '"', close: '"'}, {open: '[', close: ']'}],
+  })
 
   await wireTmGrammars(monaco, registry, grammars)
 }

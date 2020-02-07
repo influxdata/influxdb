@@ -8,7 +8,7 @@ import MonacoEditor from 'react-monaco-editor'
 
 // Utils
 import addFluxTheme, {THEME_NAME} from 'src/external/monaco.fluxTheme'
-import {addSnippets} from 'src/external/monaco.fluxCompletions'
+// import {addSnippets} from 'src/external/monaco.fluxCompletions'
 import {addSyntax} from 'src/external/monaco.fluxSyntax'
 import {OnChangeScript} from 'src/types/flux'
 import {addKeyBindings} from 'src/external/monaco.keyBindings'
@@ -109,9 +109,34 @@ const FluxEditorMonaco: FC<Props> = ({
   }, [])
 
   const editorWillMount = (monaco: MonacoType) => {
+    monaco.languages.register({id: 'flux'})
+
     addFluxTheme(monaco)
     addSyntax(monaco)
-    addSnippets(monaco)
+    // addSnippets(monaco)
+
+    monaco.languages.registerCompletionItemProvider('flux', {
+      provideCompletionItems: () => {
+        return {
+          suggestions: [
+            {
+              label: 'from',
+              kind: monaco.languages.CompletionItemKind.Snippet,
+              insertText: ['from(bucket: ${1})', '\t|>'].join('\n'),
+              insertTextRules:
+                monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+              documentation: 'From-Statement',
+              range: {
+                startLineNumber: 1,
+                startColumn: 1,
+                endColumn: 6,
+                endLineNumber: 1,
+              },
+            },
+          ],
+        }
+      },
+    })
   }
 
   const editorDidMount = (editor: EditorType, monaco: MonacoType) => {
