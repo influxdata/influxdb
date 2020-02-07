@@ -28,11 +28,11 @@ fn float_encode_sequential(c: &mut Criterion) {
             BenchmarkId::from_parameter(batch_size),
             batch_size,
             |b, &batch_size| {
-                let src: Vec<f64> = (1..batch_size).map(f64::from).collect();
-                let mut dst = vec![];
+                let decoded: Vec<f64> = (1..batch_size).map(f64::from).collect();
+                let mut encoded = vec![];
                 b.iter(|| {
-                    dst.truncate(0);
-                    delorean::encoders::float::encode_all(&src, &mut dst).unwrap();
+                    encoded.truncate(0);
+                    delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
                 });
             },
         );

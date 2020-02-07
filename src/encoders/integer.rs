@@ -9,14 +9,14 @@ enum Encoding {
     Rle = 2,
 }
 
-/// encode_all encodes a vector of signed integers into dst.
+/// encode encodes a vector of signed integers into dst.
 ///
 /// Deltas between the integers in the vector are first calculated, and these
 /// deltas are then zig-zag encoded. The resulting zig-zag encoded deltas are
 /// further compressed if possible, either via bit-packing using simple8b or by
 /// run-length encoding the deltas if they're all the same.
 #[allow(dead_code)]
-pub fn encode_all<'a>(src: &Vec<i64>, dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
+pub fn encode<'a>(src: &[i64], dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.truncate(0); // reset buffer.
     if src.len() == 0 {
         return Ok(());
@@ -67,7 +67,7 @@ pub fn encode_all<'a>(src: &Vec<i64>, dst: &'a mut Vec<u8>) -> Result<(), Box<dy
     // first 4 high bits used for encoding type
     dst.push((Encoding::Simple8b as u8) << 4);
     dst.extend_from_slice(&deltas[0].to_be_bytes()); // encode first value
-    simple8b::encode_all(&deltas[1..], dst)
+    simple8b::encode(&deltas[1..], dst)
 }
 
 // zig_zag_encode converts a signed integer into an unsigned one by zig zagging
@@ -114,9 +114,9 @@ fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
     dst.truncate(n);
 }
 
-/// decode_all decodes a slice of bytes into a vector of signed integers.
+/// decode decodes a slice of bytes into a vector of signed integers.
 #[allow(dead_code)]
-pub fn decode_all<'a>(src: &[u8], dst: &'a mut Vec<i64>) -> Result<(), Box<dyn Error>> {
+pub fn decode<'a>(src: &[u8], dst: &'a mut Vec<i64>) -> Result<(), Box<dyn Error>> {
     if src.len() == 0 {
         return Ok(());
     }
@@ -198,7 +198,7 @@ fn decode_simple8b(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>>
     buf.copy_from_slice(&src[0..8]);
     dst.push(zig_zag_decode(u64::from_be_bytes(buf)));
 
-    simple8b::decode_all(&src[8..], &mut res);
+    simple8b::decode(&src[8..], &mut res);
     // TODO(edd): fix this. It's copying, which is slowwwwwwwww.
     let mut next = dst[0];
     for v in res.iter() {
@@ -226,36 +226,36 @@ mod tests {
     }
 
     #[test]
-    fn encode_all_no_values() {
+    fn encode_no_values() {
         let src: Vec<i64> = vec![];
         let mut dst = vec![];
 
         // check for error
-        encode_all(&src, &mut dst).expect("failed to encode src");
+        encode(&src, &mut dst).expect("failed to encode src");
 
         // verify encoded no values.
         assert_eq!(dst.to_vec().len(), 0);
     }
 
     #[test]
-    fn encode_all_uncompressed() {
+    fn encode_uncompressed() {
         let src: Vec<i64> = vec![-1000, 0, simple8b::MAX_VALUE as i64, 213123421];
         let mut dst = vec![];
 
         let exp = src.clone();
-        encode_all(&src, &mut dst).expect("failed to encode");
+        encode(&src, &mut dst).expect("failed to encode");
 
         // verify uncompressed encoding used
         assert_eq!(&dst[0] >> 4, Encoding::Uncompressed as u8);
         let mut got = vec![];
-        decode_all(&dst, &mut got).expect("failed to decode");
+        decode(&dst, &mut got).expect("failed to decode");
 
         // verify got same values back
         assert_eq!(got, exp);
     }
 
     #[test]
-    fn encode_all_rle() {
+    fn encode_rle() {
         struct Test {
             name: String,
             input: Vec<i64>,
@@ -292,19 +292,19 @@ mod tests {
             let mut dst = vec![];
             let src = test.input.clone();
             let exp = test.input;
-            encode_all(&src, &mut dst).expect("failed to encode");
+            encode(&src, &mut dst).expect("failed to encode");
 
             // verify RLE encoding used
             assert_eq!(&dst[0] >> 4, Encoding::Rle as u8);
             let mut got = vec![];
-            decode_all(&dst, &mut got).expect("failed to decode");
+            decode(&dst, &mut got).expect("failed to decode");
             // verify got same values back
             assert_eq!(got, exp, "{}", test.name);
         }
     }
 
     #[test]
-    fn encode_all_simple8b() {
+    fn encode_simple8b() {
         struct Test {
             name: String,
             input: Vec<i64>,
@@ -329,12 +329,12 @@ mod tests {
             let mut dst = vec![];
             let src = test.input.clone();
             let exp = test.input;
-            encode_all(&src, &mut dst).expect("failed to encode");
+            encode(&src, &mut dst).expect("failed to encode");
             // verify Simple8b encoding used
             assert_eq!(&dst[0] >> 4, Encoding::Simple8b as u8);
 
             let mut got = vec![];
-            decode_all(&dst, &mut got).expect("failed to decode");
+            decode(&dst, &mut got).expect("failed to decode");
             // verify got same values back
             assert_eq!(got, exp, "{}", test.name);
         }

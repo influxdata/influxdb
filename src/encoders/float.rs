@@ -12,14 +12,14 @@ fn is_sentinel_u64(v: u64) -> bool {
     return v == SENTINEL;
 }
 
-/// encode_all encodes a vector of floats into dst.
+/// encode encodes a vector of floats into dst.
 ///
 /// The encoding used is equivalent to the encoding of floats in the Gorilla
 /// paper. Each subsequent value is compared to the previous and the XOR of the
 /// two is determined. Leading and trailing zero bits are then analysed and
 /// representations based on those are stored.
 #[allow(dead_code)]
-pub fn encode_all(src: &Vec<f64>, dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
+pub fn encode(src: &[f64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.truncate(0); // reset buffer.
     if src.len() == 0 {
         return Ok(());
@@ -315,9 +315,9 @@ const BIT_MASK: [u64; 64] = [
     0x7fffffffffffffff,
 ];
 
-/// decode_all decodes a slice of bytes into a vector of floats.
+/// decode decodes a slice of bytes into a vector of floats.
 #[allow(dead_code)]
-pub fn decode_all(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> {
+pub fn decode(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> {
     if src.len() < 9 {
         return Ok(());
     }
@@ -491,12 +491,12 @@ pub fn decode_all(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> 
 mod tests {
 
     #[test]
-    fn encode_all_no_values() {
+    fn encode_no_values() {
         let src: Vec<f64> = vec![];
         let mut dst = vec![];
 
         // check for error
-        super::encode_all(&src, &mut dst).expect("failed to encode src");
+        super::encode(&src, &mut dst).expect("failed to encode src");
 
         // verify encoded no values.
         let exp: Vec<u8> = Vec::new();
@@ -504,7 +504,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_all_special_values() {
+    fn encode_special_values() {
         let src: Vec<f64> = vec![
             100.0,
             222.12,
@@ -523,10 +523,10 @@ mod tests {
         let mut dst = vec![];
 
         // check for error
-        super::encode_all(&src, &mut dst).expect("failed to encode src");
+        super::encode(&src, &mut dst).expect("failed to encode src");
 
         let mut got = vec![];
-        super::decode_all(&dst, &mut got).expect("failed to decode");
+        super::decode(&dst, &mut got).expect("failed to decode");
 
         // Verify decoded values.
         assert_eq!(got.len(), src.len());
@@ -537,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_all() {
+    fn encode() {
         struct Test {
             name: String,
             input: Vec<f64>,
@@ -1642,10 +1642,10 @@ mod tests {
             let mut dst = vec![];
             let src = test.input;
 
-            super::encode_all(&src, &mut dst).expect("failed to encode");
+            super::encode(&src, &mut dst).expect("failed to encode");
 
             let mut got = vec![];
-            super::decode_all(&dst, &mut got).expect("failed to decode");
+            super::decode(&dst, &mut got).expect("failed to decode");
             // verify got same values back
             assert_eq!(got, src, "{}", test.name);
         }

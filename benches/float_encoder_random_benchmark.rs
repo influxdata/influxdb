@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use rand::Rng;
+use rand::{distributions::Uniform, Rng};
 
 // The current float encoder produces the following compression:
 //
@@ -20,7 +20,7 @@ use rand::Rng;
 fn float_encode_random(c: &mut Criterion) {
     let mut group = c.benchmark_group("float_encode_random");
     for batch_size in [
-        10_i32, 25, 50, 100, 250, 500, 750, 1000, 5000, 10000, 50000, 100000,
+        10_usize, 25, 50, 100, 250, 500, 750, 1000, 5000, 10000, 50000, 100000,
     ]
     .iter()
     {
@@ -29,14 +29,15 @@ fn float_encode_random(c: &mut Criterion) {
             BenchmarkId::from_parameter(batch_size),
             batch_size,
             |b, &batch_size| {
-                let src: Vec<f64> = (1..batch_size)
-                    .map(|_| rand::thread_rng().gen_range(0, 100))
-                    .map(f64::from)
+                let range = Uniform::from(0.0..100.0);
+                let decoded: Vec<_> = rand::thread_rng()
+                    .sample_iter(&range)
+                    .take(batch_size)
                     .collect();
-                let mut dst = vec![];
+                let mut encoded = vec![];
                 b.iter(|| {
-                    dst.truncate(0);
-                    delorean::encoders::float::encode_all(&src, &mut dst).unwrap();
+                    encoded.truncate(0);
+                    delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
                 });
             },
         );

@@ -27,11 +27,11 @@ fn float_encode_cpu(c: &mut Criterion) {
             BenchmarkId::from_parameter(batch_size),
             batch_size,
             |b, &batch_size| {
-                let src: Vec<f64> = CPU_F64_EXAMPLE_VALUES[..batch_size as usize].to_vec();
-                let mut dst = vec![];
+                let decoded: Vec<f64> = CPU_F64_EXAMPLE_VALUES[..batch_size as usize].to_vec();
+                let mut encoded = vec![];
                 b.iter(|| {
-                    dst.truncate(0);
-                    delorean::encoders::float::encode_all(&src, &mut dst).unwrap();
+                    encoded.truncate(0);
+                    delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
                 });
             },
         );

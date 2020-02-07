@@ -25,9 +25,9 @@ const NUM_BITS: [[u8; 2]; 14] = [
     [1, 60],
 ];
 
-/// encode_all packs and binary encodes the provides slice of u64 values using
+/// encode packs and binary encodes the provides slice of u64 values using
 /// simple8b into the provided vector.
-pub fn encode_all<'a>(src: &[u64], dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
+pub fn encode<'a>(src: &[u64], dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     let mut i = 0;
     'next_value: while i < src.len() {
         // try to pack a run of 240 or 120 1s
@@ -79,9 +79,9 @@ pub fn encode_all<'a>(src: &[u64], dst: &'a mut Vec<u8>) -> Result<(), Box<dyn E
     Ok(())
 }
 
-/// decode_all decodes and unpacks the binary-encoded values stored in src into
+/// decode decodes and unpacks the binary-encoded values stored in src into
 /// dst.
-pub fn decode_all<'a>(src: &[u8], dst: &'a mut Vec<u64>) {
+pub fn decode<'a>(src: &[u8], dst: &'a mut Vec<u64>) {
     let mut i = 0;
     let mut j = 0;
     let mut buf: [u8; 8] = [0; 8];
@@ -90,14 +90,13 @@ pub fn decode_all<'a>(src: &[u8], dst: &'a mut Vec<u64>) {
             dst.resize(j + 240, 0); // may need 240 capacity
         }
         buf.copy_from_slice(&src[i..i + 8]);
-        j += decode(u64::from_be_bytes(buf), &mut dst[j..]);
+        j += decode_value(u64::from_be_bytes(buf), &mut dst[j..]);
         i += 8;
     }
     dst.truncate(j);
 }
 
-#[allow(dead_code)]
-pub fn decode(v: u64, dst: &mut [u64]) -> usize {
+fn decode_value(v: u64, dst: &mut [u64]) -> usize {
     let sel = v >> S8B_BIT_SIZE as u64;
     let mut v = v;
     match sel {
@@ -224,7 +223,7 @@ mod tests {
         let mut dst = vec![];
 
         // check for error
-        encode_all(&src, &mut dst).expect("failed to encode src");
+        encode(&src, &mut dst).expect("failed to encode src");
 
         // verify encoded no values.
         assert_eq!(dst.len(), src.len())
@@ -236,9 +235,9 @@ mod tests {
 
         let mut encoded = vec![];
         let mut decoded = vec![];
-        encode_all(&src, &mut encoded).expect("failed to encode");
+        encode(&src, &mut encoded).expect("failed to encode");
         assert_eq!(encoded.len(), 16); // verify vector is truncated.
-        decode_all(&encoded, &mut decoded);
+        decode(&encoded, &mut decoded);
         assert_eq!(decoded.to_vec(), src, "{}", "mixed sizes");
     }
 
@@ -248,9 +247,9 @@ mod tests {
 
         let mut encoded = vec![];
         let mut decoded = vec![];
-        encode_all(&src, &mut encoded).expect("failed to encode");
+        encode(&src, &mut encoded).expect("failed to encode");
         assert_eq!(encoded.len(), 24); // verify vector is truncated.
-        decode_all(&encoded, &mut decoded);
+        decode(&encoded, &mut decoded);
         assert_eq!(decoded.to_vec(), src, "{}", "mixed sizes");
     }
 
@@ -259,14 +258,14 @@ mod tests {
         let src = vec![7, 6, 2 << 61 - 1, 4, 3, 2, 1];
 
         let mut encoded = vec![];
-        match encode_all(&src, &mut encoded) {
+        match encode(&src, &mut encoded) {
             Ok(_) => assert!(false), // TODO(edd): fix this silly assertion
             Err(_) => (),
         }
     }
 
     #[test]
-    fn test_encode_all() {
+    fn test_encode() {
         struct Test {
             name: String,
             // TODO(edd): no idea how to store the closure in the struct rather than the
@@ -339,9 +338,9 @@ mod tests {
 
         for test in tests {
             let mut encoded = vec![];
-            encode_all(&test.input, &mut encoded).expect("failed to encode");
+            encode(&test.input, &mut encoded).expect("failed to encode");
             let mut decoded = vec![];
-            decode_all(&encoded, &mut decoded);
+            decode(&encoded, &mut decoded);
             assert_eq!(decoded.to_vec(), test.input, "{}", test.name);
         }
 
@@ -351,27 +350,27 @@ mod tests {
         let mut input = ones(240)();
         input[120] = 5;
         let mut encoded = vec![];
-        encode_all(&input, &mut encoded).expect("failed to encode");
+        encode(&input, &mut encoded).expect("failed to encode");
         let mut decoded = vec![];
-        decode_all(&encoded, &mut decoded);
+        decode(&encoded, &mut decoded);
         assert_eq!(decoded.to_vec(), input, "{}", "120 ones");
 
         input = ones(240)();
         input[119] = 5;
 
         let mut encoded = vec![];
-        encode_all(&input, &mut encoded).expect("failed to encode");
+        encode(&input, &mut encoded).expect("failed to encode");
         let mut decoded = vec![];
-        decode_all(&encoded, &mut decoded);
+        decode(&encoded, &mut decoded);
         assert_eq!(decoded.to_vec(), input, "{}", "119 ones");
 
         input = ones(241)();
         input[239] = 5;
 
         let mut encoded = vec![];
-        encode_all(&input, &mut encoded).expect("failed to encode");
+        encode(&input, &mut encoded).expect("failed to encode");
         let mut decoded = vec![];
-        decode_all(&encoded, &mut decoded);
+        decode(&encoded, &mut decoded);
         assert_eq!(decoded.to_vec(), input, "{}", "239 ones");
     }
 

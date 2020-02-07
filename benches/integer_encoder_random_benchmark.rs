@@ -29,13 +29,13 @@ fn integer_encode_random(c: &mut Criterion) {
             BenchmarkId::from_parameter(batch_size),
             batch_size,
             |b, &batch_size| {
-                let src: Vec<i64> = (1..batch_size)
+                let decoded: Vec<i64> = (1..batch_size)
                     .map(|_| rand::thread_rng().gen_range(0, 100))
                     .collect();
-                let mut dst = vec![];
+                let mut encoded = vec![];
                 b.iter(|| {
-                    dst.truncate(0);
-                    delorean::encoders::integer::encode_all(&src, &mut dst).unwrap();
+                    encoded.truncate(0);
+                    delorean::encoders::integer::encode(&decoded, &mut encoded).unwrap();
                 });
             },
         );

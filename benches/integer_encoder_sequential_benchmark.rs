@@ -30,11 +30,11 @@ fn integer_encode_sequential(c: &mut Criterion) {
             BenchmarkId::from_parameter(batch_size),
             batch_size,
             |b, &batch_size| {
-                let src: Vec<i64> = (1..batch_size).map(i64::from).collect();
-                let mut dst = vec![];
+                let decoded: Vec<i64> = (1..batch_size).map(i64::from).collect();
+                let mut encoded = vec![];
                 b.iter(|| {
-                    dst.truncate(0);
-                    delorean::encoders::integer::encode_all(&src, &mut dst).unwrap();
+                    encoded.truncate(0);
+                    delorean::encoders::integer::encode(&decoded, &mut encoded).unwrap();
                 });
             },
         );

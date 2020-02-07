@@ -7,18 +7,22 @@ fn integer_decode_sequential(c: &mut Criterion) {
     ]
     .iter()
     {
-        let src: Vec<i64> = (1..*batch_size).map(i64::from).collect();
-        let mut dst = vec![];
-        delorean::encoders::integer::encode_all(&src, &mut dst).unwrap();
+        let decoded: Vec<i64> = (1..*batch_size).map(i64::from).collect();
+        let mut encoded = vec![];
+        delorean::encoders::integer::encode(&decoded, &mut encoded).unwrap();
 
-        group.throughput(Throughput::Bytes(dst.len() as u64));
-        group.bench_with_input(BenchmarkId::from_parameter(batch_size), &src, |b, src| {
-            let mut src_mut = src.clone();
-            b.iter(|| {
-                src_mut.truncate(0);
-                delorean::encoders::integer::decode_all(&dst, &mut src_mut).unwrap();
-            });
-        });
+        group.throughput(Throughput::Bytes(encoded.len() as u64));
+        group.bench_with_input(
+            BenchmarkId::from_parameter(batch_size),
+            &decoded,
+            |b, decoded| {
+                let mut decoded_mut = Vec::with_capacity(decoded.len());
+                b.iter(|| {
+                    decoded_mut.truncate(0);
+                    delorean::encoders::integer::decode(&encoded, &mut decoded_mut).unwrap();
+                });
+            },
+        );
     }
     group.finish();
 }
