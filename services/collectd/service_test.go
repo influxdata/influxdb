@@ -1,6 +1,7 @@
 package collectd
 
 import (
+	"context"
 	"encoding/hex"
 	"errors"
 	"io/ioutil"
@@ -14,46 +15,10 @@ import (
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
 )
-
-func TestService_OpenClose(t *testing.T) {
-	service := NewTestService(1, time.Second, "split")
-
-	// Closing a closed service is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Closing a closed service again is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Opening an already open service is fine.
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Reopening a previously opened service is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Tidy up.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-}
 
 // Test that the service can read types DB files from a directory.
 func TestService_Open_TypesDBDir(t *testing.T) {
@@ -97,11 +62,10 @@ func TestService_Open_TypesDBDir(t *testing.T) {
 	s.Service.PointsWriter = s
 	s.Service.MetaClient = s.MetaClient
 
-	if err := s.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
 
-	if err := s.Service.Close(); err != nil {
+	if err := s.Service.Run(ctx, services.NewRegistry()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -128,9 +92,11 @@ func TestService_CreatesDatabase(t *testing.T) {
 		return nil, errors.New("an error")
 	}
 
-	if err := s.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
+	errChan := make(chan error)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { errChan <- s.Service.Run(ctx, services.NewRegistry()) }()
+
+	time.Sleep(3 * time.Second)
 
 	points, err := models.ParsePointsString(`cpu value=1`)
 	if err != nil {
@@ -140,6 +106,8 @@ func TestService_CreatesDatabase(t *testing.T) {
 	s.Service.batcher.In() <- points[0] // Send a point.
 	s.Service.batcher.Flush()
 	select {
+	case err := <-errChan:
+		t.Fatalf("s.Service.Run() returned %v; expected nil", err)
 	case <-called:
 		// OK
 	case <-time.NewTimer(5 * time.Second).C:
@@ -181,7 +149,12 @@ func TestService_CreatesDatabase(t *testing.T) {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
-	s.Service.Close()
+	cancel()
+
+	if err := <-errChan; err != nil {
+		t.Fatal(err)
+	}
+
 }
 
 // Test that the collectd service correctly batches points by BatchSize.
@@ -209,10 +182,11 @@ func TestService_BatchSize(t *testing.T) {
 				return nil
 			}
 
-			if err := s.Service.Open(); err != nil {
-				t.Fatal(err)
-			}
-			defer func() { t.Log("closing service"); s.Service.Close() }()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			errChan := make(chan error)
+			go func() { errChan <- s.Service.Run(ctx, services.NewRegistry()) }()
+			defer func() { t.Log("closing service"); cancel(); <-errChan }()
 
 			// Get the address & port the service is listening on for collectd data.
 			addr := s.Service.Addr()
@@ -276,10 +250,11 @@ func TestService_ParseMultiValuePlugin(t *testing.T) {
 		return nil
 	}
 
-	if err := s.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-	defer func() { t.Log("closing service"); s.Service.Close() }()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errChan := make(chan error)
+	go func() { errChan <- s.Service.Run(ctx, services.NewRegistry()) }()
+	defer func() { t.Log("closing service"); cancel(); <-errChan }()
 
 	// Get the address & port the service is listening on for collectd data.
 	addr := s.Service.Addr()
@@ -338,10 +313,11 @@ func TestService_BatchDuration(t *testing.T) {
 		return nil
 	}
 
-	if err := s.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-	defer func() { t.Log("closing service"); s.Service.Close() }()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errChan := make(chan error)
+	go func() { errChan <- s.Service.Run(ctx, services.NewRegistry()) }()
+	defer func() { t.Log("closing service"); cancel(); <-errChan }()
 
 	// Get the address & port the service is listening on for collectd data.
 	addr := s.Service.Addr()
