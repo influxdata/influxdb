@@ -19,8 +19,7 @@ var (
 )
 
 type indexer interface {
-	AddToIndex([]byte, [][]byte)
-	Stop()
+	AddToIndex([]byte, map[string][]byte)
 }
 
 // OpPrefix is the prefix for kv errors.
@@ -181,10 +180,6 @@ func (s *Service) Initialize(ctx context.Context) error {
 		return s.initializeUsers(ctx, tx)
 	})
 
-}
-
-func (s *Service) Stop() {
-	s.indexer.Stop()
 }
 
 // WithResourceLogger sets the resource audit logger for the service.
