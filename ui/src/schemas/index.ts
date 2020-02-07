@@ -4,12 +4,6 @@ import {schema} from 'normalizr'
 // Types
 import {ResourceType} from 'src/types'
 
-/* Organizations */
-
-// Defines the schema for the "organizations" resource
-export const org = new schema.Entity(ResourceType.Orgs)
-export const arrayOfOrgs = [org]
-
 /* Scrapers */
 
 // Defines the schema for the "scrapers" resource
@@ -31,6 +25,7 @@ export {
 export {endpointSchema, arrayOfEndpoints} from './endpoints'
 export {labelSchema, arrayOfLabels} from './labels'
 export {memberSchema, arrayOfMembers} from './members'
+export {orgSchema, arrayOfOrgs} from './orgs'
 export {ruleSchema, arrayOfRules} from './rules'
 export {taskSchema, arrayOfTasks} from './tasks'
 export {telegrafSchema, arrayOfTelegrafs} from './telegrafs'
