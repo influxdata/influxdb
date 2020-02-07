@@ -1,12 +1,12 @@
 import {Bucket, Permission} from 'src/types'
 
-type PermissionTypeValues = Permission['resource']['type']
+type PermissionTypes = Permission['resource']['type']
 
 function assertNever(x: never): never {
   throw new Error('Unexpected object: ' + x)
 }
 
-const allPermissionTypes: PermissionTypeValues[] = [
+const allPermissionTypes: PermissionTypes[] = [
   'authorizations',
   'buckets',
   'checks',
@@ -27,10 +27,10 @@ const allPermissionTypes: PermissionTypeValues[] = [
 ]
 
 // The switch statement below will cause a TS error
-// if all allowable PermissionTypeValues generated in the client
+// if all allowable PermissionTypes generated in the client
 // generatedRoutes are not included in the switch statement BUT
 // they will need to be added to both the switch statement AND the allPermissionTypes array.
-const ensureT = (orgID: string) => (t) => {
+const ensureT = (orgID: string) => (t: PermissionTypes): Permission[] => {
   switch (t) {
     case 'authorizations':
     case 'buckets':
