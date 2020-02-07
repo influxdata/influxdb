@@ -2,7 +2,7 @@
 import {normalize} from 'normalizr'
 
 // Schema
-import * as schemas from 'src/schemas'
+import {dashboardSchema, arrayOfDashboards} from 'src/schemas'
 
 // Reducer
 import {dashboardsReducer as reducer} from 'src/dashboards/reducers/dashboards'
@@ -37,7 +37,7 @@ describe('dashboards reducer', () => {
   it('can set the dashboards', () => {
     const schema = normalize<Dashboard, DashboardEntities, string[]>(
       [dashboard],
-      schemas.arrayOfDashboards
+      arrayOfDashboards
     )
 
     const byID = schema.entities.dashboards
@@ -65,7 +65,7 @@ describe('dashboards reducer', () => {
     const loadedDashboard = {...dashboard, name: 'updated name'}
     const schema = normalize<Dashboard, DashboardEntities, string>(
       loadedDashboard,
-      schemas.dashboard
+      dashboardSchema
     )
 
     const state = initialState()
@@ -84,7 +84,7 @@ describe('dashboards reducer', () => {
 
     const schema = normalize<Dashboard, DashboardEntities, string>(
       updates,
-      schemas.dashboard
+      dashboardSchema
     )
 
     const state = initialState()
