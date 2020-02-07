@@ -58,6 +58,10 @@ name = "integer_encoder_sequential_benchmark"
 harness = false
 
 [[bench]]
+name = "timestamp_encoder_sequential_benchmark"
+harness = false
+
+[[bench]]
 name = "integer_encoder_random_benchmark"
 harness = false
 
@@ -79,6 +83,10 @@ harness = false
 
 [[bench]]
 name = "integer_decoder_sequential_benchmark"
+harness = false
+
+[[bench]]
+name = "timestamp_decoder_sequential_benchmark"
 harness = false
 
 [build-dependencies]

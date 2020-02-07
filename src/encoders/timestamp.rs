@@ -17,7 +17,7 @@ enum Encoding {
 /// encoded using RLE. If not, as long as the deltas are not bigger than simple8b::MAX_VALUE
 /// they can be encoded using simple8b.
 #[allow(dead_code)]
-pub fn encode_all<'a>(src: &mut Vec<i64>, dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
+pub fn encode_all<'a>(src: &Vec<i64>, dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.truncate(0); // reset buffer.
     if src.len() == 0 {
         return Ok(());
