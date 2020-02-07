@@ -450,9 +450,16 @@ func (s *Server) OpenWithContext(ctx context.Context) error {
 
 	s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
 
-	// asyncronously start all services. we run this loop in a go routine so we
-	// can block on the supplied context as soon as possible.  FIXME: this might
-	// be unnessesary.
+	// asyncronously start all services.
+	//
+	// Each service should implent the Service interface.  This loop starts all
+	// of the services in our s.Services slice by executing each .Run() method.
+	//
+	// Each .Run() method is expected to block until it is complete.  Each
+	// service runner should respect any cancellation signals sent via the
+	// supplied context.  We handle running each service in a go routine within
+	// the loop below.
+	//
 	sem := make(chan struct{}, len(s.Services))
 	for _, service := range s.Services {
 		go func(svc Service) {
@@ -580,8 +587,8 @@ func (s *Server) reportServer() {
 
 // Service represents a service attached to the server.
 type Service interface {
-	WithLogger(log *zap.Logger)
 	Run(context.Context, services.Registry) error
+	WithLogger(log *zap.Logger)
 }
 
 // prof stores the file locations of active profiles.

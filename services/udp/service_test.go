@@ -1,6 +1,7 @@
 package udp
 
 import (
+	"context"
 	"errors"
 	"os"
 	"testing"
@@ -12,43 +13,6 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 )
 
-func TestService_OpenClose(t *testing.T) {
-	service := NewTestService(nil)
-
-	// Closing a closed service is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Closing a closed service again is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Opening an already open service is fine.
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Reopening a previously opened service is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Tidy up.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestService_CreatesDatabase(t *testing.T) {
 	t.Parallel()
 
@@ -59,6 +23,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 
 	called := make(chan struct{})
 	s.MetaClient.CreateDatabaseFn = func(name string) (*meta.DatabaseInfo, error) {
+		t.Logf("======== CREATING DATABASE ========")
 		if name != s.Config.Database {
 			t.Errorf("\n\texp = %s\n\tgot = %s\n", s.Config.Database, name)
 		}
@@ -68,8 +33,20 @@ func TestService_CreatesDatabase(t *testing.T) {
 		return nil, errors.New("an error")
 	}
 
-	if err := s.Service.Open(); err != nil {
-		t.Fatal(err)
+	errChan := make(chan error)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { errChan <- s.Service.Run(ctx, nil) }()
+
+	// give s.Service.Run() a second to start up and potentially return an error.
+	{
+		tk := time.NewTicker(time.Second)
+		defer tk.Stop()
+		select {
+		case err := <-errChan:
+			t.Fatalf("s.Service.Run() returned %v; expected nil", err)
+		case <-tk.C:
+			t.Logf("no errors after 1 second; this is good!")
+		}
 	}
 
 	points, err := models.ParsePointsString(`cpu value=1`)
@@ -121,7 +98,10 @@ func TestService_CreatesDatabase(t *testing.T) {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
-	s.Service.Close()
+	cancel()
+	if err := <-errChan; err != nil {
+		t.Fatalf("got error %v; expected nil", err)
+	}
 }
 
 type TestService struct {
