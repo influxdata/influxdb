@@ -1,6 +1,7 @@
 package precreator_test
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -12,13 +13,15 @@ import (
 )
 
 func TestShardPrecreation(t *testing.T) {
-	done := make(chan struct{})
 	precreate := false
 
 	var mc internal.MetaClientMock
+
+	ctx, cancel := context.WithCancel(context.Background())
+
 	mc.PrecreateShardGroupsFn = func(now, cutoff time.Time) error {
 		if !precreate {
-			close(done)
+			cancel()
 			precreate = true
 		}
 		return nil
@@ -27,21 +30,21 @@ func TestShardPrecreation(t *testing.T) {
 	s := NewTestService()
 	s.MetaClient = &mc
 
-	if err := s.Open(); err != nil {
-		t.Fatalf("unexpected open error: %s", err)
-	}
-	defer s.Close() // double close should not cause a panic
+	errChan := make(chan error)
+
+	go func() { errChan <- s.Run(ctx, nil) }()
 
 	timer := time.NewTimer(100 * time.Millisecond)
 	select {
-	case <-done:
+	case err := <-errChan:
+		if err != nil {
+			t.Fatalf("s.Run() returned %v; expected nil", err)
+		}
+	case <-ctx.Done():
 		timer.Stop()
+
 	case <-timer.C:
 		t.Errorf("timeout exceeded while waiting for precreate")
-	}
-
-	if err := s.Close(); err != nil {
-		t.Fatalf("unexpected close error: %s", err)
 	}
 }
 
