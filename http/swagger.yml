@@ -7145,18 +7145,24 @@ components:
           type: string
         package:
           $ref: "#/components/schemas/Pkg"
+        packages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Pkg"
         secrets:
           type: object
           additionalProperties:
             type: string
-        remote:
-          type: object
-          properties:
-            url:
-              type: string
-            contentType:
-              type: string
-          required: ["url"]
+        remotes:
+          type: array
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+              contentType:
+                type: string
+            required: ["url"]
     PkgCreate:
       type: object
       properties:
