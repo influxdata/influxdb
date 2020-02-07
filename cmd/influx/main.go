@@ -64,6 +64,7 @@ type genericCLIOpts struct {
 
 func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := &cobra.Command{
+		Args: cobra.NoArgs,
 		Use:  use,
 		RunE: runE,
 	}
