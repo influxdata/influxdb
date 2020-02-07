@@ -31,7 +31,7 @@ interface Props {
 
 class Affixes extends PureComponent<Props> {
   public render() {
-    const {prefix, tickPrefix, suffix, tickSuffix} = this.props
+    const {prefix, suffix} = this.props
 
     return (
       <>
