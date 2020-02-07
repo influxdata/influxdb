@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -58,6 +59,10 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory, testCategory ...s
 
 				t.Run("FindTasks paging", func(t *testing.T) {
 					testTaskFindTasksPaging(t, sys)
+				})
+
+				t.Run("FindTasks after paging", func(t *testing.T) {
+					testTaskFindTasksAfterPaging(t, sys)
 				})
 
 				t.Run("Task Update Options Full", func(t *testing.T) {
@@ -525,6 +530,85 @@ from(bucket: "b")
 
 	if got, exp := len(tasks), 5; got != exp {
 		t.Fatalf("unexpected len(taksks), -got/+exp: %v", cmp.Diff(got, exp))
+	}
+}
+
+func testTaskFindTasksAfterPaging(t *testing.T, sys *System) {
+	var (
+		script = `option task = {
+	name: "some-unique-task-name",
+	cron: "* * * * *",
+	concurrency: 100,
+	offset: 10s,
+}
+
+from(bucket: "b")
+	|> to(bucket: "two", orgID: "000000000000000")`
+		cr = creds(t, sys)
+		tc = influxdb.TaskCreate{
+			OrganizationID: cr.OrgID,
+			OwnerID:        cr.UserID,
+			Type:           influxdb.TaskSystemType,
+			Flux:           script,
+		}
+		authorizedCtx = icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
+		created       = make([]*influxdb.Task, 10)
+		taskName      = "some-unique-task-name"
+	)
+
+	for i := 0; i < len(created); i++ {
+		tsk, err := sys.TaskService.CreateTask(authorizedCtx, tc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !tsk.ID.Valid() {
+			t.Fatal("no task ID set")
+		}
+
+		created[i] = tsk
+	}
+
+	var (
+		expected = [][]influxdb.ID{
+			{created[0].ID, created[1].ID},
+			{created[2].ID, created[3].ID},
+			{created[4].ID, created[5].ID},
+			{created[6].ID, created[7].ID},
+			{created[8].ID, created[9].ID},
+			// last page should be empty
+			nil,
+		}
+		found = make([][]influxdb.ID, 0, 6)
+		after *influxdb.ID
+	)
+
+	// one more than expected pages
+	for i := 0; i < 6; i++ {
+		tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{
+			Limit: 2,
+			After: after,
+			Name:  &taskName,
+		})
+		if err != nil {
+			t.Fatalf("FindTasks: %v", err)
+		}
+
+		var page []influxdb.ID
+		for _, task := range tasks {
+			page = append(page, task.ID)
+		}
+
+		found = append(found, page)
+
+		if len(tasks) == 0 {
+			break
+		}
+
+		after = &tasks[len(tasks)-1].ID
+	}
+
+	if !reflect.DeepEqual(expected, found) {
+		t.Errorf("expected %#v, found %#v", expected, found)
 	}
 }
 
