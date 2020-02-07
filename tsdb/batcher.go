@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -47,9 +48,13 @@ type PointBatcherStats struct {
 	TimeoutTotal uint64 // Number of timeouts that occurred.
 }
 
+func (b *PointBatcher) Start() {
+	b.StartWithContext(context.Background())
+}
+
 // Start starts the batching process. Returns the in and out channels for points
 // and point-batches respectively.
-func (b *PointBatcher) Start() {
+func (b *PointBatcher) StartWithContext(ctx context.Context) {
 	// Already running?
 	if b.wg != nil {
 		return
@@ -85,6 +90,9 @@ func (b *PointBatcher) Start() {
 		defer b.wg.Done()
 		for {
 			select {
+			case <-ctx.Done():
+				emit()
+				return
 			case <-b.stop:
 				emit()
 				return

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -23,6 +24,10 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 )
+
+func init() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+}
 
 // statistics gathered by the collectd service.
 const (
@@ -76,6 +81,11 @@ type Service struct {
 	// expvar-based stats.
 	stats       *Statistics
 	defaultTags models.StatisticTags
+
+	// members used to implment Open() and Close() and ultimately for testing.
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns a new instance of the collectd service.
@@ -88,14 +98,51 @@ func NewService(c Config) *Service {
 		stats:       &Statistics{},
 		defaultTags: models.StatisticTags{"bind": c.BindAddress},
 	}
-
 	return &s
 }
 
-// Open starts the service.
-func (s *Service) Run(ctx context.Context, reg services.Registry) error {
+func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.Logger.Info("Starting collectd service")
+	s.errChan = make(chan error)
+
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+
+	ready := make(chan struct{})
+	return s.RunWithReady(s.ctx, ready, nil)
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
+}
+
+func (s *Service) Run(ctx context.Context, reg services.Registry) error {
+	ready := make(chan struct{})
+	return s.RunWithReady(ctx, ready, reg)
+}
+
+func (s *Service) RunWithReady(ctx context.Context, ready chan struct{}, reg services.Registry) error {
+	if err := s.setup(ctx, ready, reg); err != nil {
+		return err
+	}
+
+	go func() { s.errChan <- s.run(ctx, ready, reg) }()
+
+	select {
+	case <-ready:
+		return nil
+	case err := <-s.errChan:
+		return err
+	}
+}
+
+// Open starts the service.
+func (s *Service) setup(ctx context.Context, ready chan<- struct{}, reg services.Registry) error {
+	// Start the points batcher.
+	s.batcher = tsdb.NewPointBatcher(s.Config.BatchSize, s.Config.BatchPending, time.Duration(s.Config.BatchDuration))
+	s.batcher.Start()
 
 	s.Logger.Info("Starting collectd service")
 
@@ -193,10 +240,10 @@ func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 	s.conn = conn
 
 	s.Logger.Info("Listening on UDP", zap.Stringer("addr", conn.LocalAddr()))
+	return nil
+}
 
-	// Start the points batcher.
-	s.batcher = tsdb.NewPointBatcher(s.Config.BatchSize, s.Config.BatchPending, time.Duration(s.Config.BatchDuration))
-	s.batcher.Start()
+func (s *Service) run(ctx context.Context, ready chan<- struct{}, reg services.Registry) error {
 
 	// Create waitgroup for signalling goroutines to stop and start goroutines
 	// that process collectd packets.
@@ -204,7 +251,11 @@ func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 	go func() { defer s.wg.Done(); s.serve(ctx) }()
 	go func() { defer s.wg.Done(); s.writePoints(ctx) }()
 
+	close(ready)
 	<-ctx.Done()
+	s.conn.Close()
+
+	s.wg.Wait()
 
 	// cleanup after receiving cancellation signal
 	return s.cleanup()
@@ -225,7 +276,6 @@ func (s *Service) cleanup() error {
 	s.conn = nil
 	s.batcher = nil
 
-	s.wg.Wait()
 	s.Logger.Info("Closed collectd service")
 
 	return nil
@@ -309,31 +359,49 @@ func (s *Service) serve(ctx context.Context) {
 	//   Ethernet).
 	buffer := make([]byte, 1452)
 
+	type ReadPayload struct {
+		n   int   // bytes read by ReadFromUDP
+		err error // any error returend by ReadFromUDP
+	}
+
+	rp := ReadPayload{}
+
+	reads := make(chan ReadPayload)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				rp.n, _, rp.err = s.conn.ReadFromUDP(buffer)
+				reads <- rp
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-			// Keep processing.
-		}
-
-		n, _, err := s.conn.ReadFromUDP(buffer)
-		if err != nil {
-			if strings.Contains(err.Error(), "use of closed network connection") {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					// The socket wasn't closed by us so consider it an error.
+		case cur := <-reads:
+			if cur.err != nil {
+				if strings.Contains(rp.err.Error(), "use of closed network connection") {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						// The socket wasn't closed by us so consider it an error.
+					}
 				}
+				atomic.AddInt64(&s.stats.ReadFail, 1)
+				s.Logger.Info("ReadFromUDP error", zap.Error(rp.err))
+				continue
 			}
-			atomic.AddInt64(&s.stats.ReadFail, 1)
-			s.Logger.Info("ReadFromUDP error", zap.Error(err))
-			continue
-		}
-		if n > 0 {
-			atomic.AddInt64(&s.stats.BytesReceived, int64(n))
-			s.handleMessage(buffer[:n])
+			if cur.n > 0 {
+				atomic.AddInt64(&s.stats.BytesReceived, int64(rp.n))
+				s.handleMessage(buffer[:rp.n])
+			}
 		}
 	}
 }

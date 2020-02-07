@@ -60,6 +60,11 @@ type Service struct {
 	Logger      *zap.Logger
 	stats       *Statistics
 	defaultTags models.StatisticTags
+
+	// members used for testing
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns a new instance of Service.
@@ -74,8 +79,26 @@ func NewService(c Config) *Service {
 	}
 }
 
+func (s *Service) Open() error {
+	s.errChan = make(chan error)
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	ready := make(chan struct{})
+	go func() { s.errChan <- s.RunWithReady(s.ctx, ready, services.NewRegistry()) }()
+	<-ready
+	return nil
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
+}
+
 // Open starts the service.
-func (s *Service) Run(ctx context.Context, reg services.Registry) (err error) {
+func (s *Service) Run(ctx context.Context, reg services.Registry) error {
+	ready := make(chan struct{})
+	return s.RunWithReady(ctx, ready, reg)
+}
+func (s *Service) RunWithReady(ctx context.Context, ready chan struct{}, reg services.Registry) (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -118,6 +141,7 @@ func (s *Service) Run(ctx context.Context, reg services.Registry) (err error) {
 	go s.parser(ctx)
 	go s.writer(ctx)
 
+	close(ready)
 	s.wg.Wait()
 
 	s.Logger.Info("Service closed")

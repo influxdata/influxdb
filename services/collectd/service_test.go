@@ -18,43 +18,6 @@ import (
 	"github.com/influxdata/influxdb/toml"
 )
 
-func TestService_OpenClose(t *testing.T) {
-	service := NewTestService(1, time.Second, "split")
-
-	// Closing a closed service is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Closing a closed service again is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Opening an already open service is fine.
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Reopening a previously opened service is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Tidy up.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // Test that the service can read types DB files from a directory.
 func TestService_Open_TypesDBDir(t *testing.T) {
 	t.Parallel()
@@ -124,7 +87,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 		}
 		// Allow some time for the caller to return and the ready status to
 		// be set.
-		time.AfterFunc(10*time.Millisecond, func() { called <- struct{}{} })
+		time.AfterFunc(10*time.Second, func() { called <- struct{}{} })
 		return nil, errors.New("an error")
 	}
 
@@ -137,12 +100,14 @@ func TestService_CreatesDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	time.Sleep(3 * time.Second)
+
 	s.Service.batcher.In() <- points[0] // Send a point.
 	s.Service.batcher.Flush()
 	select {
 	case <-called:
 		// OK
-	case <-time.NewTimer(5 * time.Second).C:
+	case <-time.NewTimer(15 * time.Second).C:
 		t.Fatal("Service should have attempted to create database")
 	}
 
@@ -320,6 +285,7 @@ Loop:
 		}
 	}
 
+	t.Logf("here!")
 }
 
 // Test that the collectd service correctly batches points using BatchDuration.

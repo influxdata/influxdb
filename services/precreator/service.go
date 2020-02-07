@@ -23,6 +23,11 @@ type Service struct {
 	MetaClient interface {
 		PrecreateShardGroups(now, cutoff time.Time) error
 	}
+
+	// members used for testing
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns an instance of the precreation service.
@@ -37,6 +42,18 @@ func NewService(c Config) *Service {
 // WithLogger sets the logger for the service.
 func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "shard-precreation"))
+}
+
+func (s *Service) Open() error {
+	s.errChan = make(chan error)
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	go func() { s.errChan <- s.Run(s.ctx, nil) }()
+	return nil
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
 }
 
 // Open starts the precreation service.

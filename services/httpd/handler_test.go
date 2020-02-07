@@ -34,6 +34,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/storage/reads"
@@ -1885,8 +1886,10 @@ func NewHandler(requireAuthentication bool) *Handler {
 }
 
 func NewHandlerWithConfig(config httpd.Config) *Handler {
+	reg := services.NewRegistry()
+	reg.Register("tsdb")
 	h := &Handler{
-		Handler: httpd.NewHandler(config),
+		Handler: httpd.NewHandler(config, reg),
 	}
 
 	h.MetaClient = &internal.MetaClientMock{}

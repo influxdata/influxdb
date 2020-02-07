@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/textproto"
@@ -80,6 +81,11 @@ type Service struct {
 
 	stats       *Statistics
 	defaultTags models.StatisticTags
+
+	// members used for testing
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns a new instance of Service.
@@ -109,11 +115,44 @@ func NewService(c Config) (*Service, error) {
 	return s, nil
 }
 
-// Open starts the service.
-func (s *Service) Run(ctx context.Context, reg services.Registry) error {
+func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.errChan = make(chan error)
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	ready := make(chan struct{})
 
+	go func() { s.errChan <- s.RunWithReady(s.ctx, ready, services.NewRegistry()) }()
+
+	select {
+	case <-ready:
+		return nil
+	case err := <-s.errChan:
+		return err
+	}
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
+}
+
+func (s *Service) Run(ctx context.Context, reg services.Registry) error {
+	ready := make(chan struct{})
+	errChan := make(chan error)
+	go func() { errChan <- s.RunWithReady(ctx, ready, reg) }()
+
+	select {
+	case <-ready:
+		log.Printf("READY!")
+		return nil
+	case err := <-errChan:
+		return err
+	}
+}
+
+// Open starts the service.
+func (s *Service) RunWithReady(ctx context.Context, ready chan struct{}, reg services.Registry) error {
 	if s.done != nil {
 		return nil // Already open.
 	}
@@ -162,6 +201,7 @@ func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 	go func() { defer s.wg.Done(); s.serve(ctx) }()
 	go func() { defer s.wg.Done(); s.serveHTTP() }()
 
+	close(ready)
 	<-ctx.Done()
 
 	return s.cleanup()

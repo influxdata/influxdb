@@ -28,6 +28,11 @@ type Service struct {
 	wg     sync.WaitGroup
 
 	logger *zap.Logger
+
+	// members used for testing
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns a configured retention policy enforcement service.
@@ -36,6 +41,18 @@ func NewService(c Config) *Service {
 		config: c,
 		logger: zap.NewNop(),
 	}
+}
+
+func (s *Service) Open() error {
+	s.errChan = make(chan error)
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	go func() { s.errChan <- s.Run(s.ctx, services.NewRegistry()) }()
+	return nil
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
 }
 
 // Open starts retention policy enforcement.

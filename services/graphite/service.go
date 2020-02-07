@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"log"
 	"math"
 	"net"
 	"strings"
@@ -89,6 +90,11 @@ type Service struct {
 		Database(name string) *meta.DatabaseInfo
 		RetentionPolicy(database, name string) (*meta.RetentionPolicyInfo, error)
 	}
+
+	// fields used for testing.
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns an instance of the Graphite service.
@@ -125,11 +131,28 @@ func NewService(c Config) (*Service, error) {
 	return &s, nil
 }
 
-// Open starts the Graphite input processing data.
-func (s *Service) Run(ctx context.Context, reg services.Registry) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *Service) Open() error {
+	log.Printf("OPEN")
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 
+	ready := make(chan struct{})
+	go func() { s.errChan <- s.RunWithReady(s.ctx, ready, nil) }()
+	log.Printf("waiting for ready signal")
+	<-ready
+	return nil
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
+}
+func (s *Service) Run(ctx context.Context, reg services.Registry) error {
+	ready := make(chan struct{})
+	return s.RunWithReady(ctx, ready, reg)
+}
+
+func (s *Service) RunWithReady(ctx context.Context, ready chan struct{}, reg services.Registry) error {
+	// Run starts the Graphite input processing data.
 	s.logger.Info("Starting graphite service",
 		zap.Int("batch_size", s.batchSize),
 		logger.DurationLiteral("batch_timeout", s.batchTimeout))
@@ -140,6 +163,7 @@ func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 	}
 
 	s.batcher = tsdb.NewPointBatcher(s.batchSize, s.batchPending, s.batchTimeout)
+	log.Printf("starting batcher.")
 	s.batcher.Start()
 
 	// Start processing batches.
@@ -165,6 +189,7 @@ func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 		zap.String("protocol", s.protocol),
 		zap.Stringer("addr", s.addr))
 
+	close(ready)
 	<-ctx.Done()
 
 	return s.cleanup()

@@ -97,6 +97,11 @@ type Service struct {
 	// lastRuns maps CQ name to last time it was run.
 	mu       sync.RWMutex
 	lastRuns map[string]time.Time
+
+	// members used to implement Open() and Close() and ultimately for testing.
+	ctx    context.Context
+	cancel context.CancelFunc
+	errCh  chan error
 }
 
 // NewService returns a new instance of Service.
@@ -111,9 +116,22 @@ func NewService(c Config) *Service {
 		Logger:            zap.NewNop(),
 		stats:             &Statistics{},
 		lastRuns:          map[string]time.Time{},
+		errCh:             make(chan error),
 	}
 
 	return s
+}
+
+func (s *Service) Open() error {
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	go func() { s.errCh <- s.Run(s.ctx, nil) }()
+
+	return nil
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errCh
 }
 
 // Open starts the service.
