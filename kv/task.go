@@ -311,7 +311,21 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 		return nil, 0, err
 	}
 
-	matchFn := newTaskMatchFn(filter, org)
+	var (
+		afterSeen bool
+		after     = func(task *influxdb.Task) bool {
+			if filter.After == nil || afterSeen {
+				return true
+			}
+
+			if task.ID == *filter.After {
+				afterSeen = true
+			}
+
+			return false
+		}
+		matchFn = newTaskMatchFn(filter, org)
+	)
 
 	for _, m := range maps {
 		task, err := s.findTaskByIDWithAuth(ctx, tx, m.ResourceID)
@@ -323,6 +337,10 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 		}
 
 		if matchFn == nil || matchFn(task) {
+			if !after(task) {
+				continue
+			}
+
 			ts = append(ts, task)
 
 			if len(ts) >= filter.Limit {
@@ -389,6 +407,9 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
+	// free cursor resources
+	defer c.Close()
+
 	matchFn := newTaskMatchFn(filter, nil)
 
 	for k, v := c.Next(); k != nil; k, v = c.Next() {
@@ -401,6 +422,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		if err != nil {
 			if err == influxdb.ErrTaskNotFound {
 				// we might have some crufty index's
+				err = nil
 				continue
 			}
 			return nil, 0, err
@@ -420,7 +442,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		}
 	}
 
-	return ts, len(ts), err
+	return ts, len(ts), c.Err()
 }
 
 type taskMatchFn func(*influxdb.Task) bool
@@ -500,6 +522,9 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
+	// free cursor resources
+	defer c.Close()
+
 	matchFn := newTaskMatchFn(filter, nil)
 
 	for k, v := c.Next(); k != nil; k, v = c.Next() {
@@ -517,6 +542,10 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 				break
 			}
 		}
+	}
+
+	if err := c.Err(); err != nil {
+		return nil, 0, err
 	}
 
 	return ts, len(ts), err
