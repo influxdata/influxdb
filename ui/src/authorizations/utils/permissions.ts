@@ -59,6 +59,8 @@ const ensureT = (orgID: string) => (t: PermissionTypes): Permission[] => {
         },
       ]
     case 'orgs':
+      // 'orgs' used to only have read permissions so that's all we'll give again.
+      // In production, orgs with an orgID returns a permissions error.
       return [
         {
           action: 'read' as 'read',

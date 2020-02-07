@@ -235,6 +235,6 @@ const hvhs: Permission[] = [
   },
 ]
 
-test('should return proper object', () => {
+test('all-access tokens/authorizations production test', () => {
   expect(allAccessPermissions('bulldogs')).toMatchObject(hvhs)
 })
