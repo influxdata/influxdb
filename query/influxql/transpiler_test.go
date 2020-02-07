@@ -149,7 +149,7 @@ func TestTranspiler_Compile(t *testing.T) {
 		{s: `SELECT log10(value) FROM cpu`},
 		{s: `SELECT sin(value) - sin(1.3) FROM cpu`},
 		{s: `SELECT value FROM cpu WHERE sin(value) > 0.5`},
-		{s: `SELECT time FROM cpu`, err: `at least 1 non-time field must be queried`},
+		{s: `SELECT time FROM cpu`, err: `unable to transpile: at least one non-time field must be queried`},
 		{s: `SELECT value, mean(value) FROM cpu`, err: `mixing aggregate and non-aggregate queries is not supported`},
 		{s: `SELECT value, max(value), min(value) FROM cpu`, err: `mixing multiple selector functions with tags or fields is not supported`},
 		{s: `SELECT top(value, 10), max(value) FROM cpu`, err: `selector function top() cannot be combined with other functions`},

@@ -3214,7 +3214,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Query"
+                oneOf:
+                  - $ref: "#/components/schemas/Query"
+                  - $ref: "#/components/schemas/InfluxQLQuery"
             application/vnd.flux:
               schema:
                 type: string
@@ -6274,7 +6276,7 @@ components:
           description: Flux query script to be analyzed
           type: string
     Query:
-      description: Query influx with specific return formatting.
+      description: Query influx using the Flux language
       type: object
       required:
         - query
@@ -6285,23 +6287,29 @@ components:
           description: Query script to execute.
           type: string
         type:
-          description: The type of query.
+          description: The type of query. Must be "flux".
           type: string
-          default: flux
           enum:
             - flux
-            - influxql
-        db:
-          description: Required for `influxql` type queries.
-          type: string
-        rp:
-          description: Required for `influxql` type queries.
-          type: string
-        cluster:
-          description: Required for `influxql` type queries.
-          type: string
         dialect:
           $ref: "#/components/schemas/Dialect"
+    InfluxQLQuery:
+      description: Query influx using the InfluxQL language
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          description: InfluxQL query execute.
+          type: string
+        type:
+          description: The type of query. Must be "influxql".
+          type: string
+          enum:
+            - influxql
+        bucket:
+          description: Bucket is to be used instead of the database and retention policy specified in the InfluxQL query.
+          type: string
     Package:
       description: Represents a complete package source tree.
       type: object
