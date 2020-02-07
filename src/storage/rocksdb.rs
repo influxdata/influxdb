@@ -933,7 +933,7 @@ fn prefix_for_series(bucket_id: u32, series_id: u64, start_time: i64) -> Vec<u8>
     v
 }
 
-pub struct PointsIterator<'a, T: Copy> {
+pub struct PointsIterator<'a, T: Clone> {
     batch_size: usize,
     iter: DBIterator<'a>,
     stop_time: i64,
@@ -942,7 +942,7 @@ pub struct PointsIterator<'a, T: Copy> {
     read: fn(b: &[u8]) -> T,
 }
 
-impl<T: Copy> Iterator for PointsIterator<'_, T> {
+impl<T: Clone> Iterator for PointsIterator<'_, T> {
     type Item = Vec<ReadPoint<T>>;
 
     fn next(&mut self) -> Option<Self::Item> {

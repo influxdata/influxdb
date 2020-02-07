@@ -26,7 +26,7 @@ pub trait SeriesStore: Sync + Send {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct ReadPoint<T: Copy> {
+pub struct ReadPoint<T: Clone> {
     pub time: i64,
     pub value: T,
 }

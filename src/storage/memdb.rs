@@ -56,7 +56,7 @@ impl SeriesData {
     }
 }
 
-struct SeriesRingBuffer<T: Copy> {
+struct SeriesRingBuffer<T: Clone> {
     next_position: usize,
     data: Vec<ReadPoint<T>>,
 }
@@ -85,13 +85,13 @@ fn new_f64_ring_buffer(size: usize) -> SeriesRingBuffer<f64> {
     }
 }
 
-impl<T: Copy> SeriesRingBuffer<T> {
+impl<T: Clone> SeriesRingBuffer<T> {
     fn write(&mut self, point: &Point<T>) {
         if self.next_position == self.data.len() {
             self.next_position = 0;
         }
         self.data[self.next_position].time = point.time;
-        self.data[self.next_position].value = point.value;
+        self.data[self.next_position].value = point.value.clone();
         self.next_position += 1;
     }
 
@@ -417,12 +417,12 @@ impl MemDB {
     }
 }
 
-struct PointsIterator<T: Copy> {
+struct PointsIterator<T: Clone> {
     values: Option<Vec<ReadPoint<T>>>,
     batch_size: usize,
 }
 
-impl<T: Copy> Iterator for PointsIterator<T> {
+impl<T: Clone> Iterator for PointsIterator<T> {
     type Item = Vec<ReadPoint<T>>;
 
     fn next(&mut self) -> Option<Self::Item> {
