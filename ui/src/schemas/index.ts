@@ -18,12 +18,6 @@ import {addLabelDefaults} from 'src/labels/utils'
 import {defaultView} from 'src/views/helpers'
 import {arrayOfLabels} from './labels'
 
-/* Authorizations */
-
-// Defines the schema for the "authorizations" resource
-export const auth = new schema.Entity(ResourceType.Authorizations)
-export const arrayOfAuths = [auth]
-
 /* Buckets */
 
 // Defines the schema for the "buckets" resource

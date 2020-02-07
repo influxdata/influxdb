@@ -7,7 +7,7 @@ import * as authAPI from 'src/authorizations/apis'
 import * as api from 'src/client'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {authSchema, arrayOfAuths} from 'src/schemas/authorizations'
 
 // Actions
 import {
@@ -60,7 +60,7 @@ export const getAuthorizations = () => async (
 
     const auths = normalize<Authorization, AuthEntities, string[]>(
       resp.data.authorizations,
-      schemas.arrayOfAuths
+      arrayOfAuths
     )
 
     dispatch(setAuthorizations(RemoteDataState.Done, auths))
@@ -93,7 +93,7 @@ export const createAuthorization = (auth: Authorization) => async (
 
     const newAuth = normalize<Authorization, AuthEntities, string>(
       resp,
-      schemas.auth
+      authSchema
     )
 
     dispatch(addAuthorization(newAuth))
