@@ -152,19 +152,45 @@ func (p PkgRemote) Encoding() Encoding {
 type ReqApplyPkg struct {
 	DryRun  bool              `json:"dryRun" yaml:"dryRun"`
 	OrgID   string            `json:"orgID" yaml:"orgID"`
-	Remote  PkgRemote         `json:"remote" yaml:"remote"`
+	Remotes []PkgRemote       `json:"remotes" yaml:"remotes"`
+	RawPkgs []json.RawMessage `json:"packages" yaml:"packages"`
 	RawPkg  json.RawMessage   `json:"package" yaml:"package"`
 	EnvRefs map[string]string `json:"envRefs"`
 	Secrets map[string]string `json:"secrets"`
 }
 
-// Pkg returns a pkg parsed and validated from the RawPkg field.
-func (r ReqApplyPkg) Pkg(encoding Encoding) (*Pkg, error) {
-	if r.Remote.URL != "" {
-		return Parse(r.Remote.Encoding(), FromHTTPRequest(r.Remote.URL))
+// Pkgs returns all pkgs associated with the request.
+func (r ReqApplyPkg) Pkgs(encoding Encoding) (*Pkg, error) {
+	var rawPkgs []*Pkg
+	for _, rem := range r.Remotes {
+		if rem.URL == "" {
+			continue
+		}
+		pkg, err := Parse(rem.Encoding(), FromHTTPRequest(rem.URL), ValidSkipParseError())
+		if err != nil {
+			return nil, &influxdb.Error{
+				Code: influxdb.EUnprocessableEntity,
+				Msg:  fmt.Sprintf("pkg from url[%s] had an issue: %s", rem.URL, err.Error()),
+			}
+		}
+		rawPkgs = append(rawPkgs, pkg)
 	}
 
-	return Parse(encoding, FromReader(bytes.NewReader(r.RawPkg)))
+	for i, rawPkg := range append(r.RawPkgs, r.RawPkg) {
+		if rawPkg == nil {
+			continue
+		}
+		pkg, err := Parse(encoding, FromReader(bytes.NewReader(rawPkg)), ValidSkipParseError())
+		if err != nil {
+			return nil, &influxdb.Error{
+				Code: influxdb.EUnprocessableEntity,
+				Msg:  fmt.Sprintf("pkg [%d] had an issue: %s", i, err.Error()),
+			}
+		}
+		rawPkgs = append(rawPkgs, pkg)
+	}
+
+	return Combine(rawPkgs...)
 }
 
 // RespApplyPkg is the response body for the apply pkg endpoint.
@@ -199,10 +225,10 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := auth.GetUserID()
 
-	parsedPkg, err := reqBody.Pkg(encoding)
+	parsedPkg, err := reqBody.Pkgs(encoding)
 	if err != nil {
 		s.api.Err(w, &influxdb.Error{
-			Code: influxdb.EInvalid,
+			Code: influxdb.EUnprocessableEntity,
 			Err:  err,
 		})
 		return
@@ -302,7 +328,7 @@ func convertParseErr(err error) []ValidationErr {
 
 func newDecodeErr(encoding string, err error) *influxdb.Error {
 	return &influxdb.Error{
-		Msg:  fmt.Sprintf("unable to unmarshal %s; Err: %v", encoding, err),
+		Msg:  fmt.Sprintf("unable to unmarshal %s", encoding),
 		Code: influxdb.EInvalid,
 		Err:  err,
 	}
