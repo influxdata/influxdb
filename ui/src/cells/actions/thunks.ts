@@ -6,7 +6,12 @@ import * as api from 'src/client'
 import * as dashAPI from 'src/dashboards/apis'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {
+  dashboardSchema,
+  cellSchema,
+  arrayOfCells,
+  viewSchema,
+} from 'src/schemas'
 
 // Actions
 import {refreshDashboardVariableValues} from 'src/dashboards/actions/thunks'
@@ -85,7 +90,7 @@ export const createCellWithView = (
         Dashboard,
         DashboardEntities,
         string
-      >(resp.data, schemas.dashboard)
+      >(resp.data, dashboardSchema)
 
       dashboard = entities.dashboards[result]
     }
@@ -106,7 +111,7 @@ export const createCellWithView = (
 
     const normCell = normalize<Cell, CellEntities, string>(
       {...cellResp.data, dashboardID},
-      schemas.cell
+      cellSchema
     )
 
     // Refresh variables in use on dashboard
@@ -114,10 +119,7 @@ export const createCellWithView = (
 
     await dispatch(refreshDashboardVariableValues(dashboardID, views))
 
-    const normView = normalize<View, ViewEntities, string>(
-      newView,
-      schemas.view
-    )
+    const normView = normalize<View, ViewEntities, string>(newView, viewSchema)
 
     dispatch(setView(cellID, RemoteDataState.Done, normView))
     dispatch(setCell(cellID, RemoteDataState.Done, normCell))
@@ -143,7 +145,7 @@ export const updateCells = (dashboardID: string, cells: Cell[]) => async (
 
     const normCells = normalize<Dashboard, DashboardEntities, string[]>(
       updatedCells,
-      schemas.arrayOfCells
+      arrayOfCells
     )
 
     dispatch(setCells(dashboardID, RemoteDataState.Done, normCells))
@@ -158,7 +160,7 @@ export const copyCell = (dashboard: Dashboard, cell: Cell) => dispatch => {
 
     const normCell = normalize<Dashboard, DashboardEntities, string>(
       clonedCell,
-      schemas.cell
+      cellSchema
     )
 
     dispatch(setCell(cell.id, RemoteDataState.Done, normCell))

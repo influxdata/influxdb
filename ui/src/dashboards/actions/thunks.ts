@@ -10,8 +10,13 @@ import * as tempAPI from 'src/templates/api'
 import {createCellWithView} from 'src/cells/actions/thunks'
 
 // Schemas
-import * as schemas from 'src/schemas'
-import {labelSchema} from 'src/schemas/labels'
+import {
+  dashboardSchema,
+  arrayOfDashboards,
+  labelSchema,
+  arrayOfViews,
+} from 'src/schemas'
+import {viewsFromCells} from 'src/schemas/dashboards'
 
 // Actions
 import {
@@ -126,7 +131,7 @@ export const cloneDashboard = (
 
     const {entities, result} = normalize<Dashboard, DashboardEntities, string>(
       getResp.data,
-      schemas.dashboard
+      dashboardSchema
     )
 
     const dash: Dashboard = entities.dashboards[result]
@@ -200,7 +205,7 @@ export const getDashboards = () => async (
 
     const dashboards = normalize<Dashboard, DashboardEntities, string[]>(
       resp.data.dashboards,
-      schemas.arrayOfDashboards
+      arrayOfDashboards
     )
 
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
@@ -227,7 +232,7 @@ export const createDashboardFromTemplate = (
 
     const dashboards = normalize<Dashboard, DashboardEntities, string[]>(
       resp.data.dashboards,
-      schemas.arrayOfDashboards
+      arrayOfDashboards
     )
 
     dispatch(creators.setDashboards(RemoteDataState.Done, dashboards))
@@ -291,15 +296,15 @@ export const getDashboard = (dashboardID: string) => async (
 
     const normDash = normalize<Dashboard, DashboardEntities, string>(
       resp.data,
-      schemas.dashboard
+      dashboardSchema
     )
 
     const cellViews: CellsWithViewProperties = resp.data.cells || []
-    const viewsData = schemas.viewsFromCells(cellViews, dashboardID)
+    const viewsData = viewsFromCells(cellViews, dashboardID)
 
     const normViews = normalize<View, ViewEntities, string[]>(
       viewsData,
-      schemas.arrayOfViews
+      arrayOfViews
     )
 
     dispatch(setViews(RemoteDataState.Done, normViews))
@@ -347,7 +352,7 @@ export const updateDashboard = (
 
     const updatedDashboard = normalize<Dashboard, DashboardEntities, string>(
       resp.data,
-      schemas.dashboard
+      dashboardSchema
     )
 
     dispatch(creators.editDashboard(updatedDashboard))
@@ -438,7 +443,7 @@ export const convertToTemplate = (dashboardID: string) => async (
 
     const {entities, result} = normalize<Dashboard, DashboardEntities, string>(
       dashResp.data,
-      schemas.dashboard
+      dashboardSchema
     )
 
     const dashboard = entities.dashboards[result]

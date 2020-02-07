@@ -35,7 +35,7 @@ import {
   postDashboardsCell as apiPostDashboardsCell,
   patchDashboardsCellsView as apiPatchDashboardsCellsView,
 } from 'src/client'
-import {addDashboardDefaults} from 'src/schemas'
+import {addDashboardDefaults} from 'src/schemas/dashboards'
 
 // Types
 import {

@@ -4,7 +4,7 @@ import {normalize} from 'normalizr'
 
 // API
 import * as api from 'src/client'
-import * as schemas from 'src/schemas'
+import {memberSchema, arrayOfMembers} from 'src/schemas'
 
 // Types
 import {RemoteDataState, GetState} from 'src/types'
@@ -59,7 +59,7 @@ export const getMembers = () => async (
 
     const normalized = normalize<Member, MemberEntities, string[]>(
       allMembers,
-      schemas.arrayOfMembers
+      arrayOfMembers
     )
 
     dispatch(setMembers(RemoteDataState.Done, normalized))
@@ -84,7 +84,7 @@ export const addNewMember = (data: AddResourceMemberRequestBody) => async (
     const newMember = resp.data
     const member = normalize<Member, MemberEntities, string>(
       newMember,
-      schemas.member
+      memberSchema
     )
 
     dispatch(addMember(member))
