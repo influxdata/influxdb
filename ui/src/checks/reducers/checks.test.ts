@@ -2,7 +2,7 @@
 import {normalize} from 'normalizr'
 
 // Schemas
-import {arrayOfChecks, checkSchema} from 'src/schemas'
+import {arrayOfChecks, checkSchema} from 'src/schemas/checks'
 
 import checksReducer, {defaultChecksState} from 'src/checks/reducers'
 
@@ -154,7 +154,7 @@ describe('checksReducer', () => {
       const id = CHECK_FIXTURE_1.id
 
       initialState.byID[id] = {
-        ...CHECK_FIXTURE_1,
+        ...(CHECK_FIXTURE_1 as Check),
         status: RemoteDataState.Done,
         activeStatus: 'active',
       }

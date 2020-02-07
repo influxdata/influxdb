@@ -1,5 +1,4 @@
 import {get, pick, flatMap, uniqBy} from 'lodash'
-import {getDeep} from 'src/utils/wrappers'
 
 import {defaultBuilderConfig} from 'src/views/helpers'
 
@@ -272,9 +271,13 @@ export const dashboardToTemplate = (
 
   const dashboardAttributes = pick(dashboard, ['name', 'description'])
 
-  const dashboardLabels = getDeep<Label[]>(dashboard, 'labels', [])
-  const dashboardIncludedLabels = dashboardLabels.map(l => labelToIncluded(l))
-  const relationshipsLabels = dashboardLabels.map(l => labelToRelationship(l))
+  const dashboardLabels = dashboard.labels
+  const dashboardIncludedLabels = dashboardLabels.map(labelID =>
+    labelToIncluded(labelsByID[labelID])
+  )
+  const relationshipsLabels = dashboardLabels.map(labelID =>
+    labelToRelationship(labelsByID[labelID])
+  )
 
   const includedCells = cells.map(c => cellToIncluded(c, views))
   const relationshipsCells = cells.map(c => cellToRelationship(c))

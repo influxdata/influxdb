@@ -19,7 +19,7 @@ import {
 
 type LabelsState = ResourceState['labels']
 
-const initialState = (): LabelsState => ({
+export const initialState = (): LabelsState => ({
   status: RemoteDataState.NotStarted,
   byID: {},
   allIDs: [],

@@ -86,7 +86,7 @@ export const myView: View = {
 }
 
 export const myfavelabel: Label = {
-  id: '1',
+  id: 'myfavelabel1',
   name: '1label',
   properties: {color: 'fffff', description: 'omg'},
   status: RemoteDataState.Done,
