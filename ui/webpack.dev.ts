@@ -30,6 +30,10 @@ module.exports = merge(common, {
     public: PUBLIC,
   },
   plugins: [
+    new webpack.DllReferencePlugin({
+      context: path.join(__dirname, 'build'),
+      manifest: require('./build/vendor-manifest.json'),
+    }),
     new BundleAnalyzerPlugin({
       analyzerMode: 'server',
       analyzerHost: '0.0.0.0',
