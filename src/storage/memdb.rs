@@ -402,7 +402,7 @@ impl MemDB {
         };
 
         let data = data.lock().unwrap();
-        let buff = match data.i64_series.get(&series_id) {
+        let buff = match FromSeries::from_series(&data, &series_id) {
             Some(b) => b,
             None => return Err(StorageError{description: format!("series {} not found", series_id)}),
         };
@@ -425,13 +425,29 @@ impl MemDB {
         };
 
         let data = data.lock().unwrap();
-        let buff = match data.f64_series.get(&series_id) {
+        let buff = match FromSeries::from_series(&data, &series_id) {
             Some(b) => b,
             None => return Err(StorageError{description: format!("series {} not found", series_id)}),
         };
 
         let values = buff.get_range(&range);
         Ok(Box::new(PointsIterator{values: Some(values), batch_size}))
+    }
+}
+
+trait FromSeries: Clone {
+    fn from_series<'a>(data: &'a SeriesData, series_id: &u64) -> Option<&'a SeriesRingBuffer<Self>>;
+}
+
+impl FromSeries for i64 {
+    fn from_series<'a>(data: &'a SeriesData, series_id: &u64) -> Option<&'a SeriesRingBuffer<i64>> {
+        data.i64_series.get(series_id)
+    }
+}
+
+impl FromSeries for f64 {
+    fn from_series<'a>(data: &'a SeriesData, series_id: &u64) -> Option<&'a SeriesRingBuffer<f64>> {
+        data.f64_series.get(series_id)
     }
 }
 
