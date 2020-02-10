@@ -957,7 +957,10 @@ func TestAuthorizationService_FindAuthorizationByToken(t *testing.T) {
 }
 
 func TestAuthorizationService_FindAuthorizations(t *testing.T) {
-	platformtesting.FindAuthorizations(initAuthorizationService, t)
+	// with pre-populated index
+	platformtesting.FindAuthorizations(initAuthorizationService, t, true)
+	// without pre-populated index
+	platformtesting.FindAuthorizations(initAuthorizationService, t, false)
 }
 
 func TestAuthorizationService_DeleteAuthorization(t *testing.T) {

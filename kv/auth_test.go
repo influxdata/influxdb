@@ -28,7 +28,12 @@ func initBoltAuthorizationService(f influxdbtesting.AuthorizationFields, t *test
 }
 
 func initAuthorizationService(s kv.Store, f influxdbtesting.AuthorizationFields, t *testing.T) (influxdb.AuthorizationService, string, func()) {
-	svc := kv.NewService(zaptest.NewLogger(t), s)
+	var opts []kv.ServiceConfigOption
+	if !f.AuthsPopulateIndexOnPut {
+		opts = append(opts, kv.WithoutIndexingOnPut)
+	}
+
+	svc := kv.NewService(zaptest.NewLogger(t), s, kv.ServiceConfigForTest(opts...))
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	svc.TimeGenerator = f.TimeGenerator
@@ -57,6 +62,7 @@ func initAuthorizationService(s kv.Store, f influxdbtesting.AuthorizationFields,
 	}
 
 	return svc, kv.OpPrefix, func() {
+		// cleanup assets
 		for _, u := range f.Users {
 			if err := svc.DeleteUser(ctx, u.ID); err != nil {
 				t.Logf("failed to remove user: %v", err)
