@@ -102,12 +102,7 @@ impl RocksDB {
             })?;
 
             let key = key_for_series_and_time(bucket_id, id, p.time());
-            let mut value = Vec::with_capacity(8);
-
-            match p {
-                PointType::I64(p) => value.write_i64::<BigEndian>(p.value).unwrap(),
-                PointType::F64(p) => value.write_f64::<BigEndian>(p.value).unwrap(),
-            }
+            let value = p.to_rocks_db_bytes();
 
             batch.put(key, value).unwrap();
         }
@@ -789,6 +784,35 @@ impl RocksDB {
             }
         }
         self.series_insert_lock = Arc::new(RwLock::new(id_mutex_map));
+    }
+}
+
+pub trait ToRocksDBBytes {
+    fn to_rocks_db_bytes(&self) -> Vec<u8>;
+}
+
+impl ToRocksDBBytes for PointType {
+    fn to_rocks_db_bytes(&self) -> Vec<u8> {
+        match self {
+            PointType::I64(inner) => inner.value.to_rocks_db_bytes(),
+            PointType::F64(inner) => inner.value.to_rocks_db_bytes(),
+        }
+    }
+}
+
+impl ToRocksDBBytes for i64 {
+    fn to_rocks_db_bytes(&self) -> Vec<u8> {
+        let mut value = Vec::with_capacity(8);
+        value.write_i64::<BigEndian>(*self).unwrap();
+        value
+    }
+}
+
+impl ToRocksDBBytes for f64 {
+    fn to_rocks_db_bytes(&self) -> Vec<u8> {
+        let mut value = Vec::with_capacity(8);
+        value.write_f64::<BigEndian>(*self).unwrap();
+        value
     }
 }
 
