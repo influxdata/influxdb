@@ -62,7 +62,7 @@ func init() {
 		{
 			DestP:   &flags.boltPath,
 			Flag:    "bolt-path",
-			Default: filepath.Join(dir, http.DefaultTokenFile),
+			Default: filepath.Join(dir, bolt.DefaultFilename),
 			Desc:    "path to target boltdb database",
 		},
 		{
@@ -75,7 +75,7 @@ func init() {
 			DestP:   &flags.credPath,
 			Flag:    "credentials-path",
 			Default: filepath.Join(dir, http.DefaultTokenFile),
-			Desc:    "path to target persistent engine files",
+			Desc:    "path to target credentials file",
 		},
 		{
 			DestP:   &flags.backupPath,
