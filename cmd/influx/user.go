@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
@@ -184,7 +183,7 @@ func (b *cmdUserBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) erro
 		return err
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders(
 		"ID",
 		"Name",
@@ -247,7 +246,7 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		for i, h := range headers {
 			m[h] = vals[i]
 		}
-		w := internal.NewTabWriter(b.w)
+		w := b.newTabWriter()
 		w.WriteHeaders(headers...)
 		w.Write(m)
 		w.Flush()
@@ -319,7 +318,7 @@ func (b *cmdUserBuilder) cmdFindRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders(
 		"ID",
 		"Name",
@@ -366,7 +365,7 @@ func (b *cmdUserBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) erro
 		return err
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders(
 		"ID",
 		"Name",

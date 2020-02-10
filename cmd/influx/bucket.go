@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
 )
@@ -108,7 +107,7 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return fmt.Errorf("failed to create bucket: %v", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders("ID", "Name", "Retention", "OrganizationID")
 	w.Write(map[string]interface{}{
 		"ID":             bkt.ID.String(),
@@ -152,7 +151,7 @@ func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 		return fmt.Errorf("failed to delete bucket with id %q: %v", id, err)
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders("ID", "Name", "Retention", "OrganizationID", "Deleted")
 	w.Write(map[string]interface{}{
 		"ID":             bkt.ID.String(),
@@ -225,7 +224,7 @@ func (b *cmdBucketBuilder) cmdFindRunEFn(cmd *cobra.Command, args []string) erro
 		return fmt.Errorf("failed to retrieve buckets: %s", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.HideHeaders(!b.headers)
 	w.WriteHeaders("ID", "Name", "Retention", "OrganizationID")
 	for _, b := range buckets {
@@ -291,7 +290,7 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 		return fmt.Errorf("failed to update bucket: %v", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders("ID", "Name", "Retention", "OrganizationID")
 	w.Write(map[string]interface{}{
 		"ID":             bkt.ID.String(),

@@ -75,6 +75,10 @@ func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) e
 	return cmd
 }
 
+func (o genericCLIOpts) newTabWriter() *internal.TabWriter {
+	return internal.NewTabWriter(o.w)
+}
+
 func in(r io.Reader) genericCLIOptFn {
 	return func(o *genericCLIOpts) {
 		o.in = r
@@ -128,6 +132,7 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 		cmdQuery(),
 		cmdTranspile(),
 		cmdREPL(),
+		cmdSecret(runEWrapper),
 		cmdSetup(),
 		cmdTask(),
 		cmdUser(runEWrapper),
