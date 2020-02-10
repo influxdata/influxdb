@@ -27,31 +27,49 @@ struct SeriesData {
     f64_series: HashMap<u64, SeriesRingBuffer<f64>>,
 }
 
+trait StoreInSeriesData {
+    fn write(&self, series_data: &mut SeriesData);
+}
+
+impl StoreInSeriesData for PointType {
+    fn write(&self, series_data: &mut SeriesData) {
+        match self {
+            PointType::I64(inner) => inner.write(series_data),
+            PointType::F64(inner) => inner.write(series_data),
+        }
+    }
+}
+
+impl StoreInSeriesData for Point<i64> {
+    fn write(&self, series_data: &mut SeriesData) {
+        match series_data.i64_series.get_mut(&self.series_id.unwrap()) {
+            Some(buff) => buff.write(&self),
+            None => {
+                let mut buff = new_i64_ring_buffer(series_data.ring_buffer_size);
+                buff.write(&self);
+                series_data.i64_series.insert(self.series_id.unwrap(), buff);
+            },
+        }
+    }
+}
+
+impl StoreInSeriesData for Point<f64> {
+    fn write(&self, series_data: &mut SeriesData) {
+        match series_data.f64_series.get_mut(&self.series_id.unwrap()) {
+            Some(buff) => buff.write(&self),
+            None => {
+                let mut buff = new_f64_ring_buffer(series_data.ring_buffer_size);
+                buff.write(&self);
+                series_data.f64_series.insert(self.series_id.unwrap(), buff);
+            }
+        }
+    }
+}
+
 impl SeriesData {
     fn write_points(&mut self, points: &Vec<PointType>) {
         for p in points {
-            match p {
-                PointType::I64(p) => {
-                    match self.i64_series.get_mut(&p.series_id.unwrap()) {
-                        Some(buff) => buff.write(&p),
-                        None => {
-                            let mut buff = new_i64_ring_buffer(self.ring_buffer_size);
-                            buff.write(&p);
-                            self.i64_series.insert(p.series_id.unwrap(), buff);
-                        },
-                    }
-                },
-                PointType::F64(p) => {
-                    match self.f64_series.get_mut(&p.series_id.unwrap()) {
-                        Some(buff) => buff.write(&p),
-                        None => {
-                            let mut buff = new_f64_ring_buffer(self.ring_buffer_size);
-                            buff.write(&p);
-                            self.f64_series.insert(p.series_id.unwrap(), buff);
-                        }
-                    }
-                },
-            }
+            p.write(self);
         }
     }
 }
