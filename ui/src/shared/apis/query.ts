@@ -40,7 +40,7 @@ export const runQuery = (
   query: string,
   extern?: File
 ): CancelBox<RunQueryResult> => {
-  const url = `${API_BASE_PATH}/api/v2/query?${new URLSearchParams({orgID})}`
+  const url = `${API_BASE_PATH}api/v2/query?${new URLSearchParams({orgID})}`
 
   const headers = {
     'Content-Type': 'application/json',
