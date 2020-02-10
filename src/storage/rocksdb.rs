@@ -116,7 +116,7 @@ impl RocksDB {
     }
 
     // TODO: update this so it decompresses at least the first point to verify the data type or return error
-    fn read_i64_range<'a>(
+    fn read_i64_range(
         &self,
         bucket_id: u32,
         series_id: u64,
@@ -136,7 +136,7 @@ impl RocksDB {
     }
 
     // TODO: update this so it decompresses at least the first point to verify the data type or return error
-    fn read_f64_range<'a>(
+    fn read_f64_range(
         &self,
         bucket_id: u32,
         series_id: u64,
