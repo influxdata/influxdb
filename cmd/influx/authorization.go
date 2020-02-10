@@ -279,9 +279,10 @@ var authorizationFindFlags struct {
 
 func authFindCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "find",
-		Short: "Find authorization",
-		RunE:  checkSetupRunEMiddleware(&flags)(authorizationFindF),
+		Use:     "list",
+		Short:   "List authorizations",
+		Aliases: []string{"find", "ls"},
+		RunE:    checkSetupRunEMiddleware(&flags)(authorizationFindF),
 	}
 
 	cmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")

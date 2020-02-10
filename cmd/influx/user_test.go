@@ -206,7 +206,7 @@ func TestCmdUser(t *testing.T) {
 		}
 	})
 
-	t.Run("find", func(t *testing.T) {
+	t.Run("list", func(t *testing.T) {
 		type called struct {
 			name string
 			id   influxdb.ID
@@ -215,6 +215,7 @@ func TestCmdUser(t *testing.T) {
 		tests := []struct {
 			name     string
 			expected called
+			command  string
 			flags    []string
 		}{
 			{
@@ -238,6 +239,27 @@ func TestCmdUser(t *testing.T) {
 					"-i=" + influxdb.ID(1).String(),
 				},
 				expected: called{name: "name1", id: 1},
+			},
+			// if alias commands fail with "unknown flag: --org-id", it's because the alias is missing
+			{
+				name:    "ls alias",
+				command: "ls",
+				flags: []string{
+					"--id=" + influxdb.ID(2).String(),
+				},
+				expected: called{
+					id: 2,
+				},
+			},
+			{
+				name:    "find alias",
+				command: "find",
+				flags: []string{
+					"--id=" + influxdb.ID(2).String(),
+				},
+				expected: called{
+					id: 2,
+				},
 			},
 		}
 
@@ -269,7 +291,12 @@ func TestCmdUser(t *testing.T) {
 				)
 				nestedCmdFn, calls := cmdFn()
 				cmd := builder.cmd(nestedCmdFn)
-				cmd.SetArgs(append([]string{"user", "find"}, tt.flags...))
+
+				if tt.command == "" {
+					tt.command = "find"
+				}
+
+				cmd.SetArgs(append([]string{"user", tt.command}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())
 				assert.Equal(t, tt.expected, *calls)
