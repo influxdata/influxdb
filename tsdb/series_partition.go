@@ -423,7 +423,7 @@ func (p *SeriesPartition) EnableCompactions() {
 }
 
 func (p *SeriesPartition) compactionsEnabled() bool {
-	return p.compactionsDisabled == 0
+	return p.compactionLimiter != nil && p.compactionsDisabled == 0
 }
 
 // AppendSeriesIDs returns a list of all series ids.
