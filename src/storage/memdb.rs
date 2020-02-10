@@ -388,36 +388,13 @@ impl MemDB {
         Ok(())
     }
 
-    fn read_i64_range(
+    fn read_range<T: 'static + Clone + FromSeries>(
         &self,
         bucket_id: u32,
         series_id: u64,
         range: &Range,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
-        let buckets = self.bucket_id_to_series_data.read().unwrap();
-        let data = match buckets.get(&bucket_id) {
-            Some(d) => d,
-            None => return Err(StorageError{description: format!("bucket {} not found", bucket_id)}),
-        };
-
-        let data = data.lock().unwrap();
-        let buff = match FromSeries::from_series(&data, &series_id) {
-            Some(b) => b,
-            None => return Err(StorageError{description: format!("series {} not found", series_id)}),
-        };
-
-        let values = buff.get_range(&range);
-        Ok(Box::new(PointsIterator{values: Some(values), batch_size}))
-    }
-
-    fn read_f64_range(
-        &self,
-        bucket_id: u32,
-        series_id: u64,
-        range: &Range,
-        batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>>>, StorageError> {
         let buckets = self.bucket_id_to_series_data.read().unwrap();
         let data = match buckets.get(&bucket_id) {
             Some(d) => d,
@@ -613,7 +590,7 @@ impl SeriesStore for MemDB {
         range: &Range,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
-        self.read_i64_range(bucket_id, series_id, range, batch_size)
+        self.read_range::<i64>(bucket_id, series_id, range, batch_size)
     }
 
     fn read_f64_range(
@@ -623,7 +600,7 @@ impl SeriesStore for MemDB {
         range: &Range,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
-        self.read_f64_range(bucket_id, series_id, range, batch_size)
+        self.read_range::<f64>(bucket_id, series_id, range, batch_size)
     }
 }
 
