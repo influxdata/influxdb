@@ -76,6 +76,7 @@ const SingleStatOptions: SFC<Props> = props => {
         prefix={prefix}
         tickPrefix={tickPrefix}
         suffix={suffix}
+        type="single-stat"
         tickSuffix={tickSuffix}
         onUpdatePrefix={onSetPrefix}
         onUpdateTickPrefix={onSetTickPrefix}
