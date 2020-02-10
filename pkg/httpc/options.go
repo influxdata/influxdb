@@ -50,6 +50,20 @@ func WithAuthToken(token string) ClientOptFn {
 	}
 }
 
+// WithSessionCookie provides cookie auth for requests to mimic the browser.
+// Typically, session is influxdb.Session.Key.
+func WithSessionCookie(session string) ClientOptFn {
+	return func(opts *clientOpt) error {
+		fn := func(r *http.Request) {
+			r.AddCookie(&http.Cookie{
+				Name:  "session",
+				Value: session,
+			})
+		}
+		return WithAuth(fn)(opts)
+	}
+}
+
 // WithContentType sets the content type that will be applied to the requests created
 // by the Client.
 func WithContentType(ct string) ClientOptFn {
