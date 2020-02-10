@@ -1,36 +1,29 @@
 import {
   Document,
   DocumentCreate,
-  DocumentListEntry,
   DocumentMeta,
-  ILabel,
+  TemplateSummary as GenTemplateSummary,
+  TemplateType,
 } from '@influxdata/influx'
 import {
   Cell,
   Dashboard,
-  Label,
   NormalizedState,
   RemoteDataState,
   Variable,
   View,
+  GenLabel,
+  PostVariable,
+  Label,
 } from 'src/types'
 
-export interface TemplateSummary extends DocumentListEntry {
-  labels: ILabel[]
+export interface TemplateSummary extends Omit<GenTemplateSummary, 'labels'> {
+  labels: string[]
   status: RemoteDataState
 }
 
 export interface TemplatesState extends NormalizedState<TemplateSummary> {
   exportTemplate: {status: RemoteDataState; item: DocumentCreate}
-}
-
-export enum TemplateType {
-  Label = 'label',
-  Task = 'task',
-  Dashboard = 'dashboard',
-  View = 'view',
-  Cell = 'cell',
-  Variable = 'variable',
 }
 
 interface KeyValuePairs {
@@ -42,10 +35,16 @@ interface DocumentMetaWithTemplateID extends DocumentMeta {
 }
 
 // Templates
-export interface TemplateBase extends Document {
+export interface GenTemplateBase extends Document {
   meta: DocumentMetaWithTemplateID
   content: {data: TemplateData; included: TemplateIncluded[]}
   labels: Label[]
+}
+
+export interface TemplateBase extends Omit<Document, 'labels'> {
+  meta: DocumentMetaWithTemplateID
+  content: {data: TemplateData; included: TemplateIncluded[]}
+  labels: string[]
 }
 
 // TODO: be more specific about what attributes can be
@@ -114,7 +113,7 @@ export interface CellIncluded extends TemplateIncluded {
 
 export interface LabelIncluded extends TemplateIncluded {
   type: TemplateType.Label
-  attributes: Label
+  attributes: GenLabel
 }
 
 export interface VariableIncluded extends TemplateIncluded {
@@ -135,7 +134,7 @@ export type DashboardTemplateIncluded =
 
 export type VariableTemplateIncluded = LabelIncluded | VariableIncluded
 
-// Template Datas
+// Template Data
 interface TaskTemplateData extends TemplateData {
   type: TemplateType.Task
   attributes: {name: string; flux: string}
@@ -156,7 +155,7 @@ interface DashboardTemplateData extends TemplateData {
 
 interface VariableTemplateData extends TemplateData {
   type: TemplateType.Variable
-  attributes: Variable
+  attributes: PostVariable
   relationships: {
     [TemplateType.Label]: {data: LabelRelationship[]}
     [TemplateType.Variable]: {data: VariableRelationship[]}
@@ -186,3 +185,5 @@ export interface VariableTemplate extends TemplateBase {
 }
 
 export type Template = TaskTemplate | DashboardTemplate | VariableTemplate
+
+export {TemplateType} from '@influxdata/influx'

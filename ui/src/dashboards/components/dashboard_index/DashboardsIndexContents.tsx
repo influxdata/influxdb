@@ -1,11 +1,10 @@
 // Libraries
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import Table from 'src/dashboards/components/dashboard_index/Table'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 
 // Actions
 import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/ranges'
@@ -36,6 +35,8 @@ interface StateProps {
 
 type Props = DispatchProps & StateProps & OwnProps
 
+const FilterDashboards = FilterList<Dashboard>()
+
 @ErrorHandling
 class DashboardsIndexContents extends Component<Props> {
   public componentDidMount() {
@@ -50,7 +51,7 @@ class DashboardsIndexContents extends Component<Props> {
     const {searchTerm, dashboards, filterComponent, onFilterChange} = this.props
 
     return (
-      <FilterList<Dashboard>
+      <FilterDashboards
         list={dashboards}
         searchTerm={searchTerm}
         searchKeys={['name', 'labels[].name']}
@@ -64,7 +65,7 @@ class DashboardsIndexContents extends Component<Props> {
             onFilterChange={onFilterChange}
           />
         )}
-      </FilterList>
+      </FilterDashboards>
     )
   }
 }

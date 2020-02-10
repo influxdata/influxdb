@@ -89,6 +89,7 @@ export default class VariableList extends PureComponent<Props, State> {
       onDeleteVariable,
       onFilterChange,
     } = this.props
+
     const sortedVariables = this.memGetSortedResources(
       variables,
       sortKey,

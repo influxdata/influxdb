@@ -5,6 +5,7 @@ import {
   Cell,
   Check,
   Dashboard,
+  Label,
   Member,
   Organization,
   Scraper,
@@ -65,6 +66,14 @@ export interface DashboardEntities {
 export interface EndpointEntities {
   endpoints: {
     [uuid: string]: NotificationEndpoint
+  }
+}
+
+// LabelEntities defines the result of normalizr's normalization of
+// the "labels" resource
+export interface LabelEntities {
+  labels: {
+    [uuid: string]: Label
   }
 }
 

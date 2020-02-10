@@ -10,7 +10,13 @@ import * as tempAPI from 'src/templates/api'
 import {createCellWithView} from 'src/cells/actions/thunks'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {
+  dashboardSchema,
+  arrayOfDashboards,
+  labelSchema,
+  arrayOfViews,
+} from 'src/schemas'
+import {viewsFromCells} from 'src/schemas/dashboards'
 
 // Actions
 import {
@@ -27,10 +33,10 @@ import {getVariables, refreshVariableValues} from 'src/variables/actions/thunks'
 import {setExportTemplate} from 'src/templates/actions/creators'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
 import {updateViewAndVariables} from 'src/views/actions/thunks'
+import {setLabelOnResource} from 'src/labels/actions/creators'
 import * as creators from 'src/dashboards/actions/creators'
 
 // Utils
-import {addVariableDefaults} from 'src/variables/actions/thunks'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {
   extractVariablesList,
@@ -42,7 +48,6 @@ import {getSaveableView} from 'src/timeMachine/selectors'
 import {incrementCloneName} from 'src/utils/naming'
 import {isLimitError} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
-import {addLabelDefaults} from 'src/labels/utils'
 import {getAll, getByID} from 'src/resources/selectors'
 
 // Constants
@@ -61,8 +66,12 @@ import {
   DashboardEntities,
   ViewEntities,
   ResourceType,
+  VariableEntities,
+  Variable,
+  LabelEntities,
 } from 'src/types'
 import {CellsWithViewProperties} from 'src/client'
+import {arrayOfVariables} from 'src/schemas/variables'
 
 type Action = creators.Action
 
@@ -122,7 +131,7 @@ export const cloneDashboard = (
 
     const {entities, result} = normalize<Dashboard, DashboardEntities, string>(
       getResp.data,
-      schemas.dashboard
+      dashboardSchema
     )
 
     const dash: Dashboard = entities.dashboards[result]
@@ -196,7 +205,7 @@ export const getDashboards = () => async (
 
     const dashboards = normalize<Dashboard, DashboardEntities, string[]>(
       resp.data.dashboards,
-      schemas.arrayOfDashboards
+      arrayOfDashboards
     )
 
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
@@ -223,7 +232,7 @@ export const createDashboardFromTemplate = (
 
     const dashboards = normalize<Dashboard, DashboardEntities, string[]>(
       resp.data.dashboards,
-      schemas.arrayOfDashboards
+      arrayOfDashboards
     )
 
     dispatch(creators.setDashboards(RemoteDataState.Done, dashboards))
@@ -287,15 +296,15 @@ export const getDashboard = (dashboardID: string) => async (
 
     const normDash = normalize<Dashboard, DashboardEntities, string>(
       resp.data,
-      schemas.dashboard
+      dashboardSchema
     )
 
     const cellViews: CellsWithViewProperties = resp.data.cells || []
-    const viewsData = schemas.viewsFromCells(cellViews, dashboardID)
+    const viewsData = viewsFromCells(cellViews, dashboardID)
 
     const normViews = normalize<View, ViewEntities, string[]>(
       viewsData,
-      schemas.arrayOfViews
+      arrayOfViews
     )
 
     dispatch(setViews(RemoteDataState.Done, normViews))
@@ -343,7 +352,7 @@ export const updateDashboard = (
 
     const updatedDashboard = normalize<Dashboard, DashboardEntities, string>(
       resp.data,
-      schemas.dashboard
+      dashboardSchema
     )
 
     dispatch(creators.editDashboard(updatedDashboard))
@@ -366,9 +375,12 @@ export const addDashboardLabel = (dashboardID: string, label: Label) => async (
       throw new Error(resp.data.message)
     }
 
-    const lab = addLabelDefaults(resp.data.label)
+    const normLabel = normalize<Label, LabelEntities, string>(
+      resp.data.label,
+      labelSchema
+    )
 
-    dispatch(creators.addDashboardLabel(dashboardID, lab))
+    dispatch(setLabelOnResource(dashboardID, normLabel))
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.addDashboardLabelFailed()))
@@ -431,7 +443,7 @@ export const convertToTemplate = (dashboardID: string) => async (
 
     const {entities, result} = normalize<Dashboard, DashboardEntities, string>(
       dashResp.data,
-      schemas.dashboard
+      dashboardSchema
     )
 
     const dashboard = entities.dashboards[result]
@@ -446,10 +458,18 @@ export const convertToTemplate = (dashboardID: string) => async (
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
-    const vars = resp.data.variables.map(v => addVariableDefaults(v))
+
+    const normVars = normalize<Variable, VariableEntities, string>(
+      resp.data,
+      arrayOfVariables
+    )
+
+    const vars = Object.values(normVars.entities.variables)
+
     const variables = filterUnusedVars(vars, views)
     const exportedVariables = exportVariables(variables, vars)
     const dashboardTemplate = dashboardToTemplate(
+      state,
       dashboard,
       cells,
       views,

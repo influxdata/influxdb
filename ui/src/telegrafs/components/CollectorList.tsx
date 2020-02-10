@@ -6,7 +6,7 @@ import memoizeOne from 'memoize-one'
 // Components
 import {ResourceList} from '@influxdata/clockface'
 import CollectorRow from 'src/telegrafs/components/CollectorCard'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 
 // Types
 import {Sort} from '@influxdata/clockface'
@@ -119,6 +119,7 @@ type FilteredOwnProps = OwnProps & {
 
 type FilteredProps = Props & FilteredOwnProps
 
+const FilterTelegrafs = FilterList<Telegraf>()
 class FilteredCollectorList extends PureComponent<FilteredProps> {
   render() {
     const {
@@ -134,7 +135,7 @@ class FilteredCollectorList extends PureComponent<FilteredProps> {
       onDeleteTelegraf,
     } = this.props
     return (
-      <FilterList<Telegraf>
+      <FilterTelegrafs
         searchTerm={searchTerm}
         searchKeys={['metadata.buckets[]', 'name', 'labels[].name']}
         list={collectors}
@@ -152,7 +153,7 @@ class FilteredCollectorList extends PureComponent<FilteredProps> {
             onDeleteTelegraf={onDeleteTelegraf}
           />
         )}
-      </FilterList>
+      </FilterTelegrafs>
     )
   }
 }

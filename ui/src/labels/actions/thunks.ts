@@ -1,3 +1,6 @@
+// Libraries
+import {normalize} from 'normalizr'
+
 // API
 import {
   getLabels as apiGetLabels,
@@ -6,77 +9,37 @@ import {
   deleteLabel as apiDeleteLabel,
 } from 'src/client'
 
+// Schemas
+import {labelSchema, arrayOfLabels} from 'src/schemas/labels'
+
 // Types
 import {Dispatch} from 'react'
-import {RemoteDataState, LabelProperties, GetState, Label} from 'src/types'
+import {
+  RemoteDataState,
+  LabelProperties,
+  GetState,
+  Label,
+  LabelEntities,
+} from 'src/types'
 
 // Actions
-import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
+import {notify} from 'src/shared/actions/notifications'
 import {
   getLabelsFailed,
   createLabelFailed,
   updateLabelFailed,
   deleteLabelFailed,
 } from 'src/shared/copy/notifications'
+import {
+  setLabels,
+  setLabel,
+  removeLabel,
+  Action,
+} from 'src/labels/actions/creators'
 
 // Utils
-import {addLabelDefaults} from 'src/labels/utils/'
 import {getOrg} from 'src/organizations/selectors'
-
-export type Action =
-  | SetLabels
-  | AddLabel
-  | EditLabel
-  | RemoveLabel
-  | NotifyAction
-
-interface SetLabels {
-  type: 'SET_LABELS'
-  payload: {
-    status: RemoteDataState
-    list: Label[]
-  }
-}
-
-export const setLabels = (
-  status: RemoteDataState,
-  list?: Label[]
-): SetLabels => ({
-  type: 'SET_LABELS',
-  payload: {status, list},
-})
-
-interface AddLabel {
-  type: 'ADD_LABEL'
-  payload: {
-    label: Label
-  }
-}
-
-export const addLabel = (label: Label): AddLabel => ({
-  type: 'ADD_LABEL',
-  payload: {label},
-})
-
-interface EditLabel {
-  type: 'EDIT_LABEL'
-  payload: {label}
-}
-
-export const editLabel = (label: Label): EditLabel => ({
-  type: 'EDIT_LABEL',
-  payload: {label},
-})
-
-interface RemoveLabel {
-  type: 'REMOVE_LABEL'
-  payload: {id}
-}
-
-export const removeLabel = (id: string): RemoveLabel => ({
-  type: 'REMOVE_LABEL',
-  payload: {id},
-})
+import {viewableLabels} from 'src/labels/selectors'
 
 export const getLabels = () => async (
   dispatch: Dispatch<Action>,
@@ -92,11 +55,14 @@ export const getLabels = () => async (
       throw new Error(resp.data.message)
     }
 
-    const labels = resp.data.labels.map(l => addLabelDefaults(l))
+    const labels = normalize<Label, LabelEntities, string[]>(
+      viewableLabels(resp.data.labels),
+      arrayOfLabels
+    )
 
     dispatch(setLabels(RemoteDataState.Done, labels))
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
     dispatch(setLabels(RemoteDataState.Error))
     dispatch(notify(getLabelsFailed()))
   }
@@ -120,11 +86,14 @@ export const createLabel = (
       throw new Error(resp.data.message)
     }
 
-    const createdLabel = addLabelDefaults(resp.data.label)
+    const label = normalize<Label, LabelEntities, string>(
+      resp.data.label,
+      labelSchema
+    )
 
-    dispatch(addLabel(createdLabel))
-  } catch (e) {
-    console.error(e)
+    dispatch(setLabel(resp.data.label.id, RemoteDataState.Done, label))
+  } catch (error) {
+    console.error(error)
     dispatch(notify(createLabelFailed()))
   }
 }
@@ -133,17 +102,21 @@ export const updateLabel = (id: string, l: Label) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
+    dispatch(setLabel(id, RemoteDataState.Loading))
     const resp = await apiPatchLabel({labelID: id, data: l})
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
 
-    const label = addLabelDefaults(resp.data.label)
+    const label = normalize<Label, LabelEntities, string>(
+      resp.data.label,
+      labelSchema
+    )
 
-    dispatch(editLabel(label))
-  } catch (e) {
-    console.error(e)
+    dispatch(setLabel(id, RemoteDataState.Done, label))
+  } catch (error) {
+    console.error(error)
     dispatch(notify(updateLabelFailed()))
   }
 }
@@ -153,12 +126,14 @@ export const deleteLabel = (id: string) => async (
 ) => {
   try {
     const resp = await apiDeleteLabel({labelID: id})
+
     if (resp.status !== 204) {
       throw new Error(resp.data.message)
     }
+
     dispatch(removeLabel(id))
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
     dispatch(notify(deleteLabelFailed()))
   }
 }

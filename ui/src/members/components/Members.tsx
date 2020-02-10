@@ -10,7 +10,7 @@ import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPage
 import {EmptyState, Sort} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import MemberList from 'src/members/components/MemberList'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 
 // Actions
 import {deleteMember} from 'src/members/actions/thunks'
@@ -42,6 +42,8 @@ interface State {
 
 type SortKey = keyof Member
 
+const FilterMembers = FilterList<Member>()
+
 class Members extends PureComponent<Props & WithRouterProps, State> {
   constructor(props) {
     super(props)
@@ -64,7 +66,7 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
             onSearch={this.handleFilterChange}
           />
         </SettingsTabbedPageHeader>
-        <FilterList<Member>
+        <FilterMembers
           list={this.props.members}
           searchKeys={['name']}
           searchTerm={searchTerm}
@@ -80,7 +82,7 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
               onClickColumn={this.handleClickColumn}
             />
           )}
-        </FilterList>
+        </FilterMembers>
       </>
     )
   }

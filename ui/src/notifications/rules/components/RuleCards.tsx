@@ -4,7 +4,7 @@ import React, {FC} from 'react'
 // Components
 import NotificationRuleCard from 'src/notifications/rules/components/RuleCard'
 import {EmptyState, ResourceList} from '@influxdata/clockface'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 
 // Types
 import {NotificationRuleDraft} from 'src/types'
@@ -15,16 +15,14 @@ interface Props {
   searchTerm: string
 }
 
+const FilterRules = FilterList<NotificationRuleDraft>()
+
 const NotificationRuleCards: FC<Props> = ({rules, searchTerm}) => {
   const cards = rules =>
     rules.map(nr => <NotificationRuleCard key={nr.id} rule={nr} />)
 
   const filteredCards = (
-    <FilterList<NotificationRuleDraft>
-      list={rules}
-      searchKeys={['name']}
-      searchTerm={searchTerm}
-    >
+    <FilterRules list={rules} searchKeys={['name']} searchTerm={searchTerm}>
       {filtered => (
         <ResourceList.Body
           emptyState={<EmptyNotificationRulesList searchTerm={searchTerm} />}
@@ -32,7 +30,7 @@ const NotificationRuleCards: FC<Props> = ({rules, searchTerm}) => {
           {cards(filtered)}
         </ResourceList.Body>
       )}
-    </FilterList>
+    </FilterRules>
   )
 
   return <ResourceList>{filteredCards}</ResourceList>

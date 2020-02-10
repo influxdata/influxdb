@@ -2,7 +2,8 @@
 import {NormalizedSchema} from 'normalizr'
 
 // Types
-import {RemoteDataState, EndpointEntities, Label} from 'src/types'
+import {RemoteDataState, EndpointEntities} from 'src/types'
+import {setLabelOnResource} from 'src/labels/actions/creators'
 
 export const SET_ENDPOINT = 'SET_ENDPOINT'
 export const REMOVE_ENDPOINT = 'REMOVE_ENDPOINT'
@@ -14,8 +15,7 @@ export type Action =
   | ReturnType<typeof setEndpoint>
   | ReturnType<typeof removeEndpoint>
   | ReturnType<typeof setEndpoints>
-  | ReturnType<typeof addLabelToEndpoint>
-  | ReturnType<typeof addLabelToEndpoint>
+  | ReturnType<typeof setLabelOnResource>
   | ReturnType<typeof removeLabelFromEndpoint>
 
 type EndpointsSchema<R extends string | string[]> = NormalizedSchema<
@@ -46,13 +46,6 @@ export const setEndpoints = (
     type: SET_ENDPOINTS,
     status,
     schema,
-  } as const)
-
-export const addLabelToEndpoint = (endpointID: string, label: Label) =>
-  ({
-    type: ADD_LABEL_TO_ENDPOINT,
-    endpointID,
-    label,
   } as const)
 
 export const removeLabelFromEndpoint = (endpointID: string, labelID: string) =>

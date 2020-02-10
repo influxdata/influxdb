@@ -9,7 +9,7 @@ import SelectorList from 'src/timeMachine/components/SelectorList'
 import {Bucket} from 'src/types'
 import {Input} from '@influxdata/clockface'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 
 interface Props {
   buckets: Bucket[]
@@ -20,6 +20,8 @@ interface Props {
 interface State {
   searchTerm: string
 }
+
+const FilterBuckets = FilterList<Bucket>()
 
 class BucketsTabBody extends PureComponent<Props> {
   public state: State = {searchTerm: ''}
@@ -37,7 +39,7 @@ class BucketsTabBody extends PureComponent<Props> {
             placeholder="Search buckets..."
           />
         </BuilderCard.Menu>
-        <FilterList
+        <FilterBuckets
           list={buckets}
           searchTerm={searchTerm}
           searchKeys={['name']}
@@ -54,7 +56,7 @@ class BucketsTabBody extends PureComponent<Props> {
               )}
             </SortingHat>
           )}
-        </FilterList>
+        </FilterBuckets>
       </>
     )
   }

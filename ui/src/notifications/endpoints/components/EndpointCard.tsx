@@ -3,8 +3,7 @@ import React, {FC, Dispatch} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
-// Actions and Selectors
-import {viewableLabels} from 'src/labels/selectors'
+// Actions
 import {
   addEndpointLabel,
   deleteEndpointLabel,
@@ -25,12 +24,7 @@ import {
 } from 'src/alerting/constants/history'
 
 // Types
-import {
-  NotificationEndpoint,
-  Label,
-  AppState,
-  AlertHistoryType,
-} from 'src/types'
+import {NotificationEndpoint, Label, AlertHistoryType} from 'src/types'
 import {Action} from 'src/notifications/endpoints/actions/creators'
 
 // Utilities
@@ -44,10 +38,6 @@ interface DispatchProps {
   onCloneEndpoint: typeof cloneEndpoint
 }
 
-interface StateProps {
-  labels: Label[]
-}
-
 interface OwnProps {
   endpoint: NotificationEndpoint
 }
@@ -56,14 +46,9 @@ interface DispatchProp {
   dispatch: Dispatch<Action>
 }
 
-type Props = OwnProps &
-  WithRouterProps &
-  DispatchProps &
-  StateProps &
-  DispatchProp
+type Props = OwnProps & WithRouterProps & DispatchProps & DispatchProp
 
 const EndpointCard: FC<Props> = ({
-  labels,
   router,
   params: {orgID},
   endpoint,
@@ -143,8 +128,7 @@ const EndpointCard: FC<Props> = ({
 
   const labelsComponent = (
     <InlineLabels
-      selectedLabels={endpoint.labels as Label[]}
-      labels={labels}
+      selectedLabelIDs={endpoint.labels}
       onAddLabel={handleAddEndpointLabel}
       onRemoveLabel={handleRemoveEndpointLabel}
     />
@@ -186,11 +170,7 @@ const mdtp: DispatchProps = {
   onCloneEndpoint: cloneEndpoint,
 }
 
-const mstp = ({labels}: AppState): StateProps => ({
-  labels: viewableLabels(labels.list),
-})
-
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
+export default connect<{}, DispatchProps, {}>(
+  null,
   mdtp
 )(withRouter<OwnProps>(EndpointCard))

@@ -9,7 +9,6 @@ import {
   SMTPNotificationRuleBase,
   PagerDutyNotificationRuleBase,
   HTTPNotificationRuleBase,
-  Label,
   Check as GenCheck,
   ThresholdCheck as GenThresholdCheck,
   DeadmanCheck as GenDeadmanCheck,
@@ -35,14 +34,16 @@ interface WithClientID<T> {
 type EndpointOverrides = {
   status: RemoteDataState
   activeStatus: TaskStatusType
+  labels: string[]
 }
 // GenEndpoint is the shape of a NotificationEndpoint from the server -- before any UI specific fields are or modified
 export type GenEndpoint = GenEndpoint
 export type NotificationEndpoint =
-  | Omit<SlackNotificationEndpoint, 'status'> & EndpointOverrides
-  | Omit<PagerDutyNotificationEndpoint, 'status'> & EndpointOverrides
-  | Omit<HTTPNotificationEndpoint, 'status'> & EndpointOverrides
-export type NotificationEndpointBase = GenEndpointBase & EndpointOverrides
+  | Omit<SlackNotificationEndpoint, 'status' | 'labels'> & EndpointOverrides
+  | Omit<PagerDutyNotificationEndpoint, 'status' | 'labels'> & EndpointOverrides
+  | Omit<HTTPNotificationEndpoint, 'status' | 'labels'> & EndpointOverrides
+export type NotificationEndpointBase = Omit<GenEndpointBase, 'labels'> &
+  EndpointOverrides
 
 /* Rule */
 type RuleOverrides = {status: RemoteDataState; activeStatus: TaskStatusType}
@@ -63,7 +64,7 @@ export type NotificationRuleBaseDraft = Overwrite<
     activeStatus: TaskStatusType
     statusRules: StatusRuleDraft[]
     tagRules: TagRuleDraft[]
-    labels?: Label[]
+    labels?: string[]
   }
 >
 
@@ -117,7 +118,11 @@ export interface NotificationRow {
 }
 
 /* Checks */
-type CheckOverrides = {status: RemoteDataState; activeStatus: TaskStatusType}
+type CheckOverrides = {
+  status: RemoteDataState
+  activeStatus: TaskStatusType
+  labels: string[]
+}
 export type CheckBase = Omit<GenCheckBase, 'status'> & CheckOverrides
 
 // GenCheck is the shape of a Check from the server -- before UI specific properties are added
@@ -125,11 +130,14 @@ export type GenCheck = GenCheck
 export type GenThresholdCheck = GenThresholdCheck
 export type GenDeadmanCheck = GenDeadmanCheck
 
-export type ThresholdCheck = Omit<GenThresholdCheck, 'status'> & CheckOverrides
+export type ThresholdCheck = Omit<GenThresholdCheck, 'status' | 'labels'> &
+  CheckOverrides
 
-export type DeadmanCheck = Omit<GenDeadmanCheck, 'status'> & CheckOverrides
+export type DeadmanCheck = Omit<GenDeadmanCheck, 'status' | 'labels'> &
+  CheckOverrides
 
-export type CustomCheck = Omit<GenCustomCheck, 'status'> & CheckOverrides
+export type CustomCheck = Omit<GenCustomCheck, 'status' | 'labels'> &
+  CheckOverrides
 
 export type Check = ThresholdCheck | DeadmanCheck | CustomCheck
 

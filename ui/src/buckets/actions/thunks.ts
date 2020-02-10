@@ -6,7 +6,7 @@ import {Dispatch} from 'react'
 import * as api from 'src/client'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {bucketSchema, arrayOfBuckets} from 'src/schemas'
 
 // Types
 import {RemoteDataState, GetState, Bucket, BucketEntities} from 'src/types'
@@ -55,7 +55,7 @@ export const getBuckets = () => async (
 
     const buckets = normalize<Bucket, BucketEntities, string[]>(
       resp.data.buckets,
-      schemas.arrayOfBuckets
+      arrayOfBuckets
     )
 
     dispatch(setBuckets(RemoteDataState.Done, buckets))
@@ -81,7 +81,7 @@ export const createBucket = (bucket: Bucket) => async (
 
     const newBucket = normalize<Bucket, BucketEntities, string>(
       resp.data,
-      schemas.bucket
+      bucketSchema
     )
 
     dispatch(addBucket(newBucket))
@@ -108,7 +108,7 @@ export const updateBucket = (updatedBucket: Bucket) => async (
 
     const newBucket = normalize<Bucket, BucketEntities, string>(
       resp.data,
-      schemas.bucket
+      bucketSchema
     )
 
     dispatch(editBucket(newBucket))
@@ -136,7 +136,7 @@ export const renameBucket = (
 
     const newBucket = normalize<Bucket, BucketEntities, string>(
       resp.data,
-      schemas.bucket
+      bucketSchema
     )
 
     dispatch(editBucket(newBucket))

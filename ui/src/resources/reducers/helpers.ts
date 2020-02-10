@@ -74,3 +74,18 @@ export const removeResource = <R>(
 
   return
 }
+
+export const setRelation = <R>(
+  draftState: NormalizedState<R>,
+  childType: ResourceType,
+  childID: string,
+  parentID: string
+) => {
+  const resource = draftState.byID[parentID]
+
+  if (!resource) {
+    return
+  }
+
+  draftState.byID[parentID][childType].push(childID)
+}

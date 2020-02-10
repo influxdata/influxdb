@@ -1,5 +1,4 @@
 import {Organization, Bucket} from '../../src/types'
-import _ from 'lodash'
 
 describe('Tasks', () => {
   beforeEach(() => {
@@ -146,6 +145,20 @@ http.post(
             cy.contains(newName).should('exist')
           })
       })
+
+      // Add a label
+      cy.getByTestID('task-card').within(() => {
+        cy.getByTestID('inline-labels--add').click()
+      })
+
+      const labelName = 'l1'
+      cy.getByTestID('inline-labels--popover--contents').type(labelName)
+      cy.getByTestID('inline-labels--create-new').click()
+      cy.getByTestID('create-label-form--submit').click()
+
+      // Delete the label
+      cy.getByTestID(`label--pill--delete ${labelName}`).click({force: true})
+      cy.getByTestID('inline-labels--empty').should('exist')
     })
 
     it('can delete a task', () => {
