@@ -116,33 +116,13 @@ impl RocksDB {
     }
 
     // TODO: update this so it decompresses at least the first point to verify the data type or return error
-    fn read_i64_range(
+    fn read_range<T: 'static + FromBytes + Clone> (
         &self,
         bucket_id: u32,
         series_id: u64,
         range: &Range,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
-        let (iter, series_prefix) = self.get_db_points_iter(bucket_id, series_id, range.start);
-
-        Ok(Box::new(PointsIterator {
-            batch_size,
-            iter,
-            stop_time: range.stop,
-            series_prefix,
-            drained: false,
-            read: FromBytes::from,
-        }))
-    }
-
-    // TODO: update this so it decompresses at least the first point to verify the data type or return error
-    fn read_f64_range(
-        &self,
-        bucket_id: u32,
-        series_id: u64,
-        range: &Range,
-        batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>>>, StorageError> {
         let (iter, series_prefix) = self.get_db_points_iter(bucket_id, series_id, range.start);
 
         Ok(Box::new(PointsIterator {
@@ -853,7 +833,7 @@ impl SeriesStore for RocksDB {
         range: &Range,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
-        self.read_i64_range(bucket_id, series_id, range, batch_size)
+        self.read_range::<i64>(bucket_id, series_id, range, batch_size)
     }
 
     fn read_f64_range(
@@ -863,7 +843,7 @@ impl SeriesStore for RocksDB {
         range: &Range,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
-        self.read_f64_range(bucket_id, series_id, range, batch_size)
+        self.read_range::<f64>(bucket_id, series_id, range, batch_size)
     }
 }
 
