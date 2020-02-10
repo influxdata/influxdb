@@ -131,7 +131,7 @@ impl RocksDB {
             stop_time: range.stop,
             series_prefix,
             drained: false,
-            read: i64_from_bytes,
+            read: FromBytes::from,
         }))
     }
 
@@ -151,7 +151,7 @@ impl RocksDB {
             stop_time: range.stop,
             series_prefix,
             drained: false,
-            read: f64_from_bytes,
+            read: FromBytes::from,
         }))
     }
 
@@ -1169,14 +1169,22 @@ fn u32_from_bytes(b: &[u8]) -> u32 {
     c.read_u32::<BigEndian>().unwrap()
 }
 
-fn i64_from_bytes(b: &[u8]) -> i64 {
-    let mut c = Cursor::new(b);
-    c.read_i64::<BigEndian>().unwrap()
+trait FromBytes {
+    fn from(b: &[u8]) -> Self;
 }
 
-fn f64_from_bytes(b: &[u8]) -> f64 {
-    let mut c = Cursor::new(b);
-    c.read_f64::<BigEndian>().unwrap()
+impl FromBytes for i64 {
+    fn from(b: &[u8]) -> i64 {
+        let mut c = Cursor::new(b);
+        c.read_i64::<BigEndian>().unwrap()
+    }
+}
+
+impl FromBytes for f64 {
+    fn from(b: &[u8]) -> f64 {
+        let mut c = Cursor::new(b);
+        c.read_f64::<BigEndian>().unwrap()
+    }
 }
 
 impl Bucket {
