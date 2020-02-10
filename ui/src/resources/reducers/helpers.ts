@@ -9,23 +9,16 @@ export const setResourceAtID = <R extends {status: RemoteDataState}>(
   action,
   resource: ResourceType
 ) => {
-  const {schema} = action
+  const {schema, status, id} = action
 
-  const status: RemoteDataState = action.status
-  const id: string = action.id
-  const r: R = get(schema, ['entities', resource, id])
-
-  if (!r) {
-    draftState.byID[id] = ({id, status} as unknown) as R
-    return
-  }
+  const prevResource = get(draftState, ['byID', id], {})
+  const currentResource = get(schema, ['entities', resource, id], {})
 
   if (!draftState.allIDs.includes(id)) {
     draftState.allIDs.push(id)
   }
 
-  draftState.byID[id] = {...r, status}
-  draftState.byID[id].status = status
+  draftState.byID[id] = {...prevResource, ...currentResource, status}
 }
 
 export const setResource = <R>(

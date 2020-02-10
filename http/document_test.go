@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/mock"
 	influxtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap/zaptest"
@@ -291,7 +292,7 @@ func TestService_handleDeleteDocumentLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			documentBackend := NewMockDocumentBackend(t)
-			documentBackend.HTTPErrorHandler = ErrorHandler(0)
+			documentBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			documentBackend.DocumentService = tt.fields.DocumentService
 			documentBackend.LabelService = tt.fields.LabelService
 			h := NewDocumentHandler(documentBackend)
@@ -477,7 +478,7 @@ func TestService_handlePostDocumentLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			documentBackend := NewMockDocumentBackend(t)
-			documentBackend.HTTPErrorHandler = ErrorHandler(0)
+			documentBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			documentBackend.DocumentService = tt.fields.DocumentService
 			documentBackend.LabelService = tt.fields.LabelService
 			h := NewDocumentHandler(documentBackend)
@@ -582,7 +583,7 @@ func TestService_handleGetDocumentLabels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			documentBackend := NewMockDocumentBackend(t)
-			documentBackend.HTTPErrorHandler = ErrorHandler(0)
+			documentBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			documentBackend.DocumentService = tt.fields.DocumentService
 			documentBackend.LabelService = tt.fields.LabelService
 			h := NewDocumentHandler(documentBackend)
@@ -706,7 +707,7 @@ func TestService_handleGetDocuments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			documentBackend := NewMockDocumentBackend(t)
-			documentBackend.HTTPErrorHandler = ErrorHandler(0)
+			documentBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			documentBackend.DocumentService = tt.fields.DocumentService
 			h := NewDocumentHandler(documentBackend)
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -906,7 +907,7 @@ func TestService_handlePostDocuments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			documentBackend := NewMockDocumentBackend(t)
-			documentBackend.HTTPErrorHandler = ErrorHandler(0)
+			documentBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			documentBackend.DocumentService = tt.fields.DocumentService
 			documentBackend.LabelService = tt.fields.LabelService
 			h := NewDocumentHandler(documentBackend)

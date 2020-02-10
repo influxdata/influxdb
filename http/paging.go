@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -11,7 +10,7 @@ import (
 )
 
 // decodeFindOptions returns a FindOptions decoded from http request.
-func decodeFindOptions(ctx context.Context, r *http.Request) (*platform.FindOptions, error) {
+func decodeFindOptions(r *http.Request) (*platform.FindOptions, error) {
 	opts := &platform.FindOptions{}
 	qp := r.URL.Query()
 

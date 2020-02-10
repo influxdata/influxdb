@@ -1,6 +1,9 @@
 package bolt
 
 import (
+	"encoding/json"
+	"time"
+
 	bolt "github.com/coreos/bbolt"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -10,13 +13,14 @@ var _ prometheus.Collector = (*Client)(nil)
 // available buckets
 // TODO: nuke this whole thing?
 var (
-	authorizationBucket = []byte("authorizationsv1")
-	bucketBucket        = []byte("bucketsv1")
-	dashboardBucket     = []byte("dashboardsv2")
-	organizationBucket  = []byte("organizationsv1")
-	scraperBucket       = []byte("scraperv2")
-	telegrafBucket      = []byte("telegrafv1")
-	userBucket          = []byte("usersv1")
+	authorizationBucket   = []byte("authorizationsv1")
+	bucketBucket          = []byte("bucketsv1")
+	dashboardBucket       = []byte("dashboardsv2")
+	organizationBucket    = []byte("organizationsv1")
+	scraperBucket         = []byte("scraperv2")
+	telegrafBucket        = []byte("telegrafv1")
+	telegrafPluginsBucket = []byte("telegrafPluginsv1")
+	userBucket            = []byte("usersv1")
 )
 
 var (
@@ -55,6 +59,11 @@ var (
 		"Number of total telegraf configurations on the server",
 		nil, nil)
 
+	telegrafPluginsDesc = prometheus.NewDesc(
+		"influxdb_telegraf_plugins_count",
+		"Number of individual telegraf plugins configured",
+		[]string{"plugin"}, nil)
+
 	boltWritesDesc = prometheus.NewDesc(
 		"boltdb_writes_total",
 		"Total number of boltdb writes",
@@ -75,8 +84,38 @@ func (c *Client) Describe(ch chan<- *prometheus.Desc) {
 	ch <- dashboardsDesc
 	ch <- scrapersDesc
 	ch <- telegrafsDesc
+	ch <- telegrafPluginsDesc
 	ch <- boltWritesDesc
 	ch <- boltReadsDesc
+}
+
+type instaTicker struct {
+	tick   chan struct{}
+	timeCh <-chan time.Time
+}
+
+var (
+	// ticker is this influx' timer for when to renew the cache of configured plugin metrics.
+	ticker *instaTicker
+	// telegrafPlugins is a cache of this influx' metrics of configured plugins.
+	telegrafPlugins = map[string]float64{}
+)
+
+// Initialize a simple channel that will instantly "tick",
+// backed by a time.Ticker's channel.
+func init() {
+	ticker = &instaTicker{
+		tick:   make(chan struct{}, 1),
+		timeCh: time.NewTicker(time.Minute * 59).C,
+	}
+
+	ticker.tick <- struct{}{}
+
+	go func() {
+		for range ticker.timeCh {
+			ticker.tick <- struct{}{}
+		}
+	}()
 }
 
 // Collect returns the current state of all metrics of the collector.
@@ -107,7 +146,41 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 		telegrafs = tx.Bucket(telegrafBucket).Stats().KeyN
 		tokens = tx.Bucket(authorizationBucket).Stats().KeyN
 		users = tx.Bucket(userBucket).Stats().KeyN
-		return nil
+
+		// Only process and store telegraf configs once per hour.
+		select {
+		case <-ticker.tick:
+			// Clear plugins from last check.
+			telegrafPlugins = map[string]float64{}
+			rawPlugins := [][]byte{}
+
+			// Loop through all reported number of plugins in the least intrusive way
+			// (vs a global map and locking every time a config is updated).
+			tx.Bucket(telegrafPluginsBucket).ForEach(func(k, v []byte) error {
+				rawPlugins = append(rawPlugins, v)
+				return nil
+			})
+
+			for _, v := range rawPlugins {
+				pStats := map[string]float64{}
+				err := json.Unmarshal(v, &pStats)
+				if err != nil {
+					return err
+				}
+
+				for k, v := range pStats {
+					if _, ok := telegrafPlugins[k]; ok {
+						telegrafPlugins[k] += v
+					} else {
+						telegrafPlugins[k] = v
+					}
+				}
+			}
+
+			return nil
+		default:
+			return nil
+		}
 	})
 
 	ch <- prometheus.MustNewConstMetric(
@@ -151,4 +224,13 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 		prometheus.CounterValue,
 		float64(telegrafs),
 	)
+
+	for k, v := range telegrafPlugins {
+		ch <- prometheus.MustNewConstMetric(
+			telegrafPluginsDesc,
+			prometheus.GaugeValue,
+			v,
+			k, // Adds a label for plugin type.name.
+		)
+	}
 }

@@ -393,6 +393,7 @@ describe('Collectors', () => {
         })
         cy.reload()
       })
+
       it('Can add label', () => {
         cy.getByTestID('inline-labels--add').click()
         cy.getByTestID('inline-labels--popover-field').type('zoe')
@@ -402,6 +403,7 @@ describe('Collectors', () => {
         cy.getByTestID('label--pill zoe').should('exist')
         //can search by label
         cy.getByTestID('search-widget')
+          .should('be.visible')
           .clear()
           .type('zoe')
 

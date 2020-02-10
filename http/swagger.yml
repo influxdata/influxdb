@@ -3322,6 +3322,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Bucket"
+        422:
+          description: Request body failed validation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: Unexpected error
           content:
@@ -7284,6 +7290,10 @@ components:
                     type: string
                   labelID:
                     type: string
+            missingEnvRefs:
+              type: array
+              items:
+                type: string
             missingSecrets:
               type: array
               items:

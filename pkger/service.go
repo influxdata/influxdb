@@ -20,7 +20,7 @@ const APIVersion = "influxdata.com/v2alpha1"
 // SVC is the packages service interface.
 type SVC interface {
 	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
-	DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (Summary, Diff, error)
+	DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error)
 	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, error)
 }
 
@@ -660,7 +660,7 @@ func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
-func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg) (Summary, Diff, error) {
+func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error) {
 	// so here's the deal, when we have issues with the parsing validation, we
 	// continue to do the diff anyhow. any resource that does not have a name
 	// will be skipped, and won't bleed into the dry run here. We can now return
@@ -668,6 +668,21 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 	var parseErr error
 	if !pkg.isParsed {
 		err := pkg.Validate()
+		if err != nil && !IsParseErr(err) {
+			return Summary{}, Diff{}, internalErr(err)
+		}
+		parseErr = err
+	}
+
+	var opt ApplyOpt
+	for _, o := range opts {
+		if err := o(&opt); err != nil {
+			return Summary{}, Diff{}, internalErr(err)
+		}
+	}
+
+	if len(opt.EnvRefs) > 0 {
+		err := pkg.applyEnvRefs(opt.EnvRefs)
 		if err != nil && !IsParseErr(err) {
 			return Summary{}, Diff{}, internalErr(err)
 		}
@@ -863,16 +878,22 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 		mExisting[e.GetName()] = e
 	}
 
+	mPkgEndpoints := make(map[string]influxdb.NotificationEndpoint)
+	for _, e := range pkg.mNotificationEndpoints {
+		influxEndpoint := e.summarize().NotificationEndpoint
+		mPkgEndpoints[influxEndpoint.GetName()] = influxEndpoint
+	}
+
 	diffs := make([]DiffNotificationRule, 0, len(mExisting))
 	for _, r := range pkg.notificationRules() {
-		e, ok := mExisting[r.endpointName]
+		e, ok := mExisting[r.endpointName.String()]
 		if !ok {
-			pkgerEndpoint, ok := pkg.mNotificationEndpoints[r.endpointName]
+			influxEndpoint, ok := mPkgEndpoints[r.endpointName.String()]
 			if !ok {
-				err := fmt.Errorf("failed to find endpoint by name: %q", r.endpointName)
+				err := fmt.Errorf("failed to find notification endpoint %q dependency for notification rule %q", r.endpointName, r.Name())
 				return nil, &influxdb.Error{Code: influxdb.EUnprocessableEntity, Err: err}
 			}
-			e = pkgerEndpoint.summarize().NotificationEndpoint
+			e = influxEndpoint
 		}
 		diffs = append(diffs, newDiffNotificationRule(r, e))
 
@@ -979,11 +1000,11 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 	mappers := []labelMappers{
 		mapperBuckets(pkg.buckets()),
 		mapperChecks(pkg.checks()),
-		mapperDashboards(pkg.mDashboards),
+		mapperDashboards(pkg.dashboards()),
 		mapperNotificationEndpoints(pkg.notificationEndpoints()),
-		mapperNotificationRules(pkg.mNotificationRules),
-		mapperTasks(pkg.mTasks),
-		mapperTelegrafs(pkg.mTelegrafs),
+		mapperNotificationRules(pkg.notificationRules()),
+		mapperTasks(pkg.tasks()),
+		mapperTelegrafs(pkg.telegrafs()),
 		mapperVariables(pkg.variables()),
 	}
 
@@ -1066,11 +1087,20 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 
 // ApplyOpt is an option for applying a package.
 type ApplyOpt struct {
+	EnvRefs        map[string]string
 	MissingSecrets map[string]string
 }
 
 // ApplyOptFn updates the ApplyOpt per the functional option.
 type ApplyOptFn func(opt *ApplyOpt) error
+
+// ApplyWithEnvRefs provides env refs to saturate the missing reference fields in the pkg.
+func ApplyWithEnvRefs(envRefs map[string]string) ApplyOptFn {
+	return func(o *ApplyOpt) error {
+		o.EnvRefs = envRefs
+		return nil
+	}
+}
 
 // ApplyWithSecrets provides secrets to the platform that the pkg will need.
 func ApplyWithSecrets(secrets map[string]string) ApplyOptFn {
@@ -1095,6 +1125,10 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		if err := o(&opt); err != nil {
 			return Summary{}, internalErr(err)
 		}
+	}
+
+	if err := pkg.applyEnvRefs(opt.EnvRefs); err != nil {
+		return Summary{}, failedValidationErr(err)
 	}
 
 	if !pkg.isVerified {
@@ -1649,7 +1683,7 @@ func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID inf
 
 	var errs applyErrs
 	for _, r := range rules {
-		v, ok := mEndpoints[r.endpointName]
+		v, ok := mEndpoints[r.endpointName.String()]
 		if !ok {
 			errs = append(errs, &applyErrBody{
 				name: r.Name(),
@@ -1840,7 +1874,7 @@ func (s *Service) applyTelegrafs(teles []*telegraf) applier {
 		var cfg influxdb.TelegrafConfig
 		mutex.Do(func() {
 			teles[i].config.OrgID = orgID
-			cfg = teles[i].config
+			cfg = teles[i].summarize().TelegrafConfig
 		})
 
 		err := s.teleSVC.CreateTelegrafConfig(ctx, &cfg, userID)

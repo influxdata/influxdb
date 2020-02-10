@@ -148,6 +148,7 @@ type CursorConfig struct {
 	Direction CursorDirection
 	Hints     CursorHints
 	Prefix    []byte
+	SkipFirst bool
 }
 
 // NewCursorConfig constructs and configures a CursorConfig used to configure
@@ -188,5 +189,13 @@ func WithCursorHints(hints ...CursorHint) CursorOption {
 func WithCursorPrefix(prefix []byte) CursorOption {
 	return func(c *CursorConfig) {
 		c.Prefix = prefix
+	}
+}
+
+// WithCursorSkipFirstItem skips returning the first item found within
+// the seek.
+func WithCursorSkipFirstItem() CursorOption {
+	return func(c *CursorConfig) {
+		c.SkipFirst = true
 	}
 }

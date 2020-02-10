@@ -295,7 +295,7 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform
 		}
 		f.OrgID = orgID
 	} else if orgNameStr := q.Get("org"); orgNameStr != "" {
-		*f.Organization = orgNameStr
+		f.Organization = &orgNameStr
 	}
 	return f, err
 }

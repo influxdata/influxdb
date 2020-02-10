@@ -1,6 +1,5 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
 
 // Components
 import {
@@ -20,7 +19,7 @@ import RuleOverlayFooter from 'src/notifications/rules/components/RuleOverlayFoo
 import {useRuleState, useRuleDispatch} from './RuleOverlayProvider'
 
 // Types
-import {NotificationRuleDraft, AppState} from 'src/types'
+import {NotificationRuleDraft} from 'src/types'
 
 interface Props {
   saveButtonText: string
@@ -82,8 +81,4 @@ const RuleOverlayContents: FC<Props> = ({saveButtonText, onSave}) => {
   )
 }
 
-const mstp = ({endpoints}: AppState) => {
-  return {endpoints: endpoints.list}
-}
-
-export default connect(mstp)(RuleOverlayContents)
+export default RuleOverlayContents

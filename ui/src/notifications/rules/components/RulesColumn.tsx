@@ -4,7 +4,12 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Types
-import {NotificationRuleDraft, AppState} from 'src/types'
+import {
+  NotificationEndpoint,
+  NotificationRuleDraft,
+  AppState,
+  ResourceType,
+} from 'src/types'
 
 // Components
 import {
@@ -16,9 +21,12 @@ import {
 import NotificationRuleCards from 'src/notifications/rules/components/RuleCards'
 import AlertsColumn from 'src/alerting/components/AlertsColumn'
 
+// Selectors
+import {getAll} from 'src/resources/selectors'
+
 interface StateProps {
   rules: NotificationRuleDraft[]
-  endpoints: AppState['endpoints']['list']
+  endpoints: NotificationEndpoint[]
 }
 
 type Props = StateProps & WithRouterProps
@@ -76,6 +84,7 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
 
   return (
     <AlertsColumn
+      type={ResourceType.NotificationRules}
       title="Notification Rules"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
@@ -88,15 +97,20 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
 }
 
 const mstp = (state: AppState) => {
-  const {
-    rules: {list: rules},
-    endpoints,
-  } = state
+  const rules = getAll<NotificationRuleDraft>(
+    state,
+    ResourceType.NotificationRules
+  )
 
-  return {rules, endpoints: endpoints.list}
+  const endpoints = getAll<NotificationEndpoint>(
+    state,
+    ResourceType.NotificationEndpoints
+  )
+
+  return {rules, endpoints}
 }
 
-export default connect<StateProps, {}, {}>(
+export default connect<StateProps>(
   mstp,
   null
 )(withRouter(NotificationRulesColumn))

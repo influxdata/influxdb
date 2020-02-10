@@ -147,12 +147,6 @@ func (s SafeID) String() string {
 	return influxdb.ID(s).String()
 }
 
-// Metadata is the pkg metadata. This data describes the user
-// defined identifiers.
-type Metadata struct {
-	Name string `yaml:"name" json:"name"`
-}
-
 // Diff is the result of a service DryRun call. The diff outlines
 // what is new and or updated from the current state of the platform.
 type Diff struct {
@@ -421,7 +415,7 @@ func newDiffNotificationRule(r *notificationRule, iEndpoint influxdb.Notificatio
 	sum := DiffNotificationRule{
 		Name:            r.Name(),
 		Description:     r.description,
-		EndpointName:    r.endpointName,
+		EndpointName:    r.endpointName.String(),
 		Every:           r.every.String(),
 		Offset:          r.offset.String(),
 		MessageTemplate: r.msgTemplate,
@@ -450,7 +444,7 @@ type DiffTask struct {
 
 func newDiffTask(t *task) DiffTask {
 	return DiffTask{
-		Name:        t.name,
+		Name:        t.Name(),
 		Cron:        t.cron,
 		Description: t.description,
 		Every:       durToStr(t.every),
@@ -523,6 +517,7 @@ type Summary struct {
 	NotificationRules     []SummaryNotificationRule     `json:"notificationRules"`
 	Labels                []SummaryLabel                `json:"labels"`
 	LabelMappings         []SummaryLabelMapping         `json:"labelMappings"`
+	MissingEnvs           []string                      `json:"missingEnvRefs"`
 	MissingSecrets        []string                      `json:"missingSecrets"`
 	Tasks                 []SummaryTask                 `json:"summaryTask"`
 	TelegrafConfigs       []SummaryTelegraf             `json:"telegrafConfigs"`
@@ -796,7 +791,7 @@ type bucket struct {
 	id             influxdb.ID
 	OrgID          influxdb.ID
 	Description    string
-	name           string
+	name           *references
 	RetentionRules retentionRules
 	labels         sortedLabels
 
@@ -818,7 +813,7 @@ func (b *bucket) Labels() []*label {
 }
 
 func (b *bucket) Name() string {
-	return b.name
+	return b.name.String()
 }
 
 func (b *bucket) ResourceType() influxdb.ResourceType {
@@ -945,7 +940,7 @@ type check struct {
 	id            influxdb.ID
 	orgID         influxdb.ID
 	kind          checkKind
-	name          string
+	name          *references
 	description   string
 	every         time.Duration
 	level         string
@@ -980,7 +975,7 @@ func (c *check) Labels() []*label {
 }
 
 func (c *check) Name() string {
-	return c.name
+	return c.name.String()
 }
 
 func (c *check) ResourceType() influxdb.ResourceType {
@@ -1225,7 +1220,7 @@ const (
 type label struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	name        string
+	name        *references
 	Color       string
 	Description string
 	associationMapping
@@ -1237,7 +1232,7 @@ type label struct {
 }
 
 func (l *label) Name() string {
-	return l.name
+	return l.name.String()
 }
 
 func (l *label) ID() influxdb.ID {
@@ -1318,7 +1313,7 @@ func (s sortedLabels) Len() int {
 }
 
 func (s sortedLabels) Less(i, j int) bool {
-	return s[i].name < s[j].name
+	return s[i].Name() < s[j].Name()
 }
 
 func (s sortedLabels) Swap(i, j int) {
@@ -1352,16 +1347,16 @@ type notificationEndpoint struct {
 	kind        notificationKind
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	name        string
+	name        *references
 	description string
 	method      string
-	password    references
-	routingKey  references
+	password    *references
+	routingKey  *references
 	status      string
-	token       references
+	token       *references
 	httpType    string
 	url         string
-	username    references
+	username    *references
 
 	labels sortedLabels
 
@@ -1384,7 +1379,7 @@ func (n *notificationEndpoint) Labels() []*label {
 }
 
 func (n *notificationEndpoint) Name() string {
-	return n.name
+	return n.name.String()
 }
 
 func (n *notificationEndpoint) ResourceType() influxdb.ResourceType {
@@ -1554,7 +1549,7 @@ const (
 type notificationRule struct {
 	id    influxdb.ID
 	orgID influxdb.ID
-	name  string
+	name  *references
 
 	channel     string
 	description string
@@ -1566,7 +1561,7 @@ type notificationRule struct {
 	tagRules    []struct{ k, v, op string }
 
 	endpointID   influxdb.ID
-	endpointName string
+	endpointName *references
 	endpointType string
 
 	labels sortedLabels
@@ -1585,7 +1580,7 @@ func (r *notificationRule) Labels() []*label {
 }
 
 func (r *notificationRule) Name() string {
-	return r.name
+	return r.name.String()
 }
 
 func (r *notificationRule) ResourceType() influxdb.ResourceType {
@@ -1604,7 +1599,7 @@ func (r *notificationRule) summarize() SummaryNotificationRule {
 		ID:                SafeID(r.ID()),
 		Name:              r.Name(),
 		EndpointID:        SafeID(r.endpointID),
-		EndpointName:      r.endpointName,
+		EndpointName:      r.endpointName.String(),
 		EndpointType:      r.endpointType,
 		Description:       r.description,
 		Every:             r.every.String(),
@@ -1668,7 +1663,7 @@ func (r *notificationRule) toInfluxRule() influxdb.NotificationRule {
 
 func (r *notificationRule) valid() []validationErr {
 	var vErrs []validationErr
-	if r.endpointName == "" {
+	if !r.endpointName.hasValue() {
 		vErrs = append(vErrs, validationErr{
 			Field: fieldNotificationRuleEndpointName,
 			Msg:   "must be provided",
@@ -1795,7 +1790,7 @@ const (
 type task struct {
 	id          influxdb.ID
 	orgID       influxdb.ID
-	name        string
+	name        *references
 	cron        string
 	description string
 	every       time.Duration
@@ -1819,7 +1814,7 @@ func (t *task) Labels() []*label {
 }
 
 func (t *task) Name() string {
-	return t.name
+	return t.name.String()
 }
 
 func (t *task) ResourceType() influxdb.ResourceType {
@@ -1912,6 +1907,7 @@ const (
 )
 
 type telegraf struct {
+	name   *references
 	config influxdb.TelegrafConfig
 
 	labels sortedLabels
@@ -1926,7 +1922,7 @@ func (t *telegraf) Labels() []*label {
 }
 
 func (t *telegraf) Name() string {
-	return t.config.Name
+	return t.name.String()
 }
 
 func (t *telegraf) ResourceType() influxdb.ResourceType {
@@ -1938,8 +1934,10 @@ func (t *telegraf) Exists() bool {
 }
 
 func (t *telegraf) summarize() SummaryTelegraf {
+	cfg := t.config
+	cfg.Name = t.Name()
 	return SummaryTelegraf{
-		TelegrafConfig:    t.config,
+		TelegrafConfig:    cfg,
 		LabelAssociations: toSummaryLabels(t.labels...),
 	}
 }
@@ -1963,7 +1961,7 @@ const (
 type variable struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	name        string
+	name        *references
 	Description string
 	Type        string
 	Query       string
@@ -1992,7 +1990,7 @@ func (v *variable) Labels() []*label {
 }
 
 func (v *variable) Name() string {
-	return v.name
+	return v.name.String()
 }
 
 func (v *variable) ResourceType() influxdb.ResourceType {
@@ -2086,7 +2084,7 @@ const (
 type dashboard struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	name        string
+	name        *references
 	Description string
 	Charts      []chart
 
@@ -2102,7 +2100,7 @@ func (d *dashboard) Labels() []*label {
 }
 
 func (d *dashboard) Name() string {
-	return d.name
+	return d.name.String()
 }
 
 func (d *dashboard) ResourceType() influxdb.ResourceType {
@@ -2354,9 +2352,7 @@ func (c chart) validProperties() []validationErr {
 	case chartKindScatter:
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
 	case chartKindSingleStat:
-		fails = append(fails, c.Colors.hasTypes(colorTypeText)...)
 	case chartKindSingleStatPlusLine:
-		fails = append(fails, c.Colors.hasTypes(colorTypeText)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
 		fails = append(fails, validPosition(c.Position)...)
 	case chartKindXY:
@@ -2420,11 +2416,12 @@ func (c chart) validBaseProps() []validationErr {
 }
 
 const (
-	colorTypeMin       = "min"
-	colorTypeMax       = "max"
-	colorTypeScale     = "scale"
-	colorTypeText      = "text"
-	colorTypeThreshold = "threshold"
+	colorTypeBackground = "background"
+	colorTypeMin        = "min"
+	colorTypeMax        = "max"
+	colorTypeScale      = "scale"
+	colorTypeText       = "text"
+	colorTypeThreshold  = "threshold"
 )
 
 const (
@@ -2645,19 +2642,31 @@ func (l legend) influxLegend() influxdb.Legend {
 }
 
 const (
+	fieldReferencesEnv    = "envRef"
 	fieldReferencesSecret = "secretRef"
 )
 
 type references struct {
 	val    interface{}
-	Secret string `json:"secretRef"`
+	EnvRef string
+	Secret string
 }
 
-func (r references) hasValue() bool {
-	return r.Secret != "" || r.val != nil
+func (r *references) hasValue() bool {
+	return r.EnvRef != "" || r.Secret != "" || r.val != nil
 }
 
-func (r references) String() string {
+func (r *references) String() string {
+	if v := r.StringVal(); v != "" {
+		return v
+	}
+	if r.EnvRef != "" {
+		return "$" + r.EnvRef
+	}
+	return ""
+}
+
+func (r *references) StringVal() string {
 	if r.val != nil {
 		s, _ := r.val.(string)
 		return s
@@ -2665,11 +2674,11 @@ func (r references) String() string {
 	return ""
 }
 
-func (r references) SecretField() influxdb.SecretField {
+func (r *references) SecretField() influxdb.SecretField {
 	if secret := r.Secret; secret != "" {
 		return influxdb.SecretField{Key: secret}
 	}
-	if str := r.String(); str != "" {
+	if str := r.StringVal(); str != "" {
 		return influxdb.SecretField{Value: &str}
 	}
 	return influxdb.SecretField{}

@@ -83,6 +83,48 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 			},
 		},
 		{
+			name: "get telegraf configs by organization name",
+			r:    httptest.NewRequest("GET", "http://any.url/api/v2/telegrafs?org=tc1", nil),
+			svc: &mock.TelegrafConfigStore{
+				FindTelegrafConfigsF: func(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
+					if filter.Organization != nil && *filter.Organization == "tc1" {
+						return []*platform.TelegrafConfig{
+							{
+								ID:          platform.ID(1),
+								OrgID:       platform.ID(2),
+								Name:        "tc1",
+								Description: "",
+								Config:      "[[inputs.cpu]]\n",
+							},
+						}, 1, nil
+					}
+
+					return []*platform.TelegrafConfig{}, 0, fmt.Errorf("not found")
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `{
+					"configurations": [
+						{
+							"id": "0000000000000001",
+							"orgID": "0000000000000002",
+							"name": "tc1",
+							"config": "[[inputs.cpu]]\n",
+							"labels": [],
+							"links": {
+								"self": "/api/v2/telegrafs/0000000000000001",
+								"labels": "/api/v2/telegrafs/0000000000000001/labels",
+								"members": "/api/v2/telegrafs/0000000000000001/members",
+								"owners": "/api/v2/telegrafs/0000000000000001/owners"
+							}
+						}
+					]
+				}`,
+			},
+		},
+		{
 			name: "return CPU plugin for telegraf",
 			r:    httptest.NewRequest("GET", "http://any.url/api/v2/telegrafs", nil),
 			svc: &mock.TelegrafConfigStore{

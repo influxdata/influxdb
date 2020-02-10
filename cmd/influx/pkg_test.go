@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -94,7 +95,7 @@ func TestCmdPkg(t *testing.T) {
 					pkg.Objects = append(pkg.Objects, pkger.Object{
 						APIVersion: pkger.APIVersion,
 						Type:       pkger.KindBucket,
-						Metadata:   pkger.Metadata{Name: "bucket1"},
+						Metadata:   pkger.Resource{"name": "bucket1"},
 					})
 					return &pkg, nil
 				},
@@ -210,7 +211,7 @@ func TestCmdPkg(t *testing.T) {
 						pkg.Objects = append(pkg.Objects, pkger.Object{
 							APIVersion: pkger.APIVersion,
 							Type:       rc.Kind,
-							Metadata:   pkger.Metadata{Name: name},
+							Metadata:   pkger.Resource{"name": name},
 						})
 					}
 
@@ -282,7 +283,10 @@ func TestCmdPkg(t *testing.T) {
 	t.Run("validate", func(t *testing.T) {
 		t.Run("pkg is valid returns no error", func(t *testing.T) {
 			cmd := newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC))).cmdPkgValidate()
-			require.NoError(t, cmd.Flags().Set("file", "../../pkger/testdata/bucket.yml"))
+			cmd.SetArgs([]string{
+				"--file=../../pkger/testdata/bucket.yml",
+				"-f=../../pkger/testdata/label.yml",
+			})
 			require.NoError(t, cmd.Execute())
 		})
 
@@ -300,6 +304,18 @@ metadata:
 }
 
 type flagArg struct{ name, val string }
+
+func (s flagArg) String() string {
+	return fmt.Sprintf("--%s=%s", s.name, s.val)
+}
+
+func flagArgs(fArgs ...flagArg) []string {
+	var args []string
+	for _, f := range fArgs {
+		args = append(args, f.String())
+	}
+	return args
+}
 
 type pkgFileArgs struct {
 	name     string
@@ -334,10 +350,7 @@ func testPkgWritesFile(newCmdFn func() *cobra.Command, args pkgFileArgs, assertF
 		pathToFile := filepath.Join(tempDir, args.filename)
 
 		cmd := newCmdFn()
-		require.NoError(t, cmd.Flags().Set("file", pathToFile))
-		for _, f := range args.flags {
-			require.NoError(t, cmd.Flags().Set(f.name, f.val), "cmd="+cmd.Name())
-		}
+		cmd.SetArgs(flagArgs(append(args.flags, flagArg{name: "file", val: pathToFile})...))
 
 		require.NoError(t, cmd.Execute())
 
@@ -355,9 +368,7 @@ func testPkgWritesToBuffer(newCmdFn func() *cobra.Command, args pkgFileArgs, ass
 		var buf bytes.Buffer
 		cmd := newCmdFn()
 		cmd.SetOut(&buf)
-		for _, f := range args.flags {
-			require.NoError(t, cmd.Flags().Set(f.name, f.val))
-		}
+		cmd.SetArgs(flagArgs(args.flags...))
 
 		require.NoError(t, cmd.Execute())
 
@@ -381,7 +392,7 @@ func (f *fakePkgSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSe
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error) {
+func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
 	if f.dryRunFn != nil {
 		return f.dryRunFn(ctx, orgID, userID, pkg)
 	}

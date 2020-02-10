@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/notification"
 	"github.com/influxdata/influxdb/notification/check"
@@ -415,7 +416,7 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			checkBackend := NewMockCheckBackend(t)
-			checkBackend.HTTPErrorHandler = ErrorHandler(0)
+			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
 				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
@@ -555,7 +556,7 @@ func TestService_handleGetCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			checkBackend := NewMockCheckBackend(t)
-			checkBackend.HTTPErrorHandler = ErrorHandler(0)
+			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
 				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
@@ -824,7 +825,7 @@ func TestService_handleDeleteCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			checkBackend := NewMockCheckBackend(t)
-			checkBackend.HTTPErrorHandler = ErrorHandler(0)
+			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
 				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
@@ -989,7 +990,7 @@ func TestService_handlePatchCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			checkBackend := NewMockCheckBackend(t)
-			checkBackend.HTTPErrorHandler = ErrorHandler(0)
+			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
 				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
@@ -1182,7 +1183,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			checkBackend := NewMockCheckBackend(t)
-			checkBackend.HTTPErrorHandler = ErrorHandler(0)
+			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
 				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {

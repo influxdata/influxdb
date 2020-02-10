@@ -1,7 +1,14 @@
-## v2.0.0-beta.2 [Unreleased]
+## Undecided
+
+### Bug Fixes
+
+1. [16733](https://github.com/influxdata/influxdb/pull/16733): Fix notification rule renaming panics from UI
+
+## v2.0.0-beta.2 [2020-01-24]
 
 ### Features
 
+1. [16711](https://github.com/influxdata/influxdb/pull/16711): Query Builder supports group() function (change the dropdown from filter to group)
 1. [16523](https://github.com/influxdata/influxdb/pull/16523): Change influx packages to be CRD compliant
 1. [16547](https://github.com/influxdata/influxdb/pull/16547): Allow trailing newline in credentials file and CLI integration
 1. [16545](https://github.com/influxdata/influxdb/pull/16545): Add support for prefixed cursor search to ForwardCursor types
@@ -12,6 +19,12 @@
 
 1. [16656](https://github.com/influxdata/influxdb/pull/16656): Check engine closed before collecting index metrics
 1. [16412](https://github.com/influxdata/influxdb/pull/16412): Reject writes which use any of the reserved tag keys
+1. [16715](https://github.com/influxdata/influxdb/pull/16715): Fixed dashboard mapping for getDashboards to map correct prop
+1. [16716](https://github.com/influxdata/influxdb/pull/16716): Improve the lacking error responses for unmarshal errors in org service
+
+### Bug Fixes
+
+1. [16527](https://github.com/influxdata/influxdb/pull/16527): fix /telegrafs panics when using org=org_name parameter
 
 ### UI Improvements
 

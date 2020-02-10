@@ -21,9 +21,6 @@ import {UserSettingsState} from 'src/userSettings/reducers'
 import {OverlayState} from 'src/overlays/reducers/overlays'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
-import {ChecksState} from 'src/checks/reducers'
-import {NotificationRulesState} from 'src/notifications/rules/reducers'
-import {NotificationEndpointsState} from 'src/notifications/endpoints/reducers'
 import {AlertBuilderState} from 'src/alerting/reducers/alertBuilder'
 
 import {ResourceState} from 'src/types'
@@ -32,10 +29,8 @@ export interface AppState {
   alertBuilder: AlertBuilderState
   app: AppPresentationState
   autoRefresh: AutoRefreshState
-  checks: ChecksState
   cloud: {limits: LimitsState}
   dataLoading: DataLoadingState
-  endpoints: NotificationEndpointsState
   labels: LabelsState
   links: Links
   me: MeState
@@ -47,7 +42,6 @@ export interface AppState {
   ranges: RangeState
   resources: ResourceState
   routing: RouterState
-  rules: NotificationRulesState
   telegrafEditorPlugins: TelegrafEditorPluginState
   telegrafEditorActivePlugins: TelegrafEditorActivePluginState
   plugins: PluginResourceState

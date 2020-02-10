@@ -362,35 +362,36 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	c, err := indexBucket.Cursor()
+	prefix, err := org.ID.Encode()
+	if err != nil {
+		return nil, 0, influxdb.ErrInvalidTaskID
+	}
+
+	var (
+		key  = prefix
+		opts []CursorOption
+	)
+	// we can filter by orgID
+	if filter.After != nil {
+		key, err = taskOrgKey(org.ID, *filter.After)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		opts = append(opts, WithCursorSkipFirstItem())
+	}
+
+	c, err := indexBucket.ForwardCursor(
+		key,
+		append(opts, WithCursorPrefix(prefix))...,
+	)
 	if err != nil {
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	var k, v []byte
-	// we can filter by orgID
-	if filter.After != nil {
-		key, err := taskOrgKey(org.ID, *filter.After)
-		if err != nil {
-			return nil, 0, err
-		}
-		// ignore the key:val returned in this seek because we are starting "after"
-		// this key
-		c.Seek(key)
-		k, v = c.Next()
-	} else {
-		// if we dont have an after we just move the cursor to the first instance of the orgID
-		key, err := org.ID.Encode()
-		if err != nil {
-			return nil, 0, influxdb.ErrInvalidTaskID
-		}
-
-		k, v = c.Seek(key)
-	}
-
 	matchFn := newTaskMatchFn(filter, nil)
 
-	for k != nil {
+	for k, v := c.Next(); k != nil; k, v = c.Next() {
 		id, err := influxdb.IDFromString(string(v))
 		if err != nil {
 			return nil, 0, influxdb.ErrInvalidTaskID
@@ -400,7 +401,6 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		if err != nil {
 			if err == influxdb.ErrTaskNotFound {
 				// we might have some crufty index's
-				k, v = c.Next()
 				continue
 			}
 			return nil, 0, err
@@ -418,8 +418,6 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 				break
 			}
 		}
-
-		k, v = c.Next()
 	}
 
 	return ts, len(ts), err
@@ -483,29 +481,28 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	c, err := taskBucket.Cursor()
+	var (
+		seek []byte
+		opts []CursorOption
+	)
+
+	if filter.After != nil {
+		seek, err = taskKey(*filter.After)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		opts = append(opts, WithCursorSkipFirstItem())
+	}
+
+	c, err := taskBucket.ForwardCursor(seek, opts...)
 	if err != nil {
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	var k, v []byte
-	// we can filter by orgID
-	if filter.After != nil {
-		key, err := taskKey(*filter.After)
-		if err != nil {
-			return nil, 0, err
-		}
-		// ignore the key:val returned in this seek because we are starting "after"
-		// this key
-		c.Seek(key)
-		k, v = c.Next()
-	} else {
-		k, v = c.First()
-	}
-
 	matchFn := newTaskMatchFn(filter, nil)
 
-	for k != nil {
+	for k, v := c.Next(); k != nil; k, v = c.Next() {
 		kvTask := &kvTask{}
 		if err := json.Unmarshal(v, kvTask); err != nil {
 			return nil, 0, influxdb.ErrInternalTaskServiceError(err)
@@ -520,8 +517,6 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 				break
 			}
 		}
-
-		k, v = c.Next()
 	}
 
 	return ts, len(ts), err

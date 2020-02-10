@@ -72,7 +72,7 @@ func TestCmdOrg(t *testing.T) {
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
 				cmd := cmdFn(tt.expected)
-				cmd.Flags().Parse(tt.flags)
+				cmd.SetArgs(tt.flags)
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -119,7 +119,7 @@ func TestCmdOrg(t *testing.T) {
 			fn := func(t *testing.T) {
 				cmd := cmdFn(tt.expectedID)
 				idFlag := tt.flag + tt.expectedID.String()
-				cmd.Flags().Parse([]string{idFlag})
+				cmd.SetArgs([]string{idFlag})
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -142,11 +142,13 @@ func TestCmdOrg(t *testing.T) {
 			{
 				name:     "org id",
 				flags:    []string{"--id=" + influxdb.ID(3).String()},
+				envVars:  envVarsZeroMap,
 				expected: called{id: 3},
 			},
 			{
 				name:     "name",
 				flags:    []string{"--name=name1"},
+				envVars:  envVarsZeroMap,
 				expected: called{name: "name1"},
 			},
 			{
@@ -155,6 +157,7 @@ func TestCmdOrg(t *testing.T) {
 					"-n=name1",
 					"-i=" + influxdb.ID(1).String(),
 				},
+				envVars:  envVarsZeroMap,
 				expected: called{name: "name1", id: 1},
 			},
 			{
@@ -192,7 +195,7 @@ func TestCmdOrg(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
 				cmd, calls := cmdFn()
-				cmd.Flags().Parse(tt.flags)
+				cmd.SetArgs(tt.flags)
 
 				require.NoError(t, cmd.Execute())
 				assert.Equal(t, tt.expected, *calls)
@@ -279,7 +282,7 @@ func TestCmdOrg(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
 				cmd := cmdFn(tt.expected)
-				cmd.Flags().Parse(tt.flags)
+				cmd.SetArgs(tt.flags)
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -309,7 +312,7 @@ func TestCmdOrg(t *testing.T) {
 					defer addEnvVars(t, tt.envVars)()
 
 					cmd, calls := cmdFn()
-					cmd.Flags().Parse(tt.memberFlags)
+					cmd.SetArgs(tt.memberFlags)
 
 					require.NoError(t, cmd.Execute())
 					assert.Equal(t, tt.expected, *calls)
@@ -324,26 +327,33 @@ func TestCmdOrg(t *testing.T) {
 				{
 					name:        "org id",
 					memberFlags: []string{"--id=" + influxdb.ID(3).String()},
+					envVars:     envVarsZeroMap,
 					expected:    called{id: 3},
 				},
 				{
 					name:        "org id short",
 					memberFlags: []string{"-i=" + influxdb.ID(3).String()},
+					envVars:     envVarsZeroMap,
 					expected:    called{id: 3},
 				},
 				{
-					name:     "org id env var",
-					envVars:  map[string]string{"INFLUX_ORG_ID": influxdb.ID(3).String()},
+					name: "org id env var",
+					envVars: map[string]string{
+						"INFLUX_ORG":    "",
+						"INFLUX_ORG_ID": influxdb.ID(3).String(),
+					},
 					expected: called{id: 3},
 				},
 				{
 					name:        "name",
 					memberFlags: []string{"--name=name1"},
+					envVars:     envVarsZeroMap,
 					expected:    called{name: "name1"},
 				},
 				{
 					name:        "name short",
 					memberFlags: []string{"-n=name1"},
+					envVars:     envVarsZeroMap,
 					expected:    called{name: "name1"},
 				},
 				{
@@ -407,6 +417,7 @@ func TestCmdOrg(t *testing.T) {
 						"--id=" + influxdb.ID(3).String(),
 						"--member=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{id: 3, memberID: 4},
 				},
 				{
@@ -415,6 +426,7 @@ func TestCmdOrg(t *testing.T) {
 						"-i=" + influxdb.ID(3).String(),
 						"-m=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{id: 3, memberID: 4},
 				},
 				{
@@ -423,6 +435,7 @@ func TestCmdOrg(t *testing.T) {
 						"--name=name1",
 						"--member=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{name: "name1", memberID: 4},
 				},
 				{
@@ -431,6 +444,7 @@ func TestCmdOrg(t *testing.T) {
 						"-n=name1",
 						"-m=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{name: "name1", memberID: 4},
 				},
 			}
@@ -470,6 +484,7 @@ func TestCmdOrg(t *testing.T) {
 						"--id=" + influxdb.ID(3).String(),
 						"--member=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{id: 3, memberID: 4},
 				},
 				{
@@ -478,6 +493,7 @@ func TestCmdOrg(t *testing.T) {
 						"-i=" + influxdb.ID(3).String(),
 						"-m=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{id: 3, memberID: 4},
 				},
 				{
@@ -486,6 +502,7 @@ func TestCmdOrg(t *testing.T) {
 						"--name=name1",
 						"--member=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{name: "name1", memberID: 4},
 				},
 				{
@@ -494,6 +511,7 @@ func TestCmdOrg(t *testing.T) {
 						"-n=name1",
 						"-m=" + influxdb.ID(4).String(),
 					},
+					envVars:  envVarsZeroMap,
 					expected: called{name: "name1", memberID: 4},
 				},
 			}
@@ -501,4 +519,9 @@ func TestCmdOrg(t *testing.T) {
 			testMemberFn(t, cmdFn, addTests...)
 		})
 	})
+}
+
+var envVarsZeroMap = map[string]string{
+	"INFLUX_ORG_ID": "",
+	"INFLUX_ORG":    "",
 }

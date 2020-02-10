@@ -92,6 +92,7 @@ func TestCmdUser(t *testing.T) {
 					"--password=pass1",
 				},
 				envVars: map[string]string{
+					"INFLUX_ORG":    "",
 					"INFLUX_ORG_ID": influxdb.ID(1).String(),
 				},
 				expected: userResult{
@@ -141,7 +142,7 @@ func TestCmdUser(t *testing.T) {
 			fn := func(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 				cmd := cmdFn(tt.expected)
-				cmd.LocalFlags().Parse(tt.flags)
+				cmd.SetArgs(tt.flags)
 				err := cmd.Execute()
 				require.NoError(t, err)
 			}
@@ -190,7 +191,7 @@ func TestCmdUser(t *testing.T) {
 			fn := func(t *testing.T) {
 				cmd := cmdFn(tt.expectedID)
 				idFlag := tt.flag + tt.expectedID.String()
-				cmd.LocalFlags().Parse([]string{idFlag})
+				cmd.SetArgs([]string{idFlag})
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -256,7 +257,7 @@ func TestCmdUser(t *testing.T) {
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
 				cmd, calls := cmdFn()
-				cmd.LocalFlags().Parse(tt.flags)
+				cmd.SetArgs(tt.flags)
 
 				require.NoError(t, cmd.Execute())
 				assert.Equal(t, tt.expected, *calls)
@@ -325,7 +326,7 @@ func TestCmdUser(t *testing.T) {
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
 				cmd := cmdFn(tt.expected)
-				cmd.LocalFlags().Parse(tt.flags)
+				cmd.SetArgs(tt.flags)
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -389,7 +390,7 @@ func TestCmdUser(t *testing.T) {
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
 				cmd := cmdFn(tt.expected)
-				cmd.LocalFlags().Parse(tt.flags)
+				cmd.SetArgs(tt.flags)
 				require.NoError(t, cmd.Execute())
 			}
 

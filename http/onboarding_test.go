@@ -7,6 +7,7 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
@@ -38,7 +39,7 @@ func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (pl
 	}
 
 	setupBackend := NewMockSetupBackend(t)
-	setupBackend.HTTPErrorHandler = ErrorHandler(0)
+	setupBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 	setupBackend.OnboardingService = svc
 	handler := NewSetupHandler(zaptest.NewLogger(t), setupBackend)
 	server := httptest.NewServer(handler)

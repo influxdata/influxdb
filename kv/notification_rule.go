@@ -240,6 +240,10 @@ func (s *Service) patchNotificationRule(ctx context.Context, tx Tx, id influxdb.
 	if upd.Description != nil {
 		nr.SetDescription(*upd.Description)
 	}
+	var status *string
+	if upd.Status != nil {
+		status = strPtr(string(*upd.Status))
+	}
 
 	nr.SetUpdatedAt(s.TimeGenerator.Now())
 
@@ -247,7 +251,7 @@ func (s *Service) patchNotificationRule(ctx context.Context, tx Tx, id influxdb.
 		return nil, err
 	}
 
-	_, err = s.updateNotificationTask(ctx, tx, nr, strPtr(string(*upd.Status)))
+	_, err = s.updateNotificationTask(ctx, tx, nr, status)
 	if err != nil {
 		return nil, err
 	}

@@ -6,7 +6,9 @@ describe('buildQuery', () => {
   test('single tag', () => {
     const config: BuilderConfig = {
       buckets: ['b0'],
-      tags: [{key: '_measurement', values: ['m0']}],
+      tags: [
+        {key: '_measurement', values: ['m0'], aggregateFunctionType: 'filter'},
+      ],
       functions: [],
       aggregateWindow: {period: 'auto'},
     }
@@ -16,7 +18,6 @@ describe('buildQuery', () => {
   |> filter(fn: (r) => r._measurement == "m0")`
 
     const actual = buildQuery(config)
-
     expect(actual).toEqual(expected)
   })
 
@@ -24,8 +25,12 @@ describe('buildQuery', () => {
     const config: BuilderConfig = {
       buckets: ['b0'],
       tags: [
-        {key: '_measurement', values: ['m0', 'm1']},
-        {key: '_field', values: ['f0', 'f1']},
+        {
+          key: '_measurement',
+          values: ['m0', 'm1'],
+          aggregateFunctionType: 'filter',
+        },
+        {key: '_field', values: ['f0', 'f1'], aggregateFunctionType: 'filter'},
       ],
       functions: [],
       aggregateWindow: {period: 'auto'},
@@ -44,7 +49,9 @@ describe('buildQuery', () => {
   test('single tag, multiple functions', () => {
     const config: BuilderConfig = {
       buckets: ['b0'],
-      tags: [{key: '_measurement', values: ['m0']}],
+      tags: [
+        {key: '_measurement', values: ['m0'], aggregateFunctionType: 'filter'},
+      ],
       functions: [{name: 'mean'}, {name: 'median'}],
       aggregateWindow: {period: 'auto'},
     }

@@ -9,7 +9,7 @@ import RuleMessageContents from 'src/notifications/rules/components/RuleMessageC
 
 // Utils
 import {getRuleVariantDefaults} from 'src/notifications/rules/utils'
-import {getResourceList} from 'src/alerting/selectors'
+import {getAll} from 'src/resources/selectors'
 import {useRuleDispatch} from './RuleOverlayProvider'
 
 // Types
@@ -72,11 +72,13 @@ const RuleMessage: FC<Props> = ({endpoints, rule}) => {
 }
 
 const mstp = (state: AppState) => {
+  const endpoints = getAll<NotificationEndpoint>(
+    state,
+    ResourceType.NotificationEndpoints
+  )
+
   return {
-    endpoints: getResourceList<NotificationEndpoint>(
-      state,
-      ResourceType.NotificationEndpoints
-    ),
+    endpoints,
   }
 }
 

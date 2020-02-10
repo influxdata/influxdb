@@ -5,6 +5,7 @@ import {connect} from 'react-redux'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Components
 import CheckCards from 'src/checks/components/CheckCards'
@@ -12,12 +13,18 @@ import AlertsColumn from 'src/alerting/components/AlertsColumn'
 import CreateCheckDropdown from 'src/checks/components/CreateCheckDropdown'
 
 // Types
-import {Check, NotificationRuleDraft, AppState} from 'src/types'
+import {
+  Check,
+  NotificationRuleDraft,
+  AppState,
+  NotificationEndpoint,
+  ResourceType,
+} from 'src/types'
 
 interface StateProps {
   checks: Check[]
   rules: NotificationRuleDraft[]
-  endpoints: AppState['endpoints']['list']
+  endpoints: NotificationEndpoint[]
 }
 
 type Props = StateProps & WithRouterProps
@@ -67,6 +74,7 @@ const ChecksColumn: FunctionComponent<Props> = ({
 
   return (
     <AlertsColumn
+      type={ResourceType.Checks}
       title="Checks"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
@@ -86,21 +94,30 @@ const ChecksColumn: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState) => {
   const {
-    checks: {list: checks},
     labels: {list: labels},
-    rules: {list: rules},
-    endpoints,
   } = state
+
+  const checks = getAll<Check>(state, ResourceType.Checks)
+
+  const endpoints = getAll<NotificationEndpoint>(
+    state,
+    ResourceType.NotificationEndpoints
+  )
+
+  const rules = getAll<NotificationRuleDraft>(
+    state,
+    ResourceType.NotificationRules
+  )
 
   return {
     checks,
     labels: viewableLabels(labels),
     rules,
-    endpoints: endpoints.list,
+    endpoints,
   }
 }
 
-export default connect<StateProps, {}, {}>(
+export default connect<StateProps>(
   mstp,
   null
 )(withRouter(ChecksColumn))

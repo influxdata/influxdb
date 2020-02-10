@@ -25,6 +25,7 @@ function getTimeMachineText() {
     })
     .invoke('text')
 }
+
 describe('DataExplorer', () => {
   beforeEach(() => {
     cy.flush()
@@ -48,6 +49,7 @@ describe('DataExplorer', () => {
       cy.getByTestID(`view-type--histogram`).click()
       cy.getByTestID('cog-cell--button').click()
     })
+
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input').within(() => {
@@ -64,6 +66,7 @@ describe('DataExplorer', () => {
         })
       })
     })
+
     it('should not have the input field in error status when input becomes valid', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input').within(() => {
@@ -82,6 +85,7 @@ describe('DataExplorer', () => {
       cy.getByTestID(`view-type--heatmap`).click()
       cy.getByTestID('cog-cell--button').click()
     })
+
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('grid--column').within(() => {
@@ -112,6 +116,7 @@ describe('DataExplorer', () => {
         })
       })
     })
+
     it('should not have input field in error status when "10" becomes valid input such as "5"', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('grid--column').within(() => {
@@ -132,6 +137,7 @@ describe('DataExplorer', () => {
       cy.getByTestID(`view-type--single-stat`).click()
       cy.getByTestID('cog-cell--button').click()
     })
+
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input--input').within(() => {
@@ -159,6 +165,7 @@ describe('DataExplorer', () => {
         })
       })
     })
+
     it('should not have input field in error status when "2" becomes valid input such as "11"', () => {
       cy.get('.view-options').within(() => {
         cy.getByTestID('auto-input--input').within(() => {
@@ -170,6 +177,48 @@ describe('DataExplorer', () => {
             .getByTestID('input-field--error')
             .should('have.length', 0)
         })
+      })
+    })
+  })
+
+  describe('Optional suffix and prefix in gauge', () => {
+    beforeEach(() => {
+      cy.getByTestID('view-type--dropdown').click()
+      cy.getByTestID(`view-type--gauge`).click()
+      cy.getByTestID('cog-cell--button').click()
+    })
+    it('can add prefix and suffix values', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('prefix-input')
+          .click()
+          .type('mph')
+          .invoke('val')
+          .should('equal', 'mph')
+          .getByTestID('input-field--error')
+          .should('have.length', 0)
+        cy.getByTestID('suffix-input')
+          .click()
+          .type('mph')
+          .invoke('val')
+          .should('equal', 'mph')
+          .getByTestID('input-field--error')
+          .should('have.length', 0)
+      })
+    })
+    it('can add and remove tick values', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('tickprefix-input')
+          .click()
+          .invoke('val')
+          .should('equal', '')
+          .getByTestID('input-field--error')
+          .should('have.length', 0)
+        cy.getByTestID('ticksuffix-input')
+          .click()
+          .invoke('val')
+          .should('equal', '')
+          .getByTestID('input-field--error')
+          .should('have.length', 0)
       })
     })
   })
@@ -202,6 +251,7 @@ describe('DataExplorer', () => {
         cy.getByTestID('dropdown-item-customtimerange').click()
         cy.getByTestID('timerange-popover--dialog').should('have.length', 1)
       })
+
       it.skip('should error when submitting stop dates that are before start dates', () => {
         // TODO: complete with issue #15632
         // https://github.com/influxdata/influxdb/issues/15632
@@ -316,11 +366,18 @@ describe('DataExplorer', () => {
       cy.getByTestID('query-builder').should('exist')
 
       // can revert back to query builder mode (with confirmation)
-      cy.getByTestID('switch-to-script-editor').click()
+      cy.getByTestID('switch-to-script-editor')
+        .should('be.visible')
+        .click()
       cy.getByTestID('flux-editor').should('exist')
       cy.getByTestID('flux-editor').within(() => {
         cy.get('textarea').type('yoyoyoyoyo', {force: true})
       })
+
+      // can hover over flux functions
+      cy.getByTestID('toolbar-popover--contents').should('not.exist')
+      cy.getByTestID('flux-function aggregateWindow').trigger('mouseover')
+      cy.getByTestID('toolbar-popover--contents').should('exist')
 
       cy.getByTestID('switch-query-builder-confirm--button').click()
 
@@ -332,40 +389,21 @@ describe('DataExplorer', () => {
 
       cy.getByTestID('query-builder').should('exist')
     })
-
-    it('should display the popover when hovering', () => {
-      cy.getByTestID('selector-list my_meas')
-        .click()
-        .then(() => {
-          cy.getByTestID('selector-list my_field')
-            .click()
-            .then(() => {
-              cy.getByTestID('switch-to-script-editor').click()
-              cy.getByTestID('flux-editor').should('exist')
-
-              cy.getByTestID('toolbar-popover--contents').should('not.exist')
-
-              cy.getByTestID('flux-function aggregateWindow').trigger(
-                'mouseover'
-              )
-
-              cy.getByTestID('toolbar-popover--contents').should('exist')
-            })
-        })
-    })
   })
 
   describe('raw script editing', () => {
     beforeEach(() => {
-      cy.getByTestID('switch-to-script-editor').click()
+      cy.getByTestID('switch-to-script-editor')
+        .should('be.visible')
+        .click()
     })
 
-    // TODO: fix flakeyness of this test
-    it.skip('enables the submit button when a query is typed', () => {
+    it('enables the submit button when a query is typed', () => {
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
 
       cy.getByTestID('flux-editor').within(() => {
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type('yo', {force: true, delay: TYPE_DELAY})
@@ -376,6 +414,7 @@ describe('DataExplorer', () => {
     it('disables submit when a query is deleted', () => {
       cy.getByTestID('time-machine--bottom').then(() => {
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type('from(bucket: "foo")', {force: true, delay: TYPE_DELAY})
@@ -383,6 +422,7 @@ describe('DataExplorer', () => {
         cy.getByTestID('time-machine-submit-button').should('not.be.disabled')
 
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type('{selectall} {backspace}', {force: true, delay: TYPE_DELAY})
@@ -451,10 +491,10 @@ describe('DataExplorer', () => {
       cy.getByTestID('toolbar-function').should('have.length', 1)
     })
 
-    // TODO: fix flakeyness of focused() command
-    it.skip('shows the empty state when the query returns no results', () => {
+    it('shows the empty state when the query returns no results', () => {
       cy.getByTestID('time-machine--bottom').within(() => {
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type(
@@ -474,6 +514,7 @@ describe('DataExplorer', () => {
       // begin flux
       cy.getByTestID('flux-editor').within(() => {
         cy.get('.react-monaco-editor-container')
+          .should('be.visible')
           .click()
           .focused()
           .type(
@@ -490,6 +531,7 @@ describe('DataExplorer', () => {
       // finish flux
       cy.getByTestID('flux-editor').within(() => {
         cy.get('.react-monaco-editor-container')
+          .should('exist')
           .click()
           .focused()
           .type(`)`, {force: true, delay: TYPE_DELAY})

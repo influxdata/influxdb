@@ -85,6 +85,7 @@ func (c *Client) initialize(ctx context.Context) error {
 			organizationBucket,
 			scraperBucket,
 			telegrafBucket,
+			telegrafPluginsBucket,
 			userBucket,
 		}
 		for _, bktName := range bkts {

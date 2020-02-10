@@ -12,6 +12,7 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
@@ -54,7 +55,7 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 	}
 
 	orgBackend := NewMockOrgBackend(t)
-	orgBackend.HTTPErrorHandler = ErrorHandler(0)
+	orgBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 	orgBackend.OrganizationService = svc
 	handler := NewOrgHandler(zaptest.NewLogger(t), orgBackend)
 	server := httptest.NewServer(handler)
@@ -67,7 +68,6 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 }
 
 func TestOrganizationService(t *testing.T) {
-
 	t.Parallel()
 	platformtesting.OrganizationService(initOrganizationService, t)
 }
@@ -181,7 +181,7 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			orgBackend := NewMockOrgBackend(t)
-			orgBackend.HTTPErrorHandler = ErrorHandler(0)
+			orgBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			orgBackend.SecretService = tt.fields.SecretService
 			h := NewOrgHandler(zaptest.NewLogger(t), orgBackend)
 
@@ -257,7 +257,7 @@ func TestSecretService_handlePatchSecrets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			orgBackend := NewMockOrgBackend(t)
-			orgBackend.HTTPErrorHandler = ErrorHandler(0)
+			orgBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			orgBackend.SecretService = tt.fields.SecretService
 			h := NewOrgHandler(zaptest.NewLogger(t), orgBackend)
 
@@ -339,11 +339,13 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			orgBackend := NewMockOrgBackend(t)
-			orgBackend.HTTPErrorHandler = ErrorHandler(0)
+			orgBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			orgBackend.SecretService = tt.fields.SecretService
 			h := NewOrgHandler(zaptest.NewLogger(t), orgBackend)
 
-			b, err := json.Marshal(deleteSecretsRequest{
+			b, err := json.Marshal(struct {
+				Secrets []string `json:"secrets"`
+			}{
 				Secrets: tt.args.secrets,
 			})
 			if err != nil {

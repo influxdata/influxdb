@@ -30,6 +30,7 @@ import (
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/signals"
 	"github.com/influxdata/influxdb/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/kv"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/nats"
@@ -766,7 +767,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
-		HTTPErrorHandler:     http.ErrorHandler(0),
+		HTTPErrorHandler:     kithttp.ErrorHandler(0),
 		Logger:               m.log,
 		SessionRenewDisabled: m.sessionRenewDisabled,
 		NewBucketService:     source.NewBucketService,
@@ -831,13 +832,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			pkger.WithVariableSVC(authorizer.NewVariableService(b.VariableService)),
 		)
 		pkgSVC = pkger.MWTracing()(pkgSVC)
+		pkgSVC = pkger.MWMetrics(m.reg)(pkgSVC)
 		pkgSVC = pkger.MWLogging(pkgerLogger)(pkgSVC)
 	}
 
-	var pkgHTTPServer *http.HandlerPkg
+	var pkgHTTPServer *pkger.HTTPServer
 	{
 		pkgServerLogger := m.log.With(zap.String("handler", "pkger"))
-		pkgHTTPServer = http.NewHandlerPkg(pkgServerLogger, m.apibackend.HTTPErrorHandler, pkgSVC)
+		pkgHTTPServer = pkger.NewHTTPServer(pkgServerLogger, pkgSVC)
 	}
 
 	{

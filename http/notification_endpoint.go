@@ -272,7 +272,7 @@ func decodeNotificationEndpointFilter(ctx context.Context, r *http.Request) (inf
 		},
 	}
 
-	opts, err := decodeFindOptions(ctx, r)
+	opts, err := decodeFindOptions(r)
 	if err != nil {
 		return influxdb.NotificationEndpointFilter{}, influxdb.FindOptions{}, err
 	}

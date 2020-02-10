@@ -1,6 +1,9 @@
 // Libraries
 import React, {FC, ReactChild, useState} from 'react'
 
+// Types
+import {ResourceType} from 'src/types'
+
 // Components
 import {
   Panel,
@@ -15,7 +18,13 @@ import {
   ComponentColor,
 } from '@influxdata/clockface'
 
+type ColumnTypes =
+  | ResourceType.NotificationRules
+  | ResourceType.NotificationEndpoints
+  | ResourceType.Checks
+
 interface Props {
+  type: ColumnTypes
   title: string
   createButton: JSX.Element
   questionMarkTooltipContents: JSX.Element | string
@@ -23,6 +32,7 @@ interface Props {
 }
 
 const AlertsColumnHeader: FC<Props> = ({
+  type,
   children,
   title,
   createButton,
@@ -33,6 +43,7 @@ const AlertsColumnHeader: FC<Props> = ({
     <Panel
       backgroundColor={InfluxColors.Kevlar}
       className="alerting-index--column"
+      testID={`${type}--column`}
     >
       <Panel.Header>
         <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
@@ -52,6 +63,7 @@ const AlertsColumnHeader: FC<Props> = ({
           placeholder={`Filter ${title}...`}
           value={searchTerm}
           onChange={e => onChangeSearchTerm(e.target.value)}
+          testID={`filter--input ${type}`}
         />
       </div>
       <div className="alerting-index--column-body">

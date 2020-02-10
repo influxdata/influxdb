@@ -2,16 +2,19 @@ import {
   Authorization,
   Bucket,
   Cell,
+  Check,
   Dashboard,
   Member,
+  NotificationEndpoint,
+  NotificationRule,
   Organization,
   RemoteDataState,
   Scraper,
-  View,
   TasksState,
   Telegraf,
   TemplatesState,
   VariablesState,
+  View,
 } from 'src/types'
 
 export enum ResourceType {
@@ -50,6 +53,10 @@ export interface TelegrafsState extends NormalizedState<Telegraf> {
   currentConfig: {status: RemoteDataState; item: string}
 }
 
+export interface RulesState extends NormalizedState<NotificationRule> {
+  current: {status: RemoteDataState; rule: NotificationRule}
+}
+
 // Cells "allIDs" are Dashboard.cells
 type CellsState = Omit<NormalizedState<Cell>, 'allIDs'>
 
@@ -67,4 +74,7 @@ export interface ResourceState {
   [ResourceType.Templates]: TemplatesState
   [ResourceType.Variables]: VariablesState
   [ResourceType.Views]: NormalizedState<View>
+  [ResourceType.NotificationEndpoints]: NormalizedState<NotificationEndpoint>
+  [ResourceType.NotificationRules]: RulesState
+  [ResourceType.Checks]: NormalizedState<Check>
 }

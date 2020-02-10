@@ -1,5 +1,3 @@
-/* eslint no-console: 0 */
-
 // Libraries
 import React, {FC, Dispatch} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
@@ -13,7 +11,7 @@ import {
   deleteEndpoint,
   updateEndpointProperties,
   cloneEndpoint,
-} from 'src/notifications/endpoints/actions'
+} from 'src/notifications/endpoints/actions/thunks'
 
 // Components
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
@@ -33,7 +31,7 @@ import {
   AppState,
   AlertHistoryType,
 } from 'src/types'
-import {Action} from 'src/notifications/endpoints/actions'
+import {Action} from 'src/notifications/endpoints/actions/creators'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
@@ -75,13 +73,14 @@ const EndpointCard: FC<Props> = ({
   onAddEndpointLabel,
   onRemoveEndpointLabel,
 }) => {
-  const {id, name, status, description} = endpoint
+  const {id, name, description, activeStatus} = endpoint
 
   const handleUpdateName = (name: string) => {
     onUpdateEndpointProperties(id, {name})
   }
+
   const handleClick = () => {
-    router.push(`orgs/${orgID}/alerting/endpoints/${endpoint.id}/edit`)
+    router.push(`orgs/${orgID}/alerting/endpoints/${id}/edit`)
   }
 
   const nameComponent = (
@@ -98,12 +97,13 @@ const EndpointCard: FC<Props> = ({
   )
 
   const handleToggle = () => {
-    const toStatus = status === 'active' ? 'inactive' : 'active'
+    const toStatus = activeStatus === 'active' ? 'inactive' : 'active'
     onUpdateEndpointProperties(id, {status: toStatus})
   }
+
   const toggle = (
     <SlideToggle
-      active={status === 'active'}
+      active={activeStatus === 'active'}
       size={ComponentSize.ExtraSmall}
       onChange={handleToggle}
       testID="endpoint-card--slide-toggle"
@@ -115,7 +115,7 @@ const EndpointCard: FC<Props> = ({
 
     const queryParams = new URLSearchParams({
       [HISTORY_TYPE_QUERY_PARAM]: historyType,
-      [SEARCH_QUERY_PARAM]: `"notificationEndpointID" == "${endpoint.id}"`,
+      [SEARCH_QUERY_PARAM]: `"notificationEndpointID" == "${id}"`,
     })
 
     router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
@@ -138,8 +138,9 @@ const EndpointCard: FC<Props> = ({
     onAddEndpointLabel(id, label)
   }
   const handleRemoveEndpointLabel = (label: Label) => {
-    onRemoveEndpointLabel(id, label)
+    onRemoveEndpointLabel(id, label.id)
   }
+
   const labelsComponent = (
     <InlineLabels
       selectedLabels={endpoint.labels as Label[]}
@@ -168,7 +169,7 @@ const EndpointCard: FC<Props> = ({
       contextMenu={contextMenu}
       description={descriptionComponent}
       labels={labelsComponent}
-      disabled={status === 'inactive'}
+      disabled={activeStatus === 'inactive'}
       metaData={[
         <>{relativeTimestampFormatter(endpoint.updatedAt, 'Last updated ')}</>,
       ]}

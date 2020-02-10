@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/http/metric"
 	httpmock "github.com/influxdata/influxdb/http/mock"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/mock"
 	influxtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap/zaptest"
@@ -375,7 +376,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 	}
 }
 
-var DefaultErrorHandler = ErrorHandler(0)
+var DefaultErrorHandler = kithttp.ErrorHandler(0)
 
 func bucketWritePermission(org, bucket string) *influxdb.Authorization {
 	oid := influxtesting.MustIDBase16(org)

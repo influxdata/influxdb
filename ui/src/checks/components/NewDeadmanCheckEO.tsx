@@ -9,7 +9,7 @@ import CheckEOHeader from 'src/checks/components/CheckEOHeader'
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
 
 // Actions
-import {saveCheckFromTimeMachine} from 'src/checks/actions'
+import {createCheckFromTimeMachine} from 'src/checks/actions/thunks'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {
   resetAlertBuilder,
@@ -25,7 +25,7 @@ import {AppState, RemoteDataState, CheckViewProperties} from 'src/types'
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
-  onSaveCheckFromTimeMachine: typeof saveCheckFromTimeMachine
+  onSaveCheckFromTimeMachine: typeof createCheckFromTimeMachine
   onResetAlertBuilder: typeof resetAlertBuilder
   onUpdateAlertBuilderName: typeof updateName
   onInitializeAlertBuilder: typeof initializeAlertBuilder
@@ -33,14 +33,14 @@ interface DispatchProps {
 
 interface StateProps {
   checkName: string
-  checkStatus: RemoteDataState
+  status: RemoteDataState
 }
 
 type Props = DispatchProps & StateProps & WithRouterProps
 
 const NewCheckOverlay: FunctionComponent<Props> = ({
   params: {orgID},
-  checkStatus,
+  status,
   checkName,
   router,
   onSaveCheckFromTimeMachine,
@@ -67,7 +67,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
       <div className="veo">
         <SpinnerContainer
           spinnerComponent={<TechnoSpinner />}
-          loading={checkStatus || RemoteDataState.Loading}
+          loading={status || RemoteDataState.Loading}
         >
           <CheckEOHeader
             key={checkName}
@@ -85,13 +85,13 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = ({alertBuilder: {name, checkStatus}}: AppState): StateProps => {
-  return {checkName: name, checkStatus}
+const mstp = ({alertBuilder: {name, status}}: AppState): StateProps => {
+  return {checkName: name, status}
 }
 
 const mdtp: DispatchProps = {
   onSetActiveTimeMachine: setActiveTimeMachine,
-  onSaveCheckFromTimeMachine: saveCheckFromTimeMachine,
+  onSaveCheckFromTimeMachine: createCheckFromTimeMachine,
   onResetAlertBuilder: resetAlertBuilder,
   onUpdateAlertBuilderName: updateName,
   onInitializeAlertBuilder: initializeAlertBuilder,

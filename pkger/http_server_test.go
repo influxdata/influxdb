@@ -1,4 +1,4 @@
-package http_test
+package pkger_test
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
-	fluxTTP "github.com/influxdata/influxdb/http"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/pkg/testttp"
 	"github.com/influxdata/influxdb/pkger"
@@ -32,11 +32,11 @@ func TestPkgerHTTPServer(t *testing.T) {
 				}, nil
 			}
 			svc := pkger.NewService(pkger.WithLabelSVC(fakeLabelSVC))
-			pkgHandler := fluxTTP.NewHandlerPkg(zap.NewNop(), fluxTTP.ErrorHandler(0), svc)
+			pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
-				PostJSON(t, "/api/v2/packages", fluxTTP.ReqCreatePkg{
+				PostJSON(t, "/api/v2/packages", pkger.ReqCreatePkg{
 					Resources: []pkger.ResourceToClone{
 						{
 							Kind: pkger.KindLabel,
@@ -62,11 +62,11 @@ func TestPkgerHTTPServer(t *testing.T) {
 		})
 
 		t.Run("should be invalid if not org ids or resources provided", func(t *testing.T) {
-			pkgHandler := fluxTTP.NewHandlerPkg(zap.NewNop(), fluxTTP.ErrorHandler(0), nil)
+			pkgHandler := pkger.NewHTTPServer(zap.NewNop(), nil)
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
-				PostJSON(t, "/api/v2/packages", fluxTTP.ReqCreatePkg{}).
+				PostJSON(t, "/api/v2/packages", pkger.ReqCreatePkg{}).
 				Headers("Content-Type", "application/json").
 				Do(svr).
 				ExpectStatus(http.StatusUnprocessableEntity)
@@ -79,12 +79,12 @@ func TestPkgerHTTPServer(t *testing.T) {
 			tests := []struct {
 				name        string
 				contentType string
-				reqBody     fluxTTP.ReqApplyPkg
+				reqBody     pkger.ReqApplyPkg
 			}{
 				{
 					name:        "app json",
 					contentType: "application/json",
-					reqBody: fluxTTP.ReqApplyPkg{
+					reqBody: pkger.ReqApplyPkg{
 						DryRun: true,
 						OrgID:  influxdb.ID(9000).String(),
 						RawPkg: bucketPkgKinds(t, pkger.EncodingJSON),
@@ -92,7 +92,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				},
 				{
 					name: "defaults json when no content type",
-					reqBody: fluxTTP.ReqApplyPkg{
+					reqBody: pkger.ReqApplyPkg{
 						DryRun: true,
 						OrgID:  influxdb.ID(9000).String(),
 						RawPkg: bucketPkgKinds(t, pkger.EncodingJSON),
@@ -100,10 +100,10 @@ func TestPkgerHTTPServer(t *testing.T) {
 				},
 				{
 					name: "retrieves package from a URL",
-					reqBody: fluxTTP.ReqApplyPkg{
+					reqBody: pkger.ReqApplyPkg{
 						DryRun: true,
 						OrgID:  influxdb.ID(9000).String(),
-						Remote: fluxTTP.PkgRemote{
+						Remote: pkger.PkgRemote{
 							URL: "https://gist.githubusercontent.com/jsteenb2/3a3b2b5fcbd6179b2494c2b54aa2feb0/raw/989d361db7a851a3c388eaed0b59dce7fca7fdf3/bucket_pkg.json",
 						},
 					},
@@ -111,7 +111,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				{
 					name:        "app jsonnet",
 					contentType: "application/x-jsonnet",
-					reqBody: fluxTTP.ReqApplyPkg{
+					reqBody: pkger.ReqApplyPkg{
 						DryRun: true,
 						OrgID:  influxdb.ID(9000).String(),
 						RawPkg: bucketPkgKinds(t, pkger.EncodingJsonnet),
@@ -122,7 +122,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						DryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error) {
+						DryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
 							if err := pkg.Validate(); err != nil {
 								return pkger.Summary{}, pkger.Diff{}, err
 							}
@@ -137,7 +137,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						},
 					}
 
-					pkgHandler := fluxTTP.NewHandlerPkg(zap.NewNop(), fluxTTP.ErrorHandler(0), svc)
+					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -146,7 +146,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Do(svr).
 						ExpectStatus(http.StatusOK).
 						ExpectBody(func(buf *bytes.Buffer) {
-							var resp fluxTTP.RespApplyPkg
+							var resp pkger.RespApplyPkg
 							decodeBody(t, buf, &resp)
 
 							assert.Len(t, resp.Summary.Buckets, 1)
@@ -176,7 +176,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						DryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error) {
+						DryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
 							if err := pkg.Validate(); err != nil {
 								return pkger.Summary{}, pkger.Diff{}, err
 							}
@@ -191,7 +191,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						},
 					}
 
-					pkgHandler := fluxTTP.NewHandlerPkg(zap.NewNop(), fluxTTP.ErrorHandler(0), svc)
+					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					body := newReqApplyYMLBody(t, influxdb.ID(9000), true)
@@ -202,7 +202,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						Do(svr).
 						ExpectStatus(http.StatusOK).
 						ExpectBody(func(buf *bytes.Buffer) {
-							var resp fluxTTP.RespApplyPkg
+							var resp pkger.RespApplyPkg
 							decodeBody(t, buf, &resp)
 
 							assert.Len(t, resp.Summary.Buckets, 1)
@@ -217,7 +217,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 	t.Run("apply a pkg", func(t *testing.T) {
 		svc := &fakeSVC{
-			DryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error) {
+			DryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
 				if err := pkg.Validate(); err != nil {
 					return pkger.Summary{}, pkger.Diff{}, err
 				}
@@ -243,11 +243,11 @@ func TestPkgerHTTPServer(t *testing.T) {
 			},
 		}
 
-		pkgHandler := fluxTTP.NewHandlerPkg(zap.NewNop(), fluxTTP.ErrorHandler(0), svc)
+		pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
 		svr := newMountedHandler(pkgHandler, 1)
 
 		testttp.
-			PostJSON(t, "/api/v2/packages/apply", fluxTTP.ReqApplyPkg{
+			PostJSON(t, "/api/v2/packages/apply", pkger.ReqApplyPkg{
 				OrgID:   influxdb.ID(9000).String(),
 				Secrets: map[string]string{"secret1": "val1"},
 				RawPkg:  bucketPkgKinds(t, pkger.EncodingJSON),
@@ -255,7 +255,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			Do(svr).
 			ExpectStatus(http.StatusCreated).
 			ExpectBody(func(buf *bytes.Buffer) {
-				var resp fluxTTP.RespApplyPkg
+				var resp pkger.RespApplyPkg
 				decodeBody(t, buf, &resp)
 
 				assert.Len(t, resp.Summary.Buckets, 1)
@@ -326,7 +326,7 @@ func newReqApplyYMLBody(t *testing.T, orgID influxdb.ID, dryRun bool) *bytes.Buf
 	t.Helper()
 
 	var buf bytes.Buffer
-	err := yaml.NewEncoder(&buf).Encode(fluxTTP.ReqApplyPkg{
+	err := yaml.NewEncoder(&buf).Encode(pkger.ReqApplyPkg{
 		DryRun: dryRun,
 		OrgID:  orgID.String(),
 		RawPkg: bucketPkgKinds(t, pkger.EncodingYAML),
@@ -344,7 +344,7 @@ func decodeBody(t *testing.T, r io.Reader, v interface{}) {
 }
 
 type fakeSVC struct {
-	DryRunFn func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error)
+	DryRunFn func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error)
 	ApplyFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error)
 }
 
@@ -352,12 +352,12 @@ func (f *fakeSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn
 	panic("not implemented")
 }
 
-func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg) (pkger.Summary, pkger.Diff, error) {
+func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
 	if f.DryRunFn == nil {
 		panic("not implemented")
 	}
 
-	return f.DryRunFn(ctx, orgID, userID, pkg)
+	return f.DryRunFn(ctx, orgID, userID, pkg, opts...)
 }
 
 func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error) {
@@ -367,7 +367,7 @@ func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkg
 	return f.ApplyFn(ctx, orgID, userID, pkg, opts...)
 }
 
-func newMountedHandler(rh fluxTTP.ResourceHandler, userID influxdb.ID) chi.Router {
+func newMountedHandler(rh kithttp.ResourceHandler, userID influxdb.ID) chi.Router {
 	r := chi.NewRouter()
 	r.Mount(rh.Prefix(), authMW(userID)(rh))
 	return r

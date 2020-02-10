@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"net/http/httptest"
 	"testing"
 
@@ -68,7 +67,7 @@ func TestPaging_decodeFindOptions(t *testing.T) {
 			}
 			r.URL.RawQuery = qp.Encode()
 
-			opts, err := decodeFindOptions(context.Background(), r)
+			opts, err := decodeFindOptions(r)
 			if err != nil {
 				t.Errorf("%q failed, err: %s", tt.name, err.Error())
 			}
