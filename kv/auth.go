@@ -3,6 +3,7 @@ package kv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/buger/jsonparser"
@@ -14,9 +15,13 @@ var (
 	authBucket      = []byte("authorizationsv1")
 	authIndex       = []byte("authorizationindexv1")
 	authByUserIndex = []byte("authorizationbyuserindexv1")
-)
 
-var _ influxdb.AuthorizationService = (*Service)(nil)
+	_ influxdb.AuthorizationService = (*Service)(nil)
+
+	// ErrMissingUserFromFilter is returned when a lookup by user is performed
+	// but neither a user ID or user resource is provided
+	ErrMissingUserFromFilter = errors.New("no user parameter in filter")
+)
 
 func (s *Service) initializeAuths(ctx context.Context, tx Tx) error {
 	if _, err := tx.Bucket(authBucket); err != nil {
@@ -133,37 +138,25 @@ func (s *Service) findAuthorizationByToken(ctx context.Context, tx Tx, n string)
 	return s.findAuthorizationByID(ctx, tx, id)
 }
 
-// FindAuthorizationsByUser returns all authorizations associated to the specified user ID.
-// Note: it only searches the authorization by user index.
-func (s *Service) FindAuthorizationsByUser(ctx context.Context, userID influxdb.ID) (auths []*influxdb.Authorization, n int, err error) {
-	err = s.kv.View(ctx, func(tx Tx) error {
-		var err error
-		auths, err = s.findAuthorizationsByUser(ctx, tx, userID)
+func (s *Service) findAuthorizationsByUser(ctx context.Context, tx Tx, filter influxdb.AuthorizationFilter) (auths []*influxdb.Authorization, userID *influxdb.ID, err error) {
+	userID = filter.UserID
+	if userID == nil && filter.User != nil {
+		user, err := s.findUserByName(ctx, tx, *filter.User)
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
 
-		n = len(auths)
-
-		return nil
-	})
-
-	return
-}
-
-func (s *Service) findAuthorizationsByUser(ctx context.Context, tx Tx, userID influxdb.ID) (auths []*influxdb.Authorization, _ error) {
-	bkt, err := authIndexBucket(tx)
-	if err != nil {
-		return nil, err
+		userID = &user.ID
 	}
 
-	idx, err := authByUserIndexBucket(tx)
-	if err != nil {
-		return nil, err
+	if userID == nil {
+		err = ErrMissingUserFromFilter
+		return
 	}
 
 	var (
-		prefix       = authByUserIndexPrefix(userID)
+		prefix       = authByUserIndexPrefix(*userID)
+		filterFn     = filterAuthorizationsFn(filter)
 		wrapInternal = func(err error) *influxdb.Error {
 			return &influxdb.Error{
 				Code: influxdb.EInternal,
@@ -172,16 +165,26 @@ func (s *Service) findAuthorizationsByUser(ctx context.Context, tx Tx, userID in
 		}
 	)
 
+	bkt, err := tx.Bucket(authBucket)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	idx, err := authByUserIndexBucket(tx)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// index scan
 	cursor, err := idx.ForwardCursor(prefix, WithCursorPrefix(prefix))
 	if err != nil {
-		return nil, wrapInternal(err)
+		return nil, nil, wrapInternal(err)
 	}
 
 	for k, v := cursor.Next(); k != nil && v != nil; k, v = cursor.Next() {
 		v, err := bkt.Get(v)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		// preallocate Permissions to reduce multiple slice re-allocations
@@ -190,18 +193,20 @@ func (s *Service) findAuthorizationsByUser(ctx context.Context, tx Tx, userID in
 		}
 
 		if err := decodeAuthorization(v, a); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		auths = append(auths, a)
+		if filterFn(a) {
+			auths = append(auths, a)
+		}
 	}
 
 	if err := cursor.Err(); err != nil {
-		return nil, wrapInternal(err)
+		return nil, nil, wrapInternal(err)
 	}
 
 	if err := cursor.Close(); err != nil {
-		return nil, wrapInternal(err)
+		return nil, nil, wrapInternal(err)
 	}
 
 	return
@@ -321,29 +326,27 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter influxdb.Author
 		return []*influxdb.Authorization{a}, 1, nil
 	}
 
-	userID := filter.UserID
-	if userID == nil && filter.User != nil {
-		if err := s.kv.View(ctx, func(tx Tx) error {
-			user, err := s.findUserByName(ctx, tx, *filter.User)
-			if err != nil {
-				return err
-			}
+	var (
+		auths       []*influxdb.Authorization
+		err         error
+		findOptions []findOption
+	)
 
-			userID = &user.ID
-			return nil
+	if filter.UserID != nil || filter.User != nil {
+		var userID *influxdb.ID
+
+		// attempt index lookup
+		if err := s.kv.View(ctx, func(tx Tx) error {
+			auths, userID, err = s.findAuthorizationsByUser(ctx, tx, filter)
+			return err
 		}); err != nil {
-			return nil, 0, err
+			return nil, 0, &influxdb.Error{
+				Err: err,
+			}
 		}
 
-	}
-
-	var findOptions []findOption
-	// attempt index lookup
-	if userID != nil {
-		// if an error was returned or we found auths in index then return
-		auths, n, err := s.FindAuthorizationsByUser(ctx, *userID)
-		if err != nil || n > 0 {
-			return auths, n, err
+		if len(auths) > 0 {
+			return auths, len(auths), nil
 		}
 
 		// when found using full keyspace scan then publish authorization
@@ -356,14 +359,9 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter influxdb.Author
 		}))
 	}
 
-	as := []*influxdb.Authorization{}
-	err := s.kv.View(ctx, func(tx Tx) error {
-		auths, err := s.findAuthorizations(ctx, tx, filter, findOptions...)
-		if err != nil {
-			return err
-		}
-		as = auths
-		return nil
+	err = s.kv.View(ctx, func(tx Tx) error {
+		auths, err = s.findAuthorizations(ctx, tx, filter, findOptions...)
+		return err
 	})
 
 	if err != nil {
@@ -372,7 +370,7 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter influxdb.Author
 		}
 	}
 
-	return as, len(as), nil
+	return auths, len(auths), nil
 }
 
 type findConfig struct {
@@ -539,6 +537,11 @@ func (s *Service) putAuthorization(ctx context.Context, tx Tx, a *influxdb.Autho
 	// this should only be configurable via test package
 	// it is used to test behavior with empty caches
 	if !authDoSkipIndexOnPut(ctx) {
+		idx, err := authByUserIndexBucket(tx)
+		if err != nil {
+			return err
+		}
+
 		fk := authByUserIndexKey(a.UserID, a.ID)
 		if err := idx.Put([]byte(fk), encodedID); err != nil {
 			return &influxdb.Error{
