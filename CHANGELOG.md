@@ -1,3 +1,8 @@
+## v2.0.0-beta.4 [unreleased]
+
+### Features
+### Bug Fixes
+
 ## v2.0.0-beta.3 [2020-03-11]
 
 ### Features
