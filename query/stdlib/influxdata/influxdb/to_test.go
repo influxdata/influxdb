@@ -7,13 +7,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/dependencies/dependenciestest"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/querytest"
-	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values/valuestest"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
@@ -47,29 +45,8 @@ func TestTo_Query(t *testing.T) {
 							TimeColumn:        execute.DefaultTimeColLabel,
 							MeasurementColumn: influxdb.DefaultMeasurementColLabel,
 							FieldFn: interpreter.ResolvedFunction{
-								Scope: valuestest.NowScope(),
-								Fn: &semantic.FunctionExpression{
-									Block: &semantic.FunctionBlock{
-										Parameters: &semantic.FunctionParameters{
-											List: []*semantic.FunctionParameter{
-												{
-													Key: &semantic.Identifier{Name: "r"},
-												},
-											},
-										},
-										Body: &semantic.ObjectExpression{
-											Properties: []*semantic.Property{
-												{
-													Key: &semantic.Identifier{Name: "col"},
-													Value: &semantic.MemberExpression{
-														Object:   &semantic.IdentifierExpression{Name: "r"},
-														Property: "col",
-													},
-												},
-											},
-										},
-									},
-								},
+								Scope: valuestest.Scope(),
+								Fn:    executetest.FunctionExpression(t, `(r) => ({col: r.col})`),
 							},
 						},
 					},
@@ -416,29 +393,8 @@ m,tag1=c,tag2=ee _value=4 41`),
 					TimeColumn:        "_time",
 					MeasurementColumn: "_measurement",
 					FieldFn: interpreter.ResolvedFunction{
-						Scope: valuestest.NowScope(),
-						Fn: &semantic.FunctionExpression{
-							Block: &semantic.FunctionBlock{
-								Parameters: &semantic.FunctionParameters{
-									List: []*semantic.FunctionParameter{
-										{
-											Key: &semantic.Identifier{Name: "r"},
-										},
-									},
-								},
-								Body: &semantic.ObjectExpression{
-									Properties: []*semantic.Property{
-										{
-											Key: &semantic.Identifier{Name: "temperature"},
-											Value: &semantic.MemberExpression{
-												Object:   &semantic.IdentifierExpression{Name: "r"},
-												Property: "temperature",
-											},
-										},
-									},
-								},
-							},
-						},
+						Scope: valuestest.Scope(),
+						Fn:    executetest.FunctionExpression(t, `(r) => ({temperature: r.temperature})`),
 					},
 				},
 			},
@@ -489,57 +445,8 @@ c temperature=4 41`),
 					TimeColumn:        "_time",
 					MeasurementColumn: "tag",
 					FieldFn: interpreter.ResolvedFunction{
-						Scope: valuestest.NowScope(),
-						Fn: &semantic.FunctionExpression{
-							Block: &semantic.FunctionBlock{
-								Parameters: &semantic.FunctionParameters{
-									List: []*semantic.FunctionParameter{
-										{
-											Key: &semantic.Identifier{Name: "r"},
-										},
-									},
-								},
-								Body: &semantic.ObjectExpression{
-									Properties: []*semantic.Property{
-										{
-											Key: &semantic.Identifier{Name: "day"},
-											Value: &semantic.MemberExpression{
-												Object:   &semantic.IdentifierExpression{Name: "r"},
-												Property: "day",
-											},
-										},
-										{
-											Key: &semantic.Identifier{Name: "temperature"},
-											Value: &semantic.MemberExpression{
-												Object:   &semantic.IdentifierExpression{Name: "r"},
-												Property: "temperature",
-											},
-										},
-										{
-											Key: &semantic.Identifier{Name: "humidity"},
-											Value: &semantic.MemberExpression{
-												Object:   &semantic.IdentifierExpression{Name: "r"},
-												Property: "humidity",
-											},
-										},
-										{
-											Key: &semantic.Identifier{Name: "ratio"},
-											Value: &semantic.BinaryExpression{
-												Operator: ast.DivisionOperator,
-												Left: &semantic.MemberExpression{
-													Object:   &semantic.IdentifierExpression{Name: "r"},
-													Property: "temperature",
-												},
-												Right: &semantic.MemberExpression{
-													Object:   &semantic.IdentifierExpression{Name: "r"},
-													Property: "humidity",
-												},
-											},
-										},
-									},
-								},
-							},
-						},
+						Scope: valuestest.Scope(),
+						Fn:    executetest.FunctionExpression(t, `(r) => ({day: r.day, temperature: r.temperature, humidity: r.humidity, ratio: r.temperature / r.humidity})`),
 					},
 				},
 			},
@@ -595,36 +502,8 @@ c day="Friday",humidity=5,ratio=0.8,temperature=4 41`),
 					MeasurementColumn: "tag1",
 					TagColumns:        []string{"tag2"},
 					FieldFn: interpreter.ResolvedFunction{
-						Scope: valuestest.NowScope(),
-						Fn: &semantic.FunctionExpression{
-							Block: &semantic.FunctionBlock{
-								Parameters: &semantic.FunctionParameters{
-									List: []*semantic.FunctionParameter{
-										{
-											Key: &semantic.Identifier{Name: "r"},
-										},
-									},
-								},
-								Body: &semantic.ObjectExpression{
-									Properties: []*semantic.Property{
-										{
-											Key: &semantic.Identifier{Name: "temperature"},
-											Value: &semantic.MemberExpression{
-												Object:   &semantic.IdentifierExpression{Name: "r"},
-												Property: "temperature",
-											},
-										},
-										{
-											Key: &semantic.Identifier{Name: "humidity"},
-											Value: &semantic.MemberExpression{
-												Object:   &semantic.IdentifierExpression{Name: "r"},
-												Property: "humidity",
-											},
-										},
-									},
-								},
-							},
-						},
+						Scope: valuestest.Scope(),
+						Fn:    executetest.FunctionExpression(t, `(r) => ({temperature: r.temperature, humidity: r.humidity})`),
 					},
 				},
 			},
