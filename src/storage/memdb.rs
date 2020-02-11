@@ -590,7 +590,7 @@ impl SeriesStore for MemDB {
         range: &Range,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
-        self.read_range::<i64>(bucket_id, series_id, range, batch_size)
+        self.read_range(bucket_id, series_id, range, batch_size)
     }
 
     fn read_f64_range(
@@ -600,7 +600,7 @@ impl SeriesStore for MemDB {
         range: &Range,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
-        self.read_range::<f64>(bucket_id, series_id, range, batch_size)
+        self.read_range(bucket_id, series_id, range, batch_size)
     }
 }
 
