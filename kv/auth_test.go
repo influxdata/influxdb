@@ -5,7 +5,10 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/snowflake"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -27,7 +30,7 @@ func initBoltAuthorizationService(f influxdbtesting.AuthorizationFields, t *test
 	}
 }
 
-func initAuthorizationService(s kv.Store, f influxdbtesting.AuthorizationFields, t *testing.T) (influxdb.AuthorizationService, string, func()) {
+func initAuthorizationService(s kv.Store, f influxdbtesting.AuthorizationFields, t testable) (influxdb.AuthorizationService, string, func()) {
 	var (
 		ctx = context.Background()
 		svc = kv.NewService(zaptest.NewLogger(t), s, kv.ServiceConfigForTest())
@@ -83,4 +86,82 @@ func initAuthorizationService(s kv.Store, f influxdbtesting.AuthorizationFields,
 			}
 		}
 	}
+}
+
+func Test_AuthorizationService_FindAuthorizations_ByUserIndex(t *testing.T) {
+	var (
+		idgen           = snowflake.NewDefaultIDGenerator()
+		userOneID, _    = influxdb.IDFromString("05392292e0f9f000")
+		userTwoID       = idgen.ID()
+		orgOneID        = idgen.ID()
+		authOneID, _    = influxdb.IDFromString("05392292e0f9f001")
+		authTwoID       = idgen.ID()
+		authThreeID, _  = influxdb.IDFromString("05392292e0f9f003")
+		encodedOne, _   = authOneID.Encode()
+		encodedThree, _ = authThreeID.Encode()
+		fields          = influxdbtesting.AuthorizationFields{
+			Users: []*platform.User{
+				{
+					Name: "cooluser",
+					ID:   *userOneID,
+				},
+				{
+					Name: "regularuser",
+					ID:   userTwoID,
+				},
+			},
+			Orgs: []*platform.Organization{
+				{
+					Name: "o1",
+					ID:   orgOneID,
+				},
+			},
+			Authorizations: []*platform.Authorization{
+				{
+					ID:     *authOneID,
+					UserID: *userOneID,
+					OrgID:  orgOneID,
+					Token:  "rand1",
+					Status: platform.Active,
+				},
+				{
+					ID:     authTwoID,
+					UserID: userTwoID,
+					OrgID:  orgOneID,
+					Token:  "rand2",
+				},
+				{
+					ID:     *authThreeID,
+					UserID: *userOneID,
+					OrgID:  orgOneID,
+					Token:  "rand3",
+				},
+			},
+			// given the index is not initially populated
+			AuthsPopulateIndexOnPut: false,
+		}
+		st = inmem.NewKVStore()
+	)
+
+	initAuthorizationService(st, fields, t)
+
+	svc := kv.NewService(zaptest.NewLogger(t), st, kv.ServiceConfigForTest())
+	svc.FindAuthorizations(context.Background(), influxdb.AuthorizationFilter{
+		UserID: userOneID,
+	})
+
+	// expect indexer to have been called with following args
+	kv.AssertIndexesWereCreated(t,
+		svc,
+		kv.AddToIndexCall{
+			Bucket: []byte("authorizationbyuserindexv1"),
+			Keys: map[string][]byte{
+				"05392292e0f9f000/05392292e0f9f001": encodedOne,
+			},
+		}, kv.AddToIndexCall{
+			Bucket: []byte("authorizationbyuserindexv1"),
+			Keys: map[string][]byte{
+				"05392292e0f9f000/05392292e0f9f003": encodedThree,
+			},
+		})
 }

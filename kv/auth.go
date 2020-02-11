@@ -378,9 +378,15 @@ type findConfig struct {
 }
 
 func newFindConfig(opts ...findOption) findConfig {
-	return findConfig{
+	config := findConfig{
 		visit: func(*influxdb.Authorization) {},
 	}
+
+	for _, opt := range opts {
+		opt(&config)
+	}
+
+	return config
 }
 
 type findOption func(*findConfig)

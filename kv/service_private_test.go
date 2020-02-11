@@ -20,6 +20,8 @@ func AuthSkipIndexOnPut(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authSkipIndexOnPutContextKey{}, struct{}{})
 }
 
+// AssertIndexesWereCreated allows locally defined tests in external packages
+// to perform introspection on how the indexer was called during the test
 func AssertIndexesWereCreated(t *testing.T, service *Service, calls ...AddToIndexCall) {
 	idx, ok := service.indexer.(*spyIndexer)
 	if !ok {
@@ -44,6 +46,6 @@ func (m *spyIndexer) AddToIndex(bkt []byte, keys map[string][]byte) {
 }
 
 type AddToIndexCall struct {
-	bucket []byte
-	keys   map[string][]byte
+	Bucket []byte
+	Keys   map[string][]byte
 }
