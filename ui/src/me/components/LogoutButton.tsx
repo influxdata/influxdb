@@ -16,7 +16,7 @@ const LogoutButton: SFC = () => (
       </Link>
     </CloudExclude>
     <CloudOnly>
-      <a href={`${CLOUD_URL}${CLOUD_LOGOUT_PATH}`>
+      <a href={`${CLOUD_URL}${CLOUD_LOGOUT_PATH}`}>
         <Button text="Logout" size={ComponentSize.ExtraSmall} />
       </a>
     </CloudOnly>

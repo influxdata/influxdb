@@ -54,7 +54,7 @@ export const GIT_SHA = process.env.GIT_SHA
 export const BASE_PATH = process.env.STATIC_PREFIX
 export const API_BASE_PATH = process.env.API_PREFIX
 
-export const CLOUD = !!(process.env.CLOUD_URL)
+export const CLOUD = !!process.env.CLOUD_URL
 export const CLOUD_SIGNIN_PATHNAME = '/api/v2/signin'
 export const CLOUD_BILLING_VISIBLE = CLOUD
 export const CLOUD_URL = process.env.CLOUD_URL
