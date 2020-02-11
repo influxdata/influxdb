@@ -1,7 +1,9 @@
-export const tokenizeFlux = monaco => {
-  monaco.languages.register({id: 'flux'})
+import {FLUXLANGID} from 'src/types'
 
-  monaco.languages.setMonarchTokensProvider('flux', {
+export const tokenizeFlux = monaco => {
+  monaco.languages.register({id: FLUXLANGID})
+
+  monaco.languages.setMonarchTokensProvider(FLUXLANGID, {
     keywords: ['from', 'range', 'filter', 'to'],
     tokenizer: {
       root: [

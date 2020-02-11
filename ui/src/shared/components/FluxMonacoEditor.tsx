@@ -1,20 +1,24 @@
 // Libraries
-import React, {FC, useEffect, useRef} from 'react'
-import {Server} from '@influxdata/flux-lsp-browser'
-import {get} from 'lodash'
+import React, {FC, useEffect, useRef, useState} from 'react'
 
 // Components
 import MonacoEditor from 'react-monaco-editor'
 
 // Utils
 import addFluxTheme, {THEME_NAME} from 'src/external/monaco.fluxTheme'
-// import {addSnippets} from 'src/external/monaco.fluxCompletions'
+import {registerCompletion} from 'src/external/monaco.fluxCompletions'
 import {addSyntax} from 'src/external/monaco.fluxSyntax'
-import {OnChangeScript} from 'src/types/flux'
 import {addKeyBindings} from 'src/external/monaco.keyBindings'
+import {
+  sendMessage,
+  initialize,
+  didChange,
+  didOpen,
+} from 'src/external/monaco.lspMessages'
 
 // Types
-import {MonacoType, EditorType} from 'src/types'
+import {OnChangeScript} from 'src/types/flux'
+import {MonacoType, EditorType, FLUXLANGID, Server} from 'src/types'
 
 import './FluxMonacoEditor.scss'
 
@@ -30,71 +34,6 @@ interface Props {
   onCursorChange?: (position: Position) => void
 }
 
-const initialize = {
-  jsonrpc: '2.0',
-  id: 1,
-  method: 'initialize',
-  params: {},
-}
-
-const didOpen = {
-  jsonrpc: '2.0',
-  id: 1,
-  method: 'textDocument/didOpen',
-  params: {
-    textDocument: {
-      uri: 'editor',
-      languageId: 'flux',
-      version: 0,
-      text: 'from.',
-    },
-  },
-}
-
-const didChange = (newText: string) => ({
-  jsonrpc: '2.0',
-  id: 2,
-  method: 'textDocument/didChange',
-  params: {
-    textDocument: {
-      uri: 'editor',
-      version: 1,
-    },
-    contentChanges: [
-      {
-        text: newText,
-      },
-    ],
-  },
-})
-
-const parseResponse = resp => {
-  const message = resp.get_message()
-  if (message) {
-    const split = message.split('\n')
-    return get(split, '2', 'unknown response')
-  } else {
-    const error = resp.get_error()
-    const split = error.split('\n')
-    return get(split, '2', 'unknown error')
-  }
-}
-
-const sendMessage = (message, server) => {
-  const stringifiedMessage = JSON.stringify(message)
-  const size = stringifiedMessage.length
-
-  const resp = server.process(
-    `Content-Length: ${size}\r\n\r\n` + stringifiedMessage
-  )
-
-  parseResponse(resp)
-  const m = resp.get_message()
-  const n = m.split('\n')
-  console.log('message', JSON.parse(n[2]))
-  console.log('error', resp.get_error())
-}
-
 const FluxEditorMonaco: FC<Props> = ({
   script,
   onChangeScript,
@@ -102,41 +41,19 @@ const FluxEditorMonaco: FC<Props> = ({
   onCursorChange,
 }) => {
   const lspServer = useRef(new Server(false))
+  const [docVersion, setdocVersion] = useState(2)
+  const [msgID, setmsgID] = useState(3)
 
   useEffect(() => {
     sendMessage(initialize, lspServer.current)
-    sendMessage(didOpen, lspServer.current)
+    sendMessage(didOpen(script), lspServer.current)
   }, [])
 
   const editorWillMount = (monaco: MonacoType) => {
-    monaco.languages.register({id: 'flux'})
-
+    monaco.languages.register({id: FLUXLANGID})
     addFluxTheme(monaco)
     addSyntax(monaco)
-    // addSnippets(monaco)
-
-    monaco.languages.registerCompletionItemProvider('flux', {
-      provideCompletionItems: () => {
-        return {
-          suggestions: [
-            {
-              label: 'from',
-              kind: monaco.languages.CompletionItemKind.Snippet,
-              insertText: ['from(bucket: ${1})', '\t|>'].join('\n'),
-              insertTextRules:
-                monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-              documentation: 'From-Statement',
-              range: {
-                startLineNumber: 1,
-                startColumn: 1,
-                endColumn: 6,
-                endLineNumber: 1,
-              },
-            },
-          ],
-        }
-      },
-    })
+    registerCompletion(monaco, lspServer.current)
   }
 
   const editorDidMount = (editor: EditorType, monaco: MonacoType) => {
@@ -164,14 +81,16 @@ const FluxEditorMonaco: FC<Props> = ({
   }
 
   const onChange = (text: string) => {
-    sendMessage(didChange(text), lspServer.current)
+    sendMessage(didChange(text, docVersion, msgID), lspServer.current)
+    setdocVersion(docVersion + 1)
+    setmsgID(msgID + 1)
     onChangeScript(text)
   }
 
   return (
     <div className="time-machine-editor" data-testid="flux-editor">
       <MonacoEditor
-        language="flux"
+        language={FLUXLANGID}
         theme={THEME_NAME}
         value={script}
         onChange={onChange}

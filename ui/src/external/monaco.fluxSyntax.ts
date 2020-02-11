@@ -3,7 +3,7 @@ import {Registry} from 'monaco-textmate' // peer dependency
 import {wireTmGrammars} from 'monaco-editor-textmate'
 
 // Types
-import {MonacoType} from 'src/types'
+import {MonacoType, FLUXLANGID} from 'src/types'
 
 export async function addSyntax(monaco: MonacoType) {
   await loader()
@@ -23,9 +23,9 @@ export async function addSyntax(monaco: MonacoType) {
 
   // map of monaco "language id's" to TextMate scopeNames
   const grammars = new Map()
-  grammars.set('flux', 'flux')
+  grammars.set(FLUXLANGID, FLUXLANGID)
 
-  monaco.languages.setLanguageConfiguration('flux', {
+  monaco.languages.setLanguageConfiguration(FLUXLANGID, {
     autoClosingPairs: [{open: '"', close: '"'}, {open: '[', close: ']'}],
   })
 
