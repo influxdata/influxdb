@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"sort"
 	"time"
 
 	"github.com/NYTimes/gziphandler"
@@ -27,6 +28,7 @@ import (
 	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/query/influxql"
 	"github.com/pkg/errors"
 	prom "github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -55,7 +57,10 @@ func NewFluxBackend(log *zap.Logger, b *APIBackend) *FluxBackend {
 		log:                log,
 		QueryEventRecorder: b.QueryEventRecorder,
 
-		ProxyQueryService:   b.FluxService,
+		ProxyQueryService: routingQueryService{
+			InfluxQLService: b.InfluxQLService,
+			DefaultService:  b.FluxService,
+		},
 		OrganizationService: b.OrganizationService,
 	}
 }
@@ -607,4 +612,39 @@ func QueryHealthCheck(url string, insecureSkipVerify bool) check.Response {
 	}
 
 	return healthResponse
+}
+
+// routingQueryService routes queries to specific query services based on their compiler type.
+type routingQueryService struct {
+	// InfluxQLService handles queries with compiler type of "influxql"
+	InfluxQLService query.ProxyQueryService
+	// DefaultService handles all other queries
+	DefaultService query.ProxyQueryService
+}
+
+func (s routingQueryService) Check(ctx context.Context) check.Response {
+	// Produce combined check response
+	response := check.Response{
+		Name:   "internal-routingQueryService",
+		Status: check.StatusPass,
+	}
+	def := s.DefaultService.Check(ctx)
+	influxql := s.InfluxQLService.Check(ctx)
+	if def.Status == check.StatusFail {
+		response.Status = def.Status
+		response.Message = def.Message
+	} else if influxql.Status == check.StatusFail {
+		response.Status = influxql.Status
+		response.Message = influxql.Message
+	}
+	response.Checks = []check.Response{def, influxql}
+	sort.Sort(response.Checks)
+	return response
+}
+
+func (s routingQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
+	if req.Request.Compiler.CompilerType() == influxql.CompilerType {
+		return s.InfluxQLService.Query(ctx, w, req)
+	}
+	return s.DefaultService.Query(ctx, w, req)
 }
