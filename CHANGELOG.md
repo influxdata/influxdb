@@ -3,7 +3,7 @@
 ### Features
 ### Bug Fixes
 
-## v2.0.0-beta.3 [2020-03-11]
+## v2.0.0-beta.3 [2020-02-11]
 
 ### Features
 
