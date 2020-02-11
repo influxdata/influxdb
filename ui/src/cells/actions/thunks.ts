@@ -123,8 +123,9 @@ export const createCellWithView = (
 
     dispatch(setView(cellID, RemoteDataState.Done, normView))
     dispatch(setCell(cellID, RemoteDataState.Done, normCell))
-  } catch {
+  } catch (err) {
     notify(copy.cellAddFailed())
+    throw err
   }
 }
 

@@ -217,6 +217,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
       onCreateCellWithView(resp.data.id, view)
     } catch (error) {
       console.error(error)
+      throw error
     }
   }
 
