@@ -16,7 +16,7 @@ pub fn parse_predicate(val: &str) -> Result<Predicate, StorageError> {
     Ok(predicate)
 }
 
-fn parse_node(chars: &mut Peekable<Chars>) -> Result<Node, StorageError> {
+fn parse_node(chars: &mut Peekable<Chars<'_>>) -> Result<Node, StorageError> {
     eat_whitespace(chars);
 
     let left = parse_key(chars)?;
@@ -50,7 +50,7 @@ fn parse_node(chars: &mut Peekable<Chars>) -> Result<Node, StorageError> {
     Ok(node)
 }
 
-fn parse_key(chars: &mut Peekable<Chars>) -> Result<String, StorageError> {
+fn parse_key(chars: &mut Peekable<Chars<'_>>) -> Result<String, StorageError> {
     let mut key = String::new();
 
     loop {
@@ -72,7 +72,7 @@ fn parse_key(chars: &mut Peekable<Chars>) -> Result<String, StorageError> {
     })
 }
 
-fn parse_comparison(chars: &mut Peekable<Chars>) -> Result<Comparison, StorageError> {
+fn parse_comparison(chars: &mut Peekable<Chars<'_>>) -> Result<Comparison, StorageError> {
     if let Some(ch) = chars.next() {
         let comp = match ch {
             '>' => match chars.peek() {
@@ -119,7 +119,7 @@ fn parse_comparison(chars: &mut Peekable<Chars>) -> Result<Comparison, StorageEr
     })
 }
 
-fn parse_value(chars: &mut Peekable<Chars>) -> Result<Value, StorageError> {
+fn parse_value(chars: &mut Peekable<Chars<'_>>) -> Result<Value, StorageError> {
     eat_whitespace(chars);
     let mut val = String::new();
 
@@ -146,7 +146,7 @@ fn parse_value(chars: &mut Peekable<Chars>) -> Result<Value, StorageError> {
     })
 }
 
-fn parse_logical(chars: &mut Peekable<Chars>) -> Result<Option<node::Logical>, StorageError> {
+fn parse_logical(chars: &mut Peekable<Chars<'_>>) -> Result<Option<node::Logical>, StorageError> {
     eat_whitespace(chars);
 
     if let Some(ch) = chars.next() {
@@ -207,7 +207,7 @@ fn parse_logical(chars: &mut Peekable<Chars>) -> Result<Option<node::Logical>, S
     Ok(None)
 }
 
-fn eat_whitespace(chars: &mut Peekable<Chars>) {
+fn eat_whitespace(chars: &mut Peekable<Chars<'_>>) {
     while let Some(&ch) = chars.peek() {
         if ch.is_whitespace() {
             let _ = chars.next();

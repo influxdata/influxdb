@@ -32,7 +32,7 @@ pub struct StorageError {
 }
 
 impl fmt::Display for StorageError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.description)
     }
 }

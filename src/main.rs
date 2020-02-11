@@ -1,3 +1,5 @@
+#![deny(rust_2018_idioms)]
+
 use delorean::delorean::Bucket;
 use delorean::line_parser;
 use delorean::line_parser::index_pairs;
