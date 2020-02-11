@@ -99,7 +99,6 @@ export const createCellWithView = (
 
     // Create the cell
     const cellResp = await api.postDashboardsCell({dashboardID, data: cell})
-
     if (cellResp.status !== 201) {
       throw new Error(cellResp.data.message)
     }
@@ -123,8 +122,9 @@ export const createCellWithView = (
 
     dispatch(setView(cellID, RemoteDataState.Done, normView))
     dispatch(setCell(cellID, RemoteDataState.Done, normCell))
-  } catch {
+  } catch (err) {
     notify(copy.cellAddFailed())
+    throw err
   }
 }
 
