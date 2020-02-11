@@ -1,9 +1,11 @@
 export {}
+const path = require('path')
 const merge = require('webpack-merge')
 const common = require('./webpack.common.ts')
 const PORT = parseInt(process.env.PORT, 10) || 8080
 const PUBLIC = process.env.PUBLIC || undefined
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
+const webpack = require('webpack')
 
 module.exports = merge(common, {
   mode: 'development',
