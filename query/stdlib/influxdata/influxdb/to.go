@@ -675,7 +675,7 @@ func defaultFieldMapping(er flux.ColReader, row int) (values.Object, error) {
 	field := execute.ValueForRow(er, row, fieldColumnIdx)
 	props := []semantic.PropertyType{
 		{
-			Key: []byte(field.Str()),
+			Key:   []byte(field.Str()),
 			Value: value.Type(),
 		},
 	}
