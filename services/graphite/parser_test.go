@@ -21,7 +21,6 @@ func BenchmarkParse(b *testing.B) {
 		"influxd.*.foo .host.measurement*",
 		"prod.*.mem .host.measurement*",
 	}, nil)
-
 	if err != nil {
 		b.Fatalf("unexpected error creating parser, got %v", err)
 	}
@@ -32,7 +31,7 @@ func BenchmarkParse(b *testing.B) {
 }
 
 func TestTemplateApply(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		test        string
 		input       string
 		template    string
@@ -146,7 +145,7 @@ func TestParse(t *testing.T) {
 	epochTime := testTime.Unix()
 	strTime := strconv.FormatInt(epochTime, 10)
 
-	var tests = []struct {
+	tests := []struct {
 		test        string
 		input       string
 		measurement string
@@ -390,7 +389,8 @@ func TestFilterMatchWildcard(t *testing.T) {
 func TestFilterMatchExactBeforeWildcard(t *testing.T) {
 	p, err := graphite.NewParser([]string{
 		"servers.* .wrong.measurement*",
-		"servers.localhost .host.measurement*"}, nil)
+		"servers.localhost .host.measurement*",
+	}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
@@ -418,7 +418,6 @@ func TestFilterMatchMostLongestFilter(t *testing.T) {
 		"servers.localhost.cpu .host.resource.measurement*", // should match this
 		"*.localhost .wrong.measurement*",
 	}, nil)
-
 	if err != nil {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
@@ -445,7 +444,6 @@ func TestFilterMatchMultipleWildcards(t *testing.T) {
 		"servers.localhost .wrong.measurement*",
 		"*.localhost .wrong.measurement*",
 	}, nil)
-
 	if err != nil {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}

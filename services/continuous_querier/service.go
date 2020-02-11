@@ -272,7 +272,7 @@ func (s *Service) runContinuousQueries(req *RunRequest) {
 // ExecuteContinuousQuery may execute a single CQ. This will return false if there were no errors and the CQ was not run.
 func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.ContinuousQueryInfo, now time.Time) (bool, error) {
 	// TODO: re-enable stats
-	//s.stats.Inc("continuousQueryExecuted")
+	// s.stats.Inc("continuousQueryExecuted")
 
 	// Local wrapper / helper.
 	cq, err := NewContinuousQuery(dbi.Name, cqi)

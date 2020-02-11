@@ -444,7 +444,6 @@ func TestHandler_Query_ErrAuthorize(t *testing.T) {
 	}
 	h.MetaClient.AdminUserExistsFn = func() bool { return true }
 	h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
-
 		users := []meta.UserInfo{
 			{
 				Name:  "admin",
@@ -1358,7 +1357,6 @@ func TestHandler_Flux_QueryText(t *testing.T) {
 }
 
 func TestHandler_Flux(t *testing.T) {
-
 	queryBytes := func(qs string) io.Reader {
 		var b bytes.Buffer
 		q := &client.QueryRequest{Query: qs}
@@ -1679,7 +1677,7 @@ func TestHandler_XRequestId(t *testing.T) {
 			req.RemoteAddr = "127.0.0.1"
 
 			// Set the relevant request ID headers
-			var allEmpty = true
+			allEmpty := true
 			for k, v := range c {
 				req.Header.Set(k, v)
 				if v != "" {

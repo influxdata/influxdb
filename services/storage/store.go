@@ -19,9 +19,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	ErrMissingReadSource = errors.New("missing ReadSource")
-)
+var ErrMissingReadSource = errors.New("missing ReadSource")
 
 // GetReadSource will attempt to unmarshal a ReadSource from the ReadRequest or
 // return an error if no valid resource is present.

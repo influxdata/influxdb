@@ -35,6 +35,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	t.Logf("setting point.")
 	points, err := models.ParsePointsString(`cpu value=1`)
 	if err != nil {
 		t.Fatal(err)

@@ -827,7 +827,6 @@ func (data *Data) ImportData(other Data, backupDBName, restoreDBName, backupRPNa
 
 // importOneDB imports a single database/rp from an external metadata object, renaming them if new names are provided.
 func (data *Data) importOneDB(other Data, backupDBName, restoreDBName, backupRPName, restoreRPName string, shardIDMap map[uint64]uint64) (string, error) {
-
 	dbPtr := other.Database(backupDBName)
 	if dbPtr == nil {
 		return "", fmt.Errorf("imported metadata does not have datbase named %s", backupDBName)
@@ -1168,7 +1167,7 @@ func (rpi *RetentionPolicyInfo) ShardGroupByTimestamp(timestamp time.Time) *Shar
 
 // ExpiredShardGroups returns the Shard Groups which are considered expired, for the given time.
 func (rpi *RetentionPolicyInfo) ExpiredShardGroups(t time.Time) []*ShardGroupInfo {
-	var groups = make([]*ShardGroupInfo, 0)
+	groups := make([]*ShardGroupInfo, 0)
 	for i := range rpi.ShardGroups {
 		if rpi.ShardGroups[i].Deleted() {
 			continue
@@ -1182,7 +1181,7 @@ func (rpi *RetentionPolicyInfo) ExpiredShardGroups(t time.Time) []*ShardGroupInf
 
 // DeletedShardGroups returns the Shard Groups which are marked as deleted.
 func (rpi *RetentionPolicyInfo) DeletedShardGroups() []*ShardGroupInfo {
-	var groups = make([]*ShardGroupInfo, 0)
+	groups := make([]*ShardGroupInfo, 0)
 	for i := range rpi.ShardGroups {
 		if rpi.ShardGroups[i].Deleted() {
 			groups = append(groups, &rpi.ShardGroups[i])

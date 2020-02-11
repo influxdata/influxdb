@@ -342,7 +342,6 @@ func (s *Service) Addr() net.Addr {
 
 // serve serves the handler from the listener.
 func (s *Service) serve(ctx context.Context) error {
-
 	conChan := make(chan net.Conn)
 	errChan := make(chan error)
 

@@ -70,7 +70,6 @@ func (a *QueryAuthorizer) AuthorizeDatabase(u User, priv influxql.Privilege, dat
 }
 
 func (u *UserInfo) AuthorizeQuery(database string, query *influxql.Query) error {
-
 	// Admin privilege allows the user to execute all statements.
 	if u.Admin {
 		return nil

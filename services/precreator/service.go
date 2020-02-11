@@ -53,12 +53,18 @@ func (s *Service) Open() error {
 
 func (s *Service) Close() error {
 	s.cancel()
-	return <-s.errChan
+	err, ok := <-s.errChan
+
+	if !ok {
+		return nil
+	}
+
+	close(s.errChan)
+	return err
 }
 
 // Open starts the precreation service.
 func (s *Service) Run(ctx context.Context, reg services.Registry) error {
-
 	s.Logger.Info("Starting precreation service",
 		logger.DurationLiteral("check_interval", s.checkInterval),
 		logger.DurationLiteral("advance_period", s.advancePeriod))

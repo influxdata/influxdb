@@ -45,7 +45,6 @@ type Options struct {
 
 // NewParserWithOptions returns a graphite parser using the given options.
 func NewParserWithOptions(options Options) (*Parser, error) {
-
 	matcher := newMatcher()
 	matcher.AddDefaultTemplate(defaultTemplate)
 

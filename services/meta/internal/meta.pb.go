@@ -55,14 +55,18 @@ It has these top-level messages:
 */
 package meta
 
-import proto "github.com/gogo/protobuf/proto"
-import fmt "fmt"
-import math "math"
+import (
+	proto "github.com/gogo/protobuf/proto"
+	fmt "fmt"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
-var _ = proto.Marshal
-var _ = fmt.Errorf
-var _ = math.Inf
+var (
+	_ = proto.Marshal
+	_ = fmt.Errorf
+	_ = math.Inf
+)
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the proto package it is being compiled against.
@@ -135,6 +139,7 @@ var Command_Type_name = map[int32]string{
 	29: "SetMetaNodeCommand",
 	30: "DropShardCommand",
 }
+
 var Command_Type_value = map[string]int32{
 	"CreateNodeCommand":                1,
 	"DeleteNodeCommand":                2,
@@ -172,9 +177,11 @@ func (x Command_Type) Enum() *Command_Type {
 	*p = x
 	return p
 }
+
 func (x Command_Type) String() string {
 	return proto.EnumName(Command_Type_name, int32(x))
 }
+
 func (x *Command_Type) UnmarshalJSON(data []byte) error {
 	value, err := proto.UnmarshalJSONEnum(Command_Type_value, data, "Command_Type")
 	if err != nil {

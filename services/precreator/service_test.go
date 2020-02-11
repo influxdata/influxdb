@@ -30,6 +30,7 @@ func TestShardPrecreation(t *testing.T) {
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
 	}
+
 	defer s.Close() // double close should not cause a panic
 
 	timer := time.NewTimer(100 * time.Millisecond)

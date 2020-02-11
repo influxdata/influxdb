@@ -1313,7 +1313,7 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 func (h *Handler) logFluxQuery(n int64, stats flux.Statistics, compiler flux.Compiler, err error) {
 	var q string
 	switch c := compiler.(type) {
-	//case lang.SpecCompiler:
+	// case lang.SpecCompiler:
 	//	q = fmt.Sprint(flux.Formatted(c.Spec))
 	case lang.FluxCompiler:
 		q = c.Query

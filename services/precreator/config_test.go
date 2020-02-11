@@ -16,7 +16,6 @@ enabled = true
 check-interval = "2m"
 advance-period = "10m"
 `, &c); err != nil {
-
 		t.Fatal(err)
 	}
 

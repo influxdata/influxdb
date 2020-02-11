@@ -5,9 +5,7 @@ import (
 	"io"
 )
 
-var (
-	errTruncated = errors.New("Read: truncated")
-)
+var errTruncated = errors.New("Read: truncated")
 
 // truncateReader returns a Reader that reads from r
 // but stops with ErrTruncated after n bytes.

@@ -75,12 +75,12 @@ func NewService(c Config) *Service {
 		parserChan:  make(chan []byte, parserChanLen),
 		Logger:      zap.NewNop(),
 		stats:       &Statistics{},
+		errChan:     make(chan error),
 		defaultTags: models.StatisticTags{"bind": d.BindAddress},
 	}
 }
 
 func (s *Service) Open() error {
-	s.errChan = make(chan error)
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	ready := make(chan struct{})
 	go func() { s.errChan <- s.RunWithReady(s.ctx, ready, services.NewRegistry()) }()
@@ -98,10 +98,8 @@ func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 	ready := make(chan struct{})
 	return s.RunWithReady(ctx, ready, reg)
 }
-func (s *Service) RunWithReady(ctx context.Context, ready chan struct{}, reg services.Registry) (err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
+func (s *Service) RunWithReady(ctx context.Context, ready chan struct{}, reg services.Registry) (err error) {
 	if s.config.BindAddress == "" {
 		return errors.New("bind address has to be specified in config")
 	}
@@ -181,6 +179,8 @@ func (s *Service) writer(ctx context.Context) {
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case batch := <-s.batcher.Out():
 			// Will attempt to create database if not yet created.
 			if err := s.createInternalStorage(); err != nil {
@@ -197,33 +197,46 @@ func (s *Service) writer(ctx context.Context) {
 					logger.Database(s.config.Database), zap.Error(err))
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
-		case <-ctx.Done():
-			return
 		}
 	}
 }
 
 func (s *Service) serve(ctx context.Context) {
 	defer s.wg.Done()
-
 	buf := make([]byte, MaxUDPPayload)
+
+	type readpayload struct {
+		nbytes int
+		err    error
+	}
+
+	payloadChan := make(chan readpayload)
+
+	go func() {
+		for {
+			payload := readpayload{}
+			payload.nbytes, _, payload.err = s.conn.ReadFromUDP(buf)
+			payloadChan <- payload
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
 			// We closed the connection, time to go.
+			s.conn.Close()
 			return
-		default:
+		case payload := <-payloadChan:
 			// Keep processing.
-			n, _, err := s.conn.ReadFromUDP(buf)
-			if err != nil {
+			if payload.err != nil {
 				atomic.AddInt64(&s.stats.ReadFail, 1)
-				s.Logger.Info("Failed to read UDP message", zap.Error(err))
+				s.Logger.Info("Failed to read UDP message", zap.Error(payload.err))
 				continue
 			}
-			atomic.AddInt64(&s.stats.BytesReceived, int64(n))
+			atomic.AddInt64(&s.stats.BytesReceived, int64(payload.nbytes))
 
-			bufCopy := make([]byte, n)
-			copy(bufCopy, buf[:n])
+			bufCopy := make([]byte, payload.nbytes)
+			copy(bufCopy, buf[:payload.nbytes])
 			s.parserChan <- bufCopy
 		}
 	}

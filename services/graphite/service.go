@@ -5,7 +5,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"log"
 	"math"
 	"net"
 	"strings"
@@ -115,14 +114,15 @@ func NewService(c Config) (*Service, error) {
 		stats:           &Statistics{},
 		defaultTags:     models.StatisticTags{"proto": d.Protocol, "bind": d.BindAddress},
 		tcpConnections:  make(map[string]*tcpConnection),
+		errChan:         make(chan error),
 		diagsKey:        strings.Join([]string{"graphite", d.Protocol, d.BindAddress}, ":"),
 	}
 
 	parser, err := NewParserWithOptions(Options{
 		Templates:   d.Templates,
 		DefaultTags: d.DefaultTags(),
-		Separator:   d.Separator})
-
+		Separator:   d.Separator,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -132,12 +132,10 @@ func NewService(c Config) (*Service, error) {
 }
 
 func (s *Service) Open() error {
-	log.Printf("OPEN")
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
 	ready := make(chan struct{})
 	go func() { s.errChan <- s.RunWithReady(s.ctx, ready, nil) }()
-	log.Printf("waiting for ready signal")
 	<-ready
 	return nil
 }
@@ -146,6 +144,7 @@ func (s *Service) Close() error {
 	s.cancel()
 	return <-s.errChan
 }
+
 func (s *Service) Run(ctx context.Context, reg services.Registry) error {
 	ready := make(chan struct{})
 	return s.RunWithReady(ctx, ready, reg)
@@ -163,7 +162,6 @@ func (s *Service) RunWithReady(ctx context.Context, ready chan struct{}, reg ser
 	}
 
 	s.batcher = tsdb.NewPointBatcher(s.batchSize, s.batchPending, s.batchTimeout)
-	log.Printf("starting batcher.")
 	s.batcher.Start()
 
 	// Start processing batches.
@@ -192,7 +190,8 @@ func (s *Service) RunWithReady(ctx context.Context, ready chan struct{}, reg ser
 	close(ready)
 	<-ctx.Done()
 
-	return s.cleanup()
+	err = s.cleanup()
+	return err
 }
 
 func (s *Service) closeAllConnections() {
@@ -205,33 +204,24 @@ func (s *Service) closeAllConnections() {
 
 // Close stops all data processing on the Graphite input.
 func (s *Service) cleanup() error {
-	if wait := func() bool {
-		s.mu.Lock()
-		defer s.mu.Unlock()
+	s.closeAllConnections()
 
-		s.closeAllConnections()
+	if s.ln != nil {
+		s.ln.Close()
+	}
+	if s.udpConn != nil {
+		s.udpConn.Close()
+	}
 
-		if s.ln != nil {
-			s.ln.Close()
-		}
-		if s.udpConn != nil {
-			s.udpConn.Close()
-		}
+	if s.batcher != nil {
+		s.batcher.Stop()
+	}
 
-		if s.batcher != nil {
-			s.batcher.Stop()
-		}
-
-		if s.Monitor != nil {
-			s.Monitor.DeregisterDiagnosticsClient(s.diagsKey)
-		}
-		return true
-	}(); !wait {
-		return nil // Already closed.
+	if s.Monitor != nil {
+		s.Monitor.DeregisterDiagnosticsClient(s.diagsKey)
 	}
 
 	s.wg.Wait()
-
 	return nil
 }
 
@@ -375,6 +365,7 @@ func (s *Service) trackConnection(c net.Conn) {
 		connectTime: time.Now().UTC(),
 	}
 }
+
 func (s *Service) untrackConnection(c net.Conn) {
 	s.tcpConnectionsMu.Lock()
 	defer s.tcpConnectionsMu.Unlock()

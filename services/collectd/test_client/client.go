@@ -1,9 +1,6 @@
 package main
 
 import (
-	"collectd.org/api"
-	"collectd.org/network"
-
 	"context"
 	"flag"
 	"fmt"
@@ -11,13 +8,18 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"collectd.org/api"
+	"collectd.org/network"
 )
 
-var nMeasurments = flag.Int("m", 1, "Number of measurements")
-var tagVariance = flag.Int("v", 1, "Number of values per tag. Client is fixed at one tag")
-var rate = flag.Int("r", 1, "Number of points per second")
-var total = flag.Int("t", -1, "Total number of points to send (default is no limit)")
-var host = flag.String("u", "127.0.0.1:25826", "Destination host in the form host:port")
+var (
+	nMeasurments = flag.Int("m", 1, "Number of measurements")
+	tagVariance  = flag.Int("v", 1, "Number of values per tag. Client is fixed at one tag")
+	rate         = flag.Int("r", 1, "Number of points per second")
+	total        = flag.Int("t", -1, "Total number of points to send (default is no limit)")
+	host         = flag.String("u", "127.0.0.1:25826", "Destination host in the form host:port")
+)
 
 func main() {
 	flag.Parse()

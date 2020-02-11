@@ -432,7 +432,7 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	case <-time.After(time.Millisecond):
 	}
 
-	//Close service ensure not called
+	// Close service ensure not called
 	s.Close()
 	dataChanged <- struct{}{}
 	select {

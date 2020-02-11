@@ -166,5 +166,4 @@ func TestConfigValidateFilterDuplicates(t *testing.T) {
 	if err := c.Validate(); err == nil {
 		t.Errorf("config validate expected error. got nil")
 	}
-
 }

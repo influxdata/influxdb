@@ -80,7 +80,6 @@ func redactPassword(r *http.Request) {
 // ie, in apache mod_log_config terms:
 //     %h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-agent}i\"" %L %D
 func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
-
 	redactPassword(r)
 
 	username := parseUsername(r)

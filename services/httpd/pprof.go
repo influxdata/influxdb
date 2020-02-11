@@ -68,7 +68,7 @@ type prof struct {
 // as there is something there.
 //
 func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Request) {
-	var allProfs = []*prof{
+	allProfs := []*prof{
 		{Name: "goroutine", Debug: 1},
 		{Name: "block", Debug: 1},
 		{Name: "mutex", Debug: 1},
@@ -139,7 +139,7 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Collect and write out the queries.
-	var allQueries = []struct {
+	allQueries := []struct {
 		name string
 		fn   func() ([]*models.Row, error)
 	}{

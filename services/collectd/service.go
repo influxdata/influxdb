@@ -244,7 +244,6 @@ func (s *Service) setup(ctx context.Context, ready chan<- struct{}, reg services
 }
 
 func (s *Service) run(ctx context.Context, ready chan<- struct{}, reg services.Registry) error {
-
 	// Create waitgroup for signalling goroutines to stop and start goroutines
 	// that process collectd packets.
 	s.wg.Add(2)
@@ -460,7 +459,7 @@ func (s *Service) writePoints(ctx context.Context) {
 func (s *Service) UnmarshalValueListPacked(vl *api.ValueList) []models.Point {
 	timestamp := vl.Time.UTC()
 
-	var name = vl.Identifier.Plugin
+	name := vl.Identifier.Plugin
 	tags := make(map[string]string, 4)
 	fields := make(map[string]interface{}, len(vl.Values))
 
