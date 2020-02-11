@@ -1,5 +1,5 @@
 // Constants
-import {FLUX_RESPONSE_BYTES_LIMIT} from 'src/shared/constants'
+import {FLUX_RESPONSE_BYTES_LIMIT, API_BASE_PATH} from 'src/shared/constants'
 import {
   RATE_LIMIT_ERROR_STATUS,
   RATE_LIMIT_ERROR_TEXT,
@@ -37,7 +37,7 @@ export const runQuery = (
   query: string,
   extern?: File
 ): CancelBox<RunQueryResult> => {
-  const url = `/api/v2/query?${new URLSearchParams({orgID})}`
+  const url = `${API_BASE_PATH}api/v2/query?${new URLSearchParams({orgID})}`
 
   const headers = {
     'Content-Type': 'application/json',
