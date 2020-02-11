@@ -23,8 +23,10 @@ import {
 
 // Actions
 import {getDashboards} from 'src/dashboards/actions/thunks'
-import {createCellWithView} from 'src/cells/actions/thunks'
-import {postDashboard} from 'src/client'
+import {
+  createCellWithView,
+  createDashboardWithView,
+} from 'src/cells/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 
 // Types
@@ -53,6 +55,7 @@ interface StateProps {
 interface DispatchProps {
   onGetDashboards: typeof getDashboards
   onCreateCellWithView: typeof createCellWithView
+  onCreateDashboardWithView: typeof createDashboardWithView
   notify: typeof notify
 }
 
@@ -164,7 +167,15 @@ class SaveAsCellForm extends PureComponent<Props, State> {
   }
 
   private handleSubmit = () => {
-    const {onCreateCellWithView, dashboards, view, dismiss, notify} = this.props
+    const {
+      onCreateCellWithView,
+      onCreateDashboardWithView,
+      dashboards,
+      view,
+      dismiss,
+      notify,
+      orgID,
+    } = this.props
     const {targetDashboardIDs} = this.state
 
     const cellName = this.state.cellName || DEFAULT_CELL_NAME
@@ -178,8 +189,8 @@ class SaveAsCellForm extends PureComponent<Props, State> {
         let targetDashboardName = ''
         try {
           if (dashID === DashboardTemplate.id) {
-            targetDashboardName = newDashboardName
-            this.handleCreateDashboardWithView(newDashboardName, viewWithProps)
+            targetDashboardName = newDashboardName || DEFAULT_DASHBOARD_NAME
+            onCreateDashboardWithView(orgID, newDashboardName, viewWithProps)
           } else {
             const selectedDashboard = dashboards.find(d => d.id === dashID)
             targetDashboardName = selectedDashboard.name
@@ -193,31 +204,6 @@ class SaveAsCellForm extends PureComponent<Props, State> {
     } finally {
       this.resetForm()
       dismiss()
-    }
-  }
-
-  private handleCreateDashboardWithView = async (
-    dashboardName: string,
-    view: View
-  ): Promise<void> => {
-    const {onCreateCellWithView, orgID} = this.props
-    try {
-      const newDashboard = {
-        orgID,
-        name: dashboardName || DEFAULT_DASHBOARD_NAME,
-        cells: [],
-      }
-
-      const resp = await postDashboard({data: newDashboard})
-
-      if (resp.status !== 201) {
-        throw new Error(resp.data.message)
-      }
-
-      onCreateCellWithView(resp.data.id, view)
-    } catch (error) {
-      console.error(error)
-      throw error
     }
   }
 
@@ -262,6 +248,7 @@ const mstp = (state: AppState): StateProps => {
 const mdtp: DispatchProps = {
   onGetDashboards: getDashboards,
   onCreateCellWithView: createCellWithView,
+  onCreateDashboardWithView: createDashboardWithView,
   notify,
 }
 
