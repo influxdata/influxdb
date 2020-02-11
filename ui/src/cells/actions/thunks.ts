@@ -135,7 +135,7 @@ export const createCellWithView = (
   }
 }
 
-export const createDashboardWithView = async (
+export const createDashboardWithView = (
   orgID: string,
   dashboardName: string,
   view: View
