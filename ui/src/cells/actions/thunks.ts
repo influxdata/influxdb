@@ -2,8 +2,14 @@
 import {normalize} from 'normalizr'
 
 // APIs
-import * as api from 'src/client'
-import * as dashAPI from 'src/dashboards/apis'
+import {
+  getDashboard,
+  deleteDashboardsCell,
+  postDashboard,
+  postDashboardsCell,
+  putDashboardsCells,
+} from 'src/client'
+import {updateView} from 'src/dashboards/apis'
 
 // Schemas
 import {
@@ -55,7 +61,7 @@ export const deleteCell = (dashboardID: string, cellID: string) => async (
     )
 
     await Promise.all([
-      api.deleteDashboardsCell({dashboardID: dashboardID, cellID: cellID}),
+      deleteDashboardsCell({dashboardID: dashboardID, cellID: cellID}),
       dispatch(refreshDashboardVariableValues(dashboardID, views)),
     ])
 
@@ -81,7 +87,7 @@ export const createCellWithView = (
 
   try {
     if (!dashboard) {
-      const resp = await api.getDashboard({dashboardID})
+      const resp = await getDashboard({dashboardID})
       if (resp.status !== 200) {
         throw new Error(resp.data.message)
       }
@@ -98,7 +104,7 @@ export const createCellWithView = (
     const cell: NewCell = getNewDashboardCell(state, dashboard, clonedCell)
 
     // Create the cell
-    const cellResp = await api.postDashboardsCell({dashboardID, data: cell})
+    const cellResp = await postDashboardsCell({dashboardID, data: cell})
 
     if (cellResp.status !== 201) {
       throw new Error(cellResp.data.message)
@@ -107,7 +113,7 @@ export const createCellWithView = (
     const cellID = cellResp.data.id
 
     // Create the view and associate it with the cell
-    const newView = await dashAPI.updateView(dashboardID, cellID, view)
+    const newView = await updateView(dashboardID, cellID, view)
 
     const normCell = normalize<Cell, CellEntities, string>(
       {...cellResp.data, dashboardID},
@@ -129,11 +135,37 @@ export const createCellWithView = (
   }
 }
 
+export const createDashboardWithView = (
+  orgID: string,
+  dashboardName: string,
+  view: View
+) => async (dispatch): Promise<void> => {
+  try {
+    const newDashboard = {
+      orgID,
+      name: dashboardName,
+      cells: [],
+    }
+
+    const resp = await postDashboard({data: newDashboard})
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    await dispatch(createCellWithView(resp.data.id, view))
+  } catch (error) {
+    console.error(error)
+    notify(copy.cellAddFailed())
+    throw error
+  }
+}
+
 export const updateCells = (dashboardID: string, cells: Cell[]) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const resp = await api.putDashboardsCells({
+    const resp = await putDashboardsCells({
       dashboardID,
       data: cells,
     })
