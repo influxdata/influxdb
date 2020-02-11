@@ -10,6 +10,7 @@
 
 1. [16733](https://github.com/influxdata/influxdb/pull/16733): Fix notification rule renaming panics from UI
 1. [16769](https://github.com/influxdata/influxdb/pull/16769): Fix the tooltip for stacked line graphs
+1. [16825](https://github.com/influxdata/influxdb/pull/16825): Fixed false success notification for read-only users creating dashboards
 
 ## v2.0.0-beta.2 [2020-01-24]
 

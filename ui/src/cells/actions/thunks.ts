@@ -99,6 +99,7 @@ export const createCellWithView = (
 
     // Create the cell
     const cellResp = await api.postDashboardsCell({dashboardID, data: cell})
+
     if (cellResp.status !== 201) {
       throw new Error(cellResp.data.message)
     }

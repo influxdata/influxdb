@@ -209,6 +209,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
       }
 
       const resp = await postDashboard({data: newDashboard})
+
       if (resp.status !== 201) {
         throw new Error(resp.data.message)
       }
