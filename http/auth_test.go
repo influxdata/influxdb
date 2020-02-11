@@ -964,7 +964,10 @@ func TestAuthorizationService_FindAuthorizations(t *testing.T) {
 }
 
 func TestAuthorizationService_DeleteAuthorization(t *testing.T) {
-	platformtesting.DeleteAuthorization(initAuthorizationService, t)
+	// with pre-populated index
+	platformtesting.DeleteAuthorization(initAuthorizationService, t, true)
+	// without pre-populated index
+	platformtesting.DeleteAuthorization(initAuthorizationService, t, false)
 }
 
 func TestAuthorizationService_UpdateAuthorization(t *testing.T) {

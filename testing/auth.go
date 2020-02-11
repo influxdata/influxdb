@@ -89,8 +89,22 @@ func AuthorizationService(
 			},
 		},
 		{
-			name: "DeleteAuthorization",
-			fn:   DeleteAuthorization,
+			name: "DeleteAuthorization without populated index",
+			fn: func(
+				init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
+				t *testing.T,
+			) {
+				DeleteAuthorization(init, t, false)
+			},
+		},
+		{
+			name: "DeleteAuthorization with populated index",
+			fn: func(
+				init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
+				t *testing.T,
+			) {
+				DeleteAuthorization(init, t, true)
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -1255,6 +1269,7 @@ func FindAuthorizations(
 func DeleteAuthorization(
 	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
 	t *testing.T,
+	authsPopulateIndexOnPut bool,
 ) {
 	type args struct {
 		ID platform.ID
@@ -1305,6 +1320,7 @@ func DeleteAuthorization(
 						Permissions: createUsersPermission(MustIDBase16(orgOneID)),
 					},
 				},
+				AuthsPopulateIndexOnPut: authsPopulateIndexOnPut,
 			},
 			args: args{
 				ID: MustIDBase16(authOneID),
@@ -1357,6 +1373,7 @@ func DeleteAuthorization(
 						Permissions: createUsersPermission(MustIDBase16(orgOneID)),
 					},
 				},
+				AuthsPopulateIndexOnPut: authsPopulateIndexOnPut,
 			},
 			args: args{
 				ID: MustIDBase16(authThreeID),

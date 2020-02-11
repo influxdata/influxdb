@@ -538,7 +538,7 @@ func (s *Service) putAuthorization(ctx context.Context, tx Tx, a *influxdb.Autho
 
 	// this should only be configurable via test package
 	// it is used to test behavior with empty caches
-	if authDoSkipIndexOnPut(ctx) {
+	if !authDoSkipIndexOnPut(ctx) {
 		fk := authByUserIndexKey(a.UserID, a.ID)
 		if err := idx.Put([]byte(fk), encodedID); err != nil {
 			return &influxdb.Error{
@@ -643,6 +643,11 @@ func (s *Service) deleteAuthorization(ctx context.Context, tx Tx, id influxdb.ID
 			Err: err,
 		}
 	}
+
+	if err := idx.Delete([]byte(authByUserIndexKey(a.UserID, id))); err != nil {
+		return err
+	}
+
 	encodedID, err := id.Encode()
 	if err != nil {
 		return &influxdb.Error{
