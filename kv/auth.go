@@ -479,6 +479,12 @@ func (s *Service) createAuthorization(ctx context.Context, tx Tx, a *influxdb.Au
 	return nil
 }
 
+type authSkipIndexOnPutContextKey struct{}
+
+func authDoSkipIndexOnPut(ctx context.Context) bool {
+	return ctx.Value(authSkipIndexOnPutContextKey{}) != nil
+}
+
 // PutAuthorization will put a authorization without setting an ID.
 func (s *Service) PutAuthorization(ctx context.Context, a *influxdb.Authorization) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
@@ -530,7 +536,9 @@ func (s *Service) putAuthorization(ctx context.Context, tx Tx, a *influxdb.Autho
 		}
 	}
 
-	if !s.Config.authsSkipIndexOnPut {
+	// this should only be configurable via test package
+	// it is used to test behavior with empty caches
+	if authDoSkipIndexOnPut(ctx) {
 		fk := authByUserIndexKey(a.UserID, a.ID)
 		if err := idx.Put([]byte(fk), encodedID); err != nil {
 			return &influxdb.Error{

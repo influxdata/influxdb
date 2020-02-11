@@ -93,12 +93,6 @@ type ServiceConfig struct {
 	Clock         clock.Clock
 
 	indexer indexer
-	// this flag configures whether or not to populate the auth by user index
-	// when creation new authorizations. It used for testing to ensure we capture
-	// the behavior of auth lookup by user ID works both when the index is populated
-	// and when it is not.
-	// this should be false in production cases.
-	authsSkipIndexOnPut bool
 }
 
 // Initialize creates Buckets needed.

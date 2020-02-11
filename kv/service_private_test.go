@@ -1,6 +1,7 @@
 package kv
 
 import (
+	"context"
 	"reflect"
 	"sync"
 	"testing"
@@ -8,22 +9,15 @@ import (
 	influxdb "github.com/influxdata/influxdb"
 )
 
-type ServiceConfigOption func(*ServiceConfig)
-
-// WithoutIndexingOnPut skips indexing authorizations by user ID when putting authorizations.
-// This is a test only option as it is used to validate auth by user ID lookup
-// when the index has yet to be populated.
-func WithoutIndexingOnPut(c *ServiceConfig) {
-	c.authsSkipIndexOnPut = true
-}
-
-func ServiceConfigForTest(opts ...ServiceConfigOption) (conf ServiceConfig) {
+func ServiceConfigForTest() (conf ServiceConfig) {
 	conf.SessionLength = influxdb.DefaultSessionLength
 	conf.indexer = &spyIndexer{}
-	for _, opt := range opts {
-		opt(&conf)
-	}
 	return
+}
+
+// AuthSkipIndexOnPut configures calls to auth put to skip indexing by user
+func AuthSkipIndexOnPut(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authSkipIndexOnPutContextKey{}, struct{}{})
 }
 
 func AssertIndexesWereCreated(t *testing.T, service *Service, calls ...AddToIndexCall) {

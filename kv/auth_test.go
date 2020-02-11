@@ -28,17 +28,19 @@ func initBoltAuthorizationService(f influxdbtesting.AuthorizationFields, t *test
 }
 
 func initAuthorizationService(s kv.Store, f influxdbtesting.AuthorizationFields, t *testing.T) (influxdb.AuthorizationService, string, func()) {
-	var opts []kv.ServiceConfigOption
-	if !f.AuthsPopulateIndexOnPut {
-		opts = append(opts, kv.WithoutIndexingOnPut)
-	}
+	var (
+		ctx = context.Background()
+		svc = kv.NewService(zaptest.NewLogger(t), s, kv.ServiceConfigForTest())
+	)
 
-	svc := kv.NewService(zaptest.NewLogger(t), s, kv.ServiceConfigForTest(opts...))
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	svc.TimeGenerator = f.TimeGenerator
 
-	ctx := context.Background()
+	if !f.AuthsPopulateIndexOnPut {
+		ctx = kv.AuthSkipIndexOnPut(ctx)
+	}
+
 	if err := svc.Initialize(ctx); err != nil {
 		t.Fatalf("error initializing authorization service: %v", err)
 	}
