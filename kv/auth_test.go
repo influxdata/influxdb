@@ -110,12 +110,6 @@ func Test_AuthorizationService_FindAuthorizations_ByUserIndex(t *testing.T) {
 					ID:   userTwoID,
 				},
 			},
-			Orgs: []*platform.Organization{
-				{
-					Name: "o1",
-					ID:   orgOneID,
-				},
-			},
 			Authorizations: []*platform.Authorization{
 				{
 					ID:     *authOneID,
@@ -164,4 +158,47 @@ func Test_AuthorizationService_FindAuthorizations_ByUserIndex(t *testing.T) {
 				"05392292e0f9f000/05392292e0f9f003": encodedThree,
 			},
 		})
+}
+
+func Benchmark_ReadAuths_WarmIndex(b *testing.B) {
+	benchmark_ReadAuths(b, true)
+}
+
+func Benchmark_ReadAuths_ColdIndex(b *testing.B) {
+	benchmark_ReadAuths(b, false)
+}
+
+func benchmark_ReadAuths(b *testing.B, indexPopulated bool) {
+	fields := influxdbtesting.AuthorizationFields{
+		Authorizations: make([]*influxdb.Authorization, 5000),
+		// enable pre-populated indexes
+		AuthsPopulateIndexOnPut: indexPopulated,
+	}
+
+	idgen := snowflake.NewDefaultIDGenerator()
+
+	users := make([]influxdb.ID, 10)
+	for i := 0; i < 10; i++ {
+		users[i] = idgen.ID()
+	}
+
+	for i := 0; i < len(fields.Authorizations); i++ {
+		fields.Authorizations[i] = &influxdb.Authorization{
+			ID:     idgen.ID(),
+			UserID: users[i%len(users)],
+			OrgID:  idgen.ID(),
+		}
+	}
+
+	st := inmem.NewKVStore()
+	svc, _, closeSvc := initAuthorizationService(st, fields, b)
+	defer closeSvc()
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		svc.FindAuthorizations(context.Background(), influxdb.AuthorizationFilter{
+			UserID: &users[0],
+		})
+	}
 }
