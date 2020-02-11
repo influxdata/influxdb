@@ -1,5 +1,4 @@
-extern crate dirs;
-extern crate num_cpus;
+#![deny(rust_2018_idioms)]
 
 use actix_web::http::StatusCode;
 use actix_web::ResponseError;
@@ -22,7 +21,7 @@ pub struct Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.description)
     }
 }

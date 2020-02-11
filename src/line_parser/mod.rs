@@ -153,7 +153,7 @@ pub struct ParseError {
 }
 
 impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.description)
     }
 }
@@ -195,7 +195,7 @@ fn read_line(line: &str, points: &mut Vec<PointType>) {
     }
 }
 
-fn read_fields(measurement_tags: &str, chars: &mut Chars, points: &mut Vec<PointType>) {
+fn read_fields(measurement_tags: &str, chars: &mut Chars<'_>, points: &mut Vec<PointType>) {
     let mut chars = chars;
     let mut points = points;
     let mut field_name = String::with_capacity(100);
@@ -232,7 +232,7 @@ fn read_fields(measurement_tags: &str, chars: &mut Chars, points: &mut Vec<Point
 fn read_value(
     measurement_tags: &str,
     field_name: String,
-    chars: &mut Chars,
+    chars: &mut Chars<'_>,
     points: &mut Vec<PointType>,
 ) -> bool {
     let mut value = String::new();

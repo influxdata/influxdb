@@ -444,7 +444,7 @@ impl<T: Copy> Iterator for PointsIterator<T> {
     }
 }
 
-fn evaluate_node(series_map: &RwLockReadGuard<SeriesMap>, n: &Node) -> Result<Treemap, StorageError> {
+fn evaluate_node(series_map: &RwLockReadGuard<'_, SeriesMap>, n: &Node) -> Result<Treemap, StorageError> {
     if n.children.len() != 2 {
         return Err(StorageError {
             description: format!(
@@ -475,7 +475,7 @@ fn evaluate_node(series_map: &RwLockReadGuard<SeriesMap>, n: &Node) -> Result<Tr
 }
 
 fn evaluate_logical(
-    series_map: &RwLockReadGuard<SeriesMap>,
+    series_map: &RwLockReadGuard<'_, SeriesMap>,
     left: &Node,
     right: &Node,
     op: Logical,
@@ -492,7 +492,7 @@ fn evaluate_logical(
 }
 
 fn evaluate_comparison(
-    series_map: &RwLockReadGuard<SeriesMap>,
+    series_map: &RwLockReadGuard<'_, SeriesMap>,
     left: &Node,
     right: &Node,
     op: Comparison,
