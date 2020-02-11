@@ -21,7 +21,7 @@ import {
   CLOUD_USAGE_PATH,
   CLOUD_BILLING_PATH,
   CLOUD_CHECKOUT_PATH,
-  CLOUD_SIGNOUT_URL,
+  CLOUD_LOGOUT_PATH,
 } from 'src/shared/constants'
 
 // Types
@@ -41,6 +41,7 @@ const CloudNav: FC<StateProps> = ({org}) => {
   const usageURL = `${CLOUD_URL}${CLOUD_USAGE_PATH}`
   const billingURL = `${CLOUD_URL}${CLOUD_BILLING_PATH}`
   const checkoutURL = `${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`
+  const logoutURL = `${CLOUD_URL}${CLOUD_LOGOUT_PATH}`
   const handleUpgradeClick = () => {
     window.location.assign(checkoutURL)
   }
@@ -94,7 +95,7 @@ const CloudNav: FC<StateProps> = ({org}) => {
           <PopNav.Item
             active={false}
             titleLink={className => (
-              <a className={className} href={CLOUD_SIGNOUT_URL}>
+              <a className={className} href={logoutURL}>
                 Logout
               </a>
             )}
