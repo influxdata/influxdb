@@ -66,7 +66,6 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		checkStore:     newCheckStore(),
 		endpointStore:  newEndpointStore(),
 		variableStore:  newVariableStore(),
-		indexer:        NewIndexer(log, kv),
 	}
 
 	if len(configs) > 0 {
@@ -80,6 +79,11 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		s.clock = clock.New()
 	}
 
+	s.indexer = s.Config.indexer
+	if s.indexer == nil {
+		s.indexer = NewIndexer(log, kv)
+	}
+
 	return s
 }
 
@@ -87,6 +91,8 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 type ServiceConfig struct {
 	SessionLength time.Duration
 	Clock         clock.Clock
+
+	indexer indexer
 }
 
 // Initialize creates Buckets needed.

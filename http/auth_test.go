@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/influxdata/httprouter"
@@ -857,12 +858,12 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 
 func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.T) (platform.AuthorizationService, string, func()) {
 	t.Helper()
-	if t.Name() == "TestAuthorizationService_FindAuthorizations/find_authorization_by_token" {
+	if strings.Contains(t.Name(), "find_authorization_by_token") {
 		/*
 			TODO(goller): need a secure way to communicate get
 			 authorization by token string via headers or something
 		*/
-		t.Skip("TestAuthorizationService_FindAuthorizations/find_authorization_by_token skipped because user tokens cannot be queried")
+		t.Skipf("%s skipped because user tokens cannot be queried", t.Name())
 	}
 
 	if t.Name() == "TestAuthorizationService_CreateAuthorization/providing_a_non_existing_user_is_invalid" {
@@ -957,11 +958,15 @@ func TestAuthorizationService_FindAuthorizationByToken(t *testing.T) {
 }
 
 func TestAuthorizationService_FindAuthorizations(t *testing.T) {
-	platformtesting.FindAuthorizations(initAuthorizationService, t)
+	// with pre-populated index
+	platformtesting.FindAuthorizations(initAuthorizationService, t, true)
+	// without pre-populated index
+	platformtesting.FindAuthorizations(initAuthorizationService, t, false)
 }
 
 func TestAuthorizationService_DeleteAuthorization(t *testing.T) {
-	platformtesting.DeleteAuthorization(initAuthorizationService, t)
+	// without pre-populated index
+	platformtesting.DeleteAuthorization(initAuthorizationService, t, true)
 }
 
 func TestAuthorizationService_UpdateAuthorization(t *testing.T) {

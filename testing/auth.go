@@ -34,12 +34,13 @@ var authorizationCmpOptions = cmp.Options{
 
 // AuthorizationFields will include the IDGenerator, and authorizations
 type AuthorizationFields struct {
-	IDGenerator    platform.IDGenerator
-	TokenGenerator platform.TokenGenerator
-	TimeGenerator  platform.TimeGenerator
-	Authorizations []*platform.Authorization
-	Users          []*platform.User
-	Orgs           []*platform.Organization
+	IDGenerator             platform.IDGenerator
+	TokenGenerator          platform.TokenGenerator
+	TimeGenerator           platform.TimeGenerator
+	Authorizations          []*platform.Authorization
+	Users                   []*platform.User
+	Orgs                    []*platform.Organization
+	AuthsPopulateIndexOnPut bool
 }
 
 // AuthorizationService tests all the service functions.
@@ -48,8 +49,10 @@ func AuthorizationService(
 ) {
 	tests := []struct {
 		name string
-		fn   func(init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
-			t *testing.T)
+		fn   func(
+			init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
+			t *testing.T,
+		)
 	}{
 		{
 			name: "CreateAuthorization",
@@ -68,12 +71,40 @@ func AuthorizationService(
 			fn:   UpdateAuthorization,
 		},
 		{
-			name: "FindAuthorizations",
-			fn:   FindAuthorizations,
+			name: "FindAuthorizations without populated index",
+			fn: func(
+				init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
+				t *testing.T,
+			) {
+				FindAuthorizations(init, t, false)
+			},
 		},
 		{
-			name: "DeleteAuthorization",
-			fn:   DeleteAuthorization,
+			name: "FindAuthorizations with populated index",
+			fn: func(
+				init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
+				t *testing.T,
+			) {
+				FindAuthorizations(init, t, true)
+			},
+		},
+		{
+			name: "DeleteAuthorization without populated index",
+			fn: func(
+				init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
+				t *testing.T,
+			) {
+				DeleteAuthorization(init, t, false)
+			},
+		},
+		{
+			name: "DeleteAuthorization with populated index",
+			fn: func(
+				init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
+				t *testing.T,
+			) {
+				DeleteAuthorization(init, t, true)
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -842,6 +873,7 @@ func FindAuthorizationByToken(
 func FindAuthorizations(
 	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
 	t *testing.T,
+	authsPopulateIndexOnPut bool,
 ) {
 	type args struct {
 		ID     platform.ID
@@ -895,6 +927,7 @@ func FindAuthorizations(
 						Permissions: createUsersPermission(MustIDBase16(orgOneID)),
 					},
 				},
+				AuthsPopulateIndexOnPut: authsPopulateIndexOnPut,
 			},
 			args: args{},
 			wants: wants{
@@ -961,6 +994,7 @@ func FindAuthorizations(
 						Permissions: deleteUsersPermission(MustIDBase16(orgOneID)),
 					},
 				},
+				AuthsPopulateIndexOnPut: authsPopulateIndexOnPut,
 			},
 			args: args{
 				UserID: MustIDBase16(userOneID),
@@ -1031,6 +1065,7 @@ func FindAuthorizations(
 						Permissions: allUsersPermission(MustIDBase16(orgTwoID)),
 					},
 				},
+				AuthsPopulateIndexOnPut: authsPopulateIndexOnPut,
 			},
 			args: args{
 				OrgID: MustIDBase16(orgOneID),
@@ -1113,6 +1148,7 @@ func FindAuthorizations(
 						Permissions: allUsersPermission(MustIDBase16(orgTwoID)),
 					},
 				},
+				AuthsPopulateIndexOnPut: authsPopulateIndexOnPut,
 			},
 			args: args{
 				UserID: MustIDBase16(userOneID),
@@ -1180,6 +1216,7 @@ func FindAuthorizations(
 						Permissions: deleteUsersPermission(MustIDBase16(orgOneID)),
 					},
 				},
+				AuthsPopulateIndexOnPut: authsPopulateIndexOnPut,
 			},
 			args: args{
 				token: "rand2",
@@ -1232,6 +1269,7 @@ func FindAuthorizations(
 func DeleteAuthorization(
 	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
 	t *testing.T,
+	authsPopulateIndexOnPut bool,
 ) {
 	type args struct {
 		ID platform.ID
@@ -1282,6 +1320,7 @@ func DeleteAuthorization(
 						Permissions: createUsersPermission(MustIDBase16(orgOneID)),
 					},
 				},
+				AuthsPopulateIndexOnPut: authsPopulateIndexOnPut,
 			},
 			args: args{
 				ID: MustIDBase16(authOneID),
@@ -1334,6 +1373,7 @@ func DeleteAuthorization(
 						Permissions: createUsersPermission(MustIDBase16(orgOneID)),
 					},
 				},
+				AuthsPopulateIndexOnPut: authsPopulateIndexOnPut,
 			},
 			args: args{
 				ID: MustIDBase16(authThreeID),

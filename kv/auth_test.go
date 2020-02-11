@@ -5,7 +5,10 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/snowflake"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -27,13 +30,20 @@ func initBoltAuthorizationService(f influxdbtesting.AuthorizationFields, t *test
 	}
 }
 
-func initAuthorizationService(s kv.Store, f influxdbtesting.AuthorizationFields, t *testing.T) (influxdb.AuthorizationService, string, func()) {
-	svc := kv.NewService(zaptest.NewLogger(t), s)
+func initAuthorizationService(s kv.Store, f influxdbtesting.AuthorizationFields, t testable) (influxdb.AuthorizationService, string, func()) {
+	var (
+		ctx = context.Background()
+		svc = kv.NewService(zaptest.NewLogger(t), s, kv.ServiceConfigForTest())
+	)
+
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	svc.TimeGenerator = f.TimeGenerator
 
-	ctx := context.Background()
+	if !f.AuthsPopulateIndexOnPut {
+		ctx = kv.AuthSkipIndexOnPut(ctx)
+	}
+
 	if err := svc.Initialize(ctx); err != nil {
 		t.Fatalf("error initializing authorization service: %v", err)
 	}
@@ -57,6 +67,7 @@ func initAuthorizationService(s kv.Store, f influxdbtesting.AuthorizationFields,
 	}
 
 	return svc, kv.OpPrefix, func() {
+		// cleanup assets
 		for _, u := range f.Users {
 			if err := svc.DeleteUser(ctx, u.ID); err != nil {
 				t.Logf("failed to remove user: %v", err)
@@ -74,5 +85,120 @@ func initAuthorizationService(s kv.Store, f influxdbtesting.AuthorizationFields,
 				t.Logf("failed to remove authorizations: %v", err)
 			}
 		}
+	}
+}
+
+func Test_AuthorizationService_FindAuthorizations_ByUserIndex(t *testing.T) {
+	var (
+		idgen           = snowflake.NewDefaultIDGenerator()
+		userOneID, _    = influxdb.IDFromString("05392292e0f9f000")
+		userTwoID       = idgen.ID()
+		orgOneID        = idgen.ID()
+		authOneID, _    = influxdb.IDFromString("05392292e0f9f001")
+		authTwoID       = idgen.ID()
+		authThreeID, _  = influxdb.IDFromString("05392292e0f9f003")
+		encodedOne, _   = authOneID.Encode()
+		encodedThree, _ = authThreeID.Encode()
+		fields          = influxdbtesting.AuthorizationFields{
+			Users: []*platform.User{
+				{
+					Name: "cooluser",
+					ID:   *userOneID,
+				},
+				{
+					Name: "regularuser",
+					ID:   userTwoID,
+				},
+			},
+			Authorizations: []*platform.Authorization{
+				{
+					ID:     *authOneID,
+					UserID: *userOneID,
+					OrgID:  orgOneID,
+					Token:  "rand1",
+					Status: platform.Active,
+				},
+				{
+					ID:     authTwoID,
+					UserID: userTwoID,
+					OrgID:  orgOneID,
+					Token:  "rand2",
+				},
+				{
+					ID:     *authThreeID,
+					UserID: *userOneID,
+					OrgID:  orgOneID,
+					Token:  "rand3",
+				},
+			},
+			// given the index is not initially populated
+			AuthsPopulateIndexOnPut: false,
+		}
+		st = inmem.NewKVStore()
+	)
+
+	initAuthorizationService(st, fields, t)
+
+	svc := kv.NewService(zaptest.NewLogger(t), st, kv.ServiceConfigForTest())
+	svc.FindAuthorizations(context.Background(), influxdb.AuthorizationFilter{
+		UserID: userOneID,
+	})
+
+	// expect indexer to have been called with following args
+	kv.AssertIndexesWereCreated(t,
+		svc,
+		kv.AddToIndexCall{
+			Bucket: []byte("authorizationbyuserindexv1"),
+			Keys: map[string][]byte{
+				"05392292e0f9f000/05392292e0f9f001": encodedOne,
+			},
+		}, kv.AddToIndexCall{
+			Bucket: []byte("authorizationbyuserindexv1"),
+			Keys: map[string][]byte{
+				"05392292e0f9f000/05392292e0f9f003": encodedThree,
+			},
+		})
+}
+
+func Benchmark_ReadAuths_WarmIndex(b *testing.B) {
+	benchmark_ReadAuths(b, true)
+}
+
+func Benchmark_ReadAuths_ColdIndex(b *testing.B) {
+	benchmark_ReadAuths(b, false)
+}
+
+func benchmark_ReadAuths(b *testing.B, indexPopulated bool) {
+	fields := influxdbtesting.AuthorizationFields{
+		Authorizations: make([]*influxdb.Authorization, 5000),
+		// enable pre-populated indexes
+		AuthsPopulateIndexOnPut: indexPopulated,
+	}
+
+	idgen := snowflake.NewDefaultIDGenerator()
+
+	users := make([]influxdb.ID, 10)
+	for i := 0; i < 10; i++ {
+		users[i] = idgen.ID()
+	}
+
+	for i := 0; i < len(fields.Authorizations); i++ {
+		fields.Authorizations[i] = &influxdb.Authorization{
+			ID:     idgen.ID(),
+			UserID: users[i%len(users)],
+			OrgID:  idgen.ID(),
+		}
+	}
+
+	st := inmem.NewKVStore()
+	svc, _, closeSvc := initAuthorizationService(st, fields, b)
+	defer closeSvc()
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		svc.FindAuthorizations(context.Background(), influxdb.AuthorizationFilter{
+			UserID: &users[0],
+		})
 	}
 }
