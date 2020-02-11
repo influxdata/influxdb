@@ -152,7 +152,7 @@ func (c *Client) Req(method string, bFn BodyFn, urlPath string, rest ...string) 
 		}
 	}
 	if header != "" {
-		headers.Add(header, headerVal)
+		headers.Set(header, headerVal)
 	}
 	// w.Close here is necessary since we have to close any gzip writer
 	// or other writer that requires closing.
