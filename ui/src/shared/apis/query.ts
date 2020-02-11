@@ -1,8 +1,5 @@
 // Constants
-import {
-    FLUX_RESPONSE_BYTES_LIMIT,
-    API_BASE_PATH,
-} from 'src/shared/constants'
+import {FLUX_RESPONSE_BYTES_LIMIT, API_BASE_PATH} from 'src/shared/constants'
 import {
   RATE_LIMIT_ERROR_STATUS,
   RATE_LIMIT_ERROR_TEXT,
