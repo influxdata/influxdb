@@ -463,7 +463,14 @@ func (s *Service) DeleteUserResourceMapping(ctx context.Context, resourceID infl
 		}
 
 		if m.ResourceType == influxdb.OrgsResourceType {
-			return s.deleteOrgDependentMappings(ctx, tx, m, withSkipKey(resourceID.String()))
+			key, err := userResourceKey(m)
+			if err != nil {
+				// I'm not super concerned that we will get here.  We know this is a valid resource
+				// because we've just found it above.  Me of the future... if this was a problem,
+				// sorry.
+				return err
+			}
+			return s.deleteOrgDependentMappings(ctx, tx, m, withSkipKey(string(key)))
 		}
 
 		return nil
