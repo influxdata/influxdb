@@ -8,6 +8,7 @@ use crate::storage::{Range, SeriesDataType, StorageError};
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::convert::{TryFrom, TryInto};
 use std::io::Cursor;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -353,7 +354,7 @@ impl RocksDB {
         match db.cf_handle(&cf_name) {
             Some(cf) => match db.get_cf(cf, index_series_id_from_id(id)).unwrap() {
                 Some(val) => {
-                    let t = series_type_from_byte(val[0]);
+                    let t = val[0].try_into().unwrap();
                     let key = std::str::from_utf8(&val[1..]).unwrap().to_owned();
                     Ok((key, t))
                 }
@@ -752,7 +753,7 @@ impl RocksDB {
         let db = self.db.read().unwrap();
 
         let buckets = db.cf_handle(BUCKET_CF).unwrap();
-        let prefix = &[BucketEntryType::Bucket as u8];
+        let prefix = &[BucketEntryType::Bucket.into()];
         let iter = db
             .iterator_cf(&buckets, IteratorMode::From(prefix, Direction::Forward))
             .unwrap();
@@ -761,7 +762,7 @@ impl RocksDB {
         let mut bucket_map = self.bucket_map.write().unwrap();
 
         for (key, value) in iter {
-            match bucket_entry_type_from_byte(key[0]) {
+            match key[0].try_into().unwrap() {
                 BucketEntryType::NextSeriesID => {
                     // read the bucket id from the key
                     let mut c = Cursor::new(&key[1..]);
@@ -1025,7 +1026,7 @@ fn index_series_id(id: &[u8]) -> Vec<u8> {
 
 fn index_series_id_value(t: SeriesDataType, key: &str) -> Vec<u8> {
     let mut v = Vec::with_capacity(1 + key.len());
-    v.push(t as u8);
+    v.push(t.into());
     v.extend_from_slice(key.as_bytes());
     v
 }
@@ -1035,10 +1036,6 @@ fn series_type_from_point_type(p: &PointType) -> SeriesDataType {
         PointType::I64(_) => SeriesDataType::I64,
         PointType::F64(_) => SeriesDataType::F64,
     }
-}
-
-fn series_type_from_byte(b: u8) -> SeriesDataType {
-    unsafe { ::std::mem::transmute(b) }
 }
 
 fn index_series_id_from_id(id: u64) -> Vec<u8> {
@@ -1103,15 +1100,39 @@ fn index_key_value_posting_list(bucket_id: u32, key: &str, value: &str) -> Vec<u
 // next_series_id_key gives the key in the buckets CF in rocks that holds the value for the next series ID
 fn next_series_id_key(bucket_id: u32) -> Vec<u8> {
     let mut v = Vec::with_capacity(5);
-    v.push(BucketEntryType::NextSeriesID as u8);
+    v.push(BucketEntryType::NextSeriesID.into());
     v.write_u32::<BigEndian>(bucket_id).unwrap();
     v
 }
 
+// The values for these enum variants have no real meaning, but they
+// are serialized to disk. Revisit these whenever it's time to decide
+// on an on-disk format.
 enum BucketEntryType {
-    Bucket,
-    NextSeriesID,
-    NextBucketID,
+    Bucket = 0,
+    NextSeriesID = 1,
+    NextBucketID = 2,
+}
+
+impl From<BucketEntryType> for u8 {
+    fn from(other: BucketEntryType) -> Self {
+        other as u8
+    }
+}
+
+impl TryFrom<u8> for BucketEntryType {
+    type Error = u8;
+
+    fn try_from(other: u8) -> Result<Self, Self::Error> {
+        use BucketEntryType::*;
+
+        match other {
+            v if v == Bucket as u8 => Ok(Bucket),
+            v if v == NextSeriesID as u8 => Ok(NextSeriesID),
+            v if v == NextBucketID as u8 => Ok(NextBucketID),
+            _ => Err(other),
+        }
+    }
 }
 
 // TODO: ensure required fields are present and write tests
@@ -1122,18 +1143,14 @@ fn validate_bucket_fields(_bucket: &Bucket) -> Result<(), StorageError> {
 fn bucket_key(org_id: u32, bucket_name: &str) -> Vec<u8> {
     let s = bucket_name.as_bytes();
     let mut key = Vec::with_capacity(3 + s.len());
-    key.push(BucketEntryType::Bucket as u8);
+    key.push(BucketEntryType::Bucket.into());
     key.write_u32::<BigEndian>(org_id).unwrap();
     key.extend_from_slice(s);
     key
 }
 
 fn next_bucket_id_key() -> Vec<u8> {
-    vec![BucketEntryType::NextBucketID as u8]
-}
-
-fn bucket_entry_type_from_byte(b: u8) -> BucketEntryType {
-    unsafe { ::std::mem::transmute(b) }
+    vec![BucketEntryType::NextBucketID.into()]
 }
 
 fn bucket_cf_descriptor() -> ColumnFamilyDescriptor {
