@@ -7,6 +7,7 @@ use crate::storage::series_store::{ReadPoint, SeriesStore};
 use crate::storage::{Range, SeriesDataType, StorageError};
 
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::io::Cursor;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -674,54 +675,50 @@ impl RocksDB {
 
                 // update the key to id bitmap
                 let index_key_posting_list_key =
-                    index_key_posting_list(bucket_id, &pair.key).to_vec();
+                    index_key_posting_list(bucket_id, &pair.key);
 
                 // put it in the temporary in memory map for a single write update later
-                match index_map.get_mut(&index_key_posting_list_key) {
-                    Some(tree) => {
-                        tree.add(id);
-                    }
-                    None => {
-                        let mut map = match self
+                let tree = match index_map.entry(index_key_posting_list_key) {
+                    Entry::Occupied(e) => e.into_mut(),
+                    Entry::Vacant(e) => {
+                        let map = match self
                             .db
                             .read()
                             .unwrap()
-                            .get_cf(index_cf, &index_key_posting_list_key)
+                            .get_cf(index_cf, e.key())
                             .unwrap()
                         {
                             Some(b) => Treemap::deserialize(&b)
                                 .expect("unexpected error deserializing posting list"),
                             None => Treemap::create(),
                         };
-                        map.add(id);
-                        index_map.insert(index_key_posting_list_key.clone(), map);
+                        e.insert(map)
                     }
                 };
+                tree.add(id);
 
                 // update the key/value to id bitmap
                 let index_key_value_posting_list_key =
-                    index_key_value_posting_list(bucket_id, &pair.key, &pair.value).to_vec();
+                    index_key_value_posting_list(bucket_id, &pair.key, &pair.value);
 
-                match index_map.get_mut(&index_key_value_posting_list_key) {
-                    Some(tree) => {
-                        tree.add(id);
-                    }
-                    None => {
-                        let mut map = match self
+                let tree = match index_map.entry(index_key_value_posting_list_key) {
+                    Entry::Occupied(e) => e.into_mut(),
+                    Entry::Vacant(e) => {
+                        let map = match self
                             .db
                             .read()
                             .unwrap()
-                            .get_cf(index_cf, &index_key_value_posting_list_key)
+                            .get_cf(index_cf, e.key())
                             .unwrap()
                         {
                             Some(b) => Treemap::deserialize(&b)
                                 .expect("unexpected error deserializing posting list"),
                             None => Treemap::create(),
                         };
-                        map.add(id);
-                        index_map.insert(index_key_value_posting_list_key.clone(), map);
+                        e.insert(map)
                     }
-                }
+                };
+                tree.add(id);
             }
         }
 
