@@ -137,7 +137,7 @@ module.exports = {
       STATIC_PREFIX: BASE_PATH,
     }),
     new MonacoWebpackPlugin({
-      languages: ['json', 'javascript', 'go', 'markdown'],
+      languages: ['json', 'markdown'],
       features: ['!gotoSymbol'],
     }),
   ],

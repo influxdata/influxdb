@@ -66,7 +66,7 @@ module.exports = {
       path: path.join(__dirname, 'build', '[name]-manifest.json'),
     }),
     new MonacoWebpackPlugin({
-      languages: ['json', 'javascript', 'go', 'markdown'],
+      languages: ['json', 'markdown'],
     }),
   ],
   stats: {
