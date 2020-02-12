@@ -135,11 +135,11 @@ export const createCellWithView = (
   }
 }
 
-export const createDashboardWithView = async (
+export const createDashboardWithView = (
   orgID: string,
   dashboardName: string,
   view: View
-): Promise<void> => {
+) => async (dispatch): Promise<void> => {
   try {
     const newDashboard = {
       orgID,
@@ -153,7 +153,7 @@ export const createDashboardWithView = async (
       throw new Error(resp.data.message)
     }
 
-    await createCellWithView(resp.data.id, view)
+    await dispatch(createCellWithView(resp.data.id, view))
   } catch (error) {
     console.error(error)
     notify(copy.cellAddFailed())
