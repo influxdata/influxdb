@@ -3,6 +3,7 @@ package graphite // import "github.com/influxdata/influxdb/services/graphite"
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"math"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -72,8 +74,7 @@ type Service struct {
 	wg sync.WaitGroup
 
 	mu    sync.RWMutex
-	ready bool          // Has the required database been created?
-	done  chan struct{} // Is the service closing or closed?
+	ready bool // Has the required database been created?
 
 	Monitor interface {
 		RegisterDiagnosticsClient(name string, client diagnostics.Client)
@@ -88,6 +89,11 @@ type Service struct {
 		Database(name string) *meta.DatabaseInfo
 		RetentionPolicy(database, name string) (*meta.RetentionPolicyInfo, error)
 	}
+
+	// fields used for testing.
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns an instance of the Graphite service.
@@ -108,14 +114,15 @@ func NewService(c Config) (*Service, error) {
 		stats:           &Statistics{},
 		defaultTags:     models.StatisticTags{"proto": d.Protocol, "bind": d.BindAddress},
 		tcpConnections:  make(map[string]*tcpConnection),
+		errChan:         make(chan error),
 		diagsKey:        strings.Join([]string{"graphite", d.Protocol, d.BindAddress}, ":"),
 	}
 
 	parser, err := NewParserWithOptions(Options{
 		Templates:   d.Templates,
 		DefaultTags: d.DefaultTags(),
-		Separator:   d.Separator})
-
+		Separator:   d.Separator,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -124,16 +131,27 @@ func NewService(c Config) (*Service, error) {
 	return &s, nil
 }
 
-// Open starts the Graphite input processing data.
 func (s *Service) Open() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 
-	if s.done != nil {
-		return nil // Already open.
-	}
-	s.done = make(chan struct{})
+	ready := make(chan struct{})
+	go func() { s.errChan <- s.RunWithReady(s.ctx, ready, nil) }()
+	<-ready
+	return nil
+}
 
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
+}
+
+func (s *Service) Run(ctx context.Context, reg services.Registrar) error {
+	ready := make(chan struct{})
+	return s.RunWithReady(ctx, ready, reg)
+}
+
+func (s *Service) RunWithReady(ctx context.Context, ready chan struct{}, reg services.Registrar) error {
+	// Run starts the Graphite input processing data.
 	s.logger.Info("Starting graphite service",
 		zap.Int("batch_size", s.batchSize),
 		logger.DurationLiteral("batch_timeout", s.batchTimeout))
@@ -148,16 +166,19 @@ func (s *Service) Open() error {
 
 	// Start processing batches.
 	s.wg.Add(1)
-	go s.processBatches(s.batcher)
+	go s.processBatches(ctx, s.batcher)
 
 	var err error
-	if strings.ToLower(s.protocol) == "tcp" {
+
+	switch protocol := strings.ToLower(s.protocol); protocol {
+	case "tcp":
 		s.addr, err = s.openTCPServer()
-	} else if strings.ToLower(s.protocol) == "udp" {
+	case "udp":
 		s.addr, err = s.openUDPServer()
-	} else {
+	default:
 		return fmt.Errorf("unrecognized Graphite input protocol %s", s.protocol)
 	}
+
 	if err != nil {
 		return err
 	}
@@ -165,7 +186,12 @@ func (s *Service) Open() error {
 	s.logger.Info("Listening",
 		zap.String("protocol", s.protocol),
 		zap.Stringer("addr", s.addr))
-	return nil
+
+	close(ready)
+	<-ctx.Done()
+
+	err = s.cleanup()
+	return err
 }
 
 func (s *Service) closeAllConnections() {
@@ -177,61 +203,26 @@ func (s *Service) closeAllConnections() {
 }
 
 // Close stops all data processing on the Graphite input.
-func (s *Service) Close() error {
-	if wait := func() bool {
-		s.mu.Lock()
-		defer s.mu.Unlock()
+func (s *Service) cleanup() error {
+	s.closeAllConnections()
 
-		if s.closed() {
-			return false
-		}
-		close(s.done)
+	if s.ln != nil {
+		s.ln.Close()
+	}
+	if s.udpConn != nil {
+		s.udpConn.Close()
+	}
 
-		s.closeAllConnections()
+	if s.batcher != nil {
+		s.batcher.Stop()
+	}
 
-		if s.ln != nil {
-			s.ln.Close()
-		}
-		if s.udpConn != nil {
-			s.udpConn.Close()
-		}
-
-		if s.batcher != nil {
-			s.batcher.Stop()
-		}
-
-		if s.Monitor != nil {
-			s.Monitor.DeregisterDiagnosticsClient(s.diagsKey)
-		}
-		return true
-	}(); !wait {
-		return nil // Already closed.
+	if s.Monitor != nil {
+		s.Monitor.DeregisterDiagnosticsClient(s.diagsKey)
 	}
 
 	s.wg.Wait()
-
-	s.mu.Lock()
-	s.done = nil
-	s.mu.Unlock()
-
 	return nil
-}
-
-// Closed returns true if the service is currently closed.
-func (s *Service) Closed() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.closed()
-}
-
-func (s *Service) closed() bool {
-	select {
-	case <-s.done:
-		// Service is closing.
-		return true
-	default:
-	}
-	return s.done == nil
 }
 
 // createInternalStorage ensures that the required database has been created.
@@ -374,6 +365,7 @@ func (s *Service) trackConnection(c net.Conn) {
 		connectTime: time.Now().UTC(),
 	}
 }
+
 func (s *Service) untrackConnection(c net.Conn) {
 	s.tcpConnectionsMu.Lock()
 	defer s.tcpConnectionsMu.Unlock()
@@ -447,7 +439,7 @@ func (s *Service) handleLine(line string) {
 }
 
 // processBatches continually drains the given batcher and writes the batches to the database.
-func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
+func (s *Service) processBatches(ctx context.Context, batcher *tsdb.PointBatcher) {
 	defer s.wg.Done()
 	for {
 		select {
@@ -467,7 +459,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 
-		case <-s.done:
+		case <-ctx.Done():
 			return
 		}
 	}

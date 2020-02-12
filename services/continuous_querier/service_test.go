@@ -20,23 +20,6 @@ var (
 	errUnexpected = errors.New("unexpected error")
 )
 
-// Test closing never opened, open, open already open, close, and close already closed.
-func TestOpenAndClose(t *testing.T) {
-	s := NewTestService(t)
-
-	if err := s.Close(); err != nil {
-		t.Error(err)
-	} else if err = s.Open(); err != nil {
-		t.Error(err)
-	} else if err = s.Open(); err != nil {
-		t.Error(err)
-	} else if err = s.Close(); err != nil {
-		t.Error(err)
-	} else if err = s.Close(); err != nil {
-		t.Error(err)
-	}
-}
-
 // Test Run method.
 func TestContinuousQueryService_Run(t *testing.T) {
 	s := NewTestService(t)
@@ -66,7 +49,7 @@ func TestContinuousQueryService_Run(t *testing.T) {
 
 	s.Open()
 	// Trigger service to run all CQs.
-	s.Run("", "", now)
+	s.Execute("", "", now)
 	// Shouldn't time out.
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Error(err)
@@ -81,7 +64,7 @@ func TestContinuousQueryService_Run(t *testing.T) {
 	expectCallCnt = 1
 	callCnt = 0
 	s.Open()
-	s.Run("db", "cq", now)
+	s.Execute("db", "cq", now)
 	// Shouldn't time out.
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Error(err)
@@ -166,7 +149,7 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 	// young and only one interval matches the FOR duration.
 	expected.min = now.Add(-time.Minute)
 	expected.max = now.Add(-1)
-	s.Run("", "", now.Add(5*time.Second))
+	s.Execute("", "", now.Add(5*time.Second))
 
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Fatal(err)

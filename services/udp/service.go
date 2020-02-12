@@ -2,6 +2,7 @@
 package udp // import "github.com/influxdata/influxdb/services/udp"
 
 import (
+	"context"
 	"errors"
 	"net"
 	"sync"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -41,8 +43,7 @@ type Service struct {
 	wg   sync.WaitGroup
 
 	mu    sync.RWMutex
-	ready bool          // Has the required database been created?
-	done  chan struct{} // Is the service closing or closed?
+	ready bool // Has the required database been created?
 
 	parserChan chan []byte
 	batcher    *tsdb.PointBatcher
@@ -59,6 +60,11 @@ type Service struct {
 	Logger      *zap.Logger
 	stats       *Statistics
 	defaultTags models.StatisticTags
+
+	// members used for testing
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns a new instance of Service.
@@ -69,20 +75,31 @@ func NewService(c Config) *Service {
 		parserChan:  make(chan []byte, parserChanLen),
 		Logger:      zap.NewNop(),
 		stats:       &Statistics{},
+		errChan:     make(chan error),
 		defaultTags: models.StatisticTags{"bind": d.BindAddress},
 	}
 }
 
+func (s *Service) Open() error {
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	ready := make(chan struct{})
+	go func() { s.errChan <- s.RunWithReady(s.ctx, ready, services.NewRegistry()) }()
+	<-ready
+	return nil
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
+}
+
 // Open starts the service.
-func (s *Service) Open() (err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *Service) Run(ctx context.Context, reg services.Registrar) error {
+	ready := make(chan struct{})
+	return s.RunWithReady(ctx, ready, reg)
+}
 
-	if !s.closed() {
-		return nil // Already open.
-	}
-	s.done = make(chan struct{})
-
+func (s *Service) RunWithReady(ctx context.Context, ready chan struct{}, reg services.Registrar) (err error) {
 	if s.config.BindAddress == "" {
 		return errors.New("bind address has to be specified in config")
 	}
@@ -118,10 +135,14 @@ func (s *Service) Open() (err error) {
 	s.Logger.Info("Started listening on UDP", zap.String("addr", s.config.BindAddress))
 
 	s.wg.Add(3)
-	go s.serve()
-	go s.parser()
-	go s.writer()
+	go s.serve(ctx)
+	go s.parser(ctx)
+	go s.writer(ctx)
 
+	close(ready)
+	s.wg.Wait()
+
+	s.Logger.Info("Service closed")
 	return nil
 }
 
@@ -153,11 +174,13 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 	}}
 }
 
-func (s *Service) writer() {
+func (s *Service) writer(ctx context.Context) {
 	defer s.wg.Done()
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case batch := <-s.batcher.Out():
 			// Will attempt to create database if not yet created.
 			if err := s.createInternalStorage(); err != nil {
@@ -174,45 +197,57 @@ func (s *Service) writer() {
 					logger.Database(s.config.Database), zap.Error(err))
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
-
-		case <-s.done:
-			return
 		}
 	}
 }
 
-func (s *Service) serve() {
+func (s *Service) serve(ctx context.Context) {
 	defer s.wg.Done()
-
 	buf := make([]byte, MaxUDPPayload)
+
+	type readpayload struct {
+		nbytes int
+		err    error
+	}
+
+	payloadChan := make(chan readpayload)
+
+	go func() {
+		for {
+			payload := readpayload{}
+			payload.nbytes, _, payload.err = s.conn.ReadFromUDP(buf)
+			payloadChan <- payload
+		}
+	}()
+
 	for {
 		select {
-		case <-s.done:
+		case <-ctx.Done():
 			// We closed the connection, time to go.
+			s.conn.Close()
 			return
-		default:
+		case payload := <-payloadChan:
 			// Keep processing.
-			n, _, err := s.conn.ReadFromUDP(buf)
-			if err != nil {
+			if payload.err != nil {
 				atomic.AddInt64(&s.stats.ReadFail, 1)
-				s.Logger.Info("Failed to read UDP message", zap.Error(err))
+				s.Logger.Info("Failed to read UDP message", zap.Error(payload.err))
 				continue
 			}
-			atomic.AddInt64(&s.stats.BytesReceived, int64(n))
+			atomic.AddInt64(&s.stats.BytesReceived, int64(payload.nbytes))
 
-			bufCopy := make([]byte, n)
-			copy(bufCopy, buf[:n])
+			bufCopy := make([]byte, payload.nbytes)
+			copy(bufCopy, buf[:payload.nbytes])
 			s.parserChan <- bufCopy
 		}
 	}
 }
 
-func (s *Service) parser() {
+func (s *Service) parser(ctx context.Context) {
 	defer s.wg.Done()
 
 	for {
 		select {
-		case <-s.done:
+		case <-ctx.Done():
 			return
 		case buf := <-s.parserChan:
 			points, err := models.ParsePointsWithPrecision(buf, time.Now().UTC(), s.config.Precision)
@@ -228,59 +263,6 @@ func (s *Service) parser() {
 			atomic.AddInt64(&s.stats.PointsReceived, int64(len(points)))
 		}
 	}
-}
-
-// Close closes the service and the underlying listener.
-func (s *Service) Close() error {
-	if wait := func() bool {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		if s.closed() {
-			return false // Already closed.
-		}
-		close(s.done)
-
-		if s.conn != nil {
-			s.conn.Close()
-		}
-
-		if s.batcher != nil {
-			s.batcher.Stop()
-		}
-		return true
-	}(); !wait {
-		return nil
-	}
-	s.wg.Wait()
-
-	// Release all remaining resources.
-	s.mu.Lock()
-	s.done = nil
-	s.conn = nil
-	s.batcher = nil
-	s.mu.Unlock()
-
-	s.Logger.Info("Service closed")
-
-	return nil
-}
-
-// Closed returns true if the service is currently closed.
-func (s *Service) Closed() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.closed()
-}
-
-func (s *Service) closed() bool {
-	select {
-	case <-s.done:
-		// Service is closing.
-		return true
-	default:
-	}
-	return s.done == nil
 }
 
 // createInternalStorage ensures that the required database has been created.

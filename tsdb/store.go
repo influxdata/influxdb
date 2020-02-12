@@ -2,6 +2,7 @@ package tsdb // import "github.com/influxdata/influxdb/tsdb"
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -197,9 +199,23 @@ func (s *Store) IndexBytes() int {
 // Path returns the store's root path.
 func (s *Store) Path() string { return s.path }
 
+func (s *Store) Run(ctx context.Context, reg services.Registrar) error {
+	if err := s.OpenWithContext(ctx); err != nil {
+		return err
+	}
+	reg.Register("tsdb")
+	<-ctx.Done()
+	reg.Unregister("tsdb")
+	return s.Close()
+}
+
 // Open initializes the store, creating all necessary directories, loading all
 // shards as well as initializing periodic maintenance of them.
 func (s *Store) Open() error {
+	return s.OpenWithContext(context.Background())
+}
+
+func (s *Store) OpenWithContext(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -225,11 +241,7 @@ func (s *Store) Open() error {
 	s.opened = true
 
 	if !s.EngineOptions.MonitorDisabled {
-		s.wg.Add(1)
-		go func() {
-			s.wg.Done()
-			s.monitorShards()
-		}()
+		go s.monitorShards(ctx)
 	}
 
 	return nil
@@ -1902,14 +1914,14 @@ func mergeTagValues(valueIdxs [][2]int, tvs ...tagValues) TagValues {
 	return result
 }
 
-func (s *Store) monitorShards() {
+func (s *Store) monitorShards(ctx context.Context) {
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
 	t2 := time.NewTicker(time.Minute)
 	defer t2.Stop()
 	for {
 		select {
-		case <-s.closing:
+		case <-ctx.Done():
 			return
 		case <-t.C:
 			s.mu.RLock()

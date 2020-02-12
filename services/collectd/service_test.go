@@ -18,43 +18,6 @@ import (
 	"github.com/influxdata/influxdb/toml"
 )
 
-func TestService_OpenClose(t *testing.T) {
-	service := NewTestService(1, time.Second, "split")
-
-	// Closing a closed service is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Closing a closed service again is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Opening an already open service is fine.
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Reopening a previously opened service is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Tidy up.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // Test that the service can read types DB files from a directory.
 func TestService_Open_TypesDBDir(t *testing.T) {
 	t.Parallel()
@@ -319,7 +282,6 @@ Loop:
 			t.Fatalf("\n\texp = %s\n\tgot = %s\n", exp, got)
 		}
 	}
-
 }
 
 // Test that the collectd service correctly batches points using BatchDuration.

@@ -3,6 +3,7 @@
 package subscriber // import "github.com/influxdata/influxdb/services/subscriber"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"go.uber.org/zap"
 )
@@ -60,6 +62,11 @@ type Service struct {
 
 	subs  map[subEntry]chanWriter
 	subMu sync.RWMutex
+
+	// members used for testing
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns a subscriber service with given settings
@@ -74,8 +81,20 @@ func NewService(c Config) *Service {
 	return s
 }
 
-// Open starts the subscription service.
 func (s *Service) Open() error {
+	s.errChan = make(chan error)
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	go func() { s.errChan <- s.Run(s.ctx, services.NewRegistry()) }()
+	return nil
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
+}
+
+// Open starts the subscription service.
+func (s *Service) Run(ctx context.Context, reg services.Registrar) error {
 	if !s.conf.Enabled {
 		return nil // Service disabled.
 	}
@@ -86,43 +105,23 @@ func (s *Service) Open() error {
 		return errors.New("no meta store")
 	}
 
-	s.closed = false
-
-	s.closing = make(chan struct{})
 	s.update = make(chan struct{})
 	s.points = make(chan *coordinator.WritePointsRequest, 100)
 
 	s.wg.Add(2)
+
 	go func() {
-		defer s.wg.Done()
-		s.run()
-	}()
-	go func() {
-		defer s.wg.Done()
-		s.waitForMetaUpdates()
+		s.run(ctx)
+		s.wg.Done()
 	}()
 
-	s.Logger.Info("Opened service")
-	return nil
-}
-
-// Close terminates the subscription service.
-// It will panic if called multiple times or without first opening the service.
-func (s *Service) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.closed {
-		return nil // Already closed.
-	}
-
-	s.closed = true
-
-	close(s.points)
-	close(s.closing)
+	go func() {
+		s.waitForMetaUpdates(ctx)
+		s.wg.Done()
+	}()
 
 	s.wg.Wait()
-	s.Logger.Info("Closed service")
+
 	return nil
 }
 
@@ -159,28 +158,29 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 	return statistics
 }
 
-func (s *Service) waitForMetaUpdates() {
+func (s *Service) waitForMetaUpdates(ctx context.Context) error {
 	for {
 		ch := s.MetaClient.WaitForDataChanged()
 		select {
+		case <-ctx.Done():
+			return nil
+
 		case <-ch:
-			err := s.Update()
+			err := s.Update(ctx)
 			if err != nil {
 				s.Logger.Info("Error updating subscriptions", zap.Error(err))
 			}
-		case <-s.closing:
-			return
 		}
 	}
 }
 
 // Update will start new and stop deleted subscriptions.
-func (s *Service) Update() error {
+func (s *Service) Update(ctx context.Context) error {
 	// signal update
 	select {
 	case s.update <- struct{}{}:
 		return nil
-	case <-s.closing:
+	case <-ctx.Done():
 		return errors.New("service closed cannot update")
 	}
 }
@@ -230,20 +230,21 @@ func (s *Service) Points() chan<- *coordinator.WritePointsRequest {
 }
 
 // run read points from the points channel and writes them to the subscriptions.
-func (s *Service) run() {
+func (s *Service) run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	s.subs = make(map[subEntry]chanWriter)
 	// Perform initial update
 	s.updateSubs(&wg)
 	for {
 		select {
+		case <-ctx.Done():
+			return nil
 		case <-s.update:
 			s.updateSubs(&wg)
 		case p, ok := <-s.points:
 			if !ok {
-				// Close out all chanWriters
+				// close out all chanWriters
 				s.close(&wg)
-				return
 			}
 			for se, cw := range s.subs {
 				if p.Database == se.db && p.RetentionPolicy == se.rp {

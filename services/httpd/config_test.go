@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/httpd"
 )
 
@@ -51,7 +52,7 @@ max-body-size = 100
 
 func TestConfig_WriteTracing(t *testing.T) {
 	c := httpd.Config{WriteTracing: true}
-	s := httpd.NewService(c)
+	s := httpd.NewService(c, services.NewRegistry())
 	if !s.Handler.Config.WriteTracing {
 		t.Fatalf("write tracing was not set")
 	}

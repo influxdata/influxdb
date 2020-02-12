@@ -16,46 +16,6 @@ import (
 	"github.com/influxdata/influxdb/toml"
 )
 
-func Test_Service_OpenClose(t *testing.T) {
-	// Let the OS assign a random port since we are only opening and closing the service,
-	// not actually connecting to it.
-	c := Config{BindAddress: "127.0.0.1:0"}
-	service := NewTestService(&c)
-
-	// Closing a closed service is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Closing a closed service again is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Opening an already open service is fine.
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Reopening a previously opened service is fine.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := service.Service.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Tidy up.
-	if err := service.Service.Close(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestService_CreatesDatabase(t *testing.T) {
 	t.Parallel()
 

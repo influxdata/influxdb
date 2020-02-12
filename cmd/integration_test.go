@@ -1,6 +1,7 @@
 package cmd_test
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 type TestRunCommand struct {
 	*run.Command
+	cancel context.CancelFunc
 
 	// Temporary directory used for default data, meta, and wal dirs.
 	Dir string
@@ -58,8 +60,8 @@ func NewTestRunCommand(env map[string]string) *TestRunCommand {
 }
 
 // MustRun calls Command.Run and panics if there is an error.
-func (c *TestRunCommand) MustRun() {
-	if err := c.Command.Run("-config", os.DevNull); err != nil {
+func (c *TestRunCommand) MustRun(ctx context.Context) {
+	if err := c.Command.Run(ctx, "-config", os.DevNull); err != nil {
 		panic(err)
 	}
 }
@@ -86,6 +88,5 @@ func (c *TestRunCommand) BoundHTTPAddr() string {
 }
 
 func (c *TestRunCommand) Cleanup() {
-	c.Command.Close()
 	os.RemoveAll(c.Dir)
 }

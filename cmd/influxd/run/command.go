@@ -2,6 +2,7 @@
 package run
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -38,7 +39,6 @@ type Command struct {
 	Commit    string
 	BuildTime string
 
-	closing chan struct{}
 	pidfile string
 	Closed  chan struct{}
 
@@ -56,17 +56,16 @@ type Command struct {
 // NewCommand return a new instance of Command.
 func NewCommand() *Command {
 	return &Command{
-		closing: make(chan struct{}),
-		Closed:  make(chan struct{}),
-		Stdin:   os.Stdin,
-		Stdout:  os.Stdout,
-		Stderr:  os.Stderr,
-		Logger:  zap.NewNop(),
+		Closed: make(chan struct{}),
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+		Logger: zap.NewNop(),
 	}
 }
 
 // Run parses the config from args and runs the server.
-func (cmd *Command) Run(args ...string) error {
+func (cmd *Command) Run(ctx context.Context, args ...string) error {
 	// Parse the command line flags.
 	options, err := cmd.ParseFlags(args...)
 	if err != nil {
@@ -124,6 +123,7 @@ func (cmd *Command) Run(args ...string) error {
 	if err := cmd.writePIDFile(options.PIDFile); err != nil {
 		return fmt.Errorf("write pid file: %s", err)
 	}
+	defer cmd.removePIDFile()
 	cmd.pidfile = options.PIDFile
 
 	if config.HTTPD.PprofEnabled {
@@ -146,36 +146,27 @@ func (cmd *Command) Run(args ...string) error {
 	s.Logger = cmd.Logger
 	s.CPUProfile = options.CPUProfile
 	s.MemProfile = options.MemProfile
-	if err := s.Open(); err != nil {
-		return fmt.Errorf("open server: %s", err)
-	}
-	cmd.Server = s
 
 	// Begin monitoring the server's error channel.
-	go cmd.monitorServerErrors()
+	cmd.Server = s
+	go cmd.monitorServerErrors(ctx)
 
-	return nil
-}
-
-// Close shuts down the server.
-func (cmd *Command) Close() error {
-	defer close(cmd.Closed)
-	defer cmd.removePIDFile()
-	close(cmd.closing)
-	if cmd.Server != nil {
-		return cmd.Server.Close()
+	if err := s.OpenWithContext(ctx); err != nil {
+		return fmt.Errorf("open server: %s", err)
 	}
+
 	return nil
 }
 
-func (cmd *Command) monitorServerErrors() {
+func (cmd *Command) monitorServerErrors(ctx context.Context) {
 	logger := log.New(cmd.Stderr, "", log.LstdFlags)
 	for {
 		select {
+		case <-ctx.Done():
+			// stop consuming errors if cancelled.
+			return
 		case err := <-cmd.Server.Err():
 			logger.Println(err)
-		case <-cmd.closing:
-			return
 		}
 	}
 }

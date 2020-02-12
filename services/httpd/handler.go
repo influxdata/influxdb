@@ -36,6 +36,7 @@ import (
 	"github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/storage/reads"
@@ -136,7 +137,7 @@ type Handler struct {
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(c Config) *Handler {
+func NewHandler(c Config, reg services.Registrar) *Handler {
 	h := &Handler{
 		mux:            pat.New(),
 		Config:         &c,
@@ -176,11 +177,18 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{
 			"query", // Query serving route.
-			"GET", "/query", true, true, h.serveQuery,
+			"GET", "/query", true, true, func(w http.ResponseWriter, r *http.Request, user meta.User) {
+				<-reg.WaitFor("tsdb")
+				h.serveQuery(w, r, user)
+			},
 		},
+
 		Route{
 			"query", // Query serving route.
-			"POST", "/query", true, true, h.serveQuery,
+			"POST", "/query", true, true, func(w http.ResponseWriter, r *http.Request, user meta.User) {
+				<-reg.WaitFor("tsdb")
+				h.serveQuery(w, r, user)
+			},
 		},
 		Route{
 			"write-options", // Satisfy CORS checks.
@@ -188,7 +196,11 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{
 			"write", // Data-ingest route.
-			"POST", "/write", true, writeLogEnabled, h.serveWrite,
+			"POST", "/write", true, writeLogEnabled,
+			func(w http.ResponseWriter, r *http.Request, user meta.User) {
+				<-reg.WaitFor("tsdb")
+				h.serveWrite(w, r, user)
+			},
 		},
 		Route{
 			"prometheus-write", // Prometheus remote write
@@ -1305,7 +1317,7 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 func (h *Handler) logFluxQuery(n int64, stats flux.Statistics, compiler flux.Compiler, err error) {
 	var q string
 	switch c := compiler.(type) {
-	//case lang.SpecCompiler:
+	// case lang.SpecCompiler:
 	//	q = fmt.Sprint(flux.Formatted(c.Spec))
 	case lang.FluxCompiler:
 		q = c.Query

@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/graphite"
@@ -63,8 +65,7 @@ type BuildInfo struct {
 type Server struct {
 	buildInfo BuildInfo
 
-	err     chan error
-	closing chan struct{}
+	err chan error
 
 	BindAddress string
 	Listener    net.Listener
@@ -104,6 +105,9 @@ type Server struct {
 	tcpAddr string
 
 	config *Config
+
+	cancel context.CancelFunc // used to implement backwards compatible Open()/Close() api
+	closed chan struct{}
 }
 
 // updateTLSConfig stores with into the tls config pointed at by into but only if with is not nil
@@ -167,7 +171,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s := &Server{
 		buildInfo: *buildInfo,
 		err:       make(chan error),
-		closing:   make(chan struct{}),
 
 		BindAddress: bind,
 
@@ -182,6 +185,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		tcpAddr:     bind,
 
 		config: c,
+		closed: make(chan struct{}),
 	}
 	s.Monitor = monitor.New(s, c.Monitor)
 	s.config.registerDiagnostics(s.Monitor)
@@ -277,11 +281,11 @@ func (s *Server) appendRetentionPolicyService(c retention.Config) {
 	s.Services = append(s.Services, srv)
 }
 
-func (s *Server) appendHTTPDService(c httpd.Config) {
+func (s *Server) appendHTTPDService(c httpd.Config, reg services.Registrar) {
 	if !c.Enabled {
 		return
 	}
-	srv := httpd.NewService(c)
+	srv := httpd.NewService(c, reg)
 	srv.Handler.MetaClient = s.MetaClient
 	authorizer := meta.NewQueryAuthorizer(s.MetaClient)
 	srv.Handler.QueryAuthorizer = authorizer
@@ -374,10 +378,30 @@ func (s *Server) Err() <-chan error { return s.err }
 
 // Open opens the meta and data store and all services.
 func (s *Server) Open() error {
-	// Start profiling if requested.
-	if err := s.startProfile(); err != nil {
-		return err
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
+
+	ready := make(chan struct{})
+	go s.OpenWithContextReady(ctx, ready)
+
+	<-ready
+	return nil
+}
+
+func (s *Server) OpenWithContext(ctx context.Context) error {
+	return s.OpenWithContextReady(ctx, nil)
+}
+
+// Open opens the meta and data store and all services.
+func (s *Server) Close() error {
+	s.cancel()
+	<-s.closed
+	return nil
+}
+
+func (s *Server) OpenWithContextReady(ctx context.Context, ready chan struct{}) error {
+	// Start profiling, if set.
+	s.startProfile()
 
 	// Open shared TCP connection.
 	ln, err := net.Listen("tcp", s.BindAddress)
@@ -390,13 +414,16 @@ func (s *Server) Open() error {
 	mux := tcp.NewMux()
 	go mux.Serve(ln)
 
+	reg := services.NewRegistry()
+
 	// Append services.
 	s.appendMonitorService()
 	s.appendPrecreatorService(s.config.Precreator)
 	s.appendSnapshotterService()
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
-	s.appendHTTPDService(s.config.HTTPD)
+	s.appendHTTPDService(s.config.HTTPD, reg)
 	s.appendRetentionPolicyService(s.config.Retention)
+
 	for _, i := range s.config.GraphiteInputs {
 		if err := s.appendGraphiteService(i); err != nil {
 			return err
@@ -410,6 +437,8 @@ func (s *Server) Open() error {
 			return err
 		}
 	}
+
+	// append usp services
 	for _, i := range s.config.UDPInputs {
 		s.appendUDPService(i)
 	}
@@ -436,39 +465,59 @@ func (s *Server) Open() error {
 	s.SnapshotterService.WithLogger(s.Logger)
 	s.Monitor.WithLogger(s.Logger)
 
-	// Open TSDB store.
-	if err := s.TSDBStore.Open(); err != nil {
-		return fmt.Errorf("open tsdb store: %s", err)
-	}
-
-	// Open the subscriber service
-	if err := s.Subscriber.Open(); err != nil {
-		return fmt.Errorf("open subscriber: %s", err)
-	}
-
-	// Open the points writer service
-	if err := s.PointsWriter.Open(); err != nil {
-		return fmt.Errorf("open points writer: %s", err)
-	}
+	// append TSDB Store, Subcriber, and PointsWriter services to our Services slice.
+	s.Services = append(s.Services, s.TSDBStore, s.Subscriber, s.PointsWriter)
 
 	s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
 
+	// asyncronously start all services. we run this loop in a go routine so we
+	// can block on the supplied context as soon as possible.  FIXME: this might
+	// be unnessesary.
+	sem := make(chan struct{}, len(s.Services))
 	for _, service := range s.Services {
-		if err := service.Open(); err != nil {
-			return fmt.Errorf("open service: %s", err)
-		}
+		go func(svc Service) {
+			// start service
+			//
+			// we begin by "incrementing" our semaphore to indicate that a service
+			// has started.
+			//
+			// as services exit, we read back from the same channel to remove our
+			// place in the queue.
+			//
+			// to test if all services are complete, we can attempt to write to the
+			// channel len(s.Services) times which will block until all services have
+			// exited.
+			sem <- struct{}{}
+			if err := svc.Run(ctx, reg); err != nil {
+				// if there was an error, report it to s.err s.err <- err
+				//
+				// subtle: we want to report errors to s.err but if nothing is
+				// receiving messages on that channel, we do not want to block!
+				select {
+				case s.err <- err:
+				default:
+				}
+			}
+			// indicate that this service is done by decrementing our semaphore.
+			<-sem
+		}(service)
 	}
 
 	// Start the reporting service, if not disabled.
 	if !s.reportingDisabled {
-		go s.startServerReporting()
+		go s.startServerReporting(ctx)
 	}
 
-	return nil
-}
+	<-reg.WaitFor("http")
+	<-reg.WaitFor("tsdb")
 
-// Close shuts down the meta and data stores and all services.
-func (s *Server) Close() error {
+	// signal that we're ready
+	if ready != nil {
+		close(ready)
+	}
+
+	// wait for a cancellation signal
+	<-ctx.Done()
 	s.stopProfile()
 
 	// Close the listener first to stop any new connections
@@ -476,48 +525,27 @@ func (s *Server) Close() error {
 		s.Listener.Close()
 	}
 
-	// Close services to allow any inflight requests to complete
-	// and prevent new requests from being accepted.
-	for _, service := range s.Services {
-		service.Close()
+	// wait for services to complete.
+	for range s.Services {
+		sem <- struct{}{} // receive signal when service has ended.
 	}
 
 	s.config.deregisterDiagnostics(s.Monitor)
+	close(s.closed)
 
-	if s.PointsWriter != nil {
-		s.PointsWriter.Close()
-	}
-
-	if s.QueryExecutor != nil {
-		s.QueryExecutor.Close()
-	}
-
-	// Close the TSDBStore, no more reads or writes at this point
-	if s.TSDBStore != nil {
-		s.TSDBStore.Close()
-	}
-
-	if s.Subscriber != nil {
-		s.Subscriber.Close()
-	}
-
-	if s.MetaClient != nil {
-		s.MetaClient.Close()
-	}
-
-	close(s.closing)
 	return nil
 }
 
 // startServerReporting starts periodic server reporting.
-func (s *Server) startServerReporting() {
+func (s *Server) startServerReporting(ctx context.Context) {
 	s.reportServer()
 
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
+
 	for {
 		select {
-		case <-s.closing:
+		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			s.reportServer()
@@ -580,8 +608,7 @@ func (s *Server) reportServer() {
 // Service represents a service attached to the server.
 type Service interface {
 	WithLogger(log *zap.Logger)
-	Open() error
-	Close() error
+	Run(context.Context, services.Registrar) error
 }
 
 // prof stores the file locations of active profiles.

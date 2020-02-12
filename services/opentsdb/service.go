@@ -4,8 +4,10 @@ package opentsdb // import "github.com/influxdata/influxdb/services/opentsdb"
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/textproto"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -78,6 +81,11 @@ type Service struct {
 
 	stats       *Statistics
 	defaultTags models.StatisticTags
+
+	// members used for testing
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns a new instance of Service.
@@ -107,11 +115,44 @@ func NewService(c Config) (*Service, error) {
 	return s, nil
 }
 
-// Open starts the service.
 func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.errChan = make(chan error)
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	ready := make(chan struct{})
 
+	go func() { s.errChan <- s.RunWithReady(s.ctx, ready, services.NewRegistry()) }()
+
+	select {
+	case <-ready:
+		return nil
+	case err := <-s.errChan:
+		return err
+	}
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
+}
+
+func (s *Service) Run(ctx context.Context, reg services.Registrar) error {
+	ready := make(chan struct{})
+	errChan := make(chan error)
+	go func() { errChan <- s.RunWithReady(ctx, ready, reg) }()
+
+	select {
+	case <-ready:
+		log.Printf("READY!")
+		return nil
+	case err := <-errChan:
+		return err
+	}
+}
+
+// Open starts the service.
+func (s *Service) RunWithReady(ctx context.Context, ready chan struct{}, reg services.Registrar) error {
 	if s.done != nil {
 		return nil // Already open.
 	}
@@ -157,14 +198,17 @@ func (s *Service) Open() error {
 
 	// Begin listening for connections.
 	s.wg.Add(2)
-	go func() { defer s.wg.Done(); s.serve() }()
+	go func() { defer s.wg.Done(); s.serve(ctx) }()
 	go func() { defer s.wg.Done(); s.serveHTTP() }()
 
-	return nil
+	close(ready)
+	<-ctx.Done()
+
+	return s.cleanup()
 }
 
 // Close closes the openTSDB service.
-func (s *Service) Close() error {
+func (s *Service) cleanup() error {
 	if wait, err := func() (bool, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -297,20 +341,48 @@ func (s *Service) Addr() net.Addr {
 }
 
 // serve serves the handler from the listener.
-func (s *Service) serve() {
-	for {
-		// Wait for next connection.
-		conn, err := s.ln.Accept()
-		if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
-			s.Logger.Info("OpenTSDB TCP listener closed")
-			return
-		} else if err != nil {
-			s.Logger.Info("Error accepting OpenTSDB", zap.Error(err))
-			continue
-		}
+func (s *Service) serve(ctx context.Context) error {
+	conChan := make(chan net.Conn)
+	errChan := make(chan error)
 
-		// Handle connection in separate goroutine.
-		go s.handleConn(conn)
+	// send accepted connections to our conChan so that we can multiplex over
+	// conChand and ctx.Done() in the next for loop.
+	//
+	// this go routine is cancelled once the s.ln listener is closed.
+	//
+	// FIXME: this logic needs to be looked at closely.
+	go func() {
+		for {
+			// Wait for next connection.
+			c, err := s.ln.Accept()
+			if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
+				s.Logger.Info("OpenTSDB TCP listener closed")
+				errChan <- err
+				return
+			} else if err != nil {
+				s.Logger.Info("Error accepting OpenTSDB", zap.Error(err))
+				continue
+			}
+			conChan <- c
+		}
+	}()
+
+	// handle new incoming connections, errors, and cancellation signal.
+	for {
+		select {
+		case <-ctx.Done():
+			// we're done.  close our listener immediately so we don't accept new connections.
+			s.ln.Close()
+			return nil
+
+		case conn := <-conChan:
+			// Handle connection in separate goroutine.
+			go s.handleConn(conn)
+
+		case err := <-errChan:
+			s.ln.Close()
+			return err
+		}
 	}
 }
 

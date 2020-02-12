@@ -2,10 +2,12 @@
 package retention // import "github.com/influxdata/influxdb/services/retention"
 
 import (
+	"context"
 	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"go.uber.org/zap"
 )
@@ -24,9 +26,13 @@ type Service struct {
 
 	config Config
 	wg     sync.WaitGroup
-	done   chan struct{}
 
 	logger *zap.Logger
+
+	// members used for testing
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns a configured retention policy enforcement service.
@@ -37,33 +43,28 @@ func NewService(c Config) *Service {
 	}
 }
 
-// Open starts retention policy enforcement.
 func (s *Service) Open() error {
-	if !s.config.Enabled || s.done != nil {
+	s.errChan = make(chan error)
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	go func() { s.errChan <- s.Run(s.ctx, services.NewRegistry()) }()
+	return nil
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
+}
+
+// Open starts retention policy enforcement.
+func (s *Service) Run(ctx context.Context, reg services.Registrar) error {
+	if !s.config.Enabled {
 		return nil
 	}
 
 	s.logger.Info("Starting retention policy enforcement service",
 		logger.DurationLiteral("check_interval", time.Duration(s.config.CheckInterval)))
-	s.done = make(chan struct{})
 
-	s.wg.Add(1)
-	go func() { defer s.wg.Done(); s.run() }()
-	return nil
-}
-
-// Close stops retention policy enforcement.
-func (s *Service) Close() error {
-	if !s.config.Enabled || s.done == nil {
-		return nil
-	}
-
-	s.logger.Info("Closing retention policy enforcement service")
-	close(s.done)
-
-	s.wg.Wait()
-	s.done = nil
-	return nil
+	return s.run(ctx)
 }
 
 // WithLogger sets the logger on the service.
@@ -71,13 +72,13 @@ func (s *Service) WithLogger(log *zap.Logger) {
 	s.logger = log.With(zap.String("service", "retention"))
 }
 
-func (s *Service) run() {
+func (s *Service) run(ctx context.Context) error {
 	ticker := time.NewTicker(time.Duration(s.config.CheckInterval))
 	defer ticker.Stop()
 	for {
 		select {
-		case <-s.done:
-			return
+		case <-ctx.Done():
+			return nil
 
 		case <-ticker.C:
 			log, logEnd := logger.NewOperation(s.logger, "Retention policy deletion check", "retention_delete_check")

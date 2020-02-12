@@ -2,6 +2,7 @@
 package httpd // import "github.com/influxdata/influxdb/services/httpd"
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services"
 	"go.uber.org/zap"
 )
 
@@ -65,10 +67,15 @@ type Service struct {
 	Handler *Handler
 
 	Logger *zap.Logger
+
+	// members used for testing
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns a new instance of Service.
-func NewService(c Config) *Service {
+func NewService(c Config, reg services.Registrar) *Service {
 	s := &Service{
 		addr:           c.BindAddress,
 		https:          c.HTTPSEnabled,
@@ -80,7 +87,7 @@ func NewService(c Config) *Service {
 		unixSocket:     c.UnixSocketEnabled,
 		unixSocketPerm: uint32(c.UnixSocketPermissions),
 		bindSocket:     c.BindSocket,
-		Handler:        NewHandler(c),
+		Handler:        NewHandler(c, reg),
 		Logger:         zap.NewNop(),
 	}
 	if s.tlsConfig == nil {
@@ -96,8 +103,20 @@ func NewService(c Config) *Service {
 	return s
 }
 
-// Open starts the service.
 func (s *Service) Open() error {
+	s.errChan = make(chan error)
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	go func() { s.errChan <- s.Run(s.ctx, services.NewRegistry()) }()
+	return nil
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
+}
+
+// Open starts the service.
+func (s *Service) Run(ctx context.Context, reg services.Registrar) error {
 	s.Logger.Info("Starting HTTP service", zap.Bool("authentication", s.Handler.Config.AuthEnabled))
 
 	s.Handler.Open()
@@ -129,6 +148,8 @@ func (s *Service) Open() error {
 	s.Logger.Info("Listening on HTTP",
 		zap.Stringer("addr", s.ln.Addr()),
 		zap.Bool("https", s.https))
+
+	reg.Register("http")
 
 	// Open unix socket listener.
 	if s.unixSocket {
@@ -184,13 +205,15 @@ func (s *Service) Open() error {
 
 	// Begin listening for requests in a separate goroutine.
 	go s.serveTCP()
-	return nil
+
+	<-ctx.Done()
+
+	return s.cleanup()
 }
 
 // Close closes the underlying listener.
-func (s *Service) Close() error {
+func (s *Service) cleanup() error {
 	s.Handler.Close()
-
 	if s.ln != nil {
 		if err := s.ln.Close(); err != nil {
 			return err

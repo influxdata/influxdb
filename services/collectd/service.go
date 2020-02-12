@@ -3,6 +3,7 @@ package collectd // import "github.com/influxdata/influxdb/services/collectd"
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -17,6 +18,7 @@ import (
 	"collectd.org/network"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -69,12 +71,16 @@ type Service struct {
 	addr    net.Addr
 
 	mu    sync.RWMutex
-	ready bool          // Has the required database been created?
-	done  chan struct{} // Is the service closing or closed?
+	ready bool // Has the required database been created?
 
 	// expvar-based stats.
 	stats       *Statistics
 	defaultTags models.StatisticTags
+
+	// members used to implment Open() and Close() and ultimately for testing.
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns a new instance of the collectd service.
@@ -87,19 +93,51 @@ func NewService(c Config) *Service {
 		stats:       &Statistics{},
 		defaultTags: models.StatisticTags{"bind": c.BindAddress},
 	}
-
 	return &s
 }
 
-// Open starts the service.
 func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.Logger.Info("Starting collectd service")
+	s.errChan = make(chan error)
 
-	if s.done != nil {
-		return nil // Already open.
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+
+	ready := make(chan struct{})
+	return s.RunWithReady(s.ctx, ready, nil)
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
+}
+
+func (s *Service) Run(ctx context.Context, reg services.Registrar) error {
+	ready := make(chan struct{})
+	return s.RunWithReady(ctx, ready, reg)
+}
+
+func (s *Service) RunWithReady(ctx context.Context, ready chan struct{}, reg services.Registrar) error {
+	if err := s.setup(ctx, ready, reg); err != nil {
+		return err
 	}
-	s.done = make(chan struct{})
+
+	go func() { s.errChan <- s.run(ctx, ready, reg) }()
+
+	select {
+	case <-ready:
+		return nil
+	case err := <-s.errChan:
+		return err
+	}
+}
+
+// Open starts the service.
+func (s *Service) setup(ctx context.Context, ready chan<- struct{}, reg services.Registrar) error {
+	// Start the points batcher.
+	s.batcher = tsdb.NewPointBatcher(s.Config.BatchSize, s.Config.BatchPending, time.Duration(s.Config.BatchDuration))
+	s.batcher.Start()
 
 	s.Logger.Info("Starting collectd service")
 
@@ -197,65 +235,44 @@ func (s *Service) Open() error {
 	s.conn = conn
 
 	s.Logger.Info("Listening on UDP", zap.Stringer("addr", conn.LocalAddr()))
+	return nil
+}
 
-	// Start the points batcher.
-	s.batcher = tsdb.NewPointBatcher(s.Config.BatchSize, s.Config.BatchPending, time.Duration(s.Config.BatchDuration))
-	s.batcher.Start()
-
+func (s *Service) run(ctx context.Context, ready chan<- struct{}, reg services.Registrar) error {
 	// Create waitgroup for signalling goroutines to stop and start goroutines
 	// that process collectd packets.
 	s.wg.Add(2)
-	go func() { defer s.wg.Done(); s.serve() }()
-	go func() { defer s.wg.Done(); s.writePoints() }()
+	go func() { defer s.wg.Done(); s.serve(ctx) }()
+	go func() { defer s.wg.Done(); s.writePoints(ctx) }()
 
-	return nil
-}
+	close(ready)
+	<-ctx.Done()
+	s.conn.Close()
 
-// Close stops the service.
-func (s *Service) Close() error {
-	if wait := func() bool {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		if s.closed() {
-			return false
-		}
-		close(s.done)
-
-		// Close the connection, and wait for the goroutine to exit.
-		if s.conn != nil {
-			s.conn.Close()
-		}
-		if s.batcher != nil {
-			s.batcher.Stop()
-		}
-		return true
-	}(); !wait {
-		return nil // Already closed.
-	}
-
-	// Wait with the lock unlocked.
 	s.wg.Wait()
 
-	// Release all remaining resources.
+	// cleanup after receiving cancellation signal
+	return s.cleanup()
+}
+
+func (s *Service) cleanup() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Close the connection, and wait for the goroutine to exit.
+	if s.conn != nil {
+		s.conn.Close()
+	}
+	if s.batcher != nil {
+		s.batcher.Stop()
+	}
+
 	s.conn = nil
 	s.batcher = nil
-	s.Logger.Info("Closed collectd service")
-	s.done = nil
-	return nil
-}
 
-func (s *Service) closed() bool {
-	select {
-	case <-s.done:
-		// Service is closing.
-		return true
-	default:
-	}
-	return s.done == nil
+	s.Logger.Info("Closed collectd service")
+
+	return nil
 }
 
 // createInternalStorage ensures that the required database has been created.
@@ -325,7 +342,7 @@ func (s *Service) Addr() net.Addr {
 	return s.conn.LocalAddr()
 }
 
-func (s *Service) serve() {
+func (s *Service) serve(ctx context.Context) {
 	// From https://collectd.org/wiki/index.php/Binary_protocol
 	//   1024 bytes (payload only, not including UDP / IP headers)
 	//   In versions 4.0 through 4.7, the receive buffer has a fixed size
@@ -336,32 +353,48 @@ func (s *Service) serve() {
 	//   Ethernet).
 	buffer := make([]byte, 1452)
 
+	type ReadPayload struct {
+		n   int   // bytes read by ReadFromUDP
+		err error // any error returend by ReadFromUDP
+	}
+
+	reads := make(chan ReadPayload)
+
+	go func() {
+		rp := ReadPayload{}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				rp.n, _, rp.err = s.conn.ReadFromUDP(buffer)
+				reads <- rp
+			}
+		}
+	}()
+
 	for {
 		select {
-		case <-s.done:
-			// We closed the connection, time to go.
+		case <-ctx.Done():
 			return
-		default:
-			// Keep processing.
-		}
-
-		n, _, err := s.conn.ReadFromUDP(buffer)
-		if err != nil {
-			if strings.Contains(err.Error(), "use of closed network connection") {
-				select {
-				case <-s.done:
-					return
-				default:
-					// The socket wasn't closed by us so consider it an error.
+		case cur := <-reads:
+			if cur.err != nil {
+				if strings.Contains(cur.err.Error(), "use of closed network connection") {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						// The socket wasn't closed by us so consider it an error.
+					}
 				}
+				atomic.AddInt64(&s.stats.ReadFail, 1)
+				s.Logger.Info("ReadFromUDP error", zap.Error(cur.err))
+				continue
 			}
-			atomic.AddInt64(&s.stats.ReadFail, 1)
-			s.Logger.Info("ReadFromUDP error", zap.Error(err))
-			continue
-		}
-		if n > 0 {
-			atomic.AddInt64(&s.stats.BytesReceived, int64(n))
-			s.handleMessage(buffer[:n])
+			if cur.n > 0 {
+				atomic.AddInt64(&s.stats.BytesReceived, int64(cur.n))
+				s.handleMessage(buffer[:cur.n])
+			}
 		}
 	}
 }
@@ -387,10 +420,10 @@ func (s *Service) handleMessage(buffer []byte) {
 	}
 }
 
-func (s *Service) writePoints() {
+func (s *Service) writePoints(ctx context.Context) {
 	for {
 		select {
-		case <-s.done:
+		case <-ctx.Done():
 			return
 		case batch := <-s.batcher.Out():
 			// Will attempt to create database if not yet created.
@@ -420,7 +453,7 @@ func (s *Service) writePoints() {
 func (s *Service) UnmarshalValueListPacked(vl *api.ValueList) []models.Point {
 	timestamp := vl.Time.UTC()
 
-	var name = vl.Identifier.Plugin
+	name := vl.Identifier.Plugin
 	tags := make(map[string]string, 4)
 	fields := make(map[string]interface{}, len(vl.Values))
 

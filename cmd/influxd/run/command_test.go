@@ -1,6 +1,7 @@
 package run_test
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -41,20 +42,23 @@ func TestCommand_PIDFile(t *testing.T) {
 			return os.Getenv(key)
 		}
 	}
-	if err := cmd.Run("-pidfile", pidFile, "-config", os.DevNull); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errChan := make(chan error)
+	go func() { errChan <- cmd.Run(ctx, "-pidfile", pidFile, "-config", os.DevNull) }()
+
+	time.Sleep(1 * time.Second) // wait for pid file to be written.
 
 	if _, err := os.Stat(pidFile); err != nil {
 		t.Fatalf("could not stat pid file: %s", err)
 	}
-	go cmd.Close()
+	cancel()
 
 	timeout := time.NewTimer(100 * time.Millisecond)
 	select {
 	case <-timeout.C:
 		t.Fatal("unexpected timeout")
-	case <-cmd.Closed:
+	case <-errChan:
 		timeout.Stop()
 	}
 

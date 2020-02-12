@@ -2,6 +2,7 @@
 package continuous_querier // import "github.com/influxdata/influxdb/services/continuous_querier"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
@@ -37,7 +39,7 @@ const (
 // ContinuousQuerier represents a service that executes continuous queries.
 type ContinuousQuerier interface {
 	// Run executes the named query in the named database.  Blank database or name matches all.
-	Run(database, name string, t time.Time) error
+	Execute(database, name string, t time.Time) error
 }
 
 // metaClient is an internal interface to make testing easier.
@@ -95,8 +97,11 @@ type Service struct {
 	// lastRuns maps CQ name to last time it was run.
 	mu       sync.RWMutex
 	lastRuns map[string]time.Time
-	stop     chan struct{}
-	wg       *sync.WaitGroup
+
+	// members used to implement Open() and Close() and ultimately for testing.
+	ctx    context.Context
+	cancel context.CancelFunc
+	errCh  chan error
 }
 
 // NewService returns a new instance of Service.
@@ -111,39 +116,32 @@ func NewService(c Config) *Service {
 		Logger:            zap.NewNop(),
 		stats:             &Statistics{},
 		lastRuns:          map[string]time.Time{},
+		errCh:             make(chan error),
 	}
 
 	return s
 }
 
-// Open starts the service.
 func (s *Service) Open() error {
-	s.Logger.Info("Starting continuous query service")
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	go func() { s.errCh <- s.Run(s.ctx, nil) }()
 
-	if s.stop != nil {
-		return nil
-	}
+	return nil
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errCh
+}
+
+// Open starts the service.
+func (s *Service) Run(ctx context.Context, reg services.Registrar) error {
+	s.Logger.Info("Starting continuous query service")
 
 	assert(s.MetaClient != nil, "MetaClient is nil")
 	assert(s.QueryExecutor != nil, "QueryExecutor is nil")
 
-	s.stop = make(chan struct{})
-	s.wg = &sync.WaitGroup{}
-	s.wg.Add(1)
-	go s.backgroundLoop()
-	return nil
-}
-
-// Close stops the service.
-func (s *Service) Close() error {
-	if s.stop == nil {
-		return nil
-	}
-	close(s.stop)
-	s.wg.Wait()
-	s.wg = nil
-	s.stop = nil
-	return nil
+	return s.backgroundLoop(ctx)
 }
 
 // WithLogger sets the logger on the service.
@@ -170,7 +168,7 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 }
 
 // Run runs the specified continuous query, or all CQs if none is specified.
-func (s *Service) Run(database, name string, t time.Time) error {
+func (s *Service) Execute(database, name string, t time.Time) error {
 	var dbs []meta.DatabaseInfo
 
 	if database != "" {
@@ -206,16 +204,15 @@ func (s *Service) Run(database, name string, t time.Time) error {
 }
 
 // backgroundLoop runs on a go routine and periodically executes CQs.
-func (s *Service) backgroundLoop() {
+func (s *Service) backgroundLoop(ctx context.Context) error {
 	leaseName := "continuous_querier"
 	t := time.NewTimer(s.RunInterval)
 	defer t.Stop()
-	defer s.wg.Done()
 	for {
 		select {
-		case <-s.stop:
+		case <-ctx.Done():
 			s.Logger.Info("Terminating continuous query service")
-			return
+			return nil
 		case req := <-s.RunCh:
 			if !s.hasContinuousQueries() {
 				continue
@@ -273,9 +270,6 @@ func (s *Service) runContinuousQueries(req *RunRequest) {
 
 // ExecuteContinuousQuery may execute a single CQ. This will return false if there were no errors and the CQ was not run.
 func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.ContinuousQueryInfo, now time.Time) (bool, error) {
-	// TODO: re-enable stats
-	//s.stats.Inc("continuousQueryExecuted")
-
 	// Local wrapper / helper.
 	cq, err := NewContinuousQuery(dbi.Name, cqi)
 	if err != nil {

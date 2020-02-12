@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -119,12 +121,26 @@ func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
 	s.Shards[shardInfo.ID] = shardInfo
 }
 
+func (w *PointsWriter) Run(ctx context.Context, reg services.Registrar) error {
+	w.OpenWithContext(ctx)
+	<-ctx.Done()
+	return nil
+}
+
+func (w *PointsWriter) Stop() error {
+	return w.Close()
+}
+
 // Open opens the communication channel with the point writer.
-func (w *PointsWriter) Open() error {
+func (w *PointsWriter) OpenWithContext(ctx context.Context) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.closing = make(chan struct{})
 	return nil
+}
+
+func (w *PointsWriter) Open() error {
+	return w.OpenWithContext(context.Background())
 }
 
 // Close closes the communication channel with the point writer.

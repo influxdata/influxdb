@@ -3,6 +3,7 @@ package snapshotter // import "github.com/influxdata/influxdb/services/snapshott
 
 import (
 	"bytes"
+	"context"
 	"encoding"
 	"encoding/binary"
 	"encoding/json"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -51,6 +53,11 @@ type Service struct {
 
 	Listener net.Listener
 	Logger   *zap.Logger
+
+	// members used for testing
+	ctx     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 }
 
 // NewService returns a new instance of Service.
@@ -60,17 +67,27 @@ func NewService() *Service {
 	}
 }
 
-// Open starts the service.
 func (s *Service) Open() error {
+	s.errChan = make(chan error)
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	go func() { s.errChan <- s.Run(s.ctx, services.NewRegistry()) }()
+	return nil
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	return <-s.errChan
+}
+
+// Open starts the service.
+func (s *Service) Run(ctx context.Context, reg services.Registrar) error {
 	s.Logger.Info("Starting snapshot service")
 
 	s.wg.Add(1)
 	go s.serve()
-	return nil
-}
 
-// Close implements the Service interface.
-func (s *Service) Close() error {
+	<-ctx.Done()
+
 	if s.Listener != nil {
 		if err := s.Listener.Close(); err != nil {
 			return err

@@ -1,9 +1,11 @@
 package cmd_test
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	client "github.com/influxdata/influxdb/client/v2"
 )
@@ -22,7 +24,10 @@ func TestRetentionAutocreate(t *testing.T) {
 			})
 			defer cmd.Cleanup()
 
-			cmd.MustRun()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go cmd.MustRun(ctx)
+			time.Sleep(time.Second) // give cmd.MustRun() time to start
 
 			c, err := client.NewHTTPClient(client.HTTPConfig{
 				Addr: "http://" + cmd.BoundHTTPAddr(),
@@ -57,7 +62,10 @@ func TestCacheMaxMemorySize(t *testing.T) {
 	})
 	defer cmd.Cleanup()
 
-	cmd.MustRun()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go cmd.MustRun(ctx)
+	time.Sleep(1 * time.Second) // give cmd.MustRun() time to start
 
 	c := cmd.HTTPClient()
 	_ = mustQuery(c, "CREATE DATABASE test", "", "")

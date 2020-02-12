@@ -3,6 +3,7 @@
 package monitor // import "github.com/influxdata/influxdb/monitor"
 
 import (
+	"context"
 	"errors"
 	"expvar"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/services"
 	"github.com/influxdata/influxdb/services/meta"
 	"go.uber.org/zap"
 )
@@ -89,6 +91,18 @@ func (m *Monitor) open() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.done != nil
+}
+
+func (m *Monitor) Run(ctx context.Context, reg services.Registrar) error {
+	if err := m.Open(); err != nil {
+		return err
+	}
+	<-ctx.Done()
+	return nil
+}
+
+func (m *Monitor) Stop() error {
+	return m.Close()
 }
 
 // Open opens the monitoring system, using the given clusterID, node ID, and hostname
@@ -210,6 +224,8 @@ func (m *Monitor) SetPointsWriter(pw PointsWriter) error {
 	m.mu.Unlock()
 
 	// Subsequent calls to an already open Monitor are just a no-op.
+
+	// FIXME: should we be running m.Open() here?
 	return m.Open()
 }
 

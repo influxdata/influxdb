@@ -3,6 +3,7 @@ package tests
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -244,6 +245,8 @@ type LocalServer struct {
 	mu sync.RWMutex
 	*run.Server
 
+	cancel context.CancelFunc
+
 	*client
 	Config *Config
 }
@@ -265,6 +268,9 @@ func (s *LocalServer) Close() {
 	if err := s.Server.Close(); err != nil {
 		panic(err.Error())
 	}
+
+	// give s.Server.Close() time to remove files
+	time.Sleep(time.Second)
 
 	if cleanupData {
 		if err := os.RemoveAll(s.Config.rootPath); err != nil {

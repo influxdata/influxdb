@@ -30,33 +30,6 @@ func TestService_OpenDisabled(t *testing.T) {
 	}
 }
 
-func TestService_OpenClose(t *testing.T) {
-	// Opening a disabled service should be a no-op.
-	s := NewService(retention.NewConfig())
-
-	if err := s.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	if s.LogBuf.String() == "" {
-		t.Fatal("service didn't log anything on open")
-	}
-
-	// Reopening is a no-op
-	if err := s.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := s.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Re-closing is a no-op
-	if err := s.Close(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestService_CheckShards(t *testing.T) {
 	now := time.Now()
 	// Account for any time difference that could cause some of the logic in

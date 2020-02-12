@@ -744,10 +744,12 @@ func TestClient_Timeout(t *testing.T) {
 	}
 	query := client.Query{}
 	_, err = c.Query(query)
+
 	if err == nil {
 		t.Fatalf("unexpected success. expected timeout error")
 	} else if !strings.Contains(err.Error(), "request canceled") &&
-		!strings.Contains(err.Error(), "use of closed network connection") {
+		!strings.Contains(err.Error(), "use of closed network connection") &&
+		!strings.Contains(err.Error(), "Client.Timeout exceeded") {
 		t.Fatalf("unexpected error. expected 'request canceled' error, got %v", err)
 	}
 }
