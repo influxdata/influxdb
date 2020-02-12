@@ -155,25 +155,6 @@ impl RocksDB {
         }))
     }
 
-    pub fn read_range<'a>(
-        &self,
-        org_id: u32,
-        bucket_name: &str,
-        _range: &'a Range,
-        predicate: &'a Predicate,
-        _batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError> {
-        let bucket = self.get_bucket_by_name(org_id, bucket_name).unwrap().ok_or_else(|| {
-            StorageError {
-                description: format!("bucket {} not found", bucket_name),
-            }
-        })?;
-
-        let series_filters = self.get_series_filters(bucket.id, Some(&predicate))?;
-
-        Ok(Box::new(series_filters.into_iter()))
-    }
-
     fn get_db_points_iter<'a>(
         &self,
         bucket_id: u32,
