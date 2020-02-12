@@ -639,7 +639,7 @@ impl RocksDB {
                 .put_cf(
                     index_cf,
                     index_series_key_id(&point.series()),
-                    series_id.clone(),
+                    &series_id,
                 )
                 .unwrap();
             batch
