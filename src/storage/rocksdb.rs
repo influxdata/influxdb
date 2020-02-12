@@ -102,12 +102,7 @@ impl RocksDB {
             })?;
 
             let key = key_for_series_and_time(bucket_id, id, p.time());
-            let mut value = Vec::with_capacity(8);
-
-            match p {
-                PointType::I64(p) => value.write_i64::<BigEndian>(p.value).unwrap(),
-                PointType::F64(p) => value.write_f64::<BigEndian>(p.value).unwrap(),
-            }
+            let value = p.to_rocks_db_bytes();
 
             batch.put(key, value).unwrap();
         }
@@ -121,13 +116,13 @@ impl RocksDB {
     }
 
     // TODO: update this so it decompresses at least the first point to verify the data type or return error
-    fn read_i64_range<'a>(
+    fn read_range<T: 'static + FromBytes + Clone> (
         &self,
         bucket_id: u32,
         series_id: u64,
         range: &Range,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>>>, StorageError> {
         let (iter, series_prefix) = self.get_db_points_iter(bucket_id, series_id, range.start);
 
         Ok(Box::new(PointsIterator {
@@ -136,47 +131,8 @@ impl RocksDB {
             stop_time: range.stop,
             series_prefix,
             drained: false,
-            read: i64_from_bytes,
+            read: FromBytes::from,
         }))
-    }
-
-    // TODO: update this so it decompresses at least the first point to verify the data type or return error
-    fn read_f64_range<'a>(
-        &self,
-        bucket_id: u32,
-        series_id: u64,
-        range: &Range,
-        batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
-        let (iter, series_prefix) = self.get_db_points_iter(bucket_id, series_id, range.start);
-
-        Ok(Box::new(PointsIterator {
-            batch_size,
-            iter,
-            stop_time: range.stop,
-            series_prefix,
-            drained: false,
-            read: f64_from_bytes,
-        }))
-    }
-
-    pub fn read_range<'a>(
-        &self,
-        org_id: u32,
-        bucket_name: &str,
-        _range: &'a Range,
-        predicate: &'a Predicate,
-        _batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError> {
-        let bucket = self.get_bucket_by_name(org_id, bucket_name).unwrap().ok_or_else(|| {
-            StorageError {
-                description: format!("bucket {} not found", bucket_name),
-            }
-        })?;
-
-        let series_filters = self.get_series_filters(bucket.id, Some(&predicate))?;
-
-        Ok(Box::new(series_filters.into_iter()))
     }
 
     fn get_db_points_iter<'a>(
@@ -792,6 +748,35 @@ impl RocksDB {
     }
 }
 
+pub trait ToRocksDBBytes {
+    fn to_rocks_db_bytes(&self) -> Vec<u8>;
+}
+
+impl ToRocksDBBytes for PointType {
+    fn to_rocks_db_bytes(&self) -> Vec<u8> {
+        match self {
+            PointType::I64(inner) => inner.value.to_rocks_db_bytes(),
+            PointType::F64(inner) => inner.value.to_rocks_db_bytes(),
+        }
+    }
+}
+
+impl ToRocksDBBytes for i64 {
+    fn to_rocks_db_bytes(&self) -> Vec<u8> {
+        let mut value = Vec::with_capacity(8);
+        value.write_i64::<BigEndian>(*self).unwrap();
+        value
+    }
+}
+
+impl ToRocksDBBytes for f64 {
+    fn to_rocks_db_bytes(&self) -> Vec<u8> {
+        let mut value = Vec::with_capacity(8);
+        value.write_f64::<BigEndian>(*self).unwrap();
+        value
+    }
+}
+
 impl InvertedIndex for RocksDB {
     fn get_or_create_series_ids_for_points(
         &self,
@@ -848,7 +833,7 @@ impl SeriesStore for RocksDB {
         range: &Range,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
-        self.read_i64_range(bucket_id, series_id, range, batch_size)
+        self.read_range(bucket_id, series_id, range, batch_size)
     }
 
     fn read_f64_range(
@@ -858,7 +843,7 @@ impl SeriesStore for RocksDB {
         range: &Range,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
-        self.read_f64_range(bucket_id, series_id, range, batch_size)
+        self.read_range(bucket_id, series_id, range, batch_size)
     }
 }
 
@@ -928,7 +913,7 @@ fn prefix_for_series(bucket_id: u32, series_id: u64, start_time: i64) -> Vec<u8>
     v
 }
 
-pub struct PointsIterator<'a, T: Copy> {
+pub struct PointsIterator<'a, T: Clone> {
     batch_size: usize,
     iter: DBIterator<'a>,
     stop_time: i64,
@@ -937,7 +922,7 @@ pub struct PointsIterator<'a, T: Copy> {
     read: fn(b: &[u8]) -> T,
 }
 
-impl<T: Copy> Iterator for PointsIterator<'_, T> {
+impl<T: Clone> Iterator for PointsIterator<'_, T> {
     type Item = Vec<ReadPoint<T>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1164,14 +1149,22 @@ fn u32_from_bytes(b: &[u8]) -> u32 {
     c.read_u32::<BigEndian>().unwrap()
 }
 
-fn i64_from_bytes(b: &[u8]) -> i64 {
-    let mut c = Cursor::new(b);
-    c.read_i64::<BigEndian>().unwrap()
+trait FromBytes {
+    fn from(b: &[u8]) -> Self;
 }
 
-fn f64_from_bytes(b: &[u8]) -> f64 {
-    let mut c = Cursor::new(b);
-    c.read_f64::<BigEndian>().unwrap()
+impl FromBytes for i64 {
+    fn from(b: &[u8]) -> i64 {
+        let mut c = Cursor::new(b);
+        c.read_i64::<BigEndian>().unwrap()
+    }
+}
+
+impl FromBytes for f64 {
+    fn from(b: &[u8]) -> f64 {
+        let mut c = Cursor::new(b);
+        c.read_f64::<BigEndian>().unwrap()
+    }
 }
 
 impl Bucket {

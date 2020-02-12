@@ -27,36 +27,54 @@ struct SeriesData {
     f64_series: HashMap<u64, SeriesRingBuffer<f64>>,
 }
 
-impl SeriesData {
-    fn write_points(&mut self, points: &Vec<PointType>) {
-        for p in points {
-            match p {
-                PointType::I64(p) => {
-                    match self.i64_series.get_mut(&p.series_id.unwrap()) {
-                        Some(buff) => buff.write(&p),
-                        None => {
-                            let mut buff = new_i64_ring_buffer(self.ring_buffer_size);
-                            buff.write(&p);
-                            self.i64_series.insert(p.series_id.unwrap(), buff);
-                        },
-                    }
-                },
-                PointType::F64(p) => {
-                    match self.f64_series.get_mut(&p.series_id.unwrap()) {
-                        Some(buff) => buff.write(&p),
-                        None => {
-                            let mut buff = new_f64_ring_buffer(self.ring_buffer_size);
-                            buff.write(&p);
-                            self.f64_series.insert(p.series_id.unwrap(), buff);
-                        }
-                    }
-                },
+trait StoreInSeriesData {
+    fn write(&self, series_data: &mut SeriesData);
+}
+
+impl StoreInSeriesData for PointType {
+    fn write(&self, series_data: &mut SeriesData) {
+        match self {
+            PointType::I64(inner) => inner.write(series_data),
+            PointType::F64(inner) => inner.write(series_data),
+        }
+    }
+}
+
+impl StoreInSeriesData for Point<i64> {
+    fn write(&self, series_data: &mut SeriesData) {
+        match series_data.i64_series.get_mut(&self.series_id.unwrap()) {
+            Some(buff) => buff.write(&self),
+            None => {
+                let mut buff = new_i64_ring_buffer(series_data.ring_buffer_size);
+                buff.write(&self);
+                series_data.i64_series.insert(self.series_id.unwrap(), buff);
+            },
+        }
+    }
+}
+
+impl StoreInSeriesData for Point<f64> {
+    fn write(&self, series_data: &mut SeriesData) {
+        match series_data.f64_series.get_mut(&self.series_id.unwrap()) {
+            Some(buff) => buff.write(&self),
+            None => {
+                let mut buff = new_f64_ring_buffer(series_data.ring_buffer_size);
+                buff.write(&self);
+                series_data.f64_series.insert(self.series_id.unwrap(), buff);
             }
         }
     }
 }
 
-struct SeriesRingBuffer<T: Copy> {
+impl SeriesData {
+    fn write_points(&mut self, points: &Vec<PointType>) {
+        for p in points {
+            p.write(self);
+        }
+    }
+}
+
+struct SeriesRingBuffer<T: Clone> {
     next_position: usize,
     data: Vec<ReadPoint<T>>,
 }
@@ -85,13 +103,13 @@ fn new_f64_ring_buffer(size: usize) -> SeriesRingBuffer<f64> {
     }
 }
 
-impl<T: Copy> SeriesRingBuffer<T> {
+impl<T: Clone> SeriesRingBuffer<T> {
     fn write(&mut self, point: &Point<T>) {
         if self.next_position == self.data.len() {
             self.next_position = 0;
         }
         self.data[self.next_position].time = point.time;
-        self.data[self.next_position].value = point.value;
+        self.data[self.next_position].value = point.value.clone();
         self.next_position += 1;
     }
 
@@ -370,13 +388,13 @@ impl MemDB {
         Ok(())
     }
 
-    fn read_i64_range(
+    fn read_range<T: 'static + Clone + FromSeries>(
         &self,
         bucket_id: u32,
         series_id: u64,
         range: &Range,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>>>, StorageError> {
         let buckets = self.bucket_id_to_series_data.read().unwrap();
         let data = match buckets.get(&bucket_id) {
             Some(d) => d,
@@ -384,30 +402,7 @@ impl MemDB {
         };
 
         let data = data.lock().unwrap();
-        let buff = match data.i64_series.get(&series_id) {
-            Some(b) => b,
-            None => return Err(StorageError{description: format!("series {} not found", series_id)}),
-        };
-
-        let values = buff.get_range(&range);
-        Ok(Box::new(PointsIterator{values: Some(values), batch_size}))
-    }
-
-    fn read_f64_range(
-        &self,
-        bucket_id: u32,
-        series_id: u64,
-        range: &Range,
-        batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
-        let buckets = self.bucket_id_to_series_data.read().unwrap();
-        let data = match buckets.get(&bucket_id) {
-            Some(d) => d,
-            None => return Err(StorageError{description: format!("bucket {} not found", bucket_id)}),
-        };
-
-        let data = data.lock().unwrap();
-        let buff = match data.f64_series.get(&series_id) {
+        let buff = match FromSeries::from_series(&data, &series_id) {
             Some(b) => b,
             None => return Err(StorageError{description: format!("series {} not found", series_id)}),
         };
@@ -417,12 +412,28 @@ impl MemDB {
     }
 }
 
-struct PointsIterator<T: Copy> {
+trait FromSeries: Clone {
+    fn from_series<'a>(data: &'a SeriesData, series_id: &u64) -> Option<&'a SeriesRingBuffer<Self>>;
+}
+
+impl FromSeries for i64 {
+    fn from_series<'a>(data: &'a SeriesData, series_id: &u64) -> Option<&'a SeriesRingBuffer<i64>> {
+        data.i64_series.get(series_id)
+    }
+}
+
+impl FromSeries for f64 {
+    fn from_series<'a>(data: &'a SeriesData, series_id: &u64) -> Option<&'a SeriesRingBuffer<f64>> {
+        data.f64_series.get(series_id)
+    }
+}
+
+struct PointsIterator<T: Clone> {
     values: Option<Vec<ReadPoint<T>>>,
     batch_size: usize,
 }
 
-impl<T: Copy> Iterator for PointsIterator<T> {
+impl<T: Clone> Iterator for PointsIterator<T> {
     type Item = Vec<ReadPoint<T>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -579,7 +590,7 @@ impl SeriesStore for MemDB {
         range: &Range,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
-        self.read_i64_range(bucket_id, series_id, range, batch_size)
+        self.read_range(bucket_id, series_id, range, batch_size)
     }
 
     fn read_f64_range(
@@ -589,7 +600,7 @@ impl SeriesStore for MemDB {
         range: &Range,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
-        self.read_f64_range(bucket_id, series_id, range, batch_size)
+        self.read_range(bucket_id, series_id, range, batch_size)
     }
 }
 
