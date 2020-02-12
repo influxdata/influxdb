@@ -213,8 +213,8 @@ fn float_decode_cpu(c: &mut Criterion) {
             BenchmarkId::from_parameter(batch_size),
             &decoded,
             |b, decoded| {
+                let mut decoded_mut = Vec::with_capacity(decoded.len());
                 b.iter(|| {
-                    let mut decoded_mut = Vec::with_capacity(decoded.len());
                     decoded_mut.truncate(0);
                     delorean::encoders::float::decode(&encoded, &mut decoded_mut).unwrap();
                 });
