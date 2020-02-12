@@ -6,6 +6,7 @@ use std::{error, fmt};
 #[derive(Debug, PartialEq, Clone)]
 pub struct Point<T> {
     pub series: String,
+    pub series_id: Option<u64>,
     pub time: i64,
     pub value: T,
 }
@@ -26,6 +27,7 @@ impl PointType {
     pub fn new_i64(series: String, value: i64, time: i64) -> PointType {
         PointType::I64(Point {
             series,
+            series_id: None,
             value,
             time,
         })
@@ -34,6 +36,7 @@ impl PointType {
     pub fn new_f64(series: String, value: f64, time: i64) -> PointType {
         PointType::F64(Point {
             series,
+            series_id: None,
             value,
             time,
         })
@@ -57,6 +60,20 @@ impl PointType {
         match self {
             PointType::I64(p) => p.time = t,
             PointType::F64(p) => p.time = t,
+        }
+    }
+
+    pub fn series_id(&self) -> Option<u64> {
+        match self {
+            PointType::I64(p) => p.series_id,
+            PointType::F64(p) => p.series_id,
+        }
+    }
+
+    pub fn set_series_id(&mut self, id: u64) {
+        match self {
+            PointType::I64(p) => p.series_id = Some(id),
+            PointType::F64(p) => p.series_id = Some(id),
         }
     }
 
@@ -136,7 +153,7 @@ pub struct ParseError {
 }
 
 impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.description)
     }
 }
@@ -178,7 +195,7 @@ fn read_line(line: &str, points: &mut Vec<PointType>) {
     }
 }
 
-fn read_fields(measurement_tags: &str, chars: &mut Chars, points: &mut Vec<PointType>) {
+fn read_fields(measurement_tags: &str, chars: &mut Chars<'_>, points: &mut Vec<PointType>) {
     let mut chars = chars;
     let mut points = points;
     let mut field_name = String::with_capacity(100);
@@ -215,7 +232,7 @@ fn read_fields(measurement_tags: &str, chars: &mut Chars, points: &mut Vec<Point
 fn read_value(
     measurement_tags: &str,
     field_name: String,
-    chars: &mut Chars,
+    chars: &mut Chars<'_>,
     points: &mut Vec<PointType>,
 ) -> bool {
     let mut value = String::new();
@@ -321,6 +338,7 @@ mod test {
     fn index_pairs() {
         let p = Point {
             series: "cpu,host=A,region=west\tusage_system".to_string(),
+            series_id: None,
             value: 0,
             time: 0,
         };

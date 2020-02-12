@@ -1,0 +1,92 @@
+version: 2.1
+
+# Adding these commands but need confirmation of cache location
+commands:
+  install_clang:
+    description: Install clang
+    steps:
+      - run:
+          name: Install clang
+          command: sudo apt install -y clang
+      - run:
+          name: Add llvm-config to the PATH
+          command: sudo update-alternatives --install /usr/bin/llvm-config llvm-config /usr/lib/llvm-7/bin/llvm-config 1
+
+  rust_nightly:
+    description: Install nightly tools
+    steps:
+      - run:
+          name: Install nightly
+          command: rustup toolchain install nightly
+      - run:
+          name: rustup component
+          command: rustup component add rustfmt clippy
+  cache_restore:
+    description: Restore Cargo Cache
+    steps:
+      - restore_cache:
+          name: Restoring Cargo Cache
+          keys:
+            - cargo-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Cargo.lock" }}
+            - cargo-cache-{{ arch }}-{{ .Branch }}
+            - cargo-cache
+  cache_save:
+    description: Save Cargo Cache
+    steps:
+      - save_cache:
+          name: Save Cargo Cache
+          paths:
+            - /usr/local/cargo/registry
+          key: cargo-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Cargo.lock" }}
+
+jobs:
+  fmt:
+    docker:
+      - image: circleci/rust:latest
+    steps:
+      - checkout
+      - rust_nightly
+      - run:
+          name: Rust fmt
+          command: cargo fmt --all -- --check || echo "rustfmt failed, but ignoring this for now..."
+  lint:
+    docker:
+      - image: circleci/rust:latest
+    steps:
+      - checkout
+      - rust_nightly
+      - install_clang
+      - run:
+          name: Clippy
+          command: cargo clippy --all -j9  || echo "clippy failed, but ignoring this for now..."
+  test:
+    docker:
+      - image: circleci/rust:latest
+    steps:
+      - checkout
+      - cache_restore
+      - install_clang
+      - run:
+          name: Cargo test
+          command: cargo test -j9
+      - cache_save
+  build:
+    docker:
+      - image: circleci/rust:latest
+    steps:
+      - checkout
+      - cache_restore
+      - install_clang
+      - run:
+          name: Cargo build
+          command: cargo build -j9
+      - cache_save
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - fmt
+      - lint
+      - test
+      - build
