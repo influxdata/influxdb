@@ -96,14 +96,9 @@ impl RocksDB {
         let mut batch = WriteBatch::default();
 
         for p in points {
-            let id = match p.series_id() {
-                Some(id) => id,
-                None => {
-                    return Err(StorageError {
-                        description: format!("point {:?} had no series id", p),
-                    })
-                }
-            };
+            let id = p.series_id().ok_or_else(|| StorageError {
+                description: format!("point {:?} had no series id", p),
+            })?;
 
             let key = key_for_series_and_time(bucket_id, id, p.time());
             let mut value = Vec::with_capacity(8);
@@ -172,14 +167,11 @@ impl RocksDB {
         predicate: &'a Predicate,
         _batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError> {
-        let bucket = match self.get_bucket_by_name(org_id, bucket_name).unwrap() {
-            Some(b) => b,
-            None => {
-                return Err(StorageError {
-                    description: format!("bucket {} not found", bucket_name),
-                })
+        let bucket = self.get_bucket_by_name(org_id, bucket_name).unwrap().ok_or_else(|| {
+            StorageError {
+                description: format!("bucket {} not found", bucket_name),
             }
-        };
+        })?;
 
         let series_filters = self.get_series_filters(bucket.id, Some(&predicate))?;
 
