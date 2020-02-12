@@ -37,6 +37,32 @@ fn benchmark_encode_sequential<T: From<i32>>(
     group.finish();
 }
 
+fn benchmark_encode_random<T>(
+    c: &mut Criterion,
+    benchmark_group_name: &str,
+    batch_sizes: &[i32],
+    decoded_value_generation: fn(batch_size: i32) -> Vec<T>,
+    encode: fn(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn std::error::Error>>
+) {
+    let mut group = c.benchmark_group(benchmark_group_name);
+    for &batch_size in batch_sizes {
+        group.throughput(Throughput::Bytes(batch_size as u64 * 8));
+        group.bench_with_input(
+            BenchmarkId::from_parameter(batch_size),
+            &batch_size,
+            |b, &batch_size| {
+                let decoded = decoded_value_generation(batch_size);
+                let mut encoded = vec![];
+                b.iter(|| {
+                    encoded.truncate(0);
+                    encode(&decoded, &mut encoded).unwrap();
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
 // The current float encoder produces the following compression:
 //
 //  values  block size  compression
@@ -115,27 +141,19 @@ fn timestamp_encode_sequential(c: &mut Criterion) {
 // 100000	235166      18.81 bits/value
 //
 fn float_encode_random(c: &mut Criterion) {
-    let mut group = c.benchmark_group("float_encode_random");
-    for &batch_size in &LARGER_BATCH_SIZES {
-        group.throughput(Throughput::Bytes(batch_size as u64 * 8));
-        group.bench_with_input(
-            BenchmarkId::from_parameter(batch_size),
-            &batch_size,
-            |b, &batch_size| {
-                let range = Uniform::from(0.0..100.0);
-                let decoded: Vec<_> = rand::thread_rng()
-                    .sample_iter(&range)
-                    .take(batch_size as usize)
-                    .collect();
-                let mut encoded = vec![];
-                b.iter(|| {
-                    encoded.truncate(0);
-                    delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
-                });
-            },
-        );
-    }
-    group.finish();
+    benchmark_encode_random(
+        c,
+        "float_encode_random",
+        &LARGER_BATCH_SIZES,
+        |batch_size| {
+            let range = Uniform::from(0.0..100.0);
+            rand::thread_rng()
+                .sample_iter(&range)
+                .take(batch_size as usize)
+                .collect()
+        },
+        delorean::encoders::float::encode
+    )
 }
 
 // The current integer encoder produces the following compression:
@@ -155,25 +173,17 @@ fn float_encode_random(c: &mut Criterion) {
 // 100000	108569	     8.68 bits/value
 //
 fn integer_encode_random(c: &mut Criterion) {
-    let mut group = c.benchmark_group("integer_encode_random");
-    for &batch_size in &LARGER_BATCH_SIZES {
-        group.throughput(Throughput::Bytes(batch_size as u64 * 8));
-        group.bench_with_input(
-            BenchmarkId::from_parameter(batch_size),
-            &batch_size,
-            |b, &batch_size| {
-                let decoded: Vec<i64> = (1..batch_size)
-                    .map(|_| rand::thread_rng().gen_range(0, 100))
-                    .collect();
-                let mut encoded = vec![];
-                b.iter(|| {
-                    encoded.truncate(0);
-                    delorean::encoders::integer::encode(&decoded, &mut encoded).unwrap();
-                });
-            },
-        );
-    }
-    group.finish();
+    benchmark_encode_random(
+        c,
+        "integer_encode_random",
+        &LARGER_BATCH_SIZES,
+        |batch_size| {
+            (1..batch_size)
+                .map(|_| rand::thread_rng().gen_range(0, 100))
+                .collect()
+        },
+        delorean::encoders::integer::encode
+    )
 }
 
 // The current float encoder produces the following compression:
