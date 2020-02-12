@@ -51,6 +51,32 @@ fn benchmark_encode<T>(
     group.finish();
 }
 
+fn benchmark_decode<T>(
+    c: &mut Criterion,
+    benchmark_group_name: &str,
+    batch_sizes: &[i32],
+    input_value_generation: fn(batch_size: i32) -> (usize, Vec<u8>),
+    decode: fn(src: &[u8], dst: &mut Vec<T>) -> Result<(), Box<dyn std::error::Error>>
+) {
+    let mut group = c.benchmark_group(benchmark_group_name);
+    for &batch_size in batch_sizes {
+        let (decoded_len, encoded) = input_value_generation(batch_size);
+        group.throughput(Throughput::Bytes(encoded.len() as u64));
+        group.bench_with_input(
+            BenchmarkId::from_parameter(batch_size),
+            &decoded_len,
+            |b, &decoded_len| {
+                let mut decoded_mut = Vec::with_capacity(decoded_len);
+                b.iter(|| {
+                    decoded_mut.truncate(0);
+                    decode(&encoded, &mut decoded_mut).unwrap();
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
 // The current float encoder produces the following compression:
 //
 //  values  block size  compression
@@ -202,148 +228,100 @@ fn float_encode_cpu(c: &mut Criterion) {
 }
 
 fn float_decode_cpu(c: &mut Criterion) {
-    let mut group = c.benchmark_group("float_decode_cpu");
-    for &batch_size in &SMALLER_BATCH_SIZES {
-        let decoded: Vec<f64> = fixtures::CPU_F64_EXAMPLE_VALUES[..batch_size as usize].to_vec();
-        let mut encoded = vec![];
-        delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
-
-        group.throughput(Throughput::Bytes(encoded.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::from_parameter(batch_size),
-            &decoded,
-            |b, decoded| {
-                let mut decoded_mut = Vec::with_capacity(decoded.len());
-                b.iter(|| {
-                    decoded_mut.truncate(0);
-                    delorean::encoders::float::decode(&encoded, &mut decoded_mut).unwrap();
-                });
-            },
-        );
-    }
-    group.finish();
+   benchmark_decode(
+       c,
+       "float_decode_cpu",
+       &SMALLER_BATCH_SIZES,
+       |batch_size| {
+           let decoded: Vec<f64> = fixtures::CPU_F64_EXAMPLE_VALUES[..batch_size as usize].to_vec();
+           let mut encoded = vec![];
+           delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
+           (decoded.len(), encoded)
+       },
+       delorean::encoders::float::decode,
+   )
 }
 
 fn float_decode_sequential(c: &mut Criterion) {
-    let mut group = c.benchmark_group("float_decode_sequential");
-    for &batch_size in &LARGER_BATCH_SIZES {
-        let decoded: Vec<f64> = (1..batch_size).map(f64::from).collect();
-        let mut encoded = vec![];
-        delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
-
-        group.throughput(Throughput::Bytes(encoded.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::from_parameter(batch_size),
-            &decoded,
-            |b, decoded| {
-                let mut decoded_mut = Vec::with_capacity(decoded.len());
-                b.iter(|| {
-                    decoded_mut.truncate(0);
-                    delorean::encoders::float::decode(&encoded, &mut decoded_mut).unwrap();
-                });
-            },
-        );
-    }
-    group.finish();
+    benchmark_decode(
+        c,
+        "float_decode_sequential",
+        &LARGER_BATCH_SIZES,
+        |batch_size| {
+            let decoded: Vec<f64> = (1..batch_size).map(f64::from).collect();
+            let mut encoded = vec![];
+            delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
+            (decoded.len(), encoded)
+        },
+        delorean::encoders::float::decode,
+    )
 }
 
 fn integer_decode_sequential(c: &mut Criterion) {
-    let mut group = c.benchmark_group("integer_decode_sequential");
-    for &batch_size in &LARGER_BATCH_SIZES {
-        let decoded: Vec<i64> = (1..batch_size).map(i64::from).collect();
-        let mut encoded = vec![];
-        delorean::encoders::integer::encode(&decoded, &mut encoded).unwrap();
-
-        group.throughput(Throughput::Bytes(encoded.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::from_parameter(batch_size),
-            &decoded,
-            |b, decoded| {
-                let mut decoded_mut = Vec::with_capacity(decoded.len());
-                b.iter(|| {
-                    decoded_mut.truncate(0);
-                    delorean::encoders::integer::decode(&encoded, &mut decoded_mut).unwrap();
-                });
-            },
-        );
-    }
-    group.finish();
+    benchmark_decode(
+        c,
+        "integer_decode_sequential",
+        &LARGER_BATCH_SIZES,
+        |batch_size| {
+            let decoded: Vec<i64> = (1..batch_size).map(i64::from).collect();
+            let mut encoded = vec![];
+            delorean::encoders::integer::encode(&decoded, &mut encoded).unwrap();
+            (decoded.len(), encoded)
+        },
+        delorean::encoders::integer::decode,
+    )
 }
 
 fn timestamp_decode_sequential(c: &mut Criterion) {
-    let mut group = c.benchmark_group("timestamp_decode_sequential");
-    for &batch_size in &LARGER_BATCH_SIZES {
-        let decoded: Vec<i64> = (1..batch_size).map(i64::from).collect();
-        let mut encoded = vec![];
-        delorean::encoders::timestamp::encode(&decoded, &mut encoded).unwrap();
-
-        group.throughput(Throughput::Bytes(encoded.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::from_parameter(batch_size),
-            &decoded,
-            |b, decoded| {
-                let mut decoded_mut = Vec::with_capacity(decoded.len());
-                b.iter(|| {
-                    decoded_mut.truncate(0);
-                    delorean::encoders::timestamp::decode(&encoded, &mut decoded_mut).unwrap();
-                });
-            },
-        );
-    }
-    group.finish();
+    benchmark_decode(
+        c,
+        "timestamp_decode_sequential",
+        &LARGER_BATCH_SIZES,
+        |batch_size| {
+            let decoded: Vec<i64> = (1..batch_size).map(i64::from).collect();
+            let mut encoded = vec![];
+            delorean::encoders::timestamp::encode(&decoded, &mut encoded).unwrap();
+            (decoded.len(), encoded)
+        },
+        delorean::encoders::timestamp::decode,
+    )
 }
 
 fn float_decode_random(c: &mut Criterion) {
-    let mut group = c.benchmark_group("float_decode_random");
-    for &batch_size in &LARGER_BATCH_SIZES {
-        let range = Uniform::from(0.0..100.0);
-        let decoded: Vec<_> = rand::thread_rng()
-            .sample_iter(&range)
-            .take(batch_size as usize)
-            .collect();
+    benchmark_decode(
+        c,
+        "float_decode_random",
+        &LARGER_BATCH_SIZES,
+        |batch_size| {
+            let range = Uniform::from(0.0..100.0);
+            let decoded: Vec<_> = rand::thread_rng()
+                .sample_iter(&range)
+                .take(batch_size as usize)
+                .collect();
 
-        let mut encoded = vec![];
-        delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
-
-        group.throughput(Throughput::Bytes(encoded.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::from_parameter(batch_size),
-            &decoded,
-            |b, decoded| {
-                let mut decoded_mut = Vec::with_capacity(decoded.len());
-                b.iter(|| {
-                    decoded_mut.truncate(0);
-                    delorean::encoders::float::decode(&encoded, &mut decoded_mut).unwrap();
-                });
-            },
-        );
-    }
-    group.finish();
+            let mut encoded = vec![];
+            delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
+            (decoded.len(), encoded)
+        },
+        delorean::encoders::float::decode,
+    )
 }
 
 fn integer_decode_random(c: &mut Criterion) {
-    let mut group = c.benchmark_group("integer_decode_random");
-    for &batch_size in &LARGER_BATCH_SIZES {
-        let decoded: Vec<i64> = (1..batch_size)
-            .map(|_| rand::thread_rng().gen_range(0, 100))
-            .collect();
-        let mut encoded = vec![];
-        delorean::encoders::integer::encode(&decoded, &mut encoded).unwrap();
-
-        group.throughput(Throughput::Bytes(encoded.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::from_parameter(batch_size),
-            &decoded,
-            |b, decoded| {
-                let mut decoded_mut = Vec::with_capacity(decoded.len());
-                b.iter(|| {
-                    decoded_mut.truncate(0);
-                    delorean::encoders::integer::decode(&encoded, &mut decoded_mut).unwrap();
-                });
-            },
-        );
-    }
-    group.finish();
+    benchmark_decode(
+        c,
+        "integer_decode_random",
+        &LARGER_BATCH_SIZES,
+        |batch_size| {
+            let decoded: Vec<i64> = (1..batch_size)
+                .map(|_| rand::thread_rng().gen_range(0, 100))
+                .collect();
+            let mut encoded = vec![];
+            delorean::encoders::integer::encode(&decoded, &mut encoded).unwrap();
+            (decoded.len(), encoded)
+        },
+        delorean::encoders::integer::decode,
+    )
 }
 
 criterion_group!(benches,
