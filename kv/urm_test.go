@@ -49,9 +49,27 @@ func initUserResourceMappingService(s kv.Store, f influxdbtesting.UserResourceFi
 		t.Fatalf("error initializing urm service: %v", err)
 	}
 
+	for _, o := range f.Organizations {
+		if err := svc.CreateOrganization(ctx, o); err != nil {
+			t.Fatalf("failed to create org %q", err)
+		}
+	}
+
+	for _, u := range f.Users {
+		if err := svc.CreateUser(ctx, u); err != nil {
+			t.Fatalf("failed to create user %q", err)
+		}
+	}
+
+	for _, b := range f.Buckets {
+		if err := svc.PutBucket(ctx, b); err != nil {
+			t.Fatalf("failed to create bucket %q", err)
+		}
+	}
+
 	for _, m := range f.UserResourceMappings {
 		if err := svc.CreateUserResourceMapping(ctx, m); err != nil {
-			t.Fatalf("failed to populate mappings")
+			t.Fatalf("failed to populate mappings %q", err)
 		}
 	}
 
@@ -59,6 +77,24 @@ func initUserResourceMappingService(s kv.Store, f influxdbtesting.UserResourceFi
 		for _, m := range f.UserResourceMappings {
 			if err := svc.DeleteUserResourceMapping(ctx, m.ResourceID, m.UserID); err != nil {
 				t.Logf("failed to remove user resource mapping: %v", err)
+			}
+		}
+
+		for _, b := range f.Buckets {
+			if err := svc.DeleteBucket(ctx, b.ID); err != nil {
+				t.Logf("failed to delete org", err)
+			}
+		}
+
+		for _, u := range f.Users {
+			if err := svc.DeleteUser(ctx, u.ID); err != nil {
+				t.Fatalf("failed to delete user %q", err)
+			}
+		}
+
+		for _, o := range f.Organizations {
+			if err := svc.DeleteOrganization(ctx, o.ID); err != nil {
+				t.Logf("failed to delete org", err)
 			}
 		}
 	}
