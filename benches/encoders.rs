@@ -11,6 +11,32 @@ const SMALLER_BATCH_SIZES: [i32; 11] = [
     10, 25, 50, 100, 250, 500, 750, 1_000, 5_000, 10_000, 45_000,
 ];
 
+fn benchmark_encode_sequential<T: From<i32>>(
+    c: &mut Criterion,
+    benchmark_group_name: &str,
+    batch_sizes: &[i32],
+    encode: fn(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn std::error::Error>>
+) {
+    let mut group = c.benchmark_group(benchmark_group_name);
+
+    for &batch_size in batch_sizes {
+        group.throughput(Throughput::Bytes(batch_size as u64 * 8));
+        group.bench_with_input(
+            BenchmarkId::from_parameter(batch_size),
+            &batch_size,
+            |b, &batch_size| {
+                let decoded: Vec<_> = (1..batch_size).map(Into::into).collect();
+                let mut encoded = vec![];
+                b.iter(|| {
+                    encoded.truncate(0);
+                    encode(&decoded, &mut encoded).unwrap();
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
 // The current float encoder produces the following compression:
 //
 //  values  block size  compression
@@ -28,23 +54,12 @@ const SMALLER_BATCH_SIZES: [i32; 11] = [
 //  100000  192481      15.39 bits/value
 //
 fn float_encode_sequential(c: &mut Criterion) {
-    let mut group = c.benchmark_group("float_encode_sequential");
-    for &batch_size in &LARGER_BATCH_SIZES {
-        group.throughput(Throughput::Bytes(batch_size as u64 * 8));
-        group.bench_with_input(
-            BenchmarkId::from_parameter(batch_size),
-            &batch_size,
-            |b, &batch_size| {
-                let decoded: Vec<f64> = (1..batch_size).map(f64::from).collect();
-                let mut encoded = vec![];
-                b.iter(|| {
-                    encoded.truncate(0);
-                    delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
-                });
-            },
-        );
-    }
-    group.finish();
+    benchmark_encode_sequential(
+        c,
+        "float_encode_sequential",
+        &LARGER_BATCH_SIZES,
+        delorean::encoders::float::encode
+    );
 }
 
 // The current integer encoder produces the following compression. Note, since
@@ -66,43 +81,21 @@ fn float_encode_sequential(c: &mut Criterion) {
 // 100000	13	        0.00 bits/value
 //
 fn integer_encode_sequential(c: &mut Criterion) {
-    let mut group = c.benchmark_group("integer_encode_sequential");
-    for &batch_size in &LARGER_BATCH_SIZES {
-        group.throughput(Throughput::Bytes(batch_size as u64 * 8));
-        group.bench_with_input(
-            BenchmarkId::from_parameter(batch_size),
-            &batch_size,
-            |b, &batch_size| {
-                let decoded: Vec<i64> = (1..batch_size).map(i64::from).collect();
-                let mut encoded = vec![];
-                b.iter(|| {
-                    encoded.truncate(0);
-                    delorean::encoders::integer::encode(&decoded, &mut encoded).unwrap();
-                });
-            },
-        );
-    }
-    group.finish();
+    benchmark_encode_sequential(
+        c,
+        "integer_encode_sequential",
+        &LARGER_BATCH_SIZES,
+        delorean::encoders::integer::encode
+    );
 }
 
 fn timestamp_encode_sequential(c: &mut Criterion) {
-    let mut group = c.benchmark_group("timestamp_encode_sequential");
-    for &batch_size in &LARGER_BATCH_SIZES {
-        group.throughput(Throughput::Bytes(batch_size as u64 * 8));
-        group.bench_with_input(
-            BenchmarkId::from_parameter(batch_size),
-            &batch_size,
-            |b, &batch_size| {
-                let decoded: Vec<i64> = (1..batch_size).map(i64::from).collect();
-                let mut encoded = vec![];
-                b.iter(|| {
-                    encoded.truncate(0);
-                    delorean::encoders::timestamp::encode(&decoded, &mut encoded).unwrap();
-                });
-            },
-        );
-    }
-    group.finish();
+    benchmark_encode_sequential(
+        c,
+        "timestamp_encode_sequential",
+        &LARGER_BATCH_SIZES,
+        delorean::encoders::timestamp::encode
+    );
 }
 
 // The current float encoder produces the following compression:
