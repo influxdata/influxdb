@@ -17,27 +17,16 @@ fn benchmark_encode_sequential<T: From<i32>>(
     batch_sizes: &[i32],
     encode: fn(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn std::error::Error>>
 ) {
-    let mut group = c.benchmark_group(benchmark_group_name);
-
-    for &batch_size in batch_sizes {
-        group.throughput(Throughput::Bytes(batch_size as u64 * 8));
-        group.bench_with_input(
-            BenchmarkId::from_parameter(batch_size),
-            &batch_size,
-            |b, &batch_size| {
-                let decoded: Vec<_> = (1..batch_size).map(Into::into).collect();
-                let mut encoded = vec![];
-                b.iter(|| {
-                    encoded.truncate(0);
-                    encode(&decoded, &mut encoded).unwrap();
-                });
-            },
-        );
-    }
-    group.finish();
+    benchmark_encode(
+        c,
+        benchmark_group_name,
+        batch_sizes,
+        |batch_size| { (1..batch_size).map(Into::into).collect() },
+        encode
+    );
 }
 
-fn benchmark_encode_random<T>(
+fn benchmark_encode<T>(
     c: &mut Criterion,
     benchmark_group_name: &str,
     batch_sizes: &[i32],
@@ -141,7 +130,7 @@ fn timestamp_encode_sequential(c: &mut Criterion) {
 // 100000	235166      18.81 bits/value
 //
 fn float_encode_random(c: &mut Criterion) {
-    benchmark_encode_random(
+    benchmark_encode(
         c,
         "float_encode_random",
         &LARGER_BATCH_SIZES,
@@ -173,7 +162,7 @@ fn float_encode_random(c: &mut Criterion) {
 // 100000	108569	     8.68 bits/value
 //
 fn integer_encode_random(c: &mut Criterion) {
-    benchmark_encode_random(
+    benchmark_encode(
         c,
         "integer_encode_random",
         &LARGER_BATCH_SIZES,
