@@ -52,12 +52,12 @@ export const didChange = (
   },
 })
 
-export const completion = (position, context, docVersion: number) => ({
+export const completion = (position, context) => ({
   jsonrpc: JSONRPC,
   id: 100,
   method: 'textDocument/completion' as const,
   params: {
-    textDocument: {uri: URI, version: docVersion},
+    textDocument: {uri: URI},
     position,
     context,
   },

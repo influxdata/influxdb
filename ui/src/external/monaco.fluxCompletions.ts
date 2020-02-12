@@ -17,7 +17,6 @@ export const registerCompletion = (monaco: MonacoType, server: Server) => {
     FLUXLANGID,
     {
       provideCompletionItems: (model, position, context) => {
-        const versionID = model.getVersionId()
         const wordUntil = model.getWordUntilPosition(position)
         const defaultRange = new monaco.Range(
           position.lineNumber,
@@ -28,8 +27,7 @@ export const registerCompletion = (monaco: MonacoType, server: Server) => {
         const response = sendMessage(
           completion(
             m2p.asPosition(position.lineNumber, position.column),
-            context,
-            versionID
+            context
           ),
           server
         )
@@ -45,6 +43,35 @@ export const registerCompletion = (monaco: MonacoType, server: Server) => {
         }
         return p2m.asCompletionResult(completionItems, defaultRange)
       },
+      triggerCharacters: [
+        '.',
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+        'f',
+        'g',
+        'h',
+        'i',
+        'j',
+        'k',
+        'l',
+        'm',
+        'n',
+        'o',
+        'p',
+        'q',
+        'r',
+        's',
+        't',
+        'u',
+        'v',
+        'w',
+        'x',
+        'y',
+        'z',
+      ],
     }
   )
   return completionProvider
