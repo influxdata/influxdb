@@ -1,5 +1,7 @@
 // Libraries
 import React, {Component} from 'react'
+import {connect} from 'react-redux'
+import {compose} from 'redux'
 import {withRouter, WithRouterProps} from 'react-router'
 import ReactGridLayout, {WidthProvider, Layout} from 'react-grid-layout'
 
@@ -10,14 +12,26 @@ import GradientBorder from 'src/shared/components/cells/GradientBorder'
 
 // Utils
 import {fastMap} from 'src/utils/fast'
+import {getByID} from 'src/resources/selectors'
 
 // Constants
 import {LAYOUT_MARGIN, DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 
 // Types
-import {Cell, TimeRange, RemoteDataState} from 'src/types'
+import {
+  AppState,
+  Cell,
+  TimeRange,
+  RemoteDataState,
+  ResourceType,
+  View,
+} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+interface StateProps {
+  state: AppState
+}
 
 interface Props {
   cells: Cell[]
@@ -25,9 +39,10 @@ interface Props {
   manualRefresh: number
   onPositionChange?: (cells: Cell[]) => void
 }
+type AllProps = StateProps & Props
 
 @ErrorHandling
-class Cells extends Component<Props & WithRouterProps> {
+class Cells extends Component<AllProps & WithRouterProps> {
   public render() {
     const {cells, timeRange, manualRefresh} = this.props
 
@@ -65,16 +80,24 @@ class Cells extends Component<Props & WithRouterProps> {
   }
 
   private get cells(): Layout[] {
+    const {state} = this.props
     return this.props.cells
       .filter(c => c.status === RemoteDataState.Done)
-      .map(c => ({
-        ...c,
-        x: c.x,
-        y: c.y,
-        h: c.h,
-        w: c.w,
-        i: c.id,
-      }))
+      .map(c => {
+        const view = getByID<View>(state, ResourceType.Views, c.id)
+        let cell = {
+          ...c,
+          x: c.x,
+          y: c.y,
+          h: c.h,
+          w: c.w,
+          i: c.id,
+        }
+        if (view.properties.type === 'gauge') {
+          cell = {...cell, minW: 3, minH: 3}
+        }
+        return cell
+      })
   }
 
   private get isDashboard(): boolean {
@@ -119,5 +142,13 @@ class Cells extends Component<Props & WithRouterProps> {
     }
   }
 }
-
-export default withRouter(Cells)
+const mstp = (state: AppState): StateProps => {
+  return {state}
+}
+export default compose(
+  withRouter,
+  connect<StateProps, {}, Props>(
+    mstp,
+    null
+  )
+)(Cells)
