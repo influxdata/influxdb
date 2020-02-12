@@ -1,18 +1,23 @@
-// Types
-import {MonacoType, FLUXLANGID, Server} from 'src/types'
+// Libraries
 import {completion, sendMessage} from 'src/external/monaco.lspMessages'
-import {get} from 'lodash'
-
 import {
   MonacoToProtocolConverter,
   ProtocolToMonacoConverter,
 } from 'monaco-languageclient/lib/monaco-converter'
+import {get} from 'lodash'
+
+// Types
 import {CompletionItem} from 'monaco-languageclient/lib/services'
+import {MonacoType, FLUXLANGID, Server} from 'src/types'
+import {IDisposable} from 'monaco-editor'
 
 const m2p = new MonacoToProtocolConverter()
 const p2m = new ProtocolToMonacoConverter()
 
-export const registerCompletion = (monaco: MonacoType, server: Server) => {
+export const registerCompletion = (
+  monaco: MonacoType,
+  server: Server
+): IDisposable => {
   const completionProvider = monaco.languages.registerCompletionItemProvider(
     FLUXLANGID,
     {

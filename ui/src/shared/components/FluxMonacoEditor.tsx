@@ -40,6 +40,7 @@ const FluxEditorMonaco: FC<Props> = ({
   onSubmitScript,
   onCursorChange,
 }) => {
+  let completionProvider = {dispose: () => {}}
   const lspServer = useRef(new Server(false))
   const [docVersion, setdocVersion] = useState(2)
   const [msgID, setmsgID] = useState(3)
@@ -49,11 +50,17 @@ const FluxEditorMonaco: FC<Props> = ({
     sendMessage(didOpen(script), lspServer.current)
   }, [])
 
+  useEffect(() => {
+    return function cleanup() {
+      completionProvider.dispose()
+    }
+  }, [])
+
   const editorWillMount = (monaco: MonacoType) => {
     monaco.languages.register({id: FLUXLANGID})
     addFluxTheme(monaco)
     addSyntax(monaco)
-    registerCompletion(monaco, lspServer.current)
+    completionProvider = registerCompletion(monaco, lspServer.current)
   }
 
   const editorDidMount = (editor: EditorType, monaco: MonacoType) => {
