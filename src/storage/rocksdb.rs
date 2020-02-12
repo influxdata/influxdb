@@ -246,7 +246,7 @@ impl RocksDB {
         let mut batch = WriteBatch::default();
         batch.put_cf(&buckets, &key, buf).unwrap();
         batch
-            .put_cf(&buckets, next_bucket_id_key(), u32_to_bytes(store.id + 1))
+            .put_cf(&buckets, next_bucket_id_key(), (store.id + 1).to_be_bytes())
             .unwrap();
         db.write(batch)
             .expect("unexpected rocksdb error writing to DB");
@@ -626,13 +626,13 @@ impl RocksDB {
 
             point.set_series_id(*next_id);
             let id = *next_id;
-            let mut series_id = Vec::with_capacity(8);
-            series_id.write_u64::<BigEndian>(*next_id).unwrap();
+            let series_id = next_id.to_be_bytes();
+
             batch
                 .put_cf(
                     index_cf,
                     index_series_key_id(&point.series()),
-                    series_id.clone(),
+                    &series_id,
                 )
                 .unwrap();
             batch
@@ -764,7 +764,7 @@ impl RocksDB {
             match bucket_entry_type_from_byte(key[0]) {
                 BucketEntryType::NextSeriesID => {
                     // read the bucket id from the key
-                    let mut c = Cursor::new(key[1..].to_vec());
+                    let mut c = Cursor::new(&key[1..]);
                     let bucket_id = c.read_u32::<BigEndian>().expect(&format!(
                         "couldn't read the bucket id from the key {:?}",
                         key
@@ -1012,21 +1012,21 @@ fn index_cf_name(bucket_id: u32) -> String {
 fn index_series_key_id(series_key: &str) -> Vec<u8> {
     let mut v = Vec::with_capacity(series_key.len() + 1);
     v.push(IndexEntryType::SeriesKeyToID as u8);
-    v.append(&mut series_key.as_bytes().to_vec());
+    v.extend_from_slice(series_key.as_bytes());
     v
 }
 
-fn index_series_id(id: &Vec<u8>) -> Vec<u8> {
+fn index_series_id(id: &[u8]) -> Vec<u8> {
     let mut v = Vec::with_capacity(8 + 1);
     v.push(IndexEntryType::IDToSeriesKey as u8);
-    v.append(&mut id.clone());
+    v.extend_from_slice(id);
     v
 }
 
 fn index_series_id_value(t: SeriesDataType, key: &str) -> Vec<u8> {
     let mut v = Vec::with_capacity(1 + key.len());
     v.push(t as u8);
-    v.append(&mut key.as_bytes().to_vec());
+    v.extend_from_slice(key.as_bytes());
     v
 }
 
@@ -1052,7 +1052,7 @@ fn index_tag_key(bucket_id: u32, key: &str) -> Vec<u8> {
     let mut v = Vec::with_capacity(key.len() + 5);
     v.push(IndexEntryType::KeyList as u8);
     v.write_u32::<BigEndian>(bucket_id).unwrap();
-    v.append(&mut key.as_bytes().to_vec());
+    v.extend_from_slice(key.as_bytes());
     v
 }
 
@@ -1067,9 +1067,9 @@ fn index_tag_key_value(bucket_id: u32, key: &str, value: &str) -> Vec<u8> {
     let mut v = Vec::with_capacity(key.len() + value.len() + 6);
     v.push(IndexEntryType::KeyValueList as u8);
     v.write_u32::<BigEndian>(bucket_id).unwrap();
-    v.append(&mut key.as_bytes().to_vec());
+    v.extend_from_slice(key.as_bytes());
     v.push(0 as u8);
-    v.append(&mut value.as_bytes().to_vec());
+    v.extend_from_slice(value.as_bytes());
     v
 }
 
@@ -1077,7 +1077,7 @@ fn index_tag_key_value_prefix(bucket_id: u32, key: &str) -> Vec<u8> {
     let mut v = Vec::with_capacity(key.len() + 6);
     v.push(IndexEntryType::KeyValueList as u8);
     v.write_u32::<BigEndian>(bucket_id).unwrap();
-    v.append(&mut key.as_bytes().to_vec());
+    v.extend_from_slice(key.as_bytes());
     v.push(0 as u8);
     v
 }
@@ -1086,7 +1086,7 @@ fn index_key_posting_list(bucket_id: u32, key: &str) -> Vec<u8> {
     let mut v = Vec::with_capacity(key.len() + 6);
     v.push(IndexEntryType::KeyPostingList as u8);
     v.write_u32::<BigEndian>(bucket_id).unwrap();
-    v.append(&mut key.as_bytes().to_vec());
+    v.extend_from_slice(key.as_bytes());
     v
 }
 
@@ -1094,9 +1094,9 @@ fn index_key_value_posting_list(bucket_id: u32, key: &str, value: &str) -> Vec<u
     let mut v = Vec::with_capacity(key.len() + value.len() + 6);
     v.push(IndexEntryType::KeyValuePostingList as u8);
     v.write_u32::<BigEndian>(bucket_id).unwrap();
-    v.append(&mut key.as_bytes().to_vec());
+    v.extend_from_slice(key.as_bytes());
     v.push(0 as u8);
-    v.append(&mut value.as_bytes().to_vec());
+    v.extend_from_slice(value.as_bytes());
     v
 }
 
@@ -1120,11 +1120,11 @@ fn validate_bucket_fields(_bucket: &Bucket) -> Result<(), StorageError> {
 }
 // returns the byte key to find this bucket in the buckets CF in rocks
 fn bucket_key(org_id: u32, bucket_name: &str) -> Vec<u8> {
-    let mut s = bucket_name.as_bytes().to_vec();
+    let s = bucket_name.as_bytes();
     let mut key = Vec::with_capacity(3 + s.len());
     key.push(BucketEntryType::Bucket as u8);
     key.write_u32::<BigEndian>(org_id).unwrap();
-    key.append(&mut s);
+    key.extend_from_slice(s);
     key
 }
 
@@ -1145,12 +1145,6 @@ fn bucket_cf_descriptor() -> ColumnFamilyDescriptor {
 fn u32_from_bytes(b: &[u8]) -> u32 {
     let mut c = Cursor::new(b);
     c.read_u32::<BigEndian>().unwrap()
-}
-
-fn u32_to_bytes(val: u32) -> Vec<u8> {
-    let mut v = Vec::with_capacity(4);
-    v.write_u32::<BigEndian>(val).unwrap();
-    v
 }
 
 fn i64_from_bytes(b: &[u8]) -> i64 {
