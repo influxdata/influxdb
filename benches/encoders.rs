@@ -191,23 +191,15 @@ fn integer_encode_random(c: &mut Criterion) {
 //  45000       365470          64.97 bits/value
 //
 fn float_encode_cpu(c: &mut Criterion) {
-    let mut group = c.benchmark_group("float_encode_cpu");
-    for &batch_size in &SMALLER_BATCH_SIZES {
-        group.throughput(Throughput::Bytes(batch_size as u64 * 8));
-        group.bench_with_input(
-            BenchmarkId::from_parameter(batch_size),
-            &batch_size,
-            |b, &batch_size| {
-                let decoded: Vec<f64> = fixtures::CPU_F64_EXAMPLE_VALUES[..batch_size as usize].to_vec();
-                let mut encoded = vec![];
-                b.iter(|| {
-                    encoded.truncate(0);
-                    delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
-                });
-            },
-        );
-    }
-    group.finish();
+    benchmark_encode(
+        c,
+        "float_encode_cpu",
+        &SMALLER_BATCH_SIZES,
+        |batch_size| {
+            fixtures::CPU_F64_EXAMPLE_VALUES[..batch_size as usize].to_vec()
+        },
+        delorean::encoders::float::encode
+    )
 }
 
 fn float_decode_cpu(c: &mut Criterion) {
