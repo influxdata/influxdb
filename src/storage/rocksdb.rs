@@ -775,7 +775,7 @@ impl RocksDB {
             match bucket_entry_type_from_byte(key[0]) {
                 BucketEntryType::NextSeriesID => {
                     // read the bucket id from the key
-                    let mut c = Cursor::new(key[1..].to_vec());
+                    let mut c = Cursor::new(&key[1..]);
                     let bucket_id = c.read_u32::<BigEndian>().expect(&format!(
                         "couldn't read the bucket id from the key {:?}",
                         key
