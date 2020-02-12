@@ -42,51 +42,7 @@ croaring = "0.4.2"
 criterion = "0.3"
 
 [[bench]]
-name = "float_encoder_sequential_benchmark"
-harness = false
-
-[[bench]]
-name = "float_encoder_random_benchmark"
-harness = false
-
-[[bench]]
-name = "float_encoder_cpu_benchmark"
-harness = false
-
-[[bench]]
-name = "integer_encoder_sequential_benchmark"
-harness = false
-
-[[bench]]
-name = "timestamp_encoder_sequential_benchmark"
-harness = false
-
-[[bench]]
-name = "integer_encoder_random_benchmark"
-harness = false
-
-[[bench]]
-name = "float_decoder_sequential_benchmark"
-harness = false
-
-[[bench]]
-name = "float_decoder_random_benchmark"
-harness = false
-
-[[bench]]
-name = "float_decoder_cpu_benchmark"
-harness = false
-
-[[bench]]
-name = "integer_decoder_random_benchmark"
-harness = false
-
-[[bench]]
-name = "integer_decoder_sequential_benchmark"
-harness = false
-
-[[bench]]
-name = "timestamp_decoder_sequential_benchmark"
+name = "encoders"
 harness = false
 
 [build-dependencies]
