@@ -1027,10 +1027,10 @@ fn index_series_key_id(series_key: &str) -> Vec<u8> {
     v
 }
 
-fn index_series_id(id: &Vec<u8>) -> Vec<u8> {
+fn index_series_id(id: &[u8]) -> Vec<u8> {
     let mut v = Vec::with_capacity(8 + 1);
     v.push(IndexEntryType::IDToSeriesKey as u8);
-    v.append(&mut id.clone());
+    v.extend_from_slice(id);
     v
 }
 
