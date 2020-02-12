@@ -57,6 +57,7 @@ class DashboardComponent extends PureComponent<Props> {
               timeRange={timeRange}
               manualRefresh={manualRefresh}
               onPositionChange={onPositionChange}
+              {...this.props}
             />
           ) : (
             <DashboardEmpty onAddCell={onAddCell} />
