@@ -43,7 +43,6 @@ fn benchmark_encode<T>(
                 let decoded = decoded_value_generation(batch_size);
                 let mut encoded = vec![];
                 b.iter(|| {
-                    encoded.truncate(0);
                     encode(&decoded, &mut encoded).unwrap();
                 });
             },
