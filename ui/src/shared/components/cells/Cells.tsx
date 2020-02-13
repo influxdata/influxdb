@@ -33,16 +33,16 @@ interface StateProps {
   state: AppState
 }
 
-interface Props {
+interface OwnProps {
   cells: Cell[]
   timeRange: TimeRange
   manualRefresh: number
   onPositionChange?: (cells: Cell[]) => void
 }
-type AllProps = StateProps & Props
+type Props = StateProps & OwnProps & WithRouterProps
 
 @ErrorHandling
-class Cells extends Component<AllProps & WithRouterProps> {
+class Cells extends Component<Props> {
   public render() {
     const {cells, timeRange, manualRefresh} = this.props
 
@@ -145,10 +145,9 @@ class Cells extends Component<AllProps & WithRouterProps> {
 const mstp = (state: AppState): StateProps => {
   return {state}
 }
-export default compose(
-  withRouter,
-  connect<StateProps, {}, Props>(
+export default withRouter<OwnProps>(
+  connect<StateProps, {}, OwnProps>(
     mstp,
     null
-  )
-)(Cells)
+  )(Cells)
+)
