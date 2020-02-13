@@ -41,3 +41,7 @@ croaring = "0.4.2"
 [build-dependencies]
 #tonic-build = "0.1.0-alpha.6"
 prost-build = { version = "0.5.0" }
+
+[dev-dependencies]
+reqwest = { version = "0.10.1", features = ["blocking"] }
+assert_cmd = "0.12.0"
