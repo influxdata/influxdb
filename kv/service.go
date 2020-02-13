@@ -18,9 +18,8 @@ var (
 	_ influxdb.UserService = (*Service)(nil)
 )
 
-type indexer interface {
-	AddToIndex([]byte, [][]byte)
-	Stop()
+type mapper interface {
+	Map(ctx context.Context, sourceBucket, destinationBucket []byte, mf MappingFunc) error
 }
 
 // OpPrefix is the prefix for kv errors.
@@ -45,7 +44,7 @@ type Service struct {
 	influxdb.TimeGenerator
 	Hash Crypt
 
-	indexer indexer
+	mapper mapper
 
 	checkStore    *IndexStore
 	endpointStore *IndexStore
@@ -67,7 +66,7 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		checkStore:     newCheckStore(),
 		endpointStore:  newEndpointStore(),
 		variableStore:  newVariableStore(),
-		indexer:        NewIndexer(log, kv),
+		mapper:         NewMapper(log, kv),
 	}
 
 	if len(configs) > 0 {
@@ -181,10 +180,6 @@ func (s *Service) Initialize(ctx context.Context) error {
 		return s.initializeUsers(ctx, tx)
 	})
 
-}
-
-func (s *Service) Stop() {
-	s.indexer.Stop()
 }
 
 // WithResourceLogger sets the resource audit logger for the service.
