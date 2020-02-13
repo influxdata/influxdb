@@ -24,6 +24,8 @@ export type BuilderConfigAggregateWindow = BuilderConfig['aggregateWindow']
 export interface Cell extends GenCell {
   dashboardID: string
   status: RemoteDataState
+  minH?: number
+  minW?: number
 }
 
 export type NewCell = Omit<Cell, 'id' | 'links' | 'dashboardID'>
