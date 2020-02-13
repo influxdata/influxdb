@@ -2,8 +2,11 @@ import loader from 'src/external/monaco.onigasm'
 import {Registry} from 'monaco-textmate' // peer dependency
 import {wireTmGrammars} from 'monaco-editor-textmate'
 
+// Constants
+import {FLUXLANGID} from 'src/external/constants'
+
 // Types
-import {MonacoType, FLUXLANGID} from 'src/types'
+import {MonacoType} from 'src/types'
 
 export async function addSyntax(monaco: MonacoType) {
   await loader()
@@ -26,7 +29,13 @@ export async function addSyntax(monaco: MonacoType) {
   grammars.set(FLUXLANGID, FLUXLANGID)
 
   monaco.languages.setLanguageConfiguration(FLUXLANGID, {
-    autoClosingPairs: [{open: '"', close: '"'}, {open: '[', close: ']'}],
+    autoClosingPairs: [
+      {open: '"', close: '"'},
+      {open: '[', close: ']'},
+      {open: "'", close: "'"},
+      {open: '{', close: '}'},
+      {open: '(', close: ')'},
+    ],
   })
 
   await wireTmGrammars(monaco, registry, grammars)

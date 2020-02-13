@@ -1,4 +1,5 @@
-import {FLUXLANGID} from 'src/types'
+// Constants
+import {FLUXLANGID} from 'src/external/constants'
 
 export const tokenizeFlux = monaco => {
   monaco.languages.register({id: FLUXLANGID})

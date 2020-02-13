@@ -17,9 +17,12 @@ import {
   didOpen,
 } from 'src/external/monaco.lspMessages'
 
+// Constants
+import {FLUXLANGID} from 'src/external/constants'
+
 // Types
 import {OnChangeScript} from 'src/types/flux'
-import {MonacoType, EditorType, FLUXLANGID} from 'src/types'
+import {MonacoType, EditorType} from 'src/types'
 
 import './FluxMonacoEditor.scss'
 
@@ -49,10 +52,8 @@ const FluxEditorMonaco: FC<Props> = ({
   useEffect(() => {
     sendMessage(initialize, lspServer.current)
     sendMessage(didOpen(script), lspServer.current)
-  }, [])
-
-  useEffect(() => {
-    return function cleanup() {
+    return () => {
+      console.log('cleaning up')
       completionProvider.dispose()
     }
   }, [])

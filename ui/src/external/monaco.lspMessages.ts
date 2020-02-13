@@ -1,5 +1,10 @@
 import {get} from 'lodash'
-import {FLUXLANGID, ServerResponse} from 'src/types'
+
+// Constants
+import {FLUXLANGID} from 'src/external/constants'
+
+// Types
+import {ServerResponse} from 'src/types'
 
 type LSPMessage =
   | typeof initialize
