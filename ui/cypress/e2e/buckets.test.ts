@@ -74,26 +74,23 @@ describe('Buckets', () => {
 
     describe('Searching and Sorting', () => {
       it('can sort by name and retention', () => {
-        cy.getByTestID('name-sorter').click()
+        const buckets = ['defbuck', '_tasks', '_monitoring']
+        cy.getByTestID('name-sorter')
+          .click()
+          .then(() => {
+            cy.get('.cf-resource-name').each((val, index) => {
+              expect(val.text()).to.include(buckets[index])
+            })
+          })
 
-        cy.get('.cf-resource-card')
-          .first()
-          .contains('defbuck')
-
-        cy.getByTestID('name-sorter').click()
-        cy.get('.cf-resource-card')
-          .first()
-          .contains('_monitoring')
-
-        cy.getByTestID('retention-sorter').click()
-        cy.get('.cf-resource-card')
-          .first()
-          .contains('_tasks')
-
-        cy.getByTestID('retention-sorter').click()
-        cy.get('.cf-resource-card')
-          .first()
-          .contains('defbuck')
+        cy.getByTestID('name-sorter')
+          .click()
+          .then(() => {
+            const asc_buckets = buckets.slice().sort()
+            cy.get('.cf-resource-name').each((val, index) => {
+              expect(val.text()).to.include(asc_buckets[index])
+            })
+          })
 
         cy.getByTestID('search-widget').type('tasks')
         cy.get('.cf-resource-card').should('have.length', 1)

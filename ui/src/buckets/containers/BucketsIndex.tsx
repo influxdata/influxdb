@@ -60,7 +60,11 @@ class BucketsIndex extends Component<StateProps> {
             </FlexBox>
             <LoadDataTabbedPage activeTab="buckets" orgID={org.id}>
               <GetResources
-                resources={[ResourceType.Buckets, ResourceType.Telegrafs]}
+                resources={[
+                  ResourceType.Buckets,
+                  ResourceType.Labels,
+                  ResourceType.Telegrafs,
+                ]}
               >
                 <GetAssetLimits>
                   <BucketsTab />
