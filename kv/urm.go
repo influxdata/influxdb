@@ -234,10 +234,12 @@ func (s *Service) findUserResourceMappingsByIndex(ctx context.Context, tx Tx, fi
 
 		nv, err := bkt.Get(v)
 		if err != nil {
-			return nil, &influxdb.Error{
-				Code: influxdb.ENotFound,
-				Err:  err,
-			}
+			s.log.Info(
+				"key not found",
+				zap.String("function", "findUserResourceMappingsByIndex"),
+				zap.String("key", string(v)),
+			)
+			continue
 		}
 
 		m := &influxdb.UserResourceMapping{}
