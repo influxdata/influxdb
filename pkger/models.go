@@ -317,7 +317,7 @@ func (d DiffLabel) IsNew() bool {
 }
 
 func (d DiffLabel) hasConflict() bool {
-	return d.IsNew() || d.Old != nil && *d.Old != d.New
+	return !d.IsNew() && d.Old != nil && *d.Old != d.New
 }
 
 func newDiffLabel(l *label, i *influxdb.Label) DiffLabel {
