@@ -33,9 +33,9 @@ describe('Buckets', () => {
       cy.getByTestID(`bucket--card--name ${newBucket}`).should('exist')
 
       // Add a label
-      cy.getByTestID(`bucket-card ${newBucket}`).within(() => {
-        cy.getByTestID('inline-labels--add').click()
-      })
+      cy.getByTestID('inline-labels--add')
+        .first()
+        .click()
 
       const labelName = 'l1'
       cy.getByTestID('inline-labels--popover--contents').type(labelName)
@@ -78,8 +78,9 @@ describe('Buckets', () => {
         cy.getByTestID('name-sorter')
           .click()
           .then(() => {
-            cy.get('.cf-resource-name').each((val, index) => {
-              expect(val.text()).to.include(buckets[index])
+            cy.get('[data-testid*="bucket-card"]').each((val, index) => {
+              const testID = val.attr('data-testid')
+              expect(testID).to.include(buckets[index])
             })
           })
 
@@ -87,8 +88,9 @@ describe('Buckets', () => {
           .click()
           .then(() => {
             const asc_buckets = buckets.slice().sort()
-            cy.get('.cf-resource-name').each((val, index) => {
-              expect(val.text()).to.include(asc_buckets[index])
+            cy.get('[data-testid*="bucket-card"]').each((val, index) => {
+              const testID = val.attr('data-testid')
+              expect(testID).to.include(asc_buckets[index])
             })
           })
 
