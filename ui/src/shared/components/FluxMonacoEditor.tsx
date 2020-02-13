@@ -53,7 +53,6 @@ const FluxEditorMonaco: FC<Props> = ({
     sendMessage(initialize, lspServer.current)
     sendMessage(didOpen(script), lspServer.current)
     return () => {
-      console.log('cleaning up')
       completionProvider.dispose()
     }
   }, [])
