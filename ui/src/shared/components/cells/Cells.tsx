@@ -146,8 +146,5 @@ const mstp = (state: AppState): StateProps => {
   return {state}
 }
 export default withRouter<OwnProps>(
-  connect<StateProps, {}, OwnProps>(
-    mstp,
-    null
-  )(Cells)
+  connect<StateProps, {}, OwnProps>(mstp)(Cells)
 )
