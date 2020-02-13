@@ -157,7 +157,7 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 	}
 	fOpts.mustRegister(cmd)
 
-	if flags.token != "" {
+	if flags.token == "" {
 		// this is after the flagOpts register b/c we don't want to show the default value
 		// in the usage display. This will add it as the token value, then if a token flag
 		// is provided too, the flag will take precedence.
