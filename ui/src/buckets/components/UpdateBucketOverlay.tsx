@@ -61,7 +61,7 @@ const UpdateBucketOverlay: FunctionComponent<Props> = ({
         handleClose()
         return
       }
-      setBucketDraft(resp.data)
+      setBucketDraft(resp.data as Bucket)
 
       const rules = get(resp.data, 'retentionRules', [])
       const rule = rules.find(r => r.type === 'expire')

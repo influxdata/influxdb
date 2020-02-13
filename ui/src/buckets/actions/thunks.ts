@@ -9,7 +9,15 @@ import * as api from 'src/client'
 import {bucketSchema, arrayOfBuckets} from 'src/schemas'
 
 // Types
-import {RemoteDataState, GetState, Bucket, BucketEntities} from 'src/types'
+import {
+  AppState,
+  RemoteDataState,
+  GetState,
+  GenBucket,
+  Bucket,
+  BucketEntities,
+  Label,
+} from 'src/types'
 
 // Utils
 import {getErrorMessage} from 'src/utils/api'
@@ -35,7 +43,10 @@ import {
   bucketUpdateSuccess,
   bucketRenameSuccess,
   bucketRenameFailed,
+  addBucketLabelFailed,
+  removeBucketLabelFailed,
 } from 'src/shared/copy/notifications'
+import {getLabels} from 'src/resources/selectors'
 
 type Action = BucketAction | NotifyAction
 
@@ -59,8 +70,8 @@ export const getBuckets = () => async (
     )
 
     dispatch(setBuckets(RemoteDataState.Done, buckets))
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
     dispatch(setBuckets(RemoteDataState.Error))
     dispatch(notify(getBucketsFailed()))
   }
@@ -93,13 +104,17 @@ export const createBucket = (bucket: Bucket) => async (
   }
 }
 
-export const updateBucket = (updatedBucket: Bucket) => async (
-  dispatch: Dispatch<Action>
+export const updateBucket = (bucket: Bucket) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
 ) => {
   try {
+    const state = getState()
+    const data = denormalizeBucket(state, bucket)
+
     const resp = await api.patchBucket({
-      bucketID: updatedBucket.id,
-      data: updatedBucket,
+      bucketID: bucket.id,
+      data,
     })
 
     if (resp.status !== 200) {
@@ -112,22 +127,25 @@ export const updateBucket = (updatedBucket: Bucket) => async (
     )
 
     dispatch(editBucket(newBucket))
-    dispatch(notify(bucketUpdateSuccess(updatedBucket.name)))
-  } catch (e) {
-    console.error(e)
-    const message = getErrorMessage(e)
+    dispatch(notify(bucketUpdateSuccess(bucket.name)))
+  } catch (error) {
+    console.error(error)
+    const message = getErrorMessage(error)
     dispatch(notify(bucketUpdateFailed(message)))
   }
 }
 
-export const renameBucket = (
-  originalName: string,
-  updatedBucket: Bucket
-) => async (dispatch: Dispatch<Action>) => {
+export const renameBucket = (originalName: string, bucket: Bucket) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
   try {
+    const state = getState()
+    const data = denormalizeBucket(state, bucket)
+
     const resp = await api.patchBucket({
-      bucketID: updatedBucket.id,
-      data: updatedBucket,
+      bucketID: bucket.id,
+      data,
     })
 
     if (resp.status !== 200) {
@@ -140,9 +158,9 @@ export const renameBucket = (
     )
 
     dispatch(editBucket(newBucket))
-    dispatch(notify(bucketRenameSuccess(updatedBucket.name)))
-  } catch (e) {
-    console.error(e)
+    dispatch(notify(bucketRenameSuccess(bucket.name)))
+  } catch (error) {
+    console.error(error)
     dispatch(notify(bucketRenameFailed(originalName)))
   }
 }
@@ -159,8 +177,76 @@ export const deleteBucket = (id: string, name: string) => async (
 
     dispatch(removeBucket(id))
     dispatch(checkBucketLimits())
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
     dispatch(notify(bucketDeleteFailed(name)))
+  }
+}
+
+export const addBucketLabel = (bucketID: string, label: Label) => async (
+  dispatch: Dispatch<Action>
+): Promise<void> => {
+  try {
+    const postResp = await api.postBucketsLabel({
+      bucketID,
+      data: {labelID: label.id},
+    })
+
+    if (postResp.status !== 201) {
+      throw new Error(postResp.data.message)
+    }
+
+    const resp = await api.getBucket({bucketID})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const newBucket = normalize<Bucket, BucketEntities, string>(
+      resp.data,
+      bucketSchema
+    )
+
+    dispatch(editBucket(newBucket))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(addBucketLabelFailed()))
+  }
+}
+
+export const deleteBucketLabel = (bucketID: string, label: Label) => async (
+  dispatch: Dispatch<Action>
+): Promise<void> => {
+  try {
+    const deleteResp = await api.deleteBucketsLabel({
+      bucketID,
+      labelID: label.id,
+    })
+    if (deleteResp.status !== 204) {
+      throw new Error(deleteResp.data.message)
+    }
+
+    const resp = await api.getBucket({bucketID})
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const newBucket = normalize<Bucket, BucketEntities, string>(
+      resp.data,
+      bucketSchema
+    )
+
+    dispatch(editBucket(newBucket))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(removeBucketLabelFailed()))
+  }
+}
+
+const denormalizeBucket = (state: AppState, bucket: Bucket): GenBucket => {
+  const labels = getLabels(state, bucket.labels)
+  return {
+    ...bucket,
+    labels,
   }
 }

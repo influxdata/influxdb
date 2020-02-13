@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -13,17 +14,26 @@ import {
 } from '@influxdata/clockface'
 import BucketContextMenu from 'src/buckets/components/BucketContextMenu'
 import BucketAddDataButton from 'src/buckets/components/BucketAddDataButton'
+import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Constants
 import {isSystemBucket} from 'src/buckets/constants/index'
 
 // Types
-import {Bucket} from 'src/types'
+import {Bucket, Label} from 'src/types'
 import {DataLoaderType} from 'src/types/dataLoaders'
+
+// Actions
+import {addBucketLabel, deleteBucketLabel} from 'src/buckets/actions/thunks'
 
 export interface PrettyBucket extends Bucket {
   ruleString: string
+}
+
+interface DispatchProps {
+  onAddBucketLabel: typeof addBucketLabel
+  onDeleteBucketLabel: typeof deleteBucketLabel
 }
 
 interface Props {
@@ -36,12 +46,12 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
 }
 
-class BucketRow extends PureComponent<Props & WithRouterProps> {
+class BucketRow extends PureComponent<Props & WithRouterProps & DispatchProps> {
   public render() {
     const {bucket, onDeleteBucket} = this.props
     return (
       <ResourceCard
-        testID="bucket-card"
+        testID={`bucket-card ${bucket.name}`}
         contextMenu={
           !isSystemBucket(bucket.name) && (
             <BucketContextMenu
@@ -96,7 +106,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private get actionButtons(): JSX.Element {
-    const {bucket} = this.props
+    const {bucket, onFilterChange} = this.props
     if (bucket.type === 'user') {
       return (
         <FlexBox
@@ -104,6 +114,12 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
           margin={ComponentSize.Small}
           style={{marginTop: '4px'}}
         >
+          <InlineLabels
+            selectedLabelIDs={bucket.labels}
+            onFilterChange={onFilterChange}
+            onAddLabel={this.handleAddLabel}
+            onRemoveLabel={this.handleRemoveLabel}
+          />
           <BucketAddDataButton
             onAddCollector={this.handleAddCollector}
             onAddLineProtocol={this.handleAddLineProtocol}
@@ -118,7 +134,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
           <FeatureFlag name="deleteWithPredicate">
             <Button
               text="Delete Data By Filter"
-              testID="bucket-delete-task"
+              testID="bucket-delete-bucket"
               size={ComponentSize.ExtraSmall}
               onClick={this.handleDeleteData}
             />
@@ -126,6 +142,18 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
         </FlexBox>
       )
     }
+  }
+
+  private handleAddLabel = (label: Label) => {
+    const {bucket, onAddBucketLabel} = this.props
+
+    onAddBucketLabel(bucket.id, label)
+  }
+
+  private handleRemoveLabel = (label: Label) => {
+    const {bucket, onDeleteBucketLabel} = this.props
+
+    onDeleteBucketLabel(bucket.id, label)
   }
 
   private handleDeleteData = () => {
@@ -185,4 +213,12 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-export default withRouter<Props>(BucketRow)
+const mdtp: DispatchProps = {
+  onAddBucketLabel: addBucketLabel,
+  onDeleteBucketLabel: deleteBucketLabel,
+}
+
+export default connect<{}, DispatchProps>(
+  null,
+  mdtp
+)(withRouter<Props>(BucketRow))

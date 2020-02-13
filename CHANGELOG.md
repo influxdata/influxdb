@@ -1,6 +1,9 @@
 ## v2.0.0-beta.4 [unreleased]
 
 ### Features
+
+1. [16855](https://github.com/influxdata/influxdb/pull/16855): Added labels to buckets
+
 ### Bug Fixes
 
 ## v2.0.0-beta.3 [2020-02-11]

@@ -186,7 +186,7 @@ class BucketsTab extends PureComponent<Props, State> {
   }
 
   private handleUpdateBucket = (updatedBucket: PrettyBucket) => {
-    this.props.updateBucket(updatedBucket as Bucket)
+    this.props.updateBucket(updatedBucket)
   }
 
   private handleDeleteBucket = ({id, name}: PrettyBucket) => {
