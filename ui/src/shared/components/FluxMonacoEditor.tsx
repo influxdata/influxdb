@@ -30,7 +30,7 @@ interface Props {
   script: string
   onChangeScript: OnChangeScript
   onSubmitScript?: () => void
-  setEditorInstance: (editor: EditorType) => void
+  setEditorInstance?: (editor: EditorType) => void
 }
 
 const FluxEditorMonaco: FC<Props> = ({
@@ -60,9 +60,11 @@ const FluxEditorMonaco: FC<Props> = ({
   }
 
   const editorDidMount = (editor: EditorType, monaco: MonacoType) => {
-    setEditorInstance(editor)
+    if (setEditorInstance) {
+      setEditorInstance(editor)
+    }
     addKeyBindings(editor, monaco)
-
+    editor.focus()
     editor.onKeyUp(evt => {
       const {ctrlKey, code} = evt
       if (ctrlKey && code === 'Enter') {
