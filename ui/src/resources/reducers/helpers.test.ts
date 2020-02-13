@@ -57,5 +57,22 @@ describe('Resources.reducers.helpers', () => {
 
       expect(state).toEqual(expected)
     })
+
+    it('does not set any relationship when a childType is not found', () => {
+      const {state, childID} = genState()
+
+      setRelation<any>(
+        state,
+        ResourceType.Telegrafs,
+        childID,
+        'non-existent-id'
+      )
+
+      const expected = {
+        ...state,
+      }
+
+      expect(state).toEqual(expected)
+    })
   })
 })

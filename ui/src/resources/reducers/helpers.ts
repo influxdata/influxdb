@@ -87,5 +87,11 @@ export const setRelation = <R>(
     return
   }
 
+  const child = draftState.byID[parentID][childType]
+
+  if (!child) {
+    return
+  }
+
   draftState.byID[parentID][childType].push(childID)
 }
