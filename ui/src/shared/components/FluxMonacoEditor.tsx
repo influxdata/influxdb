@@ -26,23 +26,18 @@ import {MonacoType, EditorType} from 'src/types'
 
 import './FluxMonacoEditor.scss'
 
-interface Position {
-  line: number
-  ch: number
-}
-
 interface Props {
   script: string
   onChangeScript: OnChangeScript
   onSubmitScript?: () => void
-  onCursorChange?: (position: Position) => void
+  setEditorInstance: (editor: EditorType) => void
 }
 
 const FluxEditorMonaco: FC<Props> = ({
   script,
   onChangeScript,
   onSubmitScript,
-  onCursorChange,
+  setEditorInstance,
 }) => {
   let completionProvider = {dispose: () => {}}
   const lspServer = useRef(new Server(false))
@@ -65,18 +60,8 @@ const FluxEditorMonaco: FC<Props> = ({
   }
 
   const editorDidMount = (editor: EditorType, monaco: MonacoType) => {
+    setEditorInstance(editor)
     addKeyBindings(editor, monaco)
-    editor.onDidChangeCursorPosition(evt => {
-      const {position} = evt
-      const pos = {
-        line: position.lineNumber - 1,
-        ch: position.column,
-      }
-
-      if (onCursorChange) {
-        onCursorChange(pos)
-      }
-    })
 
     editor.onKeyUp(evt => {
       const {ctrlKey, code} = evt
