@@ -8,6 +8,7 @@ import memoizeOne from 'memoize-one'
 // Components
 import BucketCard, {PrettyBucket} from 'src/buckets/components/BucketCard'
 import {ResourceList} from '@influxdata/clockface'
+import GetResources from 'src/resources/components/GetResources'
 
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
@@ -16,7 +17,7 @@ import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 import {getSortedResources} from 'src/shared/utils/sort'
 
 // Types
-import {OverlayState} from 'src/types'
+import {OverlayState, ResourceType} from 'src/types'
 import {DataLoaderType} from 'src/types/dataLoaders'
 import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
 import {AppState} from 'src/types'
@@ -94,9 +95,11 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
               testID="retention-sorter"
             />
           </ResourceList.Header>
-          <ResourceList.Body emptyState={emptyState}>
-            {this.listBuckets}
-          </ResourceList.Body>
+          <GetResources resources={[ResourceType.Labels]}>
+            <ResourceList.Body emptyState={emptyState}>
+              {this.listBuckets}
+            </ResourceList.Body>
+          </GetResources>
         </ResourceList>
       </>
     )

@@ -607,6 +607,16 @@ export const bucketRenameFailed = (bucketName: string): Notification => ({
   message: `Failed to rename bucket "${bucketName}"`,
 })
 
+export const addBucketLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to add label to bucket',
+})
+
+export const removeBucketLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to remove label from bucket',
+})
+
 export const orgCreateSuccess = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'Organization was successfully created',

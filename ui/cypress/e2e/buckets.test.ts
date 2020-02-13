@@ -31,6 +31,20 @@ describe('Buckets', () => {
       })
 
       cy.getByTestID(`bucket--card--name ${newBucket}`).should('exist')
+
+      // Add a label
+      cy.getByTestID(`bucket--card ${newBucket}`).within(() => {
+        cy.getByTestID('inline-labels--add').click()
+      })
+
+      const labelName = 'l1'
+      cy.getByTestID('inline-labels--popover--contents').type(labelName)
+      cy.getByTestID('inline-labels--create-new').click()
+      cy.getByTestID('create-label-form--submit').click()
+
+      // Delete the label
+      cy.getByTestID(`label--pill--delete ${labelName}`).click({force: true})
+      cy.getByTestID('inline-labels--empty').should('exist')
     })
 
     it("can update a bucket's retention rules", () => {
