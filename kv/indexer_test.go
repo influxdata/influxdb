@@ -13,14 +13,14 @@ func TestIndexer(t *testing.T) {
 	store := inmem.NewKVStore()
 
 	indexer := kv.NewIndexer(zaptest.NewLogger(t), store)
-	indexes := map[string][]byte{
-		"1": []byte("1"),
-		"2": []byte("2"),
-		"3": []byte("3"),
-		"4": []byte("4"),
+	indexes := [][]byte{
+		[]byte("1"),
+		[]byte("2"),
+		[]byte("3"),
+		[]byte("4"),
 	}
 	indexer.AddToIndex([]byte("bucket"), indexes)
-	indexer.Wait()
+	indexer.Stop()
 
 	count := 0
 	err := store.View(context.Background(), func(tx kv.Tx) error {
@@ -33,8 +33,8 @@ func TestIndexer(t *testing.T) {
 			t.Fatal(err)
 		}
 		for k, _ := cur.Next(); k != nil; k, _ = cur.Next() {
-			if string(k) != string(indexes[string(k)]) {
-				t.Fatalf("failed to find correct index, found: %s, expected: %s", k, indexes[string(k)])
+			if string(k) != string(indexes[count]) {
+				t.Fatalf("failed to find correct index, found: %s, expected: %s", k, indexes[count])
 			}
 			count++
 		}
