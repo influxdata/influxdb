@@ -11,13 +11,13 @@ bytes = "0.4.12"
 rand = "0.7.2"
 integer-encoding = "1.0.7"
 
-# actix 2.0 should release around 12/20
-actix-rt = "1.0"
-actix-web = "2.0"
+hyper = "0.13"
+tokio = { version = "0.2", features = ["full"] }
 
 dotenv = "0.10"
 dirs = "2.0.2"
 env_logger = "0.6"
+log = "0.4.8"
 failure = "0.1.1"
 futures = "0.3.1"
 
@@ -37,6 +37,8 @@ prost = "0.5.0"
 # for series ids and we needed serialization, which the pure Rust
 # crate didn't offer.
 croaring = "0.4.2"
+http = "0.2.0"
+serde_urlencoded = "0.6.1"
 
 [build-dependencies]
 #tonic-build = "0.1.0-alpha.6"

@@ -1,5 +1,3 @@
-use actix_web::http::StatusCode;
-use actix_web::ResponseError;
 use std::str::Chars;
 use std::{error, fmt};
 
@@ -162,12 +160,6 @@ impl error::Error for ParseError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         // Generic error, underlying cause isn't tracked.
         None
-    }
-}
-
-impl ResponseError for ParseError {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
     }
 }
 
