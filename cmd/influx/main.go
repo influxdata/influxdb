@@ -157,10 +157,12 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 	}
 	fOpts.mustRegister(cmd)
 
-	// this is after the flagOpts register b/c we don't want to show the default value
-	// in the usage display. This will add it as the token value, then if a token flag
-	// is provided too, the flag will take precedence.
-	flags.token = getTokenFromDefaultPath()
+	if flags.token != "" {
+		// this is after the flagOpts register b/c we don't want to show the default value
+		// in the usage display. This will add it as the token value, then if a token flag
+		// is provided too, the flag will take precedence.
+		flags.token = getTokenFromDefaultPath()
+	}
 
 	cmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
 	cmd.PersistentFlags().BoolVar(&flags.skipVerify, "skip-verify", false, "SkipVerify controls whether a client verifies the server's certificate chain and host name.")
