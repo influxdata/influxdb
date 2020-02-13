@@ -121,6 +121,7 @@ func (h *BackupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
+		return
 	}
 
 	if credsExist {
