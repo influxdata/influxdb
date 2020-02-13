@@ -1,5 +1,5 @@
 import {get} from 'lodash'
-import {FLUXLANGID, Server, ServerResponse} from 'src/types'
+import {FLUXLANGID, ServerResponse} from 'src/types'
 
 type LSPMessage =
   | typeof initialize
@@ -77,7 +77,7 @@ export const parseResponse = (response: ServerResponse): null | object => {
   }
 }
 
-export const sendMessage = (message: LSPMessage, server: Server) => {
+export const sendMessage = (message: LSPMessage, server) => {
   const stringifiedMessage = JSON.stringify(message)
   const size = stringifiedMessage.length
 

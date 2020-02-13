@@ -1,5 +1,6 @@
 // Libraries
 import React, {FC, useEffect, useRef, useState} from 'react'
+import {Server} from '@influxdata/flux-lsp-browser'
 
 // Components
 import MonacoEditor from 'react-monaco-editor'
@@ -18,7 +19,7 @@ import {
 
 // Types
 import {OnChangeScript} from 'src/types/flux'
-import {MonacoType, EditorType, FLUXLANGID, Server} from 'src/types'
+import {MonacoType, EditorType, FLUXLANGID} from 'src/types'
 
 import './FluxMonacoEditor.scss'
 
