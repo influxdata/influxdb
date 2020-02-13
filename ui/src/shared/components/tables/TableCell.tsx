@@ -33,6 +33,8 @@ interface Props extends CellRendererProps {
 
 const URL_REGEXP = /(https?:\/\/[^\s]+)/g
 
+// NOTE: rip this out if you spend time any here as per:
+// https://stackoverflow.com/questions/1500260/detect-urls-in-text-with-javascript/1500501#1500501
 function asLink(str) {
   if (!URL_REGEXP.test('' + str)) {
     return str
