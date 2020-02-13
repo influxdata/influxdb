@@ -195,16 +195,13 @@ func (s *Service) findUserResourceMappingsByIndex(ctx context.Context, tx Tx, fi
 	}
 
 	for k, v := cursor.Next(); k != nil && v != nil; k, v = cursor.Next() {
-		nv, err := bkt.Get(v)
+		v, err := bkt.Get(v)
 		if err != nil {
-			return nil, &influxdb.Error{
-				Code: influxdb.ENotFound,
-				Err:  err,
-			}
+			return nil, err
 		}
 
 		m := &influxdb.UserResourceMapping{}
-		if err := json.Unmarshal(nv, m); err != nil {
+		if err := json.Unmarshal(v, m); err != nil {
 			return nil, CorruptURMError(err)
 		}
 
@@ -534,13 +531,11 @@ func (s *Service) deleteOrgDependentMappings(ctx context.Context, tx Tx, m *infl
 		return err
 	}
 	for _, b := range bs {
-		filter := influxdb.UserResourceMappingFilter{
+		if err := s.deleteUserResourceMapping(ctx, tx, influxdb.UserResourceMappingFilter{
 			ResourceType: influxdb.BucketsResourceType,
 			ResourceID:   b.ID,
 			UserID:       m.UserID,
-		}
-
-		if err := s.deleteUserResourceMapping(ctx, tx, filter); err != nil {
+		}); err != nil {
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
 				s.log.Info("URM bucket is missing", zap.Stringer("orgID", m.ResourceID))
 				continue

@@ -653,12 +653,7 @@ func (s *Service) deleteAuthorization(ctx context.Context, tx Tx, id influxdb.ID
 		}
 	}
 
-	uidx, err := authByUserIndexBucket(tx)
-	if err != nil {
-		return &influxdb.Error{Err: err}
-	}
-
-	if err := uidx.Delete([]byte(authByUserIndexKey(a.UserID, id))); err != nil {
+	if err := idx.Delete([]byte(authByUserIndexKey(a.UserID, id))); err != nil {
 		return err
 	}
 
