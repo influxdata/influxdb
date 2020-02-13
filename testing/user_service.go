@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	userOneID   = "020f755c3c084000"
-	userTwoID   = "020f755c3c084001"
-	userThreeID = "020f755c3c084002"
+	userOneID   = "020f755c3c082000"
+	userTwoID   = "020f755c3c082001"
+	userThreeID = "020f755c3c082002"
 )
 
 var userCmpOptions = cmp.Options{
