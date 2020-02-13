@@ -42,6 +42,7 @@ type Service struct {
 	*AuthorizationService
 	*BackupService
 	*BucketService
+	*TaskService
 	*DashboardService
 	*OrganizationService
 	*UserService
@@ -66,6 +67,7 @@ func NewService(addr, token string) (*Service, error) {
 			Token: token,
 		},
 		BucketService:       &BucketService{Client: httpClient},
+		TaskService:         &TaskService{Client: httpClient},
 		DashboardService:    &DashboardService{Client: httpClient},
 		OrganizationService: &OrganizationService{Client: httpClient},
 		UserService:         &UserService{Client: httpClient},
