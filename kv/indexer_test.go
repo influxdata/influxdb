@@ -2,8 +2,6 @@ package kv_test
 
 import (
 	"context"
-	"fmt"
-	"sync"
 	"testing"
 
 	"github.com/influxdata/influxdb/inmem"
@@ -12,32 +10,16 @@ import (
 )
 
 func TestIndexer(t *testing.T) {
-	var (
-		store         = inmem.NewKVStore()
-		indexer       = kv.NewIndexer(zaptest.NewLogger(t), store)
-		indexes       = map[string][]byte{}
-		expectedCount = 1000
-		wg            sync.WaitGroup
-	)
+	store := inmem.NewKVStore()
 
-	for i := 0; i < expectedCount; i++ {
-		key := fmt.Sprintf("%d", i)
-		indexes[key] = []byte(key)
-
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-
-			indexer.AddToIndex([]byte("bucket"), map[string][]byte{
-				key: []byte(key),
-			})
-		}(i)
+	indexer := kv.NewIndexer(zaptest.NewLogger(t), store)
+	indexes := map[string][]byte{
+		"1": []byte("1"),
+		"2": []byte("2"),
+		"3": []byte("3"),
+		"4": []byte("4"),
 	}
-
-	// wait for index insertion
-	wg.Wait()
-
-	// wait for indexer to finish working
+	indexer.AddToIndex([]byte("bucket"), indexes)
 	indexer.Wait()
 
 	count := 0
@@ -61,8 +43,7 @@ func TestIndexer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if count != expectedCount {
+	if count != 4 {
 		t.Fatal("failed to retrieve indexes")
 	}
 }
