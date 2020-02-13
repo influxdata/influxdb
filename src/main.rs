@@ -32,7 +32,6 @@ struct WriteInfo {
     bucket_name: String,
 }
 
-// TODO: write end to end test of write
 async fn write(
     mut payload: web::Payload,
     write_info: web::Query<WriteInfo>,
@@ -154,7 +153,6 @@ struct ReadInfo {
 //    }
 //}
 
-// TODO: write end to end test of read
 // TODO: figure out how to stream read results out rather than rendering the whole thing in mem
 async fn read(
     read_info: web::Query<ReadInfo>,
