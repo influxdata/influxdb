@@ -1,7 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
-import {compose} from 'redux'
 import {withRouter, WithRouterProps} from 'react-router'
 import ReactGridLayout, {WidthProvider, Layout} from 'react-grid-layout'
 
