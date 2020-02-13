@@ -11,25 +11,18 @@ import GradientBorder from 'src/shared/components/cells/GradientBorder'
 
 // Utils
 import {fastMap} from 'src/utils/fast'
-import {getByID} from 'src/resources/selectors'
 
 // Constants
 import {LAYOUT_MARGIN, DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 
 // Types
-import {
-  AppState,
-  Cell,
-  TimeRange,
-  RemoteDataState,
-  ResourceType,
-  View,
-} from 'src/types'
+import {AppState, Cell, TimeRange, RemoteDataState, View} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
+type ViewsByID = {[viewID: string]: View}
 
 interface StateProps {
-  globalState: AppState
+  views: ViewsByID
 }
 
 interface OwnProps {
@@ -79,11 +72,11 @@ class Cells extends Component<Props> {
   }
 
   private get cells(): Layout[] {
-    const {globalState} = this.props
+    const {views} = this.props
     return this.props.cells
       .filter(c => c.status === RemoteDataState.Done)
       .map(c => {
-        const view = getByID<View>(globalState, ResourceType.Views, c.id)
+        const view = views[c.id]
         const cell = {
           ...c,
           x: c.x,
@@ -143,7 +136,7 @@ class Cells extends Component<Props> {
   }
 }
 const mstp = (state: AppState): StateProps => {
-  return {globalState: state}
+  return {views: state.resources.views.byID}
 }
 export default withRouter<OwnProps>(
   connect<StateProps, {}, OwnProps>(mstp)(Cells)
