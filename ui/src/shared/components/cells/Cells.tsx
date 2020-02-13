@@ -29,7 +29,7 @@ import {
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface StateProps {
-  state: AppState
+  globalState: AppState
 }
 
 interface OwnProps {
@@ -79,12 +79,12 @@ class Cells extends Component<Props> {
   }
 
   private get cells(): Layout[] {
-    const {state} = this.props
+    const {globalState} = this.props
     return this.props.cells
       .filter(c => c.status === RemoteDataState.Done)
       .map(c => {
-        const view = getByID<View>(state, ResourceType.Views, c.id)
-        let cell = {
+        const view = getByID<View>(globalState, ResourceType.Views, c.id)
+        const cell = {
           ...c,
           x: c.x,
           y: c.y,
@@ -143,7 +143,7 @@ class Cells extends Component<Props> {
   }
 }
 const mstp = (state: AppState): StateProps => {
-  return {state}
+  return {globalState: state}
 }
 export default withRouter<OwnProps>(
   connect<StateProps, {}, OwnProps>(mstp)(Cells)
