@@ -33,7 +33,7 @@ describe('Buckets', () => {
       cy.getByTestID(`bucket--card--name ${newBucket}`).should('exist')
 
       // Add a label
-      cy.getByTestID(`bucket--card--name ${newBucket}`).within(() => {
+      cy.getByTestID(`bucket-card ${newBucket}`).within(() => {
         cy.getByTestID('inline-labels--add').click()
       })
 
