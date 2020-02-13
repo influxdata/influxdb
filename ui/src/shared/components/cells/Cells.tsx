@@ -93,7 +93,8 @@ class Cells extends Component<Props> {
           i: c.id,
         }
         if (view.properties.type === 'gauge') {
-          cell = {...cell, minW: 3, minH: 3}
+          cell.minW = 3
+          cell.minH = 3
         }
         return cell
       })
