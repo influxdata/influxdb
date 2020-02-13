@@ -498,9 +498,9 @@ describe('DataExplorer', () => {
           .click()
           .focused()
           .type(
-            `from(bucket: "defbuck")
-  |> range(start: -10s)
-  |> filter(fn: (r) => r._measurement == "no exist")`,
+            `from(bucket: "defbuck"{rightarrow}
+  |> range(start: -10s{rightarrow}
+  |> filter(fn: (r{rightarrow} => r._measurement == "no exist"{rightarrow}`,
             {force: true, delay: TYPE_DELAY}
           )
         cy.getByTestID('time-machine-submit-button').click()
