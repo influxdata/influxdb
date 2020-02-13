@@ -31,7 +31,7 @@ describe('Buckets', () => {
       })
 
       cy.getByTestID(`bucket--card--name ${newBucket}`).should('exist')
-      cy.getByTestID(`bucket-card ${newBucket}`).should('exist')
+
       // Add a label
       cy.getByTestID(`bucket-card ${newBucket}`).within(() => {
         cy.getByTestID('inline-labels--add').click()
@@ -75,27 +75,28 @@ describe('Buckets', () => {
     describe('Searching and Sorting', () => {
       it('can sort by name and retention', () => {
         cy.getByTestID('name-sorter').click()
-        cy.getByTestID('bucket-card')
+
+        cy.get('.cf-resource-card')
           .first()
           .contains('defbuck')
 
         cy.getByTestID('name-sorter').click()
-        cy.getByTestID('bucket-card')
+        cy.get('.cf-resource-card')
           .first()
           .contains('_monitoring')
 
         cy.getByTestID('retention-sorter').click()
-        cy.getByTestID('bucket-card')
+        cy.get('.cf-resource-card')
           .first()
           .contains('_tasks')
 
         cy.getByTestID('retention-sorter').click()
-        cy.getByTestID('bucket-card')
+        cy.get('.cf-resource-card')
           .first()
           .contains('defbuck')
 
         cy.getByTestID('search-widget').type('tasks')
-        cy.getByTestID('bucket-card').should('have.length', 1)
+        cy.get('.cf-resource-card').should('have.length', 1)
       })
     })
 
