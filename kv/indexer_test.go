@@ -2,8 +2,6 @@ package kv_test
 
 import (
 	"context"
-	"fmt"
-	"sync"
 	"testing"
 
 	"github.com/influxdata/influxdb/inmem"
@@ -12,33 +10,17 @@ import (
 )
 
 func TestIndexer(t *testing.T) {
-	var (
-		store         = inmem.NewKVStore()
-		indexer       = kv.NewIndexer(zaptest.NewLogger(t), store)
-		indexes       = map[string][]byte{}
-		expectedCount = 1000
-		wg            sync.WaitGroup
-	)
+	store := inmem.NewKVStore()
 
-	for i := 0; i < expectedCount; i++ {
-		key := fmt.Sprintf("%d", i)
-		indexes[key] = []byte(key)
-
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-
-			indexer.AddToIndex([]byte("bucket"), map[string][]byte{
-				key: []byte(key),
-			})
-		}(i)
+	indexer := kv.NewIndexer(zaptest.NewLogger(t), store)
+	indexes := [][]byte{
+		[]byte("1"),
+		[]byte("2"),
+		[]byte("3"),
+		[]byte("4"),
 	}
-
-	// wait for index insertion
-	wg.Wait()
-
-	// wait for indexer to finish working
-	indexer.Wait()
+	indexer.AddToIndex([]byte("bucket"), indexes)
+	indexer.Stop()
 
 	count := 0
 	err := store.View(context.Background(), func(tx kv.Tx) error {
@@ -51,8 +33,8 @@ func TestIndexer(t *testing.T) {
 			t.Fatal(err)
 		}
 		for k, _ := cur.Next(); k != nil; k, _ = cur.Next() {
-			if string(k) != string(indexes[string(k)]) {
-				t.Fatalf("failed to find correct index, found: %s, expected: %s", k, indexes[string(k)])
+			if string(k) != string(indexes[count]) {
+				t.Fatalf("failed to find correct index, found: %s, expected: %s", k, indexes[count])
 			}
 			count++
 		}
@@ -61,8 +43,7 @@ func TestIndexer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if count != expectedCount {
+	if count != 4 {
 		t.Fatal("failed to retrieve indexes")
 	}
 }
