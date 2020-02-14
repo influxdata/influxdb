@@ -8,6 +8,7 @@
 ### Bug Fixes
 1. [16852](https://github.com/influxdata/influxdb/pull/16852): Revert for bad indexing of UserResourceMappings and Authorizations
 1. [15911](https://github.com/influxdata/influxdb/pull/15911): Gauge no longer allowed to become too small
+1. [16878](https://github.com/influxdata/influxdb/pull/16878): Fix issue with INFLUX_TOKEN env vars being overridden by default token 
 
 ## v2.0.0-beta.3 [2020-02-11]
 
