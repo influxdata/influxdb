@@ -37,7 +37,7 @@ fn benchmark_encode<T>(
 ) {
     let mut group = c.benchmark_group(benchmark_group_name);
     for &batch_size in batch_sizes {
-        group.throughput(Throughput::Bytes(batch_size as u64 * 8));
+        group.throughput(Throughput::Bytes(u64::try_from(batch_size).unwrap() * 8));
         group.bench_with_input(
             BenchmarkId::from_parameter(batch_size),
             &batch_size,
@@ -63,7 +63,7 @@ fn benchmark_decode<T>(
     let mut group = c.benchmark_group(benchmark_group_name);
     for &batch_size in batch_sizes {
         let (decoded_len, encoded) = input_value_generation(batch_size);
-        group.throughput(Throughput::Bytes(encoded.len() as u64));
+        group.throughput(Throughput::Bytes(u64::try_from(encoded.len()).unwrap()));
         group.bench_with_input(
             BenchmarkId::from_parameter(batch_size),
             &decoded_len,
