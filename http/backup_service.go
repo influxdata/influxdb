@@ -117,25 +117,16 @@ func (h *BackupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	files = append(files, bolt.DefaultFilename)
 
-	credBackupPath := filepath.Join(internalBackupPath, DefaultTokenFile)
+	credsExist, err := h.backupCredentials(internalBackupPath)
 
-	credPath, err := defaultTokenPath()
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-	token, err := ioutil.ReadFile(credPath)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
-	if err := ioutil.WriteFile(credBackupPath, []byte(token), 0600); err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
+	if credsExist {
+		files = append(files, DefaultTokenFile)
 	}
-
-	files = append(files, DefaultTokenFile)
 
 	b := backup{
 		ID:    id,
@@ -146,6 +137,26 @@ func (h *BackupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+}
+
+func (h *BackupHandler) backupCredentials(internalBackupPath string) (bool, error) {
+	credBackupPath := filepath.Join(internalBackupPath, DefaultTokenFile)
+
+	credPath, err := defaultTokenPath()
+	if err != nil {
+		return false, err
+	}
+	token, err := ioutil.ReadFile(credPath)
+	if err != nil && !os.IsNotExist(err) {
+		return false, err
+	} else if os.IsNotExist(err) {
+		return false, nil
+	}
+
+	if err := ioutil.WriteFile(credBackupPath, []byte(token), 0600); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (h *BackupHandler) handleFetchFile(w http.ResponseWriter, r *http.Request) {

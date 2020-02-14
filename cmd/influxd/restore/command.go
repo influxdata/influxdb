@@ -136,6 +136,10 @@ func restoreE(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("restore completed, but failed to cleanup temporary bolt file: %v", err)
 	}
 
+	if err := removeTmpCred(); err != nil {
+		return fmt.Errorf("restore completed, but failed to cleanup temporary credentials file: %v", err)
+	}
+
 	if err := removeTmpEngine(); err != nil {
 		return fmt.Errorf("restore completed, but failed to cleanup temporary engine data: %v", err)
 	}
@@ -283,6 +287,14 @@ func restoreFile(backup string, target string, filetype string) error {
 
 func restoreCred() error {
 	backupCred := filepath.Join(flags.backupPath, http.DefaultTokenFile)
+
+	_, err := os.Stat(backupCred)
+	if os.IsNotExist(err) {
+		fmt.Printf("No credentials file found in backup, skipping.\n")
+		return nil
+	} else if err != nil {
+		return err
+	}
 
 	if err := restoreFile(backupCred, flags.credPath, "credentials"); err != nil {
 		return err
