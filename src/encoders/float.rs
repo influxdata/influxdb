@@ -316,6 +316,7 @@ const BIT_MASK: [u64; 64] = [
 /// decode_all decodes a slice of bytes into a vector of floats.
 #[allow(dead_code)]
 #[allow(clippy::many_single_char_names)]
+#[allow(clippy::useless_let_if_seq)]
 pub fn decode_all(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> {
     if src.len() < 9 {
         return Ok(());

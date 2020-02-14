@@ -41,10 +41,7 @@ pub fn parse_duration(s: &str) -> Result<RelativeDuration, Error> {
     }
 
     let i;
-    let mut start = 0;
-    if s.starts_with("-") {
-        start = 1;
-    }
+    let start = if s.starts_with('-') { 1 } else { 0 };
 
     match s[start..].chars().position(|c| !c.is_digit(10)) {
         Some(p) => i = p + start,

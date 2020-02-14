@@ -78,7 +78,7 @@ async fn write(
             .json(serde_json::json!({ "error": format!("{}", err) })));
     }
 
-    Ok(HttpResponse::Ok().json({}))
+    Ok(HttpResponse::Ok().json(()))
 }
 
 #[derive(Deserialize, Debug)]
