@@ -1,12 +1,12 @@
 use crate::delorean::node::{Comparison, Logical, Value};
-use crate::delorean::{Predicate, Node};
+use crate::delorean::{Node, Predicate};
+use crate::line_parser::{ParseError, Point, PointType};
 use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
-use crate::line_parser::{PointType, ParseError, Point};
-use crate::storage::{StorageError, Range, SeriesDataType};
-use crate::storage::series_store::{SeriesStore, ReadPoint};
+use crate::storage::series_store::{ReadPoint, SeriesStore};
+use crate::storage::{Range, SeriesDataType, StorageError};
 
-use std::sync::{RwLock, Arc, RwLockReadGuard, Mutex};
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{BTreeMap, HashMap};
+use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
 
 use croaring::Treemap;
 /// memdb implements an in memory database for the InvertedIndex and SeriesStore traits. It
@@ -48,7 +48,7 @@ impl StoreInSeriesData for Point<i64> {
                 let mut buff = new_i64_ring_buffer(series_data.ring_buffer_size);
                 buff.write(&self);
                 series_data.i64_series.insert(self.series_id.unwrap(), buff);
-            },
+            }
         }
     }
 }
@@ -82,10 +82,13 @@ struct SeriesRingBuffer<T: Clone> {
 fn new_i64_ring_buffer(size: usize) -> SeriesRingBuffer<i64> {
     let mut data = Vec::with_capacity(size);
     for _ in 0..size {
-        data.push(ReadPoint{time: std::i64::MAX, value: 0 as i64})
+        data.push(ReadPoint {
+            time: std::i64::MAX,
+            value: 0 as i64,
+        })
     }
 
-    SeriesRingBuffer{
+    SeriesRingBuffer {
         next_position: 0,
         data,
     }
@@ -94,10 +97,13 @@ fn new_i64_ring_buffer(size: usize) -> SeriesRingBuffer<i64> {
 fn new_f64_ring_buffer(size: usize) -> SeriesRingBuffer<f64> {
     let mut data = Vec::with_capacity(size);
     for _ in 0..size {
-        data.push(ReadPoint{time: std::i64::MAX, value: 0 as f64})
+        data.push(ReadPoint {
+            time: std::i64::MAX,
+            value: 0 as f64,
+        })
     }
 
-    SeriesRingBuffer{
+    SeriesRingBuffer {
         next_position: 0,
         data,
     }
@@ -124,7 +130,7 @@ impl<T: Clone> SeriesRingBuffer<T> {
             } else if self.data[i].time >= range.start {
                 values.push(self.data[i].clone());
             }
-        };
+        }
 
         for i in 0..self.next_position {
             if self.data[i].time > range.stop {
@@ -141,7 +147,7 @@ impl<T: Clone> SeriesRingBuffer<T> {
         let mut pos = self.next_position;
         if self.next_position == self.data.len() {
             pos = 0;
-        } else if  self.data[pos].time == std::i64::MAX {
+        } else if self.data[pos].time == std::i64::MAX {
             pos = 0;
         }
 
@@ -159,7 +165,7 @@ struct SeriesMap {
 
 impl SeriesMap {
     fn new() -> SeriesMap {
-        SeriesMap{
+        SeriesMap {
             last_id: 0,
             series_key_to_id: HashMap::new(),
             series_id_to_key_and_type: HashMap::new(),
@@ -177,19 +183,24 @@ impl SeriesMap {
         // insert the series id
         self.last_id += 1;
         point.set_series_id(self.last_id);
-        self.series_key_to_id.insert(point.series().clone(), self.last_id);
+        self.series_key_to_id
+            .insert(point.series().clone(), self.last_id);
 
         let series_type = match point {
             PointType::I64(_) => SeriesDataType::I64,
             PointType::F64(_) => SeriesDataType::F64,
         };
-        self.series_id_to_key_and_type.insert(self.last_id, (point.series().clone(), series_type));
+        self.series_id_to_key_and_type
+            .insert(self.last_id, (point.series().clone(), series_type));
 
         for pair in point.index_pairs()? {
             // insert this id into the posting list
             let list_key = list_key(&pair.key, &pair.value);
 
-            let posting_list = self.posting_list.entry(list_key).or_insert(Treemap::create());
+            let posting_list = self
+                .posting_list
+                .entry(list_key)
+                .or_insert(Treemap::create());
             posting_list.add(self.last_id);
 
             // insert the tag key value mapping
@@ -232,7 +243,7 @@ impl MemDB {
     ) -> Result<(), StorageError> {
         // first try to do everything with just a read lock
         if self.get_series_ids_for_points(bucket_id, points) {
-            return Ok(())
+            return Ok(());
         }
 
         // if we got this far, we have new series to insert
@@ -242,10 +253,12 @@ impl MemDB {
         for p in points {
             match p.series_id() {
                 Some(_) => (),
-                None => {
-                    match series_map.insert_series(p) {
-                        Ok(_) => (),
-                        Err(e) => return Err(StorageError { description: format!("error parsing line protocol metadata {}", e) })
+                None => match series_map.insert_series(p) {
+                    Ok(_) => (),
+                    Err(e) => {
+                        return Err(StorageError {
+                            description: format!("error parsing line protocol metadata {}", e),
+                        })
                     }
                 },
             }
@@ -271,14 +284,17 @@ impl MemDB {
                 }
 
                 if all_have_id {
-                    return true
+                    return true;
                 }
-            },
+            }
             None => {
                 // we've never even seen this bucket. insert it and then we'll get to inserting the series
                 drop(buckets);
-                self.bucket_id_to_series_map.write().unwrap().insert(bucket_id, RwLock::new(SeriesMap::new()));
-            },
+                self.bucket_id_to_series_map
+                    .write()
+                    .unwrap()
+                    .insert(bucket_id, RwLock::new(SeriesMap::new()));
+            }
         }
 
         false
@@ -288,15 +304,21 @@ impl MemDB {
         &self,
         bucket_id: u32,
         _predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item=String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
         match self.bucket_id_to_series_map.read().unwrap().get(&bucket_id) {
             Some(map) => {
-                let keys: Vec<String> = map.read().unwrap().tag_keys.keys().map(|k| k.clone()).collect();
+                let keys: Vec<String> = map
+                    .read()
+                    .unwrap()
+                    .tag_keys
+                    .keys()
+                    .map(|k| k.clone())
+                    .collect();
                 Ok(Box::new(keys.into_iter()))
-            },
-            None => {
-                Err(StorageError{description: format!("bucket {} not found", bucket_id)})
             }
+            None => Err(StorageError {
+                description: format!("bucket {} not found", bucket_id),
+            }),
         }
     }
 
@@ -305,20 +327,18 @@ impl MemDB {
         bucket_id: u32,
         tag_key: &str,
         _predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item=String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
         match self.bucket_id_to_series_map.read().unwrap().get(&bucket_id) {
-            Some(map) => {
-                match map.read().unwrap().tag_keys.get(tag_key) {
-                    Some(values) => {
-                        let values: Vec<String> = values.keys().map(|v| v.clone()).collect();
-                        Ok(Box::new(values.into_iter()))
-                    },
-                    None => Ok(Box::new(vec![].into_iter())),
+            Some(map) => match map.read().unwrap().tag_keys.get(tag_key) {
+                Some(values) => {
+                    let values: Vec<String> = values.keys().map(|v| v.clone()).collect();
+                    Ok(Box::new(values.into_iter()))
                 }
+                None => Ok(Box::new(vec![].into_iter())),
             },
-            None => {
-                Err(StorageError{description: format!("bucket {} not found", bucket_id)})
-            }
+            None => Err(StorageError {
+                description: format!("bucket {} not found", bucket_id),
+            }),
         }
     }
 
@@ -329,18 +349,30 @@ impl MemDB {
     ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError> {
         let pred = match predicate {
             Some(p) => p,
-            None => return Err(StorageError{description: "unable to list all series".to_string()}),
+            None => {
+                return Err(StorageError {
+                    description: "unable to list all series".to_string(),
+                })
+            }
         };
 
         let root = match &pred.root {
             Some(r) => r,
-            None => return Err(StorageError{description: "expected root node to evaluate".to_string()}),
+            None => {
+                return Err(StorageError {
+                    description: "expected root node to evaluate".to_string(),
+                })
+            }
         };
 
         let bucket_map = self.bucket_id_to_series_map.read().unwrap();
         let series_map = match bucket_map.get(&bucket_id) {
             Some(m) => m.read().unwrap(),
-            None => return Err(StorageError{description: format!("no series written for bucket {}", bucket_id)}),
+            None => {
+                return Err(StorageError {
+                    description: format!("no series written for bucket {}", bucket_id),
+                })
+            }
         };
 
         let map = evaluate_node(&series_map, &root)?;
@@ -372,7 +404,7 @@ impl MemDB {
             None => {
                 drop(bucket_data);
                 let mut bucket_data = self.bucket_id_to_series_data.write().unwrap();
-                let series_data = SeriesData{
+                let series_data = SeriesData {
                     ring_buffer_size: self.default_ring_buffer_size,
                     i64_series: HashMap::new(),
                     f64_series: HashMap::new(),
@@ -398,22 +430,34 @@ impl MemDB {
         let buckets = self.bucket_id_to_series_data.read().unwrap();
         let data = match buckets.get(&bucket_id) {
             Some(d) => d,
-            None => return Err(StorageError{description: format!("bucket {} not found", bucket_id)}),
+            None => {
+                return Err(StorageError {
+                    description: format!("bucket {} not found", bucket_id),
+                })
+            }
         };
 
         let data = data.lock().unwrap();
         let buff = match FromSeries::from_series(&data, &series_id) {
             Some(b) => b,
-            None => return Err(StorageError{description: format!("series {} not found", series_id)}),
+            None => {
+                return Err(StorageError {
+                    description: format!("series {} not found", series_id),
+                })
+            }
         };
 
         let values = buff.get_range(&range);
-        Ok(Box::new(PointsIterator{values: Some(values), batch_size}))
+        Ok(Box::new(PointsIterator {
+            values: Some(values),
+            batch_size,
+        }))
     }
 }
 
 trait FromSeries: Clone {
-    fn from_series<'a>(data: &'a SeriesData, series_id: &u64) -> Option<&'a SeriesRingBuffer<Self>>;
+    fn from_series<'a>(data: &'a SeriesData, series_id: &u64)
+        -> Option<&'a SeriesRingBuffer<Self>>;
 }
 
 impl FromSeries for i64 {
@@ -455,7 +499,10 @@ impl<T: Clone> Iterator for PointsIterator<T> {
     }
 }
 
-fn evaluate_node(series_map: &RwLockReadGuard<'_, SeriesMap>, n: &Node) -> Result<Treemap, StorageError> {
+fn evaluate_node(
+    series_map: &RwLockReadGuard<'_, SeriesMap>,
+    n: &Node,
+) -> Result<Treemap, StorageError> {
     if n.children.len() != 2 {
         return Err(StorageError {
             description: format!(
@@ -528,9 +575,7 @@ fn evaluate_comparison(
     };
 
     match op {
-        Comparison::Equal => {
-            return Ok(series_map.posting_list_for_key_value(&left, &right))
-        }
+        Comparison::Equal => return Ok(series_map.posting_list_for_key_value(&left, &right)),
         comp => {
             return Err(StorageError {
                 description: format!("unable to handle comparison {:?}", comp),

@@ -40,8 +40,8 @@ pub struct SeriesFilter {
 // Test helpers for other implementations to run
 #[cfg(test)]
 pub mod tests {
-    use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
     use crate::line_parser::PointType;
+    use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
     use crate::storage::predicate::parse_predicate;
     use crate::storage::SeriesDataType;
 
@@ -52,25 +52,27 @@ pub mod tests {
         let p2 = PointType::new_i64("two".to_string(), 23, 40);
         let p3 = PointType::new_i64("three".to_string(), 33, 86);
 
-            let mut points = vec![p1.clone(), p2.clone()];
-            index.get_or_create_series_ids_for_points(bucket_id, &mut points)
-                .unwrap();
-            assert_eq!(points[0].series_id(), Some(1));
-            assert_eq!(points[1].series_id(), Some(2));
-
+        let mut points = vec![p1.clone(), p2.clone()];
+        index
+            .get_or_create_series_ids_for_points(bucket_id, &mut points)
+            .unwrap();
+        assert_eq!(points[0].series_id(), Some(1));
+        assert_eq!(points[1].series_id(), Some(2));
 
         // now put series in a different bucket, but make sure the IDs start from the beginning
         let mut points = vec![p1.clone()];
-        index.get_or_create_series_ids_for_points(bucket_2, &mut points)
+        index
+            .get_or_create_series_ids_for_points(bucket_2, &mut points)
             .unwrap();
         assert_eq!(points[0].series_id(), Some(1));
 
         // now insert a new series in the first bucket and make sure it shows up
         let mut points = vec![p1.clone(), p3.clone()];
-            index.get_or_create_series_ids_for_points(bucket_id, &mut points)
-                .unwrap();
-            assert_eq!(points[0].series_id(), Some(1));
-            assert_eq!(points[1].series_id(), Some(3));
+        index
+            .get_or_create_series_ids_for_points(bucket_id, &mut points)
+            .unwrap();
+        assert_eq!(points[0].series_id(), Some(1));
+        assert_eq!(points[1].series_id(), Some(3));
     }
 
     pub fn series_metadata_indexing(index: Box<dyn InvertedIndex>) {
@@ -81,12 +83,17 @@ pub mod tests {
         let p4 = PointType::new_i64("mem,host=b,region=west\tfree".to_string(), 1, 0);
 
         let mut points = vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()];
-        index.get_or_create_series_ids_for_points(bucket_id, &mut points).unwrap();
+        index
+            .get_or_create_series_ids_for_points(bucket_id, &mut points)
+            .unwrap();
 
         let tag_keys: Vec<String> = index.get_tag_keys(bucket_id, None).unwrap().collect();
         assert_eq!(tag_keys, vec!["_f", "_m", "host", "region"]);
 
-        let tag_values: Vec<String>= index.get_tag_values(bucket_id, "host", None).unwrap().collect();
+        let tag_values: Vec<String> = index
+            .get_tag_values(bucket_id, "host", None)
+            .unwrap()
+            .collect();
         assert_eq!(tag_values, vec!["a", "b"]);
 
         // get all series

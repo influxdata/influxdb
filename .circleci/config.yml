@@ -48,7 +48,7 @@ jobs:
       - rust_nightly
       - run:
           name: Rust fmt
-          command: cargo fmt --all -- --check || echo "rustfmt failed, but ignoring this for now..."
+          command: cargo fmt --all -- --check
   lint:
     docker:
       - image: circleci/rust:latest
