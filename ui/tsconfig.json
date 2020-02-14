@@ -40,5 +40,6 @@
     "src/**/*.test.tsx",
     "src/**/mocks.ts",
     "coverage"
-  ]
+  ],
+  "include": ["global.d.ts"]
 }

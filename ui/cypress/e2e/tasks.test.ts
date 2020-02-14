@@ -28,11 +28,11 @@ describe('Tasks', () => {
     const taskName = 'Bad Task'
 
     createFirstTask(taskName, ({name}) => {
-      return `import "influxdata/influxdb/v1"
-v1.tagValues(bucket: "${name}", tag: "_field")
-from(bucket: "${name}")
-  |> range(start: -2m)
-  |> to(org: "${name}")`
+      return `import "influxdata/influxdb/v1{rightarrow}
+v1.tagValues(bucket: "${name}", tag: "_field"{rightarrow}
+from(bucket: "${name}"{rightarrow}
+  |> range(start: -2m{rightarrow}
+  |> to(org: "${name}"{rightarrow}`
     })
 
     cy.getByTestID('task-save-btn').click()
@@ -46,10 +46,10 @@ from(bucket: "${name}")
   it('can create a task', () => {
     const taskName = 'Task'
     createFirstTask(taskName, ({name}) => {
-      return `import "influxdata/influxdb/v1"
-v1.tagValues(bucket: "${name}", tag: "_field")
-from(bucket: "${name}")
-  |> range(start: -2m)`
+      return `import "influxdata/influxdb/v1{rightarrow}
+v1.tagValues(bucket: "${name}", tag: "_field"{rightarrow}
+from(bucket: "${name}"{rightarrow}
+   |> range(start: -2m{rightarrow}`
     })
 
     cy.getByTestID('task-save-btn').click()
@@ -62,11 +62,11 @@ from(bucket: "${name}")
   it.skip('can create a task using http.post', () => {
     const taskName = 'Task'
     createFirstTask(taskName, () => {
-      return `import "http"
+      return `import "http{rightarrow}
 http.post(
   url: "https://foo.bar/baz",
-  data: bytes(v: "body")
-)`
+  data: bytes(v: "body"{rightarrow}
+  {rightarrow}`
     })
 
     cy.getByTestID('task-save-btn').click()
@@ -229,10 +229,10 @@ http.post(
       createFirstTask(
         taskName,
         ({name}) => {
-          return `import "influxdata/influxdb/v1"
-  v1.tagValues(bucket: "${name}", tag: "_field")
-  from(bucket: "${name}")
-    |> range(start: -2m)`
+          return `import "influxdata/influxdb/v1{rightarrow}
+  v1.tagValues(bucket: "${name}", tag: "_field"{rightarrow}
+  from(bucket: "${name}"{rightarrow}
+    |> range(start: -2m{rightarrow}`
         },
         interval,
         offset
@@ -304,55 +304,22 @@ http.post(
     // https://github.com/influxdata/influxdb/issues/15552
     const firstTask = 'First_Task'
     const secondTask = 'Second_Task'
-    const interval = '12h'
-    const offset = '30m'
-    const flux = name => `import "influxdata/influxdb/v1"
-    v1.tagValues(bucket: "${name}", tag: "_field")
-    from(bucket: "${name}")
-      |> range(start: -2m)`
     beforeEach(() => {
-      createFirstTask(
-        firstTask,
-        ({name}) => {
-          return flux(name)
-        },
-        interval,
-        offset
-      )
-      cy.getByTestID('task-save-btn').click()
-      cy.getByTestID('task-card')
-        .should('have.length', 1)
-        .and('contain', firstTask)
-
-      cy.getByTestID('add-resource-dropdown--button').click()
-      cy.getByTestID('add-resource-dropdown--new').click()
-      cy.getByInputName('name').type(secondTask)
-      cy.getByTestID('task-form-schedule-input').type(interval)
-      cy.getByTestID('task-form-offset-input').type(offset)
-      cy.get<Bucket>('@bucket').then(bucket => {
-        cy.getByTestID('flux-editor').within(() => {
-          cy.get('.react-monaco-editor-container')
-            .should('be.visible')
-            .click()
-            .focused()
-            .type(flux(bucket), {force: true, delay: 2})
+      cy.get('@org').then(({id}: Organization) => {
+        cy.get<string>('@token').then(token => {
+          cy.createTask(token, id, firstTask)
+          cy.createTask(token, id, secondTask)
         })
       })
-      cy.getByTestID('task-save-btn').click()
-      cy.getByTestID('task-card')
-        .should('have.length', 2)
-        .and('contain', firstTask)
-        .and('contain', secondTask)
-      cy.getByTestID('task-card--name')
-        .contains(firstTask)
-        .click()
+
+      cy.fixture('routes').then(({orgs}) => {
+        cy.get('@org').then(({id}: Organization) => {
+          cy.visit(`${orgs}/${id}/tasks`)
+        })
+      })
     })
 
     it('when navigating using the navbar', () => {
-      // verify that the previously input data exists
-      cy.getByInputValue(firstTask)
-      // navigate home
-      cy.get('div.cf-nav--item.active').click()
       // click on the second task
       cy.getByTestID('task-card--name')
         .contains(secondTask)
@@ -368,10 +335,6 @@ http.post(
     })
 
     it('when navigating using the cancel button', () => {
-      // verify that the previously input data exists
-      cy.getByInputValue(firstTask)
-      // navigate home
-      cy.getByTestID('task-cancel-btn').click()
       // click on the second task
       cy.getByTestID('task-card--name')
         .contains(secondTask)
@@ -388,10 +351,6 @@ http.post(
     })
 
     it('when navigating using the save button', () => {
-      // verify that the previously input data exists
-      cy.getByInputValue(firstTask)
-      // navigate home
-      cy.getByTestID('task-save-btn').click()
       // click on the second task
       cy.getByTestID('task-card--name')
         .contains(secondTask)
@@ -421,16 +380,16 @@ function createFirstTask(
 
   cy.getByTestID('add-resource-dropdown--new').click()
 
-  cy.getByInputName('name').type(name)
-  cy.getByTestID('task-form-schedule-input').type(interval)
-  cy.getByTestID('task-form-offset-input').type(offset)
-
   cy.get<Bucket>('@bucket').then(bucket => {
     cy.getByTestID('flux-editor').within(() => {
-      cy.get('.react-monaco-editor-container')
+      cy.get('textarea.inputarea')
         .click()
         .focused()
         .type(flux(bucket), {force: true, delay: 2})
     })
   })
+
+  cy.getByInputName('name').type(name)
+  cy.getByTestID('task-form-schedule-input').type(interval)
+  cy.getByTestID('task-form-offset-input').type(offset)
 }
