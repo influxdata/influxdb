@@ -269,10 +269,10 @@ struct ApplicationError {
 }
 
 impl ApplicationError {
-    fn new(status_code: StatusCode, message: &str) -> ApplicationError {
+    fn new(status_code: StatusCode, message: impl Into<String>) -> ApplicationError {
         ApplicationError {
             status_code,
-            message: message.to_string(),
+            message: message.into(),
         }
     }
 
