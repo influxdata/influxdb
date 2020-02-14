@@ -8,7 +8,6 @@ edition = "2018"
 
 [dependencies]
 bytes = "0.5.4"
-rand = "0.7.2"
 integer-encoding = "1.0.7"
 
 hyper = "0.13"
@@ -47,3 +46,4 @@ prost-build = "0.6.1"
 [dev-dependencies]
 reqwest = { version = "0.10.1", features = ["blocking"] }
 assert_cmd = "0.12.0"
+rand = "0.7.2"
