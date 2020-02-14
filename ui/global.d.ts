@@ -6,3 +6,11 @@ import {MonacoType} from 'src/types'
 
 declare module '*.png'
 declare let monaco: MonacoType
+
+declare global {
+  interface Window {
+    monaco: MonacoType
+  }
+}
+
+window.monaco = window.monaco || {}

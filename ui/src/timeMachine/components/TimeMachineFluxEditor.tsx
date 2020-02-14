@@ -59,7 +59,12 @@ const TimeMachineFluxEditor: FC<Props> = ({
     const p = editorInstance.getPosition()
     editorInstance.executeEdits('', [
       {
-        range: new monaco.Range(p.lineNumber, p.column, p.lineNumber, p.column),
+        range: new window.monaco.Range(
+          p.lineNumber,
+          p.column,
+          p.lineNumber,
+          p.column
+        ),
         text: `v.${variableName}`,
       },
     ])
@@ -70,7 +75,12 @@ const TimeMachineFluxEditor: FC<Props> = ({
     const p = editorInstance.getPosition()
     const edits = [
       {
-        range: new monaco.Range(p.lineNumber, p.column, p.lineNumber, p.column),
+        range: new window.monaco.Range(
+          p.lineNumber,
+          p.column,
+          p.lineNumber,
+          p.column
+        ),
         text: formatFunctionForInsert(func.name, func.example),
       },
     ]
@@ -80,7 +90,7 @@ const TimeMachineFluxEditor: FC<Props> = ({
     )
     if (importStatement) {
       edits.unshift({
-        range: new monaco.Range(1, 1, 1, 1),
+        range: new window.monaco.Range(1, 1, 1, 1),
         text: `${importStatement}\n`,
       })
     }
