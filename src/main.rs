@@ -4,6 +4,11 @@
 extern crate log;
 
 use delorean::delorean::Bucket;
+use delorean::delorean::{
+    delorean_server::{Delorean, DeloreanServer},
+    CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest, DeleteBucketResponse,
+    GetBucketsResponse, Organization,
+};
 use delorean::line_parser;
 use delorean::line_parser::index_pairs;
 use delorean::storage::database::Database;
@@ -21,9 +26,37 @@ use csv::Writer;
 use failure::_core::time::Duration;
 use futures::{self, StreamExt};
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Method, Request, Response, Server, StatusCode};
+use hyper::{Body, Method, Server, StatusCode};
 use serde::Deserialize;
 use serde_json;
+use tonic::Status;
+
+#[derive(Debug, Default)]
+pub struct GrpcServer {}
+
+#[tonic::async_trait]
+impl Delorean for GrpcServer {
+    async fn create_bucket(
+        &self,
+        _req: tonic::Request<CreateBucketRequest>,
+    ) -> Result<tonic::Response<CreateBucketResponse>, Status> {
+        Ok(tonic::Response::new(CreateBucketResponse {}))
+    }
+
+    async fn delete_bucket(
+        &self,
+        _req: tonic::Request<DeleteBucketRequest>,
+    ) -> Result<tonic::Response<DeleteBucketResponse>, Status> {
+        Ok(tonic::Response::new(DeleteBucketResponse {}))
+    }
+
+    async fn get_buckets(
+        &self,
+        _req: tonic::Request<Organization>,
+    ) -> Result<tonic::Response<GetBucketsResponse>, Status> {
+        Ok(tonic::Response::new(GetBucketsResponse { buckets: vec![] }))
+    }
+}
 
 struct App {
     db: Database,
@@ -37,7 +70,7 @@ struct WriteInfo {
     bucket_name: String,
 }
 
-async fn write(req: Request<Body>, app: Arc<App>) -> Result<Body, ApplicationError> {
+async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, ApplicationError> {
     let query = req.uri().query().ok_or(StatusCode::BAD_REQUEST)?;
     let write_info: WriteInfo =
         serde_urlencoded::from_str(query).map_err(|_| StatusCode::BAD_REQUEST)?;
@@ -122,7 +155,7 @@ fn duration_to_nanos_or_default(
 }
 
 // TODO: figure out how to stream read results out rather than rendering the whole thing in mem
-async fn read(req: Request<Body>, app: Arc<App>) -> Result<Body, ApplicationError> {
+async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, ApplicationError> {
     let query = req
         .uri()
         .query()
@@ -240,7 +273,7 @@ async fn read(req: Request<Body>, app: Arc<App>) -> Result<Body, ApplicationErro
     Ok(response_body.into())
 }
 
-async fn service(req: Request<Body>, app: Arc<App>) -> http::Result<Response<Body>> {
+async fn service(req: hyper::Request<Body>, app: Arc<App>) -> http::Result<hyper::Response<Body>> {
     let response = match (req.method(), req.uri().path()) {
         (&Method::POST, "/api/v2/write") => write(req, app).await,
         (&Method::GET, "/api/v2/read") => read(req, app).await,
@@ -251,12 +284,12 @@ async fn service(req: Request<Body>, app: Arc<App>) -> http::Result<Response<Bod
     };
 
     match response {
-        Ok(body) => Ok(Response::builder()
+        Ok(body) => Ok(hyper::Response::builder()
             .body(body.into())
             .expect("Should have been able to construct a response")),
         Err(e) => {
             let json = serde_json::json!({"error": e.to_string()}).to_string();
-            Ok(Response::builder()
+            Ok(hyper::Response::builder()
                 .status(e.status_code())
                 .body(json.into())
                 .expect("Should have been able to construct a response"))
@@ -333,6 +366,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             panic!("DELOREAN_BIND_ADDR environment variable not a valid unicode string")
         }
     };
+    let grpc_bind_addr: SocketAddr = match std::env::var("DELOREAN_GRPC_BIND_ADDR") {
+        Ok(addr) => addr
+            .parse()
+            .expect("DELOREAN_GRPC_BIND_ADDR environment variable not a valid SocketAddr"),
+        Err(VarError::NotPresent) => "127.0.0.1:8081".parse().unwrap(),
+        Err(VarError::NotUnicode(_)) => {
+            panic!("DELOREAN_GRPC_BIND_ADDR environment variable not a valid unicode string")
+        }
+    };
 
     let make_svc = make_service_fn(move |_conn| {
         let state = state.clone();
@@ -344,11 +386,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     });
 
+    let grpc_server = tonic::transport::Server::builder()
+        .add_service(DeloreanServer::new(GrpcServer::default()))
+        .serve(grpc_bind_addr);
+
     let server = Server::bind(&bind_addr).serve(make_svc);
 
+    info!("gRPC server listening on http://{}", grpc_bind_addr);
     info!("Listening on http://{}", bind_addr);
 
-    server.await?;
+    let (grpc_server, server) = futures::future::join(grpc_server, server).await;
+    grpc_server?;
+    server?;
 
     Ok(())
 }
