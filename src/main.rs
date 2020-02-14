@@ -16,6 +16,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::{env, fmt, str};
 
+use bytes::BytesMut;
 use csv::Writer;
 use failure::_core::time::Duration;
 use futures::{self, StreamExt};
@@ -71,7 +72,7 @@ async fn write(req: Request<Body>, app: Arc<App>) -> Result<Body, ApplicationErr
 
     let mut payload = req.into_body();
 
-    let mut body = Vec::new();
+    let mut body = BytesMut::new();
     while let Some(chunk) = payload.next().await {
         let chunk = chunk.expect("Should have been able to read the next chunk");
         // limit max size of in-memory payload
@@ -83,6 +84,7 @@ async fn write(req: Request<Body>, app: Arc<App>) -> Result<Body, ApplicationErr
         }
         body.extend_from_slice(&chunk);
     }
+    let body = body.freeze();
     let body = str::from_utf8(&body).unwrap();
 
     let mut points = line_parser::parse(body);
