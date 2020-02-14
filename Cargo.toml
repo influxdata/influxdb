@@ -14,7 +14,7 @@ integer-encoding = "1.0.7"
 hyper = "0.13"
 tokio = { version = "0.2", features = ["full"] }
 
-dotenv = "0.10"
+dotenv = "0.15.0"
 dirs = "2.0.2"
 env_logger = "0.7.1"
 log = "0.4.8"
