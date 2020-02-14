@@ -912,9 +912,22 @@ func (e *Engine) Free() error {
 // backup is running. For shards that are still acively getting writes, this
 // could cause the WAL to backup, increasing memory usage and evenutally rejecting writes.
 func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
-	path, err := e.CreateSnapshot()
-	if err != nil {
-		return err
+	var err error
+	var path string
+	for i := 0; i < 3; i++ {
+		path, err = e.CreateSnapshot()
+		if err != nil {
+			switch err {
+			case ErrSnapshotInProgress:
+				backoff := time.Duration(math.Pow(32, float64(i))) * time.Millisecond
+				time.Sleep(backoff)
+			default:
+				return err
+			}
+		}
+	}
+	if err == ErrSnapshotInProgress {
+		e.logger.Warn("Snapshotter busy: Backup proceeding without snapshot contents.")
 	}
 	// Remove the temporary snapshot dir
 	defer os.RemoveAll(path)
