@@ -58,7 +58,7 @@ jobs:
       - install_clang
       - run:
           name: Clippy
-          command: cargo clippy --all -j9  || echo "clippy failed, but ignoring this for now..."
+          command: cargo clippy --all -j9
   test:
     docker:
       - image: circleci/rust:latest
