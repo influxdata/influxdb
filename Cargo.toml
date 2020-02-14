@@ -28,8 +28,7 @@ byteorder = "1.3.4"
 
 num_cpus = "1.11.1"
 
-# waiting for tonic to bump up to use newest tokio
-#tonic = "0.1.0-alpha.6"
+tonic = "0.1.1"
 prost = "0.6.1"
 
 # using croaring here because we needed Treemap support for u64
@@ -40,8 +39,7 @@ http = "0.2.0"
 serde_urlencoded = "0.6.1"
 
 [build-dependencies]
-#tonic-build = "0.1.0-alpha.6"
-prost-build = "0.6.1"
+tonic-build = "0.1.1"
 
 [dev-dependencies]
 reqwest = { version = "0.10.1", features = ["blocking"] }
