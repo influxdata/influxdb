@@ -41,8 +41,15 @@ func (m *kvMapper) Map(ctx context.Context, sourceBucket, destinationBucket []by
 			if err != nil {
 				return err
 			}
-			cursor, err := src.ForwardCursor(seek)
-
+			var cursor ForwardCursor
+			if seek != nil {
+				cursor, err = src.ForwardCursor(seek, WithCursorSkipFirstItem())
+			} else {
+				cursor, err = src.ForwardCursor(nil)
+			}
+			if err != nil {
+				return err
+			}
 			for k, v := cursor.Next(); true; k, v = cursor.Next() {
 				if k == nil {
 					complete = true
