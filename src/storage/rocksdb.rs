@@ -6,8 +6,8 @@ use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
 use crate::storage::series_store::{ReadPoint, SeriesStore};
 use crate::storage::{Range, SeriesDataType, StorageError};
 
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::io::Cursor;
 use std::sync::{Arc, Mutex, RwLock};
@@ -116,7 +116,7 @@ impl RocksDB {
     }
 
     // TODO: update this so it decompresses at least the first point to verify the data type or return error
-    fn read_range<T: 'static + FromBytes + Clone> (
+    fn read_range<T: 'static + FromBytes + Clone>(
         &self,
         bucket_id: u32,
         series_id: u64,
@@ -586,11 +586,7 @@ impl RocksDB {
             let series_id = next_id.to_be_bytes();
 
             batch
-                .put_cf(
-                    index_cf,
-                    index_series_key_id(&point.series()),
-                    &series_id,
-                )
+                .put_cf(index_cf, index_series_key_id(&point.series()), &series_id)
                 .unwrap();
             batch
                 .put_cf(
@@ -623,20 +619,13 @@ impl RocksDB {
                     .unwrap();
 
                 // update the key to id bitmap
-                let index_key_posting_list_key =
-                    index_key_posting_list(bucket_id, &pair.key);
+                let index_key_posting_list_key = index_key_posting_list(bucket_id, &pair.key);
 
                 // put it in the temporary in memory map for a single write update later
                 let tree = match index_map.entry(index_key_posting_list_key) {
                     Entry::Occupied(e) => e.into_mut(),
                     Entry::Vacant(e) => {
-                        let map = match self
-                            .db
-                            .read()
-                            .unwrap()
-                            .get_cf(index_cf, e.key())
-                            .unwrap()
-                        {
+                        let map = match self.db.read().unwrap().get_cf(index_cf, e.key()).unwrap() {
                             Some(b) => Treemap::deserialize(&b)
                                 .expect("unexpected error deserializing posting list"),
                             None => Treemap::create(),
@@ -653,13 +642,7 @@ impl RocksDB {
                 let tree = match index_map.entry(index_key_value_posting_list_key) {
                     Entry::Occupied(e) => e.into_mut(),
                     Entry::Vacant(e) => {
-                        let map = match self
-                            .db
-                            .read()
-                            .unwrap()
-                            .get_cf(index_cf, e.key())
-                            .unwrap()
-                        {
+                        let map = match self.db.read().unwrap().get_cf(index_cf, e.key()).unwrap() {
                             Some(b) => Treemap::deserialize(&b)
                                 .expect("unexpected error deserializing posting list"),
                             None => Treemap::create(),

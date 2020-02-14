@@ -34,8 +34,8 @@ pub struct ReadPoint<T: Clone> {
 // Test helpers for other implementations to run
 #[cfg(test)]
 pub mod tests {
-    use crate::storage::series_store::{SeriesStore, ReadPoint};
     use crate::line_parser::PointType;
+    use crate::storage::series_store::{ReadPoint, SeriesStore};
     use crate::storage::Range;
 
     pub fn write_and_read_i64(store: Box<dyn SeriesStore>) {
@@ -51,10 +51,14 @@ pub mod tests {
         p4.set_series_id(2);
 
         let b1_points = vec![p1.clone(), p2.clone()];
-        store.write_points_with_series_ids(b1_id, &b1_points).unwrap();
+        store
+            .write_points_with_series_ids(b1_id, &b1_points)
+            .unwrap();
 
         let b2_points = vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()];
-        store.write_points_with_series_ids(b2_id, &b2_points).unwrap();
+        store
+            .write_points_with_series_ids(b2_id, &b2_points)
+            .unwrap();
 
         // test that we'll only read from the bucket we wrote points into
         let range = Range { start: 1, stop: 4 };
@@ -129,7 +133,9 @@ pub mod tests {
         p2.set_series_id(1);
 
         let points = vec![p1.clone(), p2.clone()];
-        store.write_points_with_series_ids(bucket_id, &points).unwrap();
+        store
+            .write_points_with_series_ids(bucket_id, &points)
+            .unwrap();
 
         // test that we'll only read from the bucket we wrote points into
         let range = Range { start: 0, stop: 4 };
