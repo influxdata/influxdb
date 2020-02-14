@@ -19,7 +19,7 @@ enum Encoding {
 #[allow(dead_code)]
 pub fn encode_all<'a>(src: &mut Vec<i64>, dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.truncate(0); // reset buffer.
-    if src.len() == 0 {
+    if src.is_empty() {
         return Ok(());
     }
 
@@ -93,7 +93,7 @@ pub fn encode_all<'a>(src: &mut Vec<i64>, dst: &'a mut Vec<u8>) -> Result<(), Bo
 // TODO(edd): this is expensive as it copies. There are cheap
 // but unsafe alternatives to look into such as std::mem::transmute
 fn i64_to_u64_vector(src: &[i64]) -> Vec<u64> {
-    src.into_iter().map(|x| *x as u64).collect::<Vec<u64>>()
+    src.iter().map(|x| *x as u64).collect::<Vec<u64>>()
 }
 
 // encode_rle encodes the value v, delta and count into dst.
@@ -146,23 +146,23 @@ fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
 /// vector of signed integers.
 #[allow(dead_code)]
 pub fn decode_all<'a>(src: &[u8], dst: &'a mut Vec<i64>) -> Result<(), Box<dyn Error>> {
-    if src.len() == 0 {
+    if src.is_empty() {
         return Ok(());
     }
     let encoding = &src[0] >> 4;
     match encoding {
         encoding if encoding == Encoding::Uncompressed as u8 => {
-            return decode_uncompressed(&src[1..], dst); // first byte not used
+            decode_uncompressed(&src[1..], dst) // first byte not used
         }
-        encoding if encoding == Encoding::Rle as u8 => return decode_rle(&src, dst),
-        encoding if encoding == Encoding::Simple8b as u8 => return decode_simple8b(&src, dst),
-        _ => return Err(From::from("invalid block encoding")),
+        encoding if encoding == Encoding::Rle as u8 => decode_rle(&src, dst),
+        encoding if encoding == Encoding::Simple8b as u8 => decode_simple8b(&src, dst),
+        _ => Err(From::from("invalid block encoding")),
     }
 }
 
 // decode_uncompressed writes the binary encoded values in src into dst.
 fn decode_uncompressed(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
-    if src.len() == 0 || src.len() & 0x7 != 0 {
+    if src.is_empty() || src.len() & 0x7 != 0 {
         return Err(From::from("invalid uncompressed block length"));
     }
 
@@ -190,7 +190,7 @@ fn decode_rle(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
     }
 
     // calculate the scaler from the lower 4 bits of the first byte.
-    let scaler = 10_u64.pow((src[0] & 0b00001111) as u32);
+    let scaler = 10_u64.pow((src[0] & 0b0000_1111) as u32);
     let mut i = 1;
 
     // TODO(edd): this should be possible to do in-place without copy.
@@ -198,14 +198,14 @@ fn decode_rle(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
     a.copy_from_slice(&src[i..i + 8]);
     i += 8;
     let (mut delta, n) = u64::decode_var(&src[i..]);
-    if n <= 0 {
+    if n == 0 {
         return Err(From::from("unable to decode delta"));
     }
     i += n;
     delta *= scaler;
 
     let (count, n) = usize::decode_var(&src[i..]);
-    if n <= 0 {
+    if n == 0 {
         return Err(From::from("unable to decode count"));
     }
 
@@ -226,7 +226,7 @@ fn decode_simple8b(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>>
         return Err(From::from("not enough data to decode packed timestamp"));
     }
 
-    let scaler = 10_u64.pow((src[0] & 0b00001111) as u32);
+    let scaler = 10_u64.pow((src[0] & 0b0000_1111) as u32);
 
     // TODO(edd): pre-allocate res by counting bytes in encoded slice?
     let mut res = vec![];
