@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bytes = "0.4.12"
+bytes = "0.5.4"
 rand = "0.7.2"
 integer-encoding = "1.0.7"
 
