@@ -4,6 +4,7 @@
 
 1. [16855](https://github.com/influxdata/influxdb/pull/16855): Added labels to buckets
 1. [16852](https://github.com/influxdata/influxdb/pull/16852): Revert for bad indexing of UserResourceMappings and Authorizations
+1. [16842](https://github.com/influxdata/influxdb/pull/16842): Connect monaco editor to Flux LSP server
 
 ### Bug Fixes
 
