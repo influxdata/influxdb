@@ -2,6 +2,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Through
 use rand::{distributions::Uniform, Rng};
 
 use std::convert::TryFrom;
+use std::mem;
 
 mod fixtures;
 
@@ -37,7 +38,9 @@ fn benchmark_encode<T>(
 ) {
     let mut group = c.benchmark_group(benchmark_group_name);
     for &batch_size in batch_sizes {
-        group.throughput(Throughput::Bytes(u64::try_from(batch_size).unwrap() * 8));
+        group.throughput(Throughput::Bytes(
+            u64::try_from(batch_size * mem::size_of::<T>()).unwrap(),
+        ));
         group.bench_with_input(
             BenchmarkId::from_parameter(batch_size),
             &batch_size,
