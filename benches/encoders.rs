@@ -1,27 +1,29 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::{distributions::Uniform, Rng};
 
+use std::convert::TryFrom;
+
 mod fixtures;
 
-const LARGER_BATCH_SIZES: [i32; 12] = [
+const LARGER_BATCH_SIZES: [usize; 12] = [
     10, 25, 50, 100, 250, 500, 750, 1_000, 5_000, 10_000, 50_000, 100_000,
 ];
 
-const SMALLER_BATCH_SIZES: [i32; 11] = [
+const SMALLER_BATCH_SIZES: [usize; 11] = [
     10, 25, 50, 100, 250, 500, 750, 1_000, 5_000, 10_000, 45_000,
 ];
 
 fn benchmark_encode_sequential<T: From<i32>>(
     c: &mut Criterion,
     benchmark_group_name: &str,
-    batch_sizes: &[i32],
+    batch_sizes: &[usize],
     encode: fn(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn std::error::Error>>
 ) {
     benchmark_encode(
         c,
         benchmark_group_name,
         batch_sizes,
-        |batch_size| { (1..batch_size).map(Into::into).collect() },
+        |batch_size| { (1..batch_size).map(convert_from_usize).collect() },
         encode
     );
 }
@@ -29,8 +31,8 @@ fn benchmark_encode_sequential<T: From<i32>>(
 fn benchmark_encode<T>(
     c: &mut Criterion,
     benchmark_group_name: &str,
-    batch_sizes: &[i32],
-    decoded_value_generation: fn(batch_size: i32) -> Vec<T>,
+    batch_sizes: &[usize],
+    decoded_value_generation: fn(batch_size: usize) -> Vec<T>,
     encode: fn(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn std::error::Error>>
 ) {
     let mut group = c.benchmark_group(benchmark_group_name);
@@ -54,8 +56,8 @@ fn benchmark_encode<T>(
 fn benchmark_decode<T>(
     c: &mut Criterion,
     benchmark_group_name: &str,
-    batch_sizes: &[i32],
-    input_value_generation: fn(batch_size: i32) -> (usize, Vec<u8>),
+    batch_sizes: &[usize],
+    input_value_generation: fn(batch_size: usize) -> (usize, Vec<u8>),
     decode: fn(src: &[u8], dst: &mut Vec<T>) -> Result<(), Box<dyn std::error::Error>>
 ) {
     let mut group = c.benchmark_group(benchmark_group_name);
@@ -75,6 +77,10 @@ fn benchmark_decode<T>(
         );
     }
     group.finish();
+}
+
+fn convert_from_usize<T: From<i32>>(a: usize) -> T {
+    i32::try_from(a).unwrap().into()
 }
 
 // The current float encoder produces the following compression:
@@ -163,7 +169,7 @@ fn float_encode_random(c: &mut Criterion) {
             let range = Uniform::from(0.0..100.0);
             rand::thread_rng()
                 .sample_iter(&range)
-                .take(batch_size as usize)
+                .take(batch_size)
                 .collect()
         },
         delorean::encoders::float::encode
@@ -221,7 +227,7 @@ fn float_encode_cpu(c: &mut Criterion) {
         "float_encode_cpu",
         &SMALLER_BATCH_SIZES,
         |batch_size| {
-            fixtures::CPU_F64_EXAMPLE_VALUES[..batch_size as usize].to_vec()
+            fixtures::CPU_F64_EXAMPLE_VALUES[..batch_size].to_vec()
         },
         delorean::encoders::float::encode
     )
@@ -233,7 +239,7 @@ fn float_decode_cpu(c: &mut Criterion) {
        "float_decode_cpu",
        &SMALLER_BATCH_SIZES,
        |batch_size| {
-           let decoded: Vec<f64> = fixtures::CPU_F64_EXAMPLE_VALUES[..batch_size as usize].to_vec();
+           let decoded: Vec<f64> = fixtures::CPU_F64_EXAMPLE_VALUES[..batch_size].to_vec();
            let mut encoded = vec![];
            delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
            (decoded.len(), encoded)
@@ -248,7 +254,7 @@ fn float_decode_sequential(c: &mut Criterion) {
         "float_decode_sequential",
         &LARGER_BATCH_SIZES,
         |batch_size| {
-            let decoded: Vec<f64> = (1..batch_size).map(f64::from).collect();
+            let decoded: Vec<f64> = (1..batch_size).map(convert_from_usize).collect();
             let mut encoded = vec![];
             delorean::encoders::float::encode(&decoded, &mut encoded).unwrap();
             (decoded.len(), encoded)
@@ -263,7 +269,7 @@ fn integer_decode_sequential(c: &mut Criterion) {
         "integer_decode_sequential",
         &LARGER_BATCH_SIZES,
         |batch_size| {
-            let decoded: Vec<i64> = (1..batch_size).map(i64::from).collect();
+            let decoded: Vec<i64> = (1..batch_size).map(convert_from_usize).collect();
             let mut encoded = vec![];
             delorean::encoders::integer::encode(&decoded, &mut encoded).unwrap();
             (decoded.len(), encoded)
@@ -278,7 +284,7 @@ fn timestamp_decode_sequential(c: &mut Criterion) {
         "timestamp_decode_sequential",
         &LARGER_BATCH_SIZES,
         |batch_size| {
-            let decoded: Vec<i64> = (1..batch_size).map(i64::from).collect();
+            let decoded: Vec<i64> = (1..batch_size).map(convert_from_usize).collect();
             let mut encoded = vec![];
             delorean::encoders::timestamp::encode(&decoded, &mut encoded).unwrap();
             (decoded.len(), encoded)
@@ -296,7 +302,7 @@ fn float_decode_random(c: &mut Criterion) {
             let range = Uniform::from(0.0..100.0);
             let decoded: Vec<_> = rand::thread_rng()
                 .sample_iter(&range)
-                .take(batch_size as usize)
+                .take(batch_size)
                 .collect();
 
             let mut encoded = vec![];
