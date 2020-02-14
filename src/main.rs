@@ -126,7 +126,7 @@ async fn read(req: Request<Body>, app: Arc<App>) -> Result<Body, ApplicationErro
         .query()
         .expect("Should have been query parameters");
     let read_info: ReadInfo =
-        serde_urlencoded::from_str(query).expect("Should have been able to parse query string");
+        serde_urlencoded::from_str(query).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     let predicate = parse_predicate(&read_info.predicate).map_err(|_| StatusCode::BAD_REQUEST)?;
 
