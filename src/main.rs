@@ -78,7 +78,7 @@ async fn write(req: Request<Body>, app: Arc<App>) -> Result<Body, ApplicationErr
         if (body.len() + chunk.len()) > MAX_SIZE {
             return Err(ApplicationError::new(
                 StatusCode::BAD_REQUEST,
-                "Body exceeds limit",
+                "Body exceeds limit of 1MB",
             ));
         }
         body.extend_from_slice(&chunk);
