@@ -105,7 +105,7 @@ struct ReadInfo {
 
 // TODO: Move this to src/time.rs, better error surfacing
 fn duration_to_nanos_or_default(
-    duration_param: &Option<String>,
+    duration_param: Option<&str>,
     now: std::time::SystemTime,
     default: std::time::SystemTime,
 ) -> Result<i64, delorean::Error> {
@@ -133,13 +133,13 @@ async fn read(req: Request<Body>, app: Arc<App>) -> Result<Body, ApplicationErro
     let now = std::time::SystemTime::now();
 
     let start = duration_to_nanos_or_default(
-        &read_info.start,
+        read_info.start.as_deref(),
         now,
         now.checked_sub(Duration::from_secs(10)).unwrap(),
     )
     .map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    let stop = duration_to_nanos_or_default(&read_info.stop, now, now)
+    let stop = duration_to_nanos_or_default(read_info.stop.as_deref(), now, now)
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
     let range = Range { start, stop };
