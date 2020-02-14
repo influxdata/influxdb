@@ -383,7 +383,7 @@ describe('DataExplorer', () => {
 
       cy.getByTestID('switch-query-builder-confirm--popover--contents').within(
         () => {
-          cy.getByTestID('button').click()
+          cy.getByTestID('switch-query-builder-confirm--confirm-button').click()
         }
       )
 
