@@ -8,6 +8,8 @@
 
 ### Bug Fixes
 
+1. [16856](https://github.com/influxdata/influxdb/pull/16856): Update Flux to v0.59.6
+
 ## v2.0.0-beta.3 [2020-02-11]
 
 ### Features
