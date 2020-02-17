@@ -27,7 +27,7 @@ const URL_BASE: &str = "http://localhost:8080/api/v2";
 async fn read_data(
     client: &reqwest::Client,
     path: &str,
-    org_id: &str,
+    org_id: u32,
     bucket_name: &str,
     predicate: &str,
     seconds_ago: u64,
@@ -36,8 +36,8 @@ async fn read_data(
     Ok(client
         .get(&url)
         .query(&[
-            ("org_id", org_id),
             ("bucket_name", bucket_name),
+            ("org_id", &org_id.to_string()),
             ("predicate", predicate),
             ("start", &format!("-{}s", seconds_ago)),
         ])
@@ -51,14 +51,17 @@ async fn read_data(
 async fn write_data(
     client: &reqwest::Client,
     path: &str,
-    org_id: &str,
+    org_id: u32,
     bucket_name: &str,
     body: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let url = format!("{}{}", URL_BASE, path);
     client
         .post(&url)
-        .query(&[("org_id", org_id), ("bucket_name", bucket_name)])
+        .query(&[
+            ("bucket_name", bucket_name),
+            ("org_id", &org_id.to_string()),
+        ])
         .body(body)
         .send()
         .await?
@@ -88,7 +91,7 @@ async fn read_and_write_data() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: poll the server to see if it's ready instead of sleeping
     sleep(Duration::from_secs(3));
 
-    let org_id = "7878";
+    let org_id = 7878;
     let bucket_name = "all";
     let client = reqwest::Client::new();
 
