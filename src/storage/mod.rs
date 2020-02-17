@@ -1,5 +1,3 @@
-use actix_web::http::StatusCode;
-use actix_web::ResponseError;
 use std::convert::TryFrom;
 use std::error;
 use std::fmt;
@@ -65,11 +63,5 @@ impl error::Error for StorageError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         // Generic error, underlying cause isn't tracked.
         None
-    }
-}
-
-impl ResponseError for StorageError {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
     }
 }

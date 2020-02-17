@@ -7,17 +7,16 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bytes = "0.4.12"
-rand = "0.7.2"
+bytes = "0.5.4"
 integer-encoding = "1.0.7"
 
-# actix 2.0 should release around 12/20
-actix-rt = "1.0"
-actix-web = "2.0"
+hyper = "0.13"
+tokio = { version = "0.2", features = ["full"] }
 
-dotenv = "0.10"
+dotenv = "0.15.0"
 dirs = "2.0.2"
-env_logger = "0.6"
+env_logger = "0.7.1"
+log = "0.4.8"
 failure = "0.1.1"
 futures = "0.3.1"
 
@@ -25,23 +24,26 @@ serde_json = "1.0.44"
 serde = "1.0"
 csv = "1.1"
 rocksdb = "0.13"
-byteorder = "0.3"
+byteorder = "1.3.4"
 
 num_cpus = "1.11.1"
 
 # waiting for tonic to bump up to use newest tokio
 #tonic = "0.1.0-alpha.6"
-prost = "0.5.0"
+prost = "0.6.1"
 
 # using croaring here because we needed Treemap support for u64
 # for series ids and we needed serialization, which the pure Rust
 # crate didn't offer.
 croaring = "0.4.2"
+http = "0.2.0"
+serde_urlencoded = "0.6.1"
 
 [build-dependencies]
 #tonic-build = "0.1.0-alpha.6"
-prost-build = { version = "0.5.0" }
+prost-build = "0.6.1"
 
 [dev-dependencies]
 reqwest = { version = "0.10.1", features = ["blocking"] }
 assert_cmd = "0.12.0"
+rand = "0.7.2"
