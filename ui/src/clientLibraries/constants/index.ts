@@ -207,6 +207,8 @@ export const clientRubyLibrary = {
   initializeGemCodeSnippet: `gem install influxdb-client -v 1.0.0.beta`,
   initializeClientCodeSnippet: `## You can generate a Token from the "Tokens Tab" in the UI
 client = InfluxDB2::Client.new('<%= server %>', '<%= token %>')`,
+  executeQueryCodeSnippet: `query = 'from(bucket: "<%= bucket %>") |> range(start: -1h)'
+tables = client.create_query_api.query(query: query, org: '<%= org %>')`,
   writingDataLineProtocolCodeSnippet: `data = 'mem,host=host1 used_percent=23.43234543 1556896326'
 write_client.write(data: data, bucket: '<%= bucket %>', org: '<%= org %>')`,
   writingDataPointCodeSnippet: `point = InfluxDB2::Point.new(name: 'mem')
