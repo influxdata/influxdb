@@ -260,10 +260,8 @@ mod tests {
         let src = vec![7, 6, 2 << (61 - 1), 4, 3, 2, 1];
 
         let mut encoded = vec![];
-        match encode_all(&src, &mut encoded) {
-            Ok(_) => assert!(false), // TODO(edd): fix this silly assertion
-            Err(_) => (),
-        }
+        let result = encode_all(&src, &mut encoded);
+        assert_eq!(result.unwrap_err().to_string(), "value out of bounds");
     }
 
     #[test]
