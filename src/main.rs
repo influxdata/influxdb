@@ -285,7 +285,7 @@ async fn service(req: hyper::Request<Body>, app: Arc<App>) -> http::Result<hyper
 
     match response {
         Ok(body) => Ok(hyper::Response::builder()
-            .body(body.into())
+            .body(body)
             .expect("Should have been able to construct a response")),
         Err(e) => {
             let json = serde_json::json!({"error": e.to_string()}).to_string();
