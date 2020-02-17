@@ -615,7 +615,7 @@ impl SeriesStore for MemDB {
         bucket_id: u32,
         points: &[PointType],
     ) -> Result<(), StorageError> {
-        self.write_points_with_series_ids(bucket_id, &points.to_vec())
+        self.write_points_with_series_ids(bucket_id, points)
     }
 
     fn read_i64_range(
