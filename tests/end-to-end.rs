@@ -24,8 +24,8 @@ use std::time::{Duration, SystemTime};
 
 const URL_BASE: &str = "http://localhost:8080/api/v2";
 
-fn read_data(
-    client: &reqwest::blocking::Client,
+async fn read_data(
+    client: &reqwest::Client,
     path: &str,
     org_id: &str,
     bucket_name: &str,
@@ -41,13 +41,15 @@ fn read_data(
             ("predicate", predicate),
             ("start", &format!("-{}s", seconds_ago)),
         ])
-        .send()?
+        .send()
+        .await?
         .error_for_status()?
-        .text()?)
+        .text()
+        .await?)
 }
 
-fn write_data(
-    client: &reqwest::blocking::Client,
+async fn write_data(
+    client: &reqwest::Client,
     path: &str,
     org_id: &str,
     bucket_name: &str,
@@ -58,7 +60,8 @@ fn write_data(
         .post(&url)
         .query(&[("org_id", org_id), ("bucket_name", bucket_name)])
         .body(body)
-        .send()?
+        .send()
+        .await?
         .error_for_status()?;
     Ok(())
 }
@@ -75,8 +78,8 @@ fn get_test_storage_path() -> String {
         .expect("Should have been able to turn temp dir into String")
 }
 
-#[test]
-fn read_and_write_data() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::test]
+async fn read_and_write_data() -> Result<(), Box<dyn std::error::Error>> {
     let mut server_thread = Command::cargo_bin("delorean")?
         .stdout(Stdio::null())
         .env("DELOREAN_DB_DIR", get_test_storage_path())
@@ -87,7 +90,7 @@ fn read_and_write_data() -> Result<(), Box<dyn std::error::Error>> {
 
     let org_id = "7878";
     let bucket_name = "all";
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
 
     let start_time = SystemTime::now();
     let ns_since_epoch = start_time
@@ -113,7 +116,8 @@ cpu_load_short,host=server01,region=us-west value=0.000003 {}",
             ns_since_epoch + 2,
             ns_since_epoch + 3
         ),
-    )?;
+    )
+    .await?;
 
     let end_time = SystemTime::now();
     let duration = end_time
@@ -128,7 +132,8 @@ cpu_load_short,host=server01,region=us-west value=0.000003 {}",
         bucket_name,
         "host=\"server01\"",
         seconds_ago,
-    )?;
+    )
+    .await?;
 
     // TODO: make a more sustainable way to manage expected data for tests, such as using the
     // insta crate to manage snapshots.
