@@ -57,7 +57,7 @@ pub fn encode_all<'a>(src: &mut Vec<i64>, dst: &'a mut Vec<u8>) -> Result<(), Bo
             dst.reserve_exact(cap - dst.capacity());
         }
         dst.push((Encoding::Uncompressed as u8) << 4);
-        for delta in deltas.iter() {
+        for delta in &deltas {
             dst.extend_from_slice(&delta.to_be_bytes());
         }
         return Ok(());
@@ -201,7 +201,7 @@ fn decode_simple8b(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>>
     simple8b::decode_all(&src[8..], &mut res);
     // TODO(edd): fix this. It's copying, which is slowwwwwwwww.
     let mut next = dst[0];
-    for v in res.iter() {
+    for v in &res {
         next += zig_zag_decode(*v);
         dst.push(next);
     }

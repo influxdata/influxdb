@@ -1,4 +1,5 @@
 #![deny(rust_2018_idioms)]
+#![warn(clippy::explicit_iter_loop)]
 
 use std::{error, fmt};
 

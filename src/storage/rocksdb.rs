@@ -638,7 +638,7 @@ impl RocksDB {
         }
 
         // do the index writes from the in temporary in memory map
-        for (k, v) in index_map.iter() {
+        for (k, v) in &index_map {
             let _ = batch.put_cf(index_cf, k, v.serialize().unwrap());
         }
 
