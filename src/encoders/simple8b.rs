@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn test_encode_too_big() {
-        let src = vec![7, 6, 2 << 61 - 1, 4, 3, 2, 1];
+        let src = vec![7, 6, 2 << (61 - 1), 4, 3, 2, 1];
 
         let mut encoded = vec![];
         match encode_all(&src, &mut encoded) {
