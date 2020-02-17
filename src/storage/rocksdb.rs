@@ -700,8 +700,7 @@ impl RocksDB {
                     id_mutex_map.insert(bucket_id, Mutex::new(next_id));
                 }
                 BucketEntryType::Bucket => {
-                    let bucket =
-                        Bucket::decode(&*value).expect("unexpected error decoding bucket");
+                    let bucket = Bucket::decode(&*value).expect("unexpected error decoding bucket");
                     let key = bucket_key(bucket.org_id, &bucket.name);
                     bucket_map.insert(key, Arc::new(bucket));
                 }
