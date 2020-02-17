@@ -276,11 +276,11 @@ mod test {
         assert_eq!(vals[0].time(), 546);
         assert!(approximately_equal(vals[0].f64_value().unwrap(), 44.0));
 
-        let input = "foo asdf=3.14 123";
+        let input = "foo asdf=3.74 123";
         let vals = parse(input);
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 123);
-        assert!(approximately_equal(vals[0].f64_value().unwrap(), 3.14));
+        assert!(approximately_equal(vals[0].f64_value().unwrap(), 3.74));
     }
 
     #[test]
