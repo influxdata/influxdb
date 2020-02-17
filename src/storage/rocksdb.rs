@@ -57,7 +57,7 @@ impl RocksDB {
             Ok(names) => names
                 .into_iter()
                 .map(|name| {
-                    if &name == BUCKET_CF {
+                    if name == BUCKET_CF {
                         bucket_cf_descriptor()
                     } else {
                         ColumnFamilyDescriptor::new(&name, index_cf_options())
@@ -87,11 +87,7 @@ impl RocksDB {
     /// # Arguments
     /// * bucket_id - the globally unique bucket id
     /// * points - individual values with their timestamps, series keys, and series IDs
-    pub fn write_points(
-        &self,
-        bucket_id: u32,
-        points: &Vec<PointType>,
-    ) -> Result<(), StorageError> {
+    pub fn write_points(&self, bucket_id: u32, points: &[PointType]) -> Result<(), StorageError> {
         // TODO: validate bucket exists?
 
         let mut batch = WriteBatch::default();
@@ -399,14 +395,10 @@ impl RocksDB {
         };
 
         match op {
-            Comparison::Equal => {
-                return self.get_posting_list_for_tag_key_value(bucket_id, &left, &right);
-            }
-            comp => {
-                return Err(StorageError {
-                    description: format!("unable to handle comparison {:?}", comp),
-                })
-            }
+            Comparison::Equal => self.get_posting_list_for_tag_key_value(bucket_id, &left, &right),
+            comp => Err(StorageError {
+                description: format!("unable to handle comparison {:?}", comp),
+            }),
         }
     }
 
@@ -447,25 +439,22 @@ impl RocksDB {
 
         let db = self.db.read().unwrap();
 
-        match db.cf_handle(&cf_name) {
-            Some(index) => {
-                let prefix = index_tag_key_prefix(bucket_id);
-                let mode = IteratorMode::From(&prefix, Direction::Forward);
-                let iter = db
-                    .iterator_cf(index, mode)
-                    .expect("unexpected rocksdb error getting iterator for index");
+        if let Some(index) = db.cf_handle(&cf_name) {
+            let prefix = index_tag_key_prefix(bucket_id);
+            let mode = IteratorMode::From(&prefix, Direction::Forward);
+            let iter = db
+                .iterator_cf(index, mode)
+                .expect("unexpected rocksdb error getting iterator for index");
 
-                for (key, _) in iter {
-                    if !key.starts_with(&prefix) {
-                        break;
-                    }
-
-                    let k = std::str::from_utf8(&key[prefix.len()..]).unwrap(); // TODO: determine what we want to do with errors
-                    keys.push(k.to_string());
+            for (key, _) in iter {
+                if !key.starts_with(&prefix) {
+                    break;
                 }
+
+                let k = std::str::from_utf8(&key[prefix.len()..]).unwrap(); // TODO: determine what we want to do with errors
+                keys.push(k.to_string());
             }
-            None => (),
-        }
+        };
 
         keys
     }
@@ -481,24 +470,21 @@ impl RocksDB {
         let db = self.db.read().unwrap();
         let mut values = vec![];
 
-        match db.cf_handle(&cf_name) {
-            Some(index) => {
-                let prefix = index_tag_key_value_prefix(bucket_id, tag);
-                let mode = IteratorMode::From(&prefix, Direction::Forward);
-                let iter = db
-                    .iterator_cf(index, mode)
-                    .expect("unexpected rocksdb error getting iterator for index");
+        if let Some(index) = db.cf_handle(&cf_name) {
+            let prefix = index_tag_key_value_prefix(bucket_id, tag);
+            let mode = IteratorMode::From(&prefix, Direction::Forward);
+            let iter = db
+                .iterator_cf(index, mode)
+                .expect("unexpected rocksdb error getting iterator for index");
 
-                for (key, _) in iter {
-                    if !key.starts_with(&prefix) {
-                        break;
-                    }
-
-                    let v = std::str::from_utf8(&key[prefix.len()..]).unwrap(); // TODO: determine what to do with errors
-                    values.push(v.to_string());
+            for (key, _) in iter {
+                if !key.starts_with(&prefix) {
+                    break;
                 }
+
+                let v = std::str::from_utf8(&key[prefix.len()..]).unwrap(); // TODO: determine what to do with errors
+                values.push(v.to_string());
             }
-            None => (),
         }
 
         values
@@ -518,7 +504,7 @@ impl RocksDB {
         let mut map = self.series_insert_lock.write().expect("mutex poisoned");
 
         // now only insert the new mutex if someone else hasn't done it between dropping read and obtaining write
-        if let None = map.get(&bucket_id) {
+        if map.get(&bucket_id).is_none() {
             map.insert(bucket_id, Mutex::new(1));
         }
     }
@@ -540,10 +526,7 @@ impl RocksDB {
 
         // create the column family to store the index if it doesn't exist
         let cf_name = index_cf_name(bucket_id);
-        let index_exists = match self.db.read().unwrap().cf_handle(&cf_name) {
-            Some(_) => true,
-            None => false,
-        };
+        let index_exists = self.db.read().unwrap().cf_handle(&cf_name).is_some();
 
         if !index_exists {
             self.db
@@ -565,7 +548,7 @@ impl RocksDB {
         // now loop through the series and insert the index entries into the map
         for point in points {
             // don't bother with series in the collection that already have IDs
-            if let Some(_) = point.series_id() {
+            if point.series_id().is_some() {
                 continue;
             }
 
@@ -705,17 +688,15 @@ impl RocksDB {
                 BucketEntryType::NextSeriesID => {
                     // read the bucket id from the key
                     let mut c = Cursor::new(&key[1..]);
-                    let bucket_id = c.read_u32::<BigEndian>().expect(&format!(
-                        "couldn't read the bucket id from the key {:?}",
-                        key
-                    ));
+                    let bucket_id = c.read_u32::<BigEndian>().unwrap_or_else(|_| {
+                        panic!("couldn't read the bucket id from the key {:?}", key)
+                    });
 
                     // and the next series ID
                     let mut c = Cursor::new(value);
-                    let next_id = c.read_u64::<BigEndian>().expect(&format!(
-                        "couldn't read the next series id for bucket {}",
-                        bucket_id
-                    ));
+                    let next_id = c.read_u64::<BigEndian>().unwrap_or_else(|_| {
+                        panic!("couldn't read the next series id for bucket {}", bucket_id)
+                    });
                     id_mutex_map.insert(bucket_id, Mutex::new(next_id));
                 }
                 BucketEntryType::Bucket => {
@@ -804,7 +785,7 @@ impl SeriesStore for RocksDB {
     fn write_points_with_series_ids(
         &self,
         bucket_id: u32,
-        points: &Vec<PointType>,
+        points: &[PointType],
     ) -> Result<(), StorageError> {
         self.write_points(bucket_id, &points)
     }
