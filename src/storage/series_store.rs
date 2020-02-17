@@ -55,7 +55,7 @@ pub mod tests {
             .write_points_with_series_ids(b1_id, &b1_points)
             .unwrap();
 
-        let b2_points = vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()];
+        let b2_points = vec![p1.clone(), p2, p3.clone(), p4];
         store
             .write_points_with_series_ids(b2_id, &b2_points)
             .unwrap();
@@ -132,7 +132,7 @@ pub mod tests {
         let mut p2 = PointType::new_f64("cpu,host=b,region=west\tusage_system".to_string(), 2.2, 2);
         p2.set_series_id(1);
 
-        let points = vec![p1.clone(), p2.clone()];
+        let points = vec![p1.clone(), p2];
         store
             .write_points_with_series_ids(bucket_id, &points)
             .unwrap();

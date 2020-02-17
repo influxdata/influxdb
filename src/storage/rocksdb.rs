@@ -1270,7 +1270,7 @@ mod tests {
             db.insert_series_without_ids(b.id, &mut points);
             assert_eq!(points[0].series_id(), Some(4));
 
-            let mut points = vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()];
+            let mut points = vec![p1.clone(), p2.clone(), p3.clone(), p4];
             db.get_series_ids(b.id, &mut points).unwrap();
             assert_eq!(points[0].series_id(), Some(1));
             assert_eq!(points[1].series_id(), Some(2));
@@ -1282,7 +1282,7 @@ mod tests {
             db.insert_series_without_ids(b2.id, &mut points);
             assert_eq!(points[0].series_id(), Some(2));
 
-            let mut points = vec![p1.clone(), p2.clone(), p3.clone()];
+            let mut points = vec![p1, p2, p3];
             db.get_series_ids(b2.id, &mut points).unwrap();
             assert_eq!(points[0].series_id(), Some(1));
             assert_eq!(points[1].series_id(), Some(2));
@@ -1302,7 +1302,7 @@ mod tests {
         bucket.id = db
             .create_bucket_if_not_exists(bucket.org_id, &bucket)
             .unwrap();
-        let mut points = vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()];
+        let mut points = vec![p1, p2, p3, p4];
         db.get_or_create_series_ids_for_points(bucket.id, &mut points)
             .unwrap();
 
@@ -1423,7 +1423,7 @@ mod tests {
 
         b1.id = db.create_bucket_if_not_exists(b1.org_id, &b1).unwrap();
 
-        let mut points = vec![p1.clone()];
+        let mut points = vec![p1];
         db.get_or_create_series_ids_for_points(b1.id, &mut points)
             .unwrap();
         db.write_points(b1.id, &points).unwrap();
@@ -1471,7 +1471,7 @@ mod tests {
             .unwrap();
         db.write_points(b1.id, &b1_points).unwrap();
 
-        let mut b2_points = vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()];
+        let mut b2_points = vec![p1, p2, p3, p4];
         db.get_or_create_series_ids_for_points(b2.id, &mut b2_points)
             .unwrap();
         db.write_points(b2.id, &b2_points).unwrap();
@@ -1620,7 +1620,7 @@ mod tests {
 
         b1.id = db.create_bucket_if_not_exists(b1.org_id, &b1).unwrap();
 
-        let mut points = vec![p1.clone(), p2.clone()];
+        let mut points = vec![p1, p2];
         db.get_or_create_series_ids_for_points(b1.id, &mut points)
             .unwrap();
         db.write_points_with_series_ids(b1.id, &points).unwrap();

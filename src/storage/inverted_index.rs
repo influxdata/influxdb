@@ -52,7 +52,7 @@ pub mod tests {
         let p2 = PointType::new_i64("two".to_string(), 23, 40);
         let p3 = PointType::new_i64("three".to_string(), 33, 86);
 
-        let mut points = vec![p1.clone(), p2.clone()];
+        let mut points = vec![p1.clone(), p2];
         index
             .get_or_create_series_ids_for_points(bucket_id, &mut points)
             .unwrap();
@@ -67,7 +67,7 @@ pub mod tests {
         assert_eq!(points[0].series_id(), Some(1));
 
         // now insert a new series in the first bucket and make sure it shows up
-        let mut points = vec![p1.clone(), p3.clone()];
+        let mut points = vec![p1, p3];
         index
             .get_or_create_series_ids_for_points(bucket_id, &mut points)
             .unwrap();
@@ -82,7 +82,7 @@ pub mod tests {
         let p3 = PointType::new_i64("cpu,host=a,region=west\tusage_user".to_string(), 1, 0);
         let p4 = PointType::new_i64("mem,host=b,region=west\tfree".to_string(), 1, 0);
 
-        let mut points = vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()];
+        let mut points = vec![p1, p2, p3, p4];
         index
             .get_or_create_series_ids_for_points(bucket_id, &mut points)
             .unwrap();
