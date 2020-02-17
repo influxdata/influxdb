@@ -5,7 +5,7 @@ pub trait SeriesStore: Sync + Send {
     fn write_points_with_series_ids(
         &self,
         bucket_id: u32,
-        points: &Vec<PointType>,
+        points: &[PointType],
     ) -> Result<(), StorageError>;
 
     fn read_i64_range(

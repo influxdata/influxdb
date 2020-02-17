@@ -15,6 +15,7 @@ use croaring::Treemap;
 
 // TODO: return errors if trying to insert data out of order in an individual series
 
+#[derive(Default)]
 pub struct MemDB {
     default_ring_buffer_size: usize,
     bucket_id_to_series_data: Arc<RwLock<HashMap<u32, Mutex<SeriesData>>>>,
@@ -67,7 +68,7 @@ impl StoreInSeriesData for Point<f64> {
 }
 
 impl SeriesData {
-    fn write_points(&mut self, points: &Vec<PointType>) {
+    fn write_points(&mut self, points: &[PointType]) {
         for p in points {
             p.write(self);
         }
@@ -145,9 +146,7 @@ impl<T: Clone> SeriesRingBuffer<T> {
 
     fn oldest_time_and_position(&self) -> (i64, usize) {
         let mut pos = self.next_position;
-        if self.next_position == self.data.len() {
-            pos = 0;
-        } else if self.data[pos].time == std::i64::MAX {
+        if self.next_position == self.data.len() || self.data[pos].time == std::i64::MAX {
             pos = 0;
         }
 
@@ -200,11 +199,11 @@ impl SeriesMap {
             let posting_list = self
                 .posting_list
                 .entry(list_key)
-                .or_insert(Treemap::create());
+                .or_insert_with(Treemap::create);
             posting_list.add(self.last_id);
 
             // insert the tag key value mapping
-            let tag_values = self.tag_keys.entry(pair.key).or_insert(BTreeMap::new());
+            let tag_values = self.tag_keys.entry(pair.key).or_insert_with(BTreeMap::new);
             tag_values.insert(pair.value, true);
         }
 
@@ -307,13 +306,7 @@ impl MemDB {
     ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
         match self.bucket_id_to_series_map.read().unwrap().get(&bucket_id) {
             Some(map) => {
-                let keys: Vec<String> = map
-                    .read()
-                    .unwrap()
-                    .tag_keys
-                    .keys()
-                    .map(|k| k.clone())
-                    .collect();
+                let keys: Vec<String> = map.read().unwrap().tag_keys.keys().cloned().collect();
                 Ok(Box::new(keys.into_iter()))
             }
             None => Err(StorageError {
@@ -331,7 +324,7 @@ impl MemDB {
         match self.bucket_id_to_series_map.read().unwrap().get(&bucket_id) {
             Some(map) => match map.read().unwrap().tag_keys.get(tag_key) {
                 Some(values) => {
-                    let values: Vec<String> = values.keys().map(|v| v.clone()).collect();
+                    let values: Vec<String> = values.keys().cloned().collect();
                     Ok(Box::new(values.into_iter()))
                 }
                 None => Ok(Box::new(vec![].into_iter())),
@@ -394,7 +387,7 @@ impl MemDB {
     fn write_points_with_series_ids(
         &self,
         bucket_id: u32,
-        points: &Vec<PointType>,
+        points: &[PointType],
     ) -> Result<(), StorageError> {
         let bucket_data = self.bucket_id_to_series_data.read().unwrap();
 
@@ -438,7 +431,7 @@ impl MemDB {
         };
 
         let data = data.lock().unwrap();
-        let buff = match FromSeries::from_series(&data, &series_id) {
+        let buff = match FromSeries::from_series(&data, series_id) {
             Some(b) => b,
             None => {
                 return Err(StorageError {
@@ -456,19 +449,18 @@ impl MemDB {
 }
 
 trait FromSeries: Clone {
-    fn from_series<'a>(data: &'a SeriesData, series_id: &u64)
-        -> Option<&'a SeriesRingBuffer<Self>>;
+    fn from_series<'a>(data: &'a SeriesData, series_id: u64) -> Option<&'a SeriesRingBuffer<Self>>;
 }
 
 impl FromSeries for i64 {
-    fn from_series<'a>(data: &'a SeriesData, series_id: &u64) -> Option<&'a SeriesRingBuffer<i64>> {
-        data.i64_series.get(series_id)
+    fn from_series<'a>(data: &'a SeriesData, series_id: u64) -> Option<&'a SeriesRingBuffer<i64>> {
+        data.i64_series.get(&series_id)
     }
 }
 
 impl FromSeries for f64 {
-    fn from_series<'a>(data: &'a SeriesData, series_id: &u64) -> Option<&'a SeriesRingBuffer<f64>> {
-        data.f64_series.get(series_id)
+    fn from_series<'a>(data: &'a SeriesData, series_id: u64) -> Option<&'a SeriesRingBuffer<f64>> {
+        data.f64_series.get(&series_id)
     }
 }
 
@@ -488,7 +480,7 @@ impl<T: Clone> Iterator for PointsIterator<T> {
 
             let remaining = values.split_off(self.batch_size);
 
-            if remaining.len() != 0 {
+            if !remaining.is_empty() {
                 self.values = Some(remaining);
             }
 
@@ -575,12 +567,10 @@ fn evaluate_comparison(
     };
 
     match op {
-        Comparison::Equal => return Ok(series_map.posting_list_for_key_value(&left, &right)),
-        comp => {
-            return Err(StorageError {
-                description: format!("unable to handle comparison {:?}", comp),
-            })
-        }
+        Comparison::Equal => Ok(series_map.posting_list_for_key_value(&left, &right)),
+        comp => Err(StorageError {
+            description: format!("unable to handle comparison {:?}", comp),
+        }),
     }
 }
 
@@ -623,7 +613,7 @@ impl SeriesStore for MemDB {
     fn write_points_with_series_ids(
         &self,
         bucket_id: u32,
-        points: &Vec<PointType>,
+        points: &[PointType],
     ) -> Result<(), StorageError> {
         self.write_points_with_series_ids(bucket_id, points)
     }

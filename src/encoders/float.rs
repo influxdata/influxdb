@@ -3,13 +3,13 @@ use std::error::Error;
 // SENTINEL is used to terminate a float-encoded block. A sentinel marker value
 // is useful because blocks do not always end aligned to bytes, and spare empty
 // bits can otherwise have undesirable semantic meaning.
-const SENTINEL: u64 = 0x7ff80000000000ff; // in the quiet NaN range.
+const SENTINEL: u64 = 0x7ff8_0000_0000_00ff; // in the quiet NaN range.
 
 fn is_sentinel_f64(v: f64) -> bool {
-    return v.to_bits() == SENTINEL;
+    v.to_bits() == SENTINEL
 }
 fn is_sentinel_u64(v: u64) -> bool {
-    return v == SENTINEL;
+    v == SENTINEL
 }
 
 /// encode_all encodes a vector of floats into dst.
@@ -19,9 +19,10 @@ fn is_sentinel_u64(v: u64) -> bool {
 /// two is determined. Leading and trailing zero bits are then analysed and
 /// representations based on those are stored.
 #[allow(dead_code)]
+#[allow(clippy::many_single_char_names)]
 pub fn encode_all(src: &mut Vec<f64>, dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.truncate(0); // reset buffer.
-    if src.len() == 0 {
+    if src.is_empty() {
         return Ok(());
     }
     if dst.capacity() < 9 {
@@ -40,7 +41,7 @@ pub fn encode_all(src: &mut Vec<f64>, dst: &mut Vec<u8>) -> Result<(), Box<dyn E
 
     let (mut prev_leading, mut prev_trailing) = (!0u64, 0u64);
     // encode remaining values
-    for i in 1..src.len() + 1 {
+    for i in 1..=src.len() {
         let x;
         if i < src.len() {
             x = src[i];
@@ -114,9 +115,8 @@ pub fn encode_all(src: &mut Vec<f64>, dst: &mut Vec<u8>) -> Result<(), Box<dyn E
             // TODO(edd): maybe this can be optimised?
             let k = n >> 3;
             let vv_bytes = &vv.to_be_bytes();
-            for i in k..k + 8 {
-                dst[i] = vv_bytes[i - k];
-            }
+            dst[k..k + 8].clone_from_slice(&vv_bytes[0..(k + 8 - k)]);
+
             n += (l - written) as usize;
         } else {
             prev_leading = leading;
@@ -218,9 +218,7 @@ pub fn encode_all(src: &mut Vec<f64>, dst: &mut Vec<u8>) -> Result<(), Box<dyn E
             // TODO(edd): maybe this can be optimised?
             let k = n >> 3;
             let vv_bytes = &vv.to_be_bytes();
-            for i in k..k + 8 {
-                dst[i] = vv_bytes[i - k];
-            }
+            dst[k..k + 8].clone_from_slice(&vv_bytes[0..(k + 8 - k)]);
             n += l - written;
         }
         prev = cur;
@@ -249,74 +247,76 @@ pub fn encode_all(src: &mut Vec<f64>, dst: &mut Vec<u8>) -> Result<(), Box<dyn E
 //
 // TODO(edd): figure out how to generate this.
 const BIT_MASK: [u64; 64] = [
-    0xffffffffffffffff,
-    0x1,
-    0x3,
-    0x7,
-    0xf,
-    0x1f,
-    0x3f,
-    0x7f,
-    0xff,
-    0x1ff,
-    0x3ff,
-    0x7ff,
-    0xfff,
+    0xffff_ffff_ffff_ffff,
+    0x0001,
+    0x0003,
+    0x0007,
+    0x000f,
+    0x001f,
+    0x003f,
+    0x007f,
+    0x00ff,
+    0x01ff,
+    0x03ff,
+    0x07ff,
+    0x0fff,
     0x1fff,
     0x3fff,
     0x7fff,
     0xffff,
-    0x1ffff,
-    0x3ffff,
-    0x7ffff,
-    0xfffff,
-    0x1fffff,
-    0x3fffff,
-    0x7fffff,
-    0xffffff,
-    0x1ffffff,
-    0x3ffffff,
-    0x7ffffff,
-    0xfffffff,
-    0x1fffffff,
-    0x3fffffff,
-    0x7fffffff,
-    0xffffffff,
-    0x1ffffffff,
-    0x3ffffffff,
-    0x7ffffffff,
-    0xfffffffff,
-    0x1fffffffff,
-    0x3fffffffff,
-    0x7fffffffff,
-    0xffffffffff,
-    0x1ffffffffff,
-    0x3ffffffffff,
-    0x7ffffffffff,
-    0xfffffffffff,
-    0x1fffffffffff,
-    0x3fffffffffff,
-    0x7fffffffffff,
-    0xffffffffffff,
-    0x1ffffffffffff,
-    0x3ffffffffffff,
-    0x7ffffffffffff,
-    0xfffffffffffff,
-    0x1fffffffffffff,
-    0x3fffffffffffff,
-    0x7fffffffffffff,
-    0xffffffffffffff,
-    0x1ffffffffffffff,
-    0x3ffffffffffffff,
-    0x7ffffffffffffff,
-    0xfffffffffffffff,
-    0x1fffffffffffffff,
-    0x3fffffffffffffff,
-    0x7fffffffffffffff,
+    0x0001_ffff,
+    0x0003_ffff,
+    0x0007_ffff,
+    0x000f_ffff,
+    0x001f_ffff,
+    0x003f_ffff,
+    0x007f_ffff,
+    0x00ff_ffff,
+    0x01ff_ffff,
+    0x03ff_ffff,
+    0x07ff_ffff,
+    0x0fff_ffff,
+    0x1fff_ffff,
+    0x3fff_ffff,
+    0x7fff_ffff,
+    0xffff_ffff,
+    0x0001_ffff_ffff,
+    0x0003_ffff_ffff,
+    0x0007_ffff_ffff,
+    0x000f_ffff_ffff,
+    0x001f_ffff_ffff,
+    0x003f_ffff_ffff,
+    0x007f_ffff_ffff,
+    0x00ff_ffff_ffff,
+    0x01ff_ffff_ffff,
+    0x03ff_ffff_ffff,
+    0x07ff_ffff_ffff,
+    0x0fff_ffff_ffff,
+    0x1fff_ffff_ffff,
+    0x3fff_ffff_ffff,
+    0x7fff_ffff_ffff,
+    0xffff_ffff_ffff,
+    0x0001_ffff_ffff_ffff,
+    0x0003_ffff_ffff_ffff,
+    0x0007_ffff_ffff_ffff,
+    0x000f_ffff_ffff_ffff,
+    0x001f_ffff_ffff_ffff,
+    0x003f_ffff_ffff_ffff,
+    0x007f_ffff_ffff_ffff,
+    0x00ff_ffff_ffff_ffff,
+    0x01ff_ffff_ffff_ffff,
+    0x03ff_ffff_ffff_ffff,
+    0x07ff_ffff_ffff_ffff,
+    0x0fff_ffff_ffff_ffff,
+    0x1fff_ffff_ffff_ffff,
+    0x3fff_ffff_ffff_ffff,
+    0x7fff_ffff_ffff_ffff,
 ];
 
 /// decode_all decodes a slice of bytes into a vector of floats.
 #[allow(dead_code)]
+#[allow(clippy::many_single_char_names)]
+#[allow(clippy::useless_let_if_seq)]
 pub fn decode_all(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> {
     if src.len() < 9 {
         return Ok(());
@@ -373,7 +373,7 @@ pub fn decode_all(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> 
     let mut meaningful_n = 64u8;
 
     loop {
-        if br_valid_bits <= 0 {
+        if br_valid_bits == 0 {
             match refill_cache(i) {
                 Ok(res) => {
                     br_cached_val = res.0;
@@ -387,12 +387,12 @@ pub fn decode_all(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> 
         // read control bit 0.
         br_valid_bits -= 1;
         br_cached_val = br_cached_val.rotate_left(1);
-        if br_cached_val & 1 <= 0 {
+        if br_cached_val & 1 == 0 {
             dst.push(f64::from_bits(val));
             continue;
         }
 
-        if br_valid_bits <= 0 {
+        if br_valid_bits == 0 {
             match refill_cache(i) {
                 Ok(res) => {
                     br_cached_val = res.0;
@@ -433,7 +433,7 @@ pub fn decode_all(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> 
 
                 br_cached_val = br_cached_val.rotate_left(bits_01 as u32);
                 br_valid_bits -= bits_01;
-                lm_bits = lm_bits & !BIT_MASK[(bits_01 & 0x3f) as usize];
+                lm_bits &= !BIT_MASK[(bits_01 & 0x3f) as usize];
                 lm_bits |= br_cached_val & BIT_MASK[(bits_01 & 0x3f) as usize];
             }
 
@@ -472,7 +472,7 @@ pub fn decode_all(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> 
 
             br_cached_val = br_cached_val.rotate_left(m_bits as u32);
             br_valid_bits = br_valid_bits.wrapping_sub(m_bits);
-            s_bits = s_bits & !BIT_MASK[(m_bits & 0x3f) as usize];
+            s_bits &= !BIT_MASK[(m_bits & 0x3f) as usize];
             s_bits |= br_cached_val & BIT_MASK[(m_bits & 0x3f) as usize];
         }
         s_bits &= BIT_MASK[(meaningful_n & 0x3f) as usize];

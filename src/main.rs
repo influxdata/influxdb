@@ -93,7 +93,7 @@ async fn write(req: Request<Body>, app: Arc<App>) -> Result<Body, ApplicationErr
         .write_points(write_info.org_id, &bucket, &mut points)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(serde_json::json!({}).to_string().into())
+    Ok(serde_json::json!(()).to_string().into())
 }
 
 #[derive(Deserialize, Debug)]
