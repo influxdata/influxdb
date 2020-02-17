@@ -183,7 +183,7 @@ fn decode_value(v: u64, dst: &mut [u64]) -> usize {
             5
         }
         12 => {
-            dst[0] = (v >> 0) & 0x7fff;
+            dst[0] = v & 0x7fff;
             dst[1] = (v >> 15) & 0x7fff;
             dst[2] = (v >> 30) & 0x7fff;
             dst[3] = (v >> 45) & 0x7fff;

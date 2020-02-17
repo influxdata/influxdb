@@ -18,7 +18,7 @@ enum Encoding {
 #[allow(dead_code)]
 pub fn encode<'a>(src: &[i64], dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     dst.truncate(0); // reset buffer.
-    if src.len() == 0 {
+    if src.is_empty() {
         return Ok(());
     }
 
@@ -88,7 +88,7 @@ fn zig_zag_decode(v: u64) -> i64 {
 // TODO(edd): this is expensive as it copies. There are cheap
 // but unsafe alternatives to look into such as std::mem::transmute
 fn i64_to_u64_vector(src: &[i64]) -> Vec<u64> {
-    src.into_iter().map(|x| *x as u64).collect::<Vec<u64>>()
+    src.iter().map(|x| *x as u64).collect::<Vec<u64>>()
 }
 
 // encode_rle encodes the value v, delta and count into dst.
@@ -117,22 +117,22 @@ fn encode_rle(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
 /// decode decodes a slice of bytes into a vector of signed integers.
 #[allow(dead_code)]
 pub fn decode<'a>(src: &[u8], dst: &'a mut Vec<i64>) -> Result<(), Box<dyn Error>> {
-    if src.len() == 0 {
+    if src.is_empty() {
         return Ok(());
     }
     let encoding = &src[0] >> 4;
     match encoding {
         encoding if encoding == Encoding::Uncompressed as u8 => {
-            return decode_uncompressed(&src[1..], dst); // first byte not used
+            decode_uncompressed(&src[1..], dst) // first byte not used
         }
-        encoding if encoding == Encoding::Rle as u8 => return decode_rle(&src[1..], dst),
-        encoding if encoding == Encoding::Simple8b as u8 => return decode_simple8b(&src[1..], dst),
-        _ => return Err(From::from("invalid block encoding")),
+        encoding if encoding == Encoding::Rle as u8 => decode_rle(&src[1..], dst),
+        encoding if encoding == Encoding::Simple8b as u8 => decode_simple8b(&src[1..], dst),
+        _ => Err(From::from("invalid block encoding")),
     }
 }
 
 fn decode_uncompressed(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
-    if src.len() == 0 || src.len() & 0x7 != 0 {
+    if src.is_empty() || src.len() & 0x7 != 0 {
         return Err(From::from("invalid uncompressed block length"));
     }
 
@@ -161,13 +161,13 @@ fn decode_rle(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
 
     let mut i = 8; // Skip first value
     let (delta, n) = u64::decode_var(&src[i..]);
-    if n <= 0 {
+    if n == 0 {
         return Err(From::from("unable to decode delta"));
     }
     i += n;
 
     let (count, n) = usize::decode_var(&src[i..]);
-    if n <= 0 {
+    if n == 0 {
         return Err(From::from("unable to decode count"));
     }
 

@@ -104,13 +104,13 @@ impl PointType {
 /// cases where this series is already in the database, this parse step can be skipped entirely.
 /// The measurement is represented as a _m key and field as _f.
 pub fn index_pairs(key: &str) -> Result<Vec<Pair>, ParseError> {
-    let mut chars = key.chars();
+    let chars = key.chars();
     let mut pairs = vec![];
     let mut key = "_m".to_string();
     let mut value = String::with_capacity(250);
     let mut reading_key = false;
 
-    while let Some(ch) = chars.next() {
+    for ch in chars {
         match ch {
             ',' => {
                 reading_key = true;
@@ -175,12 +175,10 @@ impl ResponseError for ParseError {
 pub fn parse(input: &str) -> Vec<PointType> {
     let mut points: Vec<PointType> = Vec::with_capacity(10000);
     let lines = input.lines();
-
     for line in lines {
         read_line(line, &mut points)
     }
-
-    return points;
+    points
 }
 
 fn read_line(line: &str, points: &mut Vec<PointType>) {
@@ -237,22 +235,19 @@ fn read_value(
 ) -> bool {
     let mut value = String::new();
 
-    while let Some(ch) = chars.next() {
+    for ch in chars {
         match ch {
             ' ' | ',' => {
                 let series = measurement_tags.to_string() + "\t" + &field_name;
 
                 // if the last character of the value is an i then it's an integer, otherwise it's
                 // a float (at least until we support the other data types
-                let point = match value.ends_with("i") {
-                    true => {
-                        let val = value[..value.len() - 1].parse::<i64>().unwrap();
-                        PointType::new_i64(series, val, 0)
-                    }
-                    false => {
-                        let val = value.parse::<f64>().unwrap();
-                        PointType::new_f64(series, val, 0)
-                    }
+                let point = if value.ends_with('i') {
+                    let val = value[..value.len() - 1].parse::<i64>().unwrap();
+                    PointType::new_i64(series, val, 0)
+                } else {
+                    let val = value.parse::<f64>().unwrap();
+                    PointType::new_f64(series, val, 0)
                 };
                 points.push(point);
 
