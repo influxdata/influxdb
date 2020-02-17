@@ -23,6 +23,14 @@ use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
 const URL_BASE: &str = "http://localhost:8080/api/v2";
+const GRPC_URL_BASE: &str = "http://localhost:8081/";
+
+mod grpc {
+    tonic::include_proto!("delorean");
+}
+
+use grpc::delorean_client::DeloreanClient;
+use grpc::Organization;
 
 async fn read_data(
     client: &reqwest::Client,
@@ -93,7 +101,21 @@ async fn read_and_write_data() -> Result<(), Box<dyn std::error::Error>> {
 
     let org_id = 7878;
     let bucket_name = "all";
+
     let client = reqwest::Client::new();
+    let mut grpc_client = DeloreanClient::connect(GRPC_URL_BASE).await?;
+
+    let get_buckets_request = tonic::Request::new(Organization {
+        id: org_id,
+        name: "test".into(),
+        buckets: vec![],
+    });
+    let get_buckets_response = grpc_client.get_buckets(get_buckets_request).await?;
+    let get_buckets_response = get_buckets_response.into_inner();
+    let org_buckets = get_buckets_response.buckets;
+
+    // This checks that gRPC is functioning and that we're starting from an org without buckets.
+    assert!(org_buckets.is_empty());
 
     let start_time = SystemTime::now();
     let ns_since_epoch = start_time
