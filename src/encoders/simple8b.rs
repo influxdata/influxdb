@@ -213,6 +213,7 @@ pub fn decode(v: u64, dst: &mut [u64]) -> usize {
 }
 
 #[cfg(test)]
+#[allow(clippy::unreadable_literal)]
 mod tests {
     use super::*;
     use rand::rngs::StdRng;

@@ -488,6 +488,7 @@ pub fn decode_all(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> 
 }
 
 #[cfg(test)]
+#[allow(clippy::unreadable_literal)]
 mod tests {
 
     #[test]
