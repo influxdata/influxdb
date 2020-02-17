@@ -108,10 +108,10 @@ export const clientJavaLibrary = {
   buildWithMavenCodeSnippet: `<dependency>
   <groupId>com.influxdb</groupId>
   <artifactId>influxdb-client-java</artifactId>
-  <version>1.4.0</version>
+  <version>1.5.0</version>
 </dependency>`,
   buildWithGradleCodeSnippet: `dependencies {
-  compile "com.influxdb:influxdb-client-java:1.4.0"
+  compile "com.influxdb:influxdb-client-java:1.5.0"
 }`,
   initializeClientCodeSnippet: `package example;
 
