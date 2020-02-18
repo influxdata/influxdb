@@ -46,7 +46,8 @@ class SigninPage extends PureComponent<Props, State> {
   }
   public async componentDidMount() {
     const {allowed} = await client.setup.status()
-
+    // TODO: figure out why CLOUD path is returning:
+    // {"code":"unauthorized","message":"unauthorized access"}
     if (allowed) {
       this.props.router.push('/onboarding/0')
     } else if (CLOUD) {

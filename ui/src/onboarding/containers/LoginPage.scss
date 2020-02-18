@@ -1,0 +1,181 @@
+$form-sm-height: 30px;
+
+$icon-margin: 6px;
+$icon-size-md: 70px;
+
+$cf-marg-b: 8px;
+$cf-marg-c: 16px;
+$cf-marg-d: 32px;
+
+$g20-white: #fff;
+
+$grid--breakpoint-md: 1080px;
+
+.clockface--app-wrapper.sign-up--page {
+  background-image: linear-gradient(
+    47deg,
+    rgba(19, 0, 45, 0) 65%,
+    rgba(191, 47, 229, 0.4) 100%
+  ) !important;
+  background-color: #13002d !important;
+}
+
+.sign-up--page-contents {
+  .cf-page-contents--padding {
+    height: 100vh;
+    display: inline-flex;
+    width: 100%;
+  }
+}
+
+.sign-up--form {
+  min-width: 330px;
+  width: 100%;
+  height: 100%;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  .sign-up--form-padded-row {
+    padding-top: $cf-marg-d;
+  }
+}
+
+.sign-up--login-container {
+  padding: $cf-marg-b;
+  text-align: center;
+  color: $g20-white;
+}
+
+.sign-up--login-text {
+  font-size: 16px;
+  margin-bottom: 0;
+}
+
+.sign-up--form-panel {
+  max-width: 500px;
+  width: 400px;
+  height: 100%;
+  justify-content: space-between;
+}
+
+.sign-up--panel {
+  height: 100%;
+  max-width: 1600px;
+  min-height: 670px + $cf-marg-d;
+  padding: $cf-marg-d;
+  margin: auto auto;
+  z-index: 0;
+  background: transparent !important;
+  z-index: 100;
+}
+
+@media screen and (min-width: $grid--breakpoint-md) {
+  .sign-up--form-panel {
+    max-width: 100%;
+  }
+
+  .sign-up--full-height {
+    min-height: 100%;
+  }
+
+  .sign-up--header-align {
+    text-align: center;
+  }
+
+  .sign-up--panel:not(.aws) {
+    height: 80vh;
+    padding: 64px;
+  }
+}
+
+@media screen and (min-width: $grid--breakpoint-md) {
+  .sign-up--panel {
+    max-height: 800px;
+  }
+
+  .sign-up--image {
+    display: inline-block;
+    position: fixed;
+    z-index: 0;
+    top: 20%;
+    right: 7%;
+    width: 160%;
+    height: 160%;
+  }
+}
+
+.sign-up--social-header {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 400;
+  margin: 0;
+  line-height: 0;
+}
+
+.sign-up--social-button-group {
+  position: relative;
+  top: $cf-marg-b;
+  text-align: center;
+
+  .signup-text {
+    position: relative;
+    right: $cf-marg-c;
+  }
+
+  .signup-icon {
+    width: $form-sm-height;
+    height: $form-sm-height;
+    background: transparent;
+    position: relative;
+    float: left;
+    top: $icon-margin;
+  }
+}
+
+.sign-up--or {
+  position: relative;
+  top: 7px;
+}
+
+.login--forgot-password {
+  color: #21adf6;
+  font-family: Roboto;
+  font-style: normal;
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 15px;
+  cursor: pointer;
+}
+
+.create-account--button {
+  margin: 15px 0;
+}
+
+.github-logo {
+  width: $icon-size-md;
+  height: $icon-size-md;
+  fill: $g20-white;
+}
+
+.google-logo {
+  height: $icon-size-md;
+  width: $icon-size-md;
+
+  .google-blue {
+    fill: #3e82f1;
+  }
+
+  .google-green {
+    fill: #32a753;
+  }
+
+  .google-yellow {
+    fill: #f9bb00;
+  }
+
+  .google-red {
+    fill: #e74133;
+  }
+}

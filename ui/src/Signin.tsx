@@ -19,6 +19,9 @@ import {CLOUD, CLOUD_SIGNIN_PATHNAME} from 'src/shared/constants'
 // Types
 import {RemoteDataState} from 'src/types'
 
+// Utils
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+
 interface State {
   loading: RemoteDataState
 }
@@ -81,7 +84,13 @@ export class Signin extends PureComponent<Props, State> {
 
       clearInterval(this.intervalID)
 
+      if (CLOUD && isFlagEnabled('IDPELoginPage')) {
+        this.props.router.replace('/login')
+        return
+      }
       // TODO: add returnTo to CLOUD signin
+      // TODO: figure out why CLOUD path is returning:
+      // {"code":"unauthorized","message":"unauthorized access"}
       if (CLOUD) {
         window.location.pathname = CLOUD_SIGNIN_PATHNAME
 
