@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import {setDashboard} from 'src/shared/actions/page'
+import {setDashboard} from 'src/shared/actions/currentDashboard'
 import {AppState} from 'src/types'
 
 interface StateProps {
