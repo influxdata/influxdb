@@ -1,5 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Button, EmptyState} from '@influxdata/clockface'
@@ -10,15 +11,9 @@ import {IconFont, ComponentSize, ComponentColor} from '@influxdata/clockface'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
-  onAddCell: () => void
-}
-
 @ErrorHandling
-class DashboardEmpty extends Component<Props> {
+class DashboardEmpty extends Component<WithRouterProps> {
   public render() {
-    const {onAddCell} = this.props
-
     return (
       <div className="dashboard-empty">
         <EmptyState size={ComponentSize.Large}>
@@ -30,13 +25,21 @@ class DashboardEmpty extends Component<Props> {
             size={ComponentSize.Medium}
             icon={IconFont.AddCell}
             color={ComponentColor.Primary}
-            onClick={onAddCell}
+            onClick={this.handleAdd}
             testID="add-cell--button"
           />
         </EmptyState>
       </div>
     )
   }
+
+  private handleAdd = () => {
+    // TODO(alex): change this to using state from redux
+    // and not the location.pathname to decouple routing
+    // from presentation
+    const {router, location} = this.props
+    router.push(`${location.pathname}/cells/new`)
+  }
 }
 
-export default DashboardEmpty
+export default withRouter<{}>(DashboardEmpty)
