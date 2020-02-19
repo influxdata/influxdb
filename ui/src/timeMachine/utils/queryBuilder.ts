@@ -172,12 +172,10 @@ const convertTagsToFluxFunctionString = function convertTagsToFluxFunctionString
   return ''
 }
 
-export const tagToFlux = function tagToFlux(
-    tag: BuilderTagType
-) {
-    return tag.values
-      .map(value => `r.${tag.key} == "${value.replace(/\\/g, '\\\\')}"`)
-      .join(' or ')
+export const tagToFlux = function tagToFlux(tag: BuilderTagType) {
+  return tag.values
+    .map(value => `r.${tag.key} == "${value.replace(/\\/g, '\\\\')}"`)
+    .join(' or ')
 }
 
 const formatPeriod = (period: string): string => {

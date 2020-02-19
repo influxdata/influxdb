@@ -156,9 +156,7 @@ export function formatTagFilterPredicate(
     return '(r) => true'
   }
 
-  const calls = validSelections
-    .map((tag) => `(${tagToFlux(tag)})`)
-    .join(' and ')
+  const calls = validSelections.map(tag => `(${tagToFlux(tag)})`).join(' and ')
 
   return `(r) => ${calls}`
 }
