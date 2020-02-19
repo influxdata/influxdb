@@ -47,7 +47,7 @@ const LoginForm: FC<Props> = ({
               <Input
                 name="email"
                 value={email}
-                // type={InputType.Email}
+                type={InputType.Email}
                 size={ComponentSize.Large}
                 status={
                   emailError ? ComponentStatus.Error : ComponentStatus.Default

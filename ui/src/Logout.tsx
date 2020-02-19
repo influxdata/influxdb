@@ -41,7 +41,6 @@ export class Logout extends PureComponent<Props> {
 
   private handleSignOut = async () => {
     if (CLOUD && isFlagEnabled('IDPELoginPage')) {
-      // TODO: figure out if we need a returnTo since it's optional
       auth0.logout({
         returnTo: AUTH0_RETURN_TO_URI,
       })

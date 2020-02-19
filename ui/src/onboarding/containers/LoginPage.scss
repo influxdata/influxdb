@@ -1,15 +1,5 @@
-$form-sm-height: 30px;
-
 $icon-margin: 6px;
 $icon-size-md: 70px;
-
-$cf-marg-b: 8px;
-$cf-marg-c: 16px;
-$cf-marg-d: 32px;
-
-$g20-white: #fff;
-
-$grid--breakpoint-md: 1080px;
 
 .clockface--app-wrapper.sign-up--page {
   background-image: linear-gradient(
@@ -38,12 +28,12 @@ $grid--breakpoint-md: 1080px;
   justify-content: center;
 
   .sign-up--form-padded-row {
-    padding-top: $cf-marg-d;
+    padding-top: $ix-marg-d;
   }
 }
 
 .sign-up--login-container {
-  padding: $cf-marg-b;
+  padding: $ix-marg-b;
   text-align: center;
   color: $g20-white;
 }
@@ -63,8 +53,8 @@ $grid--breakpoint-md: 1080px;
 .sign-up--panel {
   height: 100%;
   max-width: 1600px;
-  min-height: 670px + $cf-marg-d;
-  padding: $cf-marg-d;
+  min-height: 670px + $ix-marg-d;
+  padding: $ix-marg-d;
   margin: auto auto;
   z-index: 0;
   background: transparent !important;
@@ -116,12 +106,12 @@ $grid--breakpoint-md: 1080px;
 
 .sign-up--social-button-group {
   position: relative;
-  top: $cf-marg-b;
+  top: $ix-marg-b;
   text-align: center;
 
   .signup-text {
     position: relative;
-    right: $cf-marg-c;
+    right: $ix-marg-c;
   }
 
   .signup-icon {
