@@ -183,7 +183,7 @@ def run_tests(race, parallel, timeout, no_vet, junit=False):
 
 
     logging.info("Fetching module dependencies...")
-    run("go mod download)
+    run("go mod download")
 
     logging.info("Ensuring code is properly formatted with go fmt...")
     out = run("go fmt ./...")
