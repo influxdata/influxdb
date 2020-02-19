@@ -252,19 +252,21 @@ class SideNav extends PureComponent<Props, State> {
           />
         </NavMenu.Item>
         <FeatureFlag name="multiUser">
-          <NavMenu.Item
-            titleLink={className => (
-              <a className={className} href={cloudUsersLink}>
-                Team Members
-              </a>
-            )}
-            iconLink={className => (
-              <a href={cloudUsersLink} className={className}>
-                <Icon glyph={IconFont.UsersTrio} />
-              </a>
-            )}
-            active={getNavItemActivation(['users'], location.pathname)}
-          />
+          <CloudOnly>
+            <NavMenu.Item
+              titleLink={className => (
+                <a className={className} href={cloudUsersLink}>
+                  Team Members
+                </a>
+              )}
+              iconLink={className => (
+                <a href={cloudUsersLink} className={className}>
+                  <Icon glyph={IconFont.UsersTrio} />
+                </a>
+              )}
+              active={getNavItemActivation(['users'], location.pathname)}
+            />
+          </CloudOnly>
         </FeatureFlag>
         <NavMenu.Item
           titleLink={className => (
