@@ -5,6 +5,7 @@
 ### Bug Fixes
 1. [16919](https://github.com/influxdata/influxdb/pull/16919): Sort dashboards on homepage alphabetically
 1. [16934](https://github.com/influxdata/influxdb/pull/16934): Tokens page now sorts by status
+1. [16931](https://github.com/influxdata/influxdb/pull/16931): Set the defualt value of tags in a Check
 
 ## v2.0.0-beta.4 [2020-02-14]
 
