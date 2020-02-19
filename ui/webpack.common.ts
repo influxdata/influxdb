@@ -18,7 +18,7 @@ module.exports = {
     path: path.resolve(__dirname, 'build'),
     publicPath: BASE_PATH,
     webassemblyModuleFilename: `${STATIC_DIRECTORY}[modulehash:10].wasm`,
-    sourceMapFilename: `${STATIC_DIRECTORY}[name].js.map`,
+    sourceMapFilename: `${STATIC_DIRECTORY}[file].map[query]`,
   },
   entry: {
     app: './src/bootstrap.ts',
