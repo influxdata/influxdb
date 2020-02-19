@@ -47,7 +47,7 @@ pipeline {
     stage('64bit') {
       agent {
         docker {
-          image 'golang:1.12'
+          image 'golang:1.13'
           args '-e "GOCACHE=/tmp"'
         }
       }
