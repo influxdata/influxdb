@@ -162,18 +162,9 @@ export const generateRandomGreeting = (): Greeting => {
 }
 
 const sortFunc = (a: Dashboard, b: Dashboard) => {
-  const firstDashboard = `${a.name}`.toLowerCase()
-  const secondDashboard = `${b.name}`.toLowerCase()
-  if (firstDashboard === secondDashboard) {
-    return 0
-  }
-  if (firstDashboard < secondDashboard) {
-    return -1
-  }
-  if (firstDashboard > secondDashboard) {
-    return 1
-  }
-  return 0
+  const firstDashboard = `${a.name || ''}`.toLowerCase()
+  const secondDashboard = `${b.name || ''}`.toLowerCase()
+  return firstDashboard.localeCompare(secondDashboard)
 }
 
 export const getSortedDashboardNames = (dashboards: Dashboard[]) => {
