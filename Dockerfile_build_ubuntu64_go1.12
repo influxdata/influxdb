@@ -38,4 +38,4 @@ RUN mkdir -p $PROJECT_DIR
 WORKDIR $PROJECT_DIR
 VOLUME  $PROJECT_DIR
 
-ENTRYPOINT [ "/root/go/src/github.com/influxdata/influxdb/build.py" ]
+ENTRYPOINT [ "/root/influxdb/build.py" ]
