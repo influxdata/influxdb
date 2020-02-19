@@ -77,7 +77,7 @@ export default class VariableList extends PureComponent<Props, State> {
   }
 
   private get headerKeys(): SortKey[] {
-    return ['name', 'arguments']
+    return ['name', 'arguments.type']
   }
 
   private get rows(): JSX.Element[] {
