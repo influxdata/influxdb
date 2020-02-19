@@ -24,9 +24,8 @@ install:
  - cd C:\gopath\src\github.com\influxdata\influxdb
  - go version
  - go env
- - go get github.com/golang/dep/cmd/dep
  - cd C:\gopath\src\github.com\influxdata\influxdb
- - dep ensure -vendor-only
+ - go mod download
 
 # To run your custom scripts instead of automatic MSBuild
 build_script:

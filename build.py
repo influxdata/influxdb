@@ -181,7 +181,6 @@ def run_tests(race, parallel, timeout, no_vet, junit=False):
     if timeout is not None:
         logging.info("Using timeout: {}".format(timeout))
 
-
     logging.info("Fetching module dependencies...")
     run("go mod download")
 
@@ -387,7 +386,7 @@ def check_environ(build_dir = None):
     """
     logging.info("Checking environment...")
     for v in [ "GOPATH", "GOBIN", "GOROOT" ]:
-        logging.debug("Using '{}' for {}".format(os.environ.get(v), v))
+        logging.info("Using '{}' for {}".format(os.environ.get(v), v))
 
     cwd = os.getcwd()
     if build_dir is None and os.environ.get("GOPATH") and os.environ.get("GOPATH") not in cwd:
