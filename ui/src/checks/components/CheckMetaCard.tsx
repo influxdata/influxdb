@@ -107,7 +107,7 @@ const mstp = ({alertBuilder: {tags, offset, every}}: AppState): StateProps => {
   return {
     tags: tags || [],
     offset,
-    every
+    every,
   }
 }
 
