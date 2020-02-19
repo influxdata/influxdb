@@ -49,6 +49,7 @@ type Service struct {
 	*VariableService
 	*WriteService
 	DocumentService
+	*CheckService
 }
 
 // NewService returns a service that is an HTTP
@@ -73,6 +74,7 @@ func NewService(addr, token string) (*Service, error) {
 		OrganizationService: &OrganizationService{Client: httpClient},
 		UserService:         &UserService{Client: httpClient},
 		VariableService:     &VariableService{Client: httpClient},
+		CheckService:        &CheckService{Client: httpClient},
 		WriteService: &WriteService{
 			Addr:  addr,
 			Token: token,
