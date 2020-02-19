@@ -1,6 +1,9 @@
 syntax = "proto3";
 package delorean;
 
+import "google/protobuf/empty.proto";
+import "google/protobuf/any.proto";
+
 // TODO: how should requests handle authentication & authorization?
 
 message CreateBucketRequest {
@@ -146,3 +149,180 @@ Considerations:
 
   on boot it should load up its S3 file index and keep in memory
 */
+
+// From https://github.com/influxdata/influxdb/blob/master/storage/reads/datatypes/storage_common.proto
+
+service Storage {
+  // ReadFilter performs a filter operation at storage
+  rpc ReadFilter (ReadFilterRequest) returns (stream ReadResponse);
+
+  // ReadGroup performs a group operation at storage
+  rpc ReadGroup (ReadGroupRequest) returns (stream ReadResponse);
+
+  // TagKeys performs a read operation for tag keys
+  rpc TagKeys (TagKeysRequest) returns (stream StringValuesResponse);
+
+  // TagValues performs a read operation for tag values
+  rpc TagValues (TagValuesRequest) returns (stream StringValuesResponse);
+
+  // Capabilities returns a map of keys and values identifying the capabilities supported by the storage engine
+  rpc Capabilities (google.protobuf.Empty) returns (CapabilitiesResponse);
+}
+
+message ReadFilterRequest {
+  google.protobuf.Any read_source = 1;
+  TimestampRange range = 2;
+  Predicate predicate = 3;
+}
+
+message ReadGroupRequest {
+  google.protobuf.Any read_source = 1;
+  TimestampRange range = 2;
+  Predicate predicate = 3;
+
+  enum Group {
+    // GroupNone returns all series as a single group.
+    // The single GroupFrame.TagKeys will be the union of all tag keys.
+    GROUP_NONE = 0;
+
+    // GroupBy returns a group for each unique value of the specified GroupKeys.
+    GROUP_BY = 2;
+  }
+
+  // GroupKeys specifies a list of tag keys used to order the data.
+  // It is dependent on the Group property to determine its behavior.
+  repeated string group_keys = 4;
+
+  Group group = 5;
+  Aggregate aggregate = 6;
+}
+
+message Aggregate {
+  enum AggregateType {
+    NONE = 0;
+    SUM = 1;
+    COUNT = 2;
+  }
+
+  AggregateType type = 1;
+
+  // additional arguments?
+}
+
+message Tag {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+// Response message for ReadFilter and ReadGroup
+message ReadResponse {
+  enum FrameType {
+    SERIES = 0;
+    POINTS = 1;
+  }
+
+  enum DataType {
+    FLOAT = 0;
+    INTEGER = 1;
+    UNSIGNED = 2;
+    BOOLEAN = 3;
+    STRING = 4;
+  }
+
+  message Frame {
+    oneof data {
+      GroupFrame group = 7;
+      SeriesFrame series = 1;
+      FloatPointsFrame float_points = 2;
+      IntegerPointsFrame integer_points = 3;
+      UnsignedPointsFrame unsigned_points = 4;
+      BooleanPointsFrame boolean_points = 5;
+      StringPointsFrame string_points = 6;
+    }
+  }
+
+  message GroupFrame {
+    // TagKeys
+    repeated bytes tag_keys = 1;
+    // PartitionKeyVals is the values of the partition key for this group, order matching ReadGroupRequest.GroupKeys
+    repeated bytes partition_key_vals = 2;
+  }
+
+  message SeriesFrame {
+    repeated Tag tags = 1;
+    DataType data_type = 2;
+  }
+
+  message FloatPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated double values = 2;
+  }
+
+  message IntegerPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated int64 values = 2;
+  }
+
+  message UnsignedPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated uint64 values = 2;
+  }
+
+  message BooleanPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated bool values = 2;
+  }
+
+  message StringPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated string values = 2;
+  }
+
+  repeated Frame frames = 1;
+}
+
+message CapabilitiesResponse {
+  map<string, string> caps = 1;
+}
+
+// Specifies a continuous range of nanosecond timestamps.
+message TimestampRange {
+  // Start defines the inclusive lower bound.
+  int64 start = 1;
+
+  // End defines the exclusive upper bound.
+  int64 end = 2;
+}
+
+// TagKeysRequest is the request message for Storage.TagKeys.
+message TagKeysRequest {
+  google.protobuf.Any tags_source = 1;
+  TimestampRange range = 2;
+  Predicate predicate = 3;
+}
+
+// TagValuesRequest is the request message for Storage.TagValues.
+message TagValuesRequest {
+  google.protobuf.Any tags_source = 1;
+  TimestampRange range = 2;
+  Predicate predicate = 3;
+  string tag_key = 4;
+}
+
+// Response message for Storage.TagKeys and Storage.TagValues.
+message StringValuesResponse {
+  repeated bytes values = 1;
+}
+
+// From https://github.com/influxdata/idpe/blob/master/storage/read/source.proto
+
+message ReadSource {
+  // OrgID specifies the organization identifier for this request.
+  uint64 org_id = 1;
+
+  // BucketID specifies the bucket in the organization.
+  uint64 bucket_id = 2;
+
+  // PartitionID specifies the partition to be queried.
+  uint64 partition_id = 3;
+}
