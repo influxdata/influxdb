@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/influxdata/influxdb/http"
 
@@ -14,12 +13,15 @@ import (
 
 type orgSVCFn func() (influxdb.OrganizationService, influxdb.UserResourceMappingService, influxdb.UserService, error)
 
-func cmdOrganization(opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdOrgBuilder(newOrgServices, opts...).cmd()
+func cmdOrganization(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+	builder := newCmdOrgBuilder(newOrgServices, opts)
+	builder.globalFlags = f
+	return builder.cmd()
 }
 
 type cmdOrgBuilder struct {
 	genericCLIOpts
+	*globalFlags
 
 	svcFn orgSVCFn
 
@@ -29,17 +31,9 @@ type cmdOrgBuilder struct {
 	name        string
 }
 
-func newCmdOrgBuilder(svcFn orgSVCFn, opts ...genericCLIOptFn) *cmdOrgBuilder {
-	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
-	}
-	for _, o := range opts {
-		o(&opt)
-	}
-
+func newCmdOrgBuilder(svcFn orgSVCFn, opts genericCLIOpts) *cmdOrgBuilder {
 	return &cmdOrgBuilder{
-		genericCLIOpts: opt,
+		genericCLIOpts: opts,
 		svcFn:          svcFn,
 	}
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -13,12 +12,15 @@ import (
 
 type bucketSVCsFn func() (influxdb.BucketService, influxdb.OrganizationService, error)
 
-func cmdBucket(opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdBucketBuilder(newBucketSVCs, opts...).cmd()
+func cmdBucket(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	builder := newCmdBucketBuilder(newBucketSVCs, opt)
+	builder.globalFlags = f
+	return builder.cmd()
 }
 
 type cmdBucketBuilder struct {
 	genericCLIOpts
+	*globalFlags
 
 	svcFn bucketSVCsFn
 
@@ -30,17 +32,9 @@ type cmdBucketBuilder struct {
 	retention   time.Duration
 }
 
-func newCmdBucketBuilder(svcsFn bucketSVCsFn, opts ...genericCLIOptFn) *cmdBucketBuilder {
-	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
-	}
-	for _, o := range opts {
-		o(&opt)
-	}
-
+func newCmdBucketBuilder(svcsFn bucketSVCsFn, opts genericCLIOpts) *cmdBucketBuilder {
 	return &cmdBucketBuilder{
-		genericCLIOpts: opt,
+		genericCLIOpts: opts,
 		svcFn:          svcsFn,
 	}
 }

@@ -14,18 +14,16 @@ import (
 	"go.uber.org/multierr"
 )
 
-func cmdBackup() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "backup",
-		Short: "Backup the data in InfluxDB",
-		Long: fmt.Sprintf(
-			`Backs up data and meta data for the running InfluxDB instance.
+func cmdBackup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("backup", backupF)
+	cmd.Short = "Backup the data in InfluxDB"
+	cmd.Long = fmt.Sprintf(
+		`Backs up data and meta data for the running InfluxDB instance.
 Downloaded files are written to the directory indicated by --path.
 The target directory, and any parent directories, are created automatically.
 Data file have extension .tsm; meta data is written to %s in the same directory.`,
-			bolt.DefaultFilename),
-		RunE: backupF,
-	}
+		bolt.DefaultFilename)
+
 	opts := flagOpts{
 		{
 			DestP:    &backupFlags.Path,

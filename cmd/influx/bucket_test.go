@@ -18,8 +18,6 @@ import (
 )
 
 func TestCmdBucket(t *testing.T) {
-	setViperOptions()
-
 	orgID := influxdb.ID(9000)
 
 	fakeSVCFn := func(svc influxdb.BucketService) bucketSVCsFn {
@@ -94,7 +92,7 @@ func TestCmdBucket(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedBkt influxdb.Bucket) *cobra.Command {
+		cmdFn := func(expectedBkt influxdb.Bucket) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewBucketService()
 			svc.CreateBucketFn = func(ctx context.Context, bucket *influxdb.Bucket) error {
 				if expectedBkt != *bucket {
@@ -103,18 +101,22 @@ func TestCmdBucket(t *testing.T) {
 				return nil
 			}
 
-			builder := newCmdBucketBuilder(fakeSVCFn(svc), out(ioutil.Discard))
-			cmd := builder.cmdCreate()
-			cmd.RunE = builder.cmdCreateRunEFn
-			return cmd
+			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				return newCmdBucketBuilder(fakeSVCFn(svc), opt).cmd()
+			}
 		}
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
-				cmd := cmdFn(tt.expectedBucket)
-				cmd.SetArgs(tt.flags)
+				builder := newInfluxCmdBuilder(
+					in(new(bytes.Buffer)),
+					out(ioutil.Discard),
+				)
+				cmd := builder.cmd(cmdFn(tt.expectedBucket))
+				cmd.SetArgs(append([]string{"bucket", "create"}, tt.flags...))
+
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -140,7 +142,7 @@ func TestCmdBucket(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedID influxdb.ID) *cobra.Command {
+		cmdFn := func(expectedID influxdb.ID) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewBucketService()
 			svc.FindBucketByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
 				return &influxdb.Bucket{ID: id}, nil
@@ -152,17 +154,22 @@ func TestCmdBucket(t *testing.T) {
 				return nil
 			}
 
-			builder := newCmdBucketBuilder(fakeSVCFn(svc), out(ioutil.Discard))
-			cmd := builder.cmdDelete()
-			cmd.RunE = builder.cmdDeleteRunEFn
-			return cmd
+			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				return newCmdBucketBuilder(fakeSVCFn(svc), opt).cmd()
+			}
 		}
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
-				cmd := cmdFn(tt.expectedID)
+				builder := newInfluxCmdBuilder(
+					in(new(bytes.Buffer)),
+					out(ioutil.Discard),
+				)
+
+				cmd := builder.cmd(cmdFn(tt.expectedID))
 				idFlag := tt.flag + tt.expectedID.String()
-				cmd.SetArgs([]string{idFlag})
+				cmd.SetArgs([]string{"bucket", "delete", idFlag})
+
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -245,7 +252,7 @@ func TestCmdBucket(t *testing.T) {
 			},
 		}
 
-		cmdFn := func() (*cobra.Command, *called) {
+		cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
 			calls := new(called)
 
 			svc := mock.NewBucketService()
@@ -265,18 +272,24 @@ func TestCmdBucket(t *testing.T) {
 				return nil, 0, nil
 			}
 
-			builder := newCmdBucketBuilder(fakeSVCFn(svc), in(new(bytes.Buffer)), out(ioutil.Discard))
-			cmd := builder.cmdFind()
-			cmd.RunE = builder.cmdFindRunEFn
-			return cmd, calls
+			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				return newCmdBucketBuilder(fakeSVCFn(svc), opt).cmd()
+			}, calls
 		}
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
-				cmd, calls := cmdFn()
-				cmd.SetArgs(tt.flags)
+				builder := newInfluxCmdBuilder(
+					in(new(bytes.Buffer)),
+					out(ioutil.Discard),
+				)
+
+				cmdFn, calls := cmdFn()
+				cmd := builder.cmd(cmdFn)
+
+				cmd.SetArgs(append([]string{"bucket", "find"}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())
 				assert.Equal(t, tt.expected, *calls)
@@ -347,7 +360,7 @@ func TestCmdBucket(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedUpdate influxdb.BucketUpdate) *cobra.Command {
+		cmdFn := func(expectedUpdate influxdb.BucketUpdate) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewBucketService()
 			svc.UpdateBucketFn = func(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 				if id != 3 {
@@ -359,18 +372,23 @@ func TestCmdBucket(t *testing.T) {
 				return &influxdb.Bucket{}, nil
 			}
 
-			builder := newCmdBucketBuilder(fakeSVCFn(svc), out(ioutil.Discard))
-			cmd := builder.cmdUpdate()
-			cmd.RunE = builder.cmdUpdateRunEFn
-			return cmd
+			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				return newCmdBucketBuilder(fakeSVCFn(svc), opt).cmd()
+			}
 		}
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
-				cmd := cmdFn(tt.expected)
-				cmd.SetArgs(tt.flags)
+				builder := newInfluxCmdBuilder(
+					in(new(bytes.Buffer)),
+					out(ioutil.Discard),
+				)
+
+				cmd := builder.cmd(cmdFn(tt.expected))
+
+				cmd.SetArgs(append([]string{"bucket", "update"}, tt.flags...))
 				require.NoError(t, cmd.Execute())
 			}
 
