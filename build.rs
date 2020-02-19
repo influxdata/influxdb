@@ -1,7 +1,7 @@
-//use tonic_build;
-use prost_build;
+type Error = Box<dyn std::error::Error>;
+type Result<T, E = Error> = std::result::Result<T, E>;
 
-fn main() {
-    //    tonic_build::compile_protos("proto/delorean/delorean.proto")?;
-    prost_build::compile_protos(&["proto/delorean/delorean.proto"], &["proto/delorean/"]).unwrap();
+fn main() -> Result<()> {
+    tonic_build::compile_protos("proto/delorean/delorean.proto")?;
+    Ok(())
 }

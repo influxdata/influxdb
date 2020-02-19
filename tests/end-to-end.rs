@@ -23,11 +23,19 @@ use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
 const URL_BASE: &str = "http://localhost:8080/api/v2";
+const GRPC_URL_BASE: &str = "http://localhost:8081/";
 
-fn read_data(
-    client: &reqwest::blocking::Client,
+mod grpc {
+    tonic::include_proto!("delorean");
+}
+
+use grpc::delorean_client::DeloreanClient;
+use grpc::Organization;
+
+async fn read_data(
+    client: &reqwest::Client,
     path: &str,
-    org_id: &str,
+    org_id: u32,
     bucket_name: &str,
     predicate: &str,
     seconds_ago: u64,
@@ -36,29 +44,35 @@ fn read_data(
     Ok(client
         .get(&url)
         .query(&[
-            ("org_id", org_id),
             ("bucket_name", bucket_name),
+            ("org_id", &org_id.to_string()),
             ("predicate", predicate),
             ("start", &format!("-{}s", seconds_ago)),
         ])
-        .send()?
+        .send()
+        .await?
         .error_for_status()?
-        .text()?)
+        .text()
+        .await?)
 }
 
-fn write_data(
-    client: &reqwest::blocking::Client,
+async fn write_data(
+    client: &reqwest::Client,
     path: &str,
-    org_id: &str,
+    org_id: u32,
     bucket_name: &str,
     body: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let url = format!("{}{}", URL_BASE, path);
     client
         .post(&url)
-        .query(&[("org_id", org_id), ("bucket_name", bucket_name)])
+        .query(&[
+            ("bucket_name", bucket_name),
+            ("org_id", &org_id.to_string()),
+        ])
         .body(body)
-        .send()?
+        .send()
+        .await?
         .error_for_status()?;
     Ok(())
 }
@@ -75,8 +89,8 @@ fn get_test_storage_path() -> String {
         .expect("Should have been able to turn temp dir into String")
 }
 
-#[test]
-fn read_and_write_data() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::test]
+async fn read_and_write_data() -> Result<(), Box<dyn std::error::Error>> {
     let mut server_thread = Command::cargo_bin("delorean")?
         .stdout(Stdio::null())
         .env("DELOREAN_DB_DIR", get_test_storage_path())
@@ -85,9 +99,23 @@ fn read_and_write_data() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: poll the server to see if it's ready instead of sleeping
     sleep(Duration::from_secs(3));
 
-    let org_id = "7878";
+    let org_id = 7878;
     let bucket_name = "all";
-    let client = reqwest::blocking::Client::new();
+
+    let client = reqwest::Client::new();
+    let mut grpc_client = DeloreanClient::connect(GRPC_URL_BASE).await?;
+
+    let get_buckets_request = tonic::Request::new(Organization {
+        id: org_id,
+        name: "test".into(),
+        buckets: vec![],
+    });
+    let get_buckets_response = grpc_client.get_buckets(get_buckets_request).await?;
+    let get_buckets_response = get_buckets_response.into_inner();
+    let org_buckets = get_buckets_response.buckets;
+
+    // This checks that gRPC is functioning and that we're starting from an org without buckets.
+    assert!(org_buckets.is_empty());
 
     let start_time = SystemTime::now();
     let ns_since_epoch = start_time
@@ -113,7 +141,8 @@ cpu_load_short,host=server01,region=us-west value=0.000003 {}",
             ns_since_epoch + 2,
             ns_since_epoch + 3
         ),
-    )?;
+    )
+    .await?;
 
     let end_time = SystemTime::now();
     let duration = end_time
@@ -128,7 +157,8 @@ cpu_load_short,host=server01,region=us-west value=0.000003 {}",
         bucket_name,
         "host=\"server01\"",
         seconds_ago,
-    )?;
+    )
+    .await?;
 
     // TODO: make a more sustainable way to manage expected data for tests, such as using the
     // insta crate to manage snapshots.
