@@ -1,4 +1,4 @@
-#!/usr/bin/python2.7 -u
+#!/usr/local/bin/python2.7 -u
 
 import sys
 import os
