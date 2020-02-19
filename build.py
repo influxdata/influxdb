@@ -181,6 +181,10 @@ def run_tests(race, parallel, timeout, no_vet, junit=False):
     if timeout is not None:
         logging.info("Using timeout: {}".format(timeout))
     out = run("go fmt ./...")
+    logging.info("Results of go fmt ./...")
+    logging.info("-----")
+    logging.info("{}".format(out))
+    logging.info("-----")
     if len(out) > 0:
         logging.error("Code not formatted. Please use 'go fmt ./...' to fix formatting errors.")
         logging.error("{}".format(out))
