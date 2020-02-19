@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Notification} from'src/types'
+import {Notification} from 'src/types'
 
 // Components
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
@@ -42,9 +42,9 @@ class CodeSnippet extends PureComponent<Props> {
         </FancyScrollbar>
         <div className="code-snippet--footer">
           <CopyButton
-              textToCopy={copyText}
-              onCopyText={onCopyText}
-              contentName="Script"
+            textToCopy={copyText}
+            onCopyText={onCopyText}
+            contentName="Script"
           />
           <label className="code-snippet--label">{label}</label>
         </div>

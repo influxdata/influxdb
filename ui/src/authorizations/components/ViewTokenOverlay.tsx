@@ -11,8 +11,8 @@ import PermissionsWidget, {
 import CodeSnippet from 'src/shared/components/CodeSnippet'
 
 import {
-    authorizationCopySuccess,
-    authorizationCopyFailed,
+  authorizationCopySuccess,
+  authorizationCopyFailed,
 } from 'src/shared/copy/notifications'
 
 // Types
@@ -30,19 +30,20 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
     const permissions = this.permissions
 
     const notes = (text, success) => {
-        if(success){
-            return authorizationCopySuccess()
-        }
-        return authorizationCopyFailed()
+      if (success) {
+        return authorizationCopySuccess()
+      }
+      return authorizationCopyFailed()
     }
 
     return (
       <Overlay.Container>
         <Overlay.Header title={description} onDismiss={this.handleDismiss} />
         <Overlay.Body>
-          <CodeSnippet copyText={this.props.auth.token}
-              label={description}
-              onCopyText={notes}
+          <CodeSnippet
+            copyText={this.props.auth.token}
+            label={description}
+            onCopyText={notes}
           />
           <PermissionsWidget
             mode={PermissionsWidgetMode.Read}

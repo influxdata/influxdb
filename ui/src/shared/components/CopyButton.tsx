@@ -14,7 +14,7 @@ import {
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
-import {Notification} from'src/types'
+import {Notification} from 'src/types'
 
 interface OwnProps {
   textToCopy: string
@@ -61,12 +61,12 @@ class CopyButton extends PureComponent<Props> {
     copiedText: string,
     isSuccessful: boolean
   ): void => {
-      const {notify, onCopyText} = this.props
+    const {notify, onCopyText} = this.props
 
-      if (onCopyText) {
-          notify(onCopyText(copiedText, isSuccessful))
-          return
-      }
+    if (onCopyText) {
+      notify(onCopyText(copiedText, isSuccessful))
+      return
+    }
 
     const {contentName} = this.props
     const text = copiedText.slice(0, 30).trimRight()
