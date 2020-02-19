@@ -89,8 +89,6 @@ export class Signin extends PureComponent<Props, State> {
         return
       }
       // TODO: add returnTo to CLOUD signin
-      // TODO: figure out why CLOUD path is returning:
-      // {"code":"unauthorized","message":"unauthorized access"}
       if (CLOUD) {
         window.location.pathname = CLOUD_SIGNIN_PATHNAME
 

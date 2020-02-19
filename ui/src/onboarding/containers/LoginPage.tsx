@@ -17,10 +17,8 @@ import {
   SelectGroup,
 } from '@influxdata/clockface'
 import auth0js from 'auth0-js'
-import {get} from 'lodash'
 
 // Components
-// import CSRF from 'js/components/CSRF' // TODO: figure out if obtaining the CSRF token is necessary or if it even exists
 import {Transition, animated} from 'react-spring/renderprops'
 import LoginForm from 'src/onboarding/components/LoginForm'
 import SignUpForm from 'src/onboarding/components/SignUpForm'
@@ -30,16 +28,17 @@ import {GoogleLogo, GithubLogo} from 'src/clientLibraries/graphics'
 // Types
 import {Auth0Connection} from 'src/types'
 
-// APIs
-import {postSignin} from 'src/client'
-
 // Constants
-import {CLOUD_URL} from 'src/shared/constants'
+import {
+  AUTH0_DOMAIN,
+  AUTH0_CLIENT_ID,
+  AUTH0_REDIRECT_URI,
+} from 'src/shared/constants'
 
 const auth0 = new auth0js.WebAuth({
-  domain: 'influxdata-dev.auth0.com', // TODO: get from IDPE or somewhere else
-  clientID: 'bnqXbv51ISpm9Z8vl0wVZEFYEJTVzjoE', // TODO: get from IDPE or somewhere else
-  redirectUri: 'http://localhost:4000/auth0/callback/signup', // TODO: get from IDPE or somewhere else
+  domain: AUTH0_DOMAIN,
+  clientID: AUTH0_CLIENT_ID,
+  redirectUri: AUTH0_REDIRECT_URI,
   responseType: 'code',
 })
 
@@ -260,7 +259,6 @@ class LoginPage extends PureComponent<WithRouterProps> {
           >
             {notificationText}
           </Notification>
-          {/* <CSRF /> */}
         </Panel>
       </form>
     )
@@ -303,37 +301,6 @@ class LoginPage extends PureComponent<WithRouterProps> {
     return {isValid, errors}
   }
 
-  private handleRedirect() {
-    const {router} = this.props
-    const {query} = this.props.location
-
-    console.log('query: ', query)
-
-    if (query && query.returnTo) {
-      router.replace(query.returnTo)
-    } else {
-      router.push('/')
-    }
-  }
-
-  private handleLogin = async () => {
-    const {email, password} = this.state
-    const {errors} = this.validFieldValues
-    try {
-      const resp = await postSignin({auth: {username: email, password}})
-      if (resp.status !== 204) {
-        throw new Error(resp.data.message)
-      }
-
-      this.handleRedirect()
-    } catch (error) {
-      if (error) {
-        this.setState({buttonStatus: ComponentStatus.Default})
-        return this.displayErrorMessage(errors, error)
-      }
-    }
-  }
-
   private handleSubmit = (e: FormEvent) => {
     const {isValid, errors} = this.validFieldValues
     const {
@@ -356,21 +323,19 @@ class LoginPage extends PureComponent<WithRouterProps> {
     if (activeTab === 'login') {
       // login with credentials to Quartz
       // TOOD: figure out if we want to log users to auth0 in addition to IDPE
-      // auth0.login(
-      //   {
-      //     realm: Auth0Connection.Authentication,
-      //     email,
-      //     password,
-      //   },
-      //   err => {
-      //     if (err) {
-      //       this.setState({buttonStatus: ComponentStatus.Default})
-      //       return this.displayErrorMessage(errors, err)
-      //     }
-      // logs user in IDPE
-      this.handleLogin()
-      //   }
-      // )
+      auth0.login(
+        {
+          realm: Auth0Connection.Authentication,
+          email,
+          password,
+        },
+        err => {
+          if (err) {
+            this.setState({buttonStatus: ComponentStatus.Default})
+            return this.displayErrorMessage(errors, err)
+          }
+        }
+      )
       return
     }
 
@@ -400,8 +365,6 @@ class LoginPage extends PureComponent<WithRouterProps> {
               this.setState({buttonStatus: ComponentStatus.Default})
               return this.displayErrorMessage(errors, error)
             }
-            // logs user in IDPE
-            this.handleLogin()
           }
         )
       }
@@ -435,7 +398,6 @@ class LoginPage extends PureComponent<WithRouterProps> {
   private handleSocialClick = (connection: Auth0Connection) => {
     auth0.authorize({
       connection,
-      redirectUri: 'http://localhost:4000/auth0/callback/login',
     })
   }
 

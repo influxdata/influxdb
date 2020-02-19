@@ -63,6 +63,15 @@ export const CLOUD_BILLING_PATH = '/billing'
 export const CLOUD_USAGE_PATH = '/usage'
 export const CLOUD_LOGOUT_PATH = '/logout'
 
+export const AUTH0_DOMAIN =
+  process.env.AUTH0_DOMAIN || 'influxdata-dev.auth0.com'
+export const AUTH0_CLIENT_ID =
+  process.env.AUTH0_CLIENT_ID || 'bnqXbv51ISpm9Z8vl0wVZEFYEJTVzjoE'
+export const AUTH0_REDIRECT_URI =
+  process.env.AUTH0_REDIRECT_URI || 'http://localhost:8080/'
+export const AUTH0_RETURN_TO_URI =
+  process.env.AUTH0_RETURN_TO_URI || 'http://localhost:8080/'
+
 export const FLUX_RESPONSE_BYTES_LIMIT = CLOUD
   ? 10 * 1024 * 1024 // 10 MiB
   : 100 * 1024 * 1024 // 100 MiB

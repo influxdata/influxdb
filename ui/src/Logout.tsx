@@ -15,9 +15,16 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Utils
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
+// Constants
+import {
+  AUTH0_DOMAIN,
+  AUTH0_CLIENT_ID,
+  AUTH0_RETURN_TO_URI,
+} from 'src/shared/constants'
+
 const auth0 = new auth0js.WebAuth({
-  domain: 'influxdata-dev.auth0.com', // TODO: get from IDPE or somewhere else
-  clientID: 'bnqXbv51ISpm9Z8vl0wVZEFYEJTVzjoE', // TODO: get from IDPE or somewhere else
+  domain: AUTH0_DOMAIN,
+  clientID: AUTH0_CLIENT_ID,
 })
 
 type Props = WithRouterProps
@@ -34,12 +41,10 @@ export class Logout extends PureComponent<Props> {
 
   private handleSignOut = async () => {
     if (CLOUD && isFlagEnabled('IDPELoginPage')) {
-      const resp = await postSignout({})
-
-      if (resp.status !== 204) {
-        throw new Error(resp.data.message)
-      }
-      this.props.router.replace('/login')
+      // TODO: figure out if we need a returnTo since it's optional
+      auth0.logout({
+        returnTo: AUTH0_RETURN_TO_URI,
+      })
       return
     }
     if (CLOUD) {
