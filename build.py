@@ -389,8 +389,8 @@ def check_environ(build_dir = None):
         logging.info("Using '{}' for {}".format(os.environ.get(v), v))
 
     cwd = os.getcwd()
-    if build_dir is None and os.environ.get("GOPATH") and os.environ.get("GOPATH") not in cwd:
-        logging.warn("Your current directory is not under your GOPATH. This may lead to build failures.")
+    if build_dir is None and os.environ.get("GOPATH") and os.environ.get("GOPATH") in cwd:
+        logging.warn("Your current directory is under your GOPATH. This may lead to build failures when using modules.")
     return True
 
 def check_prereqs():
