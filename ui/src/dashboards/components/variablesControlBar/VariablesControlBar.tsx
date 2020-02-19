@@ -154,7 +154,7 @@ const mdtp = {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const dashboardID = state.currentDashboard.dashboard
+  const dashboardID = state.currentDashboard.id
   const variables = getVariablesForDashboard(state, dashboardID)
   const valuesStatus = getDashboardValuesStatus(state, dashboardID)
   const variablesStatus = getDashboardVariablesStatus(state)

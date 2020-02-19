@@ -68,7 +68,7 @@ const mstp = (state: AppState): StateProps => {
   const dashboard = getByID<Dashboard>(
     state,
     ResourceType.Dashboards,
-    state.currentDashboard.dashboard
+    state.currentDashboard.id
   )
 
   return {

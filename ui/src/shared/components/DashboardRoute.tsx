@@ -43,7 +43,7 @@ class DashboardRoute extends PureComponent<Props> {
 
 const mstp = (state: AppState): StateProps => {
   return {
-    dashboard: state.currentDashboard.dashboard,
+    dashboard: state.currentDashboard.id,
   }
 }
 

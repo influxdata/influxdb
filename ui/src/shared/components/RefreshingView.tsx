@@ -150,7 +150,7 @@ class RefreshingView extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
-  const dashboard = state.currentDashboard.dashboard
+  const dashboard = state.currentDashboard.id
   const variableAssignments = getVariableAssignments(state, dashboard)
   const timeRange = getTimeRangeByDashboardID(state, dashboard)
   const valuesStatus = getDashboardValuesStatus(state, dashboard)

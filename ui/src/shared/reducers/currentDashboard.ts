@@ -1,11 +1,14 @@
-import {Action, SET_DASHBOARD} from 'src/shared/actions/currentDashboard'
+import {
+  Action,
+  SET_CURRENT_DASHBOARD,
+} from 'src/shared/actions/currentDashboard'
 
 export interface CurrentDashboardState {
-  dashboard: string
+  id: string
 }
 
 export const initialState: CurrentDashboardState = {
-  dashboard: '',
+  id: '',
 }
 
 const reducer = (
@@ -13,8 +16,8 @@ const reducer = (
   action: Action
 ): CurrentDashboardState => {
   switch (action.type) {
-    case SET_DASHBOARD:
-      state.dashboard = action.id
+    case SET_CURRENT_DASHBOARD:
+      state.id = action.id
       return {...state}
     default:
       return state

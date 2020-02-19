@@ -54,7 +54,7 @@ class DashboardComponent extends PureComponent<Props> {
 
 const mstp = (state: AppState): StateProps => {
   return {
-    cells: getCells(state, state.currentDashboard.dashboard),
+    cells: getCells(state, state.currentDashboard.id),
     status: state.resources.cells.status,
   }
 }

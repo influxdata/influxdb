@@ -131,7 +131,7 @@ class Cells extends Component<Props> {
   }
 }
 const mstp = (state: AppState): StateProps => {
-  const dashboard = state.currentDashboard.dashboard
+  const dashboard = state.currentDashboard.id
 
   return {
     dashboard,

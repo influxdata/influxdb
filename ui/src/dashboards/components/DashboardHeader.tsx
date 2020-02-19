@@ -204,13 +204,10 @@ const mstp = (state: AppState): StateProps => {
   const dashboard = getByID<Dashboard>(
     state,
     ResourceType.Dashboards,
-    state.currentDashboard.dashboard
+    state.currentDashboard.id
   )
 
-  const timeRange = getTimeRangeByDashboardID(
-    state,
-    state.currentDashboard.dashboard
-  )
+  const timeRange = getTimeRangeByDashboardID(state, state.currentDashboard.id)
   const org = getOrg(state)
 
   return {
