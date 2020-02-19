@@ -1,4 +1,5 @@
 import _ from 'lodash'
+import {Dashboard} from 'src/types'
 
 interface Greeting {
   text: string
@@ -158,4 +159,23 @@ const randomGreetings: Greeting[] = [
 
 export const generateRandomGreeting = (): Greeting => {
   return _.sample(randomGreetings)
+}
+
+const sortFunc = (a: Dashboard, b: Dashboard) => {
+  const firstDashboard = `${a.name}`.toLowerCase()
+  const secondDashboard = `${b.name}`.toLowerCase()
+  if (firstDashboard === secondDashboard) {
+    return 0
+  }
+  if (firstDashboard < secondDashboard) {
+    return -1
+  }
+  if (firstDashboard > secondDashboard) {
+    return 1
+  }
+  return 0
+}
+
+export const getSortedDashboardNames = (dashboards: Dashboard[]) => {
+  return dashboards.sort(sortFunc)
 }
