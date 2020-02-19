@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/http"
@@ -25,12 +24,15 @@ type cmdUserDeps struct {
 	getPassFn func(*input.UI, bool) string
 }
 
-func cmdUser(opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdUserBuilder(newUserSVC, opts...).cmd()
+func cmdUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	builder := newCmdUserBuilder(newUserSVC, opt)
+	builder.globalFlags = f
+	return builder.cmd()
 }
 
 type cmdUserBuilder struct {
 	genericCLIOpts
+	*globalFlags
 
 	svcFn userSVCsFn
 
@@ -40,15 +42,7 @@ type cmdUserBuilder struct {
 	org      organization
 }
 
-func newCmdUserBuilder(svcsFn userSVCsFn, opts ...genericCLIOptFn) *cmdUserBuilder {
-	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
-	}
-	for _, o := range opts {
-		o(&opt)
-	}
-
+func newCmdUserBuilder(svcsFn userSVCsFn, opt genericCLIOpts) *cmdUserBuilder {
 	return &cmdUserBuilder{
 		genericCLIOpts: opt,
 		svcFn:          svcsFn,

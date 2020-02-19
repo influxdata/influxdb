@@ -23,15 +23,12 @@ var writeFlags struct {
 	Precision string
 }
 
-func cmdWrite() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "write line protocol or @/path/to/points.txt",
-		Short: "Write points to InfluxDB",
-		Long: `Write a single line of line protocol to InfluxDB,
-or add an entire file specified with an @ prefix.`,
-		Args: cobra.ExactArgs(1),
-		RunE: wrapCheckSetup(fluxWriteF),
-	}
+func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("write line protocol or @/path/to/points.txt", fluxWriteF)
+	cmd.Args = cobra.ExactArgs(1)
+	cmd.Short = "Write points to InfluxDB"
+	cmd.Long = `Write a single line of line protocol to InfluxDB,
+or add an entire file specified with an @ prefix.`
 
 	opts := flagOpts{
 		{
