@@ -9,6 +9,7 @@ import {EmptyState} from '@influxdata/clockface'
 // Types
 import {Dashboard, Organization, AppState, ResourceType} from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
+import {getSortedDashboardNames} from 'src/me/constants'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
@@ -51,10 +52,17 @@ class DashboardList extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
-  dashboards: getAll<Dashboard>(state, ResourceType.Dashboards),
-  org: getOrg(state),
-})
+const mstp = (state: AppState): StateProps => {
+  // map names and sort via a selector
+  const dashboards = getSortedDashboardNames(
+    getAll<Dashboard>(state, ResourceType.Dashboards)
+  )
+
+  return {
+    dashboards: dashboards,
+    org: getOrg(state),
+  }
+}
 
 export default connect<StateProps, {}, {}>(
   mstp,

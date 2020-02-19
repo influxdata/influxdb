@@ -737,6 +737,16 @@ export const authorizationDeleteFailed = (desc: string): Notification => ({
   message: `Failed to delete token: "${desc}"`,
 })
 
+export const authorizationCopySuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Token has been copied to clipboard',
+})
+
+export const authorizationCopyFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to copy token to clipboard',
+})
+
 export const telegrafDeleteSuccess = (telegrafName: string): Notification => ({
   ...defaultSuccessNotification,
   message: `Telegraf "${telegrafName}" was deleted successfully`,
