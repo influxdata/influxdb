@@ -157,7 +157,9 @@ export function formatTagFilterPredicate(
 
   const calls = validSelections
     .map(({key, values}) => {
-      const body = values.map(value => `r.${key} == "${value}"`).join(' or ')
+      const body = values
+        .map(value => `r.${key} == "${value.replace(/\\/g, '\\\\')}"`)
+        .join(' or ')
 
       return `(${body})`
     })

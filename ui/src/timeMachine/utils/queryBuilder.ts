@@ -157,7 +157,7 @@ const convertTagsToFluxFunctionString = function convertTagsToFluxFunctionString
     }
 
     const fnBody = tag.values
-      .map(value => `r.${tag.key} == "${value}"`)
+      .map(value => `r.${tag.key} == "${value.replace(/\\/g, '\\\\')}"`)
       .join(' or ')
     return `\n  |> filter(fn: (r) => ${fnBody})`
   }
