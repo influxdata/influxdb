@@ -33,7 +33,7 @@ class DashboardList extends PureComponent<Props> {
         </EmptyState>
       )
     }
-    
+
     return (
       <>
         <ul className="link-list">
