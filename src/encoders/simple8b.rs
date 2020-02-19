@@ -213,6 +213,7 @@ pub fn decode(v: u64, dst: &mut [u64]) -> usize {
 }
 
 #[cfg(test)]
+#[allow(clippy::unreadable_literal)]
 mod tests {
     use super::*;
     use rand::rngs::StdRng;
@@ -256,13 +257,11 @@ mod tests {
 
     #[test]
     fn test_encode_too_big() {
-        let src = vec![7, 6, 2 << 61 - 1, 4, 3, 2, 1];
+        let src = vec![7, 6, 2 << (61 - 1), 4, 3, 2, 1];
 
         let mut encoded = vec![];
-        match encode_all(&src, &mut encoded) {
-            Ok(_) => assert!(false), // TODO(edd): fix this silly assertion
-            Err(_) => (),
-        }
+        let result = encode_all(&src, &mut encoded);
+        assert_eq!(result.unwrap_err().to_string(), "value out of bounds");
     }
 
     #[test]
