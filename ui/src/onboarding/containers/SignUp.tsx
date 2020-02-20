@@ -14,7 +14,7 @@ import {
 
 import LoginPage from 'src/onboarding/containers/LoginPage'
 
-const SignUp: FC = ({}) => (
+const SignUp: FC = () => (
   <AppWrapper className="sign-up--page">
     <Page titleTag="Sign Up for InfluxDB Cloud">
       <Page.Contents

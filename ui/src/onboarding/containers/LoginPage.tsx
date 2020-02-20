@@ -376,7 +376,7 @@ class LoginPage extends PureComponent<State> {
         ...errors,
         emailError: 'Please enter a valid email address',
       })
-    } else if (auth0Err.code === 'user_exists') {
+    } else if (auth0Err.code.includes('user_exists')) {
       const emailError = `An account with that email address already exists. Try logging in instead.`
       this.setState({...errors, emailError})
     } else {
