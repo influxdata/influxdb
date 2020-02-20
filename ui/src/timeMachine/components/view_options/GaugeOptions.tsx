@@ -114,7 +114,4 @@ const mdtp: DispatchProps = {
   onUpdateColors: setColors,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(GaugeOptions)
+export default connect<{}, DispatchProps, OwnProps>(null, mdtp)(GaugeOptions)

@@ -45,7 +45,4 @@ const mdtp: DispatchProps = {
   onSetActiveTimeMachine: setActiveTimeMachine,
 }
 
-export default connect<{}, DispatchProps, {}>(
-  null,
-  mdtp
-)(DataExplorer)
+export default connect<{}, DispatchProps, {}>(null, mdtp)(DataExplorer)

@@ -44,7 +44,4 @@ class LabelsIndex extends PureComponent<StateProps> {
 
 const mstp = (state: AppState) => ({org: getOrg(state)})
 
-export default connect<StateProps, {}, {}>(
-  mstp,
-  null
-)(LabelsIndex)
+export default connect<StateProps, {}, {}>(mstp, null)(LabelsIndex)

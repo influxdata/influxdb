@@ -41,9 +41,7 @@ export const reducer = (
             return {
               ...baseProps,
               type: 'pagerduty',
-              clientURL: `${location.origin}/orgs/${
-                baseProps.orgID
-              }/alert-history`,
+              clientURL: `${location.origin}/orgs/${baseProps.orgID}/alert-history`,
               routingKey: '',
             }
           case 'http':

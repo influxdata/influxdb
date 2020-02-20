@@ -34,7 +34,10 @@ describe('formatVarsOption', () => {
           operator: '-',
           argument: {
             type: 'DurationLiteral',
-            values: [{magnitude: 99, unit: 'mo'}, {magnitude: 1, unit: 'ns'}],
+            values: [
+              {magnitude: 99, unit: 'mo'},
+              {magnitude: 1, unit: 'ns'},
+            ],
           },
         },
       },
@@ -53,7 +56,10 @@ describe('formatVarsOption', () => {
           },
           right: {
             type: 'DurationLiteral',
-            values: [{magnitude: 99, unit: 'mo'}, {magnitude: 1, unit: 'ns'}],
+            values: [
+              {magnitude: 99, unit: 'mo'},
+              {magnitude: 1, unit: 'ns'},
+            ],
           },
         },
       },

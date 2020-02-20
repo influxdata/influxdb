@@ -50,7 +50,4 @@ const mstp = (state: AppState): StateProps => {
   return {inPresentationMode}
 }
 
-export default connect<StateProps, {}>(
-  mstp,
-  null
-)(App)
+export default connect<StateProps, {}>(mstp, null)(App)

@@ -143,7 +143,4 @@ const mdtp: DispatchProps = {
   updateCells: updateCells,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(Cells)
+export default connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(Cells)

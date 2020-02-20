@@ -84,7 +84,4 @@ const mstp = (state: AppState): StateProps => {
   return {me, orgName: get(org, 'name', '')}
 }
 
-export default connect<StateProps>(
-  mstp,
-  null
-)(MePage)
+export default connect<StateProps>(mstp, null)(MePage)

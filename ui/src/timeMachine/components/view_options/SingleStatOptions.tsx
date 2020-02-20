@@ -128,7 +128,4 @@ const mdtp: DispatchProps = {
   onSetColors: setColors,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(SingleStatOptions)
+export default connect<StateProps, DispatchProps>(mstp, mdtp)(SingleStatOptions)

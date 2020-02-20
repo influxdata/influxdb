@@ -108,10 +108,7 @@ const mdtp: DispatchProps = {
   onDeleteTelegraf: deleteTelegraf,
 }
 
-connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(CollectorList)
+connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(CollectorList)
 
 type FilteredOwnProps = OwnProps & {
   searchTerm: string

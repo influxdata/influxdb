@@ -59,7 +59,4 @@ const mstp = ({alertBuilder: {type}}: AppState): StateProps => {
   return {checkType: type}
 }
 
-export default connect<StateProps, {}, {}>(
-  mstp,
-  null
-)(CheckConditionsCard)
+export default connect<StateProps, {}, {}>(mstp, null)(CheckConditionsCard)

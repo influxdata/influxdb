@@ -39,9 +39,10 @@ type EndpointOverrides = {
 // GenEndpoint is the shape of a NotificationEndpoint from the server -- before any UI specific fields are or modified
 export type GenEndpoint = GenEndpoint
 export type NotificationEndpoint =
-  | Omit<SlackNotificationEndpoint, 'status' | 'labels'> & EndpointOverrides
-  | Omit<PagerDutyNotificationEndpoint, 'status' | 'labels'> & EndpointOverrides
-  | Omit<HTTPNotificationEndpoint, 'status' | 'labels'> & EndpointOverrides
+  | (Omit<SlackNotificationEndpoint, 'status' | 'labels'> & EndpointOverrides)
+  | (Omit<PagerDutyNotificationEndpoint, 'status' | 'labels'> &
+      EndpointOverrides)
+  | (Omit<HTTPNotificationEndpoint, 'status' | 'labels'> & EndpointOverrides)
 export type NotificationEndpointBase = Omit<GenEndpointBase, 'labels'> &
   EndpointOverrides
 

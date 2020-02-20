@@ -176,7 +176,4 @@ const mdtp: DispatchProps = {
   onCloneRule: cloneRule,
 }
 
-export default connect<{}, DispatchProps>(
-  null,
-  mdtp
-)(withRouter(RuleCard))
+export default connect<{}, DispatchProps>(null, mdtp)(withRouter(RuleCard))

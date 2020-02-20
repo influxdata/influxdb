@@ -169,7 +169,4 @@ const mdtp = {
   getEndpoints: getEndpoints,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(GetResources)
+export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(GetResources)

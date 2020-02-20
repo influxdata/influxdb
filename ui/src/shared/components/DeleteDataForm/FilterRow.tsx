@@ -123,7 +123,4 @@ const FilterRow: FC<Props & DispatchProps> = ({
 
 const mdtp = {setValuesByKey}
 
-export default connect<{}, DispatchProps>(
-  null,
-  mdtp
-)(FilterRow)
+export default connect<{}, DispatchProps>(null, mdtp)(FilterRow)

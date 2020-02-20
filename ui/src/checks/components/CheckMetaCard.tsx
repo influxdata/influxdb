@@ -118,7 +118,4 @@ const mdtp: DispatchProps = {
   onEditTagSetByIndex: editTagSetByIndex,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(CheckMetaCard)
+export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(CheckMetaCard)

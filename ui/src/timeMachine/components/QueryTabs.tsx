@@ -68,7 +68,4 @@ const mdtp = {
   onAddQuery: addQuery,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(QueryTabs)
+export default connect<StateProps, DispatchProps>(mstp, mdtp)(QueryTabs)

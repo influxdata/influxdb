@@ -75,7 +75,4 @@ const mstp = ({
   errorMessage: lpError,
 })
 
-export default connect<StateProps, {}, {}>(
-  mstp,
-  null
-)(StatusIndicator)
+export default connect<StateProps, {}, {}>(mstp, null)(StatusIndicator)

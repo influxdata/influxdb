@@ -60,7 +60,4 @@ const mstp = (state: AppState, props: Props) => {
   }
 }
 
-export default connect<StateProps>(
-  mstp,
-  null
-)(withRouter<{}>(MembersIndex))
+export default connect<StateProps>(mstp, null)(withRouter<{}>(MembersIndex))

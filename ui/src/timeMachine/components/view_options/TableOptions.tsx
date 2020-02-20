@@ -196,7 +196,4 @@ const mdtp: DispatchProps = {
   onSetTimeFormat: setTimeFormat,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(TableOptions)
+export default connect<StateProps, DispatchProps>(mstp, mdtp)(TableOptions)

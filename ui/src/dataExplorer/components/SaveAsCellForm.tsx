@@ -252,7 +252,4 @@ const mdtp: DispatchProps = {
   notify,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(SaveAsCellForm)
+export default connect<StateProps, DispatchProps>(mstp, mdtp)(SaveAsCellForm)

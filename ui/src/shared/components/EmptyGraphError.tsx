@@ -48,9 +48,7 @@ const EmptyGraphError: FunctionComponent<Props> = ({message, testID}) => {
         >
           <pre>
             <span
-              className={`icon ${
-                IconFont.AlertTriangle
-              } empty-graph-error--icon`}
+              className={`icon ${IconFont.AlertTriangle} empty-graph-error--icon`}
             />
             <code className="cell--error-message">{message}</code>
           </pre>

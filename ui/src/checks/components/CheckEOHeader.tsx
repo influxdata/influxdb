@@ -161,7 +161,4 @@ const mdtp: DispatchProps = {
   setActiveTab: setActiveTab,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(CheckEOHeader)
+export default connect<StateProps, DispatchProps>(mstp, mdtp)(CheckEOHeader)

@@ -43,7 +43,4 @@ const mdtp = {
   onSetColors: setColorHexes,
 }
 
-export default connect<{}, DispatchProps>(
-  null,
-  mdtp
-)(CheckOptions)
+export default connect<{}, DispatchProps>(null, mdtp)(CheckOptions)
