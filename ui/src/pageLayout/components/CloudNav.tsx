@@ -26,6 +26,7 @@ import {
 
 // Types
 import {AppState, Organization} from 'src/types'
+import {MeState} from 'src/shared/reducers/me'
 
 // Images
 
@@ -34,11 +35,12 @@ import {getOrg} from 'src/organizations/selectors'
 
 interface StateProps {
   org: Organization
+  me: MeState
 }
 
 const Logo = require('../images/influxdata-logo.png')
 
-const CloudNav: FC<StateProps> = ({org}) => {
+const CloudNav: FC<StateProps> = ({org, me}) => {
   const usageURL = `${CLOUD_URL}${CLOUD_USAGE_PATH}`
   const billingURL = `${CLOUD_URL}${CLOUD_BILLING_PATH}`
   const checkoutURL = `${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`
@@ -73,7 +75,7 @@ const CloudNav: FC<StateProps> = ({org}) => {
         />
         <PopNav>
           <p className="cloud-nav--account">
-            Logged in as <strong>{org.name}</strong>
+            Logged in as <strong>{me.name}</strong>
           </p>
           <PopNav.Item
             active={false}
@@ -109,7 +111,8 @@ const CloudNav: FC<StateProps> = ({org}) => {
 
 const mstp = (state: AppState) => {
   const org = getOrg(state)
-  return {org}
+  const me = state.me
+  return {org, me}
 }
 
 export default connect<StateProps>(mstp)(CloudNav)
