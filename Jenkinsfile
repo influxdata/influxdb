@@ -54,13 +54,15 @@ pipeline {
 
       steps {
         sh """
-        mkdir -p /64bit-test/influxdb
-        cp -ar $WORKSPACE /64bit-test/influxdb
+        # mkdir -p /go/src/github.com/influxdata
+        # cp -a $WORKSPACE /go/src/github.com/influxdata/influxdb
 
+				cd $WORKSPACE
+				go mod download
         """
 
         sh """
-        cd /64bit-test/influxdb
+        cd $WORKSPACE
         go test -parallel=1 ./...
         """
       }
@@ -75,13 +77,12 @@ pipeline {
 
       steps {
         sh """
-        mkdir -p /32bit-test/influxdb
-        cp -ar $WORKSPACE /32bit-test/influxdb
-
+				cd $WORKSPACE
+				go mod download
         """
 
         sh """
-        cd /32bit-test/influxdb
+        cd $WORKSPACE
         go test -parallel=1 ./...
         """
       }
