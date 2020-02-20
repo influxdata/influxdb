@@ -28,7 +28,6 @@ import {
 import {AppState, Organization} from 'src/types'
 
 // Images
-import Logo from '../images/influxdata-logo.png'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
@@ -36,6 +35,8 @@ import {getOrg} from 'src/organizations/selectors'
 interface StateProps {
   org: Organization
 }
+
+const Logo = require('../images/influxdata-logo.png')
 
 const CloudNav: FC<StateProps> = ({org}) => {
   const usageURL = `${CLOUD_URL}${CLOUD_USAGE_PATH}`

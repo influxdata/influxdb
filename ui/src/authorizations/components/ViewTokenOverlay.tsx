@@ -29,7 +29,7 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
 
     const permissions = this.permissions
 
-    const notes = (text, success) => {
+    const notes = (_text, success) => {
       if (success) {
         return authorizationCopySuccess()
       }
