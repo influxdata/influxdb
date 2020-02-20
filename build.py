@@ -168,13 +168,6 @@ def go_get(branch, update=False, no_uncommitted=False):
     if local_changes() and no_uncommitted:
         logging.error("There are uncommitted changes in the current directory.")
         return False
-    if not check_path_for("dep"):
-        logging.info("Downloading `dep`...")
-        get_command = "go get github.com/golang/dep/cmd/dep"
-        run(get_command)
-    logging.info("Retrieving dependencies with `dep`...")
-    sys.stdout.flush()
-    run("{}/bin/dep ensure -v -vendor-only".format(os.environ.get("GOPATH", os.path.expanduser("~/go"))))
     return True
 
 def run_tests(race, parallel, timeout, no_vet, junit=False):
@@ -187,6 +180,11 @@ def run_tests(race, parallel, timeout, no_vet, junit=False):
         logging.info("Using parallel: {}".format(parallel))
     if timeout is not None:
         logging.info("Using timeout: {}".format(timeout))
+
+    logging.info("Fetching module dependencies...")
+    run("go mod download")
+
+    logging.info("Ensuring code is properly formatted with go fmt...")
     out = run("go fmt ./...")
     if len(out) > 0:
         logging.error("Code not formatted. Please use 'go fmt ./...' to fix formatting errors.")
@@ -391,8 +389,8 @@ def check_environ(build_dir = None):
         logging.debug("Using '{}' for {}".format(os.environ.get(v), v))
 
     cwd = os.getcwd()
-    if build_dir is None and os.environ.get("GOPATH") and os.environ.get("GOPATH") not in cwd:
-        logging.warn("Your current directory is not under your GOPATH. This may lead to build failures.")
+    if build_dir is None and os.environ.get("GOPATH") and os.environ.get("GOPATH") in cwd:
+        logging.warn("Your current directory is under your GOPATH. This may lead to build failures when using modules.")
     return True
 
 def check_prereqs():
