@@ -41,7 +41,7 @@ require (
 	github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c // indirect
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/hashicorp/vault/api v1.0.2
-	github.com/influxdata/cron v0.0.0-20191112133922-ad5847cfab62
+	github.com/influxdata/cron v0.0.0-20191203200038-ded12750aac6
 	github.com/influxdata/flux v0.61.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
