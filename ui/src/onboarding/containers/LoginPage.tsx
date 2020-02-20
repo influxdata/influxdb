@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {
   AlignItems,
   ComponentColor,
@@ -63,7 +62,7 @@ interface State {
   notificationVisible: boolean
 }
 
-class LoginPage extends PureComponent<WithRouterProps> {
+class LoginPage extends PureComponent<State> {
   state: State = {
     activeTab: 'login',
     buttonStatus: ComponentStatus.Default,
@@ -438,4 +437,4 @@ class LoginPage extends PureComponent<WithRouterProps> {
   }
 }
 
-export default withRouter(LoginPage)
+export default LoginPage
