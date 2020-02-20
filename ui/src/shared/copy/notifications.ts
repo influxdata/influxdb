@@ -169,6 +169,16 @@ export const dashboardDeleteFailed = (
   message: `Failed to delete Dashboard ${name}: ${errorMessage}.`,
 })
 
+export const dashboardCopySuccess = () => ({
+  ...defaultSuccessNotification,
+  message: 'Copied dashboard to the clipboard!',
+})
+
+export const dashboardCopyFailed = () => ({
+  ...defaultErrorNotification,
+  message: 'Failed to copy dashboard.',
+})
+
 export const cellAdded = (
   cellName?: string,
   dashboardName?: string

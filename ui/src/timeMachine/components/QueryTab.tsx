@@ -155,7 +155,7 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
       return null
     }
 
-    const icon = query.hidden ? 'eye-open' : 'eye-closed'
+    const icon = query.hidden ? 'eye-closed' : 'eye-open'
 
     return (
       <div className="query-tab--hide" onClick={this.handleToggleView}>
