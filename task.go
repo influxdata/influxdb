@@ -227,7 +227,7 @@ func (t *TaskUpdate) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (t TaskUpdate) MarshalJSON() ([]byte, error) {
+func (t *TaskUpdate) MarshalJSON() ([]byte, error) {
 	jo := struct {
 		Flux        *string `json:"flux,omitempty"`
 		Status      *string `json:"status,omitempty"`
@@ -262,7 +262,7 @@ func (t TaskUpdate) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jo)
 }
 
-func (t TaskUpdate) Validate() error {
+func (t *TaskUpdate) Validate() error {
 	switch {
 	case !t.Options.Every.IsZero() && t.Options.Cron != "":
 		return errors.New("cannot specify both every and cron")

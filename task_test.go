@@ -10,6 +10,24 @@ import (
 	"github.com/influxdata/influxdb/task/options"
 )
 
+func TestUpdateValidate(t *testing.T) {
+	tu := &platform.TaskUpdate{}
+	// this is to make sure that string durations are properly marshaled into durations
+	if err := json.Unmarshal([]byte(`{"every":"3d2h", "offset":"1h"}`), tu); err != nil {
+		t.Fatal(err)
+	}
+	if tu.Options.Every.String() != "3d2h" {
+		t.Fatalf("option.every not properly unmarshaled, expected 10s got %s", tu.Options.Every)
+	}
+	if tu.Options.Offset.String() != "1h" {
+		t.Fatalf("option.every not properly unmarshaled, expected 1h got %s", tu.Options.Offset)
+	}
+	if err := tu.Validate(); err != nil {
+		t.Fatalf("expected task update to be valid but it was not: %s", err)
+	}
+
+}
+
 func TestOptionsMarshal(t *testing.T) {
 	tu := &platform.TaskUpdate{}
 	// this is to make sure that string durations are properly marshaled into durations
