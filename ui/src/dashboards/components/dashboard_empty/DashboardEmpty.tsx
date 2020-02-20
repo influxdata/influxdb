@@ -47,7 +47,7 @@ class DashboardEmpty extends Component<Props> {
 
   private handleAdd = () => {
     const {router, org, dashboard} = this.props
-    router.push(`/orgs/${org}/dashboard/${dashboard}/cells/new`)
+    router.push(`/orgs/${org}/dashboards/${dashboard}/cells/new`)
   }
 }
 
