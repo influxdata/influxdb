@@ -12,7 +12,11 @@ import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Constants
-import {HOMEPAGE_PATHNAME, CLOUD_URL} from 'src/shared/constants'
+import {
+  HOMEPAGE_PATHNAME,
+  CLOUD_URL,
+  CLOUD_USERS_PATH,
+} from 'src/shared/constants'
 
 // Utils
 import {getNavItemActivation} from 'src/pageLayout/utils'
@@ -91,7 +95,7 @@ class SideNav extends PureComponent<Props, State> {
       'https://docs.google.com/forms/d/e/1FAIpQLSdGJpnIZGotN1VFJPkgZEhrt4t4f6QY1lMgMSRUnMeN3FjCKA/viewform?usp=sf_link'
 
     // Cloud
-    const cloudUsersLink = `${CLOUD_URL}/users`
+    const cloudUsersLink = `${CLOUD_URL}/${CLOUD_USERS_PATH}`
 
     return (
       <NavMenu>
