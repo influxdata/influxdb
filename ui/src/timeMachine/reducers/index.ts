@@ -633,9 +633,10 @@ export const timeMachineReducer = (
       return produce(state, draftState => {
         const {activeQueryIndex} = action.payload
 
-        draftState.activeQueryIndex = activeQueryIndex
-
-        resetBuilderState(draftState)
+        if (activeQueryIndex < draftState.draftQueries.length) {
+          draftState.activeQueryIndex = activeQueryIndex
+          resetBuilderState(draftState)
+        }
       })
     }
 
