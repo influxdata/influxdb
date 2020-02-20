@@ -1,9 +1,9 @@
-use crate::delorean::{Node, Predicate};
+use crate::delorean::{Node, Predicate, TimestampRange};
 use crate::line_parser::{ParseError, Point, PointType};
 use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
 use crate::storage::predicate::{Evaluate, EvaluateVisitor};
 use crate::storage::series_store::{ReadPoint, SeriesStore};
-use crate::storage::{Range, SeriesDataType, StorageError};
+use crate::storage::{SeriesDataType, StorageError};
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex, RwLock};
@@ -120,13 +120,13 @@ impl<T: Clone> SeriesRingBuffer<T> {
         self.next_position += 1;
     }
 
-    fn get_range(&self, range: &Range) -> Vec<ReadPoint<T>> {
+    fn get_range(&self, range: &TimestampRange) -> Vec<ReadPoint<T>> {
         let (_, pos) = self.oldest_time_and_position();
 
         let mut values = Vec::new();
 
         for i in pos..self.data.len() {
-            if self.data[i].time > range.stop {
+            if self.data[i].time > range.end {
                 return values;
             } else if self.data[i].time >= range.start {
                 values.push(self.data[i].clone());
@@ -134,7 +134,7 @@ impl<T: Clone> SeriesRingBuffer<T> {
         }
 
         for i in 0..self.next_position {
-            if self.data[i].time > range.stop {
+            if self.data[i].time > range.end {
                 return values;
             } else if self.data[i].time >= range.start {
                 values.push(self.data[i].clone());
@@ -417,7 +417,7 @@ impl MemDB {
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>>>, StorageError> {
         let buckets = self.bucket_id_to_series_data.read().unwrap();
@@ -551,7 +551,7 @@ impl SeriesStore for MemDB {
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
         self.read_range(bucket_id, series_id, range, batch_size)
@@ -561,7 +561,7 @@ impl SeriesStore for MemDB {
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
         self.read_range(bucket_id, series_id, range, batch_size)

@@ -1,10 +1,10 @@
-use crate::delorean::{Bucket, Predicate};
+use crate::delorean::{Bucket, Predicate, TimestampRange};
 use crate::line_parser::PointType;
 use crate::storage::config_store::ConfigStore;
 use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
 use crate::storage::rocksdb::RocksDB;
 use crate::storage::series_store::{ReadPoint, SeriesStore};
-use crate::storage::{Range, StorageError};
+use crate::storage::StorageError;
 
 use std::sync::Arc;
 
@@ -59,7 +59,7 @@ impl Database {
         &self,
         bucket: &Bucket,
         predicate: Option<&Predicate>,
-        _range: Option<&Range>,
+        _range: Option<&TimestampRange>,
     ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError> {
         self.local_index.read_series_matching(bucket.id, predicate)
     }
@@ -68,7 +68,7 @@ impl Database {
         &self,
         bucket: &Bucket,
         series_filter: &SeriesFilter,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
         self.local_series_store
@@ -79,7 +79,7 @@ impl Database {
         &self,
         bucket: &Bucket,
         series_filter: &SeriesFilter,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
         self.local_series_store

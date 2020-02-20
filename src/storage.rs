@@ -10,11 +10,6 @@ pub mod predicate;
 pub mod rocksdb;
 pub mod series_store;
 
-pub struct Range {
-    pub start: i64,
-    pub stop: i64,
-}
-
 // The values for these enum variants have no real meaning, but they
 // are serialized to disk. Revisit these whenever it's time to decide
 // on an on-disk format.

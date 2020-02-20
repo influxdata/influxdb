@@ -1,10 +1,10 @@
-use crate::delorean::{Bucket, IndexLevel, Node, Predicate};
+use crate::delorean::{Bucket, IndexLevel, Node, Predicate, TimestampRange};
 use crate::line_parser::PointType;
 use crate::storage::config_store::ConfigStore;
 use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
 use crate::storage::predicate::{Evaluate, EvaluateVisitor};
 use crate::storage::series_store::{ReadPoint, SeriesStore};
-use crate::storage::{Range, SeriesDataType, StorageError};
+use crate::storage::{SeriesDataType, StorageError};
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -116,7 +116,7 @@ impl RocksDB {
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>>>, StorageError> {
         let (iter, series_prefix) = self.get_db_points_iter(bucket_id, series_id, range.start);
@@ -124,7 +124,7 @@ impl RocksDB {
         Ok(Box::new(PointsIterator {
             batch_size,
             iter,
-            stop_time: range.stop,
+            stop_time: range.end,
             series_prefix,
             drained: false,
             read: FromBytes::from,
@@ -730,7 +730,7 @@ impl SeriesStore for RocksDB {
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
         self.read_range(bucket_id, series_id, range, batch_size)
@@ -740,7 +740,7 @@ impl SeriesStore for RocksDB {
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
         self.read_range(bucket_id, series_id, range, batch_size)
@@ -1366,7 +1366,7 @@ mod tests {
         db.write_points(b1.id, &points).unwrap();
 
         // test that we'll only read from the bucket we wrote points into
-        let range = Range { start: 1, stop: 4 };
+        let range = TimestampRange { start: 1, end: 4 };
         let pred = parse_predicate(r#"_m = "cpu""#).unwrap();
         let mut iter = db.read_series_matching(b1.id, Some(&pred)).unwrap();
 
@@ -1414,7 +1414,7 @@ mod tests {
         db.write_points(b2.id, &b2_points).unwrap();
 
         // test that we'll only read from the bucket we wrote points into
-        let range = Range { start: 1, stop: 4 };
+        let range = TimestampRange { start: 1, end: 4 };
         let pred = parse_predicate(r#"_m = "cpu" OR _m = "mem""#).unwrap();
         let mut iter = db.read_series_matching(b1.id, Some(&pred)).unwrap();
         let series_filter = iter.next().unwrap();
@@ -1511,7 +1511,7 @@ mod tests {
         assert_eq!(points, vec![ReadPoint { time: 2, value: 1 },]);
 
         // test that the time range is properly limiting
-        let range = Range { start: 2, stop: 3 };
+        let range = TimestampRange { start: 2, end: 3 };
         let pred = parse_predicate(r#"_m = "cpu" OR _m = "mem""#).unwrap();
         let mut iter = db.read_series_matching(b2.id, Some(&pred)).unwrap();
         let series_filter = iter.next().unwrap();
@@ -1563,7 +1563,7 @@ mod tests {
         db.write_points_with_series_ids(b1.id, &points).unwrap();
 
         // test that we'll only read from the bucket we wrote points into
-        let range = Range { start: 0, stop: 4 };
+        let range = TimestampRange { start: 0, end: 4 };
         let pred = parse_predicate(r#"_m = "cpu""#).unwrap();
         let mut iter = db.read_series_matching(b1.id, Some(&pred)).unwrap();
         let series_filter = iter.next().unwrap();
