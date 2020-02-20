@@ -52,4 +52,7 @@ const mdtp: DispatchProps = {
   onToggleVisOptions: toggleVisOptions,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(VisOptionsButton)
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(VisOptionsButton)

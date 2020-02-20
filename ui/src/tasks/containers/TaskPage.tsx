@@ -154,4 +154,7 @@ const mdtp: DispatchProps = {
   cancel,
 }
 
-export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(TaskPage)
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
+  mdtp
+)(TaskPage)

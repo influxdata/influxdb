@@ -126,4 +126,7 @@ const mstp = (state: AppState): StateProps => {
 }
 
 export {ClientJavaOverlay}
-export default connect<StateProps, {}, Props>(mstp, null)(ClientJavaOverlay)
+export default connect<StateProps, {}, Props>(
+  mstp,
+  null
+)(ClientJavaOverlay)

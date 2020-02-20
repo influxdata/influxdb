@@ -66,7 +66,7 @@ export const orgsReducer = (
         // updated. Since we have only one org at a time in this app
         // i've taken some liberties here
         if (action.schema.result === draftState.org.id) {
-            draftState.org = action.schema.entities.orgs[action.schema.result]
+          draftState.org = action.schema.entities.orgs[action.schema.result]
         }
 
         return

@@ -48,4 +48,7 @@ class ScrapersIndex extends Component<StateProps> {
 
 const mstp = (state: AppState) => ({org: getOrg(state)})
 
-export default connect<StateProps, {}, {}>(mstp, null)(ScrapersIndex)
+export default connect<StateProps, {}, {}>(
+  mstp,
+  null
+)(ScrapersIndex)

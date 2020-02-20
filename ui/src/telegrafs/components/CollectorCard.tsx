@@ -76,7 +76,9 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
           </span>,
           <>
             <Link
-              to={`/orgs/${org.id}/load-data/telegrafs/${collector.id}/instructions`}
+              to={`/orgs/${org.id}/load-data/telegrafs/${
+                collector.id
+              }/instructions`}
               data-testid="setup-instructions-link"
             >
               Setup Instructions

@@ -87,4 +87,7 @@ const mstp = ({cloud: {limits}}: AppState): StateProps => {
   }
 }
 
-export default connect(mstp, null)(AlertingIndex)
+export default connect(
+  mstp,
+  null
+)(AlertingIndex)

@@ -58,5 +58,8 @@ const mdtp: DispatchProps = {
 }
 
 export default withRouter(
-  connect<StateProps, DispatchProps>(mstp, mdtp)(GetTimeRange)
+  connect<StateProps, DispatchProps>(
+    mstp,
+    mdtp
+  )(GetTimeRange)
 )

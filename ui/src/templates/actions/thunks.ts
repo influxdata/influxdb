@@ -226,10 +226,7 @@ export const addTemplateLabelsAsync = (
   labels: Label[]
 ) => async (dispatch: Dispatch<Action>): Promise<void> => {
   try {
-    await client.templates.addLabels(
-      templateID,
-      labels.map(l => l.id)
-    )
+    await client.templates.addLabels(templateID, labels.map(l => l.id))
     const item = await client.templates.get(templateID)
     const templateSummary = normalize<
       TemplateSummary,
@@ -251,10 +248,7 @@ export const removeTemplateLabelsAsync = (
   labels: Label[]
 ) => async (dispatch: Dispatch<Action>): Promise<void> => {
   try {
-    await client.templates.removeLabels(
-      templateID,
-      labels.map(l => l.id)
-    )
+    await client.templates.removeLabels(templateID, labels.map(l => l.id))
     const item = await client.templates.get(templateID)
     const templateSummary = normalize<
       TemplateSummary,

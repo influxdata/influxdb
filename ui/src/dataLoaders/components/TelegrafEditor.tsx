@@ -110,4 +110,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}>(mstp, null)(TelegrafEditor)
+export default connect<StateProps, {}>(
+  mstp,
+  null
+)(TelegrafEditor)

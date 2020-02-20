@@ -86,4 +86,7 @@ const mstp = (state: AppState) => {
   return {org, limitedResources}
 }
 
-export default connect<StateProps, {}, {}>(mstp, null)(BucketsIndex)
+export default connect<StateProps, {}, {}>(
+  mstp,
+  null
+)(BucketsIndex)

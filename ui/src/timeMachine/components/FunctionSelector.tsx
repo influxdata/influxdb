@@ -196,4 +196,7 @@ const mdtp = {
   onSelectAggregateWindow: selectAggregateWindow,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(FunctionSelector)
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(FunctionSelector)

@@ -197,4 +197,7 @@ const mdtp: DispatchProps = {
   deleteLabel: deleteLabel,
 }
 
-export default connect(mstp, mdtp)(Labels)
+export default connect(
+  mstp,
+  mdtp
+)(Labels)

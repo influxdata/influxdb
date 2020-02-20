@@ -162,4 +162,7 @@ const mdtp: DispatchProps = {
   clearTask,
 }
 
-export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(TaskEditPage)
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
+  mdtp
+)(TaskEditPage)

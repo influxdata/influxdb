@@ -115,4 +115,7 @@ const mdtp = {
   onUpdate: updateAuthorization,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(null, mdtp)(TokenRow)
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
+  mdtp
+)(TokenRow)

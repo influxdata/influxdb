@@ -26,4 +26,7 @@ const mdtp: DispatchProps = {
   getReadWriteCardinalityLimits: getReadWriteCardinalityLimitsAction,
 }
 
-export default connect<{}, DispatchProps, {}>(null, mdtp)(LimitChecker)
+export default connect<{}, DispatchProps, {}>(
+  null,
+  mdtp
+)(LimitChecker)

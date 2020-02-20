@@ -16,11 +16,11 @@ export async function addSyntax(monaco: MonacoType) {
     // a private repo, so we can't use it yet (alex)
     getGrammarDefinition: async () => ({
       format: 'json',
-      content: await import(
-        /* webpackPrefetch: 0 */ 'src/external/flux.tmLanguage.json'
-      ).then(data => {
-        return JSON.stringify(data)
-      }),
+      content: await import(/* webpackPrefetch: 0 */ 'src/external/flux.tmLanguage.json').then(
+        data => {
+          return JSON.stringify(data)
+        }
+      ),
     }),
   })
 

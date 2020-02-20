@@ -59,4 +59,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}, OwnProps>(mstp, null)(DashboardComponent)
+export default connect<StateProps, {}, OwnProps>(
+  mstp,
+  null
+)(DashboardComponent)

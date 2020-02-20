@@ -108,4 +108,7 @@ const mdtp: DispatchProps = {
   notify: notifyAction,
 }
 
-export default connect(null, mdtp)(withRouter(Signin))
+export default connect(
+  null,
+  mdtp
+)(withRouter(Signin))

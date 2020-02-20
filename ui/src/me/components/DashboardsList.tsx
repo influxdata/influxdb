@@ -64,4 +64,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}, {}>(mstp, null)(DashboardList)
+export default connect<StateProps, {}, {}>(
+  mstp,
+  null
+)(DashboardList)

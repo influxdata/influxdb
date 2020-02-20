@@ -114,4 +114,7 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   return {view}
 }
 
-export default connect<StateProps, {}, OwnProps>(mstp, null)(CellComponent)
+export default connect<StateProps, {}, OwnProps>(
+  mstp,
+  null
+)(CellComponent)

@@ -166,5 +166,8 @@ const mdtp: DispatchProps = {
 
 // state mapping requires router
 export default withRouter<OwnProps>(
-  connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(RenameBucketForm)
+  connect<StateProps, DispatchProps, OwnProps>(
+    mstp,
+    mdtp
+  )(RenameBucketForm)
 )

@@ -179,4 +179,7 @@ const mdtp: DispatchProps = {
   onNotify: notify,
 }
 
-export default connect<{}, DispatchProps>(null, mdtp)(withRouter(CheckCard))
+export default connect<{}, DispatchProps>(
+  null,
+  mdtp
+)(withRouter(CheckCard))

@@ -122,4 +122,7 @@ const mstp = (state: AppState): StateProps => {
 }
 
 export {ClientPythonOverlay}
-export default connect<StateProps, {}, Props>(mstp, null)(ClientPythonOverlay)
+export default connect<StateProps, {}, Props>(
+  mstp,
+  null
+)(ClientPythonOverlay)

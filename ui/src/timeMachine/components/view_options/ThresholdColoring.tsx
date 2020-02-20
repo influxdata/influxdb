@@ -97,4 +97,7 @@ const mdtp = {
   onSetText: setTextThresholdColoring,
 }
 
-export default connect<StateProps, DispatchProps>(mstp, mdtp)(ThresholdColoring)
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(ThresholdColoring)

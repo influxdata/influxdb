@@ -106,4 +106,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, {}, {}>(mstp, null)(TelegrafConfigOverlay)
+export default connect<StateProps, {}, {}>(
+  mstp,
+  null
+)(TelegrafConfigOverlay)

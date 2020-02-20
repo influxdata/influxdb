@@ -47,4 +47,7 @@ const mapStateToProps = ({
   inPresentationMode,
 })
 
-export default connect(mapStateToProps, null)(Notifications)
+export default connect(
+  mapStateToProps,
+  null
+)(Notifications)

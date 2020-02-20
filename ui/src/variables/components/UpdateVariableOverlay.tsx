@@ -266,5 +266,8 @@ const mdtp: DispatchProps = {
 }
 
 export default withRouter(
-  connect<StateProps, DispatchProps>(mstp, mdtp)(UpdateVariableOverlay)
+  connect<StateProps, DispatchProps>(
+    mstp,
+    mdtp
+  )(UpdateVariableOverlay)
 )

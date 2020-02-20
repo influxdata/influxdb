@@ -97,7 +97,9 @@ export function createCheckQueryFromAlertBuilder(
 
     const dataRange = `  |> range(start: -check.every)`
 
-    const aggregateFunction = `  |> aggregateWindow(every: check.every, fn: ${builderConfig.functions[0].name}, createEmpty: false)`
+    const aggregateFunction = `  |> aggregateWindow(every: check.every, fn: ${
+      builderConfig.functions[0].name
+    }, createEmpty: false)`
 
     const dataDefinition = [
       dataFrom,

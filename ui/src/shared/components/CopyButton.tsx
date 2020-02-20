@@ -84,4 +84,7 @@ const mdtp: DispatchProps = {
   notify: notifyAction,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(null, mdtp)(CopyButton)
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
+  mdtp
+)(CopyButton)

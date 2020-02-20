@@ -32,4 +32,7 @@ const mdtp: DispatchProps = {
   onLoadCustomCheckQueryState: loadCustomCheckQueryState,
 }
 
-export default connect<{}, DispatchProps>(null, mdtp)(CustomizeCheckQueryButton)
+export default connect<{}, DispatchProps>(
+  null,
+  mdtp
+)(CustomizeCheckQueryButton)

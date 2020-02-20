@@ -59,4 +59,7 @@ const mstp = ({
   telegrafPlugins,
 })
 
-export default connect<StateProps>(mstp, null)(PluginConfigSwitcher)
+export default connect<StateProps>(
+  mstp,
+  null
+)(PluginConfigSwitcher)

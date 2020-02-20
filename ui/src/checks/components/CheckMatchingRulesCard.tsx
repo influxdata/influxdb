@@ -171,4 +171,7 @@ const mstp = (state: AppState): StateProps => {
   return {tags, orgID, queryResults: files}
 }
 
-export default connect<StateProps>(mstp, null)(CheckMatchingRulesCard)
+export default connect<StateProps>(
+  mstp,
+  null
+)(CheckMatchingRulesCard)

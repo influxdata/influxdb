@@ -158,4 +158,7 @@ const mdtp: DispatchProps = {
   onCreateTemplateFromResource: createTemplateFromResource,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(null, mdtp)(ExportOverlay)
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
+  mdtp
+)(ExportOverlay)

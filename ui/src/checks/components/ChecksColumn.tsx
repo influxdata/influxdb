@@ -111,4 +111,7 @@ const mstp = (state: AppState) => {
   }
 }
 
-export default connect<StateProps>(mstp, null)(withRouter(ChecksColumn))
+export default connect<StateProps>(
+  mstp,
+  null
+)(withRouter(ChecksColumn))

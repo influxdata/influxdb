@@ -56,4 +56,7 @@ const mdtp: DispatchProps = {
   onUpdateType: setType,
 }
 
-export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(ViewOptions)
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
+  mdtp
+)(ViewOptions)

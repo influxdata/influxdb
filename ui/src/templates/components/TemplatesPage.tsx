@@ -206,4 +206,7 @@ const mstp = (state: AppState): StateProps => ({
   templates: getAll(state, ResourceType.Templates),
 })
 
-export default connect<StateProps>(mstp, null)(TemplatesPage)
+export default connect<StateProps>(
+  mstp,
+  null
+)(TemplatesPage)

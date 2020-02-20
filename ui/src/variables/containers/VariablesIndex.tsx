@@ -45,4 +45,7 @@ const mstp = (state: AppState): StateProps => {
   return {org: state.resources.orgs.org}
 }
 
-export default connect<StateProps, {}, {}>(mstp, null)(VariablesIndex)
+export default connect<StateProps, {}, {}>(
+  mstp,
+  null
+)(VariablesIndex)

@@ -33,4 +33,7 @@ const mstp = ({
   return {thresholds}
 }
 
-export default connect<StateProps, {}, {}>(mstp, null)(ThresholdConditions)
+export default connect<StateProps, {}, {}>(
+  mstp,
+  null
+)(ThresholdConditions)
