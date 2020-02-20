@@ -63,10 +63,13 @@ export const CLOUD_BILLING_PATH = '/billing'
 export const CLOUD_USAGE_PATH = '/usage'
 export const CLOUD_LOGOUT_PATH = '/logout'
 
-export const AUTH0_DOMAIN = process.env.AUTH0_DOMAIN
-export const AUTH0_CLIENT_ID = process.env.AUTH0_CLIENT_ID
-export const AUTH0_REDIRECT_URI = process.env.AUTH0_REDIRECT_URI || BASE_PATH
-export const AUTH0_RETURN_TO_URI = process.env.AUTH0_RETURN_TO_URI || BASE_PATH
+// defaults are being added to prevent e2e failures, need to find a better solution
+export const AUTH0_DOMAIN = process.env.AUTH0_DOMAIN || 'test_domain'
+export const AUTH0_CLIENT_ID = process.env.AUTH0_CLIENT_ID || 'client_id'
+export const AUTH0_REDIRECT_URI =
+  process.env.AUTH0_REDIRECT_URI || BASE_PATH || 'redirect_uri'
+export const AUTH0_RETURN_TO_URI =
+  process.env.AUTH0_RETURN_TO_URI || BASE_PATH || 'return_to_uri'
 
 export const FLUX_RESPONSE_BYTES_LIMIT = CLOUD
   ? 10 * 1024 * 1024 // 10 MiB
