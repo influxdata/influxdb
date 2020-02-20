@@ -9,9 +9,14 @@ import {NavMenu, Icon} from '@influxdata/clockface'
 import AccountNavSubItem from 'src/pageLayout/components/AccountNavSubItem'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Constants
-import {HOMEPAGE_PATHNAME} from 'src/shared/constants'
+import {
+  HOMEPAGE_PATHNAME,
+  CLOUD_URL,
+  CLOUD_USERS_PATH,
+} from 'src/shared/constants'
 
 // Utils
 import {getNavItemActivation} from 'src/pageLayout/utils'
@@ -88,6 +93,9 @@ class SideNav extends PureComponent<Props, State> {
     // Feedback
     const feedbackLink =
       'https://docs.google.com/forms/d/e/1FAIpQLSdGJpnIZGotN1VFJPkgZEhrt4t4f6QY1lMgMSRUnMeN3FjCKA/viewform?usp=sf_link'
+
+    // Cloud
+    const cloudUsersLink = `${CLOUD_URL}/${CLOUD_USERS_PATH}`
 
     return (
       <NavMenu>
@@ -247,6 +255,23 @@ class SideNav extends PureComponent<Props, State> {
             key="client-libraries"
           />
         </NavMenu.Item>
+        <FeatureFlag name="multiUser">
+          <CloudOnly>
+            <NavMenu.Item
+              titleLink={className => (
+                <a className={className} href={cloudUsersLink}>
+                  Team Members
+                </a>
+              )}
+              iconLink={className => (
+                <a href={cloudUsersLink} className={className}>
+                  <Icon glyph={IconFont.UsersTrio} />
+                </a>
+              )}
+              active={getNavItemActivation(['users'], location.pathname)}
+            />
+          </CloudOnly>
+        </FeatureFlag>
         <NavMenu.Item
           titleLink={className => (
             <Link className={className} to={settingsLink}>
