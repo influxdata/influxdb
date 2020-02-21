@@ -29,7 +29,7 @@ func NewRegistry() *Registry {
 type Registry struct {
 	mu sync.RWMutex             // rw mutex used to protect our s map
 	s  map[string]struct{}      // map storing service names
-	ch map[string]chan struct{} // map storing service names
+	ch map[string]chan struct{} // map storing service wait channels
 }
 
 // WaitFor takes a string representing a service name and returns a channel
