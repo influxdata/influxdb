@@ -99,7 +99,7 @@ pub mod tests {
         // get all series
 
         // get series with measurement = mem
-        let pred = parse_predicate("_m = \"cpu\"").unwrap();
+        let pred = parse_predicate(r#"_m = "cpu""#).unwrap();
         let series: Vec<SeriesFilter> = index
             .read_series_matching(bucket_id, Some(&pred))
             .unwrap()
@@ -129,7 +129,7 @@ pub mod tests {
         );
 
         // get series with host = a
-        let pred = parse_predicate("host = \"a\"").unwrap();
+        let pred = parse_predicate(r#"host = "a""#).unwrap();
         let series: Vec<SeriesFilter> = index
             .read_series_matching(bucket_id, Some(&pred))
             .unwrap()
@@ -153,7 +153,7 @@ pub mod tests {
         );
 
         // get series with measurement = cpu and host = b
-        let pred = parse_predicate("_m = \"cpu\" and host = \"b\"").unwrap();
+        let pred = parse_predicate(r#"_m = "cpu" and host = "b""#).unwrap();
         let series: Vec<SeriesFilter> = index
             .read_series_matching(bucket_id, Some(&pred))
             .unwrap()
@@ -168,7 +168,7 @@ pub mod tests {
             },]
         );
 
-        let pred = parse_predicate("host = \"a\" OR _m = \"mem\"").unwrap();
+        let pred = parse_predicate(r#"host = "a" OR _m = "mem""#).unwrap();
         let series: Vec<SeriesFilter> = index
             .read_series_matching(bucket_id, Some(&pred))
             .unwrap()

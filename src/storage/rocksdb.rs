@@ -1315,7 +1315,7 @@ mod tests {
         // get all series
 
         // get series with measurement = mem
-        let pred = parse_predicate("_m = \"cpu\"").unwrap();
+        let pred = parse_predicate(r#"_m = "cpu""#).unwrap();
         let series: Vec<SeriesFilter> = db
             .read_series_matching(bucket.id, Some(&pred))
             .unwrap()
@@ -1345,7 +1345,7 @@ mod tests {
         );
 
         // get series with host = a
-        let pred = parse_predicate("host = \"a\"").unwrap();
+        let pred = parse_predicate(r#"host = "a""#).unwrap();
         let series: Vec<SeriesFilter> = db
             .read_series_matching(bucket.id, Some(&pred))
             .unwrap()
@@ -1369,7 +1369,7 @@ mod tests {
         );
 
         // get series with measurement = cpu and host = b
-        let pred = parse_predicate("_m = \"cpu\" and host = \"b\"").unwrap();
+        let pred = parse_predicate(r#"_m = "cpu" and host = "b""#).unwrap();
         let series: Vec<SeriesFilter> = db
             .read_series_matching(bucket.id, Some(&pred))
             .unwrap()
@@ -1384,7 +1384,7 @@ mod tests {
             },]
         );
 
-        let pred = parse_predicate("host = \"a\" OR _m = \"mem\"").unwrap();
+        let pred = parse_predicate(r#"host = "a" OR _m = "mem""#).unwrap();
         let series: Vec<SeriesFilter> = db
             .read_series_matching(bucket.id, Some(&pred))
             .unwrap()
@@ -1430,7 +1430,7 @@ mod tests {
 
         // test that we'll only read from the bucket we wrote points into
         let range = Range { start: 1, stop: 4 };
-        let pred = parse_predicate("_m = \"cpu\"").unwrap();
+        let pred = parse_predicate(r#"_m = "cpu""#).unwrap();
         let mut iter = db.read_series_matching(b1.id, Some(&pred)).unwrap();
 
         let series_filter = iter.next().unwrap();
@@ -1478,7 +1478,7 @@ mod tests {
 
         // test that we'll only read from the bucket we wrote points into
         let range = Range { start: 1, stop: 4 };
-        let pred = parse_predicate("_m = \"cpu\" OR _m = \"mem\"").unwrap();
+        let pred = parse_predicate(r#"_m = "cpu" OR _m = "mem""#).unwrap();
         let mut iter = db.read_series_matching(b1.id, Some(&pred)).unwrap();
         let series_filter = iter.next().unwrap();
         assert_eq!(
@@ -1505,7 +1505,7 @@ mod tests {
         assert_eq!(points_iter.next(), None);
 
         // test that we'll read multiple series
-        let pred = parse_predicate("_m = \"cpu\" OR _m = \"mem\"").unwrap();
+        let pred = parse_predicate(r#"_m = "cpu" OR _m = "mem""#).unwrap();
         let mut iter = db.read_series_matching(b2.id, Some(&pred)).unwrap();
         let series_filter = iter.next().unwrap();
         assert_eq!(
@@ -1552,7 +1552,7 @@ mod tests {
         );
 
         // test that the batch size is honored
-        let pred = parse_predicate("host = \"b\"").unwrap();
+        let pred = parse_predicate(r#"host = "b""#).unwrap();
         let mut iter = db.read_series_matching(b1.id, Some(&pred)).unwrap();
         let series_filter = iter.next().unwrap();
         assert_eq!(
@@ -1575,7 +1575,7 @@ mod tests {
 
         // test that the time range is properly limiting
         let range = Range { start: 2, stop: 3 };
-        let pred = parse_predicate("_m = \"cpu\" OR _m = \"mem\"").unwrap();
+        let pred = parse_predicate(r#"_m = "cpu" OR _m = "mem""#).unwrap();
         let mut iter = db.read_series_matching(b2.id, Some(&pred)).unwrap();
         let series_filter = iter.next().unwrap();
         assert_eq!(
@@ -1627,7 +1627,7 @@ mod tests {
 
         // test that we'll only read from the bucket we wrote points into
         let range = Range { start: 0, stop: 4 };
-        let pred = parse_predicate("_m = \"cpu\"").unwrap();
+        let pred = parse_predicate(r#"_m = "cpu""#).unwrap();
         let mut iter = db.read_series_matching(b1.id, Some(&pred)).unwrap();
         let series_filter = iter.next().unwrap();
         assert_eq!(
