@@ -156,6 +156,33 @@ export const STRINGS_TRIM: FluxToolbarFunction = {
 
 export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
+    name: 'aggregate.rate',
+    args: [
+      {
+        name: 'every',
+        desc: 'Duration of windows.',
+        type: 'Duration',
+      },
+      {
+        name: 'groupColumns',
+        desc: 'List of columns to group by. Defaults to [].',
+        type: 'Array of Strings',
+      },
+      {
+        name: 'unit',
+        desc:
+          'Time duration to use when calculating the rate. Defaults to `1s`.',
+        type: 'Array of Strings',
+      },
+    ],
+    package: 'experimental/aggregate',
+    desc: 'Calculates the range of change per windows of time.',
+    example: 'aggregate.rate(every: 1m, unit: 1s)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/aggregate/rate/',
+  },
+  {
     name: 'aggregateWindow',
     args: [
       {
