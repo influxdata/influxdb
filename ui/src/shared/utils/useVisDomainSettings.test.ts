@@ -6,10 +6,11 @@ import {numericColumnData as data} from 'mocks/dummyData'
 import {CustomTimeRange} from 'src/types/queries'
 
 describe('getValidRange', () => {
-  const startTime: string = 'Nov 07 2019 02:46:51 GMT-0800'
-  const unixStart: number = 1573123611000
-  const endTime: string = 'Nov 28 2019 14:46:51 GMT-0800'
-  const unixEnd: number = 1574981211000
+  // const startTime: string = 'Nov 07 2019 02:46:51 GMT-0800'
+  const startTime: string = '2019-11-07T02:46:51Z'
+  const unixStart: number = 1573094811000
+  const endTime: string = '2019-11-28T14:46:51Z'
+  const unixEnd: number = 1574952411000
   it('should return null when no parameters are input', () => {
     expect(getValidRange(undefined, undefined)).toEqual(null)
   })

@@ -37,7 +37,7 @@ describe('TimeMachine.Selectors.Index', () => {
     )
   })
 
-  const date = 'January 1, 2019'
+  const date = '2019-01-01'
   const newYears = moment(date).valueOf()
   it(`getStartTime should return ${newYears} when lower is ${date}`, () => {
     const timeRange = {
