@@ -121,4 +121,4 @@ const mdtp: DispatchProps = {
 export default connect<{}, DispatchProps, OwnProps>(
   null,
   mdtp
-)(withRouter<Props>(VariableCard))
+)(withRouter<OwnProps>(VariableCard))

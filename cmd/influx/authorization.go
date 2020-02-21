@@ -10,13 +10,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func cmdAuth() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "auth",
-		Aliases: []string{"authorization"},
-		Short:   "Authorization management commands",
-		Run:     seeHelp,
-	}
+func cmdAuth(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("auth", nil)
+	cmd.Aliases = []string{"authorization"}
+	cmd.Short = "Authorization management commands"
+	cmd.Run = seeHelp
+
 	cmd.AddCommand(
 		authActiveCmd(),
 		authCreateCmd(),
@@ -67,7 +66,7 @@ func authCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create authorization",
-		RunE:  wrapCheckSetup(authorizationCreateF),
+		RunE:  checkSetupRunEMiddleware(&flags)(authorizationCreateF),
 	}
 	authCreateFlags.org.register(cmd, false)
 
@@ -282,7 +281,7 @@ func authFindCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "find",
 		Short: "Find authorization",
-		RunE:  wrapCheckSetup(authorizationFindF),
+		RunE:  checkSetupRunEMiddleware(&flags)(authorizationFindF),
 	}
 
 	cmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")
@@ -386,7 +385,7 @@ func authDeleteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete authorization",
-		RunE:  wrapCheckSetup(authorizationDeleteF),
+		RunE:  checkSetupRunEMiddleware(&flags)(authorizationDeleteF),
 	}
 
 	cmd.Flags().StringVarP(&authorizationDeleteFlags.id, "id", "i", "", "The authorization ID (required)")
@@ -452,7 +451,7 @@ func authActiveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "active",
 		Short: "Active authorization",
-		RunE:  wrapCheckSetup(authorizationActiveF),
+		RunE:  checkSetupRunEMiddleware(&flags)(authorizationActiveF),
 	}
 
 	cmd.Flags().StringVarP(&authorizationActiveFlags.id, "id", "i", "", "The authorization ID (required)")
@@ -520,7 +519,7 @@ func authInactiveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "inactive",
 		Short: "Inactive authorization",
-		RunE:  wrapCheckSetup(authorizationInactiveF),
+		RunE:  checkSetupRunEMiddleware(&flags)(authorizationInactiveF),
 	}
 
 	cmd.Flags().StringVarP(&authorizationInactiveFlags.id, "id", "i", "", "The authorization ID (required)")

@@ -1,5 +1,7 @@
 // Libraries
 import React, {Component} from 'react'
+import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
@@ -15,6 +17,24 @@ import {
   Page,
 } from '@influxdata/clockface'
 
+// Actions
+import {delayEnablePresentationMode} from 'src/shared/actions/app'
+import {toggleShowVariablesControls} from 'src/userSettings/actions'
+import {updateDashboard} from 'src/dashboards/actions/thunks'
+import {
+  setAutoRefreshInterval,
+  setAutoRefreshStatus,
+} from 'src/shared/actions/autoRefresh'
+import {
+  setDashboardTimeRange,
+  updateQueryParams,
+} from 'src/dashboards/actions/ranges'
+
+// Selectors
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+import {getByID} from 'src/resources/selectors'
+import {getOrg} from 'src/organizations/selectors'
+
 // Constants
 import {
   DEFAULT_DASHBOARD_NAME,
@@ -22,37 +42,48 @@ import {
 } from 'src/dashboards/constants/index'
 
 // Types
-import * as AppActions from 'src/types/actions/app'
-import {AutoRefresh, AutoRefreshStatus, TimeRange} from 'src/types'
+import {
+  AppState,
+  AutoRefresh,
+  AutoRefreshStatus,
+  Dashboard,
+  Organization,
+  ResourceType,
+  TimeRange,
+} from 'src/types'
 
-interface Props {
-  orgName: string
-  dashboardName: string
-  timeRange: TimeRange
+interface OwnProps {
   autoRefresh: AutoRefresh
-  handleChooseTimeRange: (timeRange: TimeRange) => void
-  handleChooseAutoRefresh: (autoRefreshInterval: number) => void
-  onSetAutoRefreshStatus: (status: AutoRefreshStatus) => void
   onManualRefresh: () => void
-  handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
-  onAddCell: () => void
-  onAddNote: () => void
-  onRenameDashboard: (name: string) => void
-  toggleVariablesControlBar: () => void
-  isShowingVariablesControlBar: boolean
 }
 
-export default class DashboardHeader extends Component<Props> {
+interface StateProps {
+  org: Organization
+  dashboard: Dashboard
+  showVariablesControls: boolean
+  timeRange: TimeRange
+}
+
+interface DispatchProps {
+  handleClickPresentationButton: typeof delayEnablePresentationMode
+  toggleShowVariablesControls: typeof toggleShowVariablesControls
+  updateDashboard: typeof updateDashboard
+  onSetAutoRefreshStatus: typeof setAutoRefreshStatus
+  updateQueryParams: typeof updateQueryParams
+  setDashboardTimeRange: typeof setDashboardTimeRange
+  handleChooseAutoRefresh: typeof setAutoRefreshInterval
+}
+
+type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+
+class DashboardHeader extends Component<Props> {
   public render() {
     const {
-      orgName,
-      handleChooseAutoRefresh,
+      org,
+      dashboard,
       onManualRefresh,
-      toggleVariablesControlBar,
-      isShowingVariablesControlBar,
-      onRenameDashboard,
-      onAddCell,
-      dashboardName,
+      toggleShowVariablesControls,
+      showVariablesControls,
       autoRefresh,
       timeRange,
     } = this.props
@@ -61,10 +92,10 @@ export default class DashboardHeader extends Component<Props> {
       <Page.Header fullWidth={true}>
         <Page.HeaderLeft>
           <RenamablePageTitle
-            prefix={orgName}
+            prefix={org && org.name}
             maxLength={DASHBOARD_NAME_MAX_LENGTH}
-            onRename={onRenameDashboard}
-            name={dashboardName}
+            onRename={this.handleRenameDashboard}
+            name={dashboard && dashboard.name}
             placeholder={DEFAULT_DASHBOARD_NAME}
           />
         </Page.HeaderLeft>
@@ -73,7 +104,7 @@ export default class DashboardHeader extends Component<Props> {
           <Button
             icon={IconFont.AddCell}
             color={ComponentColor.Primary}
-            onClick={onAddCell}
+            onClick={this.handleAddCell}
             text="Add Cell"
             titleText="Add cell to dashboard"
           />
@@ -84,7 +115,7 @@ export default class DashboardHeader extends Component<Props> {
           />
           <TimeZoneDropdown />
           <AutoRefreshDropdown
-            onChoose={handleChooseAutoRefresh}
+            onChoose={this.handleChooseAutoRefresh}
             onManualRefresh={onManualRefresh}
             selected={autoRefresh}
           />
@@ -95,9 +126,9 @@ export default class DashboardHeader extends Component<Props> {
           <Button
             icon={IconFont.Cube}
             text="Variables"
-            onClick={toggleVariablesControlBar}
+            onClick={toggleShowVariablesControls}
             color={
-              isShowingVariablesControlBar
+              showVariablesControls
                 ? ComponentColor.Secondary
                 : ComponentColor.Default
             }
@@ -113,34 +144,91 @@ export default class DashboardHeader extends Component<Props> {
   }
 
   private handleAddNote = () => {
-    this.props.onAddNote()
+    const {router, org, dashboard} = this.props
+    router.push(`/orgs/${org.id}/dashboards/${dashboard.id}/notes/new`)
+  }
+
+  private handleAddCell = () => {
+    const {router, org, dashboard} = this.props
+    router.push(`/orgs/${org.id}/dashboards/${dashboard.id}/cells/new`)
+  }
+
+  private handleRenameDashboard = (name: string) => {
+    const {dashboard, updateDashboard} = this.props
+
+    updateDashboard(dashboard.id, {name})
   }
 
   private handleClickPresentationButton = (): void => {
     this.props.handleClickPresentationButton()
   }
 
+  private handleChooseAutoRefresh = (milliseconds: number) => {
+    const {handleChooseAutoRefresh, dashboard} = this.props
+    handleChooseAutoRefresh(dashboard.id, milliseconds)
+  }
+
   private handleChooseTimeRange = (timeRange: TimeRange) => {
     const {
       autoRefresh,
       onSetAutoRefreshStatus,
-      handleChooseTimeRange,
+      setDashboardTimeRange,
+      updateQueryParams,
+      dashboard,
     } = this.props
 
-    handleChooseTimeRange(timeRange)
+    setDashboardTimeRange(dashboard.id, timeRange)
+    updateQueryParams({
+      lower: timeRange.lower,
+      upper: timeRange.upper,
+    })
 
     if (timeRange.type === 'custom') {
-      onSetAutoRefreshStatus(AutoRefreshStatus.Disabled)
+      onSetAutoRefreshStatus(dashboard.id, AutoRefreshStatus.Disabled)
       return
     }
 
     if (autoRefresh.status === AutoRefreshStatus.Disabled) {
       if (autoRefresh.interval === 0) {
-        onSetAutoRefreshStatus(AutoRefreshStatus.Paused)
+        onSetAutoRefreshStatus(dashboard.id, AutoRefreshStatus.Paused)
         return
       }
 
-      onSetAutoRefreshStatus(AutoRefreshStatus.Active)
+      onSetAutoRefreshStatus(dashboard.id, AutoRefreshStatus.Active)
     }
   }
 }
+
+const mstp = (state: AppState): StateProps => {
+  const {showVariablesControls} = state.userSettings
+  const dashboard = getByID<Dashboard>(
+    state,
+    ResourceType.Dashboards,
+    state.currentDashboard.id
+  )
+
+  const timeRange = getTimeRangeByDashboardID(state, state.currentDashboard.id)
+  const org = getOrg(state)
+
+  return {
+    org,
+    dashboard,
+    timeRange,
+    showVariablesControls,
+  }
+}
+
+const mdtp: DispatchProps = {
+  toggleShowVariablesControls: toggleShowVariablesControls,
+  updateDashboard: updateDashboard,
+  handleClickPresentationButton: delayEnablePresentationMode,
+  onSetAutoRefreshStatus: setAutoRefreshStatus,
+  updateQueryParams: updateQueryParams,
+  setDashboardTimeRange: setDashboardTimeRange,
+  handleChooseAutoRefresh: setAutoRefreshInterval,
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(withRouter<OwnProps>(DashboardHeader))

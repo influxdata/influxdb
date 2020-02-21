@@ -13,25 +13,12 @@ import {setActiveTimeMachine} from 'src/timeMachine/actions'
 // Utils
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
-import {
-  extractRateLimitResources,
-  extractRateLimitStatus,
-} from 'src/cloud/utils/limits'
-
-// Types
-import {AppState} from 'src/types'
-import {LimitStatus} from 'src/cloud/actions/limits'
-
-interface StateProps {
-  limitedResources: string[]
-  limitStatus: LimitStatus
-}
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
 }
 
-type Props = DispatchProps & StateProps
+type Props = DispatchProps
 class DataExplorer extends PureComponent<Props, {}> {
   constructor(props: Props) {
     super(props)
@@ -41,14 +28,9 @@ class DataExplorer extends PureComponent<Props, {}> {
   }
 
   public render() {
-    const {limitedResources, limitStatus} = this.props
-
     return (
       <LimitChecker>
-        <RateLimitAlert
-          resources={limitedResources}
-          limitStatus={limitStatus}
-        />
+        <RateLimitAlert />
         <div className="data-explorer">
           <HoverTimeProvider>
             <TimeMachine />
@@ -59,22 +41,11 @@ class DataExplorer extends PureComponent<Props, {}> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
-  const {
-    cloud: {limits},
-  } = state
-
-  return {
-    limitedResources: extractRateLimitResources(limits),
-    limitStatus: extractRateLimitStatus(limits),
-  }
-}
-
 const mdtp: DispatchProps = {
   onSetActiveTimeMachine: setActiveTimeMachine,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
+export default connect<{}, DispatchProps, {}>(
+  null,
   mdtp
 )(DataExplorer)

@@ -1,9 +1,9 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
 
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Notification} from 'src/types'
 
 // Components
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
@@ -11,6 +11,7 @@ import CopyButton from 'src/shared/components/CopyButton'
 
 export interface Props {
   copyText: string
+  onCopyText?: (text: string, status: boolean) => Notification
   testID?: string
   label: string
 }
@@ -22,7 +23,7 @@ class CodeSnippet extends PureComponent<Props> {
   }
 
   public render() {
-    const {copyText, label} = this.props
+    const {copyText, label, onCopyText} = this.props
     const testID = this.props.testID || 'code-snippet'
 
     return (
@@ -40,7 +41,11 @@ class CodeSnippet extends PureComponent<Props> {
           </div>
         </FancyScrollbar>
         <div className="code-snippet--footer">
-          <CopyButton textToCopy={copyText} contentName="Script" />
+          <CopyButton
+            textToCopy={copyText}
+            onCopyText={onCopyText}
+            contentName="Script"
+          />
           <label className="code-snippet--label">{label}</label>
         </div>
       </div>

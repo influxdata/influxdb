@@ -79,6 +79,7 @@ func (s *PagerDuty) generateFluxASTBody(e *endpoint.PagerDuty) []ast.Statement {
 	statements = append(statements, s.generateFluxASTEndpoint(e))
 	statements = append(statements, s.generateFluxASTNotificationDefinition(e))
 	statements = append(statements, s.generateFluxASTStatuses())
+	statements = append(statements, s.generateLevelChecks()...)
 	statements = append(statements, s.generateFluxASTNotifyPipe(e.ClientURL))
 
 	return statements
@@ -170,7 +171,7 @@ func (s *PagerDuty) generateFluxASTNotifyPipe(url string) ast.Statement {
 
 	call := flux.Call(flux.Member("monitor", "notify"), flux.Object(props...))
 
-	return flux.ExpressionStatement(flux.Pipe(flux.Identifier("statuses"), call))
+	return flux.ExpressionStatement(flux.Pipe(flux.Identifier("all_statuses"), call))
 }
 
 func severityFromLevel() *ast.CallExpression {

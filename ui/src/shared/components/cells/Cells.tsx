@@ -1,7 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 import ReactGridLayout, {WidthProvider, Layout} from 'react-grid-layout'
 import {get} from 'lodash'
 
@@ -10,34 +9,42 @@ const Grid = WidthProvider(ReactGridLayout)
 import CellComponent from 'src/shared/components/cells/Cell'
 import GradientBorder from 'src/shared/components/cells/GradientBorder'
 
+// Actions
+import {updateCells} from 'src/cells/actions/thunks'
+
 // Utils
 import {fastMap} from 'src/utils/fast'
+import {getCells} from 'src/cells/selectors'
 
 // Constants
 import {LAYOUT_MARGIN, DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 
 // Types
-import {AppState, Cell, TimeRange, RemoteDataState, View} from 'src/types'
+import {AppState, Cell, RemoteDataState, View} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 type ViewsByID = {[viewID: string]: View}
 
 interface StateProps {
   views: ViewsByID
+  cells: Cell[]
+  dashboard: string
+}
+
+interface DispatchProps {
+  updateCells: typeof updateCells
 }
 
 interface OwnProps {
-  cells: Cell[]
-  timeRange: TimeRange
   manualRefresh: number
-  onPositionChange?: (cells: Cell[]) => void
 }
-type Props = StateProps & OwnProps & WithRouterProps
+
+type Props = StateProps & OwnProps & DispatchProps
 
 @ErrorHandling
 class Cells extends Component<Props> {
   public render() {
-    const {cells, timeRange, manualRefresh} = this.props
+    const {cells, manualRefresh} = this.props
 
     return (
       <Grid
@@ -49,27 +56,17 @@ class Cells extends Component<Props> {
         margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
         onLayoutChange={this.handleLayoutChange}
         draggableHandle=".cell--draggable"
-        isDraggable={this.isDashboard}
-        isResizable={this.isDashboard}
+        isDraggable
+        isResizable
       >
         {fastMap(cells, cell => (
           <div key={cell.id} className="cell">
-            <CellComponent
-              cell={cell}
-              timeRange={timeRange}
-              manualRefresh={manualRefresh}
-            />
-            {this.cellBorder}
+            <CellComponent cell={cell} manualRefresh={manualRefresh} />
+            <GradientBorder />
           </div>
         ))}
       </Grid>
     )
-  }
-
-  private get cellBorder(): JSX.Element {
-    if (this.isDashboard) {
-      return <GradientBorder />
-    }
   }
 
   private get cells(): Layout[] {
@@ -94,15 +91,8 @@ class Cells extends Component<Props> {
       })
   }
 
-  private get isDashboard(): boolean {
-    return this.props.location.pathname.includes('dashboard')
-  }
-
   private handleLayoutChange = grid => {
-    const {onPositionChange, cells} = this.props
-    if (!onPositionChange) {
-      return
-    }
+    const {cells} = this.props
 
     let changed = false
 
@@ -132,13 +122,28 @@ class Cells extends Component<Props> {
     })
 
     if (changed) {
-      this.props.onPositionChange(newCells)
+      this.handlePositionChange(newCells)
     }
+  }
+  private handlePositionChange = (cells: Cell[]) => {
+    const {dashboard, updateCells} = this.props
+    updateCells(dashboard, cells)
   }
 }
 const mstp = (state: AppState): StateProps => {
-  return {views: state.resources.views.byID}
+  const dashboard = state.currentDashboard.id
+
+  return {
+    dashboard,
+    cells: getCells(state, dashboard),
+    views: state.resources.views.byID,
+  }
 }
-export default withRouter<OwnProps>(
-  connect<StateProps, {}, OwnProps>(mstp)(Cells)
-)
+const mdtp: DispatchProps = {
+  updateCells: updateCells,
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(Cells)

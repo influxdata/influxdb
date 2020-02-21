@@ -11,6 +11,7 @@ export const OSS_FLAGS = {
 
 export const CLOUD_FLAGS = {
   deleteWithPredicate: false,
+  multiUser: false,
   cloudBilling: CLOUD_BILLING_VISIBLE, // should be visible in dev and acceptance, but not in cloud
   downloadCellCSV: false,
   telegrafEditor: false,

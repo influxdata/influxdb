@@ -87,7 +87,7 @@ class LineProtocolWizard extends PureComponent<Props & WithRouterProps> {
 
   private handleSetBucketInfo = () => {
     const {bucket, buckets} = this.props
-    if (!bucket && (buckets && buckets.length)) {
+    if (!bucket && buckets && buckets.length) {
       const {orgID, name, id} = buckets[0]
 
       this.props.onSetBucketInfo(orgID, name, id)

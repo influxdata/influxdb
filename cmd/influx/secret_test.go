@@ -16,8 +16,6 @@ import (
 )
 
 func TestCmdSecret(t *testing.T) {
-	setViperOptions()
-
 	orgID := influxdb.ID(9000)
 
 	fakeSVCFn := func(svc influxdb.SecretService, fn func(*input.UI) string) secretSVCsFn {
@@ -60,7 +58,7 @@ func TestCmdSecret(t *testing.T) {
 			},
 		}
 
-		cmdFn := func() (*cobra.Command, *called) {
+		cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
 			calls := new(called)
 			svc := mock.NewSecretService()
 			svc.GetSecretKeysFn = func(ctx context.Context, organizationID influxdb.ID) ([]string, error) {
@@ -71,18 +69,23 @@ func TestCmdSecret(t *testing.T) {
 				return []string{}, nil
 			}
 
-			builder := newCmdSecretBuilder(fakeSVCFn(svc, nil), in(new(bytes.Buffer)), out(ioutil.Discard))
-			cmd := builder.cmdFind()
-			cmd.RunE = builder.cmdFindRunEFn
-			return cmd, calls
+			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				builder := newCmdSecretBuilder(fakeSVCFn(svc, nil), opt)
+				return builder.cmd()
+			}, calls
 		}
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
 				defer addEnvVars(t, tt.envVars)()
 
-				cmd, calls := cmdFn()
-				cmd.SetArgs(tt.flags)
+				builder := newInfluxCmdBuilder(
+					in(new(bytes.Buffer)),
+					out(ioutil.Discard),
+				)
+				nestedCmdFn, calls := cmdFn()
+				cmd := builder.cmd(nestedCmdFn)
+				cmd.SetArgs(append([]string{"secret", "find"}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())
 				assert.Equal(t, tt.expected, *calls)
@@ -112,7 +115,7 @@ func TestCmdSecret(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedKey string) *cobra.Command {
+		cmdFn := func(expectedKey string) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewSecretService()
 			svc.DeleteSecretFn = func(ctx context.Context, orgID influxdb.ID, ks ...string) error {
 				if expectedKey != ks[0] {
@@ -121,16 +124,21 @@ func TestCmdSecret(t *testing.T) {
 				return nil
 			}
 
-			builder := newCmdSecretBuilder(fakeSVCFn(svc, nil), out(ioutil.Discard))
-			cmd := builder.cmdDelete()
-			cmd.RunE = builder.cmdDeleteRunEFn
-			return cmd
+			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				builder := newCmdSecretBuilder(fakeSVCFn(svc, nil), opt)
+				return builder.cmd()
+			}
 		}
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
-				cmd := cmdFn(tt.expectedKey)
-				cmd.SetArgs(tt.flags)
+				builder := newInfluxCmdBuilder(
+					in(new(bytes.Buffer)),
+					out(ioutil.Discard),
+				)
+				cmd := builder.cmd(cmdFn(tt.expectedKey))
+				cmd.SetArgs(append([]string{"secret", "delete"}, tt.flags...))
+
 				require.NoError(t, cmd.Execute())
 			}
 
@@ -158,7 +166,7 @@ func TestCmdSecret(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedKey string) *cobra.Command {
+		cmdFn := func(expectedKey string) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewSecretService()
 			svc.PatchSecretsFn = func(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
 				var key string
@@ -176,21 +184,25 @@ func TestCmdSecret(t *testing.T) {
 				return "ss"
 			}
 
-			builder := newCmdSecretBuilder(fakeSVCFn(svc, getSctFn), out(ioutil.Discard))
-			cmd := builder.cmdUpdate()
-			cmd.RunE = builder.cmdUpdateRunEFn
-			return cmd
+			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				builder := newCmdSecretBuilder(fakeSVCFn(svc, getSctFn), opt)
+				return builder.cmd()
+			}
 		}
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
-				cmd := cmdFn(tt.expectedKey)
-				cmd.SetArgs(tt.flags)
+				builder := newInfluxCmdBuilder(
+					in(new(bytes.Buffer)),
+					out(ioutil.Discard),
+				)
+				cmd := builder.cmd(cmdFn(tt.expectedKey))
+				cmd.SetArgs(append([]string{"secret", "update"}, tt.flags...))
+
 				require.NoError(t, cmd.Execute())
 			}
 
 			t.Run(tt.name, fn)
 		}
 	})
-
 }

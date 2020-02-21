@@ -1,12 +1,12 @@
 // Libraries
 import React, {FC, useEffect} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
 import GetResource from 'src/resources/components/GetResource'
 import DashboardPage from 'src/dashboards/components/DashboardPage'
 import GetTimeRange from 'src/dashboards/components/GetTimeRange'
+import DashboardRoute from 'src/shared/components/DashboardRoute'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
@@ -18,14 +18,15 @@ import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 import {AppState, ResourceType, AutoRefresh, AutoRefreshStatus} from 'src/types'
 
 const {Active} = AutoRefreshStatus
+
 interface StateProps {
   autoRefresh: AutoRefresh
+  dashboard: string
 }
 
-type Props = WithRouterProps & StateProps
+type Props = StateProps
 
-const DashboardContainer: FC<Props> = ({autoRefresh, params, children}) => {
-  const {dashboardID, orgID} = params
+const DashboardContainer: FC<Props> = ({autoRefresh, dashboard, children}) => {
   useEffect(() => {
     if (autoRefresh.status === Active) {
       GlobalAutoRefresher.poll(autoRefresh.interval)
@@ -40,22 +41,23 @@ const DashboardContainer: FC<Props> = ({autoRefresh, params, children}) => {
   }, [autoRefresh.status, autoRefresh.interval])
 
   return (
-    <GetResource resources={[{type: ResourceType.Dashboards, id: dashboardID}]}>
-      <GetTimeRange />
-      <DashboardPage
-        orgID={orgID}
-        dashboardID={dashboardID}
-        autoRefresh={autoRefresh}
-      />
-      {children}
-    </GetResource>
+    <DashboardRoute>
+      <GetResource resources={[{type: ResourceType.Dashboards, id: dashboard}]}>
+        <GetTimeRange />
+        <DashboardPage autoRefresh={autoRefresh} />
+        {children}
+      </GetResource>
+    </DashboardRoute>
   )
 }
 
-const mstp = (state: AppState, {params}: Props): StateProps => {
-  const autoRefresh =
-    state.autoRefresh[params.dashboardID] || AUTOREFRESH_DEFAULT
-  return {autoRefresh}
+const mstp = (state: AppState): StateProps => {
+  const dashboard = state.currentDashboard.id
+  const autoRefresh = state.autoRefresh[dashboard] || AUTOREFRESH_DEFAULT
+  return {
+    autoRefresh,
+    dashboard,
+  }
 }
 
-export default withRouter(connect<StateProps>(mstp)(DashboardContainer))
+export default connect<StateProps>(mstp)(DashboardContainer)

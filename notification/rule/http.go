@@ -60,7 +60,7 @@ func (s *HTTP) generateFluxASTBody(e *endpoint.HTTP) []ast.Statement {
 	statements = append(statements, s.generateFluxASTEndpoint(e))
 	statements = append(statements, s.generateFluxASTNotificationDefinition(e))
 	statements = append(statements, s.generateFluxASTStatuses())
-	statements = append(statements, s.generateAllStateChanges()...)
+	statements = append(statements, s.generateLevelChecks()...)
 	statements = append(statements, s.generateFluxASTNotifyPipe())
 
 	return statements

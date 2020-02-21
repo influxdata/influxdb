@@ -25,12 +25,9 @@ var setupFlags struct {
 	force     bool
 }
 
-func cmdSetup() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "setup",
-		Short: "Setup instance with initial user, org, bucket",
-		RunE:  wrapErrorFmt(setupF),
-	}
+func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("setup", setupF)
+	cmd.Short = "Setup instance with initial user, org, bucket"
 
 	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
 	cmd.Flags().StringVarP(&setupFlags.password, "password", "p", "", "password for username")

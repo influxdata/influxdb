@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/http"
@@ -13,12 +12,15 @@ import (
 
 type secretSVCsFn func() (influxdb.SecretService, influxdb.OrganizationService, func(*input.UI) string, error)
 
-func cmdSecret(opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdSecretBuilder(newSecretSVCs, opts...).cmd()
+func cmdSecret(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	builder := newCmdSecretBuilder(newSecretSVCs, opt)
+	builder.globalFlags = f
+	return builder.cmd()
 }
 
 type cmdSecretBuilder struct {
 	genericCLIOpts
+	*globalFlags
 
 	svcFn secretSVCsFn
 
@@ -26,15 +28,7 @@ type cmdSecretBuilder struct {
 	org organization
 }
 
-func newCmdSecretBuilder(svcsFn secretSVCsFn, opts ...genericCLIOptFn) *cmdSecretBuilder {
-	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
-	}
-	for _, o := range opts {
-		o(&opt)
-	}
-
+func newCmdSecretBuilder(svcsFn secretSVCsFn, opt genericCLIOpts) *cmdSecretBuilder {
 	return &cmdSecretBuilder{
 		genericCLIOpts: opt,
 		svcFn:          svcsFn,

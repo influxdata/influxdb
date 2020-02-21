@@ -459,12 +459,18 @@ export const convertToTemplate = (dashboardID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    const normVars = normalize<Variable, VariableEntities, string>(
-      resp.data,
-      arrayOfVariables
-    )
+    let vars = []
 
-    const vars = Object.values(normVars.entities.variables)
+    // dumb bug
+    // https://github.com/paularmstrong/normalizr/issues/290
+    if (resp.data.variables.length) {
+      const normVars = normalize<Variable, VariableEntities, string>(
+        resp.data.variables,
+        arrayOfVariables
+      )
+
+      vars = Object.values(normVars.entities.variables)
+    }
 
     const variables = filterUnusedVars(vars, views)
     const exportedVariables = exportVariables(variables, vars)
@@ -478,6 +484,7 @@ export const convertToTemplate = (dashboardID: string) => async (
 
     dispatch(setExportTemplate(RemoteDataState.Done, dashboardTemplate))
   } catch (error) {
+    console.error(error)
     dispatch(setExportTemplate(RemoteDataState.Error))
     dispatch(notify(copy.createTemplateFailed(error)))
   }
