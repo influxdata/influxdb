@@ -29,12 +29,12 @@ export const RANGE: FluxToolbarFunction = {
     {
       name: 'start',
       desc: 'The earliest time to include in results.',
-      type: 'Duration',
+      type: 'Duration | Time',
     },
     {
       name: 'stop',
       desc: 'The latest time to include in results. Defaults to `now()`.',
-      type: 'Duration',
+      type: 'Duration | Time',
     },
   ],
   package: '',
@@ -1710,6 +1710,22 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/selectors/last/',
   },
   {
+    name: 'length',
+    args: [
+      {
+        name: 'arr',
+        desc: 'The array to evaluate.',
+        type: 'Array',
+      },
+    ],
+    package: '',
+    desc: 'Returns the number of items in an array.',
+    example: 'length(arr: ["john"])',
+    category: 'Miscellaneous',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/misc/length/',
+  },
+  {
     name: 'limit',
     args: [
       {
@@ -3175,6 +3191,107 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/quantile/',
+  },
+  {
+    name: 'query.filterFields',
+    args: [
+      {
+        name: 'fields',
+        desc: 'Fields to filter by.',
+        type: 'Array of Strings',
+      },
+    ],
+    package: 'experimental/query',
+    desc: 'Filters input data by field.',
+    example: 'query.filterFields(fields: ["field_name"])',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/query/filterfields/',
+  },
+  {
+    name: 'query.filterMeasurement',
+    args: [
+      {
+        name: 'measurement',
+        desc: 'Measurement to filter by.',
+        type: 'String',
+      },
+    ],
+    package: 'experimental/query',
+    desc: 'Filters input data by measurement.',
+    example: 'query.filterMeasurement(measurement: "measurement_name")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/query/filtermeasurement/',
+  },
+  {
+    name: 'query.fromRange',
+    args: [
+      {
+        name: 'bucket',
+        desc: 'Name of the bucket to query.',
+        type: 'String',
+      },
+      {
+        name: 'start',
+        desc: 'The earliest time to include in results.',
+        type: 'Duration | Time',
+      },
+      {
+        name: 'stop',
+        desc: 'The latest time to include in results. Defaults to `now()`.',
+        type: 'Duration | Time',
+      },
+    ],
+    package: 'experimental/query',
+    desc: 'Filters input data by measurement.',
+    example:
+      'query.fromRange(bucket: "example-bucket", start: v.timeRangeStart)',
+    category: 'Input',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/query/fromrange/',
+  },
+  {
+    name: 'query.inBucket',
+    args: [
+      {
+        name: 'bucket',
+        desc: 'Name of the bucket to query.',
+        type: 'String',
+      },
+      {
+        name: 'start',
+        desc: 'The earliest time to include in results.',
+        type: 'Duration | Time',
+      },
+      {
+        name: 'stop',
+        desc: 'The latest time to include in results. Defaults to `now()`.',
+        type: 'Duration | Time',
+      },
+      {
+        name: 'measurement',
+        desc: 'Measurement to filter by.',
+        type: 'String',
+      },
+      {
+        name: 'fields',
+        desc: 'Fields to filter by.',
+        type: 'Array of Strings',
+      },
+      {
+        name: 'predicate',
+        desc: 'A single argument function that evaluates true or false.',
+        type: 'Function',
+      },
+    ],
+    package: 'experimental/query',
+    desc: 'Filters input data by measurement.',
+    example:
+      'query.inBucket(bucket: "example-bucket", start: v.timeRangeStart, measurement: "measurement_name", fields: ["field_name"], predicate: (r) => r.host == "host1")',
+    category: 'Input',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/query/inbucket/',
   },
   RANGE,
   {
@@ -4925,7 +5042,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         name: 'start',
         desc:
           'Specifies the oldest time to be included in the results. Defaults to `-30d`.',
-        type: 'Duration, Time',
+        type: 'Duration | Time',
       },
     ],
     package: 'influxdata/influxdb/v1',
@@ -4958,7 +5075,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         name: 'start',
         desc:
           'Specifies the oldest time to be included in the results. Defaults to `-30d`.',
-        type: 'Duration, Time',
+        type: 'Duration | Time',
       },
     ],
     package: 'influxdata/influxdb/v1',
