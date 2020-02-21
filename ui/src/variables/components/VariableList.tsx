@@ -14,7 +14,7 @@ import {Sort} from '@influxdata/clockface'
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
 
-type SortKey = keyof Variable
+type SortKey = keyof Variable | 'arguments.type'
 
 interface Props {
   variables: Variable[]
@@ -77,7 +77,7 @@ export default class VariableList extends PureComponent<Props, State> {
   }
 
   private get headerKeys(): SortKey[] {
-    return ['name', 'arguments']
+    return ['name', 'arguments.type']
   }
 
   private get rows(): JSX.Element[] {
