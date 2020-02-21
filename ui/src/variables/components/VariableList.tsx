@@ -14,7 +14,7 @@ import {Sort} from '@influxdata/clockface'
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
 
-type SortKey = keyof Variable
+type SortKey = keyof Variable | 'arguments.type'
 
 interface Props {
   variables: Variable[]
