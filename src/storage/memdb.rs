@@ -6,7 +6,7 @@ use crate::storage::series_store::{ReadPoint, SeriesStore};
 use crate::storage::{Range, SeriesDataType, StorageError};
 
 use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
+use std::sync::{Arc, Mutex, RwLock};
 
 use croaring::Treemap;
 /// memdb implements an in memory database for the InvertedIndex and SeriesStore traits. It
@@ -491,11 +491,8 @@ impl<T: Clone> Iterator for PointsIterator<T> {
     }
 }
 
-fn evaluate_node(
-    series_map: &RwLockReadGuard<'_, SeriesMap>,
-    n: &Node,
-) -> Result<Treemap, StorageError> {
-    struct Visitor<'a>(&'a RwLockReadGuard<'a, SeriesMap>);
+fn evaluate_node(series_map: &SeriesMap, n: &Node) -> Result<Treemap, StorageError> {
+    struct Visitor<'a>(&'a SeriesMap);
 
     impl EvaluateVisitor for Visitor<'_> {
         fn equal(&mut self, left: &str, right: &str) -> Result<Treemap, StorageError> {
