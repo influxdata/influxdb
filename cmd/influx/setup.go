@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
@@ -234,42 +233,50 @@ You have entered:
 	}
 }
 
-func errSecretIsNotMatch(title string) error {
-	return fmt.Errorf(title + "s do not match")
-}
+var errPasswordNotMatch = fmt.Errorf("passwords do not match")
 
-func errSecretIsTooShort(title string) error {
-	return &influxdb.Error{
-		Code: influxdb.EUnprocessableEntity,
-		Msg:  title + " is too short",
-	}
-}
+var errPasswordIsTooShort error = fmt.Errorf("password is too short")
 
 func getSecret(ui *input.UI) (secret string) {
-	return getSecretInput(ui, false, "secret")
-}
-
-func getPassword(ui *input.UI, showNew bool) (password string) {
-	return getSecretInput(ui, showNew, "password")
-}
-
-func getSecretInput(ui *input.UI, showNew bool, title string) (secret string) {
-	newStr := ""
-	if showNew {
-		newStr = " new"
-	}
 	var err error
-enterSecret:
-	query := string(promptWithColor("Please type your"+newStr+" "+title, colorCyan))
+	query := string(promptWithColor("Please type your secret", colorCyan))
 	for {
 		secret, err = ui.Ask(query, &input.Options{
 			Required:  true,
 			HideOrder: true,
 			Hide:      true,
 			Mask:      false,
+		})
+		switch err {
+		case input.ErrInterrupted:
+			os.Exit(1)
+		default:
+			if secret = strings.TrimSpace(secret); secret == "" {
+				continue
+			}
+		}
+		break
+	}
+	return secret
+}
+
+func getPassword(ui *input.UI, showNew bool) (password string) {
+	newStr := ""
+	if showNew {
+		newStr = " new"
+	}
+	var err error
+enterPassword:
+	query := string(promptWithColor("Please type your"+newStr+" password", colorCyan))
+	for {
+		password, err = ui.Ask(query, &input.Options{
+			Required:  true,
+			HideOrder: true,
+			Hide:      true,
+			Mask:      false,
 			ValidateFunc: func(s string) error {
 				if len(s) < 8 {
-					return errSecretIsTooShort(title)
+					return errPasswordIsTooShort
 				}
 				return nil
 			},
@@ -277,25 +284,25 @@ enterSecret:
 		switch err {
 		case input.ErrInterrupted:
 			os.Exit(1)
+		case errPasswordIsTooShort:
+			ui.Writer.Write(promptWithColor("Password too short - minimum length is 8 characters!\n\r", colorRed))
+			continue
 		default:
-			if influxdb.ErrorCode(err) == influxdb.EUnprocessableEntity {
-				ui.Writer.Write(promptWithColor(strings.ToTitle(title)+" too short - minimum length is 8 characters!\n\r", colorRed))
-				goto enterSecret
-			} else if secret = strings.TrimSpace(secret); secret == "" {
+			if password = strings.TrimSpace(password); password == "" {
 				continue
 			}
 		}
 		break
 	}
-	query = string(promptWithColor("Please type your"+newStr+" "+title+" again", colorCyan))
+	query = string(promptWithColor("Please type your"+newStr+" password again", colorCyan))
 	for {
 		_, err = ui.Ask(query, &input.Options{
 			Required:  true,
 			HideOrder: true,
 			Hide:      true,
 			ValidateFunc: func(s string) error {
-				if s != secret {
-					return errSecretIsNotMatch(title)
+				if s != password {
+					return errPasswordNotMatch
 				}
 				return nil
 			},
@@ -306,12 +313,12 @@ enterSecret:
 		case nil:
 			// Nothing.
 		default:
-			ui.Writer.Write(promptWithColor(strings.ToTitle(title)+"s do not match!\n", colorRed))
-			goto enterSecret
+			ui.Writer.Write(promptWithColor("Passwords do not match!\n", colorRed))
+			goto enterPassword
 		}
 		break
 	}
-	return secret
+	return password
 }
 
 func getInput(ui *input.UI, prompt, defaultValue string) string {
