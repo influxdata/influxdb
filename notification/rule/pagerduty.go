@@ -66,7 +66,7 @@ func (s *PagerDuty) GenerateFlux(e influxdb.NotificationEndpoint) (string, error
 func (s *PagerDuty) GenerateFluxAST(e *endpoint.PagerDuty) (*ast.Package, error) {
 	f := flux.File(
 		s.Name,
-		flux.Imports("influxdata/influxdb/monitor", "pagerduty", "influxdata/influxdb/secrets"),
+		flux.Imports("influxdata/influxdb/monitor", "pagerduty", "influxdata/influxdb/secrets", "experimental"),
 		s.generateFluxASTBody(e),
 	)
 	return &ast.Package{Package: "main", Files: []*ast.File{f}}, nil
