@@ -223,10 +223,7 @@ impl RocksDB {
     ) -> Result<Option<Arc<Bucket>>, StorageError> {
         let buckets = self.bucket_map.read().unwrap();
         let key = bucket_key(org_id, name);
-        match buckets.get(&key) {
-            Some(b) => Ok(Some(b.clone())),
-            None => Ok(None),
-        }
+        Ok(buckets.get(&key).map(Arc::clone))
     }
 
     // TODO: ensure that points with timestamps older than the first index level get matched against the appropriate index
