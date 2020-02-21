@@ -11,7 +11,6 @@ import (
 )
 
 func TestBoltNotificationRuleStore(t *testing.T) {
-	t.Skip("type unification error: https://github.com/influxdata/influxdb/issues/16809")
 	influxdbtesting.NotificationRuleStore(initBoltNotificationRuleStore, t)
 }
 

@@ -585,7 +585,6 @@ spec:
 	})
 
 	t.Run("apply a package with env refs", func(t *testing.T) {
-		t.Skip("type unification error: https://github.com/influxdata/influxdb/issues/16809")
 		pkgStr := fmt.Sprintf(`
 apiVersion: %[1]s
 kind: Bucket
