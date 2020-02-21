@@ -7,6 +7,7 @@
 1. [16934](https://github.com/influxdata/influxdb/pull/16934): Tokens page now sorts by status
 1. [16931](https://github.com/influxdata/influxdb/pull/16931): Set the defualt value of tags in a Check
 1. [16935](https://github.com/influxdata/influxdb/pull/16935): Fix sort by variable type
+1. [16973](https://github.com/influxdata/influxdb/pull/16973): Calculate correct stacked line cumulative when lines are different lengths
 
 ## v2.0.0-beta.4 [2020-02-14]
 
