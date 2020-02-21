@@ -128,7 +128,7 @@ export const executeQueries = (dashboardID?: string) => async (
   }
 
   try {
-    dispatch(setQueryResults(RemoteDataState.Loading, null, null, null))
+    dispatch(setQueryResults(RemoteDataState.Loading, [], null))
 
     await dispatch(refreshTimeMachineVariableValues(dashboardID))
 
