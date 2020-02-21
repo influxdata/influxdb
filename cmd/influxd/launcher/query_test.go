@@ -263,7 +263,6 @@ from(bucket: "%s")
 // This will change once we make side effects drive execution and remove from/to concurrency in our e2e tests.
 // See https://github.com/influxdata/flux/issues/1799.
 func TestPipeline_DynamicQuery(t *testing.T) {
-	t.Skip(`https://github.com/influxdata/influxdb/issues/16810`)
 	l := launcher.RunTestLauncherOrFail(t, ctx)
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
