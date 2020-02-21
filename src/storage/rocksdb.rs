@@ -246,7 +246,7 @@ impl RocksDB {
     pub fn get_series_ids(
         &self,
         bucket_id: u32,
-        points: &mut Vec<PointType>,
+        points: &mut [PointType],
     ) -> Result<(), StorageError> {
         let cf_name = index_cf_name(bucket_id);
 
@@ -513,7 +513,7 @@ impl RocksDB {
     // TODO: build the index for levels other than the first
     // insert_series_without_ids will insert any series into the index and obtain an identifier for it.
     // the passed in series vector is modified so that the newly inserted series have their ids
-    pub fn insert_series_without_ids(&self, bucket_id: u32, points: &mut Vec<PointType>) {
+    pub fn insert_series_without_ids(&self, bucket_id: u32, points: &mut [PointType]) {
         // We want to get a lock on new series only for this bucket
         self.ensure_series_mutex_exists(bucket_id);
         let map = self.series_insert_lock.read().expect("mutex poisoned");
@@ -744,7 +744,7 @@ impl InvertedIndex for RocksDB {
     fn get_or_create_series_ids_for_points(
         &self,
         bucket_id: u32,
-        points: &mut Vec<PointType>,
+        points: &mut [PointType],
     ) -> Result<(), StorageError> {
         self.get_series_ids(bucket_id, points)?;
         self.insert_series_without_ids(bucket_id, points);

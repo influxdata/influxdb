@@ -6,7 +6,7 @@ pub trait InvertedIndex: Sync + Send {
     fn get_or_create_series_ids_for_points(
         &self,
         bucket_id: u32,
-        points: &mut Vec<PointType>,
+        points: &mut [PointType],
     ) -> Result<(), StorageError>;
 
     fn read_series_matching(
