@@ -156,7 +156,7 @@ fn parse_logical(chars: &mut Peekable<Chars<'_>>) -> Result<Option<node::Logical
                     Some('n') | Some('N') => (),
                     Some(ch) => {
                         return Err(StorageError {
-                            description: format!("expected \"and\" but found a{}", ch),
+                            description: format!(r#"expected "and" but found a{}"#, ch),
                         })
                     }
                     _ => {
@@ -169,7 +169,7 @@ fn parse_logical(chars: &mut Peekable<Chars<'_>>) -> Result<Option<node::Logical
                     Some('d') | Some('D') => (),
                     Some(ch) => {
                         return Err(StorageError {
-                            description: format!("expected \"and\" but found an{}", ch),
+                            description: format!(r#"expected "and" but found an{}"#, ch),
                         })
                     }
                     _ => {
@@ -184,7 +184,7 @@ fn parse_logical(chars: &mut Peekable<Chars<'_>>) -> Result<Option<node::Logical
                 Some('r') | Some('R') => return Ok(Some(node::Logical::Or)),
                 Some(ch) => {
                     return Err(StorageError {
-                        description: format!("expected \"or\" but found o{}", ch),
+                        description: format!(r#"expected "or" but found o{}"#, ch),
                     })
                 }
                 _ => {
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn parse_predicate() {
-        let pred = super::parse_predicate("host = \"foo\"").unwrap();
+        let pred = super::parse_predicate(r#"host = "foo""#).unwrap();
         assert_eq!(
             pred,
             Predicate {
@@ -243,7 +243,7 @@ mod tests {
             }
         );
 
-        let pred = super::parse_predicate("host != \"serverA\" AND region=\"west\"").unwrap();
+        let pred = super::parse_predicate(r#"host != "serverA" AND region="west""#).unwrap();
         assert_eq!(
             pred,
             Predicate {

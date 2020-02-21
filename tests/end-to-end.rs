@@ -155,7 +155,7 @@ cpu_load_short,host=server01,region=us-west value=0.000003 {}",
         "/read",
         org_id,
         bucket_name,
-        "host=\"server01\"",
+        r#"host="server01""#,
         seconds_ago,
     )
     .await?;
