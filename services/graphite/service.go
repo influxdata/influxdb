@@ -170,7 +170,7 @@ func (s *Service) RunWithReady(ctx context.Context, ready chan struct{}, reg ser
 
 	var err error
 
-	switch protocol := strings.ToLower(s.protocol); protocol {
+	switch strings.ToLower(s.protocol) {
 	case "tcp":
 		s.addr, err = s.openTCPServer()
 	case "udp":
