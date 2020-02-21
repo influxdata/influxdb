@@ -254,7 +254,7 @@ const loadTagSelectorValues = (index: number) => async (
   const orgID = getOrg(getState()).id
 
   if (!buckets[0]) {
-      return
+    return
   }
 
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
