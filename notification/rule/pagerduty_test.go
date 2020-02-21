@@ -64,6 +64,7 @@ func TestPagerDuty_GenerateFlux(t *testing.T) {
 import "influxdata/influxdb/monitor"
 import "pagerduty"
 import "influxdata/influxdb/secrets"
+import "experimental"
 
 option task = {name: "foo", every: 1h}
 
@@ -147,6 +148,7 @@ all_statuses
 import "influxdata/influxdb/monitor"
 import "pagerduty"
 import "influxdata/influxdb/secrets"
+import "experimental"
 
 option task = {name: "foo", every: 1h}
 
@@ -232,6 +234,7 @@ all_statuses
 import "influxdata/influxdb/monitor"
 import "pagerduty"
 import "influxdata/influxdb/secrets"
+import "experimental"
 
 option task = {name: "foo", every: 1h}
 
