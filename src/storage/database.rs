@@ -29,12 +29,12 @@ impl Database {
         &self,
         _org_id: u32,
         bucket: &Bucket,
-        points: &mut Vec<PointType>,
+        points: &mut [PointType],
     ) -> Result<(), StorageError> {
         self.local_index
             .get_or_create_series_ids_for_points(bucket.id, points)?;
         self.local_series_store
-            .write_points_with_series_ids(bucket.id, &points)
+            .write_points_with_series_ids(bucket.id, points)
     }
 
     pub fn get_bucket_by_name(

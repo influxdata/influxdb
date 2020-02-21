@@ -238,7 +238,7 @@ impl MemDB {
     fn get_or_create_series_ids_for_points(
         &self,
         bucket_id: u32,
-        points: &mut Vec<PointType>,
+        points: &mut [PointType],
     ) -> Result<(), StorageError> {
         // first try to do everything with just a read lock
         if self.get_series_ids_for_points(bucket_id, points) {
@@ -269,7 +269,7 @@ impl MemDB {
     // get_series_ids_for_points attempts to fill the series ids for all points in the passed in
     // collection using only a read lock. If no SeriesMap exists for the bucket, it will be inserted.
     // It will return true if all points have series ids filled in.
-    fn get_series_ids_for_points(&self, bucket_id: u32, points: &mut Vec<PointType>) -> bool {
+    fn get_series_ids_for_points(&self, bucket_id: u32, points: &mut [PointType]) -> bool {
         let buckets = self.bucket_id_to_series_map.read().unwrap();
         match buckets.get(&bucket_id) {
             Some(b) => {
@@ -578,7 +578,7 @@ impl InvertedIndex for MemDB {
     fn get_or_create_series_ids_for_points(
         &self,
         bucket_id: u32,
-        points: &mut Vec<PointType>,
+        points: &mut [PointType],
     ) -> Result<(), StorageError> {
         self.get_or_create_series_ids_for_points(bucket_id, points)
     }
