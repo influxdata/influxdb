@@ -1026,10 +1026,10 @@
   resolved "https://registry.yarnpkg.com/@influxdata/flux-parser/-/flux-parser-0.3.0.tgz#b63123ac814ad32c65e46a4097ba3d8b959416a5"
   integrity sha512-nsm801l60kXFulcSWA2YH2YRz9oSsMlTK9Evn6Og9BoQnQMcwUsSUEug8mQRIUljnkNYV58JSs0W0mP8h7Y/ZQ==
 
-"@influxdata/giraffe@0.17.4":
-  version "0.17.4"
-  resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.17.4.tgz#58a1cb23b70d0ac7aa3f833ffab5a92b933c824c"
-  integrity sha512-4hIZTmbBiJAtNvE4zQu2JwkDgNP1rFZqGiZR9SuMKAH/6Dg88A/UrMBTjN1pX+u9LkLEtsny93BHhJfGR3y7Dw==
+"@influxdata/giraffe@0.17.5":
+  version "0.17.5"
+  resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.17.5.tgz#887693c165b14b846bb1fdf2b816ae5b9744beae"
+  integrity sha512-sYEYJqLH4pnE5/B5cID9IuZrYfxY3zTVNTis1F3TregZtceZ3EhJU2XIrUY9ekZNiSr/oQxnjQ9V8bwh8L/gQA==
 
 "@influxdata/influx@0.5.5":
   version "0.5.5"
