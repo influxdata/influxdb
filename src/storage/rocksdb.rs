@@ -222,7 +222,7 @@ impl RocksDB {
         name: &str,
     ) -> Result<Option<Arc<Bucket>>, StorageError> {
         let buckets = self.bucket_map.read().unwrap();
-        let key = bucket_key(org_id, &name.to_string());
+        let key = bucket_key(org_id, name);
         match buckets.get(&key) {
             Some(b) => Ok(Some(b.clone())),
             None => Ok(None),
