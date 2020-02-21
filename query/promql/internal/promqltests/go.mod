@@ -7,7 +7,7 @@ require (
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 // indirect
 	github.com/gogo/protobuf v1.3.0 // indirect
 	github.com/google/go-cmp v0.3.1
-	github.com/influxdata/flux v0.59.1-0.20200212184221-b1a33fc2a6f7
+	github.com/influxdata/flux v0.60.1-0.20200221211901-305ddd9e5ecb
 	github.com/influxdata/influxdb v0.0.0-20190925213338-8af36d5aaedd
 	github.com/influxdata/influxql v1.0.1 // indirect
 	github.com/influxdata/promql/v2 v2.12.0
