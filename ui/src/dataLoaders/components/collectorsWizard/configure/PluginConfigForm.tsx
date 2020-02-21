@@ -7,6 +7,7 @@ import _ from 'lodash'
 import {Form} from '@influxdata/clockface'
 import ConfigFieldHandler from 'src/dataLoaders/components/collectorsWizard/configure/ConfigFieldHandler'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+import PluginsSideBar from 'src/dataLoaders/components/collectorsWizard/configure/PluginsSideBar'
 
 // Actions
 import {
@@ -18,6 +19,9 @@ import {
 import {TelegrafPlugin, ConfigFields} from 'src/types/dataLoaders'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import {AppState} from 'src/types'
+
+// Selectors
+import {getDataLoaders} from 'src/dataLoaders/selectors'
 
 interface OwnProps {
   telegrafPlugin: TelegrafPlugin
@@ -37,13 +41,10 @@ type Props = OwnProps & StateProps & DispatchProps
 
 export class PluginConfigForm extends PureComponent<Props> {
   public render() {
-    const {configFields, telegrafPlugin} = this.props
+    const {configFields, telegrafPlugin, telegrafPlugins} = this.props
     return (
       <Form onSubmit={this.handleSubmitForm} className="data-loading--form">
-        <FancyScrollbar
-          autoHide={false}
-          className="data-loading--scroll-content"
-        >
+        <div className="data-loading--scroll-content">
           <div>
             <h3 className="wizard-step--title">
               {_.startCase(telegrafPlugin.name)}
@@ -61,11 +62,26 @@ export class PluginConfigForm extends PureComponent<Props> {
               </a>
             </h5>
           </div>
-          <ConfigFieldHandler
-            configFields={configFields}
-            telegrafPlugin={telegrafPlugin}
-          />
-        </FancyScrollbar>
+          <div className="data-loading--columns">
+            <PluginsSideBar
+              telegrafPlugins={telegrafPlugins}
+              onTabClick={this.handleClickSideBarTab}
+              title="Plugins"
+              visible
+            />
+            <div className="data-loading--column-panel">
+              <FancyScrollbar
+                autoHide={false}
+                className="data-loading--scroll-content"
+              >
+                <ConfigFieldHandler
+                  configFields={configFields}
+                  telegrafPlugin={telegrafPlugin}
+                />
+              </FancyScrollbar>
+            </div>
+          </div>
+        </div>
         <OnboardingButtons
           autoFocusNext={this.autoFocus}
           nextButtonText="Done"
@@ -81,31 +97,34 @@ export class PluginConfigForm extends PureComponent<Props> {
   }
 
   private handleSubmitForm = () => {
+    const {onSetActiveTelegrafPlugin} = this.props
+
+    onSetActiveTelegrafPlugin('')
+  }
+
+  private handleClickSideBarTab = (tabID: string) => {
     const {
+      onSetActiveTelegrafPlugin,
       telegrafPlugins,
       onSetPluginConfiguration,
-      onSetActiveTelegrafPlugin,
     } = this.props
 
     const activeTelegrafPlugin = telegrafPlugins.find(tp => tp.active)
     if (!!activeTelegrafPlugin) {
-      if (!activeTelegrafPlugin.hasOwnProperty('plugin')) {
-        return
-      }
       onSetPluginConfiguration(activeTelegrafPlugin.name)
     }
 
-    onSetActiveTelegrafPlugin('')
+    onSetActiveTelegrafPlugin(tabID)
   }
 }
 
-const mstp = ({
-  dataLoading: {
-    dataLoaders: {telegrafPlugins},
-  },
-}: AppState): StateProps => ({
-  telegrafPlugins,
-})
+const mstp = (state: AppState): StateProps => {
+  const {telegrafPlugins} = getDataLoaders(state)
+
+  return {
+    telegrafPlugins,
+  }
+}
 
 const mdtp: DispatchProps = {
   onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,

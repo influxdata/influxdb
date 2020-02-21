@@ -15,6 +15,9 @@ import {TelegrafPlugin, ConfigFields} from 'src/types/dataLoaders'
 import {AppState} from 'src/types'
 import TelegrafPluginInstructions from 'src/dataLoaders/components/collectorsWizard/configure/TelegrafPluginInstructions'
 
+// Selectors
+import {getDataLoaders} from 'src/dataLoaders/selectors'
+
 interface StateProps {
   telegrafPlugins: TelegrafPlugin[]
 }
@@ -51,13 +54,13 @@ export class PluginConfigSwitcher extends PureComponent<Props> {
   }
 }
 
-const mstp = ({
-  dataLoading: {
-    dataLoaders: {telegrafPlugins},
-  },
-}: AppState): StateProps => ({
-  telegrafPlugins,
-})
+const mstp = (state: AppState): StateProps => {
+  const {telegrafPlugins} = getDataLoaders(state)
+
+  return {
+    telegrafPlugins,
+  }
+}
 
 export default connect<StateProps>(
   mstp,
