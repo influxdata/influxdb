@@ -79,10 +79,20 @@ func (c *TestRunCommand) HTTPClient() client.Client {
 
 // BoundHTTPAddr returns the bind address of the HTTP service, in form "localhost:65432".
 func (c *TestRunCommand) BoundHTTPAddr() string {
+	c.Command.ServerLock.Lock()
+	defer c.Command.ServerLock.Unlock()
+
+	c.Command.Server.ServicesLock.Lock()
+	defer c.Command.Server.ServicesLock.Unlock()
+
 	for _, s := range c.Command.Server.Services {
-		if s, ok := s.(*httpd.Service); ok {
-			return s.BoundHTTPAddr()
+		s, ok := s.(*httpd.Service)
+
+		if !ok {
+			continue
 		}
+
+		return s.BoundHTTPAddr()
 	}
 	panic("Did not find HTTPD service!")
 }

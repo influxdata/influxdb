@@ -11,6 +11,7 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -49,14 +50,15 @@ const (
 
 // Service manages the listener and handler for an HTTP endpoint.
 type Service struct {
-	ln        net.Listener
-	addr      string
-	https     bool
-	cert      string
-	key       string
-	limit     int
-	tlsConfig *tls.Config
-	err       chan error
+	ListenerLock sync.Mutex
+	ln           net.Listener
+	addr         string
+	https        bool
+	cert         string
+	key          string
+	limit        int
+	tlsConfig    *tls.Config
+	err          chan error
 
 	unixSocket         bool
 	unixSocketPerm     uint32
@@ -136,15 +138,20 @@ func (s *Service) Run(ctx context.Context, reg services.Registrar) error {
 			return err
 		}
 
+		s.ListenerLock.Lock()
 		s.ln = listener
+		s.ListenerLock.Unlock()
 	} else {
 		listener, err := net.Listen("tcp", s.addr)
 		if err != nil {
 			return err
 		}
 
+		s.ListenerLock.Lock()
 		s.ln = listener
+		s.ListenerLock.Unlock()
 	}
+
 	s.Logger.Info("Listening on HTTP",
 		zap.Stringer("addr", s.ln.Addr()),
 		zap.Bool("https", s.https))
@@ -252,7 +259,11 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 // BoundHTTPAddr returns the string version of the address that the HTTP server is listening on.
 // This is useful if you start an ephemeral server in test with bind address localhost:0.
 func (s *Service) BoundHTTPAddr() string {
-	return s.ln.Addr().String()
+	s.ListenerLock.Lock()
+	addr := s.ln.Addr().String()
+	s.ListenerLock.Unlock()
+
+	return addr
 }
 
 // serveTCP serves the handler from the TCP listener.

@@ -267,7 +267,6 @@ func (s *Service) cleanup() error {
 		s.batcher.Stop()
 	}
 
-	s.conn = nil
 	s.batcher = nil
 
 	s.Logger.Info("Closed collectd service")
@@ -343,59 +342,51 @@ func (s *Service) Addr() net.Addr {
 }
 
 func (s *Service) serve(ctx context.Context) {
-	// From https://collectd.org/wiki/index.php/Binary_protocol
-	//   1024 bytes (payload only, not including UDP / IP headers)
-	//   In versions 4.0 through 4.7, the receive buffer has a fixed size
-	//   of 1024 bytes. When longer packets are received, the trailing data
-	//   is simply ignored. Since version 4.8, the buffer size can be
-	//   configured. Version 5.0 will increase the default buffer size to
-	//   1452 bytes (the maximum payload size when using UDP/IPv6 over
-	//   Ethernet).
-	buffer := make([]byte, 1452)
+	// From https://collectd.org/wiki/index.php/Binary_protocol 1024 bytes
+	// (payload only, not including UDP / IP headers) In versions 4.0 through
+	// 4.7, the receive buffer has a fixed size of 1024 bytes. When longer
+	// packets are received, the trailing data is simply ignored. Since version
+	// 4.8, the buffer size can be configured. Version 5.0 will increase the
+	// default buffer size to 1452 bytes (the maximum payload size when using
+	// UDP/IPv6 over Ethernet).
 
-	type ReadPayload struct {
-		n   int   // bytes read by ReadFromUDP
-		err error // any error returend by ReadFromUDP
-	}
-
-	reads := make(chan ReadPayload)
-
+	// close s.conn on cancellation.  this will cause s.conn.Read() to unblock
+	// immediately with an error.
 	go func() {
-		rp := ReadPayload{}
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				rp.n, _, rp.err = s.conn.ReadFromUDP(buffer)
-				reads <- rp
-			}
-		}
+		<-ctx.Done()
+		s.conn.Close()
 	}()
 
-	for {
+	// read from our udp conn until a cancellation signal is received.
+	for buffer := make([]byte, 1452); ; {
+		nbytes, err := s.conn.Read(buffer)
+
+		// if we've been cancelled, returned immediately.
 		select {
 		case <-ctx.Done():
 			return
-		case cur := <-reads:
-			if cur.err != nil {
-				if strings.Contains(cur.err.Error(), "use of closed network connection") {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-						// The socket wasn't closed by us so consider it an error.
-					}
-				}
-				atomic.AddInt64(&s.stats.ReadFail, 1)
-				s.Logger.Info("ReadFromUDP error", zap.Error(cur.err))
-				continue
-			}
-			if cur.n > 0 {
-				atomic.AddInt64(&s.stats.BytesReceived, int64(cur.n))
-				s.handleMessage(buffer[:cur.n])
-			}
+		default:
+			// The socket wasn't closed by us so consider it an error.
 		}
+
+		// if an error was encounterd, account for the error, report it, and
+		// continue
+		if err != nil {
+			atomic.AddInt64(&s.stats.ReadFail, 1)
+			s.Logger.Info("ReadFromUDP error", zap.Error(err))
+			continue
+		}
+
+		// if we've somehow read 0 bytes, do nothing.
+		if nbytes == 0 {
+			// nothing to do
+			continue
+		}
+
+		// at this point, we've whittled away all of the undesireable state and
+		// we've have a message we can handle.
+		atomic.AddInt64(&s.stats.BytesReceived, int64(nbytes))
+		s.handleMessage(buffer[:nbytes])
 	}
 }
 

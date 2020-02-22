@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -79,7 +80,8 @@ type Server struct {
 	PointsWriter  *coordinator.PointsWriter
 	Subscriber    *subscriber.Service
 
-	Services []Service
+	ServicesLock sync.Mutex
+	Services     []Service
 
 	// These references are required for the tcp muxer.
 	SnapshotterService *snapshotter.Service
@@ -466,7 +468,9 @@ func (s *Server) OpenWithContextReady(ctx context.Context, ready chan struct{}) 
 	s.Monitor.WithLogger(s.Logger)
 
 	// append TSDB Store, Subcriber, and PointsWriter services to our Services slice.
+	s.ServicesLock.Lock()
 	s.Services = append(s.Services, s.TSDBStore, s.Subscriber, s.PointsWriter)
+	s.ServicesLock.Unlock()
 
 	s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
 

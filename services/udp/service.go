@@ -203,42 +203,52 @@ func (s *Service) writer(ctx context.Context) {
 
 func (s *Service) serve(ctx context.Context) {
 	defer s.wg.Done()
-	buf := make([]byte, MaxUDPPayload)
 
-	type readpayload struct {
-		nbytes int
-		err    error
-	}
-
-	payloadChan := make(chan readpayload)
-
+	// close our listner on cancel
+	//
+	// closing s.conn triggers the conn.Read() loop below to unblock and return
+	// an error immediately.
+	//
+	// there doesn't appear to be a cross platform way of detecting a "read on a
+	// closed connection" type of error so instead we simply check if ctx.Done()
+	// has been triggered when Read() unblocks.
+	//
+	// if ctx.Done() is triggered, then the loop terminates.
+	//
 	go func() {
-		for {
-			payload := readpayload{}
-			payload.nbytes, _, payload.err = s.conn.ReadFromUDP(buf)
-			payloadChan <- payload
-		}
+		<-ctx.Done()
+		s.conn.Close()
 	}()
 
-	for {
+	// simple utility function that returns a copy of a byte slice.
+	cpybuf := func(b []byte) []byte {
+		rc := make([]byte, len(b))
+		copy(rc, b)
+		return rc
+	}
+
+	for buf := make([]byte, MaxUDPPayload); ; {
+		nbytes, err := s.conn.Read(buf)
+
+		// test if we've been cancelled
 		select {
 		case <-ctx.Done():
-			// We closed the connection, time to go.
-			s.conn.Close()
 			return
-		case payload := <-payloadChan:
-			// Keep processing.
-			if payload.err != nil {
-				atomic.AddInt64(&s.stats.ReadFail, 1)
-				s.Logger.Info("Failed to read UDP message", zap.Error(payload.err))
-				continue
-			}
-			atomic.AddInt64(&s.stats.BytesReceived, int64(payload.nbytes))
-
-			bufCopy := make([]byte, payload.nbytes)
-			copy(bufCopy, buf[:payload.nbytes])
-			s.parserChan <- bufCopy
+		default:
+			// proceed to regular error handling
 		}
+
+		// if there is an error, account for it and log it.
+		if err != nil {
+			atomic.AddInt64(&s.stats.ReadFail, 1)
+			s.Logger.Info("Failed to read UDP message", zap.Error(err))
+			continue
+		}
+
+		// at this point, we've whittled away the undesired stated and we can pass
+		// data to our parser.
+		atomic.AddInt64(&s.stats.BytesReceived, int64(nbytes))
+		s.parserChan <- cpybuf(buf[:nbytes])
 	}
 }
 

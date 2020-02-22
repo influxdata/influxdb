@@ -342,47 +342,26 @@ func (s *Service) Addr() net.Addr {
 
 // serve serves the handler from the listener.
 func (s *Service) serve(ctx context.Context) error {
-	conChan := make(chan net.Conn)
-	errChan := make(chan error)
-
-	// send accepted connections to our conChan so that we can multiplex over
-	// conChand and ctx.Done() in the next for loop.
-	//
-	// this go routine is cancelled once the s.ln listener is closed.
-	//
-	// FIXME: this logic needs to be looked at closely.
+	// closing the listener will caluse s.ln.Accept() to unblock immediately
+	// which will cancel the Accept() loop below.
 	go func() {
-		for {
-			// Wait for next connection.
-			c, err := s.ln.Accept()
-			if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
-				s.Logger.Info("OpenTSDB TCP listener closed")
-				errChan <- err
-				return
-			} else if err != nil {
-				s.Logger.Info("Error accepting OpenTSDB", zap.Error(err))
-				continue
-			}
-			conChan <- c
-		}
+		<-ctx.Done()
+		s.ln.Close()
 	}()
 
-	// handle new incoming connections, errors, and cancellation signal.
 	for {
-		select {
-		case <-ctx.Done():
-			// we're done.  close our listener immediately so we don't accept new connections.
-			s.ln.Close()
-			return nil
-
-		case conn := <-conChan:
-			// Handle connection in separate goroutine.
-			go s.handleConn(conn)
-
-		case err := <-errChan:
-			s.ln.Close()
+		// Wait for next connection.
+		conn, err := s.ln.Accept()
+		if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
+			s.Logger.Info("OpenTSDB TCP listener closed")
 			return err
+		} else if err != nil {
+			s.Logger.Info("Error accepting OpenTSDB", zap.Error(err))
+			continue
 		}
+
+		// Handle connection in separate goroutine.
+		go s.handleConn(conn)
 	}
 }
 

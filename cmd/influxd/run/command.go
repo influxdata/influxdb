@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/logger"
@@ -47,7 +48,8 @@ type Command struct {
 	Stderr io.Writer
 	Logger *zap.Logger
 
-	Server *Server
+	ServerLock sync.Mutex
+	Server     *Server
 
 	// How to get environment variables. Normally set to os.Getenv, except for tests.
 	Getenv func(string) string
@@ -148,7 +150,9 @@ func (cmd *Command) Run(ctx context.Context, args ...string) error {
 	s.MemProfile = options.MemProfile
 
 	// Begin monitoring the server's error channel.
+	cmd.ServerLock.Lock()
 	cmd.Server = s
+	cmd.ServerLock.Unlock()
 	go cmd.monitorServerErrors(ctx)
 
 	if err := s.OpenWithContext(ctx); err != nil {
