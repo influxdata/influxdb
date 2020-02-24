@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/repl"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
@@ -57,9 +57,13 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
@@ -68,7 +72,7 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error parsing flux script: %s", err)
 	}
 
-	tc := platform.TaskCreate{
+	tc := influxdb.TaskCreate{
 		Flux:         flux,
 		Organization: taskCreateFlags.org.name,
 	}
@@ -129,7 +133,7 @@ func taskFindCmd(opt genericCLIOpts) *cobra.Command {
 	taskFindFlags.org.register(cmd, false)
 	cmd.Flags().StringVarP(&taskFindFlags.id, "id", "i", "", "task ID")
 	cmd.Flags().StringVarP(&taskFindFlags.user, "user-id", "n", "", "task owner ID")
-	cmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", platform.TaskDefaultPageSize, "the number of tasks to find")
+	cmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", influxdb.TaskDefaultPageSize, "the number of tasks to find")
 	cmd.Flags().BoolVar(&taskFindFlags.headers, "headers", true, "To print the table headers; defaults true")
 
 	return cmd
@@ -139,15 +143,20 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	if err := taskFindFlags.org.validOrgFlags(); err != nil {
 		return err
 	}
+
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	filter := platform.TaskFilter{}
+	filter := influxdb.TaskFilter{}
 	if taskFindFlags.user != "" {
-		id, err := platform.IDFromString(taskFindFlags.user)
+		id, err := influxdb.IDFromString(taskFindFlags.user)
 		if err != nil {
 			return err
 		}
@@ -158,23 +167,22 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 		filter.Organization = taskFindFlags.org.name
 	}
 	if taskFindFlags.org.id != "" {
-		id, err := platform.IDFromString(taskFindFlags.org.id)
+		id, err := influxdb.IDFromString(taskFindFlags.org.id)
 		if err != nil {
 			return err
 		}
 		filter.OrganizationID = id
 	}
 
-	if taskFindFlags.limit < 1 || taskFindFlags.limit > platform.TaskMaxPageSize {
-		return fmt.Errorf("limit must be between 1 and %d", platform.TaskMaxPageSize)
+	if taskFindFlags.limit < 1 || taskFindFlags.limit > influxdb.TaskMaxPageSize {
+		return fmt.Errorf("limit must be between 1 and %d", influxdb.TaskMaxPageSize)
 	}
 	filter.Limit = taskFindFlags.limit
 
 	var tasks []http.Task
-	var err error
 
 	if taskFindFlags.id != "" {
-		id, err := platform.IDFromString(taskFindFlags.id)
+		id, err := influxdb.IDFromString(taskFindFlags.id)
 		if err != nil {
 			return err
 		}
@@ -237,18 +245,22 @@ func taskUpdateCmd(opt genericCLIOpts) *cobra.Command {
 }
 
 func taskUpdateF(cmd *cobra.Command, args []string) error {
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	var id platform.ID
+	var id influxdb.ID
 	if err := id.DecodeFromString(taskUpdateFlags.id); err != nil {
 		return err
 	}
 
-	update := platform.TaskUpdate{}
+	update := influxdb.TaskUpdate{}
 	if taskUpdateFlags.status != "" {
 		update.Status = &taskUpdateFlags.status
 	}
@@ -306,14 +318,18 @@ func taskDeleteCmd(opt genericCLIOpts) *cobra.Command {
 }
 
 func taskDeleteF(cmd *cobra.Command, args []string) error {
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	var id platform.ID
-	err := id.DecodeFromString(taskDeleteFlags.id)
+	var id influxdb.ID
+	err = id.DecodeFromString(taskDeleteFlags.id)
 	if err != nil {
 		return err
 	}
@@ -382,21 +398,25 @@ func taskLogFindCmd(opt genericCLIOpts) *cobra.Command {
 }
 
 func taskLogFindF(cmd *cobra.Command, args []string) error {
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	var filter platform.LogFilter
-	id, err := platform.IDFromString(taskLogFindFlags.taskID)
+	var filter influxdb.LogFilter
+	id, err := influxdb.IDFromString(taskLogFindFlags.taskID)
 	if err != nil {
 		return err
 	}
 	filter.Task = *id
 
 	if taskLogFindFlags.runID != "" {
-		id, err := platform.IDFromString(taskLogFindFlags.runID)
+		id, err := influxdb.IDFromString(taskLogFindFlags.runID)
 		if err != nil {
 			return err
 		}
@@ -463,26 +483,30 @@ func taskRunFindCmd(opt genericCLIOpts) *cobra.Command {
 }
 
 func taskRunFindF(cmd *cobra.Command, args []string) error {
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	filter := platform.RunFilter{
+	filter := influxdb.RunFilter{
 		Limit:      taskRunFindFlags.limit,
 		AfterTime:  taskRunFindFlags.afterTime,
 		BeforeTime: taskRunFindFlags.beforeTime,
 	}
-	taskID, err := platform.IDFromString(taskRunFindFlags.taskID)
+	taskID, err := influxdb.IDFromString(taskRunFindFlags.taskID)
 	if err != nil {
 		return err
 	}
 	filter.Task = *taskID
 
-	var runs []*platform.Run
+	var runs []*influxdb.Run
 	if taskRunFindFlags.runID != "" {
-		id, err := platform.IDFromString(taskRunFindFlags.runID)
+		id, err := influxdb.IDFromString(taskRunFindFlags.runID)
 		if err != nil {
 			return err
 		}
@@ -547,13 +571,17 @@ func taskRunRetryCmd(opt genericCLIOpts) *cobra.Command {
 }
 
 func runRetryF(cmd *cobra.Command, args []string) error {
+	client, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	s := &http.TaskService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Client:             client,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	var taskID, runID platform.ID
+	var taskID, runID influxdb.ID
 	if err := taskID.DecodeFromString(runRetryFlags.taskID); err != nil {
 		return err
 	}
