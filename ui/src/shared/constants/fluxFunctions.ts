@@ -3274,7 +3274,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Filters input data by measurement.',
     example:
       'query.fromRange(bucket: "example-bucket", start: v.timeRangeStart)',
-    category: 'Input',
+    category: 'Inputs',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/query/fromrange/',
   },
