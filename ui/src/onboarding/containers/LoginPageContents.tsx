@@ -25,10 +25,11 @@ import {GoogleLogo, GithubLogo} from 'src/clientLibraries/graphics'
 // Types
 import {Auth0Connection} from 'src/types'
 
+// TODO: these are filler properties that will be populated on IDPE in a later iteration
 const auth0 = new auth0js.WebAuth({
-  domain: process.env.AUTH0_DOMAIN || 'www.influxdata.com',
-  clientID: process.env.AUTH0_CLIENT_ID || 'abc123',
-  redirectUri: process.env.AUTH0_REDIRECT_URI || 'www.influxdata.com',
+  domain: 'www.influxdata.com',
+  clientID: 'abc123',
+  redirectUri: 'www.influxdata.com',
   responseType: 'code',
 })
 
