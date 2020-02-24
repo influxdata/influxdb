@@ -253,6 +253,10 @@ const loadTagSelectorValues = (index: number) => async (
   const queryURL = state.links.query.self
   const orgID = getOrg(getState()).id
 
+  if (!buckets[0]) {
+    return
+  }
+
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 
   try {
