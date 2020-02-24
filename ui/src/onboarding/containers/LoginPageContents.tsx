@@ -54,7 +54,7 @@ interface State {
   notificationVisible: boolean
 }
 
-export class LoginPageContents extends PureComponent<State> {
+export class LoginPageContents extends PureComponent<{}> {
   state: State = {
     activeTab: 'login',
     buttonStatus: ComponentStatus.Default,
