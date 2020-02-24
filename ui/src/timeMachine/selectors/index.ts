@@ -25,8 +25,6 @@ import {
 // Types
 import {
   QueryView,
-  BuilderAggregateFunctionType,
-  BuilderTagsType,
   DashboardQuery,
   FluxTable,
   AppState,
@@ -242,25 +240,6 @@ export const getActiveTimeRange = (
     return timeRange
   }
   return null
-}
-
-export const getActiveTagValues = (
-  activeQueryBuilderTags: BuilderTagsType[],
-  aggregateFunctionType: BuilderAggregateFunctionType,
-  index: number
-): string[] => {
-  // if we're grouping, we want to be able to group on all previous tags
-  if (aggregateFunctionType === 'group') {
-    const values = []
-    activeQueryBuilderTags.forEach(tag => {
-      tag.values.forEach(value => {
-        values.push(value)
-      })
-    })
-    return values
-  }
-
-  return activeQueryBuilderTags[index].values
 }
 
 export const getSaveableView = (state: AppState): QueryView & {id?: string} => {

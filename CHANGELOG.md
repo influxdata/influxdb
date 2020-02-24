@@ -5,9 +5,10 @@
 ### Bug Fixes
 1. [16919](https://github.com/influxdata/influxdb/pull/16919): Sort dashboards on homepage alphabetically
 1. [16934](https://github.com/influxdata/influxdb/pull/16934): Tokens page now sorts by status
-1. [16931](https://github.com/influxdata/influxdb/pull/16931): Set the defualt value of tags in a Check
+1. [16931](https://github.com/influxdata/influxdb/pull/16931): Set the default value of tags in a Check
 1. [16935](https://github.com/influxdata/influxdb/pull/16935): Fix sort by variable type
 1. [16973](https://github.com/influxdata/influxdb/pull/16973): Calculate correct stacked line cumulative when lines are different lengths
+1. [16992](https://github.com/influxdata/influxdb/pull/16992): Query Builder now groups on column values, not tag values
 
 ## v2.0.0-beta.4 [2020-02-14]
 
@@ -19,7 +20,7 @@
 ### Bug Fixes
 1. [16852](https://github.com/influxdata/influxdb/pull/16852): Revert for bad indexing of UserResourceMappings and Authorizations
 1. [15911](https://github.com/influxdata/influxdb/pull/15911): Gauge no longer allowed to become too small
-1. [16878](https://github.com/influxdata/influxdb/pull/16878): Fix issue with INFLUX_TOKEN env vars being overridden by default token 
+1. [16878](https://github.com/influxdata/influxdb/pull/16878): Fix issue with INFLUX_TOKEN env vars being overridden by default token
 
 ## v2.0.0-beta.3 [2020-02-11]
 
