@@ -1,8 +1,8 @@
-use crate::delorean::node::{Comparison, Logical, Value};
 use crate::delorean::{Bucket, IndexLevel, Node, Predicate};
 use crate::line_parser::PointType;
 use crate::storage::config_store::ConfigStore;
 use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
+use crate::storage::predicate::{Evaluate, EvaluateVisitor};
 use crate::storage::series_store::{ReadPoint, SeriesStore};
 use crate::storage::{Range, SeriesDataType, StorageError};
 
@@ -318,85 +318,25 @@ impl RocksDB {
     }
 
     fn evaluate_node(&self, bucket_id: u32, n: &Node) -> Result<Treemap, StorageError> {
-        if n.children.len() != 2 {
-            return Err(StorageError {
-                description: format!(
-                    "expected only two children of node but found {}",
-                    n.children.len()
-                ),
-            });
+        struct Visitor<'a> {
+            db: &'a RocksDB,
+            bucket_id: u32,
+        };
+
+        impl EvaluateVisitor for Visitor<'_> {
+            fn equal(&mut self, left: &str, right: &str) -> Result<Treemap, StorageError> {
+                self.db
+                    .get_posting_list_for_tag_key_value(self.bucket_id, left, right)
+            }
         }
 
-        match &n.value {
-            Some(node_value) => match node_value {
-                Value::Logical(l) => {
-                    let l = Logical::from_i32(*l).unwrap();
-                    self.evaluate_logical(bucket_id, &n.children[0], &n.children[1], l)
-                }
-                Value::Comparison(c) => {
-                    let c = Comparison::from_i32(*c).unwrap();
-                    self.evaluate_comparison(bucket_id, &n.children[0], &n.children[1], c)
-                }
-                val => Err(StorageError {
-                    description: format!("evaluate_node called on wrong type {:?}", val),
-                }),
+        Evaluate::evaluate(
+            Visitor {
+                db: self,
+                bucket_id,
             },
-            None => Err(StorageError {
-                description: "emtpy node value".to_string(),
-            }),
-        }
-    }
-
-    fn evaluate_logical(
-        &self,
-        bucket_id: u32,
-        left: &Node,
-        right: &Node,
-        op: Logical,
-    ) -> Result<Treemap, StorageError> {
-        let mut left_result = self.evaluate_node(bucket_id, left)?;
-        let right_result = self.evaluate_node(bucket_id, right)?;
-
-        match op {
-            Logical::And => left_result.and_inplace(&right_result),
-            Logical::Or => left_result.or_inplace(&right_result),
-        };
-
-        Ok(left_result)
-    }
-
-    fn evaluate_comparison(
-        &self,
-        bucket_id: u32,
-        left: &Node,
-        right: &Node,
-        op: Comparison,
-    ) -> Result<Treemap, StorageError> {
-        let left = match &left.value {
-            Some(Value::TagRefValue(s)) => s,
-            _ => {
-                return Err(StorageError {
-                    description: "expected left operand to be a TagRefValue".to_string(),
-                })
-            }
-        };
-
-        let right = match &right.value {
-            Some(Value::StringValue(s)) => s,
-            _ => {
-                return Err(StorageError {
-                    description: "unable to run comparison against anything other than a string"
-                        .to_string(),
-                })
-            }
-        };
-
-        match op {
-            Comparison::Equal => self.get_posting_list_for_tag_key_value(bucket_id, &left, &right),
-            comp => Err(StorageError {
-                description: format!("unable to handle comparison {:?}", comp),
-            }),
-        }
+            n,
+        )
     }
 
     fn get_posting_list_for_tag_key_value(
