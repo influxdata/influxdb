@@ -3317,7 +3317,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'Queries data from a specified bucket within given time bounds, filters data by measurement, field, and optional predicate expressions.',
     example:
       'query.inBucket(bucket: "example-bucket", start: v.timeRangeStart, measurement: "measurement_name", fields: ["field_name"], predicate: (r) => r.host == "host1")',
-    category: 'Input',
+    category: 'Inputs',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/query/inbucket/',
   },
