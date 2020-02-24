@@ -20,6 +20,7 @@ import GetOrganizations from 'src/shared/containers/GetOrganizations'
 import Setup from 'src/Setup'
 import Signin from 'src/Signin'
 import SigninPage from 'src/onboarding/containers/SigninPage'
+import {LoginPage} from 'src/onboarding/containers/LoginPage'
 import Logout from 'src/Logout'
 import TaskPage from 'src/tasks/containers/TaskPage'
 import TasksPage from 'src/tasks/containers/TasksPage'
@@ -191,6 +192,7 @@ class Root extends PureComponent {
                   component={OnboardingWizardPage}
                 />
                 <Route component={UnauthenticatedApp}>
+                  <Route path="/login" component={LoginPage} />
                   <Route path="/signin" component={SigninPage} />
                   <Route path="/logout" component={Logout} />
                 </Route>
