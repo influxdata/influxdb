@@ -3271,7 +3271,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'experimental/query',
-    desc: 'Filters input data by measurement.',
+    desc: 'Returns all data from a specified bucket within given time bounds.',
     example:
       'query.fromRange(bucket: "example-bucket", start: v.timeRangeStart)',
     category: 'Inputs',
@@ -3313,7 +3313,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'experimental/query',
-    desc: 'Filters input data by measurement.',
+    desc:
+      'Queries data from a specified bucket within given time bounds, filters data by measurement, field, and optional predicate expressions.',
     example:
       'query.inBucket(bucket: "example-bucket", start: v.timeRangeStart, measurement: "measurement_name", fields: ["field_name"], predicate: (r) => r.host == "host1")',
     category: 'Input',
