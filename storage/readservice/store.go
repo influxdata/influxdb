@@ -35,6 +35,9 @@ func NewStore(viewer Viewer) reads.Store {
 }
 
 func (s *store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	if req.ReadSource == nil {
 		return nil, errors.New("missing read source")
 	}
@@ -45,18 +48,19 @@ func (s *store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 	}
 
 	var cur reads.SeriesCursor
-	if ic, err := newIndexSeriesCursor(ctx, &source, req.Predicate, s.viewer); err != nil {
+	if cur, err = newIndexSeriesCursor(ctx, &source, req.Predicate, s.viewer); err != nil {
 		return nil, err
-	} else if ic == nil {
+	} else if cur == nil {
 		return nil, nil
-	} else {
-		cur = ic
 	}
 
 	return reads.NewFilteredResultSet(ctx, req, cur), nil
 }
 
 func (s *store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	if req.ReadSource == nil {
 		return nil, errors.New("missing read source")
 	}
@@ -67,18 +71,14 @@ func (s *store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 	}
 
 	newCursor := func() (reads.SeriesCursor, error) {
-		cur, err := newIndexSeriesCursor(ctx, &source, req.Predicate, s.viewer)
-		if cur == nil || err != nil {
-			return nil, err
-		}
-		return cur, nil
+		return newIndexSeriesCursor(ctx, &source, req.Predicate, s.viewer)
 	}
 
 	return reads.NewGroupResultSet(ctx, req, newCursor), nil
 }
 
 func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {
-	span, _ := tracing.StartSpanFromContext(ctx)
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if req.TagsSource == nil {
@@ -117,7 +117,7 @@ func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 }
 
 func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
-	span, _ := tracing.StartSpanFromContext(ctx)
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if req.TagsSource == nil {
