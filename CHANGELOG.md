@@ -1,6 +1,7 @@
 ## v2.0.0-beta.5 [unreleased]
 
 ### Features
+1. [16991](https://github.com/influxdata/influxdb/pull/16991): Update Flux functions list for v0.61
 
 ### Bug Fixes
 1. [16919](https://github.com/influxdata/influxdb/pull/16919): Sort dashboards on homepage alphabetically
