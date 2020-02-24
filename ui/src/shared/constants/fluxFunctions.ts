@@ -5002,7 +5002,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of tag keys for a specific measurement.',
-    example: 'v1.measurementTagKeys(bucket: "example-bucket", measurement: "mem")',
+    example:
+      'v1.measurementTagKeys(bucket: "example-bucket", measurement: "mem")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/measurementtagkeys/',
