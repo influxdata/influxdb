@@ -52,7 +52,7 @@
   max-width: 1600px;
   min-height: 670px + $ix-marg-d;
   padding: $ix-marg-d;
-  margin: auto auto;
+  margin: auto;
   z-index: 0;
   background: transparent !important;
   z-index: 100;
@@ -75,9 +75,7 @@
     height: 80vh;
     padding: 64px;
   }
-}
 
-@media screen and (min-width: $grid--breakpoint-md) {
   .sign-up--panel {
     max-height: 800px;
   }
@@ -158,11 +156,11 @@
     fill: #32a753;
   }
 
-  .google-yellow {
-    fill: #f9bb00;
-  }
-
   .google-red {
     fill: #e74133;
+  }
+
+  .google-yellow {
+    fill: #f9bb00;
   }
 }

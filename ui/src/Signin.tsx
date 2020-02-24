@@ -84,7 +84,7 @@ export class Signin extends PureComponent<Props, State> {
 
       clearInterval(this.intervalID)
 
-      if (CLOUD && isFlagEnabled('IDPELoginPage')) {
+      if (CLOUD && isFlagEnabled('regionBasedLoginPage')) {
         this.props.router.replace('/login')
         return
       }

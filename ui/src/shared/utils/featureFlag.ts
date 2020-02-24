@@ -7,7 +7,7 @@ export const OSS_FLAGS = {
   telegrafEditor: false,
   customCheckQuery: false,
   matchingNotificationRules: false,
-  IDPELoginPage: false,
+  regionBasedLoginPage: false,
 }
 
 export const CLOUD_FLAGS = {
@@ -18,7 +18,7 @@ export const CLOUD_FLAGS = {
   telegrafEditor: false,
   customCheckQuery: false,
   matchingNotificationRules: false,
-  IDPELoginPage: false,
+  regionBasedLoginPage: false,
 }
 
 export const isFlagEnabled = (flagName: string, equals?: string | boolean) => {

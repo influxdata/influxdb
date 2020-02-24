@@ -12,9 +12,7 @@ import {
   Panel,
 } from '@influxdata/clockface'
 
-// import LoginPage from 'src/onboarding/containers/LoginPage'
-
-const SignUp: FC = () => (
+export const LoginPage: FC = () => (
   <AppWrapper className="sign-up--page">
     <Page titleTag="Sign Up for InfluxDB Cloud">
       <Page.Contents
@@ -46,5 +44,3 @@ const SignUp: FC = () => (
     </Page>
   </AppWrapper>
 )
-
-export default SignUp
