@@ -35,7 +35,6 @@ import DefaultDebouncer from 'src/shared/utils/debouncer'
 import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 import {
   getActiveQuery,
-  getActiveTagValues,
   getActiveTimeMachine,
   getIsInCheckOverlay,
 } from 'src/timeMachine/selectors'
@@ -48,6 +47,9 @@ import {
 } from 'src/types'
 
 const SEARCH_DEBOUNCE_MS = 500
+
+// We don't show these columns in results but they're able to be grouped on
+const ADDITIONAL_GROUP_BY_COLUMNS = ['_start', '_stop', '_time']
 
 interface StateProps {
   aggregateFunctionType: BuilderAggregateFunctionType
@@ -143,6 +145,10 @@ class TagSelector extends PureComponent<Props> {
       )
     }
 
+    const placeholderText =
+      aggregateFunctionType === 'group'
+        ? 'Search group column values'
+        : `Search ${selectedKey} tag values`
     return (
       <>
         <BuilderCard.Menu testID={`tag-selector--container ${index}`}>
@@ -170,7 +176,7 @@ class TagSelector extends PureComponent<Props> {
           )}
           <Input
             value={valuesSearchTerm}
-            placeholder={`Search ${selectedKey} tag values`}
+            placeholder={placeholderText}
             className="tag-selector--search"
             onChange={this.handleValuesSearch}
           />
@@ -300,16 +306,10 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
 
   const tags = getActiveQuery(state).builderConfig.tags
 
-  let emptyText: string
+  let emptyText: string = ''
   const previousTagSelector = tags[ownProps.index - 1]
-  if (
-    ownProps.index === 0 ||
-    !previousTagSelector ||
-    !previousTagSelector.key
-  ) {
-    emptyText = ''
-  } else {
-    emptyText = `Select a ${tags[ownProps.index - 1].key} value first`
+  if (previousTagSelector && previousTagSelector.key) {
+    emptyText = `Select a ${previousTagSelector.key} value first`
   }
 
   const {
@@ -318,11 +318,10 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     aggregateFunctionType,
   } = tags[ownProps.index]
 
-  const values = getActiveTagValues(
-    activeQueryBuilder.tags,
-    aggregateFunctionType,
-    ownProps.index
-  )
+  let {values} = activeQueryBuilder.tags[ownProps.index]
+  if (aggregateFunctionType === 'group') {
+    values = [...ADDITIONAL_GROUP_BY_COLUMNS, ...tags.map(tag => tag.key)]
+  }
   const isInCheckOverlay = getIsInCheckOverlay(state)
 
   return {
