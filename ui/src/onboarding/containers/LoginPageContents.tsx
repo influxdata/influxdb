@@ -20,8 +20,7 @@ import auth0js from 'auth0-js'
 // Components
 import {LoginForm} from 'src/onboarding/components/LoginForm'
 import {SignUpForm} from 'src/onboarding/components/SignUpForm'
-import {SocialButton} from 'src/shared/components/SocialButton'
-import {GoogleLogo, GithubLogo} from 'src/clientLibraries/graphics'
+
 // Types
 import {Auth0Connection} from 'src/types'
 
@@ -118,22 +117,20 @@ export class LoginPageContents extends PureComponent<{}> {
                   alignItems={AlignItems.Center}
                   margin={ComponentSize.Large}
                 >
-                  <SocialButton
-                    handleClick={() => {
+                  <button
+                    onClick={() => {
                       this.handleSocialClick(Auth0Connection.Google)
                     }}
-                    buttonText="Google"
                   >
-                    <GoogleLogo className="signup-icon" />
-                  </SocialButton>
-                  <SocialButton
-                    buttonText="Github"
-                    handleClick={() => {
+                    Google
+                  </button>
+                  <button
+                    onClick={() => {
                       this.handleSocialClick(Auth0Connection.Github)
                     }}
                   >
-                    <GithubLogo className="signup-icon" />
-                  </SocialButton>
+                    Github
+                  </button>
                 </FlexBox>
               </Grid.Row>
             </Grid>
