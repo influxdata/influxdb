@@ -2,7 +2,10 @@
 
 ### Features
 
+1. [16991](https://github.com/influxdata/influxdb/pull/16991): Update Flux functions list for v0.61
+
 ### Bug Fixes
+
 1. [16919](https://github.com/influxdata/influxdb/pull/16919): Sort dashboards on homepage alphabetically
 1. [16934](https://github.com/influxdata/influxdb/pull/16934): Tokens page now sorts by status
 1. [16931](https://github.com/influxdata/influxdb/pull/16931): Set the defualt value of tags in a Check
@@ -13,14 +16,16 @@
 ## v2.0.0-beta.4 [2020-02-14]
 
 ### Features
+
 1. [16855](https://github.com/influxdata/influxdb/pull/16855): Added labels to buckets in UI
 1. [16842](https://github.com/influxdata/influxdb/pull/16842): Connect monaco editor to Flux LSP server
 1. [16856](https://github.com/influxdata/influxdb/pull/16856): Update Flux to v0.59.6
 
 ### Bug Fixes
+
 1. [16852](https://github.com/influxdata/influxdb/pull/16852): Revert for bad indexing of UserResourceMappings and Authorizations
 1. [15911](https://github.com/influxdata/influxdb/pull/15911): Gauge no longer allowed to become too small
-1. [16878](https://github.com/influxdata/influxdb/pull/16878): Fix issue with INFLUX_TOKEN env vars being overridden by default token 
+1. [16878](https://github.com/influxdata/influxdb/pull/16878): Fix issue with INFLUX_TOKEN env vars being overridden by default token
 
 ## v2.0.0-beta.3 [2020-02-11]
 
