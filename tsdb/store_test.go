@@ -275,15 +275,22 @@ func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
 			}
 		}()
 
+		errChan := make(chan error)
 		go func() {
 			defer wg.Done()
+			defer close(errChan)
 			for i := 0; i < 50; i++ {
 				err := s.DeleteMeasurement("db0", "cpu")
 				if err != nil {
-					t.Fatal(err)
+					errChan <- err
+					return
 				}
 			}
 		}()
+
+		if err := <-errChan; err != nil {
+			t.Fatal(err)
+		}
 
 		wg.Wait()
 
@@ -2060,11 +2067,13 @@ func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 				default:
 					stmt, err := influxql.ParseStatement(`SHOW TAG VALUES WITH KEY = "host"`)
 					if err != nil {
-						t.Fatal(err)
+						errC <- err
+						return
 					}
 					rewrite, err := query.RewriteStatement(stmt)
 					if err != nil {
-						t.Fatal(err)
+						errC <- err
+						return
 					}
 
 					cond := rewrite.(*influxql.ShowTagValuesStatement).Condition
