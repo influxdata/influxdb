@@ -118,13 +118,6 @@ func dumpBufs(a, b []byte) {
 	fmt.Println()
 }
 
-func dumpBuf(b []byte) {
-	for i, v := range b {
-		fmt.Printf("%d %08b\n", i, v)
-	}
-	fmt.Println()
-}
-
 func TestFloatArrayEncodeAll_NaN(t *testing.T) {
 	examples := [][]float64{
 		{1.0, math.NaN(), 2.0},
