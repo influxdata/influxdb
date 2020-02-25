@@ -2,6 +2,7 @@
 
 ### Features
 1. [16991](https://github.com/influxdata/influxdb/pull/16991): Update Flux functions list for v0.61
+1. [16574](https://github.com/influxdata/influxdb/pull/16574): Add secure flag to session cookie
 
 ### Bug Fixes
 1. [16919](https://github.com/influxdata/influxdb/pull/16919): Sort dashboards on homepage alphabetically
