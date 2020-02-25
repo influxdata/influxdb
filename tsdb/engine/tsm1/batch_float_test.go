@@ -172,7 +172,7 @@ func Test_FloatArrayEncodeAll_Quick(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if got, exp := result, src[:len(src)]; !reflect.DeepEqual(got, exp) {
+		if got, exp := result, src; !reflect.DeepEqual(got, exp) {
 			t.Fatalf("got result %v, expected %v", got, exp)
 		}
 		return true
