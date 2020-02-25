@@ -2,6 +2,7 @@ package models_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -16,9 +17,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
 )
 
 var (
@@ -36,6 +35,16 @@ var (
 
 	sink interface{}
 )
+
+type ID uint64
+
+// EncodeName converts org/bucket pairs to the tsdb internal serialization
+func EncodeName(org, bucket ID) [16]byte {
+	var nameBytes [16]byte
+	binary.BigEndian.PutUint64(nameBytes[0:8], uint64(org))
+	binary.BigEndian.PutUint64(nameBytes[8:16], uint64(bucket))
+	return nameBytes
+}
 
 func TestMarshal(t *testing.T) {
 	got := tags.HashKey()
@@ -2493,7 +2502,7 @@ func TestParsePointsWithOptions(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			buf := test.read(t)
-			encoded := tsdb.EncodeName(influxdb.ID(1000), influxdb.ID(2000))
+			encoded := EncodeName(ID(1000), ID(2000))
 			mm := models.EscapeMeasurement(encoded[:])
 
 			var stats models.ParserStats
@@ -3021,7 +3030,7 @@ func BenchmarkNewTagsKeyValues(b *testing.B) {
 func benchParseFile(b *testing.B, name string, repeat int, fn func(b *testing.B, buf []byte, mm []byte, now time.Time)) {
 	b.Helper()
 	buf := mustReadTestData(b, name, repeat)
-	encoded := tsdb.EncodeName(influxdb.ID(1000), influxdb.ID(2000))
+	encoded := EncodeName(ID(1000), ID(2000))
 	mm := models.EscapeMeasurement(encoded[:])
 	now := time.Now()
 
