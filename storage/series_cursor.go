@@ -18,7 +18,7 @@ var (
 )
 
 type SeriesCursor interface {
-	Close() error
+	Close()
 	Next() (*SeriesCursorRow, error)
 }
 
@@ -86,10 +86,9 @@ func newSeriesCursor(orgID, bucketID influxdb.ID, index *tsi1.Index, sfile *tsdb
 }
 
 // Close closes the iterator. Safe to call multiple times.
-func (cur *seriesCursor) Close() error {
+func (cur *seriesCursor) Close() {
 	cur.sfileref.Release()
 	cur.indexref.Release()
-	return nil
 }
 
 // Next emits the next point in the iterator.
