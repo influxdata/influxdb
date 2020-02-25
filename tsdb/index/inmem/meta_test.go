@@ -260,7 +260,7 @@ func benchmarkTagSets(b *testing.B, n int, opt query.IteratorOptions) {
 
 	for i := 0; i < n; i++ {
 		tags := map[string]string{"tag1": "value1", "tag2": "value2"}
-		s := newSeries(uint64(i), m, fmt.Sprintf("m,tag1=value1,tag2=value2"), models.NewTags(tags))
+		s := newSeries(uint64(i), m, "m,tag1=value1,tag2=value2", models.NewTags(tags))
 		ss.Add(uint64(i))
 		m.AddSeries(s)
 	}
