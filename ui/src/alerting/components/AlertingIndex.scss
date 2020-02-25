@@ -6,6 +6,7 @@
 
 .alerting-index--column {
   height: calc(100% - #{$ix-marg-d});
+  overflow: hidden;
 }
 
 .alert-column--empty {
@@ -16,6 +17,8 @@
 .alerting-index--column-body {
   flex: 1 0 0;
   position: relative;
+  height: 90%;
+  padding-bottom: $ix-marg-d;
 }
 
 .alerting-index--list,
@@ -90,13 +93,13 @@
   margin: 0;
   padding-left: 0;
   list-style: none;
-  
+
   .cf-icon {
     display: inline-block;
     margin-right: 5px;
     width: 16px;
   }
-  
+
   &.error {
     color: $c-dreamsicle;
   }
