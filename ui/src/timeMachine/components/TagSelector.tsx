@@ -48,7 +48,7 @@ import {
 
 const SEARCH_DEBOUNCE_MS = 500
 
-// We don't show these columns in results but they're able to be grouped on
+// We don't show these columns in results but they're able to be grouped on for most queries
 const ADDITIONAL_GROUP_BY_COLUMNS = ['_start', '_stop', '_time']
 
 interface StateProps {
