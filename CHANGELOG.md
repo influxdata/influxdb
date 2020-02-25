@@ -1,25 +1,30 @@
 ## v2.0.0-beta.5 [unreleased]
 
 ### Features
+
 1. [16991](https://github.com/influxdata/influxdb/pull/16991): Update Flux functions list for v0.61
 1. [16574](https://github.com/influxdata/influxdb/pull/16574): Add secure flag to session cookie
 
 ### Bug Fixes
+
 1. [16919](https://github.com/influxdata/influxdb/pull/16919): Sort dashboards on homepage alphabetically
 1. [16934](https://github.com/influxdata/influxdb/pull/16934): Tokens page now sorts by status
 1. [16931](https://github.com/influxdata/influxdb/pull/16931): Set the default value of tags in a Check
 1. [16935](https://github.com/influxdata/influxdb/pull/16935): Fix sort by variable type
 1. [16973](https://github.com/influxdata/influxdb/pull/16973): Calculate correct stacked line cumulative when lines are different lengths
+1. [17010](https://github.com/influxdata/influxdb/pull/17010): Fixed scrollbar issue where resource cards would overflow the parent container rather than be hidden and scrollable
 1. [16992](https://github.com/influxdata/influxdb/pull/16992): Query Builder now groups on column values, not tag values
 
 ## v2.0.0-beta.4 [2020-02-14]
 
 ### Features
+
 1. [16855](https://github.com/influxdata/influxdb/pull/16855): Added labels to buckets in UI
 1. [16842](https://github.com/influxdata/influxdb/pull/16842): Connect monaco editor to Flux LSP server
 1. [16856](https://github.com/influxdata/influxdb/pull/16856): Update Flux to v0.59.6
 
 ### Bug Fixes
+
 1. [16852](https://github.com/influxdata/influxdb/pull/16852): Revert for bad indexing of UserResourceMappings and Authorizations
 1. [15911](https://github.com/influxdata/influxdb/pull/15911): Gauge no longer allowed to become too small
 1. [16878](https://github.com/influxdata/influxdb/pull/16878): Fix issue with INFLUX_TOKEN env vars being overridden by default token
