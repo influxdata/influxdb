@@ -90,6 +90,41 @@ describe('The Query Builder', () => {
     })
   })
 
+  describe('the group() function', () => {
+    it('creates a query that has a group() function in it', () => {
+      cy.get('@org').then((org: Organization) => {
+        cy.visit(`orgs/${org.id}/data-explorer`)
+      })
+
+      cy.contains('mem').click('left')
+      cy.getByTestID('builder-card')
+        .last()
+        .contains('Filter')
+        .click()
+        .get('.cf-dropdown--menu-container')
+        .contains('group')
+        .click()
+
+      const groupableColums = []
+
+      cy.getByTestID('builder-card')
+        .last()
+        .then($lastBuilderCard => {
+          $lastBuilderCard.find('.selector-list--item').each((index, $item) => {
+            groupableColums.push($item.innerHTML)
+          })
+
+          expect(groupableColums).to.eql([
+            '_start',
+            '_stop',
+            '_time',
+            '_measurement',
+            '_field',
+          ])
+        })
+    })
+  })
+
   // This is flaky in prod
   // https://circleci.com/gh/influxdata/influxdb/74628#artifacts/containers/0
   describe.skip('from the Dashboard view', () => {
