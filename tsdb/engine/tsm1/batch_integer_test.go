@@ -642,10 +642,8 @@ func TestIntegerArrayEncodeAll_Quick(t *testing.T) {
 		}
 
 		// Copy over values to compare result—src is modified...
-		exp := make([]int64, 0, len(src))
-		for _, v := range src {
-			exp = append(exp, v)
-		}
+		exp := make([]int64, len(src))
+		copy(exp, src)
 
 		// Retrieve encoded bytes from encoder.
 		b, err := IntegerArrayEncodeAll(src, nil)
