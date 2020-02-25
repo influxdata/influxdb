@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/repl"
+	"github.com/influxdata/flux/runtime"
 	_ "github.com/influxdata/flux/stdlib"
 	_ "github.com/influxdata/influxdb/query/stdlib"
 	"github.com/spf13/cobra"
@@ -52,7 +52,7 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	flux.FinalizeBuiltIns()
+	runtime.FinalizeBuiltIns()
 
 	r, err := getFluxREPL(flags.host, flags.token, flags.skipVerify, orgID)
 	if err != nil {

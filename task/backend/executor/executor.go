@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -363,7 +364,7 @@ func (w *worker) executeQuery(p *promise) {
 	// start
 	w.start(p)
 
-	pkg, err := flux.Parse(p.task.Flux)
+	pkg, err := runtime.Parse(p.task.Flux)
 	if err != nil {
 		w.finish(p, backend.RunFail, influxdb.ErrFluxParseError(err))
 		return

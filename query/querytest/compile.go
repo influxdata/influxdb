@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/runtime"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
 )
@@ -21,7 +21,7 @@ type BucketsAccessedTestCase struct {
 func BucketsAccessedTestHelper(t *testing.T, tc BucketsAccessedTestCase) {
 	t.Helper()
 
-	ast, err := flux.Parse(tc.Raw)
+	ast, err := runtime.Parse(tc.Raw)
 	if err != nil {
 		t.Fatalf("could not parse flux: %v", err)
 	}

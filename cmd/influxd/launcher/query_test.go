@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
@@ -121,7 +122,7 @@ func TestPipeline_QueryMemoryLimits(t *testing.T) {
 
 	// compile a from query and get the spec
 	qs := fmt.Sprintf(`from(bucket:"%s") |> range(start:-5m)`, l.Bucket.Name)
-	pkg, err := flux.Parse(qs)
+	pkg, err := runtime.Parse(qs)
 	if err != nil {
 		t.Fatal(err)
 	}
