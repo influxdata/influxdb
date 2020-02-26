@@ -7,3 +7,7 @@
 # API and monitoring team will help to review swagger.yml changes.
 #
 http/swagger.yml @influxdata/api @influxdata/monitoring-team
+
+# Storage code
+/storage/ @influxdata/storage-team-assigner
+/tsdb/ @influxdata/storage-team-assigner
