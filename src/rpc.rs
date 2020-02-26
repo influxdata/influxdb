@@ -1,10 +1,12 @@
 use delorean::delorean::{
-    delorean_server::Delorean, storage_server::Storage, CapabilitiesResponse, CreateBucketRequest,
-    CreateBucketResponse, DeleteBucketRequest, DeleteBucketResponse, GetBucketsResponse,
-    Organization, ReadFilterRequest, ReadGroupRequest, ReadResponse, StringValuesResponse,
-    TagKeysRequest, TagValuesRequest,
+    delorean_server::Delorean, storage_server::Storage, Bucket, CapabilitiesResponse,
+    CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest, DeleteBucketResponse,
+    GetBucketsResponse, Organization, ReadFilterRequest, ReadGroupRequest, ReadResponse,
+    ReadSource, StringValuesResponse, TagKeysRequest, TagValuesRequest,
 };
+use delorean::storage::database::Database;
 
+use std::convert::TryInto;
 use std::sync::Arc;
 
 use tokio::sync::mpsc;
@@ -37,6 +39,74 @@ impl Delorean for GrpcServer {
         _req: tonic::Request<Organization>,
     ) -> Result<tonic::Response<GetBucketsResponse>, Status> {
         Ok(tonic::Response::new(GetBucketsResponse { buckets: vec![] }))
+    }
+}
+
+/// This trait implements extraction of information from all storage gRPC requests. The only method
+/// required to implement is `read_source_field` because for some requests the field is named
+/// `read_source` and for others it is `tags_source`.
+trait GrpcInputs {
+    fn read_source_field(&self) -> Option<&prost_types::Any>;
+
+    fn read_source_raw(&self) -> Result<&prost_types::Any, Status> {
+        Ok(self
+            .read_source_field()
+            .ok_or_else(|| Status::invalid_argument("missing read_source"))?)
+    }
+
+    fn read_source(&self) -> Result<ReadSource, Status> {
+        let raw = self.read_source_raw()?;
+        let val = &raw.value[..];
+        Ok(prost::Message::decode(val).map_err(|_| {
+            Status::invalid_argument("value could not be parsed as a ReadSource message")
+        })?)
+    }
+
+    fn org_id(&self) -> Result<u32, Status> {
+        Ok(self
+            .read_source()?
+            .org_id
+            .try_into()
+            .map_err(|_| Status::invalid_argument("org_id did not fit in a u32"))?)
+    }
+
+    fn bucket(&self, db: &Database) -> Result<Arc<Bucket>, Status> {
+        let bucket_id = self
+            .read_source()?
+            .bucket_id
+            .try_into()
+            .map_err(|_| Status::invalid_argument("bucket_id did not fit in a u32"))?;
+
+        let maybe_bucket = db
+            .get_bucket_by_id(bucket_id)
+            .map_err(|_| Status::internal("could not query for bucket"))?;
+
+        Ok(maybe_bucket
+            .ok_or_else(|| Status::not_found(&format!("bucket {} not found", bucket_id)))?)
+    }
+}
+
+impl GrpcInputs for ReadFilterRequest {
+    fn read_source_field(&self) -> Option<&prost_types::Any> {
+        self.read_source.as_ref()
+    }
+}
+
+impl GrpcInputs for ReadGroupRequest {
+    fn read_source_field(&self) -> Option<&prost_types::Any> {
+        self.read_source.as_ref()
+    }
+}
+
+impl GrpcInputs for TagKeysRequest {
+    fn read_source_field(&self) -> Option<&prost_types::Any> {
+        self.tags_source.as_ref()
+    }
+}
+
+impl GrpcInputs for TagValuesRequest {
+    fn read_source_field(&self) -> Option<&prost_types::Any> {
+        self.tags_source.as_ref()
     }
 }
 
