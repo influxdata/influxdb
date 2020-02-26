@@ -427,6 +427,16 @@ workflows:
   e2e:
     jobs:
       - e2e
+  hourly-e2e:
+    triggers:
+      - schedule:
+          cron: '0 * * * *'
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - e2e
   nightly:
     triggers:
       - schedule:
