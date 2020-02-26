@@ -381,7 +381,7 @@ func decodeCheckFilter(ctx context.Context, r *http.Request) (*influxdb.CheckFil
 		}
 		f.OrgID = orgID
 	} else if orgNameStr := q.Get("org"); orgNameStr != "" {
-		*f.Org = orgNameStr
+		f.Org = &orgNameStr
 	}
 	return f, opts, err
 }
