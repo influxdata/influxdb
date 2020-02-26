@@ -134,9 +134,36 @@ impl Storage for GrpcServer {
 
     async fn tag_keys(
         &self,
-        _req: tonic::Request<TagKeysRequest>,
+        req: tonic::Request<TagKeysRequest>,
     ) -> Result<tonic::Response<Self::TagKeysStream>, Status> {
-        Err(Status::unimplemented("Not yet implemented"))
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let tag_keys_request = req.get_ref();
+
+        let _org_id = tag_keys_request.org_id()?;
+        let bucket = tag_keys_request.bucket(&self.app.db)?;
+        let predicate = tag_keys_request.predicate.clone();
+        let _range = tag_keys_request.range.as_ref();
+
+        let app = self.app.clone();
+
+        tokio::spawn(async move {
+            match app.db.get_tag_keys(&bucket, predicate.as_ref()) {
+                Err(_) => tx
+                    .send(Err(Status::internal("could not query for tag keys")))
+                    .await
+                    .unwrap(),
+                Ok(tag_keys_iter) => {
+                    // TODO: Should these be batched? If so, how?
+                    let tag_keys: Vec<_> = tag_keys_iter.map(|s| s.into_bytes()).collect();
+                    tx.send(Ok(StringValuesResponse { values: tag_keys }))
+                        .await
+                        .unwrap();
+                }
+            }
+        });
+
+        Ok(tonic::Response::new(rx))
     }
 
     type TagValuesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;

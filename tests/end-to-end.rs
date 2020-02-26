@@ -16,11 +16,15 @@
 // - Stopping the server after all relevant tests are run
 
 use assert_cmd::prelude::*;
-
+use futures::prelude::*;
+use prost::Message;
+use std::convert::TryInto;
 use std::env;
 use std::process::{Command, Stdio};
+use std::str;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
+use std::u32;
 
 const URL_BASE: &str = "http://localhost:8080/api/v2";
 const GRPC_URL_BASE: &str = "http://localhost:8081/";
@@ -30,7 +34,13 @@ mod grpc {
 }
 
 use grpc::delorean_client::DeloreanClient;
+use grpc::storage_client::StorageClient;
 use grpc::Organization;
+use grpc::ReadSource;
+use grpc::{
+    node::{Comparison, Value},
+    Node, Predicate, TagKeysRequest, TimestampRange,
+};
 
 async fn read_data(
     client: &reqwest::Client,
@@ -118,10 +128,12 @@ async fn read_and_write_data() -> Result<(), Box<dyn std::error::Error>> {
     assert!(org_buckets.is_empty());
 
     let start_time = SystemTime::now();
-    let ns_since_epoch = start_time
+    let ns_since_epoch: i64 = start_time
         .duration_since(SystemTime::UNIX_EPOCH)
         .expect("System time should have been after the epoch")
-        .as_nanos();
+        .as_nanos()
+        .try_into()
+        .expect("Unable to represent system time");
 
     // TODO: make a more extensible way to manage data for tests, such as in external fixture
     // files or with factories.
@@ -179,6 +191,66 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
             ns_since_epoch + 2
         )
     );
+
+    let mut storage_client = StorageClient::connect(GRPC_URL_BASE).await?;
+
+    let org_id = u64::from(u32::MAX);
+    let bucket_id = 1; // TODO: how do we know this?
+    let partition_id = u64::from(u32::MAX);
+    let read_source = ReadSource {
+        org_id,
+        bucket_id,
+        partition_id,
+    };
+    let mut d = Vec::new();
+    read_source.encode(&mut d)?;
+    let read_source = prost_types::Any {
+        type_url: "/TODO".to_string(),
+        value: d,
+    };
+    let read_source = Some(read_source);
+
+    let range = TimestampRange {
+        start: ns_since_epoch,
+        end: ns_since_epoch + 3,
+    };
+    let range = Some(range);
+
+    let l = Value::TagRefValue("host".into());
+    let l = Node {
+        children: vec![],
+        value: Some(l),
+    };
+
+    let r = Value::StringValue("server01".into());
+    let r = Node {
+        children: vec![],
+        value: Some(r),
+    };
+
+    let comp = Value::Comparison(Comparison::Equal as _);
+    let comp = Some(comp);
+    let root = Node {
+        children: vec![l, r],
+        value: comp,
+    };
+    let root = Some(root);
+    let predicate = Predicate { root };
+    let predicate = Some(predicate);
+
+    let tag_keys_request = tonic::Request::new(TagKeysRequest {
+        tags_source: read_source.clone(),
+        range: range.clone(),
+        predicate: predicate.clone(),
+    });
+
+    let tag_keys_response = storage_client.tag_keys(tag_keys_request).await?;
+    let responses: Vec<_> = tag_keys_response.into_inner().try_collect().await?;
+
+    let keys = &responses[0].values;
+    let keys: Vec<_> = keys.iter().map(|s| str::from_utf8(s).unwrap()).collect();
+
+    assert_eq!(keys, vec!["_f", "_m", "host", "region"]);
 
     server_thread
         .kill()
