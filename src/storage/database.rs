@@ -89,4 +89,22 @@ impl Database {
         self.local_series_store
             .read_f64_range(bucket.id, series_filter.id, range, batch_size)
     }
+
+    pub fn get_tag_keys(
+        &self,
+        bucket: &Bucket,
+        predicate: Option<&Predicate>,
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
+        self.local_index.get_tag_keys(bucket.id, predicate)
+    }
+
+    pub fn get_tag_values(
+        &self,
+        bucket: &Bucket,
+        tag_key: &str,
+        predicate: Option<&Predicate>,
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
+        self.local_index
+            .get_tag_values(bucket.id, tag_key, predicate)
+    }
 }
