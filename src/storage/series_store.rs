@@ -15,7 +15,7 @@ pub trait SeriesStore: Sync + Send {
         series_id: u64,
         range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError>;
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>> + Send>, StorageError>;
 
     fn read_f64_range(
         &self,
@@ -23,7 +23,7 @@ pub trait SeriesStore: Sync + Send {
         series_id: u64,
         range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError>;
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>> + Send>, StorageError>;
 }
 
 #[derive(Debug, PartialEq, Clone)]

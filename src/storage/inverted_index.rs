@@ -13,20 +13,20 @@ pub trait InvertedIndex: Sync + Send {
         &self,
         bucket_id: u32,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError>;
+    ) -> Result<Box<dyn Iterator<Item = SeriesFilter> + Send>, StorageError>;
 
     fn get_tag_keys(
         &self,
         bucket_id: u32,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError>;
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError>;
 
     fn get_tag_values(
         &self,
         bucket_id: u32,
         tag_key: &str,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError>;
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError>;
 }
 
 #[derive(Debug, PartialEq, Clone)]

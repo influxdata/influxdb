@@ -112,13 +112,13 @@ impl RocksDB {
     }
 
     // TODO: update this so it decompresses at least the first point to verify the data type or return error
-    fn read_range<T: 'static + FromBytes + Clone>(
+    fn read_range<T: 'static + FromBytes + Clone + Send>(
         &self,
         bucket_id: u32,
         series_id: u64,
         range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>> + Send>, StorageError> {
         let (iter, series_prefix) = self.get_db_points_iter(bucket_id, series_id, range.start);
 
         Ok(Box::new(PointsIterator {
@@ -692,7 +692,7 @@ impl InvertedIndex for RocksDB {
         &self,
         bucket_id: u32,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = SeriesFilter> + Send>, StorageError> {
         let filters = self.get_series_filters(bucket_id, predicate)?;
         Ok(Box::new(filters.into_iter()))
     }
@@ -701,7 +701,7 @@ impl InvertedIndex for RocksDB {
         &self,
         bucket_id: u32,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
         let keys = self.get_tag_keys(bucket_id, predicate);
         Ok(Box::new(keys.into_iter()))
     }
@@ -711,7 +711,7 @@ impl InvertedIndex for RocksDB {
         bucket_id: u32,
         tag_key: &str,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
         let values = self.get_tag_values(bucket_id, tag_key, predicate);
         Ok(Box::new(values.into_iter()))
     }
@@ -732,7 +732,7 @@ impl SeriesStore for RocksDB {
         series_id: u64,
         range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>> + Send>, StorageError> {
         self.read_range(bucket_id, series_id, range, batch_size)
     }
 
@@ -742,7 +742,7 @@ impl SeriesStore for RocksDB {
         series_id: u64,
         range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>> + Send>, StorageError> {
         self.read_range(bucket_id, series_id, range, batch_size)
     }
 }

@@ -303,7 +303,7 @@ impl MemDB {
         &self,
         bucket_id: u32,
         _predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
         match self.bucket_id_to_series_map.read().unwrap().get(&bucket_id) {
             Some(map) => {
                 let keys: Vec<String> = map.read().unwrap().tag_keys.keys().cloned().collect();
@@ -320,7 +320,7 @@ impl MemDB {
         bucket_id: u32,
         tag_key: &str,
         _predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
         match self.bucket_id_to_series_map.read().unwrap().get(&bucket_id) {
             Some(map) => match map.read().unwrap().tag_keys.get(tag_key) {
                 Some(values) => {
@@ -339,7 +339,7 @@ impl MemDB {
         &self,
         bucket_id: u32,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = SeriesFilter> + Send>, StorageError> {
         let pred = match predicate {
             Some(p) => p,
             None => {
@@ -413,13 +413,13 @@ impl MemDB {
         Ok(())
     }
 
-    fn read_range<T: 'static + Clone + FromSeries>(
+    fn read_range<T: 'static + Clone + FromSeries + Send>(
         &self,
         bucket_id: u32,
         series_id: u64,
         range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>> + Send>, StorageError> {
         let buckets = self.bucket_id_to_series_data.read().unwrap();
         let data = match buckets.get(&bucket_id) {
             Some(d) => d,
@@ -516,7 +516,7 @@ impl InvertedIndex for MemDB {
         &self,
         bucket_id: u32,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = SeriesFilter> + Send>, StorageError> {
         self.read_series_matching(bucket_id, predicate)
     }
 
@@ -524,7 +524,7 @@ impl InvertedIndex for MemDB {
         &self,
         bucket_id: u32,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
         self.get_tag_keys(bucket_id, predicate)
     }
 
@@ -533,7 +533,7 @@ impl InvertedIndex for MemDB {
         bucket_id: u32,
         tag_key: &str,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
         self.get_tag_values(bucket_id, tag_key, predicate)
     }
 }
@@ -553,7 +553,7 @@ impl SeriesStore for MemDB {
         series_id: u64,
         range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>> + Send>, StorageError> {
         self.read_range(bucket_id, series_id, range, batch_size)
     }
 
@@ -563,7 +563,7 @@ impl SeriesStore for MemDB {
         series_id: u64,
         range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>> + Send>, StorageError> {
         self.read_range(bucket_id, series_id, range, batch_size)
     }
 }

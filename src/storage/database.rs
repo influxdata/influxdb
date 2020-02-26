@@ -60,7 +60,7 @@ impl Database {
         bucket: &Bucket,
         predicate: Option<&Predicate>,
         _range: Option<&TimestampRange>,
-    ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = SeriesFilter> + Send>, StorageError> {
         self.local_index.read_series_matching(bucket.id, predicate)
     }
 
@@ -70,7 +70,7 @@ impl Database {
         series_filter: &SeriesFilter,
         range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>> + Send>, StorageError> {
         self.local_series_store
             .read_i64_range(bucket.id, series_filter.id, range, batch_size)
     }
@@ -81,7 +81,7 @@ impl Database {
         series_filter: &SeriesFilter,
         range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>> + Send>, StorageError> {
         self.local_series_store
             .read_f64_range(bucket.id, series_filter.id, range, batch_size)
     }
