@@ -12,7 +12,7 @@ import {
   Panel,
 } from '@influxdata/clockface'
 
-import {LoginPageContents} from 'src/onboarding/containers/LoginPageContents'
+import LoginPageContents from 'src/onboarding/containers/LoginPageContents'
 
 export const LoginPage: FC = () => (
   <AppWrapper className="sign-up--page">
