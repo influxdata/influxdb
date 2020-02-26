@@ -12,7 +12,8 @@ import (
 )
 
 var (
-	urmBucket = []byte("userresourcemappingsv1")
+	urmBucket            = []byte("userresourcemappingsv1")
+	urmByUserIndexBucket = []byte("userresourcemappingsbyuserindexv1")
 
 	// ErrInvalidURMID is used when the service was provided
 	// an invalid ID format.
@@ -184,6 +185,16 @@ func (s *Service) createUserResourceMapping(ctx context.Context, tx Tx, m *influ
 		return UnavailableURMServiceError(err)
 	}
 
+	userID, err := m.UserID.Encode()
+	if err != nil {
+		return err
+	}
+
+	// insert urm into by user index
+	if err := s.urmByUserIndex.Insert(tx, userID, key); err != nil {
+		return err
+	}
+
 	if m.ResourceType == influxdb.OrgsResourceType {
 		return s.createOrgDependentMappings(ctx, tx, m)
 	}
@@ -343,6 +354,17 @@ func (s *Service) deleteUserResourceMapping(ctx context.Context, tx Tx, filter i
 	if err := b.Delete(key); err != nil {
 		return UnavailableURMServiceError(err)
 	}
+
+	userID, err := ms[0].UserID.Encode()
+	if err != nil {
+		return err
+	}
+
+	// remove user resource mapping from by user index
+	if err := s.urmByUserIndex.Delete(tx, userID, key); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -372,6 +394,16 @@ func (s *Service) deleteUserResourceMappings(ctx context.Context, tx Tx, filter 
 
 		if err := b.Delete(key); err != nil {
 			return UnavailableURMServiceError(err)
+		}
+
+		userID, err := m.UserID.Encode()
+		if err != nil {
+			return err
+		}
+
+		// remove user resource mapping from by user index
+		if err := s.urmByUserIndex.Delete(tx, userID, key); err != nil {
+			return err
 		}
 	}
 	return nil
