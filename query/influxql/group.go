@@ -242,7 +242,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 
 	// If a function call is present, evaluate the function call.
 	if gr.call != nil {
-		c, err := createFunctionCursor(t, gr.call, cur, !gr.selector || interval > 0)
+		c, err := createFunctionCursor(t, gr.call, cur, interval > 0)
 		if err != nil {
 			return nil, err
 		}
@@ -367,7 +367,8 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 					}
 				}
 			case *influxql.Wildcard:
-				return nil, errors.New("unimplemented: dimension wildcards")
+				// Do not add a group call for wildcard, which means group by everything
+				return in, nil
 			case *influxql.RegexLiteral:
 				return nil, errors.New("unimplemented: dimension regex wildcards")
 			default:
