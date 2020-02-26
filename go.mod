@@ -85,8 +85,8 @@ require (
 	github.com/tinylib/msgp v1.1.0 // indirect
 	github.com/tylerb/graceful v1.2.15
 	github.com/uber-go/atomic v1.3.2 // indirect
-	github.com/uber/jaeger-client-go v2.15.0+incompatible
-	github.com/uber/jaeger-lib v1.5.0+incompatible // indirect
+	github.com/uber/jaeger-client-go v2.16.0+incompatible
+	github.com/uber/jaeger-lib v2.2.0+incompatible // indirect
 	github.com/willf/bitset v1.1.9 // indirect
 	github.com/yudai/gojsondiff v1.0.0
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
