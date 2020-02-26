@@ -4,7 +4,9 @@
 extern crate log;
 
 use delorean::delorean::Bucket;
-use delorean::delorean::{delorean_server::DeloreanServer, TimestampRange};
+use delorean::delorean::{
+    delorean_server::DeloreanServer, storage_server::StorageServer, TimestampRange,
+};
 use delorean::line_parser;
 use delorean::line_parser::index_pairs;
 use delorean::storage::database::Database;
@@ -350,6 +352,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let grpc_server = tonic::transport::Server::builder()
         .add_service(DeloreanServer::new(GrpcServer { app: state.clone() }))
+        .add_service(StorageServer::new(GrpcServer { app: state.clone() }))
         .serve(grpc_bind_addr);
 
     let make_svc = make_service_fn(move |_conn| {
