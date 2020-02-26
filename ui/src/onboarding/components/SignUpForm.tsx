@@ -1,3 +1,4 @@
+// Libraries
 import React, {FC, useState, ChangeEvent} from 'react'
 import {
   Button,
@@ -14,33 +15,36 @@ import {
   VisibilityInput,
 } from '@influxdata/clockface'
 
+// Types
+import {FormFieldValidation} from 'src/types'
+
 interface Props {
   buttonStatus: ComponentStatus
-  confirmPasswordError?: string
   confirmPassword: string
-  emailError?: string
+  confirmPasswordValidation: FormFieldValidation
   email: string
+  emailValidation: FormFieldValidation
   firstName: string
-  firstNameError?: string
+  firstNameValidation: FormFieldValidation
   lastName: string
-  lastNameError?: string
-  passwordError?: string
+  lastNameValidation: FormFieldValidation
   password: string
+  passwordValidation: FormFieldValidation
   handleInputChange: (e: ChangeEvent<HTMLInputElement>) => void
 }
 
 export const SignUpForm: FC<Props> = ({
   buttonStatus,
-  confirmPasswordError,
   confirmPassword,
-  emailError,
+  confirmPasswordValidation,
   email,
+  emailValidation,
   firstName,
-  firstNameError,
+  firstNameValidation,
   lastName,
-  lastNameError,
-  passwordError,
+  lastNameValidation,
   password,
+  passwordValidation,
   handleInputChange,
 }) => {
   const [visible, toggleIcon] = useState(false)
@@ -52,7 +56,7 @@ export const SignUpForm: FC<Props> = ({
             <Form.Element
               label="First Name"
               required={true}
-              errorMessage={firstNameError}
+              errorMessage={firstNameValidation.errorMessage}
             >
               <Input
                 name="firstName"
@@ -60,7 +64,7 @@ export const SignUpForm: FC<Props> = ({
                 autoFocus={true}
                 size={ComponentSize.Large}
                 status={
-                  firstNameError
+                  firstNameValidation.isValid
                     ? ComponentStatus.Error
                     : ComponentStatus.Default
                 }
@@ -72,14 +76,14 @@ export const SignUpForm: FC<Props> = ({
             <Form.Element
               label="Last Name"
               required={true}
-              errorMessage={lastNameError}
+              errorMessage={lastNameValidation.errorMessage}
             >
               <Input
                 name="lastName"
                 value={lastName}
                 size={ComponentSize.Large}
                 status={
-                  lastNameError
+                  lastNameValidation.isValid
                     ? ComponentStatus.Error
                     : ComponentStatus.Default
                 }
@@ -93,7 +97,7 @@ export const SignUpForm: FC<Props> = ({
             <Form.Element
               label="Work Email Address"
               required={true}
-              errorMessage={emailError}
+              errorMessage={emailValidation.errorMessage}
             >
               <Input
                 name="email"
@@ -101,7 +105,9 @@ export const SignUpForm: FC<Props> = ({
                 type={InputType.Email}
                 size={ComponentSize.Large}
                 status={
-                  emailError ? ComponentStatus.Error : ComponentStatus.Default
+                  emailValidation.isValid
+                    ? ComponentStatus.Error
+                    : ComponentStatus.Default
                 }
                 onChange={handleInputChange}
               />
@@ -113,7 +119,7 @@ export const SignUpForm: FC<Props> = ({
             <Form.Element
               label="Password"
               required={true}
-              errorMessage={passwordError}
+              errorMessage={passwordValidation.errorMessage}
             >
               <VisibilityInput
                 name="password"
@@ -122,7 +128,7 @@ export const SignUpForm: FC<Props> = ({
                 onChange={handleInputChange}
                 visible={visible}
                 status={
-                  passwordError
+                  passwordValidation.isValid
                     ? ComponentStatus.Error
                     : ComponentStatus.Default
                 }
@@ -134,7 +140,7 @@ export const SignUpForm: FC<Props> = ({
             <Form.Element
               label="Confirm Password"
               required={true}
-              errorMessage={confirmPasswordError}
+              errorMessage={confirmPasswordValidation.errorMessage}
             >
               <VisibilityInput
                 name="confirmPassword"
@@ -143,7 +149,7 @@ export const SignUpForm: FC<Props> = ({
                 onChange={handleInputChange}
                 visible={visible}
                 status={
-                  confirmPasswordError
+                  confirmPasswordValidation.isValid
                     ? ComponentStatus.Error
                     : ComponentStatus.Default
                 }

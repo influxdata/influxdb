@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
+import {connect} from 'react-redux'
 import {
   AlignItems,
   ComponentColor,
@@ -7,11 +8,9 @@ import {
   ComponentStatus,
   FlexBox,
   FlexDirection,
-  Gradients,
   Grid,
   JustifyContent,
   Method,
-  Notification,
   Panel,
   SelectGroup,
 } from '@influxdata/clockface'
@@ -22,7 +21,11 @@ import {LoginForm} from 'src/onboarding/components/LoginForm'
 import {SignUpForm} from 'src/onboarding/components/SignUpForm'
 
 // Types
-import {Auth0Connection} from 'src/types'
+import {Auth0Connection, FormFieldValidation} from 'src/types'
+
+// Actions
+import {notify} from 'src/shared/actions/notifications'
+import {passwordResetSuccessfully} from 'src/shared/copy/notifications'
 
 // TODO: these are filler properties that will be populated on IDPE in a later iteration
 const auth0 = new auth0js.WebAuth({
@@ -33,7 +36,11 @@ const auth0 = new auth0js.WebAuth({
 })
 
 interface ErrorObject {
-  [key: string]: any
+  [key: string]: string | undefined
+}
+
+interface DispatchProps {
+  onNotify: typeof notify
 }
 
 interface State {
@@ -49,11 +56,9 @@ interface State {
   emailError: string
   passwordError: string
   confirmPasswordError: string
-  notificationText: string
-  notificationVisible: boolean
 }
 
-export class LoginPageContents extends PureComponent<{}> {
+class LoginPageContents extends PureComponent<DispatchProps> {
   state: State = {
     activeTab: 'login',
     buttonStatus: ComponentStatus.Default,
@@ -67,8 +72,6 @@ export class LoginPageContents extends PureComponent<{}> {
     emailError: '',
     passwordError: '',
     confirmPasswordError: '',
-    notificationText: '',
-    notificationVisible: false,
   }
 
   render() {
@@ -85,12 +88,9 @@ export class LoginPageContents extends PureComponent<{}> {
       passwordError,
       confirmPasswordError,
       activeTab,
-      notificationText,
-      notificationVisible,
     } = this.state
 
     const loginTabActive = activeTab === 'login'
-    const signupTabActive = activeTab === 'signup'
 
     return (
       <form
@@ -162,7 +162,7 @@ export class LoginPageContents extends PureComponent<{}> {
                     titleText="Sign Up"
                     value="signup"
                     id="signup-option"
-                    active={signupTabActive}
+                    active={!loginTabActive}
                     onClick={this.handleTabChange}
                   >
                     Sign Up
@@ -174,43 +174,38 @@ export class LoginPageContents extends PureComponent<{}> {
               <LoginForm
                 buttonStatus={buttonStatus}
                 email={email}
-                emailError={emailError}
+                emailValidation={this.formFieldTypeFactory(emailError)}
                 password={password}
-                passwordError={passwordError}
+                passwordValidation={this.formFieldTypeFactory(passwordError)}
                 handleInputChange={this.handleInputChange}
                 handleForgotPasswordClick={this.handleForgotPasswordClick}
               />
             )}
-            {signupTabActive && (
+            {loginTabActive === false && (
               <SignUpForm
                 buttonStatus={buttonStatus}
                 confirmPassword={confirmPassword}
-                confirmPasswordError={confirmPasswordError}
+                confirmPasswordValidation={this.formFieldTypeFactory(
+                  confirmPasswordError
+                )}
                 email={email}
-                emailError={emailError}
+                emailValidation={this.formFieldTypeFactory(emailError)}
                 firstName={firstName}
-                firstNameError={firstNameError}
+                firstNameValidation={this.formFieldTypeFactory(firstNameError)}
                 lastName={lastName}
-                lastNameError={lastNameError}
+                lastNameValidation={this.formFieldTypeFactory(lastNameError)}
                 password={password}
-                passwordError={passwordError}
+                passwordValidation={this.formFieldTypeFactory(passwordError)}
                 handleInputChange={this.handleInputChange}
               />
             )}
           </Panel.Body>
-          <Notification
-            visible={notificationVisible}
-            size={ComponentSize.Medium}
-            gradient={Gradients.GarageBand}
-          >
-            {notificationText}
-          </Notification>
         </Panel>
       </form>
     )
   }
 
-  private get validFieldValues(): {
+  private get validateFieldValues(): {
     isValid: boolean
     errors: {[fieldName: string]: string}
   } {
@@ -223,14 +218,15 @@ export class LoginPageContents extends PureComponent<{}> {
       confirmPassword,
     } = this.state
 
-    const firstNameError = !firstName && 'This field is required'
-    const lastNameError = !lastName && 'This field is required'
-    const emailError = !email && 'This field is required'
-    const passwordError = !password && 'This field is required'
+    const firstNameError =
+      firstName === '' && 'The first name field is required'
+    const lastNameError = lastName === '' && 'The last name field is required'
+    const emailError = email === '' && 'The email field is required'
+    const passwordError = password === '' && 'The password field is required'
     const confirmPasswordError =
       confirmPassword === password
-        ? !confirmPassword && 'This field is required'
-        : 'Passwords must match'
+        ? confirmPassword === '' && 'The confirm password field is required'
+        : "The input passwords don't match"
 
     const errors: ErrorObject = {
       emailError,
@@ -247,8 +243,15 @@ export class LoginPageContents extends PureComponent<{}> {
     return {isValid, errors}
   }
 
-  private handleSubmit = (e: FormEvent) => {
-    const {isValid, errors} = this.validFieldValues
+  private formFieldTypeFactory = (
+    errorMessage: string
+  ): FormFieldValidation => ({
+    errorMessage,
+    isValid: errorMessage !== '',
+  })
+
+  private handleSubmit = (event: FormEvent) => {
+    const {isValid, errors} = this.validateFieldValues
     const {
       email,
       password,
@@ -257,7 +260,7 @@ export class LoginPageContents extends PureComponent<{}> {
       activeTab,
     } = this.state
 
-    e.preventDefault()
+    event.preventDefault()
 
     if (!isValid) {
       this.setState(errors)
@@ -273,10 +276,10 @@ export class LoginPageContents extends PureComponent<{}> {
           email,
           password,
         },
-        err => {
-          if (err) {
+        error => {
+          if (error) {
             this.setState({buttonStatus: ComponentStatus.Default})
-            return this.displayErrorMessage(errors, err)
+            return this.displayErrorMessage(errors, error)
           }
         }
       )
@@ -291,9 +294,9 @@ export class LoginPageContents extends PureComponent<{}> {
         family_name,
         given_name,
       },
-      err => {
-        if (err) {
-          this.displayErrorMessage(errors, err)
+      error => {
+        if (error) {
+          this.displayErrorMessage(errors, error)
           this.setState({buttonStatus: ComponentStatus.Default})
           return
         }
@@ -307,7 +310,8 @@ export class LoginPageContents extends PureComponent<{}> {
           error => {
             if (error) {
               this.setState({buttonStatus: ComponentStatus.Default})
-              return this.displayErrorMessage(errors, error)
+              this.displayErrorMessage(errors, error)
+              return
             }
           }
         )
@@ -327,7 +331,6 @@ export class LoginPageContents extends PureComponent<{}> {
     } else {
       const emailError = `We have been notified of an issue while creating your account. If this issue persists, please contact support@influxdata.com`
       this.setState({...errors, emailError})
-      throw new Error(auth0Err.description)
     }
   }
 
@@ -347,6 +350,7 @@ export class LoginPageContents extends PureComponent<{}> {
 
   private handleForgotPasswordClick = () => {
     const {email} = this.state
+    const {onNotify} = this.props
     if (!email) {
       this.setState({emailError: 'Please enter a valid email address'})
       return
@@ -356,28 +360,25 @@ export class LoginPageContents extends PureComponent<{}> {
         email,
         connection: Auth0Connection.Authentication,
       },
-      (err, successMessage) => {
-        if (err) {
-          this.setState({emailError: err.message})
+      (error, successMessage) => {
+        if (error) {
+          this.setState({emailError: error.message})
           return
         }
         // notify user that change password email was sent successfully
         // By default auth0 will send a success message even if the operation fails:
         // https://community.auth0.com/t/auth0-changepassword-always-returns-ok-even-when-user-is-not-found/11081/8
-        this.setState({
-          emailError: '',
-          notificationText: `${successMessage}
-            If you haven't received an email, please ensure that the email you provided is correct.`,
-          notificationVisible: true,
-        })
-        // sets a time to remove the notification
-        setTimeout(() => {
-          this.setState({
-            notificationText: '',
-            notificationVisible: false,
-          })
-        }, 4000)
+        onNotify(passwordResetSuccessfully(successMessage))
       }
     )
   }
 }
+
+const mdtp: DispatchProps = {
+  onNotify: notify,
+}
+
+export default connect<{}, DispatchProps>(
+  null,
+  mdtp
+)(LoginPageContents)

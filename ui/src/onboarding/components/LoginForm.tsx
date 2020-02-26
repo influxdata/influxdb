@@ -1,3 +1,4 @@
+// Libraries
 import React, {FC, useState, ChangeEvent} from 'react'
 import {
   Button,
@@ -14,11 +15,14 @@ import {
   VisibilityInput,
 } from '@influxdata/clockface'
 
+// Types
+import {FormFieldValidation} from 'src/types'
+
 interface Props {
   buttonStatus: ComponentStatus
-  emailError?: string
+  emailValidation: FormFieldValidation
   email: string
-  passwordError?: string
+  passwordValidation: FormFieldValidation
   password: string
   handleInputChange: (e: ChangeEvent<HTMLInputElement>) => void
   handleForgotPasswordClick: () => void
@@ -26,9 +30,9 @@ interface Props {
 
 export const LoginForm: FC<Props> = ({
   buttonStatus,
-  emailError,
+  emailValidation,
   email,
-  passwordError,
+  passwordValidation,
   password,
   handleInputChange,
   handleForgotPasswordClick,
@@ -42,7 +46,7 @@ export const LoginForm: FC<Props> = ({
             <Form.Element
               label="Work Email Address"
               required={true}
-              errorMessage={emailError}
+              errorMessage={emailValidation.errorMessage}
             >
               <Input
                 name="email"
@@ -50,7 +54,9 @@ export const LoginForm: FC<Props> = ({
                 type={InputType.Email}
                 size={ComponentSize.Large}
                 status={
-                  emailError ? ComponentStatus.Error : ComponentStatus.Default
+                  emailValidation.isValid
+                    ? ComponentStatus.Error
+                    : ComponentStatus.Default
                 }
                 onChange={handleInputChange}
               />
@@ -62,7 +68,7 @@ export const LoginForm: FC<Props> = ({
             <Form.Element
               label="Password"
               required={true}
-              errorMessage={passwordError}
+              errorMessage={passwordValidation.errorMessage}
             >
               <VisibilityInput
                 name="password"
@@ -71,7 +77,7 @@ export const LoginForm: FC<Props> = ({
                 onChange={handleInputChange}
                 visible={visible}
                 status={
-                  passwordError
+                  passwordValidation.isValid
                     ? ComponentStatus.Error
                     : ComponentStatus.Default
                 }
