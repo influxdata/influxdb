@@ -7,6 +7,8 @@ import (
 	"fmt"
 )
 
+const defaultPopulateBatchSize = 100
+
 // Index is used to define and manage an index for a source bucket.
 //
 // When using the index you must provide it with an IndexSource.
@@ -74,6 +76,14 @@ func WithIndexReadPathEnabled(i *Index) {
 	i.canRead = true
 }
 
+// WithPopulateBatchSize configures the size of each batch
+// used when fully populating an index. (number of puts per tx)
+func WithPopulateBatchSize(n int) IndexOption {
+	return func(i *Index) {
+		i.populateBatchSize = n
+	}
+}
+
 // IndexMapping is a type which configures and Index to map items
 // from a source bucket to an index bucket via a mapping known as
 // IndexSourceOn. This function is called on the values in the source
@@ -103,17 +113,12 @@ func (i indexMapping) IndexSourceOn(v []byte) ([]byte, error) {
 }
 
 // NewIndexMapping creates an implementation of IndexMapping for the provided source bucket
-// to a destination index bucket in the form <source>by<relation>v<version>.
-// For example: source = organization, relation = user, version = 2 -> organizationbyuserv2 bucket
-func NewIndexMapping(sourceBucket []byte, relation string, version int, fn IndexSourceOnFunc) IndexMapping {
+// to a destination index bucket.
+func NewIndexMapping(sourceBucket, indexBucket []byte, fn IndexSourceOnFunc) IndexMapping {
 	return indexMapping{
 		source: sourceBucket,
-		index: []byte(fmt.Sprintf("%sby%sv%d",
-			sourceBucket,
-			relation,
-			version,
-		)),
-		fn: fn,
+		index:  indexBucket,
+		fn:     fn,
 	}
 }
 
@@ -124,7 +129,7 @@ func NewIndexMapping(sourceBucket []byte, relation string, version int, fn Index
 func NewIndex(mapping IndexMapping, opts ...IndexOption) *Index {
 	index := &Index{
 		IndexMapping:      mapping,
-		populateBatchSize: 100,
+		populateBatchSize: defaultPopulateBatchSize,
 	}
 
 	for _, opt := range opts {
@@ -260,6 +265,7 @@ func (i *Index) Walk(tx Tx, foreignKey []byte, visitFn VisitFunc) error {
 func (i *Index) Populate(ctx context.Context, store Store) (n int, err error) {
 	var missing [][2][]byte
 
+	// first collect all missing indexes on a single read transaction
 	if err = store.View(ctx, func(tx Tx) error {
 		sourceBucket, err := i.sourceBucket(tx)
 		if err != nil {
@@ -288,6 +294,7 @@ func (i *Index) Populate(ctx context.Context, store Store) (n int, err error) {
 		return
 	}
 
+	// then populate missing indexes in batches within separate write transactions
 	for len(missing) > 0 {
 		var (
 			end   = i.populateBatchSize
@@ -327,36 +334,56 @@ func (i *Index) Populate(ctx context.Context, store Store) (n int, err error) {
 // IndexDiff contains a set of items present in the source not in index,
 // along with a set of things in the index which are not in the source.
 type IndexDiff struct {
-	// Source is a set of primary key to foreign key mappings which
-	// are present in the index, but have no associated source in the
-	// source bucket. This can happen when items are removed from the source
-	// but they have not be correctly removed from the Index (you need to wire
-	// index.Delete into your source resource Delete action).
-	Source map[string]string
-	// Index is a set of index key (fk/pk) to primary key mappings which
-	// are missing from the index. These are items which should be present because
-	// there are source entries which are not accounted for.
-	// This happens when creating a new index on an existing source which has not
-	// yet been populated and when the creation of new index entries has not properly
-	// been configured on source item creation (you need to wire index.Create() into your
-	// source resource Create action).
-	Index map[string]string
+	// PresentInIndex is a map of foreign key to primary keys
+	// present in the index given the source bucket.
+	PresentInIndex map[string][]string
+	// MissingFromIndex is a map of foreign key to associated primary keys
+	// missing from the index given the source bucket.
+	// These items could be due to the fact an index populate migration has
+	// not yet occured, the index populate code is incorrect or the write path
+	// for your resource type does not yet insert into the index as well (Create actions).
+	MissingFromIndex map[string][]string
+	// MissingFromSource is a map of foreign key to associated primary keys
+	// missing from the source but accounted for in the index.
+	// This happens when index items are not properly removed from the index
+	// when an item is removed from the source (Delete actions).
+	MissingFromSource map[string][]string
 }
 
-func (i *IndexDiff) addMissingSource(pk, fk []byte) {
-	if i.Source == nil {
-		i.Source = map[string]string{}
+func (i *IndexDiff) addToPresent(fk, pk []byte) {
+	if i.PresentInIndex == nil {
+		i.PresentInIndex = map[string][]string{}
 	}
 
-	i.Source[string(pk)] = string(fk)
+	i.PresentInIndex[string(fk)] = append(i.PresentInIndex[string(fk)], string(pk))
 }
 
-func (i *IndexDiff) addMissingIndex(indexKey, primaryKey []byte) {
-	if i.Index == nil {
-		i.Index = map[string]string{}
+func (i *IndexDiff) addMissingSource(fk, pk []byte) {
+	if i.MissingFromSource == nil {
+		i.MissingFromSource = map[string][]string{}
 	}
 
-	i.Index[string(indexKey)] = string(primaryKey)
+	i.MissingFromSource[string(fk)] = append(i.MissingFromSource[string(fk)], string(pk))
+}
+
+func (i *IndexDiff) addMissingIndex(fk, pk []byte) {
+	if i.MissingFromIndex == nil {
+		i.MissingFromIndex = map[string][]string{}
+	}
+
+	i.MissingFromIndex[string(fk)] = append(i.MissingFromIndex[string(fk)], string(pk))
+}
+
+// Corrupt returns a list of foreign keys which have corrupted indexes (partial)
+// These are foreign keys which map to a subset of the primary keys which they should
+// be associated with.
+func (i *IndexDiff) Corrupt() (corrupt []string) {
+	for fk := range i.MissingFromIndex {
+		if _, ok := i.PresentInIndex[fk]; ok {
+			corrupt = append(corrupt, fk)
+		}
+	}
+	return
 }
 
 // Verify returns returns difference between a source and its index
@@ -380,10 +407,15 @@ func (i *Index) Verify(ctx context.Context, tx Tx) (diff IndexDiff, err error) {
 	}
 
 	if err = indexWalk(cursor, sourceBucket, func(k, v []byte) error {
-		// we're only interested in indexed items not in the source bucket
+		fk, err := i.IndexSourceOn(v)
+		if err != nil {
+			return err
+		}
+
+		diff.addToPresent(fk, k)
 		return nil
 	}, func(fk, pk []byte) error {
-		diff.addMissingSource(pk, fk)
+		diff.addMissingSource(fk, pk)
 
 		// continue iterating over index
 		return nil
@@ -399,8 +431,13 @@ func (i *Index) Verify(ctx context.Context, tx Tx) (diff IndexDiff, err error) {
 	}
 
 	if err = i.missingIndexWalk(cursor, indexBucket, func(indexKey, pk []byte) error {
+		fk, pk, err := indexKeyParts(indexKey)
+		if err != nil {
+			return err
+		}
+
 		// add missing item from source which is not indexed
-		diff.addMissingIndex(indexKey, pk)
+		diff.addMissingIndex(fk, pk)
 
 		return nil
 	}); err != nil {
@@ -441,7 +478,7 @@ func indexWalk(indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc, 
 	})
 }
 
-// missingIndexWalk consumers the source cursor key value pairs and looks up the expected index
+// missingIndexWalk consumes the source cursor key value pairs and looks up the expected index
 // for each item in the provided index bucket.
 // When an item is missing from the index, the provided notFoundFunc is called with the expected
 // foreignKey to primaryKey mapping.

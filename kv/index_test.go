@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/influxdata/influxdb/inmem"
@@ -12,11 +13,11 @@ import (
 )
 
 const (
-	someResourceBucket = "some-resource"
+	someResourceBucket = "aresource"
 )
 
 var (
-	mapping = kv.NewIndexMapping([]byte(someResourceBucket), "ownerID", 1, func(body []byte) ([]byte, error) {
+	mapping = kv.NewIndexMapping([]byte(someResourceBucket), []byte("aresourcebyowneridv1"), func(body []byte) ([]byte, error) {
 		var resource someResource
 		if err := json.Unmarshal(body, &resource); err != nil {
 			return nil, err
@@ -120,21 +121,37 @@ func Test_Index_PopulateAndVerify(t *testing.T) {
 		}
 
 		expected := kv.IndexDiff{
-			Index: map[string]string{
-				"owner 0/resource 10": "resource 10",
-				"owner 0/resource 15": "resource 15",
-				"owner 1/resource 11": "resource 11",
-				"owner 1/resource 16": "resource 16",
-				"owner 2/resource 12": "resource 12",
-				"owner 2/resource 17": "resource 17",
-				"owner 3/resource 13": "resource 13",
-				"owner 3/resource 18": "resource 18",
-				"owner 4/resource 14": "resource 14",
-				"owner 4/resource 19": "resource 19",
+			PresentInIndex: map[string][]string{
+				"owner 0": []string{"resource 0", "resource 5"},
+				"owner 1": []string{"resource 1", "resource 6"},
+				"owner 2": []string{"resource 2", "resource 7"},
+				"owner 3": []string{"resource 3", "resource 8"},
+				"owner 4": []string{"resource 4", "resource 9"},
+			},
+			MissingFromIndex: map[string][]string{
+				"owner 0": []string{"resource 10", "resource 15"},
+				"owner 1": []string{"resource 11", "resource 16"},
+				"owner 2": []string{"resource 12", "resource 17"},
+				"owner 3": []string{"resource 13", "resource 18"},
+				"owner 4": []string{"resource 14", "resource 19"},
 			},
 		}
+
 		if !reflect.DeepEqual(expected, diff) {
 			t.Errorf("expected %#v, found %#v", expected, diff)
+		}
+
+		corrupt := diff.Corrupt()
+		sort.Strings(corrupt)
+
+		if expected := []string{
+			"owner 0",
+			"owner 1",
+			"owner 2",
+			"owner 3",
+			"owner 4",
+		}; !reflect.DeepEqual(expected, corrupt) {
+			t.Errorf("expected %#v, found %#v\n", expected, corrupt)
 		}
 
 		return nil
@@ -205,17 +222,19 @@ func Test_Index_PopulateAndVerify(t *testing.T) {
 		}
 
 		expected := kv.IndexDiff{
-			Source: map[string]string{
-				"resource 10": "owner 0",
-				"resource 15": "owner 0",
-				"resource 11": "owner 1",
-				"resource 16": "owner 1",
-				"resource 12": "owner 2",
-				"resource 17": "owner 2",
-				"resource 13": "owner 3",
-				"resource 18": "owner 3",
-				"resource 14": "owner 4",
-				"resource 19": "owner 4",
+			PresentInIndex: map[string][]string{
+				"owner 0": []string{"resource 0", "resource 5"},
+				"owner 1": []string{"resource 1", "resource 6"},
+				"owner 2": []string{"resource 2", "resource 7"},
+				"owner 3": []string{"resource 3", "resource 8"},
+				"owner 4": []string{"resource 4", "resource 9"},
+			},
+			MissingFromSource: map[string][]string{
+				"owner 0": []string{"resource 10", "resource 15"},
+				"owner 1": []string{"resource 11", "resource 16"},
+				"owner 2": []string{"resource 12", "resource 17"},
+				"owner 3": []string{"resource 13", "resource 18"},
+				"owner 4": []string{"resource 14", "resource 19"},
 			},
 		}
 		if !reflect.DeepEqual(expected, diff) {
