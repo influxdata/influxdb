@@ -431,7 +431,7 @@ func (i *Index) Verify(ctx context.Context, tx Tx) (diff IndexDiff, err error) {
 	}
 
 	if err = i.missingIndexWalk(cursor, indexBucket, func(indexKey, pk []byte) error {
-		fk, pk, err := indexKeyParts(indexKey)
+		fk, _, err := indexKeyParts(indexKey)
 		if err != nil {
 			return err
 		}
