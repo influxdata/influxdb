@@ -48,6 +48,21 @@ func newSomeResourceStore(ctx context.Context, store kv.Store) (*someResourceSto
 	}, nil
 }
 
+func (s *someResourceStore) FindByOwner(ctx context.Context, ownerID string) (resources []someResource, err error) {
+	err = s.store.View(ctx, func(tx kv.Tx) error {
+		return s.ownerIDIndex.Walk(tx, []byte(ownerID), func(k, v []byte) error {
+			var resource someResource
+			if err := json.Unmarshal(v, &resource); err != nil {
+				return err
+			}
+
+			resources = append(resources, resource)
+			return nil
+		})
+	})
+	return
+}
+
 func (s *someResourceStore) Create(ctx context.Context, resource someResource, index bool) error {
 	return s.store.Update(ctx, func(tx kv.Tx) error {
 		bkt, err := tx.Bucket(mapping.SourceBucket())
@@ -70,12 +85,17 @@ func (s *someResourceStore) Create(ctx context.Context, resource someResource, i
 	})
 }
 
+func newResource(id, owner string) someResource {
+	return someResource{ID: id, OwnerID: owner}
+}
+
 func newNResources(n int) (resources []someResource) {
 	for i := 0; i < n; i++ {
-		resources = append(resources, someResource{
-			ID:      fmt.Sprintf("resource %d", i),
-			OwnerID: fmt.Sprintf("owner %d", i%5),
-		})
+		var (
+			id    = fmt.Sprintf("resource %d", i)
+			owner = fmt.Sprintf("owner %d", i%5)
+		)
+		resources = append(resources, newResource(id, owner))
 	}
 	return
 }
@@ -83,6 +103,10 @@ func newNResources(n int) (resources []someResource) {
 func TestIndex(t *testing.T, store kv.Store) {
 	t.Run("Test_PopulateAndVerify", func(t *testing.T) {
 		testPopulateAndVerify(t, store)
+	})
+
+	t.Run("Test_Walk", func(t *testing.T) {
+		testWalk(t, store)
 	})
 }
 
@@ -247,6 +271,103 @@ func testPopulateAndVerify(t *testing.T, store kv.Store) {
 
 		return nil
 	})
+}
+
+func testWalk(t *testing.T, store kv.Store) {
+	var (
+		ctx       = context.TODO()
+		resources = newNResources(20)
+		// configure resource store with read disabled
+		resourceStore, err = newSomeResourceStore(ctx, store)
+
+		cases = []struct {
+			owner     string
+			resources []someResource
+		}{
+			{
+				owner: "owner 0",
+				resources: []someResource{
+					newResource("resource 0", "owner 0"),
+					newResource("resource 10", "owner 0"),
+					newResource("resource 15", "owner 0"),
+					newResource("resource 5", "owner 0"),
+				},
+			},
+			{
+				owner: "owner 1",
+				resources: []someResource{
+					newResource("resource 1", "owner 1"),
+					newResource("resource 11", "owner 1"),
+					newResource("resource 16", "owner 1"),
+					newResource("resource 6", "owner 1"),
+				},
+			},
+			{
+				owner: "owner 2",
+				resources: []someResource{
+					newResource("resource 12", "owner 2"),
+					newResource("resource 17", "owner 2"),
+					newResource("resource 2", "owner 2"),
+					newResource("resource 7", "owner 2"),
+				},
+			},
+			{
+				owner: "owner 3",
+				resources: []someResource{
+					newResource("resource 13", "owner 3"),
+					newResource("resource 18", "owner 3"),
+					newResource("resource 3", "owner 3"),
+					newResource("resource 8", "owner 3"),
+				},
+			},
+			{
+				owner: "owner 4",
+				resources: []someResource{
+					newResource("resource 14", "owner 4"),
+					newResource("resource 19", "owner 4"),
+					newResource("resource 4", "owner 4"),
+					newResource("resource 9", "owner 4"),
+				},
+			},
+		}
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// insert all 20 resources with indexing enabled
+	for _, resource := range resources {
+		if err := resourceStore.Create(ctx, resource, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, testCase := range cases {
+		found, err := resourceStore.FindByOwner(ctx, testCase.owner)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// expect resources to be empty while read path disabled disabled
+		if len(found) > 0 {
+			t.Fatalf("expected %#v to be empty", found)
+		}
+	}
+
+	// configure index read path enabled
+	kv.WithIndexReadPathEnabled(resourceStore.ownerIDIndex)
+
+	for _, testCase := range cases {
+		found, err := resourceStore.FindByOwner(ctx, testCase.owner)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !reflect.DeepEqual(found, testCase.resources) {
+			t.Errorf("expected %#v, found %#v", testCase.resources, found)
+		}
+	}
 }
 
 func allKVs(tx kv.Tx, bucket []byte) (kvs [][2][]byte, err error) {

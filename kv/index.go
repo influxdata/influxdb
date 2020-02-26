@@ -20,14 +20,14 @@ const defaultPopulateBatchSize = 100
 //
 // The following is an illustration of its use:
 //
-//  byUserID := func(v []byte) (influxdb.ID, error) {
+//  byUserID := func(v []byte) ([]byte, error) {
 //      auth := &influxdb.Authorization{}
 //
 //      if err := json.Unmarshal(v, auth); err != nil {
 //          return err
 //      }
 //
-//      return auth.UserID, nil
+//      return auth.UserID.Encode()
 //  }
 //
 //  // configure a write only index
@@ -76,9 +76,9 @@ func WithIndexReadPathEnabled(i *Index) {
 	i.canRead = true
 }
 
-// WithPopulateBatchSize configures the size of each batch
+// WithIndexPopulateBatchSize configures the size of each batch
 // used when fully populating an index. (number of puts per tx)
-func WithPopulateBatchSize(n int) IndexOption {
+func WithIndexPopulateBatchSize(n int) IndexOption {
 	return func(i *Index) {
 		i.populateBatchSize = n
 	}
