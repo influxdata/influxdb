@@ -32,6 +32,8 @@ pub struct RocksDB {
     db: Arc<RwLock<DB>>,
     // bucket_map is an in memory map of what buckets exist in the system. the key is the org id and bucket name together as bytes
     bucket_map: Arc<RwLock<HashMap<Vec<u8>, Arc<Bucket>>>>,
+    // `bucket_id_map` is an in-memory map of bucket IDs to buckets that exist in the system.
+    bucket_id_map: Arc<RwLock<HashMap<u32, Arc<Bucket>>>>,
     // series_insert_lock is a map of mutexes for creating new series in each bucket. Bucket ids are unique across all orgs
     series_insert_lock: Arc<RwLock<HashMap<u32, Mutex<u64>>>>,
 }
@@ -72,6 +74,7 @@ impl RocksDB {
         let mut database = RocksDB {
             db: Arc::new(RwLock::new(db)),
             bucket_map: Arc::new(RwLock::new(HashMap::new())),
+            bucket_id_map: Arc::new(RwLock::new(HashMap::new())),
             series_insert_lock: Arc::new(RwLock::new(HashMap::new())),
         };
         database.load_bucket_map();
@@ -167,6 +170,7 @@ impl RocksDB {
         }
 
         let mut map = self.bucket_map.write().unwrap();
+        let mut id_map = self.bucket_id_map.write().unwrap();
         if let Some(b) = map.get(&key) {
             return Ok(b.id);
         }
@@ -205,7 +209,9 @@ impl RocksDB {
             .expect("unexpected rocksdb error writing to DB");
 
         let id = store.id;
-        map.insert(key, Arc::new(store));
+        let arc_bucket = Arc::new(store);
+        map.insert(key, arc_bucket.clone());
+        id_map.insert(id, arc_bucket);
 
         Ok(id)
     }
@@ -224,6 +230,16 @@ impl RocksDB {
         let buckets = self.bucket_map.read().unwrap();
         let key = bucket_key(org_id, name);
         Ok(buckets.get(&key).map(Arc::clone))
+    }
+
+    /// Looks up the bucket object by bucket id and returns it.
+    ///
+    /// # Arguments
+    ///
+    /// * `bucket_id` - The ID of the bucket (which is globally unique)
+    pub fn get_bucket_by_id(&self, bucket_id: u32) -> Result<Option<Arc<Bucket>>, StorageError> {
+        let buckets = self.bucket_id_map.read().unwrap();
+        Ok(buckets.get(&bucket_id).map(Arc::clone))
     }
 
     // TODO: ensure that points with timestamps older than the first index level get matched against the appropriate index
@@ -619,6 +635,7 @@ impl RocksDB {
 
         let mut id_mutex_map = HashMap::new();
         let mut bucket_map = self.bucket_map.write().unwrap();
+        let mut bucket_id_map = self.bucket_id_map.write().unwrap();
 
         for (key, value) in iter {
             match key[0].try_into().unwrap() {
@@ -639,7 +656,9 @@ impl RocksDB {
                 BucketEntryType::Bucket => {
                     let bucket = Bucket::decode(&*value).expect("unexpected error decoding bucket");
                     let key = bucket_key(bucket.org_id, &bucket.name);
-                    bucket_map.insert(key, Arc::new(bucket));
+                    let arc_bucket = Arc::new(bucket);
+                    bucket_map.insert(key, arc_bucket.clone());
+                    bucket_id_map.insert(arc_bucket.id, arc_bucket);
                 }
                 BucketEntryType::NextBucketID => (),
             }
@@ -762,6 +781,10 @@ impl ConfigStore for RocksDB {
         bucket_name: &str,
     ) -> Result<Option<Arc<Bucket>>, StorageError> {
         self.get_bucket_by_name(org_id, bucket_name)
+    }
+
+    fn get_bucket_by_id(&self, bucket_id: u32) -> Result<Option<Arc<Bucket>>, StorageError> {
+        self.get_bucket_by_id(bucket_id)
     }
 }
 
@@ -1111,8 +1134,13 @@ mod tests {
 
             b.id = db.create_bucket_if_not_exists(org_id, &b).unwrap();
             assert_eq!(b.id, 1);
+
             let stored_bucket = db.get_bucket_by_name(org_id, &b.name).unwrap().unwrap();
             assert_eq!(Arc::new(b.clone()), stored_bucket);
+
+            let bucket_by_id = db.get_bucket_by_id(b.id).unwrap().unwrap();
+            assert_eq!(Arc::new(b.clone()), bucket_by_id);
+
             bucket = stored_bucket;
 
             // ensure it doesn't insert again

@@ -46,6 +46,10 @@ impl Database {
             .get_bucket_by_name(org_id, bucket_name)
     }
 
+    pub fn get_bucket_by_id(&self, bucket_id: u32) -> Result<Option<Arc<Bucket>>, StorageError> {
+        self.local_config_store.get_bucket_by_id(bucket_id)
+    }
+
     pub fn create_bucket_if_not_exists(
         &self,
         org_id: u32,
