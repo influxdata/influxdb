@@ -39,7 +39,7 @@ use grpc::Organization;
 use grpc::ReadSource;
 use grpc::{
     node::{Comparison, Value},
-    Node, Predicate, TagKeysRequest, TimestampRange,
+    Node, Predicate, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 
 async fn read_data(
@@ -251,6 +251,21 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     let keys: Vec<_> = keys.iter().map(|s| str::from_utf8(s).unwrap()).collect();
 
     assert_eq!(keys, vec!["_f", "_m", "host", "region"]);
+
+    let tag_values_request = tonic::Request::new(TagValuesRequest {
+        tags_source: read_source,
+        range,
+        predicate,
+        tag_key: String::from("host"),
+    });
+
+    let tag_values_response = storage_client.tag_values(tag_values_request).await?;
+    let responses: Vec<_> = tag_values_response.into_inner().try_collect().await?;
+
+    let values = &responses[0].values;
+    let values: Vec<_> = values.iter().map(|s| str::from_utf8(s).unwrap()).collect();
+
+    assert_eq!(values, vec!["server01", "server02"]);
 
     server_thread
         .kill()
