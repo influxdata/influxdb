@@ -1,4 +1,4 @@
-use crate::delorean::Predicate;
+use crate::delorean::{Predicate, Tag};
 use crate::line_parser::PointType;
 use crate::storage::{SeriesDataType, StorageError};
 
@@ -37,13 +37,49 @@ pub struct SeriesFilter {
     pub series_type: SeriesDataType,
 }
 
-// Test helpers for other implementations to run
+impl SeriesFilter {
+    // TODO: Handle escaping of ',', '=', and '\t'
+    // TODO: Better error handling
+    pub fn tags(&self) -> Vec<Tag> {
+        let before_tab = self
+            .key
+            .splitn(2, '\t')
+            .next()
+            .expect("SeriesFilter key did not contain a tab");
+
+        before_tab
+            .split(',')
+            .skip(1)
+            .map(|kv| {
+                let mut parts = kv.splitn(2, '=');
+                Tag {
+                    key: parts
+                        .next()
+                        .expect("SeriesFilter did not contain expected parts")
+                        .bytes()
+                        .collect(),
+                    value: parts
+                        .next()
+                        .expect("SeriesFilter did not contain expected parts")
+                        .bytes()
+                        .collect(),
+                }
+            })
+            .collect()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
+    use crate::delorean::Tag;
     use crate::line_parser::PointType;
     use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
     use crate::storage::predicate::parse_predicate;
     use crate::storage::SeriesDataType;
+
+    use std::str;
+
+    // Test helpers for other implementations to run
 
     pub fn series_id_indexing(index: Box<dyn InvertedIndex>) {
         let bucket_id = 1;
@@ -195,6 +231,34 @@ pub mod tests {
                     series_type: SeriesDataType::I64
                 },
             ]
+        );
+    }
+
+    pub fn tags_as_strings(tags: &[Tag]) -> Vec<(&str, &str)> {
+        tags.iter()
+            .map(|t| {
+                (
+                    str::from_utf8(&t.key).unwrap(),
+                    str::from_utf8(&t.value).unwrap(),
+                )
+            })
+            .collect()
+    }
+
+    // Unit tests for SeriesFilter
+
+    #[test]
+    fn series_filter_tag_parsing() {
+        let sf = SeriesFilter {
+            id: 1,
+            key: "cpu,host=b,region=west\tusage_system".to_string(),
+            value_predicate: None,
+            series_type: SeriesDataType::I64,
+        };
+
+        assert_eq!(
+            tags_as_strings(&sf.tags()),
+            vec![("host", "b"), ("region", "west")]
         );
     }
 }
