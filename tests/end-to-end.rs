@@ -39,8 +39,27 @@ use grpc::Organization;
 use grpc::ReadSource;
 use grpc::{
     node::{Comparison, Value},
-    Node, Predicate, TagKeysRequest, TagValuesRequest, TimestampRange,
+    read_response::{frame::Data, DataType},
+    Node, Predicate, ReadFilterRequest, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
+
+macro_rules! assert_unwrap {
+    ($e:expr, $p:path) => {
+        match $e {
+            $p(v) => v,
+            _ => panic!("{} was not a {}", stringify!($e), stringify!($p)),
+        }
+    };
+    ($e:expr, $p:path, $extra:tt) => {
+        match $e {
+            $p(v) => v,
+            _ => {
+                let extra = format_args!($extra);
+                panic!("{} was not a {}: {}", stringify!($e), stringify!($p), extra);
+            }
+        }
+    };
+}
 
 async fn read_data(
     client: &reqwest::Client,
@@ -238,6 +257,54 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     let predicate = Predicate { root };
     let predicate = Some(predicate);
 
+    let read_filter_request = tonic::Request::new(ReadFilterRequest {
+        read_source: read_source.clone(),
+        range: range.clone(),
+        predicate: predicate.clone(),
+    });
+    let read_response = storage_client.read_filter(read_filter_request).await?;
+
+    let responses: Vec<_> = read_response.into_inner().try_collect().await?;
+    let frames: Vec<_> = responses
+        .into_iter()
+        .flat_map(|r| r.frames)
+        .flat_map(|f| f.data)
+        .collect();
+
+    assert_eq!(
+        frames.len(),
+        5,
+        "expected exactly 5 frames, but there were {}",
+        frames.len()
+    );
+
+    let f = assert_unwrap!(&frames[0], Data::Series, "in frame 0");
+    assert_eq!(f.data_type, DataType::Float as i32, "in frame 0");
+    assert_eq!(
+        tags_as_strings(&f.tags),
+        vec![("host", "server01"), ("region", "us-west")]
+    );
+
+    let f = assert_unwrap!(&frames[1], Data::FloatPoints, "in frame 1");
+    assert_eq!(f.timestamps, [ns_since_epoch], "in frame 1");
+    assert_eq!(f.values, [0.64], "in frame 1");
+
+    let f = assert_unwrap!(&frames[2], Data::FloatPoints, "in frame 2");
+    assert_eq!(f.timestamps, [ns_since_epoch + 3], "in frame 2");
+    assert_eq!(f.values, [0.000_003], "in frame 2");
+
+    let f = assert_unwrap!(&frames[3], Data::Series, "in frame 3");
+    assert_eq!(f.data_type, DataType::Float as i32, "in frame 3");
+
+    assert_eq!(
+        tags_as_strings(&f.tags),
+        vec![("host", "server01"), ("region", "us-east")]
+    );
+
+    let f = assert_unwrap!(&frames[4], Data::FloatPoints, "in frame 4");
+    assert_eq!(f.timestamps, [ns_since_epoch + 2], "in frame 4");
+    assert_eq!(f.values, [1_234_567.891_011], "in frame 4");
+
     let tag_keys_request = tonic::Request::new(TagKeysRequest {
         tags_source: read_source.clone(),
         range: range.clone(),
@@ -272,4 +339,15 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
         .expect("Should have been able to kill the test server");
 
     Ok(())
+}
+
+fn tags_as_strings(tags: &[Tag]) -> Vec<(&str, &str)> {
+    tags.iter()
+        .map(|t| {
+            (
+                str::from_utf8(&t.key).unwrap(),
+                str::from_utf8(&t.value).unwrap(),
+            )
+        })
+        .collect()
 }
