@@ -1,10 +1,10 @@
-use crate::delorean::{Bucket, Predicate};
+use crate::delorean::{Bucket, Predicate, TimestampRange};
 use crate::line_parser::PointType;
 use crate::storage::config_store::ConfigStore;
 use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
 use crate::storage::rocksdb::RocksDB;
 use crate::storage::series_store::{ReadPoint, SeriesStore};
-use crate::storage::{Range, StorageError};
+use crate::storage::StorageError;
 
 use std::sync::Arc;
 
@@ -46,6 +46,10 @@ impl Database {
             .get_bucket_by_name(org_id, bucket_name)
     }
 
+    pub fn get_bucket_by_id(&self, bucket_id: u32) -> Result<Option<Arc<Bucket>>, StorageError> {
+        self.local_config_store.get_bucket_by_id(bucket_id)
+    }
+
     pub fn create_bucket_if_not_exists(
         &self,
         org_id: u32,
@@ -59,8 +63,8 @@ impl Database {
         &self,
         bucket: &Bucket,
         predicate: Option<&Predicate>,
-        _range: Option<&Range>,
-    ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError> {
+        _range: Option<&TimestampRange>,
+    ) -> Result<Box<dyn Iterator<Item = SeriesFilter> + Send>, StorageError> {
         self.local_index.read_series_matching(bucket.id, predicate)
     }
 
@@ -68,9 +72,9 @@ impl Database {
         &self,
         bucket: &Bucket,
         series_filter: &SeriesFilter,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>> + Send>, StorageError> {
         self.local_series_store
             .read_i64_range(bucket.id, series_filter.id, range, batch_size)
     }
@@ -79,10 +83,28 @@ impl Database {
         &self,
         bucket: &Bucket,
         series_filter: &SeriesFilter,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>> + Send>, StorageError> {
         self.local_series_store
             .read_f64_range(bucket.id, series_filter.id, range, batch_size)
+    }
+
+    pub fn get_tag_keys(
+        &self,
+        bucket: &Bucket,
+        predicate: Option<&Predicate>,
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
+        self.local_index.get_tag_keys(bucket.id, predicate)
+    }
+
+    pub fn get_tag_values(
+        &self,
+        bucket: &Bucket,
+        tag_key: &str,
+        predicate: Option<&Predicate>,
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
+        self.local_index
+            .get_tag_values(bucket.id, tag_key, predicate)
     }
 }

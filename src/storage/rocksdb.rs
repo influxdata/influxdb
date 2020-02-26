@@ -1,10 +1,10 @@
-use crate::delorean::{Bucket, IndexLevel, Node, Predicate};
+use crate::delorean::{Bucket, IndexLevel, Node, Predicate, TimestampRange};
 use crate::line_parser::PointType;
 use crate::storage::config_store::ConfigStore;
 use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
 use crate::storage::predicate::{Evaluate, EvaluateVisitor};
 use crate::storage::series_store::{ReadPoint, SeriesStore};
-use crate::storage::{Range, SeriesDataType, StorageError};
+use crate::storage::{SeriesDataType, StorageError};
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -32,6 +32,8 @@ pub struct RocksDB {
     db: Arc<RwLock<DB>>,
     // bucket_map is an in memory map of what buckets exist in the system. the key is the org id and bucket name together as bytes
     bucket_map: Arc<RwLock<HashMap<Vec<u8>, Arc<Bucket>>>>,
+    // `bucket_id_map` is an in-memory map of bucket IDs to buckets that exist in the system.
+    bucket_id_map: Arc<RwLock<HashMap<u32, Arc<Bucket>>>>,
     // series_insert_lock is a map of mutexes for creating new series in each bucket. Bucket ids are unique across all orgs
     series_insert_lock: Arc<RwLock<HashMap<u32, Mutex<u64>>>>,
 }
@@ -72,6 +74,7 @@ impl RocksDB {
         let mut database = RocksDB {
             db: Arc::new(RwLock::new(db)),
             bucket_map: Arc::new(RwLock::new(HashMap::new())),
+            bucket_id_map: Arc::new(RwLock::new(HashMap::new())),
             series_insert_lock: Arc::new(RwLock::new(HashMap::new())),
         };
         database.load_bucket_map();
@@ -112,19 +115,19 @@ impl RocksDB {
     }
 
     // TODO: update this so it decompresses at least the first point to verify the data type or return error
-    fn read_range<T: 'static + FromBytes + Clone>(
+    fn read_range<T: 'static + FromBytes + Clone + Send>(
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>> + Send>, StorageError> {
         let (iter, series_prefix) = self.get_db_points_iter(bucket_id, series_id, range.start);
 
         Ok(Box::new(PointsIterator {
             batch_size,
             iter,
-            stop_time: range.stop,
+            stop_time: range.end,
             series_prefix,
             drained: false,
             read: FromBytes::from,
@@ -167,6 +170,7 @@ impl RocksDB {
         }
 
         let mut map = self.bucket_map.write().unwrap();
+        let mut id_map = self.bucket_id_map.write().unwrap();
         if let Some(b) = map.get(&key) {
             return Ok(b.id);
         }
@@ -205,7 +209,9 @@ impl RocksDB {
             .expect("unexpected rocksdb error writing to DB");
 
         let id = store.id;
-        map.insert(key, Arc::new(store));
+        let arc_bucket = Arc::new(store);
+        map.insert(key, arc_bucket.clone());
+        id_map.insert(id, arc_bucket);
 
         Ok(id)
     }
@@ -224,6 +230,16 @@ impl RocksDB {
         let buckets = self.bucket_map.read().unwrap();
         let key = bucket_key(org_id, name);
         Ok(buckets.get(&key).map(Arc::clone))
+    }
+
+    /// Looks up the bucket object by bucket id and returns it.
+    ///
+    /// # Arguments
+    ///
+    /// * `bucket_id` - The ID of the bucket (which is globally unique)
+    pub fn get_bucket_by_id(&self, bucket_id: u32) -> Result<Option<Arc<Bucket>>, StorageError> {
+        let buckets = self.bucket_id_map.read().unwrap();
+        Ok(buckets.get(&bucket_id).map(Arc::clone))
     }
 
     // TODO: ensure that points with timestamps older than the first index level get matched against the appropriate index
@@ -619,6 +635,7 @@ impl RocksDB {
 
         let mut id_mutex_map = HashMap::new();
         let mut bucket_map = self.bucket_map.write().unwrap();
+        let mut bucket_id_map = self.bucket_id_map.write().unwrap();
 
         for (key, value) in iter {
             match key[0].try_into().unwrap() {
@@ -639,7 +656,9 @@ impl RocksDB {
                 BucketEntryType::Bucket => {
                     let bucket = Bucket::decode(&*value).expect("unexpected error decoding bucket");
                     let key = bucket_key(bucket.org_id, &bucket.name);
-                    bucket_map.insert(key, Arc::new(bucket));
+                    let arc_bucket = Arc::new(bucket);
+                    bucket_map.insert(key, arc_bucket.clone());
+                    bucket_id_map.insert(arc_bucket.id, arc_bucket);
                 }
                 BucketEntryType::NextBucketID => (),
             }
@@ -692,7 +711,7 @@ impl InvertedIndex for RocksDB {
         &self,
         bucket_id: u32,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = SeriesFilter> + Send>, StorageError> {
         let filters = self.get_series_filters(bucket_id, predicate)?;
         Ok(Box::new(filters.into_iter()))
     }
@@ -701,7 +720,7 @@ impl InvertedIndex for RocksDB {
         &self,
         bucket_id: u32,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
         let keys = self.get_tag_keys(bucket_id, predicate);
         Ok(Box::new(keys.into_iter()))
     }
@@ -711,7 +730,7 @@ impl InvertedIndex for RocksDB {
         bucket_id: u32,
         tag_key: &str,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
         let values = self.get_tag_values(bucket_id, tag_key, predicate);
         Ok(Box::new(values.into_iter()))
     }
@@ -730,9 +749,9 @@ impl SeriesStore for RocksDB {
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>> + Send>, StorageError> {
         self.read_range(bucket_id, series_id, range, batch_size)
     }
 
@@ -740,9 +759,9 @@ impl SeriesStore for RocksDB {
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>> + Send>, StorageError> {
         self.read_range(bucket_id, series_id, range, batch_size)
     }
 }
@@ -762,6 +781,10 @@ impl ConfigStore for RocksDB {
         bucket_name: &str,
     ) -> Result<Option<Arc<Bucket>>, StorageError> {
         self.get_bucket_by_name(org_id, bucket_name)
+    }
+
+    fn get_bucket_by_id(&self, bucket_id: u32) -> Result<Option<Arc<Bucket>>, StorageError> {
+        self.get_bucket_by_id(bucket_id)
     }
 }
 
@@ -1111,8 +1134,13 @@ mod tests {
 
             b.id = db.create_bucket_if_not_exists(org_id, &b).unwrap();
             assert_eq!(b.id, 1);
+
             let stored_bucket = db.get_bucket_by_name(org_id, &b.name).unwrap().unwrap();
             assert_eq!(Arc::new(b.clone()), stored_bucket);
+
+            let bucket_by_id = db.get_bucket_by_id(b.id).unwrap().unwrap();
+            assert_eq!(Arc::new(b.clone()), bucket_by_id);
+
             bucket = stored_bucket;
 
             // ensure it doesn't insert again
@@ -1366,7 +1394,7 @@ mod tests {
         db.write_points(b1.id, &points).unwrap();
 
         // test that we'll only read from the bucket we wrote points into
-        let range = Range { start: 1, stop: 4 };
+        let range = TimestampRange { start: 1, end: 4 };
         let pred = parse_predicate(r#"_m = "cpu""#).unwrap();
         let mut iter = db.read_series_matching(b1.id, Some(&pred)).unwrap();
 
@@ -1414,7 +1442,7 @@ mod tests {
         db.write_points(b2.id, &b2_points).unwrap();
 
         // test that we'll only read from the bucket we wrote points into
-        let range = Range { start: 1, stop: 4 };
+        let range = TimestampRange { start: 1, end: 4 };
         let pred = parse_predicate(r#"_m = "cpu" OR _m = "mem""#).unwrap();
         let mut iter = db.read_series_matching(b1.id, Some(&pred)).unwrap();
         let series_filter = iter.next().unwrap();
@@ -1511,7 +1539,7 @@ mod tests {
         assert_eq!(points, vec![ReadPoint { time: 2, value: 1 },]);
 
         // test that the time range is properly limiting
-        let range = Range { start: 2, stop: 3 };
+        let range = TimestampRange { start: 2, end: 3 };
         let pred = parse_predicate(r#"_m = "cpu" OR _m = "mem""#).unwrap();
         let mut iter = db.read_series_matching(b2.id, Some(&pred)).unwrap();
         let series_filter = iter.next().unwrap();
@@ -1563,7 +1591,7 @@ mod tests {
         db.write_points_with_series_ids(b1.id, &points).unwrap();
 
         // test that we'll only read from the bucket we wrote points into
-        let range = Range { start: 0, stop: 4 };
+        let range = TimestampRange { start: 0, end: 4 };
         let pred = parse_predicate(r#"_m = "cpu""#).unwrap();
         let mut iter = db.read_series_matching(b1.id, Some(&pred)).unwrap();
         let series_filter = iter.next().unwrap();

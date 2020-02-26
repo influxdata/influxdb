@@ -5,15 +5,13 @@ extern crate log;
 
 use delorean::delorean::Bucket;
 use delorean::delorean::{
-    delorean_server::{Delorean, DeloreanServer},
-    CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest, DeleteBucketResponse,
-    GetBucketsResponse, Organization,
+    delorean_server::DeloreanServer, storage_server::StorageServer, TimestampRange,
 };
 use delorean::line_parser;
 use delorean::line_parser::index_pairs;
 use delorean::storage::database::Database;
 use delorean::storage::predicate::parse_predicate;
-use delorean::storage::{Range, SeriesDataType};
+use delorean::storage::SeriesDataType;
 use delorean::time::{parse_duration, time_as_i64_nanos};
 
 use std::env::VarError;
@@ -29,36 +27,12 @@ use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Server, StatusCode};
 use serde::Deserialize;
 use serde_json;
-use tonic::Status;
 
-#[derive(Debug, Default)]
-pub struct GrpcServer {}
+mod rpc;
 
-#[tonic::async_trait]
-impl Delorean for GrpcServer {
-    async fn create_bucket(
-        &self,
-        _req: tonic::Request<CreateBucketRequest>,
-    ) -> Result<tonic::Response<CreateBucketResponse>, Status> {
-        Ok(tonic::Response::new(CreateBucketResponse {}))
-    }
+use crate::rpc::GrpcServer;
 
-    async fn delete_bucket(
-        &self,
-        _req: tonic::Request<DeleteBucketRequest>,
-    ) -> Result<tonic::Response<DeleteBucketResponse>, Status> {
-        Ok(tonic::Response::new(DeleteBucketResponse {}))
-    }
-
-    async fn get_buckets(
-        &self,
-        _req: tonic::Request<Organization>,
-    ) -> Result<tonic::Response<GetBucketsResponse>, Status> {
-        Ok(tonic::Response::new(GetBucketsResponse { buckets: vec![] }))
-    }
-}
-
-struct App {
+pub struct App {
     db: Database,
 }
 
@@ -174,10 +148,10 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applicat
     )
     .map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    let stop = duration_to_nanos_or_default(read_info.stop.as_deref(), now, now)
+    let end = duration_to_nanos_or_default(read_info.stop.as_deref(), now, now)
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    let range = Range { start, stop };
+    let range = TimestampRange { start, end };
 
     let maybe_bucket = app
         .db
@@ -376,6 +350,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     };
 
+    let grpc_server = tonic::transport::Server::builder()
+        .add_service(DeloreanServer::new(GrpcServer { app: state.clone() }))
+        .add_service(StorageServer::new(GrpcServer { app: state.clone() }))
+        .serve(grpc_bind_addr);
+
     let make_svc = make_service_fn(move |_conn| {
         let state = state.clone();
         async move {
@@ -385,10 +364,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }))
         }
     });
-
-    let grpc_server = tonic::transport::Server::builder()
-        .add_service(DeloreanServer::new(GrpcServer::default()))
-        .serve(grpc_bind_addr);
 
     let server = Server::bind(&bind_addr).serve(make_svc);
 
