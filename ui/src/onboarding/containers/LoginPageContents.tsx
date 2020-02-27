@@ -218,14 +218,13 @@ class LoginPageContents extends PureComponent<DispatchProps> {
       confirmPassword,
     } = this.state
 
-    const firstNameError =
-      firstName === '' && 'The first name field is required'
-    const lastNameError = lastName === '' && 'The last name field is required'
-    const emailError = email === '' && 'The email field is required'
-    const passwordError = password === '' && 'The password field is required'
+    const firstNameError = firstName === '' && 'First name is required'
+    const lastNameError = lastName === '' && 'Last name is required'
+    const emailError = email === '' && 'Email is required'
+    const passwordError = password === '' && 'Password is required'
     const confirmPasswordError =
       confirmPassword === password
-        ? confirmPassword === '' && 'The confirm password field is required'
+        ? confirmPassword === '' && 'Confirm password is required'
         : "The input passwords don't match"
 
     const errors: ErrorObject = {
