@@ -13,11 +13,14 @@ const LARGER_BATCH_SIZES: [usize; 12] = [
 const SMALLER_BATCH_SIZES: [usize; 11] =
     [10, 25, 50, 100, 250, 500, 750, 1_000, 5_000, 10_000, 45_000];
 
+type EncodeFn<T> = fn(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn std::error::Error>>;
+type DecodeFn<T> = fn(src: &[u8], dst: &mut Vec<T>) -> Result<(), Box<dyn std::error::Error>>;
+
 fn benchmark_encode_sequential<T: From<i32>>(
     c: &mut Criterion,
     benchmark_group_name: &str,
     batch_sizes: &[usize],
-    encode: fn(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn std::error::Error>>,
+    encode: EncodeFn<T>,
 ) {
     benchmark_encode(
         c,
@@ -33,7 +36,7 @@ fn benchmark_encode<T>(
     benchmark_group_name: &str,
     batch_sizes: &[usize],
     decoded_value_generation: fn(batch_size: usize) -> Vec<T>,
-    encode: fn(src: &[T], dst: &mut Vec<u8>) -> Result<(), Box<dyn std::error::Error>>,
+    encode: EncodeFn<T>,
 ) {
     let mut group = c.benchmark_group(benchmark_group_name);
     for &batch_size in batch_sizes {
@@ -60,7 +63,7 @@ fn benchmark_decode<T>(
     benchmark_group_name: &str,
     batch_sizes: &[usize],
     input_value_generation: fn(batch_size: usize) -> (usize, Vec<u8>),
-    decode: fn(src: &[u8], dst: &mut Vec<T>) -> Result<(), Box<dyn std::error::Error>>,
+    decode: DecodeFn<T>,
 ) {
     let mut group = c.benchmark_group(benchmark_group_name);
     for &batch_size in batch_sizes {

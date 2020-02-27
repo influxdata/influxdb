@@ -260,11 +260,11 @@ mod tests {
 
     #[test]
     fn encode_no_values() {
-        let mut src: Vec<i64> = vec![];
+        let src: Vec<i64> = vec![];
         let mut dst = vec![];
 
         // check for error
-        encode(&mut src, &mut dst).expect("failed to encode src");
+        encode(&src, &mut dst).expect("failed to encode src");
 
         // verify encoded no values.
         assert_eq!(dst.len(), 0);
@@ -272,11 +272,11 @@ mod tests {
 
     #[test]
     fn encode_uncompressed() {
-        let mut src: Vec<i64> = vec![-1000, 0, simple8b::MAX_VALUE as i64, 213123421];
+        let src: Vec<i64> = vec![-1000, 0, simple8b::MAX_VALUE as i64, 213123421];
         let mut dst = vec![];
 
         let exp = src.clone();
-        encode(&mut src, &mut dst).expect("failed to encode");
+        encode(&src, &mut dst).expect("failed to encode");
 
         // verify uncompressed encoding used
         assert_eq!(&dst[0] >> 4, Encoding::Uncompressed as u8);
@@ -332,9 +332,9 @@ mod tests {
 
         for test in tests {
             let mut dst = vec![];
-            let mut src = test.input.clone();
+            let src = test.input.clone();
             let exp = test.input;
-            encode(&mut src, &mut dst).expect("failed to encode");
+            encode(&src, &mut dst).expect("failed to encode");
 
             // verify RLE encoding used
             assert_eq!(&dst[0] >> 4, Encoding::Rle as u8);
@@ -370,9 +370,9 @@ mod tests {
 
         for test in tests {
             let mut dst = vec![];
-            let mut src = test.input.clone();
+            let src = test.input.clone();
             let exp = test.input;
-            encode(&mut src, &mut dst).expect("failed to encode");
+            encode(&src, &mut dst).expect("failed to encode");
             // verify Simple8b encoding used
             assert_eq!(&dst[0] >> 4, Encoding::Simple8b as u8);
 
