@@ -1,3 +1,10 @@
+## v2.0.0-beta.6 [unreleased]
+
+### Features
+
+### Bug Fixes
+1. [17039](https://github.com/influxdata/influxdb/pull/17039): Fixed issue where tasks are exported for notification rules
+
 ## v2.0.0-beta.5 [2020-02-27]
 
 ### Features
