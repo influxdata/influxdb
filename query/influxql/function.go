@@ -47,7 +47,7 @@ func parseFunction(expr *influxql.Call) (*function, error) {
 		default:
 			return nil, fmt.Errorf("expected field argument in %s()", expr.Name)
 		}
-	case "min", "max", "sum", "first", "last", "mean", "median", "difference", "stddev":
+	case "min", "max", "sum", "first", "last", "mean", "median", "difference", "stddev", "spread":
 		if exp, got := 1, len(expr.Args); exp != got {
 			return nil, fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
 		}
@@ -108,7 +108,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		parent: in,
 	}
 	switch call.Name {
-	case "count", "min", "max", "sum", "first", "last", "mean", "difference", "stddev":
+	case "count", "min", "max", "sum", "first", "last", "mean", "difference", "stddev", "spread":
 		value, ok := in.Value(call.Args[0])
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
@@ -123,6 +123,49 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		}
 		cur.value = value
 		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
+	case "elapsed":
+		// TODO(ethan): https://github.com/influxdata/influxdb/issues/10733 to enable this.
+		value, ok := in.Value(call.Args[0])
+		if !ok {
+			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
+		}
+		unit := []ast.Duration{{
+			Magnitude: 1,
+			Unit: "ns",
+		}}
+		// elapsed has an optional unit parameter, default to 1ns
+		// https://docs.influxdata.com/influxdb/v1.7/query_language/functions/#elapsed
+		if len(call.Args) == 2 {
+			switch arg := call.Args[1].(type) {
+			case *influxql.DurationLiteral:
+				unit = durationLiteral(arg.Val)
+			default:
+				return nil, errors.New("argument unit must be a duration type")
+			}
+		}
+		cur.expr = &ast.PipeExpression{
+			Argument: in.Expr(),
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: call.Name,
+				},
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: []*ast.Property{
+							{
+								Key: &ast.Identifier{
+									Name: "unit",
+								},
+								Value: &ast.DurationLiteral{
+									Values: unit,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		cur.value = value
 	case "median":
 		value, ok := in.Value(call.Args[0])
 		if !ok {
