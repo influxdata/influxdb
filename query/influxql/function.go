@@ -3,6 +3,7 @@ package influxql
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
@@ -46,7 +47,7 @@ func parseFunction(expr *influxql.Call) (*function, error) {
 		default:
 			return nil, fmt.Errorf("expected field argument in %s()", expr.Name)
 		}
-	case "min", "max", "sum", "first", "last", "mean", "median", "difference":
+	case "min", "max", "sum", "first", "last", "mean", "median", "difference", "stddev":
 		if exp, got := 1, len(expr.Args); exp != got {
 			return nil, fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
 		}
@@ -107,7 +108,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		parent: in,
 	}
 	switch call.Name {
-	case "count", "min", "max", "sum", "first", "last", "mean", "difference":
+	case "count", "min", "max", "sum", "first", "last", "mean", "difference", "stddev":
 		value, ok := in.Value(call.Args[0])
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
@@ -254,25 +255,26 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 			Argument: cur.expr,
 			Call: &ast.CallExpression{
 				Callee: &ast.Identifier{
-					Name: "duplicate",
+					Name: "map",
 				},
 				Arguments: []ast.Expression{
 					&ast.ObjectExpression{
 						Properties: []*ast.Property{
 							{
 								Key: &ast.Identifier{
-									Name: "column",
+									Name: "fn",
 								},
-								Value: &ast.StringLiteral{
-									Value: execute.DefaultStartColLabel,
-								},
-							},
-							{
-								Key: &ast.Identifier{
-									Name: "as",
-								},
-								Value: &ast.StringLiteral{
-									Value: execute.DefaultTimeColLabel,
+								Value: &ast.FunctionExpression{
+									Params: []*ast.Property{{
+										Key: &ast.Identifier{Name: "r"},
+									}},
+									Body: &ast.ObjectExpression{
+										With: &ast.Identifier{Name: "r"},
+										Properties: []*ast.Property{{
+											Key: &ast.Identifier{Name: execute.DefaultTimeColLabel},
+											Value: &ast.DateTimeLiteral{Value: time.Unix(0, 0).UTC()},
+										}},
+									},
 								},
 							},
 						},

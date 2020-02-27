@@ -11,9 +11,9 @@ import (
 )
 
 type groupInfo struct {
-	call     *influxql.Call
-	refs     []*influxql.VarRef
-	selector bool
+	call              *influxql.Call
+	refs              []*influxql.VarRef
+	needNormalization bool
 }
 
 type groupVisitor struct {
@@ -57,6 +57,17 @@ func (v *groupVisitor) Visit(n influxql.Node) influxql.Visitor {
 	return v
 }
 
+func isTransformation(expr influxql.Expr) bool {
+	if call, ok := expr.(*influxql.Call); ok {
+		switch call.Name {
+		// TODO(ethan): more to be added here.
+		case "difference", "derivative", "cumulative_sum", "elapsed":
+			return true
+		}
+	}
+	return false
+}
+
 // identifyGroups will identify the groups for creating data access cursors.
 func identifyGroups(stmt *influxql.SelectStatement) ([]*groupInfo, error) {
 	v := &groupVisitor{}
@@ -85,9 +96,9 @@ func identifyGroups(stmt *influxql.SelectStatement) ([]*groupInfo, error) {
 			call = v.calls[0].call
 		}
 		return []*groupInfo{{
-			call:     call,
-			refs:     v.refs,
-			selector: true, // Always a selector if we are here.
+			call:              call,
+			refs:              v.refs,
+			needNormalization: false, // Always a selector if we are here.
 		}}, nil
 	}
 
@@ -98,9 +109,10 @@ func identifyGroups(stmt *influxql.SelectStatement) ([]*groupInfo, error) {
 		groups = append(groups, &groupInfo{call: fn.call})
 	}
 
-	// If there is exactly one group and that contains a selector, then mark it as so.
-	if len(groups) == 1 && influxql.IsSelector(groups[0].call) {
-		groups[0].selector = true
+	// If there is exactly one group and that contains a selector or a transformation function,
+	// then mark it does not need normalization.
+	if len(groups) == 1 {
+		groups[0].needNormalization = !isTransformation(groups[0].call) && !influxql.IsSelector(groups[0].call)
 	}
 	return groups, nil
 }
@@ -242,7 +254,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 
 	// If a function call is present, evaluate the function call.
 	if gr.call != nil {
-		c, err := createFunctionCursor(t, gr.call, cur, interval > 0)
+		c, err := createFunctionCursor(t, gr.call, cur, gr.needNormalization || interval > 0)
 		if err != nil {
 			return nil, err
 		}
