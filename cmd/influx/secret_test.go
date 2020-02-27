@@ -160,9 +160,21 @@ func TestCmdSecret(t *testing.T) {
 				},
 			},
 			{
+				name:        "with key and value",
+				expectedKey: "key1",
+				flags: []string{
+					"--org=org name", "--key=key1", "--value=v1",
+				},
+			},
+			{
 				name:        "shorts",
 				expectedKey: "key1",
 				flags:       []string{"-o=" + orgID.String(), "-k=key1"},
+			},
+			{
+				name:        "shorts with value",
+				expectedKey: "key1",
+				flags:       []string{"-o=" + orgID.String(), "-k=key1", "-v=v1"},
 			},
 		}
 

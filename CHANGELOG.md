@@ -1,4 +1,4 @@
-## v2.0.0-beta.5 [unreleased]
+## v2.0.0-beta.5 [2020-02-27]
 
 ### Features
 
@@ -17,6 +17,7 @@
 1. [17013](https://github.com/influxdata/influxdb/pull/17013): Scatterplots can once again render the tooltip correctly
 1. [17027](https://github.com/influxdata/influxdb/pull/17027): Drop pkger gauge chart requirement for color threshold type
 1. [17040](https://github.com/influxdata/influxdb/pull/17040): Fixed bug that was preventing the interval status on the dashboard header from refreshing on selections
+1. [16961](https://github.com/influxdata/influxdb/pull/16961): Remove cli confirmation of secret, add an optional parameter of secret value
 
 ## v2.0.0-beta.4 [2020-02-14]
 
