@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/pkg/pointer"
@@ -206,14 +207,14 @@ func newDeps() flux.Dependencies {
 func FromScript(script string) (Options, error) {
 	opt := Options{Retry: pointer.Int64(1), Concurrency: pointer.Int64(1)}
 
-	fluxAST, err := flux.Parse(script)
+	fluxAST, err := runtime.Parse(script)
 	if err != nil {
 		return opt, err
 	}
 	durTypes := grabTaskOptionAST(fluxAST, optEvery, optOffset)
 	// TODO(desa): should be dependencies.NewEmpty(), but for now we'll hack things together
 	ctx := newDeps().Inject(context.Background())
-	_, scope, err := flux.EvalAST(ctx, fluxAST)
+	_, scope, err := runtime.EvalAST(ctx, fluxAST)
 	if err != nil {
 		return opt, err
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/stdlib"
 
 	platform "github.com/influxdata/influxdb"
@@ -28,7 +29,7 @@ import (
 var ctx = influxdbcontext.SetAuthorizer(context.Background(), &mock.Authorization{})
 
 func init() {
-	flux.FinalizeBuiltIns()
+	runtime.FinalizeBuiltIns()
 }
 
 func TestFluxEndToEnd(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/repl"
+	"github.com/influxdata/flux/runtime"
 	_ "github.com/influxdata/flux/stdlib"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/http"
@@ -49,7 +50,7 @@ func replF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	flux.FinalizeBuiltIns()
+	runtime.FinalizeBuiltIns()
 
 	r, err := getFluxREPL(flags.host, flags.token, flags.skipVerify, orgID)
 	if err != nil {
