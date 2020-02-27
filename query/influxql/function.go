@@ -131,7 +131,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		}
 		unit := []ast.Duration{{
 			Magnitude: 1,
-			Unit: "ns",
+			Unit:      "ns",
 		}}
 		// elapsed has an optional unit parameter, default to 1ns
 		// https://docs.influxdata.com/influxdb/v1.7/query_language/functions/#elapsed
@@ -314,7 +314,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 									Body: &ast.ObjectExpression{
 										With: &ast.Identifier{Name: "r"},
 										Properties: []*ast.Property{{
-											Key: &ast.Identifier{Name: execute.DefaultTimeColLabel},
+											Key:   &ast.Identifier{Name: execute.DefaultTimeColLabel},
 											Value: &ast.DateTimeLiteral{Value: time.Unix(0, 0).UTC()},
 										}},
 									},
