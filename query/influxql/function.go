@@ -10,6 +10,17 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+func isTransformation(expr influxql.Expr) bool {
+	if call, ok := expr.(*influxql.Call); ok {
+		switch call.Name {
+		// TODO(ethan): more to be added here.
+		case "difference", "derivative", "cumulative_sum", "elapsed":
+			return true
+		}
+	}
+	return false
+}
+
 // function contains the prototype for invoking a function.
 // TODO(jsternberg): This should do a lot more heavy lifting, but it mostly just
 // pre-validates that we know the function exists. The cursor creation should be

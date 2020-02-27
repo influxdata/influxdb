@@ -57,17 +57,6 @@ func (v *groupVisitor) Visit(n influxql.Node) influxql.Visitor {
 	return v
 }
 
-func isTransformation(expr influxql.Expr) bool {
-	if call, ok := expr.(*influxql.Call); ok {
-		switch call.Name {
-		// TODO(ethan): more to be added here.
-		case "difference", "derivative", "cumulative_sum", "elapsed":
-			return true
-		}
-	}
-	return false
-}
-
 // identifyGroups will identify the groups for creating data access cursors.
 func identifyGroups(stmt *influxql.SelectStatement) ([]*groupInfo, error) {
 	v := &groupVisitor{}
