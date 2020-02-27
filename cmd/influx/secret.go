@@ -24,8 +24,9 @@ type cmdSecretBuilder struct {
 
 	svcFn secretSVCsFn
 
-	key string
-	org organization
+	key   string
+	value string
+	org   organization
 }
 
 func newCmdSecretBuilder(svcsFn secretSVCsFn, opt genericCLIOpts) *cmdSecretBuilder {
@@ -51,6 +52,7 @@ func (b *cmdSecretBuilder) cmdUpdate() *cobra.Command {
 	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
 	cmd.Short = "Update secret"
 	cmd.Flags().StringVarP(&b.key, "key", "k", "", "The secret key (required)")
+	cmd.Flags().StringVarP(&b.value, "value", "v", "", "Optional secret value for scripting convenience, using this might exposed the secret to your local history")
 	cmd.MarkFlagRequired("key")
 	b.org.register(cmd, false)
 
@@ -84,7 +86,12 @@ func (b *cmdSecretBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 		Writer: b.genericCLIOpts.w,
 		Reader: b.genericCLIOpts.in,
 	}
-	secret := getSecretFn(ui)
+	var secret string
+	if b.value != "" {
+		secret = b.value
+	} else {
+		secret = getSecretFn(ui)
+	}
 
 	if err := scrSVC.PatchSecrets(ctx, orgID, map[string]string{b.key: secret}); err != nil {
 		return fmt.Errorf("failed to update secret with key %q: %v", b.key, err)
