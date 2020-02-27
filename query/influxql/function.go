@@ -305,6 +305,21 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 				},
 			}
 		}
+		// err checked in caller
+		interval, _ := t.stmt.GroupByInterval()
+		var timeValue ast.Expression
+		if interval > 0 {
+			timeValue = &ast.MemberExpression{
+				Object: &ast.Identifier{
+					Name: "r",
+				},
+				Property: &ast.Identifier{
+					Name: execute.DefaultStartColLabel,
+				},
+			}
+		} else {
+			timeValue = &ast.DateTimeLiteral{Value: time.Unix(0, 0).UTC()}
+		}
 		cur.expr = &ast.PipeExpression{
 			Argument: cur.expr,
 			Call: &ast.CallExpression{
@@ -326,7 +341,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 										With: &ast.Identifier{Name: "r"},
 										Properties: []*ast.Property{{
 											Key:   &ast.Identifier{Name: execute.DefaultTimeColLabel},
-											Value: &ast.DateTimeLiteral{Value: time.Unix(0, 0).UTC()},
+											Value: timeValue,
 										}},
 									},
 								},
