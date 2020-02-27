@@ -164,8 +164,19 @@ class DashboardHeader extends Component<Props> {
   }
 
   private handleChooseAutoRefresh = (milliseconds: number) => {
-    const {handleChooseAutoRefresh, dashboard} = this.props
+    const {
+      handleChooseAutoRefresh,
+      onSetAutoRefreshStatus,
+      dashboard,
+    } = this.props
     handleChooseAutoRefresh(dashboard.id, milliseconds)
+
+    if (milliseconds === 0) {
+      onSetAutoRefreshStatus(dashboard.id, AutoRefreshStatus.Paused)
+      return
+    }
+
+    onSetAutoRefreshStatus(dashboard.id, AutoRefreshStatus.Active)
   }
 
   private handleChooseTimeRange = (timeRange: TimeRange) => {
