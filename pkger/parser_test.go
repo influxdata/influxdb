@@ -764,39 +764,6 @@ spec:
 			t.Run("handles invalid config", func(t *testing.T) {
 				tests := []testPkgResourceError{
 					{
-						name:           "missing threshold color type",
-						validationErrs: 1,
-						valFields:      []string{"charts[0].colors"},
-						pkgStr: `apiVersion: influxdata.com/v2alpha1
-kind: Dashboard
-metadata:
-  name: dash_1
-spec:
-  description: desc1
-  charts:
-    - kind:   gauge
-      name:   gauge
-      note: gauge note
-      noteOnEmpty: true
-      xPos:  1
-      yPos:  2
-      width:  6
-      height: 3
-      queries:
-        - query: >
-            from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")
-      colors:
-        - name: laser
-          type: min
-          hex: "#8F8AF4"
-          value: 0
-        - name: laser
-          type: max
-          hex: "#8F8AF4"
-          value: 5000
-`,
-					},
-					{
 						name:           "color mixing a hex value",
 						validationErrs: 1,
 						valFields:      []string{"charts[0].colors[0].hex"},

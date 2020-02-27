@@ -15,6 +15,7 @@
 1. [17010](https://github.com/influxdata/influxdb/pull/17010): Fixed scrollbar issue where resource cards would overflow the parent container rather than be hidden and scrollable
 1. [16992](https://github.com/influxdata/influxdb/pull/16992): Query Builder now groups on column values, not tag values
 1. [17013](https://github.com/influxdata/influxdb/pull/17013): Scatterplots can once again render the tooltip correctly
+1. [17027](https://github.com/influxdata/influxdb/pull/17027): Drop pkger gauge chart requirement for color threshold type
 
 ## v2.0.0-beta.4 [2020-02-14]
 
