@@ -454,6 +454,13 @@ func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]Resou
 		return nil, err
 	}
 
+	rules, _, err := s.ruleSVC.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{
+		OrgID: &orgID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	mTeles := make(map[influxdb.ID]*influxdb.Task)
 	for i := range teles {
 		t := teles[i]
@@ -464,6 +471,9 @@ func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]Resou
 	}
 	for _, c := range checks {
 		delete(mTeles, c.GetTaskID())
+	}
+	for _, r := range rules {
+		delete(mTeles, r.GetTaskID())
 	}
 
 	resources := make([]ResourceToClone, 0, len(mTeles))

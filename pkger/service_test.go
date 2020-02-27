@@ -2634,21 +2634,22 @@ func TestService(t *testing.T) {
 				}, nil
 			}
 
+			expectedRule := &rule.HTTP{
+				Base: rule.Base{
+					ID:          12,
+					Name:        "rule_0",
+					EndpointID:  2,
+					Every:       mustDuration(t, time.Minute),
+					StatusRules: []notification.StatusRule{{CurrentLevel: notification.Critical}},
+				},
+			}
 			ruleSVC := mock.NewNotificationRuleStore()
 			ruleSVC.FindNotificationRulesF = func(ctx context.Context, f influxdb.NotificationRuleFilter, _ ...influxdb.FindOptions) ([]influxdb.NotificationRule, int, error) {
-				out := []influxdb.NotificationRule{&rule.HTTP{Base: rule.Base{ID: 91}}}
+				out := []influxdb.NotificationRule{expectedRule}
 				return out, len(out), nil
 			}
 			ruleSVC.FindNotificationRuleByIDF = func(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
-				return &rule.HTTP{
-					Base: rule.Base{
-						ID:          id,
-						Name:        "rule_0",
-						EndpointID:  2,
-						Every:       mustDuration(t, time.Minute),
-						StatusRules: []notification.StatusRule{{CurrentLevel: notification.Critical}},
-					},
-				}, nil
+				return expectedRule, nil
 			}
 
 			labelSVC := mock.NewLabelService()
@@ -2670,6 +2671,7 @@ func TestService(t *testing.T) {
 				return []*influxdb.Task{
 					{ID: 31},
 					{ID: expectedCheck.TaskID},              // this one should be ignored in the return
+					{ID: expectedRule.TaskID},               // this one should be ignored in the return as well
 					{ID: 99, Type: influxdb.TaskSystemType}, // this one should be skipped since it is a system task
 				}, 3, nil
 			}
@@ -2722,7 +2724,7 @@ func TestService(t *testing.T) {
 
 			checks := summary.Checks
 			require.Len(t, checks, 1)
-			assert.Equal(t, "check_1", checks[0].Check.GetName())
+			assert.Equal(t, expectedCheck.Name, checks[0].Check.GetName())
 
 			dashs := summary.Dashboards
 			require.Len(t, dashs, 1)
@@ -2738,8 +2740,8 @@ func TestService(t *testing.T) {
 
 			rules := summary.NotificationRules
 			require.Len(t, rules, 1)
-			assert.Equal(t, "rule_0", rules[0].Name)
-			assert.Equal(t, "http", rules[0].EndpointName)
+			assert.Equal(t, expectedRule.Name, rules[0].Name)
+			assert.Equal(t, expectedRule.Type(), rules[0].EndpointName)
 
 			require.Len(t, summary.Tasks, 1)
 			task1 := summary.Tasks[0]
