@@ -12,6 +12,8 @@ import {
   Panel,
 } from '@influxdata/clockface'
 
+import LoginPageContents from 'src/onboarding/containers/LoginPageContents'
+
 export const LoginPage: FC = () => (
   <AppWrapper className="sign-up--page">
     <Page titleTag="Sign Up for InfluxDB Cloud">
@@ -35,7 +37,7 @@ export const LoginPage: FC = () => (
                 widthLG={Columns.Four}
                 className="sign-up--full-height"
               >
-                Login Page will go here
+                <LoginPageContents />
               </Grid.Column>
             </Grid.Row>
           </FlexBox>
