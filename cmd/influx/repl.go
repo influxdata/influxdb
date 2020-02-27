@@ -5,12 +5,10 @@ import (
 	"fmt"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/dependencies/filesystem"
 	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/flux/runtime"
 	_ "github.com/influxdata/flux/stdlib"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/stdlib"
 	"github.com/spf13/cobra"
 )
@@ -40,19 +38,20 @@ func replF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	orgSVC, err := newOrganizationService()
-	if err != nil {
-		return err
-	}
-
-	orgID, err := replFlags.org.getID(orgSVC)
-	if err != nil {
-		return err
-	}
+	// TODO(jsternberg): Restore the repl by merging the influxdb client.
+	// orgSVC, err := newOrganizationService()
+	// if err != nil {
+	// 	return err
+	// }
+	//
+	// orgID, err := replFlags.org.getID(orgSVC)
+	// if err != nil {
+	// 	return err
+	// }
 
 	runtime.FinalizeBuiltIns()
 
-	r, err := getFluxREPL(flags.host, flags.token, flags.skipVerify, orgID)
+	r, err := getFluxREPL()
 	if err != nil {
 		return err
 	}
@@ -61,17 +60,9 @@ func replF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func getFluxREPL(addr, token string, skipVerify bool, orgID platform.ID) (*repl.REPL, error) {
-	qs := &http.FluxQueryService{
-		Addr:               addr,
-		Token:              token,
-		InsecureSkipVerify: skipVerify,
-	}
-	q := &query.REPLQuerier{
-		OrganizationID: orgID,
-		QueryService:   qs,
-	}
-	// background context is OK here, and DefaultDependencies are noop deps.  Also safe
-	// since we send all queries to the server side.
-	return repl.New(context.Background(), flux.NewDefaultDependencies(), q), nil
+func getFluxREPL() (*repl.REPL, error) {
+	deps := flux.NewDefaultDependencies()
+	deps.Deps.FilesystemService = filesystem.SystemFS
+	ctx := deps.Inject(context.Background())
+	return repl.New(ctx, deps), nil
 }

@@ -42,19 +42,20 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load query: %v", err)
 	}
 
-	orgSvc, err := newOrganizationService()
-	if err != nil {
-		return fmt.Errorf("failed to initialized organization service client: %v", err)
-	}
-
-	orgID, err := queryFlags.org.getID(orgSvc)
-	if err != nil {
-		return err
-	}
+	// TODO(jsternberg): Restore this when the influxdb client source is merged.
+	// orgSvc, err := newOrganizationService()
+	// if err != nil {
+	// 	return fmt.Errorf("failed to initialized organization service client: %v", err)
+	// }
+	//
+	// orgID, err := queryFlags.org.getID(orgSvc)
+	// if err != nil {
+	// 	return err
+	// }
 
 	runtime.FinalizeBuiltIns()
 
-	r, err := getFluxREPL(flags.host, flags.token, flags.skipVerify, orgID)
+	r, err := getFluxREPL()
 	if err != nil {
 		return fmt.Errorf("failed to get the flux REPL: %v", err)
 	}
