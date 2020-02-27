@@ -2344,7 +2344,7 @@ func (c chart) validProperties() []validationErr {
 	// chart kind specific validations
 	switch c.Kind {
 	case chartKindGauge:
-		fails = append(fails, c.Colors.hasTypes(colorTypeMin, colorTypeThreshold, colorTypeMax)...)
+		fails = append(fails, c.Colors.hasTypes(colorTypeMin, colorTypeMax)...)
 	case chartKindHeatMap:
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
 	case chartKindHistogram:
