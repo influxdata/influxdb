@@ -1,12 +1,12 @@
-use crate::delorean::node::{Comparison, Logical, Value};
-use crate::delorean::{Node, Predicate};
+use crate::delorean::{Node, Predicate, TimestampRange};
 use crate::line_parser::{ParseError, Point, PointType};
 use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
+use crate::storage::predicate::{Evaluate, EvaluateVisitor};
 use crate::storage::series_store::{ReadPoint, SeriesStore};
-use crate::storage::{Range, SeriesDataType, StorageError};
+use crate::storage::{SeriesDataType, StorageError};
 
 use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
+use std::sync::{Arc, Mutex, RwLock};
 
 use croaring::Treemap;
 /// memdb implements an in memory database for the InvertedIndex and SeriesStore traits. It
@@ -120,13 +120,13 @@ impl<T: Clone> SeriesRingBuffer<T> {
         self.next_position += 1;
     }
 
-    fn get_range(&self, range: &Range) -> Vec<ReadPoint<T>> {
+    fn get_range(&self, range: &TimestampRange) -> Vec<ReadPoint<T>> {
         let (_, pos) = self.oldest_time_and_position();
 
         let mut values = Vec::new();
 
         for i in pos..self.data.len() {
-            if self.data[i].time > range.stop {
+            if self.data[i].time > range.end {
                 return values;
             } else if self.data[i].time >= range.start {
                 values.push(self.data[i].clone());
@@ -134,7 +134,7 @@ impl<T: Clone> SeriesRingBuffer<T> {
         }
 
         for i in 0..self.next_position {
-            if self.data[i].time > range.stop {
+            if self.data[i].time > range.end {
                 return values;
             } else if self.data[i].time >= range.start {
                 values.push(self.data[i].clone());
@@ -238,7 +238,7 @@ impl MemDB {
     fn get_or_create_series_ids_for_points(
         &self,
         bucket_id: u32,
-        points: &mut Vec<PointType>,
+        points: &mut [PointType],
     ) -> Result<(), StorageError> {
         // first try to do everything with just a read lock
         if self.get_series_ids_for_points(bucket_id, points) {
@@ -269,7 +269,7 @@ impl MemDB {
     // get_series_ids_for_points attempts to fill the series ids for all points in the passed in
     // collection using only a read lock. If no SeriesMap exists for the bucket, it will be inserted.
     // It will return true if all points have series ids filled in.
-    fn get_series_ids_for_points(&self, bucket_id: u32, points: &mut Vec<PointType>) -> bool {
+    fn get_series_ids_for_points(&self, bucket_id: u32, points: &mut [PointType]) -> bool {
         let buckets = self.bucket_id_to_series_map.read().unwrap();
         match buckets.get(&bucket_id) {
             Some(b) => {
@@ -303,7 +303,7 @@ impl MemDB {
         &self,
         bucket_id: u32,
         _predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
         match self.bucket_id_to_series_map.read().unwrap().get(&bucket_id) {
             Some(map) => {
                 let keys: Vec<String> = map.read().unwrap().tag_keys.keys().cloned().collect();
@@ -320,7 +320,7 @@ impl MemDB {
         bucket_id: u32,
         tag_key: &str,
         _predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
         match self.bucket_id_to_series_map.read().unwrap().get(&bucket_id) {
             Some(map) => match map.read().unwrap().tag_keys.get(tag_key) {
                 Some(values) => {
@@ -339,7 +339,7 @@ impl MemDB {
         &self,
         bucket_id: u32,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = SeriesFilter> + Send>, StorageError> {
         let pred = match predicate {
             Some(p) => p,
             None => {
@@ -413,13 +413,13 @@ impl MemDB {
         Ok(())
     }
 
-    fn read_range<T: 'static + Clone + FromSeries>(
+    fn read_range<T: 'static + Clone + FromSeries + Send>(
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<T>>> + Send>, StorageError> {
         let buckets = self.bucket_id_to_series_data.read().unwrap();
         let data = match buckets.get(&bucket_id) {
             Some(d) => d,
@@ -491,94 +491,23 @@ impl<T: Clone> Iterator for PointsIterator<T> {
     }
 }
 
-fn evaluate_node(
-    series_map: &RwLockReadGuard<'_, SeriesMap>,
-    n: &Node,
-) -> Result<Treemap, StorageError> {
-    if n.children.len() != 2 {
-        return Err(StorageError {
-            description: format!(
-                "expected only two children of node but found {}",
-                n.children.len()
-            ),
-        });
-    }
+fn evaluate_node(series_map: &SeriesMap, n: &Node) -> Result<Treemap, StorageError> {
+    struct Visitor<'a>(&'a SeriesMap);
 
-    match &n.value {
-        Some(node_value) => match node_value {
-            Value::Logical(l) => {
-                let l = Logical::from_i32(*l).unwrap();
-                evaluate_logical(series_map, &n.children[0], &n.children[1], l)
-            }
-            Value::Comparison(c) => {
-                let c = Comparison::from_i32(*c).unwrap();
-                evaluate_comparison(series_map, &n.children[0], &n.children[1], c)
-            }
-            val => Err(StorageError {
-                description: format!("evaluate_node called on wrong type {:?}", val),
-            }),
-        },
-        None => Err(StorageError {
-            description: "emtpy node value".to_string(),
-        }),
-    }
-}
-
-fn evaluate_logical(
-    series_map: &RwLockReadGuard<'_, SeriesMap>,
-    left: &Node,
-    right: &Node,
-    op: Logical,
-) -> Result<Treemap, StorageError> {
-    let mut left_result = evaluate_node(series_map, left)?;
-    let right_result = evaluate_node(series_map, right)?;
-
-    match op {
-        Logical::And => left_result.and_inplace(&right_result),
-        Logical::Or => left_result.or_inplace(&right_result),
-    };
-
-    Ok(left_result)
-}
-
-fn evaluate_comparison(
-    series_map: &RwLockReadGuard<'_, SeriesMap>,
-    left: &Node,
-    right: &Node,
-    op: Comparison,
-) -> Result<Treemap, StorageError> {
-    let left = match &left.value {
-        Some(Value::TagRefValue(s)) => s,
-        _ => {
-            return Err(StorageError {
-                description: "expected left operand to be a TagRefValue".to_string(),
-            })
+    impl EvaluateVisitor for Visitor<'_> {
+        fn equal(&mut self, left: &str, right: &str) -> Result<Treemap, StorageError> {
+            Ok(self.0.posting_list_for_key_value(left, right))
         }
-    };
-
-    let right = match &right.value {
-        Some(Value::StringValue(s)) => s,
-        _ => {
-            return Err(StorageError {
-                description: "unable to run comparison against anything other than a string"
-                    .to_string(),
-            })
-        }
-    };
-
-    match op {
-        Comparison::Equal => Ok(series_map.posting_list_for_key_value(&left, &right)),
-        comp => Err(StorageError {
-            description: format!("unable to handle comparison {:?}", comp),
-        }),
     }
+
+    Evaluate::evaluate(Visitor(series_map), n)
 }
 
 impl InvertedIndex for MemDB {
     fn get_or_create_series_ids_for_points(
         &self,
         bucket_id: u32,
-        points: &mut Vec<PointType>,
+        points: &mut [PointType],
     ) -> Result<(), StorageError> {
         self.get_or_create_series_ids_for_points(bucket_id, points)
     }
@@ -587,7 +516,7 @@ impl InvertedIndex for MemDB {
         &self,
         bucket_id: u32,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = SeriesFilter>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = SeriesFilter> + Send>, StorageError> {
         self.read_series_matching(bucket_id, predicate)
     }
 
@@ -595,7 +524,7 @@ impl InvertedIndex for MemDB {
         &self,
         bucket_id: u32,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
         self.get_tag_keys(bucket_id, predicate)
     }
 
@@ -604,7 +533,7 @@ impl InvertedIndex for MemDB {
         bucket_id: u32,
         tag_key: &str,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
         self.get_tag_values(bucket_id, tag_key, predicate)
     }
 }
@@ -622,9 +551,9 @@ impl SeriesStore for MemDB {
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>> + Send>, StorageError> {
         self.read_range(bucket_id, series_id, range, batch_size)
     }
 
@@ -632,9 +561,9 @@ impl SeriesStore for MemDB {
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError> {
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>> + Send>, StorageError> {
         self.read_range(bucket_id, series_id, range, batch_size)
     }
 }

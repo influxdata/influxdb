@@ -1,5 +1,6 @@
+use crate::delorean::TimestampRange;
 use crate::line_parser::PointType;
-use crate::storage::{Range, StorageError};
+use crate::storage::StorageError;
 
 pub trait SeriesStore: Sync + Send {
     fn write_points_with_series_ids(
@@ -12,17 +13,17 @@ pub trait SeriesStore: Sync + Send {
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>>>, StorageError>;
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>> + Send>, StorageError>;
 
     fn read_f64_range(
         &self,
         bucket_id: u32,
         series_id: u64,
-        range: &Range,
+        range: &TimestampRange,
         batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>>>, StorageError>;
+    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>> + Send>, StorageError>;
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -34,9 +35,9 @@ pub struct ReadPoint<T: Clone> {
 // Test helpers for other implementations to run
 #[cfg(test)]
 pub mod tests {
+    use crate::delorean::TimestampRange;
     use crate::line_parser::PointType;
     use crate::storage::series_store::{ReadPoint, SeriesStore};
-    use crate::storage::Range;
 
     pub fn write_and_read_i64(store: Box<dyn SeriesStore>) {
         let b1_id = 1;
@@ -55,13 +56,13 @@ pub mod tests {
             .write_points_with_series_ids(b1_id, &b1_points)
             .unwrap();
 
-        let b2_points = vec![p1.clone(), p2.clone(), p3.clone(), p4.clone()];
+        let b2_points = vec![p1.clone(), p2, p3.clone(), p4];
         store
             .write_points_with_series_ids(b2_id, &b2_points)
             .unwrap();
 
         // test that we'll only read from the bucket we wrote points into
-        let range = Range { start: 1, stop: 4 };
+        let range = TimestampRange { start: 1, end: 4 };
         let mut points_iter = store
             .read_i64_range(b1_id, p1.series_id().unwrap(), &range, 10)
             .unwrap();
@@ -111,7 +112,7 @@ pub mod tests {
         assert_eq!(points_iter.next(), None);
 
         // test that the time range is properly limiting
-        let range = Range { start: 2, stop: 3 };
+        let range = TimestampRange { start: 2, end: 3 };
         let mut points_iter = store
             .read_i64_range(b2_id, p1.series_id().unwrap(), &range, 10)
             .unwrap();
@@ -132,13 +133,13 @@ pub mod tests {
         let mut p2 = PointType::new_f64("cpu,host=b,region=west\tusage_system".to_string(), 2.2, 2);
         p2.set_series_id(1);
 
-        let points = vec![p1.clone(), p2.clone()];
+        let points = vec![p1.clone(), p2];
         store
             .write_points_with_series_ids(bucket_id, &points)
             .unwrap();
 
         // test that we'll only read from the bucket we wrote points into
-        let range = Range { start: 0, stop: 4 };
+        let range = TimestampRange { start: 0, end: 4 };
         let mut points_iter = store
             .read_f64_range(bucket_id, p1.series_id().unwrap(), &range, 10)
             .unwrap();

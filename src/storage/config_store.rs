@@ -14,4 +14,6 @@ pub trait ConfigStore: Sync + Send {
         org_id: u32,
         bucket_name: &str,
     ) -> Result<Option<Arc<Bucket>>, StorageError>;
+
+    fn get_bucket_by_id(&self, bucket_id: u32) -> Result<Option<Arc<Bucket>>, StorageError>;
 }

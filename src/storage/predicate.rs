@@ -1,7 +1,8 @@
+use crate::delorean::node::Logical;
 use crate::delorean::node::{Comparison, Value};
 use crate::delorean::{node, Node, Predicate};
 use crate::storage::StorageError;
-
+use croaring::Treemap;
 use std::iter::Peekable;
 use std::str::Chars;
 
@@ -156,7 +157,7 @@ fn parse_logical(chars: &mut Peekable<Chars<'_>>) -> Result<Option<node::Logical
                     Some('n') | Some('N') => (),
                     Some(ch) => {
                         return Err(StorageError {
-                            description: format!("expected \"and\" but found a{}", ch),
+                            description: format!(r#"expected "and" but found a{}"#, ch),
                         })
                     }
                     _ => {
@@ -169,7 +170,7 @@ fn parse_logical(chars: &mut Peekable<Chars<'_>>) -> Result<Option<node::Logical
                     Some('d') | Some('D') => (),
                     Some(ch) => {
                         return Err(StorageError {
-                            description: format!("expected \"and\" but found an{}", ch),
+                            description: format!(r#"expected "and" but found an{}"#, ch),
                         })
                     }
                     _ => {
@@ -184,7 +185,7 @@ fn parse_logical(chars: &mut Peekable<Chars<'_>>) -> Result<Option<node::Logical
                 Some('r') | Some('R') => return Ok(Some(node::Logical::Or)),
                 Some(ch) => {
                     return Err(StorageError {
-                        description: format!("expected \"or\" but found o{}", ch),
+                        description: format!(r#"expected "or" but found o{}"#, ch),
                     })
                 }
                 _ => {
@@ -217,13 +218,100 @@ fn eat_whitespace(chars: &mut Peekable<Chars<'_>>) {
     }
 }
 
+pub trait EvaluateVisitor {
+    fn equal(&mut self, left: &str, right: &str) -> Result<Treemap, StorageError>;
+}
+
+pub struct Evaluate<V: EvaluateVisitor>(V);
+
+impl<V: EvaluateVisitor> Evaluate<V> {
+    pub fn evaluate(visitor: V, node: &Node) -> Result<Treemap, StorageError> {
+        Self(visitor).node(node)
+    }
+
+    fn node(&mut self, n: &Node) -> Result<Treemap, StorageError> {
+        if n.children.len() != 2 {
+            return Err(StorageError {
+                description: format!(
+                    "expected only two children of node but found {}",
+                    n.children.len()
+                ),
+            });
+        }
+
+        match &n.value {
+            Some(node_value) => match node_value {
+                Value::Logical(l) => {
+                    let l = Logical::from_i32(*l).unwrap();
+                    self.logical(&n.children[0], &n.children[1], l)
+                }
+                Value::Comparison(c) => {
+                    let c = Comparison::from_i32(*c).unwrap();
+                    self.comparison(&n.children[0], &n.children[1], c)
+                }
+                val => Err(StorageError {
+                    description: format!("Evaluate::node called on wrong type {:?}", val),
+                }),
+            },
+            None => Err(StorageError {
+                description: "emtpy node value".to_string(),
+            }),
+        }
+    }
+
+    fn logical(&mut self, left: &Node, right: &Node, op: Logical) -> Result<Treemap, StorageError> {
+        let mut left_result = self.node(left)?;
+        let right_result = self.node(right)?;
+
+        match op {
+            Logical::And => left_result.and_inplace(&right_result),
+            Logical::Or => left_result.or_inplace(&right_result),
+        };
+
+        Ok(left_result)
+    }
+
+    fn comparison(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        op: Comparison,
+    ) -> Result<Treemap, StorageError> {
+        let left = match &left.value {
+            Some(Value::TagRefValue(s)) => s,
+            _ => {
+                return Err(StorageError {
+                    description: "expected left operand to be a TagRefValue".to_string(),
+                })
+            }
+        };
+
+        let right = match &right.value {
+            Some(Value::StringValue(s)) => s,
+            _ => {
+                return Err(StorageError {
+                    description: "unable to run comparison against anything other than a string"
+                        .to_string(),
+                })
+            }
+        };
+
+        match op {
+            Comparison::Equal => self.0.equal(left, right),
+            comp => Err(StorageError {
+                description: format!("unable to handle comparison {:?}", comp),
+            }),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn parse_predicate() {
-        let pred = super::parse_predicate("host = \"foo\"").unwrap();
+        let pred = super::parse_predicate(r#"host = "foo""#).unwrap();
         assert_eq!(
             pred,
             Predicate {
@@ -243,7 +331,7 @@ mod tests {
             }
         );
 
-        let pred = super::parse_predicate("host != \"serverA\" AND region=\"west\"").unwrap();
+        let pred = super::parse_predicate(r#"host != "serverA" AND region="west""#).unwrap();
         assert_eq!(
             pred,
             Predicate {

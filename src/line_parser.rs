@@ -1,5 +1,3 @@
-use actix_web::http::StatusCode;
-use actix_web::ResponseError;
 use std::str::Chars;
 use std::{error, fmt};
 
@@ -165,12 +163,6 @@ impl error::Error for ParseError {
     }
 }
 
-impl ResponseError for ParseError {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
-    }
-}
-
 // TODO: have parse return an error for invalid inputs
 pub fn parse(input: &str) -> Vec<PointType> {
     let mut points: Vec<PointType> = Vec::with_capacity(10000);
@@ -267,6 +259,7 @@ fn read_value(
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::tests::approximately_equal;
 
     #[test]
     fn parse_single_field() {
@@ -281,13 +274,13 @@ mod test {
         let vals = parse(input);
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 546);
-        assert_eq!(vals[0].f64_value().unwrap(), 44.0);
+        assert!(approximately_equal(vals[0].f64_value().unwrap(), 44.0));
 
-        let input = "foo asdf=3.14 123";
+        let input = "foo asdf=3.74 123";
         let vals = parse(input);
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 123);
-        assert_eq!(vals[0].f64_value().unwrap(), 3.14);
+        assert!(approximately_equal(vals[0].f64_value().unwrap(), 3.74));
     }
 
     #[test]
@@ -308,11 +301,11 @@ mod test {
         let vals = parse(input);
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
-        assert_eq!(vals[0].f64_value().unwrap(), 23.1);
+        assert!(approximately_equal(vals[0].f64_value().unwrap(), 23.1));
 
         assert_eq!(vals[1].series(), "foo\tbar");
         assert_eq!(vals[1].time(), 1234);
-        assert_eq!(vals[1].f64_value().unwrap(), 5.0);
+        assert!(approximately_equal(vals[1].f64_value().unwrap(), 5.0));
     }
 
     #[test]
@@ -322,7 +315,7 @@ mod test {
         let vals = parse(input);
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
-        assert_eq!(vals[0].f64_value().unwrap(), 23.1);
+        assert!(approximately_equal(vals[0].f64_value().unwrap(), 23.1));
 
         assert_eq!(vals[1].series(), "foo\tbar");
         assert_eq!(vals[1].time(), 1234);

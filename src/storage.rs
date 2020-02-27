@@ -1,5 +1,3 @@
-use actix_web::http::StatusCode;
-use actix_web::ResponseError;
 use std::convert::TryFrom;
 use std::error;
 use std::fmt;
@@ -11,11 +9,6 @@ pub mod memdb;
 pub mod predicate;
 pub mod rocksdb;
 pub mod series_store;
-
-pub struct Range {
-    pub start: i64,
-    pub stop: i64,
-}
 
 // The values for these enum variants have no real meaning, but they
 // are serialized to disk. Revisit these whenever it's time to decide
@@ -65,11 +58,5 @@ impl error::Error for StorageError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         // Generic error, underlying cause isn't tracked.
         None
-    }
-}
-
-impl ResponseError for StorageError {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
     }
 }

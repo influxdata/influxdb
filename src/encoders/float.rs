@@ -488,7 +488,10 @@ pub fn decode(src: &[u8], dst: &mut Vec<f64>) -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unreadable_literal)]
+#[allow(clippy::excessive_precision)] // TODO: Audit test values for truncation
 mod tests {
+    use crate::tests::approximately_equal;
 
     #[test]
     fn encode_no_values() {
@@ -532,7 +535,11 @@ mod tests {
         assert_eq!(got.len(), src.len());
 
         for (i, v) in got.iter().enumerate() {
-            assert_eq!(src[i].to_bits(), v.to_bits());
+            if v.is_nan() || v.is_infinite() {
+                assert_eq!(src[i].to_bits(), v.to_bits());
+            } else {
+                assert!(approximately_equal(src[i], *v));
+            }
         }
     }
 

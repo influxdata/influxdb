@@ -57,7 +57,7 @@ pub fn encode<'a>(src: &[i64], dst: &'a mut Vec<u8>) -> Result<(), Box<dyn Error
         }
 
         dst.push((Encoding::Uncompressed as u8) << 4);
-        for delta in deltas.iter() {
+        for delta in &deltas {
             dst.extend_from_slice(&delta.to_be_bytes());
         }
         return Ok(());
@@ -238,7 +238,7 @@ fn decode_simple8b(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>>
     let mut next = dst[dst.len() - 1];
     if scaler > 1 {
         // TODO(edd): fix this. It's copying, which is slowwwwwwwww.
-        for v in res.iter() {
+        for v in &res {
             next += (v * scaler) as i64;
             dst.push(next);
         }
@@ -246,7 +246,7 @@ fn decode_simple8b(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>>
     }
 
     // TODO(edd): fix this. It's copying, which is slowwwwwwwww.
-    for v in res.iter() {
+    for v in &res {
         next += *v as i64;
         dst.push(next);
     }
@@ -254,6 +254,7 @@ fn decode_simple8b(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>>
 }
 
 #[cfg(test)]
+#[allow(clippy::unreadable_literal)]
 mod tests {
     use super::*;
 

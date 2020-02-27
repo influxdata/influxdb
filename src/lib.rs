@@ -1,7 +1,6 @@
 #![deny(rust_2018_idioms)]
+#![warn(clippy::explicit_iter_loop)]
 
-use actix_web::http::StatusCode;
-use actix_web::ResponseError;
 use std::{error, fmt};
 
 pub mod encoders;
@@ -13,7 +12,7 @@ pub mod delorean {
     include!(concat!(env!("OUT_DIR"), "/delorean.rs"));
 }
 
-// TODO: audit all errors and make ones that can differentiate between 400 and 500 and otehrs
+// TODO: audit all errors and their handling in main
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Error {
@@ -33,8 +32,13 @@ impl error::Error for Error {
     }
 }
 
-impl ResponseError for Error {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
+#[cfg(test)]
+pub mod tests {
+    use std::f64;
+
+    /// A test helper function for asserting floating point numbers are within the machine epsilon
+    /// because strict comparison of floating point numbers is incorrect
+    pub fn approximately_equal(f1: f64, f2: f64) -> bool {
+        (f1 - f2).abs() < f64::EPSILON
     }
 }
