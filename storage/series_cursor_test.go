@@ -9,19 +9,22 @@ import (
 )
 
 func Test_NewSeriesCursor_UnexpectedOrg(t *testing.T) {
-	makeKey := func(org, bucket uint64) []byte {
-		name := tsdb.EncodeName(influxdb.ID(org), influxdb.ID(bucket))
+	makeKey := func(orgID, bucketID influxdb.ID) []byte {
+		name := tsdb.EncodeName(orgID, bucketID)
 		return tsdb.AppendSeriesKey(nil, name[:], nil)
 	}
 
-	nm := tsdb.EncodeName(0x0f0f, 0xb0b0)
+	orgID := influxdb.ID(0x0f0f)
+	encodedOrgID := tsdb.EncodeOrgName(orgID)
+	bucketID := influxdb.ID(0xb0b0)
 	cur := &seriesCursor{
 		keys: [][]byte{
-			makeKey(0x0f0f, 0xb0b0),
-			makeKey(0xffff, 0xb0b0),
+			makeKey(orgID, bucketID),
+			makeKey(influxdb.ID(0xffff), bucketID),
 		},
-		name: nm,
-		init: true,
+		orgID:        orgID,
+		encodedOrgID: encodedOrgID[:],
+		init:         true,
 	}
 	_, err := cur.Next()
 	if err != nil {

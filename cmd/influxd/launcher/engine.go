@@ -143,8 +143,8 @@ func (t *TemporaryEngine) CreateCursorIterator(ctx context.Context) (tsdb.Cursor
 }
 
 // CreateSeriesCursor calls into the underlying engines CreateSeriesCursor.
-func (t *TemporaryEngine) CreateSeriesCursor(ctx context.Context, req storage.SeriesCursorRequest, cond influxql.Expr) (storage.SeriesCursor, error) {
-	return t.engine.CreateSeriesCursor(ctx, req, cond)
+func (t *TemporaryEngine) CreateSeriesCursor(ctx context.Context, orgID, bucketID influxdb.ID, cond influxql.Expr) (storage.SeriesCursor, error) {
+	return t.engine.CreateSeriesCursor(ctx, orgID, bucketID, cond)
 }
 
 // TagKeys calls into the underlying engines TagKeys.

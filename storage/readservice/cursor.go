@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
@@ -71,10 +71,7 @@ func newIndexSeriesCursor(ctx context.Context, src *readSource, predicate *datat
 		}
 	}
 
-	scr := storage.SeriesCursorRequest{
-		Name: tsdb.EncodeName(platform.ID(src.OrganizationID), platform.ID(src.BucketID)),
-	}
-	p.sqry, err = viewer.CreateSeriesCursor(ctx, scr, opt.Condition)
+	p.sqry, err = viewer.CreateSeriesCursor(ctx, influxdb.ID(src.OrganizationID), influxdb.ID(src.BucketID), opt.Condition)
 	if err != nil {
 		p.Close()
 		return nil, err
