@@ -52,6 +52,8 @@ const FluxEditorMonaco: FC<Props> = ({
       }
     })
 
+    editor.focus()
+
     loadServer().then(server => {
       lspServer.current = server
 
