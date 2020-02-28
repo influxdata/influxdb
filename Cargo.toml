@@ -52,5 +52,4 @@ harness = false
 
 [build-dependencies]
 tonic-build = "0.1.1"
-prost-build = { version = "0.5.0" }
 rand = "0.7.2"
