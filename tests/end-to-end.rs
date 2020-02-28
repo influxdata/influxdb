@@ -20,11 +20,11 @@ use futures::prelude::*;
 use prost::Message;
 use std::convert::TryInto;
 use std::env;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::str;
-use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 use std::u32;
+use tempfile::TempDir;
 
 const URL_BASE: &str = "http://localhost:8080/api/v2";
 const GRPC_URL_BASE: &str = "http://localhost:8081/";
@@ -109,27 +109,10 @@ async fn write_data(
     Ok(())
 }
 
-// TODO: if TEST_DELOREAN_DB_DIR is set, create a temporary directory in that directory or
-// otherwise isolate the database used in this test with the database used in other tests, rather
-// than always ignoring TEST_DELOREAN_DB_DIR
-fn get_test_storage_path() -> String {
-    let mut path = env::temp_dir();
-    path.push("delorean/");
-    std::fs::remove_dir_all(&path).unwrap();
-    path.into_os_string()
-        .into_string()
-        .expect("Should have been able to turn temp dir into String")
-}
-
 #[tokio::test]
 async fn read_and_write_data() -> Result<()> {
-    let mut server_thread = Command::cargo_bin("delorean")?
-        .stdout(Stdio::null())
-        .env("DELOREAN_DB_DIR", get_test_storage_path())
-        .spawn()?;
-
-    // TODO: poll the server to see if it's ready instead of sleeping
-    sleep(Duration::from_secs(3));
+    let server = TestServer::new()?;
+    server.wait_until_ready().await;
 
     let org_id = 7878;
     let bucket_name = "all";
@@ -337,10 +320,6 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
 
     assert_eq!(values, vec!["server01", "server02"]);
 
-    server_thread
-        .kill()
-        .expect("Should have been able to kill the test server");
-
     Ok(())
 }
 
@@ -353,4 +332,45 @@ fn tags_as_strings(tags: &[Tag]) -> Vec<(&str, &str)> {
             )
         })
         .collect()
+}
+
+struct TestServer {
+    server_process: Child,
+
+    // The temporary directory **must** be last so that it is
+    // dropped after the database closes.
+    #[allow(dead_code)]
+    dir: TempDir,
+}
+
+// TODO: if TEST_DELOREAN_DB_DIR is set, create a temporary directory in that directory or
+// otherwise isolate the database used in this test with the database used in other tests, rather
+// than always ignoring TEST_DELOREAN_DB_DIR
+impl TestServer {
+    fn new() -> Result<Self> {
+        let dir = tempfile::Builder::new().prefix("delorean").tempdir()?;
+
+        let server_process = Command::cargo_bin("delorean")?
+            .stdout(Stdio::null())
+            .env("DELOREAN_DB_DIR", dir.path())
+            .spawn()?;
+
+        Ok(Self {
+            dir,
+            server_process,
+        })
+    }
+
+    async fn wait_until_ready(&self) {
+        // TODO: poll the server to see if it's ready instead of sleeping
+        tokio::time::delay_for(Duration::from_secs(3)).await;
+    }
+}
+
+impl Drop for TestServer {
+    fn drop(&mut self) {
+        self.server_process
+            .kill()
+            .expect("Should have been able to kill the test server");
+    }
 }
