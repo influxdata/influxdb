@@ -40,7 +40,7 @@ export function comments(editor: EditorType) {
             return v
           }
 
-          return toggleCommenting(v)
+          return toggleCommenting(v, isTogglingCommentingOn)
         })
 
       ed.setValue(updatedValues.join('\n'))
