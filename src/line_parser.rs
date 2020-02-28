@@ -262,32 +262,40 @@ mod test {
     use crate::tests::approximately_equal;
 
     #[test]
-    fn parse_single_field() {
+    fn parse_single_field_integer() {
         let input = "foo asdf=23i 1234";
-
         let vals = parse(input);
+
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
         assert_eq!(vals[0].i64_value().unwrap(), 23);
+    }
 
+    #[test]
+    fn parse_single_field_float_no_decimal() {
         let input = "foo asdf=44 546";
         let vals = parse(input);
+
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 546);
         assert!(approximately_equal(vals[0].f64_value().unwrap(), 44.0));
+    }
 
+    #[test]
+    fn parse_single_field_float_with_decimal() {
         let input = "foo asdf=3.74 123";
         let vals = parse(input);
+
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 123);
         assert!(approximately_equal(vals[0].f64_value().unwrap(), 3.74));
     }
 
     #[test]
-    fn parse_two_fields() {
+    fn parse_two_fields_integer() {
         let input = "foo asdf=23i,bar=5i 1234";
-
         let vals = parse(input);
+
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
         assert_eq!(vals[0].i64_value().unwrap(), 23);
@@ -295,10 +303,13 @@ mod test {
         assert_eq!(vals[1].series(), "foo\tbar");
         assert_eq!(vals[1].time(), 1234);
         assert_eq!(vals[1].i64_value().unwrap(), 5);
+    }
 
+    #[test]
+    fn parse_two_fields_float() {
         let input = "foo asdf=23.1,bar=5 1234";
-
         let vals = parse(input);
+
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
         assert!(approximately_equal(vals[0].f64_value().unwrap(), 23.1));
@@ -309,10 +320,10 @@ mod test {
     }
 
     #[test]
-    fn parse_mixed() {
+    fn parse_mixed_float_and_integer() {
         let input = "foo asdf=23.1,bar=5i 1234";
-
         let vals = parse(input);
+
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
         assert!(approximately_equal(vals[0].f64_value().unwrap(), 23.1));
