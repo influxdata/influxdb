@@ -48,10 +48,6 @@ module.exports = {
         type: 'webassembly/experimental',
       },
       {
-        test: /flux-lsp-browser_bg.wasm$/,
-        type: 'webassembly/experimental',
-      },
-      {
         test: /^((?!flux_parser_bg|flux-lsp-browser_bg).)*.wasm$/,
         loader: 'file-loader',
         type: 'javascript/auto',
@@ -137,7 +133,7 @@ module.exports = {
       STATIC_PREFIX: BASE_PATH,
     }),
     new MonacoWebpackPlugin({
-      languages: ['json', 'markdown'],
+      languages: [],
       features: ['!gotoSymbol'],
     }),
   ],
