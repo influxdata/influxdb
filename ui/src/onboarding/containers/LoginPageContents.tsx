@@ -21,6 +21,7 @@ import {LoginForm} from 'src/onboarding/components/LoginForm'
 import {SignUpForm} from 'src/onboarding/components/SignUpForm'
 import {SocialButton} from 'src/shared/components/SocialButton'
 import {GoogleLogo, GithubLogo} from 'src/clientLibraries/graphics'
+import {Transition, animated} from 'react-spring/renderprops'
 
 // Types
 import {Auth0Connection, FormFieldValidation} from 'src/types'
@@ -174,35 +175,85 @@ class LoginPageContents extends PureComponent<DispatchProps> {
                 </SelectGroup>
               </FlexBox>
             </div>
-            {loginTabActive && (
-              <LoginForm
-                buttonStatus={buttonStatus}
-                email={email}
-                emailValidation={this.formFieldTypeFactory(emailError)}
-                password={password}
-                passwordValidation={this.formFieldTypeFactory(passwordError)}
-                handleInputChange={this.handleInputChange}
-                handleForgotPasswordClick={this.handleForgotPasswordClick}
-              />
-            )}
-            {loginTabActive === false && (
-              <SignUpForm
-                buttonStatus={buttonStatus}
-                confirmPassword={confirmPassword}
-                confirmPasswordValidation={this.formFieldTypeFactory(
-                  confirmPasswordError
-                )}
-                email={email}
-                emailValidation={this.formFieldTypeFactory(emailError)}
-                firstName={firstName}
-                firstNameValidation={this.formFieldTypeFactory(firstNameError)}
-                lastName={lastName}
-                lastNameValidation={this.formFieldTypeFactory(lastNameError)}
-                password={password}
-                passwordValidation={this.formFieldTypeFactory(passwordError)}
-                handleInputChange={this.handleInputChange}
-              />
-            )}
+            <Transition
+              native
+              reset
+              unique
+              items={loginTabActive}
+              from={{height: 0}}
+              enter={[
+                {
+                  position: 'relative',
+                  overflow: 'hidden',
+                  height: 'auto',
+                },
+              ]}
+              leave={{height: 0}}
+            >
+              {show =>
+                show &&
+                (props => (
+                  <animated.div style={props}>
+                    <LoginForm
+                      buttonStatus={buttonStatus}
+                      email={email}
+                      emailValidation={this.formFieldTypeFactory(emailError)}
+                      password={password}
+                      passwordValidation={this.formFieldTypeFactory(
+                        passwordError
+                      )}
+                      handleInputChange={this.handleInputChange}
+                      handleForgotPasswordClick={this.handleForgotPasswordClick}
+                    />
+                  </animated.div>
+                ))
+              }
+            </Transition>
+            <Transition
+              native
+              reset
+              unique
+              items={loginTabActive === false}
+              from={{height: 0}}
+              enter={[
+                {
+                  position: 'relative',
+                  overflow: 'hidden',
+                  height: 'auto',
+                },
+              ]}
+              leave={{height: 0}}
+            >
+              {show =>
+                show &&
+                (props => (
+                  <animated.div style={props}>
+                    <SignUpForm
+                      buttonStatus={buttonStatus}
+                      confirmPassword={confirmPassword}
+                      confirmPasswordValidation={this.formFieldTypeFactory(
+                        confirmPasswordError
+                      )}
+                      email={email}
+                      emailValidation={this.formFieldTypeFactory(emailError)}
+                      firstName={firstName}
+                      firstNameValidation={this.formFieldTypeFactory(
+                        firstNameError
+                      )}
+                      lastName={lastName}
+                      lastNameValidation={this.formFieldTypeFactory(
+                        lastNameError
+                      )}
+                      password={password}
+                      passwordValidation={this.formFieldTypeFactory(
+                        passwordError
+                      )}
+                      handleInputChange={this.handleInputChange}
+                    />
+                  </animated.div>
+                ))
+              }
+            </Transition>
           </Panel.Body>
         </Panel>
       </form>
