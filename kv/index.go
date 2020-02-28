@@ -7,14 +7,16 @@ import (
 	"fmt"
 )
 
-const defaultPopulateBatchSize = 100
+const (
+	defaultPopulateBatchSize = 100
+)
 
 // Index is used to define and manage an index for a source bucket.
 //
-// When using the index you must provide it with an IndexSource.
-// The IndexSource provides the index with the contract it needs to populate
+// When using the index you must provide it with an IndexMapping.
+// The IndexMapping provides the index with the contract it needs to populate
 // the entire index and traverse a populated index correctly.
-// The IndexSource provides a way to retrieve the key on which to index with
+// The IndexMapping provides a way to retrieve the key on which to index with
 // when provided with the value from the source.
 // It also provides the way to access the source bucket.
 //
@@ -31,7 +33,7 @@ const defaultPopulateBatchSize = 100
 //  }
 //
 //  // configure a write only index
-//  indexByUser := NewIndex(NewSource([]byte(`authorizationsbyuserv1/), byUserID), false)
+//  indexByUser := NewIndex(NewSource([]byte(`authorizationsbyuserv1/), byUserID))
 //
 //  indexByUser.Insert(tx, someUserID, someAuthID)
 //
@@ -53,7 +55,7 @@ const defaultPopulateBatchSize = 100
 //
 //  // verify the current index against the source and return the differences
 //  // found in each
-//  err := indexByUser.Verify(ctx, tx)
+//  diff, err := indexByUser.Verify(ctx, tx)
 type Index struct {
 	IndexMapping
 
@@ -148,6 +150,9 @@ type IndexPopulatorStore interface {
 }
 
 // Initialize creates the index bucket on the provided store
+// Given the store implements IndexPopulatorStore interface and
+// calling AutoPopulateIndex returns true, then this auto-populates
+// the index.
 func (i *Index) Initialize(ctx context.Context, store Store) error {
 	if err := store.Update(ctx, func(tx Tx) error {
 		_, err := i.indexBucket(tx)
@@ -172,7 +177,7 @@ func (i *Index) sourceBucket(tx Tx) (Bucket, error) {
 	return tx.Bucket(i.SourceBucket())
 }
 
-func indexKey(foreignKey, primaryKey []byte) (newKey []byte, _ error) {
+func indexKey(foreignKey, primaryKey []byte) (newKey []byte) {
 	newKey = make([]byte, len(primaryKey)+len(foreignKey)+1)
 	copy(newKey, foreignKey)
 	newKey[len(foreignKey)] = '/'
@@ -196,37 +201,23 @@ func indexKeyParts(indexKey []byte) (fk, pk []byte, err error) {
 
 // Insert creates a single index entry for the provided primary key on the foreign key.
 func (i *Index) Insert(tx Tx, foreignKey, primaryKey []byte) error {
-	newKey, err := indexKey(foreignKey, primaryKey)
-	if err != nil {
-		return err
-	}
-
 	bkt, err := i.indexBucket(tx)
 	if err != nil {
 		return err
 	}
 
-	return bkt.Put(newKey, primaryKey)
+	return bkt.Put(indexKey(foreignKey, primaryKey), primaryKey)
 }
 
 // Delete removes the foreignKey and primaryKey mapping from the underlying index.
 func (i *Index) Delete(tx Tx, foreignKey, primaryKey []byte) error {
-	newKey, err := indexKey(foreignKey, primaryKey)
-	if err != nil {
-		return err
-	}
-
 	bkt, err := i.indexBucket(tx)
 	if err != nil {
 		return err
 	}
 
-	return bkt.Delete(newKey)
+	return bkt.Delete(indexKey(foreignKey, primaryKey))
 }
-
-// VisitFunc is called for each k, v byte slice pair from the underlying source bucket
-// which are found in the index bucket for a provided foreign key.
-type VisitFunc func(k, v []byte) error
 
 // Walk walks the source bucket using keys found in the index using the provided foreign key
 // given the index has been fully populated.
@@ -253,61 +244,27 @@ func (i *Index) Walk(tx Tx, foreignKey []byte, visitFn VisitFunc) error {
 		return err
 	}
 
-	return indexWalk(cursor, sourceBucket, visitFn, func(fk, pk []byte) error {
-		// fail iteration when key not found for item in index
-		return fmt.Errorf("for key %v indexed by %v: %w", pk, fk, ErrKeyNotFound)
-	})
+	return indexWalk(cursor, sourceBucket, visitFn)
 }
 
-// Populate does a full population of the index using the provided IndexOnFunc.
+// Populate does a full population of the index using the IndexSourceOn IndexMapping function.
 // Once completed it marks the index as ready for use.
 // It return a nil error on success and the count of inserted items.
 func (i *Index) Populate(ctx context.Context, store Store) (n int, err error) {
-	var missing [][2][]byte
-
-	// first collect all missing indexes on a single read transaction
-	if err = store.View(ctx, func(tx Tx) error {
-		sourceBucket, err := i.sourceBucket(tx)
-		if err != nil {
-			return err
-		}
-
-		cursor, err := sourceBucket.ForwardCursor(nil)
-		if err != nil {
-			return err
-		}
-
-		indexBucket, err := i.indexBucket(tx)
-		if err != nil {
-			return err
-		}
-
-		if err = i.missingIndexWalk(cursor, indexBucket, func(fk, pk []byte) error {
-			missing = append(missing, [2][]byte{fk, pk})
-			return nil
-		}); err != nil {
-			return err
-		}
-
-		return nil
-	}); err != nil {
-		return
+	// verify the index to derive missing index
+	// we can skip missing source lookup as we're
+	// only interested in populating the missing index
+	diff, err := i.verify(ctx, store, false)
+	if err != nil {
+		return 0, fmt.Errorf("looking up missing indexes: %w", err)
 	}
 
-	// then populate missing indexes in batches within separate write transactions
-	for len(missing) > 0 {
-		var (
-			end   = i.populateBatchSize
-			batch [][2][]byte
-		)
-
-		if end > len(missing) {
-			end = len(missing)
+	flush := func(batch kvSlice) error {
+		if len(batch) == 0 {
+			return nil
 		}
 
-		batch, missing = missing[:end], missing[end:]
-
-		if err = store.Update(ctx, func(tx Tx) error {
+		if err := store.Update(ctx, func(tx Tx) error {
 			indexBucket, err := i.indexBucket(tx)
 			if err != nil {
 				return err
@@ -324,54 +281,71 @@ func (i *Index) Populate(ctx context.Context, store Store) (n int, err error) {
 
 			return nil
 		}); err != nil {
-			return
+			return fmt.Errorf("updating index: %w", err)
 		}
+
+		return nil
 	}
 
-	return
+	var batch kvSlice
+
+	for fk, fkm := range diff.MissingFromIndex {
+		for pk := range fkm {
+			batch = append(batch, [2][]byte{indexKey([]byte(fk), []byte(pk)), []byte(pk)})
+
+			if len(batch) >= i.populateBatchSize {
+				if err := flush(batch); err != nil {
+					return n, err
+				}
+
+				batch = batch[:0]
+			}
+		}
+	}
+	return n, flush(batch)
 }
 
 // IndexDiff contains a set of items present in the source not in index,
 // along with a set of things in the index which are not in the source.
 type IndexDiff struct {
 	// PresentInIndex is a map of foreign key to primary keys
-	// present in the index given the source bucket.
-	PresentInIndex map[string][]string
+	// present in the index.
+	PresentInIndex map[string]map[string]struct{}
 	// MissingFromIndex is a map of foreign key to associated primary keys
 	// missing from the index given the source bucket.
 	// These items could be due to the fact an index populate migration has
 	// not yet occured, the index populate code is incorrect or the write path
 	// for your resource type does not yet insert into the index as well (Create actions).
-	MissingFromIndex map[string][]string
+	MissingFromIndex map[string]map[string]struct{}
 	// MissingFromSource is a map of foreign key to associated primary keys
 	// missing from the source but accounted for in the index.
 	// This happens when index items are not properly removed from the index
 	// when an item is removed from the source (Delete actions).
-	MissingFromSource map[string][]string
-}
-
-func (i *IndexDiff) addToPresent(fk, pk []byte) {
-	if i.PresentInIndex == nil {
-		i.PresentInIndex = map[string][]string{}
-	}
-
-	i.PresentInIndex[string(fk)] = append(i.PresentInIndex[string(fk)], string(pk))
+	MissingFromSource map[string]map[string]struct{}
 }
 
 func (i *IndexDiff) addMissingSource(fk, pk []byte) {
 	if i.MissingFromSource == nil {
-		i.MissingFromSource = map[string][]string{}
+		i.MissingFromSource = map[string]map[string]struct{}{}
 	}
 
-	i.MissingFromSource[string(fk)] = append(i.MissingFromSource[string(fk)], string(pk))
+	if _, ok := i.MissingFromSource[string(fk)]; !ok {
+		i.MissingFromSource[string(fk)] = map[string]struct{}{}
+	}
+
+	i.MissingFromSource[string(fk)][string(pk)] = struct{}{}
 }
 
 func (i *IndexDiff) addMissingIndex(fk, pk []byte) {
 	if i.MissingFromIndex == nil {
-		i.MissingFromIndex = map[string][]string{}
+		i.MissingFromIndex = map[string]map[string]struct{}{}
 	}
 
-	i.MissingFromIndex[string(fk)] = append(i.MissingFromIndex[string(fk)], string(pk))
+	if _, ok := i.MissingFromIndex[string(fk)]; !ok {
+		i.MissingFromIndex[string(fk)] = map[string]struct{}{}
+	}
+
+	i.MissingFromIndex[string(fk)][string(pk)] = struct{}{}
 }
 
 // Corrupt returns a list of foreign keys which have corrupted indexes (partial)
@@ -386,152 +360,133 @@ func (i *IndexDiff) Corrupt() (corrupt []string) {
 	return
 }
 
-// Verify returns returns difference between a source and its index
+// Verify returns the difference between a source and its index
 // The difference contains items in the source that are not in the index
 // and vice-versa.
-func (i *Index) Verify(ctx context.Context, tx Tx) (diff IndexDiff, err error) {
-	sourceBucket, err := i.sourceBucket(tx)
+func (i *Index) Verify(ctx context.Context, store Store) (diff IndexDiff, err error) {
+	return i.verify(ctx, store, true)
+}
+
+func (i *Index) verify(ctx context.Context, store Store, includeMissingSource bool) (diff IndexDiff, err error) {
+	diff.PresentInIndex, err = i.readEntireIndex(ctx, store)
 	if err != nil {
-		return
+		return diff, err
 	}
 
-	indexBucket, err := i.indexBucket(tx)
+	sourceKVs, err := consumeBucket(ctx, store, i.sourceBucket)
 	if err != nil {
-		return
+		return diff, err
 	}
 
-	// create cursor for entire index
-	cursor, err := indexBucket.ForwardCursor(nil)
-	if err != nil {
-		return
-	}
+	// pks is a map of primary keys in source
+	pks := map[string]struct{}{}
 
-	if err = indexWalk(cursor, sourceBucket, func(k, v []byte) error {
+	// look for items missing from index
+	for _, kv := range sourceKVs {
+		pk, v := kv[0], kv[1]
+
+		if includeMissingSource {
+			// this is only useful for missing source
+			pks[string(pk)] = struct{}{}
+		}
+
 		fk, err := i.IndexSourceOn(v)
 		if err != nil {
-			return err
+			return diff, err
 		}
 
-		diff.addToPresent(fk, k)
-		return nil
-	}, func(fk, pk []byte) error {
-		diff.addMissingSource(fk, pk)
-
-		// continue iterating over index
-		return nil
-	}); err != nil {
-		return
-	}
-
-	// create a new cursor over the source and look for items
-	// missing from the index
-	cursor, err = sourceBucket.ForwardCursor(nil)
-	if err != nil {
-		return
-	}
-
-	if err = i.missingIndexWalk(cursor, indexBucket, func(indexKey, pk []byte) error {
-		fk, _, err := indexKeyParts(indexKey)
-		if err != nil {
-			return err
+		fkm, ok := diff.PresentInIndex[string(fk)]
+		if ok {
+			_, ok = fkm[string(pk)]
 		}
 
-		// add missing item from source which is not indexed
-		diff.addMissingIndex(fk, pk)
+		if !ok {
+			diff.addMissingIndex(fk, pk)
+		}
+	}
 
-		return nil
-	}); err != nil {
-		return
+	if includeMissingSource {
+		// look for items missing from source
+		for fk, fkm := range diff.PresentInIndex {
+			for pk := range fkm {
+				if _, ok := pks[pk]; !ok {
+					diff.addMissingSource([]byte(fk), []byte(pk))
+				}
+			}
+		}
 	}
 
 	return
 }
 
-type notFoundFunc func(from, to []byte) error
-
 // indexWalk consumes the indexKey and primaryKey pairs in the index bucket and looks up their
 // associated primaryKey's value in the provided source bucket.
-// When an item is found in the index which has no associated pair in the source, the provided not found function
-// is called with the foreign key to primary key expect mapping.
 // When an item is located in the source, the provided visit function is called with primary key and associated value.
-func indexWalk(indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc, notFound notFoundFunc) error {
-	return crossReference(indexCursor, sourceBucket, func(indexKey, primaryKey []byte) ([]byte, func([]byte, error) error, error) {
-		return primaryKey, func(sourceValue []byte, err error) error {
-			if err != nil {
-				if IsNotFound(err) {
-					fk, pk, err := indexKeyParts(indexKey)
-					if err != nil {
-						return err
-					}
-
-					// hand off primary key to foreign key mapping to is not found
-					// function
-					return notFound(fk, pk)
-				}
-
-				return err
-			}
-
-			// else visit the primary key and associated value from the source bucket
-			return visit(primaryKey, sourceValue)
-		}, nil
-	})
-}
-
-// missingIndexWalk consumes the source cursor key value pairs and looks up the expected index
-// for each item in the provided index bucket.
-// When an item is missing from the index, the provided notFoundFunc is called with the expected
-// foreignKey to primaryKey mapping.
-func (i *Index) missingIndexWalk(srcCursor ForwardCursor, indexBucket Bucket, notFound notFoundFunc) error {
-	return crossReference(srcCursor, indexBucket, func(primaryKey, body []byte) ([]byte, func([]byte, error) error, error) {
-		foreignKey, err := i.IndexSourceOn(body)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		indexKey, err := indexKey(foreignKey, primaryKey)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return indexKey, func(value []byte, err error) error {
-			if err != nil {
-				if IsNotFound(err) {
-					return notFound(indexKey, primaryKey)
-				}
-
-				return err
-			}
-
-			return nil
-		}, nil
-	})
-}
-
-type mappingFunc func(k, v []byte) (toK []byte, _ func(toV []byte, err error) error, _ error)
-
-// crossReference consumes a provided cursor abd maps each found k / v pair into
-// a key which is used to lookup in the provided bucket.
-// The derived value and or error found looking up the derived key in the bucket is
-// passed the the value function returned by the mapping function.
-func crossReference(cursor ForwardCursor, bucket Bucket, fn mappingFunc) (err error) {
+func indexWalk(indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc) (err error) {
 	defer func() {
-		if cerr := cursor.Close(); cerr != nil && err == nil {
+		if cerr := indexCursor.Close(); cerr != nil && err == nil {
 			err = cerr
 		}
 	}()
 
-	for k, v := cursor.Next(); k != nil; k, v = cursor.Next() {
-		key, valFn, err := fn(k, v)
+	for ik, pk := indexCursor.Next(); ik != nil; ik, pk = indexCursor.Next() {
+		v, err := sourceBucket.Get(pk)
 		if err != nil {
 			return err
 		}
 
-		value, err := bucket.Get(key)
-		if err := valFn(value, err); err != nil {
-			return err
+		if err := visit(pk, v); err != nil {
+			return fmt.Errorf("for index entry %q: %w", string(ik), err)
 		}
 	}
 
-	return cursor.Err()
+	return indexCursor.Err()
+}
+
+// readEntireIndex returns the entire current state of the index
+func (i *Index) readEntireIndex(ctx context.Context, store Store) (map[string]map[string]struct{}, error) {
+	kvs, err := consumeBucket(ctx, store, i.indexBucket)
+	if err != nil {
+		return nil, err
+	}
+
+	index := map[string]map[string]struct{}{}
+	for _, kv := range kvs {
+		fk, pk, err := indexKeyParts(kv[0])
+		if err != nil {
+			return nil, err
+		}
+
+		if fkm, ok := index[string(fk)]; ok {
+			fkm[string(pk)] = struct{}{}
+			continue
+		}
+
+		index[string(fk)] = map[string]struct{}{string(pk): struct{}{}}
+	}
+
+	return index, nil
+}
+
+type kvSlice [][2][]byte
+
+// consumeBucket consumes the entire k/v space for the provided bucket function
+// applied to the provided store
+func consumeBucket(ctx context.Context, store Store, fn func(tx Tx) (Bucket, error)) (kvs kvSlice, err error) {
+	return kvs, store.View(ctx, func(tx Tx) error {
+		bkt, err := fn(tx)
+		if err != nil {
+			return err
+		}
+
+		cursor, err := bkt.ForwardCursor(nil)
+		if err != nil {
+			return err
+		}
+
+		return WalkCursor(ctx, cursor, func(k, v []byte) error {
+			kvs = append(kvs, [2][]byte{k, v})
+			return nil
+		})
+	})
 }

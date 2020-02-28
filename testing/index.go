@@ -142,48 +142,44 @@ func testPopulateAndVerify(t *testing.T, store kv.Store) {
 	}
 
 	// ensure verify identifies the 10 missing items from the index
-	store.View(ctx, func(tx kv.Tx) error {
-		diff, err := resourceStore.ownerIDIndex.Verify(ctx, tx)
-		if err != nil {
-			return err
-		}
+	diff, err := resourceStore.ownerIDIndex.Verify(ctx, store)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		expected := kv.IndexDiff{
-			PresentInIndex: map[string][]string{
-				"owner 0": []string{"resource 0", "resource 5"},
-				"owner 1": []string{"resource 1", "resource 6"},
-				"owner 2": []string{"resource 2", "resource 7"},
-				"owner 3": []string{"resource 3", "resource 8"},
-				"owner 4": []string{"resource 4", "resource 9"},
-			},
-			MissingFromIndex: map[string][]string{
-				"owner 0": []string{"resource 10", "resource 15"},
-				"owner 1": []string{"resource 11", "resource 16"},
-				"owner 2": []string{"resource 12", "resource 17"},
-				"owner 3": []string{"resource 13", "resource 18"},
-				"owner 4": []string{"resource 14", "resource 19"},
-			},
-		}
+	expected := kv.IndexDiff{
+		PresentInIndex: map[string]map[string]struct{}{
+			"owner 0": map[string]struct{}{"resource 0": struct{}{}, "resource 5": struct{}{}},
+			"owner 1": map[string]struct{}{"resource 1": struct{}{}, "resource 6": struct{}{}},
+			"owner 2": map[string]struct{}{"resource 2": struct{}{}, "resource 7": struct{}{}},
+			"owner 3": map[string]struct{}{"resource 3": struct{}{}, "resource 8": struct{}{}},
+			"owner 4": map[string]struct{}{"resource 4": struct{}{}, "resource 9": struct{}{}},
+		},
+		MissingFromIndex: map[string]map[string]struct{}{
+			"owner 0": map[string]struct{}{"resource 10": struct{}{}, "resource 15": struct{}{}},
+			"owner 1": map[string]struct{}{"resource 11": struct{}{}, "resource 16": struct{}{}},
+			"owner 2": map[string]struct{}{"resource 12": struct{}{}, "resource 17": struct{}{}},
+			"owner 3": map[string]struct{}{"resource 13": struct{}{}, "resource 18": struct{}{}},
+			"owner 4": map[string]struct{}{"resource 14": struct{}{}, "resource 19": struct{}{}},
+		},
+	}
 
-		if !reflect.DeepEqual(expected, diff) {
-			t.Errorf("expected %#v, found %#v", expected, diff)
-		}
+	if !reflect.DeepEqual(expected, diff) {
+		t.Errorf("expected %#v, found %#v", expected, diff)
+	}
 
-		corrupt := diff.Corrupt()
-		sort.Strings(corrupt)
+	corrupt := diff.Corrupt()
+	sort.Strings(corrupt)
 
-		if expected := []string{
-			"owner 0",
-			"owner 1",
-			"owner 2",
-			"owner 3",
-			"owner 4",
-		}; !reflect.DeepEqual(expected, corrupt) {
-			t.Errorf("expected %#v, found %#v\n", expected, corrupt)
-		}
-
-		return nil
-	})
+	if expected := []string{
+		"owner 0",
+		"owner 1",
+		"owner 2",
+		"owner 3",
+		"owner 4",
+	}; !reflect.DeepEqual(expected, corrupt) {
+		t.Errorf("expected %#v, found %#v\n", expected, corrupt)
+	}
 
 	// populate the missing indexes
 	count, err = resourceStore.ownerIDIndex.Populate(ctx, store)
@@ -243,34 +239,30 @@ func testPopulateAndVerify(t *testing.T, store kv.Store) {
 	})
 
 	// ensure verify identifies the last 10 items as missing from the source
-	store.View(ctx, func(tx kv.Tx) error {
-		diff, err := resourceStore.ownerIDIndex.Verify(ctx, tx)
-		if err != nil {
-			return err
-		}
+	diff, err = resourceStore.ownerIDIndex.Verify(ctx, store)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		expected := kv.IndexDiff{
-			PresentInIndex: map[string][]string{
-				"owner 0": []string{"resource 0", "resource 5"},
-				"owner 1": []string{"resource 1", "resource 6"},
-				"owner 2": []string{"resource 2", "resource 7"},
-				"owner 3": []string{"resource 3", "resource 8"},
-				"owner 4": []string{"resource 4", "resource 9"},
-			},
-			MissingFromSource: map[string][]string{
-				"owner 0": []string{"resource 10", "resource 15"},
-				"owner 1": []string{"resource 11", "resource 16"},
-				"owner 2": []string{"resource 12", "resource 17"},
-				"owner 3": []string{"resource 13", "resource 18"},
-				"owner 4": []string{"resource 14", "resource 19"},
-			},
-		}
-		if !reflect.DeepEqual(expected, diff) {
-			t.Errorf("expected %#v, found %#v", expected, diff)
-		}
-
-		return nil
-	})
+	expected = kv.IndexDiff{
+		PresentInIndex: map[string]map[string]struct{}{
+			"owner 0": map[string]struct{}{"resource 0": struct{}{}, "resource 5": struct{}{}, "resource 10": struct{}{}, "resource 15": struct{}{}},
+			"owner 1": map[string]struct{}{"resource 1": struct{}{}, "resource 6": struct{}{}, "resource 11": struct{}{}, "resource 16": struct{}{}},
+			"owner 2": map[string]struct{}{"resource 2": struct{}{}, "resource 7": struct{}{}, "resource 12": struct{}{}, "resource 17": struct{}{}},
+			"owner 3": map[string]struct{}{"resource 3": struct{}{}, "resource 8": struct{}{}, "resource 13": struct{}{}, "resource 18": struct{}{}},
+			"owner 4": map[string]struct{}{"resource 4": struct{}{}, "resource 9": struct{}{}, "resource 14": struct{}{}, "resource 19": struct{}{}},
+		},
+		MissingFromSource: map[string]map[string]struct{}{
+			"owner 0": map[string]struct{}{"resource 10": struct{}{}, "resource 15": struct{}{}},
+			"owner 1": map[string]struct{}{"resource 11": struct{}{}, "resource 16": struct{}{}},
+			"owner 2": map[string]struct{}{"resource 12": struct{}{}, "resource 17": struct{}{}},
+			"owner 3": map[string]struct{}{"resource 13": struct{}{}, "resource 18": struct{}{}},
+			"owner 4": map[string]struct{}{"resource 14": struct{}{}, "resource 19": struct{}{}},
+		},
+	}
+	if !reflect.DeepEqual(expected, diff) {
+		t.Errorf("expected %#v, found %#v", expected, diff)
+	}
 }
 
 func testWalk(t *testing.T, store kv.Store) {
