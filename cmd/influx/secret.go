@@ -52,7 +52,7 @@ func (b *cmdSecretBuilder) cmdUpdate() *cobra.Command {
 	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
 	cmd.Short = "Update secret"
 	cmd.Flags().StringVarP(&b.key, "key", "k", "", "The secret key (required)")
-	cmd.Flags().StringVarP(&b.value, "value", "v", "", "Optional secret value for scripting convenience, using this might exposed the secret to your local history")
+	cmd.Flags().StringVarP(&b.value, "value", "v", "", "Optional secret value for scripting convenience, using this might expose the secret to your local history")
 	cmd.MarkFlagRequired("key")
 	b.org.register(cmd, false)
 
