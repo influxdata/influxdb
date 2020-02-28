@@ -47,6 +47,7 @@ function registerCompletion(monaco: MonacoType, server): IDisposable {
       },
       triggerCharacters: [
         '.',
+        ':',
         'a',
         'b',
         'c',

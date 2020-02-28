@@ -63,6 +63,7 @@ export const parseResponse = (response: ServerResponse): object => {
     error = response.get_error()
   let split
 
+  console.log(message, error)
   if (message) {
     split = message.split('\n')
 
@@ -86,6 +87,7 @@ export function sendMessage(message: LSPMessage, server) {
   const stringifiedMessage = JSON.stringify(message),
     size = stringifiedMessage.length
 
+  console.log(stringifiedMessage)
   return server
     .process(`Content-Length: ${size}\r\n\r\n` + stringifiedMessage)
     .then(resp => {
