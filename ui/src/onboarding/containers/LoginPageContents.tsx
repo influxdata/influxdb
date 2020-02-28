@@ -14,7 +14,7 @@ import {
   Panel,
   SelectGroup,
 } from '@influxdata/clockface'
-import auth0js from 'auth0-js'
+import auth0js, {WebAuth} from 'auth0-js'
 
 // Components
 import {LoginForm} from 'src/onboarding/components/LoginForm'
@@ -25,17 +25,10 @@ import {GoogleLogo, GithubLogo} from 'src/clientLibraries/graphics'
 // Types
 import {Auth0Connection, FormFieldValidation} from 'src/types'
 
-// Actions
+// APIs & Actions
 import {notify} from 'src/shared/actions/notifications'
 import {passwordResetSuccessfully} from 'src/shared/copy/notifications'
-
-// TODO: these are filler properties that will be populated on IDPE in a later iteration
-const auth0 = new auth0js.WebAuth({
-  domain: 'www.influxdata.com',
-  clientID: 'abc123',
-  redirectUri: 'www.influxdata.com',
-  responseType: 'code',
-})
+import {getAuth0Config} from 'src/authorizations/apis'
 
 interface ErrorObject {
   [key: string]: string | undefined
@@ -61,6 +54,8 @@ interface State {
 }
 
 class LoginPageContents extends PureComponent<DispatchProps> {
+  private auth0?: typeof WebAuth
+
   state: State = {
     activeTab: 'login',
     buttonStatus: ComponentStatus.Default,
@@ -74,6 +69,16 @@ class LoginPageContents extends PureComponent<DispatchProps> {
     emailError: '',
     passwordError: '',
     confirmPasswordError: '',
+  }
+
+  public async componentDidMount() {
+    const config = await getAuth0Config()
+    this.auth0 = auth0js.WebAuth({
+      domain: config.domain,
+      clientID: config.clientID,
+      redirectUri: config.redirectURL,
+      responseType: 'code',
+    })
   }
 
   render() {
@@ -253,7 +258,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
     isValid: errorMessage !== '',
   })
 
-  private handleSubmit = (event: FormEvent) => {
+  private handleSubmit = async (event: FormEvent) => {
     const {isValid, errors} = this.validateFieldValues
     const {
       email,
@@ -273,7 +278,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
     this.setState({buttonStatus: ComponentStatus.Loading})
 
     if (activeTab === 'login') {
-      auth0.login(
+      this.auth0.login(
         {
           realm: Auth0Connection.Authentication,
           email,
@@ -289,7 +294,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
       return
     }
 
-    auth0.signup(
+    this.auth0.signup(
       {
         connection: Auth0Connection.Authentication,
         email,
@@ -304,7 +309,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
           return
         }
         // log the user into Quartz
-        auth0.login(
+        this.auth0.login(
           {
             realm: Auth0Connection.Authentication,
             email,
@@ -346,7 +351,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
   }
 
   private handleSocialClick = (connection: Auth0Connection) => {
-    auth0.authorize({
+    this.auth0.authorize({
       connection,
     })
   }
@@ -358,7 +363,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
       this.setState({emailError: 'Please enter a valid email address'})
       return
     }
-    auth0.changePassword(
+    this.auth0.changePassword(
       {
         email,
         connection: Auth0Connection.Authentication,
