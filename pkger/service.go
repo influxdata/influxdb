@@ -233,7 +233,7 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	for _, r := range uniqResourcesToClone(opt.Resources) {
 		newKinds, err := s.resourceCloneToKind(ctx, r, cloneAssFn)
 		if err != nil {
-			return nil, internalErr(err)
+			return nil, internalErr(fmt.Errorf("failed to clone resource: resource_id=%s resource_kind=%s err=%q", r.ID, r.Kind, err))
 		}
 		pkg.Objects = append(pkg.Objects, newKinds...)
 	}
@@ -438,12 +438,12 @@ func (s *Service) cloneOrgNotificationRules(ctx context.Context, orgID influxdb.
 }
 
 func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
-	teles, _, err := s.taskSVC.FindTasks(ctx, influxdb.TaskFilter{OrganizationID: &orgID})
+	tasks, _, err := s.taskSVC.FindTasks(ctx, influxdb.TaskFilter{OrganizationID: &orgID})
 	if err != nil {
 		return nil, err
 	}
 
-	if len(teles) == 0 {
+	if len(tasks) == 0 {
 		return nil, nil
 	}
 
@@ -461,23 +461,23 @@ func (s *Service) cloneOrgTasks(ctx context.Context, orgID influxdb.ID) ([]Resou
 		return nil, err
 	}
 
-	mTeles := make(map[influxdb.ID]*influxdb.Task)
-	for i := range teles {
-		t := teles[i]
-		if t.Type == influxdb.TaskSystemType {
+	mTasks := make(map[influxdb.ID]*influxdb.Task)
+	for i := range tasks {
+		t := tasks[i]
+		if t.Type != influxdb.TaskSystemType {
 			continue
 		}
-		mTeles[t.ID] = t
+		mTasks[t.ID] = t
 	}
 	for _, c := range checks {
-		delete(mTeles, c.GetTaskID())
+		delete(mTasks, c.GetTaskID())
 	}
 	for _, r := range rules {
-		delete(mTeles, r.GetTaskID())
+		delete(mTasks, r.GetTaskID())
 	}
 
-	resources := make([]ResourceToClone, 0, len(mTeles))
-	for _, t := range mTeles {
+	resources := make([]ResourceToClone, 0, len(mTasks))
+	for _, t := range mTasks {
 		resources = append(resources, ResourceToClone{
 			Kind: KindTask,
 			ID:   t.ID,

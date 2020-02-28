@@ -246,98 +246,149 @@ spec:
 		sum1, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, newPkg(t))
 		require.NoError(t, err)
 
-		labels := sum1.Labels
-		require.Len(t, labels, 1)
-		assert.NotZero(t, labels[0].ID)
-		assert.Equal(t, "label_1", labels[0].Name)
+		verifyCompleteSummary := func(t *testing.T, sum1 pkger.Summary, exportAllSum bool) {
+			t.Helper()
 
-		bkts := sum1.Buckets
-		require.Len(t, bkts, 1)
-		assert.NotZero(t, bkts[0].ID)
-		assert.Equal(t, "rucket_1", bkts[0].Name)
-		hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
-
-		checks := sum1.Checks
-		require.Len(t, checks, 2)
-		for i, ch := range checks {
-			assert.NotZero(t, ch.Check.GetID())
-			assert.Equal(t, fmt.Sprintf("check_%d", i), ch.Check.GetName())
-			hasLabelAssociations(t, ch.LabelAssociations, 1, "label_1")
-		}
-
-		dashs := sum1.Dashboards
-		require.Len(t, dashs, 1)
-		assert.NotZero(t, dashs[0].ID)
-		assert.Equal(t, "dash_1", dashs[0].Name)
-		assert.Equal(t, "desc1", dashs[0].Description)
-		hasLabelAssociations(t, dashs[0].LabelAssociations, 1, "label_1")
-		require.Len(t, dashs[0].Charts, 1)
-		assert.Equal(t, influxdb.ViewPropertyTypeSingleStat, dashs[0].Charts[0].Properties.GetType())
-
-		endpoints := sum1.NotificationEndpoints
-		require.Len(t, endpoints, 1)
-		assert.NotZero(t, endpoints[0].NotificationEndpoint.GetID())
-		assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].NotificationEndpoint.GetName())
-		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
-		assert.Equal(t, influxdb.TaskStatusInactive, string(endpoints[0].NotificationEndpoint.GetStatus()))
-		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
-
-		require.Len(t, sum1.NotificationRules, 1)
-		rule := sum1.NotificationRules[0]
-		assert.NotZero(t, rule.ID)
-		assert.Equal(t, "rule_0", rule.Name)
-		assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
-		assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointName)
-		assert.Equal(t, "http", rule.EndpointType)
-
-		require.Len(t, sum1.Tasks, 1)
-		task := sum1.Tasks[0]
-		assert.NotZero(t, task.ID)
-		assert.Equal(t, "task_1", task.Name)
-		assert.Equal(t, "desc_1", task.Description)
-
-		teles := sum1.TelegrafConfigs
-		require.Len(t, teles, 1)
-		assert.NotZero(t, teles[0].TelegrafConfig.ID)
-		assert.Equal(t, l.Org.ID, teles[0].TelegrafConfig.OrgID)
-		assert.Equal(t, "first_tele_config", teles[0].TelegrafConfig.Name)
-		assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
-		assert.Equal(t, telConf, teles[0].TelegrafConfig.Config)
-
-		vars := sum1.Variables
-		require.Len(t, vars, 1)
-		assert.NotZero(t, vars[0].ID)
-		assert.Equal(t, "var_query_1", vars[0].Name)
-		hasLabelAssociations(t, vars[0].LabelAssociations, 1, "label_1")
-		varArgs := vars[0].Arguments
-		require.NotNil(t, varArgs)
-		assert.Equal(t, "query", varArgs.Type)
-		assert.Equal(t, influxdb.VariableQueryValues{
-			Query:    "buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: \"_value\"})  |> keep(columns: [\"_value\"])",
-			Language: "flux",
-		}, varArgs.Values)
-
-		newSumMapping := func(id pkger.SafeID, name string, rt influxdb.ResourceType) pkger.SummaryLabelMapping {
-			return pkger.SummaryLabelMapping{
-				ResourceName: name,
-				LabelName:    labels[0].Name,
-				LabelID:      labels[0].ID,
-				ResourceID:   id,
-				ResourceType: rt,
+			labels := sum1.Labels
+			require.Len(t, labels, 1)
+			if !exportAllSum {
+				assert.NotZero(t, labels[0].ID)
 			}
+			assert.Equal(t, "label_1", labels[0].Name)
+
+			bkts := sum1.Buckets
+			if exportAllSum {
+				require.Len(t, bkts, 2)
+				assert.Equal(t, l.Bucket.Name, bkts[0].Name)
+				bkts = bkts[1:]
+			}
+			require.Len(t, bkts, 1)
+			if !exportAllSum {
+				assert.NotZero(t, bkts[0].ID)
+			}
+			assert.Equal(t, "rucket_1", bkts[0].Name)
+			hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
+
+			checks := sum1.Checks
+			require.Len(t, checks, 2)
+			for i, ch := range checks {
+				if !exportAllSum {
+					assert.NotZero(t, ch.Check.GetID())
+				}
+				assert.Equal(t, fmt.Sprintf("check_%d", i), ch.Check.GetName())
+				hasLabelAssociations(t, ch.LabelAssociations, 1, "label_1")
+			}
+
+			dashs := sum1.Dashboards
+			require.Len(t, dashs, 1)
+			if !exportAllSum {
+				assert.NotZero(t, dashs[0].ID)
+			}
+			assert.Equal(t, "dash_1", dashs[0].Name)
+			assert.Equal(t, "desc1", dashs[0].Description)
+			hasLabelAssociations(t, dashs[0].LabelAssociations, 1, "label_1")
+			require.Len(t, dashs[0].Charts, 1)
+			assert.Equal(t, influxdb.ViewPropertyTypeSingleStat, dashs[0].Charts[0].Properties.GetType())
+
+			endpoints := sum1.NotificationEndpoints
+			require.Len(t, endpoints, 1)
+			if !exportAllSum {
+				assert.NotZero(t, endpoints[0].NotificationEndpoint.GetID())
+			}
+			assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].NotificationEndpoint.GetName())
+			assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
+			assert.Equal(t, influxdb.TaskStatusInactive, string(endpoints[0].NotificationEndpoint.GetStatus()))
+			hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
+
+			require.Len(t, sum1.NotificationRules, 1)
+			rule := sum1.NotificationRules[0]
+			if !exportAllSum {
+				assert.NotZero(t, rule.ID)
+			}
+			assert.Equal(t, "rule_0", rule.Name)
+			assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
+			assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointName)
+			if !exportAllSum {
+				assert.Equalf(t, "http", rule.EndpointType, "rule: %+v", rule)
+			}
+
+			require.Len(t, sum1.Tasks, 1)
+			task := sum1.Tasks[0]
+			if !exportAllSum {
+				assert.NotZero(t, task.ID)
+			}
+			assert.Equal(t, "task_1", task.Name)
+			assert.Equal(t, "desc_1", task.Description)
+
+			teles := sum1.TelegrafConfigs
+			require.Len(t, teles, 1)
+			if !exportAllSum {
+				assert.NotZero(t, teles[0].TelegrafConfig.ID)
+				assert.Equal(t, l.Org.ID, teles[0].TelegrafConfig.OrgID)
+			}
+			assert.Equal(t, "first_tele_config", teles[0].TelegrafConfig.Name)
+			assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
+			assert.Equal(t, telConf, teles[0].TelegrafConfig.Config)
+
+			vars := sum1.Variables
+			require.Len(t, vars, 1)
+			if !exportAllSum {
+				assert.NotZero(t, vars[0].ID)
+			}
+			assert.Equal(t, "var_query_1", vars[0].Name)
+			hasLabelAssociations(t, vars[0].LabelAssociations, 1, "label_1")
+			varArgs := vars[0].Arguments
+			require.NotNil(t, varArgs)
+			assert.Equal(t, "query", varArgs.Type)
+			assert.Equal(t, influxdb.VariableQueryValues{
+				Query:    "buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: \"_value\"})  |> keep(columns: [\"_value\"])",
+				Language: "flux",
+			}, varArgs.Values)
+
+			newSumMapping := func(id pkger.SafeID, name string, rt influxdb.ResourceType) pkger.SummaryLabelMapping {
+				return pkger.SummaryLabelMapping{
+					ResourceName: name,
+					LabelName:    labels[0].Name,
+					LabelID:      labels[0].ID,
+					ResourceID:   id,
+					ResourceType: rt,
+				}
+			}
+
+			mappings := sum1.LabelMappings
+			require.Len(t, mappings, 9)
+			hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
+			hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[0].Check.GetID()), checks[0].Check.GetName(), influxdb.ChecksResourceType))
+			hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[1].Check.GetID()), checks[1].Check.GetName(), influxdb.ChecksResourceType))
+			hasMapping(t, mappings, newSumMapping(dashs[0].ID, dashs[0].Name, influxdb.DashboardsResourceType))
+			hasMapping(t, mappings, newSumMapping(pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), endpoints[0].NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType))
+			hasMapping(t, mappings, newSumMapping(rule.ID, rule.Name, influxdb.NotificationRuleResourceType))
+			hasMapping(t, mappings, newSumMapping(task.ID, task.Name, influxdb.TasksResourceType))
+			hasMapping(t, mappings, newSumMapping(pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType))
+			hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
 		}
 
-		mappings := sum1.LabelMappings
-		require.Len(t, mappings, 9)
-		hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
-		hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[0].Check.GetID()), checks[0].Check.GetName(), influxdb.ChecksResourceType))
-		hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[1].Check.GetID()), checks[1].Check.GetName(), influxdb.ChecksResourceType))
-		hasMapping(t, mappings, newSumMapping(dashs[0].ID, dashs[0].Name, influxdb.DashboardsResourceType))
-		hasMapping(t, mappings, newSumMapping(pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), endpoints[0].NotificationEndpoint.GetName(), influxdb.NotificationEndpointResourceType))
-		hasMapping(t, mappings, newSumMapping(rule.ID, rule.Name, influxdb.NotificationRuleResourceType))
-		hasMapping(t, mappings, newSumMapping(task.ID, task.Name, influxdb.TasksResourceType))
-		hasMapping(t, mappings, newSumMapping(pkger.SafeID(teles[0].TelegrafConfig.ID), teles[0].TelegrafConfig.Name, influxdb.TelegrafsResourceType))
-		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
+		verifyCompleteSummary(t, sum1, false)
+
+		var (
+			// used in dependent subtests
+			sum1Bkts      = sum1.Buckets
+			sum1Checks    = sum1.Checks
+			sum1Dashs     = sum1.Dashboards
+			sum1Endpoints = sum1.NotificationEndpoints
+			sum1Labels    = sum1.Labels
+			sum1Rules     = sum1.NotificationRules
+			sum1Tasks     = sum1.Tasks
+			sum1Teles     = sum1.TelegrafConfigs
+			sum1Vars      = sum1.Variables
+		)
+
+		t.Run("exporting all resources for an org", func(t *testing.T) {
+			newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(l.Org.ID))
+			require.NoError(t, err)
+
+			verifyCompleteSummary(t, newPkg.Summary(), true)
+		})
 
 		t.Run("pkg with same bkt-var-label does nto create new resources for them", func(t *testing.T) {
 			// validate the new package doesn't create new resources for bkts/labels/vars
@@ -412,35 +463,35 @@ spec:
 			resToClone := []pkger.ResourceToClone{
 				{
 					Kind: pkger.KindBucket,
-					ID:   influxdb.ID(bkts[0].ID),
+					ID:   influxdb.ID(sum1Bkts[0].ID),
 				},
 				{
 					Kind: pkger.KindCheck,
-					ID:   checks[0].Check.GetID(),
+					ID:   sum1Checks[0].Check.GetID(),
 				},
 				{
 					Kind: pkger.KindCheck,
-					ID:   checks[1].Check.GetID(),
+					ID:   sum1Checks[1].Check.GetID(),
 				},
 				{
 					Kind: pkger.KindDashboard,
-					ID:   influxdb.ID(dashs[0].ID),
+					ID:   influxdb.ID(sum1Dashs[0].ID),
 				},
 				{
 					Kind: pkger.KindLabel,
-					ID:   influxdb.ID(labels[0].ID),
+					ID:   influxdb.ID(sum1Labels[0].ID),
 				},
 				{
 					Kind: pkger.KindNotificationEndpoint,
-					ID:   endpoints[0].NotificationEndpoint.GetID(),
+					ID:   sum1Endpoints[0].NotificationEndpoint.GetID(),
 				},
 				{
 					Kind: pkger.KindTask,
-					ID:   influxdb.ID(task.ID),
+					ID:   influxdb.ID(sum1Tasks[0].ID),
 				},
 				{
 					Kind: pkger.KindTelegraf,
-					ID:   teles[0].TelegrafConfig.ID,
+					ID:   sum1Teles[0].TelegrafConfig.ID,
 				},
 			}
 
@@ -448,12 +499,12 @@ spec:
 				{
 					Kind: pkger.KindNotificationRule,
 					Name: "new rule name",
-					ID:   influxdb.ID(rule.ID),
+					ID:   influxdb.ID(sum1Rules[0].ID),
 				},
 				{
 					Kind: pkger.KindVariable,
 					Name: "new name",
-					ID:   influxdb.ID(vars[0].ID),
+					ID:   influxdb.ID(sum1Vars[0].ID),
 				},
 			}
 
@@ -494,30 +545,30 @@ spec:
 
 			newEndpoints := newSum.NotificationEndpoints
 			require.Len(t, newEndpoints, 1)
-			assert.Equal(t, endpoints[0].NotificationEndpoint.GetName(), newEndpoints[0].NotificationEndpoint.GetName())
-			assert.Equal(t, endpoints[0].NotificationEndpoint.GetDescription(), newEndpoints[0].NotificationEndpoint.GetDescription())
+			assert.Equal(t, sum1Endpoints[0].NotificationEndpoint.GetName(), newEndpoints[0].NotificationEndpoint.GetName())
+			assert.Equal(t, sum1Endpoints[0].NotificationEndpoint.GetDescription(), newEndpoints[0].NotificationEndpoint.GetDescription())
 			hasLabelAssociations(t, newEndpoints[0].LabelAssociations, 1, "label_1")
 
 			require.Len(t, newSum.NotificationRules, 1)
 			newRule := newSum.NotificationRules[0]
 			assert.Equal(t, "new rule name", newRule.Name)
 			assert.Zero(t, newRule.EndpointID)
-			assert.Equal(t, rule.EndpointName, newRule.EndpointName)
+			assert.Equal(t, sum1Rules[0].EndpointName, newRule.EndpointName)
 			hasLabelAssociations(t, newRule.LabelAssociations, 1, "label_1")
 
 			require.Len(t, newSum.Tasks, 1)
 			newTask := newSum.Tasks[0]
-			assert.Equal(t, task.Name, newTask.Name)
-			assert.Equal(t, task.Description, newTask.Description)
-			assert.Equal(t, task.Cron, newTask.Cron)
-			assert.Equal(t, task.Every, newTask.Every)
-			assert.Equal(t, task.Offset, newTask.Offset)
-			assert.Equal(t, task.Query, newTask.Query)
-			assert.Equal(t, task.Status, newTask.Status)
+			assert.Equal(t, sum1Tasks[0].Name, newTask.Name)
+			assert.Equal(t, sum1Tasks[0].Description, newTask.Description)
+			assert.Equal(t, sum1Tasks[0].Cron, newTask.Cron)
+			assert.Equal(t, sum1Tasks[0].Every, newTask.Every)
+			assert.Equal(t, sum1Tasks[0].Offset, newTask.Offset)
+			assert.Equal(t, sum1Tasks[0].Query, newTask.Query)
+			assert.Equal(t, sum1Tasks[0].Status, newTask.Status)
 
 			require.Len(t, newSum.TelegrafConfigs, 1)
-			assert.Equal(t, teles[0].TelegrafConfig.Name, newSum.TelegrafConfigs[0].TelegrafConfig.Name)
-			assert.Equal(t, teles[0].TelegrafConfig.Description, newSum.TelegrafConfigs[0].TelegrafConfig.Description)
+			assert.Equal(t, sum1Teles[0].TelegrafConfig.Name, newSum.TelegrafConfigs[0].TelegrafConfig.Name)
+			assert.Equal(t, sum1Teles[0].TelegrafConfig.Description, newSum.TelegrafConfigs[0].TelegrafConfig.Description)
 			hasLabelAssociations(t, newSum.TelegrafConfigs[0].LabelAssociations, 1, "label_1")
 
 			vars := newSum.Variables
@@ -555,12 +606,12 @@ spec:
 			_, err = svc.Apply(ctx, l.Org.ID, 0, updatePkg)
 			require.Error(t, err)
 
-			bkt, err := l.BucketService(t).FindBucketByID(ctx, influxdb.ID(bkts[0].ID))
+			bkt, err := l.BucketService(t).FindBucketByID(ctx, influxdb.ID(sum1Bkts[0].ID))
 			require.NoError(t, err)
 			// make sure the desc change is not applied and is rolled back to prev desc
-			assert.Equal(t, bkts[0].Description, bkt.Description)
+			assert.Equal(t, sum1Bkts[0].Description, bkt.Description)
 
-			ch, err := l.CheckService().FindCheckByID(ctx, checks[0].Check.GetID())
+			ch, err := l.CheckService().FindCheckByID(ctx, sum1Checks[0].Check.GetID())
 			require.NoError(t, err)
 			ch.SetOwnerID(0)
 			deadman, ok := ch.(*check.Threshold)
@@ -568,19 +619,19 @@ spec:
 			// validate the change to query is not persisting returned to previous state.
 			// not checking entire bits, b/c we dont' save userID and so forth and makes a
 			// direct comparison very annoying...
-			assert.Equal(t, checks[0].Check.(*check.Threshold).Query.Text, deadman.Query.Text)
+			assert.Equal(t, sum1Checks[0].Check.(*check.Threshold).Query.Text, deadman.Query.Text)
 
-			label, err := l.LabelService(t).FindLabelByID(ctx, influxdb.ID(labels[0].ID))
+			label, err := l.LabelService(t).FindLabelByID(ctx, influxdb.ID(sum1Labels[0].ID))
 			require.NoError(t, err)
-			assert.Equal(t, labels[0].Properties.Description, label.Properties["description"])
+			assert.Equal(t, sum1Labels[0].Properties.Description, label.Properties["description"])
 
-			endpoint, err := l.NotificationEndpointService(t).FindNotificationEndpointByID(ctx, endpoints[0].NotificationEndpoint.GetID())
+			endpoint, err := l.NotificationEndpointService(t).FindNotificationEndpointByID(ctx, sum1Endpoints[0].NotificationEndpoint.GetID())
 			require.NoError(t, err)
-			assert.Equal(t, endpoints[0].NotificationEndpoint.GetDescription(), endpoint.GetDescription())
+			assert.Equal(t, sum1Endpoints[0].NotificationEndpoint.GetDescription(), endpoint.GetDescription())
 
-			v, err := l.VariableService(t).FindVariableByID(ctx, influxdb.ID(vars[0].ID))
+			v, err := l.VariableService(t).FindVariableByID(ctx, influxdb.ID(sum1Vars[0].ID))
 			require.NoError(t, err)
-			assert.Equal(t, vars[0].Description, v.Description)
+			assert.Equal(t, sum1Vars[0].Description, v.Description)
 		})
 	})
 

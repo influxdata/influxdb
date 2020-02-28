@@ -2669,10 +2669,10 @@ func TestService(t *testing.T) {
 			taskSVC := mock.NewTaskService()
 			taskSVC.FindTasksFn = func(ctx context.Context, f influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 				return []*influxdb.Task{
-					{ID: 31},
-					{ID: expectedCheck.TaskID},              // this one should be ignored in the return
-					{ID: expectedRule.TaskID},               // this one should be ignored in the return as well
-					{ID: 99, Type: influxdb.TaskSystemType}, // this one should be skipped since it is a system task
+					{ID: 31, Type: influxdb.TaskSystemType},
+					{ID: expectedCheck.TaskID, Type: influxdb.TaskSystemType}, // this one should be ignored in the return
+					{ID: expectedRule.TaskID, Type: influxdb.TaskSystemType},  // this one should be ignored in the return as well
+					{ID: 99}, // this one should be skipped since it is not a system task
 				}, 3, nil
 			}
 			taskSVC.FindTaskByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {

@@ -4,6 +4,7 @@
 
 ### Bug Fixes
 1. [17039](https://github.com/influxdata/influxdb/pull/17039): Fixed issue where tasks are exported for notification rules
+1. [17042](https://github.com/influxdata/influxdb/pull/17039): Fixed issue where tasks are not exported when exporting by org id
 
 ## v2.0.0-beta.5 [2020-02-27]
 
