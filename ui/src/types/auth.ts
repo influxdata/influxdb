@@ -5,3 +5,9 @@ export enum Auth0Connection {
   Github = 'github',
   Authentication = 'Username-Password-Authentication',
 }
+
+export type Auth0Config = {
+  clientID: string
+  domain: string
+  redirectURL: string
+}
