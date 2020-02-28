@@ -43,6 +43,9 @@ use grpc::{
     Node, Predicate, ReadFilterRequest, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 
+type Error = Box<dyn std::error::Error>;
+type Result<T, E = Error> = std::result::Result<T, E>;
+
 macro_rules! assert_unwrap {
     ($e:expr, $p:path) => {
         match $e {
@@ -68,7 +71,7 @@ async fn read_data(
     bucket_name: &str,
     predicate: &str,
     seconds_ago: u64,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<String> {
     let url = format!("{}{}", URL_BASE, path);
     Ok(client
         .get(&url)
@@ -91,7 +94,7 @@ async fn write_data(
     org_id: u32,
     bucket_name: &str,
     body: String,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let url = format!("{}{}", URL_BASE, path);
     client
         .post(&url)
@@ -119,7 +122,7 @@ fn get_test_storage_path() -> String {
 }
 
 #[tokio::test]
-async fn read_and_write_data() -> Result<(), Box<dyn std::error::Error>> {
+async fn read_and_write_data() -> Result<()> {
     let mut server_thread = Command::cargo_bin("delorean")?
         .stdout(Stdio::null())
         .env("DELOREAN_DB_DIR", get_test_storage_path())
