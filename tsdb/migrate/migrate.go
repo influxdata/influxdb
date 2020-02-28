@@ -256,8 +256,13 @@ func (m *Migrator) createBucket(db, rp string) (influxdb.ID, error) {
 
 	bucket, err := m.metaSvc.FindBucketByName(context.Background(), m.DestOrg, name)
 	if err != nil {
-		return 0, err
+		innerErr, ok := err.(*influxdb.Error)
+		if !ok || innerErr.Code != influxdb.ENotFound {
+			return 0, err
+		}
 	} else if bucket != nil {
+		// Ignore an error returned from being unable to find a bucket.
+		fmt.Fprintf(m.verboseStdout, "Bucket %q already exists with ID %s\n", name, bucket.ID.String())
 		return bucket.ID, nil
 	}
 
