@@ -258,7 +258,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
     isValid: errorMessage !== '',
   })
 
-  private handleSubmit = async (event: FormEvent) => {
+  private handleSubmit = (event: FormEvent) => {
     const {isValid, errors} = this.validateFieldValues
     const {
       email,
