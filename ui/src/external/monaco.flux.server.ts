@@ -4,8 +4,11 @@ const queue = []
 let _module = null,
   loading = false
 
+type BucketCallback = () => Promise<string[]>
+
 export interface LSPServer {
   send: (string) => Promise<object>
+  register_buckets_callback: (BucketCallback) => void
 }
 
 export default function loader(): Promise<LSPServer> {

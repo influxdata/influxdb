@@ -1,4 +1,5 @@
-import React, {FC, useEffect} from 'react'
+// Libraries
+import {FC, useEffect} from 'react'
 import {connect} from 'react-redux'
 
 import {AppState, Bucket, ResourceType} from 'src/types'
@@ -28,19 +29,20 @@ const FluxBucketProvider: FC<Props> = ({buckets}) => {
     BUCKETS = buckets
   }, [buckets])
 
-  return false
+  return null
 }
 
 const mstp = (state: AppState): Props => {
-  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
-  console.log('setting to', buckets)
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets).filter(
+    (bucket: Bucket): boolean => bucket.type !== 'system'
+  )
 
   return {
     buckets,
   }
 }
 
-export default connect<Props, {}, {}>(
+export default connect<Props, {}>(
   mstp,
   null
 )(FluxBucketProvider)
