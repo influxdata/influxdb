@@ -1,5 +1,14 @@
 import {EditorType} from 'src/types'
 
+export const toggleCommenting = (s: string, isTogglingOn: boolean) => {
+  if (isTogglingOn) {
+    return `// ${s}`
+  }
+  return s.replace(/\/\/\s?/, '')
+}
+
+export const isCommented = (s: string) => !!s.match(/^\s*(\/\/(.*)$)/g)
+
 export function comments(editor: EditorType) {
   editor.addAction({
     // An unique identifier of the contributed action.
@@ -25,17 +34,13 @@ export function comments(editor: EditorType) {
         // if any of the lines in the selection is uncommented then toggle commenting on
         isTogglingCommentingOn = values
           .slice(startLineNumber - 1, endLineNumber)
-          .some(v => !(v === '') && !!!v.match(/^\s*(\/\/(.*)$)/g)),
+          .some(v => !(v === '') && !isCommented(v)),
         updatedValues = values.map((v, i) => {
           if (i < startLineNumber - 1 || i > endLineNumber - 1) {
             return v
           }
 
-          if (isTogglingCommentingOn) {
-            return `//${v}`
-          }
-
-          return v.replace(/\/\//, '')
+          return toggleCommenting(v)
         })
 
       ed.setValue(updatedValues.join('\n'))
