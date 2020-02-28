@@ -334,6 +334,14 @@ mod test {
     }
 
     #[test]
+    fn parse_tag_set_included_in_series() {
+        let input = "foo,tag1=1,tag2=2 value=1 123";
+        let vals = parse(input);
+
+        assert_eq!(vals[0].series(), "foo,tag1=1,tag2=2\tvalue");
+    }
+
+    #[test]
     fn index_pairs() {
         let p = Point {
             series: "cpu,host=A,region=west\tusage_system".to_string(),
