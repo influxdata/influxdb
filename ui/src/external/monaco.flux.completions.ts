@@ -74,7 +74,7 @@ function registerCompletion(monaco: MonacoType, server): IDisposable {
         'x',
         'y',
         'z',
-      ], // eslint-disable-line
+      ],
     }
   )
 

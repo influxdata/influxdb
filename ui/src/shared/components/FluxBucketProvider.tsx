@@ -33,9 +33,7 @@ const FluxBucketProvider: FC<Props> = ({buckets}) => {
 }
 
 const mstp = (state: AppState): Props => {
-  const buckets = getAll<Bucket>(state, ResourceType.Buckets).filter(
-    (bucket: Bucket): boolean => bucket.type !== 'system'
-  )
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
 
   return {
     buckets,
