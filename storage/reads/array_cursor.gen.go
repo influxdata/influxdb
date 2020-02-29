@@ -7,8 +7,6 @@
 package reads
 
 import (
-	"errors"
-
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
@@ -30,18 +28,14 @@ type floatArrayFilterCursor struct {
 	tmp  *cursors.FloatArray
 }
 
-func newFloatFilterArrayCursor(cond expression) *floatArrayFilterCursor {
+func newFloatFilterArrayCursor(cur cursors.FloatArrayCursor, cond expression) *floatArrayFilterCursor {
 	return &floatArrayFilterCursor{
-		cond: cond,
-		m:    &singleValue{},
-		res:  cursors.NewFloatArrayLen(MaxPointsPerBlock),
-		tmp:  &cursors.FloatArray{},
+		FloatArrayCursor: cur,
+		cond:             cond,
+		m:                &singleValue{},
+		res:              cursors.NewFloatArrayLen(MaxPointsPerBlock),
+		tmp:              &cursors.FloatArray{},
 	}
-}
-
-func (c *floatArrayFilterCursor) reset(cur cursors.FloatArrayCursor) {
-	c.FloatArrayCursor = cur
-	c.tmp.Timestamps, c.tmp.Values = nil, nil
 }
 
 func (c *floatArrayFilterCursor) Stats() cursors.CursorStats { return c.FloatArrayCursor.Stats() }
@@ -91,12 +85,11 @@ type floatMultiShardArrayCursor struct {
 	filter *floatArrayFilterCursor
 }
 
-func (c *floatMultiShardArrayCursor) reset(cur cursors.FloatArrayCursor, itrs cursors.CursorIterators, cond expression) {
+func (c *floatMultiShardArrayCursor) reset(cur cursors.FloatArrayCursor, itrs cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
-			c.filter = newFloatFilterArrayCursor(cond)
+			c.filter = newFloatFilterArrayCursor(cur, cond)
 		}
-		c.filter.reset(cur)
 		cur = c.filter
 	}
 
@@ -115,11 +108,6 @@ func (c *floatMultiShardArrayCursor) Stats() cursors.CursorStats {
 func (c *floatMultiShardArrayCursor) Next() *cursors.FloatArray {
 	for {
 		a := c.FloatArrayCursor.Next()
-		if a.Len() == 0 {
-			if c.nextArrayCursor() {
-				continue
-			}
-		}
 		c.count += int64(a.Len())
 		if c.count > c.limit {
 			diff := c.count - c.limit
@@ -130,43 +118,6 @@ func (c *floatMultiShardArrayCursor) Next() *cursors.FloatArray {
 		}
 		return a
 	}
-}
-
-func (c *floatMultiShardArrayCursor) nextArrayCursor() bool {
-	if len(c.itrs) == 0 {
-		return false
-	}
-
-	c.FloatArrayCursor.Close()
-
-	var itr cursors.CursorIterator
-	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
-
-	var ok bool
-	if cur != nil {
-		var next cursors.FloatArrayCursor
-		next, ok = cur.(cursors.FloatArrayCursor)
-		if !ok {
-			cur.Close()
-			next = FloatEmptyArrayCursor
-			c.itrs = nil
-			c.err = errors.New("expected float cursor")
-		} else {
-			if c.filter != nil {
-				c.filter.reset(next)
-				next = c.filter
-			}
-		}
-		c.FloatArrayCursor = next
-	} else {
-		c.FloatArrayCursor = FloatEmptyArrayCursor
-	}
-
-	return ok
 }
 
 type floatArraySumCursor struct {
@@ -259,18 +210,14 @@ type integerArrayFilterCursor struct {
 	tmp  *cursors.IntegerArray
 }
 
-func newIntegerFilterArrayCursor(cond expression) *integerArrayFilterCursor {
+func newIntegerFilterArrayCursor(cur cursors.IntegerArrayCursor, cond expression) *integerArrayFilterCursor {
 	return &integerArrayFilterCursor{
-		cond: cond,
-		m:    &singleValue{},
-		res:  cursors.NewIntegerArrayLen(MaxPointsPerBlock),
-		tmp:  &cursors.IntegerArray{},
+		IntegerArrayCursor: cur,
+		cond:               cond,
+		m:                  &singleValue{},
+		res:                cursors.NewIntegerArrayLen(MaxPointsPerBlock),
+		tmp:                &cursors.IntegerArray{},
 	}
-}
-
-func (c *integerArrayFilterCursor) reset(cur cursors.IntegerArrayCursor) {
-	c.IntegerArrayCursor = cur
-	c.tmp.Timestamps, c.tmp.Values = nil, nil
 }
 
 func (c *integerArrayFilterCursor) Stats() cursors.CursorStats { return c.IntegerArrayCursor.Stats() }
@@ -320,12 +267,11 @@ type integerMultiShardArrayCursor struct {
 	filter *integerArrayFilterCursor
 }
 
-func (c *integerMultiShardArrayCursor) reset(cur cursors.IntegerArrayCursor, itrs cursors.CursorIterators, cond expression) {
+func (c *integerMultiShardArrayCursor) reset(cur cursors.IntegerArrayCursor, itrs cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
-			c.filter = newIntegerFilterArrayCursor(cond)
+			c.filter = newIntegerFilterArrayCursor(cur, cond)
 		}
-		c.filter.reset(cur)
 		cur = c.filter
 	}
 
@@ -344,11 +290,6 @@ func (c *integerMultiShardArrayCursor) Stats() cursors.CursorStats {
 func (c *integerMultiShardArrayCursor) Next() *cursors.IntegerArray {
 	for {
 		a := c.IntegerArrayCursor.Next()
-		if a.Len() == 0 {
-			if c.nextArrayCursor() {
-				continue
-			}
-		}
 		c.count += int64(a.Len())
 		if c.count > c.limit {
 			diff := c.count - c.limit
@@ -359,43 +300,6 @@ func (c *integerMultiShardArrayCursor) Next() *cursors.IntegerArray {
 		}
 		return a
 	}
-}
-
-func (c *integerMultiShardArrayCursor) nextArrayCursor() bool {
-	if len(c.itrs) == 0 {
-		return false
-	}
-
-	c.IntegerArrayCursor.Close()
-
-	var itr cursors.CursorIterator
-	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
-
-	var ok bool
-	if cur != nil {
-		var next cursors.IntegerArrayCursor
-		next, ok = cur.(cursors.IntegerArrayCursor)
-		if !ok {
-			cur.Close()
-			next = IntegerEmptyArrayCursor
-			c.itrs = nil
-			c.err = errors.New("expected integer cursor")
-		} else {
-			if c.filter != nil {
-				c.filter.reset(next)
-				next = c.filter
-			}
-		}
-		c.IntegerArrayCursor = next
-	} else {
-		c.IntegerArrayCursor = IntegerEmptyArrayCursor
-	}
-
-	return ok
 }
 
 type integerArraySumCursor struct {
@@ -488,18 +392,14 @@ type unsignedArrayFilterCursor struct {
 	tmp  *cursors.UnsignedArray
 }
 
-func newUnsignedFilterArrayCursor(cond expression) *unsignedArrayFilterCursor {
+func newUnsignedFilterArrayCursor(cur cursors.UnsignedArrayCursor, cond expression) *unsignedArrayFilterCursor {
 	return &unsignedArrayFilterCursor{
-		cond: cond,
-		m:    &singleValue{},
-		res:  cursors.NewUnsignedArrayLen(MaxPointsPerBlock),
-		tmp:  &cursors.UnsignedArray{},
+		UnsignedArrayCursor: cur,
+		cond:                cond,
+		m:                   &singleValue{},
+		res:                 cursors.NewUnsignedArrayLen(MaxPointsPerBlock),
+		tmp:                 &cursors.UnsignedArray{},
 	}
-}
-
-func (c *unsignedArrayFilterCursor) reset(cur cursors.UnsignedArrayCursor) {
-	c.UnsignedArrayCursor = cur
-	c.tmp.Timestamps, c.tmp.Values = nil, nil
 }
 
 func (c *unsignedArrayFilterCursor) Stats() cursors.CursorStats { return c.UnsignedArrayCursor.Stats() }
@@ -549,12 +449,11 @@ type unsignedMultiShardArrayCursor struct {
 	filter *unsignedArrayFilterCursor
 }
 
-func (c *unsignedMultiShardArrayCursor) reset(cur cursors.UnsignedArrayCursor, itrs cursors.CursorIterators, cond expression) {
+func (c *unsignedMultiShardArrayCursor) reset(cur cursors.UnsignedArrayCursor, itrs cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
-			c.filter = newUnsignedFilterArrayCursor(cond)
+			c.filter = newUnsignedFilterArrayCursor(cur, cond)
 		}
-		c.filter.reset(cur)
 		cur = c.filter
 	}
 
@@ -573,11 +472,6 @@ func (c *unsignedMultiShardArrayCursor) Stats() cursors.CursorStats {
 func (c *unsignedMultiShardArrayCursor) Next() *cursors.UnsignedArray {
 	for {
 		a := c.UnsignedArrayCursor.Next()
-		if a.Len() == 0 {
-			if c.nextArrayCursor() {
-				continue
-			}
-		}
 		c.count += int64(a.Len())
 		if c.count > c.limit {
 			diff := c.count - c.limit
@@ -588,43 +482,6 @@ func (c *unsignedMultiShardArrayCursor) Next() *cursors.UnsignedArray {
 		}
 		return a
 	}
-}
-
-func (c *unsignedMultiShardArrayCursor) nextArrayCursor() bool {
-	if len(c.itrs) == 0 {
-		return false
-	}
-
-	c.UnsignedArrayCursor.Close()
-
-	var itr cursors.CursorIterator
-	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
-
-	var ok bool
-	if cur != nil {
-		var next cursors.UnsignedArrayCursor
-		next, ok = cur.(cursors.UnsignedArrayCursor)
-		if !ok {
-			cur.Close()
-			next = UnsignedEmptyArrayCursor
-			c.itrs = nil
-			c.err = errors.New("expected unsigned cursor")
-		} else {
-			if c.filter != nil {
-				c.filter.reset(next)
-				next = c.filter
-			}
-		}
-		c.UnsignedArrayCursor = next
-	} else {
-		c.UnsignedArrayCursor = UnsignedEmptyArrayCursor
-	}
-
-	return ok
 }
 
 type unsignedArraySumCursor struct {
@@ -717,18 +574,14 @@ type stringArrayFilterCursor struct {
 	tmp  *cursors.StringArray
 }
 
-func newStringFilterArrayCursor(cond expression) *stringArrayFilterCursor {
+func newStringFilterArrayCursor(cur cursors.StringArrayCursor, cond expression) *stringArrayFilterCursor {
 	return &stringArrayFilterCursor{
-		cond: cond,
-		m:    &singleValue{},
-		res:  cursors.NewStringArrayLen(MaxPointsPerBlock),
-		tmp:  &cursors.StringArray{},
+		StringArrayCursor: cur,
+		cond:              cond,
+		m:                 &singleValue{},
+		res:               cursors.NewStringArrayLen(MaxPointsPerBlock),
+		tmp:               &cursors.StringArray{},
 	}
-}
-
-func (c *stringArrayFilterCursor) reset(cur cursors.StringArrayCursor) {
-	c.StringArrayCursor = cur
-	c.tmp.Timestamps, c.tmp.Values = nil, nil
 }
 
 func (c *stringArrayFilterCursor) Stats() cursors.CursorStats { return c.StringArrayCursor.Stats() }
@@ -778,12 +631,11 @@ type stringMultiShardArrayCursor struct {
 	filter *stringArrayFilterCursor
 }
 
-func (c *stringMultiShardArrayCursor) reset(cur cursors.StringArrayCursor, itrs cursors.CursorIterators, cond expression) {
+func (c *stringMultiShardArrayCursor) reset(cur cursors.StringArrayCursor, itrs cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
-			c.filter = newStringFilterArrayCursor(cond)
+			c.filter = newStringFilterArrayCursor(cur, cond)
 		}
-		c.filter.reset(cur)
 		cur = c.filter
 	}
 
@@ -802,11 +654,6 @@ func (c *stringMultiShardArrayCursor) Stats() cursors.CursorStats {
 func (c *stringMultiShardArrayCursor) Next() *cursors.StringArray {
 	for {
 		a := c.StringArrayCursor.Next()
-		if a.Len() == 0 {
-			if c.nextArrayCursor() {
-				continue
-			}
-		}
 		c.count += int64(a.Len())
 		if c.count > c.limit {
 			diff := c.count - c.limit
@@ -817,43 +664,6 @@ func (c *stringMultiShardArrayCursor) Next() *cursors.StringArray {
 		}
 		return a
 	}
-}
-
-func (c *stringMultiShardArrayCursor) nextArrayCursor() bool {
-	if len(c.itrs) == 0 {
-		return false
-	}
-
-	c.StringArrayCursor.Close()
-
-	var itr cursors.CursorIterator
-	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
-
-	var ok bool
-	if cur != nil {
-		var next cursors.StringArrayCursor
-		next, ok = cur.(cursors.StringArrayCursor)
-		if !ok {
-			cur.Close()
-			next = StringEmptyArrayCursor
-			c.itrs = nil
-			c.err = errors.New("expected string cursor")
-		} else {
-			if c.filter != nil {
-				c.filter.reset(next)
-				next = c.filter
-			}
-		}
-		c.StringArrayCursor = next
-	} else {
-		c.StringArrayCursor = StringEmptyArrayCursor
-	}
-
-	return ok
 }
 
 type integerStringCountArrayCursor struct {
@@ -906,18 +716,14 @@ type booleanArrayFilterCursor struct {
 	tmp  *cursors.BooleanArray
 }
 
-func newBooleanFilterArrayCursor(cond expression) *booleanArrayFilterCursor {
+func newBooleanFilterArrayCursor(cur cursors.BooleanArrayCursor, cond expression) *booleanArrayFilterCursor {
 	return &booleanArrayFilterCursor{
-		cond: cond,
-		m:    &singleValue{},
-		res:  cursors.NewBooleanArrayLen(MaxPointsPerBlock),
-		tmp:  &cursors.BooleanArray{},
+		BooleanArrayCursor: cur,
+		cond:               cond,
+		m:                  &singleValue{},
+		res:                cursors.NewBooleanArrayLen(MaxPointsPerBlock),
+		tmp:                &cursors.BooleanArray{},
 	}
-}
-
-func (c *booleanArrayFilterCursor) reset(cur cursors.BooleanArrayCursor) {
-	c.BooleanArrayCursor = cur
-	c.tmp.Timestamps, c.tmp.Values = nil, nil
 }
 
 func (c *booleanArrayFilterCursor) Stats() cursors.CursorStats { return c.BooleanArrayCursor.Stats() }
@@ -967,12 +773,11 @@ type booleanMultiShardArrayCursor struct {
 	filter *booleanArrayFilterCursor
 }
 
-func (c *booleanMultiShardArrayCursor) reset(cur cursors.BooleanArrayCursor, itrs cursors.CursorIterators, cond expression) {
+func (c *booleanMultiShardArrayCursor) reset(cur cursors.BooleanArrayCursor, itrs cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
-			c.filter = newBooleanFilterArrayCursor(cond)
+			c.filter = newBooleanFilterArrayCursor(cur, cond)
 		}
-		c.filter.reset(cur)
 		cur = c.filter
 	}
 
@@ -991,11 +796,6 @@ func (c *booleanMultiShardArrayCursor) Stats() cursors.CursorStats {
 func (c *booleanMultiShardArrayCursor) Next() *cursors.BooleanArray {
 	for {
 		a := c.BooleanArrayCursor.Next()
-		if a.Len() == 0 {
-			if c.nextArrayCursor() {
-				continue
-			}
-		}
 		c.count += int64(a.Len())
 		if c.count > c.limit {
 			diff := c.count - c.limit
@@ -1006,43 +806,6 @@ func (c *booleanMultiShardArrayCursor) Next() *cursors.BooleanArray {
 		}
 		return a
 	}
-}
-
-func (c *booleanMultiShardArrayCursor) nextArrayCursor() bool {
-	if len(c.itrs) == 0 {
-		return false
-	}
-
-	c.BooleanArrayCursor.Close()
-
-	var itr cursors.CursorIterator
-	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
-
-	var ok bool
-	if cur != nil {
-		var next cursors.BooleanArrayCursor
-		next, ok = cur.(cursors.BooleanArrayCursor)
-		if !ok {
-			cur.Close()
-			next = BooleanEmptyArrayCursor
-			c.itrs = nil
-			c.err = errors.New("expected boolean cursor")
-		} else {
-			if c.filter != nil {
-				c.filter.reset(next)
-				next = c.filter
-			}
-		}
-		c.BooleanArrayCursor = next
-	} else {
-		c.BooleanArrayCursor = BooleanEmptyArrayCursor
-	}
-
-	return ok
 }
 
 type integerBooleanCountArrayCursor struct {

@@ -20,10 +20,9 @@ type (
 	StringArrayCursor   = cursors.StringArrayCursor
 	BooleanArrayCursor  = cursors.BooleanArrayCursor
 
-	Cursor          = cursors.Cursor
-	CursorRequest   = cursors.CursorRequest
-	CursorIterator  = cursors.CursorIterator
-	CursorIterators = cursors.CursorIterators
+	Cursor         = cursors.Cursor
+	CursorRequest  = cursors.CursorRequest
+	CursorIterator = cursors.CursorIterator
 )
 
 func NewIntegerArrayLen(sz int) *IntegerArray   { return cursors.NewIntegerArrayLen(sz) }

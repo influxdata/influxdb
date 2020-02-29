@@ -9,17 +9,12 @@ import (
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
-type multiShardCursors interface {
-	createCursor(row SeriesRow) cursors.Cursor
-	newAggregateCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) cursors.Cursor
-}
-
 type resultSet struct {
 	ctx context.Context
 	agg *datatypes.Aggregate
 	cur SeriesCursor
 	row SeriesRow
-	mb  multiShardCursors
+	mb  *multiShardArrayCursors
 }
 
 func NewFilteredResultSet(ctx context.Context, req *datatypes.ReadFilterRequest, cur SeriesCursor) ResultSet {

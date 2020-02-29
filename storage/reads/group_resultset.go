@@ -17,7 +17,7 @@ type groupResultSet struct {
 	ctx context.Context
 	req *datatypes.ReadGroupRequest
 	agg *datatypes.Aggregate
-	mb  multiShardCursors
+	mb  *multiShardArrayCursors
 
 	i       int
 	rows    []*SeriesRow
@@ -276,7 +276,7 @@ func groupBySort(g *groupResultSet) (int, error) {
 
 type groupNoneCursor struct {
 	ctx  context.Context
-	mb   multiShardCursors
+	mb   *multiShardArrayCursors
 	agg  *datatypes.Aggregate
 	cur  SeriesCursor
 	row  SeriesRow
@@ -311,7 +311,7 @@ func (c *groupNoneCursor) Cursor() cursors.Cursor {
 
 type groupByCursor struct {
 	ctx  context.Context
-	mb   multiShardCursors
+	mb   *multiShardArrayCursors
 	agg  *datatypes.Aggregate
 	i    int
 	rows []*SeriesRow

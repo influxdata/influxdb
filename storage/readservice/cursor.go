@@ -11,7 +11,6 @@ import (
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
 
@@ -35,12 +34,12 @@ type indexSeriesCursor struct {
 }
 
 func newIndexSeriesCursor(ctx context.Context, src *readSource, predicate *datatypes.Predicate, viewer Viewer) (*indexSeriesCursor, error) {
-	queries, err := viewer.CreateCursorIterator(ctx)
+	cursorIterator, err := viewer.CreateCursorIterator(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if queries == nil {
+	if cursorIterator == nil {
 		return nil, nil
 	}
 
@@ -53,7 +52,7 @@ func newIndexSeriesCursor(ctx context.Context, src *readSource, predicate *datat
 		Ascending:  true,
 		Ordered:    true,
 	}
-	p := &indexSeriesCursor{row: reads.SeriesRow{Query: tsdb.CursorIterators{queries}}}
+	p := &indexSeriesCursor{row: reads.SeriesRow{Query: cursorIterator}}
 
 	if root := predicate.GetRoot(); root != nil {
 		if p.cond, err = reads.NodeToExpr(root, nil); err != nil {
@@ -123,7 +122,7 @@ func (c *indexSeriesCursor) Next() *reads.SeriesRow {
 	}
 
 	c.row.Name = sr.Name
-	//TODO(edd): check this.
+	// TODO(edd): check this.
 	c.row.SeriesTags = copyTags(c.row.SeriesTags, sr.Tags)
 	c.row.Tags = copyTags(c.row.Tags, sr.Tags)
 	fv := c.row.Tags.Get(models.FieldKeyTagKeyBytes)

@@ -56,7 +56,7 @@ type seriesGeneratorSeriesCursor struct {
 func newSeriesGeneratorSeriesCursor(g gen.SeriesGenerator) *seriesGeneratorSeriesCursor {
 	s := &seriesGeneratorSeriesCursor{}
 	s.ci.g = g
-	s.r.Query = tsdb.CursorIterators{&s.ci}
+	s.r.Query = &s.ci
 	return s
 }
 
