@@ -1119,7 +1119,11 @@ mod tests {
     use super::*;
 
     use dotenv::dotenv;
-    use std::env;
+    use std::{
+        env,
+        ops::{Deref, DerefMut},
+    };
+    use tempfile::TempDir;
 
     use crate::storage::predicate::parse_predicate;
 
@@ -1128,8 +1132,9 @@ mod tests {
         let bucket: Arc<Bucket>;
         let org_id = 1;
         let mut bucket2 = Bucket::new(2, "Foo".to_string());
-        {
-            let db = test_database("create_and_get_buckets", true);
+
+        let db_dir = {
+            let db = TestDatabase::new().unwrap();
             let mut b = Bucket::new(org_id, "Foo".to_string());
 
             b.id = db.create_bucket_if_not_exists(org_id, &b).unwrap();
@@ -1166,11 +1171,13 @@ mod tests {
             assert_eq!(Arc::new(b2), stored_bucket);
 
             // TODO: ensure that a bucket orders levels correctly
-        }
+
+            TestDatabase::close(db)
+        };
 
         // ensure it persists across database reload
         {
-            let db = test_database("create_and_get_buckets", false);
+            let db = TestDatabase::with_directory(db_dir);
             let stored_bucket = db
                 .get_bucket_by_name(org_id, &bucket.name)
                 .unwrap()
@@ -1194,8 +1201,8 @@ mod tests {
         let p3 = PointType::new_i64("three".to_string(), 33, 86);
         let p4 = PointType::new_i64("four".to_string(), 234, 100);
 
-        {
-            let db = test_database("series_id_indexing", true);
+        let db_dir = {
+            let db = TestDatabase::new().unwrap();
             b.id = db.create_bucket_if_not_exists(org_id, &b).unwrap();
             b2.id = db.create_bucket_if_not_exists(b2.org_id, &b2).unwrap();
 
@@ -1224,11 +1231,13 @@ mod tests {
             db.get_or_create_series_ids_for_points(b2.id, &mut points)
                 .unwrap();
             assert_eq!(points[0].series_id(), Some(1));
-        }
+
+            TestDatabase::close(db)
+        };
 
         // now make sure that a new series gets inserted properly after restart
         {
-            let db = test_database("series_id_indexing", false);
+            let db = TestDatabase::with_directory(db_dir);
 
             // check the first org
             let mut points = vec![p4.clone()];
@@ -1258,7 +1267,7 @@ mod tests {
     #[test]
     fn series_metadata_indexing() {
         let mut bucket = Bucket::new(1, "foo".to_string());
-        let db = test_database("series_metadata_indexing", true);
+        let db = TestDatabase::new().unwrap();
         let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 0);
         let p2 = PointType::new_i64("cpu,host=a,region=west\tusage_system".to_string(), 1, 0);
         let p3 = PointType::new_i64("cpu,host=a,region=west\tusage_user".to_string(), 1, 0);
@@ -1382,7 +1391,7 @@ mod tests {
     #[test]
     fn catch_rocksdb_iterator_segfault() {
         let mut b1 = Bucket::new(1, "bucket1".to_string());
-        let db = test_database("catch_rocksdb_iterator_segfault", true);
+        let db = TestDatabase::new().unwrap();
 
         let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 1);
 
@@ -1421,7 +1430,7 @@ mod tests {
     fn write_and_read_points() {
         let mut b1 = Bucket::new(1, "bucket1".to_string());
         let mut b2 = Bucket::new(2, "bucket2".to_string());
-        let db = test_database("write_and_read_points", true);
+        let db = TestDatabase::new().unwrap();
 
         let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 1);
         let p2 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 2);
@@ -1578,7 +1587,7 @@ mod tests {
     #[test]
     fn write_and_read_float_values() {
         let mut b1 = Bucket::new(1, "bucket1".to_string());
-        let db = test_database("write_and_read_float_values", true);
+        let db = TestDatabase::new().unwrap();
 
         let p1 = PointType::new_f64("cpu,host=b,region=west\tusage_system".to_string(), 1.0, 1);
         let p2 = PointType::new_f64("cpu,host=b,region=west\tusage_system".to_string(), 2.2, 2);
@@ -1625,25 +1634,49 @@ mod tests {
         assert_eq!(points_iter.next(), None);
     }
 
-    // Test helpers
-    fn get_test_storage_path() -> String {
-        dotenv().ok(); // load .env file if present
-        match env::var("TEST_DELOREAN_DB_DIR") {
-            Ok(val) => val,
-            Err(_) => {
-                // default test asset path is <OS tmp dir>/delorean
-                let mut path = env::temp_dir();
-                path.push("delorean/");
-                path.into_os_string().into_string().unwrap()
-            }
+    struct TestDatabase {
+        rocks_db: RocksDB,
+
+        // The temporary directory **must** be last so that it is
+        // dropped after the database closes.
+        dir: TempDir,
+    }
+
+    impl TestDatabase {
+        fn new() -> Result<Self, std::io::Error> {
+            let _ = dotenv(); // load .env file if present
+
+            let root =
+                env::var_os("TEST_DELOREAN_DB_DIR").unwrap_or_else(|| env::temp_dir().into());
+            let dir = tempfile::Builder::new()
+                .prefix("delorean")
+                .tempdir_in(root)?;
+
+            Ok(Self::with_directory(dir))
+        }
+
+        fn with_directory(dir: TempDir) -> Self {
+            let rocks_db = RocksDB::new(dir.path().to_str().unwrap());
+
+            Self { dir, rocks_db }
+        }
+
+        fn close(this: Self) -> TempDir {
+            this.dir
         }
     }
 
-    fn test_database(name: &str, remove_old: bool) -> RocksDB {
-        let path = std::path::Path::new(&get_test_storage_path()).join(name);
-        if remove_old {
-            let _ = std::fs::remove_dir_all(path.to_str().unwrap());
+    impl Deref for TestDatabase {
+        type Target = RocksDB;
+
+        fn deref(&self) -> &Self::Target {
+            &self.rocks_db
         }
-        RocksDB::new(path.to_str().unwrap())
+    }
+
+    impl DerefMut for TestDatabase {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.rocks_db
+        }
     }
 }
