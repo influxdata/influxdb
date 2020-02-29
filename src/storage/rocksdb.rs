@@ -10,6 +10,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::io::Cursor;
+use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
 
 use byteorder::{BigEndian, ByteOrder, ReadBytesExt, WriteBytesExt};
@@ -43,7 +44,8 @@ const BUCKET_CF_WRITE_BUFFER_SIZE: usize = 1024 * 1024; // 1MB
 const INDEX_CF_WRITE_BUFFER_SIZE: usize = 10 * 1024 * 1024; // 10MB
 
 impl RocksDB {
-    pub fn new(dir: &str) -> RocksDB {
+    pub fn new(dir: impl AsRef<Path>) -> RocksDB {
+        let dir = dir.as_ref();
         let mut opts = Options::default();
 
         // create the database and missing column families
@@ -1656,7 +1658,7 @@ mod tests {
         }
 
         fn with_directory(dir: TempDir) -> Self {
-            let rocks_db = RocksDB::new(dir.path().to_str().unwrap());
+            let rocks_db = RocksDB::new(dir.path());
 
             Self { dir, rocks_db }
         }
