@@ -76,12 +76,12 @@ LOOP:
 	return c.res
 }
 
-type {{.name}}MultiShardArrayCursor struct {
+type {{.name}}ArrayCursor struct {
 	cursors.{{.Name}}ArrayCursor
 	filter *{{$type}}
 }
 
-func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor, cond expression) {
+func (c *{{.name}}ArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = new{{.Name}}FilterArrayCursor(cur, cond)
@@ -93,15 +93,15 @@ func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor,
 }
 
 
-func (c *{{.name}}MultiShardArrayCursor) Err() error {
+func (c *{{.name}}ArrayCursor) Err() error {
 	return c.{{.Name}}ArrayCursor.Err()
 }
 
-func (c *{{.name}}MultiShardArrayCursor) Stats() cursors.CursorStats {
+func (c *{{.name}}ArrayCursor) Stats() cursors.CursorStats {
 	return c.{{.Name}}ArrayCursor.Stats()
 }
 
-func (c *{{.name}}MultiShardArrayCursor) Next() {{$arrayType}} {
+func (c *{{.name}}ArrayCursor) Next() {{$arrayType}} {
 	return c.{{.Name}}ArrayCursor.Next()
 }
 

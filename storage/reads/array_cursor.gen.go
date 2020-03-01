@@ -77,12 +77,12 @@ LOOP:
 	return c.res
 }
 
-type floatMultiShardArrayCursor struct {
+type floatArrayCursor struct {
 	cursors.FloatArrayCursor
 	filter *floatArrayFilterCursor
 }
 
-func (c *floatMultiShardArrayCursor) reset(cur cursors.FloatArrayCursor, cond expression) {
+func (c *floatArrayCursor) reset(cur cursors.FloatArrayCursor, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newFloatFilterArrayCursor(cur, cond)
@@ -93,15 +93,15 @@ func (c *floatMultiShardArrayCursor) reset(cur cursors.FloatArrayCursor, cond ex
 	c.FloatArrayCursor = cur
 }
 
-func (c *floatMultiShardArrayCursor) Err() error {
+func (c *floatArrayCursor) Err() error {
 	return c.FloatArrayCursor.Err()
 }
 
-func (c *floatMultiShardArrayCursor) Stats() cursors.CursorStats {
+func (c *floatArrayCursor) Stats() cursors.CursorStats {
 	return c.FloatArrayCursor.Stats()
 }
 
-func (c *floatMultiShardArrayCursor) Next() *cursors.FloatArray {
+func (c *floatArrayCursor) Next() *cursors.FloatArray {
 	return c.FloatArrayCursor.Next()
 }
 
@@ -244,12 +244,12 @@ LOOP:
 	return c.res
 }
 
-type integerMultiShardArrayCursor struct {
+type integerArrayCursor struct {
 	cursors.IntegerArrayCursor
 	filter *integerArrayFilterCursor
 }
 
-func (c *integerMultiShardArrayCursor) reset(cur cursors.IntegerArrayCursor, cond expression) {
+func (c *integerArrayCursor) reset(cur cursors.IntegerArrayCursor, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newIntegerFilterArrayCursor(cur, cond)
@@ -260,15 +260,15 @@ func (c *integerMultiShardArrayCursor) reset(cur cursors.IntegerArrayCursor, con
 	c.IntegerArrayCursor = cur
 }
 
-func (c *integerMultiShardArrayCursor) Err() error {
+func (c *integerArrayCursor) Err() error {
 	return c.IntegerArrayCursor.Err()
 }
 
-func (c *integerMultiShardArrayCursor) Stats() cursors.CursorStats {
+func (c *integerArrayCursor) Stats() cursors.CursorStats {
 	return c.IntegerArrayCursor.Stats()
 }
 
-func (c *integerMultiShardArrayCursor) Next() *cursors.IntegerArray {
+func (c *integerArrayCursor) Next() *cursors.IntegerArray {
 	return c.IntegerArrayCursor.Next()
 }
 
@@ -411,12 +411,12 @@ LOOP:
 	return c.res
 }
 
-type unsignedMultiShardArrayCursor struct {
+type unsignedArrayCursor struct {
 	cursors.UnsignedArrayCursor
 	filter *unsignedArrayFilterCursor
 }
 
-func (c *unsignedMultiShardArrayCursor) reset(cur cursors.UnsignedArrayCursor, cond expression) {
+func (c *unsignedArrayCursor) reset(cur cursors.UnsignedArrayCursor, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newUnsignedFilterArrayCursor(cur, cond)
@@ -427,15 +427,15 @@ func (c *unsignedMultiShardArrayCursor) reset(cur cursors.UnsignedArrayCursor, c
 	c.UnsignedArrayCursor = cur
 }
 
-func (c *unsignedMultiShardArrayCursor) Err() error {
+func (c *unsignedArrayCursor) Err() error {
 	return c.UnsignedArrayCursor.Err()
 }
 
-func (c *unsignedMultiShardArrayCursor) Stats() cursors.CursorStats {
+func (c *unsignedArrayCursor) Stats() cursors.CursorStats {
 	return c.UnsignedArrayCursor.Stats()
 }
 
-func (c *unsignedMultiShardArrayCursor) Next() *cursors.UnsignedArray {
+func (c *unsignedArrayCursor) Next() *cursors.UnsignedArray {
 	return c.UnsignedArrayCursor.Next()
 }
 
@@ -578,12 +578,12 @@ LOOP:
 	return c.res
 }
 
-type stringMultiShardArrayCursor struct {
+type stringArrayCursor struct {
 	cursors.StringArrayCursor
 	filter *stringArrayFilterCursor
 }
 
-func (c *stringMultiShardArrayCursor) reset(cur cursors.StringArrayCursor, cond expression) {
+func (c *stringArrayCursor) reset(cur cursors.StringArrayCursor, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newStringFilterArrayCursor(cur, cond)
@@ -594,15 +594,15 @@ func (c *stringMultiShardArrayCursor) reset(cur cursors.StringArrayCursor, cond 
 	c.StringArrayCursor = cur
 }
 
-func (c *stringMultiShardArrayCursor) Err() error {
+func (c *stringArrayCursor) Err() error {
 	return c.StringArrayCursor.Err()
 }
 
-func (c *stringMultiShardArrayCursor) Stats() cursors.CursorStats {
+func (c *stringArrayCursor) Stats() cursors.CursorStats {
 	return c.StringArrayCursor.Stats()
 }
 
-func (c *stringMultiShardArrayCursor) Next() *cursors.StringArray {
+func (c *stringArrayCursor) Next() *cursors.StringArray {
 	return c.StringArrayCursor.Next()
 }
 
@@ -705,12 +705,12 @@ LOOP:
 	return c.res
 }
 
-type booleanMultiShardArrayCursor struct {
+type booleanArrayCursor struct {
 	cursors.BooleanArrayCursor
 	filter *booleanArrayFilterCursor
 }
 
-func (c *booleanMultiShardArrayCursor) reset(cur cursors.BooleanArrayCursor, cond expression) {
+func (c *booleanArrayCursor) reset(cur cursors.BooleanArrayCursor, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newBooleanFilterArrayCursor(cur, cond)
@@ -721,15 +721,15 @@ func (c *booleanMultiShardArrayCursor) reset(cur cursors.BooleanArrayCursor, con
 	c.BooleanArrayCursor = cur
 }
 
-func (c *booleanMultiShardArrayCursor) Err() error {
+func (c *booleanArrayCursor) Err() error {
 	return c.BooleanArrayCursor.Err()
 }
 
-func (c *booleanMultiShardArrayCursor) Stats() cursors.CursorStats {
+func (c *booleanArrayCursor) Stats() cursors.CursorStats {
 	return c.BooleanArrayCursor.Stats()
 }
 
-func (c *booleanMultiShardArrayCursor) Next() *cursors.BooleanArray {
+func (c *booleanArrayCursor) Next() *cursors.BooleanArray {
 	return c.BooleanArrayCursor.Next()
 }
 
