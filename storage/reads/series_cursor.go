@@ -15,8 +15,8 @@ type SeriesCursor interface {
 type SeriesRow struct {
 	SortKey    []byte
 	Name       []byte      // measurement name
-	SeriesTags models.Tags // unmodified series tags
-	Tags       models.Tags
+	SeriesTags models.Tags // unmodified series tags with measurement key as \x00, field key as \xff
+	Tags       models.Tags // tags with measurement key as _measurement, field key as _field
 	Field      string
 	Query      cursors.CursorIterator
 	ValueCond  influxql.Expr
