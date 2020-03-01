@@ -66,7 +66,7 @@ func newCountArrayCursor(cur cursors.Cursor) cursors.Cursor {
 type cursorContext struct {
 	ctx   context.Context
 	req   *cursors.CursorRequest
-	itrs  cursors.CursorIterator
+	itr   cursors.CursorIterator
 	limit int64
 	count int64
 	err   error

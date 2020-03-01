@@ -85,7 +85,7 @@ type floatMultiShardArrayCursor struct {
 	filter *floatArrayFilterCursor
 }
 
-func (c *floatMultiShardArrayCursor) reset(cur cursors.FloatArrayCursor, itrs cursors.CursorIterator, cond expression) {
+func (c *floatMultiShardArrayCursor) reset(cur cursors.FloatArrayCursor, itr cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newFloatFilterArrayCursor(cur, cond)
@@ -94,7 +94,7 @@ func (c *floatMultiShardArrayCursor) reset(cur cursors.FloatArrayCursor, itrs cu
 	}
 
 	c.FloatArrayCursor = cur
-	c.itrs = itrs
+	c.itr = itr
 	c.err = nil
 	c.count = 0
 }
@@ -267,7 +267,7 @@ type integerMultiShardArrayCursor struct {
 	filter *integerArrayFilterCursor
 }
 
-func (c *integerMultiShardArrayCursor) reset(cur cursors.IntegerArrayCursor, itrs cursors.CursorIterator, cond expression) {
+func (c *integerMultiShardArrayCursor) reset(cur cursors.IntegerArrayCursor, itr cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newIntegerFilterArrayCursor(cur, cond)
@@ -276,7 +276,7 @@ func (c *integerMultiShardArrayCursor) reset(cur cursors.IntegerArrayCursor, itr
 	}
 
 	c.IntegerArrayCursor = cur
-	c.itrs = itrs
+	c.itr = itr
 	c.err = nil
 	c.count = 0
 }
@@ -449,7 +449,7 @@ type unsignedMultiShardArrayCursor struct {
 	filter *unsignedArrayFilterCursor
 }
 
-func (c *unsignedMultiShardArrayCursor) reset(cur cursors.UnsignedArrayCursor, itrs cursors.CursorIterator, cond expression) {
+func (c *unsignedMultiShardArrayCursor) reset(cur cursors.UnsignedArrayCursor, itr cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newUnsignedFilterArrayCursor(cur, cond)
@@ -458,7 +458,7 @@ func (c *unsignedMultiShardArrayCursor) reset(cur cursors.UnsignedArrayCursor, i
 	}
 
 	c.UnsignedArrayCursor = cur
-	c.itrs = itrs
+	c.itr = itr
 	c.err = nil
 	c.count = 0
 }
@@ -631,7 +631,7 @@ type stringMultiShardArrayCursor struct {
 	filter *stringArrayFilterCursor
 }
 
-func (c *stringMultiShardArrayCursor) reset(cur cursors.StringArrayCursor, itrs cursors.CursorIterator, cond expression) {
+func (c *stringMultiShardArrayCursor) reset(cur cursors.StringArrayCursor, itr cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newStringFilterArrayCursor(cur, cond)
@@ -640,7 +640,7 @@ func (c *stringMultiShardArrayCursor) reset(cur cursors.StringArrayCursor, itrs 
 	}
 
 	c.StringArrayCursor = cur
-	c.itrs = itrs
+	c.itr = itr
 	c.err = nil
 	c.count = 0
 }
@@ -773,7 +773,7 @@ type booleanMultiShardArrayCursor struct {
 	filter *booleanArrayFilterCursor
 }
 
-func (c *booleanMultiShardArrayCursor) reset(cur cursors.BooleanArrayCursor, itrs cursors.CursorIterator, cond expression) {
+func (c *booleanMultiShardArrayCursor) reset(cur cursors.BooleanArrayCursor, itr cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newBooleanFilterArrayCursor(cur, cond)
@@ -782,7 +782,7 @@ func (c *booleanMultiShardArrayCursor) reset(cur cursors.BooleanArrayCursor, itr
 	}
 
 	c.BooleanArrayCursor = cur
-	c.itrs = itrs
+	c.itr = itr
 	c.err = nil
 	c.count = 0
 }
