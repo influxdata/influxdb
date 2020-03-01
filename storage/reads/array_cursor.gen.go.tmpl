@@ -16,9 +16,7 @@ const (
 {{$type := print .name "ArrayFilterCursor"}}
 {{$Type := print .Name "ArrayFilterCursor"}}
 
-// ********************
-// {{.Name}} Array Cursor
-
+// {{$type}} wraps cursors.{{.Name}}ArrayCursor, adding a filter expression
 type {{$type}} struct {
 	cursors.{{.Name}}ArrayCursor
 	cond expression

@@ -17,9 +17,7 @@ const (
 	MaxPointsPerBlock = 1000
 )
 
-// ********************
-// Float Array Cursor
-
+// floatArrayFilterCursor wraps cursors.FloatArrayCursor, adding a filter expression
 type floatArrayFilterCursor struct {
 	cursors.FloatArrayCursor
 	cond expression
@@ -186,9 +184,7 @@ func (c *floatEmptyArrayCursor) Close()                     {}
 func (c *floatEmptyArrayCursor) Stats() cursors.CursorStats { return cursors.CursorStats{} }
 func (c *floatEmptyArrayCursor) Next() *cursors.FloatArray  { return &c.res }
 
-// ********************
-// Integer Array Cursor
-
+// integerArrayFilterCursor wraps cursors.IntegerArrayCursor, adding a filter expression
 type integerArrayFilterCursor struct {
 	cursors.IntegerArrayCursor
 	cond expression
@@ -355,9 +351,7 @@ func (c *integerEmptyArrayCursor) Close()                      {}
 func (c *integerEmptyArrayCursor) Stats() cursors.CursorStats  { return cursors.CursorStats{} }
 func (c *integerEmptyArrayCursor) Next() *cursors.IntegerArray { return &c.res }
 
-// ********************
-// Unsigned Array Cursor
-
+// unsignedArrayFilterCursor wraps cursors.UnsignedArrayCursor, adding a filter expression
 type unsignedArrayFilterCursor struct {
 	cursors.UnsignedArrayCursor
 	cond expression
@@ -524,9 +518,7 @@ func (c *unsignedEmptyArrayCursor) Close()                       {}
 func (c *unsignedEmptyArrayCursor) Stats() cursors.CursorStats   { return cursors.CursorStats{} }
 func (c *unsignedEmptyArrayCursor) Next() *cursors.UnsignedArray { return &c.res }
 
-// ********************
-// String Array Cursor
-
+// stringArrayFilterCursor wraps cursors.StringArrayCursor, adding a filter expression
 type stringArrayFilterCursor struct {
 	cursors.StringArrayCursor
 	cond expression
@@ -653,9 +645,7 @@ func (c *stringEmptyArrayCursor) Close()                     {}
 func (c *stringEmptyArrayCursor) Stats() cursors.CursorStats { return cursors.CursorStats{} }
 func (c *stringEmptyArrayCursor) Next() *cursors.StringArray { return &c.res }
 
-// ********************
-// Boolean Array Cursor
-
+// booleanArrayFilterCursor wraps cursors.BooleanArrayCursor, adding a filter expression
 type booleanArrayFilterCursor struct {
 	cursors.BooleanArrayCursor
 	cond expression
