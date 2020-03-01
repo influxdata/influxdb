@@ -95,7 +95,6 @@ func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor,
 	c.{{.Name}}ArrayCursor = cur
 	c.itr = itr
 	c.err = nil
-	c.count = 0
 }
 
 
@@ -106,18 +105,7 @@ func (c *{{.name}}MultiShardArrayCursor) Stats() cursors.CursorStats {
 }
 
 func (c *{{.name}}MultiShardArrayCursor) Next() {{$arrayType}} {
-	for {
-		a := c.{{.Name}}ArrayCursor.Next()
-		c.count += int64(a.Len())
-		if c.count > c.limit {
-			diff := c.count - c.limit
-			c.count -= diff
-			rem := int64(a.Len()) - diff
-			a.Timestamps = a.Timestamps[:rem]
-			a.Values = a.Values[:rem]
-		}
-		return a
-	}
+	return c.{{.Name}}ArrayCursor.Next()
 }
 
 {{if .Agg}}
