@@ -10,7 +10,6 @@ import (
 
 type resultSet struct {
 	ctx          context.Context
-	agg          *datatypes.Aggregate
 	seriesCursor SeriesCursor
 	seriesRow    SeriesRow
 	arrayCursors *arrayCursors
@@ -52,11 +51,7 @@ func (r *resultSet) Next() bool {
 }
 
 func (r *resultSet) Cursor() cursors.Cursor {
-	cur := r.arrayCursors.createCursor(r.seriesRow)
-	if r.agg != nil {
-		cur = newAggregateArrayCursor(r.ctx, r.agg, cur)
-	}
-	return cur
+	return r.arrayCursors.createCursor(r.seriesRow)
 }
 
 func (r *resultSet) Tags() models.Tags {
