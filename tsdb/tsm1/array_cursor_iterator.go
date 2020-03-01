@@ -32,11 +32,11 @@ type arrayCursorIterator struct {
 	}
 }
 
-func (q *arrayCursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (tsdb.Cursor, error) {
+func (q *arrayCursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) tsdb.Cursor {
 	q.key = tsdb.AppendSeriesKey(q.key[:0], r.Name, r.Tags)
 	id := q.e.sfile.SeriesIDTypedBySeriesKey(q.key)
 	if id.IsZero() {
-		return nil, nil
+		return nil
 	}
 
 	q.e.readTracker.AddCursors(1)
@@ -53,15 +53,15 @@ func (q *arrayCursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (
 	// Return appropriate cursor based on type.
 	switch typ := id.Type(); typ {
 	case models.Float:
-		return q.buildFloatArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
+		return q.buildFloatArrayCursor(ctx, r.Name, r.Tags, r.Field, opt)
 	case models.Integer:
-		return q.buildIntegerArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
+		return q.buildIntegerArrayCursor(ctx, r.Name, r.Tags, r.Field, opt)
 	case models.Unsigned:
-		return q.buildUnsignedArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
+		return q.buildUnsignedArrayCursor(ctx, r.Name, r.Tags, r.Field, opt)
 	case models.String:
-		return q.buildStringArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
+		return q.buildStringArrayCursor(ctx, r.Name, r.Tags, r.Field, opt)
 	case models.Boolean:
-		return q.buildBooleanArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
+		return q.buildBooleanArrayCursor(ctx, r.Name, r.Tags, r.Field, opt)
 	default:
 		panic(fmt.Sprintf("unreachable: %v", typ))
 	}

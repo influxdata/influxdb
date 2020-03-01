@@ -101,7 +101,7 @@ func (m *arrayCursors) createCursor(seriesRow SeriesRow) cursors.Cursor {
 
 	var cur cursors.Cursor
 	if seriesRow.Query != nil {
-		cur, _ = seriesRow.Query.Next(m.ctx, &m.req)
+		cur = seriesRow.Query.Next(m.ctx, &m.req)
 	}
 	if cur == nil {
 		return nil

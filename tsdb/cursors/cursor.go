@@ -49,7 +49,7 @@ type CursorRequest struct {
 }
 
 type CursorIterator interface {
-	Next(ctx context.Context, r *CursorRequest) (Cursor, error)
+	Next(ctx context.Context, r *CursorRequest) Cursor
 	Stats() CursorStats
 }
 

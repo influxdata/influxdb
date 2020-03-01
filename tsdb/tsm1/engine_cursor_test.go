@@ -56,17 +56,13 @@ func TestEngine_CursorIterator_Stats(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cur, err := cursorIterator.Next(ctx, &tsdb.CursorRequest{
+	cur := cursorIterator.Next(ctx, &tsdb.CursorRequest{
 		Name:      []byte("cpu"),
 		Tags:      []models.Tag{{Key: []byte("a"), Value: []byte("b")}},
 		Field:     "value",
 		EndTime:   time.Now().UTC().UnixNano(),
 		Ascending: true,
 	})
-
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	if cur == nil {
 		t.Fatal("expected cursor to be present")
@@ -83,17 +79,13 @@ func TestEngine_CursorIterator_Stats(t *testing.T) {
 
 	cur.Close()
 
-	cur, err = cursorIterator.Next(ctx, &tsdb.CursorRequest{
+	cur = cursorIterator.Next(ctx, &tsdb.CursorRequest{
 		Name:      []byte("mem"),
 		Tags:      []models.Tag{{Key: []byte("b"), Value: []byte("c")}},
 		Field:     "value",
 		EndTime:   time.Now().UTC().UnixNano(),
 		Ascending: true,
 	})
-
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	if cur == nil {
 		t.Fatal("expected cursor to be present")

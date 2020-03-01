@@ -20,7 +20,7 @@ type seriesGeneratorCursorIterator struct {
 	cur cursors.Cursor
 }
 
-func (ci *seriesGeneratorCursorIterator) Next(ctx context.Context, r *cursors.CursorRequest) (cursors.Cursor, error) {
+func (ci *seriesGeneratorCursorIterator) Next(ctx context.Context, r *cursors.CursorRequest) cursors.Cursor {
 	switch ci.g.FieldType() {
 	case models.Float:
 		ci.f.tv = ci.g.TimeValuesGenerator()
@@ -41,7 +41,7 @@ func (ci *seriesGeneratorCursorIterator) Next(ctx context.Context, r *cursors.Cu
 		panic("unreachable")
 	}
 
-	return ci.cur, nil
+	return ci.cur
 }
 
 func (ci *seriesGeneratorCursorIterator) Stats() cursors.CursorStats {
