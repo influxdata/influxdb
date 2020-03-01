@@ -84,7 +84,7 @@ type {{.name}}MultiShardArrayCursor struct {
 	filter *{{$type}}
 }
 
-func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor, itr cursors.CursorIterator, cond expression) {
+func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = new{{.Name}}FilterArrayCursor(cur, cond)
@@ -93,7 +93,6 @@ func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor,
 	}
 
 	c.{{.Name}}ArrayCursor = cur
-	c.itr = itr
 	c.err = nil
 }
 

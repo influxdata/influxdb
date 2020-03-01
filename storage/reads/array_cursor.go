@@ -66,7 +66,6 @@ func newCountArrayCursor(cur cursors.Cursor) cursors.Cursor {
 type cursorContext struct {
 	ctx context.Context
 	req *cursors.CursorRequest
-	itr cursors.CursorIterator
 	err error
 }
 
@@ -127,19 +126,19 @@ func (m *multiShardArrayCursors) createCursor(seriesRow SeriesRow) cursors.Curso
 
 	switch c := cur.(type) {
 	case cursors.IntegerArrayCursor:
-		m.cursors.i.reset(c, seriesRow.Query, cond)
+		m.cursors.i.reset(c, cond)
 		return &m.cursors.i
 	case cursors.FloatArrayCursor:
-		m.cursors.f.reset(c, seriesRow.Query, cond)
+		m.cursors.f.reset(c, cond)
 		return &m.cursors.f
 	case cursors.UnsignedArrayCursor:
-		m.cursors.u.reset(c, seriesRow.Query, cond)
+		m.cursors.u.reset(c, cond)
 		return &m.cursors.u
 	case cursors.StringArrayCursor:
-		m.cursors.s.reset(c, seriesRow.Query, cond)
+		m.cursors.s.reset(c, cond)
 		return &m.cursors.s
 	case cursors.BooleanArrayCursor:
-		m.cursors.b.reset(c, seriesRow.Query, cond)
+		m.cursors.b.reset(c, cond)
 		return &m.cursors.b
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
