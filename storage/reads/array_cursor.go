@@ -145,7 +145,3 @@ func (m *multiShardArrayCursors) createCursor(seriesRow SeriesRow) cursors.Curso
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
 }
-
-func (m *multiShardArrayCursors) newAggregateCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) cursors.Cursor {
-	return newAggregateArrayCursor(ctx, agg, cursor)
-}
