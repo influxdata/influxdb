@@ -63,12 +63,6 @@ func newCountArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	}
 }
 
-type cursorContext struct {
-	ctx context.Context
-	req *cursors.CursorRequest
-	err error
-}
-
 type multiShardArrayCursors struct {
 	ctx context.Context
 	req cursors.CursorRequest
@@ -91,17 +85,6 @@ func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool) 
 			EndTime:   end,
 		},
 	}
-
-	cc := cursorContext{
-		ctx: ctx,
-		req: &m.req,
-	}
-
-	m.cursors.i.cursorContext = cc
-	m.cursors.f.cursorContext = cc
-	m.cursors.u.cursorContext = cc
-	m.cursors.b.cursorContext = cc
-	m.cursors.s.cursorContext = cc
 
 	return m
 }

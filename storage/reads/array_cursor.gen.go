@@ -81,7 +81,6 @@ LOOP:
 
 type floatMultiShardArrayCursor struct {
 	cursors.FloatArrayCursor
-	cursorContext
 	filter *floatArrayFilterCursor
 }
 
@@ -94,10 +93,11 @@ func (c *floatMultiShardArrayCursor) reset(cur cursors.FloatArrayCursor, cond ex
 	}
 
 	c.FloatArrayCursor = cur
-	c.err = nil
 }
 
-func (c *floatMultiShardArrayCursor) Err() error { return c.err }
+func (c *floatMultiShardArrayCursor) Err() error {
+	return c.FloatArrayCursor.Err()
+}
 
 func (c *floatMultiShardArrayCursor) Stats() cursors.CursorStats {
 	return c.FloatArrayCursor.Stats()
@@ -250,7 +250,6 @@ LOOP:
 
 type integerMultiShardArrayCursor struct {
 	cursors.IntegerArrayCursor
-	cursorContext
 	filter *integerArrayFilterCursor
 }
 
@@ -263,10 +262,11 @@ func (c *integerMultiShardArrayCursor) reset(cur cursors.IntegerArrayCursor, con
 	}
 
 	c.IntegerArrayCursor = cur
-	c.err = nil
 }
 
-func (c *integerMultiShardArrayCursor) Err() error { return c.err }
+func (c *integerMultiShardArrayCursor) Err() error {
+	return c.IntegerArrayCursor.Err()
+}
 
 func (c *integerMultiShardArrayCursor) Stats() cursors.CursorStats {
 	return c.IntegerArrayCursor.Stats()
@@ -419,7 +419,6 @@ LOOP:
 
 type unsignedMultiShardArrayCursor struct {
 	cursors.UnsignedArrayCursor
-	cursorContext
 	filter *unsignedArrayFilterCursor
 }
 
@@ -432,10 +431,11 @@ func (c *unsignedMultiShardArrayCursor) reset(cur cursors.UnsignedArrayCursor, c
 	}
 
 	c.UnsignedArrayCursor = cur
-	c.err = nil
 }
 
-func (c *unsignedMultiShardArrayCursor) Err() error { return c.err }
+func (c *unsignedMultiShardArrayCursor) Err() error {
+	return c.UnsignedArrayCursor.Err()
+}
 
 func (c *unsignedMultiShardArrayCursor) Stats() cursors.CursorStats {
 	return c.UnsignedArrayCursor.Stats()
@@ -588,7 +588,6 @@ LOOP:
 
 type stringMultiShardArrayCursor struct {
 	cursors.StringArrayCursor
-	cursorContext
 	filter *stringArrayFilterCursor
 }
 
@@ -601,10 +600,11 @@ func (c *stringMultiShardArrayCursor) reset(cur cursors.StringArrayCursor, cond 
 	}
 
 	c.StringArrayCursor = cur
-	c.err = nil
 }
 
-func (c *stringMultiShardArrayCursor) Err() error { return c.err }
+func (c *stringMultiShardArrayCursor) Err() error {
+	return c.StringArrayCursor.Err()
+}
 
 func (c *stringMultiShardArrayCursor) Stats() cursors.CursorStats {
 	return c.StringArrayCursor.Stats()
@@ -717,7 +717,6 @@ LOOP:
 
 type booleanMultiShardArrayCursor struct {
 	cursors.BooleanArrayCursor
-	cursorContext
 	filter *booleanArrayFilterCursor
 }
 
@@ -730,10 +729,11 @@ func (c *booleanMultiShardArrayCursor) reset(cur cursors.BooleanArrayCursor, con
 	}
 
 	c.BooleanArrayCursor = cur
-	c.err = nil
 }
 
-func (c *booleanMultiShardArrayCursor) Err() error { return c.err }
+func (c *booleanMultiShardArrayCursor) Err() error {
+	return c.BooleanArrayCursor.Err()
+}
 
 func (c *booleanMultiShardArrayCursor) Stats() cursors.CursorStats {
 	return c.BooleanArrayCursor.Stats()

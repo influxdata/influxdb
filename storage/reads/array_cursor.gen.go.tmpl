@@ -80,7 +80,6 @@ LOOP:
 
 type {{.name}}MultiShardArrayCursor struct {
 	cursors.{{.Name}}ArrayCursor
-	cursorContext
 	filter *{{$type}}
 }
 
@@ -93,11 +92,12 @@ func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor,
 	}
 
 	c.{{.Name}}ArrayCursor = cur
-	c.err = nil
 }
 
 
-func (c *{{.name}}MultiShardArrayCursor) Err() error { return c.err }
+func (c *{{.name}}MultiShardArrayCursor) Err() error {
+	return c.{{.Name}}ArrayCursor.Err()
+}
 
 func (c *{{.name}}MultiShardArrayCursor) Stats() cursors.CursorStats {
 	return c.{{.Name}}ArrayCursor.Stats()
