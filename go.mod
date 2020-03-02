@@ -1,110 +1,56 @@
 module github.com/influxdata/influxdb
 
-go 1.12
+go 1.13
 
 require (
-	cloud.google.com/go v0.47.0
+	cloud.google.com/go/bigtable v1.2.0 // indirect
 	collectd.org v0.3.0
-	github.com/BurntSushi/toml v0.0.0-20170626110600-a368813c5e64
-	github.com/alecthomas/kingpin v2.2.6+incompatible
-	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc
-	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf
-	github.com/apache/arrow v0.0.0-20191024131854-af6fa24be0db
-	github.com/apex/log v1.1.0
-	github.com/aws/aws-sdk-go v1.25.16
-	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
-	github.com/blakesmith/ar v0.0.0-20150311145944-8bd4349a67f2
+	github.com/BurntSushi/toml v0.3.1
+	github.com/apache/arrow/go/arrow v0.0.0-20191024131854-af6fa24be0db
+	github.com/aws/aws-sdk-go v1.25.16 // indirect
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40
 	github.com/boltdb/bolt v1.3.1
-	github.com/c-bata/go-prompt v0.2.1
-	github.com/caarlos0/ctrlc v1.0.0
-	github.com/campoy/unique v0.0.0-20180121183637-88950e537e7e
-	github.com/cespare/xxhash v1.0.0
-	github.com/davecgh/go-spew v1.1.0
+	github.com/cespare/xxhash v1.1.0
+	github.com/davecgh/go-spew v1.1.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
-	github.com/eclipse/paho.mqtt.golang v1.2.0
-	github.com/fatih/color v1.5.0
-	github.com/glycerine/go-unsnap-stream v0.0.0-20180323001048-9f0cb55181dd
-	github.com/go-sql-driver/mysql v1.4.1
+	github.com/glycerine/go-unsnap-stream v0.0.0-20180323001048-9f0cb55181dd // indirect
+	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 // indirect
 	github.com/gogo/protobuf v1.1.1
-	github.com/golang/groupcache v0.0.0-20191002201903-404acd9df4cc
-	github.com/golang/protobuf v1.1.0
-	github.com/golang/snappy v0.0.0-20160529050041-d9eb7a3d35ec
-	github.com/google/go-cmp v0.2.0
-	github.com/google/go-github v0.0.0-20181009003523-dd29b543e14c
-	github.com/google/go-querystring v1.0.0
-	github.com/googleapis/gax-go v1.0.3
-	github.com/goreleaser/archive v1.1.3
-	github.com/goreleaser/goreleaser v0.79.2
-	github.com/goreleaser/nfpm v0.9.7
-	github.com/imdario/mergo v0.3.6
-	github.com/influxdata/changelog v0.0.0-20180330035926-d2664f8a12e3
+	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
+	github.com/google/go-cmp v0.4.0
 	github.com/influxdata/flux v0.50.2
 	github.com/influxdata/influxql v1.0.1
-	github.com/influxdata/line-protocol v0.0.0-20190220025226-a3afd890113f
-	github.com/influxdata/roaring v0.0.0-20180809181101-fc520f41fab6
-	github.com/influxdata/tdigest v0.0.0-20181121200506-bf2b5ad3c0a9
+	github.com/influxdata/roaring v0.4.13-0.20180809181101-fc520f41fab6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
-	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af
-	github.com/jstemmer/go-junit-report v0.9.1
-	github.com/jsternberg/markdownfmt v0.0.0-20180204232022-c2a5702991e3
 	github.com/jsternberg/zap-logfmt v1.0.0
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
-	github.com/kisielk/gotool v1.0.0
-	github.com/klauspost/compress v1.4.0
-	github.com/klauspost/cpuid v0.0.0-20170728055534-ae7887de9fa5
-	github.com/klauspost/crc32 v0.0.0-20161016154125-cb6bfca970f6
-	github.com/klauspost/pgzip v0.0.0-20170402124221-0bf5dcad4ada
-	github.com/lib/pq v1.0.0
-	github.com/masterminds/semver v1.4.2
-	github.com/mattn/go-colorable v0.0.9
+	github.com/klauspost/compress v1.4.0 // indirect
+	github.com/klauspost/cpuid v0.0.0-20170728055534-ae7887de9fa5 // indirect
+	github.com/klauspost/crc32 v0.0.0-20161016154125-cb6bfca970f6 // indirect
+	github.com/klauspost/pgzip v1.0.2-0.20170402124221-0bf5dcad4ada
 	github.com/mattn/go-isatty v0.0.4
-	github.com/mattn/go-runewidth v0.0.2
-	github.com/mattn/go-tty v0.0.0-20180907095812-13ff1204f104
-	github.com/mattn/go-zglob v0.0.1
-	github.com/matttproud/golang_protobuf_extensions v1.0.1
-	github.com/mitchellh/go-homedir v1.0.0
-	github.com/mschoch/smat v0.0.0-20160514031455-90eadee771ae
-	github.com/opentracing/opentracing-go v0.0.0-20180606204148-bd9c31933947
+	github.com/mattn/go-zglob v0.0.1 // indirect
+	github.com/mschoch/smat v0.0.0-20160514031455-90eadee771ae // indirect
+	github.com/opentracing/opentracing-go v1.0.3-0.20180606204148-bd9c31933947
 	github.com/paulbellamy/ratecounter v0.2.0
-	github.com/peterh/liner v0.0.0-20180619022028-8c1271fcf47f
-	github.com/philhofer/fwd v1.0.0
-	github.com/pkg/errors v0.8.0
-	github.com/pkg/term v0.0.0-20180730021639-bffc007b7fd5
-	github.com/prometheus/client_golang v0.0.0-20171201122222-661e31bf844d
-	github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910
-	github.com/prometheus/common v0.0.0-20180518154759-7600349dcfe1
-	github.com/prometheus/procfs v0.0.0-20180705121852-ae68e2d4c00f
-	github.com/retailnext/hllpp v0.0.0-20180308014038-101a6d2f8b52
-	github.com/satori/go.uuid v1.2.0
-	github.com/segmentio/kafka-go v0.2.2
-	github.com/shurcooL/go v0.0.0-20190704215121-7189cc372560
-	github.com/shurcooL/sanitized_anchor_name v1.0.0
+	github.com/peterh/liner v1.0.1-0.20180619022028-8c1271fcf47f
+	github.com/philhofer/fwd v1.0.0 // indirect
+	github.com/pkg/errors v0.8.1
+	github.com/prometheus/client_golang v1.0.0
+	github.com/retailnext/hllpp v1.0.1-0.20180308014038-101a6d2f8b52
+	github.com/segmentio/kafka-go v0.2.0 // indirect
+	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/spf13/cast v1.3.0
 	github.com/tinylib/msgp v1.0.2
-	github.com/willf/bitset v1.1.3
+	github.com/willf/bitset v1.1.3 // indirect
 	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6
-	go.opencensus.io v0.22.1
-	go.uber.org/atomic v1.3.2
-	go.uber.org/multierr v1.1.0
-	go.uber.org/zap v1.9.0
-	golang.org/x/crypto v0.0.0-20180718160520-a2144134853f
-	golang.org/x/exp v0.0.0-20191014171548-69215a2ee97e
-	golang.org/x/lint v0.0.0-20190930215403-16217165b5de
-	golang.org/x/net v0.0.0-20180719180050-a680a1efc54d
-	golang.org/x/oauth2 v0.0.0-20181003184128-c57b0facaced
-	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
-	golang.org/x/sys v0.0.0-20180715085529-ac767d655b30
-	golang.org/x/text v0.3.0
-	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
-	golang.org/x/tools v0.0.0-20181101071927-45ff765b4815
-	gonum.org/v1/gonum v0.6.0
-	google.golang.org/api v0.5.0
-	google.golang.org/appengine v1.2.0
-	google.golang.org/genproto v0.0.0-20180718234121-fedd2861243f
-	google.golang.org/grpc v1.13.0
-	gopkg.in/russross/blackfriday.v2 v2.0.1
-	gopkg.in/yaml.v2 v2.2.1
-	honnef.co/go/tools v0.0.0-20180110233758-d73ab98e7c39
+	go.uber.org/zap v1.9.1
+	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
+	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
+	golang.org/x/sys v0.0.0-20200107162124-548cf772de50
+	golang.org/x/text v0.3.2
+	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
+	gonum.org/v1/gonum v0.6.0 // indirect
+	google.golang.org/grpc v1.26.0
 )

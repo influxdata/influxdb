@@ -79,7 +79,9 @@ func benchmarkRingGetPartition(b *testing.B, r *ring, keys int) {
 	}
 }
 
-func BenchmarkRing_getPartition_100(b *testing.B) { benchmarkRingGetPartition(b, MustNewRing(256), 100) }
+func BenchmarkRing_getPartition_100(b *testing.B) {
+	benchmarkRingGetPartition(b, MustNewRing(256), 100)
+}
 func BenchmarkRing_getPartition_1000(b *testing.B) {
 	benchmarkRingGetPartition(b, MustNewRing(256), 1000)
 }

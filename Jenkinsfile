@@ -48,23 +48,19 @@ pipeline {
     stage('64bit') {
       agent {
         docker {
-          image 'golang:1.12'
-          args '-e "GOCACHE=/tmp"'	
+          image 'golang:1.13'
+          args '-e "GOCACHE=/tmp"'
         }
       }
 
       steps {
         sh """
-        mkdir -p /go/src/github.com/influxdata
-        cp -a $WORKSPACE /go/src/github.com/influxdata/influxdb
-
-        cd /go/src/github.com/influxdata/influxdb
-        go get github.com/golang/dep/cmd/dep
-        dep ensure -vendor-only
+				cd $WORKSPACE
+				go mod download
         """
 
         sh """
-        cd /go/src/github.com/influxdata/influxdb
+        cd $WORKSPACE
         go test -parallel=1 ./...
         """
       }
@@ -79,16 +75,12 @@ pipeline {
 
       steps {
         sh """
-        mkdir -p /go/src/github.com/influxdata
-        cp -a $WORKSPACE /go/src/github.com/influxdata/influxdb
-
-        cd /go/src/github.com/influxdata/influxdb
-        go get github.com/golang/dep/cmd/dep
-        dep ensure -vendor-only
+				cd $WORKSPACE
+				go mod download
         """
 
         sh """
-        cd /go/src/github.com/influxdata/influxdb
+        cd $WORKSPACE
         go test -parallel=1 ./...
         """
       }
