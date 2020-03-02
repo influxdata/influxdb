@@ -90,6 +90,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"to_uint": "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
 
 		"holt_winters_panic": "Expected output is an empty table which breaks the testing framework (https://github.com/influxdata/influxdb/issues/14749)",
+		"fill_previous":      "algo-w: https://github.com/influxdata/influxdb/issues/17065",
 	},
 	"experimental": {
 		"set": "Reason TBD",
@@ -106,7 +107,8 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"show_tag_keys":     "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
 	},
 	"influxdata/influxdb/monitor": {
-		"check": "Cannot see overridden options from inside stdlib functions (https://github.com/influxdata/flux/issues/1720)",
+		"check":         "Cannot see overridden options from inside stdlib functions (https://github.com/influxdata/flux/issues/1720)",
+		"state_changes": "algo-w: https://github.com/influxdata/influxdb/issues/17064",
 	},
 	"influxdata/influxdb/secrets": {
 		"secrets": "Cannot inject custom deps into the test framework so the secrets don't lookup correctly",
@@ -127,5 +129,11 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	"testing/promql": {
 		"emptyTable": "tests a source",
 		"year":       "flakey test: https://github.com/influxdata/influxdb/issues/15667",
+	},
+	"testing/usage": {
+		"storage": "algo-w: https://github.com/influxdata/flux/issues/2570",
+	},
+	"testing/influxql": {
+		"aggregate_group_by_time": "algo-w: https://github.com/influxdata/influxdb/issues/17064",
 	},
 }
