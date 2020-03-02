@@ -13,6 +13,18 @@ import (
 var (
 	authBucket = []byte("authorizationsv1")
 	authIndex  = []byte("authorizationindexv1")
+
+	authByUserIndex = NewIndex(NewIndexMapping(
+		authBucket,
+		[]byte("authorizationbyuserindexv1"),
+		func(v []byte) ([]byte, error) {
+			var auth influxdb.Authorization
+			if err := json.Unmarshal(v, &auth); err != nil {
+				return nil, err
+			}
+			return auth.UserID.Encode()
+		},
+	))
 )
 
 var _ influxdb.AuthorizationService = (*Service)(nil)

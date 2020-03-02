@@ -14,6 +14,18 @@ import (
 var (
 	urmBucket = []byte("userresourcemappingsv1")
 
+	urmByUserIndex = NewIndex(NewIndexMapping(
+		urmBucket,
+		[]byte("userresourcemappingsindexv1"),
+		func(v []byte) ([]byte, error) {
+			var urm influxdb.UserResourceMapping
+			if err := json.Unmarshal(v, &urm); err != nil {
+				return nil, err
+			}
+			return urm.UserID.Encode()
+		},
+	))
+
 	// ErrInvalidURMID is used when the service was provided
 	// an invalid ID format.
 	ErrInvalidURMID = &influxdb.Error{

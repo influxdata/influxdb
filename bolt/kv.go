@@ -34,6 +34,11 @@ func NewKVStore(log *zap.Logger, path string) *KVStore {
 	}
 }
 
+// AutoMigrate returns true as the bolt KVStore is safe to migrate on initialize.
+func (s *KVStore) AutoMigrate() bool {
+	return true
+}
+
 // Open creates boltDB file it doesn't exists and opens it otherwise.
 func (s *KVStore) Open(ctx context.Context) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
