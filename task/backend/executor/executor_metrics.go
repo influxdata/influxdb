@@ -17,16 +17,17 @@ type ExecutorMetrics struct {
 	manualRunsCounter    *prometheus.CounterVec
 	resumeRunsCounter    *prometheus.CounterVec
 	unrecoverableCounter *prometheus.CounterVec
+	runLatency           *prometheus.HistogramVec
 }
 
 type runCollector struct {
 	totalRunsActive   *prometheus.Desc
 	workersBusy       *prometheus.Desc
 	promiseQueueUsage *prometheus.Desc
-	te                *TaskExecutor
+	ex                *Executor
 }
 
-func NewExecutorMetrics(te *TaskExecutor) *ExecutorMetrics {
+func NewExecutorMetrics(ex *Executor) *ExecutorMetrics {
 	const namespace = "task"
 	const subsystem = "executor"
 
@@ -38,7 +39,7 @@ func NewExecutorMetrics(te *TaskExecutor) *ExecutorMetrics {
 			Help:      "Total number of runs completed across all tasks, split out by success or failure.",
 		}, []string{"task_type", "status"}),
 
-		activeRuns: NewRunCollector(te),
+		activeRuns: NewRunCollector(ex),
 
 		queueDelta: prometheus.NewSummaryVec(prometheus.SummaryOpts{
 			Namespace:  namespace,
@@ -83,11 +84,18 @@ func NewExecutorMetrics(te *TaskExecutor) *ExecutorMetrics {
 			Name:      "resume_runs_counter",
 			Help:      "Total number of runs resumed by task ID",
 		}, []string{"taskID"}),
+
+		runLatency: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "run_latency_seconds",
+			Help:      "Records the latency between the time the run was due to run and the time the task started execution, by task type",
+		}, []string{"task_type"}),
 	}
 }
 
 // NewRunCollector returns a collector which exports influxdb process metrics.
-func NewRunCollector(te *TaskExecutor) prometheus.Collector {
+func NewRunCollector(ex *Executor) prometheus.Collector {
 	return &runCollector{
 		workersBusy: prometheus.NewDesc(
 			"task_executor_workers_busy",
@@ -107,7 +115,7 @@ func NewRunCollector(te *TaskExecutor) prometheus.Collector {
 			nil,
 			prometheus.Labels{},
 		),
-		te: te,
+		ex: ex,
 	}
 }
 
@@ -122,13 +130,17 @@ func (em *ExecutorMetrics) PrometheusCollectors() []prometheus.Collector {
 		em.manualRunsCounter,
 		em.resumeRunsCounter,
 		em.unrecoverableCounter,
+		em.runLatency,
 	}
 }
 
 // StartRun store the delta time between when a run is due to start and actually starting.
-func (em *ExecutorMetrics) StartRun(task *influxdb.Task, queueDelta time.Duration) {
+func (em *ExecutorMetrics) StartRun(task *influxdb.Task, queueDelta time.Duration, runLatency time.Duration) {
 	em.queueDelta.WithLabelValues(task.Type, "all").Observe(queueDelta.Seconds())
 	em.queueDelta.WithLabelValues("", task.ID.String()).Observe(queueDelta.Seconds())
+
+	// schedule interval duration = (time task was scheduled to run) - (time it actually ran)
+	em.runLatency.WithLabelValues(task.Type).Observe(runLatency.Seconds())
 }
 
 // FinishRun adjusts the metrics to indicate a run is no longer in progress for the given task ID.
@@ -170,9 +182,9 @@ func (r *runCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the run collector.
 func (r *runCollector) Collect(ch chan<- prometheus.Metric) {
-	ch <- prometheus.MustNewConstMetric(r.workersBusy, prometheus.GaugeValue, r.te.WorkersBusy())
+	ch <- prometheus.MustNewConstMetric(r.workersBusy, prometheus.GaugeValue, r.ex.WorkersBusy())
 
-	ch <- prometheus.MustNewConstMetric(r.promiseQueueUsage, prometheus.GaugeValue, r.te.PromiseQueueUsage())
+	ch <- prometheus.MustNewConstMetric(r.promiseQueueUsage, prometheus.GaugeValue, r.ex.PromiseQueueUsage())
 
-	ch <- prometheus.MustNewConstMetric(r.totalRunsActive, prometheus.GaugeValue, float64(r.te.RunsActive()))
+	ch <- prometheus.MustNewConstMetric(r.totalRunsActive, prometheus.GaugeValue, float64(r.ex.RunsActive()))
 }

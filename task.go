@@ -18,6 +18,8 @@ const (
 	TaskDefaultPageSize = 100
 	TaskMaxPageSize     = 500
 
+	// TODO(jsteenb2): make these constants of type Status
+
 	TaskStatusActive   = "active"
 	TaskStatusInactive = "inactive"
 )
@@ -26,6 +28,18 @@ var (
 	// TaskSystemType is the type set in tasks' for all crud requests
 	TaskSystemType = "system"
 )
+
+// TODO: these are temporary functions until we can work through optimizing auth
+// FindTaskWithAuth adds a auth hint for lookup of tasks
+func FindTaskWithoutAuth(ctx context.Context) context.Context {
+	return context.WithValue(ctx, "taskAuth", "omit")
+}
+
+// FindTaskAuthRequired retrieves the taskAuth hint
+func FindTaskAuthRequired(ctx context.Context) bool {
+	val, ok := ctx.Value("taskAuth").(string)
+	return !(ok && val == "omit")
+}
 
 // Task is a task. 🎊
 type Task struct {
@@ -42,12 +56,13 @@ type Task struct {
 	Flux            string                 `json:"flux"`
 	Every           string                 `json:"every,omitempty"`
 	Cron            string                 `json:"cron,omitempty"`
-	Offset          string                 `json:"offset,omitempty"`
-	LatestCompleted string                 `json:"latestCompleted,omitempty"`
+	Offset          time.Duration          `json:"offset,omitempty"`
+	LatestCompleted time.Time              `json:"latestCompleted,omitempty"`
+	LatestScheduled time.Time              `json:"latestScheduled,omitempty"`
 	LastRunStatus   string                 `json:"lastRunStatus,omitempty"`
 	LastRunError    string                 `json:"lastRunError,omitempty"`
-	CreatedAt       string                 `json:"createdAt,omitempty"`
-	UpdatedAt       string                 `json:"updatedAt,omitempty"`
+	CreatedAt       time.Time              `json:"createdAt,omitempty"`
+	UpdatedAt       time.Time              `json:"updatedAt,omitempty"`
 	Metadata        map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -66,84 +81,13 @@ func (t *Task) EffectiveCron() string {
 	return ""
 }
 
-// TaskEffectiveCron returns the effective cron string of the options
-// If the cron option was specified, it is returned.
-// If the every option was specified, it is converted into a cron string using by taking the largest duration and setting it to run at that interval
-// Otherwise, the empty string is returned.
-// The value of the offset option is not considered.
-// TODO(docmerlin): when we switch completely to the new scheduler, rename this as EffectiveCron and delete the current
-//  EffectiveCron method
-func (t *Task) TaskEffectiveCron() (string, error) {
-	if t.Cron != "" {
-		return t.Cron, nil
-	}
-
-	if t.Every != "" {
-		dur := &options.Duration{}
-		err := dur.Parse(t.Every)
-		if err != nil {
-			return "", err
-		}
-		ts := struct {
-			hours   int64
-			minutes int64
-			seconds int64
-		}{1, 1, 1}
-
-		for _, x := range dur.Node.Values {
-			if x.Magnitude < 0 {
-				return "", errors.New("we do not support negative durations")
-			}
-			switch x.Unit {
-			case "h":
-				if x.Magnitude > 24 {
-					return "", errors.New("we do not support everys with hours units over 24 ")
-				}
-				ts.hours = x.Magnitude
-				return fmt.Sprintf("0 0 */%d * * * *", ts.hours), nil
-			case "m":
-				if x.Magnitude > 60 {
-					return "", errors.New("we do not support everys with seconds units over 60 ")
-				}
-				ts.minutes = x.Magnitude
-				return fmt.Sprintf("0 */%d */%d * * * *", ts.minutes, ts.hours), nil
-
-			case "s":
-				if x.Magnitude > 60 {
-					return "", errors.New("we do not support everys with seconds units over 60 ")
-				}
-				ts.seconds = x.Magnitude
-				return fmt.Sprintf("*/%d */%d */%d * * * *", ts.seconds, ts.minutes, ts.hours), nil
-			}
-		}
-		return fmt.Sprintf("*/%d */%d */%d * * * *", ts.seconds, ts.minutes, ts.hours), nil
-	}
-	return "", errors.New("either every or cron must be set")
-}
-
-// LatestCompletedTime gives the time.Time that the task was last queued to be run in RFC3339 format.
-func (t *Task) LatestCompletedTime() (time.Time, error) {
-	tm := t.LatestCompleted
-	if tm == "" {
-		tm = t.CreatedAt
-	}
-	return time.Parse(time.RFC3339, tm)
-}
-
-// OffsetDuration gives the time.Duration of the Task's Offset property, which represents a delay before execution
-func (t *Task) OffsetDuration() (time.Duration, error) {
-	if t.Offset == "" {
-		return time.Duration(0), nil
-	}
-	return time.ParseDuration(t.Offset)
-}
-
 // Run is a record createId when a run of a task is scheduled.
 type Run struct {
 	ID           ID        `json:"id,omitempty"`
 	TaskID       ID        `json:"taskID"`
 	Status       string    `json:"status"`
-	ScheduledFor time.Time `json:"scheduledFor"`          // ScheduledFor is the time the task is scheduled to run at
+	ScheduledFor time.Time `json:"scheduledFor"`          // ScheduledFor is the Now time used in the task's query
+	RunAt        time.Time `json:"runAt"`                 // RunAt is the time the task is scheduled to be run, which is ScheduledFor + Offset
 	StartedAt    time.Time `json:"startedAt,omitempty"`   // StartedAt is the time the executor begins running the task
 	FinishedAt   time.Time `json:"finishedAt,omitempty"`  // FinishedAt is the time the executor finishes running the task
 	RequestedAt  time.Time `json:"requestedAt,omitempty"` // RequestedAt is the time the coordinator told the scheduler to schedule the task
@@ -231,14 +175,14 @@ type TaskUpdate struct {
 	Description *string `json:"description,omitempty"`
 
 	// LatestCompleted us to set latest completed on startup to skip task catchup
-	LatestCompleted *string                `json:"-"`
+	LatestCompleted *time.Time             `json:"-"`
+	LatestScheduled *time.Time             `json:"-"`
 	LastRunStatus   *string                `json:"-"`
 	LastRunError    *string                `json:"-"`
 	Metadata        map[string]interface{} `json:"-"` // not to be set through a web request but rather used by a http service using tasks backend.
 
 	// Options gets unmarshalled from json as if it was flat, with the same level as Flux and Status.
 	Options options.Options // when we unmarshal this gets unmarshalled from flat key-values
-
 }
 
 func (t *TaskUpdate) UnmarshalJSON(data []byte) error {
@@ -473,6 +417,7 @@ type TaskFilter struct {
 	Organization   string
 	User           *ID
 	Limit          int
+	Status         *string
 }
 
 // QueryParams Converts TaskFilter fields to url query params.

@@ -109,7 +109,7 @@ func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb
 }
 
 func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRuleCreate) (*influxdb.Task, error) {
-	ep, _, _, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
+	ep, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.
 }
 
 func (s *Service) updateNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRule, status *string) (*influxdb.Task, error) {
-	ep, _, _, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
+	ep, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
 	}
@@ -435,15 +435,11 @@ func (s *Service) forEachNotificationRule(ctx context.Context, tx Tx, descending
 	return nil
 }
 
-func filterNotificationRulesFn(
-	idMap map[influxdb.ID]bool,
-	filter influxdb.NotificationRuleFilter) func(nr influxdb.NotificationRule) bool {
+func filterNotificationRulesFn(idMap map[influxdb.ID]bool, filter influxdb.NotificationRuleFilter) func(nr influxdb.NotificationRule) bool {
 	if filter.OrgID != nil {
 		return func(nr influxdb.NotificationRule) bool {
-			for _, ft := range filter.Tags {
-				if !nr.HasTag(ft.Key, ft.Value) {
-					return false
-				}
+			if !nr.MatchesTags(filter.Tags) {
+				return false
 			}
 
 			_, ok := idMap[nr.GetID()]
@@ -452,10 +448,8 @@ func filterNotificationRulesFn(
 	}
 
 	return func(nr influxdb.NotificationRule) bool {
-		for _, ft := range filter.Tags {
-			if !nr.HasTag(ft.Key, ft.Value) {
-				return false
-			}
+		if !nr.MatchesTags(filter.Tags) {
+			return false
 		}
 
 		_, ok := idMap[nr.GetID()]
@@ -508,7 +502,7 @@ func (s *Service) deleteNotificationRule(ctx context.Context, tx Tx, id influxdb
 	}); err != nil {
 		// TODO(desa): it is possible that there were no user resource mappings for a resource so this likely shouldn't be a blocking
 		// condition for deleting a notification rule.
-		s.Logger.Info("failed to remove user resource mappings for notification rule", zap.Error(err), zap.Stringer("rule_id", id))
+		s.log.Info("Failed to remove user resource mappings for notification rule", zap.Error(err), zap.Stringer("rule_id", id))
 	}
 
 	return nil

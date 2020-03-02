@@ -8,13 +8,12 @@ import RefreshingView from 'src/shared/components/RefreshingView'
 
 // Types
 import {TimeRange} from 'src/types'
-import {View, Check} from 'src/types'
+import {View} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface OwnProps {
   view: View
-  check: Partial<Check>
   timeRange: TimeRange
   manualRefresh: number
   onEditCell: () => void
@@ -29,23 +28,24 @@ class ViewComponent extends Component<Props> {
   }
 
   public render() {
-    const {view, timeRange, manualRefresh, check} = this.props
+    const {view, timeRange, manualRefresh} = this.props
     const {dashboardID} = this.props.params
 
-    switch (view.properties.type) {
-      case 'markdown':
+    if (view && view.properties) {
+      if (view.properties.type === 'markdown') {
         return <Markdown text={view.properties.note} />
-      default:
-        return (
-          <RefreshingView
-            timeRange={timeRange}
-            check={check}
-            properties={view.properties}
-            manualRefresh={manualRefresh}
-            dashboardID={dashboardID}
-          />
-        )
+      }
+      return (
+        <RefreshingView
+          timeRange={timeRange}
+          properties={view.properties}
+          manualRefresh={manualRefresh}
+          dashboardID={dashboardID}
+        />
+      )
     }
+
+    return null
   }
 }
 

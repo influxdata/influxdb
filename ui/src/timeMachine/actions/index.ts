@@ -1,18 +1,29 @@
 // Libraries
 import {get, isEmpty} from 'lodash'
+import {Dispatch} from 'react'
 
 // Actions
 import {loadBuckets} from 'src/timeMachine/actions/queryBuilder'
 import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
-
-// Types
-import {Dispatch} from 'redux-thunk'
-import {TimeMachineState} from 'src/timeMachine/reducers'
 import {
   reloadTagSelectors,
   Action as QueryBuilderAction,
 } from 'src/timeMachine/actions/queryBuilder'
+import {setValues} from 'src/variables/actions'
+import {convertCheckToCustom} from 'src/alerting/actions/alertBuilder'
+
+// Selectors
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+import {getActiveQuery} from 'src/timeMachine/selectors'
+
+// Utils
+import {createView} from 'src/shared/utils/view'
+import {createCheckQueryFromAlertBuilder} from 'src/alerting/utils/customCheck'
+
+// Types
+import {TimeMachineState} from 'src/timeMachine/reducers'
 import {Action as QueryResultsAction} from 'src/timeMachine/actions/queries'
+import {Action as AlertBuilderAction} from 'src/alerting/actions/alertBuilder'
 import {
   TimeRange,
   ViewType,
@@ -24,18 +35,12 @@ import {
   TimeMachineTab,
   AutoRefresh,
   TimeMachineID,
-  Check,
-  CheckType,
-  Threshold,
-  CheckStatusLevel,
   XYViewProperties,
   GetState,
+  RemoteDataState,
 } from 'src/types'
 import {Color} from 'src/types/colors'
-import {HistogramPosition} from '@influxdata/giraffe'
-import {RemoteDataState} from '@influxdata/clockface'
-import {createView} from 'src/shared/utils/view'
-import {setValues} from 'src/variables/actions'
+import {HistogramPosition, LinePosition} from '@influxdata/giraffe'
 
 export type Action =
   | QueryBuilderAction
@@ -71,6 +76,7 @@ export type Action =
   | EditActiveQueryWithBuilderAction
   | UpdateActiveQueryNameAction
   | SetFieldOptionsAction
+  | UpdateFieldOptionAction
   | SetTableOptionsAction
   | SetTimeFormatAction
   | SetXColumnAction
@@ -81,17 +87,17 @@ export type Action =
   | SetSymbolColumnsAction
   | SetBinCountAction
   | SetHistogramPositionAction
+  | ReturnType<typeof setLinePosition>
   | SetXDomainAction
   | SetYDomainAction
   | SetXAxisLabelAction
   | SetShadeBelowAction
   | ReturnType<typeof toggleVisOptions>
-  | ReturnType<typeof setCheckStatus>
-  | ReturnType<typeof setTimeMachineCheck>
-  | ReturnType<typeof updateTimeMachineCheck>
-  | ReturnType<typeof changeCheckType>
-  | ReturnType<typeof updateCheckThreshold>
-  | ReturnType<typeof removeCheckThreshold>
+
+type ExternalActions =
+  | ReturnType<typeof loadBuckets>
+  | ReturnType<typeof saveAndExecuteQueries>
+  | ReturnType<typeof setValues>
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -385,7 +391,7 @@ export const setActiveQueryIndexSync = (
 })
 
 export const setActiveQueryIndex = (activeQueryIndex: number) => (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | ExternalActions>
 ) => {
   dispatch(setActiveQueryIndexSync(activeQueryIndex))
   dispatch(loadBuckets())
@@ -399,7 +405,9 @@ export const addQuerySync = (): AddQueryAction => ({
   type: 'ADD_QUERY',
 })
 
-export const addQuery = () => (dispatch: Dispatch<Action>) => {
+export const addQuery = () => (
+  dispatch: Dispatch<Action | ExternalActions>
+) => {
   dispatch(addQuerySync())
   dispatch(loadBuckets())
 }
@@ -425,7 +433,7 @@ export const toggleQuerySync = (queryIndex: number): ToggleQueryAction => ({
 })
 
 export const removeQuery = (queryIndex: number) => (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | ExternalActions>
 ) => {
   dispatch(removeQuerySync(queryIndex))
   dispatch(loadBuckets())
@@ -433,7 +441,7 @@ export const removeQuery = (queryIndex: number) => (
 }
 
 export const toggleQuery = (queryIndex: number) => (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | ExternalActions>
 ) => {
   dispatch(toggleQuerySync(queryIndex))
   dispatch(saveAndExecuteQueries())
@@ -463,6 +471,20 @@ export const setFieldOptions = (
 ): SetFieldOptionsAction => ({
   type: 'SET_FIELD_OPTIONS',
   payload: {fieldOptions},
+})
+
+interface UpdateFieldOptionAction {
+  type: 'UPDATE_FIELD_OPTION'
+  payload: {
+    option: FieldOption
+  }
+}
+
+export const updateFieldOption = (
+  option: FieldOption
+): UpdateFieldOptionAction => ({
+  type: 'UPDATE_FIELD_OPTION',
+  payload: {option},
 })
 
 interface SetTableOptionsAction {
@@ -587,6 +609,11 @@ export const setHistogramPosition = (
   payload: {position},
 })
 
+export const setLinePosition = (position: LinePosition) => ({
+  type: 'SET_LINE_POSITION' as 'SET_LINE_POSITION',
+  payload: {position},
+})
+
 interface SetXDomainAction {
   type: 'SET_VIEW_X_DOMAIN'
   payload: {xDomain: [number, number]}
@@ -617,51 +644,47 @@ export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
   payload: {xAxisLabel},
 })
 
-export const setCheckStatus = (checkStatus: RemoteDataState) => ({
-  type: 'SET_TIME_MACHINE_CHECK_STATUS' as 'SET_TIME_MACHINE_CHECK_STATUS',
-  payload: {checkStatus},
-})
-
-export const setTimeMachineCheck = (
-  checkStatus: RemoteDataState,
-  check: Partial<Check>
-) => ({
-  type: 'SET_TIME_MACHINE_CHECK' as 'SET_TIME_MACHINE_CHECK',
-  payload: {checkStatus, check},
-})
-
-export const updateTimeMachineCheck = (checkUpdate: Partial<Check>) => ({
-  type: 'UPDATE_TIME_MACHINE_CHECK' as 'UPDATE_TIME_MACHINE_CHECK',
-  payload: {checkUpdate},
-})
-
-export const changeCheckType = (toType: CheckType) => ({
-  type: 'CHANGE_TIME_MACHINE_CHECK_TYPE' as 'CHANGE_TIME_MACHINE_CHECK_TYPE',
-  payload: {toType},
-})
-
-export const updateCheckThreshold = (threshold: Threshold) => ({
-  type: 'UPDATE_CHECK_THRESHOLD' as 'UPDATE_CHECK_THRESHOLD',
-  payload: {threshold},
-})
-
-export const removeCheckThreshold = (level: CheckStatusLevel) => ({
-  type: 'REMOVE_CHECK_THRESHOLD' as 'REMOVE_CHECK_THRESHOLD',
-  payload: {level},
-})
-
-export const loadNewVEO = (fromContextID: string) => (
-  dispatch: Dispatch<Action>,
+export const loadNewVEO = (dashboardID: string) => (
+  dispatch: Dispatch<Action | ExternalActions>,
   getState: GetState
 ): void => {
+  const state = getState()
+  const timeRange = getTimeRangeByDashboardID(state, dashboardID)
+
   dispatch(
-    setActiveTimeMachine('veo', {view: createView<XYViewProperties>('xy')})
+    setActiveTimeMachine('veo', {
+      view: createView<XYViewProperties>('xy'),
+      timeRange,
+    })
   )
 
-  const values = get(getState(), `variables.values.${fromContextID}.values`, {})
+  const values = get(getState(), `variables.values.${dashboardID}.values`, {})
 
   if (!isEmpty(values)) {
     dispatch(setValues('veo', RemoteDataState.Done, values))
   }
   // no need to refresh variable values since there is no query in a new view
+}
+
+export const loadCustomCheckQueryState = () => (
+  dispatch: Dispatch<Action | AlertBuilderAction>,
+  getState: GetState
+) => {
+  const state = getState()
+
+  const {alertBuilder} = state
+
+  const {builderConfig} = getActiveQuery(state)
+
+  dispatch(
+    setActiveQueryText(
+      createCheckQueryFromAlertBuilder(builderConfig, alertBuilder)
+    )
+  )
+
+  dispatch(setType('table'))
+
+  dispatch(convertCheckToCustom())
+
+  dispatch(setActiveTab('customCheckQuery'))
 }

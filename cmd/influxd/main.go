@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
 	_ "net/http/pprof"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/generate"
 	"github.com/influxdata/influxdb/cmd/influxd/inspect"
@@ -19,7 +22,7 @@ import (
 var (
 	version = "dev"
 	commit  = "none"
-	date    = "unknown"
+	date    = fmt.Sprint(time.Now().UTC().Format(time.RFC3339))
 )
 
 var rootCmd = &cobra.Command{
@@ -33,10 +36,21 @@ func init() {
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	rootCmd.InitDefaultHelpCmd()
-
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "version",
+		Short: "Print the influxd server version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("InfluxDB %s (git: %s) build_date: %s\n", version, commit, date)
+		},
+	})
 	rootCmd.AddCommand(launcher.NewCommand())
 	rootCmd.AddCommand(generate.Command)
 	rootCmd.AddCommand(inspect.NewCommand())
+
+	// TODO: this should be removed in the future: https://github.com/influxdata/influxdb/issues/16220
+	if os.Getenv("QUERY_TRACING") == "1" {
+		flux.EnableExperimentalTracing()
+	}
 }
 
 // find determines the default behavior when running influxd.

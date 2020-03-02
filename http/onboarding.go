@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 
@@ -16,15 +16,15 @@ import (
 // the SetupHandler.
 type SetupBackend struct {
 	platform.HTTPErrorHandler
-	Logger            *zap.Logger
+	log               *zap.Logger
 	OnboardingService platform.OnboardingService
 }
 
 // NewSetupBackend returns a new instance of SetupBackend.
-func NewSetupBackend(b *APIBackend) *SetupBackend {
+func NewSetupBackend(log *zap.Logger, b *APIBackend) *SetupBackend {
 	return &SetupBackend{
 		HTTPErrorHandler:  b.HTTPErrorHandler,
-		Logger:            b.Logger.With(zap.String("handler", "setup")),
+		log:               log,
 		OnboardingService: b.OnboardingService,
 	}
 }
@@ -33,25 +33,25 @@ func NewSetupBackend(b *APIBackend) *SetupBackend {
 type SetupHandler struct {
 	*httprouter.Router
 	platform.HTTPErrorHandler
-	Logger *zap.Logger
+	log *zap.Logger
 
 	OnboardingService platform.OnboardingService
 }
 
 const (
-	setupPath = "/api/v2/setup"
+	prefixSetup = "/api/v2/setup"
 )
 
 // NewSetupHandler returns a new instance of SetupHandler.
-func NewSetupHandler(b *SetupBackend) *SetupHandler {
+func NewSetupHandler(log *zap.Logger, b *SetupBackend) *SetupHandler {
 	h := &SetupHandler{
 		Router:            NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler:  b.HTTPErrorHandler,
-		Logger:            b.Logger,
+		log:               log,
 		OnboardingService: b.OnboardingService,
 	}
-	h.HandlerFunc("POST", setupPath, h.handlePostSetup)
-	h.HandlerFunc("GET", setupPath, h.isOnboarding)
+	h.HandlerFunc("POST", prefixSetup, h.handlePostSetup)
+	h.HandlerFunc("GET", prefixSetup, h.isOnboarding)
 	return h
 }
 
@@ -67,10 +67,10 @@ func (h *SetupHandler) isOnboarding(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("onboarding eligibility check finished", zap.String("result", fmt.Sprint(result)))
+	h.log.Debug("Onboarding eligibility check finished", zap.String("result", fmt.Sprint(result)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, isOnboardingResponse{result}); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -88,10 +88,10 @@ func (h *SetupHandler) handlePostSetup(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("onboarding setup completed", zap.String("results", fmt.Sprint(results)))
+	h.log.Debug("Onboarding setup completed", zap.String("results", fmt.Sprint(results)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newOnboardingResponse(results)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -141,7 +141,7 @@ type SetupService struct {
 
 // IsOnboarding determine if onboarding request is allowed.
 func (s *SetupService) IsOnboarding(ctx context.Context) (bool, error) {
-	u, err := NewURL(s.Addr, setupPath)
+	u, err := NewURL(s.Addr, prefixSetup)
 	if err != nil {
 		return false, err
 	}
@@ -168,7 +168,7 @@ func (s *SetupService) IsOnboarding(ctx context.Context) (bool, error) {
 
 // Generate OnboardingResults.
 func (s *SetupService) Generate(ctx context.Context, or *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
-	u, err := NewURL(s.Addr, setupPath)
+	u, err := NewURL(s.Addr, prefixSetup)
 	if err != nil {
 		return nil, err
 	}

@@ -1,35 +1,52 @@
 // API
-import {client} from 'src/utils/api'
+import {
+  getLabels as apiGetLabels,
+  postLabel as apiPostLabel,
+  patchLabel as apiPatchLabel,
+  deleteLabel as apiDeleteLabel,
+} from 'src/client'
 
 // Types
-import {RemoteDataState} from 'src/types'
-import {ILabel, ILabelProperties} from '@influxdata/influx'
-import {LabelProperties} from 'src/types/labels'
-import {Dispatch, ThunkAction} from 'redux-thunk'
+import {Dispatch} from 'react'
+import {
+  RemoteDataState,
+  AppThunk,
+  LabelProperties,
+  GetState,
+  Label,
+} from 'src/types'
 
 // Actions
-import {notify} from 'src/shared/actions/notifications'
+import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {
   getLabelsFailed,
   createLabelFailed,
   updateLabelFailed,
   deleteLabelFailed,
 } from 'src/shared/copy/notifications'
-import {GetState} from 'src/types'
 
-export type Action = SetLabels | AddLabel | EditLabel | RemoveLabel
+// Utils
+import {addLabelDefaults} from 'src/labels/utils/'
+import {getOrg} from 'src/organizations/selectors'
+
+export type Action =
+  | SetLabels
+  | AddLabel
+  | EditLabel
+  | RemoveLabel
+  | NotifyAction
 
 interface SetLabels {
   type: 'SET_LABELS'
   payload: {
     status: RemoteDataState
-    list: ILabel[]
+    list: Label[]
   }
 }
 
 export const setLabels = (
   status: RemoteDataState,
-  list?: ILabel[]
+  list?: Label[]
 ): SetLabels => ({
   type: 'SET_LABELS',
   payload: {status, list},
@@ -38,11 +55,11 @@ export const setLabels = (
 interface AddLabel {
   type: 'ADD_LABEL'
   payload: {
-    label: ILabel
+    label: Label
   }
 }
 
-export const addLabel = (label: ILabel): AddLabel => ({
+export const addLabel = (label: Label): AddLabel => ({
   type: 'ADD_LABEL',
   payload: {label},
 })
@@ -52,7 +69,7 @@ interface EditLabel {
   payload: {label}
 }
 
-export const editLabel = (label: ILabel): EditLabel => ({
+export const editLabel = (label: Label): EditLabel => ({
   type: 'EDIT_LABEL',
   payload: {label},
 })
@@ -72,12 +89,16 @@ export const getLabels = () => async (
   getState: GetState
 ) => {
   try {
-    const {
-      orgs: {org},
-    } = getState()
+    const org = getOrg(getState())
     dispatch(setLabels(RemoteDataState.Loading))
 
-    const labels = await client.labels.getAll(org.id)
+    const resp = await apiGetLabels({query: {orgID: org.id}})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const labels = resp.data.labels.map(l => addLabelDefaults(l))
 
     dispatch(setLabels(RemoteDataState.Done, labels))
   } catch (e) {
@@ -90,20 +111,25 @@ export const getLabels = () => async (
 export const createLabel = (
   name: string,
   properties: LabelProperties
-): ThunkAction<Promise<void>, GetState> => async (
+): AppThunk<Promise<void>> => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ): Promise<void> => {
-  const {
-    orgs: {org},
-  } = getState()
-
+  const org = getOrg(getState())
   try {
-    const createdLabel = await client.labels.create({
-      orgID: org.id,
-      name,
-      properties: properties as ILabelProperties,
+    const resp = await apiPostLabel({
+      data: {
+        orgID: org.id,
+        name,
+        properties,
+      },
     })
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    const createdLabel = addLabelDefaults(resp.data.label)
 
     dispatch(addLabel(createdLabel))
   } catch (e) {
@@ -112,11 +138,17 @@ export const createLabel = (
   }
 }
 
-export const updateLabel = (id: string, l: ILabel) => async (
+export const updateLabel = (id: string, l: Label) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    const label = await client.labels.update(id, l)
+    const resp = await apiPatchLabel({labelID: id, data: l})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const label = addLabelDefaults(resp.data.label)
 
     dispatch(editLabel(label))
   } catch (e) {
@@ -129,8 +161,10 @@ export const deleteLabel = (id: string) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    await client.labels.delete(id)
-
+    const resp = await apiDeleteLabel({labelID: id})
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
     dispatch(removeLabel(id))
   } catch (e) {
     console.error(e)

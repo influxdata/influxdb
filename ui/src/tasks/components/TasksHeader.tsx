@@ -3,6 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {
+  InputLabel,
   SlideToggle,
   ComponentSize,
   ComponentStatus,
@@ -39,14 +40,14 @@ export default class TasksHeader extends PureComponent<Props> {
           <PageTitleWithOrg title="Tasks" />
         </Page.HeaderLeft>
         <Page.HeaderRight>
-          <SlideToggle.Label text="Show Inactive" />
+          <InputLabel>Show Inactive</InputLabel>
           <SlideToggle
             active={showInactive}
             size={ComponentSize.ExtraSmall}
             onChange={setShowInactive}
           />
           <AddResourceDropdown
-            canImportFromTemplate={true}
+            canImportFromTemplate
             onSelectNew={onCreateTask}
             onSelectImport={onImportTask}
             onSelectTemplate={onImportFromTemplate}

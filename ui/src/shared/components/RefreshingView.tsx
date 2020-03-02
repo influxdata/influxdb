@@ -10,9 +10,12 @@ import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
-import {getVariableAssignments} from 'src/variables/selectors'
-import {getDashboardValuesStatus} from 'src/variables/selectors'
+import {
+  getVariableAssignments,
+  getDashboardValuesStatus,
+} from 'src/variables/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
+import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
 
 // Types
 import {
@@ -23,7 +26,6 @@ import {
   DashboardQuery,
   VariableAssignment,
   QueryViewProperties,
-  Check,
 } from 'src/types'
 
 interface OwnProps {
@@ -31,10 +33,10 @@ interface OwnProps {
   manualRefresh: number
   properties: QueryViewProperties
   dashboardID: string
-  check: Partial<Check>
 }
 
 interface StateProps {
+  ranges: TimeRange | null
   timeZone: TimeZone
   variableAssignments: VariableAssignment[]
   variablesStatus: RemoteDataState
@@ -67,7 +69,7 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {properties, manualRefresh, timeZone, check} = this.props
+    const {ranges, properties, manualRefresh, timeZone} = this.props
     const {submitToken} = this.state
 
     return (
@@ -76,7 +78,6 @@ class RefreshingView extends PureComponent<Props, State> {
         queries={this.queries}
         key={manualRefresh}
         variables={this.variableAssignments}
-        check={check}
       >
         {({
           giraffeResult,
@@ -97,12 +98,12 @@ class RefreshingView extends PureComponent<Props, State> {
               fallbackNote={this.fallbackNote}
             >
               <ViewSwitcher
-                giraffeResult={giraffeResult}
                 files={files}
-                check={check}
-                statuses={statuses}
+                giraffeResult={giraffeResult}
                 loading={loading}
                 properties={properties}
+                timeRange={ranges}
+                statuses={statuses}
                 timeZone={timeZone}
               />
             </EmptyQueryView>
@@ -153,12 +154,17 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     state,
     ownProps.dashboardID
   )
-
   const valuesStatus = getDashboardValuesStatus(state, ownProps.dashboardID)
-
+  const {properties} = ownProps
+  const timeRange = getActiveTimeRange(ownProps.timeRange, properties.queries)
   const timeZone = state.app.persisted.timeZone
 
-  return {timeZone, variableAssignments, variablesStatus: valuesStatus}
+  return {
+    ranges: timeRange,
+    timeZone,
+    variableAssignments,
+    variablesStatus: valuesStatus,
+  }
 }
 
 export default connect<StateProps, {}, OwnProps>(mstp)(RefreshingView)

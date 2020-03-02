@@ -1,5 +1,4 @@
-import {Task, Dashboard, View, Label, TaskStatus} from 'src/types'
-import {IVariable as Variable} from '@influxdata/influx'
+import {Task, Dashboard, View, Label, Variable} from 'src/types'
 
 export const myDashboard: Dashboard = {
   id: 'dash_1',
@@ -72,6 +71,7 @@ export const myView: View = {
     showNoteWhenEmpty: false,
     xColumn: null,
     yColumn: null,
+    position: 'overlaid',
   },
 }
 
@@ -98,7 +98,7 @@ export const myfavetask: Task = {
   offset: '1m0s',
   org: 'org',
   orgID: '037b084ec8ebc000',
-  status: TaskStatus.Active,
+  status: 'active',
 }
 
 export const myVariable: Variable = {

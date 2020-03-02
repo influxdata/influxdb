@@ -1,6 +1,12 @@
 // Libraries
 import React, {FunctionComponent, useMemo} from 'react'
-import {Config, Table} from '@influxdata/giraffe'
+import {
+  Config,
+  Table,
+  DomainLabel,
+  lineTransform,
+  getDomainDataFromLines,
+} from '@influxdata/giraffe'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
@@ -23,22 +29,24 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, XYViewProperties, TimeZone} from 'src/types'
+import {RemoteDataState, XYViewProperties, TimeZone, TimeRange} from 'src/types'
 
 interface Props {
-  table: Table
+  children: (config: Config) => JSX.Element
   fluxGroupKeyUnion: string[]
   loading: RemoteDataState
+  timeRange: TimeRange | null
+  table: Table
   timeZone: TimeZone
   viewProperties: XYViewProperties
-  children: (config: Config) => JSX.Element
 }
 
 const XYPlot: FunctionComponent<Props> = ({
-  table,
+  children,
   fluxGroupKeyUnion,
   loading,
-  children,
+  timeRange,
+  table,
   timeZone,
   viewProperties: {
     geom,
@@ -62,6 +70,8 @@ const XYPlot: FunctionComponent<Props> = ({
         base: yTickBase,
       },
     },
+    position,
+    timeFormat,
   },
 }) => {
   const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
@@ -71,16 +81,6 @@ const XYPlot: FunctionComponent<Props> = ({
   const yColumn = storedYColumn || defaultYColumn(table)
 
   const columnKeys = table.columnKeys
-
-  const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
-    storedXDomain,
-    table.getColumn(xColumn, 'number')
-  )
-
-  const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
-    storedYDomain,
-    table.getColumn(yColumn, 'number')
-  )
 
   const isValidView =
     xColumn &&
@@ -101,6 +101,32 @@ const XYPlot: FunctionComponent<Props> = ({
 
   const groupKey = [...fluxGroupKeyUnion, 'result']
 
+  const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
+    storedXDomain,
+    table.getColumn(xColumn, 'number'),
+    timeRange
+  )
+
+  const memoizedYColumnData = useMemo(() => {
+    if (position === 'stacked') {
+      const {lineData} = lineTransform(
+        table,
+        xColumn,
+        yColumn,
+        groupKey,
+        colorHexes,
+        position
+      )
+      return getDomainDataFromLines(lineData, DomainLabel.Y)
+    }
+    return table.getColumn(yColumn, 'number')
+  }, [table, yColumn, position])
+
+  const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
+    storedYDomain,
+    memoizedYColumnData
+  )
+
   const legendColumns = filterNoisyColumns(
     [...groupKey, xColumn, yColumn],
     table
@@ -111,6 +137,7 @@ const XYPlot: FunctionComponent<Props> = ({
     suffix: xTickSuffix,
     base: xTickBase,
     timeZone,
+    timeFormat,
   })
 
   const yFormatter = getFormatter(table.getColumnType(yColumn), {
@@ -118,6 +145,7 @@ const XYPlot: FunctionComponent<Props> = ({
     suffix: yTickSuffix,
     base: yTickBase,
     timeZone,
+    timeFormat,
   })
 
   const config: Config = {
@@ -143,6 +171,7 @@ const XYPlot: FunctionComponent<Props> = ({
         y: yColumn,
         fill: groupKey,
         interpolation,
+        position,
         colors: colorHexes,
         shadeBelow: !!shadeBelow,
         shadeBelowOpacity: 0.08,

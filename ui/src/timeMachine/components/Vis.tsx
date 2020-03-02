@@ -27,11 +27,17 @@ import {
   AppState,
   QueryViewProperties,
   TimeZone,
-  Check,
+  TimeRange,
   StatusRow,
+  CheckType,
+  Threshold,
 } from 'src/types'
 
+// Selectors
+import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
+
 interface StateProps {
+  timeRange: TimeRange | null
   loading: RemoteDataState
   errorMessage: string
   files: string[]
@@ -41,7 +47,8 @@ interface StateProps {
   giraffeResult: FromFluxResult
   xColumn: string
   yColumn: string
-  check: Partial<Check>
+  checkType: CheckType
+  checkThresholds: Threshold[]
   fillColumns: string[]
   symbolColumns: string[]
   timeZone: TimeZone
@@ -53,10 +60,12 @@ type Props = StateProps
 const TimeMachineVis: SFC<Props> = ({
   loading,
   errorMessage,
+  timeRange,
   isInitialFetch,
   isViewingRawData,
   files,
-  check,
+  checkType,
+  checkThresholds,
   viewProperties,
   giraffeResult,
   xColumn,
@@ -106,10 +115,12 @@ const TimeMachineVis: SFC<Props> = ({
           ) : (
             <ViewSwitcher
               giraffeResult={giraffeResult}
+              timeRange={timeRange}
               files={files}
               loading={loading}
               properties={resolvedViewProperties}
-              check={check}
+              checkType={checkType}
+              checkThresholds={checkThresholds}
               timeZone={timeZone}
               statuses={statuses}
             />
@@ -131,8 +142,11 @@ const mstp = (state: AppState): StateProps => {
       files,
       statuses,
     },
-    alerting: {check},
+    timeRange,
   } = getActiveTimeMachine(state)
+  const {
+    alertBuilder: {type: checkType, thresholds: checkThresholds},
+  } = state
 
   const giraffeResult = getVisTable(state)
   const xColumn = getXColumnSelection(state)
@@ -144,7 +158,8 @@ const mstp = (state: AppState): StateProps => {
 
   return {
     loading,
-    check,
+    checkType,
+    checkThresholds,
     errorMessage,
     isInitialFetch,
     files,
@@ -156,6 +171,7 @@ const mstp = (state: AppState): StateProps => {
     fillColumns,
     symbolColumns,
     timeZone,
+    timeRange: getActiveTimeRange(timeRange, viewProperties.queries),
     statuses,
   }
 }

@@ -192,6 +192,16 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		return nil, fmt.Errorf("failed to find task by id %s", id)
 	}
 
+	findTasksByStatus := func(tasks []*influxdb.Task, status string) []*influxdb.Task {
+		var foundTasks = []*influxdb.Task{}
+		for _, t := range tasks {
+			if t.Status == status {
+				foundTasks = append(foundTasks, t)
+			}
+		}
+		return foundTasks
+	}
+
 	// TODO: replace with ErrMissingOwner test
 	// // should not be able to create a task without a token
 	// noToken := influxdb.TaskCreate{
@@ -228,6 +238,16 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 	found["FindTasks with Organization filter"] = f
 
+	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Organization: cr.Org})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err = findTask(fs, tsk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found["FindTasks with Organization name filter"] = f
+
 	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{User: &cr.UserID})
 	if err != nil {
 		t.Fatal(err)
@@ -242,6 +262,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		ID:              tsk.ID,
 		CreatedAt:       tsk.CreatedAt,
 		LatestCompleted: tsk.LatestCompleted,
+		LatestScheduled: tsk.LatestScheduled,
 		OrganizationID:  cr.OrgID,
 		Organization:    cr.Org,
 		AuthorizationID: tsk.AuthorizationID,
@@ -249,7 +270,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		OwnerID:         tsk.OwnerID,
 		Name:            "task #0",
 		Cron:            "* * * * *",
-		Offset:          "5s",
+		Offset:          5 * time.Second,
 		Status:          string(backend.DefaultTaskStatus),
 		Flux:            fmt.Sprintf(scriptFmt, 0),
 		Type:            influxdb.TaskSystemType,
@@ -266,6 +287,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 1),
 		OwnerID:        cr.UserID,
+		Status:         string(backend.TaskInactive),
 	}
 
 	if _, err := sys.TaskService.CreateTask(authorizedCtx, tc2); err != nil {
@@ -297,6 +319,29 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		if first.ID == task.ID {
 			t.Fatalf("after task included in task list")
 		}
+	}
+
+	// Check task status filter
+	active := string(backend.TaskActive)
+	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Status: &active})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	activeTasks := findTasksByStatus(fs, string(backend.TaskActive))
+	if len(fs) != len(activeTasks) {
+		t.Fatalf("expected to find %d active tasks, found: %d", len(activeTasks), len(fs))
+	}
+
+	inactive := string(backend.TaskInactive)
+	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Status: &inactive})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	inactiveTasks := findTasksByStatus(fs, string(backend.TaskInactive))
+	if len(fs) != len(inactiveTasks) {
+		t.Fatalf("expected to find %d inactive tasks, found: %d", len(inactiveTasks), len(fs))
 	}
 
 	// Update task: script only.
@@ -563,7 +608,8 @@ from(bucket: "b")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if fNoOffset.Offset != "" {
+		var zero time.Duration
+		if fNoOffset.Offset != zero {
 			t.Fatal("removing offset failed")
 		}
 	})
@@ -587,6 +633,10 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
+	if task.LatestScheduled.IsZero() {
+		t.Fatal("expected a non-zero LatestScheduled on created task")
+	}
+
 	st, err := sys.TaskService.FindTaskByID(sys.Ctx, task.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -595,40 +645,34 @@ func testUpdate(t *testing.T, sys *System) {
 	after := time.Now()
 	latestCA := after.Add(time.Second)
 
-	ca, err := time.Parse(time.RFC3339, st.CreatedAt)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ca := st.CreatedAt
 
 	if earliestCA.After(ca) || latestCA.Before(ca) {
 		t.Fatalf("createdAt not accurate, expected %s to be between %s and %s", ca, earliestCA, latestCA)
 	}
 
-	ti, err := time.Parse(time.RFC3339, st.LatestCompleted)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ti := st.LatestCompleted
 
 	if now.Sub(ti) > 10*time.Second {
 		t.Fatalf("latest completed not accurate, expected: ~%s, got %s", now, ti)
 	}
 
-	requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix()
+	requestedAt := time.Now().Add(5 * time.Minute).UTC()
 
-	rc, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	rc, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.Created.RunID, time.Now(), backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, time.Now(), backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.Created.RunID, time.Now(), backend.RunSuccess); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, time.Now(), backend.RunSuccess); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc.Created.RunID); err != nil {
+	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -637,7 +681,7 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	if st2.LatestCompleted <= st.LatestCompleted {
+	if st2.LatestCompleted.Before(st.LatestCompleted) {
 		t.Fatalf("executed task has not updated latest complete: expected %s > %s", st2.LatestCompleted, st.LatestCompleted)
 	}
 
@@ -649,28 +693,28 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal("executed task has updated last run error on success")
 	}
 
-	rc2, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	rc2, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.Created.RunID, time.Now(), backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc2.Created.RunID, time.Now(), "error message"); err != nil {
+	if err := sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc2.ID, time.Now(), "error message"); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.Created.RunID, time.Now(), backend.RunFail); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), backend.RunFail); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc2.Created.RunID, time.Now(), "last message"); err != nil {
+	if err := sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc2.ID, time.Now(), "last message"); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc2.Created.RunID); err != nil {
+	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc2.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -679,7 +723,7 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	if st3.LatestCompleted <= st2.LatestCompleted {
+	if st3.LatestCompleted.Before(st2.LatestCompleted) {
 		t.Fatalf("executed task has not updated latest complete: expected %s > %s", st3.LatestCompleted, st2.LatestCompleted)
 	}
 
@@ -702,10 +746,7 @@ func testUpdate(t *testing.T, sys *System) {
 	earliestUA := now.Add(-time.Second)
 	latestUA := after.Add(time.Second)
 
-	ua, err := time.Parse(time.RFC3339, task.UpdatedAt)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ua := task.UpdatedAt
 
 	if earliestUA.After(ua) || latestUA.Before(ua) {
 		t.Fatalf("updatedAt not accurate, expected %s to be between %s and %s", ua, earliestUA, latestUA)
@@ -716,14 +757,26 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	ua, err = time.Parse(time.RFC3339, st.UpdatedAt)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ua = st.UpdatedAt
 
 	if earliestUA.After(ua) || latestUA.Before(ua) {
 		t.Fatalf("updatedAt not accurate after pulling new task, expected %s to be between %s and %s", ua, earliestUA, latestUA)
 	}
+
+	ls := time.Now().Round(time.Second) // round to remove monotonic clock
+	task, err = sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{LatestScheduled: &ls})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	st, err = sys.TaskService.FindTaskByID(sys.Ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.LatestScheduled.Equal(ls) {
+		t.Fatalf("expected latest scheduled to update, expected: %v, got: %v", ls, st.LatestScheduled)
+	}
+
 }
 
 func testTaskRuns(t *testing.T, sys *System) {
@@ -755,33 +808,33 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatalf("failed to error with out of bounds run limit: %d", influxdb.TaskMaxPageSize+1)
 		}
 
-		requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make two runs.
+		requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make two runs.
 
-		rc0, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+		rc0, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if rc0.Created.TaskID != task.ID {
-			t.Fatalf("wrong task ID on created task: got %s, want %s", rc0.Created.TaskID, task.ID)
+		if rc0.TaskID != task.ID {
+			t.Fatalf("wrong task ID on created task: got %s, want %s", rc0.TaskID, task.ID)
 		}
 
 		startedAt := time.Now().UTC()
 
 		// Update the run state to Started; normally the scheduler would do this.
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.Created.RunID, startedAt, backend.RunStarted); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, backend.RunStarted); err != nil {
 			t.Fatal(err)
 		}
 
-		rc1, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+		rc1, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if rc1.Created.TaskID != task.ID {
-			t.Fatalf("wrong task ID on created task run: got %s, want %s", rc1.Created.TaskID, task.ID)
+		if rc1.TaskID != task.ID {
+			t.Fatalf("wrong task ID on created task run: got %s, want %s", rc1.TaskID, task.ID)
 		}
 
 		// Update the run state to Started; normally the scheduler would do this.
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt, backend.RunStarted); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt, backend.RunStarted); err != nil {
 			t.Fatal(err)
 		}
 
@@ -795,11 +848,11 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Mark the second run finished.
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt.Add(time.Second), backend.RunSuccess); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), backend.RunSuccess); err != nil {
 			t.Fatal(err)
 		}
 
-		if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc1.Created.RunID); err != nil {
+		if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc1.ID); err != nil {
 			t.Fatal(err)
 		}
 
@@ -811,8 +864,8 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if len(runs) != 1 {
 			t.Fatalf("expected 1 run, got %v", runs)
 		}
-		if runs[0].ID != rc0.Created.RunID {
-			t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.Created.RunID, runs[0].ID)
+		if runs[0].ID != rc0.ID {
+			t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.ID, runs[0].ID)
 		}
 		if runs[0].StartedAt != startedAt {
 			t.Fatalf("unexpectedStartedAt; want %s, got %s", startedAt, runs[0].StartedAt)
@@ -891,40 +944,40 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatal(err)
 		}
 
-		requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make a run.
+		requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make a run.
 
 		// Create two runs.
-		rc1, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+		rc1, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, time.Now(), backend.RunStarted); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, time.Now(), backend.RunStarted); err != nil {
 			t.Fatal(err)
 		}
 
-		rc2, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+		rc2, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.Created.RunID, time.Now(), backend.RunStarted); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), backend.RunStarted); err != nil {
 			t.Fatal(err)
 		}
 		// Add a log for the first run.
 		log1Time := time.Now().UTC()
-		if err := sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.Created.RunID, log1Time, "entry 1"); err != nil {
+		if err := sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.ID, log1Time, "entry 1"); err != nil {
 			t.Fatal(err)
 		}
 
 		// Ensure it is returned when filtering logs by run ID.
 		logs, _, err := sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{
 			Task: task.ID,
-			Run:  &rc1.Created.RunID,
+			Run:  &rc1.ID,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		expLine1 := &influxdb.Log{RunID: rc1.Created.RunID, Time: log1Time.Format(time.RFC3339Nano), Message: "entry 1"}
+		expLine1 := &influxdb.Log{RunID: rc1.ID, Time: log1Time.Format(time.RFC3339Nano), Message: "entry 1"}
 		exp := []*influxdb.Log{expLine1}
 		if diff := cmp.Diff(logs, exp); diff != "" {
 			t.Fatalf("unexpected log: -got/+want: %s", diff)
@@ -932,7 +985,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 
 		// Add a log for the second run.
 		log2Time := time.Now().UTC()
-		if err := sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc2.Created.RunID, log2Time, "entry 2"); err != nil {
+		if err := sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc2.ID, log2Time, "entry 2"); err != nil {
 			t.Fatal(err)
 		}
 
@@ -943,7 +996,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		expLine2 := &influxdb.Log{RunID: rc2.Created.RunID, Time: log2Time.Format(time.RFC3339Nano), Message: "entry 2"}
+		expLine2 := &influxdb.Log{RunID: rc2.ID, Time: log2Time.Format(time.RFC3339Nano), Message: "entry 2"}
 		exp = []*influxdb.Log{expLine1, expLine2}
 		if diff := cmp.Diff(logs, exp); diff != "" {
 			t.Fatalf("unexpected log: -got/+want: %s", diff)
@@ -1097,7 +1150,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 			if !tid.Valid() {
 				continue
 			}
-			if _, err := sys.TaskControlService.CreateNextRun(sys.Ctx, tid, math.MaxInt64>>6); err != nil { // we use the >>6 here because math.MaxInt64 is too large which causes problems when converting back and forth from time
+			if _, err := sys.TaskControlService.CreateRun(sys.Ctx, tid, time.Unix(253339232461, 0), time.Unix(253339232469, 1)); err != nil {
 				// This may have errored due to the task being deleted. Check if the task still exists.
 
 				if _, err2 := sys.TaskService.FindTaskByID(sys.Ctx, tid); err2 == influxdb.ErrTaskNotFound {
@@ -1200,42 +1253,42 @@ func testRunStorage(t *testing.T, sys *System) {
 		t.Fatalf("failed to error with out of bounds run limit: %d", influxdb.TaskMaxPageSize+1)
 	}
 
-	requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make two runs.
+	requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make two runs.
 
-	rc0, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	rc0, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rc0.Created.TaskID != task.ID {
-		t.Fatalf("wrong task ID on created task: got %s, want %s", rc0.Created.TaskID, task.ID)
+	if rc0.TaskID != task.ID {
+		t.Fatalf("wrong task ID on created task: got %s, want %s", rc0.TaskID, task.ID)
 	}
 
 	startedAt := time.Now().UTC().Add(time.Second * -10)
 
 	// Update the run state to Started; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.Created.RunID, startedAt, backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
-	rc1, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	rc1, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rc1.Created.TaskID != task.ID {
-		t.Fatalf("wrong task ID on created task run: got %s, want %s", rc1.Created.TaskID, task.ID)
+	if rc1.TaskID != task.ID {
+		t.Fatalf("wrong task ID on created task run: got %s, want %s", rc1.TaskID, task.ID)
 	}
 
 	// Update the run state to Started; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt.Add(time.Second), backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
 	// Mark the second run finished.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt.Add(time.Second*2), backend.RunFail); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second*2), backend.RunFail); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc1.Created.RunID); err != nil {
+	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc1.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1247,8 +1300,8 @@ func testRunStorage(t *testing.T, sys *System) {
 	if len(runs) != 1 {
 		t.Fatalf("expected 1 run, got %v", runs)
 	}
-	if runs[0].ID != rc0.Created.RunID {
-		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.Created.RunID, runs[0].ID)
+	if runs[0].ID != rc0.ID {
+		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.ID, runs[0].ID)
 	}
 	if runs[0].StartedAt != startedAt {
 		t.Fatalf("unexpectedStartedAt; want %s, got %s", startedAt, runs[0].StartedAt)
@@ -1262,18 +1315,18 @@ func testRunStorage(t *testing.T, sys *System) {
 	}
 
 	// Create 3rd run and test limiting to 2 runs
-	rc2, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	rc2, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.Created.RunID, startedAt.Add(time.Second*3), backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, startedAt.Add(time.Second*3), backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.Created.RunID, startedAt.Add(time.Second*4), backend.RunSuccess); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, startedAt.Add(time.Second*4), backend.RunSuccess); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc2.Created.RunID); err != nil {
+	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc2.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1284,8 +1337,8 @@ func testRunStorage(t *testing.T, sys *System) {
 	if len(runsLimit2) != 2 {
 		t.Fatalf("expected 2 runs, got %v", runsLimit2)
 	}
-	if runsLimit2[0].ID != rc0.Created.RunID {
-		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.Created.RunID, runs[0].ID)
+	if runsLimit2[0].ID != rc0.ID {
+		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.ID, runs[0].ID)
 	}
 
 	// Unspecified limit returns all three runs, sorted by most recently scheduled first.
@@ -1297,8 +1350,8 @@ func testRunStorage(t *testing.T, sys *System) {
 	if len(runs) != 3 {
 		t.Fatalf("expected 3 runs, got %v", runs)
 	}
-	if runs[0].ID != rc0.Created.RunID {
-		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.Created.RunID, runs[0].ID)
+	if runs[0].ID != rc0.ID {
+		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.ID, runs[0].ID)
 	}
 	if runs[0].StartedAt != startedAt {
 		t.Fatalf("unexpectedStartedAt; want %s, got %s", startedAt, runs[0].StartedAt)
@@ -1311,8 +1364,8 @@ func testRunStorage(t *testing.T, sys *System) {
 	// 	t.Fatalf("expected empty FinishedAt, got %q", runs[0].FinishedAt)
 	// }
 
-	if runs[2].ID != rc1.Created.RunID {
-		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc1.Created.RunID, runs[2].ID)
+	if runs[2].ID != rc1.ID {
+		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc1.ID, runs[2].ID)
 	}
 
 	if exp := startedAt.Add(time.Second); runs[2].StartedAt != exp {
@@ -1375,31 +1428,31 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 		t.Errorf("expected retrying run that doesn't exist to return %v, got %v", influxdb.ErrRunNotFound, err)
 	}
 
-	requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make a run.
+	requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make a run.
 
-	rc, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	rc, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rc.Created.TaskID != task.ID {
-		t.Fatalf("wrong task ID on created task: got %s, want %s", rc.Created.TaskID, task.ID)
+	if rc.TaskID != task.ID {
+		t.Fatalf("wrong task ID on created task: got %s, want %s", rc.TaskID, task.ID)
 	}
 
 	startedAt := time.Now().UTC()
 
 	// Update the run state to Started then Failed; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.Created.RunID, startedAt, backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, startedAt, backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.Created.RunID, startedAt.Add(time.Second), backend.RunFail); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, startedAt.Add(time.Second), backend.RunFail); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc.Created.RunID); err != nil {
+	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc.ID); err != nil {
 		t.Fatal(err)
 	}
 
 	// Now retry the run.
-	m, err := sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.Created.RunID)
+	m, err := sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1410,14 +1463,14 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 		t.Fatal("expected new retried run to have status of scheduled")
 	}
 
-	if m.ScheduledFor.Unix() != rc.Created.Now {
-		t.Fatalf("wrong scheduledFor on task: got %s, want %s", m.ScheduledFor, time.Unix(rc.Created.Now, 0).Format(time.RFC3339))
+	if m.ScheduledFor != rc.ScheduledFor {
+		t.Fatalf("wrong scheduledFor on task: got %s, want %s", m.ScheduledFor, rc.ScheduledFor)
 	}
 
-	exp := backend.RequestStillQueuedError{Start: rc.Created.Now, End: rc.Created.Now}
+	exp := backend.RequestStillQueuedError{Start: rc.ScheduledFor.Unix(), End: rc.ScheduledFor.Unix()}
 
 	// Retrying a run which has been queued but not started, should be rejected.
-	if _, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.Created.RunID); err != exp && err.Error() != "run already queued" {
+	if _, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.ID); err != exp && err.Error() != "run already queued" {
 		t.Fatalf("subsequent retry should have been rejected with %v; got %v", exp, err)
 	}
 }
@@ -1437,51 +1490,51 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make two runs.
+	requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make two runs.
 
-	rc0, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	rc0, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rc0.Created.TaskID != task.ID {
-		t.Fatalf("wrong task ID on created task: got %s, want %s", rc0.Created.TaskID, task.ID)
+	if rc0.TaskID != task.ID {
+		t.Fatalf("wrong task ID on created task: got %s, want %s", rc0.TaskID, task.ID)
 	}
 
 	startedAt := time.Now().UTC()
 
 	// Update the run state to Started; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.Created.RunID, startedAt, backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
-	rc1, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	rc1, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rc1.Created.TaskID != task.ID {
-		t.Fatalf("wrong task ID on created task run: got %s, want %s", rc1.Created.TaskID, task.ID)
+	if rc1.TaskID != task.ID {
+		t.Fatalf("wrong task ID on created task run: got %s, want %s", rc1.TaskID, task.ID)
 	}
 
 	// Update the run state to Started; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt, backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt, backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
 	// Mark the second run finished.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt.Add(time.Second), backend.RunSuccess); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), backend.RunSuccess); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create several run logs in both rc0 and rc1
 	// We can then finalize rc1 and ensure that both the transactional (currently running logs) can be found with analytical (completed) logs.
-	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.Created.RunID, time.Now(), "0-0")
-	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.Created.RunID, time.Now(), "0-1")
-	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.Created.RunID, time.Now(), "0-2")
-	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.Created.RunID, time.Now(), "1-0")
-	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.Created.RunID, time.Now(), "1-1")
-	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.Created.RunID, time.Now(), "1-2")
-	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.Created.RunID, time.Now(), "1-3")
-	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc1.Created.RunID); err != nil {
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.ID, time.Now(), "0-0")
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.ID, time.Now(), "0-1")
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.ID, time.Now(), "0-2")
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.ID, time.Now(), "1-0")
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.ID, time.Now(), "1-1")
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.ID, time.Now(), "1-2")
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.ID, time.Now(), "1-3")
+	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc1.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1506,7 +1559,7 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 		t.Fatalf("log contents not acceptable, expected: %q, got: %q", "0-00-10-21-01-11-21-3", smash(logs))
 	}
 
-	logs, _, err = sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{Task: task.ID, Run: &rc1.Created.RunID})
+	logs, _, err = sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{Task: task.ID, Run: &rc1.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1518,7 +1571,7 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 		t.Fatalf("log contents not acceptable, expected: %q, got: %q", "1-01-11-21-3", smash(logs))
 	}
 
-	logs, _, err = sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{Task: task.ID, Run: &rc0.Created.RunID})
+	logs, _, err = sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{Task: task.ID, Run: &rc0.ID})
 	if err != nil {
 		t.Fatal(err)
 	}

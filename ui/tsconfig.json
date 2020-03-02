@@ -24,7 +24,8 @@
     "checkJs": false,
     "sourceMap": true,
     "esModuleInterop": true,
-    "baseUrl": "./"
+    "baseUrl": "./",
+    "resolveJsonModule": true
   },
   "exclude": [
     "assets",
@@ -35,8 +36,8 @@
     "jest.config.js",
     "webpack.tsconfig.json",
     "webpack.star.ts",
-    "src/**/*.test.ts",
-    "src/**/*.test.tsx",
+    // "src/**/*.test.ts",
+    // "src/**/*.test.tsx",
     "src/**/mocks.ts",
     "coverage"
   ]

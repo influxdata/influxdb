@@ -23,8 +23,8 @@ import (
 	platform "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http/metric"
-	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kit/check"
+	tracetesting "github.com/influxdata/influxdb/kit/tracing/testing"
 	influxmock "github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/mock"
@@ -243,7 +243,7 @@ func TestFluxHandler_postFluxAST(t *testing.T) {
 			name: "get ast from()",
 			w:    httptest.NewRecorder(),
 			r:    httptest.NewRequest("POST", "/api/v2/query/ast", bytes.NewBufferString(`{"query": "from()"}`)),
-			want: `{"ast":{"type":"Package","package":"main","files":[{"type":"File","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"package":null,"imports":null,"body":[{"type":"ExpressionStatement","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"expression":{"type":"CallExpression","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"callee":{"type":"Identifier","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":5},"source":"from"},"name":"from"}}}]}]}}
+			want: `{"ast":{"type":"Package","package":"main","files":[{"type":"File","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"metadata":"parser-type=rust","package":null,"imports":null,"body":[{"type":"ExpressionStatement","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"expression":{"type":"CallExpression","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":7},"source":"from()"},"callee":{"type":"Identifier","location":{"start":{"line":1,"column":1},"end":{"line":1,"column":5},"source":"from"},"name":"from"}}}]}]}}
 `,
 			status: http.StatusOK,
 		},
@@ -321,12 +321,14 @@ var _ metric.EventRecorder = noopEventRecorder{}
 
 // Certain error cases must be encoded as influxdb.Error so they can be properly decoded clientside.
 func TestFluxHandler_PostQuery_Errors(t *testing.T) {
-	i := inmem.NewService()
+	defer tracetesting.SetupInMemoryTracing(t.Name())()
+
+	orgSVC := newInMemKVSVC(t)
 	b := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
-		Logger:              zaptest.NewLogger(t),
+		log:                 zaptest.NewLogger(t),
 		QueryEventRecorder:  noopEventRecorder{},
-		OrganizationService: i,
+		OrganizationService: orgSVC,
 		ProxyQueryService: &mock.ProxyQueryService{
 			QueryF: func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
 				return flux.Statistics{}, &influxdb.Error{
@@ -336,7 +338,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 			},
 		},
 	}
-	h := NewFluxHandler(b)
+	h := NewFluxHandler(zaptest.NewLogger(t), b)
 
 	t.Run("missing authorizer", func(t *testing.T) {
 		ts := httptest.NewServer(h)
@@ -348,6 +350,10 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 		}
 
 		defer resp.Body.Close()
+
+		if actual := resp.Header.Get("Trace-Id"); actual == "" {
+			t.Error("expected trace ID header")
+		}
 
 		if resp.StatusCode != http.StatusUnauthorized {
 			t.Errorf("expected unauthorized status, got %d", resp.StatusCode)
@@ -380,6 +386,10 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 
 		h.handleQuery(w, req)
 
+		if actual := w.Header().Get("Trace-Id"); actual == "" {
+			t.Error("expected trace ID header")
+		}
+
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected bad request status, got %d", w.Code)
 		}
@@ -398,7 +408,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 
 	t.Run("valid request but executing query results in client error", func(t *testing.T) {
 		org := influxdb.Organization{Name: t.Name()}
-		if err := i.CreateOrganization(context.Background(), &org); err != nil {
+		if err := orgSVC.CreateOrganization(context.Background(), &org); err != nil {
 			t.Fatal(err)
 		}
 
@@ -412,6 +422,10 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 
 		w := httptest.NewRecorder()
 		h.handleQuery(w, req)
+
+		if actual := w.Header().Get("Trace-Id"); actual == "" {
+			t.Error("expected trace ID header")
+		}
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected bad request status, got %d", w.Code)
@@ -478,18 +492,18 @@ func TestFluxService_Query_gzip(t *testing.T) {
 
 	fluxBackend := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
-		Logger:              zaptest.NewLogger(t),
+		log:                 zaptest.NewLogger(t),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
 		ProxyQueryService:   queryService,
 	}
 
-	fluxHandler := NewFluxHandler(fluxBackend)
+	fluxHandler := NewFluxHandler(zaptest.NewLogger(t), fluxBackend)
 
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places
 	// the auth on context.
-	auth := NewAuthenticationHandler(ErrorHandler(0))
+	auth := NewAuthenticationHandler(zaptest.NewLogger(t), ErrorHandler(0))
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
 	auth.UserService = &influxmock.UserService{
@@ -614,18 +628,18 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 
 	fluxBackend := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
-		Logger:              zaptest.NewLogger(b),
+		log:                 zaptest.NewLogger(b),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
 		ProxyQueryService:   queryService,
 	}
 
-	fluxHandler := NewFluxHandler(fluxBackend)
+	fluxHandler := NewFluxHandler(zaptest.NewLogger(b), fluxBackend)
 
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places
 	// the auth on context.
-	auth := NewAuthenticationHandler(ErrorHandler(0))
+	auth := NewAuthenticationHandler(zaptest.NewLogger(b), ErrorHandler(0))
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
 

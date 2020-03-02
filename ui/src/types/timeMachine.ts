@@ -1,3 +1,3 @@
-export type TimeMachineTab = 'queries' | 'alerting'
+export type TimeMachineTab = 'queries' | 'alerting' | 'customCheckQuery'
 
 export type TimeMachineID = 'de' | 'veo' | 'alerting'

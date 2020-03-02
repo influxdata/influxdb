@@ -9,15 +9,18 @@ node_modules:
 	yarn install
 
 e2e: node_modules
-	yarn test:junit
+	yarn generate
+	yarn test:e2e
 
 build: node_modules $(UISOURCES)
 	yarn build
 
 lint: node_modules $(UISOURCES)
+	yarn generate
 	yarn lint
 
 test:
+	yarn generate
 	yarn test
 
 clean:

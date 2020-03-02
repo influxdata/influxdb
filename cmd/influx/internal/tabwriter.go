@@ -10,8 +10,9 @@ import (
 )
 
 type tabWriter struct {
-	writer  *tabwriter.Writer
-	headers []string
+	writer      *tabwriter.Writer
+	headers     []string
+	hideHeaders bool
 }
 
 func NewTabWriter(w io.Writer) *tabWriter {
@@ -20,9 +21,15 @@ func NewTabWriter(w io.Writer) *tabWriter {
 	}
 }
 
+func (w *tabWriter) HideHeaders(b bool) {
+	w.hideHeaders = b
+}
+
 func (w *tabWriter) WriteHeaders(h ...string) {
 	w.headers = h
-	fmt.Fprintln(w.writer, strings.Join(h, "\t"))
+	if !w.hideHeaders {
+		fmt.Fprintln(w.writer, strings.Join(h, "\t"))
+	}
 }
 
 func (w *tabWriter) Write(m map[string]interface{}) {

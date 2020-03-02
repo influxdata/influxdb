@@ -13,78 +13,58 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// task Command
-var taskCmd = &cobra.Command{
-	Use:   "task",
-	Short: "Task management commands",
-	RunE:  wrapCheckSetup(taskF),
-}
+func cmdTask() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "task",
+		Short: "Task management commands",
+		RunE: wrapCheckSetup(func(cmd *cobra.Command, args []string) error {
+			if flags.local {
+				return fmt.Errorf("local flag not supported for task command")
+			}
 
-func taskF(cmd *cobra.Command, args []string) error {
-	if flags.local {
-		return fmt.Errorf("local flag not supported for task command")
+			seeHelp(cmd, args)
+			return nil
+		}),
 	}
 
-	cmd.Usage()
-	return nil
+	cmd.AddCommand(
+		taskLogCmd(),
+		taskRunCmd(),
+		taskCreateCmd(),
+		taskDeleteCmd(),
+		taskFindCmd(),
+		taskUpdateCmd(),
+	)
+
+	return cmd
 }
 
-var logCmd = &cobra.Command{
-	Use:   "log",
-	Short: "Log related commands",
-	Run:   logF,
+var taskCreateFlags struct {
+	org organization
 }
 
-func logF(cmd *cobra.Command, args []string) {
-	cmd.Usage()
-}
-
-var runCmd = &cobra.Command{
-	Use:   "run",
-	Short: "Run related commands",
-	Run:   runF,
-}
-
-func runF(cmd *cobra.Command, args []string) {
-	cmd.Usage()
-}
-
-func init() {
-	taskCmd.AddCommand(runCmd)
-	taskCmd.AddCommand(logCmd)
-}
-
-// TaskCreateFlags define the Create Command
-type TaskCreateFlags struct {
-	org   string
-	orgID string
-}
-
-var taskCreateFlags TaskCreateFlags
-
-func init() {
-	taskCreateCmd := &cobra.Command{
+func taskCreateCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "create [query literal or @/path/to/query.flux]",
 		Short: "Create task",
 		Args:  cobra.ExactArgs(1),
 		RunE:  wrapCheckSetup(taskCreateF),
 	}
 
-	taskCreateCmd.Flags().StringVarP(&taskCreateFlags.org, "org", "", "", "organization name")
-	taskCreateCmd.Flags().StringVarP(&taskCreateFlags.orgID, "org-id", "", "", "id of the organization that owns the task")
-	taskCreateCmd.MarkFlagRequired("flux")
+	taskCreateFlags.org.register(cmd, false)
 
-	taskCmd.AddCommand(taskCreateCmd)
+	return cmd
 }
 
 func taskCreateF(cmd *cobra.Command, args []string) error {
-	if taskCreateFlags.org != "" && taskCreateFlags.orgID != "" {
-		return fmt.Errorf("must specify exactly one of org or org-id")
+	if err := taskCreateFlags.org.validOrgFlags(); err != nil {
+		return err
 	}
 
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	flux, err := repl.LoadQuery(args[0])
@@ -94,14 +74,18 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 
 	tc := platform.TaskCreate{
 		Flux:         flux,
-		Organization: taskCreateFlags.org,
+		Organization: taskCreateFlags.org.name,
 	}
-	if taskCreateFlags.orgID != "" {
-		oid, err := platform.IDFromString(taskCreateFlags.orgID)
+	if taskCreateFlags.org.id != "" || taskCreateFlags.org.name != "" {
+		svc, err := newOrganizationService()
+		if err != nil {
+			return nil
+		}
+		oid, err := taskCreateFlags.org.getID(svc)
 		if err != nil {
 			return fmt.Errorf("error parsing organization ID: %s", err)
 		}
-		tc.OrganizationID = *oid
+		tc.OrganizationID = oid
 	}
 
 	t, err := s.CreateTask(context.Background(), tc)
@@ -121,51 +105,51 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 		"Cron",
 	)
 	w.Write(map[string]interface{}{
-		"ID":              t.ID.String(),
-		"Name":            t.Name,
-		"OrganizationID":  t.OrganizationID.String(),
-		"Organization":    t.Organization,
-		"AuthorizationID": t.AuthorizationID.String(),
-		"Status":          t.Status,
-		"Every":           t.Every,
-		"Cron":            t.Cron,
+		"ID":             t.ID.String(),
+		"Name":           t.Name,
+		"OrganizationID": t.OrganizationID.String(),
+		"Organization":   t.Organization,
+		"Status":         t.Status,
+		"Every":          t.Every,
+		"Cron":           t.Cron,
 	})
 	w.Flush()
 
 	return nil
 }
 
-// taskFindFlags define the Find Command
-type TaskFindFlags struct {
-	user  string
-	id    string
-	org   string
-	orgID string
-	limit int
+var taskFindFlags struct {
+	user    string
+	id      string
+	limit   int
+	headers bool
+	org     organization
 }
 
-var taskFindFlags TaskFindFlags
-
-func init() {
-	taskFindCmd := &cobra.Command{
+func taskFindCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "find",
 		Short: "Find tasks",
 		RunE:  wrapCheckSetup(taskFindF),
 	}
 
-	taskFindCmd.Flags().StringVarP(&taskFindFlags.id, "id", "i", "", "task ID")
-	taskFindCmd.Flags().StringVarP(&taskFindFlags.user, "user-id", "n", "", "task owner ID")
-	taskFindCmd.Flags().StringVarP(&taskFindFlags.org, "org", "", "", "task organization name")
-	taskFindCmd.Flags().StringVarP(&taskFindFlags.orgID, "org-id", "", "", "task organization ID")
-	taskFindCmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", platform.TaskDefaultPageSize, "the number of tasks to find")
+	taskFindFlags.org.register(cmd, false)
+	cmd.Flags().StringVarP(&taskFindFlags.id, "id", "i", "", "task ID")
+	cmd.Flags().StringVarP(&taskFindFlags.user, "user-id", "n", "", "task owner ID")
+	cmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", platform.TaskDefaultPageSize, "the number of tasks to find")
+	cmd.Flags().BoolVar(&taskFindFlags.headers, "headers", true, "To print the table headers; defaults true")
 
-	taskCmd.AddCommand(taskFindCmd)
+	return cmd
 }
 
 func taskFindF(cmd *cobra.Command, args []string) error {
+	if err := taskFindFlags.org.validOrgFlags(); err != nil {
+		return err
+	}
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	filter := platform.TaskFilter{}
@@ -177,11 +161,11 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 		filter.User = id
 	}
 
-	if taskFindFlags.org != "" {
-		filter.Organization = taskFindFlags.org
+	if taskFindFlags.org.name != "" {
+		filter.Organization = taskFindFlags.org.name
 	}
-	if taskFindFlags.orgID != "" {
-		id, err := platform.IDFromString(taskFindFlags.orgID)
+	if taskFindFlags.org.id != "" {
+		id, err := platform.IDFromString(taskFindFlags.org.id)
 		if err != nil {
 			return err
 		}
@@ -193,7 +177,7 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	}
 	filter.Limit = taskFindFlags.limit
 
-	var tasks []*platform.Task
+	var tasks []http.Task
 	var err error
 
 	if taskFindFlags.id != "" {
@@ -207,7 +191,7 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		tasks = append(tasks, task)
+		tasks = append(tasks, *task)
 	} else {
 		tasks, _, err = s.FindTasks(context.Background(), filter)
 		if err != nil {
@@ -216,6 +200,7 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
+	w.HideHeaders(!taskFindFlags.headers)
 	w.WriteHeaders(
 		"ID",
 		"Name",
@@ -228,14 +213,13 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	)
 	for _, t := range tasks {
 		w.Write(map[string]interface{}{
-			"ID":              t.ID.String(),
-			"Name":            t.Name,
-			"OrganizationID":  t.OrganizationID.String(),
-			"Organization":    t.Organization,
-			"AuthorizationID": t.AuthorizationID.String(),
-			"Status":          t.Status,
-			"Every":           t.Every,
-			"Cron":            t.Cron,
+			"ID":             t.ID.String(),
+			"Name":           t.Name,
+			"OrganizationID": t.OrganizationID.String(),
+			"Organization":   t.Organization,
+			"Status":         t.Status,
+			"Every":          t.Every,
+			"Cron":           t.Cron,
 		})
 	}
 	w.Flush()
@@ -243,15 +227,12 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// taskUpdateFlags define the Update Command
-type TaskUpdateFlags struct {
+var taskUpdateFlags struct {
 	id     string
 	status string
 }
 
-var taskUpdateFlags TaskUpdateFlags
-
-func init() {
+func taskUpdateCmd() *cobra.Command {
 	taskUpdateCmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update task",
@@ -262,13 +243,14 @@ func init() {
 	taskUpdateCmd.Flags().StringVarP(&taskUpdateFlags.status, "status", "", "", "update task status")
 	taskUpdateCmd.MarkFlagRequired("id")
 
-	taskCmd.AddCommand(taskUpdateCmd)
+	return taskUpdateCmd
 }
 
 func taskUpdateF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	var id platform.ID
@@ -306,44 +288,41 @@ func taskUpdateF(cmd *cobra.Command, args []string) error {
 		"Cron",
 	)
 	w.Write(map[string]interface{}{
-		"ID":              t.ID.String(),
-		"Name":            t.Name,
-		"OrganizationID":  t.OrganizationID.String(),
-		"Organization":    t.Organization,
-		"AuthorizationID": t.AuthorizationID.String(),
-		"Status":          t.Status,
-		"Every":           t.Every,
-		"Cron":            t.Cron,
+		"ID":             t.ID.String(),
+		"Name":           t.Name,
+		"OrganizationID": t.OrganizationID.String(),
+		"Organization":   t.Organization,
+		"Status":         t.Status,
+		"Every":          t.Every,
+		"Cron":           t.Cron,
 	})
 	w.Flush()
 
 	return nil
 }
 
-// taskDeleteFlags define the Delete command
-type TaskDeleteFlags struct {
+var taskDeleteFlags struct {
 	id string
 }
 
-var taskDeleteFlags TaskDeleteFlags
-
-func init() {
-	taskDeleteCmd := &cobra.Command{
+func taskDeleteCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete task",
 		RunE:  wrapCheckSetup(taskDeleteF),
 	}
 
-	taskDeleteCmd.Flags().StringVarP(&taskDeleteFlags.id, "id", "i", "", "task id (required)")
-	taskDeleteCmd.MarkFlagRequired("id")
+	cmd.Flags().StringVarP(&taskDeleteFlags.id, "id", "i", "", "task id (required)")
+	cmd.MarkFlagRequired("id")
 
-	taskCmd.AddCommand(taskDeleteCmd)
+	return cmd
 }
 
 func taskDeleteF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	var id platform.ID
@@ -374,46 +353,57 @@ func taskDeleteF(cmd *cobra.Command, args []string) error {
 		"Cron",
 	)
 	w.Write(map[string]interface{}{
-		"ID":              t.ID.String(),
-		"Name":            t.Name,
-		"OrganizationID":  t.OrganizationID.String(),
-		"Organization":    t.Organization,
-		"AuthorizationID": t.AuthorizationID.String(),
-		"Status":          t.Status,
-		"Every":           t.Every,
-		"Cron":            t.Cron,
+		"ID":             t.ID.String(),
+		"Name":           t.Name,
+		"OrganizationID": t.OrganizationID.String(),
+		"Organization":   t.Organization,
+		"Status":         t.Status,
+		"Every":          t.Every,
+		"Cron":           t.Cron,
 	})
 	w.Flush()
 
 	return nil
 }
 
-// taskLogFindFlags define the Delete command
-type TaskLogFindFlags struct {
+func taskLogCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "log",
+		Short: "Log related commands",
+		Run:   seeHelp,
+	}
+
+	cmd.AddCommand(
+		taskLogFindCmd(),
+	)
+
+	return cmd
+}
+
+var taskLogFindFlags struct {
 	taskID string
 	runID  string
 }
 
-var taskLogFindFlags TaskLogFindFlags
-
-func init() {
-	taskLogFindCmd := &cobra.Command{
+func taskLogFindCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "find",
 		Short: "find logs for task",
 		RunE:  wrapCheckSetup(taskLogFindF),
 	}
 
-	taskLogFindCmd.Flags().StringVarP(&taskLogFindFlags.taskID, "task-id", "", "", "task id (required)")
-	taskLogFindCmd.Flags().StringVarP(&taskLogFindFlags.runID, "run-id", "", "", "run id")
-	taskLogFindCmd.MarkFlagRequired("task-id")
+	cmd.Flags().StringVarP(&taskLogFindFlags.taskID, "task-id", "", "", "task id (required)")
+	cmd.Flags().StringVarP(&taskLogFindFlags.runID, "run-id", "", "", "run id")
+	cmd.MarkFlagRequired("task-id")
 
-	logCmd.AddCommand(taskLogFindCmd)
+	return cmd
 }
 
 func taskLogFindF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	var filter platform.LogFilter
@@ -455,8 +445,21 @@ func taskLogFindF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// taskLogFindFlags define the Delete command
-type TaskRunFindFlags struct {
+func taskRunCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Run related commands",
+		Run:   seeHelp,
+	}
+	cmd.AddCommand(
+		taskRunFindCmd(),
+		taskRunRetryCmd(),
+	)
+
+	return cmd
+}
+
+var taskRunFindFlags struct {
 	runID      string
 	taskID     string
 	afterTime  string
@@ -464,30 +467,29 @@ type TaskRunFindFlags struct {
 	limit      int
 }
 
-var taskRunFindFlags TaskRunFindFlags
-
-func init() {
-	taskRunFindCmd := &cobra.Command{
+func taskRunFindCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "find",
 		Short: "find runs for a task",
 		RunE:  wrapCheckSetup(taskRunFindF),
 	}
 
-	taskRunFindCmd.Flags().StringVarP(&taskRunFindFlags.taskID, "task-id", "", "", "task id (required)")
-	taskRunFindCmd.Flags().StringVarP(&taskRunFindFlags.runID, "run-id", "", "", "run id")
-	taskRunFindCmd.Flags().StringVarP(&taskRunFindFlags.afterTime, "after", "", "", "after time for filtering")
-	taskRunFindCmd.Flags().StringVarP(&taskRunFindFlags.beforeTime, "before", "", "", "before time for filtering")
-	taskRunFindCmd.Flags().IntVarP(&taskRunFindFlags.limit, "limit", "", 0, "limit the results")
+	cmd.Flags().StringVarP(&taskRunFindFlags.taskID, "task-id", "", "", "task id (required)")
+	cmd.Flags().StringVarP(&taskRunFindFlags.runID, "run-id", "", "", "run id")
+	cmd.Flags().StringVarP(&taskRunFindFlags.afterTime, "after", "", "", "after time for filtering")
+	cmd.Flags().StringVarP(&taskRunFindFlags.beforeTime, "before", "", "", "before time for filtering")
+	cmd.Flags().IntVarP(&taskRunFindFlags.limit, "limit", "", 0, "limit the results")
 
-	taskRunFindCmd.MarkFlagRequired("task-id")
+	cmd.MarkFlagRequired("task-id")
 
-	runCmd.AddCommand(taskRunFindCmd)
+	return cmd
 }
 
 func taskRunFindF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	filter := platform.RunFilter{
@@ -551,13 +553,11 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-type RunRetryFlags struct {
+var runRetryFlags struct {
 	taskID, runID string
 }
 
-var runRetryFlags RunRetryFlags
-
-func init() {
+func taskRunRetryCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "retry",
 		Short: "retry a run",
@@ -569,13 +569,14 @@ func init() {
 	cmd.MarkFlagRequired("task-id")
 	cmd.MarkFlagRequired("run-id")
 
-	runCmd.AddCommand(cmd)
+	return cmd
 }
 
 func runRetryF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	var taskID, runID platform.ID

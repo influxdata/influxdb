@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/task/backend"
 )
 
 // Coordinator is a type which is used to react to
@@ -15,7 +14,7 @@ type Coordinator interface {
 	TaskCreated(context.Context, *influxdb.Task) error
 	TaskUpdated(ctx context.Context, from, to *influxdb.Task) error
 	TaskDeleted(context.Context, influxdb.ID) error
-	RunCancelled(ctx context.Context, taskID, runID influxdb.ID) error
+	RunCancelled(ctx context.Context, runID influxdb.ID) error
 	RunRetried(ctx context.Context, task *influxdb.Task, run *influxdb.Run) error
 	RunForced(ctx context.Context, task *influxdb.Task, run *influxdb.Run) error
 }
@@ -71,16 +70,6 @@ func (s *CoordinatingTaskService) UpdateTask(ctx context.Context, id influxdb.ID
 		return nil, err
 	}
 
-	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
-	// this allows us to see not run the task for inactive time
-	if upd.Status != nil && *upd.Status == string(backend.TaskActive) {
-		// confirm that it was inactive and this is an attempt to activate
-		if from.Status == string(backend.TaskInactive) {
-			lc := s.now().Format(time.RFC3339)
-			upd.LatestCompleted = &lc
-		}
-	}
-
 	to, err := s.TaskService.UpdateTask(ctx, id, upd)
 	if err != nil {
 		return to, err
@@ -104,7 +93,7 @@ func (s *CoordinatingTaskService) CancelRun(ctx context.Context, taskID, runID i
 		return err
 	}
 
-	return s.coordinator.RunCancelled(ctx, taskID, runID)
+	return s.coordinator.RunCancelled(ctx, runID)
 }
 
 // RetryRun calls retry on the task service and publishes the retry.

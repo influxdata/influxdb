@@ -130,7 +130,7 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 		RetentionPeriod: 0,
 	}
 
-	s := l.BucketService()
+	s := l.BucketService(t)
 	if err := s.CreateBucket(context.Background(), b); err != nil {
 		t.Fatal(err)
 	}

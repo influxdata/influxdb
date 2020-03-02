@@ -4,6 +4,9 @@ import React, {FunctionComponent, ChangeEvent} from 'react'
 // Components
 import {AutoInput, AutoInputMode, Input, InputType} from '@influxdata/clockface'
 
+// Utils
+import {convertUserInputToNumOrNaN} from 'src/shared/utils/convertUserInput'
+
 // Actions
 import {setBinCount} from 'src/timeMachine/actions'
 
@@ -14,7 +17,7 @@ interface Props {
 
 const BinCountInput: FunctionComponent<Props> = ({binCount, onSetBinCount}) => {
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    const binCount = Number(e.target.value) || null
+    const binCount = convertUserInputToNumOrNaN(e)
 
     onSetBinCount(binCount)
   }
@@ -29,7 +32,9 @@ const BinCountInput: FunctionComponent<Props> = ({binCount, onSetBinCount}) => {
 
   return (
     <AutoInput
-      mode={binCount ? AutoInputMode.Custom : AutoInputMode.Auto}
+      mode={
+        typeof binCount === 'number' ? AutoInputMode.Custom : AutoInputMode.Auto
+      }
       onChangeMode={handleChangeMode}
       inputComponent={
         <Input

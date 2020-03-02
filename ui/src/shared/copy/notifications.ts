@@ -215,12 +215,6 @@ export const invalidTimeRangeValueInURLQuery = (): Notification => ({
   message: `Invalid URL query value supplied for lower or upper time range.`,
 })
 
-export const invalidZoomedTimeRangeValueInURLQuery = (): Notification => ({
-  ...defaultErrorNotification,
-  icon: 'cube',
-  message: `Invalid URL query value supplied for zoomed lower or zoomed upper time range.`,
-})
-
 export const getVariablesFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to fetch variables',
@@ -459,7 +453,7 @@ export const rateLimitReached = (secs?: number): Notification => {
 
 export const resourceLimitReached = (resourceName: string): Notification => ({
   ...defaultErrorNotification,
-  message: `Oops. It looks like you have reached the maximum number of ${resourceName} allowed as part of your plan. If you would like to upgrade and remove this restriction, reach out to cloudbeta@influxdata.com.`,
+  message: `Oops. It looks like you have reached the maximum number of ${resourceName} allowed as part of your plan. If you would like to upgrade and remove this restriction, reach out to support@influxdata.com.`,
   duration: FIVE_SECONDS,
   type: 'resourceLimitReached',
 })
@@ -566,6 +560,16 @@ export const bucketDeleteFailed = (bucketName: string): Notification => ({
 export const predicateDeleteFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to delete data with predicate',
+})
+
+export const setFilterKeyFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to set the filter key tag',
+})
+
+export const setFilterValueFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to set the filter value tag',
 })
 
 export const bucketCreateSuccess = (): Notification => ({
@@ -678,12 +682,12 @@ export const telegrafUpdateFailed = (telegrafName: string): Notification => ({
   message: `Failed to update telegraf: "${telegrafName}"`,
 })
 
-export const addTelelgrafLabelFailed = (): Notification => ({
+export const addTelegrafLabelFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to add label to telegraf config`,
 })
 
-export const removeTelelgrafLabelFailed = (): Notification => ({
+export const removeTelegrafLabelFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to remove label from telegraf config`,
 })
@@ -847,3 +851,12 @@ export const deleteEndpointFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to delete endpoint: ${message}`,
 })
+
+export const invalidJSON = (message: string): Notification => {
+  return {
+    ...defaultErrorNotification,
+    message: message
+      ? `We couldn’t parse the JSON you entered because it failed with message:\n'${message}'`
+      : 'We couldn’t parse the JSON you entered because it isn’t valid. Please check the formatting and try again.',
+  }
+}

@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -10,9 +9,7 @@ import TaskRunsList from 'src/tasks/components/TaskRunsList'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // Types
-import {AppState} from 'src/types'
-import {RemoteDataState} from 'src/types'
-import {Run as APIRun, Task} from '@influxdata/influx'
+import {AppState, RemoteDataState, Task, Run} from 'src/types'
 import {
   SpinnerContainer,
   TechnoSpinner,
@@ -21,17 +18,13 @@ import {
 } from '@influxdata/clockface'
 
 // Actions
-import {getRuns, runTask} from 'src/tasks/actions'
+import {getRuns, runTask} from 'src/tasks/actions/thunks'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {SortTypes} from 'src/shared/utils/sort'
-
-export interface Run extends APIRun {
-  duration: string
-}
 
 interface OwnProps {
   params: {id: string}
@@ -151,12 +144,12 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {tasks} = state
+  const {runs, runStatus, currentTask} = state.resources.tasks
 
   return {
-    runs: tasks.runs,
-    runStatus: tasks.runStatus,
-    currentTask: tasks.currentTask,
+    runs,
+    runStatus,
+    currentTask,
   }
 }
 

@@ -2,9 +2,11 @@ package scheduler
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/influxdata/cron"
+	"github.com/influxdata/influxdb/task/options"
 )
 
 // ID duplicates the influxdb ID so users of the scheduler don't have to
@@ -19,7 +21,7 @@ type Executor interface {
 	// Errors returned from the execute request imply that this attempt has failed and
 	// should be put back in scheduler and re executed at a alter time. We will add scheduler specific errors
 	// so the time can be configurable.
-	Execute(ctx context.Context, id ID, scheduledAt time.Time) error
+	Execute(ctx context.Context, id ID, scheduledFor time.Time, runAt time.Time) error
 }
 
 // Schedulable is the interface that encapsulates work that
@@ -50,10 +52,37 @@ type SchedulableService interface {
 	UpdateLastScheduled(ctx context.Context, id ID, t time.Time) error
 }
 
-// NewSchedule takes a cron string
-func NewSchedule(c string) (Schedule, error) {
-	sch, err := cron.ParseUTC(c)
-	return Schedule{cron: sch}, err
+func NewSchedule(unparsed string, lastScheduledAt time.Time) (Schedule, time.Time, error) {
+	lastScheduledAt = lastScheduledAt.UTC().Truncate(time.Second)
+	c, err := cron.ParseUTC(unparsed)
+	if err != nil {
+		return Schedule{}, lastScheduledAt, err
+	}
+
+	unparsed = strings.TrimSpace(unparsed)
+
+	// Align create to the hour/minute
+	if strings.HasPrefix(unparsed, "@every ") {
+		everyString := strings.TrimSpace(strings.TrimPrefix(unparsed, "@every "))
+		every := options.Duration{}
+		err := every.Parse(everyString)
+		if err != nil {
+			// We cannot align a invalid time
+			return Schedule{c}, lastScheduledAt, nil
+		}
+
+		// drop nanoseconds
+		lastScheduledAt = time.Unix(lastScheduledAt.UTC().Unix(), 0).UTC()
+		everyDur, err := every.DurationFrom(lastScheduledAt)
+		if err != nil {
+			return Schedule{c}, lastScheduledAt, nil
+		}
+
+		// and align
+		lastScheduledAt = lastScheduledAt.Truncate(everyDur).Truncate(time.Second)
+	}
+
+	return Schedule{c}, lastScheduledAt, err
 }
 
 // Schedule is an object a valid schedule of runs

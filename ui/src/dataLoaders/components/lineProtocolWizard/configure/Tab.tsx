@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
 
-import {Radio} from '@influxdata/clockface'
+import {SelectGroup} from '@influxdata/clockface'
 
 import {LineProtocolTab} from 'src/types'
 
@@ -15,16 +15,18 @@ export default class extends PureComponent<Props> {
     const {tab, active} = this.props
 
     return (
-      <Radio.Button
+      <SelectGroup.Option
+        name="line-protocol"
         key={tab}
         id={tab}
         titleText={tab}
         value={tab}
         active={active}
         onClick={this.handleClick}
+        testID={tab}
       >
         {tab}
-      </Radio.Button>
+      </SelectGroup.Option>
     )
   }
 

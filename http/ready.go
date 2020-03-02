@@ -9,26 +9,28 @@ import (
 	"github.com/influxdata/influxdb/toml"
 )
 
-var up = time.Now()
-
 // ReadyHandler is a default readiness handler. The default behaviour is always ready.
-func ReadyHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
+func ReadyHandler() http.Handler {
+	up := time.Now()
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
 
-	var status = struct {
-		Status string        `json:"status"`
-		Start  time.Time     `json:"started"`
-		Up     toml.Duration `json:"up"`
-	}{
-		Status: "ready",
-		Start:  up,
-		Up:     toml.Duration(time.Since(up)),
-	}
+		var status = struct {
+			Status string    `json:"status"`
+			Start  time.Time `json:"started"`
+			// TODO(jsteenb2): learn why and leave comment for this being a toml.Duration
+			Up toml.Duration `json:"up"`
+		}{
+			Status: "ready",
+			Start:  up,
+			Up:     toml.Duration(time.Since(up)),
+		}
 
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "    ")
-	err := enc.Encode(status)
-	if err != nil {
-		fmt.Fprintf(w, "Error encoding status data: %v\n", err)
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "    ")
+		if err := enc.Encode(status); err != nil {
+			fmt.Fprintf(w, "Error encoding status data: %v\n", err)
+		}
 	}
+	return http.HandlerFunc(fn)
 }

@@ -17,10 +17,23 @@ import (
 
 // LoggingProxyQueryService wraps a ProxyQueryService and logs the queries.
 type LoggingProxyQueryService struct {
-	ProxyQueryService ProxyQueryService
-	QueryLogger       Logger
-	NowFunction       func() time.Time
-	Logger            *zap.Logger
+	proxyQueryService ProxyQueryService
+	queryLogger       Logger
+	nowFunction       func() time.Time
+	log               *zap.Logger
+}
+
+func NewLoggingProxyQueryService(log *zap.Logger, queryLogger Logger, proxyQueryService ProxyQueryService) *LoggingProxyQueryService {
+	return &LoggingProxyQueryService{
+		proxyQueryService: proxyQueryService,
+		queryLogger:       queryLogger,
+		nowFunction:       time.Now,
+		log:               log,
+	}
+}
+
+func (s *LoggingProxyQueryService) SetNowFunctionForTesting(nowFunction func() time.Time) {
+	s.nowFunction = nowFunction
 }
 
 // Query executes and logs the query.
@@ -32,30 +45,27 @@ func (s *LoggingProxyQueryService) Query(ctx context.Context, w io.Writer, req *
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("panic: %v", r)
-			if entry := s.Logger.Check(zapcore.InfoLevel, "QueryLogging panic"); entry != nil {
+			if entry := s.log.Check(zapcore.InfoLevel, "QueryLogging panic"); entry != nil {
 				entry.Stack = string(debug.Stack())
 				entry.Write(zap.Error(err))
 			}
 		}
-		var now time.Time
-		if s.NowFunction != nil {
-			now = s.NowFunction()
-		} else {
-			now = time.Now()
-		}
+		traceID, sampled, _ := tracing.InfoFromContext(ctx)
 		log := Log{
 			OrganizationID: req.Request.OrganizationID,
+			TraceID:        traceID,
+			Sampled:        sampled,
 			ProxyRequest:   req,
 			ResponseSize:   n,
-			Time:           now,
+			Time:           s.nowFunction(),
 			Statistics:     stats,
 			Error:          err,
 		}
-		s.QueryLogger.Log(log)
+		s.queryLogger.Log(log)
 	}()
 
 	wc := &iocounter.Writer{Writer: w}
-	stats, err = s.ProxyQueryService.Query(ctx, wc, req)
+	stats, err = s.proxyQueryService.Query(ctx, wc, req)
 	if err != nil {
 		return stats, tracing.LogError(span, err)
 	}
@@ -64,5 +74,5 @@ func (s *LoggingProxyQueryService) Query(ctx context.Context, w io.Writer, req *
 }
 
 func (s *LoggingProxyQueryService) Check(ctx context.Context) check.Response {
-	return s.ProxyQueryService.Check(ctx)
+	return s.proxyQueryService.Check(ctx)
 }

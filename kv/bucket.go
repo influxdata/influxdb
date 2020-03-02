@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -345,6 +344,14 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 		return nil
 	})
 
+	// Don't append system buckets if Name is set. Users who don't have real
+	// system buckets won't get mocked buckets if they query for a bucket by name
+	// without the orgID, but this is a vanishing small number of users and has
+	// limited utility anyways. Can be removed once mock system code is ripped out.
+	if filter.Name != nil {
+		return bs, len(bs), nil
+	}
+
 	needsSystemBuckets := true
 	for _, b := range bs {
 		if b.Type == influxdb.BucketTypeSystem {
@@ -474,7 +481,7 @@ func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) (
 		return err
 	}
 
-	if err := s.createBucketUserResourceMappings(ctx, tx, b); err != nil {
+	if err := s.createUserResourceMappingForOrg(ctx, tx, b.OrgID, b.ID, influxdb.BucketsResourceType); err != nil {
 		return err
 	}
 	return nil
@@ -487,43 +494,8 @@ func (s *Service) generateBucketID(ctx context.Context, tx Tx) (influxdb.ID, err
 // PutBucket will put a bucket without setting an ID.
 func (s *Service) PutBucket(ctx context.Context, b *influxdb.Bucket) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		var err error
-		pe := s.putBucket(ctx, tx, b)
-		if pe != nil {
-			err = pe
-		}
-		return err
+		return s.putBucket(ctx, tx, b)
 	})
-}
-
-func (s *Service) createBucketUserResourceMappings(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	ms, err := s.findUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
-		ResourceType: influxdb.OrgsResourceType,
-		ResourceID:   b.OrgID,
-	})
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	for _, m := range ms {
-		if err := s.createUserResourceMapping(ctx, tx, &influxdb.UserResourceMapping{
-			ResourceType: influxdb.BucketsResourceType,
-			ResourceID:   b.ID,
-			UserID:       m.UserID,
-			UserType:     m.UserType,
-		}); err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-	}
-
-	return nil
 }
 
 func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
@@ -543,9 +515,10 @@ func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) erro
 			Err: err,
 		}
 	}
-	key, pe := bucketIndexKey(b)
+
+	key, err := bucketIndexKey(b)
 	if err != nil {
-		return pe
+		return err
 	}
 
 	idx, err := s.bucketsIndexBucket(tx)
@@ -638,11 +611,6 @@ func (s *Service) validBucketName(ctx context.Context, tx Tx, b *influxdb.Bucket
 	err = s.unique(ctx, tx, bucketIndex, key)
 	if err == NotUniqueError {
 		return BucketAlreadyExistsError(b)
-	}
-
-	// names starting with an underscore are reserved for system buckets
-	if strings.HasPrefix(b.Name, "_") && b.Type != influxdb.BucketTypeSystem {
-		return ReservedBucketNameError(b)
 	}
 
 	return err
@@ -901,15 +869,5 @@ func BucketAlreadyExistsError(b *influxdb.Bucket) error {
 		Code: influxdb.EConflict,
 		Op:   "kv/bucket",
 		Msg:  fmt.Sprintf("bucket with name %s already exists", b.Name),
-	}
-}
-
-// ReservedBucketNameError is used when creating a bucket with a name that
-// starts with an underscore.
-func ReservedBucketNameError(b *influxdb.Bucket) error {
-	return &influxdb.Error{
-		Code: influxdb.EInvalid,
-		Op:   "kv/bucket",
-		Msg:  fmt.Sprintf("bucket name %s is invalid. Buckets may not start with underscore", b.Name),
 	}
 }

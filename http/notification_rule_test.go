@@ -5,18 +5,17 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/influxdata/influxdb/notification"
-	"go.uber.org/zap"
-
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/notification"
 	"github.com/influxdata/influxdb/notification/rule"
 	influxTesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap/zaptest"
 )
 
-func NewMockNotificationRuleBackend() *NotificationRuleBackend {
+func NewMockNotificationRuleBackend(t *testing.T) *NotificationRuleBackend {
 	return &NotificationRuleBackend{
-		Logger: zap.NewNop().With(zap.String("handler", "check")),
+		log: zaptest.NewLogger(t),
 
 		UserResourceMappingService: mock.NewUserResourceMappingService(),
 		LabelService:               mock.NewLabelService(),
@@ -115,6 +114,7 @@ func Test_newNotificationRuleResponses(t *testing.T) {
         "labels": "/api/v2/notificationRules/0000000000000001/labels",
         "members": "/api/v2/notificationRules/0000000000000001/members",
         "owners": "/api/v2/notificationRules/0000000000000001/owners",
+        "query": "/api/v2/notificationRules/0000000000000001/query",
         "self": "/api/v2/notificationRules/0000000000000001"
       },
       "messageTemplate": "message 1{var1}",
@@ -147,7 +147,9 @@ func Test_newNotificationRuleResponses(t *testing.T) {
       ],
       "type": "slack",
       "updatedAt": "0001-01-01T00:00:00Z",
-      "status": "active"
+      "status": "active",
+			"latestCompleted": "0001-01-01T00:00:00Z",
+			"latestScheduled": "0001-01-01T00:00:00Z"
     },
     {
       "createdAt": "0001-01-01T00:00:00Z",
@@ -160,6 +162,7 @@ func Test_newNotificationRuleResponses(t *testing.T) {
         "labels": "/api/v2/notificationRules/000000000000000b/labels",
         "members": "/api/v2/notificationRules/000000000000000b/members",
         "owners": "/api/v2/notificationRules/000000000000000b/owners",
+        "query": "/api/v2/notificationRules/000000000000000b/query",
         "self": "/api/v2/notificationRules/000000000000000b"
       },
       "messageTemplate": "body 2{var2}",
@@ -169,13 +172,15 @@ func Test_newNotificationRuleResponses(t *testing.T) {
       "runbookLink": "",
       "type": "pagerduty",
       "updatedAt": "0001-01-01T00:00:00Z",
-      "status": "active"
+      "status": "active",
+			"latestCompleted": "0001-01-01T00:00:00Z",
+			"latestScheduled": "0001-01-01T00:00:00Z"
     }
   ]
 }`,
 		},
 	}
-	handler := NewNotificationRuleHandler(NewMockNotificationRuleBackend())
+	handler := NewNotificationRuleHandler(zaptest.NewLogger(t), NewMockNotificationRuleBackend(t))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -253,6 +258,7 @@ func Test_newNotificationRuleResponse(t *testing.T) {
    "labels": "/api/v2/notificationRules/0000000000000001/labels",
    "members": "/api/v2/notificationRules/0000000000000001/members",
    "owners": "/api/v2/notificationRules/0000000000000001/owners",
+   "query": "/api/v2/notificationRules/0000000000000001/query",
    "self": "/api/v2/notificationRules/0000000000000001"
  },
  "messageTemplate": "message 1{var1}",
@@ -285,11 +291,13 @@ func Test_newNotificationRuleResponse(t *testing.T) {
    }
  ],
  "type": "slack",
- "updatedAt": "0001-01-01T00:00:00Z"
+ "updatedAt": "0001-01-01T00:00:00Z",
+ "latestCompleted": "0001-01-01T00:00:00Z",
+	"latestScheduled": "0001-01-01T00:00:00Z"
 }`,
 		},
 	}
-	handler := NewNotificationRuleHandler(NewMockNotificationRuleBackend())
+	handler := NewNotificationRuleHandler(zaptest.NewLogger(t), NewMockNotificationRuleBackend(t))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			res, err := handler.newNotificationRuleResponse(context.Background(), tt.args.nr, []*influxdb.Label{})

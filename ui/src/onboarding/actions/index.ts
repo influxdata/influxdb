@@ -1,6 +1,5 @@
 // Libraries
 import _ from 'lodash'
-import {ThunkAction} from 'redux-thunk'
 
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
@@ -14,6 +13,7 @@ import {client} from 'src/utils/api'
 import * as api from 'src/client'
 
 // Types
+import {AppThunk} from 'src/types'
 import {ISetupParams} from '@influxdata/influx'
 
 export type Action =
@@ -59,18 +59,18 @@ const setOrganizationID = (orgID: string): SetOrganizationID => ({
 })
 
 interface SetBucketID {
-  type: 'SET_BUCKET_ID'
+  type: 'SET_ONBOARDING_BUCKET_ID'
   payload: {bucketID: string}
 }
 
 export const setBucketID = (bucketID: string): SetBucketID => ({
-  type: 'SET_BUCKET_ID',
+  type: 'SET_ONBOARDING_BUCKET_ID',
   payload: {bucketID},
 })
 
 export const setupAdmin = (
   params: ISetupParams
-): ThunkAction<Promise<void>> => async (dispatch): Promise<boolean> => {
+): AppThunk<Promise<boolean>> => async dispatch => {
   try {
     dispatch(setSetupParams(params))
     const response = await client.setup.create(params)

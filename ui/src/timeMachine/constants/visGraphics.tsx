@@ -1,10 +1,11 @@
 import React from 'react'
 
 import {ViewType} from 'src/types'
+import {VIS_TYPES} from './index'
 
 const GRAPHIC_SVGS = {
   heatmap: (
-    <div className="vis-graphic">
+    <div className="vis-graphic" data-testid="vis-graphic--heatmap">
       <svg
         width="100%"
         height="100%"
@@ -241,7 +242,7 @@ const GRAPHIC_SVGS = {
     </div>
   ),
   histogram: (
-    <div className="vis-graphic">
+    <div className="vis-graphic" data-testid="vis-graphic--histogram">
       <svg
         width="100%"
         height="100%"
@@ -470,7 +471,7 @@ const GRAPHIC_SVGS = {
     </div>
   ),
   xy: (
-    <div className="vis-graphic">
+    <div className="vis-graphic" data-testid="vis-graphic--xy">
       <svg
         width="100%"
         height="100%"
@@ -509,7 +510,7 @@ const GRAPHIC_SVGS = {
     </div>
   ),
   'single-stat': (
-    <div className="vis-graphic">
+    <div className="vis-graphic" data-testid="vis-graphic--single-stat">
       <svg
         width="100%"
         height="100%"
@@ -548,7 +549,10 @@ const GRAPHIC_SVGS = {
     </div>
   ),
   'line-plus-single-stat': (
-    <div className="vis-graphic">
+    <div
+      className="vis-graphic"
+      data-testid="vis-graphic--line-plus-single-stat"
+    >
       <svg
         width="100%"
         height="100%"
@@ -597,7 +601,7 @@ const GRAPHIC_SVGS = {
     </div>
   ),
   gauge: (
-    <div className="vis-graphic">
+    <div className="vis-graphic" data-testid="vis-graphic--gauge">
       <svg
         width="100%"
         height="100%"
@@ -737,7 +741,7 @@ const GRAPHIC_SVGS = {
     </div>
   ),
   table: (
-    <div className="vis-graphic">
+    <div className="vis-graphic" data-testid="vis-graphic--table">
       <svg
         id="Table"
         x="0px"
@@ -813,7 +817,7 @@ const GRAPHIC_SVGS = {
     </div>
   ),
   scatter: (
-    <div className="vis-graphic">
+    <div className="vis-graphic" data-testid="vis-graphic--scatter">
       <svg
         width="100%"
         height="100%"
@@ -903,45 +907,12 @@ interface VisGraphic {
   graphic: JSX.Element
 }
 
-export const VIS_GRAPHICS: VisGraphic[] = [
-  {
-    type: 'xy',
-    name: 'Graph',
-    graphic: GRAPHIC_SVGS.xy,
-  },
-  {
-    type: 'line-plus-single-stat',
-    name: 'Graph + Single Stat',
-    graphic: GRAPHIC_SVGS['line-plus-single-stat'],
-  },
-  {
-    type: 'heatmap',
-    name: 'Heatmap',
-    graphic: GRAPHIC_SVGS.heatmap,
-  },
-  {
-    type: 'histogram',
-    name: 'Histogram',
-    graphic: GRAPHIC_SVGS.histogram,
-  },
-  {
-    type: 'single-stat',
-    name: 'Single Stat',
-    graphic: GRAPHIC_SVGS['single-stat'],
-  },
-  {
-    type: 'gauge',
-    name: 'Gauge',
-    graphic: GRAPHIC_SVGS.gauge,
-  },
-  {
-    type: 'table',
-    name: 'Table',
-    graphic: GRAPHIC_SVGS.table,
-  },
-  {
-    type: 'scatter',
-    name: 'Scatter',
-    graphic: GRAPHIC_SVGS.scatter,
-  },
-]
+export const VIS_GRAPHICS: VisGraphic[] = VIS_TYPES.map(
+  ({type, name}): VisGraphic => {
+    return {
+      type,
+      name,
+      graphic: GRAPHIC_SVGS[type],
+    }
+  }
+)

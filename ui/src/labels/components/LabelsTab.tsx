@@ -21,7 +21,6 @@ import {validateLabelUniqueness} from 'src/labels/utils/'
 
 // Types
 import {AppState, Label} from 'src/types'
-import {ILabel} from '@influxdata/influx'
 import {
   IconFont,
   ComponentSize,
@@ -145,7 +144,7 @@ class Labels extends PureComponent<Props, State> {
   }
 
   private handleUpdateLabel = (label: Label) => {
-    this.props.updateLabel(label.id, label as ILabel)
+    this.props.updateLabel(label.id, label)
   }
 
   private handleDelete = (id: string) => {

@@ -13,22 +13,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
 	platformtesting "github.com/influxdata/influxdb/testing"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
 // NewMockTaskBackend returns a TaskBackend with mock services.
 func NewMockTaskBackend(t *testing.T) *TaskBackend {
+	t.Helper()
 	return &TaskBackend{
-		Logger: zaptest.NewLogger(t).With(zap.String("handler", "task")),
+		log: zaptest.NewLogger(t).With(zap.String("handler", "task")),
 
 		AuthorizationService: mock.NewAuthorizationService(),
 		TaskService:          &mock.TaskService{},
@@ -55,7 +55,7 @@ func NewMockTaskBackend(t *testing.T) *TaskBackend {
 				return org, nil
 			},
 		},
-		UserResourceMappingService: inmem.NewService(),
+		UserResourceMappingService: newInMemKVSVC(t),
 		LabelService:               mock.NewLabelService(),
 		UserService:                mock.NewUserService(),
 	}
@@ -395,7 +395,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			taskBackend.HTTPErrorHandler = ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			taskBackend.LabelService = tt.fields.labelService
-			h := NewTaskHandler(taskBackend)
+			h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 			h.handleGetTasks(w, r)
 
 			res := w.Result()
@@ -561,7 +561,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			taskBackend := NewMockTaskBackend(t)
 			taskBackend.HTTPErrorHandler = ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
-			h := NewTaskHandler(taskBackend)
+			h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 			h.handlePostTask(w, r)
 
 			res := w.Result()
@@ -675,7 +675,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 			taskBackend := NewMockTaskBackend(t)
 			taskBackend.HTTPErrorHandler = ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
-			h := NewTaskHandler(taskBackend)
+			h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 			h.handleGetRun(w, r)
 
 			res := w.Result()
@@ -793,7 +793,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 			taskBackend := NewMockTaskBackend(t)
 			taskBackend.HTTPErrorHandler = ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
-			h := NewTaskHandler(taskBackend)
+			h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 			h.handleGetRuns(w, r)
 
 			res := w.Result()
@@ -820,10 +820,10 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 func TestTaskHandler_NotFoundStatus(t *testing.T) {
 	// Ensure that the HTTP handlers return 404s for missing resources, and OKs for matching.
 
-	im := inmem.NewService()
+	im := newInMemKVSVC(t)
 	taskBackend := NewMockTaskBackend(t)
 	taskBackend.HTTPErrorHandler = ErrorHandler(0)
-	h := NewTaskHandler(taskBackend)
+	h := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 	h.UserResourceMappingService = im
 	h.LabelService = im
 	h.UserService = im
@@ -1173,7 +1173,7 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			taskBE := NewMockTaskBackend(t)
 			taskBE.LabelService = tt.fields.LabelService
-			h := NewTaskHandler(taskBE)
+			h := NewTaskHandler(zaptest.NewLogger(t), taskBE)
 
 			b, err := json.Marshal(tt.args.labelMapping)
 			if err != nil {
@@ -1210,7 +1210,7 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 // Test that org name to org ID translation happens properly in the HTTP layer.
 // Regression test for https://github.com/influxdata/influxdb/issues/12089.
 func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
-	i := inmem.NewService()
+	i := newInMemKVSVC(t)
 	ctx := context.Background()
 
 	// Set up user and org.
@@ -1248,8 +1248,8 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 		},
 	}
 
-	h := NewTaskHandler(&TaskBackend{
-		Logger: zaptest.NewLogger(t),
+	h := NewTaskHandler(zaptest.NewLogger(t), &TaskBackend{
+		log: zaptest.NewLogger(t),
 
 		TaskService:                ts,
 		AuthorizationService:       i,
@@ -1303,7 +1303,7 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 func TestTaskHandler_Sessions(t *testing.T) {
 	t.Skip("rework these")
 	// Common setup to get a working base for using tasks.
-	i := inmem.NewService()
+	i := newInMemKVSVC(t)
 
 	ctx := context.Background()
 
@@ -1344,9 +1344,9 @@ func TestTaskHandler_Sessions(t *testing.T) {
 	})
 
 	newHandler := func(t *testing.T, ts *mock.TaskService) *TaskHandler {
-		return NewTaskHandler(&TaskBackend{
+		return NewTaskHandler(zaptest.NewLogger(t), &TaskBackend{
 			HTTPErrorHandler: ErrorHandler(0),
-			Logger:           zaptest.NewLogger(t),
+			log:              zaptest.NewLogger(t),
 
 			TaskService:                ts,
 			AuthorizationService:       i,

@@ -8,14 +8,12 @@ import {Overlay, IndexList} from '@influxdata/clockface'
 import RunLogsOverlay from 'src/tasks/components/RunLogsList'
 
 // Actions
-import {getLogs} from 'src/tasks/actions'
+import {getLogs} from 'src/tasks/actions/thunks'
 
 // Types
 import {ComponentSize, ComponentColor, Button} from '@influxdata/clockface'
-import {LogEvent} from '@influxdata/influx'
-import {AppState} from 'src/types'
+import {AppState, LogEvent, Run} from 'src/types'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
-import {Run} from 'src/tasks/components/TaskRunsPage'
 
 interface OwnProps {
   taskID: string
@@ -71,7 +69,7 @@ class TaskRunsRow extends PureComponent<Props, State> {
     )
   }
 
-  private dateTimeString(dt: Date): string {
+  private dateTimeString(dt: string): string {
     if (!dt) {
       return ''
     }
@@ -104,9 +102,8 @@ class TaskRunsRow extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    tasks: {logs},
-  } = state
+  const {logs} = state.resources.tasks
+
   return {logs}
 }
 

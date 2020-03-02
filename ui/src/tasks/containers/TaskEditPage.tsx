@@ -1,5 +1,4 @@
 // Libraries
-import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 import {InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
@@ -8,29 +7,33 @@ import {connect} from 'react-redux'
 import TaskForm from 'src/tasks/components/TaskForm'
 import TaskHeader from 'src/tasks/components/TaskHeader'
 import {Page} from '@influxdata/clockface'
-import FluxEditor from 'src/shared/components/FluxEditor'
+
+import FluxEditor from 'src/shared/components/FluxMonacoEditor'
 
 // Actions
 import {
-  updateScript,
-  selectTaskByID,
   setCurrentScript,
-  cancel,
   setTaskOption,
   clearTask,
+} from 'src/tasks/actions/creators'
+import {
+  updateScript,
+  selectTaskByID,
+  cancel,
   setAllTaskOptionsByID,
-} from 'src/tasks/actions'
+} from 'src/tasks/actions/thunks'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {
+  AppState,
+  Task,
   TaskOptions,
   TaskOptionKeys,
   TaskSchedule,
-} from 'src/utils/taskOptionsToFluxScript'
-import {AppState, Task} from 'src/types'
+} from 'src/types'
 
 interface OwnProps {
   router: InjectedRouter
@@ -97,8 +100,6 @@ class TaskEditPage extends PureComponent<Props> {
               <FluxEditor
                 script={currentScript}
                 onChangeScript={this.handleChangeScript}
-                visibility="visible"
-                suggestions={[]}
               />
             </div>
           </div>
@@ -141,11 +142,13 @@ class TaskEditPage extends PureComponent<Props> {
   }
 }
 
-const mstp = ({tasks}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {taskOptions, currentScript, currentTask} = state.resources.tasks
+
   return {
-    taskOptions: tasks.taskOptions,
-    currentScript: tasks.currentScript,
-    currentTask: tasks.currentTask,
+    taskOptions,
+    currentScript,
+    currentTask,
   }
 }
 

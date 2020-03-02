@@ -2,6 +2,7 @@
 import React, {FunctionComponent, useEffect} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
+import {get} from 'lodash'
 
 // Components
 import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
@@ -12,59 +13,46 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Actions
-import {updateCheck, getCheckForTimeMachine} from 'src/alerting/actions/checks'
 import {
-  setActiveTimeMachine,
-  setTimeMachineCheck,
-  updateTimeMachineCheck,
-} from 'src/timeMachine/actions'
+  saveCheckFromTimeMachine,
+  getCheckForTimeMachine,
+} from 'src/alerting/actions/checks'
 import {executeQueries} from 'src/timeMachine/actions/queries'
-import {notify} from 'src/shared/actions/notifications'
-import {updateCheckFailed} from 'src/shared/copy/notifications'
+import {resetAlertBuilder, updateName} from 'src/alerting/actions/alertBuilder'
 
 // Types
-import {
-  Check,
-  AppState,
-  RemoteDataState,
-  DashboardDraftQuery,
-  TimeMachineID,
-  QueryView,
-} from 'src/types'
+import {AppState, RemoteDataState, TimeMachineID, QueryView} from 'src/types'
 
 interface DispatchProps {
-  onUpdateCheck: typeof updateCheck
+  onSaveCheckFromTimeMachine: typeof saveCheckFromTimeMachine
   onGetCheckForTimeMachine: typeof getCheckForTimeMachine
-  onUpdateTimeMachineCheck: typeof updateTimeMachineCheck
-  onSetActiveTimeMachine: typeof setActiveTimeMachine
-  onSetTimeMachineCheck: typeof setTimeMachineCheck
   onExecuteQueries: typeof executeQueries
-  onNotify: typeof notify
+  onResetAlertBuilder: typeof resetAlertBuilder
+  onUpdateAlertBuilderName: typeof updateName
 }
 
 interface StateProps {
   view: QueryView | null
-  check: Partial<Check>
-  query: DashboardDraftQuery
   checkStatus: RemoteDataState
   activeTimeMachineID: TimeMachineID
+  loadedCheckID: string
+  checkName: string
 }
 
 type Props = WithRouterProps & DispatchProps & StateProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
-  onUpdateCheck,
+  onUpdateAlertBuilderName,
+  onResetAlertBuilder,
+  onSaveCheckFromTimeMachine,
   onExecuteQueries,
   onGetCheckForTimeMachine,
-  onUpdateTimeMachineCheck,
-  onSetTimeMachineCheck,
-  onNotify,
   activeTimeMachineID,
   checkStatus,
   router,
   params: {checkID, orgID},
-  query,
-  check,
+  checkName,
+  loadedCheckID,
   view,
 }) => {
   useEffect(() => {
@@ -73,26 +61,11 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
 
   useEffect(() => {
     onExecuteQueries()
-  }, [view])
-
-  const handleUpdateName = (name: string) => {
-    onUpdateTimeMachineCheck({name})
-  }
+  }, [get(view, 'properties.queries[0]', null)])
 
   const handleClose = () => {
     router.push(`/orgs/${orgID}/alerting`)
-    onSetTimeMachineCheck(RemoteDataState.NotStarted, null)
-  }
-
-  const handleSave = () => {
-    // todo: update view when check has own view
-    try {
-      onUpdateCheck({...check, query})
-      handleClose()
-    } catch (e) {
-      console.error(e)
-      onNotify(updateCheckFailed(e.message))
-    }
+    onResetAlertBuilder()
   }
 
   let loadingStatus = RemoteDataState.Loading
@@ -103,7 +76,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   if (
     checkStatus === RemoteDataState.Done &&
     activeTimeMachineID === 'alerting' &&
-    check.id === checkID
+    loadedCheckID === checkID
   ) {
     loadingStatus = RemoteDataState.Done
   }
@@ -116,11 +89,10 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
           loading={loadingStatus}
         >
           <CheckEOHeader
-            key={check && check.name}
-            name={check && check.name}
-            onSetName={handleUpdateName}
+            name={checkName}
+            onSetName={onUpdateAlertBuilderName}
             onCancel={handleClose}
-            onSave={handleSave}
+            onSave={onSaveCheckFromTimeMachine}
           />
           <div className="veo-contents">
             <TimeMachine />
@@ -134,26 +106,26 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
 const mstp = (state: AppState): StateProps => {
   const {
     timeMachines: {activeTimeMachineID},
+    alertBuilder: {checkStatus, name, id},
   } = state
-
-  const {
-    draftQueries,
-    alerting: {check, checkStatus},
-  } = getActiveTimeMachine(state)
 
   const {view} = getActiveTimeMachine(state)
 
-  return {check, checkStatus, activeTimeMachineID, query: draftQueries[0], view}
+  return {
+    loadedCheckID: id,
+    checkName: name,
+    checkStatus,
+    activeTimeMachineID,
+    view,
+  }
 }
 
 const mdtp: DispatchProps = {
-  onUpdateCheck: updateCheck,
-  onSetTimeMachineCheck: setTimeMachineCheck,
-  onUpdateTimeMachineCheck: updateTimeMachineCheck,
-  onSetActiveTimeMachine: setActiveTimeMachine,
   onGetCheckForTimeMachine: getCheckForTimeMachine,
+  onSaveCheckFromTimeMachine: saveCheckFromTimeMachine,
   onExecuteQueries: executeQueries,
-  onNotify: notify,
+  onResetAlertBuilder: resetAlertBuilder,
+  onUpdateAlertBuilderName: updateName,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

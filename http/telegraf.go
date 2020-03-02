@@ -8,10 +8,11 @@ import (
 	"strings"
 
 	"github.com/golang/gddo/httputil"
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/pkg/httpc"
 	"github.com/influxdata/influxdb/telegraf/plugins"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 
@@ -19,7 +20,7 @@ import (
 // the TelegrafHandler.
 type TelegrafBackend struct {
 	platform.HTTPErrorHandler
-	Logger *zap.Logger
+	log *zap.Logger
 
 	TelegrafService            platform.TelegrafConfigStore
 	UserResourceMappingService platform.UserResourceMappingService
@@ -29,10 +30,10 @@ type TelegrafBackend struct {
 }
 
 // NewTelegrafBackend returns a new instance of TelegrafBackend.
-func NewTelegrafBackend(b *APIBackend) *TelegrafBackend {
+func NewTelegrafBackend(log *zap.Logger, b *APIBackend) *TelegrafBackend {
 	return &TelegrafBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "telegraf")),
+		log:              log,
 
 		TelegrafService:            b.TelegrafService,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -46,7 +47,7 @@ func NewTelegrafBackend(b *APIBackend) *TelegrafBackend {
 type TelegrafHandler struct {
 	*httprouter.Router
 	platform.HTTPErrorHandler
-	Logger *zap.Logger
+	log *zap.Logger
 
 	TelegrafService            platform.TelegrafConfigStore
 	UserResourceMappingService platform.UserResourceMappingService
@@ -56,7 +57,7 @@ type TelegrafHandler struct {
 }
 
 const (
-	telegrafsPath            = "/api/v2/telegrafs"
+	prefixTelegraf           = "/api/v2/telegrafs"
 	telegrafsIDPath          = "/api/v2/telegrafs/:id"
 	telegrafsIDMembersPath   = "/api/v2/telegrafs/:id/members"
 	telegrafsIDMembersIDPath = "/api/v2/telegrafs/:id/members/:userID"
@@ -64,14 +65,17 @@ const (
 	telegrafsIDOwnersIDPath  = "/api/v2/telegrafs/:id/owners/:userID"
 	telegrafsIDLabelsPath    = "/api/v2/telegrafs/:id/labels"
 	telegrafsIDLabelsIDPath  = "/api/v2/telegrafs/:id/labels/:lid"
+
+	prefixTelegrafPlugins = "/api/v2/telegraf"
+	telegrafPluginsPath   = "/api/v2/telegraf/plugins"
 )
 
 // NewTelegrafHandler returns a new instance of TelegrafHandler.
-func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
+func NewTelegrafHandler(log *zap.Logger, b *TelegrafBackend) *TelegrafHandler {
 	h := &TelegrafHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger,
+		log:              log,
 
 		TelegrafService:            b.TelegrafService,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -79,15 +83,17 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 		UserService:                b.UserService,
 		OrganizationService:        b.OrganizationService,
 	}
-	h.HandlerFunc("POST", telegrafsPath, h.handlePostTelegraf)
-	h.HandlerFunc("GET", telegrafsPath, h.handleGetTelegrafs)
+	h.HandlerFunc("POST", prefixTelegraf, h.handlePostTelegraf)
+	h.HandlerFunc("GET", prefixTelegraf, h.handleGetTelegrafs)
 	h.HandlerFunc("GET", telegrafsIDPath, h.handleGetTelegraf)
 	h.HandlerFunc("DELETE", telegrafsIDPath, h.handleDeleteTelegraf)
 	h.HandlerFunc("PUT", telegrafsIDPath, h.handlePutTelegraf)
 
+	h.HandlerFunc("GET", telegrafPluginsPath, h.handleGetTelegrafPlugins)
+
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               platform.TelegrafsResourceType,
 		UserType:                   platform.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -99,7 +105,7 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               platform.TelegrafsResourceType,
 		UserType:                   platform.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -111,7 +117,7 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "label")),
+		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
 		ResourceType:     platform.TelegrafsResourceType,
 	}
@@ -129,55 +135,6 @@ type telegrafLinks struct {
 	Owners  string `json:"owners"`
 }
 
-// MarshalJSON implement the json.Marshaler interface.
-// TODO: remove this hack and make labels and links return.
-// see: https://github.com/influxdata/influxdb/issues/12457
-func (r *telegrafResponse) MarshalJSON() ([]byte, error) {
-	// telegrafPluginEncode is the helper struct for json encoding.
-	type telegrafPluginEncode struct {
-		// Name of the telegraf plugin, exp "docker"
-		Name    string         `json:"name"`
-		Type    plugins.Type   `json:"type"`
-		Comment string         `json:"comment"`
-		Config  plugins.Config `json:"config"`
-	}
-
-	// telegrafConfigEncode is the helper struct for json encoding.
-	type telegrafConfigEncode struct {
-		ID          platform.ID                  `json:"id"`
-		OrgID       platform.ID                  `json:"orgID,omitempty"`
-		Name        string                       `json:"name"`
-		Description string                       `json:"description"`
-		Agent       platform.TelegrafAgentConfig `json:"agent"`
-		Plugins     []telegrafPluginEncode       `json:"plugins"`
-		Labels      []platform.Label             `json:"labels"`
-		Links       telegrafLinks                `json:"links"`
-	}
-
-	tce := new(telegrafConfigEncode)
-	*tce = telegrafConfigEncode{
-		ID:          r.ID,
-		OrgID:       r.OrgID,
-		Name:        r.Name,
-		Description: r.Description,
-		Agent:       r.Agent,
-		Plugins:     make([]telegrafPluginEncode, len(r.Plugins)),
-		Labels:      r.Labels,
-		Links:       r.Links,
-	}
-
-	for k, p := range r.Plugins {
-		tce.Plugins[k] = telegrafPluginEncode{
-			Name:    p.Config.PluginName(),
-			Type:    p.Config.Type(),
-			Comment: p.Comment,
-			Config:  p.Config,
-		}
-	}
-
-	return json.Marshal(tce)
-}
-
 type telegrafResponse struct {
 	*platform.TelegrafConfig
 	Labels []platform.Label `json:"labels"`
@@ -186,6 +143,29 @@ type telegrafResponse struct {
 
 type telegrafResponses struct {
 	TelegrafConfigs []*telegrafResponse `json:"configurations"`
+}
+
+func getTelegrafPlugins(t string) (*plugins.TelegrafPlugins, error) {
+	if len(t) == 0 {
+		return plugins.AvailablePlugins()
+	}
+
+	return plugins.ListAvailablePlugins(t)
+}
+
+func (h *TelegrafHandler) handleGetTelegrafPlugins(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	telPlugins, err := getTelegrafPlugins(r.URL.Query().Get("type"))
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, telPlugins); err != nil {
+		logEncodingError(h.log, r, err)
+		return
+	}
 }
 
 func newTelegrafResponse(tc *platform.TelegrafConfig, labels []*platform.Label) *telegrafResponse {
@@ -218,7 +198,7 @@ func newTelegrafResponses(ctx context.Context, tcs []*platform.TelegrafConfig, l
 	return resp
 }
 
-func decodeGetTelegrafRequest(ctx context.Context, r *http.Request) (i platform.ID, err error) {
+func decodeGetTelegrafRequest(ctx context.Context) (i platform.ID, err error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
@@ -238,7 +218,7 @@ func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	filter, err := decodeTelegrafConfigFilter(ctx, r)
 	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -247,17 +227,17 @@ func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Requ
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("telegrafs retrieved", zap.String("telegrafs", fmt.Sprint(tcs)))
+	h.log.Debug("Telegrafs retrieved", zap.String("telegrafs", fmt.Sprint(tcs)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponses(ctx, tcs, h.LabelService)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
 
 func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	id, err := decodeGetTelegrafRequest(ctx, r)
+	id, err := decodeGetTelegrafRequest(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -267,7 +247,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("telegraf retrieved", zap.String("telegraf", fmt.Sprint(tc)))
+	h.log.Debug("Telegraf retrieved", zap.String("telegraf", fmt.Sprint(tc)))
 
 	offers := []string{"application/toml", "application/json", "application/octet-stream"}
 	defaultOffer := "application/toml"
@@ -277,7 +257,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.toml\"", strings.Replace(strings.TrimSpace(tc.Name), " ", "_", -1)))
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(tc.TOML()))
+		w.Write([]byte(tc.Config))
 	case "application/json":
 		labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: tc.ID})
 		if err != nil {
@@ -286,13 +266,13 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		}
 
 		if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponse(tc, labels)); err != nil {
-			logEncodingError(h.Logger, r, err)
+			logEncodingError(h.log, r, err)
 			return
 		}
 	case "application/toml":
 		w.Header().Set("Content-Type", "application/toml; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(tc.TOML()))
+		w.Write([]byte(tc.Config))
 	}
 }
 
@@ -320,12 +300,6 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform
 	return f, err
 }
 
-func decodePostTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {
-	tc := new(platform.TelegrafConfig)
-	err := json.NewDecoder(r.Body).Decode(tc)
-	return tc, err
-}
-
 func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {
 	tc := new(platform.TelegrafConfig)
 	if err := json.NewDecoder(r.Body).Decode(tc); err != nil {
@@ -350,12 +324,14 @@ func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.T
 // handlePostTelegraf is the HTTP handler for the POST /api/v2/telegrafs route.
 func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tc, err := decodePostTelegrafRequest(ctx, r)
-	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+
+	tc := new(platform.TelegrafConfig)
+	if err := json.NewDecoder(r.Body).Decode(tc); err != nil {
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -366,10 +342,10 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("telegraf created", zap.String("telegraf", fmt.Sprint(tc)))
+	h.log.Debug("Telegraf created", zap.String("telegraf", fmt.Sprint(tc)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newTelegrafResponse(tc, []*platform.Label{})); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -377,12 +353,14 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 // handlePutTelegraf is the HTTP handler for the POST /api/v2/telegrafs route.
 func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
 	tc, err := decodePutTelegrafRequest(ctx, r)
 	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -400,17 +378,17 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("telegraf updated", zap.String("telegraf", fmt.Sprint(tc)))
+	h.log.Debug("Telegraf updated", zap.String("telegraf", fmt.Sprint(tc)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponse(tc, labels)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
 
 func (h *TelegrafHandler) handleDeleteTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	i, err := decodeGetTelegrafRequest(ctx, r)
+	i, err := decodeGetTelegrafRequest(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -420,7 +398,98 @@ func (h *TelegrafHandler) handleDeleteTelegraf(w http.ResponseWriter, r *http.Re
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("telegraf deleted", zap.String("telegrafID", fmt.Sprint(i)))
+	h.log.Debug("Telegraf deleted", zap.String("telegrafID", fmt.Sprint(i)))
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// TelegrafService is an http client that speaks to the telegraf service via HTTP.
+type TelegrafService struct {
+	client *httpc.Client
+	*UserResourceMappingService
+}
+
+// NewTelegrafService is a constructor for a telegraf service.
+func NewTelegrafService(httpClient *httpc.Client) *TelegrafService {
+	return &TelegrafService{
+		client: httpClient,
+		UserResourceMappingService: &UserResourceMappingService{
+			Client: httpClient,
+		},
+	}
+}
+
+var _ platform.TelegrafConfigStore = (*TelegrafService)(nil)
+
+// FindTelegrafConfigByID returns a single telegraf config by ID.
+func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
+	var cfg platform.TelegrafConfig
+	err := s.client.
+		Get(prefixTelegraf, id.String()).
+		Header("Accept", "application/json").
+		DecodeJSON(&cfg).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+// FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
+// Additional options provide pagination & sorting.
+func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
+	params := findOptionParams(opt...)
+	if f.OrgID != nil {
+		params = append(params, [2]string{"orgID", f.OrgID.String()})
+	}
+	if f.Organization != nil {
+		params = append(params, [2]string{"organization", *f.Organization})
+	}
+	if f.ResourceID != 0 {
+		params = append(params, [2]string{"resourceID", f.ResourceID.String()})
+	}
+	if f.UserID != 0 {
+		params = append(params, [2]string{"userID", f.UserID.String()})
+	}
+
+	var resp struct {
+		Configs []*platform.TelegrafConfig `json:"configurations"`
+	}
+	err := s.client.
+		Get(prefixTelegraf).
+		QueryParams(params...).
+		DecodeJSON(&resp).
+		Do(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return resp.Configs, len(resp.Configs), nil
+}
+
+// CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
+func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *platform.TelegrafConfig, userID platform.ID) error {
+	var teleResp platform.TelegrafConfig
+	err := s.client.
+		PostJSON(tc, prefixTelegraf).
+		DecodeJSON(&teleResp).
+		Do(ctx)
+	if err != nil {
+		return err
+	}
+	*tc = teleResp
+	return nil
+}
+
+// UpdateTelegrafConfig updates a single telegraf config.
+// Returns the new telegraf config after update.
+func (s *TelegrafService) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *platform.TelegrafConfig, userID platform.ID) (*platform.TelegrafConfig, error) {
+	panic("not implemented")
+}
+
+// DeleteTelegrafConfig removes a telegraf config by ID.
+func (s *TelegrafService) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error {
+	return s.client.
+		Delete(prefixTelegraf, id.String()).
+		Do(ctx)
 }

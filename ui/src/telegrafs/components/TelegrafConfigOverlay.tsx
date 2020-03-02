@@ -18,10 +18,10 @@ import {
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
+import {getByID} from 'src/resources/selectors'
 
 // Types
-import {AppState} from 'src/types'
-import {ITelegraf as Telegraf} from '@influxdata/influx'
+import {AppState, Telegraf, ResourceType} from 'src/types'
 
 interface OwnProps {
   onClose: () => void
@@ -93,16 +93,16 @@ class TelegrafConfigOverlay extends PureComponent<Props> {
   }
 }
 
-const mstp = ({telegrafs, overlays}: AppState): StateProps => {
-  const id = overlays.params.id
+const mstp = (state: AppState): StateProps => {
+  const {overlays, resources} = state
+  const {status, currentConfig} = resources.telegrafs
+  const {id} = overlays.params
 
   return {
-    telegraf: telegrafs.list.find(t => {
-      return t.id === id
-    }),
-    status: telegrafs.status,
-    telegrafConfig: telegrafs.currentConfig.item,
-    configStatus: telegrafs.currentConfig.status,
+    telegraf: getByID<Telegraf>(state, ResourceType.Telegrafs, id),
+    status,
+    telegrafConfig: currentConfig.item,
+    configStatus: currentConfig.status,
   }
 }
 

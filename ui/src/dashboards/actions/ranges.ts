@@ -2,14 +2,14 @@
 import qs from 'qs'
 import {replace, RouterAction} from 'react-router-redux'
 import {Dispatch, Action} from 'redux'
-import _ from 'lodash'
+import {get, pickBy} from 'lodash'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 
 // Utils
-import {validTimeRange, validAbsoluteTimeRange} from 'src/dashboards/utils/time'
 import {stripPrefix} from 'src/utils/basepath'
+import {validateAndTypeRange} from 'src/dashboards/utils/time'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -19,17 +19,14 @@ import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 import {TimeRange} from 'src/types'
 
 export type Action =
-  | SetDashTimeV1Action
-  | SetZoomedTimeRangeAction
+  | SetDashboardTimeRangeAction
   | DeleteTimeRangeAction
   | RetainRangesDashTimeV1Action
 
 export enum ActionTypes {
   DeleteTimeRange = 'DELETE_TIME_RANGE',
-  SetTimeRange = 'SET_DASHBOARD_TIME_RANGE',
-  SetDashboardTimeV1 = 'SET_DASHBOARD_TIME_V1',
+  SetDashboardTimeRange = 'SET_DASHBOARD_TIME_RANGE',
   RetainRangesDashboardTimeV1 = 'RETAIN_RANGES_DASHBOARD_TIME_V1',
-  SetZoomedTimeRange = 'SET_DASHBOARD_ZOOMED_TIME_RANGE',
 }
 
 export interface DeleteTimeRangeAction {
@@ -39,18 +36,11 @@ export interface DeleteTimeRangeAction {
   }
 }
 
-interface SetDashTimeV1Action {
-  type: ActionTypes.SetDashboardTimeV1
+interface SetDashboardTimeRangeAction {
+  type: ActionTypes.SetDashboardTimeRange
   payload: {
     dashboardID: string
     timeRange: TimeRange
-  }
-}
-
-interface SetZoomedTimeRangeAction {
-  type: ActionTypes.SetZoomedTimeRange
-  payload: {
-    zoomedTimeRange: TimeRange
   }
 }
 
@@ -68,18 +58,11 @@ export const deleteTimeRange = (
   payload: {dashboardID},
 })
 
-export const setZoomedTimeRange = (
-  zoomedTimeRange: TimeRange
-): SetZoomedTimeRangeAction => ({
-  type: ActionTypes.SetZoomedTimeRange,
-  payload: {zoomedTimeRange},
-})
-
-export const setDashTimeV1 = (
+export const setDashboardTimeRange = (
   dashboardID: string,
   timeRange: TimeRange
-): SetDashTimeV1Action => ({
-  type: ActionTypes.SetDashboardTimeV1,
+): SetDashboardTimeRangeAction => ({
+  type: ActionTypes.SetDashboardTimeRange,
   payload: {dashboardID, timeRange},
 })
 
@@ -94,7 +77,7 @@ export const updateQueryParams = (updatedQueryParams: object): RouterAction => {
   const {search, pathname} = window.location
   const strippedPathname = stripPrefix(pathname)
 
-  const newQueryParams = _.pickBy(
+  const newQueryParams = pickBy(
     {
       ...qs.parse(search, {ignoreQueryPrefix: true}),
       ...updatedQueryParams,
@@ -117,49 +100,27 @@ export const updateTimeRangeFromQueryParams = (dashboardID: string) => (
     ignoreQueryPrefix: true,
   })
 
-  const timeRangeFromQueries = {
-    lower: queryParams.lower,
-    upper: queryParams.upper,
-  }
+  const validatedTimeRangeFromQuery = validateAndTypeRange({
+    lower: get(queryParams, 'lower', null),
+    upper: get(queryParams, 'upper', null),
+  })
 
-  const zoomedTimeRangeFromQueries = {
-    lower: queryParams.zoomedLower,
-    upper: queryParams.zoomedUpper,
-  }
-
-  let validatedTimeRange = validTimeRange(timeRangeFromQueries)
-
-  if (!validatedTimeRange.lower) {
-    const dashboardTimeRange = ranges.find(r => r.dashboardID === dashboardID)
-
-    validatedTimeRange = dashboardTimeRange || DEFAULT_TIME_RANGE
-
-    if (timeRangeFromQueries.lower || timeRangeFromQueries.upper) {
-      dispatch(notify(copy.invalidTimeRangeValueInURLQuery()))
-    }
-  }
-
-  dispatch(setDashTimeV1(dashboardID, validatedTimeRange))
-
-  const validatedZoomedTimeRange = validAbsoluteTimeRange(
-    zoomedTimeRangeFromQueries
-  )
+  const validatedTimeRange =
+    validatedTimeRangeFromQuery || ranges[dashboardID] || DEFAULT_TIME_RANGE
 
   if (
-    !validatedZoomedTimeRange.lower &&
-    (queryParams.zoomedLower || queryParams.zoomedUpper)
+    (queryParams.lower || queryParams.upper) &&
+    !validatedTimeRangeFromQuery
   ) {
-    dispatch(notify(copy.invalidZoomedTimeRangeValueInURLQuery()))
+    dispatch(notify(copy.invalidTimeRangeValueInURLQuery()))
   }
 
-  dispatch(setZoomedTimeRange(validatedZoomedTimeRange))
+  dispatch(setDashboardTimeRange(dashboardID, validatedTimeRange))
 
-  const updatedQueryParams = {
-    lower: validatedTimeRange.lower,
-    upper: validatedTimeRange.upper,
-    zoomedLower: validatedZoomedTimeRange.lower,
-    zoomedUpper: validatedZoomedTimeRange.upper,
-  }
-
-  dispatch(updateQueryParams(updatedQueryParams))
+  dispatch(
+    updateQueryParams({
+      lower: validatedTimeRange.lower,
+      upper: validatedTimeRange.upper,
+    })
+  )
 }

@@ -5,26 +5,42 @@ import {
   ButtonShape,
   Form,
   IconFont,
-  Input,
   SelectDropdown,
 } from '@influxdata/clockface'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
+import {connect} from 'react-redux'
+
+// Components
+import SearchableDropdown from 'src/shared/components/SearchableDropdown'
 
 // Types
 import {Filter} from 'src/types'
 
+// Actions
+import {setValuesByKey} from 'src/shared/actions/predicates'
+
 interface Props {
+  bucket: string
   filter: Filter
+  keys: string[]
   onChange: (filter: Filter) => any
   onDelete: () => any
   shouldValidate: boolean
+  values: (string | number)[]
 }
 
-const FilterRow: FC<Props> = ({
+interface DispatchProps {
+  setValuesByKey: typeof setValuesByKey
+}
+
+const FilterRow: FC<Props & DispatchProps> = ({
+  bucket,
   filter: {key, equality, value},
+  keys,
   onChange,
   onDelete,
+  setValuesByKey,
   shouldValidate,
+  values,
 }) => {
   const keyErrorMessage =
     shouldValidate && key.trim() === '' ? 'Key cannot be empty' : null
@@ -33,9 +49,15 @@ const FilterRow: FC<Props> = ({
   const valueErrorMessage =
     shouldValidate && value.trim() === '' ? 'Value cannot be empty' : null
 
-  const onChangeKey = e => onChange({key: e.target.value, equality, value})
-  const onChangeValue = e => onChange({key, equality, value: e.target.value})
-  const onChangeEquality = e => onChange({key, equality: e, value})
+  const onChangeKey = (input: string) => onChange({key: input, equality, value})
+  const onKeySelect = (input: string) => {
+    setValuesByKey(bucket, input)
+    onChange({key: input, equality, value})
+  }
+  const onChangeValue = (input: string) =>
+    onChange({key, equality, value: input})
+
+  const onChangeEquality = (e: string) => onChange({key, equality: e, value})
 
   return (
     <div className="delete-data-filter">
@@ -44,28 +66,50 @@ const FilterRow: FC<Props> = ({
         required={true}
         errorMessage={keyErrorMessage}
       >
-        <Input onChange={onChangeKey} value={key} testID="key-input" />
+        <SearchableDropdown
+          className="dwp-filter-dropdown"
+          searchTerm={key}
+          emptyText="No Tags Found"
+          searchPlaceholder="Search keys..."
+          selectedOption={key}
+          onSelect={onKeySelect}
+          onChangeSearchTerm={onChangeKey}
+          testID="dwp-filter-key-input"
+          buttonTestID="tag-selector--dropdown-button"
+          menuTestID="tag-selector--dropdown-menu"
+          options={keys}
+        />
       </Form.Element>
-      <div className="delete-data-filter--equals">==</div>
-      <FeatureFlag name="deleteWithPredicateEquality">
-        <Form.Element
-          label="Equality Filter"
-          required={true}
-          errorMessage={equalityErrorMessage}
-        >
-          <SelectDropdown
-            options={['=', '!=']}
-            selectedOption={equality}
-            onSelect={onChangeEquality}
-          />
-        </Form.Element>
-      </FeatureFlag>
+      <Form.Element
+        label="Equality Filter"
+        required={true}
+        errorMessage={equalityErrorMessage}
+      >
+        <SelectDropdown
+          className="dwp-filter-dropdown"
+          options={['=', '!=']}
+          selectedOption={equality}
+          onSelect={onChangeEquality}
+        />
+      </Form.Element>
       <Form.Element
         label="Tag Value"
         required={true}
         errorMessage={valueErrorMessage}
       >
-        <Input onChange={onChangeValue} value={value} testID="value-input" />
+        <SearchableDropdown
+          className="dwp-filter-dropdown"
+          searchTerm={value}
+          emptyText="No Tags Found"
+          searchPlaceholder="Search values..."
+          selectedOption={value}
+          onSelect={onChangeValue}
+          onChangeSearchTerm={onChangeValue}
+          testID="dwp-filter-value-input"
+          buttonTestID="tag-selector--dropdown-button"
+          menuTestID="tag-selector--dropdown-menu"
+          options={values}
+        />
       </Form.Element>
       <Button
         className="delete-data-filter--remove"
@@ -77,4 +121,9 @@ const FilterRow: FC<Props> = ({
   )
 }
 
-export default FilterRow
+const mdtp = {setValuesByKey}
+
+export default connect<{}, DispatchProps>(
+  null,
+  mdtp
+)(FilterRow)

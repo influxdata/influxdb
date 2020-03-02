@@ -5,6 +5,7 @@ import {DEFAULT_CELL_NAME} from 'src/dashboards/constants/index'
 import {
   DEFAULT_GAUGE_COLORS,
   DEFAULT_THRESHOLDS_LIST_COLORS,
+  DEFAULT_THRESHOLDS_TABLE_COLORS,
 } from 'src/shared/constants/thresholds'
 import {DEFAULT_CHECK_EVERY} from 'src/alerting/constants'
 
@@ -124,6 +125,7 @@ const NEW_VIEW_CREATORS = {
       geom: 'line',
       xColumn: null,
       yColumn: null,
+      position: 'overlaid',
     },
   }),
   histogram: (): NewView<HistogramViewProperties> => ({
@@ -192,6 +194,7 @@ const NEW_VIEW_CREATORS = {
       shape: 'chronograf-v2',
       xColumn: null,
       yColumn: null,
+      position: 'overlaid',
     },
   }),
   table: (): NewView<TableViewProperties> => ({
@@ -200,7 +203,7 @@ const NEW_VIEW_CREATORS = {
       type: 'table',
       shape: 'chronograf-v2',
       queries: [defaultViewQuery()],
-      colors: DEFAULT_THRESHOLDS_LIST_COLORS as Color[],
+      colors: DEFAULT_THRESHOLDS_TABLE_COLORS as Color[],
       tableOptions: {
         verticalTimeAxis: true,
         sortBy: null,
@@ -288,6 +291,28 @@ const NEW_VIEW_CREATORS = {
         },
       ],
       colors: NINETEEN_EIGHTY_FOUR,
+    },
+  }),
+  custom: (): NewView<TableViewProperties> => ({
+    ...defaultView(),
+    properties: {
+      type: 'table',
+      shape: 'chronograf-v2',
+      queries: [],
+      colors: DEFAULT_THRESHOLDS_LIST_COLORS as Color[],
+      tableOptions: {
+        verticalTimeAxis: true,
+        sortBy: null,
+        fixFirstColumn: false,
+      },
+      fieldOptions: [],
+      decimalPlaces: {
+        isEnforced: false,
+        digits: 2,
+      },
+      timeFormat: 'YYYY-MM-DD HH:mm:ss',
+      note: '',
+      showNoteWhenEmpty: false,
     },
   }),
 }

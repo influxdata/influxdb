@@ -35,15 +35,15 @@ var (
 
 type taskServiceValidator struct {
 	influxdb.TaskService
-	logger *zap.Logger
+	log *zap.Logger
 }
 
 // TaskService wraps ts and checks appropriate permissions before calling requested methods on ts.
 // Authorization failures are logged to the logger.
-func NewTaskService(logger *zap.Logger, ts influxdb.TaskService) influxdb.TaskService {
+func NewTaskService(log *zap.Logger, ts influxdb.TaskService) influxdb.TaskService {
 	return &taskServiceValidator{
 		TaskService: ts,
-		logger:      logger,
+		log:         log,
 	}
 }
 
@@ -79,7 +79,7 @@ func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter influxdb.T
 	// We are getting a list of tasks that may be a superset of what the user is allowed to view.
 	auth, err := platcontext.GetAuthorizer(ctx)
 	if err != nil {
-		ts.logger.Info("Failed to retrieve authorizer from context", zap.String("method", "FindTasks"))
+		ts.log.Info("Failed to retrieve authorizer from context", zap.String("method", "FindTasks"))
 		return nil, 0, err
 	}
 
@@ -322,12 +322,12 @@ func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID influxdb.ID
 func (ts *taskServiceValidator) validatePermission(ctx context.Context, perm influxdb.Permission, loggerFields ...zap.Field) error {
 	auth, err := platcontext.GetAuthorizer(ctx)
 	if err != nil {
-		ts.logger.With(loggerFields...).Info("Failed to retrieve authorizer from context")
+		ts.log.With(loggerFields...).Info("Failed to retrieve authorizer from context")
 		return err
 	}
 
 	if !auth.Allowed(perm) {
-		ts.logger.With(loggerFields...).Info("Authorization failed",
+		ts.log.With(loggerFields...).Info("Authorization failed",
 			zap.String("user_id", auth.GetUserID().String()),
 			zap.String("auth_kind", auth.Kind()),
 			zap.String("auth_id", auth.Identifier().String()),

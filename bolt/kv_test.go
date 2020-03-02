@@ -9,7 +9,7 @@ import (
 )
 
 func initKVStore(f platformtesting.KVStoreFields, t *testing.T) (kv.Store, func()) {
-	s, closeFn, err := NewTestKVStore()
+	s, closeFn, err := NewTestKVStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}

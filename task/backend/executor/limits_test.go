@@ -16,15 +16,15 @@ var (
 func TestTaskConcurrency(t *testing.T) {
 	tes := taskExecutorSystem(t)
 	te := tes.ex
-	r1, err := te.tcs.CreateRun(context.Background(), taskWith1Concurrency.ID, time.Now().Add(-4*time.Second))
+	r1, err := te.tcs.CreateRun(context.Background(), taskWith1Concurrency.ID, time.Now().Add(-4*time.Second), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	r2, err := te.tcs.CreateRun(context.Background(), taskWith1Concurrency.ID, time.Now().Add(-3*time.Second))
+	r2, err := te.tcs.CreateRun(context.Background(), taskWith1Concurrency.ID, time.Now().Add(-3*time.Second), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	r3, err := te.tcs.CreateRun(context.Background(), taskWith1Concurrency.ID, time.Now().Add(-2*time.Second))
+	r3, err := te.tcs.CreateRun(context.Background(), taskWith1Concurrency.ID, time.Now().Add(-2*time.Second), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

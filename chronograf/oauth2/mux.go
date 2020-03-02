@@ -119,43 +119,43 @@ func (j *AuthMux) Callback() http.Handler {
 		}
 
 		if token.Extra("id_token") != nil && !j.UseIDToken {
-			log.Info("found an extra id_token, but option --useidtoken is not set")
+			log.Info("Found an extra id_token, but option --useidtoken is not set")
 		}
 
 		// if we received an extra id_token, inspect it
 		var id string
 		var group string
 		if j.UseIDToken && token.Extra("id_token") != nil && token.Extra("id_token") != "" {
-			log.Debug("found an extra id_token")
+			log.Debug("Found an extra id_token")
 			if provider, ok := j.Provider.(ExtendedProvider); ok {
-				log.Debug("provider implements PrincipalIDFromClaims()")
+				log.Debug("Provider implements PrincipalIDFromClaims()")
 				tokenString, ok := token.Extra("id_token").(string)
 				if !ok {
-					log.Error("cannot cast id_token as string")
+					log.Error("Cannot cast id_token as string")
 					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
 					return
 				}
 				claims, err := j.Tokens.GetClaims(tokenString)
 				if err != nil {
-					log.Error("parsing extra id_token failed:", err)
+					log.Error("Parsing extra id_token failed:", err)
 					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
 					return
 				}
-				log.Debug("found claims: ", claims)
+				log.Debug("Found claims: ", claims)
 				id, err = provider.PrincipalIDFromClaims(claims)
 				if err != nil {
-					log.Error("requested claim not found in id_token:", err)
+					log.Error("Requested claim not found in id_token:", err)
 					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
 					return
 				}
 				group, err = provider.GroupFromClaims(claims)
 				if err != nil {
-					log.Error("requested claim not found in id_token:", err)
+					log.Error("Requested claim not found in id_token:", err)
 					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
 					return
 				}
 			} else {
-				log.Debug("provider does not implement PrincipalIDFromClaims()")
+				log.Debug("Provider does not implement PrincipalIDFromClaims()")
 			}
 		} else {
 			// otherwise perform an additional lookup

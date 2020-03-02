@@ -43,9 +43,6 @@ export const loadStatuses = (
 from(bucket: "${MONITORING_BUCKET}")
   |> range(start: ${start}, stop: ${Math.round(until / 1000)})
   |> filter(fn: (r) => r._measurement == "statuses" and r._field == "_message")
-  |> filter(fn: (r) => exists r._check_id)
-  |> filter(fn: (r) => exists r._check_name)
-  |> filter(fn: (r) => exists r._level)
   |> keep(columns: ["_time", "_value", "_check_id", "_check_name", "_level"])
   |> rename(columns: {"_time": "time",
                       "_value": "message",
@@ -72,14 +69,6 @@ from(bucket: "${MONITORING_BUCKET}")
   |> range(start: ${start}, stop: ${Math.round(until / 1000)})
   |> filter(fn: (r) => r._measurement == "notifications")
   |> filter(fn: (r) => r._field !~ /^_/)
-  |> filter(fn: (r) => exists r._check_id)
-  |> filter(fn: (r) => exists r._check_name)
-  |> filter(fn: (r) => exists r._notification_rule_id)
-  |> filter(fn: (r) => exists r._notification_rule_name)
-  |> filter(fn: (r) => exists r._notification_endpoint_id)
-  |> filter(fn: (r) => exists r._notification_endpoint_name)
-  |> filter(fn: (r) => exists r._level)
-  |> filter(fn: (r) => exists r._sent)
   |> keep(columns: ["_time",
                     "_check_id",
                     "_check_name",

@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import TasksHeader from 'src/tasks/components/TasksHeader'
@@ -10,7 +9,7 @@ import {Page} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FilterList from 'src/shared/components/Filter'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
@@ -24,23 +23,29 @@ import {
   deleteTask,
   selectTask,
   cloneTask,
+  addTaskLabel,
+  runTask,
+} from 'src/tasks/actions/thunks'
+
+import {
   setSearchTerm as setSearchTermAction,
   setShowInactive as setShowInactiveAction,
-  addTaskLabelsAsync,
-  removeTaskLabelsAsync,
-  runTask,
-} from 'src/tasks/actions'
+} from 'src/tasks/actions/creators'
+
 import {
   checkTaskLimits as checkTasksLimitsAction,
   LimitStatus,
 } from 'src/cloud/actions/limits'
 
 // Types
-import {AppState, Task, TaskStatus, RemoteDataState} from 'src/types'
+import {AppState, Task, RemoteDataState, ResourceType} from 'src/types'
 import {InjectedRouter, WithRouterProps} from 'react-router'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {extractTaskLimits} from 'src/cloud/utils/limits'
+
+// Selectors
+import {getAll} from 'src/resources/selectors'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -54,8 +59,7 @@ interface ConnectedDispatchProps {
   selectTask: typeof selectTask
   setSearchTerm: typeof setSearchTermAction
   setShowInactive: typeof setShowInactiveAction
-  onAddTaskLabels: typeof addTaskLabelsAsync
-  onRemoveTaskLabels: typeof removeTaskLabelsAsync
+  onAddTaskLabel: typeof addTaskLabel
   onRunTask: typeof runTask
   checkTaskLimits: typeof checkTasksLimitsAction
 }
@@ -105,13 +109,13 @@ class TasksPage extends PureComponent<Props, State> {
   public render(): JSX.Element {
     const {sortKey, sortDirection, sortType} = this.state
     const {
+      selectTask,
       setSearchTerm,
       updateTaskName,
       searchTerm,
       setShowInactive,
       showInactive,
-      onAddTaskLabels,
-      onRemoveTaskLabels,
+      onAddTaskLabel,
       onRunTask,
       checkTaskLimits,
       limitStatus,
@@ -150,9 +154,8 @@ class TasksPage extends PureComponent<Props, State> {
                       onDelete={this.handleDelete}
                       onCreate={this.handleCreateTask}
                       onClone={this.handleClone}
-                      onSelect={this.props.selectTask}
-                      onAddTaskLabels={onAddTaskLabels}
-                      onRemoveTaskLabels={onRemoveTaskLabels}
+                      onSelect={selectTask}
+                      onAddTaskLabel={onAddTaskLabel}
                       onRunTask={onRunTask}
                       onFilterChange={setSearchTerm}
                       filterComponent={this.search}
@@ -194,12 +197,11 @@ class TasksPage extends PureComponent<Props, State> {
   }
 
   private handleDelete = (task: Task) => {
-    this.props.deleteTask(task)
+    this.props.deleteTask(task.id)
   }
 
   private handleClone = (task: Task) => {
-    const {tasks} = this.props
-    this.props.cloneTask(task, tasks)
+    this.props.cloneTask(task)
   }
 
   private handleCreateTask = () => {
@@ -246,7 +248,7 @@ class TasksPage extends PureComponent<Props, State> {
     const matchingTasks = tasks.filter(t => {
       let activeFilter = true
       if (!showInactive) {
-        activeFilter = t.status === TaskStatus.Active
+        activeFilter = t.status === 'active'
       }
 
       return activeFilter
@@ -262,8 +264,7 @@ class TasksPage extends PureComponent<Props, State> {
   private get hiddenTaskAlert(): JSX.Element {
     const {showInactive, tasks} = this.props
 
-    const hiddenCount = tasks.filter(t => t.status === TaskStatus.Inactive)
-      .length
+    const hiddenCount = tasks.filter(t => t.status === 'inactive').length
 
     const allTasksAreHidden = hiddenCount === tasks.length
 
@@ -282,12 +283,15 @@ class TasksPage extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({
-  tasks: {status, list, searchTerm, showInactive},
-  cloud: {limits},
-}: AppState): ConnectedStateProps => {
+const mstp = (state: AppState): ConnectedStateProps => {
+  const {
+    resources,
+    cloud: {limits},
+  } = state
+  const {status, searchTerm, showInactive} = resources.tasks
+
   return {
-    tasks: list,
+    tasks: getAll<Task>(state, ResourceType.Tasks),
     status: status,
     searchTerm,
     showInactive,
@@ -303,8 +307,7 @@ const mdtp: ConnectedDispatchProps = {
   cloneTask,
   setSearchTerm: setSearchTermAction,
   setShowInactive: setShowInactiveAction,
-  onRemoveTaskLabels: removeTaskLabelsAsync,
-  onAddTaskLabels: addTaskLabelsAsync,
+  onAddTaskLabel: addTaskLabel,
   onRunTask: runTask,
   checkTaskLimits: checkTasksLimitsAction,
 }

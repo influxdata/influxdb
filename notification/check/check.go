@@ -12,19 +12,21 @@ import (
 
 // Base will embed inside a check.
 type Base struct {
-	ID                    influxdb.ID             `json:"id,omitempty"`
-	Name                  string                  `json:"name"`
-	Description           string                  `json:"description,omitempty"`
-	OwnerID               influxdb.ID             `json:"ownerID,omitempty"`
-	OrgID                 influxdb.ID             `json:"orgID,omitempty"`
-	Query                 influxdb.DashboardQuery `json:"query"`
-	StatusMessageTemplate string                  `json:"statusMessageTemplate"`
+	ID          influxdb.ID             `json:"id,omitempty"`
+	Name        string                  `json:"name"`
+	Description string                  `json:"description,omitempty"`
+	OwnerID     influxdb.ID             `json:"ownerID,omitempty"`
+	OrgID       influxdb.ID             `json:"orgID,omitempty"`
+	Query       influxdb.DashboardQuery `json:"query"`
 
 	// Care should be taken to prevent TaskID from being exposed publicly.
 	TaskID influxdb.ID `json:"taskID,omitempty"`
-
-	Cron  string                 `json:"cron,omitempty"`
-	Every *notification.Duration `json:"every,omitempty"`
+	// } todo: separate these
+	// NonCustomCheckBase will embed inside non-custom checks.
+	// type NonCustomCheckBase struct {
+	StatusMessageTemplate string                 `json:"statusMessageTemplate"`
+	Cron                  string                 `json:"cron,omitempty"`
+	Every                 *notification.Duration `json:"every,omitempty"`
 	// Offset represents a delay before execution.
 	// It gets marshalled from a string duration, i.e.: "10s" is 10 seconds
 	Offset *notification.Duration `json:"offset,omitempty"`
@@ -96,8 +98,7 @@ func (b Base) generateTaskOption() ast.Statement {
 }
 
 func (b Base) generateFluxASTCheckDefinition(checkType string) ast.Statement {
-	props := []*ast.Property{}
-	props = append(props, flux.Property("_check_id", flux.String(b.ID.String())))
+	props := append([]*ast.Property{}, flux.Property("_check_id", flux.String(b.ID.String())))
 	props = append(props, flux.Property("_check_name", flux.String(b.Name)))
 	props = append(props, flux.Property("_type", flux.String(checkType)))
 
@@ -185,24 +186,23 @@ func (b *Base) SetDescription(description string) {
 var typeToCheck = map[string](func() influxdb.Check){
 	"deadman":   func() influxdb.Check { return &Deadman{} },
 	"threshold": func() influxdb.Check { return &Threshold{} },
-}
-
-type rawRuleJSON struct {
-	Typ string `json:"type"`
+	"custom":    func() influxdb.Check { return &Custom{} },
 }
 
 // UnmarshalJSON will convert
 func UnmarshalJSON(b []byte) (influxdb.Check, error) {
-	var raw rawRuleJSON
+	var raw struct {
+		Type string `json:"type"`
+	}
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return nil, &influxdb.Error{
 			Msg: "unable to detect the check type from json",
 		}
 	}
-	convertedFunc, ok := typeToCheck[raw.Typ]
+	convertedFunc, ok := typeToCheck[raw.Type]
 	if !ok {
 		return nil, &influxdb.Error{
-			Msg: fmt.Sprintf("invalid check type %s", raw.Typ),
+			Msg: fmt.Sprintf("invalid check type %s", raw.Type),
 		}
 	}
 	converted := convertedFunc()

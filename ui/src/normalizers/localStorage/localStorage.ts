@@ -9,16 +9,17 @@ import {VERSION} from 'src/shared/constants'
 
 // Utils
 import {
-  normalizeRanges,
+  getLocalStateRanges,
+  setLocalStateRanges,
   normalizeApp,
-  normalizeOrgs,
 } from 'src/normalizers/localStorage'
+import {normalizeResources} from './resources'
 
 export const normalizeGetLocalStorage = (state: LocalStorage): LocalStorage => {
   let newState = state
 
   if (state.ranges) {
-    newState = {...newState, ranges: normalizeRanges(state.ranges)}
+    newState = {...newState, ranges: getLocalStateRanges(state.ranges)}
   }
 
   const appPersisted = get(newState, 'app.persisted', false)
@@ -33,14 +34,14 @@ export const normalizeGetLocalStorage = (state: LocalStorage): LocalStorage => {
 }
 
 export const normalizeSetLocalStorage = (state: LocalStorage): LocalStorage => {
-  const {app, ranges, autoRefresh, variables, userSettings, orgs} = state
+  const {app, ranges, autoRefresh, variables, userSettings} = state
   return {
     VERSION,
     variables,
     autoRefresh,
     userSettings,
     app: normalizeApp(app),
-    orgs: normalizeOrgs(orgs),
-    ranges: normalizeRanges(ranges),
+    ranges: setLocalStateRanges(ranges),
+    resources: normalizeResources(state),
   }
 }

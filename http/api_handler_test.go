@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestAPIHandler_NotFound(t *testing.T) {
@@ -51,8 +51,8 @@ func TestAPIHandler_NotFound(t *testing.T) {
 
 			b := &APIBackend{
 				HTTPErrorHandler: ErrorHandler(0),
+				Logger:           zaptest.NewLogger(t),
 			}
-			b.Logger = zap.NewNop()
 
 			h := NewAPIHandler(b)
 			h.ServeHTTP(w, r)

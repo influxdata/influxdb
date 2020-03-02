@@ -1,5 +1,8 @@
 import {Organization} from '../../src/types'
 
+// a generous commitment to delivering this page in a loaded state
+const PAGE_LOAD_SLA = 10000
+
 describe('tokens', () => {
   let authData: {description: string; status: boolean; id: string}[]
   let testTokens: {
@@ -84,6 +87,7 @@ describe('tokens', () => {
         cy.fixture('routes').then(({orgs}) => {
           cy.visit(`${orgs}/${id}/load-data/tokens`)
         })
+        cy.get('[data-testid="index-list"]', {timeout: PAGE_LOAD_SLA})
       })
     })
   })

@@ -8,6 +8,7 @@ import EventViewer from 'src/eventViewer/components/EventViewer'
 import EventTable from 'src/eventViewer/components/EventTable'
 import AlertHistoryControls from 'src/alerting/components/AlertHistoryControls'
 import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryParams'
+import GetResources from 'src/shared/components/GetResources'
 
 // Constants
 import {
@@ -22,17 +23,11 @@ import {
   getInitialHistoryType,
   getInitialState,
 } from 'src/alerting/utils/history'
-import {getResourceIDs} from 'src/alerting/selectors'
+import {getCheckIDs, getEndpointIDs, getRuleIDs} from 'src/alerting/selectors'
 
 // Types
-import {AlertHistoryType, AppState} from 'src/types'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
-
-interface ResourceIDs {
-  checkIDs: {[x: string]: boolean}
-  endpointIDs: {[x: string]: boolean}
-  ruleIDs: {[x: string]: boolean}
-}
+import {ResourceIDs} from 'src/alerting/reducers/checks'
+import {ResourceType, AlertHistoryType, AppState} from 'src/types'
 
 export const ResourceIDsContext = createContext<ResourceIDs>(null)
 
@@ -110,9 +105,9 @@ const AlertHistoryIndex: FC<Props> = ({params: {orgID}, resourceIDs}) => {
 }
 
 const mstp = (state: AppState) => {
-  const checkIDs = getResourceIDs(state, ResourceType.Checks)
-  const endpointIDs = getResourceIDs(state, ResourceType.NotificationEndpoints)
-  const ruleIDs = getResourceIDs(state, ResourceType.NotificationRules)
+  const checkIDs = getCheckIDs(state)
+  const endpointIDs = getEndpointIDs(state)
+  const ruleIDs = getRuleIDs(state)
 
   const resourceIDs = {
     checkIDs,

@@ -84,6 +84,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 		bucket    *influxdb.Bucket       // bucket to return in bucket service
 		bucketErr error                  // err to return in bucket service
 		writeErr  error                  // err to return from the points writer
+		opts      []WriteHandlerOption   // write handle configured options
 	}
 
 	// want is the expected output of the HTTP endpoint
@@ -255,6 +256,24 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 				body: `{"code":"internal error","message":"authorizer not found on context"}`,
 			},
 		},
+		{
+			name: "large requests rejected",
+			request: request{
+				org:    "043e0780ee2b1000",
+				bucket: "04504b356e23b000",
+				body:   "m1,t1=v1 f1=1",
+				auth:   bucketWritePermission("043e0780ee2b1000", "04504b356e23b000"),
+			},
+			state: state{
+				org:    testOrg("043e0780ee2b1000"),
+				bucket: testBucket("043e0780ee2b1000", "04504b356e23b000"),
+				opts:   []WriteHandlerOption{WithMaxBatchSizeBytes(5)},
+			},
+			wants: wants{
+				code: 413,
+				body: `{"code":"request too large","message":"unable to read data: points batch is too large"}`,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -275,7 +294,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 				PointsWriter:        &mock.PointsWriter{Err: tt.state.writeErr},
 				WriteEventRecorder:  &metric.NopEventRecorder{},
 			}
-			writeHandler := NewWriteHandler(NewWriteBackend(b))
+			writeHandler := NewWriteHandler(zaptest.NewLogger(t), NewWriteBackend(zaptest.NewLogger(t), b), tt.state.opts...)
 			handler := httpmock.NewAuthMiddlewareHandler(writeHandler, tt.request.auth)
 
 			r := httptest.NewRequest(

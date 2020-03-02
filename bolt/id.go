@@ -19,7 +19,7 @@ var (
 var _ platform.IDGenerator = (*Client)(nil)
 
 func (c *Client) initializeID(tx *bolt.Tx) error {
-	if _, err := tx.CreateBucketIfNotExists([]byte(idsBucket)); err != nil {
+	if _, err := tx.CreateBucketIfNotExists(idsBucket); err != nil {
 		return err
 	}
 
@@ -52,7 +52,7 @@ func (c *Client) ID() platform.ID {
 	})
 
 	if err != nil {
-		c.Logger.Error("unable to load id", zap.Error(err))
+		c.log.Error("Unable to load id", zap.Error(err))
 	}
 
 	return id

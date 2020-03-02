@@ -10,7 +10,7 @@ import (
 
 // ConcurrencyLimit creates a concurrency limit func that uses the executor to determine
 // if the task has exceeded the concurrency limit.
-func ConcurrencyLimit(exec *TaskExecutor) LimitFunc {
+func ConcurrencyLimit(exec *Executor) LimitFunc {
 	return func(t *influxdb.Task, r *influxdb.Run) error {
 		o, err := options.FromScript(t.Flux)
 		if err != nil {

@@ -7,31 +7,15 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestBoltOrganizationService(t *testing.T) {
 	influxdbtesting.OrganizationService(initBoltOrganizationService, t)
 }
 
-func TestInmemOrganizationService(t *testing.T) {
-	influxdbtesting.OrganizationService(initInmemOrganizationService, t)
-}
-
 func initBoltOrganizationService(f influxdbtesting.OrganizationFields, t *testing.T) (influxdb.OrganizationService, string, func()) {
-	s, closeBolt, err := NewTestBoltStore()
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, op, closeSvc := initOrganizationService(s, f, t)
-	return svc, op, func() {
-		closeSvc()
-		closeBolt()
-	}
-}
-
-func initInmemOrganizationService(f influxdbtesting.OrganizationFields, t *testing.T) (influxdb.OrganizationService, string, func()) {
-	s, closeBolt, err := NewTestInmemStore()
+	s, closeBolt, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -44,7 +28,7 @@ func initInmemOrganizationService(f influxdbtesting.OrganizationFields, t *testi
 }
 
 func initOrganizationService(s kv.Store, f influxdbtesting.OrganizationFields, t *testing.T) (influxdb.OrganizationService, string, func()) {
-	svc := kv.NewService(s)
+	svc := kv.NewService(zaptest.NewLogger(t), s)
 	svc.OrgBucketIDs = f.OrgBucketIDs
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator

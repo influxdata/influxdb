@@ -1,18 +1,18 @@
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
 
 // Components
-import FluxEditor from 'src/shared/components/FluxEditor'
 import MapVariableBuilder from 'src/variables/components/MapVariableBuilder'
 import CSVVariableBuilder from 'src/variables/components/CSVVariableBuilder'
 import {Form, Grid} from '@influxdata/clockface'
 
+import FluxEditor from 'src/shared/components/FluxMonacoEditor'
+
 // Types
-import {KeyValueMap, VariableArguments} from 'src/types'
+import {KeyValueMap, VariableProperties} from 'src/types'
 
 interface Props {
-  args: VariableArguments
-  onChange: (update: {args: VariableArguments; isValid: boolean}) => void
+  args: VariableProperties
+  onChange: (update: {args: VariableProperties; isValid: boolean}) => void
   onSelectMapDefault: (selectedKey: string) => void
   selected: string[]
 }
@@ -29,8 +29,6 @@ class VariableArgumentsEditor extends PureComponent<Props> {
                 <FluxEditor
                   script={args.values.query}
                   onChangeScript={this.handleChangeQuery}
-                  visibility="visible"
-                  suggestions={[]}
                 />
               </div>
             </Grid.Column>

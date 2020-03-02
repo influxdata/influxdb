@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"sync/atomic"
+	"sync"
 )
 
 // Status string to indicate the overall status of the check.
@@ -26,10 +26,10 @@ const (
 
 // Check wraps a map of service names to status checkers.
 type Check struct {
-	healthChecks      []Checker
-	readyChecks       []Checker
-	manualOverride    atomic.Value
-	manualHealthState atomic.Value
+	healthChecks   []Checker
+	readyChecks    []Checker
+	healthOverride override
+	readyOverride  override
 
 	passthroughHandler http.Handler
 }
@@ -42,8 +42,8 @@ type Checker interface {
 // NewCheck returns a Health with a default checker.
 func NewCheck() *Check {
 	ch := &Check{}
-	ch.manualOverride.Store(false)
-	ch.manualHealthState.Store(false)
+	ch.healthOverride.disable()
+	ch.readyOverride.disable()
 	return ch
 }
 
@@ -74,13 +74,10 @@ func (c *Check) CheckHealth(ctx context.Context) Response {
 		Status: StatusPass,
 		Checks: make(Responses, len(c.healthChecks)),
 	}
-	override := c.manualOverride.Load().(bool)
-	if override {
-		if c.manualHealthState.Load().(bool) {
-			response.Status = StatusPass
-		} else {
-			response.Status = StatusFail
-		}
+
+	status, overriding := c.healthOverride.get()
+	if overriding {
+		response.Status = status
 		overrideResponse := Response{
 			Name:    "manual-override",
 			Message: "health manually overridden",
@@ -89,7 +86,7 @@ func (c *Check) CheckHealth(ctx context.Context) Response {
 	}
 	for i, ch := range c.healthChecks {
 		resp := ch.Check(ctx)
-		if resp.Status != StatusPass && !override {
+		if resp.Status != StatusPass && !overriding {
 			response.Status = resp.Status
 		}
 		response.Checks[i] = resp
@@ -105,9 +102,19 @@ func (c *Check) CheckReady(ctx context.Context) Response {
 		Status: StatusPass,
 		Checks: make(Responses, len(c.readyChecks)),
 	}
+
+	status, overriding := c.readyOverride.get()
+	if overriding {
+		response.Status = status
+		overrideResponse := Response{
+			Name:    "manual-override",
+			Message: "ready manually overridden",
+		}
+		response.Checks = append(response.Checks, overrideResponse)
+	}
 	for i, c := range c.readyChecks {
 		resp := c.Check(ctx)
-		if resp.Status != StatusPass {
+		if resp.Status != StatusPass && !overriding {
 			response.Status = resp.Status
 		}
 		response.Checks[i] = resp
@@ -124,54 +131,108 @@ func (c *Check) SetPassthrough(h http.Handler) {
 
 // ServeHTTP serves /ready and /health requests with the respective checks.
 func (c *Check) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// allow requests not intended for checks to pass through.
-	if r.URL.Path != "/ready" && r.URL.Path != "/health" {
+	const (
+		pathReady  = "/ready"
+		pathHealth = "/health"
+		queryForce = "force"
+	)
+
+	path := r.URL.Path
+
+	// Allow requests not intended for checks to pass through.
+	if path != pathReady && path != pathHealth {
 		if c.passthroughHandler != nil {
 			c.passthroughHandler.ServeHTTP(w, r)
 			return
 		}
 
-		// We cant handle this request.
+		// We can't handle this request.
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	msg := ""
-	status := http.StatusOK
+	ctx := r.Context()
+	query := r.URL.Query()
 
-	var resp Response
-	switch r.URL.Path {
-	case "/ready":
-		resp = c.CheckReady(r.Context())
-	case "/health":
-		query := r.URL.Query()
-		switch query.Get("force") {
+	switch path {
+	case pathReady:
+		switch query.Get(queryForce) {
 		case "true":
-			c.manualOverride.Store(true)
-			switch query.Get("healthy") {
+			switch query.Get("ready") {
 			case "true":
-				c.manualHealthState.Store(true)
+				c.readyOverride.enable(StatusPass)
 			case "false":
-				c.manualHealthState.Store(false)
+				c.readyOverride.enable(StatusFail)
 			}
 		case "false":
-			c.manualOverride.Store(false)
+			c.readyOverride.disable()
 		}
-		resp = c.CheckHealth(r.Context())
+		writeResponse(w, c.CheckReady(ctx))
+	case pathHealth:
+		switch query.Get(queryForce) {
+		case "true":
+			switch query.Get("healthy") {
+			case "true":
+				c.healthOverride.enable(StatusPass)
+			case "false":
+				c.healthOverride.enable(StatusFail)
+			}
+		case "false":
+			c.healthOverride.disable()
+		}
+		writeResponse(w, c.CheckHealth(ctx))
 	}
+}
 
-	// Set the HTTP status if the check failed
+// writeResponse writes a Response to the wire as JSON. The HTTP status code
+// accompanying the payload is the primary means for signaling the status of the
+// checks. The possible status codes are:
+//
+// - 200 OK: All checks pass.
+// - 503 Service Unavailable: Some checks are failing.
+// - 500 Internal Server Error: There was a problem serializing the Response.
+func writeResponse(w http.ResponseWriter, resp Response) {
+	status := http.StatusOK
 	if resp.Status == StatusFail {
-		// Normal state, the HTTP response status reflects the status-reported health.
 		status = http.StatusServiceUnavailable
 	}
 
-	b, err := json.MarshalIndent(resp, "", "  ")
+	msg, err := json.MarshalIndent(resp, "", "  ")
 	if err != nil {
-		b = []byte(`{"message": "error marshaling response", "status": "fail"}`)
+		msg = []byte(`{"message": "error marshaling response", "status": "fail"}`)
 		status = http.StatusInternalServerError
 	}
-	msg = string(b)
 	w.WriteHeader(status)
-	fmt.Fprintln(w, msg)
+	fmt.Fprintln(w, string(msg))
+}
+
+// override is a manual override for an entire group of checks.
+type override struct {
+	mtx    sync.Mutex
+	status Status
+	active bool
+}
+
+// get returns the Status of an override as well as whether or not an override
+// is currently active.
+func (m *override) get() (Status, bool) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	return m.status, m.active
+}
+
+// disable disables the override.
+func (m *override) disable() {
+	m.mtx.Lock()
+	m.active = false
+	m.status = StatusFail
+	m.mtx.Unlock()
+}
+
+// enable turns on the override and establishes a specific Status for which to.
+func (m *override) enable(s Status) {
+	m.mtx.Lock()
+	m.active = true
+	m.status = s
+	m.mtx.Unlock()
 }

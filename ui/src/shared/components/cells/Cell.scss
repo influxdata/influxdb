@@ -25,12 +25,8 @@ $cell--header-button-active-color: $c-pool;
     border-radius: $radius;
   }
 
-  .time-machine-tables {
-    padding-top: 0;
-  }
-
   .time-series-container {
-    padding-top: $ix-marg-a;
+    padding-top: 0;
   }
 }
 
@@ -224,7 +220,7 @@ $cell--header-button-active-color: $c-pool;
   cursor: default;
   color: $cell--header-button-color;
   transition: color 0.25s ease, opacity 0.25s ease;
-  
+
   & > .cf-icon {
     position: absolute;
     top: 50%;
@@ -247,10 +243,11 @@ $cell--header-button-active-color: $c-pool;
 .time-series-container {
   width: 100%;
   height: 100%;
-  padding: $ix-marg-c;
+  padding: $ix-marg-b;
 
   &.time-series-container--alert-check {
-    padding-right: $ix-marg-c + 30px;
+    padding-right: $ix-marg-b + 30px;
+    padding-bottom: $ix-marg-b + $event-marker-height;
     overflow: hidden;
   }
 }

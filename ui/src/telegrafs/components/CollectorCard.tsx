@@ -11,37 +11,36 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
 import {
-  addTelelgrafLabelsAsync,
-  removeTelelgrafLabelsAsync,
-} from 'src/telegrafs/actions'
+  addTelegrafLabelsAsync,
+  removeTelegrafLabelsAsync,
+} from 'src/telegrafs/actions/thunks'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
+import {getOrg} from 'src/organizations/selectors'
 
 // Constants
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
 // Types
-import {AppState, Organization} from 'src/types'
-import {ILabel, ITelegraf as Telegraf} from '@influxdata/influx'
+import {AppState, Organization, Label, Telegraf} from 'src/types'
 
 interface OwnProps {
   collector: Telegraf
-  bucket: string
   onDelete: (telegraf: Telegraf) => void
   onUpdate: (telegraf: Telegraf) => void
   onFilterChange: (searchTerm: string) => void
 }
 
 interface StateProps {
-  labels: ILabel[]
+  labels: Label[]
   org: Organization
 }
 
 interface DispatchProps {
-  onAddLabels: typeof addTelelgrafLabelsAsync
-  onRemoveLabels: typeof removeTelelgrafLabelsAsync
+  onAddLabels: typeof addTelegrafLabelsAsync
+  onRemoveLabels: typeof removeTelegrafLabelsAsync
   onCreateLabel: typeof createLabelAsync
 }
 
@@ -49,7 +48,7 @@ type Props = OwnProps & StateProps & DispatchProps
 
 class CollectorRow extends PureComponent<Props & WithRouterProps> {
   public render() {
-    const {collector, bucket, org} = this.props
+    const {collector, org} = this.props
 
     return (
       <ResourceCard
@@ -76,7 +75,8 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
         labels={this.labels}
         metaData={[
           <span key={`bucket-key--${collector.id}`} data-testid="bucket-name">
-            Bucket: {bucket}
+            {/* todo(glinton): verify what sets this. It seems like it is using the 'config' section of 'influxdb_v2' output?? */}
+            Bucket: {collector.metadata.buckets.join(', ')}
           </span>,
           <>
             <Link
@@ -118,7 +118,7 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
 
   private get labels(): JSX.Element {
     const {collector, labels, onFilterChange} = this.props
-    const collectorLabels = viewableLabels(collector.labels)
+    const collectorLabels = viewableLabels(collector.labels as Label[])
 
     return (
       <InlineLabels
@@ -132,19 +132,19 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleAddLabel = async (label: ILabel) => {
+  private handleAddLabel = async (label: Label) => {
     const {collector, onAddLabels} = this.props
 
     await onAddLabels(collector.id, [label])
   }
 
-  private handleRemoveLabel = async (label: ILabel) => {
+  private handleRemoveLabel = async (label: Label) => {
     const {collector, onRemoveLabels} = this.props
 
     await onRemoveLabels(collector.id, [label])
   }
 
-  private handleCreateLabel = async (label: ILabel) => {
+  private handleCreateLabel = async (label: Label) => {
     const {name, properties} = label
     await this.props.onCreateLabel(name, properties)
   }
@@ -165,13 +165,15 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = ({labels, orgs: {org}}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const {labels} = state
+  const org = getOrg(state)
   return {org, labels: viewableLabels(labels.list)}
 }
 
 const mdtp: DispatchProps = {
-  onAddLabels: addTelelgrafLabelsAsync,
-  onRemoveLabels: removeTelelgrafLabelsAsync,
+  onAddLabels: addTelegrafLabelsAsync,
+  onRemoveLabels: removeTelegrafLabelsAsync,
   onCreateLabel: createLabelAsync,
 }
 

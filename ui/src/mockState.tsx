@@ -6,9 +6,13 @@ import {render} from 'react-testing-library'
 import {initialState as initialVariablesState} from 'src/variables/reducers'
 import {initialState as initialUserSettingsState} from 'src/userSettings/reducers'
 import configureStore from 'src/store/configureStore'
-import {RemoteDataState, TimeZone} from 'src/types'
+import {RemoteDataState, TimeZone, LocalStorage, ResourceType} from 'src/types'
+import {pastFifteenMinTimeRange} from './shared/constants/timeRanges'
 
-const localState = {
+const {Orgs} = ResourceType
+const {Done} = RemoteDataState
+
+export const localState: LocalStorage = {
   app: {
     ephemeral: {
       inPresentationMode: false,
@@ -19,25 +23,26 @@ const localState = {
       timeZone: 'Local' as TimeZone,
     },
   },
-  orgs: {
-    items: [{name: 'org', orgID: 'orgid'}],
-    org: {name: 'org', id: 'orgid'},
-    status: RemoteDataState.Done,
-  },
   VERSION: '2.0.0',
-  ranges: [
-    {
-      dashboardID: '0349ecda531ea000',
-      seconds: 900,
-      lower: 'now() - 15m',
-      upper: null,
-      label: 'Past 15m',
-      duration: '15m',
-    },
-  ],
+  ranges: {
+    '0349ecda531ea000': pastFifteenMinTimeRange,
+  },
   autoRefresh: {},
   variables: initialVariablesState(),
   userSettings: initialUserSettingsState(),
+  resources: {
+    [Orgs]: {
+      byID: {
+        orgid: {
+          name: 'org',
+          id: 'orgid',
+        },
+      },
+      allIDs: ['orgid'],
+      org: {name: 'org', id: 'orgid'},
+      status: Done,
+    },
+  },
 }
 
 const history = createMemoryHistory({entries: ['/']})

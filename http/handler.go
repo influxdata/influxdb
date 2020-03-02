@@ -5,14 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	_ "net/http/pprof" // used for debug pprof at the default path.
-	"strings"
-	"time"
 
+	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/kit/prom"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/opentracing/opentracing-go"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -31,110 +28,106 @@ const (
 // All other requests are passed down to the sub handler.
 type Handler struct {
 	name string
-	// MetricsHandler handles metrics requests
-	MetricsHandler http.Handler
-	// ReadyHandler handles readiness checks
-	ReadyHandler http.Handler
-	// HealthHandler handles health requests
-	HealthHandler http.Handler
-	// DebugHandler handles debug requests
-	DebugHandler http.Handler
-	// Handler handles all other requests
-	Handler http.Handler
+	r    chi.Router
 
 	requests   *prometheus.CounterVec
 	requestDur *prometheus.HistogramVec
 
-	// Logger if set will log all HTTP requests as they are served
-	Logger *zap.Logger
+	// log logs all HTTP requests as they are served
+	log *zap.Logger
 }
 
-// NewHandler creates a new handler with the given name.
-// The name is used to tag the metrics produced by this handler.
-//
-// The MetricsHandler is set to the default prometheus handler.
-// It is the caller's responsibility to call prometheus.MustRegister(h.PrometheusCollectors()...).
-// In most cases, you want to use NewHandlerFromRegistry instead.
-func NewHandler(name string) *Handler {
-	h := &Handler{
-		name:           name,
-		MetricsHandler: promhttp.Handler(),
-		DebugHandler:   http.DefaultServeMux,
+type (
+	handlerOpts struct {
+		log            *zap.Logger
+		apiHandler     http.Handler
+		debugHandler   http.Handler
+		healthHandler  http.Handler
+		metricsHandler http.Handler
+		readyHandler   http.Handler
 	}
-	h.initMetrics()
-	return h
+
+	HandlerOptFn func(opts *handlerOpts)
+)
+
+func WithLog(l *zap.Logger) HandlerOptFn {
+	return func(opts *handlerOpts) {
+		opts.log = l
+	}
+}
+
+func WithAPIHandler(h http.Handler) HandlerOptFn {
+	return func(opts *handlerOpts) {
+		opts.apiHandler = h
+	}
+}
+
+func WithDebugHandler(h http.Handler) HandlerOptFn {
+	return func(opts *handlerOpts) {
+		opts.debugHandler = h
+	}
+}
+
+func WithHealthHandler(h http.Handler) HandlerOptFn {
+	return func(opts *handlerOpts) {
+		opts.healthHandler = h
+	}
+}
+
+func WithMetricsHandler(h http.Handler) HandlerOptFn {
+	return func(opts *handlerOpts) {
+		opts.metricsHandler = h
+	}
+}
+
+func WithReadyHandler(h http.Handler) HandlerOptFn {
+	return func(opts *handlerOpts) {
+		opts.readyHandler = h
+	}
 }
 
 // NewHandlerFromRegistry creates a new handler with the given name,
 // and sets the /metrics endpoint to use the metrics from the given registry,
 // after self-registering h's metrics.
-func NewHandlerFromRegistry(name string, reg *prom.Registry) *Handler {
+func NewHandlerFromRegistry(name string, reg *prom.Registry, opts ...HandlerOptFn) *Handler {
+	opt := handlerOpts{
+		log:            zap.NewNop(),
+		debugHandler:   http.DefaultServeMux,
+		healthHandler:  http.HandlerFunc(HealthHandler),
+		metricsHandler: reg.HTTPHandler(),
+		readyHandler:   ReadyHandler(),
+	}
+	for _, o := range opts {
+		o(&opt)
+	}
+
 	h := &Handler{
-		name:           name,
-		MetricsHandler: reg.HTTPHandler(),
-		ReadyHandler:   http.HandlerFunc(ReadyHandler),
-		HealthHandler:  http.HandlerFunc(HealthHandler),
-		DebugHandler:   http.DefaultServeMux,
+		name: name,
+		log:  opt.log,
 	}
 	h.initMetrics()
+
+	r := chi.NewRouter()
+	r.Use(
+		kithttp.Trace(name),
+		kithttp.Metrics(name, h.requests, h.requestDur),
+	)
+	{
+		r.Mount(MetricsPath, opt.metricsHandler)
+		r.Mount(ReadyPath, opt.readyHandler)
+		r.Mount(HealthPath, opt.healthHandler)
+		r.Mount(DebugPath, opt.debugHandler)
+		r.Mount("/", opt.apiHandler)
+	}
+	h.r = r
+
 	reg.MustRegister(h.PrometheusCollectors()...)
 	return h
 }
 
 // ServeHTTP delegates a request to the appropriate subhandler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var span opentracing.Span
-	span, r = tracing.ExtractFromHTTPRequest(r, h.name)
-	userAgent := r.Header.Get("User-Agent")
-	if userAgent == "" {
-		userAgent = "unknown"
-	}
-
-	defer span.Finish()
-
-	// TODO: better way to do this?
-	statusW := newStatusResponseWriter(w)
-	w = statusW
-
-	// TODO: This could be problematic eventually. But for now it should be fine.
-	defer func(start time.Time) {
-		duration := time.Since(start)
-		statusClass := statusW.statusCodeClass()
-		h.requests.With(prometheus.Labels{
-			"handler":    h.name,
-			"method":     r.Method,
-			"path":       r.URL.Path,
-			"status":     statusClass,
-			"user_agent": userAgent,
-		}).Inc()
-		h.requestDur.With(prometheus.Labels{
-			"handler":    h.name,
-			"method":     r.Method,
-			"path":       r.URL.Path,
-			"status":     statusClass,
-			"user_agent": userAgent,
-		}).Observe(duration.Seconds())
-	}(time.Now())
-
-	switch {
-	case r.URL.Path == MetricsPath:
-		h.MetricsHandler.ServeHTTP(w, r)
-	case r.URL.Path == ReadyPath:
-		h.ReadyHandler.ServeHTTP(w, r)
-	case r.URL.Path == HealthPath:
-		h.HealthHandler.ServeHTTP(w, r)
-	case strings.HasPrefix(r.URL.Path, DebugPath):
-		h.DebugHandler.ServeHTTP(w, r)
-	default:
-		h.Handler.ServeHTTP(w, r)
-	}
-}
-
-func encodeResponse(ctx context.Context, w http.ResponseWriter, code int, res interface{}) error {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(code)
-
-	return json.NewEncoder(w).Encode(res)
+	h.r.ServeHTTP(w, r)
 }
 
 // PrometheusCollectors satisifies prom.PrometheusCollector.
@@ -149,26 +142,34 @@ func (h *Handler) initMetrics() {
 	const namespace = "http"
 	const handlerSubsystem = "api"
 
+	labelNames := []string{"handler", "method", "path", "status", "user_agent"}
 	h.requests = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: handlerSubsystem,
 		Name:      "requests_total",
 		Help:      "Number of http requests received",
-	}, []string{"handler", "method", "path", "status", "user_agent"})
+	}, labelNames)
 
 	h.requestDur = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: handlerSubsystem,
 		Name:      "request_duration_seconds",
 		Help:      "Time taken to respond to HTTP request",
-	}, []string{"handler", "method", "path", "status", "user_agent"})
+	}, labelNames)
 }
 
-func logEncodingError(logger *zap.Logger, r *http.Request, err error) {
+func encodeResponse(ctx context.Context, w http.ResponseWriter, code int, res interface{}) error {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(code)
+
+	return json.NewEncoder(w).Encode(res)
+}
+
+func logEncodingError(log *zap.Logger, r *http.Request, err error) {
 	// If we encounter an error while encoding the response to an http request
 	// the best thing we can do is log that error, as we may have already written
 	// the headers for the http request in question.
-	logger.Info("error encoding response",
+	log.Info("Error encoding response",
 		zap.String("path", r.URL.Path),
 		zap.String("method", r.Method),
 		zap.Error(err))

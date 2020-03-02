@@ -7,11 +7,11 @@ import {
   Popover,
   PopoverPosition,
   PopoverInteraction,
-  PopoverType,
+  Appearance,
 } from '@influxdata/clockface'
 
 // Types
-import {IVariable as Variable} from '@influxdata/influx'
+import {Variable} from 'src/types'
 import VariableLabel from 'src/timeMachine/components/variableToolbar/VariableLabel'
 
 interface Props {
@@ -26,7 +26,7 @@ const VariableItem: FC<Props> = ({variable, onClickVariable}) => {
     <div className="variables-toolbar--item" ref={trigger}>
       <VariableLabel name={variable.name} onClickVariable={onClickVariable} />
       <Popover
-        type={PopoverType.Outline}
+        appearance={Appearance.Outline}
         position={PopoverPosition.ToTheLeft}
         triggerRef={trigger}
         showEvent={PopoverInteraction.Hover}

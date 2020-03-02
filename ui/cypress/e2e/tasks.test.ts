@@ -36,7 +36,7 @@ from(bucket: "${name}")
   |> to(org: "${name}")`
     })
 
-    cy.contains('Save').click()
+    cy.getByTestID('task-save-btn').click()
 
     cy.getByTestID('notification-error').should(
       'contain',
@@ -53,11 +53,53 @@ from(bucket: "${name}")
   |> range(start: -2m)`
     })
 
-    cy.contains('Save').click()
+    cy.getByTestID('task-save-btn').click()
 
     cy.getByTestID('task-card')
       .should('have.length', 1)
       .and('contain', taskName)
+  })
+
+  it('can create a task using http.post', () => {
+    const taskName = 'Task'
+    createFirstTask(taskName, () => {
+      return `import "http"
+http.post(
+  url: "https://foo.bar/baz",
+  data: bytes(v: "body")
+)`
+    })
+
+    cy.getByTestID('task-save-btn').click()
+
+    cy.getByTestID('task-card')
+      .should('have.length', 1)
+      .and('contain', taskName)
+  })
+
+  it('keeps user input in text area when attempting to import invalid JSON', () => {
+    cy.getByTestID('page-header').within(() => {
+      cy.contains('Create').click()
+    })
+
+    cy.getByTestID('add-resource-dropdown--import').click()
+    cy.contains('Paste').click()
+    cy.getByTestID('import-overlay--textarea')
+      .click()
+      .type('this is invalid JSON')
+    cy.get('button[title*="Import JSON"]').click()
+    cy.getByTestID('import-overlay--textarea--error').should('have.length', 1)
+    cy.getByTestID('import-overlay--textarea').should($s =>
+      expect($s).to.contain('this is invalid JSON')
+    )
+    cy.getByTestID('import-overlay--textarea').type(
+      '{backspace}{backspace}{backspace}{backspace}{backspace}'
+    )
+    cy.get('button[title*="Import JSON"]').click()
+    cy.getByTestID('import-overlay--textarea--error').should('have.length', 1)
+    cy.getByTestID('import-overlay--textarea').should($s =>
+      expect($s).to.contain('this is invalid')
+    )
   })
 
   describe('When tasks already exist', () => {
@@ -182,7 +224,7 @@ from(bucket: "${name}")
         interval,
         offset
       )
-      cy.contains('Save').click()
+      cy.getByTestID('task-save-btn').click()
       cy.getByTestID('task-card')
         .should('have.length', 1)
         .and('contain', taskName)
@@ -211,7 +253,7 @@ from(bucket: "${name}")
         .clear()
         .type(newOffset)
 
-      cy.contains('Save').click()
+      cy.getByTestID('task-save-btn').click()
       // checks to see if the data has been updated once saved
       cy.getByTestID('task-card--name').contains(newTask)
     })
@@ -239,7 +281,7 @@ from(bucket: "${name}")
       // checks to see if the cron data persists
       cy.getByInputValue(cronInput)
       cy.getByInputValue(offset)
-      cy.contains('Save').click()
+      cy.getByTestID('task-save-btn').click()
     })
   })
 
@@ -264,7 +306,7 @@ from(bucket: "${name}")
         interval,
         offset
       )
-      cy.contains('Save').click()
+      cy.getByTestID('task-save-btn').click()
       cy.getByTestID('task-card')
         .should('have.length', 1)
         .and('contain', firstTask)
@@ -276,10 +318,13 @@ from(bucket: "${name}")
       cy.getByTestID('task-form-offset-input').type(offset)
       cy.get<Bucket>('@bucket').then(bucket => {
         cy.getByTestID('flux-editor').within(() => {
-          cy.get('textarea').type(flux(bucket), {force: true})
+          cy.get('.react-monaco-editor-container')
+          .click()
+          .focused()
+          .type(flux(bucket), {force: true, delay: 2})
         })
       })
-      cy.contains('Save').click()
+      cy.getByTestID('task-save-btn').click()
       cy.getByTestID('task-card')
         .should('have.length', 2)
         .and('contain', firstTask)
@@ -368,7 +413,10 @@ function createFirstTask(
 
   cy.get<Bucket>('@bucket').then(bucket => {
     cy.getByTestID('flux-editor').within(() => {
-      cy.get('textarea').type(flux(bucket), {force: true})
+      cy.get('.react-monaco-editor-container')
+        .click()
+        .focused()
+        .type(flux(bucket), {force: true, delay: 2})
     })
   })
 }

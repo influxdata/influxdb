@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {Position} from 'codemirror'
 
 // Components
-import FluxEditor from 'src/shared/components/FluxEditor'
+import FluxEditor from 'src/shared/components/FluxMonacoEditor'
 import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
 import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
@@ -15,7 +15,7 @@ import {setActiveQueryText} from 'src/timeMachine/actions'
 import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 
 // Utils
-import {getActiveQuery} from 'src/timeMachine/selectors'
+import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {insertFluxFunction} from 'src/timeMachine/utils/insertFunction'
 import {insertVariable} from 'src/timeMachine/utils/insertVariable'
 
@@ -27,6 +27,7 @@ import {AppState, FluxToolbarFunction} from 'src/types'
 
 interface StateProps {
   activeQueryText: string
+  activeTab: string
 }
 
 interface DispatchProps {
@@ -48,25 +49,23 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {activeQueryText, onSubmitQueries, onSetActiveQueryText} = this.props
+    const {
+      activeQueryText,
+      onSubmitQueries,
+      onSetActiveQueryText,
+      activeTab,
+    } = this.props
 
     const divisions = [
       {
         size: 0.75,
         handleDisplay: HANDLE_NONE,
         render: () => {
-          if (ENABLE_MONACO) {
-            const FluxMonacoEditor = require('src/shared/components/FluxMonacoEditor')
-              .default
-            return <FluxMonacoEditor script={activeQueryText} />
-          }
           return (
             <FluxEditor
               script={activeQueryText}
-              status={{type: '', text: ''}}
               onChangeScript={onSetActiveQueryText}
               onSubmitScript={onSubmitQueries}
-              suggestions={[]}
               onCursorChange={this.handleCursorPosition}
             />
           )
@@ -77,11 +76,13 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
           return (
             <>
               <div className="toolbar-tab-container">
-                <ToolbarTab
-                  onSetActive={this.hideFluxFunctions}
-                  name="Variables"
-                  active={!this.state.displayFluxFunctions}
-                />
+                {activeTab !== 'customCheckQuery' && (
+                  <ToolbarTab
+                    onSetActive={this.hideFluxFunctions}
+                    name="Variables"
+                    active={!this.state.displayFluxFunctions}
+                  />
+                )}
                 <ToolbarTab
                   onSetActive={this.showFluxFunctions}
                   name="Functions"
@@ -164,8 +165,9 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
 
 const mstp = (state: AppState) => {
   const activeQueryText = getActiveQuery(state).text
+  const {activeTab} = getActiveTimeMachine(state)
 
-  return {activeQueryText}
+  return {activeQueryText, activeTab}
 }
 
 const mdtp = {

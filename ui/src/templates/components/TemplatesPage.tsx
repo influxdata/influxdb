@@ -9,18 +9,18 @@ import TemplatesList from 'src/templates/components/TemplatesList'
 import StaticTemplatesList from 'src/templates/components/StaticTemplatesList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 
 // Types
-import {TemplateSummary, AppState} from 'src/types'
+import {TemplateSummary, AppState, ResourceType} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {
   Sort,
   Button,
   ComponentColor,
   IconFont,
-  Radio,
+  SelectGroup,
   FlexBox,
   FlexDirection,
   ComponentSize,
@@ -35,7 +35,7 @@ interface StaticTemplate {
 
 const staticTemplates: StaticTemplate[] = _.map(statics, (template, name) => ({
   name,
-  template,
+  template: template as TemplateSummary,
 }))
 
 interface OwnProps {
@@ -81,8 +81,9 @@ class TemplatesPage extends PureComponent<Props, State> {
         <SettingsTabbedPageHeader>
           <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
             {this.filterComponent}
-            <Radio>
-              <Radio.Button
+            <SelectGroup>
+              <SelectGroup.Option
+                name="template-type"
                 id="static-templates"
                 active={activeTab === 'static-templates'}
                 value="static-templates"
@@ -90,8 +91,9 @@ class TemplatesPage extends PureComponent<Props, State> {
                 titleText="Static Templates"
               >
                 Static Templates
-              </Radio.Button>
-              <Radio.Button
+              </SelectGroup.Option>
+              <SelectGroup.Option
+                name="template-type"
                 id="user-templates"
                 active={activeTab === 'user-templates'}
                 value="user-templates"
@@ -99,8 +101,8 @@ class TemplatesPage extends PureComponent<Props, State> {
                 titleText="User Templates"
               >
                 User Templates
-              </Radio.Button>
-            </Radio>
+              </SelectGroup.Option>
+            </SelectGroup>
           </FlexBox>
           <Button
             text="Import Template"

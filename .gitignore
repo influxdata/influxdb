@@ -8,9 +8,11 @@ vendor
 .tern-project
 .DS_Store
 .idea
+.cgo_ldflags
 
 # binary databases
 influxd.bolt
+*.db
 
 # Project distribution
 /dist
@@ -32,6 +34,7 @@ ui/npm-error.log
 ui/build
 ui/.cache
 ui/package-lock.json
+ui/junit.xml
 
 # e2e test artifacts
 ui/cypress/screenshots

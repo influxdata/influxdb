@@ -9,19 +9,15 @@ import (
 	"strings"
 	"time"
 
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"go.uber.org/zap"
 )
 
-// Middleware constructor.
-type Middleware func(http.Handler) http.Handler
-
 // LoggingMW middleware for logging inflight http requests.
-func LoggingMW(logger *zap.Logger) Middleware {
+func LoggingMW(log *zap.Logger) kithttp.Middleware {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			srw := &statusResponseWriter{
-				ResponseWriter: w,
-			}
+			srw := kithttp.NewStatusResponseWriter(w)
 
 			var buf bytes.Buffer
 			r.Body = &bodyEchoer{
@@ -46,12 +42,12 @@ func LoggingMW(logger *zap.Logger) Middleware {
 					zap.String("path", r.URL.Path),
 					zap.String("query", r.URL.Query().Encode()),
 					zap.String("proto", r.Proto),
-					zap.Int("status_code", srw.code()),
-					zap.Int("response_size", srw.responseBytes),
+					zap.Int("status_code", srw.Code()),
+					zap.Int("response_size", srw.ResponseBytes()),
 					zap.Int64("content_length", r.ContentLength),
 					zap.String("referrer", r.Referer()),
 					zap.String("remote", r.RemoteAddr),
-					zap.String("user_agent", r.UserAgent()),
+					zap.String("user_agent", kithttp.UserAgent(r)),
 					zap.Duration("took", time.Since(start)),
 					errField,
 					errReferenceField,
@@ -62,7 +58,7 @@ func LoggingMW(logger *zap.Logger) Middleware {
 					fields = append(fields, zap.ByteString("body", buf.Bytes()))
 				}
 
-				logger.Debug("Request", fields...)
+				log.Debug("Request", fields...)
 			}(time.Now())
 
 			next.ServeHTTP(srw, r)
@@ -130,16 +126,17 @@ func ignoreMethod(ignoredMethods ...string) isValidMethodFn {
 }
 
 var blacklistEndpoints = map[string]isValidMethodFn{
-	"/api/v2/signin":                 ignoreMethod(),
-	"/api/v2/signout":                ignoreMethod(),
-	mePath:                           ignoreMethod(),
+	prefixSignIn:                     ignoreMethod(),
+	prefixSignOut:                    ignoreMethod(),
+	prefixMe:                         ignoreMethod(),
 	mePasswordPath:                   ignoreMethod(),
 	usersPasswordPath:                ignoreMethod(),
-	writePath:                        ignoreMethod("POST"),
+	prefixPackages + "/apply":        ignoreMethod(),
+	prefixWrite:                      ignoreMethod("POST"),
 	organizationsIDSecretsPath:       ignoreMethod("PATCH"),
 	organizationsIDSecretsDeletePath: ignoreMethod("POST"),
-	setupPath:                        ignoreMethod("POST"),
-	notificationEndpointsPath:        ignoreMethod("POST"),
+	prefixSetup:                      ignoreMethod("POST"),
+	prefixNotificationEndpoints:      ignoreMethod("POST"),
 	notificationEndpointsIDPath:      ignoreMethod("PUT"),
 }
 
@@ -156,7 +153,7 @@ func (b *bodyEchoer) Close() error {
 	return b.rc.Close()
 }
 
-func applyMW(h http.Handler, m ...Middleware) http.Handler {
+func applyMW(h http.Handler, m ...kithttp.Middleware) http.Handler {
 	if len(m) < 1 {
 		return h
 	}

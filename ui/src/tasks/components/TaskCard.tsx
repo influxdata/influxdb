@@ -4,45 +4,55 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
+import {
+  SlideToggle,
+  ComponentSize,
+  ResourceCard,
+  IconFont,
+  InputLabel,
+  FlexBox,
+} from '@influxdata/clockface'
 import {Context} from 'src/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+import LastRunTaskStatus from 'src/shared/components/lastRunTaskStatus/LastRunTaskStatus'
 
 // Actions
-import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions'
-import {createLabel as createLabelAsync} from 'src/labels/actions'
+import {
+  addTaskLabel,
+  deleteTaskLabel,
+  selectTask,
+} from 'src/tasks/actions/thunks'
+import {createLabel} from 'src/labels/actions'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {ITask as Task, ILabel} from '@influxdata/influx'
-import {AppState, TaskStatus} from 'src/types'
+import {AppState, Task, Label} from 'src/types'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
-import {IconFont} from 'src/clockface/types/index'
 
 interface PassedProps {
   task: Task
   onActivate: (task: Task) => void
   onDelete: (task: Task) => void
-  onSelect: (task: Task) => void
+  onSelect: typeof selectTask
   onClone: (task: Task) => void
   onRunTask: (taskID: string) => void
-  onUpdate: (task: Task) => void
+  onUpdate: (name: string, taskID: string) => void
   onFilterChange: (searchTerm: string) => void
 }
 
 interface StateProps {
-  labels: ILabel[]
+  labels: Label[]
 }
 
 interface DispatchProps {
-  onAddTaskLabels: typeof addTaskLabelsAsync
-  onRemoveTaskLabels: typeof removeTaskLabelsAsync
-  onCreateLabel: typeof createLabelAsync
+  onAddTaskLabel: typeof addTaskLabel
+  onDeleteTaskLabel: typeof deleteTaskLabel
+  onCreateLabel: typeof createLabel
 }
 
 type Props = PassedProps & StateProps & DispatchProps
@@ -69,18 +79,32 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
           />
         }
         metaData={[
+          this.activeToggle,
           <>Last completed at {task.latestCompleted}</>,
           <>{`Scheduled to run ${this.schedule}`}</>,
         ]}
         toggle={
-          <SlideToggle
-            active={this.isTaskActive}
-            size={ComponentSize.ExtraSmall}
-            onChange={this.changeToggle}
-            testID="task-card--slide-toggle"
+          <LastRunTaskStatus
+            lastRunError={task.lastRunError}
+            lastRunStatus={task.lastRunStatus}
           />
         }
       />
+    )
+  }
+
+  private get activeToggle(): JSX.Element {
+    const labelText = this.isTaskActive ? 'Active' : 'Inactive'
+    return (
+      <FlexBox margin={ComponentSize.Small}>
+        <SlideToggle
+          active={this.isTaskActive}
+          size={ComponentSize.ExtraSmall}
+          onChange={this.changeToggle}
+          testID="task-card--slide-toggle"
+        />
+        <InputLabel active={this.isTaskActive}>{labelText}</InputLabel>
+      </FlexBox>
     )
   }
 
@@ -119,7 +143,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   private handleNameClick = (e: MouseEvent) => {
     e.preventDefault()
 
-    this.props.onSelect(this.props.task)
+    this.props.onSelect(this.props.task.id)
   }
 
   private handleViewRuns = () => {
@@ -132,8 +156,11 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleRenameTask = (name: string) => {
-    const {onUpdate, task} = this.props
-    onUpdate({...task, name})
+    const {
+      onUpdate,
+      task: {id},
+    } = this.props
+    onUpdate(name, id)
   }
 
   private handleExport = () => {
@@ -160,25 +187,25 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleAddLabel = (label: ILabel) => {
-    const {task, onAddTaskLabels} = this.props
+  private handleAddLabel = (label: Label) => {
+    const {task, onAddTaskLabel} = this.props
 
-    onAddTaskLabels(task.id, [label])
+    onAddTaskLabel(task.id, label)
   }
 
-  private handleRemoveLabel = (label: ILabel) => {
-    const {task, onRemoveTaskLabels} = this.props
+  private handleRemoveLabel = (label: Label) => {
+    const {task, onDeleteTaskLabel} = this.props
 
-    onRemoveTaskLabels(task.id, [label])
+    onDeleteTaskLabel(task.id, label)
   }
 
-  private handleCreateLabel = (label: ILabel) => {
+  private handleCreateLabel = (label: Label) => {
     this.props.onCreateLabel(label.name, label.properties)
   }
 
   private get isTaskActive(): boolean {
     const {task} = this.props
-    if (task.status === TaskStatus.Active) {
+    if (task.status === 'active') {
       return true
     }
     return false
@@ -186,10 +213,10 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
   private changeToggle = () => {
     const {task, onActivate} = this.props
-    if (task.status === TaskStatus.Active) {
-      task.status = TaskStatus.Inactive
+    if (task.status === 'active') {
+      task.status = 'inactive'
     } else {
-      task.status = TaskStatus.Active
+      task.status = 'active'
     }
     onActivate(task)
   }
@@ -216,9 +243,9 @@ const mstp = ({labels}: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  onCreateLabel: createLabelAsync,
-  onAddTaskLabels: addTaskLabelsAsync,
-  onRemoveTaskLabels: removeTaskLabelsAsync,
+  onCreateLabel: createLabel,
+  onAddTaskLabel: addTaskLabel,
+  onDeleteTaskLabel: deleteTaskLabel,
 }
 
 export default connect<StateProps, DispatchProps, PassedProps>(

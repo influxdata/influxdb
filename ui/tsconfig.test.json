@@ -17,6 +17,7 @@
     "cypress/**/*.ts",
     "mocks/**/*.ts",
     "mocks/**/*.tsx",
-    "jestSetup.ts"
+    "jestSetup.ts",
+    "global.d.ts"
   ]
 }

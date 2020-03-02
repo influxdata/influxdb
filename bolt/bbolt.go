@@ -14,18 +14,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// OpPrefix is the prefix for bolt ops
-const OpPrefix = "bolt/"
-
-func getOp(op string) string {
-	return OpPrefix + op
-}
-
 // Client is a client for the boltDB data store.
 type Client struct {
-	Path   string
-	db     *bolt.DB
-	Logger *zap.Logger
+	Path string
+	db   *bolt.DB
+	log  *zap.Logger
 
 	IDGenerator    platform.IDGenerator
 	TokenGenerator platform.TokenGenerator
@@ -33,9 +26,9 @@ type Client struct {
 }
 
 // NewClient returns an instance of a Client.
-func NewClient() *Client {
+func NewClient(log *zap.Logger) *Client {
 	return &Client{
-		Logger:         zap.NewNop(),
+		log:            log,
 		IDGenerator:    snowflake.NewIDGenerator(),
 		TokenGenerator: rand.NewTokenGenerator(64),
 		TimeGenerator:  platform.RealTimeGenerator{},
@@ -45,12 +38,6 @@ func NewClient() *Client {
 // DB returns the clients DB.
 func (c *Client) DB() *bolt.DB {
 	return c.db
-}
-
-// WithLogger sets the logger an a client. It should not be called after
-// the client has been open.
-func (c *Client) WithLogger(l *zap.Logger) {
-	c.Logger = l
 }
 
 // Open / create boltDB file.
@@ -75,7 +62,7 @@ func (c *Client) Open(ctx context.Context) error {
 		return err
 	}
 
-	c.Logger.Info("Resources opened", zap.String("path", c.Path))
+	c.log.Info("Resources opened", zap.String("path", c.Path))
 	return nil
 }
 
@@ -83,85 +70,26 @@ func (c *Client) Open(ctx context.Context) error {
 func (c *Client) initialize(ctx context.Context) error {
 	if err := c.db.Update(func(tx *bolt.Tx) error {
 		// Always create ID bucket.
+		// TODO: is this still needed?
 		if err := c.initializeID(tx); err != nil {
 			return err
 		}
 
-		// Always create Buckets bucket.
-		if err := c.initializeBuckets(ctx, tx); err != nil {
-			return err
+		// TODO: make card to normalize everything under kv?
+		bkts := [][]byte{
+			authorizationBucket,
+			bucketBucket,
+			dashboardBucket,
+			organizationBucket,
+			scraperBucket,
+			telegrafBucket,
+			userBucket,
 		}
-
-		// Always create Organizations bucket.
-		if err := c.initializeOrganizations(ctx, tx); err != nil {
-			return err
+		for _, bktName := range bkts {
+			if _, err := tx.CreateBucketIfNotExists(bktName); err != nil {
+				return err
+			}
 		}
-
-		// Always create Dashboards bucket.
-		if err := c.initializeDashboards(ctx, tx); err != nil {
-			return err
-		}
-
-		// Always create User bucket.
-		if err := c.initializeUsers(ctx, tx); err != nil {
-			return err
-		}
-
-		// Always create Authorization bucket.
-		if err := c.initializeAuthorizations(ctx, tx); err != nil {
-			return err
-		}
-
-		// Always create Onboarding bucket.
-		if err := c.initializeOnboarding(ctx, tx); err != nil {
-			return err
-		}
-
-		// Always create Telegraf Config bucket.
-		if err := c.initializeTelegraf(ctx, tx); err != nil {
-			return err
-		}
-
-		// Always create Source bucket.
-		if err := c.initializeSources(ctx, tx); err != nil {
-			return err
-		}
-
-		// Always create Variables bucket.
-		if err := c.initializeVariables(ctx, tx); err != nil {
-			return err
-		}
-
-		// Always create Scraper bucket.
-		if err := c.initializeScraperTargets(ctx, tx); err != nil {
-			return err
-		}
-
-		// Always create UserResourceMapping bucket.
-		if err := c.initializeUserResourceMappings(ctx, tx); err != nil {
-			return err
-		}
-
-		// Always create labels bucket.
-		if err := c.initializeLabels(ctx, tx); err != nil {
-			return err
-		}
-
-		// Always create Session bucket.
-		if err := c.initializeSessions(ctx, tx); err != nil {
-			return err
-		}
-
-		// Always create KeyValueLog bucket.
-		if err := c.initializeKeyValueLog(ctx, tx); err != nil {
-			return err
-		}
-
-		// Always create SecretService bucket.
-		if err := c.initializeSecretService(ctx, tx); err != nil {
-			return err
-		}
-
 		return nil
 	}); err != nil {
 		return err

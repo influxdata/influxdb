@@ -79,23 +79,26 @@ func TestFromScript(t *testing.T) {
 		{script: scriptGenerator(options.Options{Name: "name9"}, ""), shouldErr: true},
 		{script: scriptGenerator(options.Options{}, ""), shouldErr: true},
 		{script: `option task = {
-			name: "test",
+			name: "name10",
 			every: 1d,
-			offset: 1m
+			offset: 1m,
 		}
 			from(bucket: "metrics")
 			|> range(start: now(), stop: 8w)
-
-		`, shouldErr: true}, // TODO(docmerlin): remove this once tasks fully supports all flux duration units.
+		`,
+			exp: options.Options{Name: "name10", Every: *(options.MustParseDuration("1d")), Concurrency: pointer.Int64(1), Retry: pointer.Int64(1), Offset: options.MustParseDuration("1m")},
+		},
 		{script: `option task = {
-			name: "test",
+			name: "name11",
 			every: 1m,
-			offset: 1d
+			offset: 1d,
 		}
 			from(bucket: "metrics")
 			|> range(start: now(), stop: 8w)
 
-		`, shouldErr: true}, // TODO(docmerlin): remove this once tasks fully supports all flux duration units.
+		`,
+			exp: options.Options{Name: "name11", Every: *(options.MustParseDuration("1m")), Concurrency: pointer.Int64(1), Retry: pointer.Int64(1), Offset: options.MustParseDuration("1d")},
+		},
 		{script: "option task = {name:\"test_task_smoke_name\", every:30s} from(bucket:\"test_tasks_smoke_bucket_source\") |> range(start: -1h) |> map(fn: (r) => ({r with _time: r._time, _value:r._value, t : \"quality_rocks\"}))|> to(bucket:\"test_tasks_smoke_bucket_dest\", orgID:\"3e73e749495d37d5\")",
 			exp: options.Options{Name: "test_task_smoke_name", Every: *(options.MustParseDuration("30s")), Retry: pointer.Int64(1), Concurrency: pointer.Int64(1)}, shouldErr: false}, // TODO(docmerlin): remove this once tasks fully supports all flux duration units.
 
@@ -218,6 +221,15 @@ func TestValidate(t *testing.T) {
 	if err := bad.Validate(); err == nil {
 		t.Error("expected error for retry too large")
 	}
+
+	notbad := new(options.Options)
+	*notbad = good
+	notbad.Cron = ""
+	notbad.Every = *options.MustParseDuration("22d")
+	if err := notbad.Validate(); err != nil {
+		t.Error("expected no error for days every")
+	}
+
 }
 
 func TestEffectiveCronString(t *testing.T) {
@@ -229,6 +241,7 @@ func TestEffectiveCronString(t *testing.T) {
 		{c: "10 * * * *", exp: "10 * * * *"},
 		{e: *(options.MustParseDuration("10s")), exp: "@every 10s"},
 		{exp: ""},
+		{e: *(options.MustParseDuration("10d")), exp: "@every 10d"},
 	} {
 		o := options.Options{Cron: c.c, Every: c.e}
 		got := o.EffectiveCronString()
@@ -240,9 +253,9 @@ func TestEffectiveCronString(t *testing.T) {
 
 func TestDurationMarshaling(t *testing.T) {
 	t.Run("unmarshaling", func(t *testing.T) {
-		now := time.Now()
+		now := time.Now().UTC() /* to guarantee 24 hour days*/
 		dur1 := options.Duration{}
-		if err := dur1.UnmarshalText([]byte("1h10m3s")); err != nil {
+		if err := dur1.UnmarshalText([]byte("1d1h10m3s")); err != nil {
 			t.Fatal(err)
 		}
 		d1, err1 := dur1.DurationFrom(now)
@@ -251,7 +264,7 @@ func TestDurationMarshaling(t *testing.T) {
 		}
 
 		dur2 := options.Duration{}
-		if err := dur2.Parse("1h10m3s"); err != nil {
+		if err := dur2.Parse("1d1h10m3s"); err != nil {
 			t.Fatal(err)
 		}
 		d2, err2 := dur2.DurationFrom(now)
@@ -259,7 +272,7 @@ func TestDurationMarshaling(t *testing.T) {
 			t.Fatal(err2)
 		}
 
-		if d1 != d2 || d1 != time.Hour+10*time.Minute+3*time.Second {
+		if d1 != d2 || d1 != 25*time.Hour+10*time.Minute+3*time.Second /* we know that this day is 24 hours long because its UTC and go ignores leap seconds*/ {
 			t.Fatal("Parse and Marshaling do not give us the same result")
 		}
 	})

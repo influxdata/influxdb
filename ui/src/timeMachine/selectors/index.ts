@@ -1,5 +1,6 @@
 // Libraries
 import memoizeOne from 'memoize-one'
+import moment from 'moment'
 import {get, flatMap} from 'lodash'
 import {fromFlux, Table} from '@influxdata/giraffe'
 
@@ -15,9 +16,19 @@ import {
 import {getVariableAssignments as getVariableAssignmentsForContext} from 'src/variables/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {getWindowPeriod} from 'src/variables/utils/getWindowVars'
+import {
+  timeRangeToDuration,
+  parseDuration,
+  durationToMilliseconds,
+} from 'src/shared/utils/duration'
+
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
 import {
+  BuilderAggregateFunctionType,
+  BuilderTagsType,
+  DashboardQuery,
   FluxTable,
   QueryView,
   AppState,
@@ -38,13 +49,16 @@ export const getIsInCheckOverlay = (state: AppState): boolean => {
 }
 
 export const getTimeRange = (state: AppState): TimeRange => {
-  const {alerting, timeRange} = getActiveTimeMachine(state)
+  const {timeRange} = getActiveTimeMachine(state)
+  const {
+    alertBuilder: {every},
+  } = state
 
   if (!getIsInCheckOverlay(state)) {
     return timeRange
   }
 
-  return getCheckVisTimeRange(alerting.check.every)
+  return getCheckVisTimeRange(every)
 }
 
 export const getActiveQuery = (state: AppState): DashboardDraftQuery => {
@@ -248,4 +262,83 @@ export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
   }
 
   return saveableView
+}
+
+export const getStartTime = (timeRange: TimeRange) => {
+  if (!timeRange) {
+    return Infinity
+  }
+  switch (timeRange.type) {
+    case 'custom':
+      return moment(timeRange.lower).valueOf()
+    case 'selectable-duration':
+      return moment()
+        .subtract(timeRange.seconds, 'seconds')
+        .valueOf()
+    case 'duration':
+      const millisecondDuration = durationToMilliseconds(
+        parseDuration(timeRangeToDuration(timeRange))
+      )
+      return moment()
+        .subtract(millisecondDuration, 'milliseconds')
+        .valueOf()
+    default:
+      throw new Error(
+        'unknown timeRange type ${timeRange.type} provided to getStartTime'
+      )
+  }
+}
+
+export const getEndTime = (timeRange: TimeRange): number => {
+  if (!timeRange) {
+    return null
+  }
+  if (timeRange.type === 'custom') {
+    return moment(timeRange.upper).valueOf()
+  }
+  return moment().valueOf()
+}
+
+export const getActiveTimeRange = (
+  timeRange: TimeRange,
+  queries: DashboardQuery[]
+) => {
+  if (!queries) {
+    return timeRange
+  }
+  const hasVariableTimes = queries.some(
+    query =>
+      query.text.includes('v.timeRangeStart') ||
+      query.text.includes('v.timeRangeStop')
+  )
+  if (hasVariableTimes) {
+    return timeRange
+  }
+  return null
+}
+
+export const getActiveTagValues = (
+  activeQueryBuilderTags: BuilderTagsType[],
+  aggregateFunctionType: BuilderAggregateFunctionType,
+  index: number
+): string[] => {
+  // if we're grouping, we want to be able to group on all previous tags
+  if (
+    isFlagEnabled('queryBuilderGrouping') &&
+    aggregateFunctionType === 'group'
+  ) {
+    const values = []
+    activeQueryBuilderTags.forEach((tag, i) => {
+      // if we don't skip the current set of tags, we'll double render them at the bottom of the selector list
+      if (i === index) {
+        return
+      }
+      tag.values.forEach(value => {
+        values.push(value)
+      })
+    })
+    return values
+  }
+
+  return activeQueryBuilderTags[index].values
 }

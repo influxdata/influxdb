@@ -1,4 +1,19 @@
-version: 2
+version: "2.1"
+
+commands:
+  install_rust_compiler:
+    description: >
+      This will install the rust compiler with the rust tools.
+    steps:
+      - run:
+          name: Install clang
+          command: sudo apt-get install -y --no-install-recommends clang
+      - run:
+          name: Install rust compiler
+          command: |
+            curl https://sh.rustup.rs -sSf | \
+            sh -s -- --default-toolchain stable -y
+            echo 'source $HOME/.cargo/env' >> $BASH_ENV
 
 jobs:
   litmus_daily:
@@ -46,10 +61,10 @@ jobs:
           destination: nightly-junit
   e2e:
     docker:
-      - image: circleci/golang:1.12-node-browsers
+      - image: circleci/golang:1.13-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: '-mod=readonly -p=4' # Go on Circle thinks 32 CPUs are available, but there aren't.
+      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -65,6 +80,7 @@ jobs:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
       - run: sudo apt-get install -y netcat-openbsd
       - run: sudo apt-get install -y bzr
+      - install_rust_compiler
       - run: make protoc
       - run: make build
       - run:
@@ -84,58 +100,165 @@ jobs:
     docker:
       - image: circleci/node:13.0.1-stretch-browsers
       - image: quay.io/influxdb/influx:nightly
-        command: [ --e2e-testing=true ]
+        command: [--e2e-testing=true]
     steps:
       - checkout
       - run:
-         name: Environment check
-         command: |
-           git --version
-           node --version && npm --version
-           docker --version
-           google-chrome --version && which google-chrome && chromedriver --version && which chromedriver
-           timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:9999)" != "200" ]]; do sleep 5; done' || false
+          name: Environment check
+          command: |
+            git --version
+            node --version && npm --version
+            docker --version
+            google-chrome --version && which google-chrome && chromedriver --version && which chromedriver
+            timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:9999)" != "200" ]]; do sleep 5; done' || false
       - run:
-         name: Checkout Tests
-         command: git clone --single-branch --branch 2.0-Alpha https://github.com/bonitoo-io/selenium-accept-infl2.git
+          name: Checkout Tests
+          command: git clone --single-branch --branch 2.0-Beta https://github.com/bonitoo-io/selenium-accept-infl2.git
       - run:
-         name: Selenium tests
-         command: |
-           set +e
-           cd selenium-accept-infl2
-           npm install
-           npm test; TEST_RESULT=$?
-           npm run report:html
-           npm run report:junit
-           mkdir -p ~/test-results/cucumber
-           mkdir -p ~/artifacts/html
-           cp ~/project/selenium-accept-infl2/report/cucumber_report.html ~/artifacts/html/cucumber_report.html
-           cp ~/project/selenium-accept-infl2/report/cucumber_junit.xml ~/test-results/cucumber/report.xml
-           cp ~/project/selenium-accept-infl2/report/cucumber_junit.xml ~/artifacts/report.xml
-           cp -r ~/project/selenium-accept-infl2/screenshots ~/artifacts
-           ls -al
-           exit $TEST_RESULT
+          name: Selenium tests
+          command: |
+            set +e
+            cd selenium-accept-infl2
+            npm install
+            npm test; TEST_RESULT=$?
+            npm run report:html
+            npm run report:junit
+            mkdir -p ~/test-results/cucumber
+            mkdir -p ~/artifacts/html
+            cp ~/project/selenium-accept-infl2/report/cucumber_report.html ~/artifacts/html/cucumber_report.html
+            cp ~/project/selenium-accept-infl2/report/cucumber_junit.xml ~/test-results/cucumber/report.xml
+            cp ~/project/selenium-accept-infl2/report/cucumber_junit.xml ~/artifacts/report.xml
+            cp -r ~/project/selenium-accept-infl2/screenshots ~/artifacts
+            ls -al
+            exit $TEST_RESULT
       - store_test_results:
           path: ~/test-results
       - store_artifacts:
           path: ~/artifacts
   jstest:
     docker:
-      - image: circleci/golang:1.12-node-browsers
+      - image: circleci/golang:1.13-node-browsers
     working_directory: /go/src/github.com/influxdata/influxdb
+    parallelism: 8
     steps:
       - checkout
-      - run: make node_modules
+      - restore_cache:
+          keys:
+            - 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+          name: "Restore Yarn Package Cache"
+      - run:
+          command: |
+            set +e
+            cd ui
+            yarn install --frozen-lockfile
+          name: "Install Dependencies"
       - run: make ui_client
-      - run: make test-js
-      - run: make chronograf_lint
-
+      - run:
+          name: parallel jest tests
+          command: |
+            set +e
+            cd ui
+            TESTFILES=$(circleci tests glob "src/**/*.test.ts*" | circleci tests split --split-by=timings)
+            yarn test:circleci $TESTFILES
+      - store_test_results:
+          path: coverage
+      - store_artifacts:
+          path: coverage
+          destination: raw-test-output
+      - save_cache:
+          key: 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+          name: "Save Yarn Package Cache"
+          paths:
+            - ~/.cache/yarn
+  jslint:
+    docker:
+      - image: circleci/golang:1.13-node-browsers
+    working_directory: /go/src/github.com/influxdata/influxdb
+    parallelism: 8
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+          name: "Restore Yarn Package Cache"
+      - run:
+          command: |
+            set +e
+            cd ui
+            yarn install --frozen-lockfile
+          name: "Install Dependencies"
+      - run: make ui_client
+      - run:
+          name: parallel eslint
+          command: |
+            set +e
+            cd ui
+            TESTFILES=$(circleci tests glob "src/**/*.ts*" "cypress/**/*.ts*" | circleci tests split --split-by=filesize)
+            yarn eslint:circleci $TESTFILES
+      - save_cache:
+          key: 'yarn-cached-packages-{{ checksum "yarn.lock" }}'
+          name: "Save Yarn Package Cache"
+          paths:
+            - ~/.cache/yarn
   gotest:
     docker:
-      - image: circleci/golang:1.12
+      - image: circleci/golang:1.13
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: '-mod=readonly -p=2' # Go on Circle thinks 32 CPUs are available, but there aren't.
+      GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
+      TEST_RESULTS: /tmp/test-results
+    working_directory: /go/src/github.com/influxdata/influxdb
+    parallelism: 8
+    steps:
+      - checkout
+
+      # Populate GOCACHE.
+      - restore_cache:
+          name: Restoring GOCACHE
+          keys:
+            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
+            - influxdb-gocache-{{ .Branch }}- # Matches a new commit on an existing branch.
+            - influxdb-gocache- # Matches a new branch.
+      # Populate GOPATH/pkg.
+      - restore_cache:
+          name: Restoring GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
+      - run: sudo apt-get install -y bzr
+      - install_rust_compiler
+      - run: mkdir -p $TEST_RESULTS
+      - run: make test-go # This uses the test cache so it may succeed or fail quickly.
+      - run:
+          name: parallel go race tests
+          command: |
+            set +e
+            # filter internal/promqltests because it has special go.mod
+            TESTFILES=$(go list ./... | grep -v internal/promqltests | circleci tests split --split-by=timings)
+            echo $TESTFILES
+            GOTRACEBACK=all GO111MODULE=on FLUX_PARSER_TYPE=rust CGO_LDFLAGS="$(cat .cgo_ldflags)" gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 -tags 'libflux' $TESTFILES
+      - save_cache:
+          name: Saving GOCACHE
+          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+          when: always
+      - save_cache:
+          name: Saving GOPATH/pkg/mod
+          key: influxdb-gomod-{{ checksum "go.sum" }}
+          paths:
+            - /go/pkg/mod
+          when: always
+      - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
+          path: /tmp/test-results
+  golint:
+    docker:
+      - image: circleci/golang:1.13
+    environment:
+      GOCACHE: /tmp/go-cache
+      GOFLAGS: "-mod=readonly -p=2" # Go on Circle thinks 32 CPUs are available, but there aren't.
       TEST_RESULTS: /tmp/test-results
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
@@ -154,18 +277,24 @@ jobs:
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
       - run: sudo apt-get install -y bzr
+      - install_rust_compiler
       - run: mkdir -p $TEST_RESULTS
-      - run: make test-go # This uses the test cache so it may succeed or fail quickly.
+      - run: |
+          # this is not in a seperate bash script because it isn't meant to be run on local.
+          # it just checks to make sure that the same major/minor version of go is used in the mod file as on ci
+          # to prevent accidentally checking in a wrong go mod version.
+          gomodversiondiff=$( go mod edit -go=$( go version | sed -n 's/^.*go\([0-9]*.[0-9]*\).*$/\1/p') -print |diff - go.mod )
+          if [ "$gomodversiondiff" ]
+          then
+            echo unexpected go version $gomodversiondiff
+            exit 1
+          fi
       - run: make vet
       - run: make checkfmt
       - run: make checktidy
       - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
       - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
       - run: GO111MODULE=on staticcheck ./...
-      - run: GOTRACEBACK=all GO111MODULE=on gotestsum --format standard-verbose --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 ./...
-      # TODO add these checks to the Makefile
-      # - run: go get -v -t -d ./...
-
       - save_cache:
           name: Saving GOCACHE
           key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
@@ -178,21 +307,22 @@ jobs:
           paths:
             - /go/pkg/mod
           when: always
-      - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
+      - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
-      - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
+      - store_test_results:
           path: /tmp/test-results
   build:
     docker:
-      - image: circleci/golang:1.12-node-browsers
+      - image: circleci/golang:1.13-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: '-mod=readonly -p=4' # Go on Circle thinks 32 CPUs are available, but there aren't.
+      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
       - run: sudo apt-get install -y bzr
+      - install_rust_compiler
       - run: make checkcommit
 
       # Speed up `make build` by restoring caches from previous runs.
@@ -216,10 +346,10 @@ jobs:
             - etc/litmus_fail_notify.sh
   deploy-nightly:
     docker:
-      - image: circleci/golang:1.12-node-browsers
+      - image: circleci/golang:1.13-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: '-mod=readonly -p=4' # Go on Circle thinks 32 CPUs are available, but there aren't.
+      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -235,12 +365,12 @@ jobs:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
       - setup_remote_docker
       - run:
-          name: 'Docker Login'
+          name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - run: sudo apt-get install -y bzr
       - run: make protoc # installs protoc
       - run:
-          name: 'Build nightly'
+          name: "Build nightly"
           command: make nightly
       - persist_to_workspace:
           root: .
@@ -250,11 +380,11 @@ jobs:
 
   release:
     docker:
-      - image: circleci/golang:1.12-node-browsers
+      - image: circleci/golang:1.13-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: '-mod=readonly -p=4' # Go on Circle thinks 32 CPUs are available, but there aren't.
-      DOCKER_VERSION: 2.0.0-alpha
+      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
+      DOCKER_VERSION: 2.0.0-beta
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -270,12 +400,12 @@ jobs:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
       - setup_remote_docker
       - run:
-          name: 'Docker Login'
+          name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - run: sudo apt-get install -y bzr
       - run: make protoc # installs protoc
       - run:
-          name: 'Build release'
+          name: "Build release"
           command: make release
 
 workflows:
@@ -283,7 +413,9 @@ workflows:
   build:
     jobs:
       - gotest
+      - golint
       - jstest
+      - jslint
       - build
       - litmus_daily:
           requires:
@@ -297,18 +429,22 @@ workflows:
   nightly:
     triggers:
       - schedule:
-          cron: '0 7 * * *'
+          cron: "0 7 * * *"
           filters:
             branches:
               only:
                 - master
     jobs:
       - gotest
+      - golint
       - jstest
+      - jslint
       - deploy-nightly:
           requires:
             - gotest
+            - golint
             - jstest
+            - jslint
           filters:
             branches:
               only: master
@@ -325,20 +461,33 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
-
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
+      - golint:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
       - jstest:
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
-      - release:
-          requires:
-            - gotest
-            - jstest
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
+      - jslint:
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/
+      - release:
+          requires:
+            - gotest
+            - golint
+            - jstest
+            - jslint
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$/

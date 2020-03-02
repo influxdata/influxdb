@@ -9,230 +9,140 @@ import {
 } from 'src/timeMachine/selectors'
 
 // Types
-import {Dispatch} from 'redux-thunk'
-import {GetState} from 'src/types'
-import {RemoteDataState} from 'src/types'
+import {
+  BuilderAggregateFunctionType,
+  GetState,
+  RemoteDataState,
+} from 'src/types'
+import {Dispatch} from 'react'
 import {BuilderFunctionsType} from '@influxdata/influx'
+import {
+  Action as AlertBuilderAction,
+  setEvery,
+} from 'src/alerting/actions/alertBuilder'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
 
 export type Action =
-  | SetBuilderBucketSelectionAction
-  | SetBuilderBucketsAction
-  | SetBuilderBucketsStatusAction
-  | SetBuilderTagKeysAction
-  | SetBuilderTagKeysStatusAction
-  | SetBuilderTagValuesAction
-  | SetBuilderTagValuesStatusAction
-  | SetBuilderTagKeySelectionAction
-  | SetBuilderTagValuesSelectionAction
-  | AddTagSelectorAction
-  | RemoveTagSelectorAction
-  | SetFunctionsAction
-  | SelectAggregateWindowAction
-  | SetValuesSearchTermAction
-  | SetKeysSearchTermAction
-  | SetBuilderTagsStatusAction
+  | ReturnType<typeof setBuilderAggregateFunctionType>
+  | ReturnType<typeof setBuilderBucket>
+  | ReturnType<typeof setBuilderBuckets>
+  | ReturnType<typeof setBuilderBucketsStatus>
+  | ReturnType<typeof setBuilderTagKeys>
+  | ReturnType<typeof setBuilderTagKeysStatus>
+  | ReturnType<typeof setBuilderTagValues>
+  | ReturnType<typeof setBuilderTagValuesStatus>
+  | ReturnType<typeof setBuilderTagKeySelection>
+  | ReturnType<typeof setBuilderTagValuesSelection>
+  | ReturnType<typeof addTagSelectorSync>
+  | ReturnType<typeof removeTagSelectorSync>
+  | ReturnType<typeof setFunctions>
+  | ReturnType<typeof setAggregateWindow>
+  | ReturnType<typeof setValuesSearchTerm>
+  | ReturnType<typeof setKeysSearchTerm>
+  | ReturnType<typeof setBuilderTagsStatus>
 
-interface SetBuilderBucketsStatusAction {
-  type: 'SET_BUILDER_BUCKETS_STATUS'
-  payload: {bucketsStatus: RemoteDataState}
-}
+export const setBuilderAggregateFunctionType = (
+  builderAggregateFunctionType: BuilderAggregateFunctionType,
+  index: number
+) => ({
+  type: 'SET_BUILDER_AGGREGATE_FUNCTION_TYPE' as 'SET_BUILDER_AGGREGATE_FUNCTION_TYPE',
+  payload: {builderAggregateFunctionType, index},
+})
 
-const setBuilderBucketsStatus = (
-  bucketsStatus: RemoteDataState
-): SetBuilderBucketsStatusAction => ({
-  type: 'SET_BUILDER_BUCKETS_STATUS',
+const setBuilderBucketsStatus = (bucketsStatus: RemoteDataState) => ({
+  type: 'SET_BUILDER_BUCKETS_STATUS' as 'SET_BUILDER_BUCKETS_STATUS',
   payload: {bucketsStatus},
 })
 
-interface SetBuilderBucketsAction {
-  type: 'SET_BUILDER_BUCKETS'
-  payload: {buckets: string[]}
-}
-
-export const setBuilderBuckets = (
-  buckets: string[]
-): SetBuilderBucketsAction => ({
-  type: 'SET_BUILDER_BUCKETS',
+export const setBuilderBuckets = (buckets: string[]) => ({
+  type: 'SET_BUILDER_BUCKETS' as 'SET_BUILDER_BUCKETS',
   payload: {buckets},
 })
 
-interface SetBuilderBucketSelectionAction {
-  type: 'SET_BUILDER_BUCKET_SELECTION'
-  payload: {bucket: string; resetSelections: boolean}
-}
-
-const setBuilderBucket = (
-  bucket: string,
-  resetSelections: boolean
-): SetBuilderBucketSelectionAction => ({
-  type: 'SET_BUILDER_BUCKET_SELECTION',
+const setBuilderBucket = (bucket: string, resetSelections: boolean) => ({
+  type: 'SET_BUILDER_BUCKET_SELECTION' as 'SET_BUILDER_BUCKET_SELECTION',
   payload: {bucket, resetSelections},
 })
 
-interface SetBuilderTagsStatusAction {
-  type: 'SET_BUILDER_TAGS_STATUS'
-  payload: {status: RemoteDataState}
-}
-
-export const setBuilderTagsStatus = (
-  status: RemoteDataState
-): SetBuilderTagsStatusAction => ({
-  type: 'SET_BUILDER_TAGS_STATUS',
+export const setBuilderTagsStatus = (status: RemoteDataState) => ({
+  type: 'SET_BUILDER_TAGS_STATUS' as 'SET_BUILDER_TAGS_STATUS',
   payload: {status},
 })
 
-interface SetBuilderTagKeysAction {
-  type: 'SET_BUILDER_TAG_KEYS'
-  payload: {index: number; keys: string[]}
-}
-
-const setBuilderTagKeys = (
-  index: number,
-  keys: string[]
-): SetBuilderTagKeysAction => ({
-  type: 'SET_BUILDER_TAG_KEYS',
+const setBuilderTagKeys = (index: number, keys: string[]) => ({
+  type: 'SET_BUILDER_TAG_KEYS' as 'SET_BUILDER_TAG_KEYS',
   payload: {index, keys},
 })
 
-interface SetBuilderTagKeysStatusAction {
-  type: 'SET_BUILDER_TAG_KEYS_STATUS'
-  payload: {index: number; status: RemoteDataState}
-}
-
-const setBuilderTagKeysStatus = (
-  index: number,
-  status: RemoteDataState
-): SetBuilderTagKeysStatusAction => ({
-  type: 'SET_BUILDER_TAG_KEYS_STATUS',
+const setBuilderTagKeysStatus = (index: number, status: RemoteDataState) => ({
+  type: 'SET_BUILDER_TAG_KEYS_STATUS' as 'SET_BUILDER_TAG_KEYS_STATUS',
   payload: {index, status},
 })
 
-interface SetBuilderTagValuesAction {
-  type: 'SET_BUILDER_TAG_VALUES'
-  payload: {index: number; values: string[]}
-}
-
-const setBuilderTagValues = (
-  index: number,
-  values: string[]
-): SetBuilderTagValuesAction => ({
-  type: 'SET_BUILDER_TAG_VALUES',
+const setBuilderTagValues = (index: number, values: string[]) => ({
+  type: 'SET_BUILDER_TAG_VALUES' as 'SET_BUILDER_TAG_VALUES',
   payload: {index, values},
 })
 
-interface SetBuilderTagValuesStatusAction {
-  type: 'SET_BUILDER_TAG_VALUES_STATUS'
-  payload: {index: number; status: RemoteDataState}
-}
-
-const setBuilderTagValuesStatus = (
-  index: number,
-  status: RemoteDataState
-): SetBuilderTagValuesStatusAction => ({
-  type: 'SET_BUILDER_TAG_VALUES_STATUS',
+const setBuilderTagValuesStatus = (index: number, status: RemoteDataState) => ({
+  type: 'SET_BUILDER_TAG_VALUES_STATUS' as 'SET_BUILDER_TAG_VALUES_STATUS',
   payload: {index, status},
 })
 
-interface SetBuilderTagKeySelectionAction {
-  type: 'SET_BUILDER_TAG_KEY_SELECTION'
-  payload: {index: number; key: string}
-}
-
-const setBuilderTagKeySelection = (
-  index: number,
-  key: string
-): SetBuilderTagKeySelectionAction => ({
-  type: 'SET_BUILDER_TAG_KEY_SELECTION',
+const setBuilderTagKeySelection = (index: number, key: string) => ({
+  type: 'SET_BUILDER_TAG_KEY_SELECTION' as 'SET_BUILDER_TAG_KEY_SELECTION',
   payload: {index, key},
 })
 
-interface SetBuilderTagValuesSelectionAction {
-  type: 'SET_BUILDER_TAG_VALUES_SELECTION'
-  payload: {index: number; values: string[]}
-}
-
-const setBuilderTagValuesSelection = (
-  index: number,
-  values: string[]
-): SetBuilderTagValuesSelectionAction => ({
-  type: 'SET_BUILDER_TAG_VALUES_SELECTION',
+const setBuilderTagValuesSelection = (index: number, values: string[]) => ({
+  type: 'SET_BUILDER_TAG_VALUES_SELECTION' as 'SET_BUILDER_TAG_VALUES_SELECTION',
   payload: {index, values},
 })
 
-interface AddTagSelectorAction {
-  type: 'ADD_TAG_SELECTOR'
-}
-
-const addTagSelectorSync = (): AddTagSelectorAction => ({
-  type: 'ADD_TAG_SELECTOR',
+const addTagSelectorSync = () => ({
+  type: 'ADD_TAG_SELECTOR' as 'ADD_TAG_SELECTOR',
 })
 
-interface RemoveTagSelectorAction {
-  type: 'REMOVE_TAG_SELECTOR'
-  payload: {index: number}
-}
-
-const removeTagSelectorSync = (index: number): RemoveTagSelectorAction => ({
-  type: 'REMOVE_TAG_SELECTOR',
+const removeTagSelectorSync = (index: number) => ({
+  type: 'REMOVE_TAG_SELECTOR' as 'REMOVE_TAG_SELECTOR',
   payload: {index},
 })
 
-interface SetFunctionsAction {
-  type: 'SELECT_BUILDER_FUNCTION'
-  payload: {functions: BuilderFunctionsType[]}
-}
-
-export const setFunctions = (
-  functions: BuilderFunctionsType[]
-): SetFunctionsAction => ({
-  type: 'SELECT_BUILDER_FUNCTION',
+export const setFunctions = (functions: BuilderFunctionsType[]) => ({
+  type: 'SELECT_BUILDER_FUNCTION' as 'SELECT_BUILDER_FUNCTION',
   payload: {functions},
 })
 
-interface SelectAggregateWindowAction {
-  type: 'SELECT_AGGREGATE_WINDOW'
-  payload: {period: string}
-}
-
-export const selectAggregateWindow = (
-  period: string
-): SelectAggregateWindowAction => ({
-  type: 'SELECT_AGGREGATE_WINDOW',
+export const setAggregateWindow = (period: string) => ({
+  type: 'SET_AGGREGATE_WINDOW' as 'SET_AGGREGATE_WINDOW',
   payload: {period},
 })
 
-interface SetValuesSearchTermAction {
-  type: 'SET_BUILDER_VALUES_SEARCH_TERM'
-  payload: {index: number; searchTerm: string}
-}
-
-interface SetKeysSearchTermAction {
-  type: 'SET_BUILDER_KEYS_SEARCH_TERM'
-  payload: {index: number; searchTerm: string}
-}
-
-export const setValuesSearchTerm = (
-  index: number,
-  searchTerm: string
-): SetValuesSearchTermAction => ({
-  type: 'SET_BUILDER_VALUES_SEARCH_TERM',
+export const setValuesSearchTerm = (index: number, searchTerm: string) => ({
+  type: 'SET_BUILDER_VALUES_SEARCH_TERM' as 'SET_BUILDER_VALUES_SEARCH_TERM',
   payload: {index, searchTerm},
 })
 
-export const setKeysSearchTerm = (
-  index: number,
-  searchTerm: string
-): SetKeysSearchTermAction => ({
-  type: 'SET_BUILDER_KEYS_SEARCH_TERM',
+export const setKeysSearchTerm = (index: number, searchTerm: string) => ({
+  type: 'SET_BUILDER_KEYS_SEARCH_TERM' as 'SET_BUILDER_KEYS_SEARCH_TERM',
   payload: {index, searchTerm},
 })
+
+export const selectAggregateWindow = (period: string) => (
+  dispatch: Dispatch<Action | AlertBuilderAction>
+) => {
+  dispatch(setAggregateWindow(period))
+  dispatch(setEvery(period))
+}
 
 export const loadBuckets = () => async (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ReturnType<typeof selectBucket>>,
   getState: GetState
 ) => {
   const queryURL = getState().links.query.self
-  const orgID = getState().orgs.org.id
+  const orgID = getOrg(getState()).id
 
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
@@ -268,13 +178,13 @@ export const loadBuckets = () => async (
 export const selectBucket = (
   bucket: string,
   resetSelections: boolean = false
-) => (dispatch: Dispatch<Action>) => {
+) => (dispatch: Dispatch<Action | ReturnType<typeof loadTagSelector>>) => {
   dispatch(setBuilderBucket(bucket, resetSelections))
   dispatch(loadTagSelector(0))
 }
 
 export const loadTagSelector = (index: number) => async (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ReturnType<typeof loadTagSelectorValues>>,
   getState: GetState
 ) => {
   const {buckets, tags} = getActiveQuery(getState()).builderConfig
@@ -285,7 +195,7 @@ export const loadTagSelector = (index: number) => async (
 
   const tagsSelections = tags.slice(0, index)
   const queryURL = getState().links.query.self
-  const orgID = getState().orgs.org.id
+  const orgID = getOrg(getState()).id
 
   dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
 
@@ -334,14 +244,14 @@ export const loadTagSelector = (index: number) => async (
 }
 
 const loadTagSelectorValues = (index: number) => async (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ReturnType<typeof loadTagSelector>>,
   getState: GetState
 ) => {
   const state = getState()
   const {buckets, tags} = getActiveQuery(state).builderConfig
   const tagsSelections = tags.slice(0, index)
   const queryURL = state.links.query.self
-  const orgID = getState().orgs.org.id
+  const orgID = getOrg(getState()).id
 
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 
@@ -384,7 +294,7 @@ const loadTagSelectorValues = (index: number) => async (
 }
 
 export const selectTagValue = (index: number, value: string) => (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ReturnType<typeof addTagSelector>>,
   getState: GetState
 ) => {
   const state = getState()
@@ -392,7 +302,8 @@ export const selectTagValue = (index: number, value: string) => (
     timeMachines: {activeTimeMachineID},
   } = state
   const tags = getActiveQuery(state).builderConfig.tags
-  const values = tags[index].values
+  const currentTag = tags[index]
+  const values = currentTag.values
 
   let newValues: string[]
 
@@ -400,7 +311,7 @@ export const selectTagValue = (index: number, value: string) => (
     newValues = values.filter(v => v !== value)
   } else if (
     activeTimeMachineID === 'alerting' &&
-    tags[index].key === '_field'
+    currentTag.key === '_field'
   ) {
     newValues = [value]
   } else {
@@ -408,6 +319,11 @@ export const selectTagValue = (index: number, value: string) => (
   }
 
   dispatch(setBuilderTagValuesSelection(index, newValues))
+
+  // don't add a new tag filter if we're grouping
+  if (currentTag.aggregateFunctionType === 'group') {
+    return
+  }
 
   if (index === tags.length - 1 && newValues.length) {
     dispatch(addTagSelector())

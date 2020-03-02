@@ -1,10 +1,11 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get, isEmpty} from 'lodash'
 
-// Utils
+// Selectors
 import {getSaveableView} from 'src/timeMachine/selectors'
+import {getOrg} from 'src/organizations/selectors'
 
 // Components
 import {Form, Input, Button, Grid} from '@influxdata/clockface'
@@ -98,6 +99,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
                   name="cellName"
                   value={cellName}
                   onChange={this.handleChangeCellName}
+                  testID="save-as-dashboard-cell--cell-name"
                 />
               </Form.Element>
             </Grid.Column>
@@ -108,9 +110,11 @@ class SaveAsCellForm extends PureComponent<Props, State> {
                   onClick={dismiss}
                   titleText="Cancel save"
                   type={ButtonType.Button}
+                  testID="save-as-dashboard-cell--cancel"
                 />
                 <Button
                   text="Save as Dashboard Cell"
+                  testID="save-as-dashboard-cell--submit"
                   color={ComponentColor.Success}
                   type={ButtonType.Submit}
                   onClick={this.handleSubmit}
@@ -139,6 +143,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
             name="dashboardName"
             value={newDashboardName}
             onChange={this.handleChangeDashboardName}
+            testID="save-as-dashboard-cell--dashboard-name"
           />
         </Form.Element>
       </Grid.Column>
@@ -147,7 +152,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 
   private get isFormValid(): boolean {
     const {targetDashboardIDs} = this.state
-    return !_.isEmpty(targetDashboardIDs)
+    return !isEmpty(targetDashboardIDs)
   }
 
   private handleSubmit = () => {
@@ -234,12 +239,12 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 const mstp = (state: AppState): StateProps => {
   const {
     dashboards: {list: dashboards},
-    orgs: {org},
   } = state
 
   const view = getSaveableView(state)
+  const org = getOrg(state)
 
-  return {dashboards, view, orgID: _.get(org, 'id', '')}
+  return {dashboards, view, orgID: get(org, 'id', '')}
 }
 
 const mdtp: DispatchProps = {

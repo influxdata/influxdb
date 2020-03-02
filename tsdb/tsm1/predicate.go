@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 )
 
 // Predicate is something that can match on a series key.
 type Predicate interface {
+	Clone() influxdb.Predicate
 	Matches(key []byte) bool
 	Marshal() ([]byte, error)
 }
@@ -75,7 +77,15 @@ func NewProtobufPredicate(pred *datatypes.Predicate) (Predicate, error) {
 		if node.GetNodeType() == datatypes.NodeTypeTagRef {
 			switch value := node.GetValue().(type) {
 			case *datatypes.Node_TagRefValue:
-				locs[value.TagRefValue] = len(locs)
+				// Only add to the matcher locations the first time we encounter
+				// the tag key reference. This prevents problems with redundant
+				// predicates like:
+				//
+				//   foo = a AND foo = b
+				//   foo = c AND foo = d
+				if _, ok := locs[value.TagRefValue]; !ok {
+					locs[value.TagRefValue] = len(locs)
+				}
 			}
 		}
 	})
@@ -99,6 +109,17 @@ type predicateMatcher struct {
 	pred  *datatypes.Predicate
 	state *predicateState
 	root  predicateNode
+}
+
+// Clone returns a deep copy of p's state and root node.
+//
+// It is not safe to modify p.pred on the returned clone.
+func (p *predicateMatcher) Clone() influxdb.Predicate {
+	return &predicateMatcher{
+		pred:  p.pred,
+		state: p.state.Clone(),
+		root:  p.root.Clone(),
+	}
 }
 
 // Matches checks if the key matches the predicate by feeding individual tags into the
@@ -308,6 +329,22 @@ func newPredicateState(locs map[string]int) *predicateState {
 	}
 }
 
+// Clone returns a deep copy of p.
+func (p *predicateState) Clone() *predicateState {
+	q := &predicateState{
+		gen:    p.gen,
+		locs:   make(map[string]int, len(p.locs)),
+		values: make([][]byte, len(p.values)),
+	}
+
+	for k, v := range p.locs {
+		q.locs[k] = v
+	}
+	copy(q.values, p.values)
+
+	return q
+}
+
 // Reset clears any set values for the state.
 func (p *predicateState) Reset() {
 	p.gen++
@@ -348,6 +385,15 @@ func newPredicateCache(state *predicateState) predicateCache {
 	}
 }
 
+// Clone returns a deep copy of p.
+func (p *predicateCache) Clone() *predicateCache {
+	return &predicateCache{
+		state: p.state.Clone(),
+		gen:   p.gen,
+		resp:  p.resp,
+	}
+}
+
 // Cached returns the cached response and a boolean indicating if it is valid.
 func (p *predicateCache) Cached() (predicateResponse, bool) {
 	return p.resp, p.gen == p.state.gen
@@ -368,12 +414,24 @@ type predicateNode interface {
 	// Update informs the node that the state has been updated and asks it to return
 	// a response.
 	Update() predicateResponse
+
+	// Clone returns a deep copy of the node.
+	Clone() predicateNode
 }
 
 // predicateNodeAnd combines two predicate nodes with an And.
 type predicateNodeAnd struct {
 	predicateCache
 	left, right predicateNode
+}
+
+// Clone returns a deep copy of p.
+func (p *predicateNodeAnd) Clone() predicateNode {
+	return &predicateNodeAnd{
+		predicateCache: *p.predicateCache.Clone(),
+		left:           p.left.Clone(),
+		right:          p.right.Clone(),
+	}
 }
 
 // Update checks if both of the left and right nodes are true. If either is false
@@ -406,6 +464,15 @@ func (p *predicateNodeAnd) Update() predicateResponse {
 type predicateNodeOr struct {
 	predicateCache
 	left, right predicateNode
+}
+
+// Clone returns a deep copy of p.
+func (p *predicateNodeOr) Clone() predicateNode {
+	return &predicateNodeAnd{
+		predicateCache: *p.predicateCache.Clone(),
+		left:           p.left.Clone(),
+		right:          p.right.Clone(),
+	}
 }
 
 // Update checks if either the left and right nodes are true. If both nodes
@@ -444,6 +511,23 @@ type predicateNodeComparison struct {
 	rightLiteral []byte
 	leftIndex    int
 	rightIndex   int
+}
+
+// Clone returns a deep copy of p.
+func (p *predicateNodeComparison) Clone() predicateNode {
+	q := &predicateNodeComparison{
+		predicateCache: *p.predicateCache.Clone(),
+		comp:           p.comp,
+		// skip rightReg as it shouldn't be mutated
+		leftLiteral:  make([]byte, len(p.leftLiteral)),
+		rightLiteral: make([]byte, len(p.rightLiteral)),
+		leftIndex:    p.leftIndex,
+		rightIndex:   p.rightIndex,
+	}
+
+	copy(q.leftLiteral, p.leftLiteral)
+	copy(q.rightLiteral, p.rightLiteral)
+	return q
 }
 
 // Update checks if both sides of the comparison are determined, and if so, evaluates

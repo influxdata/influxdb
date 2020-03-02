@@ -18,27 +18,30 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/flux/parser"
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http/metric"
 	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
-	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
 	prom "github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
 const (
-	fluxPath = "/api/v2/query"
+	prefixQuery   = "/api/v2/query"
+	traceIDHeader = "Trace-Id"
 )
 
 // FluxBackend is all services and associated parameters required to construct
 // the FluxHandler.
 type FluxBackend struct {
 	influxdb.HTTPErrorHandler
-	Logger             *zap.Logger
+	log                *zap.Logger
 	QueryEventRecorder metric.EventRecorder
 
 	OrganizationService influxdb.OrganizationService
@@ -46,10 +49,10 @@ type FluxBackend struct {
 }
 
 // NewFluxBackend returns a new instance of FluxBackend.
-func NewFluxBackend(b *APIBackend) *FluxBackend {
+func NewFluxBackend(log *zap.Logger, b *APIBackend) *FluxBackend {
 	return &FluxBackend{
 		HTTPErrorHandler:   b.HTTPErrorHandler,
-		Logger:             b.Logger.With(zap.String("handler", "query")),
+		log:                log,
 		QueryEventRecorder: b.QueryEventRecorder,
 
 		ProxyQueryService:   b.FluxService,
@@ -66,7 +69,7 @@ type HTTPDialect interface {
 type FluxHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	Logger *zap.Logger
+	log *zap.Logger
 
 	Now                 func() time.Time
 	OrganizationService influxdb.OrganizationService
@@ -75,13 +78,18 @@ type FluxHandler struct {
 	EventRecorder metric.EventRecorder
 }
 
+// Prefix provides the route prefix.
+func (*FluxHandler) Prefix() string {
+	return prefixQuery
+}
+
 // NewFluxHandler returns a new handler at /api/v2/query for flux queries.
-func NewFluxHandler(b *FluxBackend) *FluxHandler {
+func NewFluxHandler(log *zap.Logger, b *FluxBackend) *FluxHandler {
 	h := &FluxHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		Now:              time.Now,
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger,
+		log:              log,
 
 		ProxyQueryService:   b.ProxyQueryService,
 		OrganizationService: b.OrganizationService,
@@ -90,7 +98,7 @@ func NewFluxHandler(b *FluxBackend) *FluxHandler {
 
 	// query reponses can optionally be gzip encoded
 	qh := gziphandler.GzipHandler(http.HandlerFunc(h.handleQuery))
-	h.Handler("POST", fluxPath, qh)
+	h.Handler("POST", prefixQuery, qh)
 	h.HandlerFunc("POST", "/api/v2/query/ast", h.postFluxAST)
 	h.HandlerFunc("POST", "/api/v2/query/analyze", h.postQueryAnalyze)
 	h.HandlerFunc("GET", "/api/v2/query/suggestions", h.getFluxSuggestions)
@@ -104,20 +112,24 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	defer span.Finish()
 
 	ctx := r.Context()
+	log := h.log.With(logger.TraceFields(ctx)...)
+	if id, _, found := tracing.InfoFromContext(ctx); found {
+		w.Header().Set(traceIDHeader, id)
+	}
 
 	// TODO(desa): I really don't like how we're recording the usage metrics here
 	// Ideally this will be moved when we solve https://github.com/influxdata/influxdb/issues/13403
 	var orgID influxdb.ID
 	var requestBytes int
-	sw := newStatusResponseWriter(w)
+	sw := kithttp.NewStatusResponseWriter(w)
 	w = sw
 	defer func() {
 		h.EventRecorder.Record(ctx, metric.Event{
 			OrgID:         orgID,
 			Endpoint:      r.URL.Path, // This should be sufficient for the time being as it should only be single endpoint.
 			RequestBytes:  requestBytes,
-			ResponseBytes: sw.responseBytes,
-			Status:        sw.code(),
+			ResponseBytes: sw.ResponseBytes(),
+			Status:        sw.Code(),
 		})
 	}()
 
@@ -144,6 +156,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	req.Request.Source = r.Header.Get("User-Agent")
 	orgID = req.Request.OrganizationID
 	requestBytes = n
 
@@ -169,7 +182,8 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 			h.HandleHTTPError(ctx, err, w)
 			return
 		}
-		h.Logger.Info("Error writing response to client",
+		_ = tracing.LogError(span, err)
+		log.Info("Error writing response to client",
 			zap.String("handler", "flux"),
 			zap.Error(err),
 		)
@@ -218,7 +232,7 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -246,7 +260,7 @@ func (h *FluxHandler) postQueryAnalyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusOK, a); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -298,7 +312,7 @@ func (h *FluxHandler) getFluxSuggestions(w http.ResponseWriter, r *http.Request)
 	res := suggestionsResponse{Functions: functions}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -320,7 +334,7 @@ func (h *FluxHandler) getFluxSuggestion(w http.ResponseWriter, r *http.Request) 
 
 	res := suggestionResponse{Name: name, Params: suggestion.Params}
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -337,6 +351,7 @@ var _ query.ProxyQueryService = (*FluxService)(nil)
 type FluxService struct {
 	Addr               string
 	Token              string
+	Name               string
 	InsecureSkipVerify bool
 }
 
@@ -345,7 +360,7 @@ type FluxService struct {
 func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequest) (flux.Statistics, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-	u, err := NewURL(s.Addr, fluxPath)
+	u, err := NewURL(s.Addr, prefixQuery)
 	if err != nil {
 		return flux.Statistics{}, tracing.LogError(span, err)
 	}
@@ -371,6 +386,11 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/csv")
+	if r.Request.Source != "" {
+		hreq.Header.Add("User-Agent", r.Request.Source)
+	} else if s.Name != "" {
+		hreq.Header.Add("User-Agent", s.Name)
+	}
 	hreq = hreq.WithContext(ctx)
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
@@ -400,6 +420,7 @@ var _ query.QueryService = (*FluxQueryService)(nil)
 type FluxQueryService struct {
 	Addr               string
 	Token              string
+	Name               string
 	InsecureSkipVerify bool
 }
 
@@ -408,7 +429,7 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := NewURL(s.Addr, fluxPath)
+	u, err := NewURL(s.Addr, prefixQuery)
 	if err != nil {
 		return nil, tracing.LogError(span, err)
 	}
@@ -438,6 +459,11 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/csv")
+	if r.Source != "" {
+		hreq.Header.Add("User-Agent", r.Source)
+	} else if s.Name != "" {
+		hreq.Header.Add("User-Agent", s.Name)
+	}
 	hreq = hreq.WithContext(ctx)
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
@@ -464,9 +490,12 @@ func (s FluxQueryService) Check(ctx context.Context) check.Response {
 	return QueryHealthCheck(s.Addr, s.InsecureSkipVerify)
 }
 
-// SimpleQuery runs a flux query with common parameters and returns CSV results.
-func SimpleQuery(addr, flux, org, token string) ([]byte, error) {
-	u, err := NewURL(addr, fluxPath)
+// GetQueryResponse runs a flux query with common parameters and returns the response from the query service.
+func GetQueryResponse(addr, flux, org, token string, headers ...string) (*http.Response, error) {
+	if len(headers)%2 != 0 {
+		return nil, fmt.Errorf("headers must be key value pairs")
+	}
+	u, err := NewURL(addr, prefixQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -498,22 +527,36 @@ func SimpleQuery(addr, flux, org, token string) ([]byte, error) {
 
 	SetToken(token, req)
 
+	// Default headers.
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/csv")
+	// Apply custom headers.
+	for i := 0; i < len(headers); i += 2 {
+		req.Header.Set(headers[i], headers[i+1])
+	}
 
 	insecureSkipVerify := false
 	hc := NewClient(u.Scheme, insecureSkipVerify)
-	res, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
+	return hc.Do(req)
+}
 
+// GetQueryResponseBody reads the body of a response from some query service.
+// It also checks for errors in the response.
+func GetQueryResponseBody(res *http.Response) ([]byte, error) {
 	if err := CheckError(res); err != nil {
 		return nil, err
 	}
-
 	defer res.Body.Close()
 	return ioutil.ReadAll(res.Body)
+}
+
+// SimpleQuery runs a flux query with common parameters and returns CSV results.
+func SimpleQuery(addr, flux, org, token string, headers ...string) ([]byte, error) {
+	res, err := GetQueryResponse(addr, flux, org, token, headers...)
+	if err != nil {
+		return nil, err
+	}
+	return GetQueryResponseBody(res)
 }
 
 func QueryHealthCheck(url string, insecureSkipVerify bool) check.Response {

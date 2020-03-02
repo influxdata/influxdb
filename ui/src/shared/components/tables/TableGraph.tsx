@@ -40,13 +40,13 @@ class TableGraph extends PureComponent<Props, State> {
 
   public render() {
     const {table, properties, timeZone} = this.props
-
+    const {sortOptions} = this.state
     return (
       <TableGraphTransform
         data={table.data}
         properties={properties}
         dataTypes={table.dataTypes}
-        sortOptions={this.sortOptions}
+        sortOptions={sortOptions}
       >
         {transformedDataBundle => (
           <TableGraphTable
@@ -62,35 +62,17 @@ class TableGraph extends PureComponent<Props, State> {
   }
 
   public handleSetSort = (fieldName: string) => {
-    const {sortOptions} = this.state
-
-    if (fieldName === sortOptions.field) {
-      sortOptions.direction =
-        sortOptions.direction === ASCENDING ? DESCENDING : ASCENDING
-    } else {
-      sortOptions.field = fieldName
-      sortOptions.direction = DEFAULT_SORT_DIRECTION
-    }
-    this.setState({sortOptions})
-  }
-
-  private get sortOptions(): SortOptions {
-    const {sortOptions} = this.state
-    const {table} = this.props
-    const headerSet = new Set(table.data[0])
-
-    if (headerSet.has(sortOptions.field)) {
-      return sortOptions
-    } else if (headerSet.has('_time')) {
-      return {...sortOptions, field: '_time'}
-    } else if (headerSet.has('_start')) {
-      return {...sortOptions, field: '_start'}
-    } else if (headerSet.has('_stop')) {
-      return {...sortOptions, field: '_stop'}
-    } else {
-      const headers = table.data[0]
-      return {...sortOptions, field: headers[0]}
-    }
+    this.setState(({sortOptions}) => {
+      const newSortOptions = {...sortOptions}
+      if (fieldName === sortOptions.field) {
+        newSortOptions.direction =
+          sortOptions.direction === ASCENDING ? DESCENDING : ASCENDING
+      } else {
+        newSortOptions.field = fieldName
+        newSortOptions.direction = DEFAULT_SORT_DIRECTION
+      }
+      return {sortOptions: newSortOptions}
+    })
   }
 }
 

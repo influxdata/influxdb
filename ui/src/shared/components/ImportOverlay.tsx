@@ -3,7 +3,13 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Form, Radio, Button, TextArea, Overlay} from '@influxdata/clockface'
+import {
+  Form,
+  SelectGroup,
+  Button,
+  TextArea,
+  Overlay,
+} from '@influxdata/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 
 // Types
@@ -23,6 +29,8 @@ interface OwnProps {
   resourceName: string
   onSubmit: (importString: string, orgID: string) => void
   isVisible?: boolean
+  status?: ComponentStatus
+  updateStatus?: (status: ComponentStatus) => void
 }
 
 interface State {
@@ -56,8 +64,9 @@ class ImportOverlay extends PureComponent<Props, State> {
             />
             <Overlay.Body>
               <div className="import--options">
-                <Radio>
-                  <Radio.Button
+                <SelectGroup>
+                  <SelectGroup.Option
+                    name="import-mode"
                     id={ImportOption.Upload}
                     active={selectedImportOption === ImportOption.Upload}
                     value={ImportOption.Upload}
@@ -65,8 +74,9 @@ class ImportOverlay extends PureComponent<Props, State> {
                     titleText="Upload"
                   >
                     Upload File
-                  </Radio.Button>
-                  <Radio.Button
+                  </SelectGroup.Option>
+                  <SelectGroup.Option
+                    name="import-mode"
                     id={ImportOption.Paste}
                     active={selectedImportOption === ImportOption.Paste}
                     value={ImportOption.Paste}
@@ -74,8 +84,8 @@ class ImportOverlay extends PureComponent<Props, State> {
                     titleText="Paste"
                   >
                     Paste JSON
-                  </Radio.Button>
-                </Radio>
+                  </SelectGroup.Option>
+                </SelectGroup>
               </div>
               {this.importBody}
             </Overlay.Body>
@@ -88,6 +98,7 @@ class ImportOverlay extends PureComponent<Props, State> {
 
   private get importBody(): JSX.Element {
     const {selectedImportOption, importContent} = this.state
+    const {status = ComponentStatus.Default} = this.props
 
     if (selectedImportOption === ImportOption.Upload) {
       return (
@@ -102,7 +113,12 @@ class ImportOverlay extends PureComponent<Props, State> {
     }
     if (selectedImportOption === ImportOption.Paste) {
       return (
-        <TextArea value={importContent} onChange={this.handleChangeTextArea} />
+        <TextArea
+          status={status}
+          value={importContent}
+          onChange={this.handleChangeTextArea}
+          testID="import-overlay--textarea"
+        />
       )
     }
   }
@@ -110,8 +126,10 @@ class ImportOverlay extends PureComponent<Props, State> {
   private handleChangeTextArea = (
     e: ChangeEvent<HTMLTextAreaElement>
   ): void => {
+    const {updateStatus = () => {}} = this.props
     const importContent = e.target.value
     this.handleSetImportContent(importContent)
+    updateStatus(ComponentStatus.Default)
   }
 
   private get submitButton(): JSX.Element {
@@ -146,7 +164,10 @@ class ImportOverlay extends PureComponent<Props, State> {
   }
 
   private clearImportContent = () => {
-    this.setState({importContent: ''})
+    this.setState((state, props) => {
+      const {status = ComponentStatus.Default} = props
+      return status === ComponentStatus.Error ? {...state} : {importContent: ''}
+    })
   }
 
   private onDismiss = () => {

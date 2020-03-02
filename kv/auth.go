@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/buger/jsonparser"
 	influxdb "github.com/influxdata/influxdb"
+	jsonp "github.com/influxdata/influxdb/pkg/jsonparser"
 )
 
 var (
@@ -127,6 +129,59 @@ func (s *Service) findAuthorizationByToken(ctx context.Context, tx Tx, n string)
 	return s.findAuthorizationByID(ctx, tx, id)
 }
 
+func authorizationsPredicateFn(f influxdb.AuthorizationFilter) CursorPredicateFunc {
+	// if any errors occur reading the JSON data, the predicate will always return true
+	// to ensure the value is included and handled higher up.
+
+	if f.ID != nil {
+		exp := *f.ID
+		return func(_, value []byte) bool {
+			got, err := jsonp.GetID(value, "id")
+			if err != nil {
+				return true
+			}
+			return got == exp
+		}
+	}
+
+	if f.Token != nil {
+		exp := *f.Token
+		return func(_, value []byte) bool {
+			// it is assumed that token never has escaped string data
+			got, _, _, err := jsonparser.Get(value, "token")
+			if err != nil {
+				return true
+			}
+			return string(got) == exp
+		}
+	}
+
+	var pred CursorPredicateFunc
+	if f.OrgID != nil {
+		exp := *f.OrgID
+		pred = func(_, value []byte) bool {
+			got, err := jsonp.GetID(value, "orgID")
+			if err != nil {
+				return true
+			}
+
+			return got == exp
+		}
+	}
+
+	if f.UserID != nil {
+		exp := *f.UserID
+		prevFn := pred
+		pred = func(key, value []byte) bool {
+			prev := prevFn == nil || prevFn(key, value)
+			got, exists, err := jsonp.GetOptionalID(value, "userID")
+			return prev && ((exp == got && exists) || err != nil)
+		}
+	}
+
+	return pred
+}
+
 func filterAuthorizationsFn(filter influxdb.AuthorizationFilter) func(a *influxdb.Authorization) bool {
 	if filter.ID != nil {
 		return func(a *influxdb.Authorization) bool {
@@ -225,9 +280,10 @@ func (s *Service) findAuthorizations(ctx context.Context, tx Tx, f influxdb.Auth
 		f.OrgID = &o.ID
 	}
 
-	as := []*influxdb.Authorization{}
+	var as []*influxdb.Authorization
+	pred := authorizationsPredicateFn(f)
 	filterFn := filterAuthorizationsFn(f)
-	err := s.forEachAuthorization(ctx, tx, func(a *influxdb.Authorization) bool {
+	err := s.forEachAuthorization(ctx, tx, pred, func(a *influxdb.Authorization) bool {
 		if filterFn(a) {
 			as = append(as, a)
 		}
@@ -277,6 +333,10 @@ func (s *Service) createAuthorization(ctx context.Context, tx Tx, a *influxdb.Au
 	}
 
 	a.ID = s.IDGenerator.ID()
+
+	now := s.TimeGenerator.Now()
+	a.SetCreatedAt(now)
+	a.SetUpdatedAt(now)
 
 	if err := s.putAuthorization(ctx, tx, a); err != nil {
 		return err
@@ -365,19 +425,27 @@ func decodeAuthorization(b []byte, a *influxdb.Authorization) error {
 }
 
 // forEachAuthorization will iterate through all authorizations while fn returns true.
-func (s *Service) forEachAuthorization(ctx context.Context, tx Tx, fn func(*influxdb.Authorization) bool) error {
+func (s *Service) forEachAuthorization(ctx context.Context, tx Tx, pred CursorPredicateFunc, fn func(*influxdb.Authorization) bool) error {
 	b, err := tx.Bucket(authBucket)
 	if err != nil {
 		return err
 	}
 
-	cur, err := b.Cursor()
+	var cur Cursor
+	if pred != nil {
+		cur, err = b.Cursor(WithCursorHintPredicate(pred))
+	} else {
+		cur, err = b.Cursor()
+	}
 	if err != nil {
 		return err
 	}
 
 	for k, v := cur.First(); k != nil; k, v = cur.Next() {
-		a := &influxdb.Authorization{}
+		// preallocate Permissions to reduce multiple slice re-allocations
+		a := &influxdb.Authorization{
+			Permissions: make([]influxdb.Permission, 64),
+		}
 
 		if err := decodeAuthorization(v, a); err != nil {
 			return err
@@ -457,30 +525,13 @@ func (s *Service) updateAuthorization(ctx context.Context, tx Tx, id influxdb.ID
 		a.Description = *upd.Description
 	}
 
-	v, err := encodeAuthorization(a)
-	if err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
-	}
+	now := s.TimeGenerator.Now()
+	a.SetUpdatedAt(now)
 
-	encodedID, err := id.Encode()
-	if err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	b, err := tx.Bucket(authBucket)
-	if err != nil {
+	if err := s.putAuthorization(ctx, tx, a); err != nil {
 		return nil, err
 	}
 
-	if err = b.Put(encodedID, v); err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
-	}
 	return a, nil
 }
 

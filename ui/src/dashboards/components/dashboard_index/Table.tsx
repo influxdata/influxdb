@@ -31,7 +31,7 @@ interface State {
   sortType: SortTypes
 }
 
-type SortKey = keyof Dashboard | 'modified'
+type SortKey = keyof Dashboard | 'meta.updatedAt'
 
 type Props = OwnProps & WithRouterProps
 
@@ -58,23 +58,23 @@ class DashboardsTable extends PureComponent<Props, State> {
       <ResourceList>
         <ResourceList.Header filterComponent={filterComponent}>
           <ResourceList.Sorter
-            name={this.headerKeys[0]}
-            sortKey={this.headerKeys[0]}
-            sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
+            name="name"
+            sortKey="name"
+            sort={sortKey === 'name' ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
           <ResourceList.Sorter
-            name={this.headerKeys[1]}
-            sortKey={this.headerKeys[1]}
-            sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
+            name="modified"
+            sortKey="meta.updatedAt"
+            sort={sortKey === 'meta.updatedAt' ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
         </ResourceList.Header>
         <ResourceList.Body
           emptyState={this.emptyState}
-          className="dashboards-card-grid"
+          className={dashboards.length ? 'dashboards-card-grid' : ''}
         >
-          {!!dashboards.length && (
+          {dashboards.length ? (
             <DashboardCards
               dashboards={dashboards}
               sortKey={sortKey}
@@ -85,20 +85,15 @@ class DashboardsTable extends PureComponent<Props, State> {
               onUpdateDashboard={onUpdateDashboard}
               onFilterChange={onFilterChange}
             />
-          )}
+          ) : null}
         </ResourceList.Body>
       </ResourceList>
     )
   }
 
-  private get headerKeys(): SortKey[] {
-    return ['name', 'modified']
-  }
-
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
     let sortType = SortTypes.String
-
-    if (sortKey === 'modified') {
+    if (sortKey === 'meta.updatedAt') {
       sortType = SortTypes.Date
     }
 
@@ -129,7 +124,7 @@ class DashboardsTable extends PureComponent<Props, State> {
     return (
       <EmptyState size={ComponentSize.Large} testID="empty-dashboards-list">
         <EmptyState.Text>
-          Looks like you don’t have any <b>Dashboards</b>, why not create one?
+          Looks like you don't have any <b>Dashboards</b>, why not create one?
         </EmptyState.Text>
         <AddResourceDropdown
           onSelectNew={onCreateDashboard}

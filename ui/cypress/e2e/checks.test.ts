@@ -1,5 +1,8 @@
 import {Organization} from '../../src/types'
 
+// a generous commitment to delivering this page in a loaded state
+const PAGE_LOAD_SLA = 10000
+
 const measurement = 'my_meas'
 const field = 'my_field'
 describe('Checks', () => {
@@ -18,6 +21,7 @@ describe('Checks', () => {
         cy.visit(`${orgs}/${id}${alerting}`)
       })
     })
+    cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
   })
 
   it('can validate a threshold check', () => {
@@ -71,6 +75,7 @@ describe('Checks', () => {
       cy.getByTestID('add-threshold-condition-WARN').click()
       cy.getByTestID('save-cell--button').click()
       cy.getByTestID('check-card').should('have.length', 1)
+      cy.getByTestID('notification-error').should('not.exist')
     })
 
     it('should allow created checks to be selected and routed to the edit page', () => {
@@ -90,6 +95,24 @@ describe('Checks', () => {
           })
         })
       })
+    })
+
+    it('can toggle a check to on / off', () => {
+      cy.get('.cf-resource-card__disabled').should('not.exist')
+      cy.getByTestID('check-card--slide-toggle').click()
+      cy.getByTestID('notification-error').should('not.exist')
+      cy.get('.cf-resource-card__disabled').should('exist')
+      cy.getByTestID('check-card--slide-toggle').click()
+      cy.getByTestID('notification-error').should('not.exist')
+      cy.get('.cf-resource-card__disabled').should('not.exist')
+    })
+
+    it('can display the last run status', () => {
+      cy.getByTestID('last-run-status--icon').should('exist')
+      cy.getByTestID('last-run-status--icon').trigger('mouseover')
+      cy.getByTestID('popover--dialog')
+        .should('exist')
+        .contains('Last Run Status:')
     })
   })
 })

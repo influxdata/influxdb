@@ -6,21 +6,25 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
+import {Overlay} from '@influxdata/clockface'
 import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/TelegrafInstructions'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 
 // Constants
 import {TOKEN_LABEL} from 'src/labels/constants'
 
 // Types
-import {AppState} from 'src/types'
-import {Telegraf} from '@influxdata/influx'
+import {Telegraf, AppState, ResourceType, Authorization} from 'src/types'
+
+// Selectors
+import {getAll} from 'src/resources/selectors'
+
+const {Authorizations} = ResourceType
 
 interface StateProps {
   username: string
-  telegrafs: AppState['telegrafs']['list']
-  tokens: AppState['tokens']['list']
+  telegrafs: Telegraf[]
+  tokens: Authorization[]
   collectors: Telegraf[]
 }
 
@@ -30,17 +34,22 @@ export class TelegrafInstructionsOverlay extends PureComponent<
 > {
   public render() {
     return (
-      <GetResources resources={[ResourceType.Authorizations]}>
-        <WizardOverlay
-          title="Telegraf Setup Instructions"
-          onDismiss={this.handleDismiss}
-        >
-          <TelegrafInstructions
-            token={this.token}
-            configID={get(this.collector, 'id', '')}
+      <Overlay visible={true}>
+        <Overlay.Container maxWidth={700}>
+          <Overlay.Header
+            title="Telegraf Setup Instructions"
+            onDismiss={this.handleDismiss}
           />
-        </WizardOverlay>
-      </GetResources>
+          <Overlay.Body>
+            <GetResources resources={[ResourceType.Authorizations]}>
+              <TelegrafInstructions
+                token={this.token}
+                configID={get(this.collector, 'id', '')}
+              />
+            </GetResources>
+          </Overlay.Body>
+        </Overlay.Container>
+      </Overlay>
     )
   }
 
@@ -87,12 +96,21 @@ export class TelegrafInstructionsOverlay extends PureComponent<
   }
 }
 
-const mstp = ({me: {name}, telegrafs, tokens}: AppState): StateProps => ({
-  username: name,
-  telegrafs: telegrafs.list,
-  tokens: tokens.list,
-  collectors: telegrafs.list,
-})
+const mstp = (state: AppState): StateProps => {
+  const {
+    me: {name},
+  } = state
+
+  const tokens = getAll<Authorization>(state, Authorizations)
+  const telegrafs = getAll<Telegraf>(state, ResourceType.Telegrafs)
+
+  return {
+    username: name,
+    tokens,
+    collectors: telegrafs,
+    telegrafs: telegrafs,
+  }
+}
 
 export default connect<StateProps, {}, {}>(
   mstp,

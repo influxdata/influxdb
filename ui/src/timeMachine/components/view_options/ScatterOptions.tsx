@@ -5,6 +5,7 @@ import {connect} from 'react-redux'
 // Components
 import {Form, Input, Grid, MultiSelectDropdown} from '@influxdata/clockface'
 import AxisAffixes from 'src/timeMachine/components/view_options/AxisAffixes'
+import TimeFormat from 'src/timeMachine/components/view_options/TimeFormat'
 
 // Actions
 import {
@@ -18,6 +19,7 @@ import {
   setYDomain,
   setXColumn,
   setYColumn,
+  setTimeFormat,
 } from 'src/timeMachine/actions'
 
 // Utils
@@ -28,6 +30,7 @@ import {
   getXColumnSelection,
   getYColumnSelection,
   getNumericColumns,
+  getActiveTimeMachine,
 } from 'src/timeMachine/selectors'
 
 // Constants
@@ -35,7 +38,7 @@ import {GIRAFFE_COLOR_SCHEMES} from 'src/shared/constants'
 
 // Types
 import {ComponentStatus} from '@influxdata/clockface'
-import {AppState} from 'src/types'
+import {AppState, NewView, ScatterViewProperties} from 'src/types'
 import HexColorSchemeDropdown from 'src/shared/components/HexColorSchemeDropdown'
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 import ColumnSelector from 'src/shared/components/ColumnSelector'
@@ -47,6 +50,7 @@ interface StateProps {
   xColumn: string
   yColumn: string
   numericColumns: string[]
+  timeFormat: string
 }
 
 interface DispatchProps {
@@ -60,6 +64,7 @@ interface DispatchProps {
   onSetYDomain: typeof setYDomain
   onSetXColumn: typeof setXColumn
   onSetYColumn: typeof setYColumn
+  onSetTimeFormat: typeof setTimeFormat
 }
 
 interface OwnProps {
@@ -105,6 +110,8 @@ const ScatterOptions: SFC<Props> = props => {
     numericColumns,
     onSetXColumn,
     onSetYColumn,
+    onSetTimeFormat,
+    timeFormat,
   } = props
 
   const groupDropdownStatus = availableGroupColumns.length
@@ -168,6 +175,12 @@ const ScatterOptions: SFC<Props> = props => {
         availableColumns={numericColumns}
         axisName="y"
       />
+      <Form.Element label="Time Format">
+        <TimeFormat
+          timeFormat={timeFormat}
+          onTimeFormatChange={onSetTimeFormat}
+        />
+      </Form.Element>
       <h5 className="view-options--header">Options</h5>
       <Form.Element label="Color Scheme">
         <HexColorSchemeDropdown
@@ -215,6 +228,10 @@ const mstp = (state: AppState): StateProps => {
   const xColumn = getXColumnSelection(state)
   const yColumn = getYColumnSelection(state)
   const numericColumns = getNumericColumns(state)
+  const view = getActiveTimeMachine(state).view as NewView<
+    ScatterViewProperties
+  >
+  const {timeFormat} = view.properties
 
   return {
     availableGroupColumns,
@@ -223,6 +240,7 @@ const mstp = (state: AppState): StateProps => {
     xColumn,
     yColumn,
     numericColumns,
+    timeFormat,
   }
 }
 
@@ -237,6 +255,7 @@ const mdtp = {
   onSetYDomain: setYDomain,
   onSetXColumn: setXColumn,
   onSetYColumn: setYColumn,
+  onSetTimeFormat: setTimeFormat,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

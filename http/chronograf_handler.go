@@ -1,13 +1,12 @@
 package http
 
 import (
-	"net/http"
-
-	"github.com/NYTimes/gziphandler"
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/chronograf/server"
-	"github.com/julienschmidt/httprouter"
 )
+
+const prefixChronograf = "/chronograf"
 
 // ChronografHandler is an http handler for serving chronograf chronografs.
 type ChronografHandler struct {
@@ -36,92 +35,6 @@ func NewChronografHandler(s *server.Service, he influxdb.HTTPErrorHandler) *Chro
 
 	h.HandlerFunc("PUT", "/chronograf/v1/mappings/:id", h.Service.UpdateMapping)
 	h.HandlerFunc("DELETE", "/chronograf/v1/mappings/:id", h.Service.RemoveMapping)
-
-	// Sources
-	h.HandlerFunc("GET", "/chronograf/v1/sources", h.Service.Sources)
-	h.HandlerFunc("POST", "/chronograf/v1/sources", h.Service.NewSource)
-
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id", h.Service.SourcesID)
-	h.HandlerFunc("PATCH", "/chronograf/v1/sources/:id", h.Service.UpdateSource)
-	h.HandlerFunc("DELETE", "/chronograf/v1/sources/:id", h.Service.RemoveSource)
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/health", h.Service.SourceHealth)
-
-	// Source Proxy to Influx; Has gzip compression around the handler
-	influx := gziphandler.GzipHandler(http.HandlerFunc(h.Service.Influx))
-	h.Handler("POST", "/chronograf/v1/sources/:id/proxy", influx)
-
-	// Write proxies line protocol write requests to InfluxDB
-	h.HandlerFunc("POST", "/chronograf/v1/sources/:id/write", h.Service.Write)
-
-	// Queries is used to analyze a specific queries and does not create any
-	// resources. It's a POST because Queries are POSTed to InfluxDB, but this
-	// only modifies InfluxDB resources with certain metaqueries, e.g. DROP DATABASE.
-	//
-	// Admins should ensure that the InfluxDB source as the proper permissions
-	// intended for Chronograf Users with the Viewer Role type.
-	h.HandlerFunc("POST", "/chronograf/v1/sources/:id/queries", h.Service.Queries)
-
-	// Annotations are user-defined events associated with this source
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/annotations", h.Service.Annotations)
-	h.HandlerFunc("POST", "/chronograf/v1/sources/:id/annotations", h.Service.NewAnnotation)
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/annotations/:aid", h.Service.Annotation)
-	h.HandlerFunc("DELETE", "/chronograf/v1/sources/:id/annotations/:aid", h.Service.RemoveAnnotation)
-	h.HandlerFunc("PATCH", "/chronograf/v1/sources/:id/annotations/:aid", h.Service.UpdateAnnotation)
-
-	// All possible permissions for users in this source
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/permissions", h.Service.Permissions)
-
-	// Users associated with the data source
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/users", h.Service.SourceUsers)
-	h.HandlerFunc("POST", "/chronograf/v1/sources/:id/users", h.Service.NewSourceUser)
-
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/users/:uid", h.Service.SourceUserID)
-	h.HandlerFunc("DELETE", "/chronograf/v1/sources/:id/users/:uid", h.Service.RemoveSourceUser)
-	h.HandlerFunc("PATCH", "/chronograf/v1/sources/:id/users/:uid", h.Service.UpdateSourceUser)
-
-	// Roles associated with the data source
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/roles", h.Service.SourceRoles)
-	h.HandlerFunc("POST", "/chronograf/v1/sources/:id/roles", h.Service.NewSourceRole)
-
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/roles/:rid", h.Service.SourceRoleID)
-	h.HandlerFunc("DELETE", "/chronograf/v1/sources/:id/roles/:rid", h.Service.RemoveSourceRole)
-	h.HandlerFunc("PATCH", "/chronograf/v1/sources/:id/roles/:rid", h.Service.UpdateSourceRole)
-
-	// h.Services are resources that chronograf proxies to
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/services", h.Service.Services)
-	h.HandlerFunc("POST", "/chronograf/v1/sources/:id/service", h.Service.NewService)
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/services/:kid", h.Service.ServiceID)
-	h.HandlerFunc("PATCH", "/chronograf/v1/sources/:id/services/:kid", h.Service.UpdateService)
-	h.HandlerFunc("DELETE", "/chronograf/v1/sources/:id/services/:kid", h.Service.RemoveService)
-
-	// h.Service Proxy
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/h.Services/:kid/proxy", h.Service.ProxyGet)
-	h.HandlerFunc("POST", "/chronograf/v1/sources/:id/h.Services/:kid/proxy", h.Service.ProxyPost)
-	h.HandlerFunc("PATCH", "/chronograf/v1/sources/:id/h.Services/:kid/proxy", h.Service.ProxyPatch)
-	h.HandlerFunc("DELETE", "/chronograf/v1/sources/:id/h.Services/:kid/proxy", h.Service.ProxyDelete)
-
-	// Kapacitor
-	//h.HandlerFunc("GET","/chronograf/v1/sources/:id/kapacitors", h.Service.Kapacitors))
-	//h.HandlerFunc("POST","/chronograf/v1/sources/:id/kapacitors", h.Service.NewKapacitor))
-
-	//h.HandlerFunc("GET","/chronograf/v1/sources/:id/kapacitors/:kid", h.Service.KapacitorsID))
-	//h.HandlerFunc("PATCH","/chronograf/v1/sources/:id/kapacitors/:kid", h.Service.UpdateKapacitor))
-	//h.HandlerFunc("DELETE","/chronograf/v1/sources/:id/kapacitors/:kid", h.Service.RemoveKapacitor))
-
-	//// Kapacitor rules
-	//h.HandlerFunc("GET","/chronograf/v1/sources/:id/kapacitors/:kid/rules", h.Service.KapacitorRulesGet))
-	//h.HandlerFunc("POST","/chronograf/v1/sources/:id/kapacitors/:kid/rules", h.Service.KapacitorRulesPost))
-
-	//h.HandlerFunc("GET","/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", h.Service.KapacitorRulesID))
-	//h.HandlerFunc("PUT","/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", h.Service.KapacitorRulesPut))
-	//h.HandlerFunc("PATCH","/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", h.Service.KapacitorRulesStatus))
-	//h.HandlerFunc("DELETE","/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", h.Service.KapacitorRulesDelete))
-
-	//// Kapacitor Proxy
-	//h.HandlerFunc("GET","/chronograf/v1/sources/:id/kapacitors/:kid/proxy", h.Service.ProxyGet))
-	//h.HandlerFunc("POST","/chronograf/v1/sources/:id/kapacitors/:kid/proxy", h.Service.ProxyPost))
-	//h.HandlerFunc("PATCH","/chronograf/v1/sources/:id/kapacitors/:kid/proxy", h.Service.ProxyPatch))
-	//h.HandlerFunc("DELETE","/chronograf/v1/sources/:id/kapacitors/:kid/proxy", h.Service.ProxyDelete))
 
 	// Layouts
 	h.HandlerFunc("GET", "/chronograf/v1/layouts", h.Service.Layouts)
@@ -172,22 +85,6 @@ func NewChronografHandler(s *server.Service, he influxdb.HTTPErrorHandler) *Chro
 	h.HandlerFunc("DELETE", "/chronograf/v1/dashboards/:id/templates/:tid", h.Service.RemoveTemplate)
 	h.HandlerFunc("PUT", "/chronograf/v1/dashboards/:id/templates/:tid", h.Service.ReplaceTemplate)
 
-	// Databases
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/dbs", h.Service.GetDatabases)
-	h.HandlerFunc("POST", "/chronograf/v1/sources/:id/dbs", h.Service.NewDatabase)
-
-	h.HandlerFunc("DELETE", "/chronograf/v1/sources/:id/dbs/:db", h.Service.DropDatabase)
-
-	// Retention Policies
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/dbs/:db/rps", h.Service.RetentionPolicies)
-	h.HandlerFunc("POST", "/chronograf/v1/sources/:id/dbs/:db/rps", h.Service.NewRetentionPolicy)
-
-	h.HandlerFunc("PUT", "/chronograf/v1/sources/:id/dbs/:db/rps/:rp", h.Service.UpdateRetentionPolicy)
-	h.HandlerFunc("DELETE", "/chronograf/v1/sources/:id/dbs/:db/rps/:rp", h.Service.DropRetentionPolicy)
-
-	// Measurements
-	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/dbs/:db/measurements", h.Service.Measurements)
-
 	// Global application config for Chronograf
 	h.HandlerFunc("GET", "/chronograf/v1/config", h.Service.Config)
 	h.HandlerFunc("GET", "/chronograf/v1/config/auth", h.Service.AuthConfig)
@@ -202,7 +99,7 @@ func NewChronografHandler(s *server.Service, he influxdb.HTTPErrorHandler) *Chro
 
 	allRoutes := &server.AllRoutes{
 		// TODO(desa): what to do here
-		//Logger:      opts.Logger,
+		//logger:      opts.logger,
 		//CustomLinks: opts.CustomLinks,
 		StatusFeed: "https://www.influxdata.com/feed/json",
 	}

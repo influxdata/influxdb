@@ -5,46 +5,31 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/endpoints"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap/zaptest"
 )
 
-func TestBoltNotificationEndpointService(t *testing.T) {
+func TestNotificationEndpointService(t *testing.T) {
 	influxdbtesting.NotificationEndpointService(initBoltNotificationEndpointService, t)
 }
 
-func TestNotificationEndpointService(t *testing.T) {
-	influxdbtesting.NotificationEndpointService(initInmemNotificationEndpointService, t)
-}
-
-func initBoltNotificationEndpointService(f influxdbtesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, func()) {
-	s, closeBolt, err := NewTestBoltStore()
+func initBoltNotificationEndpointService(f influxdbtesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
+	store, closeBolt, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
 
-	svc, closeSvc := initNotificationEndpointService(s, f, t)
-	return svc, func() {
+	svc, secretSVC, closeSvc := initNotificationEndpointService(store, f, t)
+	return svc, secretSVC, func() {
 		closeSvc()
 		closeBolt()
 	}
 }
 
-func initInmemNotificationEndpointService(f influxdbtesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, func()) {
-	s, closeInmem, err := NewTestInmemStore()
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, closeSvc := initNotificationEndpointService(s, f, t)
-	return svc, func() {
-		closeSvc()
-		closeInmem()
-	}
-}
-
-func initNotificationEndpointService(s kv.Store, f influxdbtesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, func()) {
-	svc := kv.NewService(s)
+func initNotificationEndpointService(s kv.Store, f influxdbtesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
+	svc := kv.NewService(zaptest.NewLogger(t), s)
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
@@ -74,9 +59,10 @@ func initNotificationEndpointService(s kv.Store, f influxdbtesting.NotificationE
 		}
 	}
 
-	return svc, func() {
+	endpointSVC := endpoints.NewService(svc, svc, svc, svc)
+	return endpointSVC, svc, func() {
 		for _, edp := range f.NotificationEndpoints {
-			if _, _, err := svc.DeleteNotificationEndpoint(ctx, edp.GetID()); err != nil {
+			if _, _, err := svc.DeleteNotificationEndpoint(ctx, edp.GetID()); err != nil && err != kv.ErrNotificationEndpointNotFound {
 				t.Logf("failed to remove notification endpoint: %v", err)
 			}
 		}

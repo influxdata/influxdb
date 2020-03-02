@@ -14,15 +14,7 @@ import (
 	input "github.com/tcnksm/go-input"
 )
 
-// setup Command
-var setupCmd = &cobra.Command{
-	Use:   "setup",
-	Short: "Setup instance with initial user, org, bucket",
-	RunE:  wrapErrorFmt(setupF),
-}
-
-// SetupFlags are used when setup is not in interactive mode.
-type SetupFlags struct {
+var setupFlags struct {
 	username  string
 	password  string
 	token     string
@@ -32,16 +24,22 @@ type SetupFlags struct {
 	force     bool
 }
 
-var setupFlags SetupFlags
+func cmdSetup() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "setup",
+		Short: "Setup instance with initial user, org, bucket",
+		RunE:  wrapErrorFmt(setupF),
+	}
 
-func init() {
-	setupCmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
-	setupCmd.Flags().StringVarP(&setupFlags.password, "password", "p", "", "password for username")
-	setupCmd.Flags().StringVarP(&setupFlags.token, "token", "t", "", "token for username, else auto-generated")
-	setupCmd.Flags().StringVarP(&setupFlags.org, "org", "o", "", "primary organization name")
-	setupCmd.Flags().StringVarP(&setupFlags.bucket, "bucket", "b", "", "primary bucket name")
-	setupCmd.Flags().IntVarP(&setupFlags.retention, "retention", "r", -1, "retention period in hours, else infinite")
-	setupCmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
+	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
+	cmd.Flags().StringVarP(&setupFlags.password, "password", "p", "", "password for username")
+	cmd.Flags().StringVarP(&setupFlags.token, "token", "t", "", "token for username, else auto-generated")
+	cmd.Flags().StringVarP(&setupFlags.org, "org", "o", "", "primary organization name")
+	cmd.Flags().StringVarP(&setupFlags.bucket, "bucket", "b", "", "primary bucket name")
+	cmd.Flags().IntVarP(&setupFlags.retention, "retention", "r", -1, "retention period in hours, else infinite")
+	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
+
+	return cmd
 }
 
 func setupF(cmd *cobra.Command, args []string) error {
@@ -51,7 +49,8 @@ func setupF(cmd *cobra.Command, args []string) error {
 
 	// check if setup is allowed
 	s := &http.SetupService{
-		Addr: flags.host,
+		Addr:               flags.host,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	allowed, err := s.IsOnboarding(context.Background())

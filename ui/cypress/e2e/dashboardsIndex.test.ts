@@ -19,6 +19,23 @@ describe('Dashboards', () => {
     })
   })
 
+  it('empty state should have a header with text and a button to create a dashboard', () => {
+    cy.getByTestID('page-contents').within(() => {
+      cy.getByTestID('empty-dashboards-list').within(() => {
+        cy.getByTestID('empty-state--text').should($t => {
+          expect($t).to.have.length(1)
+          expect($t).to.contain(
+            "Looks like you don't have any Dashboards, why not create one?"
+          )
+        })
+        cy.getByTestID('add-resource-dropdown--button').should($b => {
+          expect($b).to.have.length(1)
+          expect($b).to.contain('Create Dashboard')
+        })
+      })
+    })
+  })
+
   it('can create a dashboard from empty state', () => {
     cy.getByTestID('empty-dashboards-list').within(() => {
       cy.getByTestID('add-resource-dropdown--button').click()
@@ -57,17 +74,39 @@ describe('Dashboards', () => {
       cy.createDashboardTemplate(id)
     })
 
-    cy.getByTestID('add-resource-dropdown--button').click()
-
-    cy.getByTestID('add-resource-dropdown--template').click()
-
+    cy.getByTestID('empty-dashboards-list').within(() => {
+      cy.getByTestID('add-resource-dropdown--button').click()
+      cy.getByTestID('add-resource-dropdown--template').click()
+    })
     cy.getByTestID('template--Bashboard-Template').click()
-
     cy.getByTestID('template-panel').should('exist')
-
     cy.getByTestID('create-dashboard-button').click()
-
     cy.getByTestID('dashboard-card').should('have.length', 1)
+  })
+
+  it('keeps user input in text area when attempting to import invalid JSON', () => {
+    cy.getByTestID('page-header').within(() => {
+      cy.contains('Create').click()
+    })
+
+    cy.getByTestID('add-resource-dropdown--import').click()
+    cy.contains('Paste').click()
+    cy.getByTestID('import-overlay--textarea')
+      .click()
+      .type('this is invalid JSON')
+    cy.get('button[title*="Import JSON"]').click()
+    cy.getByTestID('import-overlay--textarea--error').should('have.length', 1)
+    cy.getByTestID('import-overlay--textarea').should($s =>
+      expect($s).to.contain('this is invalid JSON')
+    )
+    cy.getByTestID('import-overlay--textarea').type(
+      '{backspace}{backspace}{backspace}{backspace}{backspace}'
+    )
+    cy.get('button[title*="Import JSON"]').click()
+    cy.getByTestID('import-overlay--textarea--error').should('have.length', 1)
+    cy.getByTestID('import-overlay--textarea').should($s =>
+      expect($s).to.contain('this is invalid')
+    )
   })
 
   describe('Dashboard List', () => {
@@ -236,7 +275,7 @@ describe('Dashboards', () => {
     it('should route the user to the dashboard index page', () => {
       const nonexistentID = '/0499992503cd3700'
 
-      // visitng the dashboard edit page
+      // visiting the dashboard edit page
       cy.get('@org').then(({id}: Organization) => {
         cy.fixture('routes').then(({orgs, dashboards}) => {
           cy.visit(`${orgs}/${id}${dashboards}${nonexistentID}`)

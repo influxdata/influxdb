@@ -28,6 +28,9 @@ import {AppState} from 'src/types'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+
 interface StateProps {
   me: AppState['me']
   orgName: string
@@ -50,12 +53,11 @@ export class MePage extends PureComponent<StateProps> {
                   margin={ComponentSize.Small}
                   alignItems={AlignItems.Stretch}
                   stretchToFitWidth={true}
+                  testID="getting-started"
                 >
                   <Panel>
                     <Panel.Header>
-                      <Panel.Title>
-                        Getting started with InfluxDB 2.0
-                      </Panel.Title>
+                      <h4>Getting started with InfluxDB 2.0</h4>
                     </Panel.Header>
                     <Panel.Body>
                       <GettingStarted />
@@ -76,10 +78,8 @@ export class MePage extends PureComponent<StateProps> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    me,
-    orgs: {org},
-  } = state
+  const org = getOrg(state)
+  const {me} = state
 
   return {me, orgName: get(org, 'name', '')}
 }

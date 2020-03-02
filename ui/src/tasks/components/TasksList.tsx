@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
 import memoizeOne from 'memoize-one'
 
 // Components
@@ -9,15 +8,11 @@ import TaskCard from 'src/tasks/components/TaskCard'
 
 // Types
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
-import {ITask as Task} from '@influxdata/influx'
+import {Task} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
 
-import {
-  addTaskLabelsAsync,
-  removeTaskLabelsAsync,
-  runTask,
-} from 'src/tasks/actions'
+import {selectTask, addTaskLabel, runTask} from 'src/tasks/actions/thunks'
 import {checkTaskLimits as checkTaskLimitsAction} from 'src/cloud/actions/limits'
 
 // Selectors
@@ -29,14 +24,13 @@ interface Props {
   onActivate: (task: Task) => void
   onDelete: (task: Task) => void
   onCreate: () => void
-  onSelect: (task: Task) => void
   onClone: (task: Task) => void
   onFilterChange: (searchTerm: string) => void
   totalCount: number
-  onRemoveTaskLabels: typeof removeTaskLabelsAsync
-  onAddTaskLabels: typeof addTaskLabelsAsync
+  onSelect: typeof selectTask
+  onAddTaskLabel: typeof addTaskLabel
   onRunTask: typeof runTask
-  onUpdate: (task: Task) => void
+  onUpdate: (name: string, taskID: string) => void
   filterComponent?: JSX.Element
   onImportTask: () => void
   sortKey: string

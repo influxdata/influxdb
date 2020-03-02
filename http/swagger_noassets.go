@@ -24,7 +24,7 @@ func (s *swaggerLoader) asset(swaggerData []byte, _ error) ([]byte, error) {
 		return swaggerData, nil
 	}
 
-	path := findSwaggerPath(s.logger)
+	path := findSwaggerPath(s.log)
 	if path == "" {
 		// Couldn't find it.
 		return nil, errors.New("this developer binary not built with assets, and could not locate swagger.yml on disk")
@@ -32,18 +32,18 @@ func (s *swaggerLoader) asset(swaggerData []byte, _ error) ([]byte, error) {
 
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
-		s.logger.Info("Unable to load swagger.yml from disk", zap.String("path", path), zap.Error(err))
+		s.log.Info("Unable to load swagger.yml from disk", zap.String("path", path), zap.Error(err))
 		return nil, errors.New("this developer binary not built with assets, and unable to load swagger.yml from disk")
 	}
 
-	s.logger.Info("Successfully loaded swagger.yml", zap.String("path", path))
+	s.log.Info("Successfully loaded swagger.yml", zap.String("path", path))
 
 	return b, nil
 }
 
 // findSwaggerPath makes a best-effort to find the path of the swagger file on disk.
 // If it can't find the path, it returns the empty string.
-func findSwaggerPath(logger *zap.Logger) string {
+func findSwaggerPath(log *zap.Logger) string {
 	// First, look for environment variable pointing at swagger.
 	path := os.Getenv("INFLUXDB_VALID_SWAGGER_PATH")
 	if path != "" {
@@ -51,13 +51,13 @@ func findSwaggerPath(logger *zap.Logger) string {
 		return path
 	}
 
-	logger.Info("INFLUXDB_VALID_SWAGGER_PATH not set; falling back to checking relative paths")
+	log.Info("INFLUXDB_VALID_SWAGGER_PATH not set; falling back to checking relative paths")
 
 	// Get the path to the executable so we can do a relative lookup.
 	execPath, err := os.Executable()
 	if err != nil {
 		// Give up.
-		logger.Info("Can't determine path of currently running executable", zap.Error(err))
+		log.Info("Can't determine path of currently running executable", zap.Error(err))
 		return ""
 	}
 
@@ -87,6 +87,6 @@ func findSwaggerPath(logger *zap.Logger) string {
 		}
 	}
 
-	logger.Info("Couldn't guess path to swagger definition")
+	log.Info("Couldn't guess path to swagger definition")
 	return ""
 }

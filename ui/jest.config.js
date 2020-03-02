@@ -23,7 +23,7 @@ module.exports = {
     'ts-jest': {
       tsConfig: 'tsconfig.test.json',
       diagnostics: {
-        ignoreCodes: [6133] // ignore `'foo' is declared but its value is never read.`
+        ignoreCodes: [6133, 6192] // ignore unused variable errors
       },
     },
   },
@@ -33,4 +33,5 @@ module.exports = {
   ],
   coverageDirectory: './coverage',
   coverageReporters: ['html', 'cobertura'],
+  reporters: ['default', 'jest-junit'],
 }

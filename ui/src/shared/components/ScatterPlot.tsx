@@ -20,22 +20,29 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, ScatterViewProperties, TimeZone} from 'src/types'
+import {
+  RemoteDataState,
+  ScatterViewProperties,
+  TimeZone,
+  TimeRange,
+} from 'src/types'
 
 interface Props {
-  table: Table
+  children: (config: Config) => JSX.Element
   fluxGroupKeyUnion?: string[]
   loading: RemoteDataState
-  viewProperties: ScatterViewProperties
-  children: (config: Config) => JSX.Element
+  timeRange: TimeRange | null
+  table: Table
   timeZone: TimeZone
+  viewProperties: ScatterViewProperties
 }
 
 const ScatterPlot: FunctionComponent<Props> = ({
-  table,
-  loading,
   children,
+  loading,
+  timeRange,
   timeZone,
+  table,
   viewProperties: {
     xAxisLabel,
     yAxisLabel,
@@ -50,6 +57,7 @@ const ScatterPlot: FunctionComponent<Props> = ({
     yDomain: storedYDomain,
     xColumn: storedXColumn,
     yColumn: storedYColumn,
+    timeFormat,
   },
 }) => {
   const fillColumns = storedFill || []
@@ -62,7 +70,8 @@ const ScatterPlot: FunctionComponent<Props> = ({
 
   const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
     storedXDomain,
-    table.getColumn(xColumn, 'number')
+    table.getColumn(xColumn, 'number'),
+    timeRange
   )
 
   const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
@@ -89,12 +98,14 @@ const ScatterPlot: FunctionComponent<Props> = ({
     prefix: xPrefix,
     suffix: xSuffix,
     timeZone,
+    timeFormat,
   })
 
   const yFormatter = getFormatter(table.getColumnType(yColumn), {
     prefix: yPrefix,
     suffix: ySuffix,
     timeZone,
+    timeFormat,
   })
 
   const config: Config = {

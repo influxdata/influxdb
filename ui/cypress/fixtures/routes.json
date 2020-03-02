@@ -5,5 +5,6 @@
   "alerting": "/alerting",
   "checks": "/checks",
   "endpoints": "/endpoints",
-  "rules": "/rules"
+  "rules": "/rules",
+  "buckets": "/load-data/buckets"
 }

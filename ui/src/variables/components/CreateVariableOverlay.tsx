@@ -5,7 +5,10 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {Overlay} from '@influxdata/clockface'
 import VariableFormContext from 'src/variables/components/VariableFormContext'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
+
+// Types
+import {ResourceType} from 'src/types'
 
 type Props = WithRouterProps
 

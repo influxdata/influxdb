@@ -1,11 +1,11 @@
 // Libraries
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent, MouseEvent, RefObject, createRef} from 'react'
 import {connect} from 'react-redux'
 
 // Components
 import TimeMachineQueryTabName from 'src/timeMachine/components/QueryTabName'
-import RightClick from 'src/clockface/components/right_click_menu/RightClick'
 import TimeMachineQueriesTimer from 'src/timeMachine/components/QueriesTimer'
+import {RightClick, ComponentColor} from '@influxdata/clockface'
 
 // Actions
 import {
@@ -46,6 +46,8 @@ interface State {
 }
 
 class TimeMachineQueryTab extends PureComponent<Props, State> {
+  private triggerRef: RefObject<HTMLDivElement> = createRef()
+
   public static getDerivedStateFromProps(props: Props): Partial<State> {
     if (props.queryIndex !== props.activeQueryIndex) {
       return {isEditingName: false}
@@ -62,44 +64,41 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
     const activeClass = queryIndex === activeQueryIndex ? 'active' : ''
 
     return (
-      <RightClick>
-        <RightClick.Trigger>
-          <div
-            className={`query-tab ${activeClass}`}
-            onClick={this.handleSetActive}
+      <>
+        <div
+          className={`query-tab ${activeClass}`}
+          onClick={this.handleSetActive}
+          ref={this.triggerRef}
+        >
+          {this.showHideButton}
+          <TimeMachineQueryTabName
+            isActive={isActive}
+            name={query.name}
+            queryIndex={queryIndex}
+            isEditing={this.state.isEditingName}
+            onUpdate={this.handleUpdateName}
+            onEdit={this.handleEditName}
+            onCancelEdit={this.handleCancelEditName}
+          />
+          {this.queriesTimer}
+          {this.removeButton}
+        </div>
+        <RightClick triggerRef={this.triggerRef} color={ComponentColor.Primary}>
+          <RightClick.MenuItem
+            onClick={this.handleEditActiveQueryName}
+            testID="right-click--edit-tab"
           >
-            {this.showHideButton}
-            <TimeMachineQueryTabName
-              isActive={isActive}
-              name={query.name}
-              queryIndex={queryIndex}
-              isEditing={this.state.isEditingName}
-              onUpdate={this.handleUpdateName}
-              onEdit={this.handleEditName}
-              onCancelEdit={this.handleCancelEditName}
-            />
-            {this.queriesTimer}
-            {this.removeButton}
-          </div>
-        </RightClick.Trigger>
-        <RightClick.MenuContainer>
-          <RightClick.Menu>
-            <RightClick.MenuItem
-              onClick={this.handleEditActiveQueryName}
-              testID="right-click--edit-tab"
-            >
-              Edit
-            </RightClick.MenuItem>
-            <RightClick.MenuItem
-              onClick={this.handleRemove}
-              disabled={!this.isRemovable}
-              testID="right-click--remove-tab"
-            >
-              Remove
-            </RightClick.MenuItem>
-          </RightClick.Menu>
-        </RightClick.MenuContainer>
-      </RightClick>
+            Edit
+          </RightClick.MenuItem>
+          <RightClick.MenuItem
+            onClick={this.handleRemove}
+            disabled={!this.isRemovable}
+            testID="right-click--remove-tab"
+          >
+            Remove
+          </RightClick.MenuItem>
+        </RightClick>
+      </>
     )
   }
 
@@ -169,10 +168,9 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
     return this.props.queryCount > 1
   }
 
-  private handleRemove = (e: MouseEvent): void => {
+  private handleRemove = (): void => {
     const {queryIndex, onRemoveQuery} = this.props
 
-    e.stopPropagation()
     onRemoveQuery(queryIndex)
   }
 

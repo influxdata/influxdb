@@ -1,5 +1,8 @@
 import {Organization} from '../../src/types'
 
+// a generous commitment to delivering this page in a loaded state
+const PAGE_LOAD_SLA = 10000
+
 describe('Collectors', () => {
   beforeEach(() => {
     cy.flush()
@@ -14,6 +17,8 @@ describe('Collectors', () => {
         cy.visit(`${orgs}/${id}/load-data/telegrafs`)
       })
     })
+
+    cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
   })
 
   describe('from the org view', () => {
@@ -21,41 +26,29 @@ describe('Collectors', () => {
       const newConfig = 'New Config'
       const configDescription = 'This is a new config testing'
 
-      cy.getByTestID('table-row')
-        .should('have.length', 0)
-        .then(() => {
-          cy.contains('Create Configuration')
+      cy.getByTestID('table-row').should('have.length', 0)
+      cy.contains('Create Configuration').click()
+      cy.getByTestID('overlay--container').within(() => {
+        cy.getByTestID('telegraf-plugins--System').click()
+        cy.getByTestID('next').click()
+        cy.getByInputName('name')
+          .clear()
+          .type(newConfig)
+        cy.getByInputName('description')
+          .clear()
+          .type(configDescription)
+        cy.get('.cf-button')
+          .contains('Create and Verify')
+          .click()
+        cy.getByTestID('streaming').within(() => {
+          cy.get('.cf-button')
+            .contains('Listen for Data')
             .click()
-            .then(() => {
-              cy.getByTestID('overlay--container').within(() => {
-                cy.getByTestID('telegraf-plugins--System')
-                  .click()
-                  .then(() => {
-                    cy.getByTestID('next')
-                      .click()
-                      .then(() => {
-                        cy.getByInputName('name')
-                          .clear()
-                          .type(newConfig)
-                        cy.getByInputName('description')
-                          .clear()
-                          .type(configDescription)
-                        cy.get('.cf-button')
-                          .contains('Create and Verify')
-                          .click()
-                        cy.getByTestID('streaming').within(() => {
-                          cy.get('.cf-button')
-                            .contains('Listen for Data')
-                            .click()
-                        })
-                        cy.get('.cf-button')
-                          .contains('Finish')
-                          .click()
-                      })
-                  })
-              })
-            })
         })
+        cy.get('.cf-button')
+          .contains('Finish')
+          .click()
+      })
 
       cy.fixture('user').then(({bucket}) => {
         cy.getByTestID('resource-card')
@@ -63,6 +56,54 @@ describe('Collectors', () => {
           .and('contain', newConfig)
           .and('contain', bucket)
       })
+    })
+
+    it('allows the user to view just the output', () => {
+      const bucketz = ['MO_buckets', 'EZ_buckets', 'Bucky']
+      const [firstBucket, secondBucket, thirdBucket] = bucketz
+
+      cy.get<Organization>('@org').then(({id, name}: Organization) => {
+        cy.createBucket(id, name, firstBucket)
+        cy.createBucket(id, name, secondBucket)
+        cy.createBucket(id, name, thirdBucket)
+      })
+
+      cy.reload()
+      cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
+
+      cy.getByTestID('button--output-only').click()
+      cy.getByTestID('overlay--container')
+        .should('be.visible')
+        .within(() => {
+          const buckets = bucketz.slice(0).sort((a, b) => {
+            const _a = a.toLowerCase()
+            const _b = b.toLowerCase()
+            return _a > _b ? 1 : _a < _b ? -1 : 0
+          })
+
+          cy.get('code').should($el => {
+            const text = $el.text()
+
+            expect(text.includes('[[outputs.influxdb_v2]]')).to.be.true
+            //expect a default sort to be applied
+            expect(text.includes(`bucket = "${buckets[0]}"`)).to.be.true
+          })
+
+          cy.getByTestID('bucket-dropdown').within(() => {
+            cy.getByTestID('bucket-dropdown--button').click()
+            cy.getByTestID('dropdown-item')
+              .eq(2)
+              .click()
+          })
+
+          cy.get('code').should($el => {
+            const text = $el.text()
+
+            // NOTE: this index is off because there is a default
+            // defbuck bucket in there (alex)
+            expect(text.includes(`bucket = "${buckets[1]}"`)).to.be.true
+          })
+        })
     })
 
     describe('when a config already exists', () => {
@@ -76,6 +117,7 @@ describe('Collectors', () => {
         })
 
         cy.reload()
+        cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
       })
 
       it('can update configuration name and delete a configuration', () => {
@@ -84,36 +126,23 @@ describe('Collectors', () => {
         cy.getByTestID('collector-card--name')
           .first()
           .trigger('mouseover')
-          .then(() => {
-            cy.getByTestID('collector-card--name-button')
-              .first()
-              .click()
-              .then(() => {
-                cy.getByTestID('collector-card--input')
-                  .type(newConfigName)
-                  .type('{enter}')
-                  .then(() => {
-                    cy.getByTestID('collector-card--name').should(
-                      'contain',
-                      newConfigName
-                    )
-                  })
-              })
-          })
+        cy.getByTestID('collector-card--name-button')
+          .first()
+          .click()
+        cy.getByTestID('collector-card--input')
+          .type(newConfigName)
+          .type('{enter}')
+        cy.getByTestID('collector-card--name').should('contain', newConfigName)
 
         cy.getByTestID('resource-card').should('have.length', 1)
 
         cy.getByTestID('context-menu')
           .last()
           .click()
-          .then(() => {
-            cy.getByTestID('context-menu-item')
-              .last()
-              .click()
-              .then(() => {
-                cy.getByTestID('empty-state').should('exist')
-              })
-          })
+        cy.getByTestID('context-menu-item')
+          .last()
+          .click()
+        cy.getByTestID('empty-state').should('exist')
       })
 
       it('can view setup instructions for a config', () => {
@@ -144,111 +173,69 @@ describe('Collectors', () => {
           cy.createTelegraf(thirdTelegraf, description, id, thirdBucket)
         })
         cy.reload()
+        cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
       })
       // filter by name
-      it('can filter telegraf configs and sort by bucket and name', () => {
+      it('can filter telegraf configs and sort by name', () => {
         // fixes https://github.com/influxdata/influxdb/issues/15246
+        cy.getByTestID('search-widget').type(firstTelegraf)
+        cy.getByTestID('resource-card').should('have.length', 1)
+        cy.getByTestID('resource-card').should('contain', firstTelegraf)
+
         cy.getByTestID('search-widget')
-          .type(firstTelegraf)
-          .then(() => {
-            cy.getByTestID('resource-card').should('have.length', 1)
-            cy.getByTestID('resource-card').should('contain', firstTelegraf)
+          .clear()
+          .type(secondTelegraf)
+        cy.getByTestID('resource-card').should('have.length', 1)
+        cy.getByTestID('resource-card').should('contain', secondTelegraf)
 
-            cy.getByTestID('search-widget')
-              .clear()
-              .type(secondTelegraf)
-              .then(() => {
-                cy.getByTestID('resource-card').should('have.length', 1)
-                cy.getByTestID('resource-card').should(
-                  'contain',
-                  secondTelegraf
-                )
+        cy.getByTestID('search-widget')
+          .clear()
+          .type(thirdTelegraf)
+        cy.getByTestID('resource-card').should('have.length', 1)
+        cy.getByTestID('resource-card').should('contain', thirdTelegraf)
 
-                cy.getByTestID('search-widget')
-                  .clear()
-                  .type(thirdTelegraf)
-                  .then(() => {
-                    cy.getByTestID('resource-card').should('have.length', 1)
-                    cy.getByTestID('resource-card').should(
-                      'contain',
-                      thirdTelegraf
-                    )
+        cy.getByTestID('search-widget')
+          .clear()
+          .type('should have no results')
+        cy.getByTestID('resource-card').should('have.length', 0)
+        cy.getByTestID('empty-state').should('exist')
 
-                    cy.getByTestID('search-widget')
-                      .clear()
-                      .type('should have no results')
-                      .then(() => {
-                        cy.getByTestID('resource-card').should('have.length', 0)
-                        cy.getByTestID('empty-state').should('exist')
-
-                        cy.getByTestID('search-widget')
-                          .clear()
-                          .type('a')
-                          .then(() => {
-                            cy.getByTestID('resource-card').should(
-                              'have.length',
-                              2
-                            )
-                            cy.getByTestID('resource-card').should(
-                              'contain',
-                              firstTelegraf
-                            )
-                            cy.getByTestID('resource-card').should(
-                              'contain',
-                              secondTelegraf
-                            )
-                            cy.getByTestID('resource-card').should(
-                              'not.contain',
-                              thirdTelegraf
-                            )
-                          })
-                      })
-                  })
-              })
-          })
+        cy.getByTestID('search-widget')
+          .clear()
+          .type('a')
+        cy.getByTestID('resource-card').should('have.length', 2)
+        cy.getByTestID('resource-card').should('contain', firstTelegraf)
+        cy.getByTestID('resource-card').should('contain', secondTelegraf)
+        cy.getByTestID('resource-card').should('not.contain', thirdTelegraf)
 
         // sort by buckets test here
         cy.reload() // clear out filtering state from the previous test
-        cy.getByTestID('bucket-sorter')
-          .click()
-          .then(() => {
-            bucketz.sort()
-            cy.getByTestID('bucket-name')
-              .should('have.length', 3)
-              .each((val, index) => {
-                const text = val.text()
-                expect(text).to.include(bucketz[index])
-              })
-              .then(() => {
-                cy.getByTestID('bucket-sorter').click()
-                bucketz.reverse()
-                cy.getByTestID('bucket-name').each((val, index) => {
-                  const text = val.text()
-                  expect(text).to.include(bucketz[index])
-                })
-              })
-          })
+        cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
 
-        // sort by name test here
-        cy.reload() // clear out sorting state from previous test
         cy.getByTestID('collector-card--name').should('have.length', 3)
 
         // test to see if telegrafs are initially sorted by name
         telegrafs.sort()
 
-        cy.getByTestID('collector-card--name')
-          .each((val, index) => {
-            expect(val.text()).to.include(telegrafs[index])
+        cy.wait(0).then(() => {
+          // NOTE: this then is just here to let me scope this variable (alex)
+          const teletubbies = telegrafs.slice(0).sort()
+          cy.getByTestID('collector-card--name').each((val, index) => {
+            expect(val.text()).to.include(teletubbies[index])
           })
+        })
+
+        cy.getByTestID('name-sorter')
+          .click()
           .then(() => {
-            telegrafs.reverse()
-            cy.getByTestID('name-sorter')
-              .click()
-              .then(() => {
-                cy.getByTestID('collector-card--name').each((val, index) => {
-                  expect(val.text()).to.include(telegrafs[index])
-                })
-              })
+            // NOTE: this then is just here to let me scope this variable (alex)
+            const teletubbies = telegrafs
+              .slice(0)
+              .sort()
+              .reverse()
+            cy.getByTestID('collector-card--name').each((val, index) => {
+              expect(val.text()).to.include(teletubbies[index])
+            })
           })
       })
     })
@@ -368,6 +355,61 @@ describe('Collectors', () => {
             cy.contains('Redis').should('exist')
           })
       })
+    })
+
+    // fix for https://github.com/influxdata/influxdb/issues/15730
+    it('creates a configuration with a unique label and opens it', () => {
+      cy.contains('Create Configuration').click()
+
+      cy.contains('Docker').click()
+
+      cy.contains('Continue').click()
+
+      cy.contains('docker').click()
+
+      cy.get('[name="endpoint"]').type('http://localhost')
+
+      cy.contains('Done').click()
+      cy.get('input[title="Telegraf Configuration Name"]').type(
+        '{selectall}Label 1'
+      )
+      cy.get('input[title="Telegraf Configuration Description"]').type(
+        'Description 1'
+      )
+
+      cy.contains('Create and Verify').click()
+      cy.contains('Finish').click()
+      cy.contains('Your configurations have been saved')
+
+      cy.contains('Label 1').click()
+      cy.contains('Telegraf Configuration - Label 1').should('exist')
+    })
+
+    describe('Label creation and searching', () => {
+      beforeEach(() => {
+        const description = 'Config Description'
+        cy.get('@org').then(({id}: Organization) => {
+          cy.createTelegraf('newteleg', description, id, 'newbucket')
+        })
+        cy.reload()
+      })
+      it('Can add label', () => {
+        cy.getByTestID('inline-labels--add').click()
+        cy.getByTestID('inline-labels--popover-field').type('zoe')
+        cy.getByTestID('inline-labels--create-new').click()
+        cy.getByTestID('overlay--container').should('exist')
+        cy.getByTestID('create-label-form--submit').click()
+        cy.getByTestID('label--pill zoe').should('exist')
+        //can search by label
+        cy.getByTestID('search-widget')
+          .clear()
+          .type('zoe')
+
+        cy.getByTestID('resource-card').should('have.length', 1)
+        cy.getByTestID('resource-card').should('contain', 'newteleg')
+      })
+
+      it('can search by label', () => {})
     })
   })
 })

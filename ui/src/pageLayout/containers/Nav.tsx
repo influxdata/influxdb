@@ -2,11 +2,10 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps, Link} from 'react-router'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import {NavMenu, Icon} from '@influxdata/clockface'
-import CloudNav from 'src/pageLayout/components/CloudNav'
 import AccountNavSubItem from 'src/pageLayout/components/AccountNavSubItem'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
@@ -18,11 +17,15 @@ import {HOMEPAGE_PATHNAME} from 'src/shared/constants'
 import {getNavItemActivation} from 'src/pageLayout/utils'
 
 // Types
-import {AppState, Organization} from 'src/types'
+import {AppState, Organization, ResourceType} from 'src/types'
 import {IconFont} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
 
 interface StateProps {
   isHidden: boolean
@@ -76,7 +79,7 @@ class SideNav extends PureComponent<Props, State> {
     const tokensLink = `${orgPrefix}/load-data/tokens`
     const clientLibrariesLink = `${orgPrefix}/load-data/client-libraries`
     // Settings
-    const settingsLink = `${orgPrefix}/settings/members`
+    const settingsLink = `${orgPrefix}/settings`
     const membersLink = `${orgPrefix}/settings/members`
     const variablesLink = `${orgPrefix}/settings/variables`
     const templatesLink = `${orgPrefix}/settings/templates`
@@ -92,7 +95,7 @@ class SideNav extends PureComponent<Props, State> {
           <NavMenu.Item
             titleLink={className => (
               <Link className={className} to={orgPrefix}>
-                <CloudOnly>{me.name}</CloudOnly>
+                <CloudOnly>Getting Started</CloudOnly>
                 <CloudExclude>{`${me.name} (${orgName})`}</CloudExclude>
               </Link>
             )}
@@ -129,7 +132,11 @@ class SideNav extends PureComponent<Props, State> {
         />
         <NavMenu.Item
           titleLink={className => (
-            <Link className={className} to={dashboardsLink}>
+            <Link
+              className={className}
+              to={dashboardsLink}
+              data-testid="nav-menu_dashboard"
+            >
               Dashboards
             </Link>
           )}
@@ -253,15 +260,17 @@ class SideNav extends PureComponent<Props, State> {
           )}
           active={getNavItemActivation(['settings'], location.pathname)}
         >
-          <NavMenu.SubItem
-            titleLink={className => (
-              <Link to={membersLink} className={className}>
-                Members
-              </Link>
-            )}
-            active={getNavItemActivation(['members'], location.pathname)}
-            key="members"
-          />
+          <CloudExclude>
+            <NavMenu.SubItem
+              titleLink={className => (
+                <Link to={membersLink} className={className}>
+                  Members
+                </Link>
+              )}
+              active={getNavItemActivation(['members'], location.pathname)}
+              key="members"
+            />
+          </CloudExclude>
           <NavMenu.SubItem
             titleLink={className => (
               <Link to={variablesLink} className={className}>
@@ -299,7 +308,6 @@ class SideNav extends PureComponent<Props, State> {
             key="profile"
           />
         </NavMenu.Item>
-        <CloudNav />
         <NavMenu.Item
           titleLink={className => (
             <a className={className} href={feedbackLink} target="_blank">
@@ -328,13 +336,11 @@ class SideNav extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => {
   const isHidden = state.app.ephemeral.inPresentationMode
-  const {
-    me,
-    orgs,
-    orgs: {org},
-  } = state
+  const orgs = getAll<Organization>(state, ResourceType.Orgs)
+  const org = getOrg(state)
+  const {me} = state
 
-  return {isHidden, me, orgs: orgs.items, orgName: _.get(org, 'name', '')}
+  return {isHidden, me, orgs, orgName: get(org, 'name', '')}
 }
 
 export default connect<StateProps>(mstp)(withRouter(SideNav))

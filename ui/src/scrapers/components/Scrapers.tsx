@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {isEmpty} from 'lodash'
 
 // Components
 import {Button, EmptyState, Sort} from '@influxdata/clockface'
@@ -12,26 +12,30 @@ import ScraperList from 'src/scrapers/components/ScraperList'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
 
 // Actions
-import {updateScraper, deleteScraper} from 'src/scrapers/actions'
+import {updateScraper, deleteScraper} from 'src/scrapers/actions/thunks'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SortTypes} from 'src/shared/utils/sort'
 
 // Types
-import {ScraperTargetResponse} from '@influxdata/influx'
 import {
   IconFont,
   ComponentSize,
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {AppState, Bucket} from 'src/types'
+import {AppState, Bucket, Scraper, Organization, ResourceType} from 'src/types'
 import FilterList from 'src/shared/components/Filter'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
+
 interface StateProps {
-  scrapers: ScraperTargetResponse[]
+  scrapers: Scraper[]
   buckets: Bucket[]
+  org: Organization
 }
 
 interface DispatchProps {
@@ -39,11 +43,7 @@ interface DispatchProps {
   onDeleteScraper: typeof deleteScraper
 }
 
-interface OwnProps {
-  orgName: string
-}
-
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = StateProps & DispatchProps & WithRouterProps
 
 interface State {
   searchTerm: string
@@ -52,7 +52,7 @@ interface State {
   sortType: SortTypes
 }
 
-type SortKey = keyof ScraperTargetResponse
+type SortKey = keyof Scraper
 
 @ErrorHandling
 class Scrapers extends PureComponent<Props, State> {
@@ -82,7 +82,7 @@ class Scrapers extends PureComponent<Props, State> {
           {this.createScraperButton('create-scraper-button-header')}
         </SettingsTabbedPageHeader>
         <NoBucketsWarning visible={this.hasNoBuckets} resourceName="Scrapers" />
-        <FilterList<ScraperTargetResponse>
+        <FilterList<Scraper>
           searchTerm={searchTerm}
           searchKeys={['name', 'url']}
           list={scrapers}
@@ -142,14 +142,15 @@ class Scrapers extends PureComponent<Props, State> {
   }
 
   private get emptyState(): JSX.Element {
-    const {orgName} = this.props
+    const {org} = this.props
     const {searchTerm} = this.state
 
-    if (_.isEmpty(searchTerm)) {
+    if (isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text>
-            {`${orgName}`} does not own any <b>Scrapers</b>, why not create one?
+            {`${org.name}`} does not own any <b>Scrapers</b>, why not create
+            one?
           </EmptyState.Text>
           {this.createScraperButton('create-scraper-button-empty')}
         </EmptyState>
@@ -163,27 +164,24 @@ class Scrapers extends PureComponent<Props, State> {
     )
   }
 
-  private handleUpdateScraper = (scraper: ScraperTargetResponse) => {
+  private handleUpdateScraper = (scraper: Scraper) => {
     const {onUpdateScraper} = this.props
     onUpdateScraper(scraper)
   }
 
-  private handleDeleteScraper = (scraper: ScraperTargetResponse) => {
+  private handleDeleteScraper = (scraper: Scraper) => {
     const {onDeleteScraper} = this.props
     onDeleteScraper(scraper)
   }
 
   private handleShowOverlay = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
+    const {router, org} = this.props
 
     if (this.hasNoBuckets) {
       return
     }
 
-    router.push(`/orgs/${orgID}/load-data/scrapers/new`)
+    router.push(`/orgs/${org.id}/load-data/scrapers/new`)
   }
 
   private handleFilterChange = (searchTerm: string) => {
@@ -191,9 +189,10 @@ class Scrapers extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({scrapers, buckets}: AppState): StateProps => ({
-  scrapers: scrapers.list,
-  buckets: buckets.list,
+const mstp = (state: AppState): StateProps => ({
+  scrapers: getAll<Scraper>(state, ResourceType.Scrapers),
+  buckets: getAll<Bucket>(state, ResourceType.Buckets),
+  org: getOrg(state),
 })
 
 const mdtp: DispatchProps = {
@@ -201,7 +200,7 @@ const mdtp: DispatchProps = {
   onUpdateScraper: updateScraper,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter<OwnProps>(Scrapers))
+)(withRouter(Scrapers))

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/prometheus/client_golang/prometheus"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 )
 
 // PlatformHandler is a collection of all the service handlers.
@@ -14,18 +14,10 @@ type PlatformHandler struct {
 	APIHandler   http.Handler
 }
 
-func setCORSResponseHeaders(w http.ResponseWriter, r *http.Request) {
-	if origin := r.Header.Get("Origin"); origin != "" {
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
-	}
-}
-
 // NewPlatformHandler returns a platform handler that serves the API and associated assets.
-func NewPlatformHandler(b *APIBackend) *PlatformHandler {
-	h := NewAuthenticationHandler(b.HTTPErrorHandler)
-	h.Handler = NewAPIHandler(b)
+func NewPlatformHandler(b *APIBackend, opts ...APIHandlerOptFn) *PlatformHandler {
+	h := NewAuthenticationHandler(b.Logger, b.HTTPErrorHandler)
+	h.Handler = NewAPIHandler(b, opts...)
 	h.AuthorizationService = b.AuthorizationService
 	h.SessionService = b.SessionService
 	h.SessionRenewDisabled = b.SessionRenewDisabled
@@ -41,20 +33,18 @@ func NewPlatformHandler(b *APIBackend) *PlatformHandler {
 	assetHandler := NewAssetHandler()
 	assetHandler.Path = b.AssetsPath
 
+	wrappedHandler := kithttp.SetCORS(h)
+	wrappedHandler = kithttp.SkipOptions(wrappedHandler)
+
 	return &PlatformHandler{
 		AssetHandler: assetHandler,
 		DocsHandler:  Redoc("/api/v2/swagger.json"),
-		APIHandler:   h,
+		APIHandler:   wrappedHandler,
 	}
 }
 
 // ServeHTTP delegates a request to the appropriate subhandler.
 func (h *PlatformHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	setCORSResponseHeaders(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
-
 	if strings.HasPrefix(r.URL.Path, "/docs") {
 		h.DocsHandler.ServeHTTP(w, r)
 		return
@@ -70,10 +60,4 @@ func (h *PlatformHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.APIHandler.ServeHTTP(w, r)
-}
-
-// PrometheusCollectors satisfies the prom.PrometheusCollector interface.
-func (h *PlatformHandler) PrometheusCollectors() []prometheus.Collector {
-	// TODO: collect and return relevant metrics.
-	return nil
 }

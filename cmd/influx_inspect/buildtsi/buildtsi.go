@@ -24,7 +24,7 @@ func IndexShard(sfile *tsdb.SeriesFile, indexPath, dataDir, walDir string, maxLo
 	// Check if shard already has a TSI index.
 	log.Info("Checking index path", zap.String("path", indexPath))
 	if _, err := os.Stat(indexPath); !os.IsNotExist(err) {
-		log.Info("tsi1 index already exists, skipping", zap.String("path", indexPath))
+		log.Info("TSI1 index already exists, skipping", zap.String("path", indexPath))
 		return nil
 	}
 
@@ -129,7 +129,7 @@ func IndexShard(sfile *tsdb.SeriesFile, indexPath, dataDir, walDir string, maxLo
 	}
 
 	// Attempt to compact the index & wait for all compactions to complete.
-	log.Info("compacting index")
+	log.Info("Compacting index")
 	tsiIndex.Compact()
 	tsiIndex.Wait()
 

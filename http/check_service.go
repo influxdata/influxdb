@@ -1,16 +1,17 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"time"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/notification/check"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 
@@ -18,7 +19,7 @@ import (
 // the CheckBackendHandler.
 type CheckBackend struct {
 	influxdb.HTTPErrorHandler
-	Logger *zap.Logger
+	log *zap.Logger
 
 	TaskService                influxdb.TaskService
 	CheckService               influxdb.CheckService
@@ -29,10 +30,10 @@ type CheckBackend struct {
 }
 
 // NewCheckBackend returns a new instance of CheckBackend.
-func NewCheckBackend(b *APIBackend) *CheckBackend {
+func NewCheckBackend(log *zap.Logger, b *APIBackend) *CheckBackend {
 	return &CheckBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "check")),
+		log:              log,
 
 		TaskService:                b.TaskService,
 		CheckService:               b.CheckService,
@@ -47,7 +48,7 @@ func NewCheckBackend(b *APIBackend) *CheckBackend {
 type CheckHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	Logger *zap.Logger
+	log *zap.Logger
 
 	TaskService                influxdb.TaskService
 	CheckService               influxdb.CheckService
@@ -58,7 +59,7 @@ type CheckHandler struct {
 }
 
 const (
-	checksPath            = "/api/v2/checks"
+	prefixChecks          = "/api/v2/checks"
 	checksIDPath          = "/api/v2/checks/:id"
 	checksIDQueryPath     = "/api/v2/checks/:id/query"
 	checksIDMembersPath   = "/api/v2/checks/:id/members"
@@ -70,11 +71,11 @@ const (
 )
 
 // NewCheckHandler returns a new instance of CheckHandler.
-func NewCheckHandler(b *CheckBackend) *CheckHandler {
+func NewCheckHandler(log *zap.Logger, b *CheckBackend) *CheckHandler {
 	h := &CheckHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger,
+		log:              log,
 
 		CheckService:               b.CheckService,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -83,8 +84,8 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 		TaskService:                b.TaskService,
 		OrganizationService:        b.OrganizationService,
 	}
-	h.HandlerFunc("POST", checksPath, h.handlePostCheck)
-	h.HandlerFunc("GET", checksPath, h.handleGetChecks)
+	h.HandlerFunc("POST", prefixChecks, h.handlePostCheck)
+	h.HandlerFunc("GET", prefixChecks, h.handleGetChecks)
 	h.HandlerFunc("GET", checksIDPath, h.handleGetCheck)
 	h.HandlerFunc("GET", checksIDQueryPath, h.handleGetCheckQuery)
 	h.HandlerFunc("DELETE", checksIDPath, h.handleDeleteCheck)
@@ -93,7 +94,7 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.ChecksResourceType,
 		UserType:                   influxdb.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -105,7 +106,7 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.ChecksResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -117,7 +118,7 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "label")),
+		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.TelegrafsResourceType,
 	}
@@ -133,13 +134,18 @@ type checkLinks struct {
 	Labels  string `json:"labels"`
 	Members string `json:"members"`
 	Owners  string `json:"owners"`
+	Query   string `json:"query"`
 }
 
 type checkResponse struct {
 	influxdb.Check
-	Status string           `json:"status"`
-	Labels []influxdb.Label `json:"labels"`
-	Links  checkLinks       `json:"links"`
+	Status          string           `json:"status"`
+	Labels          []influxdb.Label `json:"labels"`
+	Links           checkLinks       `json:"links"`
+	LatestCompleted time.Time        `json:"latestCompleted,omitempty"`
+	LatestScheduled time.Time        `json:"latestScheduled,omitempty"`
+	LastRunStatus   string           `json:"LastRunStatus,omitempty"`
+	LastRunError    string           `json:"LastRunError,omitempty"`
 }
 
 type postCheckRequest struct {
@@ -158,13 +164,21 @@ func (resp checkResponse) MarshalJSON() ([]byte, error) {
 	}
 
 	b2, err := json.Marshal(struct {
-		Labels []influxdb.Label `json:"labels"`
-		Links  checkLinks       `json:"links"`
-		Status string           `json:"status"`
+		Labels          []influxdb.Label `json:"labels"`
+		Links           checkLinks       `json:"links"`
+		Status          string           `json:"status"`
+		LatestCompleted time.Time        `json:"latestCompleted,omitempty"`
+		LatestScheduled time.Time        `json:"latestScheduled,omitempty"`
+		LastRunStatus   string           `json:"lastRunStatus,omitempty"`
+		LastRunError    string           `json:"lastRunError,omitempty"`
 	}{
-		Links:  resp.Links,
-		Labels: resp.Labels,
-		Status: resp.Status,
+		Links:           resp.Links,
+		Labels:          resp.Labels,
+		Status:          resp.Status,
+		LatestCompleted: resp.LatestCompleted,
+		LatestScheduled: resp.LatestScheduled,
+		LastRunStatus:   resp.LastRunStatus,
+		LastRunError:    resp.LastRunError,
 	})
 	if err != nil {
 		return nil, err
@@ -195,8 +209,13 @@ func (h *CheckHandler) newCheckResponse(ctx context.Context, chk influxdb.Check,
 			Labels:  fmt.Sprintf("/api/v2/checks/%s/labels", chk.GetID()),
 			Members: fmt.Sprintf("/api/v2/checks/%s/members", chk.GetID()),
 			Owners:  fmt.Sprintf("/api/v2/checks/%s/owners", chk.GetID()),
+			Query:   fmt.Sprintf("/api/v2/checks/%s/query", chk.GetID()),
 		},
-		Labels: []influxdb.Label{},
+		Labels:          []influxdb.Label{},
+		LatestCompleted: task.LatestCompleted,
+		LatestScheduled: task.LatestScheduled,
+		LastRunStatus:   task.LastRunStatus,
+		LastRunError:    task.LastRunError,
 	}
 
 	for _, l := range labels {
@@ -211,13 +230,13 @@ func (h *CheckHandler) newCheckResponse(ctx context.Context, chk influxdb.Check,
 func (h *CheckHandler) newChecksResponse(ctx context.Context, chks []influxdb.Check, labelService influxdb.LabelService, f influxdb.PagingFilter, opts influxdb.FindOptions) *checksResponse {
 	resp := &checksResponse{
 		Checks: []*checkResponse{},
-		Links:  newPagingLinks(checksPath, opts, f, len(chks)),
+		Links:  newPagingLinks(prefixChecks, opts, f, len(chks)),
 	}
 	for _, chk := range chks {
 		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID()})
 		cr, err := h.newCheckResponse(ctx, chk, labels)
 		if err != nil {
-			h.Logger.Info("Failed to retrieve task associated with check", zap.String("checkID", chk.GetID().String()))
+			h.log.Info("Failed to retrieve task associated with check", zap.String("checkID", chk.GetID().String()))
 			continue
 		}
 
@@ -246,7 +265,7 @@ func (h *CheckHandler) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	filter, opts, err := decodeCheckFilter(ctx, r)
 	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -255,10 +274,10 @@ func (h *CheckHandler) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("checks retrieved", zap.String("checks", fmt.Sprint(chks)))
+	h.log.Debug("Checks retrieved", zap.String("checks", fmt.Sprint(chks)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, h.newChecksResponse(ctx, chks, h.LabelService, filter, *opts)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -280,9 +299,9 @@ func (h *CheckHandler) handleGetCheckQuery(w http.ResponseWriter, r *http.Reques
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("check query retrieved", zap.String("check query", flux))
+	h.log.Debug("Check query retrieved", zap.String("check query", flux))
 	if err := encodeResponse(ctx, w, http.StatusOK, newFluxResponse(flux)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -309,7 +328,7 @@ func (h *CheckHandler) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("check retrieved", zap.String("check", fmt.Sprint(chk)))
+	h.log.Debug("Check retrieved", zap.String("check", fmt.Sprint(chk)))
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID()})
 	if err != nil {
@@ -324,7 +343,7 @@ func (h *CheckHandler) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, cr); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -367,56 +386,54 @@ type decodeStatus struct {
 	Status influxdb.Status `json:"status"`
 }
 
-func decodePostCheckRequest(ctx context.Context, r *http.Request) (postCheckRequest, error) {
-	var req postCheckRequest
-
-	buf := new(bytes.Buffer)
-	_, err := buf.ReadFrom(r.Body)
+func decodePostCheckRequest(r *http.Request) (postCheckRequest, error) {
+	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return req, &influxdb.Error{
+		return postCheckRequest{}, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,
 		}
 	}
 	defer r.Body.Close()
-	chk, err := check.UnmarshalJSON(buf.Bytes())
+
+	chk, err := check.UnmarshalJSON(b)
 	if err != nil {
-		return req, &influxdb.Error{
+		return postCheckRequest{}, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,
 		}
 	}
 
 	var ds decodeStatus
-	err = json.Unmarshal(buf.Bytes(), &ds)
-	if err != nil {
-		return req, &influxdb.Error{
+	if err := json.Unmarshal(b, &ds); err != nil {
+		return postCheckRequest{}, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,
 		}
 	}
 
 	var dl decodeLabels
-	err = json.Unmarshal(buf.Bytes(), &dl)
-	if err != nil {
-		return req, &influxdb.Error{
+	if err := json.Unmarshal(b, &dl); err != nil {
+		return postCheckRequest{}, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,
 		}
 	}
 
-	req = postCheckRequest{CheckCreate: influxdb.CheckCreate{Check: chk, Status: ds.Status}, Labels: dl.Labels}
-
-	return req, nil
+	return postCheckRequest{
+		CheckCreate: influxdb.CheckCreate{
+			Check:  chk,
+			Status: ds.Status,
+		},
+		Labels: dl.Labels,
+	}, nil
 }
 
 func decodePutCheckRequest(ctx context.Context, r *http.Request) (influxdb.CheckCreate, error) {
-	var cc influxdb.CheckCreate
-
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return cc, &influxdb.Error{
+		return influxdb.CheckCreate{}, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
@@ -424,26 +441,25 @@ func decodePutCheckRequest(ctx context.Context, r *http.Request) (influxdb.Check
 
 	i := new(influxdb.ID)
 	if err := i.DecodeFromString(id); err != nil {
-		return cc, &influxdb.Error{
+		return influxdb.CheckCreate{}, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "invalid check id format",
 		}
 	}
 
-	defer r.Body.Close()
-	buf := new(bytes.Buffer)
-	_, err := buf.ReadFrom(r.Body)
+	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return cc, &influxdb.Error{
+		return influxdb.CheckCreate{}, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "unable to read HTTP body",
 			Err:  err,
 		}
 	}
+	defer r.Body.Close()
 
-	chk, err := check.UnmarshalJSON(buf.Bytes())
+	chk, err := check.UnmarshalJSON(b)
 	if err != nil {
-		return cc, &influxdb.Error{
+		return influxdb.CheckCreate{}, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "malformed check body",
 			Err:  err,
@@ -452,21 +468,22 @@ func decodePutCheckRequest(ctx context.Context, r *http.Request) (influxdb.Check
 	chk.SetID(*i)
 
 	if err := chk.Valid(); err != nil {
-		return cc, err
+		return influxdb.CheckCreate{}, err
 	}
 
 	var ds decodeStatus
-	err = json.Unmarshal(buf.Bytes(), &ds)
+	err = json.Unmarshal(b, &ds)
 	if err != nil {
-		return cc, &influxdb.Error{
+		return influxdb.CheckCreate{}, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,
 		}
 	}
 
-	cc = influxdb.CheckCreate{Check: chk, Status: ds.Status}
-
-	return cc, nil
+	return influxdb.CheckCreate{
+		Check:  chk,
+		Status: ds.Status,
+	}, nil
 }
 
 type patchCheckRequest struct {
@@ -475,9 +492,7 @@ type patchCheckRequest struct {
 }
 
 func decodePatchCheckRequest(ctx context.Context, r *http.Request) (*patchCheckRequest, error) {
-	req := &patchCheckRequest{}
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
+	id := httprouter.ParamsFromContext(ctx).ByName("id")
 	if id == "" {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -489,10 +504,9 @@ func decodePatchCheckRequest(ctx context.Context, r *http.Request) (*patchCheckR
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
-	req.ID = i
 
-	upd := &influxdb.CheckUpdate{}
-	if err := json.NewDecoder(r.Body).Decode(upd); err != nil {
+	var upd influxdb.CheckUpdate
+	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  err.Error(),
@@ -505,16 +519,19 @@ func decodePatchCheckRequest(ctx context.Context, r *http.Request) (*patchCheckR
 		}
 	}
 
-	req.Update = *upd
-	return req, nil
+	return &patchCheckRequest{
+		ID:     i,
+		Update: upd,
+	}, nil
 }
 
 // handlePostCheck is the HTTP handler for the POST /api/v2/checks route.
 func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chk, err := decodePostCheckRequest(ctx, r)
+
+	chk, err := decodePostCheckRequest(r)
 	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -529,7 +546,6 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("check created", zap.String("check", fmt.Sprint(chk)))
 
 	labels := h.mapNewCheckLabels(ctx, chk.CheckCreate, chk.Labels)
 
@@ -540,7 +556,7 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, cr); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -582,7 +598,7 @@ func (h *CheckHandler) handlePutCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chk, err := decodePutCheckRequest(ctx, r)
 	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -598,7 +614,7 @@ func (h *CheckHandler) handlePutCheck(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("check replaced", zap.String("check", fmt.Sprint(c)))
+	h.log.Debug("Check replaced", zap.String("check", fmt.Sprint(c)))
 
 	cr, err := h.newCheckResponse(ctx, c, labels)
 	if err != nil {
@@ -607,7 +623,7 @@ func (h *CheckHandler) handlePutCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, cr); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -617,7 +633,7 @@ func (h *CheckHandler) handlePatchCheck(w http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	req, err := decodePatchCheckRequest(ctx, r)
 	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -633,7 +649,7 @@ func (h *CheckHandler) handlePatchCheck(w http.ResponseWriter, r *http.Request) 
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("check patch", zap.String("check", fmt.Sprint(chk)))
+	h.log.Debug("Check patch", zap.String("check", fmt.Sprint(chk)))
 
 	cr, err := h.newCheckResponse(ctx, chk, labels)
 	if err != nil {
@@ -642,7 +658,7 @@ func (h *CheckHandler) handlePatchCheck(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, cr); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -659,7 +675,7 @@ func (h *CheckHandler) handleDeleteCheck(w http.ResponseWriter, r *http.Request)
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("check deleted", zap.String("checkID", fmt.Sprint(i)))
+	h.log.Debug("Check deleted", zap.String("checkID", fmt.Sprint(i)))
 
 	w.WriteHeader(http.StatusNoContent)
 }

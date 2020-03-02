@@ -4,11 +4,11 @@ import {connect} from 'react-redux'
 
 // Components
 import {
-  Input,
-  FlexBox,
-  ComponentSize,
-  FlexDirection,
   AlignItems,
+  ComponentSize,
+  FlexBox,
+  FlexDirection,
+  Input,
 } from '@influxdata/clockface'
 import SearchableDropdown from 'src/shared/components/SearchableDropdown'
 import WaitingText from 'src/shared/components/WaitingText'
@@ -20,30 +20,38 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
 import {
+  removeTagSelector,
+  searchTagKeys,
+  searchTagValues,
   selectTagKey,
   selectTagValue,
-  searchTagValues,
-  searchTagKeys,
-  removeTagSelector,
+  setBuilderAggregateFunctionType,
   setKeysSearchTerm,
   setValuesSearchTerm,
 } from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
-import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 import DefaultDebouncer from 'src/shared/utils/debouncer'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 import {
   getActiveQuery,
+  getActiveTagValues,
   getActiveTimeMachine,
   getIsInCheckOverlay,
 } from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, RemoteDataState} from 'src/types'
+import {
+  AppState,
+  BuilderAggregateFunctionType,
+  RemoteDataState,
+} from 'src/types'
 
 const SEARCH_DEBOUNCE_MS = 500
 
 interface StateProps {
+  aggregateFunctionType: BuilderAggregateFunctionType
   emptyText: string
   keys: string[]
   keysStatus: RemoteDataState
@@ -57,13 +65,14 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSelectValue: typeof selectTagValue
-  onSelectTag: typeof selectTagKey
-  onSearchValues: typeof searchTagValues
-  onSearchKeys: typeof searchTagKeys
   onRemoveTagSelector: typeof removeTagSelector
-  onSetValuesSearchTerm: typeof setValuesSearchTerm
+  onSearchKeys: typeof searchTagKeys
+  onSearchValues: typeof searchTagValues
+  onSelectTag: typeof selectTagKey
+  onSelectValue: typeof selectTagValue
+  onSetBuilderAggregateFunctionType: typeof setBuilderAggregateFunctionType
   onSetKeysSearchTerm: typeof setKeysSearchTerm
+  onSetValuesSearchTerm: typeof setValuesSearchTerm
 }
 
 interface OwnProps {
@@ -76,17 +85,39 @@ type Props = StateProps & DispatchProps & OwnProps
 class TagSelector extends PureComponent<Props> {
   private debouncer = new DefaultDebouncer()
 
-  public render() {
-    const {index} = this.props
+  private renderAggregateFunctionType(
+    aggregateFunctionType: BuilderAggregateFunctionType
+  ) {
+    if (aggregateFunctionType === 'group') {
+      return 'Group'
+    }
+    return 'Filter'
+  }
 
+  public render() {
     return (
       <BuilderCard>
-        <BuilderCard.Header
-          title="Filter"
-          onDelete={index !== 0 && this.handleRemoveTagSelector}
-        />
+        {this.header}
         {this.body}
       </BuilderCard>
+    )
+  }
+
+  private get header() {
+    const {aggregateFunctionType, index} = this.props
+
+    return isFlagEnabled('queryBuilderGrouping') ? (
+      <BuilderCard.DropdownHeader
+        options={['filter', 'group']}
+        selectedOption={this.renderAggregateFunctionType(aggregateFunctionType)}
+        onDelete={index !== 0 && this.handleRemoveTagSelector}
+        onSelect={this.handleAggregateFunctionSelect}
+      />
+    ) : (
+      <BuilderCard.Header
+        title={this.renderAggregateFunctionType(aggregateFunctionType)}
+        onDelete={index !== 0 && this.handleRemoveTagSelector}
+      />
     )
   }
 
@@ -250,32 +281,55 @@ class TagSelector extends PureComponent<Props> {
 
     onSearchValues(index)
   }
+
+  private handleAggregateFunctionSelect = (
+    option: BuilderAggregateFunctionType
+  ) => {
+    const {index, onSetBuilderAggregateFunctionType} = this.props
+    onSetBuilderAggregateFunctionType(option, index)
+  }
 }
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
+  const activeQueryBuilder = getActiveTimeMachine(state).queryBuilder
+
   const {
     keys,
-    keysStatus,
-    values,
-    valuesStatus,
-    valuesSearchTerm,
     keysSearchTerm,
-  } = getActiveTimeMachine(state).queryBuilder.tags[ownProps.index]
+    keysStatus,
+    valuesSearchTerm,
+    valuesStatus,
+  } = activeQueryBuilder.tags[ownProps.index]
 
   const tags = getActiveQuery(state).builderConfig.tags
-  const {key: selectedKey, values: selectedValues} = tags[ownProps.index]
 
   let emptyText: string
-
-  if (ownProps.index === 0 || !tags[ownProps.index - 1].key) {
+  const previousTagSelector = tags[ownProps.index - 1]
+  if (
+    ownProps.index === 0 ||
+    !previousTagSelector ||
+    !previousTagSelector.key
+  ) {
     emptyText = ''
   } else {
     emptyText = `Select a ${tags[ownProps.index - 1].key} value first`
   }
 
+  const {
+    key: selectedKey,
+    values: selectedValues,
+    aggregateFunctionType,
+  } = tags[ownProps.index]
+
+  const values = getActiveTagValues(
+    activeQueryBuilder.tags,
+    aggregateFunctionType,
+    ownProps.index
+  )
   const isInCheckOverlay = getIsInCheckOverlay(state)
 
   return {
+    aggregateFunctionType,
     emptyText,
     keys,
     keysStatus,
@@ -290,11 +344,12 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
 }
 
 const mdtp = {
-  onSelectValue: selectTagValue,
-  onSelectTag: selectTagKey,
-  onSearchValues: searchTagValues,
-  onSearchKeys: searchTagKeys,
   onRemoveTagSelector: removeTagSelector,
+  onSearchKeys: searchTagKeys,
+  onSearchValues: searchTagValues,
+  onSelectTag: selectTagKey,
+  onSelectValue: selectTagValue,
+  onSetBuilderAggregateFunctionType: setBuilderAggregateFunctionType,
   onSetKeysSearchTerm: setKeysSearchTerm,
   onSetValuesSearchTerm: setValuesSearchTerm,
 }

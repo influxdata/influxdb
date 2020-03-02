@@ -33,13 +33,14 @@ const CheckTagRow: FC<Props> = ({
     handleChangeTagRow(index, {...tagSet, [e.target.name]: e.target.value})
   }
 
-  const handleRemove = () => {
-    handleRemoveTagRow(index)
-  }
-
   return (
     <Panel testID="tag-rule" className="alert-builder--tag-row">
-      <DismissButton onClick={handleRemove} color={ComponentColor.Default} />
+      <DismissButton
+        onClick={() => {
+          handleRemoveTagRow(index)
+        }}
+        color={ComponentColor.Default}
+      />
       <Panel.Body size={ComponentSize.ExtraSmall}>
         <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
           <FlexBox.Child grow={1}>

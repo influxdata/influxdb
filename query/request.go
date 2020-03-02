@@ -9,7 +9,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 )
 
-// Request respresents the query to run.
+// Request represents the query to run.
 type Request struct {
 	// Scope
 	Authorization  *platform.Authorization `json:"authorization,omitempty"`
@@ -19,6 +19,9 @@ type Request struct {
 
 	// Compiler converts the query to a specification to run against the data.
 	Compiler flux.Compiler `json:"compiler"`
+
+	// Source represents the ultimate source of the request.
+	Source string `json:"source"`
 
 	// compilerMappings maps compiler types to creation methods
 	compilerMappings flux.CompilerMappings

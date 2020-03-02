@@ -23,8 +23,7 @@ import {
 import {moveVariable} from 'src/variables/actions'
 
 // Types
-import {AppState} from 'src/types'
-import {IVariable as Variable} from '@influxdata/influx'
+import {AppState, Variable} from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
 
 // Decorators
@@ -95,7 +94,13 @@ class VariablesControlBar extends PureComponent<Props, State> {
         className="variables-control-bar--empty"
       >
         <EmptyState.Text>
-          To see variable controls here, use a variable in a cell query
+          This dashboard doesn't have any cells with defined variables.{' '}
+          <a
+            href="https://v2.docs.influxdata.com/v2.0/visualize-data/variables/"
+            target="_blank"
+          >
+            Learn How
+          </a>
         </EmptyState.Text>
       </EmptyState>
     )
@@ -104,7 +109,7 @@ class VariablesControlBar extends PureComponent<Props, State> {
   private get barContents(): JSX.Element {
     const {dashboardID, variables, valuesStatus} = this.props
     return (
-      <>
+      <div className="variables-control-bar--full">
         {variables.map((v, i) => (
           <ErrorBoundary key={v.id}>
             <DraggableDropdown
@@ -119,7 +124,7 @@ class VariablesControlBar extends PureComponent<Props, State> {
         {valuesStatus === RemoteDataState.Loading && (
           <TechnoSpinner diameterPixels={18} />
         )}
-      </>
+      </div>
     )
   }
 

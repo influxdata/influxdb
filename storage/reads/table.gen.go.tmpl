@@ -31,10 +31,11 @@ func new{{.Name}}Table(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	cache *tagsCache,
 	alloc *memory.Allocator,
 ) *{{.name}}Table {
 	t := &{{.name}}Table{
-		table: newTable(done, bounds, key, cols, defs, alloc),
+		table: newTable(done, bounds, key, cols, defs, cache, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -107,10 +108,11 @@ func new{{.Name}}GroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	cache *tagsCache,
 	alloc *memory.Allocator,
 ) *{{.name}}GroupTable {
 	t := &{{.name}}GroupTable{
-		table: newTable(done, bounds, key, cols, defs, alloc),
+		table: newTable(done, bounds, key, cols, defs, cache, alloc),
 		gc:    gc,
 		cur:   cur,
 	}

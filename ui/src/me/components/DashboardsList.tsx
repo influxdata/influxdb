@@ -10,6 +10,8 @@ import {EmptyState} from '@influxdata/clockface'
 import {Dashboard, Organization, AppState} from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
 
+// Selectors
+import {getOrg} from 'src/organizations/selectors'
 interface StateProps {
   dashboards: Dashboard[]
   org: Organization
@@ -47,9 +49,9 @@ class DashboardList extends PureComponent<Props> {
   }
 }
 
-const mstp = ({dashboards, orgs: {org}}: AppState): StateProps => ({
-  dashboards: dashboards.list,
-  org,
+const mstp = (state: AppState): StateProps => ({
+  dashboards: state.dashboards.list,
+  org: getOrg(state),
 })
 
 export default connect<StateProps, {}, {}>(

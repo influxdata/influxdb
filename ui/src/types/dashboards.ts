@@ -88,6 +88,8 @@ export type TableOptions = TableViewProperties['tableOptions']
 
 export {
   DashboardQuery,
+  BuilderAggregateFunctionType,
+  BuilderTagsType,
   BuilderConfig,
   ViewProperties,
   QueryEditMode,

@@ -8,13 +8,13 @@ import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
 import {Page} from '@influxdata/clockface'
 import VariablesTab from 'src/variables/components/VariablesTab'
-import GetResources, {ResourceType} from 'src/shared/components/GetResources'
+import GetResources from 'src/shared/components/GetResources'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
-import {AppState, Organization} from 'src/types'
+import {AppState, Organization, ResourceType} from 'src/types'
 
 interface StateProps {
   org: Organization
@@ -41,7 +41,9 @@ class VariablesIndex extends Component<StateProps> {
   }
 }
 
-const mstp = ({orgs: {org}}: AppState): StateProps => ({org})
+const mstp = (state: AppState): StateProps => {
+  return {org: state.resources.orgs.org}
+}
 
 export default connect<StateProps, {}, {}>(
   mstp,

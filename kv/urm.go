@@ -97,10 +97,36 @@ func (s *Service) FindUserResourceMappings(ctx context.Context, filter influxdb.
 	return ms, len(ms), nil
 }
 
+func userResourceMappingPredicate(filter influxdb.UserResourceMappingFilter) CursorPredicateFunc {
+	switch {
+	case filter.ResourceID.Valid() && filter.UserID.Valid():
+		keyPredicate := filter.ResourceID.String() + filter.UserID.String()
+		return func(key, _ []byte) bool {
+			return len(key) >= 32 && string(key[:32]) == keyPredicate
+		}
+
+	case !filter.ResourceID.Valid() && filter.UserID.Valid():
+		keyPredicate := filter.UserID.String()
+		return func(key, _ []byte) bool {
+			return len(key) >= 32 && string(key[16:32]) == keyPredicate
+		}
+
+	case filter.ResourceID.Valid() && !filter.UserID.Valid():
+		keyPredicate := filter.ResourceID.String()
+		return func(key, _ []byte) bool {
+			return len(key) >= 16 && string(key[:16]) == keyPredicate
+		}
+
+	default:
+		return nil
+	}
+}
+
 func (s *Service) findUserResourceMappings(ctx context.Context, tx Tx, filter influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, error) {
 	ms := []*influxdb.UserResourceMapping{}
+	pred := userResourceMappingPredicate(filter)
 	filterFn := filterMappingsFn(filter)
-	err := s.forEachUserResourceMapping(ctx, tx, func(m *influxdb.UserResourceMapping) bool {
+	err := s.forEachUserResourceMapping(ctx, tx, pred, func(m *influxdb.UserResourceMapping) bool {
 		if filterFn(m) {
 			ms = append(ms, m)
 		}
@@ -209,13 +235,17 @@ func userResourceKey(m *influxdb.UserResourceMapping) ([]byte, error) {
 	return key, nil
 }
 
-func (s *Service) forEachUserResourceMapping(ctx context.Context, tx Tx, fn func(*influxdb.UserResourceMapping) bool) error {
+func (s *Service) forEachUserResourceMapping(ctx context.Context, tx Tx, pred CursorPredicateFunc, fn func(*influxdb.UserResourceMapping) bool) error {
 	b, err := tx.Bucket(urmBucket)
 	if err != nil {
 		return UnavailableURMServiceError(err)
 	}
-
-	cur, err := b.Cursor()
+	var cur Cursor
+	if pred != nil {
+		cur, err = b.Cursor(WithCursorHintPredicate(pred))
+	} else {
+		cur, err = b.Cursor()
+	}
 	if err != nil {
 		return UnavailableURMServiceError(err)
 	}
@@ -361,7 +391,7 @@ func (s *Service) deleteOrgDependentMappings(ctx context.Context, tx Tx, m *infl
 			UserID:       m.UserID,
 		}); err != nil {
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
-				s.Logger.Info("URM bucket is missing", zap.Stringer("orgID", m.ResourceID))
+				s.log.Info("URM bucket is missing", zap.Stringer("orgID", m.ResourceID))
 				continue
 			}
 			return err

@@ -37,13 +37,13 @@ type HTTP struct {
 // if value of that secret field is not nil.
 func (s *HTTP) BackfillSecretKeys() {
 	if s.Token.Key == "" && s.Token.Value != nil {
-		s.Token.Key = s.ID.String() + httpTokenSuffix
+		s.Token.Key = s.idStr() + httpTokenSuffix
 	}
 	if s.Username.Key == "" && s.Username.Value != nil {
-		s.Username.Key = s.ID.String() + httpUsernameSuffix
+		s.Username.Key = s.idStr() + httpUsernameSuffix
 	}
 	if s.Password.Key == "" && s.Password.Value != nil {
-		s.Password.Key = s.ID.String() + httpPasswordSuffix
+		s.Password.Key = s.idStr() + httpPasswordSuffix
 	}
 }
 
@@ -103,15 +103,13 @@ func (s HTTP) Valid() error {
 			Msg:  "invalid http auth method",
 		}
 	}
-	if s.AuthMethod == "basic" &&
-		(s.Username.Key != s.ID.String()+httpUsernameSuffix ||
-			s.Password.Key != s.ID.String()+httpPasswordSuffix) {
+	if s.AuthMethod == "basic" && (s.Username.Key == "" || s.Password.Key == "") {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "invalid http username/password for basic auth",
 		}
 	}
-	if s.AuthMethod == "bearer" && s.Token.Key != s.ID.String()+httpTokenSuffix {
+	if s.AuthMethod == "bearer" && s.Token.Key == "" {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "invalid http token for bearer auth",
@@ -121,10 +119,9 @@ func (s HTTP) Valid() error {
 	return nil
 }
 
-type httpAlias HTTP
-
 // MarshalJSON implement json.Marshaler interface.
 func (s HTTP) MarshalJSON() ([]byte, error) {
+	type httpAlias HTTP
 	return json.Marshal(
 		struct {
 			httpAlias

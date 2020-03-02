@@ -59,7 +59,7 @@ func (p *pipingCoordinator) TaskDeleted(_ context.Context, id influxdb.ID) error
 	}
 	return p.err
 }
-func (p *pipingCoordinator) RunCancelled(ctx context.Context, taskID, runID influxdb.ID) error {
+func (p *pipingCoordinator) RunCancelled(ctx context.Context, runID influxdb.ID) error {
 	return p.err
 }
 func (p *pipingCoordinator) RunRetried(ctx context.Context, task *influxdb.Task, run *influxdb.Run) error {
@@ -216,7 +216,7 @@ func TestCheckUpdateFromInactive(t *testing.T) {
 		if task.ID != thecheck.GetTaskID() {
 			t.Fatalf("task sent to coordinator doesn't match expected")
 		}
-		if task.LatestCompleted != latest.Format(time.RFC3339) {
+		if task.LatestCompleted != latest {
 			t.Fatalf("update returned incorrect LatestCompleted, expected %s got %s, or ", latest.Format(time.RFC3339), task.LatestCompleted)
 		}
 	default:
@@ -233,7 +233,7 @@ func TestCheckUpdateFromInactive(t *testing.T) {
 		if task.ID != thecheck.GetTaskID() {
 			t.Fatalf("task sent to coordinator doesn't match expected")
 		}
-		if task.LatestCompleted != latest.Format(time.RFC3339) {
+		if task.LatestCompleted != latest {
 			t.Fatalf("update returned incorrect LatestCompleted, expected %s got %s, or ", latest.Format(time.RFC3339), task.LatestCompleted)
 		}
 	default:

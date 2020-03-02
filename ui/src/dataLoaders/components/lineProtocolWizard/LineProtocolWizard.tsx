@@ -2,11 +2,10 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import _ from 'lodash'
 
 // Components
+import {Overlay} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
 import LineProtocolStepSwitcher from 'src/dataLoaders/components/lineProtocolWizard/verify/LineProtocolStepSwitcher'
 
 // Actions
@@ -22,8 +21,11 @@ import {
 import {clearDataLoaders} from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
 import {Bucket} from 'src/types'
+
+// Selectors
+import {getAll} from 'src/resources/selectors'
 
 export interface LineProtocolStepProps {
   currentStepIndex: number
@@ -68,12 +70,18 @@ class LineProtocolWizard extends PureComponent<Props & WithRouterProps> {
     const {buckets} = this.props
 
     return (
-      <WizardOverlay title="Line Protocol" onDismiss={this.handleDismiss}>
-        <LineProtocolStepSwitcher
-          stepProps={this.stepProps}
-          buckets={buckets}
-        />
-      </WizardOverlay>
+      <Overlay visible={true}>
+        <Overlay.Container maxWidth={800}>
+          <Overlay.Header
+            title="Add Data Using Line Protocol"
+            onDismiss={this.handleDismiss}
+          />
+          <LineProtocolStepSwitcher
+            stepProps={this.stepProps}
+            buckets={buckets}
+          />
+        </Overlay.Container>
+      </Overlay>
     )
   }
 
@@ -122,18 +130,23 @@ class LineProtocolWizard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = ({
-  dataLoading: {
-    steps: {currentStep, bucket},
-  },
-  me: {name},
-  buckets,
-}: AppState): StateProps => ({
-  currentStepIndex: currentStep,
-  username: name,
-  bucket,
-  buckets: buckets.list,
-})
+const mstp = (state: AppState): StateProps => {
+  const {
+    dataLoading: {
+      steps: {currentStep, bucket},
+    },
+    me: {name},
+  } = state
+
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
+
+  return {
+    currentStepIndex: currentStep,
+    username: name,
+    bucket,
+    buckets,
+  }
+}
 
 const mdtp: DispatchProps = {
   notify: notifyAction,

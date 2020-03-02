@@ -7,17 +7,15 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import CheckCardContext from 'src/alerting/components/CheckCardContext'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+import LastRunTaskStatus from 'src/shared/components/lastRunTaskStatus/LastRunTaskStatus'
 
 // Constants
 import {DEFAULT_CHECK_NAME} from 'src/alerting/constants'
-import {
-  SEARCH_QUERY_PARAM,
-  HISTORY_TYPE_QUERY_PARAM,
-} from 'src/alerting/constants/history'
+import {SEARCH_QUERY_PARAM} from 'src/alerting/constants/history'
 
 // Actions and Selectors
 import {
-  updateCheck,
+  updateCheckDisplayProperties,
   deleteCheck,
   addCheckLabel,
   deleteCheckLabel,
@@ -29,13 +27,13 @@ import {notify} from 'src/shared/actions/notifications'
 import {updateCheckFailed} from 'src/shared/copy/notifications'
 
 // Types
-import {Check, Label, AppState, AlertHistoryType} from 'src/types'
+import {Check, Label, AppState} from 'src/types'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
 
 interface DispatchProps {
-  updateCheck: typeof updateCheck
+  onUpdateCheckDisplayProperties: typeof updateCheckDisplayProperties
   deleteCheck: typeof deleteCheck
   onAddCheckLabel: typeof addCheckLabel
   onRemoveCheckLabel: typeof deleteCheckLabel
@@ -61,7 +59,7 @@ const CheckCard: FunctionComponent<Props> = ({
   onCloneCheck,
   onNotify,
   check,
-  updateCheck,
+  onUpdateCheckDisplayProperties,
   deleteCheck,
   params: {orgID},
   labels,
@@ -69,7 +67,7 @@ const CheckCard: FunctionComponent<Props> = ({
 }) => {
   const onUpdateName = (name: string) => {
     try {
-      updateCheck({...check, name})
+      onUpdateCheckDisplayProperties(check.id, {name})
     } catch (e) {
       onNotify(updateCheckFailed(e.message))
     }
@@ -77,7 +75,7 @@ const CheckCard: FunctionComponent<Props> = ({
 
   const onUpdateDescription = (description: string) => {
     try {
-      updateCheck({...check, description})
+      onUpdateCheckDisplayProperties(check.id, {description})
     } catch (e) {
       onNotify(updateCheckFailed(e.message))
     }
@@ -95,7 +93,7 @@ const CheckCard: FunctionComponent<Props> = ({
     const status = check.status === 'active' ? 'inactive' : 'active'
 
     try {
-      updateCheck({...check, status})
+      onUpdateCheckDisplayProperties(check.id, {status})
     } catch (e) {
       onNotify(updateCheckFailed(e.message))
     }
@@ -106,14 +104,11 @@ const CheckCard: FunctionComponent<Props> = ({
   }
 
   const onView = () => {
-    const historyType: AlertHistoryType = 'statuses'
-
     const queryParams = new URLSearchParams({
-      [HISTORY_TYPE_QUERY_PARAM]: historyType,
       [SEARCH_QUERY_PARAM]: `"checkID" == "${check.id}"`,
     })
 
-    router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
+    router.push(`/orgs/${orgID}/checks/${check.id}/?${queryParams}`)
   }
 
   const handleAddCheckLabel = (label: Label) => {
@@ -176,14 +171,20 @@ const CheckCard: FunctionComponent<Props> = ({
         />
       }
       metaData={[
+        <>Last completed at {check.latestCompleted}</>,
         <>{relativeTimestampFormatter(check.updatedAt, 'Last updated ')}</>,
+        <LastRunTaskStatus
+          key={2}
+          lastRunError={check.lastRunError}
+          lastRunStatus={check.lastRunStatus}
+        />,
       ]}
     />
   )
 }
 
 const mdtp: DispatchProps = {
-  updateCheck: updateCheck,
+  onUpdateCheckDisplayProperties: updateCheckDisplayProperties,
   deleteCheck: deleteCheck,
   onAddCheckLabel: addCheckLabel,
   onCreateLabel: createLabelAsync,

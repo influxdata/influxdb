@@ -21,12 +21,12 @@ import (
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/influxdata/influxql"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 // Test that series id set gets updated and returned appropriately.
 func TestIndex_SeriesIDSet(t *testing.T) {
-	engine := MustOpenEngine()
+	engine := MustOpenEngine(t)
 	defer engine.Close()
 
 	// Add some series.
@@ -134,7 +134,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 func TestEngine_ShouldCompactCache(t *testing.T) {
 	nowTime := time.Now()
 
-	e, err := NewEngine(tsm1.NewConfig())
+	e, err := NewEngine(tsm1.NewConfig(), t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func BenchmarkBlockTypeToInfluxQLDataType(b *testing.B) {
 // This test ensures that "sync: WaitGroup is reused before previous Wait has returned" is
 // is not raised.
 func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
-	e := MustOpenEngine()
+	e := MustOpenEngine(t)
 	defer e.Close()
 
 	var wg sync.WaitGroup
@@ -243,7 +243,7 @@ func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
 func BenchmarkEngine_WritePoints(b *testing.B) {
 	batchSizes := []int{10, 100, 1000, 5000, 10000}
 	for _, sz := range batchSizes {
-		e := MustOpenEngine()
+		e := MustOpenEngine(b)
 		pp := make([]models.Point, 0, sz)
 		for i := 0; i < sz; i++ {
 			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i), "mm")
@@ -266,7 +266,7 @@ func BenchmarkEngine_WritePoints(b *testing.B) {
 func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 	batchSizes := []int{1000, 5000, 10000, 25000, 50000, 75000, 100000, 200000}
 	for _, sz := range batchSizes {
-		e := MustOpenEngine()
+		e := MustOpenEngine(b)
 
 		cpus := runtime.GOMAXPROCS(0)
 		pp := make([]models.Point, 0, sz*cpus)
@@ -312,7 +312,7 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 func BenchmarkEngine_DeletePrefixRange_Cache(b *testing.B) {
 	config := tsm1.NewConfig()
 	config.Cache.SnapshotMemorySize = toml.Size(256 * 1024 * 1024)
-	e, err := NewEngine(config)
+	e, err := NewEngine(config, b)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -369,7 +369,7 @@ type Engine struct {
 }
 
 // NewEngine returns a new instance of Engine at a temporary location.
-func NewEngine(config tsm1.Config) (*Engine, error) {
+func NewEngine(config tsm1.Config, tb testing.TB) (*Engine, error) {
 	root, err := ioutil.TempDir("", "tsm1-")
 	if err != nil {
 		panic(err)
@@ -377,7 +377,7 @@ func NewEngine(config tsm1.Config) (*Engine, error) {
 
 	// Setup series file.
 	sfile := tsdb.NewSeriesFile(filepath.Join(root, "_series"))
-	sfile.Logger = zap.NewNop()
+	sfile.Logger = zaptest.NewLogger(tb)
 	if testing.Verbose() {
 		sfile.Logger = logger.New(os.Stdout)
 	}
@@ -401,8 +401,8 @@ func NewEngine(config tsm1.Config) (*Engine, error) {
 }
 
 // MustOpenEngine returns a new, open instance of Engine.
-func MustOpenEngine() *Engine {
-	e, err := NewEngine(tsm1.NewConfig())
+func MustOpenEngine(tb testing.TB) *Engine {
+	e, err := NewEngine(tsm1.NewConfig(), tb)
 	if err != nil {
 		panic(err)
 	}

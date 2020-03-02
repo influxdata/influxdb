@@ -456,7 +456,7 @@ func (t *Tombstoner) readTombstoneV4(f *os.File, fn func(t Tombstone) error) err
 		}
 	}
 
-	const kmask = 0xff000000 // Mask for non key-length bits
+	const kmask = int64(0xff000000) // Mask for non key-length bits
 
 	br := bufio.NewReaderSize(f, 64*1024)
 	gr, err := gzip.NewReader(br)
@@ -484,14 +484,14 @@ func (t *Tombstoner) readTombstoneV4(f *os.File, fn func(t Tombstone) error) err
 					return err
 				}
 
-				keyLen := int(binary.BigEndian.Uint32(buf[:4]))
+				keyLen := int64(binary.BigEndian.Uint32(buf[:4]))
 				prefix := keyLen>>31&1 == 1 // Prefix is set according to whether the highest bit is set.
 				hasPred := keyLen>>30&1 == 1
 
 				// Remove 8 MSB to get correct length.
 				keyLen &^= kmask
 
-				if len(keyBuf) < keyLen {
+				if int64(len(keyBuf)) < keyLen {
 					keyBuf = make([]byte, keyLen)
 				}
 				// cap slice protects against invalid usages of append in callback
