@@ -4,7 +4,8 @@
 
 ### Bug Fixes
 1. [17039](https://github.com/influxdata/influxdb/pull/17039): Fixed issue where tasks are exported for notification rules
-1. [17042](https://github.com/influxdata/influxdb/pull/17039): Fixed issue where tasks are not exported when exporting by org id
+1. [17042](https://github.com/influxdata/influxdb/pull/17042): Fixed issue where tasks are not exported when exporting by org id
+1. [17070](https://github.com/influxdata/influxdb/pull/17070): Fixed issue where tasks with imports in query break in pkger
 
 ## v2.0.0-beta.5 [2020-02-27]
 
