@@ -42,13 +42,13 @@ func (s *store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 		return nil, tracing.LogError(span, errors.New("missing read source"))
 	}
 
-	source, err := getReadSource(*req.ReadSource)
+	orgID, bucketID, err := getOrgIDAndBucketID(*req.ReadSource)
 	if err != nil {
 		return nil, tracing.LogError(span, err)
 	}
 
 	var seriesCursor reads.SeriesCursor
-	if seriesCursor, err = newIndexSeriesCursor(ctx, &source, req.Predicate, s.viewer); err != nil {
+	if seriesCursor, err = newIndexSeriesCursor(ctx, orgID, bucketID, req.Predicate, s.viewer); err != nil {
 		return nil, tracing.LogError(span, err)
 	} else if seriesCursor == nil {
 		return nil, nil
@@ -65,13 +65,13 @@ func (s *store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 		return nil, tracing.LogError(span, errors.New("missing read source"))
 	}
 
-	source, err := getReadSource(*req.ReadSource)
+	orgID, bucketID, err := getOrgIDAndBucketID(*req.ReadSource)
 	if err != nil {
 		return nil, tracing.LogError(span, err)
 	}
 
 	newCursor := func() (reads.SeriesCursor, error) {
-		return newIndexSeriesCursor(ctx, &source, req.Predicate, s.viewer)
+		return newIndexSeriesCursor(ctx, orgID, bucketID, req.Predicate, s.viewer)
 	}
 
 	return reads.NewGroupResultSet(ctx, req, newCursor), nil
@@ -109,11 +109,11 @@ func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 		}
 	}
 
-	readSource, err := getReadSource(*req.TagsSource)
+	orgID, bucketID, err := getOrgIDAndBucketID(*req.TagsSource)
 	if err != nil {
 		return nil, tracing.LogError(span, err)
 	}
-	return s.viewer.TagKeys(ctx, influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.Range.Start, req.Range.End, expr)
+	return s.viewer.TagKeys(ctx, orgID, bucketID, req.Range.Start, req.Range.End, expr)
 }
 
 func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
@@ -152,11 +152,11 @@ func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 		}
 	}
 
-	readSource, err := getReadSource(*req.TagsSource)
+	orgID, bucketID, err := getOrgIDAndBucketID(*req.TagsSource)
 	if err != nil {
 		return nil, tracing.LogError(span, err)
 	}
-	return s.viewer.TagValues(ctx, influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.TagKey, req.Range.Start, req.Range.End, expr)
+	return s.viewer.TagValues(ctx, orgID, bucketID, req.TagKey, req.Range.Start, req.Range.End, expr)
 }
 
 // this is easier than fooling around with .proto files.
@@ -178,10 +178,11 @@ func (s *store) GetSource(orgID, bucketID uint64) proto.Message {
 	}
 }
 
-func getReadSource(any types.Any) (readSource, error) {
+func getOrgIDAndBucketID(any types.Any) (orgID, bucketID influxdb.ID, err error) {
 	var source readSource
-	if err := types.UnmarshalAny(&any, &source); err != nil {
-		return source, err
+	if err = types.UnmarshalAny(&any, &source); err != nil {
+		return 0, 0, err
 	}
-	return source, nil
+	orgID, bucketID = influxdb.ID(source.OrganizationID), influxdb.ID(source.BucketID)
+	return orgID, bucketID, nil
 }

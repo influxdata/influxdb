@@ -33,7 +33,7 @@ type indexSeriesCursor struct {
 	hasValueExpr bool
 }
 
-func newIndexSeriesCursor(ctx context.Context, src *readSource, predicate *datatypes.Predicate, viewer Viewer) (*indexSeriesCursor, error) {
+func newIndexSeriesCursor(ctx context.Context, orgID, bucketID influxdb.ID, predicate *datatypes.Predicate, viewer Viewer) (*indexSeriesCursor, error) {
 	cursorIterator, err := viewer.CreateCursorIterator(ctx)
 	if err != nil {
 		return nil, err
@@ -70,7 +70,7 @@ func newIndexSeriesCursor(ctx context.Context, src *readSource, predicate *datat
 		}
 	}
 
-	p.sqry, err = viewer.CreateSeriesCursor(ctx, influxdb.ID(src.OrganizationID), influxdb.ID(src.BucketID), opt.Condition)
+	p.sqry, err = viewer.CreateSeriesCursor(ctx, orgID, bucketID, opt.Condition)
 	if err != nil {
 		p.Close()
 		return nil, err
