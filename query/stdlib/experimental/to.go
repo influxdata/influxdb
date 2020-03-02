@@ -34,7 +34,7 @@ type ToOpSpec struct {
 }
 
 func init() {
-	toSignature := semantic.MustLookupBuiltinType("experimental", "to")
+	toSignature := runtime.MustLookupBuiltinType("experimental", "to")
 	runtime.ReplacePackageValue("experimental", "to", flux.MustValue(flux.FunctionValueWithSideEffect("to", createToOpSpec, toSignature)))
 	flux.RegisterOpSpec(ExperimentalToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ExperimentalToKind, newToProcedure, ExperimentalToKind)

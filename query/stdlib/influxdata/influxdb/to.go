@@ -49,7 +49,7 @@ type ToOpSpec struct {
 }
 
 func init() {
-	toSignature := semantic.MustLookupBuiltinType("influxdata/influxdb", ToKind)
+	toSignature := runtime.MustLookupBuiltinType("influxdata/influxdb", ToKind)
 	runtime.ReplacePackageValue("influxdata/influxdb", "to", flux.MustValue(flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature)))
 	flux.RegisterOpSpec(ToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ToKind, newToProcedure, ToKind)
