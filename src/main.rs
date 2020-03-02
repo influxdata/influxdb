@@ -17,11 +17,11 @@ use delorean::time::{parse_duration, time_as_i64_nanos};
 use std::env::VarError;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use std::{env, fmt, str};
 
 use bytes::BytesMut;
 use csv::Writer;
-use failure::_core::time::Duration;
 use futures::{self, StreamExt};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Server, StatusCode};
