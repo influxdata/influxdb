@@ -293,7 +293,9 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.BuildType = "OSS"
 	ss := storage.NewStore(s.TSDBStore, s.MetaClient)
 	srv.Handler.Store = ss
-	srv.Handler.Controller = control.NewController(s.MetaClient, reads.NewReader(ss), authorizer, c.AuthEnabled, s.Logger)
+	if s.config.HTTPD.FluxEnabled {
+		srv.Handler.Controller = control.NewController(s.MetaClient, reads.NewReader(ss), authorizer, c.AuthEnabled, s.Logger)
+	}
 
 	s.Services = append(s.Services, srv)
 }

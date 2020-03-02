@@ -5,6 +5,7 @@ v1.8.0 [unreleased]
 
 -	[#14315](https://github.com/influxdata/influxdb/pull/14315): Update to go 1.12.7
 -	[#15222](https://github.com/influxdata/influxdb/pull/15222): Add options to authenticate pprof and ping endpoints.
+-	[#16709](https://github.com/influxdata/influxdb/pull/16709): Reduce influxd and influx startup time if Flux unused.
 
 ### Bugfixes
 
