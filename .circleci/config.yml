@@ -150,7 +150,7 @@ jobs:
           command: |
             set +e
             cd ui
-            yarn install --frozen-lockfile
+            yarn install
             yarn prettier
           name: "Install Dependencies"
       - run: make ui_client
@@ -186,7 +186,7 @@ jobs:
           command: |
             set +e
             cd ui
-            yarn install --frozen-lockfile
+            yarn install
           name: "Install Dependencies"
       - run: make ui_client
       - run:

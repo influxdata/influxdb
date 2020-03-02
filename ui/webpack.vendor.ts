@@ -76,7 +76,7 @@ module.exports = {
     version: false,
     assetsSort: '!size',
     warningsFilter: /export .* was not found in/,
-    excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/],
+    excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png|wasm)/],
   },
   performance: {hints: false},
 }

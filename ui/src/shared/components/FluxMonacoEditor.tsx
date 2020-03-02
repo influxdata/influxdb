@@ -1,28 +1,22 @@
 // Libraries
-import React, {FC, useEffect, useRef, useState} from 'react'
-import {Server} from '@influxdata/flux-lsp-browser'
+import React, {FC, useRef, useState} from 'react'
 
 // Components
 import MonacoEditor from 'react-monaco-editor'
+import FluxBucketProvider from 'src/shared/components/FluxBucketProvider'
+import GetResources from 'src/resources/components/GetResources'
 
 // Utils
-import addFluxTheme, {THEME_NAME} from 'src/external/monaco.fluxTheme'
-import {registerCompletion} from 'src/external/monaco.fluxCompletions'
-import {addSyntax} from 'src/external/monaco.fluxSyntax'
-import {addKeyBindings} from 'src/external/monaco.keyBindings'
-import {
-  sendMessage,
-  initialize,
-  didChange,
-  didOpen,
-} from 'src/external/monaco.lspMessages'
-
-// Constants
-import {FLUXLANGID} from 'src/external/constants'
+import FLUXLANGID from 'src/external/monaco.flux.syntax'
+import THEME_NAME from 'src/external/monaco.flux.theme'
+import loadServer from 'src/external/monaco.flux.server'
+import 'src/external/monaco.flux.completions'
+import {comments, submit} from 'src/external/monaco.flux.hotkeys'
+import {didChange, didOpen} from 'src/external/monaco.flux.messages'
 
 // Types
 import {OnChangeScript} from 'src/types/flux'
-import {MonacoType, EditorType} from 'src/types'
+import {EditorType, ResourceType} from 'src/types'
 
 import './FluxMonacoEditor.scss'
 
@@ -39,51 +33,50 @@ const FluxEditorMonaco: FC<Props> = ({
   onSubmitScript,
   setEditorInstance,
 }) => {
-  let completionProvider = {dispose: () => {}}
-  const lspServer = useRef(new Server(false))
+  const lspServer = useRef(null)
   const [docVersion, setdocVersion] = useState(2)
   const [msgID, setmsgID] = useState(3)
+  const [docURI, setDocURI] = useState(4)
 
-  useEffect(() => {
-    sendMessage(initialize, lspServer.current)
-    sendMessage(didOpen(script), lspServer.current)
-    return () => {
-      completionProvider.dispose()
-    }
-  }, [])
-
-  const editorWillMount = (monaco: MonacoType) => {
-    monaco.languages.register({id: FLUXLANGID})
-    addFluxTheme(monaco)
-    addSyntax(monaco)
-    completionProvider = registerCompletion(monaco, lspServer.current)
-  }
-
-  const editorDidMount = (editor: EditorType, monaco: MonacoType) => {
+  const editorDidMount = (editor: EditorType) => {
     if (setEditorInstance) {
       setEditorInstance(editor)
     }
-    addKeyBindings(editor, monaco)
-    editor.focus()
-    editor.onKeyUp(evt => {
-      const {ctrlKey, code} = evt
-      if (ctrlKey && code === 'Enter') {
-        if (onSubmitScript) {
-          onSubmitScript()
-        }
+
+    const uri = (editor.getModel().uri as any)._formatted
+    setDocURI(uri)
+
+    comments(editor)
+    submit(editor, () => {
+      if (onSubmitScript) {
+        onSubmitScript()
       }
+    })
+
+    editor.focus()
+
+    loadServer().then(server => {
+      lspServer.current = server
+
+      setdocVersion(0)
+      setmsgID(0)
+
+      lspServer.current.send(didOpen(uri, script))
     })
   }
 
   const onChange = (text: string) => {
-    sendMessage(didChange(text, docVersion, msgID), lspServer.current)
+    onChangeScript(text)
+    lspServer.current.send(didChange(docURI, text, docVersion, msgID))
     setdocVersion(docVersion + 1)
     setmsgID(msgID + 1)
-    onChangeScript(text)
   }
 
   return (
     <div className="time-machine-editor" data-testid="flux-editor">
+      <GetResources resources={[ResourceType.Buckets]}>
+        <FluxBucketProvider />
+      </GetResources>
       <MonacoEditor
         language={FLUXLANGID}
         theme={THEME_NAME}
@@ -101,7 +94,6 @@ const FluxEditorMonaco: FC<Props> = ({
           overviewRulerBorder: false,
           automaticLayout: true,
         }}
-        editorWillMount={editorWillMount}
         editorDidMount={editorDidMount}
       />
     </div>

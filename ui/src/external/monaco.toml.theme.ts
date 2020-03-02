@@ -1,49 +1,38 @@
 import {MonacoType} from 'src/types'
 
-export const THEME_NAME = 'baseTheme'
-export default function(monaco: MonacoType) {
+const THEME_NAME = 'tomlTheme'
+
+function addTheme(monaco: MonacoType) {
   monaco.editor.defineTheme(THEME_NAME, {
     base: 'vs-dark',
     inherit: false,
     rules: [
       {
-        token: 'support.function',
-        foreground: '#9394FF',
-      },
-      {
-        token: 'keyword.operator.new',
-        foreground: '#9394FF',
-      },
-      {
-        token: 'keyword.control.flux',
-        foreground: '#9394FF',
-      },
-      {
-        token: 'comment.line.double-slash',
+        token: 'punctuation.definition.comment.toml',
         foreground: '#676978',
       },
       {
-        token: 'string.quoted.double.flux',
+        token: 'comment.line.number-sign.toml',
+        foreground: '#676978',
+      },
+      {
+        token: 'constant.numeric.integer.toml',
         foreground: '#7CE490',
       },
       {
-        token: 'string.regexp',
-        foreground: '#FFB6A0',
+        token: 'constant.numeric.float.toml',
+        foreground: '#7CE490',
       },
       {
-        token: 'constant.time',
-        foreground: '#6BDFFF',
+        token: 'string.quoted.double.toml',
+        foreground: '#7CE490',
       },
       {
-        token: 'constant.numeric',
-        foreground: '#6BDFFF',
-      },
-      {
-        token: 'constant.language',
+        token: 'constant.language.boolean.toml',
         foreground: '#32B08C',
       },
       {
-        token: 'keyword.operator',
+        token: 'entity.name.section.toml',
         foreground: '#ff4d96',
       },
       {
@@ -64,3 +53,7 @@ export default function(monaco: MonacoType) {
     },
   })
 }
+
+addTheme(window.monaco)
+
+export default THEME_NAME
