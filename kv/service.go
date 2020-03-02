@@ -43,6 +43,8 @@ type Service struct {
 	checkStore    *IndexStore
 	endpointStore *IndexStore
 	variableStore *IndexStore
+
+	Migrator *Migrator
 }
 
 // NewService returns an instance of a Service.
@@ -60,7 +62,22 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		checkStore:     newCheckStore(),
 		endpointStore:  newEndpointStore(),
 		variableStore:  newVariableStore(),
+		Migrator:       NewMigrator(log),
 	}
+
+	// kv service migrations
+	s.Migrator.AddMigrations(
+		// initial migration is the state of the world when
+		// the migrator was introduced.
+		NewAnonymousMigration(
+			"initial migration",
+			s.initializeAll,
+			// down is a noop
+			func(context.Context, Store) error {
+				return nil
+			},
+		),
+	)
 
 	if len(configs) > 0 {
 		s.Config = configs[0]
@@ -82,9 +99,30 @@ type ServiceConfig struct {
 	Clock         clock.Clock
 }
 
+// AutoMigrationStore is a Store which also describes whether or not
+// migrations can be applied automatically.
+// Given the AutoMigrate method is defined and it returns true then migrations
+// will automatically be applied on Service.Initialize(...).
+type AutoMigrationStore interface {
+	Store
+	AutoMigrate() bool
+}
+
 // Initialize creates Buckets needed.
 func (s *Service) Initialize(ctx context.Context) error {
-	return s.kv.Update(ctx, func(tx Tx) error {
+	if err := s.Migrator.Initialize(ctx, s.kv); err != nil {
+		return err
+	}
+
+	if store, ok := s.kv.(AutoMigrationStore); ok && store.AutoMigrate() {
+		return s.Migrator.Up(ctx, s.kv)
+	}
+
+	return nil
+}
+
+func (s *Service) initializeAll(ctx context.Context, store Store) error {
+	if err := store.Update(ctx, func(tx Tx) error {
 		if err := s.initializeAuths(ctx, tx); err != nil {
 			return err
 		}
@@ -171,8 +209,11 @@ func (s *Service) Initialize(ctx context.Context) error {
 		}
 
 		return s.initializeUsers(ctx, tx)
-	})
+	}); err != nil {
+		return err
+	}
 
+	return nil
 }
 
 // WithResourceLogger sets the resource audit logger for the service.

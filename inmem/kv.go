@@ -61,6 +61,11 @@ func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
 	panic("not implemented")
 }
 
+// AutoMigrate returns true as inmem KVStore is safe to migrate on initialize.
+func (s *KVStore) AutoMigrate() bool {
+	return true
+}
+
 // Flush removes all data from the buckets.  Used for testing.
 func (s *KVStore) Flush(ctx context.Context) {
 	s.mu.Lock()

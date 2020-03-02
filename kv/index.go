@@ -141,8 +141,7 @@ func NewIndex(mapping IndexMapping, opts ...IndexOption) *Index {
 	return index
 }
 
-// Initialize creates the bucket if it does not already exist.
-func (i *Index) Initialize(ctx context.Context, store Store) error {
+func (i *Index) initialize(ctx context.Context, store Store) error {
 	return store.Update(ctx, func(tx Tx) error {
 		// create bucket if not exist
 		_, err := tx.Bucket(i.IndexBucket())
@@ -178,6 +177,51 @@ func indexKeyParts(indexKey []byte) (fk, pk []byte, err error) {
 	fk, pk = parts[0], parts[1]
 
 	return
+}
+
+// IndexMigration is a migration for adding and removing an index.
+// These are constructed via the Index.Migration function.
+type IndexMigration struct {
+	*Index
+	opts []PopulateOption
+}
+
+// Name returns a readable name for the index migration.
+func (i *IndexMigration) Name() string {
+	return fmt.Sprintf("add index %q", string(i.IndexBucket()))
+}
+
+// Up initializes the index bucket and populates the index.
+func (i *IndexMigration) Up(ctx context.Context, store Store) (err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("migration (up) %s: %w", i.Name(), err)
+		}
+	}()
+
+	if err = i.initialize(ctx, store); err != nil {
+		return err
+	}
+
+	_, err = i.Populate(ctx, store, i.opts...)
+	return err
+}
+
+// Down deletes all entries from the index.
+func (i *IndexMigration) Down(ctx context.Context, store Store) error {
+	if err := i.DeleteAll(ctx, store); err != nil {
+		return fmt.Errorf("migration (down) %s: %w", i.Name(), err)
+	}
+
+	return nil
+}
+
+// Migration creates an IndexMigration for the underlying Index.
+func (i *Index) Migration(opts ...PopulateOption) *IndexMigration {
+	return &IndexMigration{
+		Index: i,
+		opts:  opts,
+	}
 }
 
 // Insert creates a single index entry for the provided primary key on the foreign key.
