@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -1828,6 +1829,8 @@ func (t *task) Status() influxdb.Status {
 	return influxdb.Status(t.status)
 }
 
+var fluxRegex = regexp.MustCompile(`import\s+\".*\"`)
+
 func (t *task) flux() string {
 	taskOpts := []string{fmt.Sprintf("name: %q", t.name)}
 	if t.cron != "" {
@@ -1839,11 +1842,24 @@ func (t *task) flux() string {
 	if t.offset > 0 {
 		taskOpts = append(taskOpts, fmt.Sprintf("offset: %s", t.offset))
 	}
+
 	// this is required by the API, super nasty. Will be super challenging for
 	// anyone outside org to figure out how to do this within an hour of looking
 	// at the API :sadpanda:. Would be ideal to let the API translate the arguments
 	// into this required form instead of forcing that complexity on the caller.
-	return fmt.Sprintf("option task = { %s }\n%s", strings.Join(taskOpts, ", "), t.query)
+	taskOptStr := fmt.Sprintf("\noption task = { %s }", strings.Join(taskOpts, ", "))
+
+	if indices := fluxRegex.FindAllIndex([]byte(t.query), -1); len(indices) > 0 {
+		lastImportIdx := indices[len(indices)-1][1]
+		pieces := append([]string{},
+			t.query[:lastImportIdx],
+			taskOptStr,
+			t.query[lastImportIdx:],
+		)
+		return fmt.Sprint(strings.Join(pieces, "\n"))
+	}
+
+	return fmt.Sprintf("%s\n%s", taskOptStr, t.query)
 }
 
 func (t *task) summarize() SummaryTask {
