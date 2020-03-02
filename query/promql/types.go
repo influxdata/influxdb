@@ -148,7 +148,7 @@ func (s *Selector) QuerySpec() (*flux.Spec, error) {
 		{
 			ID: "from", // TODO: Change this to a UUID
 			Spec: &influxdb.FromOpSpec{
-				Bucket: "prometheus",
+				Bucket: influxdb.NameOrID{Name: "prometheus"},
 			},
 		},
 	}

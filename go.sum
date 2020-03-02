@@ -240,8 +240,8 @@ github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NH
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/cron v0.0.0-20191112133922-ad5847cfab62 h1:YipnPuvJKPAzyBhr7eXIMA49L2Eooga/NSytWdLLI8U=
 github.com/influxdata/cron v0.0.0-20191112133922-ad5847cfab62/go.mod h1:XabtPPW2qsCg0tl+kjaPU+cFS+CjQXEXbT1VJvHT4og=
-github.com/influxdata/flux v0.60.1-0.20200302202538-702c71c7587d h1:URBSuryrRlDsWnafCD+D99TZCwh9RWJbbpZwle/C8uE=
-github.com/influxdata/flux v0.60.1-0.20200302202538-702c71c7587d/go.mod h1:BRxpm1xTUAZ+s+Mq6t0NZyaYtlGrw/8YoHoifso9vS8=
+github.com/influxdata/flux v0.60.1-0.20200302224526-e5ed64d96194 h1:TsodrTyDxdflvzpWU99X8EnM3ZfmZmgMYAU2/vJDA+o=
+github.com/influxdata/flux v0.60.1-0.20200302224526-e5ed64d96194/go.mod h1:BRxpm1xTUAZ+s+Mq6t0NZyaYtlGrw/8YoHoifso9vS8=
 github.com/influxdata/goreleaser v0.97.0-influx h1:jT5OrcW7WfS0e2QxfwmTBjhLvpIC9CDLRhNgZJyhj8s=
 github.com/influxdata/goreleaser v0.97.0-influx/go.mod h1:MnjA0e0Uq6ISqjG1WxxMAl+3VS1QYjILSWVnMYDxasE=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69 h1:WQsmW0fXO4ZE/lFGIE84G6rIV5SJN3P3sjIXAP1a8eU=

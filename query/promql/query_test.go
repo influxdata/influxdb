@@ -364,8 +364,10 @@ func TestBuild(t *testing.T) {
 			want: &flux.Spec{
 				Operations: []*flux.Operation{
 					{
-						ID:   flux.OperationID("from"),
-						Spec: &influxdb.FromOpSpec{Bucket: "prometheus"},
+						ID: flux.OperationID("from"),
+						Spec: &influxdb.FromOpSpec{
+							Bucket: influxdb.NameOrID{Name: "prometheus"},
+						},
 					},
 					{
 						ID: "where",
@@ -446,8 +448,10 @@ func TestBuild(t *testing.T) {
 			want: &flux.Spec{
 				Operations: []*flux.Operation{
 					{
-						ID:   flux.OperationID("from"),
-						Spec: &influxdb.FromOpSpec{Bucket: "prometheus"},
+						ID: flux.OperationID("from"),
+						Spec: &influxdb.FromOpSpec{
+							Bucket: influxdb.NameOrID{Name: "prometheus"},
+						},
 					},
 					{
 						ID: flux.OperationID("range"),
@@ -517,8 +521,10 @@ func TestBuild(t *testing.T) {
 			want: &flux.Spec{
 				Operations: []*flux.Operation{
 					{
-						ID:   flux.OperationID("from"),
-						Spec: &influxdb.FromOpSpec{Bucket: "prometheus"},
+						ID: flux.OperationID("from"),
+						Spec: &influxdb.FromOpSpec{
+							Bucket: influxdb.NameOrID{Name: "prometheus"},
+						},
 					},
 					{
 						ID: flux.OperationID("range"),
