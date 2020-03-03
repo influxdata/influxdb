@@ -26,6 +26,7 @@ interface Props {
   onChangeRetentionRule: (seconds: number) => void
   onChangeRuleType: (t: 'expire' | null) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
+  onClickRename: () => void
   disableRenaming: boolean
   buttonText: string
 }
@@ -43,6 +44,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
       onChangeInput,
       onChangeRuleType,
       onChangeRetentionRule,
+      onClickRename,
     } = this.props
 
     const nameInputStatus = disableRenaming && ComponentStatus.Disabled
@@ -97,6 +99,11 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                   status={this.submitButtonStatus}
                   type={ButtonType.Submit}
                 />
+                <Button
+                  text="Rename"
+                  color={ComponentColor.Danger}
+                  onClick={onClickRename}
+                />
               </Form.Footer>
             </Grid.Column>
           </Grid.Row>
@@ -119,7 +126,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
 
   private get nameHelpText(): string {
     if (this.props.disableRenaming) {
-      return 'To rename the bucket use the RENAME button. Bucket renaming is not allowed here.'
+      return 'To rename bucket use the RENAME button below'
     }
 
     return ''

@@ -126,10 +126,10 @@ class BucketRow extends PureComponent<Props & WithRouterProps & DispatchProps> {
             onAddScraper={this.handleAddScraper}
           />
           <Button
-            text="Rename"
-            testID="bucket-rename"
+            text="Settings"
+            testID="bucket-settings"
             size={ComponentSize.ExtraSmall}
-            onClick={this.handleRenameBucket}
+            onClick={this.handleClickSettings}
           />
           <FeatureFlag name="deleteWithPredicate">
             <Button
@@ -162,14 +162,14 @@ class BucketRow extends PureComponent<Props & WithRouterProps & DispatchProps> {
     onDeleteData(bucket)
   }
 
-  private handleRenameBucket = () => {
+  private handleClickSettings = () => {
     const {
       params: {orgID},
       bucket: {id},
       router,
     } = this.props
 
-    router.push(`/orgs/${orgID}/load-data/buckets/${id}/rename`)
+    router.push(`/orgs/${orgID}/load-data/buckets/${id}/edit`)
   }
 
   private handleNameClick = (): void => {
