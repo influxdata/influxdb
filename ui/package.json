@@ -129,7 +129,7 @@
     "webpack-merge": "^4.2.1"
   },
   "dependencies": {
-    "@influxdata/clockface": "1.1.5",
+    "@influxdata/clockface": "2.0.0",
     "@influxdata/flux-lsp-browser": "0.3.1",
     "@influxdata/flux-parser": "^0.3.0",
     "@influxdata/giraffe": "0.17.6",
@@ -157,8 +157,8 @@
     "moment": "^2.13.0",
     "monaco-editor": "^0.19.2",
     "monaco-editor-textmate": "^2.2.1",
-    "monaco-languageclient": "^0.11.0",
     "monaco-editor-webpack-plugin": "^1.8.2",
+    "monaco-languageclient": "^0.11.0",
     "monaco-textmate": "^3.0.1",
     "normalizr": "^3.4.1",
     "onigasm": "^2.2.4",
