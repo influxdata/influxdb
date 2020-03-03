@@ -3,8 +3,6 @@ import {
   formatFunctionForInsert,
 } from 'src/timeMachine/utils/insertFunction'
 
-import {BuilderConfig} from 'src/types'
-
 describe('insertFunction', () => {
   test('generateImport', () => {
     const emptyImport = generateImport('', '')
