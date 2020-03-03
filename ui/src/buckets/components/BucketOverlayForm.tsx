@@ -26,9 +26,9 @@ interface Props {
   onChangeRetentionRule: (seconds: number) => void
   onChangeRuleType: (t: 'expire' | null) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
-  onClickRename: () => void
   disableRenaming: boolean
   buttonText: string
+  onClickRename?: () => void
 }
 
 export default class BucketOverlayForm extends PureComponent<Props> {
@@ -93,11 +93,13 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                   onClick={onCloseModal}
                   type={ButtonType.Button}
                 />
-                <Button
-                  text="Rename"
-                  color={ComponentColor.Danger}
-                  onClick={onClickRename}
-                />
+                {buttonText === 'Save Changes' && (
+                  <Button
+                    text="Rename"
+                    color={ComponentColor.Danger}
+                    onClick={onClickRename}
+                  />
+                )}
                 <Button
                   text={buttonText}
                   color={this.submitButtonColor}
