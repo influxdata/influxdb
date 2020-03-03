@@ -142,7 +142,7 @@
   width: 100%;
 }
 
-@media screen and (min-width: $grid--breakpoint-md) {
+@media screen and (min-width: $cf-grid--breakpoint-md) {
   .wizard--progress-title {
     font-size: $ix-text-base-1;
   }

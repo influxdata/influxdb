@@ -317,7 +317,7 @@
   }
 }
 
-@media screen and (min-width: $grid--breakpoint-md) {
+@media screen and (min-width: $cf-grid--breakpoint-md) {
   .wizard-step--container {
     padding: $ix-marg-d;
   }
