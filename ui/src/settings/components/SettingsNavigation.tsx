@@ -4,11 +4,7 @@ import _ from 'lodash'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {
-  Tabs,
-  Orientation,
-  ComponentSize,
-} from '@influxdata/clockface'
+import {Tabs, Orientation, ComponentSize} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -59,10 +55,7 @@ class SettingsNavigation extends PureComponent<Props> {
     ]
 
     return (
-      <Tabs
-        orientation={Orientation.Horizontal}
-        size={ComponentSize.Large}
-      >
+      <Tabs orientation={Orientation.Horizontal} size={ComponentSize.Large}>
         {tabs.map(t => {
           if (t.cloudExclude) {
             return (

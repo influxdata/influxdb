@@ -4,11 +4,7 @@ import _ from 'lodash'
 
 // Components
 import LoadDataNavigation from 'src/settings/components/LoadDataNavigation'
-import {
-  Tabs,
-  Orientation,
-  Page,
-} from '@influxdata/clockface'
+import {Tabs, Orientation, Page} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -27,9 +23,7 @@ class LoadDataTabbedPage extends PureComponent<Props> {
       <Page.Contents fullWidth={false} scrollable={true}>
         <Tabs.Container orientation={Orientation.Horizontal}>
           <LoadDataNavigation activeTab={activeTab} orgID={orgID} />
-          <Tabs.TabContents>
-            {children}
-          </Tabs.TabContents>
+          <Tabs.TabContents>{children}</Tabs.TabContents>
         </Tabs.Container>
       </Page.Contents>
     )

@@ -2,9 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {
-  Page
-} from '@influxdata/clockface'
+import {Page} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

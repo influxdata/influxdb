@@ -64,9 +64,7 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
                   active={saveAsOption === SaveAsOption.Variable}
                 />
               </Tabs>
-              <Tabs.TabContents>
-                {this.saveAsForm}
-              </Tabs.TabContents>
+              <Tabs.TabContents>{this.saveAsForm}</Tabs.TabContents>
             </Tabs.Container>
           </Overlay.Body>
         </Overlay.Container>
