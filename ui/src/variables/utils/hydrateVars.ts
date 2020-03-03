@@ -161,7 +161,7 @@ const mapVariableValues = (
   prevSelection: string,
   defaultSelection: string
 ): VariableValues => {
-  const values: string[] = Object.keys(variable.arguments.values)
+  const values: string[] = Object.values(variable.arguments.values)
 
   return {
     valueType: 'string',
