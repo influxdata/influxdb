@@ -70,19 +70,10 @@ class BucketRow extends PureComponent<Props & WithRouterProps & DispatchProps> {
 
   private get cardName(): JSX.Element {
     const {bucket} = this.props
-    if (bucket.type === 'user') {
-      return (
-        <ResourceCard.Name
-          testID={`bucket--card--name ${bucket.name}`}
-          onClick={this.handleNameClick}
-          name={bucket.name}
-        />
-      )
-    }
-
     return (
       <ResourceCard.Name
         testID={`bucket--card--name ${bucket.name}`}
+        onClick={this.handleNameClick}
         name={bucket.name}
       />
     )
