@@ -77,16 +77,8 @@ class RenamablePageTitle extends PureComponent<Props, State> {
         className="renamable-page-title"
       >
         {title}
-        {this.prefix}
       </FlexBox>
     )
-  }
-
-  private get prefix(): JSX.Element {
-    const {prefix} = this.props
-    if (prefix) {
-      return <Page.SubTitle title={prefix} />
-    }
   }
 
   private get input(): JSX.Element {
