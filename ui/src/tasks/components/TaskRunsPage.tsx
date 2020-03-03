@@ -71,11 +71,11 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
         spinnerComponent={<TechnoSpinner />}
       >
         <Page titleTag={pageTitleSuffixer(['Task Runs'])}>
-          <Page.Header fullWidth={false}>
-            <Page.HeaderLeft>
+          <Page.ControlBar fullWidth={false}>
+            <Page.ControlBarLeft>
               <PageTitleWithOrg title={this.title} />
-            </Page.HeaderLeft>
-            <Page.HeaderRight>
+            </Page.ControlBarLeft>
+            <Page.ControlBarRight>
               <Button
                 onClick={this.handleEditTask}
                 text="Edit Task"
@@ -86,8 +86,8 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
                 text="Run Task"
                 icon={IconFont.Play}
               />
-            </Page.HeaderRight>
-          </Page.Header>
+            </Page.ControlBarRight>
+          </Page.ControlBar>
           <Page.Contents fullWidth={false} scrollable={true}>
             <TaskRunsList
               taskID={params.id}

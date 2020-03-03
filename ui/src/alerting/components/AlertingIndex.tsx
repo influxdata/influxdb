@@ -36,12 +36,12 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
   return (
     <>
       <Page titleTag={pageTitleSuffixer(['Monitoring & Alerting'])}>
-        <Page.Header fullWidth={false}>
-          <Page.HeaderLeft>
+        <Page.ControlBar fullWidth={false}>
+          <Page.ControlBarLeft>
             <PageTitleWithOrg title="Monitoring & Alerting" />
-          </Page.HeaderLeft>
-          <Page.HeaderRight />
-        </Page.Header>
+          </Page.ControlBarLeft>
+          <Page.ControlBarRight />
+        </Page.ControlBar>
         <Page.Contents fullWidth={false} scrollable={false}>
           <GetResources resources={[ResourceType.Labels]}>
             <GetAssetLimits>

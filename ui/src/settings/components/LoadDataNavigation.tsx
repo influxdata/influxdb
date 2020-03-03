@@ -2,14 +2,12 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {withRouter, WithRouterProps} from 'react-router'
-import chroma from 'chroma-js'
 
 // Components
 import {
   Tabs,
   Orientation,
   ComponentSize,
-  InfluxColors,
 } from '@influxdata/clockface'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
@@ -69,8 +67,7 @@ class LoadDataNavigation extends PureComponent<Props> {
     return (
       <Tabs
         orientation={Orientation.Horizontal}
-        padding={ComponentSize.Large}
-        backgroundColor={`${chroma(`${InfluxColors.Castle}`).alpha(0.1)}`}
+        size={ComponentSize.Large}
       >
         {tabs.map(t => {
           let tabElement = (
@@ -80,8 +77,6 @@ class LoadDataNavigation extends PureComponent<Props> {
               id={t.id}
               onClick={handleTabClick}
               active={t.id === activeTab}
-              size={ComponentSize.Large}
-              backgroundColor={InfluxColors.Castle}
             />
           )
 

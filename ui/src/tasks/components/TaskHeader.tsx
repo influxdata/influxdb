@@ -23,11 +23,11 @@ export default class TaskHeader extends PureComponent<Props> {
   public render() {
     const {onCancel, onSave, title} = this.props
     return (
-      <Page.Header fullWidth={true}>
-        <Page.HeaderLeft>
+      <Page.ControlBar fullWidth={true}>
+        <Page.ControlBarLeft>
           <PageTitleWithOrg title={title} />
-        </Page.HeaderLeft>
-        <Page.HeaderRight>
+        </Page.ControlBarLeft>
+        <Page.ControlBarRight>
           <Button
             color={ComponentColor.Default}
             text="Cancel"
@@ -41,8 +41,8 @@ export default class TaskHeader extends PureComponent<Props> {
             onClick={onSave}
             testID="task-save-btn"
           />
-        </Page.HeaderRight>
-      </Page.Header>
+        </Page.ControlBarRight>
+      </Page.ControlBar>
     )
   }
 

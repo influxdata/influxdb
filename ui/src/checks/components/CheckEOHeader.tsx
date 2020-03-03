@@ -109,8 +109,8 @@ const CheckEOHeader: FC<Props> = ({
     checkType === 'threshold' && thresholds && !!thresholds.length
 
   return (
-    <Page.Header fullWidth={true}>
-      <Page.HeaderLeft>
+    <Page.ControlBar fullWidth={true}>
+      <Page.ControlBarLeft>
         <RenamablePageTitle
           name={name}
           onRename={onSetName}
@@ -118,8 +118,8 @@ const CheckEOHeader: FC<Props> = ({
           maxLength={CHECK_NAME_MAX_LENGTH}
           onClickOutside={handleClickOutsideTitle}
         />
-      </Page.HeaderLeft>
-      <Page.HeaderCenter>
+      </Page.ControlBarLeft>
+      <Page.ControlBarCenter>
         {activeTab !== 'customCheckQuery' && (
           <CheckAlertingButton
             activeTab={activeTab}
@@ -127,8 +127,8 @@ const CheckEOHeader: FC<Props> = ({
             setActiveTab={setActiveTab}
           />
         )}
-      </Page.HeaderCenter>
-      <Page.HeaderRight>
+      </Page.ControlBarCenter>
+      <Page.ControlBarRight>
         <SquareButton
           icon={IconFont.Remove}
           onClick={onCancel}
@@ -143,8 +143,8 @@ const CheckEOHeader: FC<Props> = ({
           singleAggregateFunc={singleAggregateFunc}
           oneOrMoreThresholds={oneOrMoreThresholds}
         />
-      </Page.HeaderRight>
-    </Page.Header>
+      </Page.ControlBarRight>
+    </Page.ControlBar>
   )
 }
 

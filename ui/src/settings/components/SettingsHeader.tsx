@@ -7,12 +7,12 @@ import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 class SettingsHeader extends Component {
   public render() {
     return (
-      <Page.Header fullWidth={false}>
-        <Page.HeaderLeft>
+      <Page.ControlBar fullWidth={false}>
+        <Page.ControlBarLeft>
           <PageTitleWithOrg title="Settings" />
-        </Page.HeaderLeft>
-        <Page.HeaderRight />
-      </Page.Header>
+        </Page.ControlBarLeft>
+        <Page.ControlBarRight />
+      </Page.ControlBar>
     )
   }
 }

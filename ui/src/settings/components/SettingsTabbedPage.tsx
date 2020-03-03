@@ -7,8 +7,6 @@ import SettingsNavigation from 'src/settings/components/SettingsNavigation'
 import {
   Tabs,
   Orientation,
-  ComponentSize,
-  InfluxColors,
   Page,
 } from '@influxdata/clockface'
 
@@ -27,15 +25,9 @@ class SettingsTabbedPage extends PureComponent<Props> {
 
     return (
       <Page.Contents fullWidth={false} scrollable={true}>
-        <Tabs.Container
-          orientation={Orientation.Horizontal}
-          className="tabs tabbed-page"
-        >
+        <Tabs.Container orientation={Orientation.Horizontal}>
           <SettingsNavigation activeTab={activeTab} orgID={orgID} />
-          <Tabs.TabContents
-            padding={ComponentSize.Large}
-            backgroundColor={InfluxColors.Castle}
-          >
+          <Tabs.TabContents>
             {children}
           </Tabs.TabContents>
         </Tabs.Container>

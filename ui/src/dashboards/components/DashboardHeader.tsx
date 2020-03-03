@@ -89,8 +89,8 @@ class DashboardHeader extends Component<Props> {
     } = this.props
 
     return (
-      <Page.Header fullWidth={true}>
-        <Page.HeaderLeft>
+      <Page.ControlBar fullWidth={true}>
+        <Page.ControlBarLeft>
           <RenamablePageTitle
             prefix={org && org.name}
             maxLength={DASHBOARD_NAME_MAX_LENGTH}
@@ -98,8 +98,8 @@ class DashboardHeader extends Component<Props> {
             name={dashboard && dashboard.name}
             placeholder={DEFAULT_DASHBOARD_NAME}
           />
-        </Page.HeaderLeft>
-        <Page.HeaderRight>
+        </Page.ControlBarLeft>
+        <Page.ControlBarRight>
           <GraphTips />
           <Button
             icon={IconFont.AddCell}
@@ -138,8 +138,8 @@ class DashboardHeader extends Component<Props> {
             titleText="Enter Presentation Mode"
             onClick={this.handleClickPresentationButton}
           />
-        </Page.HeaderRight>
-      </Page.Header>
+        </Page.ControlBarRight>
+      </Page.ControlBar>
     )
   }
 

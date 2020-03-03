@@ -35,11 +35,11 @@ export default class TasksHeader extends PureComponent<Props> {
     } = this.props
 
     return (
-      <Page.Header fullWidth={false}>
-        <Page.HeaderLeft>
+      <Page.ControlBar fullWidth={false}>
+        <Page.ControlBarLeft>
           <PageTitleWithOrg title="Tasks" />
-        </Page.HeaderLeft>
-        <Page.HeaderRight>
+        </Page.ControlBarLeft>
+        <Page.ControlBarRight>
           <InputLabel>Show Inactive</InputLabel>
           <SlideToggle
             active={showInactive}
@@ -54,8 +54,8 @@ export default class TasksHeader extends PureComponent<Props> {
             resourceName="Task"
             status={this.addResourceStatus}
           />
-        </Page.HeaderRight>
-      </Page.Header>
+        </Page.ControlBarRight>
+      </Page.ControlBar>
     )
   }
 

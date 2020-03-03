@@ -23,18 +23,18 @@ const DataExplorerPage: SFC = ({children}) => {
     <Page titleTag={pageTitleSuffixer(['Data Explorer'])}>
       {children}
       <GetResources resources={[ResourceType.Variables]}>
-        <Page.Header fullWidth={true}>
-          <Page.HeaderLeft>
+        <Page.ControlBar fullWidth={true}>
+          <Page.ControlBarLeft>
             <PageTitleWithOrg title="Data Explorer" />
-          </Page.HeaderLeft>
-          <Page.HeaderRight>
+          </Page.ControlBarLeft>
+          <Page.ControlBarRight>
             <DeleteDataButton />
             <TimeZoneDropdown />
             <ViewTypeDropdown />
             <VisOptionsButton />
             <SaveAsButton />
-          </Page.HeaderRight>
-        </Page.Header>
+          </Page.ControlBarRight>
+        </Page.ControlBar>
         <Page.Contents fullWidth={true} scrollable={false}>
           <DataExplorer />
         </Page.Contents>

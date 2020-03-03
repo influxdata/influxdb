@@ -22,8 +22,8 @@ interface Props {
 export default class UserPageHeader extends PureComponent<Props> {
   public render() {
     return (
-      <Page.Header fullWidth={false}>
-        <Page.HeaderLeft>
+      <Page.ControlBar fullWidth={false}>
+        <Page.ControlBarLeft>
           <FlexBox
             direction={FlexDirection.Column}
             alignItems={AlignItems.FlexStart}
@@ -31,9 +31,9 @@ export default class UserPageHeader extends PureComponent<Props> {
           >
             {this.title}
           </FlexBox>
-        </Page.HeaderLeft>
-        <Page.HeaderRight />
-      </Page.Header>
+        </Page.ControlBarLeft>
+        <Page.ControlBarRight />
+      </Page.ControlBar>
     )
   }
 
@@ -52,11 +52,6 @@ export default class UserPageHeader extends PureComponent<Props> {
 
     const altText = `That's how you say hello in ${language}`
 
-    return (
-      <>
-        <Page.Title title={title} />
-        <Page.SubTitle title={altText} />
-      </>
-    )
+    return <Page.Title title={title} altText={altText} />
   }
 }
