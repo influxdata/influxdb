@@ -22,8 +22,8 @@ func fluxTime(t int64) flux.Time {
 }
 
 func TestPushDownRangeRule(t *testing.T) {
-	fromSpec := influxdb.FromProcedureSpec{
-		Bucket: "my-bucket",
+	fromSpec := influxdb.FromStorageProcedureSpec{
+		Bucket: influxdb.NameOrID{Name: "my-bucket"},
 	}
 	rangeSpec := universe.RangeProcedureSpec{
 		Bounds: flux.Bounds{
@@ -44,6 +44,7 @@ func TestPushDownRangeRule(t *testing.T) {
 			Name: "simple",
 			// from -> range  =>  ReadRange
 			Rules: []plan.Rule{
+				influxdb.FromStorageRule{},
 				influxdb.PushDownRangeRule{},
 			},
 			Before: &plantest.PlanSpec{
@@ -63,6 +64,7 @@ func TestPushDownRangeRule(t *testing.T) {
 			Name: "with successor",
 			// from -> range -> count  =>  ReadRange -> count
 			Rules: []plan.Rule{
+				influxdb.FromStorageRule{},
 				influxdb.PushDownRangeRule{},
 			},
 			Before: &plantest.PlanSpec{
@@ -92,6 +94,7 @@ func TestPushDownRangeRule(t *testing.T) {
 			//        |                ReadRange
 			//       from
 			Rules: []plan.Rule{
+				influxdb.FromStorageRule{},
 				influxdb.PushDownRangeRule{},
 			},
 			Before: &plantest.PlanSpec{
@@ -294,12 +297,13 @@ func TestPushDownFilterRule(t *testing.T) {
 			Name: "from range filter",
 			// from -> range -> filter  =>  ReadRange
 			Rules: []plan.Rule{
+				influxdb.FromStorageRule{},
 				influxdb.PushDownRangeRule{},
 				influxdb.PushDownFilterRule{},
 			},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreateLogicalNode("from", &influxdb.FromProcedureSpec{}),
+					plan.CreateLogicalNode("from", &influxdb.FromStorageProcedureSpec{}),
 					plan.CreatePhysicalNode("range", &universe.RangeProcedureSpec{
 						Bounds: bounds,
 					}),
@@ -854,8 +858,8 @@ func TestPushDownGroupRule(t *testing.T) {
 }
 
 func TestReadTagKeysRule(t *testing.T) {
-	fromSpec := influxdb.FromProcedureSpec{
-		Bucket: "my-bucket",
+	fromSpec := influxdb.FromStorageProcedureSpec{
+		Bucket: influxdb.NameOrID{Name: "my-bucket"},
 	}
 	rangeSpec := universe.RangeProcedureSpec{
 		Bounds: flux.Bounds{
@@ -1069,8 +1073,8 @@ func TestReadTagKeysRule(t *testing.T) {
 }
 
 func TestReadTagValuesRule(t *testing.T) {
-	fromSpec := influxdb.FromProcedureSpec{
-		Bucket: "my-bucket",
+	fromSpec := influxdb.FromStorageProcedureSpec{
+		Bucket: influxdb.NameOrID{Name: "my-bucket"},
 	}
 	rangeSpec := universe.RangeProcedureSpec{
 		Bounds: flux.Bounds{

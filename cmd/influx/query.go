@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 
+	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/flux/runtime"
 	_ "github.com/influxdata/flux/stdlib"
+	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	_ "github.com/influxdata/influxdb/query/stdlib"
 	"github.com/spf13/cobra"
 )
@@ -42,20 +44,19 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load query: %v", err)
 	}
 
-	// TODO(jsternberg): Restore this when the influxdb client source is merged.
-	// orgSvc, err := newOrganizationService()
-	// if err != nil {
-	// 	return fmt.Errorf("failed to initialized organization service client: %v", err)
-	// }
-	//
-	// orgID, err := queryFlags.org.getID(orgSvc)
-	// if err != nil {
-	// 	return err
-	// }
-
+	plan.RegisterLogicalRules(
+		influxdb.DefaultFromAttributes{
+			Org: &influxdb.NameOrID{
+				ID:   queryFlags.org.id,
+				Name: queryFlags.org.name,
+			},
+			Host:  &flags.host,
+			Token: &flags.token,
+		},
+	)
 	runtime.FinalizeBuiltIns()
 
-	r, err := getFluxREPL()
+	r, err := getFluxREPL(flags.skipVerify)
 	if err != nil {
 		return fmt.Errorf("failed to get the flux REPL: %v", err)
 	}
