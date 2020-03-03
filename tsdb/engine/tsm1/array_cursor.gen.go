@@ -105,8 +105,10 @@ func (c *floatArrayAscendingCursor) Next() *tsdb.FloatArray {
 
 	if pos < len(c.res.Timestamps) {
 		if c.tsm.pos < len(tvals.Timestamps) {
-			if pos == 0 {
-				// optimization: all points served from TSM data
+			if pos == 0 && len(c.res.Timestamps) >= len(tvals.Timestamps) {
+				// optimization: all points can be served from TSM data because
+				// we need the entire block and the block completely fits within
+				// the buffer.
 				copy(c.res.Timestamps, tvals.Timestamps)
 				pos += copy(c.res.Values, tvals.Values)
 				c.nextTSM()
@@ -396,8 +398,10 @@ func (c *integerArrayAscendingCursor) Next() *tsdb.IntegerArray {
 
 	if pos < len(c.res.Timestamps) {
 		if c.tsm.pos < len(tvals.Timestamps) {
-			if pos == 0 {
-				// optimization: all points served from TSM data
+			if pos == 0 && len(c.res.Timestamps) >= len(tvals.Timestamps) {
+				// optimization: all points can be served from TSM data because
+				// we need the entire block and the block completely fits within
+				// the buffer.
 				copy(c.res.Timestamps, tvals.Timestamps)
 				pos += copy(c.res.Values, tvals.Values)
 				c.nextTSM()
@@ -687,8 +691,10 @@ func (c *unsignedArrayAscendingCursor) Next() *tsdb.UnsignedArray {
 
 	if pos < len(c.res.Timestamps) {
 		if c.tsm.pos < len(tvals.Timestamps) {
-			if pos == 0 {
-				// optimization: all points served from TSM data
+			if pos == 0 && len(c.res.Timestamps) >= len(tvals.Timestamps) {
+				// optimization: all points can be served from TSM data because
+				// we need the entire block and the block completely fits within
+				// the buffer.
 				copy(c.res.Timestamps, tvals.Timestamps)
 				pos += copy(c.res.Values, tvals.Values)
 				c.nextTSM()
@@ -978,8 +984,10 @@ func (c *stringArrayAscendingCursor) Next() *tsdb.StringArray {
 
 	if pos < len(c.res.Timestamps) {
 		if c.tsm.pos < len(tvals.Timestamps) {
-			if pos == 0 {
-				// optimization: all points served from TSM data
+			if pos == 0 && len(c.res.Timestamps) >= len(tvals.Timestamps) {
+				// optimization: all points can be served from TSM data because
+				// we need the entire block and the block completely fits within
+				// the buffer.
 				copy(c.res.Timestamps, tvals.Timestamps)
 				pos += copy(c.res.Values, tvals.Values)
 				c.nextTSM()
@@ -1269,8 +1277,10 @@ func (c *booleanArrayAscendingCursor) Next() *tsdb.BooleanArray {
 
 	if pos < len(c.res.Timestamps) {
 		if c.tsm.pos < len(tvals.Timestamps) {
-			if pos == 0 {
-				// optimization: all points served from TSM data
+			if pos == 0 && len(c.res.Timestamps) >= len(tvals.Timestamps) {
+				// optimization: all points can be served from TSM data because
+				// we need the entire block and the block completely fits within
+				// the buffer.
 				copy(c.res.Timestamps, tvals.Timestamps)
 				pos += copy(c.res.Values, tvals.Values)
 				c.nextTSM()
