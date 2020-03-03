@@ -221,7 +221,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: '',
     desc: 'Applies an aggregate function to fixed windows of time.',
-    example: 'aggregateWindow(every: 1m, fn: mean)',
+    example: 'aggregateWindow(every: v.windowPeriod, fn: mean)',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/aggregatewindow/',
