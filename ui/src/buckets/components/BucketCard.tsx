@@ -175,11 +175,11 @@ class BucketRow extends PureComponent<Props & WithRouterProps & DispatchProps> {
   private handleNameClick = (): void => {
     const {
       params: {orgID},
-      bucket: {id},
+      bucket: {name},
       router,
     } = this.props
 
-    router.push(`/orgs/${orgID}/load-data/buckets/${id}/edit`)
+    router.push(`/orgs/${orgID}/data-explorer?bucket=${name}`)
   }
 
   private handleAddCollector = (): void => {
