@@ -94,15 +94,15 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                   type={ButtonType.Button}
                 />
                 <Button
+                  text="Rename"
+                  color={ComponentColor.Danger}
+                  onClick={onClickRename}
+                />
+                <Button
                   text={buttonText}
                   color={this.submitButtonColor}
                   status={this.submitButtonStatus}
                   type={ButtonType.Submit}
-                />
-                <Button
-                  text="Rename"
-                  color={ComponentColor.Danger}
-                  onClick={onClickRename}
                 />
               </Form.Footer>
             </Grid.Column>
