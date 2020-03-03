@@ -6,7 +6,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {Page, IconFont, Sort} from '@influxdata/clockface'
 import TaskRunsList from 'src/tasks/components/TaskRunsList'
-import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // Types
 import {AppState, RemoteDataState, Task, Run} from 'src/types'
@@ -71,16 +70,18 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
         spinnerComponent={<TechnoSpinner />}
       >
         <Page titleTag={pageTitleSuffixer(['Task Runs'])}>
+          <Page.Header fullWidth={false}>
+            <Page.Title title={this.title} />
+          </Page.Header>
           <Page.ControlBar fullWidth={false}>
             <Page.ControlBarLeft>
-              <PageTitleWithOrg title={this.title} />
-            </Page.ControlBarLeft>
-            <Page.ControlBarRight>
               <Button
                 onClick={this.handleEditTask}
                 text="Edit Task"
                 color={ComponentColor.Primary}
               />
+            </Page.ControlBarLeft>
+            <Page.ControlBarRight>
               <Button
                 onClick={this.handleRunTask}
                 text="Run Task"
