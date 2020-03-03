@@ -65,9 +65,16 @@ class DashboardIndex extends PureComponent<Props, State> {
           testID="empty-dashboards-list"
           titleTag={pageTitleSuffixer(['Dashboards'])}
         >
+          <Page.Header fullWidth={false}>
+            <Page.Title title="Dashboards" />
+          </Page.Header>
           <Page.ControlBar fullWidth={false}>
             <Page.ControlBarLeft>
-              <PageTitleWithOrg title="Dashboards" />
+              <SearchWidget
+                placeholderText="Filter dashboards..."
+                onSearch={this.handleFilterDashboards}
+                searchTerm={searchTerm}
+              />
             </Page.ControlBarLeft>
             <Page.ControlBarRight>
               <AddResourceDropdown
@@ -91,13 +98,6 @@ class DashboardIndex extends PureComponent<Props, State> {
                 limitStatus={limitStatus}
               />
               <DashboardsIndexContents
-                filterComponent={
-                  <SearchWidget
-                    placeholderText="Filter dashboards..."
-                    onSearch={this.handleFilterDashboards}
-                    searchTerm={searchTerm}
-                  />
-                }
                 searchTerm={searchTerm}
                 onFilterChange={this.handleFilterDashboards}
               />

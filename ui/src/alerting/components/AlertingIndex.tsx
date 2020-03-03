@@ -4,7 +4,6 @@ import {connect} from 'react-redux'
 
 //Components
 import {Grid, GridRow, GridColumn, Page} from '@influxdata/clockface'
-import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import ChecksColumn from 'src/checks/components/ChecksColumn'
 import RulesColumn from 'src/notifications/rules/components/RulesColumn'
 import EndpointsColumn from 'src/notifications/endpoints/components/EndpointsColumn'
@@ -36,12 +35,9 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
   return (
     <>
       <Page titleTag={pageTitleSuffixer(['Monitoring & Alerting'])}>
-        <Page.ControlBar fullWidth={false}>
-          <Page.ControlBarLeft>
-            <PageTitleWithOrg title="Monitoring & Alerting" />
-          </Page.ControlBarLeft>
-          <Page.ControlBarRight />
-        </Page.ControlBar>
+        <Page.Header fullWidth={false}>
+          <Page.Title title="Monitoring & Alerting" />
+        </Page.Header>
         <Page.Contents fullWidth={false} scrollable={false}>
           <GetResources resources={[ResourceType.Labels]}>
             <GetAssetLimits>
