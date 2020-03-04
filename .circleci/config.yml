@@ -98,7 +98,7 @@ jobs:
           destination: screenshots
   selenium_accept:
     docker:
-      - image: circleci/node:13.0.1-stretch-browsers
+      - image: circleci/node:lts-stretch-browsers
       - image: quay.io/influxdb/influx:nightly
         command: [--e2e-testing=true]
     steps:
