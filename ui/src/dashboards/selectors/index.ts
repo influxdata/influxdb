@@ -36,7 +36,7 @@ export const getVariableValuesForDropdown = (
   variableID: string,
   contextID: string
 ): DropdownValues => {
-  const {selectedValue, values} = getValuesForVariable(
+  const {selectedKey, values} = getValuesForVariable(
     state,
     variableID,
     contextID
@@ -60,13 +60,14 @@ export const getVariableValuesForDropdown = (
       }))
 
       return {
-        selectedKey: selectedValue,
+        selectedKey,
         list,
       }
     }
     default:
-      const list = values.map(v => ({name: v, value: v}))
+      const valueCopy = values as string[]
+      const list = valueCopy.map(v => ({name: v, value: v}))
 
-      return {selectedKey: selectedValue, list}
+      return {selectedKey, list}
   }
 }

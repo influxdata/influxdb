@@ -1,4 +1,4 @@
-export const resolveSelectedValue = (
+export const resolveSelectedKey = (
   values: string[],
   prevSelection?: string,
   defaultSelection?: string
@@ -12,4 +12,21 @@ export const resolveSelectedValue = (
   }
 
   return values[0]
+}
+
+export const resolveSelectedValue = (
+  values: any,
+  selectedKey: string,
+  defaultSelection?: string
+): string => {
+  if (selectedKey in values) {
+    return values[selectedKey]
+  }
+
+  if (defaultSelection in values) {
+    return values[defaultSelection]
+  }
+  // return get first value
+  const first = Object.keys(values)[0]
+  return values[first]
 }
