@@ -33,13 +33,22 @@ import {
 } from 'src/variables/selectors'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
+import {findNodes} from 'src/shared/utils/ast'
 
 // Types
 import {CancelBox} from 'src/types/promises'
-import {GetState, RemoteDataState, StatusRow} from 'src/types'
+import {
+  GetState,
+  RemoteDataState,
+  StatusRow,
+  Node,
+  ResourceType,
+  Bucket,
+} from 'src/types'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors/index'
 
 export type Action = SaveDraftQueriesAction | SetQueryResults
 
@@ -112,11 +121,32 @@ export const refreshTimeMachineVariableValues = (
 let pendingResults: Array<CancelBox<RunQueryResult>> = []
 let pendingCheckStatuses: CancelBox<StatusRow[][]> = null
 
+const getOrgIDFromBuckets = (text: string, allBuckets: Bucket[]) => {
+  const ast = parse(text)
+  const bucketsInQuery = findNodes(ast, isFromBucket).map(node =>
+    get(node, 'arguments.0.properties.0.value.value', '')
+  )
+  const buckets = bucketsInQuery.map(b => allBuckets.find(a => a.name === b))
+  return buckets[0].orgID
+}
+
+const isFromBucket = (node: Node) => {
+  return (
+    get(node, 'type') === 'CallExpression' &&
+    get(node, 'callee.type') === 'Identifier' &&
+    get(node, 'callee.name') === 'from' &&
+    get(node, 'arguments.0.properties.0.key.name') === 'bucket'
+  )
+}
+
 export const executeQueries = (dashboardID?: string) => async (
   dispatch,
   getState: GetState
 ) => {
   const state = getState()
+
+  const allBuckets = getAll<Bucket>(state, ResourceType.Buckets)
+
   const {view} = getActiveTimeMachine(state)
   const queries = view.properties.queries.filter(({text}) => !!text.trim())
   const {
@@ -136,13 +166,13 @@ export const executeQueries = (dashboardID?: string) => async (
     // condition that was causing the following bug:
     // https://github.com/influxdata/idpe/issues/6240
     const variableAssignments = getVariableAssignments(getState())
-    const orgID = getOrg(state).id
 
     const startTime = Date.now()
 
     pendingResults.forEach(({cancel}) => cancel())
 
     pendingResults = queries.map(({text}) => {
+      const orgID = getOrgIDFromBuckets(text, allBuckets)
       const windowVars = getWindowVars(text, variableAssignments)
       const extern = buildVarsOption([...variableAssignments, ...windowVars])
 
@@ -155,7 +185,7 @@ export const executeQueries = (dashboardID?: string) => async (
     let statuses = [[]] as StatusRow[][]
     if (checkID) {
       const extern = buildVarsOption(variableAssignments)
-      pendingCheckStatuses = runStatusesQuery(orgID, checkID, extern)
+      pendingCheckStatuses = runStatusesQuery(getOrg(state).id, checkID, extern)
       statuses = await pendingCheckStatuses.promise
     }
 
