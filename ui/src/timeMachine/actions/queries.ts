@@ -121,12 +121,20 @@ export const refreshTimeMachineVariableValues = (
 let pendingResults: Array<CancelBox<RunQueryResult>> = []
 let pendingCheckStatuses: CancelBox<StatusRow[][]> = null
 
-const getOrgIDFromBuckets = (text: string, allBuckets: Bucket[]) => {
+export const getOrgIDFromBuckets = (
+  text: string,
+  allBuckets: Bucket[]
+): string | null => {
   const ast = parse(text)
   const bucketsInQuery = findNodes(ast, isFromBucket).map(node =>
     get(node, 'arguments.0.properties.0.value.value', '')
   )
+  if (bucketsInQuery.length == 0) {
+    return null
+  }
+
   const buckets = bucketsInQuery.map(b => allBuckets.find(a => a.name === b))
+  // if there are buckets from multiple orgs ina query, query will error, and user will receive error from query
   return buckets[0].orgID
 }
 
@@ -172,7 +180,7 @@ export const executeQueries = (dashboardID?: string) => async (
     pendingResults.forEach(({cancel}) => cancel())
 
     pendingResults = queries.map(({text}) => {
-      const orgID = getOrgIDFromBuckets(text, allBuckets)
+      const orgID = getOrgIDFromBuckets(text, allBuckets) || getOrg(state).id
       const windowVars = getWindowVars(text, variableAssignments)
       const extern = buildVarsOption([...variableAssignments, ...windowVars])
 
