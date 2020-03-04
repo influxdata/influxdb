@@ -11,7 +11,7 @@ import {AppState, RemoteDataState} from 'src/types'
 
 const values = {
   def: 'defbuck',
-  def2: 'defbuck',
+  def2: 'defbuck2',
   foo: 'foobuck',
   goo: 'goobuck',
   new: 'newBuck',
@@ -46,8 +46,9 @@ const setInitialState = (state: AppState): AppState => {
             values: {
               '03cbdc8a53a63000': {
                 valueType: 'string',
-                values: Object.values(values),
+                values,
                 selectedValue: 'defbuck',
+                selectedKey: 'def',
               },
             },
             order: ['03cbdc8a53a63000'],
