@@ -313,6 +313,11 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	us, err := newUserService()
+	if err != nil {
+		return err
+	}
+
 	filter := platform.AuthorizationFilter{}
 	if authorizationFindFlags.id != "" {
 		fID, err := platform.IDFromString(authorizationFindFlags.id)
@@ -362,11 +367,16 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 		for _, p := range a.Permissions {
 			permissions = append(permissions, p.String())
 		}
+		user, err := us.FindUserByID(context.Background(), a.UserID)
+		if err != nil {
+			return err
+		}
 
 		w.Write(map[string]interface{}{
 			"ID":          a.ID,
 			"Token":       a.Token,
 			"Status":      a.Status,
+			"User":        user.Name,
 			"UserID":      a.UserID.String(),
 			"Permissions": permissions,
 		})
@@ -466,6 +476,11 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	us, err := newUserService()
+	if err != nil {
+		return err
+	}
+
 	var id platform.ID
 	if err := id.DecodeFromString(authorizationActiveFlags.id); err != nil {
 		return err
@@ -498,10 +513,16 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 		ps = append(ps, p.String())
 	}
 
+	user, err := us.FindUserByID(context.Background(), a.UserID)
+	if err != nil {
+		return err
+	}
+
 	w.Write(map[string]interface{}{
 		"ID":          a.ID.String(),
 		"Token":       a.Token,
 		"Status":      a.Status,
+		"User":        user.Name,
 		"UserID":      a.UserID.String(),
 		"Permissions": ps,
 	})
