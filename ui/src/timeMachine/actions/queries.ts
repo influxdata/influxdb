@@ -126,16 +126,18 @@ export const getOrgIDFromBuckets = (
   allBuckets: Bucket[]
 ): string | null => {
   const ast = parse(text)
-  const bucketsInQuery = findNodes(ast, isFromBucket).map(node =>
+  const bucketsInQuery: string[] = findNodes(ast, isFromBucket).map(node =>
     get(node, 'arguments.0.properties.0.value.value', '')
   )
-  if (bucketsInQuery.length == 0) {
+
+  // if there are buckets from multiple orgs in a query, query will error, and user will receive error from query
+  const bucketMatch = allBuckets.find(a => bucketsInQuery.includes(a.name))
+
+  if (!bucketMatch) {
     return null
   }
 
-  const buckets = bucketsInQuery.map(b => allBuckets.find(a => a.name === b))
-  // if there are buckets from multiple orgs ina query, query will error, and user will receive error from query
-  return buckets[0].orgID
+  return bucketMatch.orgID
 }
 
 const isFromBucket = (node: Node) => {

@@ -41,6 +41,7 @@ import {
 import {prettyBuckets} from 'src/shared/utils/prettyBucket'
 import {extractBucketLimits} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Types
 import {
@@ -51,7 +52,6 @@ import {
   ResourceType,
 } from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
-import {getAll} from 'src/resources/selectors'
 
 interface StateProps {
   org: Organization
