@@ -49,7 +49,7 @@ describe('Buckets', () => {
 
     it("can update a bucket's retention rules", () => {
       cy.get<Bucket>('@bucket').then(({name}: Bucket) => {
-        cy.getByTestID(`bucket--card--name ${name}`).click()
+        cy.getByTestID(`bucket-settings`).click()
         cy.getByTestID(`bucket--card--name ${name}`).should(
           'not.contain',
           '7 days'
