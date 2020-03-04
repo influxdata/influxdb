@@ -39,7 +39,7 @@ type GroupOption func(g *groupResultSet)
 // other value
 func GroupOptionNilSortLo() GroupOption {
 	return func(g *groupResultSet) {
-		g.nilSort = nilSortLo
+		g.nilSort = NilSortLo
 	}
 }
 
@@ -49,7 +49,7 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, new
 		req:         req,
 		agg:         req.Aggregate,
 		keys:        make([][]byte, len(req.GroupKeys)),
-		nilSort:     nilSortHi,
+		nilSort:     NilSortHi,
 		newCursorFn: newCursorFn,
 	}
 
@@ -90,13 +90,13 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, new
 	return g
 }
 
-// nilSort values determine the lexicographical order of nil values in the
+// NilSort values determine the lexicographical order of nil values in the
 // partition key
 var (
 	// nil sorts lowest
-	nilSortLo = []byte{0x00}
+	NilSortLo = []byte{0x00}
 	// nil sorts highest
-	nilSortHi = []byte{0xff} // sort nil values
+	NilSortHi = []byte{0xff}
 )
 
 func (g *groupResultSet) Err() error { return nil }
