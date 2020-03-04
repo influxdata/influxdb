@@ -78,7 +78,7 @@ http.post(
 
   it('keeps user input in text area when attempting to import invalid JSON', () => {
     cy.getByTestID('page-control-bar').within(() => {
-      cy.contains('add-resource-dropdown--button').click()
+      cy.getByTestID('add-resource-dropdown--button').click()
     })
 
     cy.getByTestID('add-resource-dropdown--import').click()
