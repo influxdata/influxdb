@@ -2,6 +2,8 @@
 
 ### Features
 
+1. [17095](https://github.com/influxdata/influxdb/pull/17095): Extend pkger dashboards with table view support
+
 ### Bug Fixes
 
 1. [17039](https://github.com/influxdata/influxdb/pull/17039): Fixed issue where tasks are exported for notification rules
