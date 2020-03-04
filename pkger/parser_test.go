@@ -723,7 +723,7 @@ spec:
 	})
 
 	t.Run("pkg with single dashboard and single chart", func(t *testing.T) {
-		t.Run("single gauge chart", func(t *testing.T) {
+		t.Run("gauge chart", func(t *testing.T) {
 			t.Run("happy path", func(t *testing.T) {
 				testfileRunner(t, "testdata/dashboard_gauge", func(t *testing.T, pkg *Pkg) {
 					sum := pkg.Summary()
@@ -843,7 +843,7 @@ spec:
 			})
 		})
 
-		t.Run("single heatmap chart", func(t *testing.T) {
+		t.Run("heatmap chart", func(t *testing.T) {
 			t.Run("happy path", func(t *testing.T) {
 				testfileRunner(t, "testdata/dashboard_heatmap", func(t *testing.T, pkg *Pkg) {
 					sum := pkg.Summary()
@@ -1001,7 +1001,7 @@ spec:
 			})
 		})
 
-		t.Run("single histogram chart", func(t *testing.T) {
+		t.Run("histogram chart", func(t *testing.T) {
 			t.Run("happy path", func(t *testing.T) {
 				testfileRunner(t, "testdata/dashboard_histogram", func(t *testing.T, pkg *Pkg) {
 					sum := pkg.Summary()
@@ -1107,7 +1107,7 @@ spec:
 			})
 		})
 
-		t.Run("single markdown chart", func(t *testing.T) {
+		t.Run("markdown chart", func(t *testing.T) {
 			t.Run("happy path", func(t *testing.T) {
 				testfileRunner(t, "testdata/dashboard_markdown", func(t *testing.T, pkg *Pkg) {
 					sum := pkg.Summary()
@@ -1128,7 +1128,7 @@ spec:
 			})
 		})
 
-		t.Run("single scatter chart", func(t *testing.T) {
+		t.Run("scatter chart", func(t *testing.T) {
 			t.Run("happy path", func(t *testing.T) {
 				testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, pkg *Pkg) {
 					sum := pkg.Summary()
@@ -2026,7 +2026,237 @@ spec:
 			})
 		})
 
-		t.Run("single xy chart", func(t *testing.T) {
+		t.Run("table chart", func(t *testing.T) {
+			t.Run("happy path", func(t *testing.T) {
+				testfileRunner(t, "testdata/dashboard_table", func(t *testing.T, pkg *Pkg) {
+					sum := pkg.Summary()
+					require.Len(t, sum.Dashboards, 1)
+
+					actual := sum.Dashboards[0]
+					assert.Equal(t, "dash_1", actual.Name)
+					assert.Equal(t, "desc1", actual.Description)
+
+					require.Len(t, actual.Charts, 1)
+					actualChart := actual.Charts[0]
+					assert.Equal(t, 3, actualChart.Height)
+					assert.Equal(t, 6, actualChart.Width)
+					assert.Equal(t, 1, actualChart.XPosition)
+					assert.Equal(t, 2, actualChart.YPosition)
+
+					props, ok := actualChart.Properties.(influxdb.TableViewProperties)
+					require.True(t, ok)
+					assert.Equal(t, "table note", props.Note)
+					assert.True(t, props.ShowNoteWhenEmpty)
+					assert.True(t, props.DecimalPlaces.IsEnforced)
+					assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
+					assert.Equal(t, "YYYY:MMMM:DD", props.TimeFormat)
+
+					require.Len(t, props.Queries, 1)
+					q := props.Queries[0]
+					expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
+					assert.Equal(t, expectedQuery, q.Text)
+					assert.Equal(t, "advanced", q.EditMode)
+
+					require.Len(t, props.ViewColors, 1)
+					c := props.ViewColors[0]
+					assert.Equal(t, "laser", c.Name)
+					assert.Equal(t, "min", c.Type)
+					assert.Equal(t, "#8F8AF4", c.Hex)
+					assert.Equal(t, 3.0, c.Value)
+
+					tableOpts := props.TableOptions
+					assert.True(t, tableOpts.VerticalTimeAxis)
+					assert.Equal(t, "_time", tableOpts.SortBy.InternalName)
+					assert.Equal(t, "truncate", tableOpts.Wrapping)
+					assert.True(t, tableOpts.FixFirstColumn)
+
+					require.Len(t, props.FieldOptions, 2)
+					expectedField := influxdb.RenamableField{
+						InternalName: "_time",
+						DisplayName:  "time (ms)",
+						Visible:      true,
+					}
+					assert.Equal(t, expectedField, props.FieldOptions[0])
+					expectedField = influxdb.RenamableField{
+						InternalName: "_value",
+						DisplayName:  "MB",
+						Visible:      true,
+					}
+					assert.Equal(t, expectedField, props.FieldOptions[1])
+				})
+			})
+
+			t.Run("handles invalid config", func(t *testing.T) {
+				tests := []testPkgResourceError{
+					{
+						name:           "color missing hex value",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].colors[0].hex"},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+  description: desc1
+  charts:
+    - kind:   Table
+      name:   table
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")
+      colors:
+        - name: laser
+          type: min
+          hex: 
+          value: 3.0`,
+					},
+					{
+						name:           "missing query value",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].queries[0].query"},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+  description: desc1
+  charts:
+    - kind:   Table
+      name:   table
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      queries:
+        - query:
+      colors:
+        - name: laser
+          type: min
+          hex: peru
+          value: 3.0`,
+					},
+					{
+						name:           "no queries provided",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].queries"},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+  description: desc1
+  charts:
+    - kind:   Table
+      name:   table
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      colors:
+        - name: laser
+          type: min
+          hex: peru 
+          value: 3.0`,
+					},
+					{
+						name:           "no width provided",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].width"},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+  description: desc1
+  charts:
+    - kind:   Table
+      name:   table
+      xPos:  1
+      yPos:  2
+      height: 3
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")
+      colors:
+        - name: laser
+          type: min
+          hex: peru
+          value: 3.0`,
+					},
+					{
+						name:           "no height provided",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].height"},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+  description: desc1
+  charts:
+    - kind:   Table
+      name:   table
+      xPos:  1
+      yPos:  2
+      width:  6
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")
+      colors:
+        - name: laser
+          type: min
+          hex: peru
+          value: 3.0`,
+					},
+					{
+						name:           "invalid wrapping table option",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].tableOptions.wrapping"},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+  description: desc1
+  charts:
+    - kind:   Table
+      name:   table
+      xPos:  1
+      yPos:  2
+      width:  6
+      height: 3
+      tableOptions:
+        sortBy: _time
+        wrapping: WRONGO wrapping
+      queries:
+        - query: >
+            from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")
+      colors:
+        - name: laser
+          type: min
+          hex: "#8F8AF4"
+          value: 3.0
+`,
+					},
+				}
+
+				for _, tt := range tests {
+					testPkgErrors(t, KindDashboard, tt)
+				}
+			})
+		})
+
+		t.Run("xy chart", func(t *testing.T) {
 			t.Run("happy path", func(t *testing.T) {
 				testfileRunner(t, "testdata/dashboard_xy", func(t *testing.T, pkg *Pkg) {
 					sum := pkg.Summary()
@@ -3676,6 +3906,12 @@ func testPkgErrors(t *testing.T, k Kind, tt testPkgResourceError) {
 		pErr := err.(*parseErr)
 		require.Len(t, pErr.Resources, resErrs)
 
+		defer func() {
+			if t.Failed() {
+				t.Logf("recieved unexpected err: %s", pErr)
+			}
+		}()
+
 		resErr := pErr.Resources[0]
 		assert.Equal(t, k.String(), resErr.Kind)
 
@@ -3740,7 +3976,7 @@ func nextField(t *testing.T, field string) (string, int) {
 	}
 	parts := strings.Split(fields[0], "[")
 	if len(parts) == 1 {
-		return "", 0
+		return parts[0], -1
 	}
 	fieldName := parts[0]
 
