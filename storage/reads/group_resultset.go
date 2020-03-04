@@ -24,7 +24,7 @@ type groupResultSet struct {
 	keys    [][]byte
 	nilSort []byte
 	rgc     groupByCursor
-	km      keyMerger
+	km      KeyMerger
 
 	newCursorFn func() (SeriesCursor, error)
 	nextGroupFn func(c *groupResultSet) GroupCursor
@@ -171,7 +171,7 @@ func groupNoneNextGroup(g *groupResultSet) GroupCursor {
 		mb:   g.mb,
 		agg:  g.agg,
 		cur:  cur,
-		keys: g.km.get(),
+		keys: g.km.Get(),
 	}
 }
 
@@ -184,13 +184,13 @@ func groupNoneSort(g *groupResultSet) (int, error) {
 	}
 
 	allTime := g.req.Hints.HintSchemaAllTime()
-	g.km.clear()
+	g.km.Clear()
 	n := 0
 	row := cur.Next()
 	for row != nil {
 		if allTime || g.seriesHasPoints(row) {
 			n++
-			g.km.mergeTagKeys(row.Tags)
+			g.km.MergeTagKeys(row.Tags)
 		}
 		row = cur.Next()
 	}
@@ -205,16 +205,16 @@ func groupByNextGroup(g *groupResultSet) GroupCursor {
 		g.rgc.vals[i] = row.Tags.Get(g.keys[i])
 	}
 
-	g.km.clear()
+	g.km.Clear()
 	rowKey := row.SortKey
 	j := g.i
 	for j < len(g.rows) && bytes.Equal(rowKey, g.rows[j].SortKey) {
-		g.km.mergeTagKeys(g.rows[j].Tags)
+		g.km.MergeTagKeys(g.rows[j].Tags)
 		j++
 	}
 
 	g.rgc.reset(g.rows[g.i:j])
-	g.rgc.keys = g.km.get()
+	g.rgc.keys = g.km.Get()
 
 	g.i = j
 	if j == len(g.rows) {
