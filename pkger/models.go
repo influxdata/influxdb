@@ -586,6 +586,7 @@ const (
 	chartKindScatter            chartKind = "scatter"
 	chartKindSingleStat         chartKind = "single_stat"
 	chartKindSingleStatPlusLine chartKind = "single_stat_plus_line"
+	chartKindTable              chartKind = "table"
 	chartKindXY                 chartKind = "xy"
 )
 
@@ -593,7 +594,7 @@ func (c chartKind) ok() bool {
 	switch c {
 	case chartKindGauge, chartKindHeatMap, chartKindHistogram,
 		chartKindMarkdown, chartKindScatter, chartKindSingleStat,
-		chartKindSingleStatPlusLine, chartKindXY:
+		chartKindSingleStatPlusLine, chartKindTable, chartKindXY:
 		return true
 	default:
 		return false
@@ -2172,8 +2173,11 @@ const (
 	fieldChartPosition      = "position"
 	fieldChartQueries       = "queries"
 	fieldChartShade         = "shade"
+	fieldChartFieldOptions  = "fieldOptions"
+	fieldChartTableOptions  = "tableOptions"
 	fieldChartTickPrefix    = "tickPrefix"
 	fieldChartTickSuffix    = "tickSuffix"
+	fieldChartTimeFormat    = "timeFormat"
 	fieldChartWidth         = "width"
 	fieldChartXCol          = "xCol"
 	fieldChartXPos          = "xPos"
@@ -2204,6 +2208,8 @@ type chart struct {
 	BinSize         int
 	BinCount        int
 	Position        string
+	FieldOptions    []fieldOption
+	TableOptions    tableOptions
 	TimeFormat      string
 }
 
@@ -2319,6 +2325,40 @@ func (c chart) properties() influxdb.ViewProperties {
 			Axes:              c.Axes.influxAxes(),
 			Position:          c.Position,
 		}
+	case chartKindTable:
+		fieldOptions := make([]influxdb.RenamableField, 0, len(c.FieldOptions))
+		for _, fieldOpt := range c.FieldOptions {
+			fieldOptions = append(fieldOptions, influxdb.RenamableField{
+				InternalName: fieldOpt.FieldName,
+				DisplayName:  fieldOpt.DisplayName,
+				Visible:      fieldOpt.Visible,
+			})
+		}
+		sort.Slice(fieldOptions, func(i, j int) bool {
+			return fieldOptions[i].InternalName < fieldOptions[j].InternalName
+		})
+
+		return influxdb.TableViewProperties{
+			Type:              influxdb.ViewPropertyTypeTable,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			DecimalPlaces: influxdb.DecimalPlaces{
+				IsEnforced: c.EnforceDecimals,
+				Digits:     int32(c.DecimalPlaces),
+			},
+			Queries:    c.Queries.influxDashQueries(),
+			ViewColors: c.Colors.influxViewColors(),
+			TableOptions: influxdb.TableOptions{
+				VerticalTimeAxis: c.TableOptions.VerticalTimeAxis,
+				SortBy: influxdb.RenamableField{
+					InternalName: c.TableOptions.SortByField,
+				},
+				Wrapping:       c.TableOptions.Wrapping,
+				FixFirstColumn: c.TableOptions.FixFirstColumn,
+			},
+			FieldOptions: fieldOptions,
+			TimeFormat:   c.TimeFormat,
+		}
 	case chartKindXY:
 		return influxdb.XYViewProperties{
 			Type:              influxdb.ViewPropertyTypeXY,
@@ -2371,6 +2411,8 @@ func (c chart) validProperties() []validationErr {
 	case chartKindSingleStatPlusLine:
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
 		fails = append(fails, validPosition(c.Position)...)
+	case chartKindTable:
+		fails = append(fails, validTableOptions(c.TableOptions)...)
 	case chartKindXY:
 		fails = append(fails, validGeometry(c.Geom)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
@@ -2429,6 +2471,56 @@ func (c chart) validBaseProps() []validationErr {
 		})
 	}
 	return fails
+}
+
+const (
+	fieldChartFieldOptionDisplayName = "displayName"
+	fieldChartFieldOptionFieldName   = "fieldName"
+	fieldChartFieldOptionVisible     = "visible"
+)
+
+type fieldOption struct {
+	FieldName   string
+	DisplayName string
+	Visible     bool
+}
+
+const (
+	fieldChartTableOptionVerticalTimeAxis = "verticalTimeAxis"
+	fieldChartTableOptionSortBy           = "sortBy"
+	fieldChartTableOptionWrapping         = "wrapping"
+	fieldChartTableOptionFixFirstColumn   = "fixFirstColumn"
+)
+
+type tableOptions struct {
+	VerticalTimeAxis bool
+	SortByField      string
+	Wrapping         string
+	FixFirstColumn   bool
+}
+
+func validTableOptions(opts tableOptions) []validationErr {
+	var fails []validationErr
+
+	switch opts.Wrapping {
+	case "", "single-line", "truncate", "wrap":
+	default:
+		fails = append(fails, validationErr{
+			Field: fieldChartTableOptionWrapping,
+			Msg:   `chart table option should 1 in ["single-line", "truncate", "wrap"]`,
+		})
+	}
+
+	if len(fails) == 0 {
+		return nil
+	}
+
+	return []validationErr{
+		{
+			Field:  fieldChartTableOptions,
+			Nested: fails,
+		},
+	}
 }
 
 const (
