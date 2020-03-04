@@ -228,7 +228,7 @@ func TestCmdOrg(t *testing.T) {
 				cmd := builder.cmd(cmdFn)
 
 				if tt.command == "" {
-					tt.command = "find"
+					tt.command = "list"
 				}
 
 				cmd.SetArgs(append([]string{"org", tt.command}, tt.flags...))

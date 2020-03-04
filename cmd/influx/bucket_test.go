@@ -305,7 +305,7 @@ func TestCmdBucket(t *testing.T) {
 				cmd := builder.cmd(cmdFn)
 
 				if tt.command == "" {
-					tt.command = "find"
+					tt.command = "list"
 				}
 
 				cmd.SetArgs(append([]string{"bucket", tt.command}, tt.flags...))

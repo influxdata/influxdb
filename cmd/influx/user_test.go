@@ -292,7 +292,7 @@ func TestCmdUser(t *testing.T) {
 				cmd := builder.cmd(nestedCmdFn)
 
 				if tt.command == "" {
-					tt.command = "find"
+					tt.command = "list"
 				}
 
 				cmd.SetArgs(append([]string{"user", tt.command}, tt.flags...))

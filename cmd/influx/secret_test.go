@@ -57,7 +57,6 @@ func TestCmdSecret(t *testing.T) {
 				flags:    []string{},
 				expected: called{"k1", "k2", "k3"},
 			},
-			// if alias commands fail with "unknown flag: --org-id", it's because the alias is missing
 			{
 				name:     "ls alias",
 				command:  "ls",
@@ -103,7 +102,7 @@ func TestCmdSecret(t *testing.T) {
 				cmd := builder.cmd(nestedCmdFn)
 
 				if tt.command == "" {
-					tt.command = "find"
+					tt.command = "list"
 				}
 
 				cmd.SetArgs(append([]string{"secret", tt.command}, tt.flags...))
