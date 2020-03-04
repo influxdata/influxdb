@@ -25,7 +25,7 @@ import {
 import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 
 // Types
-import {RemoteDataState, VariableValues} from 'src/types'
+import {RemoteDataState, Variable, VariableValues} from 'src/types'
 import {AppState} from 'src/types'
 
 interface StateProps {
@@ -39,6 +39,7 @@ interface DispatchProps {
 }
 
 interface OwnProps {
+  variable?: Variable
   variableID: string
 }
 
@@ -105,7 +106,21 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState, ownProps: OwnProps) => {
   const valuesStatus = getTimeMachineValuesStatus(state)
-  const values = getTimeMachineValues(state, ownProps.variableID)
+  const {variableID} = ownProps
+  let values: VariableValues
+  if (variableID.includes('timeRange') || variableID.includes('windowPeriod')) {
+    const vals = ownProps.variable.arguments.values
+    const selectedValue = Object.values(vals).join('')
+    const selectedKey = Object.keys(vals).join('')
+    values = {
+      valueType: 'string',
+      values: vals,
+      selectedValue,
+      selectedKey,
+    }
+  } else {
+    values = getTimeMachineValues(state, variableID)
+  }
   return {values, valuesStatus}
 }
 

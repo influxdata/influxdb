@@ -4,6 +4,13 @@ import {get} from 'lodash'
 
 // Utils
 import {getVarAssignment} from 'src/variables/utils/getVarAssignment'
+import {
+  getActiveQuery,
+  getVariableAssignments as getTimeMachineVarAssignment,
+} from 'src/timeMachine/selectors'
+import {getTimeRangeAsVariable} from 'src/variables/utils/getTimeRangeVars'
+import {getTimeRange} from 'src/timeMachine/selectors'
+import {getWindowPeriodVariable} from 'src/variables/utils/getWindowVars'
 
 // Types
 import {
@@ -35,8 +42,24 @@ const extractVariablesListMemoized = memoizeOne(
   }
 )
 
+const extractWindowPeriodVariableMemoized = memoizeOne(
+  (state: AppState): Variable[] => {
+    const {text} = getActiveQuery(state)
+    const variables = getTimeMachineVarAssignment(state)
+    return getWindowPeriodVariable(text, variables) || []
+  }
+)
+
+export const extractTimeRangeVariablesMemoized = memoizeOne(
+  (state: AppState): Variable[] => getTimeRangeAsVariable(getTimeRange(state))
+)
+
 export const extractVariablesList = (state: AppState): Variable[] => {
-  return extractVariablesListMemoized(state.resources.variables.byID)
+  return [
+    ...extractVariablesListMemoized(state.resources.variables.byID),
+    ...extractWindowPeriodVariableMemoized(state),
+    ...extractTimeRangeVariablesMemoized(state),
+  ]
 }
 
 export const extractVariableEditorName = (state: AppState): string => {
