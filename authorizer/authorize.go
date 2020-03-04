@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb"
-	influxdbcontext "github.com/influxdata/influxdb/context"
+	icontext "github.com/influxdata/influxdb/context"
 )
 
 // IsAllowed checks to see if an action is authorized by retrieving the authorizer
@@ -17,11 +17,10 @@ func IsAllowed(ctx context.Context, p influxdb.Permission) error {
 // IsAllowedAll checks to see if an action is authorized by ALL permissions.
 // Also see IsAllowed.
 func IsAllowedAll(ctx context.Context, permissions []influxdb.Permission) error {
-	a, err := influxdbcontext.GetAuthorizer(ctx)
+	a, err := icontext.GetAuthorizer(ctx)
 	if err != nil {
 		return err
 	}
-
 	for _, p := range permissions {
 		if !a.Allowed(p) {
 			return &influxdb.Error{
@@ -30,6 +29,23 @@ func IsAllowedAll(ctx context.Context, permissions []influxdb.Permission) error 
 			}
 		}
 	}
-
 	return nil
+}
+
+// IsAllowedAll checks to see if an action is authorized by ALL permissions.
+// Also see IsAllowed.
+func IsAllowedAny(ctx context.Context, permissions []influxdb.Permission) error {
+	a, err := icontext.GetAuthorizer(ctx)
+	if err != nil {
+		return err
+	}
+	for _, p := range permissions {
+		if a.Allowed(p) {
+			return nil
+		}
+	}
+	return &influxdb.Error{
+		Code: influxdb.EUnauthorized,
+		Msg:  fmt.Sprintf("none of %v is authorized", permissions),
+	}
 }

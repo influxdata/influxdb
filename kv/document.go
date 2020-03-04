@@ -3,7 +3,6 @@ package kv
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"path"
 
 	"github.com/influxdata/influxdb"
@@ -20,6 +19,12 @@ func (s *Service) initializeDocuments(ctx context.Context, tx Tx) error {
 	}
 
 	return nil
+}
+
+// DocumentStore implements influxdb.DocumentStore.
+type DocumentStore struct {
+	service   *Service
+	namespace string
 }
 
 // CreateDocumentStore creates an instance of a document store by instantiating the buckets for the store.
@@ -87,273 +92,67 @@ func (s *Service) FindDocumentStore(ctx context.Context, ns string) (influxdb.Do
 	return ds, nil
 }
 
-// DocumentStore implements influxdb.DocumentStore.
-type DocumentStore struct {
-	service   *Service
-	namespace string
-}
-
 // CreateDocument creates an instance of a document and sets the ID. After which it applies each of the options provided.
-func (s *DocumentStore) CreateDocument(ctx context.Context, d *influxdb.Document, opts ...influxdb.DocumentOptions) error {
+func (s *DocumentStore) CreateDocument(ctx context.Context, d *influxdb.Document) error {
 	return s.service.kv.Update(ctx, func(tx Tx) error {
+		// Check that labels exist before creating the document.
+		// Mapping creation would check for that, but cannot anticipate that until we
+		// have a valid document ID.
+		for _, l := range d.Labels {
+			if _, err := s.service.findLabelByID(ctx, tx, l.ID); err != nil {
+				return err
+			}
+		}
+
 		err := s.service.createDocument(ctx, tx, s.namespace, d)
 		if err != nil {
 			return err
 		}
 
-		idx := &DocumentIndex{
-			service:  s.service,
-			tx:       tx,
-			ctx:      ctx,
-			writable: true,
-		}
-		for _, opt := range opts {
-			if err = opt(d.ID, idx); err != nil {
+		for orgID := range d.Organizations {
+			if err := s.service.addDocumentOwner(ctx, tx, orgID, d.ID); err != nil {
 				return err
 			}
 		}
 
-		if err = s.decorateDocumentWithLabels(ctx, tx, d); err != nil {
-			return err
+		for _, l := range d.Labels {
+			if err := s.addDocumentLabelMapping(ctx, tx, d.ID, l.ID); err != nil {
+				return err
+			}
 		}
-
 		return nil
 	})
-}
-
-// DocumentIndex implements influxdb.DocumentIndex. It is used to access labels/owners of documents.
-type DocumentIndex struct {
-	service  *Service
-	ctx      context.Context
-	tx       Tx
-	writable bool
-}
-
-// AddDocumentLabel creates a label mapping for the label provided.
-func (i *DocumentIndex) AddDocumentLabel(docID, labelID influxdb.ID) error {
-	m := &influxdb.LabelMapping{
-		LabelID:      labelID,
-		ResourceType: influxdb.DocumentsResourceType,
-		ResourceID:   docID,
-	}
-	if err := i.service.createLabelMapping(i.ctx, i.tx, m); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// RemoveDocumentLabel removes a label mapping for the label provided.
-func (i *DocumentIndex) RemoveDocumentLabel(docID, labelID influxdb.ID) error {
-	m := &influxdb.LabelMapping{
-		LabelID:      labelID,
-		ResourceType: influxdb.DocumentsResourceType,
-		ResourceID:   docID,
-	}
-	if err := i.service.deleteLabelMapping(i.ctx, i.tx, m); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// FindLabelByID retrieves a label by id.
-func (i *DocumentIndex) FindLabelByID(id influxdb.ID) error {
-	_, err := i.service.findLabelByID(i.ctx, i.tx, id)
-	return err
-}
-
-// AddDocumentOwner creates a urm for the document id and owner id provided.
-func (i *DocumentIndex) AddDocumentOwner(id influxdb.ID, ownerType string, ownerID influxdb.ID) error {
-	if err := i.ownerExists(ownerType, ownerID); err != nil {
-		return err
-	}
-
-	// TODO(desa): support users owning resources.
-
-	m := &influxdb.UserResourceMapping{
-		UserID:   ownerID,
-		UserType: influxdb.Owner,
-		// In this case UserID refers to an organization rather than a user.
-		MappingType:  influxdb.OrgMappingType,
-		ResourceType: influxdb.DocumentsResourceType,
-		ResourceID:   id,
-	}
-	return i.service.createUserResourceMapping(i.ctx, i.tx, m)
-}
-
-// RemoveDocumentOwner deletes the urm for the document id and owner id provided.
-func (i *DocumentIndex) RemoveDocumentOwner(id influxdb.ID, ownerType string, ownerID influxdb.ID) error {
-	return i.service.removeDocumentOwner(i.ctx, i.tx, ownerID, id)
-}
-
-// WithoutOwners removes all owners from a document. In particular it is used to cleanup urms on document delete.
-func WithoutOwners(id influxdb.ID, idx influxdb.DocumentIndex) error {
-	ownerIDs, err := idx.GetDocumentsAccessors(id)
-	if err != nil {
-		return err
-	}
-
-	for _, ownerID := range ownerIDs {
-		if err := idx.RemoveDocumentOwner(id, "org", ownerID); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// UsersOrgs retrieves a list of all orgs that a user is an accessor of.
-func (i *DocumentIndex) UsersOrgs(userID influxdb.ID) ([]influxdb.ID, error) {
-	f := influxdb.UserResourceMappingFilter{
-		UserID:       userID,
-		ResourceType: influxdb.OrgsResourceType,
-	}
-
-	ms, err := i.service.findUserResourceMappings(i.ctx, i.tx, f)
-	if err != nil {
-		return nil, err
-	}
-
-	ids := make([]influxdb.ID, 0, len(ms))
-	for _, m := range ms {
-		ids = append(ids, m.ResourceID)
-	}
-
-	return ids, nil
-}
-
-// IsOrgAccessor checks to see if the user is an accessor of the org provided. If the operation
-// is writable it ensures that the user is owner.
-func (i *DocumentIndex) IsOrgAccessor(userID influxdb.ID, orgID influxdb.ID) error {
-	f := influxdb.UserResourceMappingFilter{
-		UserID:       userID,
-		ResourceType: influxdb.OrgsResourceType,
-		ResourceID:   orgID,
-	}
-
-	if i.writable {
-		f.UserType = influxdb.Owner
-	}
-
-	ms, err := i.service.findUserResourceMappings(i.ctx, i.tx, f)
-	if err != nil {
-		return err
-	}
-
-	for _, m := range ms {
-		switch m.UserType {
-		case influxdb.Owner, influxdb.Member:
-			return nil
-		default:
-			continue
-		}
-	}
-
-	return &influxdb.Error{
-		Code: influxdb.EUnauthorized,
-		Msg:  "user is not org member",
-	}
-}
-
-func (i *DocumentIndex) ownerExists(ownerType string, ownerID influxdb.ID) error {
-	switch ownerType {
-	case "org":
-		if _, err := i.service.findOrganizationByID(i.ctx, i.tx, ownerID); err != nil {
-			return err
-		}
-	case "user":
-		if _, err := i.service.findUserByID(i.ctx, i.tx, ownerID); err != nil {
-			return err
-		}
-	default:
-		return &influxdb.Error{
-			Code: influxdb.EInternal,
-			Msg:  fmt.Sprintf("unknown owner type %q", ownerType),
-		}
-	}
-
-	return nil
-}
-
-// FindOrganizationByName retrieves the organization ID of the org provided.
-func (i *DocumentIndex) FindOrganizationByName(org string) (influxdb.ID, error) {
-	o, err := i.service.findOrganizationByName(i.ctx, i.tx, org)
-	if err != nil {
-		return influxdb.InvalidID(), err
-	}
-	return o.ID, nil
-}
-
-// FindOrganizationByID checks if the org existence by the org id provided.
-func (i *DocumentIndex) FindOrganizationByID(id influxdb.ID) error {
-	_, err := i.service.findOrganizationByID(i.ctx, i.tx, id)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// GetDocumentsAccessors retrieves the list of accessors of a document.
-func (i *DocumentIndex) GetDocumentsAccessors(docID influxdb.ID) ([]influxdb.ID, error) {
-	f := influxdb.UserResourceMappingFilter{
-		ResourceType: influxdb.DocumentsResourceType,
-		ResourceID:   docID,
-	}
-	if i.writable {
-		f.UserType = influxdb.Owner
-	}
-	ms, err := i.service.findUserResourceMappings(i.ctx, i.tx, f)
-	if err != nil {
-		return nil, err
-	}
-
-	ids := make([]influxdb.ID, 0, len(ms))
-	for _, m := range ms {
-		if m.MappingType == influxdb.UserMappingType {
-			continue
-		}
-		// TODO(desa): this is really an orgID, eventually we should support users and org as owners of documents
-		ids = append(ids, m.UserID)
-	}
-
-	return ids, nil
-}
-
-// GetAccessorsDocuments retrieves the list of documents a user is allowed to access.
-func (i *DocumentIndex) GetAccessorsDocuments(ownerType string, ownerID influxdb.ID) ([]influxdb.ID, error) {
-	if err := i.ownerExists(ownerType, ownerID); err != nil {
-		return nil, err
-	}
-
-	f := influxdb.UserResourceMappingFilter{
-		UserID:       ownerID,
-		ResourceType: influxdb.DocumentsResourceType,
-	}
-	if i.writable {
-		f.UserType = influxdb.Owner
-	}
-	ms, err := i.service.findUserResourceMappings(i.ctx, i.tx, f)
-	if err != nil {
-		return nil, err
-	}
-
-	ids := make([]influxdb.ID, 0, len(ms))
-	for _, m := range ms {
-		ids = append(ids, m.ResourceID)
-	}
-
-	return ids, nil
 }
 
 func (s *Service) createDocument(ctx context.Context, tx Tx, ns string, d *influxdb.Document) error {
 	d.ID = s.IDGenerator.ID()
 	d.Meta.CreatedAt = s.Now()
 	d.Meta.UpdatedAt = s.Now()
-	if err := s.putDocument(ctx, tx, ns, d); err != nil {
+	return s.putDocument(ctx, tx, ns, d)
+}
+
+// Affo: the only resource in which a org owns something and not a precise user.
+func (s *Service) addDocumentOwner(ctx context.Context, tx Tx, orgID influxdb.ID, docID influxdb.ID) error {
+	// In this case UserID refers to an organization rather than a user.
+	m := &influxdb.UserResourceMapping{
+		UserID:       orgID,
+		UserType:     influxdb.Owner,
+		MappingType:  influxdb.OrgMappingType,
+		ResourceType: influxdb.DocumentsResourceType,
+		ResourceID:   docID,
+	}
+	return s.createUserResourceMapping(ctx, tx, m)
+}
+
+func (s *DocumentStore) addDocumentLabelMapping(ctx context.Context, tx Tx, docID, labelID influxdb.ID) error {
+	m := &influxdb.LabelMapping{
+		LabelID:      labelID,
+		ResourceType: influxdb.DocumentsResourceType,
+		ResourceID:   docID,
+	}
+	if err := s.service.createLabelMapping(ctx, tx, m); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -478,44 +277,48 @@ func (s *Service) findDocumentContentByID(ctx context.Context, tx Tx, ns string,
 	return data, nil
 }
 
-// DocumentDecorator is used to communication the decoration of documents to the
-// document store.
-type DocumentDecorator struct {
-	data   bool
-	labels bool
+// FindDocument retrieves the specified document with all its content and labels.
+func (s *DocumentStore) FindDocument(ctx context.Context, id influxdb.ID) (*influxdb.Document, error) {
+	var d *influxdb.Document
+	err := s.service.kv.View(ctx, func(tx Tx) error {
+		m, err := s.service.findDocumentMetaByID(ctx, tx, s.namespace, id)
+		if err != nil {
+			return err
+		}
+		c, err := s.service.findDocumentContentByID(ctx, tx, s.namespace, id)
+		if err != nil {
+			return err
+		}
+		d = &influxdb.Document{
+			ID:      id,
+			Meta:    *m,
+			Content: c,
+		}
+		if err := s.decorateDocumentWithLabels(ctx, tx, d); err != nil {
+			return err
+		}
+		if err := s.decorateDocumentWithOrgs(ctx, tx, d); err != nil {
+			return err
+		}
 
-	writable bool
-}
+		return nil
+	})
 
-// IncludeContent signals that the document should include its content when returned.
-func (d *DocumentDecorator) IncludeContent() error {
-	if d.writable {
-		return &influxdb.Error{
-			Code: influxdb.EInternal,
-			Msg:  "cannot include data in document",
+	if IsNotFound(err) {
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Msg:  influxdb.ErrDocumentNotFound,
 		}
 	}
 
-	d.data = true
-
-	return nil
-}
-
-// IncludeLabels signals that the document should include its labels when returned.
-func (d *DocumentDecorator) IncludeLabels() error {
-	if d.writable {
-		return &influxdb.Error{
-			Code: influxdb.EInternal,
-			Msg:  "cannot include labels in document",
-		}
+	if err != nil {
+		return nil, err
 	}
 
-	d.labels = true
-
-	return nil
+	return d, nil
 }
 
-// FindDocuments retrieves all documenst returned by the document find options.
+// FindDocuments retrieves all documents returned by the document find options.
 func (s *DocumentStore) FindDocuments(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error) {
 	var ds []*influxdb.Document
 	err := s.service.kv.View(ctx, func(tx Tx) error {
@@ -529,9 +332,10 @@ func (s *DocumentStore) FindDocuments(ctx context.Context, opts ...influxdb.Docu
 		}
 
 		idx := &DocumentIndex{
-			service: s.service,
-			tx:      tx,
-			ctx:     ctx,
+			service:   s.service,
+			namespace: s.namespace,
+			tx:        tx,
+			ctx:       ctx,
 		}
 
 		dd := &DocumentDecorator{}
@@ -564,6 +368,14 @@ func (s *DocumentStore) FindDocuments(ctx context.Context, opts ...influxdb.Docu
 		if dd.labels {
 			for _, doc := range docs {
 				if err := s.decorateDocumentWithLabels(ctx, tx, doc); err != nil {
+					return err
+				}
+			}
+		}
+
+		if dd.orgs {
+			for _, doc := range docs {
+				if err := s.decorateDocumentWithOrgs(ctx, tx, doc); err != nil {
 					return err
 				}
 			}
@@ -615,18 +427,55 @@ func (s *Service) findDocuments(ctx context.Context, tx Tx, ns string, ds *[]*in
 	return nil
 }
 
+func (s *Service) getDocumentsAccessors(ctx context.Context, tx Tx, docID influxdb.ID) (map[influxdb.ID]influxdb.UserType, error) {
+	f := influxdb.UserResourceMappingFilter{
+		ResourceType: influxdb.DocumentsResourceType,
+		ResourceID:   docID,
+	}
+	ms, err := s.findUserResourceMappings(ctx, tx, f)
+	if err != nil {
+		return nil, err
+	}
+	// The only URM created when creating a document is
+	// from an org to the document (not a user).
+	orgs := make(map[influxdb.ID]influxdb.UserType, len(ms))
+	for _, m := range ms {
+		if m.MappingType == influxdb.OrgMappingType {
+			orgs[m.UserID] = m.UserType
+		}
+	}
+	return orgs, nil
+}
+
+// DeleteDocument removes the specified document.
+func (s *DocumentStore) DeleteDocument(ctx context.Context, id influxdb.ID) error {
+	return s.service.kv.Update(ctx, func(tx Tx) error {
+		if err := s.service.deleteDocument(ctx, tx, s.namespace, id); err != nil {
+			if IsNotFound(err) {
+				return &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Msg:  influxdb.ErrDocumentNotFound,
+				}
+			}
+			return err
+		}
+		return nil
+	})
+}
+
 // DeleteDocuments removes all documents returned by the options.
 func (s *DocumentStore) DeleteDocuments(ctx context.Context, opts ...influxdb.DocumentFindOptions) error {
 	return s.service.kv.Update(ctx, func(tx Tx) error {
 		idx := &DocumentIndex{
-			service:  s.service,
-			tx:       tx,
-			ctx:      ctx,
-			writable: true,
+			service:   s.service,
+			namespace: s.namespace,
+			tx:        tx,
+			ctx:       ctx,
+			writable:  true,
 		}
 		dd := &DocumentDecorator{writable: true}
 
-		ids := []influxdb.ID{}
+		var ids []influxdb.ID
 		for _, opt := range opts {
 			dids, err := opt(idx, dd)
 			if err != nil {
@@ -637,11 +486,6 @@ func (s *DocumentStore) DeleteDocuments(ctx context.Context, opts ...influxdb.Do
 		}
 
 		for _, id := range ids {
-			// This removed the documents owners
-			if err := WithoutOwners(id, idx); err != nil {
-				return err
-			}
-
 			if err := s.service.deleteDocument(ctx, tx, s.namespace, id); err != nil {
 				if IsNotFound(err) {
 					return &influxdb.Error{
@@ -656,28 +500,36 @@ func (s *DocumentStore) DeleteDocuments(ctx context.Context, opts ...influxdb.Do
 	})
 }
 
-func (s *Service) removeDocumentOwner(ctx context.Context, tx Tx, ownerID, resourceID influxdb.ID) error {
+func (s *Service) removeDocumentAccess(ctx context.Context, tx Tx, orgID, docID influxdb.ID) error {
 	filter := influxdb.UserResourceMappingFilter{
-		ResourceID: resourceID,
-		UserID:     ownerID,
+		ResourceID: docID,
+		UserID:     orgID,
 	}
-
 	if err := s.deleteUserResourceMapping(ctx, tx, filter); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (s *Service) deleteDocument(ctx context.Context, tx Tx, ns string, id influxdb.ID) error {
+	// Delete mappings.
+	orgs, err := s.getDocumentsAccessors(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	for orgID := range orgs {
+		if err := s.removeDocumentAccess(ctx, tx, orgID, id); err != nil {
+			return err
+		}
+	}
+
+	// Delete document.
 	if _, err := s.findDocumentMetaByID(ctx, tx, ns, id); err != nil {
 		return err
 	}
-
 	if err := s.deleteDocumentMeta(ctx, tx, ns, id); err != nil {
 		return err
 	}
-
 	if err := s.deleteDocumentContent(ctx, tx, ns, id); err != nil {
 		return err
 	}
@@ -714,20 +566,8 @@ func (s *Service) deleteDocumentMeta(ctx context.Context, tx Tx, ns string, id i
 }
 
 // UpdateDocument updates the document.
-func (s *DocumentStore) UpdateDocument(ctx context.Context, d *influxdb.Document, opts ...influxdb.DocumentOptions) error {
+func (s *DocumentStore) UpdateDocument(ctx context.Context, d *influxdb.Document) error {
 	return s.service.kv.Update(ctx, func(tx Tx) error {
-		idx := &DocumentIndex{
-			service:  s.service,
-			tx:       tx,
-			ctx:      ctx,
-			writable: true,
-		}
-		for _, opt := range opts {
-			if err := opt(d.ID, idx); err != nil {
-				return err
-			}
-		}
-
 		if err := s.service.updateDocument(ctx, tx, s.namespace, d); err != nil {
 			return err
 		}
@@ -751,7 +591,7 @@ func (s *Service) updateDocument(ctx context.Context, tx Tx, ns string, d *influ
 }
 
 func (s *DocumentStore) decorateDocumentWithLabels(ctx context.Context, tx Tx, d *influxdb.Document) error {
-	ls := []*influxdb.Label{}
+	var ls []*influxdb.Label
 	f := influxdb.LabelMappingFilter{
 		ResourceID:   d.ID,
 		ResourceType: influxdb.DocumentsResourceType,
@@ -761,5 +601,18 @@ func (s *DocumentStore) decorateDocumentWithLabels(ctx context.Context, tx Tx, d
 	}
 
 	d.Labels = append(d.Labels, ls...)
+	return nil
+}
+
+func (s *DocumentStore) decorateDocumentWithOrgs(ctx context.Context, tx Tx, d *influxdb.Document) error {
+	// If the orgs are already there, then this is a nop.
+	if len(d.Organizations) > 0 {
+		return nil
+	}
+	orgs, err := s.service.getDocumentsAccessors(ctx, tx, d.ID)
+	if err != nil {
+		return err
+	}
+	d.Organizations = orgs
 	return nil
 }
