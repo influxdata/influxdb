@@ -240,7 +240,6 @@ func TestCmdUser(t *testing.T) {
 				},
 				expected: called{name: "name1", id: 1},
 			},
-			// if alias commands fail with "unknown flag: --org-id", it's because the alias is missing
 			{
 				name:    "ls alias",
 				command: "ls",
