@@ -431,8 +431,8 @@ func TestCmdOrg(t *testing.T) {
 			}
 
 			testMemberFn(t, "list", cmdFn, tests...)
-			testMemberFn(t, "ls", cmdFn, tests[:0]...)
-			testMemberFn(t, "find", cmdFn, tests[:0]...)
+			testMemberFn(t, "ls", cmdFn, tests[0:1]...)
+			testMemberFn(t, "find", cmdFn, tests[0:1]...)
 		})
 
 		t.Run("add", func(t *testing.T) {
