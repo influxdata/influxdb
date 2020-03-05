@@ -41,7 +41,7 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
           />
           <Overlay.Body>
             <Tabs.Container orientation={Orientation.Horizontal}>
-              <Tabs alignment={Alignment.Center} size={ComponentSize.Small}>
+              <Tabs alignment={Alignment.Center} size={ComponentSize.Medium}>
                 <Tabs.Tab
                   id={SaveAsOption.Dashboard}
                   text="Dashboard Cell"

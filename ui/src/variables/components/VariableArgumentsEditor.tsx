@@ -24,14 +24,12 @@ class VariableArgumentsEditor extends PureComponent<Props> {
       case 'query':
         return (
           <Form.Element label="Script">
-            <Grid.Column>
-              <div className="overlay-flux-editor">
-                <FluxEditor
-                  script={args.values.query}
-                  onChangeScript={this.handleChangeQuery}
-                />
-              </div>
-            </Grid.Column>
+            <div className="overlay-flux-editor">
+              <FluxEditor
+                script={args.values.query}
+                onChangeScript={this.handleChangeQuery}
+              />
+            </div>
           </Form.Element>
         )
       case 'map':
