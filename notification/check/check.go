@@ -36,7 +36,7 @@ type Base struct {
 }
 
 // Valid returns err if the check is invalid.
-func (b Base) Valid() error {
+func (b Base) Valid(lang influxdb.FluxLanguageService) error {
 	if !b.ID.Valid() {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,

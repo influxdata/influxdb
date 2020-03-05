@@ -219,7 +219,7 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pkg, err := h.LanguageService.Parse(request.Query)
+	pkg, err := query.Parse(h.LanguageService, request.Query)
 	if err != nil {
 		h.HandleHTTPError(ctx, &influxdb.Error{
 			Code: influxdb.EInvalid,
