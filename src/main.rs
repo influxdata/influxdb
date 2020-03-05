@@ -42,7 +42,7 @@ struct WriteInfo {
     bucket_name: String,
 }
 
-async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, ApplicationError> {
+async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, ApplicationError> {
     let query = req.uri().query().ok_or(StatusCode::BAD_REQUEST)?;
     let write_info: WriteInfo =
         serde_urlencoded::from_str(query).map_err(|_| StatusCode::BAD_REQUEST)?;
@@ -89,7 +89,7 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applica
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    Ok(serde_json::json!(()).to_string().into())
+    Ok(None)
 }
 
 #[derive(Deserialize, Debug)]
@@ -118,7 +118,7 @@ fn duration_to_nanos_or_default(
 }
 
 // TODO: figure out how to stream read results out rather than rendering the whole thing in mem
-async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, ApplicationError> {
+async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, ApplicationError> {
     let query = req
         .uri()
         .query()
@@ -215,7 +215,7 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applicat
         response_body.append(&mut b"\n".to_vec());
     }
 
-    Ok(response_body.into())
+    Ok(Some(response_body.into()))
 }
 
 async fn service(req: hyper::Request<Body>, app: Arc<App>) -> http::Result<hyper::Response<Body>> {
@@ -229,8 +229,12 @@ async fn service(req: hyper::Request<Body>, app: Arc<App>) -> http::Result<hyper
     };
 
     match response {
-        Ok(body) => Ok(hyper::Response::builder()
+        Ok(Some(body)) => Ok(hyper::Response::builder()
             .body(body)
+            .expect("Should have been able to construct a response")),
+        Ok(None) => Ok(hyper::Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .body(Body::empty())
             .expect("Should have been able to construct a response")),
         Err(e) => {
             let json = serde_json::json!({"error": e.to_string()}).to_string();
