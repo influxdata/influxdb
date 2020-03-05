@@ -232,8 +232,20 @@ export const getVariableAssignments = (
 
 export const getTimeMachineValues = (
   state: AppState,
-  variableID: string
+  variableID: string,
+  variable?: Variable
 ): VariableValues => {
+  if (variableID.includes('timeRange') || variableID.includes('windowPeriod')) {
+    const vals = get(variable, 'arguments.values', {})
+    const selectedValue = Object.values(vals).join('')
+    const selectedKey = Object.keys(vals).join('')
+    return {
+      valueType: 'string',
+      values: vals,
+      selectedValue,
+      selectedKey,
+    }
+  }
   const activeTimeMachineID = state.timeMachines.activeTimeMachineID
   const values = get(
     state,

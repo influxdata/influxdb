@@ -107,20 +107,7 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
 const mstp = (state: AppState, ownProps: OwnProps) => {
   const valuesStatus = getTimeMachineValuesStatus(state)
   const {variableID} = ownProps
-  let values: VariableValues
-  if (variableID.includes('timeRange') || variableID.includes('windowPeriod')) {
-    const vals = ownProps.variable.arguments.values
-    const selectedValue = Object.values(vals).join('')
-    const selectedKey = Object.keys(vals).join('')
-    values = {
-      valueType: 'string',
-      values: vals,
-      selectedValue,
-      selectedKey,
-    }
-  } else {
-    values = getTimeMachineValues(state, variableID)
-  }
+  const values = getTimeMachineValues(state, variableID, ownProps.variable)
   return {values, valuesStatus}
 }
 
