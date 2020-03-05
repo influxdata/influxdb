@@ -24,7 +24,7 @@ $builder-card--header-margin: $ix-marg-b + $ix-border;
 
 .builder-card {
   border-radius: $radius;
-  background-color: $g4-onyx;
+  background-color: $g3-castle;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -34,7 +34,7 @@ $builder-card--header-margin: $ix-marg-b + $ix-border;
 
 .builder-card--header {
   flex: 0 0 $builder-card--header-height;
-  background-color: $g5-pepper;
+  background-color: $g4-onyx;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -43,7 +43,7 @@ $builder-card--header-margin: $ix-marg-b + $ix-border;
 .builder-card--title {
   display: inline-block;
   margin: 0 $builder-card--header-margin;
-  font-weight: 900;
+  font-weight: 700;
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0;
