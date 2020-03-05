@@ -114,6 +114,10 @@ const UpdateBucketOverlay: FunctionComponent<Props> = ({
     router.push(`/orgs/${orgID}/load-data/buckets`)
   }
 
+  const handleClickRename = () => {
+    router.push(`/orgs/${orgID}/load-data/buckets/${bucketID}/rename`)
+  }
+
   const rules = get(bucketDraft, 'retentionRules', [])
   const rule = rules.find(r => r.type === 'expire')
 
@@ -140,6 +144,7 @@ const UpdateBucketOverlay: FunctionComponent<Props> = ({
               retentionSeconds={retentionSeconds}
               onChangeRuleType={handleChangeRuleType}
               onChangeRetentionRule={handleChangeRetentionRule}
+              onClickRename={handleClickRename}
             />
           </Overlay.Body>
         </SpinnerContainer>

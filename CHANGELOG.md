@@ -1,6 +1,7 @@
 ## v2.0.0-beta.6 [unreleased]
 
 ### Features
+1. [17085](https://github.com/influxdata/influxdb/pull/17085): Clicking on bucket name takes user to Data Explorer with bucket selected
 
 1. [17095](https://github.com/influxdata/influxdb/pull/17095): Extend pkger dashboards with table view support
 
