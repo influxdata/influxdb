@@ -13,6 +13,10 @@ describe('Variables', () => {
 
   it('can create a variable', () => {
     cy.getByTestID('resource-card').should('have.length', 1)
+    // ensure that the default variables are not accessible on the Variables Tab
+    cy.getByTestID('resource-card').should('not.contain', 'timeRangeStart')
+    cy.getByTestID('resource-card').should('not.contain', 'timeRangeStop')
+    cy.getByTestID('resource-card').should('not.contain', 'windowPeriod')
 
     cy.getByTestID('add-resource-dropdown--button').click()
 

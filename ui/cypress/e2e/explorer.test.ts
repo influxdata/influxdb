@@ -535,8 +535,14 @@ describe('DataExplorer', () => {
       })
 
       cy.getByTestID('toolbar-tab').click()
+      // checks to see if the default variables exist
+      cy.get('.variables-toolbar--label').contains('timeRangeStart')
+      cy.get('.variables-toolbar--label').contains('timeRangeStop')
+      cy.get('.variables-toolbar--label').contains('windowPeriod')
       //insert variable name by clicking on variable
-      cy.get('.variables-toolbar--label').click()
+      cy.get('.variables-toolbar--label')
+        .first()
+        .click()
 
       cy.getByTestID('save-query-as').click()
       cy.getByTestID('task--radio-button').click()

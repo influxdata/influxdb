@@ -106,7 +106,12 @@ describe('Dashboard', () => {
           cy.getByTestID('add-cell--button').click()
           cy.getByTestID('switch-to-script-editor').click()
           cy.getByTestID('toolbar-tab').click()
-          cy.get('.variables-toolbar--label').click()
+          // check to see if the default timeRange variables are available
+          cy.get('.variables-toolbar--label').contains('timeRangeStart')
+          cy.get('.variables-toolbar--label').contains('timeRangeStop')
+          cy.get('.variables-toolbar--label')
+            .first()
+            .click()
           cy.getByTestID('save-cell--button').click()
 
           // selected value in dashboard is 1st value
@@ -135,7 +140,9 @@ describe('Dashboard', () => {
             .should('equal', secondKey)
 
           cy.getByTestID('toolbar-tab').click()
-          cy.get('.variables-toolbar--label').trigger('mouseover')
+          cy.get('.variables-toolbar--label')
+            .first()
+            .trigger('mouseover')
           // toggle the variable dropdown in the VEO cell dashboard
           cy.getByTestID('toolbar-popover--contents').within(() => {
             cy.getByTestID('dropdown--button').click()
