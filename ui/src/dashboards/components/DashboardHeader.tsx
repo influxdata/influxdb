@@ -79,7 +79,6 @@ type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
 class DashboardHeader extends Component<Props> {
   public render() {
     const {
-      org,
       dashboard,
       onManualRefresh,
       toggleShowVariablesControls,
@@ -92,7 +91,6 @@ class DashboardHeader extends Component<Props> {
       <>
         <Page.Header fullWidth={true}>
           <RenamablePageTitle
-            prefix={org && org.name}
             maxLength={DASHBOARD_NAME_MAX_LENGTH}
             onRename={this.handleRenameDashboard}
             name={dashboard && dashboard.name}
