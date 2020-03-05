@@ -400,7 +400,11 @@ func Test_decodeQueryRequest(t *testing.T) {
 		{
 			name: "valid query request",
 			args: args{
-				r: httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"query": "from()"}`)),
+				r: func() *http.Request {
+					r := httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"query": "from()"}`))
+					r.Header.Set("Content-Type", "application/json")
+					return r
+				}(),
 				svc: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 						return &platform.Organization{
@@ -454,14 +458,40 @@ func Test_decodeQueryRequest(t *testing.T) {
 		{
 			name: "error decoding json",
 			args: args{
-				r: httptest.NewRequest("POST", "/", bytes.NewBufferString(`error`)),
+				r: func() *http.Request {
+					r := httptest.NewRequest("POST", "/", bytes.NewBufferString(`error`))
+					r.Header.Set("Content-Type", "application/json")
+					return r
+				}(),
 			},
 			wantErr: true,
 		},
 		{
 			name: "error validating query",
 			args: args{
+				r: func() *http.Request {
+					r := httptest.NewRequest("POST", "/", bytes.NewBufferString(`{}`))
+					r.Header.Set("Content-Type", "application/json")
+					return r
+				}(),
+			},
+			wantErr: true,
+		},
+		{
+			name: "no content-type provided",
+			args: args{
 				r: httptest.NewRequest("POST", "/", bytes.NewBufferString(`{}`)),
+			},
+			wantErr: true,
+		},
+		{
+			name: "unsupported content-type",
+			args: args{
+				r: func() *http.Request {
+					r := httptest.NewRequest("POST", "/", bytes.NewBufferString(`{}`))
+					r.Header.Set("Content-Type", "plain/text")
+					return r
+				}(),
 			},
 			wantErr: true,
 		},
@@ -496,7 +526,11 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 		{
 			name: "valid post query request",
 			args: args{
-				r: httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"query": "from()"}`)),
+				r: func() *http.Request {
+					r := httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"query": "from()"}`))
+					r.Header.Set("Content-Type", "application/json")
+					return r
+				}(),
 				svc: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 						return &platform.Organization{
@@ -523,7 +557,8 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 		{
 			name: "valid query including extern definition",
 			args: args{
-				r: httptest.NewRequest("POST", "/", bytes.NewBufferString(`
+				r: func() *http.Request {
+					r := httptest.NewRequest("POST", "/", bytes.NewBufferString(`
 {
 	"extern": {
 		"type": "File",
@@ -546,7 +581,10 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 	},
 	"query": "from(bucket: \"mybucket\")"
 }
-`)),
+`))
+					r.Header.Set("Content-Type", "application/json")
+					return r
+				}(),
 				svc: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 						return &platform.Organization{
