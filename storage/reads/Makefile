@@ -1,14 +1,14 @@
 # List any generated files here
 TARGETS = array_cursor.gen.go \
 		response_writer.gen.go \
-		table.gen.go
+		flux_table.gen.go
 
 # List any source files used to generate the targets here
 SOURCES = gen.go \
 	array_cursor.gen.go.tmpl \
 	array_cursor.gen.go.tmpldata \
 	response_writer.gen.go.tmpl \
-	table.gen.go.tmpl \
+	flux_table.gen.go.tmpl \
 	types.tmpldata
 
 # List any directories that have their own Makefile here
