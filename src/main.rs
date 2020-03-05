@@ -315,7 +315,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(addr) => addr
             .parse()
             .expect("DELOREAN_GRPC_BIND_ADDR environment variable not a valid SocketAddr"),
-        Err(VarError::NotPresent) => "127.0.0.1:8081".parse().unwrap(),
+        Err(VarError::NotPresent) => "127.0.0.1:8082".parse().unwrap(),
         Err(VarError::NotUnicode(_)) => {
             panic!("DELOREAN_GRPC_BIND_ADDR environment variable not a valid unicode string")
         }

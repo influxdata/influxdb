@@ -27,7 +27,7 @@ use std::u32;
 use tempfile::TempDir;
 
 const URL_BASE: &str = "http://localhost:8080/api/v2";
-const GRPC_URL_BASE: &str = "http://localhost:8081/";
+const GRPC_URL_BASE: &str = "http://localhost:8082/";
 
 mod grpc {
     tonic::include_proto!("delorean");
