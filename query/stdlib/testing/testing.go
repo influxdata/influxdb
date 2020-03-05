@@ -130,9 +130,6 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"emptyTable": "tests a source",
 		"year":       "flakey test: https://github.com/influxdata/influxdb/issues/15667",
 	},
-	"testing/usage": {
-		"storage": "algo-w: https://github.com/influxdata/flux/issues/2570",
-	},
 	"testing/influxql": {
 		"aggregate_group_by_time": "algo-w: https://github.com/influxdata/influxdb/issues/17064",
 	},
