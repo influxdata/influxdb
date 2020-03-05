@@ -2,7 +2,6 @@
 
 ### Features
 1. [17085](https://github.com/influxdata/influxdb/pull/17085): Clicking on bucket name takes user to Data Explorer with bucket selected
-
 1. [17095](https://github.com/influxdata/influxdb/pull/17095): Extend pkger dashboards with table view support
 
 ### Bug Fixes
@@ -13,6 +12,7 @@
 1. [17028](https://github.com/influxdata/influxdb/pull/17028): Fixed issue where selecting an aggregate function in the script editor was not adding the function to a new line
 1. [17072](https://github.com/influxdata/influxdb/pull/17072): Fixed issue where creating a variable of type map was piping the incorrect value when map variables were used in queries
 1. [17050](https://github.com/influxdata/influxdb/pull/17050): Added missing user names to auth CLI commands
+1. [17091](https://github.com/influxdata/influxdb/pull/17091): Require Content-Type for query endpoint
 
 ## v2.0.0-beta.5 [2020-02-27]
 
