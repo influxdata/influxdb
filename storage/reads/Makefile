@@ -1,8 +1,6 @@
 # List any generated files here
 TARGETS = array_cursor.gen.go \
 		response_writer.gen.go \
-		stream_reader.gen.go \
-		stream_reader_gen_test.go \
 		table.gen.go
 
 # List any source files used to generate the targets here
@@ -10,8 +8,6 @@ SOURCES = gen.go \
 	array_cursor.gen.go.tmpl \
 	array_cursor.gen.go.tmpldata \
 	response_writer.gen.go.tmpl \
-	stream_reader.gen.go.tmpl \
-	stream_reader_gen_test.go.tmpl \
 	table.gen.go.tmpl \
 	types.tmpldata
 
