@@ -1,6 +1,12 @@
 package influxdb
 
-import "github.com/influxdata/flux/ast"
+import (
+	"context"
+
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/interpreter"
+	"github.com/influxdata/flux/values"
+)
 
 // TODO(desa): These files are possibly a temporary. This is needed
 // as a part of the source work that is being done.
@@ -19,4 +25,7 @@ type FluxLanguageService interface {
 	// An ast.Package may be returned when a parsing error occurs,
 	// but it may be null if parsing didn't even occur.
 	Parse(source string) (*ast.Package, error)
+
+	// EvalAST will evaluate and run an AST.
+	EvalAST(ctx context.Context, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error)
 }

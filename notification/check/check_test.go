@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/notification"
+	"github.com/influxdata/influxdb/query/fluxlang"
 
 	"github.com/influxdata/influxdb/mock"
 
@@ -156,7 +157,7 @@ func TestValidCheck(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		got := c.src.Valid()
+		got := c.src.Valid(fluxlang.DefaultService)
 		influxTesting.ErrorsEqual(t, got, c.err)
 	}
 }

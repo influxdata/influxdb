@@ -480,7 +480,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	serviceConfig := kv.ServiceConfig{
-		SessionLength: time.Duration(m.sessionLength) * time.Minute,
+		SessionLength:       time.Duration(m.sessionLength) * time.Minute,
+		FluxLanguageService: fluxlang.DefaultService,
 	}
 
 	flushers := flushers{}

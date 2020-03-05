@@ -2,8 +2,13 @@
 package fluxlang
 
 import (
+	"context"
+
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/parser"
+	"github.com/influxdata/flux/runtime"
+	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb"
 )
 
@@ -18,4 +23,8 @@ func (d defaultService) Parse(source string) (pkg *ast.Package, err error) {
 		err = ast.GetError(pkg)
 	}
 	return pkg, err
+}
+
+func (d defaultService) EvalAST(ctx context.Context, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error) {
+	return runtime.EvalAST(ctx, astPkg)
 }

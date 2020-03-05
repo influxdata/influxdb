@@ -3,6 +3,7 @@ package options
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,8 +11,7 @@ import (
 	"github.com/influxdata/cron"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/flux/parser"
-	"github.com/influxdata/flux/runtime"
+	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/pkg/pointer"
@@ -67,17 +67,6 @@ func MustParseDuration(s string) (dur *Duration) {
 		panic(err)
 	}
 	return dur
-}
-
-// parseSignedDuration is a helper wrapper around parser.ParseSignedDuration.
-// We use it because we need to clear the basenode, but flux does not.
-func parseSignedDuration(text string) (*ast.DurationLiteral, error) {
-	q, err := parser.ParseSignedDuration(text)
-	if err != nil {
-		return nil, err
-	}
-	q.BaseNode = ast.BaseNode{}
-	return q, err
 }
 
 // UnmarshalText unmarshals text into a Duration.
@@ -203,18 +192,30 @@ func newDeps() flux.Dependencies {
 	return deps
 }
 
+// FluxLanguageService is a service for interacting with flux code.
+type FluxLanguageService interface {
+	// Parse will take flux source code and produce a package.
+	// If there are errors when parsing, the first error is returned.
+	// An ast.Package may be returned when a parsing error occurs,
+	// but it may be null if parsing didn't even occur.
+	Parse(source string) (*ast.Package, error)
+
+	// EvalAST will evaluate and run an AST.
+	EvalAST(ctx context.Context, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error)
+}
+
 // FromScript extracts Options from a Flux script.
-func FromScript(script string) (Options, error) {
+func FromScript(lang FluxLanguageService, script string) (Options, error) {
 	opt := Options{Retry: pointer.Int64(1), Concurrency: pointer.Int64(1)}
 
-	fluxAST, err := runtime.Parse(script)
+	fluxAST, err := parse(lang, script)
 	if err != nil {
 		return opt, err
 	}
 	durTypes := grabTaskOptionAST(fluxAST, optEvery, optOffset)
 	// TODO(desa): should be dependencies.NewEmpty(), but for now we'll hack things together
 	ctx := newDeps().Inject(context.Background())
-	_, scope, err := runtime.EvalAST(ctx, fluxAST)
+	_, scope, err := evalAST(ctx, lang, fluxAST)
 	if err != nil {
 		return opt, err
 	}
@@ -429,4 +430,27 @@ func validateOptionNames(o values.Object) error {
 	}
 
 	return nil
+}
+
+// parse will take flux source code and produce a package.
+// If there are errors when parsing, the first error is returned.
+// An ast.Package may be returned when a parsing error occurs,
+// but it may be null if parsing didn't even occur.
+//
+// This will return an error if the FluxLanguageService is nil.
+func parse(lang FluxLanguageService, source string) (*ast.Package, error) {
+	if lang == nil {
+		return nil, errors.New("flux is not configured; cannot parse")
+	}
+	return lang.Parse(source)
+}
+
+// EvalAST will evaluate and run an AST.
+//
+// This will return an error if the FluxLanguageService is nil.
+func evalAST(ctx context.Context, lang FluxLanguageService, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error) {
+	if lang == nil {
+		return nil, nil, errors.New("flux is not configured; cannot evaluate")
+	}
+	return lang.EvalAST(ctx, astPkg)
 }

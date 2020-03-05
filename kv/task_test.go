@@ -13,6 +13,7 @@ import (
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kv"
 	_ "github.com/influxdata/influxdb/query/builtin"
+	"github.com/influxdata/influxdb/query/fluxlang"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/servicetest"
 	"go.uber.org/zap/zaptest"
@@ -27,7 +28,9 @@ func TestBoltTaskService(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			service := kv.NewService(zaptest.NewLogger(t), store)
+			service := kv.NewService(zaptest.NewLogger(t), store, kv.ServiceConfig{
+				FluxLanguageService: fluxlang.DefaultService,
+			})
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			if err := service.Initialize(ctx); err != nil {
 				t.Fatalf("error initializing urm service: %v", err)
@@ -78,7 +81,10 @@ func newService(t *testing.T, ctx context.Context, c clock.Clock) *testService {
 		t.Fatal("failed to create InmemStore", err)
 	}
 
-	ts.Service = kv.NewService(zaptest.NewLogger(t), ts.Store, kv.ServiceConfig{Clock: c})
+	ts.Service = kv.NewService(zaptest.NewLogger(t), ts.Store, kv.ServiceConfig{
+		Clock:               c,
+		FluxLanguageService: fluxlang.DefaultService,
+	})
 	err = ts.Service.Initialize(ctx)
 	if err != nil {
 		t.Fatal("Service.Initialize", err)
@@ -246,7 +252,9 @@ func TestTaskRunCancellation(t *testing.T) {
 	}
 	defer close()
 
-	service := kv.NewService(zaptest.NewLogger(t), store)
+	service := kv.NewService(zaptest.NewLogger(t), store, kv.ServiceConfig{
+		FluxLanguageService: fluxlang.DefaultService,
+	})
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	if err := service.Initialize(ctx); err != nil {
 		t.Fatalf("error initializing urm service: %v", err)

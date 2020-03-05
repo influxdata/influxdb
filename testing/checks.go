@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
@@ -22,6 +23,7 @@ func mustDuration(d string) *notification.Duration {
 	if err != nil {
 		panic(err)
 	}
+	dur.BaseNode = ast.BaseNode{}
 
 	return (*notification.Duration)(dur)
 }

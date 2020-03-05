@@ -31,6 +31,11 @@ type Service struct {
 
 	IDGenerator influxdb.IDGenerator
 
+	// FluxLanguageService is used for parsing flux.
+	// If this is unset, operations that require parsing flux
+	// will fail.
+	FluxLanguageService influxdb.FluxLanguageService
+
 	// special ID generator that never returns bytes with backslash,
 	// comma, or space. Used to support very specific encoding of org &
 	// bucket into the old measurement in storage.
@@ -73,14 +78,16 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 	if s.clock == nil {
 		s.clock = clock.New()
 	}
+	s.FluxLanguageService = s.Config.FluxLanguageService
 
 	return s
 }
 
 // ServiceConfig allows us to configure Services
 type ServiceConfig struct {
-	SessionLength time.Duration
-	Clock         clock.Clock
+	SessionLength       time.Duration
+	Clock               clock.Clock
+	FluxLanguageService influxdb.FluxLanguageService
 }
 
 // Initialize creates Buckets needed.

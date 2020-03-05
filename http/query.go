@@ -157,7 +157,7 @@ func (r QueryRequest) Analyze(l influxdb.FluxLanguageService) (*QueryAnalysis, e
 
 func (r QueryRequest) analyzeFluxQuery(l influxdb.FluxLanguageService) (*QueryAnalysis, error) {
 	a := &QueryAnalysis{}
-	pkg, err := l.Parse(r.Query)
+	pkg, err := query.Parse(l, r.Query)
 	if pkg == nil {
 		return nil, err
 	}

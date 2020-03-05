@@ -6,6 +6,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/query/fluxlang"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -28,7 +29,9 @@ func initBoltCheckService(f influxdbtesting.CheckFields, t *testing.T) (influxdb
 }
 
 func initCheckService(s kv.Store, f influxdbtesting.CheckFields, t *testing.T) (influxdb.CheckService, string, func()) {
-	svc := kv.NewService(zaptest.NewLogger(t), s)
+	svc := kv.NewService(zaptest.NewLogger(t), s, kv.ServiceConfig{
+		FluxLanguageService: fluxlang.DefaultService,
+	})
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
