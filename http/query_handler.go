@@ -17,7 +17,6 @@ import (
 	"github.com/influxdata/flux/complete"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/iocounter"
-	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
@@ -46,6 +45,7 @@ type FluxBackend struct {
 
 	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
+	FluxLanguageService influxdb.FluxLanguageService
 }
 
 // NewFluxBackend returns a new instance of FluxBackend.
@@ -57,6 +57,7 @@ func NewFluxBackend(log *zap.Logger, b *APIBackend) *FluxBackend {
 
 		ProxyQueryService:   b.FluxService,
 		OrganizationService: b.OrganizationService,
+		FluxLanguageService: b.FluxLanguageService,
 	}
 }
 
@@ -74,6 +75,7 @@ type FluxHandler struct {
 	Now                 func() time.Time
 	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
+	LanguageService     influxdb.FluxLanguageService
 
 	EventRecorder metric.EventRecorder
 }
@@ -94,6 +96,7 @@ func NewFluxHandler(log *zap.Logger, b *FluxBackend) *FluxHandler {
 		ProxyQueryService:   b.ProxyQueryService,
 		OrganizationService: b.OrganizationService,
 		EventRecorder:       b.QueryEventRecorder,
+		LanguageService:     b.FluxLanguageService,
 	}
 
 	// query reponses can optionally be gzip encoded
@@ -216,9 +219,8 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pkg := parser.ParseSource(request.Query)
-	if ast.Check(pkg) > 0 {
-		err := ast.GetError(pkg)
+	pkg, err := h.LanguageService.Parse(request.Query)
+	if err != nil {
 		h.HandleHTTPError(ctx, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "invalid AST",
@@ -254,7 +256,7 @@ func (h *FluxHandler) postQueryAnalyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a, err := req.Analyze()
+	a, err := req.Analyze(h.LanguageService)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return

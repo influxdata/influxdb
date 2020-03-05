@@ -18,7 +18,6 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/jsonweb"
@@ -145,10 +144,10 @@ type queryParseError struct {
 
 // Analyze attempts to parse the query request and returns any errors
 // encountered in a structured way.
-func (r QueryRequest) Analyze() (*QueryAnalysis, error) {
+func (r QueryRequest) Analyze(l influxdb.FluxLanguageService) (*QueryAnalysis, error) {
 	switch r.Type {
 	case "flux":
-		return r.analyzeFluxQuery()
+		return r.analyzeFluxQuery(l)
 	case "influxql":
 		return r.analyzeInfluxQLQuery()
 	}
@@ -156,9 +155,12 @@ func (r QueryRequest) Analyze() (*QueryAnalysis, error) {
 	return nil, fmt.Errorf("unknown query request type %s", r.Type)
 }
 
-func (r QueryRequest) analyzeFluxQuery() (*QueryAnalysis, error) {
+func (r QueryRequest) analyzeFluxQuery(l influxdb.FluxLanguageService) (*QueryAnalysis, error) {
 	a := &QueryAnalysis{}
-	pkg := parser.ParseSource(r.Query)
+	pkg, err := l.Parse(r.Query)
+	if pkg == nil {
+		return nil, err
+	}
 	errCount := ast.Check(pkg)
 	if errCount == 0 {
 		a.Errors = []queryParseError{}

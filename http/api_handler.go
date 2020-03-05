@@ -72,6 +72,7 @@ type APIBackend struct {
 	OnboardingService               influxdb.OnboardingService
 	InfluxQLService                 query.ProxyQueryService
 	FluxService                     query.ProxyQueryService
+	FluxLanguageService             influxdb.FluxLanguageService
 	TaskService                     influxdb.TaskService
 	CheckService                    influxdb.CheckService
 	TelegrafService                 influxdb.TelegrafConfigStore
