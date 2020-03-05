@@ -181,4 +181,3 @@ func toComparisonOperator(o ast.OperatorKind) (datatypes.Node_Comparison, error)
 		return 0, fmt.Errorf("unknown operator %v", o)
 	}
 }
-
