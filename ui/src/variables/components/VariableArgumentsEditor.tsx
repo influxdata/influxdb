@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 // Components
 import MapVariableBuilder from 'src/variables/components/MapVariableBuilder'
 import CSVVariableBuilder from 'src/variables/components/CSVVariableBuilder'
-import {Form, Grid} from '@influxdata/clockface'
+import {Form} from '@influxdata/clockface'
 
 import FluxEditor from 'src/shared/components/FluxMonacoEditor'
 

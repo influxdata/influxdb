@@ -52,7 +52,6 @@ const RenamablePageTitle: FC<Props> = ({
     if (e.key === 'Enter') {
       onRename(workingName)
       setEditingState(false)
-      this.setState({isEditing: false})
     }
 
     if (e.key === 'Escape') {
