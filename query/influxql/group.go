@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 )
@@ -295,6 +296,8 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 	tags := []ast.Expression{
 		&ast.StringLiteral{Value: "_measurement"},
 		&ast.StringLiteral{Value: "_start"},
+		&ast.StringLiteral{Value: "_stop"},
+		&ast.StringLiteral{Value: "_field"},
 	}
 	if len(t.stmt.Dimensions) > 0 {
 		// Maintain a set of the dimensions we have encountered.
@@ -408,6 +411,32 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 								},
 							},
 						},
+					},
+				},
+			},
+		},
+		cursor: in,
+	}
+
+	in = &pipeCursor{
+		expr: &ast.PipeExpression{
+			Argument: in.Expr(),
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: "keep",
+				},
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: []*ast.Property{{
+							Key: &ast.Identifier{
+								Name: "columns",
+							},
+							Value: &ast.ArrayExpression{
+								Elements: append(tags,
+									&ast.StringLiteral{Value: execute.DefaultTimeColLabel},
+									&ast.StringLiteral{Value: execute.DefaultValueColLabel}),
+							},
+						}},
 					},
 				},
 			},

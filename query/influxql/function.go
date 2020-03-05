@@ -317,8 +317,33 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 					Name: execute.DefaultStartColLabel,
 				},
 			}
+		} else if isTransformation(call) || influxql.IsSelector(call) {
+			timeValue = &ast.MemberExpression{
+				Object: &ast.Identifier{
+					Name: "r",
+				},
+				Property: &ast.Identifier{
+					Name: execute.DefaultTimeColLabel,
+				},
+			}
 		} else {
-			timeValue = &ast.DateTimeLiteral{Value: time.Unix(0, 0).UTC()}
+			valuer := influxql.NowValuer{Now: t.config.Now}
+			_, tr, err := influxql.ConditionExpr(t.stmt.Condition, &valuer)
+			if err != nil {
+				return nil, err
+			}
+			if tr.MinTime().UnixNano() == influxql.MinTime {
+				timeValue = &ast.DateTimeLiteral{Value: time.Unix(0, 0).UTC()}
+			} else {
+				timeValue = &ast.MemberExpression{
+					Object: &ast.Identifier{
+						Name: "r",
+					},
+					Property: &ast.Identifier{
+						Name: execute.DefaultStartColLabel,
+					},
+				}
+			}
 		}
 		cur.expr = &ast.PipeExpression{
 			Argument: cur.expr,
@@ -347,31 +372,6 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 								},
 							},
 						},
-					},
-				},
-			},
-		}
-	} else {
-		cur.expr = &ast.PipeExpression{
-			Argument: cur.expr,
-			Call: &ast.CallExpression{
-				Callee: &ast.Identifier{
-					Name: "drop",
-				},
-				Arguments: []ast.Expression{
-					&ast.ObjectExpression{
-						Properties: []*ast.Property{{
-							Key: &ast.Identifier{
-								Name: "columns",
-							},
-							Value: &ast.ArrayExpression{
-								Elements: []ast.Expression{
-									&ast.StringLiteral{Value: execute.DefaultStartColLabel},
-									&ast.StringLiteral{Value: execute.DefaultStopColLabel},
-									&ast.StringLiteral{Value: "_field"},
-								},
-							},
-						}},
 					},
 				},
 			},
