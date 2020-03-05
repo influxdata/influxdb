@@ -46,7 +46,7 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 			// Skip past any time columns.
 			continue
 		}
-		fieldName, err := t.mapField(f.Expr, in)
+		fieldName, err := t.mapField(f.Expr, in, false)
 		if err != nil {
 			return nil, err
 		}
@@ -79,13 +79,19 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 	}, nil
 }
 
-func (t *transpilerState) mapField(expr influxql.Expr, in cursor) (ast.Expression, error) {
+func (t *transpilerState) mapField(expr influxql.Expr, in cursor, returnMemberExpr bool) (ast.Expression, error) {
 	if sym, ok := in.Value(expr); ok {
 		var mappedName ast.Expression
 		if strings.HasPrefix(sym, "_") {
 			mappedName = &ast.Identifier{Name: sym}
 		} else {
 			mappedName = &ast.StringLiteral{Value: sym}
+		}
+		if returnMemberExpr {
+			return &ast.MemberExpression{
+				Object:   &ast.Identifier{Name: "r"},
+				Property: mappedName.(ast.PropertyKey),
+			}, nil
 		}
 		return mappedName, nil
 	}
@@ -101,7 +107,7 @@ func (t *transpilerState) mapField(expr influxql.Expr, in cursor) (ast.Expressio
 	case *influxql.BinaryExpr:
 		return t.evalBinaryExpr(expr, in)
 	case *influxql.ParenExpr:
-		return t.mapField(expr.Expr, in)
+		return t.mapField(expr.Expr, in, returnMemberExpr)
 	case *influxql.StringLiteral:
 		if ts, err := expr.ToTimeLiteral(time.UTC); err == nil {
 			return &ast.DateTimeLiteral{Value: ts.Val}, nil
@@ -164,11 +170,11 @@ func (t *transpilerState) evalBinaryExpr(expr *influxql.BinaryExpr, in cursor) (
 		return nil, fmt.Errorf("unimplemented binary expression: %s", expr.Op)
 	}
 
-	lhs, err := t.mapField(expr.LHS, in)
+	lhs, err := t.mapField(expr.LHS, in, true)
 	if err != nil {
 		return nil, err
 	}
-	rhs, err := t.mapField(expr.RHS, in)
+	rhs, err := t.mapField(expr.RHS, in, true)
 	if err != nil {
 		return nil, err
 	}

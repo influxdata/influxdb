@@ -200,7 +200,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 	// Evaluate the conditional and insert a filter if a condition exists.
 	if cond != nil {
 		// // Generate a filter expression by evaluating the condition and wrapping it in a filter op.
-		expr, err := t.mapField(cond, cur)
+		expr, err := t.mapField(cond, cur, true)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to evaluate condition")
 		}
