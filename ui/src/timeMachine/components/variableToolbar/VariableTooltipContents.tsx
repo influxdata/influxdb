@@ -8,6 +8,7 @@ import {
   Form,
   SelectDropdown,
   IconFont,
+  Dropdown,
   ComponentStatus,
 } from '@influxdata/clockface'
 
@@ -87,18 +88,36 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
     selectedOption = get(values, 'selectedKey', 'None Selected')
   }
 
+  const button = () => (
+    <Dropdown.Button status={ComponentStatus.Disabled} onClick={() => {}}>
+      {selectedOption}
+    </Dropdown.Button>
+  )
+
+  const menu = () => null
+
   return (
     <div onMouseEnter={handleMouseEnter}>
       <Form.Element label="Value">
-        <SelectDropdown
-          buttonIcon={icon}
-          options={dropdownItems as string[]}
-          selectedOption={selectedOption}
-          testID="variable--tooltip-dropdown"
-          buttonStatus={status}
-          style={{width: '200px'}}
-          onSelect={value => onSelectVariableValue(variableID, value)}
-        />
+        {dropdownItems.length === 1 && (
+          <Dropdown
+            button={button}
+            style={{width: '200px'}}
+            menu={menu}
+            testID="variable--tooltip-dropdown"
+          />
+        )}
+        {dropdownItems.length !== 1 && (
+          <SelectDropdown
+            buttonIcon={icon}
+            options={dropdownItems as string[]}
+            selectedOption={selectedOption}
+            testID="variable--tooltip-dropdown"
+            buttonStatus={status}
+            style={{width: '200px'}}
+            onSelect={value => onSelectVariableValue(variableID, value)}
+          />
+        )}
       </Form.Element>
     </div>
   )
