@@ -109,8 +109,8 @@ const CheckEOHeader: FC<Props> = ({
     checkType === 'threshold' && thresholds && !!thresholds.length
 
   return (
-    <Page.ControlBar fullWidth={true}>
-      <Page.ControlBarLeft>
+    <>
+      <Page.Header fullWidth={true}>
         <RenamablePageTitle
           name={name}
           onRename={onSetName}
@@ -118,33 +118,35 @@ const CheckEOHeader: FC<Props> = ({
           maxLength={CHECK_NAME_MAX_LENGTH}
           onClickOutside={handleClickOutsideTitle}
         />
-      </Page.ControlBarLeft>
-      <Page.ControlBarCenter>
-        {activeTab !== 'customCheckQuery' && (
-          <CheckAlertingButton
-            activeTab={activeTab}
-            draftQueries={draftQueries}
-            setActiveTab={setActiveTab}
+      </Page.Header>
+      <Page.ControlBar fullWidth={true}>
+        <Page.ControlBarLeft>
+          {activeTab !== 'customCheckQuery' && (
+            <CheckAlertingButton
+              activeTab={activeTab}
+              draftQueries={draftQueries}
+              setActiveTab={setActiveTab}
+            />
+          )}
+        </Page.ControlBarLeft>
+        <Page.ControlBarRight>
+          <SquareButton
+            icon={IconFont.Remove}
+            onClick={onCancel}
+            size={ComponentSize.Small}
           />
-        )}
-      </Page.ControlBarCenter>
-      <Page.ControlBarRight>
-        <SquareButton
-          icon={IconFont.Remove}
-          onClick={onCancel}
-          size={ComponentSize.Small}
-        />
-        <CheckEOSaveButton
-          status={saveButtonStatus()}
-          onSave={handleSave}
-          className={saveButtonClass}
-          checkType={checkType}
-          singleField={singleField}
-          singleAggregateFunc={singleAggregateFunc}
-          oneOrMoreThresholds={oneOrMoreThresholds}
-        />
-      </Page.ControlBarRight>
-    </Page.ControlBar>
+          <CheckEOSaveButton
+            status={saveButtonStatus()}
+            onSave={handleSave}
+            className={saveButtonClass}
+            checkType={checkType}
+            singleField={singleField}
+            singleAggregateFunc={singleAggregateFunc}
+            oneOrMoreThresholds={oneOrMoreThresholds}
+          />
+        </Page.ControlBarRight>
+      </Page.ControlBar>
+    </>
   )
 }
 

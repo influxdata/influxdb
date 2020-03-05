@@ -10,6 +10,7 @@ $renamable-page-title--padding: 0;
   width: 100%;
   position: relative;
   height: $renamable-page-title--height;
+  font-size: $cf-body-text;
 
   &:hover,
   &:hover * {
@@ -49,11 +50,11 @@ $renamable-page-title--padding: 0;
   transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
   line-height: $renamable-page-title--height - $ix-border;
   border: $cf-border solid transparent;
+}
 
-  &.untitled {
-    color: $g9-mountain;
-    font-style: italic;
-  }
+.renamable-page-title.untitled > .cf-heading.cf-page--title {
+  color: $g9-mountain;
+  font-style: italic;
 }
 
 .renamable-page-title:hover > .cf-heading.cf-page--title {
