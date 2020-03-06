@@ -196,7 +196,7 @@ func newNotificationEndpointsResponse(ctx context.Context, edps []influxdb.Notif
 		Links:                 newPagingLinks(prefixNotificationEndpoints, opts, f, len(edps)),
 	}
 	for i, edp := range edps {
-		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
+		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID(), ResourceType: influxdb.NotificationEndpointResourceType})
 		resp.NotificationEndpoints[i] = newNotificationEndpointResponse(edp, labels)
 	}
 	return resp
@@ -253,7 +253,7 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoint(w http.Respo
 	}
 	h.log.Debug("NotificationEndpoint retrieved", zap.String("notificationEndpoint", fmt.Sprint(edp)))
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID(), ResourceType: influxdb.NotificationEndpointResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -478,7 +478,7 @@ func (h *NotificationEndpointHandler) handlePutNotificationEndpoint(w http.Respo
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID(), ResourceType: influxdb.NotificationEndpointResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -507,7 +507,7 @@ func (h *NotificationEndpointHandler) handlePatchNotificationEndpoint(w http.Res
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID(), ResourceType: influxdb.NotificationEndpointResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return

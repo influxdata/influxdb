@@ -509,7 +509,7 @@ func TestLabelService_CreateLabel(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to create label",
+			name: "unauthorized to create label with read only permission",
 			fields: fields{
 				LabelService: &mock.LabelService{
 					CreateLabelFn: func(ctx context.Context, l *influxdb.Label) error {
@@ -527,11 +527,14 @@ func TestLabelService_CreateLabel(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: nil,
+				err: &influxdb.Error{
+					Msg:  "write:orgs/020f755c3c083000 is unauthorized",
+					Code: influxdb.EUnauthorized,
+				},
 			},
 		},
 		{
-			name: "unauthorized to create label",
+			name: "unauthorized to create label with incomplete write permission",
 			fields: fields{
 				LabelService: &mock.LabelService{
 					CreateLabelFn: func(ctx context.Context, b *influxdb.Label) error {
@@ -541,7 +544,7 @@ func TestLabelService_CreateLabel(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: "write",
 					Resource: influxdb.Resource{
 						Type: influxdb.LabelsResourceType,
 					},
@@ -549,9 +552,32 @@ func TestLabelService_CreateLabel(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:orgs/020f755c3c083000 is unauthorized",
+					Msg:  "write:orgs/020f755c3c083000 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
+			},
+		},
+
+		{
+			name: "authorized to create label",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					CreateLabelFn: func(ctx context.Context, l *influxdb.Label) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				permission: influxdb.Permission{
+					Action: "write",
+					Resource: influxdb.Resource{
+						ID:   influxdbtesting.IDPtr(orgOneInfluxID),
+						Type: influxdb.OrgsResourceType,
+					},
+				},
+			},
+			wants: wants{
+				err: nil,
 			},
 		},
 	}
