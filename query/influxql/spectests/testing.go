@@ -2,7 +2,6 @@ package spectests
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -92,8 +91,6 @@ func (f *fixture) Run(t *testing.T) {
 		wantAST := parser.ParseSource(f.want)
 		if ast.Check(wantAST) > 0 {
 			err := ast.GetError(wantAST)
-			fmt.Printf("%+v\n", f.want)
-			fmt.Println(wantAST)
 			t.Fatalf("found parser errors in the want text: %s", err.Error())
 		}
 		want := ast.Format(wantAST)
