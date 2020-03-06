@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/executor"
 	"github.com/influxdata/influxdb/task/backend/middleware"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
@@ -131,7 +130,7 @@ func (c *Coordinator) TaskUpdated(ctx context.Context, from, to *influxdb.Task) 
 	}
 
 	// if disabling the task, release it before schedule update
-	if to.Status != from.Status && to.Status == string(backend.TaskInactive) {
+	if to.Status != from.Status && to.Status == string(influxdb.TaskInactive) {
 		if err := c.sch.Release(sid); err != nil && err != influxdb.ErrTaskNotClaimed {
 			return err
 		}

@@ -135,7 +135,7 @@ type TaskControlService struct {
 	ManualRunsFn       func(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error)
 	StartManualRunFn   func(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error)
 	FinishRunFn        func(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error)
-	UpdateRunStateFn   func(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state backend.RunStatus) error
+	UpdateRunStateFn   func(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state influxdb.RunStatus) error
 	AddRunLogFn        func(ctx context.Context, taskID, runID influxdb.ID, when time.Time, log string) error
 }
 
@@ -154,7 +154,7 @@ func (tcs *TaskControlService) StartManualRun(ctx context.Context, taskID, runID
 func (tcs *TaskControlService) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
 	return tcs.FinishRunFn(ctx, taskID, runID)
 }
-func (tcs *TaskControlService) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state backend.RunStatus) error {
+func (tcs *TaskControlService) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state influxdb.RunStatus) error {
 	return tcs.UpdateRunStateFn(ctx, taskID, runID, when, state)
 }
 func (tcs *TaskControlService) AddRunLog(ctx context.Context, taskID, runID influxdb.ID, when time.Time, log string) error {
