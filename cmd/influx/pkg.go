@@ -277,7 +277,10 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 		return err
 	}
 
-	return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, pkger.CreateWithAllOrgResources(orgID))
+	orgOpt := pkger.CreateWithAllOrgResources(pkger.CreateByOrgIDOpt{
+		OrgID: orgID,
+	})
+	return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, orgOpt)
 }
 
 func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {

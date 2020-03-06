@@ -2750,7 +2750,12 @@ func TestService(t *testing.T) {
 				WithVariableSVC(varSVC),
 			)
 
-			pkg, err := svc.CreatePkg(context.TODO(), CreateWithAllOrgResources(orgID))
+			pkg, err := svc.CreatePkg(
+				context.TODO(),
+				CreateWithAllOrgResources(CreateByOrgIDOpt{
+					OrgID: orgID,
+				}),
+			)
 			require.NoError(t, err)
 
 			summary := pkg.Summary()
