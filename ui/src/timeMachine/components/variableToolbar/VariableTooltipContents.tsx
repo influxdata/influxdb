@@ -99,15 +99,14 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
   return (
     <div onMouseEnter={handleMouseEnter}>
       <Form.Element label="Value">
-        {dropdownItems.length === 1 && (
+        {dropdownItems.length === 1 ? (
           <Dropdown
             button={button}
             style={{width: '200px'}}
             menu={menu}
             testID="variable--tooltip-dropdown"
           />
-        )}
-        {dropdownItems.length !== 1 && (
+        ) : (
           <SelectDropdown
             buttonIcon={icon}
             options={dropdownItems as string[]}
