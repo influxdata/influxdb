@@ -234,7 +234,10 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	}
 
 	for _, orgIDOpt := range opt.OrgIDs {
-		cloneAssFn := s.resourceCloneAssociationsGen(orgIDOpt.LabelNames...)
+		cloneAssFn, err := s.resourceCloneAssociationsGen(ctx, orgIDOpt.LabelNames...)
+		if err != nil {
+			return nil, err
+		}
 		resourcesToClone, err := s.cloneOrgResources(ctx, orgIDOpt.OrgID, orgIDOpt.ResourceKinds)
 		if err != nil {
 			return nil, internalErr(err)
@@ -248,7 +251,10 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 		}
 	}
 
-	cloneAssFn := s.resourceCloneAssociationsGen()
+	cloneAssFn, err := s.resourceCloneAssociationsGen(ctx)
+	if err != nil {
+		return nil, err
+	}
 	for _, r := range uniqResourcesToClone(opt.Resources) {
 		newKinds, err := s.resourceCloneToKind(ctx, r, cloneAssFn)
 		if err != nil {
@@ -666,10 +672,15 @@ type (
 	cloneAssociationsFn func(context.Context, ResourceToClone) (associations associations, skipResource bool, err error)
 )
 
-func (s *Service) resourceCloneAssociationsGen(labelNames ...string) cloneAssociationsFn {
+func (s *Service) resourceCloneAssociationsGen(ctx context.Context, labelNames ...string) (cloneAssociationsFn, error) {
 	mLabelNames := make(map[string]bool)
-	for _, labelname := range labelNames {
-		mLabelNames[labelname] = true
+	for _, labelName := range labelNames {
+		mLabelNames[labelName] = true
+	}
+
+	mLabelIDs, err := getLabelIDMap(ctx, s.labelSVC, labelNames)
+	if err != nil {
+		return nil, err
 	}
 
 	type key struct {
@@ -678,9 +689,14 @@ func (s *Service) resourceCloneAssociationsGen(labelNames ...string) cloneAssoci
 	}
 	// memoize the labels so we dont' create duplicates
 	m := make(map[key]bool)
-	return func(ctx context.Context, r ResourceToClone) (associations, bool, error) {
-		if r.Kind.is(KindUnknown, KindLabel) {
-			return associations{}, false, nil
+	cloneFn := func(ctx context.Context, r ResourceToClone) (associations, bool, error) {
+		if r.Kind.is(KindUnknown) {
+			return associations{}, true, nil
+		}
+		if r.Kind.is(KindLabel) {
+			// check here verifies the label maps to an id of a valid label name
+			shouldSkip := len(mLabelIDs) > 0 && !mLabelIDs[r.ID]
+			return associations{}, shouldSkip, nil
 		}
 
 		labels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
@@ -694,7 +710,7 @@ func (s *Service) resourceCloneAssociationsGen(labelNames ...string) cloneAssoci
 		if len(mLabelNames) > 0 {
 			shouldSkip := true
 			for _, l := range labels {
-				if mLabelNames[l.Name] {
+				if _, ok := mLabelNames[l.Name]; ok {
 					shouldSkip = false
 					break
 				}
@@ -706,8 +722,10 @@ func (s *Service) resourceCloneAssociationsGen(labelNames ...string) cloneAssoci
 
 		var ass associations
 		for _, l := range labels {
-			if len(mLabelNames) > 0 && !mLabelNames[l.Name] {
-				continue
+			if len(mLabelNames) > 0 {
+				if _, ok := mLabelNames[l.Name]; !ok {
+					continue
+				}
 			}
 
 			ass.associations = append(ass.associations, Resource{
@@ -723,6 +741,8 @@ func (s *Service) resourceCloneAssociationsGen(labelNames ...string) cloneAssoci
 		}
 		return ass, false, nil
 	}
+
+	return cloneFn, nil
 }
 
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
@@ -2176,6 +2196,22 @@ func (s *Service) findDashboardByIDFull(ctx context.Context, id influxdb.ID) (*i
 		cell.View = v
 	}
 	return dash, nil
+}
+
+func getLabelIDMap(ctx context.Context, labelSVC influxdb.LabelService, labelNames []string) (map[influxdb.ID]bool, error) {
+	mLabelIDs := make(map[influxdb.ID]bool)
+	for _, labelName := range labelNames {
+		iLabels, err := labelSVC.FindLabels(ctx, influxdb.LabelFilter{
+			Name: labelName,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if len(iLabels) == 1 {
+			mLabelIDs[iLabels[0].ID] = true
+		}
+	}
+	return mLabelIDs, nil
 }
 
 type doMutex struct {

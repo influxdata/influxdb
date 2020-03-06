@@ -41,6 +41,7 @@ type cmdPkgBuilder struct {
 	encoding            string
 	file                string
 	files               []string
+	filters             []string
 	disableColor        bool
 	disableTableBorders bool
 	org                 organization
@@ -53,6 +54,7 @@ type cmdPkgBuilder struct {
 		force   string
 		secrets []string
 	}
+
 	exportOpts struct {
 		resourceType string
 		buckets      string
@@ -260,6 +262,7 @@ func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
 	cmd.Short = "Export all existing resources for an organization as a package"
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().StringArrayVar(&b.filters, "filter", nil, "Filter exported resources by labelName or resourceKind (format: --filter=labelName=example)")
 
 	b.org.register(cmd, false)
 
@@ -277,8 +280,33 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 		return err
 	}
 
+	var (
+		labelNames    []string
+		resourceKinds []pkger.Kind
+	)
+	for _, filter := range b.filters {
+		pair := strings.SplitN(filter, "=", 2)
+		if len(pair) < 2 {
+			continue
+		}
+		switch key, val := pair[0], pair[1]; key {
+		case "labelName":
+			labelNames = append(labelNames, val)
+		case "resourceKind":
+			k := pkger.Kind(val)
+			if err := k.OK(); err != nil {
+				return err
+			}
+			resourceKinds = append(resourceKinds, k)
+		default:
+			return fmt.Errorf("invalid filter provided %q; filter must be 1 in [labelName, resourceKind]", filter)
+		}
+	}
+
 	orgOpt := pkger.CreateWithAllOrgResources(pkger.CreateByOrgIDOpt{
-		OrgID: orgID,
+		OrgID:         orgID,
+		LabelNames:    labelNames,
+		ResourceKinds: resourceKinds,
 	})
 	return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, orgOpt)
 }
