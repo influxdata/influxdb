@@ -260,7 +260,7 @@ class SideNav extends PureComponent<Props, State> {
             <NavMenu.Item
               titleLink={className => (
                 <a className={className} href={cloudUsersLink}>
-                  Team Members
+                  Organization Members
                 </a>
               )}
               iconLink={className => (
