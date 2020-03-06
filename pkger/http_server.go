@@ -60,16 +60,43 @@ func (s *HTTPServer) Prefix() string {
 	return RoutePrefix
 }
 
-type (
-	// ReqCreatePkg is a request body for the create pkg endpoint.
-	ReqCreatePkg struct {
-		OrgIDs    []string          `json:"orgIDs"`
-		Resources []ResourceToClone `json:"resources"`
+// ReqCreateOrgIDOpt provides options to export resources by organization id.
+type ReqCreateOrgIDOpt struct {
+	OrgID   string `json:"orgID"`
+	Filters struct {
+		ByLabel        []string `json:"byLabel"`
+		ByResourceKind []Kind   `json:"byResourceKind"`
+	} `json:"resourceFilters"`
+}
+
+// ReqCreatePkg is a request body for the create pkg endpoint.
+type ReqCreatePkg struct {
+	OrgIDs    []ReqCreateOrgIDOpt `json:"orgIDs"`
+	Resources []ResourceToClone   `json:"resources"`
+}
+
+// OK validates a create request.
+func (r *ReqCreatePkg) OK() error {
+	if len(r.Resources) == 0 && len(r.OrgIDs) == 0 {
+		return &influxdb.Error{
+			Code: influxdb.EUnprocessableEntity,
+			Msg:  "at least 1 resource or 1 org id must be provided",
+		}
 	}
 
-	// RespCreatePkg is a response body for the create pkg endpoint.
-	RespCreatePkg []Object
-)
+	for _, org := range r.OrgIDs {
+		if _, err := influxdb.IDFromString(org.OrgID); err != nil {
+			return &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  fmt.Sprintf("provided org id is invalid: %q", org.OrgID),
+			}
+		}
+	}
+	return nil
+}
+
+// RespCreatePkg is a response body for the create pkg endpoint.
+type RespCreatePkg []Object
 
 func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	encoding := pkgEncoding(r.Header)
@@ -81,23 +108,19 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	if len(reqBody.Resources) == 0 && len(reqBody.OrgIDs) == 0 {
-		s.api.Err(w, &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
-			Msg:  "at least 1 resource or 1 org id must be provided",
-		})
-		return
-	}
-
 	opts := []CreatePkgSetFn{
 		CreateWithExistingResources(reqBody.Resources...),
 	}
 	for _, orgIDStr := range reqBody.OrgIDs {
-		orgID, err := influxdb.IDFromString(orgIDStr)
+		orgID, err := influxdb.IDFromString(orgIDStr.OrgID)
 		if err != nil {
 			continue
 		}
-		opts = append(opts, CreateWithAllOrgResources(*orgID))
+		opts = append(opts, CreateWithAllOrgResources(CreateByOrgIDOpt{
+			OrgID:         *orgID,
+			LabelNames:    orgIDStr.Filters.ByLabel,
+			ResourceKinds: orgIDStr.Filters.ByResourceKind,
+		}))
 	}
 
 	newPkg, err := s.svc.CreatePkg(r.Context(), opts...)

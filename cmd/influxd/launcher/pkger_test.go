@@ -384,10 +384,32 @@ spec:
 		)
 
 		t.Run("exporting all resources for an org", func(t *testing.T) {
-			newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(l.Org.ID))
+			newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+				pkger.CreateByOrgIDOpt{
+					OrgID: l.Org.ID,
+				},
+			))
 			require.NoError(t, err)
 
 			verifyCompleteSummary(t, newPkg.Summary(), true)
+
+			bucketsOnlyPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+				pkger.CreateByOrgIDOpt{
+					OrgID:         l.Org.ID,
+					ResourceKinds: []pkger.Kind{pkger.KindBucket, pkger.KindTask},
+				},
+			))
+			require.NoError(t, err)
+
+			bktsOnlySum := bucketsOnlyPkg.Summary()
+			assert.NotEmpty(t, bktsOnlySum.Buckets)
+			assert.NotEmpty(t, bktsOnlySum.Labels)
+			assert.NotEmpty(t, bktsOnlySum.Tasks)
+			assert.Empty(t, bktsOnlySum.Checks)
+			assert.Empty(t, bktsOnlySum.Dashboards)
+			assert.Empty(t, bktsOnlySum.NotificationEndpoints)
+			assert.Empty(t, bktsOnlySum.NotificationRules)
+			assert.Empty(t, bktsOnlySum.Variables)
 		})
 
 		t.Run("pkg with same bkt-var-label does nto create new resources for them", func(t *testing.T) {
