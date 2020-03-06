@@ -32,4 +32,3 @@ func (r *readSource) GetOrgID() influxdb.ID {
 func (r *readSource) GetBucketID() influxdb.ID {
 	return influxdb.ID(r.BucketID)
 }
-
