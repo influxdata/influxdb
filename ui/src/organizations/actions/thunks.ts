@@ -30,7 +30,7 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {orgSchema, arrayOfOrgs} from 'src/schemas'
 
 // Types
 import {
@@ -58,14 +58,14 @@ export const getOrganizations = () => async (
 
     const organizations = normalize<Organization, OrgEntities, string[]>(
       orgs,
-      schemas.arrayOfOrgs
+      arrayOfOrgs
     )
 
     dispatch(setOrgs(RemoteDataState.Done, organizations))
 
     return orgs
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
     dispatch(setOrgs(RemoteDataState.Error, null))
   }
 }
@@ -90,7 +90,7 @@ export const createOrgWithBucket = (
 
     const normOrg = normalize<Organization, OrgEntities, string>(
       createdOrg,
-      schemas.org
+      orgSchema
     )
 
     dispatch(addOrg(normOrg))
@@ -105,13 +105,13 @@ export const createOrgWithBucket = (
     }
 
     dispatch(notify(bucketCreateSuccess()))
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
 
     if (!createdOrg) {
       dispatch(notify(orgCreateFailed()))
     }
-    const message = getErrorMessage(e)
+    const message = getErrorMessage(error)
     dispatch(notify(bucketCreateFailed(message)))
   }
 }
@@ -129,7 +129,7 @@ export const createOrg = (org: Organization) => async (
     const createdOrg = resp.data
     const normOrg = normalize<Organization, OrgEntities, string>(
       createdOrg,
-      schemas.org
+      orgSchema
     )
 
     dispatch(addOrg(normOrg))
@@ -171,15 +171,15 @@ export const updateOrg = (org: Organization) => async (
     const updatedOrg = resp.data
     const normOrg = normalize<Organization, OrgEntities, string>(
       updatedOrg,
-      schemas.org
+      orgSchema
     )
 
     dispatch(editOrg(normOrg))
 
     dispatch(notify(orgEditSuccess()))
-  } catch (e) {
+  } catch (error) {
     dispatch(notify(orgEditFailed()))
-    console.error(e)
+    console.error(error)
   }
 }
 
@@ -200,13 +200,13 @@ export const renameOrg = (
 
     const normOrg = normalize<Organization, OrgEntities, string>(
       updatedOrg,
-      schemas.org
+      orgSchema
     )
 
     dispatch(editOrg(normOrg))
     dispatch(notify(orgRenameSuccess(updatedOrg.name)))
-  } catch (e) {
+  } catch (error) {
     dispatch(notify(orgRenameFailed(originalName)))
-    console.error(e)
+    console.error(error)
   }
 }

@@ -51,7 +51,11 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
   onAddVariableToTimeMachine,
   onSelectVariableValue,
 }) => {
-  const dropdownItems: string[] = get(values, 'values') || []
+  let dropdownItems = get(values, 'values', [])
+
+  if (Object.keys(dropdownItems).length > 0) {
+    dropdownItems = Object.keys(dropdownItems)
+  }
 
   const handleMouseEnter = () => {
     if (values || valuesStatus === RemoteDataState.Loading) {
@@ -64,6 +68,9 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
   let selectedOption = 'None Selected'
   let icon
   let status = toComponentStatus(valuesStatus)
+  // this should set the selectedKey as the key
+  // set as a ternary in order to get e2e test to pass since values are undefined on the test
+  const key = values && values.selectedKey ? values.selectedKey : undefined
 
   if (!values) {
     selectedOption = 'Failed to Load'
@@ -73,10 +80,10 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
     selectedOption = 'Failed to Load'
     icon = IconFont.AlertTriangle
     status = ComponentStatus.Disabled
-  } else if (!values.values.length) {
+  } else if (key === undefined || values.values[key] === undefined) {
     selectedOption = 'No Results'
   } else {
-    selectedOption = get(values, 'selectedValue', 'None Selected')
+    selectedOption = get(values, 'selectedKey', 'None Selected')
   }
 
   return (
@@ -84,8 +91,9 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
       <Form.Element label="Value">
         <SelectDropdown
           buttonIcon={icon}
-          options={dropdownItems}
+          options={dropdownItems as string[]}
           selectedOption={selectedOption}
+          testID="variable--tooltip-dropdown"
           buttonStatus={status}
           style={{width: '200px'}}
           onSelect={value => onSelectVariableValue(variableID, value)}
@@ -98,7 +106,6 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
 const mstp = (state: AppState, ownProps: OwnProps) => {
   const valuesStatus = getTimeMachineValuesStatus(state)
   const values = getTimeMachineValues(state, ownProps.variableID)
-
   return {values, valuesStatus}
 }
 

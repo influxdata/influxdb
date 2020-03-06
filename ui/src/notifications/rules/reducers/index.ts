@@ -14,14 +14,15 @@ import {
   SET_RULE,
   REMOVE_RULE,
   SET_CURRENT_RULE,
-  ADD_LABEL_TO_RULE,
   REMOVE_LABEL_FROM_RULE,
 } from 'src/notifications/rules/actions/creators'
 import {
   setResource,
   removeResource,
   setResourceAtID,
+  setRelation,
 } from 'src/resources/reducers/helpers'
+import {SET_LABEL_ON_RESOURCE} from 'src/labels/actions/creators'
 
 export const defaultNotificationRulesState: RulesState = {
   status: RemoteDataState.NotStarted,
@@ -76,11 +77,16 @@ export default (
         return
       }
 
-      case ADD_LABEL_TO_RULE: {
-        const {ruleID, label} = action
-        const labels = draftState.byID[ruleID].labels
+      case SET_LABEL_ON_RESOURCE: {
+        const {resourceID, schema} = action
+        const labelID = schema.result
 
-        draftState.byID[ruleID].labels = [...labels, label]
+        setRelation<NotificationRule>(
+          draftState,
+          ResourceType.Labels,
+          labelID,
+          resourceID
+        )
 
         return
       }

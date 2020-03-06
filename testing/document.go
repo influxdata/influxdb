@@ -39,21 +39,21 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 
 		l1 := &influxdb.Label{Name: "l1", OrgID: MustIDBase16("41a9f7288d4e2d64")}
 		l2 := &influxdb.Label{Name: "l2", OrgID: MustIDBase16("41a9f7288d4e2d64")}
-		mustCreateLabels(ctx, svc, l1, l2)
+		MustCreateLabels(ctx, svc, l1, l2)
 		lBad := &influxdb.Label{ID: MustIDBase16(oneID), Name: "bad"}
 
 		o1 := &influxdb.Organization{Name: "foo"}
 		o2 := &influxdb.Organization{Name: "bar"}
-		mustCreateOrgs(ctx, svc, o1, o2)
+		MustCreateOrgs(ctx, svc, o1, o2)
 
 		u1 := &influxdb.User{Name: "yanky"}
 		u2 := &influxdb.User{Name: "doodle"}
-		mustCreateUsers(ctx, svc, u1, u2)
+		MustCreateUsers(ctx, svc, u1, u2)
 
-		mustMakeUsersOrgOwner(ctx, svc, o1.ID, u1.ID)
+		MustMakeUsersOrgOwner(ctx, svc, o1.ID, u1.ID)
 
-		mustMakeUsersOrgMember(ctx, svc, o1.ID, u2.ID)
-		mustMakeUsersOrgOwner(ctx, svc, o2.ID, u2.ID)
+		MustMakeUsersOrgMember(ctx, svc, o1.ID, u2.ID)
+		MustMakeUsersOrgOwner(ctx, svc, o2.ID, u2.ID)
 
 		// TODO(desa): test tokens and authorizations as well.
 		s1 := &influxdb.Session{UserID: u1.ID}
@@ -229,60 +229,6 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 			}
 		})
 
-	}
-}
-
-func mustCreateOrgs(ctx context.Context, svc *kv.Service, os ...*influxdb.Organization) {
-	for _, o := range os {
-		if err := svc.CreateOrganization(ctx, o); err != nil {
-			panic(err)
-		}
-	}
-}
-
-func mustCreateLabels(ctx context.Context, svc *kv.Service, labels ...*influxdb.Label) {
-	for _, l := range labels {
-		if err := svc.CreateLabel(ctx, l); err != nil {
-			panic(err)
-		}
-	}
-}
-
-func mustCreateUsers(ctx context.Context, svc *kv.Service, us ...*influxdb.User) {
-	for _, u := range us {
-		if err := svc.CreateUser(ctx, u); err != nil {
-			panic(err)
-		}
-	}
-}
-
-func mustMakeUsersOrgOwner(ctx context.Context, svc *kv.Service, oid influxdb.ID, uids ...influxdb.ID) {
-	for _, uid := range uids {
-		m := &influxdb.UserResourceMapping{
-			UserID:       uid,
-			UserType:     influxdb.Owner,
-			ResourceType: influxdb.OrgsResourceType,
-			ResourceID:   oid,
-		}
-
-		if err := svc.CreateUserResourceMapping(ctx, m); err != nil {
-			panic(err)
-		}
-	}
-}
-
-func mustMakeUsersOrgMember(ctx context.Context, svc *kv.Service, oid influxdb.ID, uids ...influxdb.ID) {
-	for _, uid := range uids {
-		m := &influxdb.UserResourceMapping{
-			UserID:       uid,
-			UserType:     influxdb.Member,
-			ResourceType: influxdb.OrgsResourceType,
-			ResourceID:   oid,
-		}
-
-		if err := svc.CreateUserResourceMapping(ctx, m); err != nil {
-			panic(err)
-		}
 	}
 }
 

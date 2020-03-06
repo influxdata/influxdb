@@ -227,7 +227,7 @@ func (t *TaskUpdate) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (t TaskUpdate) MarshalJSON() ([]byte, error) {
+func (t *TaskUpdate) MarshalJSON() ([]byte, error) {
 	jo := struct {
 		Flux        *string `json:"flux,omitempty"`
 		Status      *string `json:"status,omitempty"`
@@ -262,17 +262,17 @@ func (t TaskUpdate) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jo)
 }
 
-func (t TaskUpdate) Validate() error {
+func (t *TaskUpdate) Validate() error {
 	switch {
 	case !t.Options.Every.IsZero() && t.Options.Cron != "":
 		return errors.New("cannot specify both every and cron")
 	case !t.Options.Every.IsZero():
-		if _, err := time.ParseDuration(t.Options.Every.String()); err != nil {
+		if _, err := parser.ParseSignedDuration(t.Options.Every.String()); err != nil {
 			return fmt.Errorf("every: %s is invalid", err)
 		}
 	case t.Options.Offset != nil && !t.Options.Offset.IsZero():
 		if _, err := time.ParseDuration(t.Options.Offset.String()); err != nil {
-			return fmt.Errorf("offset: %s, %s is invalid", t.Options.Offset.String(), err)
+			return fmt.Errorf("offset: %s, %s is invalid, the largest unit supported is h", t.Options.Offset.String(), err)
 		}
 	case t.Flux == nil && t.Status == nil && t.Options.IsZero():
 		return errors.New("cannot update task without content")

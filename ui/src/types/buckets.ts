@@ -1,6 +1,12 @@
-import {Bucket} from 'src/client'
+import {Bucket as IBucket} from 'src/client'
 
-export type BucketRetentionRules = Bucket['retentionRules']
+export type GenBucket = IBucket
+
+export interface Bucket extends Omit<IBucket, 'labels'> {
+  labels?: string[]
+}
+
+export type BucketRetentionRules = IBucket['retentionRules']
 
 export enum RetentionRuleTypes {
   Expire = 'expire',
@@ -16,5 +22,3 @@ export interface BucketLinks {
   org: string
   self: string
 }
-
-export {Bucket} from 'src/client'

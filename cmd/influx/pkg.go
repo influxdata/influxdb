@@ -29,8 +29,8 @@ import (
 
 type pkgSVCsFn func() (pkger.SVC, influxdb.OrganizationService, error)
 
-func cmdPkg(opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts...).cmd()
+func cmdPkg(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+	return newCmdPkgBuilder(newPkgerSVC, opts).cmd()
 }
 
 type cmdPkgBuilder struct {
@@ -67,17 +67,9 @@ type cmdPkgBuilder struct {
 	}
 }
 
-func newCmdPkgBuilder(svcFn pkgSVCsFn, opts ...genericCLIOptFn) *cmdPkgBuilder {
-	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
-	}
-	for _, o := range opts {
-		o(&opt)
-	}
-
+func newCmdPkgBuilder(svcFn pkgSVCsFn, opts genericCLIOpts) *cmdPkgBuilder {
 	return &cmdPkgBuilder{
-		genericCLIOpts: opt,
+		genericCLIOpts: opts,
 		svcFn:          svcFn,
 	}
 }

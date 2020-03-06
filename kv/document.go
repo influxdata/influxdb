@@ -643,6 +643,12 @@ func (s *DocumentStore) DeleteDocuments(ctx context.Context, opts ...influxdb.Do
 			}
 
 			if err := s.service.deleteDocument(ctx, tx, s.namespace, id); err != nil {
+				if IsNotFound(err) {
+					return &influxdb.Error{
+						Code: influxdb.ENotFound,
+						Msg:  influxdb.ErrDocumentNotFound,
+					}
+				}
 				return err
 			}
 		}

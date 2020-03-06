@@ -32,15 +32,13 @@ import {RemoteDataState} from 'src/types'
 import DraggableDropdown from 'src/dashboards/components/variablesControlBar/DraggableDropdown'
 import withDragDropContext from 'src/shared/decorators/withDragDropContext'
 
-interface OwnProps {
-  dashboardID: string
-}
-
 interface StateProps {
   variables: Variable[]
   valuesStatus: RemoteDataState
   variablesStatus: RemoteDataState
   inPresentationMode: boolean
+  dashboardID: string
+  show: boolean
 }
 
 interface DispatchProps {
@@ -51,7 +49,7 @@ interface State {
   initialLoading: RemoteDataState
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type Props = StateProps & DispatchProps
 
 @ErrorHandling
 class VariablesControlBar extends PureComponent<Props, State> {
@@ -70,10 +68,14 @@ class VariablesControlBar extends PureComponent<Props, State> {
   }
 
   render() {
+    const {show, inPresentationMode} = this.props
+    if (!show) {
+      return false
+    }
     return (
       <div
         className={classnames('variables-control-bar', {
-          'presentation-mode': this.props.inPresentationMode,
+          'presentation-mode': inPresentationMode,
         })}
       >
         <SpinnerContainer
@@ -151,10 +153,12 @@ const mdtp = {
   moveVariable,
 }
 
-const mstp = (state: AppState, props: OwnProps): StateProps => {
-  const variables = getVariablesForDashboard(state, props.dashboardID)
-  const valuesStatus = getDashboardValuesStatus(state, props.dashboardID)
+const mstp = (state: AppState): StateProps => {
+  const dashboardID = state.currentDashboard.id
+  const variables = getVariablesForDashboard(state, dashboardID)
+  const valuesStatus = getDashboardValuesStatus(state, dashboardID)
   const variablesStatus = getDashboardVariablesStatus(state)
+  const show = state.userSettings.showVariablesControls
 
   const {
     app: {
@@ -162,11 +166,18 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
     },
   } = state
 
-  return {variables, valuesStatus, variablesStatus, inPresentationMode}
+  return {
+    variables,
+    valuesStatus,
+    variablesStatus,
+    inPresentationMode,
+    dashboardID,
+    show,
+  }
 }
 
 export default withDragDropContext(
-  connect<StateProps, DispatchProps, OwnProps>(
+  connect<StateProps, DispatchProps>(
     mstp,
     mdtp
   )(VariablesControlBar)

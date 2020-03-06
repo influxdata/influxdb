@@ -7,7 +7,7 @@ import TasksHeader from 'src/tasks/components/TasksHeader'
 import TasksList from 'src/tasks/components/TasksList'
 import {Page} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import GetResources from 'src/resources/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
@@ -87,6 +87,8 @@ interface State {
 
 type SortKey = keyof Task
 
+const Filter = FilterList<Task>()
+
 @ErrorHandling
 class TasksPage extends PureComponent<Props, State> {
   constructor(props: Props) {
@@ -140,7 +142,7 @@ class TasksPage extends PureComponent<Props, State> {
                   resourceName="tasks"
                   limitStatus={limitStatus}
                 />
-                <FilterList<Task>
+                <Filter
                   list={this.filteredTasks}
                   searchTerm={searchTerm}
                   searchKeys={['name', 'labels[].name']}
@@ -171,7 +173,7 @@ class TasksPage extends PureComponent<Props, State> {
                       checkTaskLimits={checkTaskLimits}
                     />
                   )}
-                </FilterList>
+                </Filter>
                 {this.hiddenTaskAlert}
               </GetAssetLimits>
             </GetResources>

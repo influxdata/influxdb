@@ -17,7 +17,7 @@ export const FROM: FluxToolbarFunction = {
   package: '',
   desc:
     'Used to retrieve data from an InfluxDB data source. It returns a stream of tables from the specified bucket. Each unique series is contained within its own table. Each record in the table represents a single point in the series.',
-  example: 'from(bucket: "telegraf")',
+  example: 'from(bucket: "example-bucket")',
   category: 'Inputs',
   link:
     'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/inputs/from/',
@@ -29,12 +29,12 @@ export const RANGE: FluxToolbarFunction = {
     {
       name: 'start',
       desc: 'The earliest time to include in results.',
-      type: 'Duration',
+      type: 'Duration | Time',
     },
     {
       name: 'stop',
       desc: 'The latest time to include in results. Defaults to `now()`.',
-      type: 'Duration',
+      type: 'Duration | Time',
     },
   ],
   package: '',
@@ -156,6 +156,33 @@ export const STRINGS_TRIM: FluxToolbarFunction = {
 
 export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
+    name: 'aggregate.rate',
+    args: [
+      {
+        name: 'every',
+        desc: 'Duration of windows.',
+        type: 'Duration',
+      },
+      {
+        name: 'groupColumns',
+        desc: 'List of columns to group by. Defaults to [].',
+        type: 'Array of Strings',
+      },
+      {
+        name: 'unit',
+        desc:
+          'Time duration to use when calculating the rate. Defaults to `1s`.',
+        type: 'Array of Strings',
+      },
+    ],
+    package: 'experimental/aggregate',
+    desc: 'Calculates the range of change per windows of time.',
+    example: 'aggregate.rate(every: 1m, unit: 1s)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/aggregate/rate/',
+  },
+  {
     name: 'aggregateWindow',
     args: [
       {
@@ -194,7 +221,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: '',
     desc: 'Applies an aggregate function to fixed windows of time.',
-    example: 'aggregateWindow(every: 1m, fn: mean)',
+    example: 'aggregateWindow(every: v.windowPeriod, fn: mean)',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/aggregatewindow/',
@@ -1710,6 +1737,22 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/selectors/last/',
   },
   {
+    name: 'length',
+    args: [
+      {
+        name: 'arr',
+        desc: 'The array to evaluate.',
+        type: 'Array',
+      },
+    ],
+    package: '',
+    desc: 'Returns the number of items in an array.',
+    example: 'length(arr: ["john"])',
+    category: 'Miscellaneous',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/misc/length/',
+  },
+  {
     name: 'limit',
     args: [
       {
@@ -3175,6 +3218,108 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/quantile/',
+  },
+  {
+    name: 'query.filterFields',
+    args: [
+      {
+        name: 'fields',
+        desc: 'Fields to filter by.',
+        type: 'Array of Strings',
+      },
+    ],
+    package: 'experimental/query',
+    desc: 'Filters input data by field.',
+    example: 'query.filterFields(fields: ["field_name"])',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/query/filterfields/',
+  },
+  {
+    name: 'query.filterMeasurement',
+    args: [
+      {
+        name: 'measurement',
+        desc: 'Measurement to filter by.',
+        type: 'String',
+      },
+    ],
+    package: 'experimental/query',
+    desc: 'Filters input data by measurement.',
+    example: 'query.filterMeasurement(measurement: "measurement_name")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/query/filtermeasurement/',
+  },
+  {
+    name: 'query.fromRange',
+    args: [
+      {
+        name: 'bucket',
+        desc: 'Name of the bucket to query.',
+        type: 'String',
+      },
+      {
+        name: 'start',
+        desc: 'The earliest time to include in results.',
+        type: 'Duration | Time',
+      },
+      {
+        name: 'stop',
+        desc: 'The latest time to include in results. Defaults to `now()`.',
+        type: 'Duration | Time',
+      },
+    ],
+    package: 'experimental/query',
+    desc: 'Returns all data from a specified bucket within given time bounds.',
+    example:
+      'query.fromRange(bucket: "example-bucket", start: v.timeRangeStart)',
+    category: 'Inputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/query/fromrange/',
+  },
+  {
+    name: 'query.inBucket',
+    args: [
+      {
+        name: 'bucket',
+        desc: 'Name of the bucket to query.',
+        type: 'String',
+      },
+      {
+        name: 'start',
+        desc: 'The earliest time to include in results.',
+        type: 'Duration | Time',
+      },
+      {
+        name: 'stop',
+        desc: 'The latest time to include in results. Defaults to `now()`.',
+        type: 'Duration | Time',
+      },
+      {
+        name: 'measurement',
+        desc: 'Measurement to filter by.',
+        type: 'String',
+      },
+      {
+        name: 'fields',
+        desc: 'Fields to filter by.',
+        type: 'Array of Strings',
+      },
+      {
+        name: 'predicate',
+        desc: 'A single argument function that evaluates true or false.',
+        type: 'Function',
+      },
+    ],
+    package: 'experimental/query',
+    desc:
+      'Queries data from a specified bucket within given time bounds, filters data by measurement, field, and optional predicate expressions.',
+    example:
+      'query.inBucket(bucket: "example-bucket", start: v.timeRangeStart, measurement: "measurement_name", fields: ["field_name"], predicate: (r) => r.host == "host1")',
+    category: 'Inputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/query/inbucket/',
   },
   RANGE,
   {
@@ -4661,7 +4806,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: '',
     desc: 'The `to()` function writes data to an InfluxDB v2.0 bucket.',
-    example: 'to(bucket:"my-bucket", org:"my-org")',
+    example: 'to(bucket: "example-bucket", org: "example-org")',
     category: 'Outputs',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/outputs/to/',
@@ -4858,7 +5003,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of tag keys for a specific measurement.',
-    example: 'v1.measurementTagKeys(bucket: "telegraf", measurement: "mem")',
+    example:
+      'v1.measurementTagKeys(bucket: "example-bucket", measurement: "mem")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/measurementtagkeys/',
@@ -4886,7 +5032,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of tag values for a specific measurement.',
     example:
-      'v1.measurementTagValues(bucket: "telegraf", measurement: "mem", tag: "host")',
+      'v1.measurementTagValues(bucket: "example-bucket", measurement: "mem", tag: "host")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/measurementtagvalues/',
@@ -4902,7 +5048,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of measurements in a specific bucket.',
-    example: 'v1.measurements(bucket: "telegraf")',
+    example: 'v1.measurements(bucket: "example-bucket")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/measurements/',
@@ -4925,12 +5071,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         name: 'start',
         desc:
           'Specifies the oldest time to be included in the results. Defaults to `-30d`.',
-        type: 'Duration, Time',
+        type: 'Duration | Time',
       },
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of tag keys for all series that match the predicate.',
-    example: 'v1.tagKeys(bucket: "telegraf")',
+    example: 'v1.tagKeys(bucket: "example-bucket")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/tagkeys/',
@@ -4958,12 +5104,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         name: 'start',
         desc:
           'Specifies the oldest time to be included in the results. Defaults to `-30d`.',
-        type: 'Duration, Time',
+        type: 'Duration | Time',
       },
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of unique values for a given tag.',
-    example: 'v1.tagValues(bucket: "telegraf")',
+    example: 'v1.tagValues(bucket: "example-bucket")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/influxdb-v1/tagvalues/',

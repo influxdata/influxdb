@@ -60,7 +60,7 @@ type CheckService interface {
 	// FindCheck returns the first check that matches filter.
 	FindCheck(ctx context.Context, filter CheckFilter) (Check, error)
 
-	// FindChecks returns a list of checks that match filter and the total count of matching checkns.
+	// FindChecks returns a list of checks that match filter and the total count of matching checks.
 	// Additional options provide pagination & sorting.
 	FindChecks(ctx context.Context, filter CheckFilter, opt ...FindOptions) ([]Check, int, error)
 

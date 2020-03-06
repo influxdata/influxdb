@@ -10,13 +10,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func cmdAuth() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "auth",
-		Aliases: []string{"authorization"},
-		Short:   "Authorization management commands",
-		Run:     seeHelp,
-	}
+func cmdAuth(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("auth", nil)
+	cmd.Aliases = []string{"authorization"}
+	cmd.Short = "Authorization management commands"
+	cmd.Run = seeHelp
+
 	cmd.AddCommand(
 		authActiveCmd(),
 		authCreateCmd(),
@@ -67,7 +66,7 @@ func authCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create authorization",
-		RunE:  wrapCheckSetup(authorizationCreateF),
+		RunE:  checkSetupRunEMiddleware(&flags)(authorizationCreateF),
 	}
 	authCreateFlags.org.register(cmd, false)
 
@@ -280,9 +279,10 @@ var authorizationFindFlags struct {
 
 func authFindCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "find",
-		Short: "Find authorization",
-		RunE:  wrapCheckSetup(authorizationFindF),
+		Use:     "list",
+		Short:   "List authorizations",
+		Aliases: []string{"find", "ls"},
+		RunE:    checkSetupRunEMiddleware(&flags)(authorizationFindF),
 	}
 
 	cmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")
@@ -310,6 +310,11 @@ func newAuthorizationService() (platform.AuthorizationService, error) {
 
 func authorizationFindF(cmd *cobra.Command, args []string) error {
 	s, err := newAuthorizationService()
+	if err != nil {
+		return err
+	}
+
+	us, err := newUserService()
 	if err != nil {
 		return err
 	}
@@ -363,11 +368,16 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 		for _, p := range a.Permissions {
 			permissions = append(permissions, p.String())
 		}
+		user, err := us.FindUserByID(context.Background(), a.UserID)
+		if err != nil {
+			return err
+		}
 
 		w.Write(map[string]interface{}{
 			"ID":          a.ID,
 			"Token":       a.Token,
 			"Status":      a.Status,
+			"User":        user.Name,
 			"UserID":      a.UserID.String(),
 			"Permissions": permissions,
 		})
@@ -386,7 +396,7 @@ func authDeleteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete authorization",
-		RunE:  wrapCheckSetup(authorizationDeleteF),
+		RunE:  checkSetupRunEMiddleware(&flags)(authorizationDeleteF),
 	}
 
 	cmd.Flags().StringVarP(&authorizationDeleteFlags.id, "id", "i", "", "The authorization ID (required)")
@@ -452,7 +462,7 @@ func authActiveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "active",
 		Short: "Active authorization",
-		RunE:  wrapCheckSetup(authorizationActiveF),
+		RunE:  checkSetupRunEMiddleware(&flags)(authorizationActiveF),
 	}
 
 	cmd.Flags().StringVarP(&authorizationActiveFlags.id, "id", "i", "", "The authorization ID (required)")
@@ -463,6 +473,11 @@ func authActiveCmd() *cobra.Command {
 
 func authorizationActiveF(cmd *cobra.Command, args []string) error {
 	s, err := newAuthorizationService()
+	if err != nil {
+		return err
+	}
+
+	us, err := newUserService()
 	if err != nil {
 		return err
 	}
@@ -499,10 +514,16 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 		ps = append(ps, p.String())
 	}
 
+	user, err := us.FindUserByID(context.Background(), a.UserID)
+	if err != nil {
+		return err
+	}
+
 	w.Write(map[string]interface{}{
 		"ID":          a.ID.String(),
 		"Token":       a.Token,
 		"Status":      a.Status,
+		"User":        user.Name,
 		"UserID":      a.UserID.String(),
 		"Permissions": ps,
 	})
@@ -520,7 +541,7 @@ func authInactiveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "inactive",
 		Short: "Inactive authorization",
-		RunE:  wrapCheckSetup(authorizationInactiveF),
+		RunE:  checkSetupRunEMiddleware(&flags)(authorizationInactiveF),
 	}
 
 	cmd.Flags().StringVarP(&authorizationInactiveFlags.id, "id", "i", "", "The authorization ID (required)")

@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
@@ -26,12 +24,15 @@ type cmdUserDeps struct {
 	getPassFn func(*input.UI, bool) string
 }
 
-func cmdUser(opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdUserBuilder(newUserSVC, opts...).cmd()
+func cmdUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	builder := newCmdUserBuilder(newUserSVC, opt)
+	builder.globalFlags = f
+	return builder.cmd()
 }
 
 type cmdUserBuilder struct {
 	genericCLIOpts
+	*globalFlags
 
 	svcFn userSVCsFn
 
@@ -41,15 +42,7 @@ type cmdUserBuilder struct {
 	org      organization
 }
 
-func newCmdUserBuilder(svcsFn userSVCsFn, opts ...genericCLIOptFn) *cmdUserBuilder {
-	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
-	}
-	for _, o := range opts {
-		o(&opt)
-	}
-
+func newCmdUserBuilder(svcsFn userSVCsFn, opt genericCLIOpts) *cmdUserBuilder {
 	return &cmdUserBuilder{
 		genericCLIOpts: opt,
 		svcFn:          svcsFn,
@@ -184,7 +177,7 @@ func (b *cmdUserBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) erro
 		return err
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders(
 		"ID",
 		"Name",
@@ -247,7 +240,7 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		for i, h := range headers {
 			m[h] = vals[i]
 		}
-		w := internal.NewTabWriter(b.w)
+		w := b.newTabWriter()
 		w.WriteHeaders(headers...)
 		w.Write(m)
 		w.Flush()
@@ -287,8 +280,9 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 }
 
 func (b *cmdUserBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("find", b.cmdFindRunEFn)
-	cmd.Short = "Find user"
+	cmd := b.newCmd("list", b.cmdFindRunEFn)
+	cmd.Short = "List users"
+	cmd.Aliases = []string{"find", "ls"}
 
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID")
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The user name")
@@ -319,7 +313,7 @@ func (b *cmdUserBuilder) cmdFindRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders(
 		"ID",
 		"Name",
@@ -366,7 +360,7 @@ func (b *cmdUserBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) erro
 		return err
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders(
 		"ID",
 		"Name",

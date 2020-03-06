@@ -84,6 +84,7 @@ export const NEW_ENDPOINT_DRAFT: NotificationEndpoint = {
   token: '',
   url: DEFAULT_ENDPOINT_URLS['slack'],
   status: RemoteDataState.Done,
+  labels: [],
 }
 
 export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
@@ -98,6 +99,7 @@ export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
     url: 'insert.slack.url.here',
     token: 'plerps',
     status: RemoteDataState.Done,
+    labels: [],
   },
   {
     id: '3',
@@ -110,5 +112,6 @@ export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
     clientURL: 'insert.pagerduty.client.url.here',
     routingKey: 'plerps',
     status: RemoteDataState.Done,
+    labels: [],
   },
 ]

@@ -410,7 +410,7 @@ describe('labels', () => {
     cy.getByTestID('label-card').should('have.length', 2)
   })
 
-  describe.skip('label destruction', () => {
+  describe('label destruction', () => {
     const labelName = 'Modus (目录)'
     const labelDescription =
       '(\u03945) Per modum intelligo substantiae affectiones sive id quod in alio est, per quod etiam concipitur.'
@@ -423,30 +423,17 @@ describe('labels', () => {
           description: labelDescription,
           color: labelColor,
         })
-        cy.createLabel(labelName, id, {
-          description: labelDescription,
-          color: '#CCAA88',
-        })
       })
     })
 
-    // Currently producing a false negative
-    it.skip('can delete a label', () => {
-      cy.server()
-      cy.route('DELETE', 'api/v2/labels/*').as('deleteLabels')
-
-      cy.getByTestID('label-card').should('have.length', 2)
-
-      cy.getByTestID('context-delete-menu')
-        .eq(0)
-        .click({force: true})
-      cy.getByTestID('context-delete-label')
-        .eq(0)
-        .click({force: true})
-
-      cy.wait('@deleteLabels')
-
+    it('can delete a label', () => {
       cy.getByTestID('label-card').should('have.length', 1)
+      cy.getByTestID('empty-state').should('not.exist')
+
+      cy.getByTestID('context-delete-menu').click({force: true})
+      cy.getByTestID('context-delete-label').click({force: true})
+
+      cy.getByTestID('empty-state').should('exist')
     })
   })
 })

@@ -2,7 +2,7 @@
 import {normalize} from 'normalizr'
 
 // Schema
-import * as schemas from 'src/schemas'
+import {templateSchema, arrayOfTemplates} from 'src/schemas/templates'
 
 // Reducer
 import {templatesReducer as reducer} from 'src/templates/reducers'
@@ -57,7 +57,7 @@ describe('templates reducer', () => {
       TemplateSummary,
       TemplateSummaryEntities,
       string[]
-    >([templateSummary], schemas.arrayOfTemplates)
+    >([templateSummary], arrayOfTemplates)
 
     const byID = schema.entities.templates
     const allIDs = schema.result
@@ -73,7 +73,7 @@ describe('templates reducer', () => {
     const anotherTemplateSummary = {...templateSummary, id}
     const schema = normalize<TemplateSummary, TemplateSummaryEntities, string>(
       anotherTemplateSummary,
-      schemas.template
+      templateSchema
     )
 
     const state = initialState()
@@ -102,7 +102,7 @@ describe('templates reducer', () => {
     }
     const schema = normalize<TemplateSummary, TemplateSummaryEntities, string>(
       loadedTemplateSummary,
-      schemas.template
+      templateSchema
     )
 
     const state = initialState()

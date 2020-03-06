@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
@@ -365,6 +366,10 @@ func (h *OrgHandler) handlePatchSecrets(w http.ResponseWriter, r *http.Request) 
 	h.API.Respond(w, http.StatusNoContent, nil)
 }
 
+type secretsDeleteBody struct {
+	Secrets []string `json:"secrets"`
+}
+
 // handleDeleteSecrets is the HTTP handler for the DELETE /api/v2/orgs/:id/secrets route.
 func (h *OrgHandler) handleDeleteSecrets(w http.ResponseWriter, r *http.Request) {
 	orgID, err := decodeIDFromCtx(r.Context(), "id")
@@ -373,9 +378,8 @@ func (h *OrgHandler) handleDeleteSecrets(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var reqBody struct {
-		Secrets []string `json:"secrets"`
-	}
+	var reqBody secretsDeleteBody
+
 	if err := h.API.DecodeJSON(r.Body, &reqBody); err != nil {
 		h.API.Err(w, err)
 		return
@@ -424,6 +428,85 @@ func newOrganizationLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry
 		},
 		Logs: logs,
 	}
+}
+
+// SecretService connects to Influx via HTTP using tokens to manage secrets.
+type SecretService struct {
+	Client *httpc.Client
+}
+
+// LoadSecret is not implemented for http
+func (s *SecretService) LoadSecret(ctx context.Context, orgID influxdb.ID, k string) (string, error) {
+	return "", &influxdb.Error{
+		Code: influxdb.EMethodNotAllowed,
+		Msg:  "load secret is not implemented for http",
+	}
+}
+
+// PutSecret is not implemented for http.
+func (s *SecretService) PutSecret(ctx context.Context, orgID influxdb.ID, k string, v string) error {
+	return &influxdb.Error{
+		Code: influxdb.EMethodNotAllowed,
+		Msg:  "put secret is not implemented for http",
+	}
+}
+
+// GetSecretKeys get all secret keys mathing an org ID via HTTP.
+func (s *SecretService) GetSecretKeys(ctx context.Context, orgID influxdb.ID) ([]string, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	span.LogKV("org-id", orgID)
+
+	path := strings.Replace(organizationsIDSecretsPath, ":id", orgID.String(), 1)
+
+	var ss secretsResponse
+	err := s.Client.
+		Get(path).
+		DecodeJSON(&ss).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return ss.Secrets, nil
+}
+
+// PutSecrets is not implemented for http.
+func (s *SecretService) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+	return &influxdb.Error{
+		Code: influxdb.EMethodNotAllowed,
+		Msg:  "put secrets is not implemented for http",
+	}
+}
+
+// PatchSecrets will update the existing secret with new via http.
+func (s *SecretService) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	if orgID != 0 {
+		span.LogKV("org-id", orgID)
+	}
+
+	path := strings.Replace(organizationsIDSecretsPath, ":id", orgID.String(), 1)
+
+	return s.Client.
+		PatchJSON(m, path).
+		Do(ctx)
+}
+
+// DeleteSecret removes a single secret via HTTP.
+func (s *SecretService) DeleteSecret(ctx context.Context, orgID influxdb.ID, ks ...string) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	path := strings.Replace(organizationsIDSecretsDeletePath, ":id", orgID.String(), 1)
+	return s.Client.
+		PostJSON(secretsDeleteBody{
+			Secrets: ks,
+		}, path).
+		Do(ctx)
 }
 
 // OrganizationService connects to Influx via HTTP using tokens to manage organizations.

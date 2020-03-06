@@ -18,13 +18,11 @@ var replFlags struct {
 	org organization
 }
 
-func cmdREPL() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "repl",
-		Short: "Interactive Flux REPL (read-eval-print-loop)",
-		Args:  cobra.NoArgs,
-		RunE:  wrapCheckSetup(replF),
-	}
+func cmdREPL(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("repl", replF)
+	cmd.Short = "Interactive Flux REPL (read-eval-print-loop)"
+	cmd.Args = cobra.NoArgs
+
 	replFlags.org.register(cmd, false)
 
 	return cmd

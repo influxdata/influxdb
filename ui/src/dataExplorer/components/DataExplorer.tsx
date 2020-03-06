@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {FC, useEffect} from 'react'
 import {connect} from 'react-redux'
 
 // Components
@@ -9,72 +9,49 @@ import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 
 // Actions
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
+import {setBuilderBucketIfExists} from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
-import {
-  extractRateLimitResources,
-  extractRateLimitStatus,
-} from 'src/cloud/utils/limits'
-
-// Types
-import {AppState} from 'src/types'
-import {LimitStatus} from 'src/cloud/actions/limits'
-
-interface StateProps {
-  limitedResources: string[]
-  limitStatus: LimitStatus
-}
+import {readQueryParams} from 'src/shared/utils/queryParams'
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
+  onSetBuilderBucketIfExists: typeof setBuilderBucketIfExists
 }
 
-type Props = DispatchProps & StateProps
-class DataExplorer extends PureComponent<Props, {}> {
-  constructor(props: Props) {
-    super(props)
+type Props = DispatchProps
 
-    props.onSetActiveTimeMachine('de')
+const DataExplorer: FC<Props> = ({
+  onSetActiveTimeMachine,
+  onSetBuilderBucketIfExists,
+}) => {
+  useEffect(() => {
+    const bucketQP = readQueryParams()['bucket']
+    onSetActiveTimeMachine('de')
     queryBuilderFetcher.clearCache()
-  }
+    onSetBuilderBucketIfExists(bucketQP)
+  }, [])
 
-  public render() {
-    const {limitedResources, limitStatus} = this.props
-
-    return (
-      <LimitChecker>
-        <RateLimitAlert
-          resources={limitedResources}
-          limitStatus={limitStatus}
-        />
-        <div className="data-explorer">
-          <HoverTimeProvider>
-            <TimeMachine />
-          </HoverTimeProvider>
-        </div>
-      </LimitChecker>
-    )
-  }
-}
-
-const mstp = (state: AppState): StateProps => {
-  const {
-    cloud: {limits},
-  } = state
-
-  return {
-    limitedResources: extractRateLimitResources(limits),
-    limitStatus: extractRateLimitStatus(limits),
-  }
+  return (
+    <LimitChecker>
+      <RateLimitAlert />
+      <div className="data-explorer">
+        <HoverTimeProvider>
+          <TimeMachine />
+        </HoverTimeProvider>
+      </div>
+    </LimitChecker>
+  )
 }
 
 const mdtp: DispatchProps = {
   onSetActiveTimeMachine: setActiveTimeMachine,
+  onSetBuilderBucketIfExists: setBuilderBucketIfExists,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
+export default connect<{}, DispatchProps, {}>(
+  null,
   mdtp
 )(DataExplorer)

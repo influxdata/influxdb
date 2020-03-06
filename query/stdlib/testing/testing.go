@@ -84,7 +84,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"window_group_mean_ungroup": "window trigger optimization modifies sort order of its output tables (https://github.com/influxdata/flux/issues/1067)",
 
 		"median_column": "failing in different ways (https://github.com/influxdata/influxdb/issues/13909)",
-		"dynamic_query": "panic when executing",
+		"dynamic_query": "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
 
 		"to_int":  "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
 		"to_uint": "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
@@ -93,6 +93,13 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	},
 	"experimental": {
 		"set": "Reason TBD",
+	},
+	"experimental/geo": {
+		"filterRowsNotStrict": "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"filterRowsStrict":    "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"gridFilterLevel":     "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"gridFilter":          "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"groupByArea":         "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
 	},
 	"regexp": {
 		"replaceAllString": "Reason TBD",
@@ -116,6 +123,9 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	},
 	"testing/chronograf": {
 		"buckets": "unbounded test",
+	},
+	"testing/influxql": {
+		"aggregate_group_by_time": "https://github.com/influxdata/influxdb/issues/16940",
 	},
 	"testing/kapacitor": {
 		"fill_default": "unknown field type for f1",

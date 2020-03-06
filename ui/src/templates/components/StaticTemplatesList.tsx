@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import memoizeOne from 'memoize-one'
-// import _ from 'lodash'
 
 // Components
 import {ResourceList} from '@influxdata/clockface'
@@ -9,7 +8,7 @@ import EmptyTemplatesList from 'src/templates/components/EmptyTemplatesList'
 import StaticTemplateCard from 'src/templates/components/StaticTemplateCard'
 
 // Types
-import {TemplateSummary} from '@influxdata/influx'
+import {Template, TemplateSummary, RemoteDataState} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from 'src/clockface'
 
@@ -18,8 +17,15 @@ import {getSortedResources} from 'src/shared/utils/sort'
 
 type SortKey = 'meta.name'
 
+export type TemplateOrSummary = Template | TemplateSummary
+
+export interface StaticTemplate {
+  name: string
+  template: TemplateOrSummary
+}
+
 interface Props {
-  templates: {name: string; template: TemplateSummary}[]
+  templates: StaticTemplate[]
   searchTerm: string
   onFilterChange: (searchTerm: string) => void
   onImport: () => void
@@ -86,7 +92,7 @@ export default class StaticTemplatesList extends PureComponent<Props> {
       <StaticTemplateCard
         key={`template-id--static-${t.name}`}
         name={t.name}
-        template={t.template}
+        template={{...t.template, status: RemoteDataState.Done}}
         onFilterChange={onFilterChange}
       />
     ))

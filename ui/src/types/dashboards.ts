@@ -6,7 +6,7 @@ import {
   RenamableField,
   BuilderConfig,
 } from 'src/client'
-import {Label, RemoteDataState} from 'src/types'
+import {RemoteDataState} from 'src/types'
 
 export type FieldOption = RenamableField
 
@@ -24,13 +24,15 @@ export type BuilderConfigAggregateWindow = BuilderConfig['aggregateWindow']
 export interface Cell extends GenCell {
   dashboardID: string
   status: RemoteDataState
+  minH?: number
+  minW?: number
 }
 
 export type NewCell = Omit<Cell, 'id' | 'links' | 'dashboardID'>
 
-export interface Dashboard extends Omit<GenDashboard, 'cells'> {
+export interface Dashboard extends Omit<GenDashboard, 'cells' | 'labels'> {
   cells: string[]
-  labels: Label[]
+  labels: string[]
   status: RemoteDataState
 }
 

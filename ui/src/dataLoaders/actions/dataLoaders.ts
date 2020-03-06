@@ -9,7 +9,8 @@ import {createAuthorization} from 'src/authorizations/apis'
 import {postWrite as apiPostWrite, postLabel as apiPostLabel} from 'src/client'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {authSchema} from 'src/schemas'
+import {telegrafSchema} from 'src/schemas/telegrafs'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
@@ -389,7 +390,7 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
 
     const normTelegraf = normalize<Telegraf, TelegrafEntities, string>(
       telegraf,
-      schemas.telegraf
+      telegrafSchema
     )
 
     dispatch(editTelegraf(normTelegraf))
@@ -454,7 +455,7 @@ const createTelegraf = async (dispatch, getState: GetState, plugins) => {
 
     const normAuth = normalize<Authorization, AuthEntities, string>(
       createdToken,
-      schemas.auth
+      authSchema
     )
 
     // add token to authorizations state
@@ -494,7 +495,7 @@ const createTelegraf = async (dispatch, getState: GetState, plugins) => {
 
     const normTelegraf = normalize<Telegraf, TelegrafEntities, string>(
       config,
-      schemas.telegraf
+      telegrafSchema
     )
 
     dispatch(setTelegrafConfigID(tc.id))

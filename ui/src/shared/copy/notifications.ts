@@ -169,6 +169,16 @@ export const dashboardDeleteFailed = (
   message: `Failed to delete Dashboard ${name}: ${errorMessage}.`,
 })
 
+export const dashboardCopySuccess = () => ({
+  ...defaultSuccessNotification,
+  message: 'Copied dashboard to the clipboard!',
+})
+
+export const dashboardCopyFailed = () => ({
+  ...defaultErrorNotification,
+  message: 'Failed to copy dashboard.',
+})
+
 export const cellAdded = (
   cellName?: string,
   dashboardName?: string
@@ -607,6 +617,16 @@ export const bucketRenameFailed = (bucketName: string): Notification => ({
   message: `Failed to rename bucket "${bucketName}"`,
 })
 
+export const addBucketLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to add label to bucket',
+})
+
+export const removeBucketLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to remove label from bucket',
+})
+
 export const orgCreateSuccess = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'Organization was successfully created',
@@ -725,6 +745,16 @@ export const authorizationDeleteSuccess = (): Notification => ({
 export const authorizationDeleteFailed = (desc: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to delete token: "${desc}"`,
+})
+
+export const authorizationCopySuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Token has been copied to clipboard',
+})
+
+export const authorizationCopyFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to copy token to clipboard',
 })
 
 export const telegrafDeleteSuccess = (telegrafName: string): Notification => ({

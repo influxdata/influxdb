@@ -5,7 +5,7 @@ import {getDashboards as apiGetDashboards} from 'src/client'
 import {Dashboard, Organization} from 'src/types'
 
 // Utils
-import {addDashboardDefaults} from 'src/schemas'
+import {addDashboardDefaults} from 'src/schemas/dashboards'
 
 // CRUD APIs for Organizations and Organization resources
 // i.e. Organization Members, Buckets, Dashboards etc

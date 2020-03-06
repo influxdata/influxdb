@@ -19,27 +19,22 @@ import {
 } from '@influxdata/clockface'
 
 // Utils
-import {
-  extractRateLimitResources,
-  extractRateLimitStatus,
-} from 'src/cloud/utils/limits'
+import {extractRateLimitResources} from 'src/cloud/utils/limits'
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {getOrg} from 'src/organizations/selectors'
 
 // Types
 import {AppState, Organization, ResourceType} from 'src/types'
-import {LimitStatus} from 'src/cloud/actions/limits'
 
 interface StateProps {
   org: Organization
   limitedResources: string[]
-  limitStatus: LimitStatus
 }
 
 @ErrorHandling
 class BucketsIndex extends Component<StateProps> {
   public render() {
-    const {org, children, limitedResources, limitStatus} = this.props
+    const {org, children} = this.props
 
     return (
       <>
@@ -51,16 +46,16 @@ class BucketsIndex extends Component<StateProps> {
               justifyContent={JustifyContent.Center}
             >
               {this.isCardinalityExceeded && (
-                <RateLimitAlert
-                  resources={limitedResources}
-                  limitStatus={limitStatus}
-                  className="load-data--rate-alert"
-                />
+                <RateLimitAlert className="load-data--rate-alert" />
               )}
             </FlexBox>
             <LoadDataTabbedPage activeTab="buckets" orgID={org.id}>
               <GetResources
-                resources={[ResourceType.Buckets, ResourceType.Telegrafs]}
+                resources={[
+                  ResourceType.Buckets,
+                  ResourceType.Labels,
+                  ResourceType.Telegrafs,
+                ]}
               >
                 <GetAssetLimits>
                   <BucketsTab />
@@ -87,9 +82,8 @@ const mstp = (state: AppState) => {
   } = state
   const org = getOrg(state)
   const limitedResources = extractRateLimitResources(limits)
-  const limitStatus = extractRateLimitStatus(limits)
 
-  return {org, limitedResources, limitStatus}
+  return {org, limitedResources}
 }
 
 export default connect<StateProps, {}, {}>(

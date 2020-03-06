@@ -6,7 +6,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {postSignout} from 'src/client'
 
 // Constants
-import {CLOUD, CLOUD_SIGNOUT_URL} from 'src/shared/constants'
+import {CLOUD, CLOUD_URL, CLOUD_LOGOUT_PATH} from 'src/shared/constants'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -25,7 +25,7 @@ export class Logout extends PureComponent<Props> {
 
   private handleSignOut = async () => {
     if (CLOUD) {
-      window.location.href = CLOUD_SIGNOUT_URL
+      window.location.href = `${CLOUD_URL}${CLOUD_LOGOUT_PATH}`
       return
     } else {
       const resp = await postSignout({})

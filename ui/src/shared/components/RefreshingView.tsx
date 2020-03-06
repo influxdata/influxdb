@@ -10,6 +10,7 @@ import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
 import {
   getVariableAssignments,
   getDashboardValuesStatus,
@@ -29,13 +30,12 @@ import {
 } from 'src/types'
 
 interface OwnProps {
-  timeRange: TimeRange
   manualRefresh: number
   properties: QueryViewProperties
-  dashboardID: string
 }
 
 interface StateProps {
+  timeRange: TimeRange
   ranges: TimeRange | null
   timeZone: TimeZone
   variableAssignments: VariableAssignment[]
@@ -150,17 +150,16 @@ class RefreshingView extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
-  const variableAssignments = getVariableAssignments(
-    state,
-    ownProps.dashboardID
-  )
-  const valuesStatus = getDashboardValuesStatus(state, ownProps.dashboardID)
-  const {properties} = ownProps
-  const timeRange = getActiveTimeRange(ownProps.timeRange, properties.queries)
+  const dashboard = state.currentDashboard.id
+  const variableAssignments = getVariableAssignments(state, dashboard)
+  const timeRange = getTimeRangeByDashboardID(state, dashboard)
+  const valuesStatus = getDashboardValuesStatus(state, dashboard)
+  const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)
   const timeZone = state.app.persisted.timeZone
 
   return {
-    ranges: timeRange,
+    timeRange,
+    ranges,
     timeZone,
     variableAssignments,
     variablesStatus: valuesStatus,

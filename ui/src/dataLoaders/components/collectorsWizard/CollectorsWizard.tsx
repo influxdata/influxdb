@@ -92,7 +92,7 @@ type AllProps = Props & WithRouterProps
 class CollectorsWizard extends PureComponent<AllProps> {
   public componentDidMount() {
     const {bucket, buckets} = this.props
-    if (!bucket && (buckets && buckets.length)) {
+    if (!bucket && buckets && buckets.length) {
       const {orgID, name, id} = buckets[0]
       this.props.onSetBucketInfo(orgID, name, id)
     }

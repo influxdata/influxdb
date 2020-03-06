@@ -20,7 +20,7 @@ import (
 // Viewer is used by the store to query data from time-series files.
 type Viewer interface {
 	CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator, error)
-	CreateSeriesCursor(ctx context.Context, req storage.SeriesCursorRequest, cond influxql.Expr) (storage.SeriesCursor, error)
+	CreateSeriesCursor(ctx context.Context, orgID, bucketID influxdb.ID, cond influxql.Expr) (storage.SeriesCursor, error)
 	TagKeys(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error)
 	TagValues(ctx context.Context, orgID, bucketID influxdb.ID, tagKey string, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error)
 }
@@ -35,54 +35,54 @@ func NewStore(viewer Viewer) reads.Store {
 }
 
 func (s *store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	if req.ReadSource == nil {
-		return nil, errors.New("missing read source")
+		return nil, tracing.LogError(span, errors.New("missing read source"))
 	}
 
 	source, err := getReadSource(*req.ReadSource)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	var cur reads.SeriesCursor
-	if ic, err := newIndexSeriesCursor(ctx, &source, req.Predicate, s.viewer); err != nil {
-		return nil, err
-	} else if ic == nil {
+	if cur, err = newIndexSeriesCursor(ctx, &source, req.Predicate, s.viewer); err != nil {
+		return nil, tracing.LogError(span, err)
+	} else if cur == nil {
 		return nil, nil
-	} else {
-		cur = ic
 	}
 
 	return reads.NewFilteredResultSet(ctx, req, cur), nil
 }
 
 func (s *store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	if req.ReadSource == nil {
-		return nil, errors.New("missing read source")
+		return nil, tracing.LogError(span, errors.New("missing read source"))
 	}
 
 	source, err := getReadSource(*req.ReadSource)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	newCursor := func() (reads.SeriesCursor, error) {
-		cur, err := newIndexSeriesCursor(ctx, &source, req.Predicate, s.viewer)
-		if cur == nil || err != nil {
-			return nil, err
-		}
-		return cur, nil
+		return newIndexSeriesCursor(ctx, &source, req.Predicate, s.viewer)
 	}
 
 	return reads.NewGroupResultSet(ctx, req, newCursor), nil
 }
 
 func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {
-	span, _ := tracing.StartSpanFromContext(ctx)
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if req.TagsSource == nil {
-		return nil, errors.New("missing tags source")
+		return nil, tracing.LogError(span, errors.New("missing tags source"))
 	}
 
 	if req.Range.Start == 0 {
@@ -97,11 +97,11 @@ func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 	if root := req.Predicate.GetRoot(); root != nil {
 		expr, err = reads.NodeToExpr(root, nil)
 		if err != nil {
-			return nil, err
+			return nil, tracing.LogError(span, err)
 		}
 
 		if found := reads.HasFieldValueKey(expr); found {
-			return nil, errors.New("field values unsupported")
+			return nil, tracing.LogError(span, errors.New("field values unsupported"))
 		}
 		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
 		if reads.IsTrueBooleanLiteral(expr) {
@@ -111,17 +111,17 @@ func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 
 	readSource, err := getReadSource(*req.TagsSource)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 	return s.viewer.TagKeys(ctx, influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.Range.Start, req.Range.End, expr)
 }
 
 func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
-	span, _ := tracing.StartSpanFromContext(ctx)
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if req.TagsSource == nil {
-		return nil, errors.New("missing tags source")
+		return nil, tracing.LogError(span, errors.New("missing tags source"))
 	}
 
 	if req.Range.Start == 0 {
@@ -132,7 +132,7 @@ func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 	}
 
 	if req.TagKey == "" {
-		return nil, errors.New("missing tag key")
+		return nil, tracing.LogError(span, errors.New("missing tag key"))
 	}
 
 	var expr influxql.Expr
@@ -140,11 +140,11 @@ func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 	if root := req.Predicate.GetRoot(); root != nil {
 		expr, err = reads.NodeToExpr(root, nil)
 		if err != nil {
-			return nil, err
+			return nil, tracing.LogError(span, err)
 		}
 
 		if found := reads.HasFieldValueKey(expr); found {
-			return nil, errors.New("field values unsupported")
+			return nil, tracing.LogError(span, errors.New("field values unsupported"))
 		}
 		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
 		if reads.IsTrueBooleanLiteral(expr) {
@@ -154,7 +154,7 @@ func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 
 	readSource, err := getReadSource(*req.TagsSource)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 	return s.viewer.TagValues(ctx, influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.TagKey, req.Range.Start, req.Range.End, expr)
 }

@@ -231,7 +231,9 @@ describe('Notification Endpoints', () => {
       cy.getByTestID('inline-labels--create-new').click()
       cy.getByTestID('create-label-form--submit').click()
 
-      cy.getByTestID(`label--pill ${labelName}`).should('exist')
+      // Delete the label
+      cy.getByTestID(`label--pill--delete ${labelName}`).click({force: true})
+      cy.getByTestID('inline-labels--empty').should('exist')
     })
   })
 

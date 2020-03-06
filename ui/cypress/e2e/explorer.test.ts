@@ -369,6 +369,15 @@ describe('DataExplorer', () => {
       cy.getByTestID('switch-to-script-editor')
         .should('be.visible')
         .click()
+      cy.getByTestID('flux-function aggregate.rate').click()
+      // check to see if import is defaulted to the top
+      cy.get('.view-line')
+        .first()
+        .contains('import')
+      // check to see if new aggregate rate is at the bottom
+      cy.get('.view-line')
+        .last()
+        .contains('aggregate.')
       cy.getByTestID('flux-editor').should('exist')
       cy.getByTestID('flux-editor').within(() => {
         cy.get('textarea').type('yoyoyoyoyo', {force: true})
@@ -383,7 +392,7 @@ describe('DataExplorer', () => {
 
       cy.getByTestID('switch-query-builder-confirm--popover--contents').within(
         () => {
-          cy.getByTestID('button').click()
+          cy.getByTestID('switch-query-builder-confirm--confirm-button').click()
         }
       )
 
@@ -498,9 +507,9 @@ describe('DataExplorer', () => {
           .click()
           .focused()
           .type(
-            `from(bucket: "defbuck")
-  |> range(start: -10s)
-  |> filter(fn: (r) => r._measurement == "no exist")`,
+            `from(bucket: "defbuck"{rightarrow}
+  |> range(start: -10s{rightarrow}
+  |> filter(fn: (r{rightarrow} => r._measurement == "no exist"{rightarrow}`,
             {force: true, delay: TYPE_DELAY}
           )
         cy.getByTestID('time-machine-submit-button').click()
@@ -518,9 +527,9 @@ describe('DataExplorer', () => {
           .click()
           .focused()
           .type(
-            `from(bucket: "defbuck")
-  |> range(start: -15m, stop: now())
-  |> filter(fn: (r) => r._measurement == `,
+            `from(bucket: "defbuck"{rightarrow}
+  |> range(start: -15m, stop: now({rightarrow}{rightarrow}
+  |> filter(fn: (r{rightarrow} => r._measurement ==`,
             {force: true, delay: TYPE_DELAY}
           )
       })
@@ -528,14 +537,6 @@ describe('DataExplorer', () => {
       cy.getByTestID('toolbar-tab').click()
       //insert variable name by clicking on variable
       cy.get('.variables-toolbar--label').click()
-      // finish flux
-      cy.getByTestID('flux-editor').within(() => {
-        cy.get('.react-monaco-editor-container')
-          .should('exist')
-          .click()
-          .focused()
-          .type(`)`, {force: true, delay: TYPE_DELAY})
-      })
 
       cy.getByTestID('save-query-as').click()
       cy.getByTestID('task--radio-button').click()

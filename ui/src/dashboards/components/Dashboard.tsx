@@ -14,7 +14,6 @@ import {
 
 // Types
 import {Cell, AppState} from 'src/types'
-import {TimeRange} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -27,11 +26,7 @@ interface StateProps {
   status: RemoteDataState
 }
 interface OwnProps {
-  dashboardID: string
-  timeRange: TimeRange
   manualRefresh: number
-  onPositionChange: (cells: Cell[]) => void
-  onAddCell: () => void
 }
 
 type Props = OwnProps & StateProps
@@ -39,27 +34,15 @@ type Props = OwnProps & StateProps
 @ErrorHandling
 class DashboardComponent extends PureComponent<Props> {
   public render() {
-    const {
-      cells,
-      status,
-      timeRange,
-      manualRefresh,
-      onPositionChange,
-      onAddCell,
-    } = this.props
+    const {cells, status, manualRefresh} = this.props
 
     return (
       <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
         <Page.Contents fullWidth={true} scrollable={true} className="dashboard">
           {!!cells.length ? (
-            <Cells
-              cells={cells}
-              timeRange={timeRange}
-              manualRefresh={manualRefresh}
-              onPositionChange={onPositionChange}
-            />
+            <Cells manualRefresh={manualRefresh} />
           ) : (
-            <DashboardEmpty onAddCell={onAddCell} />
+            <DashboardEmpty />
           )}
           {/* This element is used as a portal container for note tooltips in cell headers */}
           <div className="cell-header-note-tooltip-container" />
@@ -69,11 +52,14 @@ class DashboardComponent extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState, props: OwnProps): StateProps => {
+const mstp = (state: AppState): StateProps => {
   return {
-    cells: getCells(state, props.dashboardID),
+    cells: getCells(state, state.currentDashboard.id),
     status: state.resources.cells.status,
   }
 }
 
-export default connect(mstp)(DashboardComponent)
+export default connect<StateProps, {}, OwnProps>(
+  mstp,
+  null
+)(DashboardComponent)

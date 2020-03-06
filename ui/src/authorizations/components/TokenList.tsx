@@ -61,8 +61,8 @@ export default class TokenList extends PureComponent<Props, State> {
               width="50%"
             />
             <IndexList.HeaderCell
-              sortKey={this.headerKeys[0]}
-              sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
+              sortKey={this.headerKeys[1]}
+              sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
               columnName="Status"
               onClick={onClickColumn}
               width="50%"

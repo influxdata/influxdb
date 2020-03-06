@@ -4,23 +4,24 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/influxdata/influxdb/http"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/spf13/cobra"
 )
 
 type orgSVCFn func() (influxdb.OrganizationService, influxdb.UserResourceMappingService, influxdb.UserService, error)
 
-func cmdOrganization(opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdOrgBuilder(newOrgServices, opts...).cmd()
+func cmdOrganization(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+	builder := newCmdOrgBuilder(newOrgServices, opts)
+	builder.globalFlags = f
+	return builder.cmd()
 }
 
 type cmdOrgBuilder struct {
 	genericCLIOpts
+	*globalFlags
 
 	svcFn orgSVCFn
 
@@ -30,17 +31,9 @@ type cmdOrgBuilder struct {
 	name        string
 }
 
-func newCmdOrgBuilder(svcFn orgSVCFn, opts ...genericCLIOptFn) *cmdOrgBuilder {
-	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
-	}
-	for _, o := range opts {
-		o(&opt)
-	}
-
+func newCmdOrgBuilder(svcFn orgSVCFn, opts genericCLIOpts) *cmdOrgBuilder {
 	return &cmdOrgBuilder{
-		genericCLIOpts: opt,
+		genericCLIOpts: opts,
 		svcFn:          svcFn,
 	}
 }
@@ -88,7 +81,7 @@ func (b *cmdOrgBuilder) createRunEFn(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create organization: %v", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders("ID", "Name")
 	w.Write(map[string]interface{}{
 		"ID":   org.ID.String(),
@@ -138,7 +131,7 @@ func (b *cmdOrgBuilder) deleteRunEFn(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to delete org with id %q: %v", id, err)
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders("ID", "Name", "Deleted")
 	w.Write(map[string]interface{}{
 		"ID":      o.ID.String(),
@@ -151,8 +144,9 @@ func (b *cmdOrgBuilder) deleteRunEFn(cmd *cobra.Command, args []string) error {
 }
 
 func (b *cmdOrgBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("find", b.findRunEFn)
-	cmd.Short = "Find organizations"
+	cmd := b.newCmd("list", b.findRunEFn)
+	cmd.Short = "List organizations"
+	cmd.Aliases = []string{"find", "ls"}
 
 	opts := flagOpts{
 		{
@@ -199,7 +193,7 @@ func (b *cmdOrgBuilder) findRunEFn(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed find orgs: %v", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders("ID", "Name")
 	for _, o := range orgs {
 		w.Write(map[string]interface{}{
@@ -269,7 +263,7 @@ func (b *cmdOrgBuilder) updateRunEFn(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to update org: %v", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders("ID", "Name")
 	w.Write(map[string]interface{}{
 		"ID":   o.ID.String(),
@@ -297,6 +291,7 @@ func (b *cmdOrgBuilder) cmdMember() *cobra.Command {
 func (b *cmdOrgBuilder) cmdMemberList() *cobra.Command {
 	cmd := b.newCmd("list", b.memberListRunEFn)
 	cmd.Short = "List organization members"
+	cmd.Aliases = []string{"find", "ls"}
 
 	opts := flagOpts{
 		{
@@ -348,7 +343,7 @@ func (b *cmdOrgBuilder) memberListRunEFn(cmd *cobra.Command, args []string) erro
 	}
 
 	ctx := context.Background()
-	return memberList(ctx, b.w, urmSVC, userSVC, influxdb.UserResourceMappingFilter{
+	return memberList(ctx, b, urmSVC, userSVC, influxdb.UserResourceMappingFilter{
 		ResourceType: influxdb.OrgsResourceType,
 		ResourceID:   organization.ID,
 		UserType:     influxdb.Member,
@@ -538,7 +533,7 @@ func newOrganizationService() (influxdb.OrganizationService, error) {
 	}, nil
 }
 
-func memberList(ctx context.Context, w io.Writer, urmSVC influxdb.UserResourceMappingService, userSVC influxdb.UserService, f influxdb.UserResourceMappingFilter) error {
+func memberList(ctx context.Context, b *cmdOrgBuilder, urmSVC influxdb.UserResourceMappingService, userSVC influxdb.UserService, f influxdb.UserResourceMappingFilter) error {
 	mps, _, err := urmSVC.FindUserResourceMappings(ctx, f)
 	if err != nil {
 		return fmt.Errorf("failed to find members: %v", err)
@@ -582,7 +577,7 @@ func memberList(ctx context.Context, w io.Writer, urmSVC influxdb.UserResourceMa
 		}
 	}
 
-	tw := internal.NewTabWriter(w)
+	tw := b.newTabWriter()
 	tw.WriteHeaders("ID", "Name", "Status")
 	for _, m := range urs {
 		tw.Write(map[string]interface{}{
