@@ -90,7 +90,8 @@ func (f *fixture) Run(t *testing.T) {
 	t.Run(f.stmt, func(t *testing.T) {
 		wantAST := parser.ParseSource(f.want)
 		if ast.Check(wantAST) > 0 {
-			t.Fatal("found parser errors in the want text")
+			err := ast.GetError(wantAST)
+			t.Fatalf("found parser errors in the want text: %s", err.Error())
 		}
 		want := ast.Format(wantAST)
 

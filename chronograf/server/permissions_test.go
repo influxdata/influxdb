@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/chronograf"
 	"github.com/influxdata/influxdb/chronograf/mocks"
-	"github.com/influxdata/httprouter"
 )
 
 func TestService_Permissions(t *testing.T) {
