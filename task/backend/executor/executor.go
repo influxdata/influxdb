@@ -279,7 +279,7 @@ func (w *worker) work() {
 			// If done the promise was canceled
 			case <-prom.ctx.Done():
 				w.e.tcs.AddRunLog(prom.ctx, prom.task.ID, prom.run.ID, time.Now().UTC(), "Run canceled")
-				w.e.tcs.UpdateRunState(prom.ctx, prom.task.ID, prom.run.ID, time.Now().UTC(), backend.RunCanceled)
+				w.e.tcs.UpdateRunState(prom.ctx, prom.task.ID, prom.run.ID, time.Now().UTC(), influxdb.RunCanceled)
 				prom.err = influxdb.ErrRunCanceled
 				close(prom.done)
 				return
@@ -306,14 +306,14 @@ func (w *worker) start(p *promise) {
 	// add to run log
 	w.e.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now().UTC(), fmt.Sprintf("Started task from script: %q", p.task.Flux))
 	// update run status
-	w.e.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now().UTC(), backend.RunStarted)
+	w.e.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now().UTC(), influxdb.RunStarted)
 
 	// add to metrics
 	w.e.metrics.StartRun(p.task, time.Since(p.createdAt), time.Since(p.run.RunAt))
 	p.startedAt = time.Now()
 }
 
-func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
+func (w *worker) finish(p *promise, rs influxdb.RunStatus, err error) {
 
 	// trace
 	span, ctx := tracing.StartSpanFromContext(p.ctx)
@@ -365,7 +365,7 @@ func (w *worker) executeQuery(p *promise) {
 
 	pkg, err := flux.Parse(p.task.Flux)
 	if err != nil {
-		w.finish(p, backend.RunFail, influxdb.ErrFluxParseError(err))
+		w.finish(p, influxdb.RunFail, influxdb.ErrFluxParseError(err))
 		return
 	}
 
@@ -384,7 +384,7 @@ func (w *worker) executeQuery(p *promise) {
 	it, err := w.e.qs.Query(ctx, req)
 	if err != nil {
 		// Assume the error should not be part of the runResult.
-		w.finish(p, backend.RunFail, influxdb.ErrQueryError(err))
+		w.finish(p, influxdb.RunFail, influxdb.ErrQueryError(err))
 		return
 	}
 
@@ -407,16 +407,16 @@ func (w *worker) executeQuery(p *promise) {
 	}
 
 	if runErr != nil {
-		w.finish(p, backend.RunFail, influxdb.ErrRunExecutionError(runErr))
+		w.finish(p, influxdb.RunFail, influxdb.ErrRunExecutionError(runErr))
 		return
 	}
 
 	if it.Err() != nil {
-		w.finish(p, backend.RunFail, influxdb.ErrResultIteratorError(it.Err()))
+		w.finish(p, influxdb.RunFail, influxdb.ErrResultIteratorError(it.Err()))
 		return
 	}
 
-	w.finish(p, backend.RunSuccess, nil)
+	w.finish(p, influxdb.RunSuccess, nil)
 }
 
 // RunsActive returns the current number of workers, which is equivalent to

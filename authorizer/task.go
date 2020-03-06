@@ -7,7 +7,6 @@ import (
 	"github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/task/backend"
 	"go.uber.org/zap"
 )
 
@@ -273,7 +272,7 @@ func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID infl
 		return nil, err
 	}
 
-	if task.Status != string(backend.TaskActive) {
+	if task.Status != string(influxdb.TaskActive) {
 		return nil, ErrInactiveTask
 	}
 
@@ -301,7 +300,7 @@ func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID influxdb.ID
 		return nil, err
 	}
 
-	if task.Status != string(backend.TaskActive) {
+	if task.Status != string(influxdb.TaskActive) {
 		return nil, ErrInactiveTask
 	}
 
