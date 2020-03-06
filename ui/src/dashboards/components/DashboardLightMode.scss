@@ -7,6 +7,10 @@
   background-color: $g18-cloud;
   color: $g8-storm;
 
+  .cf-page-contents > .cf-dapper-scrollbars--track-y {
+    background-color: $g15-platinum !important;
+  }
+
   .cf-page--sub-title {
     color: $g13-mist;
   }
@@ -41,5 +45,12 @@
     }
   }
 
+  .markdown-format {
+    color: $g7-graphite;
 
+    code {
+      font-weight: 700;
+      color: $c-star;
+    }
+  }
 }

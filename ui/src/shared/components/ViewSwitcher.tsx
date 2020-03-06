@@ -38,6 +38,7 @@ interface Props {
   timeRange: TimeRange | null
   checkType?: CheckType
   checkThresholds?: Threshold[]
+  lightMode: boolean
 }
 
 const ViewSwitcher: FunctionComponent<Props> = ({
@@ -50,13 +51,18 @@ const ViewSwitcher: FunctionComponent<Props> = ({
   statuses,
   checkType = null,
   checkThresholds = [],
+  lightMode,
 }) => {
   switch (properties.type) {
     case 'single-stat':
       return (
         <LatestValueTransform table={table} allowString={true}>
           {latestValue => (
-            <SingleStat stat={latestValue} properties={properties} />
+            <SingleStat
+              stat={latestValue}
+              properties={properties}
+              lightMode={lightMode}
+            />
           )}
         </LatestValueTransform>
       )
@@ -91,6 +97,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           table={table}
           timeZone={timeZone}
           viewProperties={properties}
+          lightMode={lightMode}
         >
           {config => <Plot config={config} />}
         </XYPlot>
@@ -120,6 +127,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           table={table}
           timeZone={timeZone}
           viewProperties={xyProperties}
+          lightMode={lightMode}
         >
           {config => (
             <Plot config={config}>
@@ -132,6 +140,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
                   <SingleStat
                     stat={latestValue}
                     properties={singleStatProperties}
+                    lightMode={lightMode}
                   />
                 )}
               </LatestValueTransform>

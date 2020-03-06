@@ -11,6 +11,7 @@ import {SingleStatViewProperties} from 'src/types/dashboards'
 interface Props {
   properties: SingleStatViewProperties
   stat: number
+  lightMode: boolean
 }
 
 const SingleStat: SFC<Props> = ({stat, properties}) => {

@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -17,6 +18,7 @@ import {
 } from 'src/variables/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
+import {isLightMode} from 'src/dashboards/utils/dashboardLightMode'
 
 // Types
 import {
@@ -40,13 +42,14 @@ interface StateProps {
   timeZone: TimeZone
   variableAssignments: VariableAssignment[]
   variablesStatus: RemoteDataState
+  dashboardLightMode: boolean
 }
 
 interface State {
   submitToken: number
 }
 
-type Props = OwnProps & StateProps
+type Props = OwnProps & StateProps & WithRouterProps
 
 class RefreshingView extends PureComponent<Props, State> {
   public static defaultProps = {
@@ -69,8 +72,21 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {ranges, properties, manualRefresh, timeZone} = this.props
+    const {
+      ranges,
+      properties,
+      manualRefresh,
+      timeZone,
+      location,
+      dashboardLightMode,
+    } = this.props
     const {submitToken} = this.state
+
+    const lightMode = isLightMode(
+      dashboardLightMode,
+      location.pathname,
+      location.search
+    )
 
     return (
       <TimeSeries
@@ -105,6 +121,7 @@ class RefreshingView extends PureComponent<Props, State> {
                 timeRange={ranges}
                 statuses={statuses}
                 timeZone={timeZone}
+                lightMode={lightMode}
               />
             </EmptyQueryView>
           )
@@ -156,6 +173,11 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const valuesStatus = getDashboardValuesStatus(state, dashboard)
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)
   const timeZone = state.app.persisted.timeZone
+  const {
+    app: {
+      persisted: {dashboardLightMode},
+    },
+  } = state
 
   return {
     timeRange,
@@ -163,7 +185,10 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     timeZone,
     variableAssignments,
     variablesStatus: valuesStatus,
+    dashboardLightMode,
   }
 }
 
-export default connect<StateProps, {}, OwnProps>(mstp)(RefreshingView)
+export default connect<StateProps, {}, OwnProps>(mstp)(
+  withRouter(RefreshingView)
+)

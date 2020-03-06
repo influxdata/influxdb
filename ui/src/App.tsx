@@ -14,6 +14,9 @@ import OverlayController from 'src/overlays/components/OverlayController'
 import CloudNav from 'src/pageLayout/components/CloudNav'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 
+// Utils
+import {isLightMode} from 'src/dashboards/utils/dashboardLightMode'
+
 // Types
 import {AppState} from 'src/types'
 
@@ -33,9 +36,12 @@ const App: SFC<Props> = ({
   location,
   dashboardLightMode,
 }) => {
-  const isViewingDashboard = location.pathname.includes('dashboards') && location.search.includes('?lower=')
   const appWrapperClass = classnames('', {
-    'dashboard-light-mode': isViewingDashboard && dashboardLightMode,
+    'dashboard-light-mode': isLightMode(
+      dashboardLightMode,
+      location.pathname,
+      location.search
+    ),
   })
 
   return (
