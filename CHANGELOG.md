@@ -1,6 +1,7 @@
 ## v2.0.0-beta.6 [unreleased]
 
 ### Features
+
 1. [17085](https://github.com/influxdata/influxdb/pull/17085): Clicking on bucket name takes user to Data Explorer with bucket selected
 1. [17095](https://github.com/influxdata/influxdb/pull/17095): Extend pkger dashboards with table view support
 1. [17114](https://github.com/influxdata/influxdb/pull/17114): Allow for retention to be provided to influx setup command as a duration
@@ -14,6 +15,7 @@
 1. [17072](https://github.com/influxdata/influxdb/pull/17072): Fixed issue where creating a variable of type map was piping the incorrect value when map variables were used in queries
 1. [17050](https://github.com/influxdata/influxdb/pull/17050): Added missing user names to auth CLI commands
 1. [17091](https://github.com/influxdata/influxdb/pull/17091): Require Content-Type for query endpoint
+1. [17120](https://github.com/influxdata/influxdb/pull/17120): Fixed cell configuration error that was popping up when users create a dashboard and accessed the disk usage cell for the first time
 
 ## v2.0.0-beta.5 [2020-02-27]
 
