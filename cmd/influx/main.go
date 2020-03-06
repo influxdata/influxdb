@@ -109,7 +109,7 @@ type cmdInfluxBuilder struct {
 	once sync.Once
 }
 
-func newInfluxCmdBuilder(opts ...genericCLIOptFn) *cmdInfluxBuilder {
+func newInfluxCmdBuilder(optFns ...genericCLIOptFn) *cmdInfluxBuilder {
 	builder := new(cmdInfluxBuilder)
 
 	opt := genericCLIOpts{
@@ -117,8 +117,8 @@ func newInfluxCmdBuilder(opts ...genericCLIOptFn) *cmdInfluxBuilder {
 		w:          os.Stdout,
 		runEWrapFn: checkSetupRunEMiddleware(&flags),
 	}
-	for _, o := range opts {
-		o(&opt)
+	for _, optFn := range optFns {
+		optFn(&opt)
 	}
 
 	builder.genericCLIOpts = opt

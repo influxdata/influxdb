@@ -9,10 +9,8 @@ import GetResources from 'src/resources/components/GetResources'
 // Utils
 import FLUXLANGID from 'src/external/monaco.flux.syntax'
 import THEME_NAME from 'src/external/monaco.flux.theme'
-import loadServer from 'src/external/monaco.flux.server'
-import 'src/external/monaco.flux.completions'
+import loadServer, {LSPServer} from 'src/external/monaco.flux.server'
 import {comments, submit} from 'src/external/monaco.flux.hotkeys'
-import {didChange, didOpen} from 'src/external/monaco.flux.messages'
 
 // Types
 import {OnChangeScript} from 'src/types/flux'
@@ -33,17 +31,17 @@ const FluxEditorMonaco: FC<Props> = ({
   onSubmitScript,
   setEditorInstance,
 }) => {
-  const lspServer = useRef(null)
+  const lspServer = useRef<LSPServer>(null)
   const [docVersion, setdocVersion] = useState(2)
-  const [msgID, setmsgID] = useState(3)
-  const [docURI, setDocURI] = useState(4)
+  const [docURI, setDocURI] = useState('')
 
-  const editorDidMount = (editor: EditorType) => {
+  const editorDidMount = async (editor: EditorType) => {
     if (setEditorInstance) {
       setEditorInstance(editor)
     }
 
-    const uri = (editor.getModel().uri as any)._formatted
+    const uri = editor.getModel().uri.toString()
+
     setDocURI(uri)
 
     comments(editor)
@@ -55,21 +53,22 @@ const FluxEditorMonaco: FC<Props> = ({
 
     editor.focus()
 
-    loadServer().then(server => {
-      lspServer.current = server
-
-      setdocVersion(0)
-      setmsgID(0)
-
-      lspServer.current.send(didOpen(uri, script))
-    })
+    try {
+      lspServer.current = await loadServer()
+      lspServer.current.didOpen(uri, script)
+    } catch (e) {
+      // TODO: notify user that lsp failed
+    }
   }
 
   const onChange = (text: string) => {
     onChangeScript(text)
-    lspServer.current.send(didChange(docURI, text, docVersion, msgID))
-    setdocVersion(docVersion + 1)
-    setmsgID(msgID + 1)
+    try {
+      lspServer.current.didChange(docURI, text)
+      setdocVersion(docVersion + 1)
+    } catch (e) {
+      // TODO: notify user that lsp failed
+    }
   }
 
   return (

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -585,6 +586,7 @@ const (
 	chartKindScatter            chartKind = "scatter"
 	chartKindSingleStat         chartKind = "single_stat"
 	chartKindSingleStatPlusLine chartKind = "single_stat_plus_line"
+	chartKindTable              chartKind = "table"
 	chartKindXY                 chartKind = "xy"
 )
 
@@ -592,7 +594,7 @@ func (c chartKind) ok() bool {
 	switch c {
 	case chartKindGauge, chartKindHeatMap, chartKindHistogram,
 		chartKindMarkdown, chartKindScatter, chartKindSingleStat,
-		chartKindSingleStatPlusLine, chartKindXY:
+		chartKindSingleStatPlusLine, chartKindTable, chartKindXY:
 		return true
 	default:
 		return false
@@ -1828,6 +1830,8 @@ func (t *task) Status() influxdb.Status {
 	return influxdb.Status(t.status)
 }
 
+var fluxRegex = regexp.MustCompile(`import\s+\".*\"`)
+
 func (t *task) flux() string {
 	taskOpts := []string{fmt.Sprintf("name: %q", t.name)}
 	if t.cron != "" {
@@ -1839,11 +1843,24 @@ func (t *task) flux() string {
 	if t.offset > 0 {
 		taskOpts = append(taskOpts, fmt.Sprintf("offset: %s", t.offset))
 	}
+
 	// this is required by the API, super nasty. Will be super challenging for
 	// anyone outside org to figure out how to do this within an hour of looking
 	// at the API :sadpanda:. Would be ideal to let the API translate the arguments
 	// into this required form instead of forcing that complexity on the caller.
-	return fmt.Sprintf("option task = { %s }\n%s", strings.Join(taskOpts, ", "), t.query)
+	taskOptStr := fmt.Sprintf("\noption task = { %s }", strings.Join(taskOpts, ", "))
+
+	if indices := fluxRegex.FindAllIndex([]byte(t.query), -1); len(indices) > 0 {
+		lastImportIdx := indices[len(indices)-1][1]
+		pieces := append([]string{},
+			t.query[:lastImportIdx],
+			taskOptStr,
+			t.query[lastImportIdx:],
+		)
+		return fmt.Sprint(strings.Join(pieces, "\n"))
+	}
+
+	return fmt.Sprintf("%s\n%s", taskOptStr, t.query)
 }
 
 func (t *task) summarize() SummaryTask {
@@ -2156,8 +2173,11 @@ const (
 	fieldChartPosition      = "position"
 	fieldChartQueries       = "queries"
 	fieldChartShade         = "shade"
+	fieldChartFieldOptions  = "fieldOptions"
+	fieldChartTableOptions  = "tableOptions"
 	fieldChartTickPrefix    = "tickPrefix"
 	fieldChartTickSuffix    = "tickSuffix"
+	fieldChartTimeFormat    = "timeFormat"
 	fieldChartWidth         = "width"
 	fieldChartXCol          = "xCol"
 	fieldChartXPos          = "xPos"
@@ -2188,6 +2208,8 @@ type chart struct {
 	BinSize         int
 	BinCount        int
 	Position        string
+	FieldOptions    []fieldOption
+	TableOptions    tableOptions
 	TimeFormat      string
 }
 
@@ -2303,6 +2325,40 @@ func (c chart) properties() influxdb.ViewProperties {
 			Axes:              c.Axes.influxAxes(),
 			Position:          c.Position,
 		}
+	case chartKindTable:
+		fieldOptions := make([]influxdb.RenamableField, 0, len(c.FieldOptions))
+		for _, fieldOpt := range c.FieldOptions {
+			fieldOptions = append(fieldOptions, influxdb.RenamableField{
+				InternalName: fieldOpt.FieldName,
+				DisplayName:  fieldOpt.DisplayName,
+				Visible:      fieldOpt.Visible,
+			})
+		}
+		sort.Slice(fieldOptions, func(i, j int) bool {
+			return fieldOptions[i].InternalName < fieldOptions[j].InternalName
+		})
+
+		return influxdb.TableViewProperties{
+			Type:              influxdb.ViewPropertyTypeTable,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			DecimalPlaces: influxdb.DecimalPlaces{
+				IsEnforced: c.EnforceDecimals,
+				Digits:     int32(c.DecimalPlaces),
+			},
+			Queries:    c.Queries.influxDashQueries(),
+			ViewColors: c.Colors.influxViewColors(),
+			TableOptions: influxdb.TableOptions{
+				VerticalTimeAxis: c.TableOptions.VerticalTimeAxis,
+				SortBy: influxdb.RenamableField{
+					InternalName: c.TableOptions.SortByField,
+				},
+				Wrapping:       c.TableOptions.Wrapping,
+				FixFirstColumn: c.TableOptions.FixFirstColumn,
+			},
+			FieldOptions: fieldOptions,
+			TimeFormat:   c.TimeFormat,
+		}
 	case chartKindXY:
 		return influxdb.XYViewProperties{
 			Type:              influxdb.ViewPropertyTypeXY,
@@ -2355,6 +2411,8 @@ func (c chart) validProperties() []validationErr {
 	case chartKindSingleStatPlusLine:
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
 		fails = append(fails, validPosition(c.Position)...)
+	case chartKindTable:
+		fails = append(fails, validTableOptions(c.TableOptions)...)
 	case chartKindXY:
 		fails = append(fails, validGeometry(c.Geom)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
@@ -2413,6 +2471,56 @@ func (c chart) validBaseProps() []validationErr {
 		})
 	}
 	return fails
+}
+
+const (
+	fieldChartFieldOptionDisplayName = "displayName"
+	fieldChartFieldOptionFieldName   = "fieldName"
+	fieldChartFieldOptionVisible     = "visible"
+)
+
+type fieldOption struct {
+	FieldName   string
+	DisplayName string
+	Visible     bool
+}
+
+const (
+	fieldChartTableOptionVerticalTimeAxis = "verticalTimeAxis"
+	fieldChartTableOptionSortBy           = "sortBy"
+	fieldChartTableOptionWrapping         = "wrapping"
+	fieldChartTableOptionFixFirstColumn   = "fixFirstColumn"
+)
+
+type tableOptions struct {
+	VerticalTimeAxis bool
+	SortByField      string
+	Wrapping         string
+	FixFirstColumn   bool
+}
+
+func validTableOptions(opts tableOptions) []validationErr {
+	var fails []validationErr
+
+	switch opts.Wrapping {
+	case "", "single-line", "truncate", "wrap":
+	default:
+		fails = append(fails, validationErr{
+			Field: fieldChartTableOptionWrapping,
+			Msg:   `chart table option should 1 in ["single-line", "truncate", "wrap"]`,
+		})
+	}
+
+	if len(fails) == 0 {
+		return nil
+	}
+
+	return []validationErr{
+		{
+			Field:  fieldChartTableOptions,
+			Nested: fails,
+		},
+	}
 }
 
 const (

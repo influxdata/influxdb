@@ -13,6 +13,8 @@ import {
   BuilderAggregateFunctionType,
   GetState,
   RemoteDataState,
+  ResourceType,
+  Bucket,
 } from 'src/types'
 import {Dispatch} from 'react'
 import {BuilderFunctionsType} from '@influxdata/influx'
@@ -23,6 +25,7 @@ import {
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors'
 
 export type Action =
   | ReturnType<typeof setBuilderAggregateFunctionType>
@@ -403,4 +406,14 @@ export const removeTagSelector = (index: number) => (
 export const reloadTagSelectors = () => (dispatch: Dispatch<Action>) => {
   dispatch(setBuilderTagsStatus(RemoteDataState.Loading))
   dispatch(loadTagSelector(0))
+}
+
+export const setBuilderBucketIfExists = (bucketName: string) => (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const buckets = getAll<Bucket>(getState(), ResourceType.Buckets)
+  if (buckets.find(b => b.name === bucketName)) {
+    dispatch(setBuilderBucket(bucketName, true))
+  }
 }

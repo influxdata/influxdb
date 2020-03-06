@@ -369,6 +369,15 @@ describe('DataExplorer', () => {
       cy.getByTestID('switch-to-script-editor')
         .should('be.visible')
         .click()
+      cy.getByTestID('flux-function aggregate.rate').click()
+      // check to see if import is defaulted to the top
+      cy.get('.view-line')
+        .first()
+        .contains('import')
+      // check to see if new aggregate rate is at the bottom
+      cy.get('.view-line')
+        .last()
+        .contains('aggregate.')
       cy.getByTestID('flux-editor').should('exist')
       cy.getByTestID('flux-editor').within(() => {
         cy.get('textarea').type('yoyoyoyoyo', {force: true})

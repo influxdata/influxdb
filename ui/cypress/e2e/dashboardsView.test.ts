@@ -1,11 +1,5 @@
 import {Organization, AppState} from '../../src/types'
 
-const dispatch = action =>
-  cy
-    .window()
-    .its('store')
-    .invoke('dispatch', action)
-
 describe('Dashboard', () => {
   beforeEach(() => {
     cy.flush()
@@ -97,8 +91,7 @@ describe('Dashboard', () => {
     variableID: string
   ) => win => {
     const {resources} = win.store.getState() as AppState
-    return resources.variables.values[contextID].values[variableID]
-      .selectedValue
+    return resources.variables.values[contextID].values[variableID].selectedKey
   }
 
   it('can manage variable state with a lot of pointing and clicking', () => {
@@ -109,7 +102,6 @@ describe('Dashboard', () => {
             cy.visit(`${orgs}/${orgID}/dashboards/${dashboard.id}`)
           })
           const [firstKey, secondKey] = Object.keys(variable.arguments.values)
-
           // add cell with variable in its query
           cy.getByTestID('add-cell--button').click()
           cy.getByTestID('switch-to-script-editor').click()
@@ -142,27 +134,29 @@ describe('Dashboard', () => {
             .pipe(getSelectedVariable('veo', variable.id))
             .should('equal', secondKey)
 
-          // select 1st value in cell
-          dispatch({
-            type: 'SELECT_VARIABLE_VALUE',
-            contextID: 'veo',
-            variableID: variable.id,
-            selectedValue: firstKey,
+          cy.getByTestID('toolbar-tab').click()
+          cy.get('.variables-toolbar--label').trigger('mouseover')
+          // toggle the variable dropdown in the VEO cell dashboard
+          cy.getByTestID('toolbar-popover--contents').within(() => {
+            cy.getByTestID('dropdown--button').click()
+            // select 1st value in cell
+            cy.getByTestID('dropdown-item')
+              .first()
+              .click()
           })
+          // save cell
+          cy.getByTestID('save-cell--button').click()
 
           // selected value in cell context is 1st value
           cy.window()
             .pipe(getSelectedVariable('veo', variable.id))
             .should('equal', firstKey)
 
-          // save cell
-          cy.getByTestID('save-cell--button').click()
-
           // selected value in dashboard is 1st value
-          cy.getByTestID('variable-dropdown').should('contain', secondKey)
+          cy.getByTestID('variable-dropdown').should('contain', firstKey)
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, variable.id))
-            .should('equal', secondKey)
+            .should('equal', firstKey)
 
           // graph tips responds to mouse over
           cy.getByTestID('graphtips-question-mark').click()

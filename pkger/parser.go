@@ -1165,23 +1165,24 @@ func parseChart(r Resource) (chart, []validationErr) {
 	c := chart{
 		Kind:        ck,
 		Name:        r.Name(),
-		Prefix:      r.stringShort(fieldPrefix),
-		TickPrefix:  r.stringShort(fieldChartTickPrefix),
-		Suffix:      r.stringShort(fieldSuffix),
-		TickSuffix:  r.stringShort(fieldChartTickSuffix),
+		BinSize:     r.intShort(fieldChartBinSize),
+		BinCount:    r.intShort(fieldChartBinCount),
+		Geom:        r.stringShort(fieldChartGeom),
+		Height:      r.intShort(fieldChartHeight),
 		Note:        r.stringShort(fieldChartNote),
 		NoteOnEmpty: r.boolShort(fieldChartNoteOnEmpty),
+		Position:    r.stringShort(fieldChartPosition),
+		Prefix:      r.stringShort(fieldPrefix),
 		Shade:       r.boolShort(fieldChartShade),
+		Suffix:      r.stringShort(fieldSuffix),
+		TickPrefix:  r.stringShort(fieldChartTickPrefix),
+		TickSuffix:  r.stringShort(fieldChartTickSuffix),
+		TimeFormat:  r.stringShort(fieldChartTimeFormat),
+		Width:       r.intShort(fieldChartWidth),
 		XCol:        r.stringShort(fieldChartXCol),
 		YCol:        r.stringShort(fieldChartYCol),
 		XPos:        r.intShort(fieldChartXPos),
 		YPos:        r.intShort(fieldChartYPos),
-		Height:      r.intShort(fieldChartHeight),
-		Width:       r.intShort(fieldChartWidth),
-		Geom:        r.stringShort(fieldChartGeom),
-		BinSize:     r.intShort(fieldChartBinSize),
-		BinCount:    r.intShort(fieldChartBinCount),
-		Position:    r.stringShort(fieldChartPosition),
 	}
 
 	if presLeg, ok := r[fieldChartLegend].(legend); ok {
@@ -1251,6 +1252,23 @@ func parseChart(r Resource) (chart, []validationErr) {
 				Domain: domain,
 			})
 		}
+	}
+
+	if tableOptsRes, ok := ifaceToResource(r[fieldChartTableOptions]); ok {
+		c.TableOptions = tableOptions{
+			VerticalTimeAxis: tableOptsRes.boolShort(fieldChartTableOptionVerticalTimeAxis),
+			SortByField:      tableOptsRes.stringShort(fieldChartTableOptionSortBy),
+			Wrapping:         tableOptsRes.stringShort(fieldChartTableOptionWrapping),
+			FixFirstColumn:   tableOptsRes.boolShort(fieldChartTableOptionFixFirstColumn),
+		}
+	}
+
+	for _, fieldOptRes := range r.slcResource(fieldChartFieldOptions) {
+		c.FieldOptions = append(c.FieldOptions, fieldOption{
+			FieldName:   fieldOptRes.stringShort(fieldChartFieldOptionFieldName),
+			DisplayName: fieldOptRes.stringShort(fieldChartFieldOptionDisplayName),
+			Visible:     fieldOptRes.boolShort(fieldChartFieldOptionVisible),
+		})
 	}
 
 	if failures = append(failures, c.validProperties()...); len(failures) > 0 {

@@ -262,6 +262,23 @@ func convertCellView(cell influxdb.Cell) chart {
 		}
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
+	case influxdb.TableViewProperties:
+		setCommon(chartKindTable, p.ViewColors, p.DecimalPlaces, p.Queries)
+		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, "", "")
+		ch.TimeFormat = p.TimeFormat
+		ch.TableOptions = tableOptions{
+			VerticalTimeAxis: p.TableOptions.VerticalTimeAxis,
+			SortByField:      p.TableOptions.SortBy.InternalName,
+			Wrapping:         p.TableOptions.Wrapping,
+			FixFirstColumn:   p.TableOptions.FixFirstColumn,
+		}
+		for _, fieldOpt := range p.FieldOptions {
+			ch.FieldOptions = append(ch.FieldOptions, fieldOption{
+				FieldName:   fieldOpt.InternalName,
+				DisplayName: fieldOpt.DisplayName,
+				Visible:     fieldOpt.Visible,
+			})
+		}
 	case influxdb.XYViewProperties:
 		setCommon(chartKindXY, p.ViewColors, influxdb.DecimalPlaces{}, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, "", "")
@@ -299,6 +316,35 @@ func convertChartToResource(ch chart) Resource {
 		r[fieldChartLegend] = ch.Legend
 	}
 
+	if zero := new(tableOptions); ch.TableOptions != *zero {
+		tRes := make(Resource)
+		assignNonZeroBools(tRes, map[string]bool{
+			fieldChartTableOptionVerticalTimeAxis: ch.TableOptions.VerticalTimeAxis,
+			fieldChartTableOptionFixFirstColumn:   ch.TableOptions.VerticalTimeAxis,
+		})
+		assignNonZeroStrings(tRes, map[string]string{
+			fieldChartTableOptionSortBy:   ch.TableOptions.SortByField,
+			fieldChartTableOptionWrapping: ch.TableOptions.Wrapping,
+		})
+		r[fieldChartTableOptions] = tRes
+	}
+
+	if len(ch.FieldOptions) > 0 {
+		fieldOpts := make([]Resource, 0, len(ch.FieldOptions))
+		for _, fo := range ch.FieldOptions {
+			fRes := make(Resource)
+			assignNonZeroBools(fRes, map[string]bool{
+				fieldChartFieldOptionVisible: fo.Visible,
+			})
+			assignNonZeroStrings(fRes, map[string]string{
+				fieldChartFieldOptionDisplayName: fo.DisplayName,
+				fieldChartFieldOptionFieldName:   fo.FieldName,
+			})
+			fieldOpts = append(fieldOpts, fRes)
+		}
+		r[fieldChartFieldOptions] = fieldOpts
+	}
+
 	assignNonZeroBools(r, map[string]bool{
 		fieldChartNoteOnEmpty: ch.NoteOnEmpty,
 		fieldChartShade:       ch.Shade,
@@ -314,6 +360,7 @@ func convertChartToResource(ch chart) Resource {
 		fieldChartPosition:   ch.Position,
 		fieldChartTickPrefix: ch.TickPrefix,
 		fieldChartTickSuffix: ch.TickSuffix,
+		fieldChartTimeFormat: ch.TimeFormat,
 	})
 
 	assignNonZeroInts(r, map[string]int{

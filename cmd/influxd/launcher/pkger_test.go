@@ -384,10 +384,32 @@ spec:
 		)
 
 		t.Run("exporting all resources for an org", func(t *testing.T) {
-			newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(l.Org.ID))
+			newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+				pkger.CreateByOrgIDOpt{
+					OrgID: l.Org.ID,
+				},
+			))
 			require.NoError(t, err)
 
 			verifyCompleteSummary(t, newPkg.Summary(), true)
+
+			bucketsOnlyPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+				pkger.CreateByOrgIDOpt{
+					OrgID:         l.Org.ID,
+					ResourceKinds: []pkger.Kind{pkger.KindBucket, pkger.KindTask},
+				},
+			))
+			require.NoError(t, err)
+
+			bktsOnlySum := bucketsOnlyPkg.Summary()
+			assert.NotEmpty(t, bktsOnlySum.Buckets)
+			assert.NotEmpty(t, bktsOnlySum.Labels)
+			assert.NotEmpty(t, bktsOnlySum.Tasks)
+			assert.Empty(t, bktsOnlySum.Checks)
+			assert.Empty(t, bktsOnlySum.Dashboards)
+			assert.Empty(t, bktsOnlySum.NotificationEndpoints)
+			assert.Empty(t, bktsOnlySum.NotificationRules)
+			assert.Empty(t, bktsOnlySum.Variables)
 		})
 
 		t.Run("pkg with same bkt-var-label does nto create new resources for them", func(t *testing.T) {
@@ -633,6 +655,60 @@ spec:
 			require.NoError(t, err)
 			assert.Equal(t, sum1Vars[0].Description, v.Description)
 		})
+	})
+
+	t.Run("apply a task pkg with a complex query", func(t *testing.T) {
+		// validates bug: https://github.com/influxdata/influxdb/issues/17069
+
+		pkgStr := fmt.Sprintf(`
+apiVersion: %[1]s
+kind: Task
+metadata:
+    name: Http.POST Synthetic (POST)
+spec:
+    every: 5m
+    query: |-
+        import "strings"
+        import "csv"
+        import "http"
+        import "system"
+
+        timeDiff = (t1, t2) => {
+        	return duration(v: uint(v: t2) - uint(v: t1))
+        }
+        timeDiffNum = (t1, t2) => {
+        	return uint(v: t2) - uint(v: t1)
+        }
+        urlToPost = "http://www.duckduckgo.com"
+        timeBeforeCall = system.time()
+        responseCode = http.post(url: urlToPost, data: bytes(v: "influxdata"))
+        timeAfterCall = system.time()
+        responseTime = timeDiff(t1: timeBeforeCall, t2: timeAfterCall)
+        responseTimeNum = timeDiffNum(t1: timeBeforeCall, t2: timeAfterCall)
+        data = "#group,false,false,true,true,true,true,true,true
+        #datatype,string,long,string,string,string,string,string,string
+        #default,mean,,,,,,,
+        ,result,table,service,response_code,time_before,time_after,response_time_duration,response_time_ns
+        ,,0,http_post_ping,${string(v: responseCode)},${string(v: timeBeforeCall)},${string(v: timeAfterCall)},${string(v: responseTime)},${string(v: responseTimeNum)}"
+        theTable = csv.from(csv: data)
+
+        theTable
+        	|> map(fn: (r) =>
+        		({r with _time: now()}))
+        	|> map(fn: (r) =>
+        		({r with _measurement: "PingService", url: urlToPost, method: "POST"}))
+        	|> drop(columns: ["time_before", "time_after", "response_time_duration"])
+        	|> to(bucket: "Pingpire", orgID: "039346c3777a1000", fieldFn: (r) =>
+        		({"responseCode": r.response_code, "responseTime": int(v: r.response_time_ns)}))
+`, pkger.APIVersion)
+
+		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
+		require.NoError(t, err)
+
+		sum, err := svc.Apply(timedCtx(time.Second), l.Org.ID, l.User.ID, pkg)
+		require.NoError(t, err)
+
+		require.Len(t, sum.Tasks, 1)
 	})
 
 	t.Run("apply a package with env refs", func(t *testing.T) {

@@ -70,19 +70,10 @@ class BucketRow extends PureComponent<Props & WithRouterProps & DispatchProps> {
 
   private get cardName(): JSX.Element {
     const {bucket} = this.props
-    if (bucket.type === 'user') {
-      return (
-        <ResourceCard.Name
-          testID={`bucket--card--name ${bucket.name}`}
-          onClick={this.handleNameClick}
-          name={bucket.name}
-        />
-      )
-    }
-
     return (
       <ResourceCard.Name
         testID={`bucket--card--name ${bucket.name}`}
+        onClick={this.handleNameClick}
         name={bucket.name}
       />
     )
@@ -126,10 +117,10 @@ class BucketRow extends PureComponent<Props & WithRouterProps & DispatchProps> {
             onAddScraper={this.handleAddScraper}
           />
           <Button
-            text="Rename"
-            testID="bucket-rename"
+            text="Settings"
+            testID="bucket-settings"
             size={ComponentSize.ExtraSmall}
-            onClick={this.handleRenameBucket}
+            onClick={this.handleClickSettings}
           />
           <FeatureFlag name="deleteWithPredicate">
             <Button
@@ -162,17 +153,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps & DispatchProps> {
     onDeleteData(bucket)
   }
 
-  private handleRenameBucket = () => {
-    const {
-      params: {orgID},
-      bucket: {id},
-      router,
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/buckets/${id}/rename`)
-  }
-
-  private handleNameClick = (): void => {
+  private handleClickSettings = () => {
     const {
       params: {orgID},
       bucket: {id},
@@ -180,6 +161,16 @@ class BucketRow extends PureComponent<Props & WithRouterProps & DispatchProps> {
     } = this.props
 
     router.push(`/orgs/${orgID}/load-data/buckets/${id}/edit`)
+  }
+
+  private handleNameClick = (): void => {
+    const {
+      params: {orgID},
+      bucket: {name},
+      router,
+    } = this.props
+
+    router.push(`/orgs/${orgID}/data-explorer?bucket=${name}`)
   }
 
   private handleAddCollector = (): void => {

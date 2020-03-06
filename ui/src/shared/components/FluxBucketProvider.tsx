@@ -1,5 +1,5 @@
 // Libraries
-import {FC, useEffect} from 'react'
+import {FC} from 'react'
 import {connect} from 'react-redux'
 
 import {AppState, Bucket, ResourceType} from 'src/types'
@@ -7,40 +7,21 @@ import {getAll} from 'src/resources/selectors'
 
 import loadServer from 'src/external/monaco.flux.server'
 
-interface Props {
-  buckets: Bucket[]
-}
-
-// using a singleton to mirror redux state
-let BUCKETS: Bucket[] = []
-
-function resolveBuckets() {
-  return new Promise(resolve => {
-    resolve(BUCKETS.map(b => b.name))
-  })
-}
-
-loadServer().then(server => {
-  server.register_buckets_callback(resolveBuckets)
-})
-
-const FluxBucketProvider: FC<Props> = ({buckets}) => {
-  useEffect(() => {
-    BUCKETS = buckets
-  }, [buckets])
-
+const FluxBucketProvider: FC<{}> = () => {
   return null
 }
 
-const mstp = (state: AppState): Props => {
+const mstp = (state: AppState): {} => {
   const buckets = getAll<Bucket>(state, ResourceType.Buckets)
 
-  return {
-    buckets,
-  }
+  loadServer().then(server => {
+    server.updateBuckets(buckets.map(b => b.name))
+  })
+
+  return {}
 }
 
-export default connect<Props, {}>(
+export default connect<{}, {}>(
   mstp,
   null
 )(FluxBucketProvider)

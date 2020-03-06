@@ -7171,30 +7171,46 @@ components:
               contentType:
                 type: string
             required: ["url"]
+    PkgCreateKind:
+      type: string
+      enum:
+        - bucket
+        - check
+        - dashboard
+        - label
+        - notification_endpoint
+        - notification_rule
+        - task
+        - telegraf
+        - variable
     PkgCreate:
       type: object
       properties:
         orgIDs:
           type: array
           items:
-            type: string
+            type: object
+            properties:
+              orgID:
+                type: string
+              resourceFilters:
+                type: object
+                properties:
+                  byLabel:
+                    type: array
+                    items:
+                      type: string
+                  byResourceKind:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PkgCreateKind"
         resources:
           type: object
           properties:
             id:
               type: string
             kind:
-              type: string
-              enum:
-                - bucket
-                - check
-                - dashboard
-                - label
-                - notification_endpoint
-                - notification_rule
-                - task
-                - telegraf
-                - variable
+              $ref: "#/components/schemas/PkgCreateKind"
             name:
               type: string
           required: [id, kind]
@@ -7217,7 +7233,6 @@ components:
               - NotificationEndpointPagerDuty
               - NotificationEndpointSlack
               - NotificationRule
-              - NotificationEndpointHTTP
               - Task
               - Telegraf
               - Variable

@@ -83,7 +83,7 @@ func TestCmdPkg(t *testing.T) {
 							return nil, err
 						}
 					}
-					if !opt.OrgIDs[expectedOrgID] {
+					if opt.OrgIDs[0].OrgID != expectedOrgID {
 						return nil, errors.New("did not provide expected orgID")
 					}
 

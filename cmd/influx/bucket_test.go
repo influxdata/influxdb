@@ -177,7 +177,7 @@ func TestCmdBucket(t *testing.T) {
 		}
 	})
 
-	t.Run("find", func(t *testing.T) {
+	t.Run("list", func(t *testing.T) {
 		type called struct {
 			name  string
 			id    influxdb.ID
@@ -189,6 +189,7 @@ func TestCmdBucket(t *testing.T) {
 			name     string
 			expected called
 			flags    []string
+			command  string
 			envVars  map[string]string
 		}{
 			{
@@ -250,6 +251,20 @@ func TestCmdBucket(t *testing.T) {
 				flags:    []string{"-i=" + influxdb.ID(1).String()},
 				expected: called{orgID: 2, name: "name1", id: 1},
 			},
+			{
+				name:     "ls alias",
+				command:  "ls",
+				envVars:  envVarsZeroMap,
+				flags:    []string{"--org-id=" + influxdb.ID(3).String()},
+				expected: called{orgID: 3},
+			},
+			{
+				name:     "find alias",
+				command:  "find",
+				envVars:  envVarsZeroMap,
+				flags:    []string{"--org-id=" + influxdb.ID(3).String()},
+				expected: called{orgID: 3},
+			},
 		}
 
 		cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
@@ -289,7 +304,11 @@ func TestCmdBucket(t *testing.T) {
 				cmdFn, calls := cmdFn()
 				cmd := builder.cmd(cmdFn)
 
-				cmd.SetArgs(append([]string{"bucket", "find"}, tt.flags...))
+				if tt.command == "" {
+					tt.command = "list"
+				}
+
+				cmd.SetArgs(append([]string{"bucket", tt.command}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())
 				assert.Equal(t, tt.expected, *calls)

@@ -31,9 +31,14 @@ export type FluxColumnType =
   | 'dateTime'
   | 'duration'
 
+export type mapValue = string
+export interface VariableMapObject {
+  [mapKey: string]: mapValue
+}
 export interface VariableValues {
-  values: string[]
+  values: VariableMapObject | string[]
   valueType: FluxColumnType
+  selectedKey?: string
   selectedValue: string
   error?: string
 }

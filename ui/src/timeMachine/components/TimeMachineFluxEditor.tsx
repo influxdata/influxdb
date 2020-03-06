@@ -73,14 +73,28 @@ const TimeMachineFluxEditor: FC<Props> = ({
 
   const handleInsertFluxFunction = (func: FluxToolbarFunction): void => {
     const p = editorInstance.getPosition()
+    // sets the range based on the current position
+    let range = new window.monaco.Range(
+      p.lineNumber,
+      p.column,
+      p.lineNumber,
+      p.column
+    )
+    // edge case for when user toggles to the script editor
+    // this defaults the cursor to the initial position (top-left, 1:1 position)
+    if (p.lineNumber === 1 && p.column === 1) {
+      const [currentRange] = editorInstance.getVisibleRanges()
+      // adds the function to the end of the query
+      range = new window.monaco.Range(
+        currentRange.endLineNumber + 1,
+        p.column,
+        currentRange.endLineNumber + 1,
+        p.column
+      )
+    }
     const edits = [
       {
-        range: new window.monaco.Range(
-          p.lineNumber,
-          p.column,
-          p.lineNumber,
-          p.column
-        ),
+        range,
         text: formatFunctionForInsert(func.name, func.example),
       },
     ]

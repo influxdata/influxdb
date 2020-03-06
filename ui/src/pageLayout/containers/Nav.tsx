@@ -95,7 +95,7 @@ class SideNav extends PureComponent<Props, State> {
       'https://docs.google.com/forms/d/e/1FAIpQLSdGJpnIZGotN1VFJPkgZEhrt4t4f6QY1lMgMSRUnMeN3FjCKA/viewform?usp=sf_link'
 
     // Cloud
-    const cloudUsersLink = `${CLOUD_URL}/${CLOUD_USERS_PATH}`
+    const cloudUsersLink = `${CLOUD_URL}/organizations/${orgID}/${CLOUD_USERS_PATH}`
 
     return (
       <NavMenu>
@@ -260,7 +260,7 @@ class SideNav extends PureComponent<Props, State> {
             <NavMenu.Item
               titleLink={className => (
                 <a className={className} href={cloudUsersLink}>
-                  Team Members
+                  Organization Members
                 </a>
               )}
               iconLink={className => (

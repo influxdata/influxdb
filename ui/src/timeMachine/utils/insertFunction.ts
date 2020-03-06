@@ -20,7 +20,7 @@ export const formatFunctionForInsert = (
     return `\n${fluxFunction}`
   }
 
-  return `  |> ${fluxFunction}`
+  return `\n  |> ${fluxFunction}`
 }
 
 export const generateImport = (

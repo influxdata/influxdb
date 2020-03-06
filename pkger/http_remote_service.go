@@ -23,9 +23,19 @@ func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgS
 			return nil, err
 		}
 	}
-	var orgIDs []string
-	for orgID := range opt.OrgIDs {
-		orgIDs = append(orgIDs, orgID.String())
+
+	var orgIDs []ReqCreateOrgIDOpt
+	for _, org := range opt.OrgIDs {
+		orgIDs = append(orgIDs, ReqCreateOrgIDOpt{
+			OrgID: org.OrgID.String(),
+			Filters: struct {
+				ByLabel        []string `json:"byLabel"`
+				ByResourceKind []Kind   `json:"byResourceKind"`
+			}{
+				ByLabel:        org.LabelNames,
+				ByResourceKind: org.ResourceKinds,
+			},
+		})
 	}
 
 	reqBody := ReqCreatePkg{
