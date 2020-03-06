@@ -51,7 +51,7 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
   onAddVariableToTimeMachine,
   onSelectVariableValue,
 }) => {
-  let dropdownItems = get(values, 'values', [])
+  let dropdownItems = get(values, 'values', []) || []
 
   if (Object.keys(dropdownItems).length > 0) {
     dropdownItems = Object.keys(dropdownItems)
