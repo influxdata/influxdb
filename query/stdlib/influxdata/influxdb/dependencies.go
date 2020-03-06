@@ -65,7 +65,7 @@ func (d Dependencies) PrometheusCollectors() []prometheus.Collector {
 }
 
 func NewDependencies(
-	reader Reader,
+	reader query.StorageReader,
 	writer storage.PointsWriter,
 	bucketSvc influxdb.BucketService,
 	orgSvc influxdb.OrganizationService,

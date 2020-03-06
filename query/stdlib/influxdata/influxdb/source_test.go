@@ -12,6 +12,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxdb/uuid"
@@ -32,19 +33,19 @@ func (mockTableIterator) Statistics() cursors.CursorStats {
 type mockReader struct {
 }
 
-func (mockReader) ReadFilter(ctx context.Context, spec influxdb.ReadFilterSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (mockReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
-func (mockReader) ReadGroup(ctx context.Context, spec influxdb.ReadGroupSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (mockReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
-func (mockReader) ReadTagKeys(ctx context.Context, spec influxdb.ReadTagKeysSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (mockReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
-func (mockReader) ReadTagValues(ctx context.Context, spec influxdb.ReadTagValuesSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (mockReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
@@ -110,7 +111,7 @@ func TestMetrics(t *testing.T) {
 	rfs := influxdb.ReadFilterSource(
 		execute.DatasetID(uuid.FromTime(time.Now())),
 		&mockReader{},
-		influxdb.ReadFilterSpec{
+		query.ReadFilterSpec{
 			OrganizationID: *orgID,
 		},
 		a,

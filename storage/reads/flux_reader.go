@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
@@ -27,11 +27,11 @@ type storeReader struct {
 	s Store
 }
 
-func NewReader(s Store) influxdb.Reader {
+func NewReader(s Store) query.StorageReader {
 	return &storeReader{s: s}
 }
 
-func (r *storeReader) ReadFilter(ctx context.Context, spec influxdb.ReadFilterSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (r *storeReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &filterIterator{
 		ctx:   ctx,
 		s:     r.s,
@@ -41,7 +41,7 @@ func (r *storeReader) ReadFilter(ctx context.Context, spec influxdb.ReadFilterSp
 	}, nil
 }
 
-func (r *storeReader) ReadGroup(ctx context.Context, spec influxdb.ReadGroupSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (r *storeReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &groupIterator{
 		ctx:   ctx,
 		s:     r.s,
@@ -51,7 +51,7 @@ func (r *storeReader) ReadGroup(ctx context.Context, spec influxdb.ReadGroupSpec
 	}, nil
 }
 
-func (r *storeReader) ReadTagKeys(ctx context.Context, spec influxdb.ReadTagKeysSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (r *storeReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	var predicate *datatypes.Predicate
 	if spec.Predicate != nil {
 		p, err := toStoragePredicate(spec.Predicate)
@@ -71,7 +71,7 @@ func (r *storeReader) ReadTagKeys(ctx context.Context, spec influxdb.ReadTagKeys
 	}, nil
 }
 
-func (r *storeReader) ReadTagValues(ctx context.Context, spec influxdb.ReadTagValuesSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (r *storeReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	var predicate *datatypes.Predicate
 	if spec.Predicate != nil {
 		p, err := toStoragePredicate(spec.Predicate)
@@ -96,7 +96,7 @@ func (r *storeReader) Close() {}
 type filterIterator struct {
 	ctx   context.Context
 	s     Store
-	spec  influxdb.ReadFilterSpec
+	spec  query.ReadFilterSpec
 	stats cursors.CursorStats
 	cache *tagsCache
 	alloc *memory.Allocator
@@ -220,7 +220,7 @@ READ:
 type groupIterator struct {
 	ctx   context.Context
 	s     Store
-	spec  influxdb.ReadGroupSpec
+	spec  query.ReadGroupSpec
 	stats cursors.CursorStats
 	cache *tagsCache
 	alloc *memory.Allocator
@@ -374,11 +374,11 @@ func determineAggregateMethod(agg string) (datatypes.Aggregate_AggregateType, er
 	return 0, fmt.Errorf("unknown aggregate type %q", agg)
 }
 
-func convertGroupMode(m influxdb.GroupMode) datatypes.ReadGroupRequest_Group {
+func convertGroupMode(m query.GroupMode) datatypes.ReadGroupRequest_Group {
 	switch m {
-	case influxdb.GroupModeNone:
+	case query.GroupModeNone:
 		return datatypes.GroupNone
-	case influxdb.GroupModeBy:
+	case query.GroupModeBy:
 		return datatypes.GroupBy
 	}
 	panic(fmt.Sprint("invalid group mode: ", m))
@@ -473,7 +473,7 @@ func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType) ([]flux.ColM
 	return cols, defs
 }
 
-func groupKeyForGroup(kv [][]byte, spec *influxdb.ReadGroupSpec, bnds execute.Bounds) flux.GroupKey {
+func groupKeyForGroup(kv [][]byte, spec *query.ReadGroupSpec, bnds execute.Bounds) flux.GroupKey {
 	cols := make([]flux.ColMeta, 2, len(spec.GroupKeys)+2)
 	vs := make([]values.Value, 2, len(spec.GroupKeys)+2)
 	cols[0] = flux.ColMeta{
@@ -503,7 +503,7 @@ type tagKeysIterator struct {
 	ctx       context.Context
 	bounds    execute.Bounds
 	s         Store
-	readSpec  influxdb.ReadTagKeysSpec
+	readSpec  query.ReadTagKeysSpec
 	predicate *datatypes.Predicate
 	alloc     *memory.Allocator
 }
@@ -585,7 +585,7 @@ type tagValuesIterator struct {
 	ctx       context.Context
 	bounds    execute.Bounds
 	s         Store
-	readSpec  influxdb.ReadTagValuesSpec
+	readSpec  query.ReadTagValuesSpec
 	predicate *datatypes.Predicate
 	alloc     *memory.Allocator
 }

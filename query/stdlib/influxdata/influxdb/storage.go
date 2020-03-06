@@ -2,15 +2,10 @@ package influxdb
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/memory"
-	"github.com/influxdata/flux/semantic"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/prom"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/query"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -31,7 +26,7 @@ type OrganizationLookup interface {
 }
 
 type FromDependencies struct {
-	Reader             Reader
+	Reader             query.StorageReader
 	BucketLookup       BucketLookup
 	OrganizationLookup OrganizationLookup
 	Metrics            *metrics
@@ -78,68 +73,4 @@ func (l StaticLookup) Hosts() []string {
 func (l StaticLookup) Watch() <-chan struct{} {
 	// A nil channel always blocks, since hosts never change this is appropriate.
 	return nil
-}
-
-type GroupMode int
-
-const (
-	// GroupModeNone merges all series into a single group.
-	GroupModeNone GroupMode = iota
-	// GroupModeBy produces a table for each unique value of the specified GroupKeys.
-	GroupModeBy
-)
-
-// ToGroupMode accepts the group mode from Flux and produces the appropriate storage group mode.
-func ToGroupMode(fluxMode flux.GroupMode) GroupMode {
-	switch fluxMode {
-	case flux.GroupModeNone:
-		return GroupModeNone
-	case flux.GroupModeBy:
-		return GroupModeBy
-	default:
-		panic(fmt.Sprint("unknown group mode: ", fluxMode))
-	}
-}
-
-type ReadFilterSpec struct {
-	OrganizationID platform.ID
-	BucketID       platform.ID
-
-	Bounds execute.Bounds
-
-	Predicate *semantic.FunctionExpression
-}
-
-type ReadGroupSpec struct {
-	ReadFilterSpec
-
-	GroupMode GroupMode
-	GroupKeys []string
-
-	AggregateMethod string
-}
-
-type ReadTagKeysSpec struct {
-	ReadFilterSpec
-}
-
-type ReadTagValuesSpec struct {
-	ReadFilterSpec
-	TagKey string
-}
-
-type Reader interface {
-	ReadFilter(ctx context.Context, spec ReadFilterSpec, alloc *memory.Allocator) (TableIterator, error)
-	ReadGroup(ctx context.Context, spec ReadGroupSpec, alloc *memory.Allocator) (TableIterator, error)
-
-	ReadTagKeys(ctx context.Context, spec ReadTagKeysSpec, alloc *memory.Allocator) (TableIterator, error)
-	ReadTagValues(ctx context.Context, spec ReadTagValuesSpec, alloc *memory.Allocator) (TableIterator, error)
-
-	Close()
-}
-
-// TableIterator is a table iterator that also keeps track of cursor statistics from the storage engine.
-type TableIterator interface {
-	flux.TableIterator
-	Statistics() cursors.CursorStats
 }
