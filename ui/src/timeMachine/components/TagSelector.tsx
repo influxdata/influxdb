@@ -105,15 +105,11 @@ class TagSelector extends PureComponent<Props> {
   }
 
   private get header() {
-    const {aggregateFunctionType, index, isInCheckOverlay} = this.props
-    let options = ['filter', 'group']
-    if (isInCheckOverlay) {
-      options = ['filter']
-    }
+    const {aggregateFunctionType, index} = this.props
 
     return (
       <BuilderCard.DropdownHeader
-        options={options}
+        options={['filter', 'group']}
         selectedOption={this.renderAggregateFunctionType(aggregateFunctionType)}
         onDelete={index !== 0 && this.handleRemoveTagSelector}
         onSelect={this.handleAggregateFunctionSelect}
