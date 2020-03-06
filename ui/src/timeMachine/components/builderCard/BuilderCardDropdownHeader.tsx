@@ -10,6 +10,7 @@ interface Props {
   testID: string
   onSelect?: (option: BuilderAggregateFunctionType) => void
   onDelete?: () => void
+  isInCheckOverlay?: boolean
 }
 
 const emptyFunction = () => {}
@@ -20,7 +21,15 @@ export default class BuilderCardDropdownHeader extends PureComponent<Props> {
   }
 
   public render() {
-    const {children, options, onSelect, selectedOption, testID} = this.props
+    const {
+      children,
+      isInCheckOverlay,
+      options,
+      onSelect,
+      selectedOption,
+      testID,
+    } = this.props
+    const dropdownOptions = isInCheckOverlay ? ['filter'] : options
     const button = () => (
       <Dropdown.Button status={ComponentStatus.Disabled} onClick={() => {}}>
         {selectedOption}
@@ -30,22 +39,20 @@ export default class BuilderCardDropdownHeader extends PureComponent<Props> {
     const menu = () => null
     return (
       <div className="builder-card--header" data-testid={testID}>
-        {options.length === 1 && (
+        {dropdownOptions.length === 1 ? (
           <Dropdown
             button={button}
             menu={menu}
             testID="disabled--filter-dropdown"
           />
-        )}
-        {options.length !== 1 && (
+        ) : (
           <SelectDropdown
-            options={options}
+            options={dropdownOptions}
             selectedOption={selectedOption}
             testID="select-option-dropdown"
             onSelect={onSelect ? onSelect : emptyFunction}
           />
         )}
-
         {children}
         {this.deleteButton}
       </div>
