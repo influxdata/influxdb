@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
@@ -20,23 +21,20 @@ var setupFlags struct {
 	token     string
 	org       string
 	bucket    string
-	retention int
+	retention time.Duration
 	force     bool
 }
 
-func cmdSetup() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "setup",
-		Short: "Setup instance with initial user, org, bucket",
-		RunE:  wrapErrorFmt(setupF),
-	}
+func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	cmd := opt.newCmd("setup", setupF)
+	cmd.Short = "Setup instance with initial user, org, bucket"
 
 	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
 	cmd.Flags().StringVarP(&setupFlags.password, "password", "p", "", "password for username")
 	cmd.Flags().StringVarP(&setupFlags.token, "token", "t", "", "token for username, else auto-generated")
 	cmd.Flags().StringVarP(&setupFlags.org, "org", "o", "", "primary organization name")
 	cmd.Flags().StringVarP(&setupFlags.bucket, "bucket", "b", "", "primary bucket name")
-	cmd.Flags().IntVarP(&setupFlags.retention, "retention", "r", -1, "retention period in hours, else infinite")
+	cmd.Flags().DurationVarP(&setupFlags.retention, "retention", "r", -1, "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
 
 	return cmd
@@ -124,12 +122,14 @@ func onboardingRequest() (*platform.OnboardingRequest, error) {
 
 func nonInteractive() (*platform.OnboardingRequest, error) {
 	req := &platform.OnboardingRequest{
-		User:            setupFlags.username,
-		Password:        setupFlags.password,
-		Token:           setupFlags.token,
-		Org:             setupFlags.org,
-		Bucket:          setupFlags.bucket,
-		RetentionPeriod: uint(setupFlags.retention),
+		User:     setupFlags.username,
+		Password: setupFlags.password,
+		Token:    setupFlags.token,
+		Org:      setupFlags.org,
+		Bucket:   setupFlags.bucket,
+		// TODO: this manipulation is required by the API, something that
+		// 	we should fixup to be a duration instead
+		RetentionPeriod: uint(setupFlags.retention / time.Hour),
 	}
 
 	if setupFlags.retention < 0 {
@@ -236,10 +236,32 @@ You have entered:
 	}
 }
 
-var (
-	errPasswordIsNotMatch = fmt.Errorf("passwords do not match")
-	errPasswordIsTooShort = fmt.Errorf("passwords is too short")
-)
+var errPasswordNotMatch = fmt.Errorf("passwords do not match")
+
+var errPasswordIsTooShort error = fmt.Errorf("password is too short")
+
+func getSecret(ui *input.UI) (secret string) {
+	var err error
+	query := string(promptWithColor("Please type your secret", colorCyan))
+	for {
+		secret, err = ui.Ask(query, &input.Options{
+			Required:  true,
+			HideOrder: true,
+			Hide:      true,
+			Mask:      false,
+		})
+		switch err {
+		case input.ErrInterrupted:
+			os.Exit(1)
+		default:
+			if secret = strings.TrimSpace(secret); secret == "" {
+				continue
+			}
+		}
+		break
+	}
+	return secret
+}
 
 func getPassword(ui *input.UI, showNew bool) (password string) {
 	newStr := ""
@@ -247,7 +269,7 @@ func getPassword(ui *input.UI, showNew bool) (password string) {
 		newStr = " new"
 	}
 	var err error
-enterPasswd:
+enterPassword:
 	query := string(promptWithColor("Please type your"+newStr+" password", colorCyan))
 	for {
 		password, err = ui.Ask(query, &input.Options{
@@ -266,8 +288,8 @@ enterPasswd:
 		case input.ErrInterrupted:
 			os.Exit(1)
 		case errPasswordIsTooShort:
-			ui.Writer.Write(promptWithColor("Password too short - minimum length is 8 characters!", colorRed))
-			goto enterPasswd
+			ui.Writer.Write(promptWithColor("Password too short - minimum length is 8 characters!\n\r", colorRed))
+			continue
 		default:
 			if password = strings.TrimSpace(password); password == "" {
 				continue
@@ -283,7 +305,7 @@ enterPasswd:
 			Hide:      true,
 			ValidateFunc: func(s string) error {
 				if s != password {
-					return errPasswordIsNotMatch
+					return errPasswordNotMatch
 				}
 				return nil
 			},
@@ -295,7 +317,7 @@ enterPasswd:
 			// Nothing.
 		default:
 			ui.Writer.Write(promptWithColor("Passwords do not match!\n", colorRed))
-			goto enterPasswd
+			goto enterPassword
 		}
 		break
 	}

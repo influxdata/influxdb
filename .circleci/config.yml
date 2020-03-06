@@ -98,7 +98,7 @@ jobs:
           destination: screenshots
   selenium_accept:
     docker:
-      - image: circleci/node:13.0.1-stretch-browsers
+      - image: circleci/node:lts-stretch-browsers
       - image: quay.io/influxdb/influx:nightly
         command: [--e2e-testing=true]
     steps:
@@ -150,7 +150,7 @@ jobs:
           command: |
             set +e
             cd ui
-            yarn install --frozen-lockfile
+            yarn install
             yarn prettier
           name: "Install Dependencies"
       - run: make ui_client
@@ -186,7 +186,7 @@ jobs:
           command: |
             set +e
             cd ui
-            yarn install --frozen-lockfile
+            yarn install
           name: "Install Dependencies"
       - run: make ui_client
       - run:
@@ -425,6 +425,16 @@ workflows:
             branches:
               only: /^(?!pull\/).*$/
   e2e:
+    jobs:
+      - e2e
+  hourly-e2e:
+    triggers:
+      - schedule:
+          cron: '0 * * * *'
+          filters:
+            branches:
+              only:
+                - master
     jobs:
       - e2e
   nightly:

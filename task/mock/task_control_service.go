@@ -130,7 +130,7 @@ func (t *TaskControlService) ManualRuns(ctx context.Context, taskID influxdb.ID)
 }
 
 // UpdateRunState sets the run state at the respective time.
-func (d *TaskControlService) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state backend.RunStatus) error {
+func (d *TaskControlService) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state influxdb.RunStatus) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -139,11 +139,11 @@ func (d *TaskControlService) UpdateRunState(ctx context.Context, taskID, runID i
 		panic("run state called without a run")
 	}
 	switch state {
-	case backend.RunStarted:
+	case influxdb.RunStarted:
 		run.StartedAt = when
-	case backend.RunSuccess, backend.RunFail, backend.RunCanceled:
+	case influxdb.RunSuccess, influxdb.RunFail, influxdb.RunCanceled:
 		run.FinishedAt = when
-	case backend.RunScheduled:
+	case influxdb.RunScheduled:
 		// nothing
 	default:
 		panic("invalid status")

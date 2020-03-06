@@ -27,7 +27,7 @@ async function AJAX<T = any>(
     auth = null,
   }: RequestParams,
   excludeBasepath = false
-): Promise<(T) | AxiosResponse<T>> {
+): Promise<T | AxiosResponse<T>> {
   try {
     url = addBasepath(url, excludeBasepath)
 

@@ -2,7 +2,10 @@
 import {valueFetcher, ValueFetcher} from 'src/variables/utils/ValueFetcher'
 import Deferred from 'src/utils/Deferred'
 import {getVarAssignment} from 'src/variables/utils/getVarAssignment'
-import {resolveSelectedValue} from 'src/variables/utils/resolveSelectedValue'
+import {
+  resolveSelectedKey,
+  resolveSelectedValue,
+} from 'src/variables/utils/resolveSelectedValue'
 
 // Constants
 import {OPTION_NAME, BOUNDARY_GROUP} from 'src/variables/constants/index'
@@ -148,6 +151,7 @@ const errorVariableValues = (
   message = 'Failed to load values for variable'
 ): VariableValues => ({
   values: null,
+  selectedKey: null,
   selectedValue: null,
   valueType: null,
   error: message,
@@ -161,14 +165,15 @@ const mapVariableValues = (
   prevSelection: string,
   defaultSelection: string
 ): VariableValues => {
-  const values: string[] = Object.keys(variable.arguments.values)
-
+  const keys: string[] = Object.keys(variable.arguments.values)
+  const selectedKey = resolveSelectedKey(keys, prevSelection, defaultSelection)
   return {
     valueType: 'string',
-    values,
+    values: variable.arguments.values,
+    selectedKey,
     selectedValue: resolveSelectedValue(
-      values,
-      prevSelection,
+      variable.arguments.values,
+      selectedKey,
       defaultSelection
     ),
   }
@@ -408,6 +413,7 @@ export const hydrateVars = (
 
     try {
       node.values = await hydrateVarsHelper(node, options)
+      node.variable.selected = [node.values.selectedKey]
       node.status = RemoteDataState.Done
 
       return Promise.all(node.parents.filter(readyToResolve).map(resolve))

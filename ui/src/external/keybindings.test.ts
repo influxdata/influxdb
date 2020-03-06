@@ -1,4 +1,4 @@
-import {isCommented, toggleCommenting} from 'src/external/monaco.keyBindings'
+import {isCommented, toggleCommenting} from 'src/external/monaco.flux.hotkeys'
 
 const TEST_CASES = [
   ['//moo', true],

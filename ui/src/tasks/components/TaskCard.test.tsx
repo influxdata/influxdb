@@ -6,7 +6,7 @@ import {renderWithRedux} from 'src/mockState'
 import {TaskCard} from 'src/tasks/components/TaskCard'
 
 // Constants
-import {tasks, withRouterProps} from 'mocks/dummyData'
+import {tasks, withRouterProps, labels} from 'mocks/dummyData'
 
 const task = tasks[1] // The 2nd task mock has labels on it
 
@@ -28,7 +28,19 @@ const setup = (override = {}) => {
     ...override,
   }
 
-  return renderWithRedux(<TaskCard {...props} />)
+  const redux = {
+    resources: {
+      labels: {
+        byID: {
+          [labels[0].id]: labels[0],
+          [labels[1].id]: labels[1],
+        },
+        allIDs: labels.map(l => l.id),
+      },
+    },
+  }
+
+  return renderWithRedux(<TaskCard {...props} />, () => redux)
 }
 
 describe('Tasks.Components.TaskCard', () => {

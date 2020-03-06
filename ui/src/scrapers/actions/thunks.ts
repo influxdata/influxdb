@@ -5,7 +5,7 @@ import {normalize} from 'normalizr'
 import {client} from 'src/utils/api'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {arrayOfScrapers, scraperSchema} from 'src/schemas'
 
 // Types
 import {RemoteDataState, GetState, Scraper, ScraperEntities} from 'src/types'
@@ -48,7 +48,7 @@ export const getScrapers = () => async (
 
     const normalized = normalize<Scraper, ScraperEntities, string[]>(
       resp,
-      schemas.arrayOfScrapers
+      arrayOfScrapers
     )
 
     dispatch(setScrapers(RemoteDataState.Done, normalized))
@@ -66,7 +66,7 @@ export const createScraper = (scraper: Scraper) => async (
 
     const normalized = normalize<Scraper, ScraperEntities, string>(
       resp,
-      schemas.scraper
+      scraperSchema
     )
 
     dispatch(addScraper(normalized))
@@ -84,7 +84,7 @@ export const updateScraper = (scraper: Scraper) => async (
     const resp = await client.scrapers.update(scraper.id, scraper)
     const normalized = normalize<Scraper, ScraperEntities, string>(
       resp,
-      schemas.scraper
+      scraperSchema
     )
 
     dispatch(editScraper(normalized))

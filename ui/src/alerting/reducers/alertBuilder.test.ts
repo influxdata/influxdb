@@ -19,16 +19,22 @@ import {
   updateThresholds,
 } from 'src/alerting/actions/alertBuilder'
 import {CHECK_FIXTURE_1, CHECK_FIXTURE_3} from 'src/checks/reducers/checks.test'
-import {RemoteDataState, Threshold, TaskStatusType} from 'src/types'
+import {
+  RemoteDataState,
+  Threshold,
+  TaskStatusType,
+  ThresholdCheck,
+  DeadmanCheck,
+} from 'src/types'
 
 const check_1 = {
-  ...CHECK_FIXTURE_1,
+  ...(CHECK_FIXTURE_1 as ThresholdCheck),
   activeStatus: 'inactive' as TaskStatusType,
   status: RemoteDataState.Done,
 }
 
 const check_3 = {
-  ...CHECK_FIXTURE_3,
+  ...(CHECK_FIXTURE_3 as DeadmanCheck),
   activeStatus: 'active' as TaskStatusType,
   status: RemoteDataState.Done,
 }

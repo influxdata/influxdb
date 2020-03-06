@@ -27,6 +27,7 @@ const ClientRubyOverlay: FunctionComponent<Props> = props => {
     url,
     initializeGemCodeSnippet,
     initializeClientCodeSnippet,
+    executeQueryCodeSnippet,
     writingDataLineProtocolCodeSnippet,
     writingDataPointCodeSnippet,
     writingDataHashCodeSnippet,
@@ -100,6 +101,18 @@ const ClientRubyOverlay: FunctionComponent<Props> = props => {
         label="Ruby Code"
         defaults={{
           bucket: 'bucketID',
+          org: 'orgID',
+        }}
+        values={{
+          org,
+        }}
+      />
+      <h5>Execute a Flux query</h5>
+      <TemplatedCodeSnippet
+        template={executeQueryCodeSnippet}
+        label="Ruby Code"
+        defaults={{
+          bucket: 'my_bucket',
           org: 'orgID',
         }}
         values={{

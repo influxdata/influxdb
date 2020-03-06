@@ -13,7 +13,7 @@ import {EmptyState} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import VariableList from 'src/variables/components/VariableList'
-import FilterList from 'src/shared/components/Filter'
+import Filter from 'src/shared/components/FilterList'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import GetResources from 'src/resources/components/GetResources'
 import {Sort} from '@influxdata/clockface'
@@ -43,6 +43,8 @@ interface State {
 
 type SortKey = keyof Variable
 
+const FilterList = Filter<Variable>()
+
 class VariablesTab extends PureComponent<Props, State> {
   public state: State = {
     searchTerm: '',
@@ -71,7 +73,7 @@ class VariablesTab extends PureComponent<Props, State> {
           />
         </TabbedPageHeader>
         <GetResources resources={[ResourceType.Labels]}>
-          <FilterList<Variable>
+          <FilterList
             searchTerm={searchTerm}
             searchKeys={['name', 'labels[].name']}
             list={variables}

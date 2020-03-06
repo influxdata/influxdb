@@ -11,6 +11,7 @@ import persistStateEnhancer from './persistStateEnhancer'
 
 // v2 reducers
 import meReducer from 'src/shared/reducers/me'
+import currentDashboardReducer from 'src/shared/reducers/currentDashboard'
 import tasksReducer from 'src/tasks/reducers'
 import rangesReducer from 'src/dashboards/reducers/ranges'
 import {dashboardsReducer} from 'src/dashboards/reducers/dashboards'
@@ -55,8 +56,8 @@ export const rootReducer = combineReducers<ReducerState>({
   autoRefresh: autoRefreshReducer,
   alertBuilder: alertBuilderReducer,
   cloud: combineReducers<{limits: LimitsState}>({limits: limitsReducer}),
+  currentDashboard: currentDashboardReducer,
   dataLoading: dataLoadingReducer,
-  labels: labelsReducer,
   me: meReducer,
   noteEditor: noteEditorReducer,
   onboarding: onboardingReducer,
@@ -70,6 +71,7 @@ export const rootReducer = combineReducers<ReducerState>({
     checks: checksReducer,
     dashboards: dashboardsReducer,
     endpoints: endpointsReducer,
+    labels: labelsReducer,
     members: membersReducer,
     orgs: orgsReducer,
     rules: rulesReducer,

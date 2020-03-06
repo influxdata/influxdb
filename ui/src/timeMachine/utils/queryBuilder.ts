@@ -156,10 +156,7 @@ const convertTagsToFluxFunctionString = function convertTagsToFluxFunctionString
       return ''
     }
 
-    const fnBody = tag.values
-      .map(value => `r.${tag.key} == "${value}"`)
-      .join(' or ')
-    return `\n  |> filter(fn: (r) => ${fnBody})`
+    return `\n  |> filter(fn: (r) => ${tagToFlux(tag)})`
   }
 
   if (tag.aggregateFunctionType === 'group') {
@@ -173,6 +170,12 @@ const convertTagsToFluxFunctionString = function convertTagsToFluxFunctionString
   }
 
   return ''
+}
+
+export const tagToFlux = function tagToFlux(tag: BuilderTagsType) {
+  return tag.values
+    .map(value => `r.${tag.key} == "${value.replace(/\\/g, '\\\\')}"`)
+    .join(' or ')
 }
 
 const formatPeriod = (period: string): string => {

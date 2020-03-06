@@ -9,7 +9,7 @@ import {
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
-import * as schemas from 'src/schemas'
+import {viewSchema} from 'src/schemas'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -43,7 +43,7 @@ export const getView = (dashboardID: string, cellID: string) => async (
   try {
     const view = await getViewAJAX(dashboardID, cellID)
 
-    const normView = normalize<View, ViewEntities, string>(view, schemas.view)
+    const normView = normalize<View, ViewEntities, string>(view, viewSchema)
 
     dispatch(setView(cellID, RemoteDataState.Done, normView))
   } catch {
@@ -61,10 +61,7 @@ export const updateView = (dashboardID: string, view: View) => async (
   try {
     const newView = await updateViewAJAX(dashboardID, viewID, view)
 
-    const normView = normalize<View, ViewEntities, string>(
-      newView,
-      schemas.view
-    )
+    const normView = normalize<View, ViewEntities, string>(newView, viewSchema)
 
     dispatch(setView(viewID, RemoteDataState.Done, normView))
 
@@ -90,10 +87,7 @@ export const updateViewAndVariables = (
 
     await dispatch(refreshDashboardVariableValues(dashboardID, views))
 
-    const normView = normalize<View, ViewEntities, string>(
-      newView,
-      schemas.view
-    )
+    const normView = normalize<View, ViewEntities, string>(newView, viewSchema)
 
     dispatch(setView(cellID, RemoteDataState.Done, normView))
   } catch (error) {

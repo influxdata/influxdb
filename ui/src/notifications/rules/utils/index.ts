@@ -133,6 +133,7 @@ export const ruleToDraftRule = (rule: GenRule): NotificationRuleDraft => {
   const tagRules = rule.tagRules || []
   return {
     ...rule,
+    labels: rule.labels.map(l => l.id),
     status: RemoteDataState.Done,
     activeStatus: rule.status,
     offset: rule.offset || '',

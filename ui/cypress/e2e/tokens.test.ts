@@ -210,7 +210,7 @@ describe('tokens', () => {
       })
       .then(() => {
         cy.getByTestID('delete-token--popover--contents').within(() => {
-          cy.getByTestID('button').click()
+          cy.getByTestID('delete-token--confirm-button').click()
         })
       })
 

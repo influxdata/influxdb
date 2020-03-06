@@ -3,23 +3,24 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
 )
 
 type bucketSVCsFn func() (influxdb.BucketService, influxdb.OrganizationService, error)
 
-func cmdBucket(opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdBucketBuilder(newBucketSVCs, opts...).cmd()
+func cmdBucket(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+	builder := newCmdBucketBuilder(newBucketSVCs, opt)
+	builder.globalFlags = f
+	return builder.cmd()
 }
 
 type cmdBucketBuilder struct {
 	genericCLIOpts
+	*globalFlags
 
 	svcFn bucketSVCsFn
 
@@ -31,17 +32,9 @@ type cmdBucketBuilder struct {
 	retention   time.Duration
 }
 
-func newCmdBucketBuilder(svcsFn bucketSVCsFn, opts ...genericCLIOptFn) *cmdBucketBuilder {
-	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
-	}
-	for _, o := range opts {
-		o(&opt)
-	}
-
+func newCmdBucketBuilder(svcsFn bucketSVCsFn, opts genericCLIOpts) *cmdBucketBuilder {
 	return &cmdBucketBuilder{
-		genericCLIOpts: opt,
+		genericCLIOpts: opts,
 		svcFn:          svcsFn,
 	}
 }
@@ -78,7 +71,7 @@ func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
 	opts.mustRegister(cmd)
 
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
-	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "Duration in nanoseconds data will live in bucket")
+	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	b.org.register(cmd, false)
 
 	return cmd
@@ -108,7 +101,7 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return fmt.Errorf("failed to create bucket: %v", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders("ID", "Name", "Retention", "OrganizationID")
 	w.Write(map[string]interface{}{
 		"ID":             bkt.ID.String(),
@@ -152,7 +145,7 @@ func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 		return fmt.Errorf("failed to delete bucket with id %q: %v", id, err)
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders("ID", "Name", "Retention", "OrganizationID", "Deleted")
 	w.Write(map[string]interface{}{
 		"ID":             bkt.ID.String(),
@@ -167,8 +160,9 @@ func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 }
 
 func (b *cmdBucketBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("find", b.cmdFindRunEFn)
-	cmd.Short = "Find buckets"
+	cmd := b.newCmd("list", b.cmdFindRunEFn)
+	cmd.Short = "List buckets"
+	cmd.Aliases = []string{"find", "ls"}
 
 	opts := flagOpts{
 		{
@@ -225,7 +219,7 @@ func (b *cmdBucketBuilder) cmdFindRunEFn(cmd *cobra.Command, args []string) erro
 		return fmt.Errorf("failed to retrieve buckets: %s", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.HideHeaders(!b.headers)
 	w.WriteHeaders("ID", "Name", "Retention", "OrganizationID")
 	for _, b := range buckets {
@@ -259,7 +253,7 @@ func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID (required)")
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
 	cmd.MarkFlagRequired("id")
-	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "New duration data will live in bucket")
+	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "Duration bucket will retain data. 0 is infinite. Default is 0.")
 
 	return cmd
 }
@@ -291,7 +285,7 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 		return fmt.Errorf("failed to update bucket: %v", err)
 	}
 
-	w := internal.NewTabWriter(b.w)
+	w := b.newTabWriter()
 	w.WriteHeaders("ID", "Name", "Retention", "OrganizationID")
 	w.Write(map[string]interface{}{
 		"ID":             bkt.ID.String(),

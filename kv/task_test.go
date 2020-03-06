@@ -14,7 +14,6 @@ import (
 	"github.com/influxdata/influxdb/kv"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/query/fluxlang"
-	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/servicetest"
 	"go.uber.org/zap/zaptest"
 )
@@ -133,7 +132,7 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
 		OrganizationID: ts.Org.ID,
 		OwnerID:        ts.User.ID,
-		Status:         string(backend.TaskActive),
+		Status:         string(influxdb.TaskActive),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -185,7 +184,7 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 	}
 
 	// test status filter
-	active := string(backend.TaskActive)
+	active := string(influxdb.TaskActive)
 	tasksWithActiveFilter, _, err := ts.Service.FindTasks(ctx, influxdb.TaskFilter{Status: &active})
 	if err != nil {
 		t.Fatal("could not find tasks")
@@ -211,7 +210,7 @@ func TestService_UpdateTask_InactiveToActive(t *testing.T) {
 		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
 		OrganizationID: ts.Org.ID,
 		OwnerID:        ts.User.ID,
-		Status:         string(backend.TaskActive),
+		Status:         string(influxdb.TaskActive),
 	})
 	if err != nil {
 		t.Fatal("CreateTask", err)
@@ -312,7 +311,7 @@ func TestTaskRunCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if canceled.Status != backend.RunCanceled.String() {
+	if canceled.Status != influxdb.RunCanceled.String() {
 		t.Fatalf("expected task run to be cancelled")
 	}
 }

@@ -2,7 +2,7 @@
 import {normalize} from 'normalizr'
 
 // Schemas
-import {arrayOfRules, rule as ruleSchema} from 'src/schemas'
+import {arrayOfRules, ruleSchema} from 'src/schemas/rules'
 
 // Reducers
 import rulesReducer, {

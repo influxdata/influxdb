@@ -62,7 +62,7 @@ func init() {
 		{
 			DestP:   &flags.boltPath,
 			Flag:    "bolt-path",
-			Default: filepath.Join(dir, http.DefaultTokenFile),
+			Default: filepath.Join(dir, bolt.DefaultFilename),
 			Desc:    "path to target boltdb database",
 		},
 		{
@@ -75,7 +75,7 @@ func init() {
 			DestP:   &flags.credPath,
 			Flag:    "credentials-path",
 			Default: filepath.Join(dir, http.DefaultTokenFile),
-			Desc:    "path to target persistent engine files",
+			Desc:    "path to target credentials file",
 		},
 		{
 			DestP:   &flags.backupPath,
@@ -134,6 +134,10 @@ func restoreE(cmd *cobra.Command, args []string) error {
 
 	if err := removeTmpBolt(); err != nil {
 		return fmt.Errorf("restore completed, but failed to cleanup temporary bolt file: %v", err)
+	}
+
+	if err := removeTmpCred(); err != nil {
+		return fmt.Errorf("restore completed, but failed to cleanup temporary credentials file: %v", err)
 	}
 
 	if err := removeTmpEngine(); err != nil {
@@ -283,6 +287,14 @@ func restoreFile(backup string, target string, filetype string) error {
 
 func restoreCred() error {
 	backupCred := filepath.Join(flags.backupPath, http.DefaultTokenFile)
+
+	_, err := os.Stat(backupCred)
+	if os.IsNotExist(err) {
+		fmt.Printf("No credentials file found in backup, skipping.\n")
+		return nil
+	} else if err != nil {
+		return err
+	}
 
 	if err := restoreFile(backupCred, flags.credPath, "credentials"); err != nil {
 		return err

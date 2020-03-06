@@ -41,7 +41,7 @@ require (
 	github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c // indirect
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/hashicorp/vault/api v1.0.2
-	github.com/influxdata/cron v0.0.0-20191112133922-ad5847cfab62
+	github.com/influxdata/cron v0.0.0-20191203200038-ded12750aac6
 	github.com/influxdata/flux v0.60.1-0.20200305155158-1add321ebf7a
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
@@ -85,8 +85,8 @@ require (
 	github.com/tinylib/msgp v1.1.0 // indirect
 	github.com/tylerb/graceful v1.2.15
 	github.com/uber-go/atomic v1.3.2 // indirect
-	github.com/uber/jaeger-client-go v2.15.0+incompatible
-	github.com/uber/jaeger-lib v1.5.0 // indirect
+	github.com/uber/jaeger-client-go v2.16.0+incompatible
+	github.com/uber/jaeger-lib v2.2.0+incompatible // indirect
 	github.com/willf/bitset v1.1.9 // indirect
 	github.com/yudai/gojsondiff v1.0.0
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
@@ -97,7 +97,7 @@ require (
 	golang.org/x/net v0.0.0-20190620200207-3b0461eec859
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
-	golang.org/x/sys v0.0.0-20190624142023-c5567b49c5d0
+	golang.org/x/sys v0.0.0-20200212091648-12a6c2dcc1e4
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	golang.org/x/tools v0.0.0-20191029190741-b9c20aec41a5
 	google.golang.org/api v0.7.0

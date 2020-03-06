@@ -103,9 +103,18 @@ func TestPkgerHTTPServer(t *testing.T) {
 					reqBody: pkger.ReqApplyPkg{
 						DryRun: true,
 						OrgID:  influxdb.ID(9000).String(),
-						Remote: pkger.PkgRemote{
+						Remotes: []pkger.PkgRemote{{
 							URL: "https://gist.githubusercontent.com/jsteenb2/3a3b2b5fcbd6179b2494c2b54aa2feb0/raw/989d361db7a851a3c388eaed0b59dce7fca7fdf3/bucket_pkg.json",
-						},
+						}},
+					},
+				},
+				{
+					name:        "app jsonnet",
+					contentType: "application/x-jsonnet",
+					reqBody: pkger.ReqApplyPkg{
+						DryRun: true,
+						OrgID:  influxdb.ID(9000).String(),
+						RawPkg: bucketPkgKinds(t, pkger.EncodingJsonnet),
 					},
 				},
 				{
@@ -207,6 +216,107 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 							assert.Len(t, resp.Summary.Buckets, 1)
 							assert.Len(t, resp.Diff.Buckets, 1)
+						})
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
+
+		t.Run("with multiple pkgs", func(t *testing.T) {
+			newBktPkg := func(t *testing.T, bktName string) json.RawMessage {
+				t.Helper()
+
+				pkgStr := fmt.Sprintf(`[
+  {
+    "apiVersion": "%[1]s",
+    "kind": "Bucket",
+    "metadata": {
+      "name": %q
+    },
+    "spec": {}
+  }
+]`, pkger.APIVersion, bktName)
+
+				pkg, err := pkger.Parse(pkger.EncodingJSON, pkger.FromString(pkgStr))
+				require.NoError(t, err)
+
+				pkgBytes, err := pkg.Encode(pkger.EncodingJSON)
+				require.NoError(t, err)
+				return pkgBytes
+			}
+
+			tests := []struct {
+				name         string
+				reqBody      pkger.ReqApplyPkg
+				expectedBkts []string
+			}{
+				{
+					name: "retrieves package from a URL and raw pkgs",
+					reqBody: pkger.ReqApplyPkg{
+						DryRun: true,
+						OrgID:  influxdb.ID(9000).String(),
+						Remotes: []pkger.PkgRemote{{
+							ContentType: "json",
+							URL:         "https://gist.githubusercontent.com/jsteenb2/3a3b2b5fcbd6179b2494c2b54aa2feb0/raw/989d361db7a851a3c388eaed0b59dce7fca7fdf3/bucket_pkg.json",
+						}},
+						RawPkgs: []json.RawMessage{
+							newBktPkg(t, "bkt1"),
+							newBktPkg(t, "bkt2"),
+							newBktPkg(t, "bkt3"),
+						},
+					},
+					expectedBkts: []string{"bkt1", "bkt2", "bkt3", "rucket_11"},
+				},
+				{
+					name: "retrieves packages from raw single and list",
+					reqBody: pkger.ReqApplyPkg{
+						DryRun: true,
+						OrgID:  influxdb.ID(9000).String(),
+						RawPkg: newBktPkg(t, "bkt4"),
+						RawPkgs: []json.RawMessage{
+							newBktPkg(t, "bkt1"),
+							newBktPkg(t, "bkt2"),
+							newBktPkg(t, "bkt3"),
+						},
+					},
+					expectedBkts: []string{"bkt1", "bkt2", "bkt3", "bkt4"},
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					svc := &fakeSVC{
+						DryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
+							if err := pkg.Validate(); err != nil {
+								return pkger.Summary{}, pkger.Diff{}, err
+							}
+							sum := pkg.Summary()
+							var diff pkger.Diff
+							for _, b := range sum.Buckets {
+								diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
+									Name: b.Name,
+								})
+							}
+							return sum, diff, nil
+						},
+					}
+
+					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+					svr := newMountedHandler(pkgHandler, 1)
+
+					testttp.
+						PostJSON(t, "/api/v2/packages/apply", tt.reqBody).
+						Do(svr).
+						ExpectStatus(http.StatusOK).
+						ExpectBody(func(buf *bytes.Buffer) {
+							var resp pkger.RespApplyPkg
+							decodeBody(t, buf, &resp)
+
+							require.Len(t, resp.Summary.Buckets, len(tt.expectedBkts))
+							for i, expected := range tt.expectedBkts {
+								assert.Equal(t, expected, resp.Summary.Buckets[i].Name)
+							}
 						})
 				}
 

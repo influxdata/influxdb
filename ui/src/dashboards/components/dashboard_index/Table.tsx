@@ -9,7 +9,7 @@ import {EmptyState, ResourceList} from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
 import {createDashboard, getDashboards} from 'src/dashboards/actions/thunks'
-import {getLabels} from 'src/labels/actions'
+import {getLabels} from 'src/labels/actions/thunks'
 
 // Types
 import {AppState, Dashboard, RemoteDataState} from 'src/types'

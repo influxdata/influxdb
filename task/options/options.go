@@ -52,7 +52,7 @@ func (a Duration) String() string {
 
 // Parse parses a string into a Duration.
 func (a *Duration) Parse(s string) error {
-	q, err := parseSignedDuration(s)
+	q, err := ParseSignedDuration(s)
 	if err != nil {
 		return ErrTaskInvalidDuration(err)
 	}
@@ -71,7 +71,7 @@ func MustParseDuration(s string) (dur *Duration) {
 
 // UnmarshalText unmarshals text into a Duration.
 func (a *Duration) UnmarshalText(text []byte) error {
-	q, err := parseSignedDuration(string(text))
+	q, err := ParseSignedDuration(string(text))
 	if err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func FromScript(lang FluxLanguageService, script string) (Options, error) {
 		if !ok || dur == nil {
 			return opt, ErrParseTaskOptionField("every")
 		}
-		durNode, err := parseSignedDuration(dur.Location().Source)
+		durNode, err := ParseSignedDuration(dur.Location().Source)
 		if err != nil {
 			return opt, err
 		}
@@ -289,7 +289,7 @@ func FromScript(lang FluxLanguageService, script string) (Options, error) {
 		if !ok || dur == nil {
 			return opt, ErrParseTaskOptionField("offset")
 		}
-		durNode, err := parseSignedDuration(dur.Location().Source)
+		durNode, err := ParseSignedDuration(dur.Location().Source)
 		if err != nil {
 			return opt, err
 		}

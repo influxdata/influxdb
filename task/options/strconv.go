@@ -20,9 +20,9 @@ import (
 // In the future, we should consider exposing these functions from flux
 // in a non-internal package outside of the parser package.
 
-// parseSignedDuration is a helper wrapper around parser.ParseSignedDuration.
+// ParseSignedDuration is a helper wrapper around parser.ParseSignedDuration.
 // We use it because we need to clear the basenode, but flux does not.
-func parseSignedDuration(text string) (*ast.DurationLiteral, error) {
+func ParseSignedDuration(text string) (*ast.DurationLiteral, error) {
 	// TODO(jsternberg): This is copied from an internal package in flux to break a dependency
 	// on the parser package where this method is exposed.
 	// Consider exposing this properly in flux.

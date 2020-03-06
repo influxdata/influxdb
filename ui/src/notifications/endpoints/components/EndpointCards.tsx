@@ -4,7 +4,7 @@ import React, {FC} from 'react'
 // Components
 import EndpointCard from 'src/notifications/endpoints/components/EndpointCard'
 import {EmptyState, ResourceList, ComponentSize} from '@influxdata/clockface'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 
 // Types
 import {NotificationEndpoint} from 'src/types'
@@ -14,6 +14,8 @@ interface Props {
   searchTerm: string
 }
 
+const FilterEndpoints = FilterList<NotificationEndpoint>()
+
 const EndpointCards: FC<Props> = ({endpoints, searchTerm}) => {
   const cards = endpoints =>
     endpoints.map(endpoint => (
@@ -21,7 +23,7 @@ const EndpointCards: FC<Props> = ({endpoints, searchTerm}) => {
     ))
 
   const body = (
-    <FilterList<NotificationEndpoint>
+    <FilterEndpoints
       list={endpoints}
       searchKeys={['name']}
       searchTerm={searchTerm}
@@ -33,7 +35,7 @@ const EndpointCards: FC<Props> = ({endpoints, searchTerm}) => {
           {cards(filteredEndpoints)}
         </ResourceList.Body>
       )}
-    </FilterList>
+    </FilterEndpoints>
   )
 
   return <ResourceList>{body}</ResourceList>

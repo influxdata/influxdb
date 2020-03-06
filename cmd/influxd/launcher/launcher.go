@@ -795,7 +795,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		VariableService:                 variableSvc,
 		PasswordsService:                passwdsSvc,
 		OnboardingService:               onboardingSvc,
-		InfluxQLService:                 nil, // No InfluxQL support
+		InfluxQLService:                 storageQueryService,
 		FluxService:                     storageQueryService,
 		FluxLanguageService:             fluxlang.DefaultService,
 		TaskService:                     taskSvc,

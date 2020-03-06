@@ -29,8 +29,8 @@ import (
 
 type pkgSVCsFn func() (pkger.SVC, influxdb.OrganizationService, error)
 
-func cmdPkg(opts ...genericCLIOptFn) *cobra.Command {
-	return newCmdPkgBuilder(newPkgerSVC, opts...).cmd()
+func cmdPkg(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+	return newCmdPkgBuilder(newPkgerSVC, opts).cmd()
 }
 
 type cmdPkgBuilder struct {
@@ -45,12 +45,13 @@ type cmdPkgBuilder struct {
 	disableTableBorders bool
 	org                 organization
 	quiet               bool
+	recurse             bool
+	urls                []string
 
 	applyOpts struct {
 		envRefs []string
 		force   string
 		secrets []string
-		url     string
 	}
 	exportOpts struct {
 		resourceType string
@@ -66,17 +67,9 @@ type cmdPkgBuilder struct {
 	}
 }
 
-func newCmdPkgBuilder(svcFn pkgSVCsFn, opts ...genericCLIOptFn) *cmdPkgBuilder {
-	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
-	}
-	for _, o := range opts {
-		o(&opt)
-	}
-
+func newCmdPkgBuilder(svcFn pkgSVCsFn, opts genericCLIOpts) *cmdPkgBuilder {
 	return &cmdPkgBuilder{
-		genericCLIOpts: opt,
+		genericCLIOpts: opts,
 		svcFn:          svcFn,
 	}
 }
@@ -96,16 +89,13 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.Short = "Apply a pkg to create resources"
 
 	b.org.register(cmd, false)
-	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
+	b.registerPkgFileFlags(cmd)
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
-	cmd.Flags().StringVarP(&b.applyOpts.url, "url", "u", "", "URL to retrieve a package.")
 	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
 	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
 
 	b.applyOpts.secrets = []string{}
-	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "Path to package file")
-	cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet")
 	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the package; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
 	cmd.Flags().StringSliceVar(&b.applyOpts.envRefs, "env-ref", nil, "Environment references to provide alongside the package; format should --env-ref=REF_KEY=REF_VALUE --env-ref=REF_KEY_2=REF_VALUE_2")
 
@@ -132,15 +122,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		return err
 	}
 
-	var (
-		pkg   *pkger.Pkg
-		isTTY bool
-	)
-	if b.applyOpts.url != "" {
-		pkg, err = pkger.Parse(b.applyEncoding(), pkger.FromHTTPRequest(b.applyOpts.url))
-	} else {
-		pkg, isTTY, err = b.readPkgStdInOrFile(b.files)
-	}
+	pkg, isTTY, err := b.readPkg()
 	if err != nil {
 		return err
 	}
@@ -295,12 +277,15 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn(cmd *cobra.Command, args []string) er
 		return err
 	}
 
-	return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, pkger.CreateWithAllOrgResources(orgID))
+	orgOpt := pkger.CreateWithAllOrgResources(pkger.CreateByOrgIDOpt{
+		OrgID: orgID,
+	})
+	return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, orgOpt)
 }
 
 func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 	runE := func(cmd *cobra.Command, args []string) error {
-		pkg, _, err := b.readPkgStdInOrFile(b.files)
+		pkg, _, err := b.readPkg()
 		if err != nil {
 			return err
 		}
@@ -312,7 +297,7 @@ func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 	cmd := b.newCmd("summary", runE)
 	cmd.Short = "Summarize the provided package"
 
-	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "input file for pkg; if none provided will use TTY input")
+	b.registerPkgFileFlags(cmd)
 	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
 	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
 
@@ -321,7 +306,7 @@ func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 
 func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 	runE := func(cmd *cobra.Command, args []string) error {
-		pkg, _, err := b.readPkgStdInOrFile(b.files)
+		pkg, _, err := b.readPkg()
 		if err != nil {
 			return err
 		}
@@ -331,10 +316,20 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 	cmd := b.newCmd("validate", runE)
 	cmd.Short = "Validate the provided package"
 
-	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
-	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "input file for pkg; if none provided will use TTY input")
+	b.registerPkgFileFlags(cmd)
 
 	return cmd
+}
+
+func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
+	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "Path to package file")
+	cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet")
+	cmd.Flags().BoolVarP(&b.recurse, "recurse", "R", false, "Process the directory used in -f, --file recursively. Useful when you want to manage related manifests organized within the same directory.")
+
+	cmd.Flags().StringSliceVarP(&b.urls, "url", "u", nil, "URL to a package file")
+
+	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
+	cmd.MarkFlagFilename("encoding", "yaml", "yml", "json", "jsonnet")
 }
 
 func (b *cmdPkgBuilder) writePkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.CreatePkgSetFn) error {
@@ -356,28 +351,70 @@ func (b *cmdPkgBuilder) writePkg(w io.Writer, pkgSVC pkger.SVC, outPath string, 
 	return ioutil.WriteFile(outPath, buf.Bytes(), os.ModePerm)
 }
 
-func (b *cmdPkgBuilder) readPkgStdInOrFile(files []string) (*pkger.Pkg, bool, error) {
-	if len(files) > 0 {
-		var rawPkgs []*pkger.Pkg
-		for _, file := range files {
-			pkg, err := pkger.Parse(b.applyEncoding(), pkger.FromFile(file), pkger.ValidSkipParseError())
-			if err != nil {
-				return nil, false, err
-			}
-			rawPkgs = append(rawPkgs, pkg)
+func (b *cmdPkgBuilder) readRawPkgsFromFiles(filePaths []string, recurse bool) ([]*pkger.Pkg, error) {
+	mFiles := make(map[string]struct{})
+	for _, f := range filePaths {
+		files, err := readFilesFromPath(f, recurse)
+		if err != nil {
+			return nil, err
 		}
-		pkg, err := pkger.Combine(rawPkgs...)
+		for _, ff := range files {
+			mFiles[ff] = struct{}{}
+		}
+	}
+
+	var rawPkgs []*pkger.Pkg
+	for f := range mFiles {
+		pkg, err := pkger.Parse(b.convertFileEncoding(f), pkger.FromFile(f), pkger.ValidSkipParseError())
+		if err != nil {
+			return nil, err
+		}
+		rawPkgs = append(rawPkgs, pkg)
+	}
+
+	return rawPkgs, nil
+}
+
+func (b *cmdPkgBuilder) readRawPkgsFromURLs(urls []string) ([]*pkger.Pkg, error) {
+	mURLs := make(map[string]struct{})
+	for _, f := range urls {
+		mURLs[f] = struct{}{}
+	}
+
+	var rawPkgs []*pkger.Pkg
+	for u := range mURLs {
+		pkg, err := pkger.Parse(b.convertURLEncoding(u), pkger.FromHTTPRequest(u), pkger.ValidSkipParseError())
+		if err != nil {
+			return nil, err
+		}
+		rawPkgs = append(rawPkgs, pkg)
+	}
+	return rawPkgs, nil
+}
+
+func (b *cmdPkgBuilder) readPkg() (*pkger.Pkg, bool, error) {
+	pkgs, err := b.readRawPkgsFromFiles(b.files, b.recurse)
+	if err != nil {
+		return nil, false, err
+	}
+
+	urlPkgs, err := b.readRawPkgsFromURLs(b.urls)
+	if err != nil {
+		return nil, false, err
+	}
+	pkgs = append(pkgs, urlPkgs...)
+
+	if _, err := b.inStdIn(); err != nil {
+		pkg, err := pkger.Combine(pkgs...)
 		return pkg, false, err
 	}
 
-	var isTTY bool
-
-	if _, err := b.inStdIn(); err == nil {
-		isTTY = true
+	stdinPkg, err := pkger.Parse(b.convertEncoding(), pkger.FromReader(b.in), pkger.ValidSkipParseError())
+	if err != nil {
+		return nil, true, err
 	}
-
-	pkg, err := pkger.Parse(b.applyEncoding(), pkger.FromReader(b.in))
-	return pkg, isTTY, err
+	pkg, err := pkger.Combine(append(pkgs, stdinPkg)...)
+	return pkg, true, err
 }
 
 func (b *cmdPkgBuilder) inStdIn() (*os.File, error) {
@@ -421,17 +458,40 @@ func (b *cmdPkgBuilder) getInput(msg, defaultVal string) string {
 	return getInput(ui, msg, defaultVal)
 }
 
-func (b *cmdPkgBuilder) applyEncoding() pkger.Encoding {
-	urlBase := path.Ext(b.applyOpts.url)
-	ext := filepath.Ext(b.file)
+func (b *cmdPkgBuilder) convertURLEncoding(url string) pkger.Encoding {
+	urlBase := path.Ext(url)
 	switch {
-	case ext == ".json" || b.encoding == "json" || urlBase == ".json":
+	case strings.HasPrefix(urlBase, ".jsonnet"):
+		return pkger.EncodingJsonnet
+	case strings.HasPrefix(urlBase, ".json"):
 		return pkger.EncodingJSON
-	case ext == ".yml" || ext == ".yaml" ||
-		b.encoding == "yml" || b.encoding == "yaml" ||
-		urlBase == ".yml" || urlBase == ".yaml":
+	case strings.HasPrefix(urlBase, ".yml") || strings.HasPrefix(urlBase, ".yaml"):
 		return pkger.EncodingYAML
-	case ext == ".jsonnet" || b.encoding == "jsonnet" || urlBase == ".jsonnet":
+	}
+	return b.convertEncoding()
+}
+
+func (b *cmdPkgBuilder) convertFileEncoding(file string) pkger.Encoding {
+	ext := filepath.Ext(file)
+	switch {
+	case strings.HasPrefix(ext, ".jsonnet"):
+		return pkger.EncodingJsonnet
+	case strings.HasPrefix(ext, ".json"):
+		return pkger.EncodingJSON
+	case strings.HasPrefix(ext, ".yml") || strings.HasPrefix(ext, ".yaml"):
+		return pkger.EncodingYAML
+	}
+
+	return b.convertEncoding()
+}
+
+func (b *cmdPkgBuilder) convertEncoding() pkger.Encoding {
+	switch {
+	case b.encoding == "json":
+		return pkger.EncodingJSON
+	case b.encoding == "yml" || b.encoding == "yaml":
+		return pkger.EncodingYAML
+	case b.encoding == "jsonnet":
 		return pkger.EncodingJsonnet
 	default:
 		return pkger.EncodingSource
@@ -938,6 +998,48 @@ func formatDuration(d time.Duration) string {
 		return "inf"
 	}
 	return d.String()
+}
+
+func readFilesFromPath(filePath string, recurse bool) ([]string, error) {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		return []string{filePath}, nil
+	}
+
+	dirFiles, err := ioutil.ReadDir(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	mFiles := make(map[string]struct{})
+	assign := func(ss ...string) {
+		for _, s := range ss {
+			mFiles[s] = struct{}{}
+		}
+	}
+	for _, f := range dirFiles {
+		fileP := filepath.Join(filePath, f.Name())
+		if f.IsDir() {
+			if recurse {
+				rFiles, err := readFilesFromPath(fileP, recurse)
+				if err != nil {
+					return nil, err
+				}
+				assign(rFiles...)
+			}
+			continue
+		}
+		assign(fileP)
+	}
+
+	var files []string
+	for f := range mFiles {
+		files = append(files, f)
+	}
+	return files, nil
 }
 
 func mapKeys(provided, kvPairs []string) map[string]string {

@@ -8,19 +8,19 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import LabelList from 'src/labels/components/LabelList'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 
 // Actions
-import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions'
+import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions/thunks'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
+import {getAll} from 'src/resources/selectors'
 
 // Utils
 import {validateLabelUniqueness} from 'src/labels/utils/'
 
 // Types
-import {AppState, Label} from 'src/types'
+import {AppState, Label, ResourceType} from 'src/types'
 import {
   IconFont,
   ComponentSize,
@@ -33,7 +33,7 @@ import {SortTypes} from 'src/shared/utils/sort'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface StateProps {
-  labels: AppState['labels']['list']
+  labels: Label[]
 }
 
 interface State {
@@ -54,6 +54,7 @@ type Props = DispatchProps & StateProps
 
 type SortKey = keyof Label
 
+const FilterLabels = FilterList<Label>()
 @ErrorHandling
 class Labels extends PureComponent<Props, State> {
   constructor(props) {
@@ -94,7 +95,7 @@ class Labels extends PureComponent<Props, State> {
             testID="button-create"
           />
         </TabbedPageHeader>
-        <FilterList<Label>
+        <FilterLabels
           list={labels}
           searchKeys={['name', 'properties.description']}
           searchTerm={searchTerm}
@@ -111,7 +112,7 @@ class Labels extends PureComponent<Props, State> {
               onClickColumn={this.handleClickColumn}
             />
           )}
-        </FilterList>
+        </FilterLabels>
         <CreateLabelOverlay
           isVisible={isOverlayVisible}
           onDismiss={this.handleDismissOverlay}
@@ -186,12 +187,8 @@ class Labels extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    labels: {list},
-  } = state
-  return {
-    labels: viewableLabels(list),
-  }
+  const labels = getAll<Label>(state, ResourceType.Labels)
+  return {labels}
 }
 
 const mdtp: DispatchProps = {

@@ -58,6 +58,13 @@ func CheckError(resp *http.Response) (err error) {
 		}
 	}
 
+	if resp.StatusCode == http.StatusUnsupportedMediaType {
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  fmt.Sprintf("invalid media type: %q", resp.Header.Get("Content-Type")),
+		}
+	}
+
 	contentType := resp.Header.Get("Content-Type")
 	if contentType == "" {
 		// Assume JSON if there is no content-type.
@@ -76,11 +83,9 @@ func CheckError(resp *http.Response) (err error) {
 	switch mediatype {
 	case "application/json":
 		pe := new(platform.Error)
-
-		parseErr := json.Unmarshal(buf.Bytes(), pe)
-		if parseErr != nil {
+		if err := json.Unmarshal(buf.Bytes(), pe); err != nil {
 			line, _ := buf.ReadString('\n')
-			return errors.Wrap(stderrors.New(strings.TrimSuffix(line, "\n")), parseErr.Error())
+			return errors.Wrap(stderrors.New(strings.TrimSuffix(line, "\n")), err.Error())
 		}
 		return pe
 	default:

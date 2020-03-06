@@ -9,10 +9,7 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import VariableContextMenu from 'src/variables/components/VariableContextMenu'
 
 // Types
-import {AppState, Label, Variable} from 'src/types'
-
-// Selectors
-import {viewableLabels} from 'src/labels/selectors'
+import {Label, Variable} from 'src/types'
 
 // Actions
 import {
@@ -27,16 +24,12 @@ interface OwnProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface StateProps {
-  labels: Label[]
-}
-
 interface DispatchProps {
   onAddVariableLabel: typeof addVariableLabelAsync
   onRemoveVariableLabel: typeof removeVariableLabelAsync
 }
 
-type Props = OwnProps & DispatchProps & StateProps
+type Props = OwnProps & DispatchProps
 
 class VariableCard extends PureComponent<Props & WithRouterProps> {
   public render() {
@@ -76,13 +69,11 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private get labels(): JSX.Element {
-    const {variable, labels, onFilterChange} = this.props
-    const collectorLabels = viewableLabels(variable.labels)
+    const {variable, onFilterChange} = this.props
 
     return (
       <InlineLabels
-        selectedLabels={collectorLabels}
-        labels={labels}
+        selectedLabelIDs={variable.labels}
         onFilterChange={onFilterChange}
         onAddLabel={this.handleAddLabel}
         onRemoveLabel={this.handleRemoveLabel}
@@ -122,18 +113,12 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
-  return {
-    labels: viewableLabels(labels.list),
-  }
-}
-
 const mdtp: DispatchProps = {
   onAddVariableLabel: addVariableLabelAsync,
   onRemoveVariableLabel: removeVariableLabelAsync,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
   mdtp
-)(withRouter<Props>(VariableCard))
+)(withRouter<OwnProps>(VariableCard))

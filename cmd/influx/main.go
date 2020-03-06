@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
@@ -51,7 +52,9 @@ func newHTTPClient() (*httpc.Client, error) {
 }
 
 type (
-	runEWrapFn func(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error
+	cobraRunEFn func(cmd *cobra.Command, args []string) error
+
+	cobraRuneEMiddleware func(fn cobraRunEFn) cobraRunEFn
 
 	genericCLIOptFn func(*genericCLIOpts)
 )
@@ -59,11 +62,12 @@ type (
 type genericCLIOpts struct {
 	in         io.Reader
 	w          io.Writer
-	runEWrapFn runEWrapFn
+	runEWrapFn cobraRuneEMiddleware
 }
 
 func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := &cobra.Command{
+		Args: cobra.NoArgs,
 		Use:  use,
 		RunE: runE,
 	}
@@ -72,6 +76,10 @@ func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) e
 	}
 	cmd.SetOut(o.w)
 	return cmd
+}
+
+func (o genericCLIOpts) newTabWriter() *internal.TabWriter {
+	return internal.NewTabWriter(o.w)
 }
 
 func in(r io.Reader) genericCLIOptFn {
@@ -86,52 +94,50 @@ func out(w io.Writer) genericCLIOptFn {
 	}
 }
 
-func runEWrap(fn runEWrapFn) genericCLIOptFn {
-	return func(opts *genericCLIOpts) {
-		opts.runEWrapFn = fn
-	}
-}
-
-var flags struct {
+type globalFlags struct {
 	token      string
 	host       string
 	local      bool
 	skipVerify bool
 }
 
-func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
+var flags globalFlags
+
+type cmdInfluxBuilder struct {
+	genericCLIOpts
+
+	once sync.Once
+}
+
+func newInfluxCmdBuilder(optFns ...genericCLIOptFn) *cmdInfluxBuilder {
+	builder := new(cmdInfluxBuilder)
+
 	opt := genericCLIOpts{
-		in: os.Stdin,
-		w:  os.Stdout,
+		in:         os.Stdin,
+		w:          os.Stdout,
+		runEWrapFn: checkSetupRunEMiddleware(&flags),
 	}
-	for _, o := range opts {
-		o(&opt)
+	for _, optFn := range optFns {
+		optFn(&opt)
 	}
 
-	cmd := opt.newCmd("influx", nil)
+	builder.genericCLIOpts = opt
+	return builder
+}
+
+func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCLIOpts) *cobra.Command) *cobra.Command {
+	b.once.Do(func() {
+		// enforce that viper options only ever get set once
+		setViperOptions()
+	})
+
+	cmd := b.newCmd("influx", nil)
 	cmd.Short = "Influx Client"
 	cmd.SilenceUsage = true
 
-	setViperOptions()
-
-	runEWrapper := runEWrap(wrapCheckSetup)
-
-	cmd.AddCommand(
-		cmdAuth(),
-		cmdBackup(),
-		cmdBucket(runEWrapper),
-		cmdDelete(),
-		cmdOrganization(runEWrapper),
-		cmdPing(),
-		cmdPkg(runEWrapper),
-		cmdQuery(),
-		cmdTranspile(),
-		cmdREPL(),
-		cmdSetup(),
-		cmdTask(),
-		cmdUser(runEWrapper),
-		cmdWrite(),
-	)
+	for _, childCmd := range childCmdFns {
+		cmd.AddCommand(childCmd(&flags, b.genericCLIOpts))
+	}
 
 	fOpts := flagOpts{
 		{
@@ -151,10 +157,12 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 	}
 	fOpts.mustRegister(cmd)
 
-	// this is after the flagOpts register b/c we don't want to show the default value
-	// in the usage display. This will add it as the token value, then if a token flag
-	// is provided too, the flag will take precedence.
-	flags.token = getTokenFromDefaultPath()
+	if flags.token == "" {
+		// this is after the flagOpts register b/c we don't want to show the default value
+		// in the usage display. This will add it as the token value, then if a token flag
+		// is provided too, the flag will take precedence.
+		flags.token = getTokenFromDefaultPath()
+	}
 
 	cmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
 	cmd.PersistentFlags().BoolVar(&flags.skipVerify, "skip-verify", false, "SkipVerify controls whether a client verifies the server's certificate chain and host name.")
@@ -165,6 +173,27 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 	})
 
 	return cmd
+}
+
+func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
+	builder := newInfluxCmdBuilder(opts...)
+	return builder.cmd(
+		cmdAuth,
+		cmdBackup,
+		cmdBucket,
+		cmdDelete,
+		cmdOrganization,
+		cmdPing,
+		cmdPkg,
+		cmdQuery,
+		cmdTranspile,
+		cmdREPL,
+		cmdSecret,
+		cmdSetup,
+		cmdTask,
+		cmdUser,
+		cmdWrite,
+	)
 }
 
 func fetchSubCommand(parent *cobra.Command, args []string) *cobra.Command {
@@ -222,10 +251,10 @@ func writeTokenToPath(tok, path, dir string) error {
 	return ioutil.WriteFile(path, []byte(tok), 0600)
 }
 
-func checkSetup(host string) error {
+func checkSetup(host string, skipVerify bool) error {
 	s := &http.SetupService{
-		Addr:               flags.host,
-		InsecureSkipVerify: flags.skipVerify,
+		Addr:               host,
+		InsecureSkipVerify: skipVerify,
 	}
 
 	isOnboarding, err := s.IsOnboarding(context.Background())
@@ -240,29 +269,20 @@ func checkSetup(host string) error {
 	return nil
 }
 
-func wrapCheckSetup(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
-	return wrapErrorFmt(func(cmd *cobra.Command, args []string) error {
-		err := fn(cmd, args)
-		if err == nil {
-			return nil
+func checkSetupRunEMiddleware(f *globalFlags) cobraRuneEMiddleware {
+	return func(fn cobraRunEFn) cobraRunEFn {
+		return func(cmd *cobra.Command, args []string) error {
+			err := fn(cmd, args)
+			if err == nil {
+				return nil
+			}
+
+			if setupErr := checkSetup(f.host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
+				return internal.ErrorFmt(setupErr)
+			}
+
+			return internal.ErrorFmt(err)
 		}
-
-		if setupErr := checkSetup(flags.host); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
-			return setupErr
-		}
-
-		return err
-	})
-}
-
-func wrapErrorFmt(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
-	return func(cmd *cobra.Command, args []string) error {
-		err := fn(cmd, args)
-		if err == nil {
-			return nil
-		}
-
-		return internal.ErrorFmt(err)
 	}
 }
 

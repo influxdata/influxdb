@@ -1,9 +1,11 @@
 import React, {Component} from 'react'
-import {render} from 'react-testing-library'
+import {renderWithRedux} from 'src/mockState'
 
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 
-function setup<T>(override?) {
+const resources = {resources: {labels: {byID: {}, allIDs: []}}}
+
+function setup<T>(override?, stateOverride = resources) {
   const props = {
     list: [],
     searchTerm: '',
@@ -12,12 +14,15 @@ function setup<T>(override?) {
     ...override,
   }
 
-  return render(
-    <FilterList<T> {...props}>
+  const Filter = FilterList<T>()
+
+  return renderWithRedux(
+    <Filter {...props}>
       {filtered =>
         filtered.map((item, index) => <TestListItem key={index} {...item} />)
       }
-    </FilterList>
+    </Filter>,
+    s => ({...s, ...stateOverride})
   )
 }
 
@@ -76,15 +81,38 @@ describe('FilterList', () => {
   })
 
   it('filters list of nested objects', () => {
+    const l1 = {id: 'l1', name: 'foo'}
+    const l2 = {id: 'l2', name: 'bar'}
+    const l3 = {id: 'l3', name: 'aPple'}
+    const l4 = {id: 'l4', name: 'code'}
+    const l5 = {id: 'l5', name: 'bike'}
+    const l6 = {id: 'l6', name: 'glasses'}
+
+    const appState = {
+      resources: {
+        labels: {
+          byID: {
+            l1,
+            l2,
+            l3,
+            l4,
+            l5,
+            l6,
+          },
+          allIDs: [l1.id, l2.id, l3.id, l4.id, l5.id, l6.id],
+        },
+      },
+    }
+
     const itemOne = {
       id: '1',
       name: 'aPplication',
-      labels: [{name: 'foo'}, {name: 'bar'}],
+      labels: [l1.id, l2.id],
     }
     const itemTwo = {
       id: '2',
       name: 'ports',
-      labels: [{name: 'aPple'}, {name: 'code'}],
+      labels: [l3.id, l4.id],
     }
     const list = [
       itemOne,
@@ -92,7 +120,7 @@ describe('FilterList', () => {
       {
         id: '3',
         name: 'hipster',
-        labels: [{name: 'bike'}, {name: 'glasses'}],
+        labels: [l5.id, l6.id],
       },
     ]
     const searchTerm = 'ApP'
@@ -101,11 +129,14 @@ describe('FilterList', () => {
       labels: Array<{name: string}>
       id: string
       name: string
-    }>({
-      list,
-      searchTerm,
-      searchKeys,
-    })
+    }>(
+      {
+        list,
+        searchTerm,
+        searchKeys,
+      },
+      appState
+    )
 
     const expected = getAllByTestId('list-item')
 
@@ -115,30 +146,48 @@ describe('FilterList', () => {
   })
 
   it('filters deeply nested inexact paths', () => {
+    const l1 = {id: 'l1', name: 'super aPplication', labels: [{name: 'pop'}]}
+    const l2 = {id: 'l2', name: 'beep', labels: [{name: 'RRRRRaPps'}]}
+    const l3 = {
+      id: 'l3',
+      name: 'TEST_APP',
+      labels: [{name: 'a', labels: [{name: 'match'}]}],
+    }
+    const l4 = {
+      id: 'l4',
+      name: 'snap',
+      labels: [l1],
+    }
+
+    const appState = {
+      resources: {
+        labels: {
+          byID: {
+            l1,
+            l2,
+            l3,
+            l4,
+          },
+          allIDs: [l1.id, l2.id, l3.id, l4.id],
+        },
+      },
+    }
+
     const itemOne = {
       id: '1',
       name: 'crackle',
-      labels: [
-        {
-          name: 'snap',
-          labels: [{name: 'super aPplication', labels: {name: 'pop'}}],
-        },
-      ],
+      labels: [l4.id],
     }
     const itemTwo = {
       id: '2',
       name: 'ports',
-      labels: [
-        {name: 'beep', labels: [{name: 'boop', labels: {name: 'RRRRRaPps'}}]},
-      ],
+      labels: [l2.id],
     }
 
     const itemThree = {
       id: '3',
       name: 'rando',
-      labels: [
-        {name: 'TEST_APP', labels: [{name: 'a', labels: {name: 'match'}}]},
-      ],
+      labels: [l3.id],
     }
 
     const list = [itemOne, itemTwo, itemThree]
@@ -159,18 +208,21 @@ describe('FilterList', () => {
       }>
       id: string
       name: string
-    }>({
-      list,
-      searchTerm,
-      searchKeys,
-    })
+    }>(
+      {
+        list,
+        searchTerm,
+        searchKeys,
+      },
+      appState
+    )
 
-    const expected = getAllByTestId('list-item')
+    const actual = getAllByTestId('list-item')
 
-    expect(expected.length).toEqual(3)
-    expect(expected[0].textContent).toEqual(itemOne.name)
-    expect(expected[1].textContent).toEqual(itemTwo.name)
-    expect(expected[2].textContent).toEqual(itemThree.name)
+    expect(actual.length).toEqual(3)
+    expect(actual[0].textContent).toEqual(itemOne.name)
+    expect(actual[1].textContent).toEqual(itemTwo.name)
+    expect(actual[2].textContent).toEqual(itemThree.name)
   })
 
   it('can filter nested objects', () => {

@@ -61,6 +61,14 @@ export const orgsReducer = (
       case EDIT_ORG: {
         editResource<Organization>(draftState, action, Orgs)
 
+        // NOTE: this is a normalization issue because the current org
+        // is being updated, but the selected org object isn't being
+        // updated. Since we have only one org at a time in this app
+        // i've taken some liberties here
+        if (action.schema.result === draftState.org.id) {
+          draftState.org = action.schema.entities.orgs[action.schema.result]
+        }
+
         return
       }
 

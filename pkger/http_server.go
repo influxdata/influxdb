@@ -60,16 +60,43 @@ func (s *HTTPServer) Prefix() string {
 	return RoutePrefix
 }
 
-type (
-	// ReqCreatePkg is a request body for the create pkg endpoint.
-	ReqCreatePkg struct {
-		OrgIDs    []string          `json:"orgIDs"`
-		Resources []ResourceToClone `json:"resources"`
+// ReqCreateOrgIDOpt provides options to export resources by organization id.
+type ReqCreateOrgIDOpt struct {
+	OrgID   string `json:"orgID"`
+	Filters struct {
+		ByLabel        []string `json:"byLabel"`
+		ByResourceKind []Kind   `json:"byResourceKind"`
+	} `json:"resourceFilters"`
+}
+
+// ReqCreatePkg is a request body for the create pkg endpoint.
+type ReqCreatePkg struct {
+	OrgIDs    []ReqCreateOrgIDOpt `json:"orgIDs"`
+	Resources []ResourceToClone   `json:"resources"`
+}
+
+// OK validates a create request.
+func (r *ReqCreatePkg) OK() error {
+	if len(r.Resources) == 0 && len(r.OrgIDs) == 0 {
+		return &influxdb.Error{
+			Code: influxdb.EUnprocessableEntity,
+			Msg:  "at least 1 resource or 1 org id must be provided",
+		}
 	}
 
-	// RespCreatePkg is a response body for the create pkg endpoint.
-	RespCreatePkg []Object
-)
+	for _, org := range r.OrgIDs {
+		if _, err := influxdb.IDFromString(org.OrgID); err != nil {
+			return &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  fmt.Sprintf("provided org id is invalid: %q", org.OrgID),
+			}
+		}
+	}
+	return nil
+}
+
+// RespCreatePkg is a response body for the create pkg endpoint.
+type RespCreatePkg []Object
 
 func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	encoding := pkgEncoding(r.Header)
@@ -81,23 +108,19 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	if len(reqBody.Resources) == 0 && len(reqBody.OrgIDs) == 0 {
-		s.api.Err(w, &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
-			Msg:  "at least 1 resource or 1 org id must be provided",
-		})
-		return
-	}
-
 	opts := []CreatePkgSetFn{
 		CreateWithExistingResources(reqBody.Resources...),
 	}
 	for _, orgIDStr := range reqBody.OrgIDs {
-		orgID, err := influxdb.IDFromString(orgIDStr)
+		orgID, err := influxdb.IDFromString(orgIDStr.OrgID)
 		if err != nil {
 			continue
 		}
-		opts = append(opts, CreateWithAllOrgResources(*orgID))
+		opts = append(opts, CreateWithAllOrgResources(CreateByOrgIDOpt{
+			OrgID:         *orgID,
+			LabelNames:    orgIDStr.Filters.ByLabel,
+			ResourceKinds: orgIDStr.Filters.ByResourceKind,
+		}))
 	}
 
 	newPkg, err := s.svc.CreatePkg(r.Context(), opts...)
@@ -152,19 +175,45 @@ func (p PkgRemote) Encoding() Encoding {
 type ReqApplyPkg struct {
 	DryRun  bool              `json:"dryRun" yaml:"dryRun"`
 	OrgID   string            `json:"orgID" yaml:"orgID"`
-	Remote  PkgRemote         `json:"remote" yaml:"remote"`
+	Remotes []PkgRemote       `json:"remotes" yaml:"remotes"`
+	RawPkgs []json.RawMessage `json:"packages" yaml:"packages"`
 	RawPkg  json.RawMessage   `json:"package" yaml:"package"`
 	EnvRefs map[string]string `json:"envRefs"`
 	Secrets map[string]string `json:"secrets"`
 }
 
-// Pkg returns a pkg parsed and validated from the RawPkg field.
-func (r ReqApplyPkg) Pkg(encoding Encoding) (*Pkg, error) {
-	if r.Remote.URL != "" {
-		return Parse(r.Remote.Encoding(), FromHTTPRequest(r.Remote.URL))
+// Pkgs returns all pkgs associated with the request.
+func (r ReqApplyPkg) Pkgs(encoding Encoding) (*Pkg, error) {
+	var rawPkgs []*Pkg
+	for _, rem := range r.Remotes {
+		if rem.URL == "" {
+			continue
+		}
+		pkg, err := Parse(rem.Encoding(), FromHTTPRequest(rem.URL), ValidSkipParseError())
+		if err != nil {
+			return nil, &influxdb.Error{
+				Code: influxdb.EUnprocessableEntity,
+				Msg:  fmt.Sprintf("pkg from url[%s] had an issue: %s", rem.URL, err.Error()),
+			}
+		}
+		rawPkgs = append(rawPkgs, pkg)
 	}
 
-	return Parse(encoding, FromReader(bytes.NewReader(r.RawPkg)))
+	for i, rawPkg := range append(r.RawPkgs, r.RawPkg) {
+		if rawPkg == nil {
+			continue
+		}
+		pkg, err := Parse(encoding, FromReader(bytes.NewReader(rawPkg)), ValidSkipParseError())
+		if err != nil {
+			return nil, &influxdb.Error{
+				Code: influxdb.EUnprocessableEntity,
+				Msg:  fmt.Sprintf("pkg [%d] had an issue: %s", i, err.Error()),
+			}
+		}
+		rawPkgs = append(rawPkgs, pkg)
+	}
+
+	return Combine(rawPkgs...)
 }
 
 // RespApplyPkg is the response body for the apply pkg endpoint.
@@ -199,10 +248,10 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := auth.GetUserID()
 
-	parsedPkg, err := reqBody.Pkg(encoding)
+	parsedPkg, err := reqBody.Pkgs(encoding)
 	if err != nil {
 		s.api.Err(w, &influxdb.Error{
-			Code: influxdb.EInvalid,
+			Code: influxdb.EUnprocessableEntity,
 			Err:  err,
 		})
 		return
@@ -302,7 +351,7 @@ func convertParseErr(err error) []ValidationErr {
 
 func newDecodeErr(encoding string, err error) *influxdb.Error {
 	return &influxdb.Error{
-		Msg:  fmt.Sprintf("unable to unmarshal %s; Err: %v", encoding, err),
+		Msg:  fmt.Sprintf("unable to unmarshal %s", encoding),
 		Code: influxdb.EInvalid,
 		Err:  err,
 	}

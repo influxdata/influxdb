@@ -153,4 +153,40 @@ describe('the Time Machine reducer', () => {
       )
     })
   })
+
+  // Assertion of bugfix for https://github.com/influxdata/influxdb/issues/16426
+  describe('setting the active query index', () => {
+    const store = createStore(timeMachinesReducer, initialState())
+    store.dispatch({type: 'ADD_QUERY'})
+    store.dispatch({type: 'ADD_QUERY'})
+
+    it('sets the activeQueryIndex when the value is less than the length of draftQueries', () => {
+      const activeQueryIndex = 2
+      store.dispatch({
+        type: 'SET_ACTIVE_QUERY_INDEX',
+        payload: {activeQueryIndex},
+      })
+
+      const actualState = store.getState()
+      const activeTimeMachine =
+        actualState.timeMachines[actualState.activeTimeMachineID]
+      expect(activeTimeMachine.activeQueryIndex).toBe(activeQueryIndex)
+    })
+
+    it('does not set the activeQueryIndex when the value is greater than the length of draftQueries', () => {
+      const activeQueryIndex = 5
+      const originalActiveQueryIndex = store.getState().timeMachines[
+        store.getState().activeTimeMachineID
+      ].activeQueryIndex
+      store.dispatch({
+        type: 'SET_ACTIVE_QUERY_INDEX',
+        payload: {activeQueryIndex},
+      })
+
+      const actualState = store.getState()
+      const activeTimeMachine =
+        actualState.timeMachines[actualState.activeTimeMachineID]
+      expect(activeTimeMachine.activeQueryIndex).toBe(originalActiveQueryIndex)
+    })
+  })
 })

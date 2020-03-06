@@ -3,18 +3,20 @@ package main
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/mock"
+
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -32,8 +34,6 @@ func TestCmdPkg(t *testing.T) {
 		}
 	}
 
-	setViperOptions()
-
 	t.Run("export all", func(t *testing.T) {
 		expectedOrgID := influxdb.ID(9000)
 
@@ -45,9 +45,7 @@ func TestCmdPkg(t *testing.T) {
 					name:     "yaml out with org id",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
-					flags: []flagArg{
-						{name: "org-id", val: expectedOrgID.String()},
-					},
+					args:     []string{"--org-id=" + expectedOrgID.String()},
 				},
 			},
 			{
@@ -55,9 +53,7 @@ func TestCmdPkg(t *testing.T) {
 					name:     "yaml out with org name",
 					encoding: pkger.EncodingYAML,
 					filename: "pkg_0.yml",
-					flags: []flagArg{
-						{name: "org", val: "influxdata"},
-					},
+					args:     []string{"--org=influxdata"},
 				},
 			},
 			{
@@ -78,7 +74,7 @@ func TestCmdPkg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func() *cobra.Command {
+		cmdFn := func(_ *globalFlags, opt genericCLIOpts) *cobra.Command {
 			pkgSVC := &fakePkgSVC{
 				createFn: func(_ context.Context, opts ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
 					opt := pkger.CreateOpt{}
@@ -87,7 +83,7 @@ func TestCmdPkg(t *testing.T) {
 							return nil, err
 						}
 					}
-					if !opt.OrgIDs[expectedOrgID] {
+					if opt.OrgIDs[0].OrgID != expectedOrgID {
 						return nil, errors.New("did not provide expected orgID")
 					}
 
@@ -100,10 +96,10 @@ func TestCmdPkg(t *testing.T) {
 					return &pkg, nil
 				},
 			}
-			builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), in(new(bytes.Buffer)))
-			return builder.cmdPkgExportAll()
+			return newCmdPkgBuilder(fakeSVCFn(pkgSVC), opt).cmd()
 		}
 		for _, tt := range tests {
+			tt.pkgFileArgs.args = append([]string{"pkg", "export", "all"}, tt.pkgFileArgs.args...)
 			testPkgWrites(t, cmdFn, tt.pkgFileArgs, func(t *testing.T, pkg *pkger.Pkg) {
 				sum := pkg.Summary()
 
@@ -192,7 +188,7 @@ func TestCmdPkg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func() *cobra.Command {
+		cmdFn := func(_ *globalFlags, opt genericCLIOpts) *cobra.Command {
 			pkgSVC := &fakePkgSVC{
 				createFn: func(_ context.Context, opts ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
 					var opt pkger.CreateOpt
@@ -218,19 +214,21 @@ func TestCmdPkg(t *testing.T) {
 					return &pkg, nil
 				},
 			}
-			builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), in(new(bytes.Buffer)))
-			return builder.cmdPkgExport()
+
+			builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), opt)
+			return builder.cmd()
 		}
 		for _, tt := range tests {
-			tt.flags = append(tt.flags,
-				flagArg{"buckets", idsStr(tt.bucketIDs...)},
-				flagArg{"endpoints", idsStr(tt.endpointIDs...)},
-				flagArg{"dashboards", idsStr(tt.dashIDs...)},
-				flagArg{"labels", idsStr(tt.labelIDs...)},
-				flagArg{"rules", idsStr(tt.ruleIDs...)},
-				flagArg{"tasks", idsStr(tt.taskIDs...)},
-				flagArg{"telegraf-configs", idsStr(tt.telegrafIDs...)},
-				flagArg{"variables", idsStr(tt.varIDs...)},
+			tt.args = append(tt.args,
+				"pkg", "export",
+				"--buckets="+idsStr(tt.bucketIDs...),
+				"--endpoints="+idsStr(tt.endpointIDs...),
+				"--dashboards="+idsStr(tt.dashIDs...),
+				"--labels="+idsStr(tt.labelIDs...),
+				"--rules="+idsStr(tt.ruleIDs...),
+				"--tasks="+idsStr(tt.taskIDs...),
+				"--telegraf-configs="+idsStr(tt.telegrafIDs...),
+				"--variables="+idsStr(tt.varIDs...),
 			)
 
 			testPkgWrites(t, cmdFn, tt.pkgFileArgs, func(t *testing.T, pkg *pkger.Pkg) {
@@ -282,8 +280,17 @@ func TestCmdPkg(t *testing.T) {
 
 	t.Run("validate", func(t *testing.T) {
 		t.Run("pkg is valid returns no error", func(t *testing.T) {
-			cmd := newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC))).cmdPkgValidate()
+			builder := newInfluxCmdBuilder(
+				in(new(bytes.Buffer)),
+				out(ioutil.Discard),
+			)
+			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), opt).cmd()
+			})
+
 			cmd.SetArgs([]string{
+				"pkg",
+				"validate",
 				"--file=../../pkger/testdata/bucket.yml",
 				"-f=../../pkger/testdata/label.yml",
 			})
@@ -293,45 +300,113 @@ func TestCmdPkg(t *testing.T) {
 		t.Run("pkg is invalid returns error", func(t *testing.T) {
 			// pkgYml is invalid because it is missing a name and wrong apiVersion
 			const pkgYml = `apiVersion: 0.1.0
-kind: Bucket
-metadata:
-`
-			b := newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), in(strings.NewReader(pkgYml)), out(ioutil.Discard))
-			cmd := b.cmdPkgValidate()
+	kind: Bucket
+	metadata:
+	`
+			builder := newInfluxCmdBuilder(
+				in(strings.NewReader(pkgYml)),
+				out(ioutil.Discard),
+			)
+			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+				return newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), opt).cmd()
+			})
+			cmd.SetArgs([]string{"pkg", "validate"})
+
 			require.Error(t, cmd.Execute())
 		})
 	})
 }
 
-type flagArg struct{ name, val string }
+func Test_readFilesFromPath(t *testing.T) {
+	t.Run("single file", func(t *testing.T) {
+		dir := newTempDir(t)
+		defer os.RemoveAll(dir)
 
-func (s flagArg) String() string {
-	return fmt.Sprintf("--%s=%s", s.name, s.val)
-}
+		f := newTempFile(t, dir)
 
-func flagArgs(fArgs ...flagArg) []string {
-	var args []string
-	for _, f := range fArgs {
-		args = append(args, f.String())
-	}
-	return args
+		files, err := readFilesFromPath(f.Name(), false)
+		require.NoError(t, err)
+		assert.Equal(t, []string{f.Name()}, files)
+
+		files, err = readFilesFromPath(f.Name(), true)
+		require.NoError(t, err)
+		assert.Equal(t, []string{f.Name()}, files)
+	})
+
+	t.Run("dir with no files", func(t *testing.T) {
+		dir := newTempDir(t)
+		defer os.RemoveAll(dir)
+
+		files, err := readFilesFromPath(dir, false)
+		require.NoError(t, err)
+		assert.Empty(t, files)
+	})
+
+	t.Run("dir with only files", func(t *testing.T) {
+		dir := newTempDir(t)
+		defer os.RemoveAll(dir)
+
+		filePaths := []string{
+			newTempFile(t, dir).Name(),
+			newTempFile(t, dir).Name(),
+		}
+		sort.Strings(filePaths)
+
+		files, err := readFilesFromPath(dir, false)
+		require.NoError(t, err)
+		sort.Strings(files)
+		assert.Equal(t, filePaths, files)
+
+		files, err = readFilesFromPath(dir, true)
+		require.NoError(t, err)
+		sort.Strings(files)
+		assert.Equal(t, filePaths, files)
+	})
+
+	t.Run("dir with nested dir that has files", func(t *testing.T) {
+		dir := newTempDir(t)
+		defer os.RemoveAll(dir)
+
+		nestedDir := filepath.Join(dir, "/nested/twice")
+		require.NoError(t, os.MkdirAll(nestedDir, os.ModePerm))
+
+		filePaths := []string{
+			newTempFile(t, nestedDir).Name(),
+			newTempFile(t, nestedDir).Name(),
+		}
+		sort.Strings(filePaths)
+
+		files, err := readFilesFromPath(dir, false)
+		require.NoError(t, err)
+		sort.Strings(files)
+		assert.Empty(t, files)
+
+		files, err = readFilesFromPath(dir, true)
+		require.NoError(t, err)
+		sort.Strings(files)
+		assert.Equal(t, filePaths, files)
+	})
 }
 
 type pkgFileArgs struct {
 	name     string
 	filename string
 	encoding pkger.Encoding
-	flags    []flagArg
+	args     []string
 	envVars  map[string]string
 }
 
-func testPkgWrites(t *testing.T, newCmdFn func() *cobra.Command, args pkgFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) {
+func testPkgWrites(t *testing.T, newCmdFn func(*globalFlags, genericCLIOpts) *cobra.Command, args pkgFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) {
 	t.Helper()
 
 	defer addEnvVars(t, args.envVars)()
 
-	wrappedCmdFn := func() *cobra.Command {
-		cmd := newCmdFn()
+	wrappedCmdFn := func(w io.Writer) *cobra.Command {
+		builder := newInfluxCmdBuilder(
+			in(new(bytes.Buffer)),
+			out(w),
+		)
+		cmd := builder.cmd(newCmdFn)
 		cmd.SetArgs([]string{}) // clears mess from test runner coming into cobra cli via stdin
 		return cmd
 	}
@@ -340,7 +415,7 @@ func testPkgWrites(t *testing.T, newCmdFn func() *cobra.Command, args pkgFileArg
 	t.Run(path.Join(args.name, "buffer"), testPkgWritesToBuffer(wrappedCmdFn, args, assertFn))
 }
 
-func testPkgWritesFile(newCmdFn func() *cobra.Command, args pkgFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) func(t *testing.T) {
+func testPkgWritesFile(newCmdFn func(w io.Writer) *cobra.Command, args pkgFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -349,8 +424,8 @@ func testPkgWritesFile(newCmdFn func() *cobra.Command, args pkgFileArgs, assertF
 
 		pathToFile := filepath.Join(tempDir, args.filename)
 
-		cmd := newCmdFn()
-		cmd.SetArgs(flagArgs(append(args.flags, flagArg{name: "file", val: pathToFile})...))
+		cmd := newCmdFn(ioutil.Discard)
+		cmd.SetArgs(append(args.args, "--file="+pathToFile))
 
 		require.NoError(t, cmd.Execute())
 
@@ -361,14 +436,13 @@ func testPkgWritesFile(newCmdFn func() *cobra.Command, args pkgFileArgs, assertF
 	}
 }
 
-func testPkgWritesToBuffer(newCmdFn func() *cobra.Command, args pkgFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) func(t *testing.T) {
+func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args pkgFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
 		var buf bytes.Buffer
-		cmd := newCmdFn()
-		cmd.SetOut(&buf)
-		cmd.SetArgs(flagArgs(args.flags...))
+		cmd := newCmdFn(&buf)
+		cmd.SetArgs(args.args)
 
 		require.NoError(t, cmd.Execute())
 
@@ -412,6 +486,14 @@ func newTempDir(t *testing.T) string {
 	tempDir, err := ioutil.TempDir("", "")
 	require.NoError(t, err)
 	return tempDir
+}
+
+func newTempFile(t *testing.T, dir string) *os.File {
+	t.Helper()
+
+	f, err := ioutil.TempFile(dir, "")
+	require.NoError(t, err)
+	return f
 }
 
 func idsStr(ids ...influxdb.ID) string {

@@ -1,8 +1,8 @@
 import {Task as ITask} from 'src/client'
-import {Label, NormalizedState, Run, RemoteDataState, LogEvent} from 'src/types'
+import {NormalizedState, Run, RemoteDataState, LogEvent} from 'src/types'
 
-export interface Task extends ITask {
-  labels?: Label[]
+export interface Task extends Omit<ITask, 'labels'> {
+  labels?: string[]
 }
 export interface TaskOptions {
   name: string

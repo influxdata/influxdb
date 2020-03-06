@@ -79,7 +79,7 @@ describe('Variables', () => {
     cy.getByTestID('resource-card').should('have.length', 1)
   })
 
-  it('can rename a variable', () => {
+  it('can edit a variable', () => {
     cy.getByTestID('resource-card').should('have.length', 1)
 
     cy.getByTestID('context-menu')
@@ -97,5 +97,19 @@ describe('Variables', () => {
     cy.get('.cf-resource-name--text').should($s =>
       expect($s).to.contain('-renamed')
     )
+
+    // Create a label
+    cy.getByTestID('resource-card').within(() => {
+      cy.getByTestID('inline-labels--add').click()
+    })
+
+    const labelName = 'l1'
+    cy.getByTestID('inline-labels--popover--contents').type(labelName)
+    cy.getByTestID('inline-labels--create-new').click()
+    cy.getByTestID('create-label-form--submit').click()
+
+    // Delete the label
+    cy.getByTestID(`label--pill--delete ${labelName}`).click({force: true})
+    cy.getByTestID('inline-labels--empty').should('exist')
   })
 })

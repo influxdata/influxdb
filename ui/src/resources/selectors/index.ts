@@ -2,7 +2,7 @@
 import {get} from 'lodash'
 
 // Types
-import {AppState, ResourceType, RemoteDataState} from 'src/types'
+import {AppState, ResourceType, RemoteDataState, Label} from 'src/types'
 
 export const getStatus = (
   {resources}: AppState,
@@ -31,7 +31,13 @@ export const getByID = <R>(
     throw new Error(`"${type}" resource has yet not been set`)
   }
 
-  const resource = get(byID, `${id}`)
+  const resource = get(byID, `${id}`, null)
 
   return resource
+}
+
+export const getLabels = (state: AppState, labelIDs: string[]): Label[] => {
+  return labelIDs
+    .map(labelID => getByID<Label>(state, ResourceType.Labels, labelID))
+    .filter(label => !!label)
 }

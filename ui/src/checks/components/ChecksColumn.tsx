@@ -4,7 +4,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
 import {getAll} from 'src/resources/selectors'
 
 // Components
@@ -93,10 +92,6 @@ const ChecksColumn: FunctionComponent<Props> = ({
 }
 
 const mstp = (state: AppState) => {
-  const {
-    labels: {list: labels},
-  } = state
-
   const checks = getAll<Check>(state, ResourceType.Checks)
 
   const endpoints = getAll<NotificationEndpoint>(
@@ -111,7 +106,6 @@ const mstp = (state: AppState) => {
 
   return {
     checks,
-    labels: viewableLabels(labels),
     rules,
     endpoints,
   }

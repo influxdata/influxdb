@@ -123,4 +123,320 @@ func TestPkg(t *testing.T) {
 			assert.Equal(t, label1.Name(), mapping1.LabelName)
 		})
 	})
+
+	t.Run("Diff", func(t *testing.T) {
+		t.Run("hasConflict", func(t *testing.T) {
+			tests := []struct {
+				name     string
+				resource interface {
+					hasConflict() bool
+				}
+				expected bool
+			}{
+				{
+					name: "new bucket",
+					resource: DiffBucket{
+						Name: "new bucket",
+						New: DiffBucketValues{
+							Description: "new desc",
+						},
+					},
+					expected: false,
+				},
+				{
+					name: "existing bucket with no changes",
+					resource: DiffBucket{
+						ID:   3,
+						Name: "new bucket",
+						New: DiffBucketValues{
+							Description: "new desc",
+							RetentionRules: retentionRules{{
+								Type:    "expire",
+								Seconds: 3600,
+							}},
+						},
+						Old: &DiffBucketValues{
+							Description: "new desc",
+							RetentionRules: retentionRules{{
+								Type:    "expire",
+								Seconds: 3600,
+							}},
+						},
+					},
+					expected: false,
+				},
+				{
+					name: "existing bucket with desc changes",
+					resource: DiffBucket{
+						ID:   3,
+						Name: "existing bucket",
+						New: DiffBucketValues{
+							Description: "new desc",
+							RetentionRules: retentionRules{{
+								Type:    "expire",
+								Seconds: 3600,
+							}},
+						},
+						Old: &DiffBucketValues{
+							Description: "newer desc",
+							RetentionRules: retentionRules{{
+								Type:    "expire",
+								Seconds: 3600,
+							}},
+						},
+					},
+					expected: true,
+				},
+				{
+					name: "existing bucket with retention changes",
+					resource: DiffBucket{
+						ID:   3,
+						Name: "existing bucket",
+						New: DiffBucketValues{
+							Description: "new desc",
+							RetentionRules: retentionRules{{
+								Type:    "expire",
+								Seconds: 3600,
+							}},
+						},
+						Old: &DiffBucketValues{
+							Description: "new desc",
+						},
+					},
+					expected: true,
+				},
+				{
+					name: "existing bucket with retention changes",
+					resource: DiffBucket{
+						ID:   3,
+						Name: "existing bucket",
+						New: DiffBucketValues{
+							Description: "new desc",
+							RetentionRules: retentionRules{{
+								Type:    "expire",
+								Seconds: 3600,
+							}},
+						},
+						Old: &DiffBucketValues{
+							Description: "new desc",
+							RetentionRules: retentionRules{{
+								Type:    "expire",
+								Seconds: 360,
+							}},
+						},
+					},
+					expected: true,
+				},
+				{
+					name: "existing bucket with retention changes",
+					resource: DiffBucket{
+						ID:   3,
+						Name: "existing bucket",
+						New: DiffBucketValues{
+							Description: "new desc",
+							RetentionRules: retentionRules{{
+								Type:    "expire",
+								Seconds: 3600,
+							}},
+						},
+						Old: &DiffBucketValues{
+							Description: "new desc",
+							RetentionRules: retentionRules{
+								{
+									Type:    "expire",
+									Seconds: 360,
+								},
+								{
+									Type:    "expire",
+									Seconds: 36000,
+								},
+							},
+						},
+					},
+					expected: true,
+				},
+				{
+					name: "new label",
+					resource: DiffLabel{
+						Name: "new label",
+						New: DiffLabelValues{
+							Color:       "new color",
+							Description: "new desc",
+						},
+					},
+					expected: false,
+				},
+				{
+					name: "existing label with no changes",
+					resource: DiffLabel{
+						ID:   1,
+						Name: "existing label",
+						New: DiffLabelValues{
+							Color:       "color",
+							Description: "desc",
+						},
+						Old: &DiffLabelValues{
+							Color:       "color",
+							Description: "desc",
+						},
+					},
+					expected: false,
+				},
+				{
+					name: "existing label with changes",
+					resource: DiffLabel{
+						ID:   1,
+						Name: "existing label",
+						New: DiffLabelValues{
+							Color:       "color",
+							Description: "desc",
+						},
+						Old: &DiffLabelValues{
+							Color:       "new color",
+							Description: "new desc",
+						},
+					},
+					expected: true,
+				},
+				{
+					name: "new variable",
+					resource: DiffVariable{
+						Name: "new var",
+						New: DiffVariableValues{
+							Description: "new desc",
+							Args: &influxdb.VariableArguments{
+								Type:   "constant",
+								Values: &influxdb.VariableConstantValues{"1", "b"},
+							},
+						},
+					},
+					expected: false,
+				},
+				{
+					name: "existing variable no changes",
+					resource: DiffVariable{
+						ID:   2,
+						Name: "new var",
+						New: DiffVariableValues{
+							Description: "new desc",
+							Args: &influxdb.VariableArguments{
+								Type:   "constant",
+								Values: &influxdb.VariableConstantValues{"1", "b"},
+							},
+						},
+						Old: &DiffVariableValues{
+							Description: "new desc",
+							Args: &influxdb.VariableArguments{
+								Type:   "constant",
+								Values: &influxdb.VariableConstantValues{"1", "b"},
+							},
+						},
+					},
+					expected: false,
+				},
+				{
+					name: "existing variable with desc changes",
+					resource: DiffVariable{
+						ID:   3,
+						Name: "new var",
+						New: DiffVariableValues{
+							Description: "new desc",
+							Args: &influxdb.VariableArguments{
+								Type:   "constant",
+								Values: &influxdb.VariableConstantValues{"1", "b"},
+							},
+						},
+						Old: &DiffVariableValues{
+							Description: "newer desc",
+							Args: &influxdb.VariableArguments{
+								Type:   "constant",
+								Values: &influxdb.VariableConstantValues{"1", "b"},
+							},
+						},
+					},
+					expected: true,
+				},
+				{
+					name: "existing variable with constant arg changes",
+					resource: DiffVariable{
+						ID:   3,
+						Name: "new var",
+						New: DiffVariableValues{
+							Description: "new desc",
+							Args: &influxdb.VariableArguments{
+								Type:   "constant",
+								Values: &influxdb.VariableConstantValues{"1", "b"},
+							},
+						},
+						Old: &DiffVariableValues{
+							Description: "new desc",
+							Args: &influxdb.VariableArguments{
+								Type:   "constant",
+								Values: &influxdb.VariableConstantValues{"1", "b", "new"},
+							},
+						},
+					},
+					expected: true,
+				},
+				{
+					name: "existing variable with map arg changes",
+					resource: DiffVariable{
+						ID:   3,
+						Name: "new var",
+						New: DiffVariableValues{
+							Description: "new desc",
+							Args: &influxdb.VariableArguments{
+								Type:   "map",
+								Values: &influxdb.VariableMapValues{"1": "b"},
+							},
+						},
+						Old: &DiffVariableValues{
+							Description: "new desc",
+							Args: &influxdb.VariableArguments{
+								Type:   "map",
+								Values: &influxdb.VariableMapValues{"1": "b", "2": "new"},
+							},
+						},
+					},
+					expected: true,
+				},
+				{
+					name: "existing variable with query arg changes",
+					resource: DiffVariable{
+						ID:   3,
+						Name: "new var",
+						New: DiffVariableValues{
+							Description: "new desc",
+							Args: &influxdb.VariableArguments{
+								Type: "query",
+								Values: &influxdb.VariableQueryValues{
+									Query:    "from(bucket: rucket)",
+									Language: "flux",
+								},
+							},
+						},
+						Old: &DiffVariableValues{
+							Description: "new desc",
+							Args: &influxdb.VariableArguments{
+								Type: "query",
+								Values: &influxdb.VariableQueryValues{
+									Query:    "from(bucket: rucket) |> yield(name: threeve)",
+									Language: "flux",
+								},
+							},
+						},
+					},
+					expected: true,
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					assert.Equal(t, tt.expected, tt.resource.hasConflict())
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
+	})
 }

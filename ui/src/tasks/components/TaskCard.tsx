@@ -23,12 +23,9 @@ import {
   selectTask,
 } from 'src/tasks/actions/thunks'
 
-// Selectors
-import {viewableLabels} from 'src/labels/selectors'
-
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {AppState, Task, Label} from 'src/types'
+import {Task, Label} from 'src/types'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
@@ -44,16 +41,12 @@ interface PassedProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface StateProps {
-  labels: Label[]
-}
-
 interface DispatchProps {
   onAddTaskLabel: typeof addTaskLabel
   onDeleteTaskLabel: typeof deleteTaskLabel
 }
 
-type Props = PassedProps & StateProps & DispatchProps
+type Props = PassedProps & DispatchProps
 
 export class TaskCard extends PureComponent<Props & WithRouterProps> {
   public render() {
@@ -171,12 +164,11 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private get labels(): JSX.Element {
-    const {task, labels, onFilterChange} = this.props
+    const {task, onFilterChange} = this.props
 
     return (
       <InlineLabels
-        selectedLabels={task.labels}
-        labels={labels}
+        selectedLabelIDs={task.labels}
         onFilterChange={onFilterChange}
         onAddLabel={this.handleAddLabel}
         onRemoveLabel={this.handleRemoveLabel}
@@ -229,18 +221,12 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
-  return {
-    labels: viewableLabels(labels.list),
-  }
-}
-
 const mdtp: DispatchProps = {
   onAddTaskLabel: addTaskLabel,
   onDeleteTaskLabel: deleteTaskLabel,
 }
 
-export default connect<StateProps, DispatchProps, PassedProps>(
-  mstp,
+export default connect<{}, DispatchProps, PassedProps>(
+  null,
   mdtp
 )(withRouter<Props>(TaskCard))

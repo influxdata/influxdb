@@ -9,12 +9,12 @@ import InlineLabelPopover from 'src/shared/components/inlineLabels/InlineLabelPo
 import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 
 // Utils
-import {validateLabelUniqueness} from 'src/labels/utils/'
+import {validateLabelUniqueness} from 'src/labels/utils'
 
 // Types
-import {Label} from 'src/types'
+import {Label, RemoteDataState} from 'src/types'
 import {OverlayState} from 'src/types/overlay'
-import {createLabel} from 'src/labels/actions'
+import {createLabel} from 'src/labels/actions/thunks'
 
 // Constants
 export const ADD_NEW_LABEL_ITEM_ID = 'add-new-label'
@@ -25,6 +25,7 @@ export const ADD_NEW_LABEL_LABEL: Label = {
     color: '#000000',
     description: '',
   },
+  status: RemoteDataState.NotStarted,
 }
 
 import {ErrorHandling} from 'src/shared/decorators/errors'

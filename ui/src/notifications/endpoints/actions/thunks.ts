@@ -13,12 +13,13 @@ import {
   setEndpoint,
   Action,
   removeEndpoint,
-  addLabelToEndpoint,
   removeLabelFromEndpoint,
 } from 'src/notifications/endpoints/actions/creators'
+import {setLabelOnResource} from 'src/labels/actions/creators'
 
 // Schemas
-import * as schemas from 'src/schemas'
+import {endpointSchema, arrayOfEndpoints} from 'src/schemas/endpoints'
+import {labelSchema} from 'src/schemas/labels'
 
 // APIs
 import * as api from 'src/client'
@@ -39,6 +40,7 @@ import {
   RemoteDataState,
   EndpointEntities,
   ResourceType,
+  LabelEntities,
 } from 'src/types'
 
 export const getEndpoints = () => async (
@@ -64,7 +66,7 @@ export const getEndpoints = () => async (
       NotificationEndpoint,
       EndpointEntities,
       string[]
-    >(resp.data.notificationEndpoints, schemas.arrayOfEndpoints)
+    >(resp.data.notificationEndpoints, arrayOfEndpoints)
 
     dispatch(setEndpoints(RemoteDataState.Done, endpoints))
     dispatch(checkEndpointsLimits())
@@ -93,7 +95,7 @@ export const createEndpoint = (endpoint: NotificationEndpoint) => async (
       NotificationEndpoint,
       EndpointEntities,
       string
-    >(resp.data, schemas.endpoint)
+    >(resp.data, endpointSchema)
 
     dispatch(setEndpoint(resp.data.id, RemoteDataState.Done, newEndpoint))
     dispatch(checkEndpointsLimits())
@@ -120,7 +122,7 @@ export const updateEndpoint = (endpoint: NotificationEndpoint) => async (
 
     const updates = normalize<NotificationEndpoint, EndpointEntities, string>(
       resp.data,
-      schemas.endpoint
+      endpointSchema
     )
 
     dispatch(setEndpoint(endpoint.id, RemoteDataState.Done, updates))
@@ -147,7 +149,7 @@ export const updateEndpointProperties = (
 
     const updates = normalize<NotificationEndpoint, EndpointEntities, string>(
       resp.data,
-      schemas.endpoint
+      endpointSchema
     )
 
     dispatch(setEndpoint(endpointID, RemoteDataState.Done, updates))
@@ -189,7 +191,12 @@ export const addEndpointLabel = (endpointID: string, label: Label) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(addLabelToEndpoint(endpointID, label))
+    const normLabel = normalize<Label, LabelEntities, string>(
+      resp.data.label,
+      labelSchema
+    )
+
+    dispatch(setLabelOnResource(endpointID, normLabel))
   } catch (error) {
     console.error(error)
   }
@@ -245,7 +252,7 @@ export const cloneEndpoint = (endpoint: NotificationEndpoint) => async (
 
     const clone = normalize<NotificationEndpoint, EndpointEntities, string>(
       resp.data,
-      schemas.endpoint
+      endpointSchema
     )
 
     dispatch(setEndpoint(resp.data.id, RemoteDataState.Done, clone))

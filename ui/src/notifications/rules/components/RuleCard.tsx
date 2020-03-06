@@ -24,15 +24,9 @@ import {
   deleteRuleLabel,
   cloneRule,
 } from 'src/notifications/rules/actions/thunks'
-import {viewableLabels} from 'src/labels/selectors'
 
 // Types
-import {
-  NotificationRuleDraft,
-  AppState,
-  Label,
-  AlertHistoryType,
-} from 'src/types'
+import {NotificationRuleDraft, Label, AlertHistoryType} from 'src/types'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
@@ -49,16 +43,11 @@ interface OwnProps {
   rule: NotificationRuleDraft
 }
 
-interface StateProps {
-  labels: Label[]
-}
-
-type Props = OwnProps & WithRouterProps & StateProps & DispatchProps
+type Props = OwnProps & WithRouterProps & DispatchProps
 
 const RuleCard: FC<Props> = ({
   rule,
   onUpdateRuleProperties,
-  labels,
   deleteNotificationRule,
   onCloneRule,
   onAddRuleLabel,
@@ -153,8 +142,7 @@ const RuleCard: FC<Props> = ({
       }
       labels={
         <InlineLabels
-          selectedLabels={rule.labels as Label[]}
-          labels={labels}
+          selectedLabelIDs={rule.labels}
           onAddLabel={handleAddRuleLabel}
           onRemoveLabel={handleRemoveRuleLabel}
         />
@@ -188,13 +176,7 @@ const mdtp: DispatchProps = {
   onCloneRule: cloneRule,
 }
 
-const mstp = ({labels}: AppState): StateProps => {
-  return {
-    labels: viewableLabels(labels.list),
-  }
-}
-
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
+export default connect<{}, DispatchProps>(
+  null,
   mdtp
 )(withRouter(RuleCard))

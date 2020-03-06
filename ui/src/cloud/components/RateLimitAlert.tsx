@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {
@@ -13,24 +14,34 @@ import {
   JustifyContent,
 } from '@influxdata/clockface'
 
+// Utils
+import {
+  extractRateLimitResources,
+  extractRateLimitStatus,
+} from 'src/cloud/utils/limits'
+
 // Constants
 import {CLOUD} from 'src/shared/constants'
 
 // Types
+import {AppState} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 import CheckoutButton from 'src/cloud/components/CheckoutButton'
 
-interface Props {
+interface StateProps {
   resources: string[]
-  limitStatus: LimitStatus
+  status: LimitStatus
+}
+interface OwnProps {
   className?: string
 }
+type Props = StateProps & OwnProps
 
-export default class RateLimitAlert extends PureComponent<Props> {
+class RateLimitAlert extends PureComponent<Props> {
   public render() {
-    const {limitStatus, className} = this.props
+    const {status, className} = this.props
 
-    if (CLOUD && limitStatus === LimitStatus.EXCEEDED) {
+    if (CLOUD && status === LimitStatus.EXCEEDED) {
       return (
         <FlexBox
           direction={FlexDirection.Column}
@@ -88,3 +99,22 @@ export default class RateLimitAlert extends PureComponent<Props> {
     return renamedResources.join(' and ')
   }
 }
+
+const mstp = (state: AppState): StateProps => {
+  const {
+    cloud: {limits},
+  } = state
+
+  const resources = extractRateLimitResources(limits)
+  const status = extractRateLimitStatus(limits)
+
+  return {
+    status,
+    resources,
+  }
+}
+
+export default connect<StateProps, {}>(
+  mstp,
+  null
+)(RateLimitAlert)

@@ -3,7 +3,7 @@ import React, {FunctionComponent} from 'react'
 
 //Components
 import CheckCard from 'src/checks/components/CheckCard'
-import FilterList from 'src/shared/components/Filter'
+import FilterList from 'src/shared/components/FilterList'
 import {
   EmptyState,
   ResourceList,
@@ -18,6 +18,8 @@ import {
 // Types
 import {Check} from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
+
+const FilterChecks = FilterList<Check>()
 
 interface Props {
   checks: Check[]
@@ -50,13 +52,9 @@ const CheckCards: FunctionComponent<Props> = ({
     </ResourceList.Body>
   )
   const filteredChecks = (
-    <FilterList<Check>
-      list={checks}
-      searchKeys={['name']}
-      searchTerm={searchTerm}
-    >
+    <FilterChecks list={checks} searchKeys={['name']} searchTerm={searchTerm}>
       {filtered => body(filtered)}
-    </FilterList>
+    </FilterChecks>
   )
 
   return (

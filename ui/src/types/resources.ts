@@ -15,6 +15,7 @@ import {
   TemplatesState,
   VariablesState,
   View,
+  Label,
 } from 'src/types'
 
 export enum ResourceType {
@@ -65,7 +66,9 @@ export interface ResourceState {
   [ResourceType.Authorizations]: NormalizedState<Authorization>
   [ResourceType.Buckets]: NormalizedState<Bucket>
   [ResourceType.Cells]: CellsState
+  [ResourceType.Checks]: NormalizedState<Check>
   [ResourceType.Dashboards]: NormalizedState<Dashboard>
+  [ResourceType.Labels]: NormalizedState<Label>
   [ResourceType.Members]: NormalizedState<Member>
   [ResourceType.Orgs]: OrgsState
   [ResourceType.Scrapers]: NormalizedState<Scraper>
@@ -76,5 +79,4 @@ export interface ResourceState {
   [ResourceType.Views]: NormalizedState<View>
   [ResourceType.NotificationEndpoints]: NormalizedState<NotificationEndpoint>
   [ResourceType.NotificationRules]: RulesState
-  [ResourceType.Checks]: NormalizedState<Check>
 }

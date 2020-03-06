@@ -2,19 +2,28 @@
 import {produce} from 'immer'
 
 // Types
-import {RemoteDataState} from 'src/types'
-import {Action} from 'src/labels/actions'
-import {Label} from 'src/types'
+import {RemoteDataState, ResourceState, Label, ResourceType} from 'src/types'
+import {
+  Action,
+  SET_LABELS,
+  SET_LABEL,
+  REMOVE_LABEL,
+} from 'src/labels/actions/creators'
 
-const initialState = (): LabelsState => ({
+// Utils
+import {
+  setResource,
+  setResourceAtID,
+  removeResource,
+} from 'src/resources/reducers/helpers'
+
+type LabelsState = ResourceState['labels']
+
+export const initialState = (): LabelsState => ({
   status: RemoteDataState.NotStarted,
-  list: [],
+  byID: {},
+  allIDs: [],
 })
-
-export interface LabelsState {
-  status: RemoteDataState
-  list: Label[]
-}
 
 export const labelsReducer = (
   state: LabelsState = initialState(),
@@ -22,49 +31,21 @@ export const labelsReducer = (
 ): LabelsState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_LABELS': {
-        const {status, list} = action.payload
-
-        draftState.status = status
-
-        if (list) {
-          draftState.list = list
-        }
+      case SET_LABELS: {
+        setResource<Label>(draftState, action, ResourceType.Labels)
 
         return
       }
 
-      case 'ADD_LABEL': {
-        const {label} = action.payload
-
-        draftState.list.push(label)
+      case SET_LABEL: {
+        setResourceAtID<Label>(draftState, action, ResourceType.Labels)
 
         return
       }
 
-      case 'EDIT_LABEL': {
-        const {label} = action.payload
-        const {list} = draftState
+      case REMOVE_LABEL: {
+        removeResource<Label>(draftState, action)
 
-        draftState.list = list.map(l => {
-          if (l.id === label.id) {
-            return label
-          }
-
-          return l
-        })
-
-        return
-      }
-
-      case 'REMOVE_LABEL': {
-        const {id} = action.payload
-        const {list} = draftState
-        const deleted = list.filter(l => {
-          return l.id !== id
-        })
-
-        draftState.list = deleted
         return
       }
     }

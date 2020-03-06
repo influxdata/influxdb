@@ -6,11 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/resource"
-
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/resource"
 	"github.com/influxdata/influxdb/task/options"
 	"go.uber.org/zap"
 )
@@ -34,7 +32,6 @@ var (
 )
 
 var _ influxdb.TaskService = (*Service)(nil)
-var _ backend.TaskControlService = (*Service)(nil)
 
 type kvTask struct {
 	ID              influxdb.ID            `json:"id"`
@@ -311,7 +308,21 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 		return nil, 0, err
 	}
 
-	matchFn := newTaskMatchFn(filter, org)
+	var (
+		afterSeen bool
+		after     = func(task *influxdb.Task) bool {
+			if filter.After == nil || afterSeen {
+				return true
+			}
+
+			if task.ID == *filter.After {
+				afterSeen = true
+			}
+
+			return false
+		}
+		matchFn = newTaskMatchFn(filter, org)
+	)
 
 	for _, m := range maps {
 		task, err := s.findTaskByIDWithAuth(ctx, tx, m.ResourceID)
@@ -323,6 +334,10 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 		}
 
 		if matchFn == nil || matchFn(task) {
+			if !after(task) {
+				continue
+			}
+
 			ts = append(ts, task)
 
 			if len(ts) >= filter.Limit {
@@ -389,6 +404,9 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
+	// free cursor resources
+	defer c.Close()
+
 	matchFn := newTaskMatchFn(filter, nil)
 
 	for k, v := c.Next(); k != nil; k, v = c.Next() {
@@ -401,6 +419,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		if err != nil {
 			if err == influxdb.ErrTaskNotFound {
 				// we might have some crufty index's
+				err = nil
 				continue
 			}
 			return nil, 0, err
@@ -420,7 +439,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		}
 	}
 
-	return ts, len(ts), err
+	return ts, len(ts), c.Err()
 }
 
 type taskMatchFn func(*influxdb.Task) bool
@@ -500,6 +519,9 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
+	// free cursor resources
+	defer c.Close()
+
 	matchFn := newTaskMatchFn(filter, nil)
 
 	for k, v := c.Next(); k != nil; k, v = c.Next() {
@@ -517,6 +539,10 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 				break
 			}
 		}
+	}
+
+	if err := c.Err(); err != nil {
+		return nil, 0, err
 	}
 
 	return ts, len(ts), err
@@ -571,7 +597,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 	}
 
 	if tc.Status == "" {
-		tc.Status = string(backend.TaskActive)
+		tc.Status = string(influxdb.TaskActive)
 	}
 
 	createdAt := s.clock.Now().Truncate(time.Second).UTC()
@@ -1134,7 +1160,7 @@ func (s *Service) retryRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID
 	}
 
 	r.ID = s.IDGenerator.ID()
-	r.Status = backend.RunScheduled.String()
+	r.Status = influxdb.RunScheduled.String()
 	r.StartedAt = time.Time{}
 	r.FinishedAt = time.Time{}
 	r.RequestedAt = time.Time{}
@@ -1202,7 +1228,7 @@ func (s *Service) forceRun(ctx context.Context, tx Tx, taskID influxdb.ID, sched
 	r := &influxdb.Run{
 		ID:           s.IDGenerator.ID(),
 		TaskID:       taskID,
-		Status:       backend.RunScheduled.String(),
+		Status:       influxdb.RunScheduled.String(),
 		RequestedAt:  time.Now().UTC(),
 		ScheduledFor: t,
 		Log:          []influxdb.Log{},
@@ -1267,7 +1293,7 @@ func (s *Service) createRun(ctx context.Context, tx Tx, taskID influxdb.ID, sche
 		TaskID:       taskID,
 		ScheduledFor: t,
 		RunAt:        runAt,
-		Status:       backend.RunScheduled.String(),
+		Status:       influxdb.RunScheduled.String(),
 		Log:          []influxdb.Log{},
 	}
 
@@ -1524,7 +1550,7 @@ func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 }
 
 // UpdateRunState sets the run state at the respective time.
-func (s *Service) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state backend.RunStatus) error {
+func (s *Service) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state influxdb.RunStatus) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		err := s.updateRunState(ctx, tx, taskID, runID, when, state)
 		if err != nil {
@@ -1535,7 +1561,7 @@ func (s *Service) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID,
 	return err
 }
 
-func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influxdb.ID, when time.Time, state backend.RunStatus) error {
+func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influxdb.ID, when time.Time, state influxdb.RunStatus) error {
 	// find run
 	run, err := s.findRunByID(ctx, tx, taskID, runID)
 	if err != nil {
@@ -1545,9 +1571,9 @@ func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influ
 	// update state
 	run.Status = state.String()
 	switch state {
-	case backend.RunStarted:
+	case influxdb.RunStarted:
 		run.StartedAt = when
-	case backend.RunSuccess, backend.RunFail, backend.RunCanceled:
+	case influxdb.RunSuccess, influxdb.RunFail, influxdb.RunCanceled:
 		run.FinishedAt = when
 	}
 
