@@ -596,7 +596,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	deps, err := influxdb.NewDependencies(
 		storageflux.NewReader(readservice.NewStore(m.engine)),
 		m.engine,
-		authorizer.NewBucketService(bucketSvc),
+		authorizer.NewBucketService(bucketSvc, userResourceSvc),
 		authorizer.NewOrgService(orgSvc),
 		authorizer.NewSecretService(secretSvc),
 		nil,
@@ -820,7 +820,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgerLogger := m.log.With(zap.String("service", "pkger"))
 		pkgSVC = pkger.NewService(
 			pkger.WithLogger(pkgerLogger),
-			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService)),
+			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService, b.UserResourceMappingService)),
 			pkger.WithCheckSVC(authorizer.NewCheckService(b.CheckService, authedURMSVC, authedOrgSVC)),
 			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
 			pkger.WithLabelSVC(authorizer.NewLabelService(b.LabelService)),
