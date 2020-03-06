@@ -12,6 +12,6 @@ export const getCells = (
   const cellIDs = dashboard.cells
 
   return cellIDs
-    .filter(id => resources.cells.byID[id]) // added filter since it was returning undefined cells
+    .filter(id => !!resources.cells.byID[id]) // added filter since it was returning undefined cells
     .map(id => resources.cells.byID[id])
 }
