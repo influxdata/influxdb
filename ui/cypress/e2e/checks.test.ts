@@ -28,7 +28,11 @@ describe('Checks', () => {
     cy.getByTestID('create-check').click()
 
     cy.getByTestID('create-threshold-check').click()
-
+    // added test to disable group on check query builder
+    cy.getByTestID('dropdown--button')
+      .should('be.disabled')
+      .and('not.contain', 'Group')
+      .contains('Filter')
     cy.getByTestID(`selector-list ${measurement}`).click()
 
     cy.getByTestID('save-cell--button').should('be.disabled')

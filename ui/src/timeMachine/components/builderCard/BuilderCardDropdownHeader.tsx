@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 
-import {SelectDropdown} from '@influxdata/clockface'
+import {ComponentStatus, Dropdown, SelectDropdown} from '@influxdata/clockface'
 import {BuilderAggregateFunctionType} from 'src/types'
 
 interface Props {
@@ -21,15 +21,30 @@ export default class BuilderCardDropdownHeader extends PureComponent<Props> {
 
   public render() {
     const {children, options, onSelect, selectedOption, testID} = this.props
+    const button = () => (
+      <Dropdown.Button status={ComponentStatus.Disabled} onClick={() => {}}>
+        {selectedOption}
+      </Dropdown.Button>
+    )
 
+    const menu = () => null
     return (
       <div className="builder-card--header" data-testid={testID}>
-        <SelectDropdown
-          options={options}
-          selectedOption={selectedOption}
-          testID="select-option-dropdown"
-          onSelect={onSelect ? onSelect : emptyFunction}
-        />
+        {options.length === 1 && (
+          <Dropdown
+            button={button}
+            menu={menu}
+            testID="disabled--filter-dropdown"
+          />
+        )}
+        {options.length !== 1 && (
+          <SelectDropdown
+            options={options}
+            selectedOption={selectedOption}
+            testID="select-option-dropdown"
+            onSelect={onSelect ? onSelect : emptyFunction}
+          />
+        )}
 
         {children}
         {this.deleteButton}
