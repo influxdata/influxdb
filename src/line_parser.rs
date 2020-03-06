@@ -1,4 +1,12 @@
-use std::str::Chars;
+use nom::{
+    branch::alt,
+    bytes::complete::{tag, take_while1},
+    character::complete::digit1,
+    combinator::{map, opt, recognize},
+    multi::separated_list,
+    sequence::{separated_pair, terminated, tuple},
+    IResult,
+};
 use std::{error, fmt};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -163,97 +171,109 @@ impl error::Error for ParseError {
     }
 }
 
-// TODO: have parse return an error for invalid inputs
+#[derive(Debug)]
+struct ParsedLine<'a> {
+    measurement: &'a str,
+    tag_set: Option<Vec<(&'a str, &'a str)>>,
+    field_set: Vec<(&'a str, FieldValue)>,
+    timestamp: Option<i64>,
+}
+
+#[derive(Debug)]
+enum FieldValue {
+    I64(i64),
+    F64(f64),
+}
+
+// TODO: Return an error for invalid inputs
 pub fn parse(input: &str) -> Vec<PointType> {
-    let mut points: Vec<PointType> = Vec::with_capacity(10000);
-    let lines = input.lines();
-    for line in lines {
-        read_line(line, &mut points)
-    }
-    points
-}
+    input
+        .lines()
+        .flat_map(|line| match parse_line(line) {
+            Ok((_remaining, parsed_line)) => {
+                let ParsedLine {
+                    measurement,
+                    tag_set,
+                    field_set,
+                    timestamp,
+                } = parsed_line;
 
-fn read_line(line: &str, points: &mut Vec<PointType>) {
-    let mut points = points;
-    let mut chars = line.chars();
-    let mut series = String::with_capacity(1000);
-    while let Some(ch) = chars.next() {
-        match ch {
-            ' ' => read_fields(&series, &mut chars, &mut points),
-            _ => series.push(ch),
-        }
-    }
-}
+                assert!(tag_set.is_none(), "TODO: tag set not supported");
+                let timestamp = timestamp.expect("TODO: default timestamp not supported");
 
-fn read_fields(measurement_tags: &str, chars: &mut Chars<'_>, points: &mut Vec<PointType>) {
-    let mut chars = chars;
-    let mut points = points;
-    let mut field_name = String::with_capacity(100);
+                field_set.into_iter().map(move |(field_key, field_value)| {
+                    let series = format!("{}\t{}", measurement, field_key);
 
-    let mut point_offset = points.len();
-
-    while let Some(ch) = chars.next() {
-        match ch {
-            '=' => {
-                let should_break =
-                    !read_value(&measurement_tags, field_name, &mut chars, &mut points);
-                field_name = String::with_capacity(100);
-                if should_break {
-                    break;
-                }
+                    match field_value {
+                        FieldValue::I64(value) => PointType::new_i64(series, value, timestamp),
+                        FieldValue::F64(value) => PointType::new_f64(series, value, timestamp),
+                    }
+                })
             }
-            _ => field_name.push(ch),
-        }
-    }
-
-    // read the time
-    for ch in chars {
-        field_name.push(ch);
-    }
-    let time = field_name.parse::<i64>().unwrap();
-
-    while point_offset < points.len() {
-        points[point_offset].set_time(time);
-        point_offset += 1;
-    }
+            Err(e) => {
+                panic!("TODO: Failed to parse: {}", e);
+            }
+        })
+        .collect()
 }
 
-// read_value reads the value from the chars and returns true if there are more fields and values to be read
-fn read_value(
-    measurement_tags: &str,
-    field_name: String,
-    chars: &mut Chars<'_>,
-    points: &mut Vec<PointType>,
-) -> bool {
-    let mut value = String::new();
+fn parse_line(i: &str) -> IResult<&str, ParsedLine<'_>> {
+    let tag_set = map(tuple((tag(","), tag_set)), |(_, ts)| ts);
+    let field_set = map(tuple((tag(" "), field_set)), |(_, fs)| fs);
+    let timestamp = map(tuple((tag(" "), timestamp)), |(_, ts)| ts);
 
-    for ch in chars {
-        match ch {
-            ' ' | ',' => {
-                let series = measurement_tags.to_string() + "\t" + &field_name;
+    let line = tuple((measurement, opt(tag_set), field_set, opt(timestamp)));
 
-                // if the last character of the value is an i then it's an integer, otherwise it's
-                // a float (at least until we support the other data types
-                let point = if value.ends_with('i') {
-                    let val = value[..value.len() - 1].parse::<i64>().unwrap();
-                    PointType::new_i64(series, val, 0)
-                } else {
-                    let val = value.parse::<f64>().unwrap();
-                    PointType::new_f64(series, val, 0)
-                };
-                points.push(point);
-
-                if ch == ' ' {
-                    return false;
-                }
-
-                return true;
-            }
-            _ => value.push(ch),
+    map(line, |(measurement, tag_set, field_set, timestamp)| {
+        ParsedLine {
+            measurement,
+            tag_set,
+            field_set,
+            timestamp,
         }
-    }
+    })(i)
+}
 
-    false
+fn measurement(i: &str) -> IResult<&str, &str> {
+    // TODO: This needs to account for `,` to separate tag sets
+    take_while1(|c| c != ' ')(i)
+}
+
+// TODO: ensure that the tags are sorted
+fn tag_set(i: &str) -> IResult<&str, Vec<(&str, &str)>> {
+    let tag_key = take_while1(|c| c != '=');
+    let tag_value = take_while1(|c| c != ' ');
+    let one_tag = separated_pair(tag_key, tag("="), tag_value);
+    separated_list(tag(","), one_tag)(i)
+}
+
+fn field_set(i: &str) -> IResult<&str, Vec<(&str, FieldValue)>> {
+    let field_key = take_while1(|c| c != '=');
+    let one_field = separated_pair(field_key, tag("="), field_value);
+    separated_list(tag(","), one_field)(i)
+}
+
+fn field_value(i: &str) -> IResult<&str, FieldValue> {
+    let int = map(terminated(digit1, tag("i")), |v: &str| {
+        FieldValue::I64(v.parse().expect("TODO: Unsupported"))
+    });
+
+    let float_no_decimal = map(digit1, |v: &str| {
+        FieldValue::F64(v.parse().expect("TODO: Unsupported"))
+    });
+
+    let float_with_decimal = map(
+        recognize(separated_pair(digit1, tag("."), digit1)),
+        |v: &str| FieldValue::F64(v.parse().expect("TODO: Unsupported")),
+    );
+
+    alt((float_with_decimal, int, float_no_decimal))(i)
+}
+
+fn timestamp(i: &str) -> IResult<&str, i64> {
+    map(digit1, |f: &str| {
+        f.parse().expect("TODO: parsing timestamp failed")
+    })(i)
 }
 
 #[cfg(test)]
@@ -262,32 +282,40 @@ mod test {
     use crate::tests::approximately_equal;
 
     #[test]
-    fn parse_single_field() {
+    fn parse_single_field_integer() {
         let input = "foo asdf=23i 1234";
-
         let vals = parse(input);
+
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
         assert_eq!(vals[0].i64_value().unwrap(), 23);
+    }
 
+    #[test]
+    fn parse_single_field_float_no_decimal() {
         let input = "foo asdf=44 546";
         let vals = parse(input);
+
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 546);
         assert!(approximately_equal(vals[0].f64_value().unwrap(), 44.0));
+    }
 
+    #[test]
+    fn parse_single_field_float_with_decimal() {
         let input = "foo asdf=3.74 123";
         let vals = parse(input);
+
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 123);
         assert!(approximately_equal(vals[0].f64_value().unwrap(), 3.74));
     }
 
     #[test]
-    fn parse_two_fields() {
+    fn parse_two_fields_integer() {
         let input = "foo asdf=23i,bar=5i 1234";
-
         let vals = parse(input);
+
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
         assert_eq!(vals[0].i64_value().unwrap(), 23);
@@ -295,10 +323,13 @@ mod test {
         assert_eq!(vals[1].series(), "foo\tbar");
         assert_eq!(vals[1].time(), 1234);
         assert_eq!(vals[1].i64_value().unwrap(), 5);
+    }
 
+    #[test]
+    fn parse_two_fields_float() {
         let input = "foo asdf=23.1,bar=5 1234";
-
         let vals = parse(input);
+
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
         assert!(approximately_equal(vals[0].f64_value().unwrap(), 23.1));
@@ -309,10 +340,10 @@ mod test {
     }
 
     #[test]
-    fn parse_mixed() {
+    fn parse_mixed_float_and_integer() {
         let input = "foo asdf=23.1,bar=5i 1234";
-
         let vals = parse(input);
+
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
         assert!(approximately_equal(vals[0].f64_value().unwrap(), 23.1));
@@ -320,6 +351,14 @@ mod test {
         assert_eq!(vals[1].series(), "foo\tbar");
         assert_eq!(vals[1].time(), 1234);
         assert_eq!(vals[1].i64_value().unwrap(), 5);
+    }
+
+    #[test]
+    fn parse_tag_set_included_in_series() {
+        let input = "foo,tag1=1,tag2=2 value=1 123";
+        let vals = parse(input);
+
+        assert_eq!(vals[0].series(), "foo,tag1=1,tag2=2\tvalue");
     }
 
     #[test]

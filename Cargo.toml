@@ -37,7 +37,7 @@ prost-types = "0.6.1"
 croaring = "0.4.2"
 http = "0.2.0"
 serde_urlencoded = "0.6.1"
-
+nom = "5.1.1"
 
 [dev-dependencies]
 criterion = "0.3"
