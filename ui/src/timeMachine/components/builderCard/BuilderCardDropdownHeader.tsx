@@ -39,7 +39,7 @@ export default class BuilderCardDropdownHeader extends PureComponent<Props> {
     const menu = () => null
     return (
       <div className="builder-card--header" data-testid={testID}>
-        {dropdownOptions.length === 1 ? (
+        {isInCheckOverlay ? (
           <Dropdown
             button={button}
             menu={menu}
@@ -47,7 +47,7 @@ export default class BuilderCardDropdownHeader extends PureComponent<Props> {
           />
         ) : (
           <SelectDropdown
-            options={dropdownOptions}
+            options={options}
             selectedOption={selectedOption}
             testID="select-option-dropdown"
             onSelect={onSelect ? onSelect : emptyFunction}
