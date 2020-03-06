@@ -33,7 +33,7 @@ const App: SFC<Props> = ({
   location,
   dashboardLightMode,
 }) => {
-  const isViewingDashboard = location.pathname.includes('dashboards')
+  const isViewingDashboard = location.pathname.includes('dashboards') && location.search.includes('?lower=')
   const appWrapperClass = classnames('', {
     'dashboard-light-mode': isViewingDashboard && dashboardLightMode,
   })
