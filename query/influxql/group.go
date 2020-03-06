@@ -6,14 +6,15 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 )
 
 type groupInfo struct {
-	call     *influxql.Call
-	refs     []*influxql.VarRef
-	selector bool
+	call              *influxql.Call
+	refs              []*influxql.VarRef
+	needNormalization bool
 }
 
 type groupVisitor struct {
@@ -85,9 +86,9 @@ func identifyGroups(stmt *influxql.SelectStatement) ([]*groupInfo, error) {
 			call = v.calls[0].call
 		}
 		return []*groupInfo{{
-			call:     call,
-			refs:     v.refs,
-			selector: true, // Always a selector if we are here.
+			call:              call,
+			refs:              v.refs,
+			needNormalization: false, // Always a selector if we are here.
 		}}, nil
 	}
 
@@ -98,9 +99,10 @@ func identifyGroups(stmt *influxql.SelectStatement) ([]*groupInfo, error) {
 		groups = append(groups, &groupInfo{call: fn.call})
 	}
 
-	// If there is exactly one group and that contains a selector, then mark it as so.
-	if len(groups) == 1 && influxql.IsSelector(groups[0].call) {
-		groups[0].selector = true
+	// If there is exactly one group and that contains a selector or a transformation function,
+	// then mark it does not need normalization.
+	if len(groups) == 1 {
+		groups[0].needNormalization = !isTransformation(groups[0].call) && !influxql.IsSelector(groups[0].call)
 	}
 	return groups, nil
 }
@@ -198,7 +200,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 	// Evaluate the conditional and insert a filter if a condition exists.
 	if cond != nil {
 		// // Generate a filter expression by evaluating the condition and wrapping it in a filter op.
-		expr, err := t.mapField(cond, cur)
+		expr, err := t.mapField(cond, cur, true)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to evaluate condition")
 		}
@@ -242,7 +244,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 
 	// If a function call is present, evaluate the function call.
 	if gr.call != nil {
-		c, err := createFunctionCursor(t, gr.call, cur, !gr.selector || interval > 0)
+		c, err := createFunctionCursor(t, gr.call, cur, gr.needNormalization || interval > 0)
 		if err != nil {
 			return nil, err
 		}
@@ -294,6 +296,8 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 	tags := []ast.Expression{
 		&ast.StringLiteral{Value: "_measurement"},
 		&ast.StringLiteral{Value: "_start"},
+		&ast.StringLiteral{Value: "_stop"},
+		&ast.StringLiteral{Value: "_field"},
 	}
 	if len(t.stmt.Dimensions) > 0 {
 		// Maintain a set of the dimensions we have encountered.
@@ -367,7 +371,8 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 					}
 				}
 			case *influxql.Wildcard:
-				return nil, errors.New("unimplemented: dimension wildcards")
+				// Do not add a group call for wildcard, which means group by everything
+				return in, nil
 			case *influxql.RegexLiteral:
 				return nil, errors.New("unimplemented: dimension regex wildcards")
 			default:
@@ -406,6 +411,32 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 								},
 							},
 						},
+					},
+				},
+			},
+		},
+		cursor: in,
+	}
+
+	in = &pipeCursor{
+		expr: &ast.PipeExpression{
+			Argument: in.Expr(),
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: "keep",
+				},
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: []*ast.Property{{
+							Key: &ast.Identifier{
+								Name: "columns",
+							},
+							Value: &ast.ArrayExpression{
+								Elements: append(tags,
+									&ast.StringLiteral{Value: execute.DefaultTimeColLabel},
+									&ast.StringLiteral{Value: execute.DefaultValueColLabel}),
+							},
+						}},
 					},
 				},
 			},
