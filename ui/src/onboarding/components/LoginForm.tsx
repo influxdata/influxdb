@@ -24,7 +24,7 @@ interface Props {
   email: string
   passwordValidation: FormFieldValidation
   password: string
-  handleInputChange: (e: ChangeEvent<HTMLInputElement>) => void
+  handleInputChange: (event: ChangeEvent<HTMLInputElement>) => void
   handleForgotPasswordClick: () => void
 }
 
@@ -37,7 +37,7 @@ export const LoginForm: FC<Props> = ({
   handleInputChange,
   handleForgotPasswordClick,
 }) => {
-  const [visible, toggleIcon] = useState(false)
+  const [isVisible, toggleVisibility] = useState(false)
   return (
     <>
       <Grid>
@@ -54,7 +54,7 @@ export const LoginForm: FC<Props> = ({
                 type={InputType.Email}
                 size={ComponentSize.Large}
                 status={
-                  emailValidation.isValid
+                  emailValidation.hasError
                     ? ComponentStatus.Error
                     : ComponentStatus.Default
                 }
@@ -75,13 +75,13 @@ export const LoginForm: FC<Props> = ({
                 value={password}
                 size={ComponentSize.Large}
                 onChange={handleInputChange}
-                visible={visible}
+                visible={isVisible}
                 status={
-                  passwordValidation.isValid
+                  passwordValidation.hasError
                     ? ComponentStatus.Error
                     : ComponentStatus.Default
                 }
-                onToggleClick={() => toggleIcon(!visible)}
+                onToggleClick={() => toggleVisibility(!isVisible)}
               />
             </Form.Element>
           </Grid.Column>

@@ -39,66 +39,76 @@ interface DispatchProps {
   onNotify: typeof notify
 }
 
+enum ActiveTab {
+  SignUp = 'signup',
+  Login = 'login',
+}
+
 interface State {
-  activeTab: string
+  activeTab: ActiveTab
   buttonStatus: ComponentStatus
-  firstName: string
-  lastName: string
-  email: string
-  password: string
   confirmPassword: string
-  firstNameError: string
-  lastNameError: string
-  emailError: string
-  passwordError: string
   confirmPasswordError: string
+  email: string
+  emailError: string
+  firstName: string
+  firstNameError: string
+  lastName: string
+  lastNameError: string
+  password: string
+  passwordError: string
 }
 
 class LoginPageContents extends PureComponent<DispatchProps> {
   private auth0?: typeof WebAuth
 
   state: State = {
-    activeTab: 'login',
+    activeTab: ActiveTab.Login,
     buttonStatus: ComponentStatus.Default,
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
     confirmPassword: '',
-    firstNameError: '',
-    lastNameError: '',
-    emailError: '',
-    passwordError: '',
     confirmPasswordError: '',
+    email: '',
+    emailError: '',
+    firstName: '',
+    firstNameError: '',
+    lastName: '',
+    lastNameError: '',
+    password: '',
+    passwordError: '',
   }
 
   public async componentDidMount() {
-    const config = await getAuth0Config()
-    this.auth0 = auth0js.WebAuth({
-      domain: config.domain,
-      clientID: config.clientID,
-      redirectUri: config.redirectURL,
-      responseType: 'code',
-    })
+    try {
+      const config = await getAuth0Config()
+      this.auth0 = auth0js.WebAuth({
+        domain: config.domain,
+        clientID: config.clientID,
+        redirectUri: config.redirectURL,
+        responseType: 'code',
+      })
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
   }
 
   render() {
     const {
-      buttonStatus,
-      firstName,
-      lastName,
-      email,
-      password,
-      confirmPassword,
-      firstNameError,
-      lastNameError,
-      emailError,
-      passwordError,
-      confirmPasswordError,
       activeTab,
+      buttonStatus,
+      confirmPassword,
+      confirmPasswordError,
+      email,
+      emailError,
+      firstName,
+      firstNameError,
+      lastName,
+      lastNameError,
+      password,
+      passwordError,
     } = this.state
 
-    const loginTabActive = activeTab === 'login'
+    const loginTabActive = activeTab === ActiveTab.Login
 
     return (
       <form
@@ -161,7 +171,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
                 >
                   <SelectGroup.Option
                     titleText="Login"
-                    value="login"
+                    value={ActiveTab.Login}
                     id="login-option"
                     active={loginTabActive}
                     onClick={this.handleTabChange}
@@ -170,7 +180,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
                   </SelectGroup.Option>
                   <SelectGroup.Option
                     titleText="Sign Up"
-                    value="signup"
+                    value={ActiveTab.SignUp}
                     id="signup-option"
                     active={!loginTabActive}
                     onClick={this.handleTabChange}
@@ -195,8 +205,8 @@ class LoginPageContents extends PureComponent<DispatchProps> {
               ]}
               leave={{height: 0}}
             >
-              {show =>
-                show &&
+              {shouldShow =>
+                shouldShow &&
                 (props => (
                   <animated.div style={props}>
                     <LoginForm
@@ -229,8 +239,8 @@ class LoginPageContents extends PureComponent<DispatchProps> {
               ]}
               leave={{height: 0}}
             >
-              {show =>
-                show &&
+              {shouldShow =>
+                shouldShow &&
                 (props => (
                   <animated.div style={props}>
                     <SignUpForm
@@ -278,26 +288,31 @@ class LoginPageContents extends PureComponent<DispatchProps> {
       confirmPassword,
     } = this.state
 
-    const firstNameError = firstName === '' && 'First name is required'
-    const lastNameError = lastName === '' && 'Last name is required'
-    const emailError = email === '' && 'Email is required'
-    const passwordError = password === '' && 'Password is required'
-    const confirmPasswordError =
-      confirmPassword === password
-        ? confirmPassword === '' && 'Confirm password is required'
-        : "The input passwords don't match"
+    const passwordsMatch = confirmPassword === password
+
+    const firstNameError = firstName === '' ? 'First name is required' : ''
+    const lastNameError = lastName === '' ? 'Last name is required' : ''
+    const emailError = email === '' ? 'Email is required' : ''
+    const passwordError = password === '' ? 'Password is required' : ''
+
+    let confirmPasswordError = passwordsMatch
+      ? ''
+      : "The input passwords don't match"
+    if (confirmPassword === '') {
+      confirmPasswordError = 'Confirm password is required'
+    }
 
     const errors: ErrorObject = {
       emailError,
       passwordError,
     }
-    if (activeTab === 'signup') {
+    if (activeTab === ActiveTab.SignUp) {
       errors.firstNameError = firstNameError
       errors.lastNameError = lastNameError
       errors.confirmPasswordError = confirmPasswordError
     }
 
-    const isValid = !Object.values(errors).some(error => !!error)
+    const isValid = Object.values(errors).every(error => error === '')
 
     return {isValid, errors}
   }
@@ -306,7 +321,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
     errorMessage: string
   ): FormFieldValidation => ({
     errorMessage,
-    isValid: errorMessage !== '',
+    hasError: errorMessage !== '',
   })
 
   private handleSubmit = (event: FormEvent) => {
@@ -328,7 +343,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
 
     this.setState({buttonStatus: ComponentStatus.Loading})
 
-    if (activeTab === 'login') {
+    if (activeTab === ActiveTab.Login) {
       this.auth0.login(
         {
           realm: Auth0Connection.Authentication,
@@ -359,7 +374,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
           this.setState({buttonStatus: ComponentStatus.Default})
           return
         }
-        // log the user into Quartz
+        // log the user into Auth0
         this.auth0.login(
           {
             realm: Auth0Connection.Authentication,
@@ -379,7 +394,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
   }
 
   private displayErrorMessage = (errors, auth0Err) => {
-    if (auth0Err.code.includes('error in email')) {
+    if (/error in email/.test(auth0Err.code)) {
       this.setState({
         ...errors,
         emailError: 'Please enter a valid email address',
@@ -393,11 +408,11 @@ class LoginPageContents extends PureComponent<DispatchProps> {
     }
   }
 
-  private handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    this.setState({[e.target.name]: e.target.value})
+  private handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    this.setState({[event.target.name]: event.target.value})
   }
 
-  private handleTabChange = (value: string) => {
+  private handleTabChange = (value: ActiveTab) => {
     this.setState({activeTab: value})
   }
 

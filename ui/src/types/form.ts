@@ -1,4 +1,4 @@
 export interface FormFieldValidation {
-  isValid: boolean
+  hasError: boolean
   errorMessage: string
 }

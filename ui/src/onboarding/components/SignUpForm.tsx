@@ -30,7 +30,7 @@ interface Props {
   lastNameValidation: FormFieldValidation
   password: string
   passwordValidation: FormFieldValidation
-  handleInputChange: (e: ChangeEvent<HTMLInputElement>) => void
+  handleInputChange: (event: ChangeEvent<HTMLInputElement>) => void
 }
 
 export const SignUpForm: FC<Props> = ({
@@ -47,7 +47,7 @@ export const SignUpForm: FC<Props> = ({
   passwordValidation,
   handleInputChange,
 }) => {
-  const [visible, toggleIcon] = useState(false)
+  const [isVisible, toggleVisibility] = useState(false)
   return (
     <>
       <Grid>
@@ -64,7 +64,7 @@ export const SignUpForm: FC<Props> = ({
                 autoFocus={true}
                 size={ComponentSize.Large}
                 status={
-                  firstNameValidation.isValid
+                  firstNameValidation.hasError
                     ? ComponentStatus.Error
                     : ComponentStatus.Default
                 }
@@ -83,7 +83,7 @@ export const SignUpForm: FC<Props> = ({
                 value={lastName}
                 size={ComponentSize.Large}
                 status={
-                  lastNameValidation.isValid
+                  lastNameValidation.hasError
                     ? ComponentStatus.Error
                     : ComponentStatus.Default
                 }
@@ -105,7 +105,7 @@ export const SignUpForm: FC<Props> = ({
                 type={InputType.Email}
                 size={ComponentSize.Large}
                 status={
-                  emailValidation.isValid
+                  emailValidation.hasError
                     ? ComponentStatus.Error
                     : ComponentStatus.Default
                 }
@@ -126,13 +126,13 @@ export const SignUpForm: FC<Props> = ({
                 value={password}
                 size={ComponentSize.Large}
                 onChange={handleInputChange}
-                visible={visible}
+                visible={isVisible}
                 status={
-                  passwordValidation.isValid
+                  passwordValidation.hasError
                     ? ComponentStatus.Error
                     : ComponentStatus.Default
                 }
-                onToggleClick={() => toggleIcon(!visible)}
+                onToggleClick={() => toggleVisibility(!isVisible)}
               />
             </Form.Element>
           </Grid.Column>
@@ -147,13 +147,13 @@ export const SignUpForm: FC<Props> = ({
                 value={confirmPassword}
                 size={ComponentSize.Large}
                 onChange={handleInputChange}
-                visible={visible}
+                visible={isVisible}
                 status={
-                  confirmPasswordValidation.isValid
+                  confirmPasswordValidation.hasError
                     ? ComponentStatus.Error
                     : ComponentStatus.Default
                 }
-                onToggleClick={() => toggleIcon(!visible)}
+                onToggleClick={() => toggleVisibility(!isVisible)}
               />
             </Form.Element>
           </Grid.Column>
