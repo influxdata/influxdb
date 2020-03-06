@@ -29,7 +29,6 @@ export default class BuilderCardDropdownHeader extends PureComponent<Props> {
       selectedOption,
       testID,
     } = this.props
-    const dropdownOptions = isInCheckOverlay ? ['filter'] : options
     const button = () => (
       <Dropdown.Button status={ComponentStatus.Disabled} onClick={() => {}}>
         {selectedOption}
