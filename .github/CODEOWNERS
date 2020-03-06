@@ -8,6 +8,9 @@
 #
 http/swagger.yml @influxdata/monitoring-team
 
+# dev tools
+/pkger/ @influxdata/tools-team
+
 # Storage code
 /storage/ @influxdata/storage-team-assigner
 /tsdb/ @influxdata/storage-team-assigner
