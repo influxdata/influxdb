@@ -14,7 +14,6 @@
 1. [17028](https://github.com/influxdata/influxdb/pull/17028): Fixed issue where selecting an aggregate function in the script editor was not adding the function to a new line
 1. [17072](https://github.com/influxdata/influxdb/pull/17072): Fixed issue where creating a variable of type map was piping the incorrect value when map variables were used in queries
 1. [17050](https://github.com/influxdata/influxdb/pull/17050): Added missing user names to auth CLI commands
-1. [17091](https://github.com/influxdata/influxdb/pull/17091): Require Content-Type for query endpoint
 1. [17120](https://github.com/influxdata/influxdb/pull/17120): Fixed cell configuration error that was popping up when users create a dashboard and accessed the disk usage cell for the first time
 
 ## v2.0.0-beta.5 [2020-02-27]
