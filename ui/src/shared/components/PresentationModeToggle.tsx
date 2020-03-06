@@ -12,7 +12,9 @@ interface DispatchProps {
   handleClickPresentationButton: typeof delayEnablePresentationMode
 }
 
-const GraphTips: FC<DispatchProps> = ({handleClickPresentationButton}) => (
+const PresentationModeToggle: FC<DispatchProps> = ({
+  handleClickPresentationButton,
+}) => (
   <SquareButton
     icon={IconFont.ExpandA}
     testID="presentation-mode-toggle"
@@ -24,4 +26,7 @@ const mdtp: DispatchProps = {
   handleClickPresentationButton: delayEnablePresentationMode,
 }
 
-export default connect<{}, DispatchProps, {}>(null, mdtp)(GraphTips)
+export default connect<{}, DispatchProps, {}>(
+  null,
+  mdtp
+)(PresentationModeToggle)

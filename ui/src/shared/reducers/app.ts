@@ -12,6 +12,7 @@ export interface AppState {
     autoRefresh: number
     showTemplateControlBar: boolean
     timeZone: TimeZone
+    dashboardLightMode: boolean
   }
 }
 
@@ -23,6 +24,7 @@ const initialState: AppState = {
     autoRefresh: AUTOREFRESH_DEFAULT_INTERVAL,
     showTemplateControlBar: false,
     timeZone: 'Local',
+    dashboardLightMode: false,
   },
 }
 
@@ -77,6 +79,20 @@ const appPersistedReducer = (
       const {timeZone} = action.payload
 
       return {...state, timeZone}
+    }
+
+    case ActionTypes.EnableDashboardLightMode: {
+      return {
+        ...state,
+        dashboardLightMode: true,
+      }
+    }
+
+    case ActionTypes.DisableDashboardLightMode: {
+      return {
+        ...state,
+        dashboardLightMode: false,
+      }
     }
 
     default:

@@ -1,6 +1,8 @@
 // Libraries
 import React, {SFC, ReactChildren} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
+import classnames from 'classnames'
 
 // Components
 import {AppWrapper} from '@influxdata/clockface'
@@ -17,40 +19,57 @@ import {AppState} from 'src/types'
 
 interface StateProps {
   inPresentationMode: boolean
+  dashboardLightMode: boolean
 }
 interface OwnProps {
   children: ReactChildren
 }
 
-type Props = OwnProps & StateProps
+type Props = OwnProps & StateProps & WithRouterProps
 
-const App: SFC<Props> = ({children, inPresentationMode}) => (
-  <>
-    <CloudOnly>
-      <CloudNav />
-    </CloudOnly>
-    <AppWrapper presentationMode={inPresentationMode}>
-      <Notifications />
-      <TooltipPortal />
-      <NotesPortal />
-      <OverlayController />
-      <Nav />
-      {children}
-    </AppWrapper>
-  </>
-)
+const App: SFC<Props> = ({
+  children,
+  inPresentationMode,
+  location,
+  dashboardLightMode,
+}) => {
+  const isViewingDashboard = location.pathname.includes('dashboards')
+  const appWrapperClass = classnames('', {
+    'dashboard-light-mode': isViewingDashboard && dashboardLightMode,
+  })
+
+  return (
+    <>
+      <CloudOnly>
+        <CloudNav />
+      </CloudOnly>
+      <AppWrapper
+        presentationMode={inPresentationMode}
+        className={appWrapperClass}
+      >
+        <Notifications />
+        <TooltipPortal />
+        <NotesPortal />
+        <OverlayController />
+        <Nav />
+        {children}
+      </AppWrapper>
+    </>
+  )
+}
 
 const mstp = (state: AppState): StateProps => {
   const {
     app: {
       ephemeral: {inPresentationMode},
+      persisted: {dashboardLightMode},
     },
   } = state
 
-  return {inPresentationMode}
+  return {inPresentationMode, dashboardLightMode}
 }
 
 export default connect<StateProps, {}>(
   mstp,
   null
-)(App)
+)(withRouter(App))

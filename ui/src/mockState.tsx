@@ -21,6 +21,7 @@ export const localState: LocalStorage = {
       autoRefresh: 0,
       showTemplateControlBar: false,
       timeZone: 'Local' as TimeZone,
+      dashboardLightMode: false,
     },
   },
   VERSION: '2.0.0',

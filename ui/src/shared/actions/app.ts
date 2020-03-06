@@ -10,6 +10,8 @@ import {
   ActionTypes,
   EnablePresentationModeAction,
   DisablePresentationModeAction,
+  EnableDashboardLightModeAction,
+  DisableDashboardLightModeAction,
   DelayEnablePresentationModeDispatcher,
   SetAutoRefreshActionCreator,
   SetAutoRefreshAction,
@@ -53,4 +55,12 @@ export const setTimeZone = (timeZone: TimeZone): SetTimeZoneAction => ({
 
 export const templateControlBarVisibilityToggled = (): TemplateControlBarVisibilityToggledAction => ({
   type: ActionTypes.TemplateControlBarVisibilityToggled,
+})
+
+export const enableDashboardLightMode = (): EnableDashboardLightModeAction => ({
+  type: ActionTypes.EnableDashboardLightMode,
+})
+
+export const disableDashboardLightMode = (): DisableDashboardLightModeAction => ({
+  type: ActionTypes.DisableDashboardLightMode,
 })

@@ -7,15 +7,11 @@ import {withRouter, WithRouterProps} from 'react-router'
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import PresentationModeToggle from 'src/shared/components/PresentationModeToggle'
+import DashboardLightModeToggle from 'src/dashboards/components/DashboardLightModeToggle'
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
-import {
-  Button,
-  IconFont,
-  ComponentColor,
-  Page,
-} from '@influxdata/clockface'
+import {Button, IconFont, ComponentColor, Page} from '@influxdata/clockface'
 
 // Actions
 import {toggleShowVariablesControls} from 'src/userSettings/actions'
@@ -131,6 +127,7 @@ class DashboardHeader extends Component<Props> {
                 : ComponentColor.Default
             }
           />
+          <DashboardLightModeToggle />
           <PresentationModeToggle />
         </Page.HeaderRight>
       </Page.Header>

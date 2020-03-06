@@ -5,6 +5,8 @@ import {TimeZone} from 'src/types'
 export enum ActionTypes {
   EnablePresentationMode = 'ENABLE_PRESENTATION_MODE',
   DisablePresentationMode = 'DISABLE_PRESENTATION_MODE',
+  EnableDashboardLightMode = 'ENABLE_DASHBOARD_LIGHT_MODE',
+  DisableDashboardLightMode = 'DISABLE_DASHBOARD_LIGHT_MODE',
   SetAutoRefresh = 'SET_AUTOREFRESH',
   SetTimeZone = 'SET_APP_TIME_ZONE',
   TemplateControlBarVisibilityToggled = 'TemplateControlBarVisibilityToggledAction',
@@ -14,6 +16,8 @@ export enum ActionTypes {
 export type Action =
   | EnablePresentationModeAction
   | DisablePresentationModeAction
+  | EnableDashboardLightModeAction
+  | DisableDashboardLightModeAction
   | SetAutoRefreshAction
   | SetTimeZoneAction
   | TemplateControlBarVisibilityToggledAction
@@ -31,6 +35,14 @@ export interface EnablePresentationModeAction {
 
 export interface DisablePresentationModeAction {
   type: ActionTypes.DisablePresentationMode
+}
+
+export interface EnableDashboardLightModeAction {
+  type: ActionTypes.EnableDashboardLightMode
+}
+
+export interface DisableDashboardLightModeAction {
+  type: ActionTypes.DisableDashboardLightMode
 }
 
 export type DelayEnablePresentationModeDispatcher = () => DelayEnablePresentationModeThunk
