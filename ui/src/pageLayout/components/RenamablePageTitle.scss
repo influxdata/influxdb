@@ -48,7 +48,7 @@ $renamable-page-title--padding: 0;
   text-overflow: ellipsis;
   user-select: none;
   transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
-  line-height: $renamable-page-title--height - $ix-border;
+  line-height: $renamable-page-title--height - ($ix-border * 2);
   border: $cf-border solid transparent;
 }
 
