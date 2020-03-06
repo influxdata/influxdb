@@ -343,12 +343,15 @@ struct TestServer {
     dir: TempDir,
 }
 
-// TODO: if TEST_DELOREAN_DB_DIR is set, create a temporary directory in that directory or
-// otherwise isolate the database used in this test with the database used in other tests, rather
-// than always ignoring TEST_DELOREAN_DB_DIR
 impl TestServer {
     fn new() -> Result<Self> {
-        let dir = tempfile::Builder::new().prefix("delorean").tempdir()?;
+        let _ = dotenv::dotenv(); // load .env file if present
+
+        let root = env::var_os("TEST_DELOREAN_DB_DIR").unwrap_or_else(|| env::temp_dir().into());
+
+        let dir = tempfile::Builder::new()
+            .prefix("delorean")
+            .tempdir_in(root)?;
 
         let server_process = Command::cargo_bin("delorean")?
             .stdout(Stdio::null())
