@@ -234,11 +234,18 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	}
 
 	for _, orgIDOpt := range opt.OrgIDs {
+		cloneAssFn := s.resourceCloneAssociationsGen(orgIDOpt.LabelNames...)
 		resourcesToClone, err := s.cloneOrgResources(ctx, orgIDOpt.OrgID, orgIDOpt.ResourceKinds)
 		if err != nil {
 			return nil, internalErr(err)
 		}
-		opt.Resources = append(opt.Resources, resourcesToClone...)
+		for _, r := range uniqResourcesToClone(resourcesToClone) {
+			newKinds, err := s.resourceCloneToKind(ctx, r, cloneAssFn)
+			if err != nil {
+				return nil, internalErr(fmt.Errorf("failed to clone resource: resource_id=%s resource_kind=%s err=%q", r.ID, r.Kind, err))
+			}
+			pkg.Objects = append(pkg.Objects, newKinds...)
+		}
 	}
 
 	cloneAssFn := s.resourceCloneAssociationsGen()
@@ -566,10 +573,14 @@ func (s *Service) resourceCloneToKind(ctx context.Context, r ResourceToClone, cF
 		return nil, errors.New("unsupported kind provided: " + string(r.Kind))
 	}
 
-	ass, err := cFn(ctx, r)
+	ass, skipResource, err := cFn(ctx, r)
 	if err != nil {
 		return nil, err
 	}
+	if skipResource {
+		return nil, nil
+	}
+
 	if len(ass.associations) > 0 {
 		newKind.Spec[fieldAssociations] = ass.associations
 	}
@@ -652,19 +663,24 @@ type (
 		newLableResources []Object
 	}
 
-	cloneAssociationsFn func(context.Context, ResourceToClone) (associations, error)
+	cloneAssociationsFn func(context.Context, ResourceToClone) (associations associations, skipResource bool, err error)
 )
 
-func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
+func (s *Service) resourceCloneAssociationsGen(labelNames ...string) cloneAssociationsFn {
+	mLabelNames := make(map[string]bool)
+	for _, labelname := range labelNames {
+		mLabelNames[labelname] = true
+	}
+
 	type key struct {
 		id   influxdb.ID
 		name string
 	}
 	// memoize the labels so we dont' create duplicates
 	m := make(map[key]bool)
-	return func(ctx context.Context, r ResourceToClone) (associations, error) {
+	return func(ctx context.Context, r ResourceToClone) (associations, bool, error) {
 		if r.Kind.is(KindUnknown, KindLabel) {
-			return associations{}, nil
+			return associations{}, false, nil
 		}
 
 		labels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
@@ -672,11 +688,28 @@ func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
 			ResourceType: r.Kind.ResourceType(),
 		})
 		if err != nil {
-			return associations{}, ierrors.Wrap(err, "finding resource labels")
+			return associations{}, false, ierrors.Wrap(err, "finding resource labels")
+		}
+
+		if len(mLabelNames) > 0 {
+			shouldSkip := true
+			for _, l := range labels {
+				if mLabelNames[l.Name] {
+					shouldSkip = false
+					break
+				}
+			}
+			if shouldSkip {
+				return associations{}, true, nil
+			}
 		}
 
 		var ass associations
 		for _, l := range labels {
+			if len(mLabelNames) > 0 && !mLabelNames[l.Name] {
+				continue
+			}
+
 			ass.associations = append(ass.associations, Resource{
 				fieldKind: KindLabel.String(),
 				fieldName: l.Name,
@@ -688,7 +721,7 @@ func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
 			m[k] = true
 			ass.newLableResources = append(ass.newLableResources, labelToObject(*l, ""))
 		}
-		return ass, nil
+		return ass, false, nil
 	}
 }
 
@@ -1048,7 +1081,11 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 		for i := 0; i < mapper.Len(); i++ {
 			la := mapper.Association(i)
 			err := s.dryRunResourceLabelMapping(ctx, la, func(labelID influxdb.ID, labelName string, isNew bool) {
-				pkg.mLabels[labelName].setMapping(la, !isNew)
+				existingLabel, ok := pkg.mLabels[labelName]
+				if !ok {
+					return
+				}
+				existingLabel.setMapping(la, !isNew)
 				diffs = append(diffs, DiffLabelMapping{
 					IsNew:     isNew,
 					ResType:   la.ResourceType(),
