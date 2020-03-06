@@ -149,7 +149,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	fluxBackend := NewFluxBackend(b.Logger.With(zap.String("handler", "query")), b)
 	h.Mount(prefixQuery, NewFluxHandler(b.Logger, fluxBackend))
 
-	h.Mount(prefixLabels, NewLabelHandler(b.Logger, authorizer.NewLabelService(b.LabelService), b.HTTPErrorHandler))
+	h.Mount(prefixLabels, NewLabelHandler(b.Logger, authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService), b.HTTPErrorHandler))
 
 	notificationEndpointBackend := NewNotificationEndpointBackend(b.Logger.With(zap.String("handler", "notificationEndpoint")), b)
 	notificationEndpointBackend.NotificationEndpointService = authorizer.NewNotificationEndpointService(b.NotificationEndpointService,
