@@ -912,6 +912,7 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 
 func (p *Pkg) graphTasks() *parseErr {
 	p.mTasks = make([]*task, 0)
+
 	return p.eachResource(KindTask, 1, func(o Object) []validationErr {
 		t := &task{
 			name:        p.getRefWithKnownEnvs(o.Metadata, fieldName),
