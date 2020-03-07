@@ -70,7 +70,7 @@ func (s *Source) Metadata() flux.Metadata {
 	}
 }
 
-func (s *Source) processTables(ctx context.Context, tables TableIterator, watermark execute.Time) error {
+func (s *Source) processTables(ctx context.Context, tables query.TableIterator, watermark execute.Time) error {
 	err := tables.Do(func(tbl flux.Table) error {
 		return s.processTable(ctx, tbl)
 	})
@@ -117,11 +117,11 @@ func (s *Source) processTable(ctx context.Context, tbl flux.Table) error {
 
 type readFilterSource struct {
 	Source
-	reader   Reader
-	readSpec ReadFilterSpec
+	reader   query.StorageReader
+	readSpec query.ReadFilterSpec
 }
 
-func ReadFilterSource(id execute.DatasetID, r Reader, readSpec ReadFilterSpec, a execute.Administration) execute.Source {
+func ReadFilterSource(id execute.DatasetID, r query.StorageReader, readSpec query.ReadFilterSpec, a execute.Administration) execute.Source {
 	src := new(readFilterSource)
 
 	src.id = id
@@ -188,7 +188,7 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 	return ReadFilterSource(
 		id,
 		deps.Reader,
-		ReadFilterSpec{
+		query.ReadFilterSpec{
 			OrganizationID: orgID,
 			BucketID:       bucketID,
 			Bounds:         *bounds,
@@ -200,11 +200,11 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 
 type readGroupSource struct {
 	Source
-	reader   Reader
-	readSpec ReadGroupSpec
+	reader   query.StorageReader
+	readSpec query.ReadGroupSpec
 }
 
-func ReadGroupSource(id execute.DatasetID, r Reader, readSpec ReadGroupSpec, a execute.Administration) execute.Source {
+func ReadGroupSource(id execute.DatasetID, r query.StorageReader, readSpec query.ReadGroupSpec, a execute.Administration) execute.Source {
 	src := new(readGroupSource)
 
 	src.id = id
@@ -265,14 +265,14 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
 	return ReadGroupSource(
 		id,
 		deps.Reader,
-		ReadGroupSpec{
-			ReadFilterSpec: ReadFilterSpec{
+		query.ReadGroupSpec{
+			ReadFilterSpec: query.ReadFilterSpec{
 				OrganizationID: orgID,
 				BucketID:       bucketID,
 				Bounds:         *bounds,
 				Predicate:      filter,
 			},
-			GroupMode:       ToGroupMode(spec.GroupMode),
+			GroupMode:       query.ToGroupMode(spec.GroupMode),
 			GroupKeys:       spec.GroupKeys,
 			AggregateMethod: spec.AggregateMethod,
 		},
@@ -306,8 +306,8 @@ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, 
 	return ReadTagKeysSource(
 		dsid,
 		deps.Reader,
-		ReadTagKeysSpec{
-			ReadFilterSpec: ReadFilterSpec{
+		query.ReadTagKeysSpec{
+			ReadFilterSpec: query.ReadFilterSpec{
 				OrganizationID: orgID,
 				BucketID:       bucketID,
 				Bounds:         *bounds,
@@ -321,11 +321,11 @@ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, 
 type readTagKeysSource struct {
 	Source
 
-	reader   Reader
-	readSpec ReadTagKeysSpec
+	reader   query.StorageReader
+	readSpec query.ReadTagKeysSpec
 }
 
-func ReadTagKeysSource(id execute.DatasetID, r Reader, readSpec ReadTagKeysSpec, a execute.Administration) execute.Source {
+func ReadTagKeysSource(id execute.DatasetID, r query.StorageReader, readSpec query.ReadTagKeysSpec, a execute.Administration) execute.Source {
 	src := &readTagKeysSource{
 		reader:   r,
 		readSpec: readSpec,
@@ -375,8 +375,8 @@ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID
 	return ReadTagValuesSource(
 		dsid,
 		deps.Reader,
-		ReadTagValuesSpec{
-			ReadFilterSpec: ReadFilterSpec{
+		query.ReadTagValuesSpec{
+			ReadFilterSpec: query.ReadFilterSpec{
 				OrganizationID: orgID,
 				BucketID:       bucketID,
 				Bounds:         *bounds,
@@ -391,11 +391,11 @@ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID
 type readTagValuesSource struct {
 	Source
 
-	reader   Reader
-	readSpec ReadTagValuesSpec
+	reader   query.StorageReader
+	readSpec query.ReadTagValuesSpec
 }
 
-func ReadTagValuesSource(id execute.DatasetID, r Reader, readSpec ReadTagValuesSpec, a execute.Administration) execute.Source {
+func ReadTagValuesSource(id execute.DatasetID, r query.StorageReader, readSpec query.ReadTagValuesSpec, a execute.Administration) execute.Source {
 	src := &readTagValuesSource{
 		reader:   r,
 		readSpec: readSpec,
