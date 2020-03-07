@@ -55,7 +55,7 @@ export const extractTimeRangeVariablesMemoized = memoizeOne(
 )
 
 export const extractVariablesList = (state: AppState): Variable[] => {
-  return [...extractVariablesListMemoized(state.resources.variables.byID)]
+  return extractVariablesListMemoized(state.resources.variables.byID)
 }
 
 export const extractVariablesListWithDefaults = (

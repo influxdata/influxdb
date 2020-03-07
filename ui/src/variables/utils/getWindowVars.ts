@@ -132,7 +132,6 @@ export const getWindowPeriodVariable = (
 
     return [windowPeriodVariable]
   } catch (error) {
-    console.error(error)
     reportError(error, {
       context: {query},
       name: 'getWindowPeriodVariable function',
