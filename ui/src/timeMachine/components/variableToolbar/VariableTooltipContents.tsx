@@ -52,8 +52,11 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
   onSelectVariableValue,
 }) => {
   let dropdownItems = get(values, 'values', []) || []
+  const isObject =
+    typeof dropdownItems === 'object' &&
+    Object.prototype.toString.apply(dropdownItems) !== '[object Array]'
 
-  if (Object.keys(dropdownItems).length > 0) {
+  if (isObject) {
     dropdownItems = Object.keys(dropdownItems)
   }
 
@@ -80,10 +83,14 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
     selectedOption = 'Failed to Load'
     icon = IconFont.AlertTriangle
     status = ComponentStatus.Disabled
-  } else if (key === undefined || values.values[key] === undefined) {
-    selectedOption = 'No Results'
+  } else if (isObject) {
+    if (key === undefined || values.values[key] === undefined) {
+      selectedOption = 'No Results'
+    } else {
+      selectedOption = get(values, 'selectedKey', 'None Selected')
+    }
   } else {
-    selectedOption = get(values, 'selectedKey', 'None Selected')
+    selectedOption = get(values, 'selectedValue', 'None Selected')
   }
 
   return (
@@ -96,7 +103,9 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
           testID="variable--tooltip-dropdown"
           buttonStatus={status}
           style={{width: '200px'}}
-          onSelect={value => onSelectVariableValue(variableID, value)}
+          onSelect={value => {
+            onSelectVariableValue(variableID, value)
+          }}
         />
       </Form.Element>
     </div>

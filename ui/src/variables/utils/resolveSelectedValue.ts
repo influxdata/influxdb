@@ -21,14 +21,29 @@ export const resolveSelectedValue = (
   selectedKey: string,
   defaultSelection?: string
 ): string => {
-  if (selectedKey in values) {
-    return values[selectedKey]
+  if (
+    typeof values === 'object' &&
+    Object.prototype.toString.call(values) !== '[object Array]'
+  ) {
+    if (selectedKey in values) {
+      return values[selectedKey]
+    }
+
+    if (defaultSelection in values) {
+      return values[defaultSelection]
+    }
+    // return get first value
+    const first = Object.keys(values)[0]
+    return values[first]
   }
 
-  if (defaultSelection in values) {
-    return values[defaultSelection]
+  if (values.includes(selectedKey)) {
+    return selectedKey
   }
-  // return get first value
-  const first = Object.keys(values)[0]
-  return values[first]
+
+  if (values.includes(defaultSelection)) {
+    return defaultSelection
+  }
+
+  return values[0]
 }
