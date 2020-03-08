@@ -1,5 +1,3 @@
-import {VariableMapObject} from 'src/types'
-
 export const resolveSelectedKey = (
   values: string[],
   prevSelection?: string,
@@ -17,33 +15,33 @@ export const resolveSelectedKey = (
 }
 
 export const resolveSelectedValue = (
-  values: VariableMapObject,
+  values: string[],
   selectedKey: string,
   defaultSelection?: string
 ): string => {
   if (
+    values &&
     typeof values === 'object' &&
-    Object.prototype.toString.call(values) !== '[object Array]'
+    Object.prototype.toString.call(values) === '[object Array]'
   ) {
-    if (selectedKey in values) {
-      return values[selectedKey]
+    if (values.indexOf(selectedKey) > -1) {
+      return selectedKey
     }
 
-    if (defaultSelection in values) {
-      return values[defaultSelection]
+    if (values.includes(defaultSelection)) {
+      return defaultSelection
     }
-    // return get first value
-    const first = Object.keys(values)[0]
-    return values[first]
+
+    return values[0]
+  }
+  if (selectedKey in values) {
+    return values[selectedKey]
   }
 
-  if (values.includes(selectedKey)) {
-    return selectedKey
+  if (defaultSelection in values) {
+    return values[defaultSelection]
   }
-
-  if (values.includes(defaultSelection)) {
-    return defaultSelection
-  }
-
-  return values[0]
+  // return get first value
+  const first = Object.keys(values)[0]
+  return values[first]
 }
