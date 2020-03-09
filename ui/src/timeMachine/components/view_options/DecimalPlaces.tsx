@@ -56,6 +56,7 @@ class DecimalPlacesOption extends PureComponent<Props, State> {
               <Input
                 name="decimal-places"
                 placeholder="Enter a number"
+                onFocus={this.handleSetValue}
                 onChange={this.handleSetValue}
                 value={this.state.value}
                 min={MIN_DECIMAL_PLACES}
@@ -69,8 +70,8 @@ class DecimalPlacesOption extends PureComponent<Props, State> {
     )
   }
 
-  public handleSetValue = (e: ChangeEvent<HTMLInputElement>): void => {
-    const value = convertUserInputToNumOrNaN(e)
+  public handleSetValue = (event: ChangeEvent<HTMLInputElement>): void => {
+    const value = convertUserInputToNumOrNaN(event)
     const {digits, onDecimalPlacesChange} = this.props
 
     if (value === value && value >= MIN_DECIMAL_PLACES) {
