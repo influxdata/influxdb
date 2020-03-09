@@ -21,6 +21,7 @@
 1. [17120](https://github.com/influxdata/influxdb/pull/17120): Fixed cell configuration error that was popping up when users create a dashboard and accessed the disk usage cell for the first time
 1. [17097](https://github.com/influxdata/influxdb/pull/17097): Listing all the default variables in the VariableTab of the script editor
 1. [17049](https://github.com/influxdata/influxdb/pull/17049): Fixed bug that was preventing the interval status on the dashboard header from refreshing on selections
+1. [17161](https://github.com/influxdata/influxdb/pull/17161): Update table custom decimal feature for tables to update table onFocus
 
 ## v2.0.0-beta.5 [2020-02-27]
 
