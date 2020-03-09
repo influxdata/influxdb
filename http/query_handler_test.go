@@ -260,8 +260,8 @@ func TestFluxHandler_postFluxAST(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &FluxHandler{
-				HTTPErrorHandler: kithttp.ErrorHandler(0),
-				LanguageService:  fluxlang.DefaultService,
+				HTTPErrorHandler:    kithttp.ErrorHandler(0),
+				FluxLanguageService: fluxlang.DefaultService,
 			}
 			h.postFluxAST(tt.w, tt.r)
 			if got := tt.w.Body.String(); got != tt.want {

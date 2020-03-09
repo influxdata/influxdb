@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/complete"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/runtime"
@@ -27,4 +28,8 @@ func (d defaultService) Parse(source string) (pkg *ast.Package, err error) {
 
 func (d defaultService) EvalAST(ctx context.Context, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error) {
 	return runtime.EvalAST(ctx, astPkg)
+}
+
+func (d defaultService) Completer() complete.Completer {
+	return complete.NewCompleter(runtime.Prelude())
 }

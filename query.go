@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/complete"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/values"
 )
@@ -28,4 +29,7 @@ type FluxLanguageService interface {
 
 	// EvalAST will evaluate and run an AST.
 	EvalAST(ctx context.Context, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error)
+
+	// Completer will return a flux completer.
+	Completer() complete.Completer
 }

@@ -42,7 +42,7 @@ func NewCompiler(dbrpMappingSvc platform.DBRPMappingService) *Compiler {
 }
 
 // Compile transpiles the query into a Program.
-func (c *Compiler) Compile(ctx context.Context) (flux.Program, error) {
+func (c *Compiler) Compile(ctx context.Context, runtime flux.Runtime) (flux.Program, error) {
 	var now time.Time
 	if c.Now != nil {
 		now = *c.Now
@@ -64,7 +64,7 @@ func (c *Compiler) Compile(ctx context.Context) (flux.Program, error) {
 		return nil, err
 	}
 	compileOptions := lang.WithLogPlanOpts(c.logicalPlannerOptions...)
-	return lang.CompileAST(astPkg, now, compileOptions), nil
+	return lang.CompileAST(astPkg, runtime, now, compileOptions), nil
 }
 
 func (c *Compiler) CompilerType() flux.CompilerType {

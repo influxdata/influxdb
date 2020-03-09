@@ -15,7 +15,6 @@ import (
 	"github.com/NYTimes/gziphandler"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/flux/complete"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/httprouter"
@@ -80,7 +79,7 @@ type FluxHandler struct {
 	Now                 func() time.Time
 	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
-	LanguageService     influxdb.FluxLanguageService
+	FluxLanguageService influxdb.FluxLanguageService
 
 	EventRecorder metric.EventRecorder
 }
@@ -101,7 +100,7 @@ func NewFluxHandler(log *zap.Logger, b *FluxBackend) *FluxHandler {
 		ProxyQueryService:   b.ProxyQueryService,
 		OrganizationService: b.OrganizationService,
 		EventRecorder:       b.QueryEventRecorder,
-		LanguageService:     b.FluxLanguageService,
+		FluxLanguageService: b.FluxLanguageService,
 	}
 
 	// query reponses can optionally be gzip encoded
@@ -224,7 +223,7 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pkg, err := query.Parse(h.LanguageService, request.Query)
+	pkg, err := query.Parse(h.FluxLanguageService, request.Query)
 	if err != nil {
 		h.HandleHTTPError(ctx, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -261,7 +260,7 @@ func (h *FluxHandler) postQueryAnalyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a, err := req.Analyze(h.LanguageService)
+	a, err := req.Analyze(h.FluxLanguageService)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -292,7 +291,7 @@ func (h *FluxHandler) getFluxSuggestions(w http.ResponseWriter, r *http.Request)
 	defer span.Finish()
 
 	ctx := r.Context()
-	completer := complete.DefaultCompleter()
+	completer := h.FluxLanguageService.Completer()
 	names := completer.FunctionNames()
 	var functions []suggestionResponse
 	for _, name := range names {
@@ -331,7 +330,7 @@ func (h *FluxHandler) getFluxSuggestion(w http.ResponseWriter, r *http.Request) 
 
 	ctx := r.Context()
 	name := httprouter.ParamsFromContext(ctx).ByName("name")
-	completer := complete.DefaultCompleter()
+	completer := h.FluxLanguageService.Completer()
 
 	suggestion, err := completer.FunctionSuggestion(name)
 	if err != nil {

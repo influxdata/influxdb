@@ -16,7 +16,6 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/flux/repl"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
@@ -60,7 +59,6 @@ func TestQueryRequest_WithDefaults(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := QueryRequest{
-				Spec:    tt.fields.Spec,
 				AST:     tt.fields.AST,
 				Query:   tt.fields.Query,
 				Type:    tt.fields.Type,
@@ -77,7 +75,6 @@ func TestQueryRequest_WithDefaults(t *testing.T) {
 func TestQueryRequest_Validate(t *testing.T) {
 	type fields struct {
 		Extern  *ast.File
-		Spec    *flux.Spec
 		AST     *ast.Package
 		Query   string
 		Type    string
@@ -93,19 +90,6 @@ func TestQueryRequest_Validate(t *testing.T) {
 			name: "requires query, spec, or ast",
 			fields: fields{
 				Type: "flux",
-			},
-			wantErr: true,
-		},
-		{
-			name: "query cannot have both extern and spec",
-			fields: fields{
-				Extern: &ast.File{},
-				Spec:   &flux.Spec{},
-				Type:   "flux",
-				Dialect: QueryDialect{
-					Delimiter:      ",",
-					DateTimeFormat: "RFC3339",
-				},
 			},
 			wantErr: true,
 		},
@@ -190,7 +174,6 @@ func TestQueryRequest_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := QueryRequest{
 				Extern:  tt.fields.Extern,
-				Spec:    tt.fields.Spec,
 				AST:     tt.fields.AST,
 				Query:   tt.fields.Query,
 				Type:    tt.fields.Type,
@@ -332,41 +315,11 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 				},
 			},
 		},
-		{
-			name: "valid spec",
-			fields: fields{
-				Type: "flux",
-				Spec: &flux.Spec{
-					Now: time.Unix(0, 0).UTC(),
-				},
-				Dialect: QueryDialect{
-					Delimiter:      ",",
-					DateTimeFormat: "RFC3339",
-				},
-				org: &platform.Organization{},
-			},
-			want: &query.ProxyRequest{
-				Request: query.Request{
-					Compiler: repl.Compiler{
-						Spec: &flux.Spec{
-							Now: time.Unix(0, 0).UTC(),
-						},
-					},
-				},
-				Dialect: &csv.Dialect{
-					ResultEncoderConfig: csv.ResultEncoderConfig{
-						NoHeader:  false,
-						Delimiter: ',',
-					},
-				},
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := QueryRequest{
 				Extern:  tt.fields.Extern,
-				Spec:    tt.fields.Spec,
 				AST:     tt.fields.AST,
 				Query:   tt.fields.Query,
 				Type:    tt.fields.Type,
