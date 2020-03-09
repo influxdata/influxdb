@@ -15,19 +15,17 @@ import (
 type groupResultSet struct {
 	ctx context.Context
 	req *datatypes.ReadGroupRequest
-	agg *datatypes.Aggregate
 	mb  *multiShardArrayCursors
 
-	i       int
-	rows    []*SeriesRow
-	keys    [][]byte
-	nilSort []byte
-	rgc     groupByCursor
-	km      KeyMerger
+	i             int
+	seriesRows    []*SeriesRow
+	keys          [][]byte
+	nilSort       []byte
+	groupByCursor groupByCursor
+	km            KeyMerger
 
-	newCursorFn func() (SeriesCursor, error)
-	nextGroupFn func(c *groupResultSet) GroupCursor
-	sortFn      func(c *groupResultSet) (int, error)
+	newSeriesCursorFn func() (SeriesCursor, error)
+	nextGroupFn       func(c *groupResultSet) GroupCursor
 
 	eof bool
 }
@@ -42,14 +40,17 @@ func GroupOptionNilSortLo() GroupOption {
 	}
 }
 
-func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, newCursorFn func() (SeriesCursor, error), opts ...GroupOption) GroupResultSet {
+func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, newSeriesCursorFn func() (SeriesCursor, error), opts ...GroupOption) GroupResultSet {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+	span.LogKV("group_type", req.Group.String())
+
 	g := &groupResultSet{
-		ctx:         ctx,
-		req:         req,
-		agg:         req.Aggregate,
-		keys:        make([][]byte, len(req.GroupKeys)),
-		nilSort:     NilSortHi,
-		newCursorFn: newCursorFn,
+		ctx:               ctx,
+		req:               req,
+		keys:              make([][]byte, len(req.GroupKeys)),
+		nilSort:           NilSortHi,
+		newSeriesCursorFn: newSeriesCursorFn,
 	}
 
 	for _, o := range opts {
@@ -64,26 +65,31 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, new
 
 	switch req.Group {
 	case datatypes.GroupBy:
-		g.sortFn = groupBySort
 		g.nextGroupFn = groupByNextGroup
-		g.rgc = groupByCursor{
+		g.groupByCursor = groupByCursor{
 			ctx:  ctx,
 			mb:   g.mb,
 			agg:  req.Aggregate,
 			vals: make([][]byte, len(req.GroupKeys)),
 		}
 
+		if n, err := g.groupBySort(); n == 0 || err != nil {
+			return nil
+		} else {
+			span.LogKV("rows", n)
+		}
+
 	case datatypes.GroupNone:
-		g.sortFn = groupNoneSort
 		g.nextGroupFn = groupNoneNextGroup
+
+		if n, err := g.groupNoneSort(); n == 0 || err != nil {
+			return nil
+		} else {
+			span.LogKV("rows", n)
+		}
 
 	default:
 		panic("not implemented")
-	}
-
-	n, err := g.sort()
-	if n == 0 || err != nil {
-		return nil
 	}
 
 	return g
@@ -108,20 +114,6 @@ func (g *groupResultSet) Next() GroupCursor {
 	}
 
 	return g.nextGroupFn(g)
-}
-
-func (g *groupResultSet) sort() (int, error) {
-	span, _ := tracing.StartSpanFromContext(g.ctx)
-	defer span.Finish()
-	span.LogKV("group_type", g.req.Group.String())
-
-	n, err := g.sortFn(g)
-
-	if err != nil {
-		span.LogKV("rows", n)
-	}
-
-	return n, err
 }
 
 // seriesHasPoints reads the first block of TSM data to verify the series has points for
@@ -156,11 +148,11 @@ func (g *groupResultSet) seriesHasPoints(row *SeriesRow) bool {
 }
 
 func groupNoneNextGroup(g *groupResultSet) GroupCursor {
-	cur, err := g.newCursorFn()
+	seriesCursor, err := g.newSeriesCursorFn()
 	if err != nil {
 		// TODO(sgc): store error
 		return nil
-	} else if cur == nil {
+	} else if seriesCursor == nil {
 		return nil
 	}
 
@@ -168,78 +160,78 @@ func groupNoneNextGroup(g *groupResultSet) GroupCursor {
 	return &groupNoneCursor{
 		ctx:  g.ctx,
 		mb:   g.mb,
-		agg:  g.agg,
-		cur:  cur,
+		agg:  g.req.Aggregate,
+		cur:  seriesCursor,
 		keys: g.km.Get(),
 	}
 }
 
-func groupNoneSort(g *groupResultSet) (int, error) {
-	cur, err := g.newCursorFn()
+func (g *groupResultSet) groupNoneSort() (int, error) {
+	seriesCursor, err := g.newSeriesCursorFn()
 	if err != nil {
 		return 0, err
-	} else if cur == nil {
+	} else if seriesCursor == nil {
 		return 0, nil
 	}
 
 	allTime := g.req.Hints.HintSchemaAllTime()
 	g.km.Clear()
 	n := 0
-	row := cur.Next()
-	for row != nil {
-		if allTime || g.seriesHasPoints(row) {
+	seriesRow := seriesCursor.Next()
+	for seriesRow != nil {
+		if allTime || g.seriesHasPoints(seriesRow) {
 			n++
-			g.km.MergeTagKeys(row.Tags)
+			g.km.MergeTagKeys(seriesRow.Tags)
 		}
-		row = cur.Next()
+		seriesRow = seriesCursor.Next()
 	}
 
-	cur.Close()
+	seriesCursor.Close()
 	return n, nil
 }
 
 func groupByNextGroup(g *groupResultSet) GroupCursor {
-	row := g.rows[g.i]
+	row := g.seriesRows[g.i]
 	for i := range g.keys {
-		g.rgc.vals[i] = row.Tags.Get(g.keys[i])
+		g.groupByCursor.vals[i] = row.Tags.Get(g.keys[i])
 	}
 
 	g.km.Clear()
 	rowKey := row.SortKey
 	j := g.i
-	for j < len(g.rows) && bytes.Equal(rowKey, g.rows[j].SortKey) {
-		g.km.MergeTagKeys(g.rows[j].Tags)
+	for j < len(g.seriesRows) && bytes.Equal(rowKey, g.seriesRows[j].SortKey) {
+		g.km.MergeTagKeys(g.seriesRows[j].Tags)
 		j++
 	}
 
-	g.rgc.reset(g.rows[g.i:j])
-	g.rgc.keys = g.km.Get()
+	g.groupByCursor.reset(g.seriesRows[g.i:j])
+	g.groupByCursor.keys = g.km.Get()
 
 	g.i = j
-	if j == len(g.rows) {
+	if j == len(g.seriesRows) {
 		g.eof = true
 	}
 
-	return &g.rgc
+	return &g.groupByCursor
 }
 
-func groupBySort(g *groupResultSet) (int, error) {
-	cur, err := g.newCursorFn()
+func (g *groupResultSet) groupBySort() (int, error) {
+	seriesCursor, err := g.newSeriesCursorFn()
 	if err != nil {
 		return 0, err
-	} else if cur == nil {
+	} else if seriesCursor == nil {
 		return 0, nil
 	}
 
-	var rows []*SeriesRow
+	var seriesRows []*SeriesRow
 	vals := make([][]byte, len(g.keys))
 	tagsBuf := &tagsBuffer{sz: 4096}
 	allTime := g.req.Hints.HintSchemaAllTime()
 
-	row := cur.Next()
-	for row != nil {
-		if allTime || g.seriesHasPoints(row) {
-			nr := *row
+	seriesRow := seriesCursor.Next()
+	for seriesRow != nil {
+		if allTime || g.seriesHasPoints(seriesRow) {
+			nr := *seriesRow
 			nr.SeriesTags = tagsBuf.copyTags(nr.SeriesTags)
 			nr.Tags = tagsBuf.copyTags(nr.Tags)
 
@@ -258,19 +250,19 @@ func groupBySort(g *groupResultSet) (int, error) {
 				nr.SortKey = append(nr.SortKey, ',')
 			}
 
-			rows = append(rows, &nr)
+			seriesRows = append(seriesRows, &nr)
 		}
-		row = cur.Next()
+		seriesRow = seriesCursor.Next()
 	}
 
-	sort.Slice(rows, func(i, j int) bool {
-		return bytes.Compare(rows[i].SortKey, rows[j].SortKey) == -1
+	sort.Slice(seriesRows, func(i, j int) bool {
+		return bytes.Compare(seriesRows[i].SortKey, seriesRows[j].SortKey) == -1
 	})
 
-	g.rows = rows
+	g.seriesRows = seriesRows
 
-	cur.Close()
-	return len(rows), nil
+	seriesCursor.Close()
+	return len(seriesRows), nil
 }
 
 type groupNoneCursor struct {
@@ -309,28 +301,28 @@ func (c *groupNoneCursor) Cursor() cursors.Cursor {
 }
 
 type groupByCursor struct {
-	ctx  context.Context
-	mb   *multiShardArrayCursors
-	agg  *datatypes.Aggregate
-	i    int
-	rows []*SeriesRow
-	keys [][]byte
-	vals [][]byte
+	ctx        context.Context
+	mb         *multiShardArrayCursors
+	agg        *datatypes.Aggregate
+	i          int
+	seriesRows []*SeriesRow
+	keys       [][]byte
+	vals       [][]byte
 }
 
-func (c *groupByCursor) reset(rows []*SeriesRow) {
+func (c *groupByCursor) reset(seriesRows []*SeriesRow) {
 	c.i = 0
-	c.rows = rows
+	c.seriesRows = seriesRows
 }
 
 func (c *groupByCursor) Err() error                 { return nil }
 func (c *groupByCursor) Keys() [][]byte             { return c.keys }
 func (c *groupByCursor) PartitionKeyVals() [][]byte { return c.vals }
-func (c *groupByCursor) Tags() models.Tags          { return c.rows[c.i-1].Tags }
+func (c *groupByCursor) Tags() models.Tags          { return c.seriesRows[c.i-1].Tags }
 func (c *groupByCursor) Close()                     {}
 
 func (c *groupByCursor) Next() bool {
-	if c.i < len(c.rows) {
+	if c.i < len(c.seriesRows) {
 		c.i++
 		return true
 	}
@@ -338,7 +330,7 @@ func (c *groupByCursor) Next() bool {
 }
 
 func (c *groupByCursor) Cursor() cursors.Cursor {
-	cur := c.mb.createCursor(*c.rows[c.i-1])
+	cur := c.mb.createCursor(*c.seriesRows[c.i-1])
 	if c.agg != nil {
 		cur = newAggregateArrayCursor(c.ctx, c.agg, cur)
 	}
@@ -347,8 +339,8 @@ func (c *groupByCursor) Cursor() cursors.Cursor {
 
 func (c *groupByCursor) Stats() cursors.CursorStats {
 	var stats cursors.CursorStats
-	for _, row := range c.rows {
-		stats.Add(row.Query.Stats())
+	for _, seriesRow := range c.seriesRows {
+		stats.Add(seriesRow.Query.Stats())
 	}
 	return stats
 }
