@@ -74,14 +74,14 @@
   }
 }
 
-@media screen and (min-width: $grid--breakpoint-sm) {
+@media screen and (min-width: $cf-grid--breakpoint-sm) {
   .getting-started {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 260px 260px;
   }
 }
 
-@media screen and (min-width: $grid--breakpoint-md) {
+@media screen and (min-width: $cf-grid--breakpoint-md) {
   .getting-started {
     grid-row-gap: 0;
     grid-template-columns: 1fr 1fr 1fr;

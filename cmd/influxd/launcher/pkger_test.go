@@ -415,6 +415,28 @@ spec:
 				assert.Empty(t, newSum.Dashboards)
 				assert.Empty(t, newSum.NotificationEndpoints)
 				assert.Empty(t, newSum.NotificationRules)
+				assert.Empty(t, newSum.TelegrafConfigs)
+				assert.Empty(t, newSum.Variables)
+			})
+
+			t.Run("filtered by label resource type", func(t *testing.T) {
+				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+					pkger.CreateByOrgIDOpt{
+						OrgID:         l.Org.ID,
+						ResourceKinds: []pkger.Kind{pkger.KindLabel},
+					},
+				))
+				require.NoError(t, err)
+
+				newSum := newPkg.Summary()
+				assert.NotEmpty(t, newSum.Labels)
+				assert.Empty(t, newSum.Buckets)
+				assert.Empty(t, newSum.Checks)
+				assert.Empty(t, newSum.Dashboards)
+				assert.Empty(t, newSum.NotificationEndpoints)
+				assert.Empty(t, newSum.NotificationRules)
+				assert.Empty(t, newSum.Tasks)
+				assert.Empty(t, newSum.TelegrafConfigs)
 				assert.Empty(t, newSum.Variables)
 			})
 

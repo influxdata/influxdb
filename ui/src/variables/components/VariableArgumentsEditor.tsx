@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 // Components
 import MapVariableBuilder from 'src/variables/components/MapVariableBuilder'
 import CSVVariableBuilder from 'src/variables/components/CSVVariableBuilder'
-import {Form, Grid} from '@influxdata/clockface'
+import {Form} from '@influxdata/clockface'
 
 import FluxEditor from 'src/shared/components/FluxMonacoEditor'
 
@@ -24,14 +24,12 @@ class VariableArgumentsEditor extends PureComponent<Props> {
       case 'query':
         return (
           <Form.Element label="Script">
-            <Grid.Column>
-              <div className="overlay-flux-editor">
-                <FluxEditor
-                  script={args.values.query}
-                  onChangeScript={this.handleChangeQuery}
-                />
-              </div>
-            </Grid.Column>
+            <div className="overlay-flux-editor">
+              <FluxEditor
+                script={args.values.query}
+                onChangeScript={this.handleChangeQuery}
+              />
+            </div>
           </Form.Element>
         )
       case 'map':

@@ -35,10 +35,19 @@ func TestCmdPkg(t *testing.T) {
 	}
 
 	t.Run("export all", func(t *testing.T) {
+		defaultAssertFn := func(t *testing.T, pkg *pkger.Pkg) {
+			t.Helper()
+			sum := pkg.Summary()
+
+			require.Len(t, sum.Buckets, 1)
+			assert.Equal(t, "bucket1", sum.Buckets[0].Name)
+		}
+
 		expectedOrgID := influxdb.ID(9000)
 
 		tests := []struct {
 			pkgFileArgs
+			assertFn func(t *testing.T, pkg *pkger.Pkg)
 		}{
 			{
 				pkgFileArgs: pkgFileArgs{
@@ -72,6 +81,106 @@ func TestCmdPkg(t *testing.T) {
 					envVars:  map[string]string{"INFLUX_ORG_ID": expectedOrgID.String()},
 				},
 			},
+			{
+				pkgFileArgs: pkgFileArgs{
+					name:     "with labelName filter",
+					encoding: pkger.EncodingYAML,
+					filename: "pkg_0.yml",
+					args: []string{
+						"--org-id=" + expectedOrgID.String(),
+						"--filter=labelName=foo",
+					},
+				},
+				assertFn: func(t *testing.T, pkg *pkger.Pkg) {
+					defaultAssertFn(t, pkg)
+
+					sum := pkg.Summary()
+
+					require.Len(t, sum.Labels, 1)
+					assert.Equal(t, "foo", sum.Labels[0].Name)
+				},
+			},
+			{
+				pkgFileArgs: pkgFileArgs{
+					name:     "with multiple labelName filters",
+					encoding: pkger.EncodingYAML,
+					filename: "pkg_0.yml",
+					args: []string{
+						"--org-id=" + expectedOrgID.String(),
+						"--filter=labelName=foo",
+						"--filter=labelName=bar",
+					},
+				},
+				assertFn: func(t *testing.T, pkg *pkger.Pkg) {
+					defaultAssertFn(t, pkg)
+
+					sum := pkg.Summary()
+
+					require.Len(t, sum.Labels, 2)
+					assert.Equal(t, "bar", sum.Labels[0].Name)
+					assert.Equal(t, "foo", sum.Labels[1].Name)
+				},
+			},
+			{
+				pkgFileArgs: pkgFileArgs{
+					name:     "with resourceKind filter",
+					encoding: pkger.EncodingYAML,
+					filename: "pkg_0.yml",
+					args: []string{
+						"--org-id=" + expectedOrgID.String(),
+						"--filter=resourceKind=Dashboard",
+					},
+				},
+				assertFn: func(t *testing.T, pkg *pkger.Pkg) {
+					sum := pkg.Summary()
+
+					require.Len(t, sum.Dashboards, 1)
+					assert.Equal(t, "Dashboard", sum.Dashboards[0].Name)
+				},
+			},
+			{
+				pkgFileArgs: pkgFileArgs{
+					name:     "with multiple resourceKind filter",
+					encoding: pkger.EncodingYAML,
+					filename: "pkg_0.yml",
+					args: []string{
+						"--org-id=" + expectedOrgID.String(),
+						"--filter=resourceKind=Dashboard",
+						"--filter=resourceKind=Bucket",
+					},
+				},
+				assertFn: func(t *testing.T, pkg *pkger.Pkg) {
+					sum := pkg.Summary()
+
+					require.Len(t, sum.Buckets, 1)
+					assert.Equal(t, "Bucket", sum.Buckets[0].Name)
+					require.Len(t, sum.Dashboards, 1)
+					assert.Equal(t, "Dashboard", sum.Dashboards[0].Name)
+				},
+			},
+			{
+				pkgFileArgs: pkgFileArgs{
+					name:     "with mixed resourceKind and labelName filters",
+					encoding: pkger.EncodingYAML,
+					filename: "pkg_0.yml",
+					args: []string{
+						"--org-id=" + expectedOrgID.String(),
+						"--filter=labelName=foo",
+						"--filter=resourceKind=Dashboard",
+						"--filter=resourceKind=Bucket",
+					},
+				},
+				assertFn: func(t *testing.T, pkg *pkger.Pkg) {
+					sum := pkg.Summary()
+
+					require.Len(t, sum.Labels, 1)
+					assert.Equal(t, "foo", sum.Labels[0].Name)
+					require.Len(t, sum.Buckets, 1)
+					assert.Equal(t, "Bucket", sum.Buckets[0].Name)
+					require.Len(t, sum.Dashboards, 1)
+					assert.Equal(t, "Dashboard", sum.Dashboards[0].Name)
+				},
+			},
 		}
 
 		cmdFn := func(_ *globalFlags, opt genericCLIOpts) *cobra.Command {
@@ -83,11 +192,34 @@ func TestCmdPkg(t *testing.T) {
 							return nil, err
 						}
 					}
-					if opt.OrgIDs[0].OrgID != expectedOrgID {
+
+					orgIDOpt := opt.OrgIDs[0]
+					if orgIDOpt.OrgID != expectedOrgID {
 						return nil, errors.New("did not provide expected orgID")
 					}
 
 					var pkg pkger.Pkg
+					for _, labelName := range orgIDOpt.LabelNames {
+						pkg.Objects = append(pkg.Objects, pkger.Object{
+							APIVersion: pkger.APIVersion,
+							Type:       pkger.KindLabel,
+							Metadata:   pkger.Resource{"name": labelName},
+						})
+					}
+					if len(orgIDOpt.ResourceKinds) > 0 {
+						for _, k := range orgIDOpt.ResourceKinds {
+							pkg.Objects = append(pkg.Objects, pkger.Object{
+								APIVersion: pkger.APIVersion,
+								Type:       k,
+								Metadata: pkger.Resource{
+									"name": k.String(),
+								},
+							})
+						}
+						// return early so we don't get the default bucket
+						return &pkg, nil
+					}
+
 					pkg.Objects = append(pkg.Objects, pkger.Object{
 						APIVersion: pkger.APIVersion,
 						Type:       pkger.KindBucket,
@@ -98,14 +230,14 @@ func TestCmdPkg(t *testing.T) {
 			}
 			return newCmdPkgBuilder(fakeSVCFn(pkgSVC), opt).cmd()
 		}
+
 		for _, tt := range tests {
 			tt.pkgFileArgs.args = append([]string{"pkg", "export", "all"}, tt.pkgFileArgs.args...)
-			testPkgWrites(t, cmdFn, tt.pkgFileArgs, func(t *testing.T, pkg *pkger.Pkg) {
-				sum := pkg.Summary()
-
-				require.Len(t, sum.Buckets, 1)
-				assert.Equal(t, "bucket1", sum.Buckets[0].Name)
-			})
+			assertFn := defaultAssertFn
+			if tt.assertFn != nil {
+				assertFn = tt.assertFn
+			}
+			testPkgWrites(t, cmdFn, tt.pkgFileArgs, assertFn)
 		}
 	})
 

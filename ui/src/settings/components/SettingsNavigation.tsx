@@ -2,15 +2,9 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {withRouter, WithRouterProps} from 'react-router'
-import chroma from 'chroma-js'
 
 // Components
-import {
-  Tabs,
-  Orientation,
-  ComponentSize,
-  InfluxColors,
-} from '@influxdata/clockface'
+import {Tabs, Orientation, ComponentSize} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -61,11 +55,7 @@ class SettingsNavigation extends PureComponent<Props> {
     ]
 
     return (
-      <Tabs
-        orientation={Orientation.Horizontal}
-        padding={ComponentSize.Large}
-        backgroundColor={`${chroma(`${InfluxColors.Castle}`).alpha(0.1)}`}
-      >
+      <Tabs orientation={Orientation.Horizontal} size={ComponentSize.Large}>
         {tabs.map(t => {
           if (t.cloudExclude) {
             return (
@@ -75,8 +65,6 @@ class SettingsNavigation extends PureComponent<Props> {
                   id={t.id}
                   onClick={handleTabClick}
                   active={t.id === activeTab}
-                  size={ComponentSize.Large}
-                  backgroundColor={InfluxColors.Castle}
                 />
               </CloudExclude>
             )
@@ -88,8 +76,6 @@ class SettingsNavigation extends PureComponent<Props> {
               id={t.id}
               onClick={handleTabClick}
               active={t.id === activeTab}
-              size={ComponentSize.Large}
-              backgroundColor={InfluxColors.Castle}
             />
           )
         })}

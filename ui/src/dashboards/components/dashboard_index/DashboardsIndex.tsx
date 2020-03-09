@@ -11,7 +11,6 @@ import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/D
 import {Page} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
-import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
@@ -66,10 +65,17 @@ class DashboardIndex extends PureComponent<Props, State> {
           titleTag={pageTitleSuffixer(['Dashboards'])}
         >
           <Page.Header fullWidth={false}>
-            <Page.HeaderLeft>
-              <PageTitleWithOrg title="Dashboards" />
-            </Page.HeaderLeft>
-            <Page.HeaderRight>
+            <Page.Title title="Dashboards" />
+          </Page.Header>
+          <Page.ControlBar fullWidth={false}>
+            <Page.ControlBarLeft>
+              <SearchWidget
+                placeholderText="Filter dashboards..."
+                onSearch={this.handleFilterDashboards}
+                searchTerm={searchTerm}
+              />
+            </Page.ControlBarLeft>
+            <Page.ControlBarRight>
               <AddResourceDropdown
                 onSelectNew={createDashboard}
                 onSelectImport={this.summonImportOverlay}
@@ -78,8 +84,8 @@ class DashboardIndex extends PureComponent<Props, State> {
                 canImportFromTemplate={true}
                 status={this.addResourceStatus}
               />
-            </Page.HeaderRight>
-          </Page.Header>
+            </Page.ControlBarRight>
+          </Page.ControlBar>
           <Page.Contents
             className="dashboards-index__page-contents"
             fullWidth={false}
@@ -91,13 +97,6 @@ class DashboardIndex extends PureComponent<Props, State> {
                 limitStatus={limitStatus}
               />
               <DashboardsIndexContents
-                filterComponent={
-                  <SearchWidget
-                    placeholderText="Filter dashboards..."
-                    onSearch={this.handleFilterDashboards}
-                    searchTerm={searchTerm}
-                  />
-                }
                 searchTerm={searchTerm}
                 onFilterChange={this.handleFilterDashboards}
               />

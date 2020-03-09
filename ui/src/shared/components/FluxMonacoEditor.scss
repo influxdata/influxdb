@@ -1,11 +1,9 @@
 @import '~src/style/modules';
-@import '~src/style/fonts/fonts';
-@import '~src/style/fonts/icon-font';
 
 // the specificity here is important to override the dynamic
 // base theme that monaco loads in at runtime
 .react-monaco-editor-container > .monaco-editor {
-  font-family: $code-font;
+  font-family: $cf-code-font;
   font-weight: 500;
   font-size: 13px;
 
