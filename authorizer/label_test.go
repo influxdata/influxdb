@@ -18,6 +18,15 @@ const (
 	orgOneID = "020f755c3c083000"
 )
 
+var (
+	orgOneInfluxID = influxdbtesting.MustIDBase16(orgOneID)
+	orgSvc         = &mock.OrganizationService{
+		FindResourceOrganizationIDF: func(_ context.Context, _ influxdb.ResourceType, _ influxdb.ID) (influxdb.ID, error) {
+			return orgOneInfluxID, nil
+		},
+	}
+)
+
 var labelCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
@@ -56,7 +65,7 @@ func TestLabelService_FindLabelByID(t *testing.T) {
 					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    id,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 				},
@@ -82,7 +91,7 @@ func TestLabelService_FindLabelByID(t *testing.T) {
 					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    id,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 				},
@@ -108,7 +117,7 @@ func TestLabelService_FindLabelByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewLabelService(tt.fields.LabelService)
+			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
@@ -145,15 +154,15 @@ func TestLabelService_FindLabels(t *testing.T) {
 						return []*influxdb.Label{
 							{
 								ID:    1,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    2,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    3,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 						}, nil
 					},
@@ -171,15 +180,15 @@ func TestLabelService_FindLabels(t *testing.T) {
 				labels: []*influxdb.Label{
 					{
 						ID:    1,
-						OrgID: influxdbtesting.MustIDBase16(orgOneID),
+						OrgID: orgOneInfluxID,
 					},
 					{
 						ID:    2,
-						OrgID: influxdbtesting.MustIDBase16(orgOneID),
+						OrgID: orgOneInfluxID,
 					},
 					{
 						ID:    3,
-						OrgID: influxdbtesting.MustIDBase16(orgOneID),
+						OrgID: orgOneInfluxID,
 					},
 				},
 			},
@@ -192,15 +201,15 @@ func TestLabelService_FindLabels(t *testing.T) {
 						return []*influxdb.Label{
 							{
 								ID:    1,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    2,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    3,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 						}, nil
 					},
@@ -219,7 +228,7 @@ func TestLabelService_FindLabels(t *testing.T) {
 				labels: []*influxdb.Label{
 					{
 						ID:    1,
-						OrgID: influxdbtesting.MustIDBase16(orgOneID),
+						OrgID: orgOneInfluxID,
 					},
 				},
 			},
@@ -232,15 +241,15 @@ func TestLabelService_FindLabels(t *testing.T) {
 						return []*influxdb.Label{
 							{
 								ID:    1,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    2,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    3,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 						}, nil
 					},
@@ -263,7 +272,7 @@ func TestLabelService_FindLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewLabelService(tt.fields.LabelService)
+			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
@@ -303,13 +312,13 @@ func TestLabelService_UpdateLabel(t *testing.T) {
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    1,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 					UpdateLabelFn: func(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    1,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 				},
@@ -337,13 +346,13 @@ func TestLabelService_UpdateLabel(t *testing.T) {
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    1,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 					UpdateLabelFn: func(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    1,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 				},
@@ -371,7 +380,7 @@ func TestLabelService_UpdateLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewLabelService(tt.fields.LabelService)
+			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
@@ -407,7 +416,7 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    1,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 					DeleteLabelFn: func(ctx context.Context, id influxdb.ID) error {
@@ -423,7 +432,7 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 						Resource: influxdb.Resource{
 							Type:  influxdb.LabelsResourceType,
 							ID:    influxdbtesting.IDPtr(1),
-							OrgID: influxdbtesting.IDPtr(influxdbtesting.MustIDBase16(orgOneID)),
+							OrgID: influxdbtesting.IDPtr(orgOneInfluxID),
 						},
 					},
 				},
@@ -439,7 +448,7 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    1,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 					DeleteLabelFn: func(ctx context.Context, id influxdb.ID) error {
@@ -455,7 +464,7 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 						Resource: influxdb.Resource{
 							Type:  influxdb.LabelsResourceType,
 							ID:    influxdbtesting.IDPtr(1),
-							OrgID: influxdbtesting.IDPtr(influxdbtesting.MustIDBase16(orgOneID)),
+							OrgID: influxdbtesting.IDPtr(orgOneInfluxID),
 						},
 					},
 				},
@@ -471,7 +480,7 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewLabelService(tt.fields.LabelService)
+			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
@@ -512,7 +521,7 @@ func TestLabelService_CreateLabel(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						ID:   influxdbtesting.IDPtr(influxdbtesting.MustIDBase16(orgOneID)),
+						ID:   influxdbtesting.IDPtr(orgOneInfluxID),
 						Type: influxdb.OrgsResourceType,
 					},
 				},
@@ -549,12 +558,12 @@ func TestLabelService_CreateLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewLabelService(tt.fields.LabelService)
+			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			err := s.CreateLabel(ctx, &influxdb.Label{Name: "name", OrgID: influxdbtesting.MustIDBase16(orgOneID)})
+			err := s.CreateLabel(ctx, &influxdb.Label{Name: "name", OrgID: orgOneInfluxID})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
@@ -586,15 +595,15 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 						return []*influxdb.Label{
 							{
 								ID:    1,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    2,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    3,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 						}, nil
 					},
@@ -626,15 +635,15 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 				labels: []*influxdb.Label{
 					{
 						ID:    1,
-						OrgID: influxdbtesting.MustIDBase16(orgOneID),
+						OrgID: orgOneInfluxID,
 					},
 					{
 						ID:    2,
-						OrgID: influxdbtesting.MustIDBase16(orgOneID),
+						OrgID: orgOneInfluxID,
 					},
 					{
 						ID:    3,
-						OrgID: influxdbtesting.MustIDBase16(orgOneID),
+						OrgID: orgOneInfluxID,
 					},
 				},
 			},
@@ -647,15 +656,15 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 						return []*influxdb.Label{
 							{
 								ID:    1,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    2,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    3,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 						}, nil
 					},
@@ -688,7 +697,7 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 				labels: []*influxdb.Label{
 					{
 						ID:    3,
-						OrgID: influxdbtesting.MustIDBase16(orgOneID),
+						OrgID: orgOneInfluxID,
 					},
 				},
 			},
@@ -701,15 +710,15 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 						return []*influxdb.Label{
 							{
 								ID:    1,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    2,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    3,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 						}, nil
 					},
@@ -742,15 +751,15 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 						return []*influxdb.Label{
 							{
 								ID:    1,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    2,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 							{
 								ID:    3,
-								OrgID: influxdbtesting.MustIDBase16(orgOneID),
+								OrgID: orgOneInfluxID,
 							},
 						}, nil
 					},
@@ -772,7 +781,7 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:buckets/000000000000000a is unauthorized",
+					Msg:  "read:orgs/020f755c3c083000/buckets/000000000000000a is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -781,7 +790,7 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewLabelService(tt.fields.LabelService)
+			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
@@ -821,7 +830,7 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    1,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 					CreateLabelMappingFn: func(ctx context.Context, lm *influxdb.LabelMapping) error {
@@ -862,7 +871,7 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    1,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 					CreateLabelMappingFn: func(ctx context.Context, lm *influxdb.LabelMapping) error {
@@ -888,7 +897,7 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 			wants: wants{
 				err: &influxdb.Error{
 					Code: influxdb.EUnauthorized,
-					Msg:  "write:buckets/0000000000000002 is unauthorized",
+					Msg:  "write:orgs/020f755c3c083000/buckets/0000000000000002 is unauthorized",
 				},
 			},
 		},
@@ -899,7 +908,7 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    1,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 					CreateLabelMappingFn: func(ctx context.Context, lm *influxdb.LabelMapping) error {
@@ -933,7 +942,7 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewLabelService(tt.fields.LabelService)
+			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
@@ -969,7 +978,7 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    1,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 					DeleteLabelMappingFn: func(ctx context.Context, m *influxdb.LabelMapping) error {
@@ -1010,7 +1019,7 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    1,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 					DeleteLabelMappingFn: func(ctx context.Context, m *influxdb.LabelMapping) error {
@@ -1036,7 +1045,7 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 			wants: wants{
 				err: &influxdb.Error{
 					Code: influxdb.EUnauthorized,
-					Msg:  "write:buckets/0000000000000002 is unauthorized",
+					Msg:  "write:orgs/020f755c3c083000/buckets/0000000000000002 is unauthorized",
 				},
 			},
 		},
@@ -1047,7 +1056,7 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:    1,
-							OrgID: influxdbtesting.MustIDBase16(orgOneID),
+							OrgID: orgOneInfluxID,
 						}, nil
 					},
 					DeleteLabelMappingFn: func(ctx context.Context, m *influxdb.LabelMapping) error {
@@ -1081,7 +1090,7 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewLabelService(tt.fields.LabelService)
+			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
