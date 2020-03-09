@@ -66,7 +66,7 @@ func newCountArrayCursor(cur cursors.Cursor) cursors.Cursor {
 type cursorContext struct {
 	ctx  context.Context
 	req  *cursors.CursorRequest
-	itrs cursors.CursorIterators
+	itrs cursors.CursorIterator
 	err  error
 }
 
@@ -117,13 +117,11 @@ func (m *multiShardArrayCursors) createCursor(seriesRow SeriesRow) cursors.Curso
 		cond = &astExpr{seriesRow.ValueCond}
 	}
 
-	var shard cursors.CursorIterator
-	var cur cursors.Cursor
-	for cur == nil && len(seriesRow.Query) > 0 {
-		shard, seriesRow.Query = seriesRow.Query[0], seriesRow.Query[1:]
-		cur, _ = shard.Next(m.ctx, &m.req)
+	if seriesRow.Query == nil {
+		return nil
 	}
-
+	cur, _ := seriesRow.Query.Next(m.ctx, &m.req)
+	seriesRow.Query = nil
 	if cur == nil {
 		return nil
 	}

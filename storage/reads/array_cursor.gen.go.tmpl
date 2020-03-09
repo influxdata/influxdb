@@ -90,7 +90,7 @@ type {{.name}}MultiShardArrayCursor struct {
 	filter *{{$type}}
 }
 
-func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor, itrs cursors.CursorIterators, cond expression) {
+func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor, itrs cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = new{{.Name}}FilterArrayCursor(cond)
@@ -124,18 +124,14 @@ func (c *{{.name}}MultiShardArrayCursor) Next() {{$arrayType}} {
 }
 
 func (c *{{.name}}MultiShardArrayCursor) nextArrayCursor() bool {
-	if len(c.itrs) == 0 {
+	if c.itrs == nil {
 		return false
 	}
 
 	c.{{.Name}}ArrayCursor.Close()
 
-	var itr cursors.CursorIterator
-	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
+	cur, _ := c.itrs.Next(c.ctx, c.req)
+	c.itrs = nil
 
 	var ok bool
 	if cur != nil {

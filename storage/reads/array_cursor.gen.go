@@ -91,7 +91,7 @@ type floatMultiShardArrayCursor struct {
 	filter *floatArrayFilterCursor
 }
 
-func (c *floatMultiShardArrayCursor) reset(cur cursors.FloatArrayCursor, itrs cursors.CursorIterators, cond expression) {
+func (c *floatMultiShardArrayCursor) reset(cur cursors.FloatArrayCursor, itrs cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newFloatFilterArrayCursor(cond)
@@ -124,18 +124,14 @@ func (c *floatMultiShardArrayCursor) Next() *cursors.FloatArray {
 }
 
 func (c *floatMultiShardArrayCursor) nextArrayCursor() bool {
-	if len(c.itrs) == 0 {
+	if c.itrs == nil {
 		return false
 	}
 
 	c.FloatArrayCursor.Close()
 
-	var itr cursors.CursorIterator
-	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
+	cur, _ := c.itrs.Next(c.ctx, c.req)
+	c.itrs = nil
 
 	var ok bool
 	if cur != nil {
@@ -311,7 +307,7 @@ type integerMultiShardArrayCursor struct {
 	filter *integerArrayFilterCursor
 }
 
-func (c *integerMultiShardArrayCursor) reset(cur cursors.IntegerArrayCursor, itrs cursors.CursorIterators, cond expression) {
+func (c *integerMultiShardArrayCursor) reset(cur cursors.IntegerArrayCursor, itrs cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newIntegerFilterArrayCursor(cond)
@@ -344,18 +340,14 @@ func (c *integerMultiShardArrayCursor) Next() *cursors.IntegerArray {
 }
 
 func (c *integerMultiShardArrayCursor) nextArrayCursor() bool {
-	if len(c.itrs) == 0 {
+	if c.itrs == nil {
 		return false
 	}
 
 	c.IntegerArrayCursor.Close()
 
-	var itr cursors.CursorIterator
-	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
+	cur, _ := c.itrs.Next(c.ctx, c.req)
+	c.itrs = nil
 
 	var ok bool
 	if cur != nil {
@@ -531,7 +523,7 @@ type unsignedMultiShardArrayCursor struct {
 	filter *unsignedArrayFilterCursor
 }
 
-func (c *unsignedMultiShardArrayCursor) reset(cur cursors.UnsignedArrayCursor, itrs cursors.CursorIterators, cond expression) {
+func (c *unsignedMultiShardArrayCursor) reset(cur cursors.UnsignedArrayCursor, itrs cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newUnsignedFilterArrayCursor(cond)
@@ -564,18 +556,14 @@ func (c *unsignedMultiShardArrayCursor) Next() *cursors.UnsignedArray {
 }
 
 func (c *unsignedMultiShardArrayCursor) nextArrayCursor() bool {
-	if len(c.itrs) == 0 {
+	if c.itrs == nil {
 		return false
 	}
 
 	c.UnsignedArrayCursor.Close()
 
-	var itr cursors.CursorIterator
-	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
+	cur, _ := c.itrs.Next(c.ctx, c.req)
+	c.itrs = nil
 
 	var ok bool
 	if cur != nil {
@@ -751,7 +739,7 @@ type stringMultiShardArrayCursor struct {
 	filter *stringArrayFilterCursor
 }
 
-func (c *stringMultiShardArrayCursor) reset(cur cursors.StringArrayCursor, itrs cursors.CursorIterators, cond expression) {
+func (c *stringMultiShardArrayCursor) reset(cur cursors.StringArrayCursor, itrs cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newStringFilterArrayCursor(cond)
@@ -784,18 +772,14 @@ func (c *stringMultiShardArrayCursor) Next() *cursors.StringArray {
 }
 
 func (c *stringMultiShardArrayCursor) nextArrayCursor() bool {
-	if len(c.itrs) == 0 {
+	if c.itrs == nil {
 		return false
 	}
 
 	c.StringArrayCursor.Close()
 
-	var itr cursors.CursorIterator
-	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
+	cur, _ := c.itrs.Next(c.ctx, c.req)
+	c.itrs = nil
 
 	var ok bool
 	if cur != nil {
@@ -931,7 +915,7 @@ type booleanMultiShardArrayCursor struct {
 	filter *booleanArrayFilterCursor
 }
 
-func (c *booleanMultiShardArrayCursor) reset(cur cursors.BooleanArrayCursor, itrs cursors.CursorIterators, cond expression) {
+func (c *booleanMultiShardArrayCursor) reset(cur cursors.BooleanArrayCursor, itrs cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newBooleanFilterArrayCursor(cond)
@@ -964,18 +948,14 @@ func (c *booleanMultiShardArrayCursor) Next() *cursors.BooleanArray {
 }
 
 func (c *booleanMultiShardArrayCursor) nextArrayCursor() bool {
-	if len(c.itrs) == 0 {
+	if c.itrs == nil {
 		return false
 	}
 
 	c.BooleanArrayCursor.Close()
 
-	var itr cursors.CursorIterator
-	var cur cursors.Cursor
-	for cur == nil && len(c.itrs) > 0 {
-		itr, c.itrs = c.itrs[0], c.itrs[1:]
-		cur, _ = itr.Next(c.ctx, c.req)
-	}
+	cur, _ := c.itrs.Next(c.ctx, c.req)
+	c.itrs = nil
 
 	var ok bool
 	if cur != nil {
