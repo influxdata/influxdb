@@ -116,7 +116,10 @@ describe('Dashboard', () => {
           cy.getByTestID('save-cell--button').click()
 
           // selected value in dashboard is 1st value
-          cy.getByTestID('variable-dropdown').should('contain', variable.arguments.values[firstKey])
+          cy.getByTestID('variable-dropdown').should(
+            'contain',
+            variable.arguments.values[firstKey]
+          )
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, variable.id))
             .should('equal', firstKey)
@@ -126,7 +129,10 @@ describe('Dashboard', () => {
           cy.get(`#${secondKey}`).click()
 
           // selected value in dashboard is 2nd value
-          cy.getByTestID('variable-dropdown').should('contain', variable.arguments.values[secondKey])
+          cy.getByTestID('variable-dropdown').should(
+            'contain',
+            variable.arguments.values[secondKey]
+          )
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, variable.id))
             .should('equal', secondKey)
@@ -161,7 +167,10 @@ describe('Dashboard', () => {
             .should('equal', firstKey)
 
           // selected value in dashboard is 1st value
-          cy.getByTestID('variable-dropdown').should('contain', variable.arguments.values[firstKey])
+          cy.getByTestID('variable-dropdown').should(
+            'contain',
+            variable.arguments.values[firstKey]
+          )
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, variable.id))
             .should('equal', firstKey)
