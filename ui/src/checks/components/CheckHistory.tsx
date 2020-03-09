@@ -58,7 +58,7 @@ const CheckHistory: FC<Props> = ({
               titleTag="Check Statuses | InfluxDB 2.0"
               className="alert-history-page"
             >
-              <Page.Header fullWidth={true}>
+              <Page.ControlBar fullWidth={true}>
                 <div className="alert-history-page--header">
                   <Page.Title
                     title="Check Statuses"
@@ -70,7 +70,7 @@ const CheckHistory: FC<Props> = ({
                   />
                   <CheckHistoryControls eventViewerProps={props} />
                 </div>
-              </Page.Header>
+              </Page.ControlBar>
               <Page.Contents
                 fullWidth={true}
                 scrollable={false}

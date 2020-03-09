@@ -8,7 +8,7 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 import VariableItem from 'src/timeMachine/components/variableToolbar/VariableItem'
 
 // Utils
-import {extractVariablesList} from 'src/variables/selectors'
+import {extractVariablesListWithDefaults} from 'src/variables/selectors'
 
 // Types
 import {AppState, Variable} from 'src/types'
@@ -48,7 +48,7 @@ const VariableToolbar: FunctionComponent<OwnProps & StateProps> = ({
 }
 
 const mstp = (state: AppState): StateProps => {
-  const variables = extractVariablesList(state)
+  const variables = extractVariablesListWithDefaults(state)
 
   return {variables}
 }

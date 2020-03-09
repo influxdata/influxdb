@@ -1,0 +1,166 @@
+.clockface--app-wrapper.sign-up--page {
+  background-image: linear-gradient(
+    47deg,
+    rgba(19, 0, 45, 0) 65%,
+    rgba(191, 47, 229, 0.4) 100%
+  );
+  background-color: #13002d;
+}
+
+.create-account--button {
+  margin: 15px 0;
+}
+
+.github-logo {
+  width: $icon-size-md;
+  height: $icon-size-md;
+  fill: $g20-white;
+}
+
+.google-logo {
+  height: $icon-size-md;
+  width: $icon-size-md;
+
+  .google-logo--blue {
+    fill: #3e82f1;
+  }
+
+  .google-logo--green {
+    fill: #32a753;
+  }
+
+  .google-logo--red {
+    fill: #e74133;
+  }
+
+  .google-logo--yellow {
+    fill: #f9bb00;
+  }
+}
+
+.login--forgot-password {
+  color: $c-pool;
+  font-family: Roboto;
+  font-style: normal;
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 15px;
+  cursor: pointer;
+}
+
+.sign-up--form {
+  min-width: 330px;
+  width: 100%;
+  height: 100%;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  .sign-up--form-padded-row {
+    padding-top: $ix-marg-d;
+  }
+}
+
+.sign-up--form-panel {
+  max-width: 500px;
+  width: 400px;
+  height: 100%;
+  justify-content: space-between;
+}
+
+.sign-up--login-container {
+  padding: $ix-marg-b;
+  text-align: center;
+  color: $g20-white;
+}
+
+.sign-up--login-text {
+  font-size: 16px;
+  margin-bottom: 0;
+}
+
+.sign-up--page-contents {
+  .cf-page-contents--padding {
+    height: 100vh;
+    display: inline-flex;
+    width: 100%;
+  }
+}
+
+.sign-up--panel {
+  height: 100%;
+  max-width: 1600px;
+  min-height: 670px + $ix-marg-d;
+  padding: $ix-marg-d;
+  margin: auto;
+  z-index: 0;
+  background: transparent !important;
+  z-index: 100;
+}
+
+@media screen and (min-width: $grid--breakpoint-md) {
+  .sign-up--form-panel {
+    max-width: 100%;
+  }
+
+  .sign-up--full-height {
+    min-height: 100%;
+  }
+
+  .sign-up--header-align {
+    text-align: center;
+  }
+
+  .sign-up--image {
+    display: inline-block;
+    position: fixed;
+    z-index: 0;
+    top: 20%;
+    right: 7%;
+    width: 160%;
+    height: 160%;
+  }
+
+  .sign-up--panel:not(.aws) {
+    height: 80vh;
+    padding: 64px;
+  }
+
+  .sign-up--panel {
+    max-height: 800px;
+  }
+}
+
+.sign-up--social-button-group {
+  position: relative;
+  top: $ix-marg-b;
+  text-align: center;
+
+  .signup-text {
+    position: relative;
+    right: $ix-marg-c;
+  }
+
+  .signup-icon {
+    width: $form-sm-height;
+    height: $form-sm-height;
+    background: transparent;
+    position: relative;
+    float: left;
+    top: $icon-margin;
+  }
+}
+
+.sign-up--social-header {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 400;
+  margin: 0;
+  line-height: 0;
+}
+
+.sign-up--or {
+  position: relative;
+  top: 7px;
+}

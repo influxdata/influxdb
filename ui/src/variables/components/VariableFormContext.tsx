@@ -39,6 +39,7 @@ import {
 interface ComponentProps {
   onHideOverlay?: () => void
   initialScript?: string
+  submitButtonText?: string
 }
 
 interface DispatchProps {

@@ -8,6 +8,7 @@ import {
   Form,
   SelectDropdown,
   IconFont,
+  Dropdown,
   ComponentStatus,
 } from '@influxdata/clockface'
 
@@ -25,7 +26,7 @@ import {
 import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 
 // Types
-import {RemoteDataState, VariableValues} from 'src/types'
+import {RemoteDataState, Variable, VariableValues} from 'src/types'
 import {AppState} from 'src/types'
 
 interface StateProps {
@@ -39,6 +40,7 @@ interface DispatchProps {
 }
 
 interface OwnProps {
+  variable?: Variable
   variableID: string
 }
 
@@ -86,18 +88,35 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
     selectedOption = get(values, 'selectedKey', 'None Selected')
   }
 
+  const button = () => (
+    <Dropdown.Button status={ComponentStatus.Disabled} onClick={() => {}}>
+      {selectedOption}
+    </Dropdown.Button>
+  )
+
+  const menu = () => null
+
   return (
     <div onMouseEnter={handleMouseEnter}>
       <Form.Element label="Value">
-        <SelectDropdown
-          buttonIcon={icon}
-          options={dropdownItems as string[]}
-          selectedOption={selectedOption}
-          testID="variable--tooltip-dropdown"
-          buttonStatus={status}
-          style={{width: '200px'}}
-          onSelect={value => onSelectVariableValue(variableID, value)}
-        />
+        {dropdownItems.length === 1 ? (
+          <Dropdown
+            button={button}
+            style={{width: '200px'}}
+            menu={menu}
+            testID="variable--tooltip-dropdown"
+          />
+        ) : (
+          <SelectDropdown
+            buttonIcon={icon}
+            options={dropdownItems as string[]}
+            selectedOption={selectedOption}
+            testID="variable--tooltip-dropdown"
+            buttonStatus={status}
+            style={{width: '200px'}}
+            onSelect={value => onSelectVariableValue(variableID, value)}
+          />
+        )}
       </Form.Element>
     </div>
   )
@@ -105,7 +124,8 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState, ownProps: OwnProps) => {
   const valuesStatus = getTimeMachineValuesStatus(state)
-  const values = getTimeMachineValues(state, ownProps.variableID)
+  const {variableID} = ownProps
+  const values = getTimeMachineValues(state, variableID, ownProps.variable)
   return {values, valuesStatus}
 }
 

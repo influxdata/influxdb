@@ -79,7 +79,6 @@ type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
 class DashboardHeader extends Component<Props> {
   public render() {
     const {
-      org,
       dashboard,
       onManualRefresh,
       toggleShowVariablesControls,
@@ -89,57 +88,60 @@ class DashboardHeader extends Component<Props> {
     } = this.props
 
     return (
-      <Page.Header fullWidth={true}>
-        <Page.HeaderLeft>
+      <>
+        <Page.Header fullWidth={true}>
           <RenamablePageTitle
-            prefix={org && org.name}
             maxLength={DASHBOARD_NAME_MAX_LENGTH}
             onRename={this.handleRenameDashboard}
             name={dashboard && dashboard.name}
             placeholder={DEFAULT_DASHBOARD_NAME}
           />
-        </Page.HeaderLeft>
-        <Page.HeaderRight>
-          <GraphTips />
-          <Button
-            icon={IconFont.AddCell}
-            color={ComponentColor.Primary}
-            onClick={this.handleAddCell}
-            text="Add Cell"
-            titleText="Add cell to dashboard"
-          />
-          <Button
-            icon={IconFont.TextBlock}
-            text="Add Note"
-            onClick={this.handleAddNote}
-          />
-          <TimeZoneDropdown />
-          <AutoRefreshDropdown
-            onChoose={this.handleChooseAutoRefresh}
-            onManualRefresh={onManualRefresh}
-            selected={autoRefresh}
-          />
-          <TimeRangeDropdown
-            onSetTimeRange={this.handleChooseTimeRange}
-            timeRange={timeRange}
-          />
-          <Button
-            icon={IconFont.Cube}
-            text="Variables"
-            onClick={toggleShowVariablesControls}
-            color={
-              showVariablesControls
-                ? ComponentColor.Secondary
-                : ComponentColor.Default
-            }
-          />
-          <SquareButton
-            icon={IconFont.ExpandA}
-            titleText="Enter Presentation Mode"
-            onClick={this.handleClickPresentationButton}
-          />
-        </Page.HeaderRight>
-      </Page.Header>
+        </Page.Header>
+        <Page.ControlBar fullWidth={true}>
+          <Page.ControlBarLeft>
+            <Button
+              icon={IconFont.AddCell}
+              color={ComponentColor.Primary}
+              onClick={this.handleAddCell}
+              text="Add Cell"
+              titleText="Add cell to dashboard"
+            />
+            <Button
+              icon={IconFont.TextBlock}
+              text="Add Note"
+              onClick={this.handleAddNote}
+            />
+            <Button
+              icon={IconFont.Cube}
+              text="Variables"
+              onClick={toggleShowVariablesControls}
+              color={
+                showVariablesControls
+                  ? ComponentColor.Secondary
+                  : ComponentColor.Default
+              }
+            />
+            <SquareButton
+              icon={IconFont.ExpandA}
+              titleText="Enter Presentation Mode"
+              onClick={this.handleClickPresentationButton}
+            />
+            <GraphTips />
+          </Page.ControlBarLeft>
+          <Page.ControlBarRight>
+            <TimeZoneDropdown />
+            <AutoRefreshDropdown
+              onChoose={this.handleChooseAutoRefresh}
+              onManualRefresh={onManualRefresh}
+              selected={autoRefresh}
+            />
+            <TimeRangeDropdown
+              onSetTimeRange={this.handleChooseTimeRange}
+              timeRange={timeRange}
+            />
+          </Page.ControlBarRight>
+        </Page.ControlBar>
+      </>
     )
   }
 

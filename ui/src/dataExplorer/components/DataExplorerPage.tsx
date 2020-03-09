@@ -7,7 +7,6 @@ import {Page} from '@influxdata/clockface'
 import SaveAsButton from 'src/dataExplorer/components/SaveAsButton'
 import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
 import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'
-import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import GetResources from 'src/resources/components/GetResources'
 import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
 import DeleteDataButton from 'src/dataExplorer/components/DeleteDataButton'
@@ -24,17 +23,19 @@ const DataExplorerPage: SFC = ({children}) => {
       {children}
       <GetResources resources={[ResourceType.Variables]}>
         <Page.Header fullWidth={true}>
-          <Page.HeaderLeft>
-            <PageTitleWithOrg title="Data Explorer" />
-          </Page.HeaderLeft>
-          <Page.HeaderRight>
+          <Page.Title title="Data Explorer" />
+        </Page.Header>
+        <Page.ControlBar fullWidth={true}>
+          <Page.ControlBarLeft>
             <DeleteDataButton />
             <TimeZoneDropdown />
+            <SaveAsButton />
+          </Page.ControlBarLeft>
+          <Page.ControlBarRight>
             <ViewTypeDropdown />
             <VisOptionsButton />
-            <SaveAsButton />
-          </Page.HeaderRight>
-        </Page.Header>
+          </Page.ControlBarRight>
+        </Page.ControlBar>
         <Page.Contents fullWidth={true} scrollable={false}>
           <DataExplorer />
         </Page.Contents>
