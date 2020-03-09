@@ -575,7 +575,8 @@ describe('DataExplorer', () => {
       cy.get('.query-tab').should('have.length', 2)
       cy.get('.query-tab--close')
         .first()
-        .click()
+        // Element is only visible on hover, using force to make this test pass
+        .click({force: true})
       cy.get('.query-tab').should('have.length', 1)
     })
 
@@ -585,6 +586,10 @@ describe('DataExplorer', () => {
         'have.class',
         'cf-right-click--menu-item__disabled'
       )
+
+      // Fire a click outside of the right click menu to dismiss it because
+      // it is obscuring the + button
+      cy.getByTestID('page-header').click()
 
       cy.get('.time-machine-queries--new').click()
       cy.get('.query-tab').should('have.length', 2)
