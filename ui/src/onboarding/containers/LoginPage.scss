@@ -99,7 +99,7 @@
   z-index: 100;
 }
 
-@media screen and (min-width: $grid--breakpoint-md) {
+@media screen and (min-width: $cf-grid--breakpoint-md) {
   .sign-up--form-panel {
     max-width: 100%;
   }
