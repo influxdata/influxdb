@@ -394,6 +394,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
   }
 
   private displayErrorMessage = (errors, auth0Err) => {
+    // eslint-disable-next-line
     if (/error in email/.test(auth0Err.code)) {
       this.setState({
         ...errors,
