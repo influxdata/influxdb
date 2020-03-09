@@ -212,6 +212,18 @@ func (f *SeriesFile) DisableCompactions() {
 	}
 }
 
+// FileSize returns the size of all partitions, in bytes.
+func (f *SeriesFile) FileSize() (n int64, err error) {
+	for _, p := range f.partitions {
+		v, err := p.FileSize()
+		n += v
+		if err != nil {
+			return n, err
+		}
+	}
+	return n, err
+}
+
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist. It overwrites
 // the collection's Keys and SeriesIDs fields. The collection's SeriesIDs slice will have IDs for
 // every name+tags, creating new series IDs as needed. If any SeriesID is zero, then a type
