@@ -18,7 +18,6 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/jsonweb"
 	"github.com/influxdata/influxdb/query"
@@ -33,7 +32,6 @@ type QueryRequest struct {
 
 	// Flux fields
 	Extern  *ast.File    `json:"extern,omitempty"`
-	Spec    *flux.Spec   `json:"spec,omitempty"`
 	AST     *ast.Package `json:"ast,omitempty"`
 	Dialect QueryDialect `json:"dialect"`
 
@@ -89,17 +87,8 @@ func (r QueryRequest) WithDefaults() QueryRequest {
 
 // Validate checks the query request and returns an error if the request is invalid.
 func (r QueryRequest) Validate() error {
-	// TODO(jsternberg): Remove this, but we are going to not mention
-	// the spec in the error if it is being used.
-	if r.Query == "" && r.Spec == nil && r.AST == nil {
+	if r.Query == "" && r.AST == nil {
 		return errors.New(`request body requires either query or AST`)
-	}
-
-	if r.Spec != nil && r.Extern != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "request body cannot specify both a spec and external declarations",
-		}
 	}
 
 	if r.Type != "flux" && r.Type != "influxql" {
@@ -283,10 +272,6 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 			c.PrependFile(r.Extern)
 		}
 		compiler = c
-	} else if r.Spec != nil {
-		compiler = repl.Compiler{
-			Spec: r.Spec,
-		}
 	}
 
 	delimiter, _ := utf8.DecodeRuneInString(r.Dialect.Delimiter)
@@ -341,9 +326,6 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 		qr.Type = "flux"
 		qr.Query = c.Query
 		qr.Extern = c.Extern
-	case repl.Compiler:
-		qr.Type = "flux"
-		qr.Spec = c.Spec
 	case lang.ASTCompiler:
 		qr.Type = "flux"
 		qr.AST = c.AST

@@ -21,7 +21,7 @@ type compilerA struct {
 	A string `json:"a"`
 }
 
-func (c compilerA) Compile(ctx context.Context) (flux.Program, error) {
+func (c compilerA) Compile(ctx context.Context, runtime flux.Runtime) (flux.Program, error) {
 	panic("not implemented")
 }
 
