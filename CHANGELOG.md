@@ -18,6 +18,7 @@
 1. [17091](https://github.com/influxdata/influxdb/pull/17091): Require Content-Type for query endpoint
 1. [17113](https://github.com/influxdata/influxdb/pull/17113): Disabled group functionality for check query builder
 1. [17120](https://github.com/influxdata/influxdb/pull/17120): Fixed cell configuration error that was popping up when users create a dashboard and accessed the disk usage cell for the first time
+1. [17097](https://github.com/influxdata/influxdb/pull/17097): Listing all the default variables in the VariableTab of the script editor
 
 ## v2.0.0-beta.5 [2020-02-27]
 
