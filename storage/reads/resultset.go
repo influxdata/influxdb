@@ -54,7 +54,7 @@ func (r *resultSet) Next() bool {
 func (r *resultSet) Cursor() cursors.Cursor {
 	cur := r.mb.createCursor(r.row)
 	if r.agg != nil {
-		cur = r.mb.newAggregateCursor(r.ctx, r.agg, cur)
+		cur = newAggregateArrayCursor(r.ctx, r.agg, cur)
 	}
 	return cur
 }
