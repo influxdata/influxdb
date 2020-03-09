@@ -2,7 +2,6 @@ package reads
 
 import (
 	"context"
-	"math"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
@@ -26,7 +25,7 @@ func NewFilteredResultSet(ctx context.Context, req *datatypes.ReadFilterRequest,
 	return &resultSet{
 		ctx: ctx,
 		cur: cur,
-		mb:  newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true, math.MaxInt64),
+		mb:  newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true),
 	}
 }
 

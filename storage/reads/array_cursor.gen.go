@@ -103,7 +103,6 @@ func (c *floatMultiShardArrayCursor) reset(cur cursors.FloatArrayCursor, itrs cu
 	c.FloatArrayCursor = cur
 	c.itrs = itrs
 	c.err = nil
-	c.count = 0
 }
 
 func (c *floatMultiShardArrayCursor) Err() error { return c.err }
@@ -119,14 +118,6 @@ func (c *floatMultiShardArrayCursor) Next() *cursors.FloatArray {
 			if c.nextArrayCursor() {
 				continue
 			}
-		}
-		c.count += int64(a.Len())
-		if c.count > c.limit {
-			diff := c.count - c.limit
-			c.count -= diff
-			rem := int64(a.Len()) - diff
-			a.Timestamps = a.Timestamps[:rem]
-			a.Values = a.Values[:rem]
 		}
 		return a
 	}
@@ -332,7 +323,6 @@ func (c *integerMultiShardArrayCursor) reset(cur cursors.IntegerArrayCursor, itr
 	c.IntegerArrayCursor = cur
 	c.itrs = itrs
 	c.err = nil
-	c.count = 0
 }
 
 func (c *integerMultiShardArrayCursor) Err() error { return c.err }
@@ -348,14 +338,6 @@ func (c *integerMultiShardArrayCursor) Next() *cursors.IntegerArray {
 			if c.nextArrayCursor() {
 				continue
 			}
-		}
-		c.count += int64(a.Len())
-		if c.count > c.limit {
-			diff := c.count - c.limit
-			c.count -= diff
-			rem := int64(a.Len()) - diff
-			a.Timestamps = a.Timestamps[:rem]
-			a.Values = a.Values[:rem]
 		}
 		return a
 	}
@@ -561,7 +543,6 @@ func (c *unsignedMultiShardArrayCursor) reset(cur cursors.UnsignedArrayCursor, i
 	c.UnsignedArrayCursor = cur
 	c.itrs = itrs
 	c.err = nil
-	c.count = 0
 }
 
 func (c *unsignedMultiShardArrayCursor) Err() error { return c.err }
@@ -577,14 +558,6 @@ func (c *unsignedMultiShardArrayCursor) Next() *cursors.UnsignedArray {
 			if c.nextArrayCursor() {
 				continue
 			}
-		}
-		c.count += int64(a.Len())
-		if c.count > c.limit {
-			diff := c.count - c.limit
-			c.count -= diff
-			rem := int64(a.Len()) - diff
-			a.Timestamps = a.Timestamps[:rem]
-			a.Values = a.Values[:rem]
 		}
 		return a
 	}
@@ -790,7 +763,6 @@ func (c *stringMultiShardArrayCursor) reset(cur cursors.StringArrayCursor, itrs 
 	c.StringArrayCursor = cur
 	c.itrs = itrs
 	c.err = nil
-	c.count = 0
 }
 
 func (c *stringMultiShardArrayCursor) Err() error { return c.err }
@@ -806,14 +778,6 @@ func (c *stringMultiShardArrayCursor) Next() *cursors.StringArray {
 			if c.nextArrayCursor() {
 				continue
 			}
-		}
-		c.count += int64(a.Len())
-		if c.count > c.limit {
-			diff := c.count - c.limit
-			c.count -= diff
-			rem := int64(a.Len()) - diff
-			a.Timestamps = a.Timestamps[:rem]
-			a.Values = a.Values[:rem]
 		}
 		return a
 	}
@@ -979,7 +943,6 @@ func (c *booleanMultiShardArrayCursor) reset(cur cursors.BooleanArrayCursor, itr
 	c.BooleanArrayCursor = cur
 	c.itrs = itrs
 	c.err = nil
-	c.count = 0
 }
 
 func (c *booleanMultiShardArrayCursor) Err() error { return c.err }
@@ -995,14 +958,6 @@ func (c *booleanMultiShardArrayCursor) Next() *cursors.BooleanArray {
 			if c.nextArrayCursor() {
 				continue
 			}
-		}
-		c.count += int64(a.Len())
-		if c.count > c.limit {
-			diff := c.count - c.limit
-			c.count -= diff
-			rem := int64(a.Len()) - diff
-			a.Timestamps = a.Timestamps[:rem]
-			a.Values = a.Values[:rem]
 		}
 		return a
 	}

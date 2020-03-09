@@ -102,7 +102,6 @@ func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor,
 	c.{{.Name}}ArrayCursor = cur
 	c.itrs = itrs
 	c.err = nil
-	c.count = 0
 }
 
 
@@ -119,14 +118,6 @@ func (c *{{.name}}MultiShardArrayCursor) Next() {{$arrayType}} {
 			if c.nextArrayCursor() {
 				continue
 			}
-		}
-		c.count += int64(a.Len())
-		if c.count > c.limit {
-			diff := c.count - c.limit
-			c.count -= diff
-			rem := int64(a.Len()) - diff
-			a.Timestamps = a.Timestamps[:rem]
-			a.Values = a.Values[:rem]
 		}
 		return a
 	}

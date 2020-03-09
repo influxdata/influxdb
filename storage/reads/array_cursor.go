@@ -64,18 +64,15 @@ func newCountArrayCursor(cur cursors.Cursor) cursors.Cursor {
 }
 
 type cursorContext struct {
-	ctx   context.Context
-	req   *cursors.CursorRequest
-	itrs  cursors.CursorIterators
-	limit int64
-	count int64
-	err   error
+	ctx  context.Context
+	req  *cursors.CursorRequest
+	itrs cursors.CursorIterators
+	err  error
 }
 
 type multiShardArrayCursors struct {
-	ctx   context.Context
-	limit int64
-	req   cursors.CursorRequest
+	ctx context.Context
+	req cursors.CursorRequest
 
 	cursors struct {
 		i integerMultiShardArrayCursor
@@ -86,14 +83,9 @@ type multiShardArrayCursors struct {
 	}
 }
 
-func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool, limit int64) *multiShardArrayCursors {
-	if limit < 0 {
-		limit = 1
-	}
-
+func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool) *multiShardArrayCursors {
 	m := &multiShardArrayCursors{
-		ctx:   ctx,
-		limit: limit,
+		ctx: ctx,
 		req: cursors.CursorRequest{
 			Ascending: asc,
 			StartTime: start,
@@ -102,9 +94,8 @@ func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool, 
 	}
 
 	cc := cursorContext{
-		ctx:   ctx,
-		limit: limit,
-		req:   &m.req,
+		ctx: ctx,
+		req: &m.req,
 	}
 
 	m.cursors.i.cursorContext = cc

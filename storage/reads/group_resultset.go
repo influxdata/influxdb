@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math"
 	"sort"
 
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -57,7 +56,7 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, new
 		o(g)
 	}
 
-	g.mb = newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true, math.MaxInt64)
+	g.mb = newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true)
 
 	for i, k := range req.GroupKeys {
 		g.keys[i] = []byte(k)
