@@ -323,6 +323,7 @@ const invalidateCycles = (graph: VariableNode[]): void => {
 
     if (cyclicPath) {
       for (const invalidNode of cyclicPath) {
+        console.log('marking this one')
         invalidNode.status = RemoteDataState.Error
       }
     }

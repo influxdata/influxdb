@@ -75,11 +75,7 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
   // set as a ternary in order to get e2e test to pass since values are undefined on the test
   const key = values && values.selectedKey ? values.selectedKey : undefined
 
-  if (!values) {
-    selectedOption = 'Failed to Load'
-    icon = IconFont.AlertTriangle
-    status = ComponentStatus.Disabled
-  } else if (values.error) {
+  if (!values || values.error) {
     selectedOption = 'Failed to Load'
     icon = IconFont.AlertTriangle
     status = ComponentStatus.Disabled

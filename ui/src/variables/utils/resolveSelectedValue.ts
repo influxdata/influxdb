@@ -24,7 +24,7 @@ export const resolveSelectedValue = (
     typeof values === 'object' &&
     Object.prototype.toString.call(values) === '[object Array]'
   ) {
-    if (values.indexOf(selectedKey) > -1) {
+    if (values.includes(selectedKey)) {
       return selectedKey
     }
 

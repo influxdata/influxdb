@@ -20,7 +20,7 @@ import {AppState} from 'src/types'
 
 interface StateProps {
   values: {name: string; value: string}[]
-  selectedKey: string
+  selectedValue: string
 }
 
 interface DispatchProps {
@@ -36,7 +36,7 @@ type Props = StateProps & DispatchProps & OwnProps
 
 class VariableDropdown extends PureComponent<Props> {
   render() {
-    const {selectedKey} = this.props
+    const {selectedValue} = this.props
     const dropdownValues = this.props.values || []
 
     const dropdownStatus =
@@ -58,7 +58,7 @@ class VariableDropdown extends PureComponent<Props> {
               testID="variable-dropdown--button"
               status={dropdownStatus}
             >
-              {selectedKey || 'No Values'}
+              {selectedValue || 'No Values'}
             </Dropdown.Button>
           )}
           menu={onCollapse => (
@@ -76,7 +76,7 @@ class VariableDropdown extends PureComponent<Props> {
                   id={name}
                   value={name}
                   onClick={this.handleSelect}
-                  selected={name === selectedKey}
+                  selected={name === selectedValue}
                   testID="variable-dropdown--item"
                 >
                   {name}
@@ -89,23 +89,23 @@ class VariableDropdown extends PureComponent<Props> {
     )
   }
 
-  private handleSelect = (selectedKey: string) => {
+  private handleSelect = (selectedValue: string) => {
     const {dashboardID, variableID, onSelectValue} = this.props
 
-    onSelectValue(dashboardID, variableID, selectedKey)
+    onSelectValue(dashboardID, variableID, selectedValue)
   }
 }
 
 const mstp = (state: AppState, props: OwnProps): StateProps => {
   const {dashboardID, variableID} = props
 
-  const {selectedKey, list} = getVariableValuesForDropdown(
+  const {selectedValue, list} = getVariableValuesForDropdown(
     state,
     variableID,
     dashboardID
   )
 
-  return {values: list, selectedKey}
+  return {values: list, selectedValue}
 }
 
 const mdtp = {

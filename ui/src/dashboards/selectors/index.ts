@@ -28,7 +28,7 @@ export const getCheckForView = (
 
 interface DropdownValues {
   list: {name: string; value: string}[]
-  selectedKey: string
+  selectedValue: string
 }
 
 export const getVariableValuesForDropdown = (
@@ -36,14 +36,14 @@ export const getVariableValuesForDropdown = (
   variableID: string,
   contextID: string
 ): DropdownValues => {
-  const {selectedKey, values} = getValuesForVariable(
+  const {selectedValue, values} = getValuesForVariable(
     state,
     variableID,
     contextID
   )
 
   if (!values) {
-    return {list: null, selectedKey: null}
+    return {list: null, selectedValue: null}
   }
 
   const type = getTypeForVariable(state, variableID)
@@ -60,7 +60,7 @@ export const getVariableValuesForDropdown = (
       }))
 
       return {
-        selectedKey,
+        selectedValue,
         list,
       }
     }
@@ -68,6 +68,6 @@ export const getVariableValuesForDropdown = (
       const valueCopy = values as string[]
       const list = valueCopy.map(v => ({name: v, value: v}))
 
-      return {selectedKey, list}
+      return {selectedValue, list}
   }
 }
