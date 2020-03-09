@@ -14,6 +14,8 @@ import (
 var (
 	migrationBucket = []byte("migrationsv1")
 
+	// ErrMigrationSpecNotFound is returned when a migration specification is missing
+	// for an already applied migration.
 	ErrMigrationSpecNotFound = errors.New("migration specification not found")
 )
 
@@ -81,15 +83,6 @@ func (a AnonymousMigration) Up(ctx context.Context, store Store) error { return 
 // Down calls the underlying down migration func.
 func (a AnonymousMigration) Down(ctx context.Context, store Store) error { return a.down(ctx, store) }
 
-// AutoMigrationStore is a Store which also describes whether or not automatic
-// application of migrations can be applied on store initialization.
-// Given AutoMigrate() is defined and returns true, the store supports inline automatic
-// application of up migrations.
-type AutoMigrationStore interface {
-	Store
-	AutoMigrate() bool
-}
-
 // Migrator is a type which manages migrations.
 // It takes a list of migration specifications and undo (down) all or apply (up) outstanding migrations.
 // It records the state of the world in store under the migrations bucket.
@@ -146,13 +139,15 @@ func (m *Migrator) List(ctx context.Context, store Store) (migrations []Migratio
 	return
 }
 
-// Up applies each outstanding migration in order from the lowest indexed migration in a down state.
+// Up applies each outstanding migration in order.
+// Migrations are applied in order from the lowest indexed migration in a down state.
+//
 // For example, given:
 // 0001 add bucket foo         | (up)
 // 0002 add bucket bar         | (down)
 // 0003 add index "foo on baz" | (down)
 //
-// Up would apply migrations 0002 and then 0003.
+// Up would apply migration 0002 and then 0003.
 func (m *Migrator) Up(ctx context.Context, store Store) (err error) {
 	defer func() {
 		if err != nil {
@@ -199,14 +194,15 @@ func (m *Migrator) Up(ctx context.Context, store Store) (err error) {
 	return nil
 }
 
-// Down call each migrations down function from the highest indexed migration in an up state;
-// all the to the first migration.
+// Down applies the down operation of each currently applied migration.
+// Migrations are applied in reverse order from the highest indexed migration in a down state.
+//
 // For example, given:
 // 0001 add bucket foo         | (up)
 // 0002 add bucket bar         | (up)
 // 0003 add index "foo on baz" | (down)
 //
-// Down would call down() on 0002 and the 0001.
+// Down would call down() on 0002 and then on 0001.
 func (m *Migrator) Down(ctx context.Context, store Store) (err error) {
 	defer func() {
 		if err != nil {

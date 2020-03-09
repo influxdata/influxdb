@@ -103,6 +103,15 @@ type ServiceConfig struct {
 	Clock         clock.Clock
 }
 
+// AutoMigrationStore is a Store which also describes whether or not
+// migrations can be applied automatically.
+// Given the AutoMigrate method is defined and it returns true then migrations
+// will automatically be applied on Service.Initialize(...).
+type AutoMigrationStore interface {
+	Store
+	AutoMigrate() bool
+}
+
 // Initialize creates Buckets needed.
 func (s *Service) Initialize(ctx context.Context) error {
 	if store, ok := s.kv.(AutoMigrationStore); ok && store.AutoMigrate() {
