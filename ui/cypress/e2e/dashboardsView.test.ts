@@ -104,6 +104,7 @@ describe('Dashboard', () => {
           const [firstKey, secondKey] = Object.keys(variable.arguments.values)
           // add cell with variable in its query
           cy.getByTestID('add-cell--button').click()
+          cy.getByTestID('switch-to-script-editor').should('be.visible')
           cy.getByTestID('switch-to-script-editor').click()
           cy.getByTestID('toolbar-tab').click()
           // check to see if the default timeRange variables are available
@@ -115,7 +116,7 @@ describe('Dashboard', () => {
           cy.getByTestID('save-cell--button').click()
 
           // selected value in dashboard is 1st value
-          cy.getByTestID('variable-dropdown').should('contain', firstKey)
+          cy.getByTestID('variable-dropdown').should('contain', variable.arguments.values[firstKey])
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, variable.id))
             .should('equal', firstKey)
@@ -125,7 +126,7 @@ describe('Dashboard', () => {
           cy.get(`#${secondKey}`).click()
 
           // selected value in dashboard is 2nd value
-          cy.getByTestID('variable-dropdown').should('contain', secondKey)
+          cy.getByTestID('variable-dropdown').should('contain', variable.arguments.values[secondKey])
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, variable.id))
             .should('equal', secondKey)
@@ -160,7 +161,7 @@ describe('Dashboard', () => {
             .should('equal', firstKey)
 
           // selected value in dashboard is 1st value
-          cy.getByTestID('variable-dropdown').should('contain', firstKey)
+          cy.getByTestID('variable-dropdown').should('contain', variable.arguments.values[firstKey])
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, variable.id))
             .should('equal', firstKey)
