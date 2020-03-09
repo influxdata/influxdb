@@ -6,6 +6,7 @@
 1. [17095](https://github.com/influxdata/influxdb/pull/17095): Extend pkger dashboards with table view support
 1. [17114](https://github.com/influxdata/influxdb/pull/17114): Allow for retention to be provided to influx setup command as a duration
 1. [17138](https://github.com/influxdata/influxdb/pull/17138): Extend pkger export all capabilities to support filtering by lable name and resource type
+1. [17049](https://github.com/influxdata/influxdb/pull/17049): Added new login and sign-up screen that for cloud users that allows direct login from their region
 
 ### Bug Fixes
 
@@ -19,6 +20,7 @@
 1. [17113](https://github.com/influxdata/influxdb/pull/17113): Disabled group functionality for check query builder
 1. [17120](https://github.com/influxdata/influxdb/pull/17120): Fixed cell configuration error that was popping up when users create a dashboard and accessed the disk usage cell for the first time
 1. [17097](https://github.com/influxdata/influxdb/pull/17097): Listing all the default variables in the VariableTab of the script editor
+1. [17049](https://github.com/influxdata/influxdb/pull/17049): Fixed bug that was preventing the interval status on the dashboard header from refreshing on selections
 
 ## v2.0.0-beta.5 [2020-02-27]
 
