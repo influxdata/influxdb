@@ -2,9 +2,9 @@
 // https://github.com/benbjohnson/tmpl
 //
 // DO NOT EDIT!
-// Source: flux_table.gen.go.tmpl
+// Source: table.gen.go.tmpl
 
-package reads
+package storageflux
 
 import (
 	"sync"
@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/models"
+	storage "github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/pkg/errors"
 )
@@ -101,13 +102,13 @@ func (t *floatTable) advance() bool {
 type floatGroupTable struct {
 	table
 	mu  sync.Mutex
-	gc  GroupCursor
+	gc  storage.GroupCursor
 	cur cursors.FloatArrayCursor
 }
 
 func newFloatGroupTable(
 	done chan struct{},
-	gc GroupCursor,
+	gc storage.GroupCursor,
 	cur cursors.FloatArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -286,13 +287,13 @@ func (t *integerTable) advance() bool {
 type integerGroupTable struct {
 	table
 	mu  sync.Mutex
-	gc  GroupCursor
+	gc  storage.GroupCursor
 	cur cursors.IntegerArrayCursor
 }
 
 func newIntegerGroupTable(
 	done chan struct{},
-	gc GroupCursor,
+	gc storage.GroupCursor,
 	cur cursors.IntegerArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -471,13 +472,13 @@ func (t *unsignedTable) advance() bool {
 type unsignedGroupTable struct {
 	table
 	mu  sync.Mutex
-	gc  GroupCursor
+	gc  storage.GroupCursor
 	cur cursors.UnsignedArrayCursor
 }
 
 func newUnsignedGroupTable(
 	done chan struct{},
-	gc GroupCursor,
+	gc storage.GroupCursor,
 	cur cursors.UnsignedArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -656,13 +657,13 @@ func (t *stringTable) advance() bool {
 type stringGroupTable struct {
 	table
 	mu  sync.Mutex
-	gc  GroupCursor
+	gc  storage.GroupCursor
 	cur cursors.StringArrayCursor
 }
 
 func newStringGroupTable(
 	done chan struct{},
-	gc GroupCursor,
+	gc storage.GroupCursor,
 	cur cursors.StringArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -841,13 +842,13 @@ func (t *booleanTable) advance() bool {
 type booleanGroupTable struct {
 	table
 	mu  sync.Mutex
-	gc  GroupCursor
+	gc  storage.GroupCursor
 	cur cursors.BooleanArrayCursor
 }
 
 func newBooleanGroupTable(
 	done chan struct{},
-	gc GroupCursor,
+	gc storage.GroupCursor,
 	cur cursors.BooleanArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
