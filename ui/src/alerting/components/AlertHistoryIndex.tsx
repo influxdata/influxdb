@@ -72,22 +72,22 @@ const AlertHistoryIndex: FC<Props> = ({params: {orgID}, resourceIDs}) => {
               titleTag="Check Statuses | InfluxDB 2.0"
               className="alert-history-page"
             >
+              <Page.Header fullWidth={true}>
+                <Page.Title
+                  title="Check Statuses"
+                  testID="alert-history-title"
+                />
+              </Page.Header>
               <Page.ControlBar fullWidth={true}>
-                <div className="alert-history-page--header">
-                  <Page.Title
-                    title="Check Statuses"
-                    testID="alert-history-title"
-                  />
-                  <AlertHistoryQueryParams
-                    searchInput={props.state.searchInput}
-                    historyType={historyType}
-                  />
-                  <AlertHistoryControls
-                    historyType={historyType}
-                    onSetHistoryType={setHistoryType}
-                    eventViewerProps={props}
-                  />
-                </div>
+                <AlertHistoryQueryParams
+                  searchInput={props.state.searchInput}
+                  historyType={historyType}
+                />
+                <AlertHistoryControls
+                  historyType={historyType}
+                  onSetHistoryType={setHistoryType}
+                  eventViewerProps={props}
+                />
               </Page.ControlBar>
               <Page.Contents
                 fullWidth={true}
