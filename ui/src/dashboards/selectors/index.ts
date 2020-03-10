@@ -37,7 +37,7 @@ export const getVariableValuesForDropdown = (
   variableID: string,
   contextID: string
 ): DropdownValues => {
-  const {selectedValue, values} = getValuesForVariable(
+  const {values} = getValuesForVariable(
     state,
     variableID,
     contextID
