@@ -88,20 +88,22 @@ describe('Dashboard', () => {
 
   const getSelectedVariable = (
     contextID: string,
-    variableID: string
+    index?: number
   ) => win => {
     const {resources} = win.store.getState() as AppState
-    return resources.variables.values[contextID].values[variableID].selectedKey
+    const vardawg = resources.variables.values[contextID].values
+    return vardawg[Object.keys(vardawg)[index]].selectedValue
   }
 
-  it('can manage variable state with a lot of pointing and clicking', () => {
+  it.only('can manage variable state with a lot of pointing and clicking', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body: dashboard}) => {
+        cy.createCSVVariable(orgID)
+        cy.createQueryVariable(orgID)
         cy.createMapVariable(orgID).then(({body: variable}) => {
           cy.fixture('routes').then(({orgs}) => {
             cy.visit(`${orgs}/${orgID}/dashboards/${dashboard.id}`)
           })
-          const [firstKey, secondKey] = Object.keys(variable.arguments.values)
           // add cell with variable in its query
           cy.getByTestID('add-cell--button').click()
           cy.getByTestID('switch-to-script-editor').should('be.visible')
@@ -113,29 +115,44 @@ describe('Dashboard', () => {
           cy.get('.variables-toolbar--label')
             .first()
             .click()
+            cy.getByTestID('flux-editor')
+            .should('be.visible')
+              .click()
+              .focused()
+              .type(' ')
+          cy.get('.variables-toolbar--label')
+            .eq(2)
+            .click()
           cy.getByTestID('save-cell--button').click()
 
+          // TESTING CSV VARIABLE
           // selected value in dashboard is 1st value
-          cy.getByTestID('variable-dropdown').should(
-            'contain',
-            variable.arguments.values[firstKey]
-          )
+          cy.getByTestID('variable-dropdown')
+            .eq(0)
+            .should(
+              'contain',
+              'c1'
+            )
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, variable.id))
-            .should('equal', firstKey)
+            .pipe(getSelectedVariable(dashboard.id, 0))
+            .should('equal', 'c1')
 
           // select 2nd value in dashboard
-          cy.getByTestID('variable-dropdown--button').click()
-          cy.get(`#${secondKey}`).click()
+            cy.getByTestID('variable-dropdown--button')
+            .eq(0)
+            .click()
+          cy.get(`#c2`).click()
 
           // selected value in dashboard is 2nd value
-          cy.getByTestID('variable-dropdown').should(
+          cy.getByTestID('variable-dropdown')
+          .eq(0)
+          .should(
             'contain',
-            variable.arguments.values[secondKey]
+            'c2'
           )
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, variable.id))
-            .should('equal', secondKey)
+            .pipe(getSelectedVariable(dashboard.id, 0))
+            .should('equal', 'c2')
 
           // open CEO
           cy.getByTestID('cell-context--toggle').click()
@@ -143,8 +160,8 @@ describe('Dashboard', () => {
 
           // selected value in cell context is 2nd value
           cy.window()
-            .pipe(getSelectedVariable('veo', variable.id))
-            .should('equal', secondKey)
+            .pipe(getSelectedVariable('veo', 0))
+            .should('equal', 'c2')
 
           cy.getByTestID('toolbar-tab').click()
           cy.get('.variables-toolbar--label')
@@ -152,9 +169,9 @@ describe('Dashboard', () => {
             .trigger('mouseover')
           // toggle the variable dropdown in the VEO cell dashboard
           cy.getByTestID('toolbar-popover--contents').within(() => {
-            cy.getByTestID('dropdown--button').click()
+            cy.getByTestID('variable-dropdown--button').click()
             // select 1st value in cell
-            cy.getByTestID('dropdown-item')
+            cy.getByTestID('variable-dropdown--item')
               .first()
               .click()
           })
@@ -163,20 +180,85 @@ describe('Dashboard', () => {
 
           // selected value in cell context is 1st value
           cy.window()
-            .pipe(getSelectedVariable('veo', variable.id))
-            .should('equal', firstKey)
+            .pipe(getSelectedVariable('veo', 0))
+            .should('equal', 'c1')
 
           // selected value in dashboard is 1st value
           cy.getByTestID('variable-dropdown').should(
             'contain',
-            variable.arguments.values[firstKey]
+            'c1'
           )
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, variable.id))
-            .should('equal', firstKey)
+            .pipe(getSelectedVariable(dashboard.id, 0))
+            .should('equal', 'c1')
 
-          // graph tips responds to mouse over
-          cy.getByTestID('graphtips-question-mark').click()
+          // TESTING MAP VARIABLE
+          // selected value in dashboard is 1st value
+          cy.getByTestID('variable-dropdown')
+            .eq(1)
+            .should(
+              'contain',
+              'k1'
+            )
+          cy.window()
+            .pipe(getSelectedVariable(dashboard.id, 1))
+            .should('equal', 'v1')
+
+          // select 2nd value in dashboard
+            cy.getByTestID('variable-dropdown--button')
+            .eq(1)
+            .click()
+          cy.get(`#k2`).click()
+
+          // selected value in dashboard is 2nd value
+          cy.getByTestID('variable-dropdown')
+          .eq(1)
+          .should(
+            'contain',
+            'k2'
+          )
+          cy.window()
+            .pipe(getSelectedVariable(dashboard.id, 1))
+            .should('equal', 'v2')
+
+          // open CEO
+          cy.getByTestID('cell-context--toggle').click()
+          cy.getByTestID('cell-context--configure').click()
+          cy.getByTestID('toolbar-tab').should('be.visible')
+
+          // selected value in cell context is 2nd value
+          cy.window()
+            .pipe(getSelectedVariable('veo', 1))
+            .should('equal', 'v2')
+
+          cy.getByTestID('toolbar-tab').click()
+          cy.get('.variables-toolbar--label')
+            .eq(2)
+            .trigger('mouseover')
+          // toggle the variable dropdown in the VEO cell dashboard
+          cy.getByTestID('toolbar-popover--contents').within(() => {
+            cy.getByTestID('variable-dropdown--button').click()
+            // select 1st value in cell
+            cy.getByTestID('variable-dropdown--item')
+              .first()
+              .click()
+          })
+          // save cell
+          cy.getByTestID('save-cell--button').click()
+
+          // selected value in cell context is 1st value
+          cy.window()
+            .pipe(getSelectedVariable('veo', 1))
+            .should('equal', 'v1')
+
+          // selected value in dashboard is 1st value
+          cy.getByTestID('variable-dropdown').should(
+            'contain',
+            'k1'
+          )
+          cy.window()
+            .pipe(getSelectedVariable(dashboard.id, 1))
+            .should('equal', 'v1')
         })
       })
     })
