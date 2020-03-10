@@ -84,13 +84,13 @@ LOOP:
 	return c.res
 }
 
-type {{.name}}MultiShardArrayCursor struct {
+type {{.name}}ArrayCursor struct {
 	cursors.{{.Name}}ArrayCursor
 	cursorContext
 	filter *{{$type}}
 }
 
-func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor, itrs cursors.CursorIterator, cond expression) {
+func (c *{{.name}}ArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor, cursorIterator cursors.CursorIterator, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = new{{.Name}}FilterArrayCursor(cond)
@@ -100,18 +100,18 @@ func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor,
 	}
 
 	c.{{.Name}}ArrayCursor = cur
-	c.itrs = itrs
+	c.cursorIterator = cursorIterator
 	c.err = nil
 }
 
 
-func (c *{{.name}}MultiShardArrayCursor) Err() error { return c.err }
+func (c *{{.name}}ArrayCursor) Err() error { return c.err }
 
-func (c *{{.name}}MultiShardArrayCursor) Stats() cursors.CursorStats {
+func (c *{{.name}}ArrayCursor) Stats() cursors.CursorStats {
 	return c.{{.Name}}ArrayCursor.Stats()
 }
 
-func (c *{{.name}}MultiShardArrayCursor) Next() {{$arrayType}} {
+func (c *{{.name}}ArrayCursor) Next() {{$arrayType}} {
 	for {
 		a := c.{{.Name}}ArrayCursor.Next()
 		if a.Len() == 0 {
@@ -123,15 +123,15 @@ func (c *{{.name}}MultiShardArrayCursor) Next() {{$arrayType}} {
 	}
 }
 
-func (c *{{.name}}MultiShardArrayCursor) nextArrayCursor() bool {
-	if c.itrs == nil {
+func (c *{{.name}}ArrayCursor) nextArrayCursor() bool {
+	if c.cursorIterator == nil {
 		return false
 	}
 
 	c.{{.Name}}ArrayCursor.Close()
 
-	cur, _ := c.itrs.Next(c.ctx, c.req)
-	c.itrs = nil
+	cur, _ := c.cursorIterator.Next(c.ctx, c.req)
+	c.cursorIterator = nil
 
 	var ok bool
 	if cur != nil {
@@ -140,7 +140,7 @@ func (c *{{.name}}MultiShardArrayCursor) nextArrayCursor() bool {
 		if !ok {
 			cur.Close()
 			next = {{.Name}}EmptyArrayCursor
-			c.itrs = nil
+			c.cursorIterator = nil
 			c.err = errors.New("expected {{.name}} cursor")
 		} else {
 			if c.filter != nil {

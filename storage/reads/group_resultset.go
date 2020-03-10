@@ -13,9 +13,9 @@ import (
 )
 
 type groupResultSet struct {
-	ctx context.Context
-	req *datatypes.ReadGroupRequest
-	mb  *multiShardArrayCursors
+	ctx          context.Context
+	req          *datatypes.ReadGroupRequest
+	arrayCursors *arrayCursors
 
 	i             int
 	seriesRows    []*SeriesRow
@@ -57,7 +57,7 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, new
 		o(g)
 	}
 
-	g.mb = newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true)
+	g.arrayCursors = newArrayCursors(ctx, req.Range.Start, req.Range.End, true)
 
 	for i, k := range req.GroupKeys {
 		g.keys[i] = []byte(k)
@@ -67,10 +67,10 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, new
 	case datatypes.GroupBy:
 		g.nextGroupFn = groupByNextGroup
 		g.groupByCursor = groupByCursor{
-			ctx:  ctx,
-			mb:   g.mb,
-			agg:  req.Aggregate,
-			vals: make([][]byte, len(req.GroupKeys)),
+			ctx:          ctx,
+			arrayCursors: g.arrayCursors,
+			agg:          req.Aggregate,
+			vals:         make([][]byte, len(req.GroupKeys)),
 		}
 
 		if n, err := g.groupBySort(); n == 0 || err != nil {
@@ -120,7 +120,7 @@ func (g *groupResultSet) Next() GroupCursor {
 // the time range of the query.
 func (g *groupResultSet) seriesHasPoints(row *SeriesRow) bool {
 	// TODO(sgc): this is expensive. Storage engine must provide efficient time range queries of series keys.
-	cur := g.mb.createCursor(*row)
+	cur := g.arrayCursors.createCursor(*row)
 	var ts []int64
 	switch c := cur.(type) {
 	case cursors.IntegerArrayCursor:
@@ -158,11 +158,11 @@ func groupNoneNextGroup(g *groupResultSet) GroupCursor {
 
 	g.eof = true
 	return &groupNoneCursor{
-		ctx:  g.ctx,
-		mb:   g.mb,
-		agg:  g.req.Aggregate,
-		cur:  seriesCursor,
-		keys: g.km.Get(),
+		ctx:          g.ctx,
+		arrayCursors: g.arrayCursors,
+		agg:          g.req.Aggregate,
+		cur:          seriesCursor,
+		keys:         g.km.Get(),
 	}
 }
 
@@ -266,12 +266,12 @@ func (g *groupResultSet) groupBySort() (int, error) {
 }
 
 type groupNoneCursor struct {
-	ctx  context.Context
-	mb   *multiShardArrayCursors
-	agg  *datatypes.Aggregate
-	cur  SeriesCursor
-	row  SeriesRow
-	keys [][]byte
+	ctx          context.Context
+	arrayCursors *arrayCursors
+	agg          *datatypes.Aggregate
+	cur          SeriesCursor
+	row          SeriesRow
+	keys         [][]byte
 }
 
 func (c *groupNoneCursor) Err() error                 { return nil }
@@ -293,7 +293,7 @@ func (c *groupNoneCursor) Next() bool {
 }
 
 func (c *groupNoneCursor) Cursor() cursors.Cursor {
-	cur := c.mb.createCursor(c.row)
+	cur := c.arrayCursors.createCursor(c.row)
 	if c.agg != nil {
 		cur = newAggregateArrayCursor(c.ctx, c.agg, cur)
 	}
@@ -301,13 +301,13 @@ func (c *groupNoneCursor) Cursor() cursors.Cursor {
 }
 
 type groupByCursor struct {
-	ctx        context.Context
-	mb         *multiShardArrayCursors
-	agg        *datatypes.Aggregate
-	i          int
-	seriesRows []*SeriesRow
-	keys       [][]byte
-	vals       [][]byte
+	ctx          context.Context
+	arrayCursors *arrayCursors
+	agg          *datatypes.Aggregate
+	i            int
+	seriesRows   []*SeriesRow
+	keys         [][]byte
+	vals         [][]byte
 }
 
 func (c *groupByCursor) reset(seriesRows []*SeriesRow) {
@@ -330,7 +330,7 @@ func (c *groupByCursor) Next() bool {
 }
 
 func (c *groupByCursor) Cursor() cursors.Cursor {
-	cur := c.mb.createCursor(*c.seriesRows[c.i-1])
+	cur := c.arrayCursors.createCursor(*c.seriesRows[c.i-1])
 	if c.agg != nil {
 		cur = newAggregateArrayCursor(c.ctx, c.agg, cur)
 	}

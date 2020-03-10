@@ -13,14 +13,14 @@ type resultSet struct {
 	agg          *datatypes.Aggregate
 	seriesCursor SeriesCursor
 	seriesRow    SeriesRow
-	mb           *multiShardArrayCursors
+	arrayCursors *arrayCursors
 }
 
 func NewFilteredResultSet(ctx context.Context, req *datatypes.ReadFilterRequest, seriesCursor SeriesCursor) ResultSet {
 	return &resultSet{
 		ctx:          ctx,
 		seriesCursor: seriesCursor,
-		mb:           newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true),
+		arrayCursors: newArrayCursors(ctx, req.Range.Start, req.Range.End, true),
 	}
 }
 
@@ -52,7 +52,7 @@ func (r *resultSet) Next() bool {
 }
 
 func (r *resultSet) Cursor() cursors.Cursor {
-	cur := r.mb.createCursor(r.seriesRow)
+	cur := r.arrayCursors.createCursor(r.seriesRow)
 	if r.agg != nil {
 		cur = newAggregateArrayCursor(r.ctx, r.agg, cur)
 	}

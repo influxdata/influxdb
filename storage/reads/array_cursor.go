@@ -64,27 +64,27 @@ func newCountArrayCursor(cur cursors.Cursor) cursors.Cursor {
 }
 
 type cursorContext struct {
-	ctx  context.Context
-	req  *cursors.CursorRequest
-	itrs cursors.CursorIterator
-	err  error
+	ctx            context.Context
+	req            *cursors.CursorRequest
+	cursorIterator cursors.CursorIterator
+	err            error
 }
 
-type multiShardArrayCursors struct {
+type arrayCursors struct {
 	ctx context.Context
 	req cursors.CursorRequest
 
 	cursors struct {
-		i integerMultiShardArrayCursor
-		f floatMultiShardArrayCursor
-		u unsignedMultiShardArrayCursor
-		b booleanMultiShardArrayCursor
-		s stringMultiShardArrayCursor
+		i integerArrayCursor
+		f floatArrayCursor
+		u unsignedArrayCursor
+		b booleanArrayCursor
+		s stringArrayCursor
 	}
 }
 
-func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool) *multiShardArrayCursors {
-	m := &multiShardArrayCursors{
+func newArrayCursors(ctx context.Context, start, end int64, asc bool) *arrayCursors {
+	m := &arrayCursors{
 		ctx: ctx,
 		req: cursors.CursorRequest{
 			Ascending: asc,
@@ -107,7 +107,7 @@ func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool) 
 	return m
 }
 
-func (m *multiShardArrayCursors) createCursor(seriesRow SeriesRow) cursors.Cursor {
+func (m *arrayCursors) createCursor(seriesRow SeriesRow) cursors.Cursor {
 	m.req.Name = seriesRow.Name
 	m.req.Tags = seriesRow.SeriesTags
 	m.req.Field = seriesRow.Field
