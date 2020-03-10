@@ -68,9 +68,7 @@ class TimeMachineQueries extends PureComponent<Props> {
             margin={ComponentSize.Small}
             className="time-machine-queries--buttons"
           >
-            {activeQuery.editMode === 'advanced' && (
-              <EditorShortcutsToolTip />
-            )}
+            {activeQuery.editMode === 'advanced' && <EditorShortcutsToolTip />}
             <RawDataToggle />
             {!isInCheckOverlay && (
               <>

@@ -17,7 +17,7 @@ interface StateProps {
 
 const TimeMachineQueriesTimer: SFC<StateProps> = ({duration, status}) => {
   const queriesTimerClass = classnames('query-tab--timer', {
-    'query-tab--timer__visible': status === RemoteDataState.Done
+    'query-tab--timer__visible': status === RemoteDataState.Done,
   })
 
   return (

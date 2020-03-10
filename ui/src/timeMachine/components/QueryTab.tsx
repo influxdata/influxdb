@@ -62,7 +62,10 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
   public render() {
     const {queryIndex, activeQueryIndex, query} = this.props
     const isActive = queryIndex === activeQueryIndex
-    const queryTabClass = classnames('query-tab', {'query-tab__active': queryIndex === activeQueryIndex, 'query-tab__hidden': query.hidden})
+    const queryTabClass = classnames('query-tab', {
+      'query-tab__active': queryIndex === activeQueryIndex,
+      'query-tab__hidden': query.hidden,
+    })
 
     return (
       <>
