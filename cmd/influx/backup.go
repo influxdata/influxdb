@@ -55,8 +55,8 @@ func init() {
 
 func newBackupService() (influxdb.BackupService, error) {
 	return &http.BackupService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:  flags.Host,
+		Token: flags.Token,
 	}, nil
 }
 

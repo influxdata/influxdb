@@ -78,7 +78,7 @@ func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
 }
 
 func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
-	if err := b.org.validOrgFlags(); err != nil {
+	if err := b.org.validOrgFlags(b.globalFlags); err != nil {
 		return err
 	}
 
@@ -183,7 +183,7 @@ func (b *cmdBucketBuilder) cmdFind() *cobra.Command {
 }
 
 func (b *cmdBucketBuilder) cmdFindRunEFn(cmd *cobra.Command, args []string) error {
-	if err := b.org.validOrgFlags(); err != nil {
+	if err := b.org.validOrgFlags(b.globalFlags); err != nil {
 		return err
 	}
 
