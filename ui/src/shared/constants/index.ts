@@ -71,8 +71,8 @@ export const FLUX_RESPONSE_BYTES_LIMIT = CLOUD
 export const VIS_SIG_DIGITS = 4
 
 export const VIS_THEME: Partial<Config> = {
-  axisColor: InfluxColors.Onyx,
-  gridColor: InfluxColors.Onyx,
+  axisColor: InfluxColors.Kevlar,
+  gridColor: InfluxColors.Kevlar,
   gridOpacity: 1,
   tickFont: '500 11px Rubik',
   tickFontColor: InfluxColors.Mist,
