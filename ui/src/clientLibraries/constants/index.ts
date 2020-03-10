@@ -164,14 +164,32 @@ export const clientJSLibrary = {
   name: 'JavaScript/Node.js',
   url: 'https://github.com/influxdata/influxdb-client-js',
   image: JSLogo,
-  initializeClientCodeSnippet: `import Client from '@influxdata/influx'
+  initializeNPMCodeSnippet: `npm i @influxdata/influxdb-client`,
+  initializeClientCodeSnippet: `const {InfluxDB, FluxTableMetaData} = require('@influxdata/influxdb-client')
 // You can generate a Token from the "Tokens Tab" in the UI
-const client = new Client('<%= server %>', '<%= token %>')`,
-  executeQueryCodeSnippet: `const query = 'from(bucket: "my_bucket") |> range(start: -1h)'
-const {promise} = client.queries.execute('<%= org %>', query)
-const csv = await promise`,
-  writingDataLineProtocolCodeSnippet: `const data = 'mem,host=host1 used_percent=23.43234543 1556896326' // Line protocol string
-const response = await client.write.create('<%= org %>', '<%= bucket %>', data)`,
+const client = new InfluxDB({url: '<%= server %>', token: '<%= token %>'})`,
+  executeQueryCodeSnippet: `const queryApi = client.getQueryApi('<%= org %>')
+
+const query = 'from(bucket: "my_bucket") |> range(start: -1h)'
+queryApi.queryRows(query, {
+  next(row: string[], tableMeta: FluxTableMetaData) {
+    const o = tableMeta.toObject(row)
+    console.log(
+      \`\${o._time} \${o._measurement} in \'\${o.location}\' (\${o.example}): \${o._field}=\${o._value}\`
+    )
+  },
+  error(error: Error) {
+    console.error(error)
+    console.log('\\nFinished ERROR')
+  },
+  complete() {
+    console.log('\\nFinished SUCCESS')
+  },
+})`,
+  writingDataLineProtocolCodeSnippet: `const writeApi = client.getWriteApi('<%= org %>', '<%= bucket %>')
+  
+const data = 'mem,host=host1 used_percent=23.43234543 1556896326' // Line protocol string
+writeApi.writeRecord(data)`,
 }
 
 export const clientPythonLibrary = {
