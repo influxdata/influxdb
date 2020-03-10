@@ -59,7 +59,6 @@ Please be clear about your requirements and goals, help us to understand what yo
 If you find your feature request already exists as a Github issue please indicate your support for that feature by using the "thumbs up" reaction.
 
 ## Contributing to the source code
-InfluxDB requires Go 1.13 and uses Go modules.
 
 You should read our [coding guide](https://github.com/influxdata/influxdb/blob/master/DEVELOPMENT.md), to understand better how to write code for InfluxDB.
 
@@ -91,8 +90,16 @@ More details about security vulnerability reporting, including our GPG key, [can
 
 If you are going to be contributing back to InfluxDB please take a second to sign our CLA, which can be found [on our website](https://influxdata.com/community/cla/).
 
-## Installing Go
-InfluxDB requires Go 1.13.
+## Installing the development environment
+
+InfluxDB development environment has the following dependencies:
+
+- Go 1.13 or newer
+- yarn 1.19.1 or newer
+- rustc 1.41.1 or newer
+- llvm 9 or newer
+- libclang 9 or newer
+- node 10.5 or newer (for JS part)
 
 At InfluxData we find `gvm`, a Go version manager, useful for installing Go.
 For instructions on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
@@ -103,13 +110,39 @@ $ gvm install go1.13
 $ gvm use go1.13 --default
 ```
 
+Go is easy enough to install, you can also just download and extract the golang archive to your preferred path and add it to your PATH env variable.
+
+We recommend using [rustup](https://rustup.rs/) to install Rust.
+
+You can use [nodevenv](https://pypi.org/project/nodeenv) version 1.3.5 or newer to install a certain nodejs version.
+
+Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed.
+
+A successful `make` run results in two binaries, with platform-dependent paths:
+
+```
+$ make
+...
+env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx ./cmd/influx
+env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd ./cmd/influxd
+```
+
+`influxd` is the InfluxDB service.
+`influx` is the CLI management tool.
+
+Start the service.
+Logs to stdout by default:
+
+```
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd
+```
+
+
 ## Revision Control Systems
 Go has the ability to import remote packages via revision control systems with the `go get` command.
-To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
-Currently the project only depends on `git` and `bzr`.
+To ensure that you can retrieve any remote package, be sure to install git to your system.
 
  * [Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
- * [Install Bazaar](http://doc.bazaar.canonical.com/latest/en/user-guide/installing_bazaar.html)
 
 ## Getting & Building From Source
 
@@ -178,6 +211,7 @@ Finally run, `go generate` after updating any `*.proto` file:
 ```bash
 $ go generate ./...
 ```
+
 **Troubleshooting**
 
 If generating the protobuf code is failing for you, check each of the following:

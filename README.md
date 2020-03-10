@@ -46,47 +46,11 @@ We have nightly and weekly versioned Docker images, Debian packages, RPM package
 
 ## Building From Source
 
-This project requires Go 1.13 and Go module support.
-
-Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed.
-
-The project also requires a recent stable version of Rust. We recommend using [rustup](https://rustup.rs/) to install Rust.
-
-If you are getting an `error loading module requirements` error with `bzr executable file not found in $PATH”` on `make`, then you need to ensure you have `bazaar`, `protobuf`, and `yarn` installed.
-
-- OSX: `brew install bazaar yarn`
-- Linux (Arch): `pacman -S bzr protobuf yarn`
-- Linux (Ubuntu): `apt install bzr protobuf-compiler yarnpkg`
-
-**NB:** For RedHat, there are some extra steps:
-
-1. You must enable the [EPEL](https://fedoraproject.org/wiki/EPEL)
-2. You must add the `yarn` [repository](https://yarnpkg.com/lang/en/docs/install/#centos-stable)
-
-For information about modules, please refer to the [wiki](https://github.com/golang/go/wiki/Modules).
-
-A successful `make` run results in two binaries, with platform-dependent paths:
-
-```
-$ make
-...
-env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx ./cmd/influx
-env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd ./cmd/influxd
-```
-
-`influxd` is the InfluxDB service.
-`influx` is the CLI management tool.
-
-Start the service.
-Logs to stdout by default:
-
-```
-$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd
-```
+See CONTRIBUTING.md
 
 ## Getting Started
 
-For a complete getting started guide, please see our full [online documentation site](https://v2.docs.influxdata.com/v2.0/). 
+For a complete getting started guide, please see our full [online documentation site](https://v2.docs.influxdata.com/v2.0/).
 
 To write and query data or use the API in any way, you'll need to first create a user, credentials, organization and bucket.
 Everything in InfluxDB is organized under a concept of an organization. The API is designed to be multi-tenant.
@@ -108,9 +72,9 @@ $ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup
 Welcome to InfluxDB 2.0!
 Please type your primary username: marty
 
-Please type your password: 
+Please type your password:
 
-Please type your password again: 
+Please type your password again:
 
 Please type your primary organization name.: InfluxData
 
