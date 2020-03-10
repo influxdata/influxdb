@@ -3,6 +3,7 @@ import CSharpLogo from '../graphics/CSharpLogo'
 import GoLogo from '../graphics/GoLogo'
 import JavaLogo from '../graphics/JavaLogo'
 import JSLogo from '../graphics/JSLogo'
+import PHPLogo from '../graphics/PHPLogo'
 import PythonLogo from '../graphics/PythonLogo'
 import RubyLogo from '../graphics/RubyLogo'
 
@@ -238,11 +239,44 @@ data = 'mem,host=host1 used_percent=23.43234543 1556896326'
 write_client.write(data: [point, hash, data], bucket: '<%= bucket %>', org: '<%= org %>')`,
 }
 
+export const clientPHPLibrary = {
+  id: 'php',
+  name: 'PHP',
+  url: 'https://github.com/influxdata/influxdb-client-php',
+  image: PHPLogo,
+  initializeComposerCodeSnippet: `composer require influxdata/influxdb-client-php`,
+  initializeClientCodeSnippet: `## You can generate a Token from the "Tokens Tab" in the UI
+$client = new InfluxDB2\\Client([
+  "url" => "<%= server %>",
+  "token" => "<%= token %>",
+]);`,
+  executeQueryCodeSnippet: `$query = 'from(bucket: "<%= bucket %>") |> range(start: -1h)';
+$tables = $client->createQueryApi()->query($query);`,
+  writingDataLineProtocolCodeSnippet: `$writeApi = $client->createWriteApi();
+  
+$data = "mem,host=host1 used_percent=23.43234543 1556896326";
+
+$writeApi->write($data, \\InfluxDB2\\Model\\WritePrecision::NS, '<%= bucket %>', '<%= org %>');`,
+  writingDataPointCodeSnippet: `$point = Point::measurement('mem')
+  ->addTag('host', 'host1')
+  ->addField('used_percent', 23.43234543)
+  ->time(1556896326);
+
+$writeApi->write($point, \\InfluxDB2\\Model\\WritePrecision::NS, '<%= bucket %>', '<%= org %>');`,
+  writingDataArrayCodeSnippet: `$dataArray = ['name' => 'cpu',
+  'tags' => ['host' => 'server_nl', 'region' => 'us'],
+  'fields' => ['internal' => 5, 'external' => 6],
+  'time' => microtime()];
+
+$writeApi->write($dataArray, \\InfluxDB2\\Model\\WritePrecision::NS, '<%= bucket %>', '<%= org %>');`,
+}
+
 export const clientLibraries: ClientLibrary[] = [
   clientCSharpLibrary,
   clientGoLibrary,
   clientJavaLibrary,
   clientJSLibrary,
+  clientPHPLibrary,
   clientPythonLibrary,
   clientRubyLibrary,
 ]

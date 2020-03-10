@@ -52,6 +52,7 @@ import ClientCSharpOverlay from 'src/clientLibraries/components/ClientCSharpOver
 import ClientGoOverlay from 'src/clientLibraries/components/ClientGoOverlay'
 import ClientJavaOverlay from 'src/clientLibraries/components/ClientJavaOverlay'
 import ClientJSOverlay from 'src/clientLibraries/components/ClientJSOverlay'
+import ClientPHPOverlay from 'src/clientLibraries/components/ClientPHPOverlay'
 import ClientPythonOverlay from 'src/clientLibraries/components/ClientPythonOverlay'
 import ClientRubyOverlay from 'src/clientLibraries/components/ClientRubyOverlay'
 import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
@@ -348,6 +349,7 @@ class Root extends PureComponent {
                                 path="javascript-node"
                                 component={ClientJSOverlay}
                               />
+                              <Route path="php" component={ClientPHPOverlay} />
                               <Route
                                 path="python"
                                 component={ClientPythonOverlay}
