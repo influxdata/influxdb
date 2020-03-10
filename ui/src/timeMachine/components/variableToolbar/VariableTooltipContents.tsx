@@ -51,7 +51,7 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
   onAddVariableToTimeMachine,
   onSelectVariableValue,
 }) => {
-  let dropdownItems = values || []
+  const dropdownItems = values || []
 
   const handleMouseEnter = () => {
     if (values || valuesStatus === RemoteDataState.Loading) {
@@ -125,7 +125,6 @@ const mstp = (state: AppState, ownProps: OwnProps) => {
     variableID,
     activeTimeMachineID
   )
-  console.log('look at me now', list, selectedValue)
   return {values: list, selectedValue, valuesStatus}
 }
 
