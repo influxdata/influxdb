@@ -28,12 +28,13 @@ func TestCmdSecret(t *testing.T) {
 		}
 	}
 
-	t.Run("find", func(t *testing.T) {
+	t.Run("list", func(t *testing.T) {
 		type called []string
 		tests := []struct {
 			name     string
 			expected called
 			flags    []string
+			command  string
 			envVars  map[string]string
 		}{
 			{
@@ -54,6 +55,20 @@ func TestCmdSecret(t *testing.T) {
 					"INFLUX_ORG": "rg",
 				},
 				flags:    []string{},
+				expected: called{"k1", "k2", "k3"},
+			},
+			{
+				name:     "ls alias",
+				command:  "ls",
+				flags:    []string{"--org=rg"},
+				envVars:  envVarsZeroMap,
+				expected: called{"k1", "k2", "k3"},
+			},
+			{
+				name:     "find alias",
+				command:  "find",
+				flags:    []string{"--org=rg"},
+				envVars:  envVarsZeroMap,
 				expected: called{"k1", "k2", "k3"},
 			},
 		}
@@ -85,7 +100,12 @@ func TestCmdSecret(t *testing.T) {
 				)
 				nestedCmdFn, calls := cmdFn()
 				cmd := builder.cmd(nestedCmdFn)
-				cmd.SetArgs(append([]string{"secret", "find"}, tt.flags...))
+
+				if tt.command == "" {
+					tt.command = "list"
+				}
+
+				cmd.SetArgs(append([]string{"secret", tt.command}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())
 				assert.Equal(t, tt.expected, *calls)

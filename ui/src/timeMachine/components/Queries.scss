@@ -11,9 +11,7 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  border-bottom: 4px solid $g3-castle;
-  background: $g2-kevlar;
-  padding: 8px 10px 0 10px;
+  border-bottom: $cf-border solid $g3-castle;
   width: 100%;
 
   .view-raw-data-toggle {

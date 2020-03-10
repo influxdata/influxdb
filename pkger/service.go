@@ -171,14 +171,24 @@ func NewService(opts ...ServiceSetterFn) *Service {
 	}
 }
 
-// CreatePkgSetFn is a functional input for setting the pkg fields.
-type CreatePkgSetFn func(opt *CreateOpt) error
+type (
+	// CreatePkgSetFn is a functional input for setting the pkg fields.
+	CreatePkgSetFn func(opt *CreateOpt) error
 
-// CreateOpt are the options for creating a new package.
-type CreateOpt struct {
-	OrgIDs    map[influxdb.ID]bool
-	Resources []ResourceToClone
-}
+	// CreateOpt are the options for creating a new package.
+	CreateOpt struct {
+		OrgIDs    []CreateByOrgIDOpt
+		Resources []ResourceToClone
+	}
+
+	// CreateByOrgIDOpt identifies an org to export resources for and provides
+	// multiple filtering options.
+	CreateByOrgIDOpt struct {
+		OrgID         influxdb.ID
+		LabelNames    []string
+		ResourceKinds []Kind
+	}
+)
 
 // CreateWithExistingResources allows the create method to clone existing resources.
 func CreateWithExistingResources(resources ...ResourceToClone) CreatePkgSetFn {
@@ -195,15 +205,17 @@ func CreateWithExistingResources(resources ...ResourceToClone) CreatePkgSetFn {
 
 // CreateWithAllOrgResources allows the create method to clone all existing resources
 // for the given organization.
-func CreateWithAllOrgResources(orgID influxdb.ID) CreatePkgSetFn {
+func CreateWithAllOrgResources(orgIDOpt CreateByOrgIDOpt) CreatePkgSetFn {
 	return func(opt *CreateOpt) error {
-		if orgID == 0 {
+		if orgIDOpt.OrgID == 0 {
 			return errors.New("orgID provided must not be zero")
 		}
-		if opt.OrgIDs == nil {
-			opt.OrgIDs = make(map[influxdb.ID]bool)
+		for _, k := range orgIDOpt.ResourceKinds {
+			if err := k.OK(); err != nil {
+				return err
+			}
 		}
-		opt.OrgIDs[orgID] = true
+		opt.OrgIDs = append(opt.OrgIDs, orgIDOpt)
 		return nil
 	}
 }
@@ -221,15 +233,28 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 		Objects: make([]Object, 0, len(opt.Resources)),
 	}
 
-	cloneAssFn := s.resourceCloneAssociationsGen()
-	for orgID := range opt.OrgIDs {
-		resourcesToClone, err := s.cloneOrgResources(ctx, orgID)
+	for _, orgIDOpt := range opt.OrgIDs {
+		cloneAssFn, err := s.resourceCloneAssociationsGen(ctx, orgIDOpt.LabelNames...)
+		if err != nil {
+			return nil, err
+		}
+		resourcesToClone, err := s.cloneOrgResources(ctx, orgIDOpt.OrgID, orgIDOpt.ResourceKinds)
 		if err != nil {
 			return nil, internalErr(err)
 		}
-		opt.Resources = append(opt.Resources, resourcesToClone...)
+		for _, r := range uniqResourcesToClone(resourcesToClone) {
+			newKinds, err := s.resourceCloneToKind(ctx, r, cloneAssFn)
+			if err != nil {
+				return nil, internalErr(fmt.Errorf("failed to clone resource: resource_id=%s resource_kind=%s err=%q", r.ID, r.Kind, err))
+			}
+			pkg.Objects = append(pkg.Objects, newKinds...)
+		}
 	}
 
+	cloneAssFn, err := s.resourceCloneAssociationsGen(ctx)
+	if err != nil {
+		return nil, err
+	}
 	for _, r := range uniqResourcesToClone(opt.Resources) {
 		newKinds, err := s.resourceCloneToKind(ctx, r, cloneAssFn)
 		if err != nil {
@@ -271,51 +296,9 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	return pkg, nil
 }
 
-func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
-	resourceTypeGens := []struct {
-		resType influxdb.ResourceType
-		cloneFn func(context.Context, influxdb.ID) ([]ResourceToClone, error)
-	}{
-		{
-			resType: KindBucket.ResourceType(),
-			cloneFn: s.cloneOrgBuckets,
-		},
-		{
-			resType: KindCheck.ResourceType(),
-			cloneFn: s.cloneOrgChecks,
-		},
-		{
-			resType: KindDashboard.ResourceType(),
-			cloneFn: s.cloneOrgDashboards,
-		},
-		{
-			resType: KindLabel.ResourceType(),
-			cloneFn: s.cloneOrgLabels,
-		},
-		{
-			resType: KindNotificationEndpoint.ResourceType(),
-			cloneFn: s.cloneOrgNotificationEndpoints,
-		},
-		{
-			resType: KindNotificationRule.ResourceType(),
-			cloneFn: s.cloneOrgNotificationRules,
-		},
-		{
-			resType: KindTask.ResourceType(),
-			cloneFn: s.cloneOrgTasks,
-		},
-		{
-			resType: KindTelegraf.ResourceType(),
-			cloneFn: s.cloneOrgTelegrafs,
-		},
-		{
-			resType: KindVariable.ResourceType(),
-			cloneFn: s.cloneOrgVariables,
-		},
-	}
-
+func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID, resourceKinds []Kind) ([]ResourceToClone, error) {
 	var resources []ResourceToClone
-	for _, resGen := range resourceTypeGens {
+	for _, resGen := range s.filterOrgResourceKinds(resourceKinds) {
 		existingResources, err := resGen.cloneFn(ctx, orgID)
 		if err != nil {
 			return nil, ierrors.Wrap(err, "finding "+string(resGen.resType))
@@ -596,10 +579,14 @@ func (s *Service) resourceCloneToKind(ctx context.Context, r ResourceToClone, cF
 		return nil, errors.New("unsupported kind provided: " + string(r.Kind))
 	}
 
-	ass, err := cFn(ctx, r)
+	ass, skipResource, err := cFn(ctx, r)
 	if err != nil {
 		return nil, err
 	}
+	if skipResource {
+		return nil, nil
+	}
+
 	if len(ass.associations) > 0 {
 		newKind.Spec[fieldAssociations] = ass.associations
 	}
@@ -621,25 +608,95 @@ func (s *Service) exportNotificationRule(ctx context.Context, r ResourceToClone)
 	return ruleToObject(rule, ruleEndpoint.GetName(), r.Name), endpointKind(ruleEndpoint, ""), nil
 }
 
+type cloneResFn func(context.Context, influxdb.ID) ([]ResourceToClone, error)
+
+func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []struct {
+	resType influxdb.ResourceType
+	cloneFn cloneResFn
+} {
+	mKinds := map[Kind]cloneResFn{
+		KindBucket:               s.cloneOrgBuckets,
+		KindCheck:                s.cloneOrgChecks,
+		KindDashboard:            s.cloneOrgDashboards,
+		KindLabel:                s.cloneOrgLabels,
+		KindNotificationEndpoint: s.cloneOrgNotificationEndpoints,
+		KindNotificationRule:     s.cloneOrgNotificationRules,
+		KindTask:                 s.cloneOrgTasks,
+		KindTelegraf:             s.cloneOrgTelegrafs,
+		KindVariable:             s.cloneOrgVariables,
+	}
+
+	newResGen := func(resType influxdb.ResourceType, cloneFn cloneResFn) struct {
+		resType influxdb.ResourceType
+		cloneFn cloneResFn
+	} {
+		return struct {
+			resType influxdb.ResourceType
+			cloneFn cloneResFn
+		}{
+			resType: resType,
+			cloneFn: cloneFn,
+		}
+	}
+
+	var resourceTypeGens []struct {
+		resType influxdb.ResourceType
+		cloneFn cloneResFn
+	}
+	if len(resourceKindFilters) == 0 {
+		for k, cloneFn := range mKinds {
+			resourceTypeGens = append(resourceTypeGens, newResGen(k.ResourceType(), cloneFn))
+		}
+		return resourceTypeGens
+	}
+
+	seenKinds := make(map[Kind]bool)
+	for _, k := range resourceKindFilters {
+		cloneFn, ok := mKinds[k]
+		if !ok || seenKinds[k] {
+			continue
+		}
+		seenKinds[k] = true
+		resourceTypeGens = append(resourceTypeGens, newResGen(k.ResourceType(), cloneFn))
+	}
+
+	return resourceTypeGens
+}
+
 type (
 	associations struct {
 		associations      []Resource
 		newLableResources []Object
 	}
 
-	cloneAssociationsFn func(context.Context, ResourceToClone) (associations, error)
+	cloneAssociationsFn func(context.Context, ResourceToClone) (associations associations, skipResource bool, err error)
 )
 
-func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
+func (s *Service) resourceCloneAssociationsGen(ctx context.Context, labelNames ...string) (cloneAssociationsFn, error) {
+	mLabelNames := make(map[string]bool)
+	for _, labelName := range labelNames {
+		mLabelNames[labelName] = true
+	}
+
+	mLabelIDs, err := getLabelIDMap(ctx, s.labelSVC, labelNames)
+	if err != nil {
+		return nil, err
+	}
+
 	type key struct {
 		id   influxdb.ID
 		name string
 	}
 	// memoize the labels so we dont' create duplicates
 	m := make(map[key]bool)
-	return func(ctx context.Context, r ResourceToClone) (associations, error) {
-		if r.Kind.is(KindUnknown, KindLabel) {
-			return associations{}, nil
+	cloneFn := func(ctx context.Context, r ResourceToClone) (associations, bool, error) {
+		if r.Kind.is(KindUnknown) {
+			return associations{}, true, nil
+		}
+		if r.Kind.is(KindLabel) {
+			// check here verifies the label maps to an id of a valid label name
+			shouldSkip := len(mLabelIDs) > 0 && !mLabelIDs[r.ID]
+			return associations{}, shouldSkip, nil
 		}
 
 		labels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
@@ -647,11 +704,30 @@ func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
 			ResourceType: r.Kind.ResourceType(),
 		})
 		if err != nil {
-			return associations{}, ierrors.Wrap(err, "finding resource labels")
+			return associations{}, false, ierrors.Wrap(err, "finding resource labels")
+		}
+
+		if len(mLabelNames) > 0 {
+			shouldSkip := true
+			for _, l := range labels {
+				if _, ok := mLabelNames[l.Name]; ok {
+					shouldSkip = false
+					break
+				}
+			}
+			if shouldSkip {
+				return associations{}, true, nil
+			}
 		}
 
 		var ass associations
 		for _, l := range labels {
+			if len(mLabelNames) > 0 {
+				if _, ok := mLabelNames[l.Name]; !ok {
+					continue
+				}
+			}
+
 			ass.associations = append(ass.associations, Resource{
 				fieldKind: KindLabel.String(),
 				fieldName: l.Name,
@@ -663,8 +739,10 @@ func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
 			m[k] = true
 			ass.newLableResources = append(ass.newLableResources, labelToObject(*l, ""))
 		}
-		return ass, nil
+		return ass, false, nil
 	}
+
+	return cloneFn, nil
 }
 
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
@@ -1023,7 +1101,11 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 		for i := 0; i < mapper.Len(); i++ {
 			la := mapper.Association(i)
 			err := s.dryRunResourceLabelMapping(ctx, la, func(labelID influxdb.ID, labelName string, isNew bool) {
-				pkg.mLabels[labelName].setMapping(la, !isNew)
+				existingLabel, ok := pkg.mLabels[labelName]
+				if !ok {
+					return
+				}
+				existingLabel.setMapping(la, !isNew)
 				diffs = append(diffs, DiffLabelMapping{
 					IsNew:     isNew,
 					ResType:   la.ResourceType(),
@@ -2114,6 +2196,22 @@ func (s *Service) findDashboardByIDFull(ctx context.Context, id influxdb.ID) (*i
 		cell.View = v
 	}
 	return dash, nil
+}
+
+func getLabelIDMap(ctx context.Context, labelSVC influxdb.LabelService, labelNames []string) (map[influxdb.ID]bool, error) {
+	mLabelIDs := make(map[influxdb.ID]bool)
+	for _, labelName := range labelNames {
+		iLabels, err := labelSVC.FindLabels(ctx, influxdb.LabelFilter{
+			Name: labelName,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if len(iLabels) == 1 {
+			mLabelIDs[iLabels[0].ID] = true
+		}
+	}
+	return mLabelIDs, nil
 }
 
 type doMutex struct {

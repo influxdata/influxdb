@@ -48,8 +48,9 @@ const setInitialState = (state: AppState) => {
             values: {
               '04960e76e5afe000': {
                 valueType: 'string',
-                values: Object.keys(variableValues),
-                selectedValue: 'key1',
+                values: variableValues,
+                selectedKey: 'key1',
+                selectedValue: 'value1',
               },
             },
             order: ['04960e76e5afe000'],

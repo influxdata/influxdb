@@ -2,7 +2,7 @@
 // https://github.com/benbjohnson/tmpl
 //
 // DO NOT EDIT!
-// Source: table.gen.go.tmpl
+// Source: flux_table.gen.go.tmpl
 
 package reads
 

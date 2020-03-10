@@ -33,19 +33,19 @@
    }
 }
 
-@media screen and (min-width: $grid--breakpoint-sm) {
+@media screen and (min-width: $cf-grid--breakpoint-sm) {
   .dashboards-card-grid {
     grid-template-columns: 1fr 1fr;
   }
 }
 
-@media screen and (min-width: $grid--breakpoint-md) {
+@media screen and (min-width: $cf-grid--breakpoint-md) {
   .dashboards-card-grid {
     grid-template-columns: 1fr 1fr 1fr;
   }
 }
 
-@media screen and (min-width: $grid--breakpoint-lg) {
+@media screen and (min-width: $cf-grid--breakpoint-lg) {
   .dashboards-card-grid {
     grid-template-columns: 1fr 1fr 1fr 1fr;
   }

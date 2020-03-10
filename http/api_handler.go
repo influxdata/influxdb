@@ -144,6 +144,8 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h.Mount(prefixDelete, NewDeleteHandler(b.Logger, deleteBackend))
 
 	documentBackend := NewDocumentBackend(b.Logger.With(zap.String("handler", "document")), b)
+	documentBackend.LabelService = authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService)
+	documentBackend.DocumentService = authorizer.NewDocumentService(b.DocumentService)
 	h.Mount(prefixDocuments, NewDocumentHandler(documentBackend))
 
 	fluxBackend := NewFluxBackend(b.Logger.With(zap.String("handler", "query")), b)
@@ -163,6 +165,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	orgBackend := NewOrgBackend(b.Logger.With(zap.String("handler", "org")), b)
 	orgBackend.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
+	orgBackend.SecretService = authorizer.NewSecretService(b.SecretService)
 	h.Mount(prefixOrganizations, NewOrgHandler(b.Logger, orgBackend))
 
 	scraperBackend := NewScraperBackend(b.Logger.With(zap.String("handler", "scraper")), b)

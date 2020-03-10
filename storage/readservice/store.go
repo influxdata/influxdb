@@ -5,32 +5,20 @@ import (
 	"errors"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
-	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxql"
 )
 
-// Viewer is used by the store to query data from time-series files.
-type Viewer interface {
-	CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator, error)
-	CreateSeriesCursor(ctx context.Context, orgID, bucketID influxdb.ID, cond influxql.Expr) (storage.SeriesCursor, error)
-	TagKeys(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error)
-	TagValues(ctx context.Context, orgID, bucketID influxdb.ID, tagKey string, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error)
-}
-
 type store struct {
-	viewer Viewer
+	viewer reads.Viewer
 }
 
 // NewStore creates a store used to query time-series data.
-func NewStore(viewer Viewer) reads.Store {
+func NewStore(viewer reads.Viewer) reads.Store {
 	return &store{viewer: viewer}
 }
 
@@ -48,7 +36,7 @@ func (s *store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 	}
 
 	var cur reads.SeriesCursor
-	if cur, err = newIndexSeriesCursor(ctx, &source, req.Predicate, s.viewer); err != nil {
+	if cur, err = reads.NewIndexSeriesCursor(ctx, source.GetOrgID(), source.GetBucketID(), req.Predicate, s.viewer); err != nil {
 		return nil, tracing.LogError(span, err)
 	} else if cur == nil {
 		return nil, nil
@@ -71,7 +59,7 @@ func (s *store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 	}
 
 	newCursor := func() (reads.SeriesCursor, error) {
-		return newIndexSeriesCursor(ctx, &source, req.Predicate, s.viewer)
+		return reads.NewIndexSeriesCursor(ctx, source.GetOrgID(), source.GetBucketID(), req.Predicate, s.viewer)
 	}
 
 	return reads.NewGroupResultSet(ctx, req, newCursor), nil
@@ -113,7 +101,7 @@ func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 	if err != nil {
 		return nil, tracing.LogError(span, err)
 	}
-	return s.viewer.TagKeys(ctx, influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.Range.Start, req.Range.End, expr)
+	return s.viewer.TagKeys(ctx, readSource.GetOrgID(), readSource.GetBucketID(), req.Range.Start, req.Range.End, expr)
 }
 
 func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
@@ -156,32 +144,12 @@ func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 	if err != nil {
 		return nil, tracing.LogError(span, err)
 	}
-	return s.viewer.TagValues(ctx, influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.TagKey, req.Range.Start, req.Range.End, expr)
+	return s.viewer.TagValues(ctx, readSource.GetOrgID(), readSource.GetBucketID(), req.TagKey, req.Range.Start, req.Range.End, expr)
 }
-
-// this is easier than fooling around with .proto files.
-
-type readSource struct {
-	BucketID       uint64 `protobuf:"varint,1,opt,name=bucket_id,proto3"`
-	OrganizationID uint64 `protobuf:"varint,2,opt,name=organization_id,proto3"`
-}
-
-func (r *readSource) XXX_MessageName() string { return "readSource" }
-func (r *readSource) Reset()                  { *r = readSource{} }
-func (r *readSource) String() string          { return "readSource{}" }
-func (r *readSource) ProtoMessage()           {}
 
 func (s *store) GetSource(orgID, bucketID uint64) proto.Message {
 	return &readSource{
 		BucketID:       bucketID,
 		OrganizationID: orgID,
 	}
-}
-
-func getReadSource(any types.Any) (readSource, error) {
-	var source readSource
-	if err := types.UnmarshalAny(&any, &source); err != nil {
-		return source, err
-	}
-	return source, nil
 }

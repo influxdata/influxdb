@@ -137,7 +137,7 @@ func TestCmdOrg(t *testing.T) {
 		}
 	})
 
-	t.Run("find", func(t *testing.T) {
+	t.Run("list", func(t *testing.T) {
 		type called struct {
 			name string
 			id   influxdb.ID
@@ -147,6 +147,7 @@ func TestCmdOrg(t *testing.T) {
 			name     string
 			expected called
 			flags    []string
+			command  string
 			envVars  map[string]string
 		}{
 			{
@@ -178,6 +179,20 @@ func TestCmdOrg(t *testing.T) {
 				},
 				flags:    []string{"-i=" + influxdb.ID(1).String()},
 				expected: called{name: "name1", id: 1},
+			},
+			{
+				name:     "ls alias",
+				command:  "ls",
+				flags:    []string{"--name=name1"},
+				envVars:  envVarsZeroMap,
+				expected: called{name: "name1"},
+			},
+			{
+				name:     "find alias",
+				command:  "find",
+				flags:    []string{"--name=name1"},
+				envVars:  envVarsZeroMap,
+				expected: called{name: "name1"},
 			},
 		}
 
@@ -211,7 +226,12 @@ func TestCmdOrg(t *testing.T) {
 				)
 				cmdFn, calls := cmdFn()
 				cmd := builder.cmd(cmdFn)
-				cmd.SetArgs(append([]string{"org", "find"}, tt.flags...))
+
+				if tt.command == "" {
+					tt.command = "list"
+				}
+
+				cmd.SetArgs(append([]string{"org", tt.command}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())
 				assert.Equal(t, tt.expected, *calls)
@@ -411,6 +431,8 @@ func TestCmdOrg(t *testing.T) {
 			}
 
 			testMemberFn(t, "list", cmdFn, tests...)
+			testMemberFn(t, "ls", cmdFn, tests[0:1]...)
+			testMemberFn(t, "find", cmdFn, tests[0:1]...)
 		})
 
 		t.Run("add", func(t *testing.T) {

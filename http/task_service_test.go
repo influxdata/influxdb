@@ -20,7 +20,6 @@ import (
 	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 	"github.com/influxdata/influxdb/mock"
 	_ "github.com/influxdata/influxdb/query/builtin"
-	"github.com/influxdata/influxdb/task/backend"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -989,7 +988,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 						return nil, influxdb.ErrTaskNotFound
 					}
 
-					return &influxdb.Run{ID: runID, TaskID: taskID, Status: backend.RunScheduled.String()}, nil
+					return &influxdb.Run{ID: runID, TaskID: taskID, Status: influxdb.RunScheduled.String()}, nil
 				},
 			},
 			method:           http.MethodPost,
@@ -1009,7 +1008,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 						return nil, influxdb.ErrRunNotFound
 					}
 
-					return &influxdb.Run{ID: runID, TaskID: taskID, Status: backend.RunScheduled.String()}, nil
+					return &influxdb.Run{ID: runID, TaskID: taskID, Status: influxdb.RunScheduled.String()}, nil
 				},
 			},
 			method:           http.MethodGet,
@@ -1028,7 +1027,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 						return nil, influxdb.ErrRunNotFound
 					}
 
-					return &influxdb.Run{ID: runID, TaskID: taskID, Status: backend.RunScheduled.String()}, nil
+					return &influxdb.Run{ID: runID, TaskID: taskID, Status: influxdb.RunScheduled.String()}, nil
 				},
 			},
 			method:           http.MethodPost,

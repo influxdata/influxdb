@@ -10,7 +10,6 @@ import {
   Page,
 } from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
-import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // Types
 import {LimitStatus} from 'src/cloud/actions/limits'
@@ -35,27 +34,31 @@ export default class TasksHeader extends PureComponent<Props> {
     } = this.props
 
     return (
-      <Page.Header fullWidth={false}>
-        <Page.HeaderLeft>
-          <PageTitleWithOrg title="Tasks" />
-        </Page.HeaderLeft>
-        <Page.HeaderRight>
-          <InputLabel>Show Inactive</InputLabel>
-          <SlideToggle
-            active={showInactive}
-            size={ComponentSize.ExtraSmall}
-            onChange={setShowInactive}
-          />
-          <AddResourceDropdown
-            canImportFromTemplate
-            onSelectNew={onCreateTask}
-            onSelectImport={onImportTask}
-            onSelectTemplate={onImportFromTemplate}
-            resourceName="Task"
-            status={this.addResourceStatus}
-          />
-        </Page.HeaderRight>
-      </Page.Header>
+      <>
+        <Page.Header fullWidth={false}>
+          <Page.Title title="Tasks" />
+        </Page.Header>
+        <Page.ControlBar fullWidth={false}>
+          <Page.ControlBarLeft>
+            <InputLabel>Show Inactive</InputLabel>
+            <SlideToggle
+              active={showInactive}
+              size={ComponentSize.ExtraSmall}
+              onChange={setShowInactive}
+            />
+          </Page.ControlBarLeft>
+          <Page.ControlBarRight>
+            <AddResourceDropdown
+              canImportFromTemplate
+              onSelectNew={onCreateTask}
+              onSelectImport={onImportTask}
+              onSelectTemplate={onImportFromTemplate}
+              resourceName="Task"
+              status={this.addResourceStatus}
+            />
+          </Page.ControlBarRight>
+        </Page.ControlBar>
+      </>
     )
   }
 

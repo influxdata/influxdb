@@ -4,11 +4,10 @@
   right: 0;
   left: 0;
   bottom: 0;
-  padding: $ix-marg-b;
+  padding-top: $ix-marg-b;
   display: flex;
   flex-direction: column;
   @include no-user-select();
-  background: $g3-castle;
 
   .function-selector {
     margin-left: $ix-marg-b;

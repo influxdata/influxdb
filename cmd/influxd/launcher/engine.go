@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/storage/readservice"
+	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxql"
@@ -26,7 +26,7 @@ var _ Engine = (*storage.Engine)(nil)
 // to facilitate testing.
 type Engine interface {
 	influxdb.DeleteService
-	readservice.Viewer
+	reads.Viewer
 	storage.PointsWriter
 	storage.BucketDeleter
 	prom.PrometheusCollector

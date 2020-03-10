@@ -105,7 +105,7 @@ class TagSelector extends PureComponent<Props> {
   }
 
   private get header() {
-    const {aggregateFunctionType, index} = this.props
+    const {aggregateFunctionType, index, isInCheckOverlay} = this.props
 
     return (
       <BuilderCard.DropdownHeader
@@ -113,6 +113,7 @@ class TagSelector extends PureComponent<Props> {
         selectedOption={this.renderAggregateFunctionType(aggregateFunctionType)}
         onDelete={index !== 0 && this.handleRemoveTagSelector}
         onSelect={this.handleAggregateFunctionSelect}
+        isInCheckOverlay={isInCheckOverlay}
       />
     )
   }

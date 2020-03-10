@@ -2,7 +2,7 @@
 import {runQuery} from 'src/shared/apis/query'
 
 // Utils
-import {resolveSelectedValue} from 'src/variables/utils/resolveSelectedValue'
+import {resolveSelectedKey} from 'src/variables/utils/resolveSelectedValue'
 import {formatVarsOption} from 'src/variables/utils/formatVarsOption'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
@@ -55,11 +55,7 @@ export const extractValues = (
   return {
     values,
     valueType: table.dataTypes._value as FluxColumnType,
-    selectedValue: resolveSelectedValue(
-      values,
-      prevSelection,
-      defaultSelection
-    ),
+    selectedValue: resolveSelectedKey(values, prevSelection, defaultSelection),
   }
 }
 
@@ -119,8 +115,8 @@ export class DefaultValueFetcher implements ValueFetcher {
 
     return {
       ...cachedValues,
-      selectedValue: resolveSelectedValue(
-        cachedValues.values,
+      selectedValue: resolveSelectedKey(
+        cachedValues.values as string[],
         prevSelection,
         defaultSelection
       ),

@@ -1822,6 +1822,42 @@ func TestService(t *testing.T) {
 							},
 						},
 					},
+					{
+						name:    "table",
+						newName: "new name",
+						expectedView: influxdb.View{
+							ViewContents: influxdb.ViewContents{
+								Name: "view name",
+							},
+							Properties: influxdb.TableViewProperties{
+								Type:              influxdb.ViewPropertyTypeTable,
+								Note:              "a note",
+								ShowNoteWhenEmpty: true,
+								Queries:           []influxdb.DashboardQuery{newQuery()},
+								ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+								TableOptions: influxdb.TableOptions{
+									VerticalTimeAxis: true,
+									SortBy: influxdb.RenamableField{
+										InternalName: "_time",
+									},
+									Wrapping:       "truncate",
+									FixFirstColumn: true,
+								},
+								FieldOptions: []influxdb.RenamableField{
+									{
+										InternalName: "_time",
+										DisplayName:  "time (ms)",
+										Visible:      true,
+									},
+								},
+								TimeFormat: "YYYY:MM:DD",
+								DecimalPlaces: influxdb.DecimalPlaces{
+									IsEnforced: true,
+									Digits:     1,
+								},
+							},
+						},
+					},
 				}
 
 				for _, tt := range tests {
@@ -2714,7 +2750,12 @@ func TestService(t *testing.T) {
 				WithVariableSVC(varSVC),
 			)
 
-			pkg, err := svc.CreatePkg(context.TODO(), CreateWithAllOrgResources(orgID))
+			pkg, err := svc.CreatePkg(
+				context.TODO(),
+				CreateWithAllOrgResources(CreateByOrgIDOpt{
+					OrgID: orgID,
+				}),
+			)
 			require.NoError(t, err)
 
 			summary := pkg.Summary()

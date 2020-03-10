@@ -156,3 +156,12 @@ from(bucket: "x")
 	})
 
 }
+
+func TestParseRequestStillQueuedError(t *testing.T) {
+	e := platform.RequestStillQueuedError{Start: 1000, End: 2000}
+	validMsg := e.Error()
+
+	if err := platform.ParseRequestStillQueuedError(validMsg); err == nil || *err != e {
+		t.Fatalf("%q should have parsed to %v, but got %v", validMsg, e, err)
+	}
+}
