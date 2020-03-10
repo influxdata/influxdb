@@ -149,7 +149,8 @@ export const getValuesForVariable = (
 ): VariableValues => {
   return get(
     state,
-    `resources.variables.values.${contextID}.values.${variableID}`
+    `resources.variables.values["${contextID}"].values["${variableID}"]`,
+    {values: []}
   )
 }
 
@@ -157,7 +158,11 @@ export const getTypeForVariable = (
   state: AppState,
   variableID: string
 ): VariableArguments['type'] => {
-  return get(state, `resources.variables.byID.${variableID}.arguments.type`, '')
+  return get(
+    state,
+    `resources.variables.byID["${variableID}"].arguments.type`,
+    ''
+  )
 }
 
 type ArgumentValues = {[key: string]: string} | string[]
@@ -168,7 +173,7 @@ export const getArgumentValuesForVariable = (
 ): ArgumentValues => {
   return get(
     state,
-    `resources.variables.byID.${variableID}.arguments.values`,
+    `resources.variables.byID["${variableID}"].arguments.values`,
     {}
   )
 }
@@ -230,31 +235,6 @@ export const getVariableAssignments = (
     state.resources.variables.byID
   )
 
-export const getTimeMachineValues = (
-  state: AppState,
-  variableID: string,
-  variable?: Variable
-): VariableValues => {
-  if (variableID.includes('timeRange') || variableID.includes('windowPeriod')) {
-    const vals = get(variable, 'arguments.values', {})
-    const selectedValue = Object.values(vals).join('')
-    const selectedKey = Object.keys(vals).join('')
-    return {
-      valueType: 'string',
-      values: vals,
-      selectedValue,
-      selectedKey,
-    }
-  }
-  const activeTimeMachineID = state.timeMachines.activeTimeMachineID
-  const values = get(
-    state,
-    `resources.variables.values.${activeTimeMachineID}.values.${variableID}`
-  )
-
-  return values
-}
-
 export const getTimeMachineValuesStatus = (
   state: AppState
 ): RemoteDataState => {
@@ -282,6 +262,32 @@ export const getDashboardValuesStatus = (
 
 export const getVariable = (state: AppState, variableID: string): Variable => {
   return get(state, `resources.variables.byID.${variableID}`)
+}
+
+export const getSelectedVariableText = (
+  state: AppState,
+  variableID: string,
+  contextID: string
+): string => {
+  const vals =
+    getValuesForVariable(state, variableID, contextID) || ({} as VariableValues)
+  const kind = getTypeForVariable(state, variableID)
+  const key = vals && vals.selectedKey ? vals.selectedKey : undefined
+
+  if (vals.error) {
+    return 'Failed to Load'
+  }
+
+  if (kind === 'map') {
+    if (key === undefined || vals.values[key] === undefined) {
+      return 'No Results'
+    }
+    return key || 'None Selected'
+  }
+  if (!vals) {
+    return 'No Results'
+  }
+  return vals.selectedValue || 'None Selected'
 }
 
 export const getHydratedVariables = (

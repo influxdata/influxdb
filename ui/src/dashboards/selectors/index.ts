@@ -6,6 +6,7 @@ import {
   getValuesForVariable,
   getTypeForVariable,
   getArgumentValuesForVariable,
+  getSelectedVariableText,
 } from 'src/variables/selectors'
 
 // Constants
@@ -41,12 +42,14 @@ export const getVariableValuesForDropdown = (
     variableID,
     contextID
   )
+  console.log('neat', selectedValue, values)
 
   if (!values) {
     return {list: null, selectedValue: null}
   }
 
   const type = getTypeForVariable(state, variableID)
+  const selectedText = getSelectedVariableText(state, variableID, contextID)
 
   switch (type) {
     case 'map': {
@@ -60,7 +63,7 @@ export const getVariableValuesForDropdown = (
       }))
 
       return {
-        selectedValue,
+        selectedValue: selectedText,
         list,
       }
     }
@@ -68,6 +71,6 @@ export const getVariableValuesForDropdown = (
       const valueCopy = values as string[]
       const list = valueCopy.map(v => ({name: v, value: v}))
 
-      return {selectedValue, list}
+      return {selectedValue: selectedText, list}
   }
 }

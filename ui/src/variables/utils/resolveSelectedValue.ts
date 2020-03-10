@@ -19,10 +19,7 @@ export const resolveSelectedValue = (
   selectedKey: string,
   defaultSelection?: string
 ): string => {
-  if (
-    values &&
-    Array.isArray(values)
-  ) {
+  if (values && Array.isArray(values)) {
     if (values.includes(selectedKey)) {
       return selectedKey
     }
