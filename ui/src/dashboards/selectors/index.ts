@@ -37,11 +37,7 @@ export const getVariableValuesForDropdown = (
   variableID: string,
   contextID: string
 ): DropdownValues => {
-  const {values} = getValuesForVariable(
-    state,
-    variableID,
-    contextID
-  )
+  const {values} = getValuesForVariable(state, variableID, contextID)
 
   if (!values) {
     return {list: null, selectedValue: null}
