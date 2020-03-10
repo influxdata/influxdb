@@ -200,7 +200,7 @@ export const createCSVVariable = (
 ): Cypress.Chainable<Cypress.Response> => {
   const argumentsObj = {
     type: 'constant',
-    values: ['c1','c2','c3','c4'],
+    values: ['c1', 'c2', 'c3', 'c4'],
   }
 
   return cy.request({

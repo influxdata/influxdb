@@ -86,10 +86,7 @@ describe('Dashboard', () => {
       })
   })
 
-  const getSelectedVariable = (
-    contextID: string,
-    index?: number
-  ) => win => {
+  const getSelectedVariable = (contextID: string, index?: number) => win => {
     const {resources} = win.store.getState() as AppState
     const vardawg = resources.variables.values[contextID].values
     return vardawg[Object.keys(vardawg)[index]].selectedValue
@@ -100,7 +97,7 @@ describe('Dashboard', () => {
       cy.createDashboard(orgID).then(({body: dashboard}) => {
         cy.createCSVVariable(orgID)
         cy.createQueryVariable(orgID)
-        cy.createMapVariable(orgID).then(({body: variable}) => {
+        cy.createMapVariable(orgID).then(() => {
           cy.fixture('routes').then(({orgs}) => {
             cy.visit(`${orgs}/${orgID}/dashboards/${dashboard.id}`)
           })
@@ -115,11 +112,11 @@ describe('Dashboard', () => {
           cy.get('.variables-toolbar--label')
             .first()
             .click()
-            cy.getByTestID('flux-editor')
+          cy.getByTestID('flux-editor')
             .should('be.visible')
-              .click()
-              .focused()
-              .type(' ')
+            .click()
+            .focused()
+            .type(' ')
           cy.get('.variables-toolbar--label')
             .eq(2)
             .click()
@@ -129,27 +126,21 @@ describe('Dashboard', () => {
           // selected value in dashboard is 1st value
           cy.getByTestID('variable-dropdown')
             .eq(0)
-            .should(
-              'contain',
-              'c1'
-            )
+            .should('contain', 'c1')
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, 0))
             .should('equal', 'c1')
 
           // select 2nd value in dashboard
-            cy.getByTestID('variable-dropdown--button')
+          cy.getByTestID('variable-dropdown--button')
             .eq(0)
             .click()
           cy.get(`#c2`).click()
 
           // selected value in dashboard is 2nd value
           cy.getByTestID('variable-dropdown')
-          .eq(0)
-          .should(
-            'contain',
-            'c2'
-          )
+            .eq(0)
+            .should('contain', 'c2')
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, 0))
             .should('equal', 'c2')
@@ -184,10 +175,7 @@ describe('Dashboard', () => {
             .should('equal', 'c1')
 
           // selected value in dashboard is 1st value
-          cy.getByTestID('variable-dropdown').should(
-            'contain',
-            'c1'
-          )
+          cy.getByTestID('variable-dropdown').should('contain', 'c1')
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, 0))
             .should('equal', 'c1')
@@ -196,27 +184,21 @@ describe('Dashboard', () => {
           // selected value in dashboard is 1st value
           cy.getByTestID('variable-dropdown')
             .eq(1)
-            .should(
-              'contain',
-              'k1'
-            )
+            .should('contain', 'k1')
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, 1))
             .should('equal', 'v1')
 
           // select 2nd value in dashboard
-            cy.getByTestID('variable-dropdown--button')
+          cy.getByTestID('variable-dropdown--button')
             .eq(1)
             .click()
           cy.get(`#k2`).click()
 
           // selected value in dashboard is 2nd value
           cy.getByTestID('variable-dropdown')
-          .eq(1)
-          .should(
-            'contain',
-            'k2'
-          )
+            .eq(1)
+            .should('contain', 'k2')
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, 1))
             .should('equal', 'v2')
@@ -252,10 +234,7 @@ describe('Dashboard', () => {
             .should('equal', 'v1')
 
           // selected value in dashboard is 1st value
-          cy.getByTestID('variable-dropdown').should(
-            'contain',
-            'k1'
-          )
+          cy.getByTestID('variable-dropdown').should('contain', 'k1')
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, 1))
             .should('equal', 'v1')
