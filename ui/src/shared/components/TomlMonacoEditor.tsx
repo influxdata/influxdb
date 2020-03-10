@@ -72,7 +72,7 @@ const TomlEditorMonaco: FC<Props> = props => {
         onChange={onChangeScript}
         options={{
           fontSize: 13,
-          fontFamily: '"RobotoMono", monospace',
+          fontFamily: '"IBMPlexMono", monospace',
           cursorWidth: 2,
           lineNumbersMinChars: 4,
           lineDecorationsWidth: 0,

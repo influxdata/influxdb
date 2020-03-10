@@ -307,7 +307,7 @@ class Gauge extends Component<Props> {
     const arcIncrement = arcLength / lineCount
 
     // Format labels text
-    ctx.font = `bold ${labelFontSize}px Helvetica`
+    ctx.font = `bold ${labelFontSize}px Rubik`
     ctx.fillStyle = labelColor
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'right'
@@ -342,7 +342,7 @@ class Gauge extends Component<Props> {
     const {gaugePosition, prefix, suffix, decimalPlaces} = this.props
     const {valueColor} = GAUGE_SPECS
 
-    ctx.font = `${labelValueFontSize}px Roboto`
+    ctx.font = `${labelValueFontSize}px Rubik`
     ctx.fillStyle = valueColor
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'center'

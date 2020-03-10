@@ -62,30 +62,27 @@ class TimeMachineQueries extends PureComponent<Props> {
       <div className="time-machine-queries">
         <div className="time-machine-queries--controls">
           <QueryTabs />
-          <div className="time-machine-queries--buttons">
-            <FlexBox
-              direction={FlexDirection.Row}
-              justifyContent={JustifyContent.FlexEnd}
-              margin={ComponentSize.Small}
-            >
-              {activeQuery.editMode === 'advanced' && (
-                <EditorShortcutsToolTip />
-              )}
-              <RawDataToggle />
-              {!isInCheckOverlay && (
-                <>
-                  <CSVExportButton />
-                  <TimeMachineRefreshDropdown />
-                  <TimeRangeDropdown
-                    timeRange={timeRange}
-                    onSetTimeRange={this.handleSetTimeRange}
-                  />
-                  <TimeMachineQueriesSwitcher />
-                </>
-              )}
-              <SubmitQueryButton />
-            </FlexBox>
-          </div>
+          <FlexBox
+            direction={FlexDirection.Row}
+            justifyContent={JustifyContent.FlexEnd}
+            margin={ComponentSize.Small}
+            className="time-machine-queries--buttons"
+          >
+            {activeQuery.editMode === 'advanced' && <EditorShortcutsToolTip />}
+            <RawDataToggle />
+            {!isInCheckOverlay && (
+              <>
+                <CSVExportButton />
+                <TimeMachineRefreshDropdown />
+                <TimeRangeDropdown
+                  timeRange={timeRange}
+                  onSetTimeRange={this.handleSetTimeRange}
+                />
+                <TimeMachineQueriesSwitcher />
+              </>
+            )}
+            <SubmitQueryButton />
+          </FlexBox>
         </div>
         <div className="time-machine-queries--body">{this.queryEditor}</div>
       </div>

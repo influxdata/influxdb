@@ -70,7 +70,7 @@ class StreamingSelector extends PureComponent<Props, State> {
     const {buckets} = this.props
     const {searchTerm} = this.state
 
-    const cardSize = `${100 / (this.filteredBundles.length + 1)}%`
+    const cardSize = `${100 / (PLUGIN_BUNDLE_OPTIONS.length + 1)}%`
 
     return (
       <div className="wizard-step--grid-container">

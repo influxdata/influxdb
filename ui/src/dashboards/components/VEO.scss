@@ -4,19 +4,19 @@
 */
 
 .veo {
-  width: calc(100vw - #{$ix-marg-e});
-  height: calc(100vh - #{$ix-marg-d});
+  width: calc(100vw - #{$cf-marg-e});
+  height: calc(100vh - #{$cf-marg-d});
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  @include gradient-v($g2-kevlar, $g0-obsidian);
-  border-radius: 0 0 $radius $radius;
+  border-radius: 0 0 $cf-radius $cf-radius;
+  background-color: $cf-page--background;
 
   .cf-page-header--fluid,
   .veo-contents {
-    padding-left: $ix-marg-d;
-    padding-right: $ix-marg-d;
+    padding-left: $cf-marg-d;
+    padding-right: $cf-marg-d;
   }
 }
 
@@ -25,7 +25,7 @@
   align-items: stretch;
   width: 100%;
   flex: 1 0 0;
-  padding-bottom: $ix-marg-c;
+  padding-bottom: $cf-marg-c;
 }
 
 .veo-overlay {

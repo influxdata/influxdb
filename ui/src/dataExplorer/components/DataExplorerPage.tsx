@@ -27,13 +27,13 @@ const DataExplorerPage: SFC = ({children}) => {
         </Page.Header>
         <Page.ControlBar fullWidth={true}>
           <Page.ControlBarLeft>
+            <ViewTypeDropdown />
+            <VisOptionsButton />
+          </Page.ControlBarLeft>
+          <Page.ControlBarRight>
             <DeleteDataButton />
             <TimeZoneDropdown />
             <SaveAsButton />
-          </Page.ControlBarLeft>
-          <Page.ControlBarRight>
-            <ViewTypeDropdown />
-            <VisOptionsButton />
           </Page.ControlBarRight>
         </Page.ControlBar>
         <Page.Contents fullWidth={true} scrollable={false}>

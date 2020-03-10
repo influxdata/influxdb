@@ -5,6 +5,7 @@ import {SelectGroup} from '@influxdata/clockface'
 // Components
 import BackToTopButton from 'src/eventViewer/components/BackToTopButton'
 import SearchBar from 'src/alerting/components/SearchBar'
+import {Page} from '@influxdata/clockface'
 
 // Types
 import {AlertHistoryType} from 'src/types'
@@ -28,8 +29,8 @@ const AlertHistoryControls: FC<Props> = ({
   onSetHistoryType,
 }) => {
   return (
-    <div className="alert-history-controls">
-      <div className="alert-history-controls--left">
+    <>
+      <Page.ControlBarLeft>
         <SelectGroup className="alert-history-controls--switcher">
           <SelectGroup.Option
             name="alert-history-mode"
@@ -52,8 +53,8 @@ const AlertHistoryControls: FC<Props> = ({
             Notifications
           </SelectGroup.Option>
         </SelectGroup>
-      </div>
-      <div className="alert-history-controls--right">
+      </Page.ControlBarLeft>
+      <Page.ControlBarRight>
         <BackToTopButton {...eventViewerProps} />
         <SearchBar
           {...eventViewerProps}
@@ -64,8 +65,8 @@ const AlertHistoryControls: FC<Props> = ({
               : EXAMPLE_NOTIFICATION_SEARCHES
           }
         />
-      </div>
-    </div>
+      </Page.ControlBarRight>
+    </>
   )
 }
 

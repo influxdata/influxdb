@@ -93,7 +93,6 @@ var (
 		},
 		Content: "content5",
 	}
-	doc5JSON, _ = json.Marshal(doc5)
 	doc6        = influxdb.Document{
 		ID: doc6ID,
 		Meta: influxdb.DocumentMeta{
@@ -101,15 +100,6 @@ var (
 		},
 		Content: "content6",
 	}
-	doc6JSON, _ = json.Marshal(
-		postDocumentRequest{
-			Document: &doc6,
-			Labels: []influxdb.ID{
-				label1ID,
-				label2ID,
-			},
-		},
-	)
 
 	docs = []*influxdb.Document{
 		&doc1,
@@ -163,8 +153,8 @@ var (
 	findDoc1ServiceMock = &mock.DocumentService{
 		FindDocumentStoreFn: func(context.Context, string) (influxdb.DocumentStore, error) {
 			return &mock.DocumentStore{
-				FindDocumentsFn: func(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error) {
-					return []*influxdb.Document{&doc1}, nil
+				FindDocumentFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Document, error) {
+					return &doc1, nil
 				},
 			}, nil
 		},
@@ -172,9 +162,16 @@ var (
 	findDoc2ServiceMock = &mock.DocumentService{
 		FindDocumentStoreFn: func(context.Context, string) (influxdb.DocumentStore, error) {
 			return &mock.DocumentStore{
-				FindDocumentsFn: func(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error) {
-					return []*influxdb.Document{&doc2}, nil
+				FindDocumentFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Document, error) {
+					return &doc2, nil
 				},
+			}, nil
+		},
+	}
+	getOrgIDServiceMock = &mock.OrganizationService{
+		FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+			return &influxdb.Organization{
+				ID: 1,
 			}, nil
 		},
 	}
@@ -261,10 +258,10 @@ func TestService_handleDeleteDocumentLabel(t *testing.T) {
 				DocumentService: &mock.DocumentService{
 					FindDocumentStoreFn: func(context.Context, string) (influxdb.DocumentStore, error) {
 						return &mock.DocumentStore{
-							FindDocumentsFn: func(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error) {
-								return []*influxdb.Document{&doc3}, nil
+							FindDocumentFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Document, error) {
+								return &doc3, nil
 							},
-							UpdateDocumentFn: func(ctx context.Context, d *influxdb.Document, opts ...influxdb.DocumentOptions) error {
+							UpdateDocumentFn: func(ctx context.Context, d *influxdb.Document) error {
 								return nil
 							},
 						}, nil
@@ -375,7 +372,7 @@ func TestService_handlePostDocumentLabel(t *testing.T) {
 				DocumentService: &mock.DocumentService{
 					FindDocumentStoreFn: func(context.Context, string) (influxdb.DocumentStore, error) {
 						return &mock.DocumentStore{
-							FindDocumentsFn: func(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error) {
+							FindDocumentFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Document, error) {
 								return nil, &influxdb.Error{
 									Code: influxdb.ENotFound,
 									Msg:  "doc not found",
@@ -402,10 +399,10 @@ func TestService_handlePostDocumentLabel(t *testing.T) {
 				DocumentService: &mock.DocumentService{
 					FindDocumentStoreFn: func(context.Context, string) (influxdb.DocumentStore, error) {
 						return &mock.DocumentStore{
-							FindDocumentsFn: func(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error) {
-								return []*influxdb.Document{&doc3}, nil
+							FindDocumentFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Document, error) {
+								return &doc3, nil
 							},
-							UpdateDocumentFn: func(ctx context.Context, d *influxdb.Document, opts ...influxdb.DocumentOptions) error {
+							UpdateDocumentFn: func(ctx context.Context, d *influxdb.Document) error {
 								return nil
 							},
 						}, nil
@@ -438,10 +435,10 @@ func TestService_handlePostDocumentLabel(t *testing.T) {
 					FindDocumentStoreFn: func(context.Context, string) (influxdb.DocumentStore, error) {
 						return &mock.DocumentStore{
 							TimeGenerator: mockGen,
-							FindDocumentsFn: func(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error) {
-								return []*influxdb.Document{&doc4}, nil
+							FindDocumentFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Document, error) {
+								return &doc4, nil
 							},
-							UpdateDocumentFn: func(ctx context.Context, d *influxdb.Document, opts ...influxdb.DocumentOptions) error {
+							UpdateDocumentFn: func(ctx context.Context, d *influxdb.Document) error {
 								return nil
 							},
 						}, nil
@@ -633,7 +630,8 @@ func TestService_handleGetDocumentLabels(t *testing.T) {
 
 func TestService_handleGetDocuments(t *testing.T) {
 	type fields struct {
-		DocumentService influxdb.DocumentService
+		DocumentService     influxdb.DocumentService
+		OrganizationService influxdb.OrganizationService
 	}
 	type args struct {
 		queryParams map[string][]string
@@ -689,7 +687,8 @@ func TestService_handleGetDocuments(t *testing.T) {
 		{
 			name: "get all documents with org name",
 			fields: fields{
-				DocumentService: findDocsServiceMock,
+				DocumentService:     findDocsServiceMock,
+				OrganizationService: getOrgIDServiceMock,
 			},
 			args: args{
 				queryParams: map[string][]string{
@@ -709,6 +708,7 @@ func TestService_handleGetDocuments(t *testing.T) {
 			documentBackend := NewMockDocumentBackend(t)
 			documentBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			documentBackend.DocumentService = tt.fields.DocumentService
+			documentBackend.OrganizationService = tt.fields.OrganizationService
 			h := NewDocumentHandler(documentBackend)
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 			qp := r.URL.Query()
@@ -751,8 +751,9 @@ func TestService_handleGetDocuments(t *testing.T) {
 
 func TestService_handlePostDocuments(t *testing.T) {
 	type fields struct {
-		DocumentService influxdb.DocumentService
-		LabelService    influxdb.LabelService
+		DocumentService     influxdb.DocumentService
+		LabelService        influxdb.LabelService
+		OrganizationService influxdb.OrganizationService
 	}
 	type args struct {
 		body        *bytes.Buffer
@@ -816,17 +817,25 @@ func TestService_handlePostDocuments(t *testing.T) {
 					FindDocumentStoreFn: func(context.Context, string) (influxdb.DocumentStore, error) {
 						return &mock.DocumentStore{
 							TimeGenerator: mockGen,
-							CreateDocumentFn: func(ctx context.Context, d *influxdb.Document, opts ...influxdb.DocumentOptions) error {
+							CreateDocumentFn: func(ctx context.Context, d *influxdb.Document) error {
 								d.Meta.CreatedAt = mockGen.Now()
 								return nil
 							},
 						}, nil
 					},
 				},
-				LabelService: &mock.LabelService{},
+				LabelService:        &mock.LabelService{},
+				OrganizationService: getOrgIDServiceMock,
 			},
 			args: args{
-				body: bytes.NewBuffer(doc5JSON),
+				body: func() *bytes.Buffer {
+					req := postDocumentRequest{
+						Document: &doc5,
+						Org:      "org1",
+					}
+					m, _ := json.Marshal(req)
+					return bytes.NewBuffer(m)
+				}(),
 				queryParams: map[string][]string{
 					"org": []string{"org1"},
 				},
@@ -855,7 +864,7 @@ func TestService_handlePostDocuments(t *testing.T) {
 					FindDocumentStoreFn: func(context.Context, string) (influxdb.DocumentStore, error) {
 						return &mock.DocumentStore{
 							TimeGenerator: mockGen,
-							CreateDocumentFn: func(ctx context.Context, d *influxdb.Document, opts ...influxdb.DocumentOptions) error {
+							CreateDocumentFn: func(ctx context.Context, d *influxdb.Document) error {
 								d.Labels = []*influxdb.Label{&label1, &label2}
 								d.Meta.CreatedAt = mockGen.Now()
 								return nil
@@ -871,12 +880,17 @@ func TestService_handlePostDocuments(t *testing.T) {
 						return &label2, nil
 					},
 				},
+				OrganizationService: getOrgIDServiceMock,
 			},
 			args: args{
-				body: bytes.NewBuffer(doc6JSON),
-				queryParams: map[string][]string{
-					"org": []string{"org1"},
-				},
+				body: func() *bytes.Buffer {
+					req := postDocumentRequest{
+						Document: &doc6,
+						Org:      "org1",
+					}
+					m, _ := json.Marshal(req)
+					return bytes.NewBuffer(m)
+				}(),
 				authorizer: &influxdb.Session{UserID: user1ID},
 			},
 			wants: wants{
@@ -910,6 +924,7 @@ func TestService_handlePostDocuments(t *testing.T) {
 			documentBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			documentBackend.DocumentService = tt.fields.DocumentService
 			documentBackend.LabelService = tt.fields.LabelService
+			documentBackend.OrganizationService = tt.fields.OrganizationService
 			h := NewDocumentHandler(documentBackend)
 			r := httptest.NewRequest("POST", "http://any.url", tt.args.body)
 			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), tt.args.authorizer))
