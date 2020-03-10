@@ -1,5 +1,6 @@
 // APIs
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
+import * as api from 'src/client'
 
 // Utils
 import {
@@ -144,20 +145,22 @@ export const loadBuckets = () => async (
   dispatch: Dispatch<Action | ReturnType<typeof selectBucket>>,
   getState: GetState
 ) => {
-  const queryURL = getState().links.query.self
   const orgID = getOrg(getState()).id
 
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
   try {
-    let buckets = await queryBuilderFetcher.findBuckets({
-      url: queryURL,
-      orgID,
-    })
+    const resp = await api.getBuckets({query: {orgID}})
 
-    const systemBuckets = buckets.filter(b => b.startsWith('_'))
-    const userBuckets = buckets.filter(b => !b.startsWith('_'))
-    buckets = [...userBuckets, ...systemBuckets]
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const allBuckets = resp.data.buckets.map(b => b.name)
+
+    const systemBuckets = allBuckets.filter(b => b.startsWith('_'))
+    const userBuckets = allBuckets.filter(b => !b.startsWith('_'))
+    const buckets = [...userBuckets, ...systemBuckets]
 
     const selectedBucket = getActiveQuery(getState()).builderConfig.buckets[0]
 
