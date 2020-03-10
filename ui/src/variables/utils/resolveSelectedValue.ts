@@ -21,8 +21,7 @@ export const resolveSelectedValue = (
 ): string => {
   if (
     values &&
-    typeof values === 'object' &&
-    Object.prototype.toString.call(values) === '[object Array]'
+    Array.isArray(values)
   ) {
     if (values.includes(selectedKey)) {
       return selectedKey

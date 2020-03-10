@@ -54,9 +54,7 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
   onSelectVariableValue,
 }) => {
   let dropdownItems = get(values, 'values', []) || []
-  const isObject =
-    typeof dropdownItems === 'object' &&
-    Object.prototype.toString.apply(dropdownItems) !== '[object Array]'
+  const isObject = !Array.isArray(dropdownItems)
 
   if (isObject) {
     dropdownItems = Object.keys(dropdownItems)
