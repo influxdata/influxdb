@@ -42,7 +42,6 @@ export const getVariableValuesForDropdown = (
     variableID,
     contextID
   )
-  console.log('neat', selectedValue, values)
 
   if (!values) {
     return {list: null, selectedValue: null}
