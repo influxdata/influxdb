@@ -171,7 +171,7 @@ export const createTask = (
   })
 }
 
-export const createVariable = (
+export const createQueryVariable = (
   orgID?: string,
   name: string = 'Little Variable'
 ): Cypress.Chainable<Cypress.Response> => {
@@ -181,6 +181,26 @@ export const createVariable = (
       language: 'flux',
       query: `filter(fn: (r) => r._field == "cpu")`,
     },
+  }
+
+  return cy.request({
+    method: 'POST',
+    url: '/api/v2/variables',
+    body: {
+      name,
+      orgID,
+      arguments: argumentsObj,
+    },
+  })
+}
+
+export const createCSVVariable = (
+  orgID?: string,
+  name: string = 'CSVVariable'
+): Cypress.Chainable<Cypress.Response> => {
+  const argumentsObj = {
+    type: 'constant',
+    values: ['c1', 'c2', 'c3', 'c4'],
   }
 
   return cy.request({
@@ -481,7 +501,8 @@ Cypress.Commands.add('createTask', createTask)
 Cypress.Commands.add('createToken', createToken)
 
 // variables
-Cypress.Commands.add('createVariable', createVariable)
+Cypress.Commands.add('createQueryVariable', createQueryVariable)
+Cypress.Commands.add('createCSVVariable', createCSVVariable)
 Cypress.Commands.add('createMapVariable', createMapVariable)
 
 // labels
