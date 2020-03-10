@@ -12,8 +12,11 @@ all: $(SUBDIRS) $(TARGETS)
 $(SUBDIRS):
 	$(MAKE) -C $@ $(MAKECMDGOALS)
 
+# Nothing to clean.
+clean:
+
 # Clean all targets recursively
-clean: $(SUBDIRS)
+distclean: $(SUBDIRS)
 	rm -f $(TARGETS)
 
 # Define go generate if not already defined

@@ -159,8 +159,30 @@ In the root of the InfluxDB git repository, you can simply run the following com
 
 ### Building
 
+
+To build the whole thing:
+
 ```bash
-$ go build ./...
+$ make
+```
+
+To build only the go part:
+
+```bash
+$ make influx influxd
+```
+
+To clean the normal build files use:
+
+```bash
+$ make clean
+```
+
+To clean all the files which are automatically generated but committed
+in the git repository.
+
+```bash
+$ make distclean
 ```
 
 ### Installing
