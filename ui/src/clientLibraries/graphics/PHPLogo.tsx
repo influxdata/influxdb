@@ -1,7 +1,7 @@
 // Libraries
 import React, {SFC} from 'react'
 
-const LogoPHP: SFC = () => {
+const PHPLogo: SFC = () => {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -35,4 +35,4 @@ const LogoPHP: SFC = () => {
   )
 }
 
-export default LogoPHP
+export default PHPLogo
