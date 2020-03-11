@@ -43,15 +43,12 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	if *v {
-		if *vv || *vvv {
-			return errors.New("cannot set multiple verbosity levels")
-		}
 		runner.verbosity = verbose
-	} else if *vv && *vvv {
-		return errors.New("cannot set multiple verbosity levels")
-	} else if *vv {
+	}
+	if *vv {
 		runner.verbosity = veryVerbose
-	} else if *vvv {
+	}
+	if *vvv {
 		runner.verbosity = veryVeryVerbose
 	}
 
