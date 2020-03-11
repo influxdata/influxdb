@@ -406,7 +406,7 @@ func BenchmarkSeriesIDSet_Clone(b *testing.B) {
 			ssResult = init()
 			for i := 0; i < b.N; i++ {
 				other.WriteTo(&buf)
-				ssResult.UnmarshalBinaryUnsafe(buf.Bytes())
+				ssResult.UnmarshalBinary(buf.Bytes())
 				b.StopTimer()
 				ssResult = init()
 				buf.Reset()
