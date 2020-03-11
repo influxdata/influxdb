@@ -823,7 +823,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService)),
 			pkger.WithCheckSVC(authorizer.NewCheckService(b.CheckService, authedURMSVC, authedOrgSVC)),
 			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
-			pkger.WithLabelSVC(authorizer.NewLabelService(b.LabelService)),
+			pkger.WithLabelSVC(authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService)),
 			pkger.WithNotificationEndpointSVC(authorizer.NewNotificationEndpointService(b.NotificationEndpointService, authedURMSVC, authedOrgSVC)),
 			pkger.WithNotificationRuleSVC(authorizer.NewNotificationRuleStore(b.NotificationRuleStore, authedURMSVC, authedOrgSVC)),
 			pkger.WithSecretSVC(authorizer.NewSecretService(b.SecretService)),
