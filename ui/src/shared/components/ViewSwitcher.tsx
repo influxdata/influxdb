@@ -84,7 +84,11 @@ const ViewSwitcher: FunctionComponent<Props> = ({
       return (
         <LatestValueTransform table={table} allowString={false}>
           {latestValue => (
-            <GaugeChart value={latestValue} properties={properties} />
+            <GaugeChart
+              value={latestValue}
+              properties={properties}
+              lightMode={lightMode}
+            />
           )}
         </LatestValueTransform>
       )
