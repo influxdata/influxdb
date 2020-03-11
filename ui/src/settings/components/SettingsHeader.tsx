@@ -7,7 +7,7 @@ class SettingsHeader extends Component {
   public render() {
     return (
       <Page.Header fullWidth={false}>
-        <Page.Title title="Settings" />
+        <Page.Title title="Organization" />
       </Page.Header>
     )
   }

@@ -27,7 +27,7 @@ class OrgProfilePage extends Component<StateProps> {
 
     return (
       <>
-        <Page titleTag={pageTitleSuffixer(['Org Profile', 'Settings'])}>
+        <Page titleTag={pageTitleSuffixer(['Org Profile', 'Organization'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="profile" orgID={org.id}>
             <Grid>
