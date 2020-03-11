@@ -10,7 +10,7 @@ import (
 
 var urmBucket = []byte("userresourcemappingsv1")
 
-func (s *Store) CreateURM(ctx context.Context, tx *Tx, urm *influxdb.UserResourceMapping) error {
+func (s *Store) CreateURM(ctx context.Context, tx kv.Tx, urm *influxdb.UserResourceMapping) error {
 	if err := s.uniqueUserResourceMapping(ctx, tx, urm); err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func (s *Store) CreateURM(ctx context.Context, tx *Tx, urm *influxdb.UserResourc
 	return nil
 }
 
-func (s *Store) ListURMs(ctx context.Context, tx *Tx, filter influxdb.UserResourceMappingFilter, opt ...influxdb.FindOptions) ([]*influxdb.UserResourceMapping, error) {
+func (s *Store) ListURMs(ctx context.Context, tx kv.Tx, filter influxdb.UserResourceMappingFilter, opt ...influxdb.FindOptions) ([]*influxdb.UserResourceMapping, error) {
 	ms := []*influxdb.UserResourceMapping{}
 
 	b, err := tx.Bucket(urmBucket)
@@ -62,6 +62,7 @@ func (s *Store) ListURMs(ctx context.Context, tx *Tx, filter influxdb.UserResour
 	if err != nil {
 		return nil, err
 	}
+	defer cur.Close()
 
 	for k, v := cur.Next(); k != nil; k, v = cur.Next() {
 		m := &influxdb.UserResourceMapping{}
@@ -82,10 +83,10 @@ func (s *Store) ListURMs(ctx context.Context, tx *Tx, filter influxdb.UserResour
 		}
 	}
 
-	return ms, err
+	return ms, cur.Err()
 }
 
-func (s *Store) GetURM(ctx context.Context, tx *Tx, resourceID, userID influxdb.ID) (*influxdb.UserResourceMapping, error) {
+func (s *Store) GetURM(ctx context.Context, tx kv.Tx, resourceID, userID influxdb.ID) (*influxdb.UserResourceMapping, error) {
 	key, err := userResourceKey(resourceID, userID)
 	if err != nil {
 		return nil, err
@@ -108,7 +109,7 @@ func (s *Store) GetURM(ctx context.Context, tx *Tx, resourceID, userID influxdb.
 	return m, nil
 }
 
-func (s *Store) DeleteURM(ctx context.Context, tx *Tx, resourceID, userID influxdb.ID) error {
+func (s *Store) DeleteURM(ctx context.Context, tx kv.Tx, resourceID, userID influxdb.ID) error {
 	key, err := userResourceKey(resourceID, userID)
 	if err != nil {
 		return err
@@ -148,7 +149,7 @@ func userResourceKey(resourceID, userID influxdb.ID) ([]byte, error) {
 	return key, nil
 }
 
-func (s *Store) uniqueUserResourceMapping(ctx context.Context, tx *Tx, m *influxdb.UserResourceMapping) error {
+func (s *Store) uniqueUserResourceMapping(ctx context.Context, tx kv.Tx, m *influxdb.UserResourceMapping) error {
 	key, err := userResourceKey(m.ResourceID, m.UserID)
 	if err != nil {
 		return err

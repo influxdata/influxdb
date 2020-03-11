@@ -30,7 +30,7 @@ func bucketIndexKey(o influxdb.ID, name string) ([]byte, error) {
 }
 
 // uniqueBucketName ensures this bucket is unique for this organization
-func (s *Store) uniqueBucketName(ctx context.Context, tx *Tx, oid influxdb.ID, uname string) error {
+func (s *Store) uniqueBucketName(ctx context.Context, tx kv.Tx, oid influxdb.ID, uname string) error {
 	key, err := bucketIndexKey(oid, uname)
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func marshalBucket(u *influxdb.Bucket) ([]byte, error) {
 	return v, nil
 }
 
-func (s *Store) GetBucket(ctx context.Context, tx *Tx, id influxdb.ID) (*influxdb.Bucket, error) {
+func (s *Store) GetBucket(ctx context.Context, tx kv.Tx, id influxdb.ID) (*influxdb.Bucket, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, InvalidOrgIDError(err)
@@ -100,7 +100,7 @@ func (s *Store) GetBucket(ctx context.Context, tx *Tx, id influxdb.ID) (*influxd
 	return unmarshalBucket(v)
 }
 
-func (s *Store) GetBucketByName(ctx context.Context, tx *Tx, orgID influxdb.ID, n string) (*influxdb.Bucket, error) {
+func (s *Store) GetBucketByName(ctx context.Context, tx kv.Tx, orgID influxdb.ID, n string) (*influxdb.Bucket, error) {
 	key, err := bucketIndexKey(orgID, n)
 	if err != nil {
 		return nil, &influxdb.Error{
@@ -160,7 +160,7 @@ type BucketFilter struct {
 	OrganizationID *influxdb.ID
 }
 
-func (s *Store) ListBuckets(ctx context.Context, tx *Tx, filter BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, error) {
+func (s *Store) ListBuckets(ctx context.Context, tx kv.Tx, filter BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, error) {
 	// this isn't a list action its a `GetBucketByName`
 	if (filter.OrganizationID != nil && filter.OrganizationID.Valid()) && filter.Name != nil {
 		return nil, invalidBucketListRequest
@@ -202,7 +202,7 @@ func (s *Store) ListBuckets(ctx context.Context, tx *Tx, filter BucketFilter, op
 		}
 		b, err := unmarshalBucket(v)
 		if err != nil {
-			continue
+			return nil, err
 		}
 
 		// check to see if it matches the filter
@@ -215,10 +215,10 @@ func (s *Store) ListBuckets(ctx context.Context, tx *Tx, filter BucketFilter, op
 		}
 	}
 
-	return bs, nil
+	return bs, cursor.Err()
 }
 
-func (s *Store) listBucketsByOrg(ctx context.Context, tx *Tx, orgID influxdb.ID, o influxdb.FindOptions) ([]*influxdb.Bucket, error) {
+func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID influxdb.ID, o influxdb.FindOptions) ([]*influxdb.Bucket, error) {
 	// get the prefix key (org id with an empty name)
 	key, err := bucketIndexKey(orgID, "")
 	if err != nil {
@@ -272,7 +272,7 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx *Tx, orgID influxdb.ID,
 	return bs, nil
 }
 
-func (s *Store) CreateBucket(ctx context.Context, tx *Tx, bucket *influxdb.Bucket) error {
+func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Bucket) error {
 	encodedID, err := bucket.ID.Encode()
 	if err != nil {
 		return InvalidOrgIDError(err)
@@ -315,7 +315,7 @@ func (s *Store) CreateBucket(ctx context.Context, tx *Tx, bucket *influxdb.Bucke
 	return nil
 }
 
-func (s *Store) UpdateBucket(ctx context.Context, tx *Tx, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+func (s *Store) UpdateBucket(ctx context.Context, tx kv.Tx, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, err
@@ -381,7 +381,7 @@ func (s *Store) UpdateBucket(ctx context.Context, tx *Tx, id influxdb.ID, upd in
 	return bucket, nil
 }
 
-func (s *Store) DeleteBucket(ctx context.Context, tx *Tx, id influxdb.ID) error {
+func (s *Store) DeleteBucket(ctx context.Context, tx kv.Tx, id influxdb.ID) error {
 	bucket, err := s.GetBucket(ctx, tx, id)
 	if err != nil {
 		return err

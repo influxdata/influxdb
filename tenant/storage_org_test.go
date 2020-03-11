@@ -24,11 +24,11 @@ func TestOrg(t *testing.T) {
 		return inmem.NewKVStore()
 	}
 
-	simpleSetup := func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+	simpleSetup := func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
 			err := store.CreateOrg(context.Background(), tx, &influxdb.Organization{
-				ID:     influxdb.ID(i),
-				Name:   fmt.Sprintf("org%d", i),
+				ID:          influxdb.ID(i),
+				Name:        fmt.Sprintf("org%d", i),
 				Description: "words",
 			})
 			if err != nil {
@@ -39,14 +39,14 @@ func TestOrg(t *testing.T) {
 
 	st := []struct {
 		name    string
-		setup   func(*testing.T, *tenant.Store, *tenant.Tx)
-		update  func(*testing.T, *tenant.Store, *tenant.Tx)
-		results func(*testing.T, *tenant.Store, *tenant.Tx)
+		setup   func(*testing.T, *tenant.Store, kv.Tx)
+		update  func(*testing.T, *tenant.Store, kv.Tx)
+		results func(*testing.T, *tenant.Store, kv.Tx)
 	}{
 		{
 			name:  "create",
 			setup: simpleSetup,
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				orgs, err := store.ListOrgs(context.Background(), tx)
 				if err != nil {
 					t.Fatal(err)
@@ -59,13 +59,12 @@ func TestOrg(t *testing.T) {
 				expected := []*influxdb.Organization{}
 				for i := 1; i <= 10; i++ {
 					expected = append(expected, &influxdb.Organization{
-						ID:     influxdb.ID(i),
-						Name:   fmt.Sprintf("org%d", i),
+						ID:          influxdb.ID(i),
+						Name:        fmt.Sprintf("org%d", i),
 						Description: "words",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: orgs[i-1].CreatedAt,
 							UpdatedAt: orgs[i-1].UpdatedAt,
-
 						},
 					})
 				}
@@ -77,15 +76,15 @@ func TestOrg(t *testing.T) {
 		{
 			name:  "get",
 			setup: simpleSetup,
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				org, err := store.GetOrg(context.Background(), tx, 5)
 				if err != nil {
 					t.Fatal(err)
 				}
 
 				expected := &influxdb.Organization{
-					ID:     5,
-					Name:   "org5",
+					ID:          5,
+					Name:        "org5",
 					Description: "words",
 					CRUDLog: influxdb.CRUDLog{
 						CreatedAt: org.CreatedAt,
@@ -119,7 +118,7 @@ func TestOrg(t *testing.T) {
 		{
 			name:  "list",
 			setup: simpleSetup,
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				orgs, err := store.ListOrgs(context.Background(), tx)
 				if err != nil {
 					t.Fatal(err)
@@ -132,13 +131,12 @@ func TestOrg(t *testing.T) {
 				expected := []*influxdb.Organization{}
 				for i := 1; i <= 10; i++ {
 					expected = append(expected, &influxdb.Organization{
-						ID:     influxdb.ID(i),
-						Name:   fmt.Sprintf("org%d", i),
+						ID:          influxdb.ID(i),
+						Name:        fmt.Sprintf("org%d", i),
 						Description: "words",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: orgs[i-1].CreatedAt,
 							UpdatedAt: orgs[i-1].UpdatedAt,
-
 						},
 					})
 				}
@@ -174,7 +172,7 @@ func TestOrg(t *testing.T) {
 		{
 			name:  "update",
 			setup: simpleSetup,
-			update: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				org5 := "org5"
 				_, err := store.UpdateOrg(context.Background(), tx, influxdb.ID(3), influxdb.OrganizationUpdate{Name: &org5})
 				if err != kv.NotUniqueError {
@@ -193,7 +191,7 @@ func TestOrg(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				orgs, err := store.ListOrgs(context.Background(), tx)
 				if err != nil {
 					t.Fatal(err)
@@ -206,13 +204,12 @@ func TestOrg(t *testing.T) {
 				expected := []*influxdb.Organization{}
 				for i := 1; i <= 10; i++ {
 					expected = append(expected, &influxdb.Organization{
-						ID:     influxdb.ID(i),
-						Name:   fmt.Sprintf("org%d", i),
+						ID:          influxdb.ID(i),
+						Name:        fmt.Sprintf("org%d", i),
 						Description: "words",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: orgs[i-1].CreatedAt,
 							UpdatedAt: orgs[i-1].UpdatedAt,
-
 						},
 					})
 				}
@@ -226,7 +223,7 @@ func TestOrg(t *testing.T) {
 		{
 			name:  "delete",
 			setup: simpleSetup,
-			update: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				err := store.DeleteOrg(context.Background(), tx, 1)
 				if err != nil {
 					t.Fatal(err)
@@ -242,7 +239,7 @@ func TestOrg(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				orgs, err := store.ListOrgs(context.Background(), tx)
 				if err != nil {
 					t.Fatal(err)
@@ -256,8 +253,8 @@ func TestOrg(t *testing.T) {
 				for i := 1; i <= 10; i++ {
 					if i != 1 && i != 3 {
 						expected = append(expected, &influxdb.Organization{
-							ID:     influxdb.ID(i),
-							Name:   fmt.Sprintf("org%d", i),
+							ID:          influxdb.ID(i),
+							Name:        fmt.Sprintf("org%d", i),
 							Description: "words",
 						})
 					}
@@ -282,32 +279,38 @@ func TestOrg(t *testing.T) {
 
 			// setup
 			if testScenario.setup != nil {
-				tx, err := ts.Begin(tenant.Write)
+				err := ts.Update(context.Background(), func(tx kv.Tx) error {
+					testScenario.setup(t, ts, tx)
+					return nil
+				})
+
 				if err != nil {
 					t.Fatal(err)
 				}
-				testScenario.setup(t, ts, tx)
-				tx.Commit()
 			}
 
 			// update
 			if testScenario.update != nil {
-				tx, err := ts.Begin(tenant.Write)
+				err := ts.Update(context.Background(), func(tx kv.Tx) error {
+					testScenario.update(t, ts, tx)
+					return nil
+				})
+
 				if err != nil {
 					t.Fatal(err)
 				}
-				testScenario.update(t, ts, tx)
-				tx.Commit()
 			}
 
 			// results
 			if testScenario.results != nil {
-				tx, err := ts.Begin(tenant.Write)
+				err := ts.View(context.Background(), func(tx kv.Tx) error {
+					testScenario.results(t, ts, tx)
+					return nil
+				})
+
 				if err != nil {
 					t.Fatal(err)
 				}
-				testScenario.results(t, ts, tx)
-				tx.Commit()
 			}
 		})
 	}

@@ -15,7 +15,7 @@ var (
 	organizationIndex  = []byte("organizationindexv1")
 )
 
-func (s *Store) uniqueOrgName(ctx context.Context, tx *Tx, uname string) error {
+func (s *Store) uniqueOrgName(ctx context.Context, tx kv.Tx, uname string) error {
 	key := organizationIndexKey(uname)
 	if len(key) == 0 {
 		return influxdb.ErrOrgNameisEmpty
@@ -64,7 +64,7 @@ func marshalOrg(u *influxdb.Organization) ([]byte, error) {
 	return v, nil
 }
 
-func (s *Store) GetOrg(ctx context.Context, tx *Tx, id influxdb.ID) (*influxdb.Organization, error) {
+func (s *Store) GetOrg(ctx context.Context, tx kv.Tx, id influxdb.ID) (*influxdb.Organization, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, InvalidOrgIDError(err)
@@ -87,7 +87,7 @@ func (s *Store) GetOrg(ctx context.Context, tx *Tx, id influxdb.ID) (*influxdb.O
 	return unmarshalOrg(v)
 }
 
-func (s *Store) GetOrgByName(ctx context.Context, tx *Tx, n string) (*influxdb.Organization, error) {
+func (s *Store) GetOrgByName(ctx context.Context, tx kv.Tx, n string) (*influxdb.Organization, error) {
 	b, err := tx.Bucket(organizationIndex)
 	if err != nil {
 		return nil, err
@@ -109,7 +109,7 @@ func (s *Store) GetOrgByName(ctx context.Context, tx *Tx, n string) (*influxdb.O
 	return s.GetOrg(ctx, tx, id)
 }
 
-func (s *Store) ListOrgs(ctx context.Context, tx *Tx, opt ...influxdb.FindOptions) ([]*influxdb.Organization, error) {
+func (s *Store) ListOrgs(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOptions) ([]*influxdb.Organization, error) {
 	// if we dont have any options it would be irresponsible to just give back all orgs in the system
 	if len(opt) == 0 {
 		opt = append(opt, influxdb.FindOptions{
@@ -151,10 +151,10 @@ func (s *Store) ListOrgs(ctx context.Context, tx *Tx, opt ...influxdb.FindOption
 		}
 	}
 
-	return us, nil
+	return us, cursor.Err()
 }
 
-func (s *Store) CreateOrg(ctx context.Context, tx *Tx, o *influxdb.Organization) error {
+func (s *Store) CreateOrg(ctx context.Context, tx kv.Tx, o *influxdb.Organization) error {
 	encodedID, err := o.ID.Encode()
 	if err != nil {
 		return InvalidOrgIDError(err)
@@ -192,7 +192,7 @@ func (s *Store) CreateOrg(ctx context.Context, tx *Tx, o *influxdb.Organization)
 	return nil
 }
 
-func (s *Store) UpdateOrg(ctx context.Context, tx *Tx, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
+func (s *Store) UpdateOrg(ctx context.Context, tx kv.Tx, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, err
@@ -245,7 +245,7 @@ func (s *Store) UpdateOrg(ctx context.Context, tx *Tx, id influxdb.ID, upd influ
 	return u, nil
 }
 
-func (s *Store) DeleteOrg(ctx context.Context, tx *Tx, id influxdb.ID) error {
+func (s *Store) DeleteOrg(ctx context.Context, tx kv.Tx, id influxdb.ID) error {
 	u, err := s.GetOrg(ctx, tx, id)
 	if err != nil {
 		return err

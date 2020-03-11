@@ -18,7 +18,7 @@ func TestURM(t *testing.T) {
 		return inmem.NewKVStore()
 	}
 
-	simpleSetup := func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+	simpleSetup := func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
 			err := store.CreateURM(context.Background(), tx, &influxdb.UserResourceMapping{
 				UserID:       influxdb.ID(i + 1),
@@ -35,14 +35,14 @@ func TestURM(t *testing.T) {
 
 	st := []struct {
 		name    string
-		setup   func(*testing.T, *tenant.Store, *tenant.Tx)
-		update  func(*testing.T, *tenant.Store, *tenant.Tx)
-		results func(*testing.T, *tenant.Store, *tenant.Tx)
+		setup   func(*testing.T, *tenant.Store, kv.Tx)
+		update  func(*testing.T, *tenant.Store, kv.Tx)
+		results func(*testing.T, *tenant.Store, kv.Tx)
 	}{
 		{
 			name:  "create",
 			setup: simpleSetup,
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				urms, err := store.ListURMs(context.Background(), tx, influxdb.UserResourceMappingFilter{})
 				if err != nil {
 					t.Fatal(err)
@@ -77,7 +77,7 @@ func TestURM(t *testing.T) {
 		{
 			name:  "get",
 			setup: simpleSetup,
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				_, err := store.GetURM(context.Background(), tx, 1, 2)
 				if err != kv.ErrKeyNotFound {
 					t.Fatal("failed to not find urm")
@@ -103,7 +103,7 @@ func TestURM(t *testing.T) {
 		{
 			name:  "list",
 			setup: simpleSetup,
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				urms, err := store.ListURMs(context.Background(), tx, influxdb.UserResourceMappingFilter{})
 				if err != nil {
 					t.Fatal(err)
@@ -152,7 +152,7 @@ func TestURM(t *testing.T) {
 		{
 			name:  "delete",
 			setup: simpleSetup,
-			update: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				err := store.DeleteURM(context.Background(), tx, 23, 21)
 				if err != nil {
 					t.Fatal(err)
@@ -163,7 +163,7 @@ func TestURM(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				_, err := store.GetURM(context.Background(), tx, 2, 2)
 				if err != kv.ErrKeyNotFound {
 					t.Fatal("failed to erro when getting a deleted URM")
@@ -180,32 +180,38 @@ func TestURM(t *testing.T) {
 
 			// setup
 			if testScenario.setup != nil {
-				tx, err := ts.Begin(tenant.Write)
+				err := ts.Update(context.Background(), func(tx kv.Tx) error {
+					testScenario.setup(t, ts, tx)
+					return nil
+				})
+
 				if err != nil {
 					t.Fatal(err)
 				}
-				testScenario.setup(t, ts, tx)
-				tx.Commit()
 			}
 
 			// update
 			if testScenario.update != nil {
-				tx, err := ts.Begin(tenant.Write)
+				err := ts.Update(context.Background(), func(tx kv.Tx) error {
+					testScenario.update(t, ts, tx)
+					return nil
+				})
+
 				if err != nil {
 					t.Fatal(err)
 				}
-				testScenario.update(t, ts, tx)
-				tx.Commit()
 			}
 
 			// results
 			if testScenario.results != nil {
-				tx, err := ts.Begin(tenant.Write)
+				err := ts.View(context.Background(), func(tx kv.Tx) error {
+					testScenario.results(t, ts, tx)
+					return nil
+				})
+
 				if err != nil {
 					t.Fatal(err)
 				}
-				testScenario.results(t, ts, tx)
-				tx.Commit()
 			}
 		})
 	}

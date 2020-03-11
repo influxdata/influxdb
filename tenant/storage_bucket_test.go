@@ -30,7 +30,7 @@ func TestBucket(t *testing.T) {
 		return inmem.NewKVStore()
 	}
 
-	simpleSetup := func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+	simpleSetup := func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
 			err := store.CreateBucket(context.Background(), tx, &influxdb.Bucket{
 				ID:                  influxdb.ID(i),
@@ -48,14 +48,14 @@ func TestBucket(t *testing.T) {
 
 	st := []struct {
 		name    string
-		setup   func(*testing.T, *tenant.Store, *tenant.Tx)
-		update  func(*testing.T, *tenant.Store, *tenant.Tx)
-		results func(*testing.T, *tenant.Store, *tenant.Tx)
+		setup   func(*testing.T, *tenant.Store, kv.Tx)
+		update  func(*testing.T, *tenant.Store, kv.Tx)
+		results func(*testing.T, *tenant.Store, kv.Tx)
 	}{
 		{
 			name:  "create",
 			setup: simpleSetup,
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				buckets, err := store.ListBuckets(context.Background(), tx, tenant.BucketFilter{})
 				if err != nil {
 					t.Fatal(err)
@@ -88,7 +88,7 @@ func TestBucket(t *testing.T) {
 		{
 			name:  "get",
 			setup: simpleSetup,
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				bucket, err := store.GetBucket(context.Background(), tx, 5)
 				if err != nil {
 					t.Fatal(err)
@@ -133,7 +133,7 @@ func TestBucket(t *testing.T) {
 		{
 			name:  "list",
 			setup: simpleSetup,
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				buckets, err := store.ListBuckets(context.Background(), tx, tenant.BucketFilter{})
 				if err != nil {
 					t.Fatal(err)
@@ -211,7 +211,7 @@ func TestBucket(t *testing.T) {
 		{
 			name:  "update",
 			setup: simpleSetup,
-			update: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				bucket5 := "bucket5"
 				_, err := store.UpdateBucket(context.Background(), tx, influxdb.ID(3), influxdb.BucketUpdate{Name: &bucket5})
 				if err != kv.NotUniqueError {
@@ -230,7 +230,7 @@ func TestBucket(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				buckets, err := store.ListBuckets(context.Background(), tx, tenant.BucketFilter{})
 				if err != nil {
 					t.Fatal(err)
@@ -265,7 +265,7 @@ func TestBucket(t *testing.T) {
 		{
 			name:  "delete",
 			setup: simpleSetup,
-			update: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				err := store.DeleteBucket(context.Background(), tx, 1)
 				if err != nil {
 					t.Fatal(err)
@@ -281,7 +281,7 @@ func TestBucket(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				buckets, err := store.ListBuckets(context.Background(), tx, tenant.BucketFilter{})
 				if err != nil {
 					t.Fatal(err)
@@ -324,32 +324,38 @@ func TestBucket(t *testing.T) {
 
 			// setup
 			if testScenario.setup != nil {
-				tx, err := ts.Begin(tenant.Write)
+				err := ts.Update(context.Background(), func(tx kv.Tx) error {
+					testScenario.setup(t, ts, tx)
+					return nil
+				})
+
 				if err != nil {
 					t.Fatal(err)
 				}
-				testScenario.setup(t, ts, tx)
-				tx.Commit()
 			}
 
 			// update
 			if testScenario.update != nil {
-				tx, err := ts.Begin(tenant.Write)
+				err := ts.Update(context.Background(), func(tx kv.Tx) error {
+					testScenario.update(t, ts, tx)
+					return nil
+				})
+
 				if err != nil {
 					t.Fatal(err)
 				}
-				testScenario.update(t, ts, tx)
-				tx.Commit()
 			}
 
 			// results
 			if testScenario.results != nil {
-				tx, err := ts.Begin(tenant.Write)
+				err := ts.View(context.Background(), func(tx kv.Tx) error {
+					testScenario.results(t, ts, tx)
+					return nil
+				})
+
 				if err != nil {
 					t.Fatal(err)
 				}
-				testScenario.results(t, ts, tx)
-				tx.Commit()
 			}
 		})
 	}

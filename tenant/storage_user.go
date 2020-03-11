@@ -31,7 +31,7 @@ func marshalUser(u *influxdb.User) ([]byte, error) {
 	return v, nil
 }
 
-func (s *Store) uniqueUserName(ctx context.Context, tx *Tx, uname string) error {
+func (s *Store) uniqueUserName(ctx context.Context, tx kv.Tx, uname string) error {
 
 	idx, err := tx.Bucket(userIndex)
 	if err != nil {
@@ -53,7 +53,7 @@ func (s *Store) uniqueUserName(ctx context.Context, tx *Tx, uname string) error 
 	return ErrUnprocessableUser(err)
 }
 
-func (s *Store) GetUser(ctx context.Context, tx *Tx, id influxdb.ID) (*influxdb.User, error) {
+func (s *Store) GetUser(ctx context.Context, tx kv.Tx, id influxdb.ID) (*influxdb.User, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, InvalidUserIDError(err)
@@ -76,7 +76,7 @@ func (s *Store) GetUser(ctx context.Context, tx *Tx, id influxdb.ID) (*influxdb.
 	return unmarshalUser(v)
 }
 
-func (s *Store) GetUserByName(ctx context.Context, tx *Tx, n string) (*influxdb.User, error) {
+func (s *Store) GetUserByName(ctx context.Context, tx kv.Tx, n string) (*influxdb.User, error) {
 	b, err := tx.Bucket(userIndex)
 	if err != nil {
 		return nil, err
@@ -98,7 +98,7 @@ func (s *Store) GetUserByName(ctx context.Context, tx *Tx, n string) (*influxdb.
 	return s.GetUser(ctx, tx, id)
 }
 
-func (s *Store) ListUsers(ctx context.Context, tx *Tx, opt ...influxdb.FindOptions) ([]*influxdb.User, error) {
+func (s *Store) ListUsers(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOptions) ([]*influxdb.User, error) {
 	// if we dont have any options it would be irresponsible to just give back all users in the system
 	if len(opt) == 0 {
 		opt = append(opt, influxdb.FindOptions{
@@ -140,10 +140,10 @@ func (s *Store) ListUsers(ctx context.Context, tx *Tx, opt ...influxdb.FindOptio
 		}
 	}
 
-	return us, nil
+	return us, cursor.Err()
 }
 
-func (s *Store) CreateUser(ctx context.Context, tx *Tx, u *influxdb.User) error {
+func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) error {
 	encodedID, err := u.ID.Encode()
 	if err != nil {
 		return InvalidUserIDError(err)
@@ -179,7 +179,7 @@ func (s *Store) CreateUser(ctx context.Context, tx *Tx, u *influxdb.User) error 
 	return nil
 }
 
-func (s *Store) UpdateUser(ctx context.Context, tx *Tx, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
+func (s *Store) UpdateUser(ctx context.Context, tx kv.Tx, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, err
@@ -231,7 +231,7 @@ func (s *Store) UpdateUser(ctx context.Context, tx *Tx, id influxdb.ID, upd infl
 	return u, nil
 }
 
-func (s *Store) DeleteUser(ctx context.Context, tx *Tx, id influxdb.ID) error {
+func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id influxdb.ID) error {
 	u, err := s.GetUser(ctx, tx, id)
 	if err != nil {
 		return err

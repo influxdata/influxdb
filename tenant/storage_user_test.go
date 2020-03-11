@@ -17,7 +17,7 @@ func TestUser(t *testing.T) {
 		return inmem.NewKVStore()
 	}
 
-	simpleSetup := func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+	simpleSetup := func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
 			err := store.CreateUser(context.Background(), tx, &influxdb.User{
 				ID:     influxdb.ID(i),
@@ -32,14 +32,14 @@ func TestUser(t *testing.T) {
 
 	st := []struct {
 		name    string
-		setup   func(*testing.T, *tenant.Store, *tenant.Tx)
-		update  func(*testing.T, *tenant.Store, *tenant.Tx)
-		results func(*testing.T, *tenant.Store, *tenant.Tx)
+		setup   func(*testing.T, *tenant.Store, kv.Tx)
+		update  func(*testing.T, *tenant.Store, kv.Tx)
+		results func(*testing.T, *tenant.Store, kv.Tx)
 	}{
 		{
 			name:  "create",
 			setup: simpleSetup,
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				users, err := store.ListUsers(context.Background(), tx)
 				if err != nil {
 					t.Fatal(err)
@@ -65,7 +65,7 @@ func TestUser(t *testing.T) {
 		{
 			name:  "get",
 			setup: simpleSetup,
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				user, err := store.GetUser(context.Background(), tx, 5)
 				if err != nil {
 					t.Fatal(err)
@@ -103,7 +103,7 @@ func TestUser(t *testing.T) {
 		{
 			name:  "list",
 			setup: simpleSetup,
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				users, err := store.ListUsers(context.Background(), tx)
 				if err != nil {
 					t.Fatal(err)
@@ -153,7 +153,7 @@ func TestUser(t *testing.T) {
 		{
 			name:  "update",
 			setup: simpleSetup,
-			update: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				user5 := "user5"
 				_, err := store.UpdateUser(context.Background(), tx, influxdb.ID(3), influxdb.UserUpdate{Name: &user5})
 				if err != kv.NotUniqueError {
@@ -172,7 +172,7 @@ func TestUser(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				users, err := store.ListUsers(context.Background(), tx)
 				if err != nil {
 					t.Fatal(err)
@@ -200,7 +200,7 @@ func TestUser(t *testing.T) {
 		{
 			name:  "delete",
 			setup: simpleSetup,
-			update: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				err := store.DeleteUser(context.Background(), tx, 1)
 				if err != nil {
 					t.Fatal(err)
@@ -217,7 +217,7 @@ func TestUser(t *testing.T) {
 				}
 
 			},
-			results: func(t *testing.T, store *tenant.Store, tx *tenant.Tx) {
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				users, err := store.ListUsers(context.Background(), tx)
 				if err != nil {
 					t.Fatal(err)
@@ -253,32 +253,38 @@ func TestUser(t *testing.T) {
 
 			// setup
 			if testScenario.setup != nil {
-				tx, err := ts.Begin(tenant.Write)
+				err := ts.Update(context.Background(), func(tx kv.Tx) error {
+					testScenario.setup(t, ts, tx)
+					return nil
+				})
+
 				if err != nil {
 					t.Fatal(err)
 				}
-				testScenario.setup(t, ts, tx)
-				tx.Commit()
 			}
 
 			// update
 			if testScenario.update != nil {
-				tx, err := ts.Begin(tenant.Write)
+				err := ts.Update(context.Background(), func(tx kv.Tx) error {
+					testScenario.update(t, ts, tx)
+					return nil
+				})
+
 				if err != nil {
 					t.Fatal(err)
 				}
-				testScenario.update(t, ts, tx)
-				tx.Commit()
 			}
 
 			// results
 			if testScenario.results != nil {
-				tx, err := ts.Begin(tenant.Write)
+				err := ts.View(context.Background(), func(tx kv.Tx) error {
+					testScenario.results(t, ts, tx)
+					return nil
+				})
+
 				if err != nil {
 					t.Fatal(err)
 				}
-				testScenario.results(t, ts, tx)
-				tx.Commit()
 			}
 		})
 	}
