@@ -1178,7 +1178,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
-    package: 'geo',
+    package: 'experimental/geo',
     desc:
       'Groups geo-temporal data into tracks (sequential, related data points).',
     example: 'geo.asTracks(groupBy: ["id","tid"], orderBy: ["_time"])',
@@ -1228,7 +1228,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Boolean',
       },
     ],
-    package: 'geo',
+    package: 'experimental/geo',
     desc:
       'Filters data by a specified geographic region with the option of strict filtering.',
     example:
@@ -1268,7 +1268,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Integer',
       },
     ],
-    package: 'geo',
+    package: 'experimental/geo',
     desc:
       'Filters data by a specified geographic region using S2 geometry grid cells.',
     example:
@@ -1298,7 +1298,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Integer',
       },
     ],
-    package: 'geo',
+    package: 'experimental/geo',
     desc: 'Groups rows by geographic area using S2 geometry grid cells.',
     example: 'geo.groupByArea(newColumn: "geoArea", level: 10)',
     category: 'Transformations',
@@ -1314,7 +1314,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Object',
       },
     ],
-    package: 'geo',
+    package: 'experimental/geo',
     desc: 'Filters data by latitude and longitude in a specified region.',
     example:
       'geo.strictFilter(region: {lat: 37.7858229, lon: -122.4058124, radius: 20.0})',
@@ -1332,7 +1332,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
-    package: 'geo',
+    package: 'experimental/geo',
     desc:
       'Pivots geo-temporal data into row-wise sets based on time and other correlation columns.',
     example: 'geo.toRows(correlationKey: ["_time"])',
