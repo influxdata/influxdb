@@ -79,7 +79,6 @@ jobs:
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
       - run: sudo apt-get install -y netcat-openbsd
-      - run: sudo apt-get install -y bzr
       - install_rust_compiler
       - run: make protoc
       - run: make build
@@ -225,7 +224,6 @@ jobs:
           name: Restoring GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
-      - run: sudo apt-get install -y bzr
       - install_rust_compiler
       - run: mkdir -p $TEST_RESULTS
       - run: make test-go # This uses the test cache so it may succeed or fail quickly.
@@ -277,7 +275,6 @@ jobs:
           name: Restoring GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
-      - run: sudo apt-get install -y bzr
       - install_rust_compiler
       - run: mkdir -p $TEST_RESULTS
       - run: |
@@ -322,7 +319,6 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      - run: sudo apt-get install -y bzr
       - install_rust_compiler
       - run: make checkcommit
 
@@ -368,7 +364,6 @@ jobs:
       - run:
           name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: sudo apt-get install -y bzr
       - run: make protoc # installs protoc
       - run:
           name: "Build nightly"
@@ -403,7 +398,6 @@ jobs:
       - run:
           name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: sudo apt-get install -y bzr
       - run: make protoc # installs protoc
       - run:
           name: "Build release"
