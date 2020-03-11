@@ -1306,6 +1306,34 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/groupbyarea/',
   },
   {
+    name: 'geo.s2CellIDToken',
+    args: [
+      {
+        name: 'point',
+        desc:
+          'Longitude and latitude in decimal degrees (WGS 84) to use when generating the S2 cell ID token. Object must contain `lat` and `lon` properties.',
+        type: 'Object',
+      },
+      {
+        name: 'token',
+        desc: 'S2 cell ID token to update.',
+        type: 'String',
+      },
+      {
+        name: 'level',
+        desc: 'S2 cell level to use when generating the S2 cell ID token.',
+        type: 'Integer',
+      },
+    ],
+    package: 'experimental/geo',
+    desc: 'Returns an S2 cell ID token.',
+    example:
+      'geo.s2CellIDToken(point: {lat: 37.7858229, lon: -122.4058124}, level: 10)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/s2cellidtoken/',
+  },
+  {
     name: 'geo.strictFilter',
     args: [
       {
