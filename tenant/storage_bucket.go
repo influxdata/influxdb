@@ -269,7 +269,7 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID influxdb.I
 		}
 	}
 
-	return bs, nil
+	return bs, cursor.Err()
 }
 
 func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Bucket) error {
