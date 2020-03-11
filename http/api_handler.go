@@ -126,7 +126,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h.Mount(prefixAuthorization, NewAuthorizationHandler(b.Logger, authorizationBackend))
 
 	bucketBackend := NewBucketBackend(b.Logger.With(zap.String("handler", "bucket")), b)
-	bucketBackend.BucketService = authorizer.NewBucketService(b.BucketService)
+	bucketBackend.BucketService = authorizer.NewBucketService(b.BucketService, b.UserResourceMappingService)
 	h.Mount(prefixBuckets, NewBucketHandler(b.Logger, bucketBackend))
 
 	checkBackend := NewCheckBackend(b.Logger.With(zap.String("handler", "check")), b)
@@ -184,7 +184,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	sourceBackend := NewSourceBackend(b.Logger.With(zap.String("handler", "source")), b)
 	sourceBackend.SourceService = authorizer.NewSourceService(b.SourceService)
-	sourceBackend.BucketService = authorizer.NewBucketService(b.BucketService)
+	sourceBackend.BucketService = authorizer.NewBucketService(b.BucketService, b.UserResourceMappingService)
 	h.Mount(prefixSources, NewSourceHandler(b.Logger, sourceBackend))
 
 	h.Mount("/api/v2/swagger.json", newSwaggerLoader(b.Logger.With(zap.String("service", "swagger-loader")), b.HTTPErrorHandler))
