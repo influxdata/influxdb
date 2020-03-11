@@ -116,7 +116,7 @@ func (m *Main) Run(args ...string) error {
 	case "verify-tombstone":
 		name := tombstone.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("verify-seriesfile: %s", err)
+			return fmt.Errorf("verify-tombstone: %s", err)
 		}
 	default:
 		return fmt.Errorf(`unknown command "%s"`+"\n"+`Run 'influx_inspect help' for usage`, name)
