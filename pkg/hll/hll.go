@@ -23,7 +23,6 @@ import (
 	"unsafe"
 
 	"github.com/cespare/xxhash"
-	"github.com/influxdata/influxdb/pkg/estimator"
 )
 
 // Current version of HLL implementation.
@@ -125,7 +124,7 @@ func NewDefaultPlus() *Plus {
 }
 
 // Clone returns a deep copy of h.
-func (h *Plus) Clone() estimator.Sketch {
+func (h *Plus) Clone() *Plus {
 	var hll = &Plus{
 		hash:       h.hash,
 		p:          h.p,
@@ -192,15 +191,10 @@ func (h *Plus) Count() uint64 {
 // Merge takes another HyperLogLogPlus and combines it with HyperLogLogPlus h.
 // If HyperLogLogPlus h is using the sparse representation, it will be converted
 // to the normal representation.
-func (h *Plus) Merge(s estimator.Sketch) error {
-	if s == nil {
+func (h *Plus) Merge(other *Plus) error {
+	if other == nil {
 		// Nothing to do
 		return nil
-	}
-
-	other, ok := s.(*Plus)
-	if !ok {
-		return fmt.Errorf("wrong type for merging: %T", other)
 	}
 
 	if h.p != other.p {
