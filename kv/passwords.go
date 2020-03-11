@@ -7,10 +7,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/influxdata/influxdb"
+	pk "github.com/influxdata/influxdb/kit/password"
 )
-
-// MinPasswordLength is the shortest password we allow into the system.
-const MinPasswordLength = 8
 
 var (
 	// EIncorrectPassword is returned when any password operation fails in which
@@ -31,7 +29,7 @@ var (
 	// acceptable password length.
 	EShortPassword = &influxdb.Error{
 		Code: influxdb.EInvalid,
-		Msg:  "passwords must be at least 8 characters long",
+		Msg:  pk.EPasswordTooShort.Error(),
 	}
 )
 
@@ -104,8 +102,8 @@ func (s *Service) ComparePassword(ctx context.Context, userID influxdb.ID, passw
 }
 
 func (s *Service) setPassword(ctx context.Context, tx Tx, userID influxdb.ID, password string) error {
-	if len(password) < MinPasswordLength {
-		return EShortPassword
+	if err := pk.IsValidPassword(password); err != nil {
+		return err
 	}
 
 	encodedID, err := userID.Encode()

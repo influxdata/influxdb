@@ -113,7 +113,7 @@ func TestService_SetPassword(t *testing.T) {
 			},
 			args: args{
 				id:       1,
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{
 				err: fmt.Errorf("your userID is incorrect"),
@@ -142,7 +142,7 @@ func TestService_SetPassword(t *testing.T) {
 			},
 			args: args{
 				id:       1,
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{
 				err: fmt.Errorf("your userID is incorrect"),
@@ -174,7 +174,7 @@ func TestService_SetPassword(t *testing.T) {
 			},
 			args: args{
 				id:       0,
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{
 				err: fmt.Errorf("User ID  has been corrupted; Err: invalid ID"),
@@ -209,7 +209,7 @@ func TestService_SetPassword(t *testing.T) {
 			},
 			args: args{
 				id:       1,
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{
 				err: fmt.Errorf("Unable to connect to password service. Please try again; Err: internal bucket error"),
@@ -247,7 +247,7 @@ func TestService_SetPassword(t *testing.T) {
 			},
 			args: args{
 				id:       1,
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{
 				fmt.Errorf("Unable to generate password; Err: generate error"),
@@ -286,7 +286,7 @@ func TestService_SetPassword(t *testing.T) {
 			},
 			args: args{
 				id:       1,
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{
 				fmt.Errorf("Unable to connect to password service. Please try again; Err: internal error"),
@@ -353,7 +353,7 @@ func TestService_ComparePassword(t *testing.T) {
 			},
 			args: args{
 				id:       1,
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{
 				err: fmt.Errorf("your userID is incorrect"),
@@ -385,7 +385,7 @@ func TestService_ComparePassword(t *testing.T) {
 			},
 			args: args{
 				id:       0,
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{
 				err: fmt.Errorf("User ID  has been corrupted; Err: invalid ID"),
@@ -420,7 +420,7 @@ func TestService_ComparePassword(t *testing.T) {
 			},
 			args: args{
 				id:       1,
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{
 				err: fmt.Errorf("Unable to connect to password service. Please try again; Err: internal bucket error"),
@@ -462,7 +462,7 @@ func TestService_ComparePassword(t *testing.T) {
 			},
 			args: args{
 				id:       1,
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{
 				fmt.Errorf("your username or password is incorrect"),

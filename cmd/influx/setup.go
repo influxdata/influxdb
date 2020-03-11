@@ -11,6 +11,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
+	pk "github.com/influxdata/influxdb/kit/password"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
 )
@@ -287,8 +288,11 @@ enterPassword:
 		switch err {
 		case input.ErrInterrupted:
 			os.Exit(1)
-		case errPasswordIsTooShort:
-			ui.Writer.Write(promptWithColor("Password too short - minimum length is 8 characters!\n\r", colorRed))
+		case pk.EPasswordTooShort:
+			ui.Writer.Write(promptWithColor(pk.EPasswordTooShort.Error()+"\r\n", colorRed))
+			continue
+		case pk.ENotEnoughCharacterClasses:
+			ui.Writer.Write(promptWithColor(pk.ENotEnoughCharacterClasses.Error()+"\r\n", colorRed))
 			continue
 		default:
 			if password = strings.TrimSpace(password); password == "" {

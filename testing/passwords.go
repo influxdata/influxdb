@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb"
+	pk "github.com/influxdata/influxdb/kit/password"
 )
 
 // PasswordFields will include the IDGenerator, and users and their passwords.
@@ -62,7 +63,7 @@ func SetPassword(
 		wants  wants
 	}{
 		{
-			name: "setting password longer than 8 characters works",
+			name: "setting password that matches minimum requirements works",
 			fields: PasswordFields{
 				Users: []*influxdb.User{
 					{
@@ -73,7 +74,7 @@ func SetPassword(
 			},
 			args: args{
 				user:     MustIDBase16(oneID),
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{},
 		},
@@ -92,7 +93,7 @@ func SetPassword(
 				password: "short",
 			},
 			wants: wants{
-				err: fmt.Errorf("passwords must be at least 8 characters long"),
+				err: pk.EPasswordTooShort,
 			},
 		},
 		{
@@ -107,7 +108,7 @@ func SetPassword(
 			},
 			args: args{
 				user:     33,
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{
 				err: fmt.Errorf("your userID is incorrect"),
@@ -163,11 +164,11 @@ func ComparePassword(
 						ID:   MustIDBase16(oneID),
 					},
 				},
-				Passwords: []string{"howdydoody"},
+				Passwords: []string{"passWord1"},
 			},
 			args: args{
 				user:     MustIDBase16(oneID),
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{},
 		},
@@ -180,11 +181,11 @@ func ComparePassword(
 						ID:   MustIDBase16(oneID),
 					},
 				},
-				Passwords: []string{"howdydoody"},
+				Passwords: []string{"passWord1"},
 			},
 			args: args{
 				user:     MustIDBase16(oneID),
-				password: "wrongpassword",
+				password: "passWord2",
 			},
 			wants: wants{
 				err: fmt.Errorf("your username or password is incorrect"),
@@ -199,11 +200,11 @@ func ComparePassword(
 						ID:   MustIDBase16(oneID),
 					},
 				},
-				Passwords: []string{"howdydoody"},
+				Passwords: []string{"passWord1"},
 			},
 			args: args{
 				user:     1,
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{
 				err: fmt.Errorf("your userID is incorrect"),
@@ -221,7 +222,7 @@ func ComparePassword(
 			},
 			args: args{
 				user:     MustIDBase16(oneID),
-				password: "howdydoody",
+				password: "passWord1",
 			},
 			wants: wants{
 				err: fmt.Errorf("your username or password is incorrect"),
@@ -280,12 +281,12 @@ func CompareAndSetPassword(
 						ID:   MustIDBase16(oneID),
 					},
 				},
-				Passwords: []string{"howdydoody"},
+				Passwords: []string{"passWord1"},
 			},
 			args: args{
 				user: MustIDBase16(oneID),
-				old:  "howdydoody",
-				new:  "howdydoody",
+				old:  "passWord1",
+				new:  "passWord1",
 			},
 			wants: wants{},
 		},
@@ -298,7 +299,7 @@ func CompareAndSetPassword(
 						ID:   MustIDBase16(oneID),
 					},
 				},
-				Passwords: []string{"howdydoody"},
+				Passwords: []string{"passWord1"},
 			},
 			args: args{
 				user: MustIDBase16(oneID),
@@ -310,7 +311,7 @@ func CompareAndSetPassword(
 			},
 		},
 		{
-			name: "<invalid> a new password that is less than 8 characters is an error",
+			name: "<invalid> a new password that doesn't match minimum requirements (length)",
 			fields: PasswordFields{
 				Users: []*influxdb.User{
 					{
@@ -318,15 +319,35 @@ func CompareAndSetPassword(
 						ID:   MustIDBase16(oneID),
 					},
 				},
-				Passwords: []string{"howdydoody"},
+				Passwords: []string{"passWord1"},
 			},
 			args: args{
 				user: MustIDBase16(oneID),
-				old:  "howdydoody",
-				new:  "short",
+				old:  "passWord1",
+				new:  "pass",
 			},
 			wants: wants{
-				err: fmt.Errorf("passwords must be at least 8 characters long"),
+				err: pk.EPasswordTooShort,
+			},
+		},
+		{
+			name: "<invalid> a new password that doesn't match minimum requirements (classes)",
+			fields: PasswordFields{
+				Users: []*influxdb.User{
+					{
+						Name: "user1",
+						ID:   MustIDBase16(oneID),
+					},
+				},
+				Passwords: []string{"passWord1"},
+			},
+			args: args{
+				user: MustIDBase16(oneID),
+				old:  "passWord1",
+				new:  "password1",
+			},
+			wants: wants{
+				err: pk.ENotEnoughCharacterClasses,
 			},
 		},
 	}
