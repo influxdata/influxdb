@@ -53,6 +53,7 @@ interface StateProps {
   symbolColumns: string[]
   timeZone: TimeZone
   statuses: StatusRow[][]
+  dashboardLightMode: boolean
 }
 
 type Props = StateProps
@@ -74,6 +75,7 @@ const TimeMachineVis: SFC<Props> = ({
   symbolColumns,
   timeZone,
   statuses,
+  dashboardLightMode,
 }) => {
   // If the current selections for `xColumn`/`yColumn`/ etc. are invalid given
   // the current Flux response, attempt to make a valid selection instead. This
@@ -123,6 +125,7 @@ const TimeMachineVis: SFC<Props> = ({
               checkThresholds={checkThresholds}
               timeZone={timeZone}
               statuses={statuses}
+              lightMode={dashboardLightMode}
             />
           )}
         </EmptyQueryView>
@@ -146,6 +149,9 @@ const mstp = (state: AppState): StateProps => {
   } = getActiveTimeMachine(state)
   const {
     alertBuilder: {type: checkType, thresholds: checkThresholds},
+    app: {
+      persisted: {dashboardLightMode},
+    },
   } = state
 
   const giraffeResult = getVisTable(state)
@@ -173,6 +179,7 @@ const mstp = (state: AppState): StateProps => {
     timeZone,
     timeRange: getActiveTimeRange(timeRange, viewProperties.queries),
     statuses,
+    dashboardLightMode,
   }
 }
 
