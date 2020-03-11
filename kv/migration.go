@@ -175,7 +175,7 @@ func (m *Migrator) Up(ctx context.Context, store Store) (err error) {
 
 		m.logMigrationEvent(UpMigrationState, migration, "started")
 
-		if err := putMigration(ctx, store, migration); err != nil {
+		if err := m.putMigration(ctx, store, migration); err != nil {
 			return err
 		}
 
@@ -187,7 +187,7 @@ func (m *Migrator) Up(ctx context.Context, store Store) (err error) {
 		migration.FinishedAt = &finishedAt
 		migration.State = UpMigrationState
 
-		if err := putMigration(ctx, store, migration); err != nil {
+		if err := m.putMigration(ctx, store, migration); err != nil {
 			return err
 		}
 
@@ -242,7 +242,7 @@ func (m *Migrator) Down(ctx context.Context, store Store) (err error) {
 			return
 		}
 
-		if err = deleteMigration(ctx, store, migration.Migration); err != nil {
+		if err = m.deleteMigration(ctx, store, migration.Migration); err != nil {
 			return
 		}
 
@@ -302,7 +302,7 @@ func (m *Migrator) walk(ctx context.Context, store Store, fn func(id influxdb.ID
 	return nil
 }
 
-func putMigration(ctx context.Context, store Store, m Migration) error {
+func (*Migrator) putMigration(ctx context.Context, store Store, m Migration) error {
 	return store.Update(ctx, func(tx Tx) error {
 		bkt, err := tx.Bucket(migrationBucket)
 		if err != nil {
@@ -319,7 +319,7 @@ func putMigration(ctx context.Context, store Store, m Migration) error {
 	})
 }
 
-func deleteMigration(ctx context.Context, store Store, m Migration) error {
+func (*Migrator) deleteMigration(ctx context.Context, store Store, m Migration) error {
 	return store.Update(ctx, func(tx Tx) error {
 		bkt, err := tx.Bucket(migrationBucket)
 		if err != nil {
