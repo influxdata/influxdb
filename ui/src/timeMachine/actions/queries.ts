@@ -131,8 +131,11 @@ export const executeQueries = (dashboardID?: string) => async (
     dispatch(setQueryResults(RemoteDataState.Loading, [], null))
 
     await dispatch(refreshTimeMachineVariableValues(dashboardID))
-
-    const variableAssignments = getVariableAssignments(state)
+    // keeping getState() here ensures that the state we are working with
+    // is the most current one. By having this set to state, we were creating a race
+    // condition that was causing the following bug:
+    // https://github.com/influxdata/idpe/issues/6240
+    const variableAssignments = getVariableAssignments(getState())
     const orgID = getOrg(state).id
 
     const startTime = Date.now()
