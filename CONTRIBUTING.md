@@ -1,4 +1,4 @@
-# Contributing to InfluxDB v2
+ # Contributing to InfluxDB v2
 
 ## Bug reports
 Before you file an issue, please search existing issues in case it has already been filed, or perhaps even fixed.
@@ -71,14 +71,10 @@ Changes that cause tests to fail cannot be merged.
 
 There will usually be some back and forth as we finalize the change, but once that completes it may be merged.
 
-To assist in review for the PR, please add the following to your pull request comment:
+To assist in review for the PR,
+[check the PR template](blob/master/.github/PULL_REQUEST_TEMPLATE.md)
+which is automatically added to your pull request comment.
 
-```md
-- [ ] CHANGELOG.md updated
-- [ ] Rebased/mergable
-- [ ] Tests pass
-- [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)
-```
 
 ## Security Vulnerability Reporting
 InfluxData takes security and our users' trust very seriously.
