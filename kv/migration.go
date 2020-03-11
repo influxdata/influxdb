@@ -156,8 +156,11 @@ func (m *Migrator) Up(ctx context.Context, store Store) (err error) {
 	}()
 
 	var lastMigration int
-	if err = m.walk(ctx, store, func(id influxdb.ID, _ Migration) {
-		lastMigration = int(id)
+	if err = m.walk(ctx, store, func(id influxdb.ID, mig Migration) {
+		// we're interested in the last up migration
+		if mig.State == UpMigrationState {
+			lastMigration = int(id)
+		}
 	}); err != nil {
 		return
 	}
@@ -238,10 +241,6 @@ func (m *Migrator) Down(ctx context.Context, store Store) (err error) {
 		if err = migration.MigrationSpec.Down(ctx, store); err != nil {
 			return
 		}
-
-		// clear timestamps
-		migration.Migration.StartedAt = nil
-		migration.Migration.FinishedAt = nil
 
 		if err = deleteMigration(ctx, store, migration.Migration); err != nil {
 			return
