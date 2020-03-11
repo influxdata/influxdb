@@ -1,4 +1,4 @@
-// Package tsm verifies integrity of TSM files.
+// Package tombstone verifies integrity of tombstones.
 package tombstone
 
 import (
