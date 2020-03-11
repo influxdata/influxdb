@@ -366,21 +366,15 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 	return qr, nil
 }
 
-var (
-	errNoContentType          = errors.New("no Content-Type header provided")
-	errUnsupportedContentType = errors.New("unsupported Content-Type header value")
-)
-
 func decodeQueryRequest(ctx context.Context, r *http.Request, svc influxdb.OrganizationService) (*QueryRequest, int, error) {
 	var req QueryRequest
 	body := &countReader{Reader: r.Body}
 
-	ct := r.Header.Get("Content-Type")
-	if ct == "" {
-		return nil, body.bytesRead, errNoContentType
+	var contentType = "application/json"
+	if ct := r.Header.Get("Content-Type"); ct != "" {
+		contentType = ct
 	}
-
-	mt, _, err := mime.ParseMediaType(ct)
+	mt, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
 		return nil, body.bytesRead, err
 	}
@@ -392,11 +386,11 @@ func decodeQueryRequest(ctx context.Context, r *http.Request, svc influxdb.Organ
 		}
 		req.Query = string(octets)
 	case "application/json":
+		fallthrough
+	default:
 		if err := json.NewDecoder(body).Decode(&req); err != nil {
 			return nil, body.bytesRead, err
 		}
-	default:
-		return nil, body.bytesRead, errUnsupportedContentType
 	}
 
 	switch hv := r.Header.Get(query.PreferHeaderKey); hv {

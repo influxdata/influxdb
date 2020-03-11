@@ -132,8 +132,9 @@ func TestLauncher_Pkger(t *testing.T) {
 			assert.True(t, ch.IsNew())
 		}
 
-		require.Len(t, diff.Labels, 1)
+		require.Len(t, diff.Labels, 2)
 		assert.True(t, diff.Labels[0].IsNew())
+		assert.True(t, diff.Labels[1].IsNew())
 
 		require.Len(t, diff.Variables, 1)
 		assert.True(t, diff.Variables[0].IsNew())
@@ -148,13 +149,14 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.Len(t, diff.Telegrafs, 1)
 
 		labels := sum.Labels
-		require.Len(t, labels, 1)
+		require.Len(t, labels, 2)
 		assert.Equal(t, "label_1", labels[0].Name)
+		assert.Equal(t, "label_2", labels[1].Name)
 
 		bkts := sum.Buckets
 		require.Len(t, bkts, 1)
 		assert.Equal(t, "rucket_1", bkts[0].Name)
-		hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
+		hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "label_2")
 
 		checks := sum.Checks
 		require.Len(t, checks, 2)
@@ -167,7 +169,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.Len(t, dashs, 1)
 		assert.Equal(t, "dash_1", dashs[0].Name)
 		assert.Equal(t, "desc1", dashs[0].Description)
-		hasLabelAssociations(t, dashs[0].LabelAssociations, 1, "label_1")
+		hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "label_2")
 
 		endpoints := sum.NotificationEndpoints
 		require.Len(t, endpoints, 1)
@@ -250,11 +252,12 @@ spec:
 			t.Helper()
 
 			labels := sum1.Labels
-			require.Len(t, labels, 1)
+			require.Len(t, labels, 2)
 			if !exportAllSum {
 				assert.NotZero(t, labels[0].ID)
 			}
 			assert.Equal(t, "label_1", labels[0].Name)
+			assert.Equal(t, "label_2", labels[1].Name)
 
 			bkts := sum1.Buckets
 			if exportAllSum {
@@ -267,7 +270,7 @@ spec:
 				assert.NotZero(t, bkts[0].ID)
 			}
 			assert.Equal(t, "rucket_1", bkts[0].Name)
-			hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
+			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "label_2")
 
 			checks := sum1.Checks
 			require.Len(t, checks, 2)
@@ -286,7 +289,7 @@ spec:
 			}
 			assert.Equal(t, "dash_1", dashs[0].Name)
 			assert.Equal(t, "desc1", dashs[0].Description)
-			hasLabelAssociations(t, dashs[0].LabelAssociations, 1, "label_1")
+			hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "label_2")
 			require.Len(t, dashs[0].Charts, 1)
 			assert.Equal(t, influxdb.ViewPropertyTypeSingleStat, dashs[0].Charts[0].Properties.GetType())
 
@@ -356,7 +359,7 @@ spec:
 			}
 
 			mappings := sum1.LabelMappings
-			require.Len(t, mappings, 9)
+			require.Len(t, mappings, 11)
 			hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
 			hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[0].Check.GetID()), checks[0].Check.GetName(), influxdb.ChecksResourceType))
 			hasMapping(t, mappings, newSumMapping(pkger.SafeID(checks[1].Check.GetID()), checks[1].Check.GetName(), influxdb.ChecksResourceType))
@@ -384,10 +387,99 @@ spec:
 		)
 
 		t.Run("exporting all resources for an org", func(t *testing.T) {
-			newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(l.Org.ID))
-			require.NoError(t, err)
+			t.Run("getting everything", func(t *testing.T) {
+				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+					pkger.CreateByOrgIDOpt{
+						OrgID: l.Org.ID,
+					},
+				))
+				require.NoError(t, err)
 
-			verifyCompleteSummary(t, newPkg.Summary(), true)
+				verifyCompleteSummary(t, newPkg.Summary(), true)
+			})
+
+			t.Run("filtered by resource types", func(t *testing.T) {
+				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+					pkger.CreateByOrgIDOpt{
+						OrgID:         l.Org.ID,
+						ResourceKinds: []pkger.Kind{pkger.KindCheck, pkger.KindTask},
+					},
+				))
+				require.NoError(t, err)
+
+				newSum := newPkg.Summary()
+				assert.NotEmpty(t, newSum.Checks)
+				assert.NotEmpty(t, newSum.Labels)
+				assert.NotEmpty(t, newSum.Tasks)
+				assert.Empty(t, newSum.Buckets)
+				assert.Empty(t, newSum.Dashboards)
+				assert.Empty(t, newSum.NotificationEndpoints)
+				assert.Empty(t, newSum.NotificationRules)
+				assert.Empty(t, newSum.TelegrafConfigs)
+				assert.Empty(t, newSum.Variables)
+			})
+
+			t.Run("filtered by label resource type", func(t *testing.T) {
+				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+					pkger.CreateByOrgIDOpt{
+						OrgID:         l.Org.ID,
+						ResourceKinds: []pkger.Kind{pkger.KindLabel},
+					},
+				))
+				require.NoError(t, err)
+
+				newSum := newPkg.Summary()
+				assert.NotEmpty(t, newSum.Labels)
+				assert.Empty(t, newSum.Buckets)
+				assert.Empty(t, newSum.Checks)
+				assert.Empty(t, newSum.Dashboards)
+				assert.Empty(t, newSum.NotificationEndpoints)
+				assert.Empty(t, newSum.NotificationRules)
+				assert.Empty(t, newSum.Tasks)
+				assert.Empty(t, newSum.TelegrafConfigs)
+				assert.Empty(t, newSum.Variables)
+			})
+
+			t.Run("filtered by label name", func(t *testing.T) {
+				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+					pkger.CreateByOrgIDOpt{
+						OrgID:      l.Org.ID,
+						LabelNames: []string{"label_2"},
+					},
+				))
+				require.NoError(t, err)
+
+				newSum := newPkg.Summary()
+				assert.NotEmpty(t, newSum.Buckets)
+				assert.NotEmpty(t, newSum.Dashboards)
+				assert.NotEmpty(t, newSum.Labels)
+				assert.Empty(t, newSum.Checks)
+				assert.Empty(t, newSum.NotificationEndpoints)
+				assert.Empty(t, newSum.NotificationRules)
+				assert.Empty(t, newSum.Tasks)
+				assert.Empty(t, newSum.Variables)
+			})
+
+			t.Run("filtered by label name and resource type", func(t *testing.T) {
+				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
+					pkger.CreateByOrgIDOpt{
+						OrgID:         l.Org.ID,
+						LabelNames:    []string{"label_2"},
+						ResourceKinds: []pkger.Kind{pkger.KindDashboard},
+					},
+				))
+				require.NoError(t, err)
+
+				newSum := newPkg.Summary()
+				assert.NotEmpty(t, newSum.Dashboards)
+				assert.NotEmpty(t, newSum.Labels)
+				assert.Empty(t, newSum.Buckets)
+				assert.Empty(t, newSum.Checks)
+				assert.Empty(t, newSum.NotificationEndpoints)
+				assert.Empty(t, newSum.NotificationRules)
+				assert.Empty(t, newSum.Tasks)
+				assert.Empty(t, newSum.Variables)
+			})
 		})
 
 		t.Run("pkg with same bkt-var-label does nto create new resources for them", func(t *testing.T) {
@@ -516,15 +608,17 @@ spec:
 			newSum := newPkg.Summary()
 
 			labels := newSum.Labels
-			require.Len(t, labels, 1)
+			require.Len(t, labels, 2)
 			assert.Zero(t, labels[0].ID)
 			assert.Equal(t, "label_1", labels[0].Name)
+			assert.Zero(t, labels[1].ID)
+			assert.Equal(t, "label_2", labels[1].Name)
 
 			bkts := newSum.Buckets
 			require.Len(t, bkts, 1)
 			assert.Zero(t, bkts[0].ID)
 			assert.Equal(t, "rucket_1", bkts[0].Name)
-			hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
+			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "label_2")
 
 			checks := newSum.Checks
 			require.Len(t, checks, 2)
@@ -539,7 +633,7 @@ spec:
 			assert.Zero(t, dashs[0].ID)
 			assert.Equal(t, "dash_1", dashs[0].Name)
 			assert.Equal(t, "desc1", dashs[0].Description)
-			hasLabelAssociations(t, dashs[0].LabelAssociations, 1, "label_1")
+			hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "label_2")
 			require.Len(t, dashs[0].Charts, 1)
 			assert.Equal(t, influxdb.ViewPropertyTypeSingleStat, dashs[0].Charts[0].Properties.GetType())
 
@@ -892,6 +986,11 @@ metadata:
   name: label_1
 ---
 apiVersion: %[1]s
+kind: Label
+metadata:
+  name: label_2
+---
+apiVersion: %[1]s
 kind: Bucket
 metadata:
   name: rucket_1
@@ -899,6 +998,8 @@ spec:
   associations:
     - kind: Label
       name: label_1
+    - kind: Label
+      name: label_2
 ---
 apiVersion: %[1]s
 kind: Dashboard
@@ -923,6 +1024,8 @@ spec:
   associations:
     - kind: Label
       name: label_1
+    - kind: Label
+      name: label_2
 ---
 apiVersion: %[1]s
 kind: Variable

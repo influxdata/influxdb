@@ -9,29 +9,21 @@
 
 .time-machine-queries--controls {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  border-bottom: 4px solid $g3-castle;
-  background: $g2-kevlar;
-  padding: 8px 10px 0 10px;
+  flex-direction: column;
+  align-items: stretch;
   width: 100%;
-
-  .view-raw-data-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 115px;
-    margin-right: $ix-marg-b;
-  }
+  background-color: $g0-obsidian;
+  padding: $cf-marg-a;
+  padding-bottom: 0;
+  border-radius: $cf-radius + ($cf-border / 2);
 }
 
 .time-machine-queries--tabs {
   display: inline-flex;
-  height: 38px;
-  margin-right: $ix-marg-b;
+  margin-right: $cf-marg-b;
+  margin-bottom: $cf-marg-a;
   position: relative;
   flex: 1 1 auto;
-  overflow-x: auto;
   
   &::-webkit-scrollbar {
     height: 0;
@@ -40,17 +32,16 @@
 }
 
 .time-machine-queries--new {
-  margin: 8px 5px 0 5px;
-  flex: 0 0 auto;
+  margin-left: $cf-border;
 }
 
 .time-machine-queries--buttons {
   display: inline-flex;
-  justify-content: flex-end;
   flex: 0 0 auto;
+  flex-wrap: wrap;
 
-  & > * {
-    margin-left: 5px;
+  > * {
+    margin-bottom: $cf-marg-a;
   }
 }
 
@@ -74,4 +65,30 @@
   line-height: 30px;
   padding-left: 6px;
   color: $g13-mist;
+}
+
+.view-raw-data-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-right: $cf-marg-b;
+
+  .cf-slide-toggle {
+    margin-left: $cf-marg-a;
+  }
+}
+
+@media screen and (min-width: $cf-grid--breakpoint-sm) {
+  .time-machine-queries--controls {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: $cf-marg-a;
+  }
+  .time-machine-queries--tabs {
+    margin-bottom: 0;
+  }
+  .time-machine-queries--buttons > * {
+    margin-bottom: 0;
+  }
 }

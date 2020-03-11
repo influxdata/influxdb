@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb/task/backend"
-
 	"github.com/influxdata/influxdb"
 )
 
@@ -80,7 +78,7 @@ func (cs *CoordinatingCheckService) UpdateCheck(ctx context.Context, id influxdb
 
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
-	if fromTask.Status == string(backend.TaskInactive) && toTask.Status == string(backend.TaskActive) {
+	if fromTask.Status == string(influxdb.TaskInactive) && toTask.Status == string(influxdb.TaskActive) {
 		toTask.LatestCompleted = cs.Now()
 	}
 
@@ -111,7 +109,7 @@ func (cs *CoordinatingCheckService) PatchCheck(ctx context.Context, id influxdb.
 
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
-	if fromTask.Status == string(backend.TaskInactive) && toTask.Status == string(backend.TaskActive) {
+	if fromTask.Status == string(influxdb.TaskInactive) && toTask.Status == string(influxdb.TaskActive) {
 		toTask.LatestCompleted = cs.Now()
 	}
 

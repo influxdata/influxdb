@@ -271,7 +271,13 @@ export const selectVariableValue = (
   variableID: string,
   selectedValue: string
 ) => (dispatch, getState: GetState) => {
-  const contextID = getState().timeMachines.activeTimeMachineID
+  const state = getState()
+  const currDash = state.currentDashboard
+  const contextID = state.timeMachines.activeTimeMachineID
+
+  if (currDash) {
+    dispatch(selectValue(currDash.id, variableID, selectedValue))
+  }
 
   dispatch(selectValue(contextID, variableID, selectedValue))
   dispatch(executeQueries())

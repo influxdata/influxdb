@@ -27,7 +27,6 @@
 }
 
 .time-machine--bottom {
-  background-color: $g3-castle;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -52,9 +51,5 @@
     right: 0;
     bottom: 0;
     left: 0;
-  }
-
-  > .cell--view-empty {
-    padding-top: 32px;
   }
 }

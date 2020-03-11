@@ -4,6 +4,13 @@ import {get} from 'lodash'
 
 // Utils
 import {getVarAssignment} from 'src/variables/utils/getVarAssignment'
+import {
+  getActiveQuery,
+  getVariableAssignments as getTimeMachineVarAssignment,
+} from 'src/timeMachine/selectors'
+import {getTimeRangeAsVariable} from 'src/variables/utils/getTimeRangeVars'
+import {getTimeRange} from 'src/timeMachine/selectors'
+import {getWindowPeriodVariable} from 'src/variables/utils/getWindowVars'
 
 // Types
 import {
@@ -35,8 +42,30 @@ const extractVariablesListMemoized = memoizeOne(
   }
 )
 
+const extractWindowPeriodVariableMemoized = memoizeOne(
+  (state: AppState): Variable[] => {
+    const {text} = getActiveQuery(state)
+    const variables = getTimeMachineVarAssignment(state)
+    return getWindowPeriodVariable(text, variables) || []
+  }
+)
+
+export const extractTimeRangeVariablesMemoized = memoizeOne(
+  (state: AppState): Variable[] => getTimeRangeAsVariable(getTimeRange(state))
+)
+
 export const extractVariablesList = (state: AppState): Variable[] => {
   return extractVariablesListMemoized(state.resources.variables.byID)
+}
+
+export const extractVariablesListWithDefaults = (
+  state: AppState
+): Variable[] => {
+  return [
+    ...extractVariablesListMemoized(state.resources.variables.byID),
+    ...extractWindowPeriodVariableMemoized(state),
+    ...extractTimeRangeVariablesMemoized(state),
+  ]
 }
 
 export const extractVariableEditorName = (state: AppState): string => {
@@ -120,7 +149,8 @@ export const getValuesForVariable = (
 ): VariableValues => {
   return get(
     state,
-    `resources.variables.values.${contextID}.values.${variableID}`
+    `resources.variables.values["${contextID}"].values["${variableID}"]`,
+    {values: []}
   )
 }
 
@@ -128,7 +158,11 @@ export const getTypeForVariable = (
   state: AppState,
   variableID: string
 ): VariableArguments['type'] => {
-  return get(state, `resources.variables.byID.${variableID}.arguments.type`, '')
+  return get(
+    state,
+    `resources.variables.byID["${variableID}"].arguments.type`,
+    ''
+  )
 }
 
 type ArgumentValues = {[key: string]: string} | string[]
@@ -139,7 +173,7 @@ export const getArgumentValuesForVariable = (
 ): ArgumentValues => {
   return get(
     state,
-    `resources.variables.byID.${variableID}.arguments.values`,
+    `resources.variables.byID["${variableID}"].arguments.values`,
     {}
   )
 }
@@ -201,19 +235,6 @@ export const getVariableAssignments = (
     state.resources.variables.byID
   )
 
-export const getTimeMachineValues = (
-  state: AppState,
-  variableID: string
-): VariableValues => {
-  const activeTimeMachineID = state.timeMachines.activeTimeMachineID
-  const values = get(
-    state,
-    `resources.variables.values.${activeTimeMachineID}.values.${variableID}`
-  )
-
-  return values
-}
-
 export const getTimeMachineValuesStatus = (
   state: AppState
 ): RemoteDataState => {
@@ -241,6 +262,32 @@ export const getDashboardValuesStatus = (
 
 export const getVariable = (state: AppState, variableID: string): Variable => {
   return get(state, `resources.variables.byID.${variableID}`)
+}
+
+export const getSelectedVariableText = (
+  state: AppState,
+  variableID: string,
+  contextID: string
+): string => {
+  const vals =
+    getValuesForVariable(state, variableID, contextID) || ({} as VariableValues)
+  const kind = getTypeForVariable(state, variableID)
+  const key = vals && vals.selectedKey ? vals.selectedKey : undefined
+
+  if (vals.error) {
+    return 'Failed to Load'
+  }
+
+  if (kind === 'map') {
+    if (key === undefined || vals.values[key] === undefined) {
+      return 'No Results'
+    }
+    return key || 'None Selected'
+  }
+  if (!vals) {
+    return 'No Results'
+  }
+  return vals.selectedValue || 'None Selected'
 }
 
 export const getHydratedVariables = (

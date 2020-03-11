@@ -68,15 +68,15 @@
 }
 
 .vis-graphic--line-a {
-  stroke: $c-pool;
+  stroke: $c-laser;
 }
 
 .vis-graphic--line-b {
-  stroke: $c-dreamsicle;
+  stroke: $c-comet;
 }
 
 .vis-graphic--line-c {
-  stroke: $c-rainforest;
+  stroke: $c-honeydew;
 }
 
 .vis-graphic--line-d {
@@ -84,21 +84,21 @@
 }
 
 .vis-graphic--fill-a {
-  fill: $c-pool;
+  fill: $c-laser;
 }
 
 .vis-graphic--fill-b {
-  fill: $c-dreamsicle;
+  fill: $c-comet;
 }
 
 .vis-graphic--fill-c {
-  fill: $c-rainforest;
+  fill: $c-honeydew;
 }
 
 .vis-graphic--fill-a,
 .vis-graphic--fill-b,
 .vis-graphic--fill-c {
-  opacity: 0.5;
+  opacity: 0.8;
 }
 
 .vis-graphic--fill-d {

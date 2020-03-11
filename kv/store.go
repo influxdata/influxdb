@@ -199,3 +199,30 @@ func WithCursorSkipFirstItem() CursorOption {
 		c.SkipFirst = true
 	}
 }
+
+// VisitFunc is called for each k, v byte slice pair from the underlying source bucket
+// which are found in the index bucket for a provided foreign key.
+type VisitFunc func(k, v []byte) error
+
+// WalkCursor consumers the forward cursor call visit for each k/v pair found
+func WalkCursor(ctx context.Context, cursor ForwardCursor, visit VisitFunc) (err error) {
+	defer func() {
+		if cerr := cursor.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+
+	for k, v := cursor.Next(); k != nil; k, v = cursor.Next() {
+		if err := visit(k, v); err != nil {
+			return err
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+	}
+
+	return cursor.Err()
+}

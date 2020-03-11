@@ -1,9 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 
-// Components
-import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
-
 // Types
 import {
   ComponentColor,
@@ -23,26 +20,28 @@ export default class TaskHeader extends PureComponent<Props> {
   public render() {
     const {onCancel, onSave, title} = this.props
     return (
-      <Page.Header fullWidth={true}>
-        <Page.HeaderLeft>
-          <PageTitleWithOrg title={title} />
-        </Page.HeaderLeft>
-        <Page.HeaderRight>
-          <Button
-            color={ComponentColor.Default}
-            text="Cancel"
-            onClick={onCancel}
-            testID="task-cancel-btn"
-          />
-          <Button
-            color={ComponentColor.Success}
-            text="Save"
-            status={this.status}
-            onClick={onSave}
-            testID="task-save-btn"
-          />
-        </Page.HeaderRight>
-      </Page.Header>
+      <>
+        <Page.Header fullWidth={true}>
+          <Page.Title title={title} />
+        </Page.Header>
+        <Page.ControlBar fullWidth={true}>
+          <Page.ControlBarRight>
+            <Button
+              color={ComponentColor.Default}
+              text="Cancel"
+              onClick={onCancel}
+              testID="task-cancel-btn"
+            />
+            <Button
+              color={ComponentColor.Success}
+              text="Save"
+              status={this.status}
+              onClick={onSave}
+              testID="task-save-btn"
+            />
+          </Page.ControlBarRight>
+        </Page.ControlBar>
+      </>
     )
   }
 

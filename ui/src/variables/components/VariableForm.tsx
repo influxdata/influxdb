@@ -46,8 +46,10 @@ export default class VariableForm extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {name, variableType, onHideOverlay} = this.props
+    const {name, variableType, onHideOverlay, submitButtonText} = this.props
     const {selected} = this.state
+
+    const submitText = submitButtonText || 'Create Variable'
 
     return (
       <Form onSubmit={this.handleSubmit} testID="variable-form--root">
@@ -119,15 +121,11 @@ export default class VariableForm extends PureComponent<Props, State> {
           <Grid.Row>
             <Grid.Column>
               <Form.Footer>
+                <Button text="Cancel" onClick={onHideOverlay} />
                 <Button
-                  text="Cancel"
-                  color={ComponentColor.Danger}
-                  onClick={onHideOverlay}
-                />
-                <Button
-                  text="Create"
+                  text={submitText}
                   type={ButtonType.Submit}
-                  color={ComponentColor.Primary}
+                  color={ComponentColor.Success}
                   status={
                     this.isFormValid
                       ? ComponentStatus.Default

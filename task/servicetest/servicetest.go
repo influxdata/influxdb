@@ -276,7 +276,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		Name:            "task #0",
 		Cron:            "* * * * *",
 		Offset:          5 * time.Second,
-		Status:          string(backend.DefaultTaskStatus),
+		Status:          string(influxdb.DefaultTaskStatus),
 		Flux:            fmt.Sprintf(scriptFmt, 0),
 		Type:            influxdb.TaskSystemType,
 	}
@@ -292,7 +292,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 1),
 		OwnerID:        cr.UserID,
-		Status:         string(backend.TaskInactive),
+		Status:         string(influxdb.TaskInactive),
 	}
 
 	if _, err := sys.TaskService.CreateTask(authorizedCtx, tc2); err != nil {
@@ -327,24 +327,24 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Check task status filter
-	active := string(backend.TaskActive)
+	active := string(influxdb.TaskActive)
 	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Status: &active})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	activeTasks := findTasksByStatus(fs, string(backend.TaskActive))
+	activeTasks := findTasksByStatus(fs, string(influxdb.TaskActive))
 	if len(fs) != len(activeTasks) {
 		t.Fatalf("expected to find %d active tasks, found: %d", len(activeTasks), len(fs))
 	}
 
-	inactive := string(backend.TaskInactive)
+	inactive := string(influxdb.TaskInactive)
 	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Status: &inactive})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	inactiveTasks := findTasksByStatus(fs, string(backend.TaskInactive))
+	inactiveTasks := findTasksByStatus(fs, string(influxdb.TaskInactive))
 	if len(fs) != len(inactiveTasks) {
 		t.Fatalf("expected to find %d inactive tasks, found: %d", len(inactiveTasks), len(fs))
 	}
@@ -363,12 +363,12 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	if f.Flux != newFlux {
 		t.Fatalf("wrong flux from update; want %q, got %q", newFlux, f.Flux)
 	}
-	if f.Status != string(backend.TaskActive) {
+	if f.Status != string(influxdb.TaskActive) {
 		t.Fatalf("expected task to be created active, got %q", f.Status)
 	}
 
 	// Update task: status only.
-	newStatus := string(backend.TaskInactive)
+	newStatus := string(influxdb.TaskInactive)
 	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Status: &newStatus})
 	if err != nil {
 		t.Fatal(err)
@@ -381,7 +381,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Update task: reactivate status and update script.
-	newStatus = string(backend.TaskActive)
+	newStatus = string(influxdb.TaskActive)
 	newFlux = fmt.Sprintf(scriptFmt, 98)
 	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Flux: &newFlux, Status: &newStatus})
 	if err != nil {
@@ -395,7 +395,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Update task: just update an option.
-	newStatus = string(backend.TaskActive)
+	newStatus = string(influxdb.TaskActive)
 	newFlux = "option task = {\n\tname: \"task-changed #98\",\n\tcron: \"* * * * *\",\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> to(bucket: \"two\", orgID: \"000000000000000\")"
 	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Options: options.Options{Name: "task-changed #98"}})
 	if err != nil {
@@ -410,7 +410,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Update task: switch to every.
-	newStatus = string(backend.TaskActive)
+	newStatus = string(influxdb.TaskActive)
 	newFlux = "option task = {\n\tname: \"task-changed #98\",\n\tevery: 30s,\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> to(bucket: \"two\", orgID: \"000000000000000\")"
 	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Options: options.Options{Every: *(options.MustParseDuration("30s"))}})
 	if err != nil {
@@ -425,7 +425,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Update task: just cron.
-	newStatus = string(backend.TaskActive)
+	newStatus = string(influxdb.TaskActive)
 	newFlux = fmt.Sprintf(scriptDifferentName, 98)
 	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Options: options.Options{Cron: "* * * * *"}})
 	if err != nil {
@@ -748,11 +748,11 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, time.Now(), backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, time.Now(), influxdb.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, time.Now(), backend.RunSuccess); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, time.Now(), influxdb.RunSuccess); err != nil {
 		t.Fatal(err)
 	}
 
@@ -782,7 +782,7 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), influxdb.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
@@ -790,7 +790,7 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), backend.RunFail); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), influxdb.RunFail); err != nil {
 		t.Fatal(err)
 	}
 
@@ -905,7 +905,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		startedAt := time.Now().UTC()
 
 		// Update the run state to Started; normally the scheduler would do this.
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, backend.RunStarted); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, influxdb.RunStarted); err != nil {
 			t.Fatal(err)
 		}
 
@@ -918,7 +918,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Update the run state to Started; normally the scheduler would do this.
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt, backend.RunStarted); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt, influxdb.RunStarted); err != nil {
 			t.Fatal(err)
 		}
 
@@ -932,7 +932,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Mark the second run finished.
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), backend.RunSuccess); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), influxdb.RunSuccess); err != nil {
 			t.Fatal(err)
 		}
 
@@ -954,8 +954,8 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if runs[0].StartedAt != startedAt {
 			t.Fatalf("unexpectedStartedAt; want %s, got %s", startedAt, runs[0].StartedAt)
 		}
-		if runs[0].Status != backend.RunStarted.String() {
-			t.Fatalf("unexpected run status; want %s, got %s", backend.RunStarted.String(), runs[0].Status)
+		if runs[0].Status != influxdb.RunStarted.String() {
+			t.Fatalf("unexpected run status; want %s, got %s", influxdb.RunStarted.String(), runs[0].Status)
 		}
 
 		if !runs[0].FinishedAt.IsZero() {
@@ -1035,7 +1035,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, time.Now(), backend.RunStarted); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, time.Now(), influxdb.RunStarted); err != nil {
 			t.Fatal(err)
 		}
 
@@ -1043,7 +1043,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), backend.RunStarted); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), influxdb.RunStarted); err != nil {
 			t.Fatal(err)
 		}
 		// Add a log for the first run.
@@ -1350,7 +1350,7 @@ func testRunStorage(t *testing.T, sys *System) {
 	startedAt := time.Now().UTC().Add(time.Second * -10)
 
 	// Update the run state to Started; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, influxdb.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1363,12 +1363,12 @@ func testRunStorage(t *testing.T, sys *System) {
 	}
 
 	// Update the run state to Started; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), influxdb.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
 	// Mark the second run finished.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second*2), backend.RunFail); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second*2), influxdb.RunFail); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1390,8 +1390,8 @@ func testRunStorage(t *testing.T, sys *System) {
 	if runs[0].StartedAt != startedAt {
 		t.Fatalf("unexpectedStartedAt; want %s, got %s", startedAt, runs[0].StartedAt)
 	}
-	if runs[0].Status != backend.RunStarted.String() {
-		t.Fatalf("unexpected run status; want %s, got %s", backend.RunStarted.String(), runs[0].Status)
+	if runs[0].Status != influxdb.RunStarted.String() {
+		t.Fatalf("unexpected run status; want %s, got %s", influxdb.RunStarted.String(), runs[0].Status)
 	}
 
 	if !runs[0].FinishedAt.IsZero() {
@@ -1403,11 +1403,11 @@ func testRunStorage(t *testing.T, sys *System) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, startedAt.Add(time.Second*3), backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, startedAt.Add(time.Second*3), influxdb.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, startedAt.Add(time.Second*4), backend.RunSuccess); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, startedAt.Add(time.Second*4), influxdb.RunSuccess); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc2.ID); err != nil {
@@ -1440,8 +1440,8 @@ func testRunStorage(t *testing.T, sys *System) {
 	if runs[0].StartedAt != startedAt {
 		t.Fatalf("unexpectedStartedAt; want %s, got %s", startedAt, runs[0].StartedAt)
 	}
-	if runs[0].Status != backend.RunStarted.String() {
-		t.Fatalf("unexpected run status; want %s, got %s", backend.RunStarted.String(), runs[0].Status)
+	if runs[0].Status != influxdb.RunStarted.String() {
+		t.Fatalf("unexpected run status; want %s, got %s", influxdb.RunStarted.String(), runs[0].Status)
 	}
 	// TODO (al): handle empty finishedAt
 	// if runs[0].FinishedAt != "" {
@@ -1455,8 +1455,8 @@ func testRunStorage(t *testing.T, sys *System) {
 	if exp := startedAt.Add(time.Second); runs[2].StartedAt != exp {
 		t.Fatalf("unexpected StartedAt; want %s, got %s", exp, runs[2].StartedAt)
 	}
-	if runs[2].Status != backend.RunFail.String() {
-		t.Fatalf("unexpected run status; want %s, got %s", backend.RunSuccess.String(), runs[2].Status)
+	if runs[2].Status != influxdb.RunFail.String() {
+		t.Fatalf("unexpected run status; want %s, got %s", influxdb.RunSuccess.String(), runs[2].Status)
 	}
 	if exp := startedAt.Add(time.Second * 2); runs[2].FinishedAt != exp {
 		t.Fatalf("unexpected FinishedAt; want %s, got %s", exp, runs[2].FinishedAt)
@@ -1525,10 +1525,10 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 	startedAt := time.Now().UTC()
 
 	// Update the run state to Started then Failed; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, startedAt, backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, startedAt, influxdb.RunStarted); err != nil {
 		t.Fatal(err)
 	}
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, startedAt.Add(time.Second), backend.RunFail); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, startedAt.Add(time.Second), influxdb.RunFail); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc.ID); err != nil {
@@ -1551,7 +1551,7 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 		t.Fatalf("wrong scheduledFor on task: got %s, want %s", m.ScheduledFor, rc.ScheduledFor)
 	}
 
-	exp := backend.RequestStillQueuedError{Start: rc.ScheduledFor.Unix(), End: rc.ScheduledFor.Unix()}
+	exp := influxdb.RequestStillQueuedError{Start: rc.ScheduledFor.Unix(), End: rc.ScheduledFor.Unix()}
 
 	// Retrying a run which has been queued but not started, should be rejected.
 	if _, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.ID); err != exp && err.Error() != "run already queued" {
@@ -1587,7 +1587,7 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 	startedAt := time.Now().UTC()
 
 	// Update the run state to Started; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, influxdb.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1600,12 +1600,12 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 	}
 
 	// Update the run state to Started; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt, backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt, influxdb.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
 	// Mark the second run finished.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), backend.RunSuccess); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), influxdb.RunSuccess); err != nil {
 		t.Fatal(err)
 	}
 

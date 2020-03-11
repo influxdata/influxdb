@@ -71,7 +71,7 @@ func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
 	opts.mustRegister(cmd)
 
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
-	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "Duration in nanoseconds data will live in bucket")
+	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	b.org.register(cmd, false)
 
 	return cmd
@@ -253,7 +253,7 @@ func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID (required)")
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
 	cmd.MarkFlagRequired("id")
-	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "New duration data will live in bucket")
+	cmd.Flags().DurationVarP(&b.retention, "retention", "r", 0, "Duration bucket will retain data. 0 is infinite. Default is 0.")
 
 	return cmd
 }

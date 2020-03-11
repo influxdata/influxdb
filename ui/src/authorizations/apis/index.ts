@@ -1,5 +1,5 @@
 import AJAX from 'src/utils/ajax'
-import {Authorization} from 'src/types'
+import {Authorization, Auth0Config} from 'src/types'
 
 export const createAuthorization = async (
   authorization
@@ -11,6 +11,17 @@ export const createAuthorization = async (
       data: authorization,
     })
 
+    return data
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const getAuth0Config = async (): Promise<Auth0Config> => {
+  try {
+    const response = await fetch('/api/v2private/oauth/clientConfig')
+    const data = await response.json()
     return data
   } catch (error) {
     console.error(error)

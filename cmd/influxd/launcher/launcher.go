@@ -42,7 +42,7 @@ import (
 	"github.com/influxdata/influxdb/snowflake"
 	"github.com/influxdata/influxdb/source"
 	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/storage/reads"
+	storageflux "github.com/influxdata/influxdb/storage/flux"
 	"github.com/influxdata/influxdb/storage/readservice"
 	taskbackend "github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/coordinator"
@@ -594,9 +594,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	)
 
 	deps, err := influxdb.NewDependencies(
-		reads.NewReader(readservice.NewStore(m.engine)),
+		storageflux.NewReader(readservice.NewStore(m.engine)),
 		m.engine,
-		authorizer.NewBucketService(bucketSvc),
+		authorizer.NewBucketService(bucketSvc, userResourceSvc),
 		authorizer.NewOrgService(orgSvc),
 		authorizer.NewSecretService(secretSvc),
 		nil,
@@ -820,10 +820,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgerLogger := m.log.With(zap.String("service", "pkger"))
 		pkgSVC = pkger.NewService(
 			pkger.WithLogger(pkgerLogger),
-			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService)),
+			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService, b.UserResourceMappingService)),
 			pkger.WithCheckSVC(authorizer.NewCheckService(b.CheckService, authedURMSVC, authedOrgSVC)),
 			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
-			pkger.WithLabelSVC(authorizer.NewLabelService(b.LabelService)),
+			pkger.WithLabelSVC(authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService)),
 			pkger.WithNotificationEndpointSVC(authorizer.NewNotificationEndpointService(b.NotificationEndpointService, authedURMSVC, authedOrgSVC)),
 			pkger.WithNotificationRuleSVC(authorizer.NewNotificationRuleStore(b.NotificationRuleStore, authedURMSVC, authedOrgSVC)),
 			pkger.WithSecretSVC(authorizer.NewSecretService(b.SecretService)),

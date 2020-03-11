@@ -73,22 +73,22 @@ const AlertHistoryIndex: FC<Props> = ({params: {orgID}, resourceIDs}) => {
               className="alert-history-page"
             >
               <Page.Header fullWidth={true}>
-                <div className="alert-history-page--header">
-                  <Page.Title
-                    title="Check Statuses"
-                    testID="alert-history-title"
-                  />
-                  <AlertHistoryQueryParams
-                    searchInput={props.state.searchInput}
-                    historyType={historyType}
-                  />
-                  <AlertHistoryControls
-                    historyType={historyType}
-                    onSetHistoryType={setHistoryType}
-                    eventViewerProps={props}
-                  />
-                </div>
+                <Page.Title
+                  title="Check Statuses"
+                  testID="alert-history-title"
+                />
               </Page.Header>
+              <Page.ControlBar fullWidth={true}>
+                <AlertHistoryQueryParams
+                  searchInput={props.state.searchInput}
+                  historyType={historyType}
+                />
+                <AlertHistoryControls
+                  historyType={historyType}
+                  onSetHistoryType={setHistoryType}
+                  eventViewerProps={props}
+                />
+              </Page.ControlBar>
               <Page.Contents
                 fullWidth={true}
                 scrollable={false}

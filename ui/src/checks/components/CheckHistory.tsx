@@ -59,18 +59,20 @@ const CheckHistory: FC<Props> = ({
               className="alert-history-page"
             >
               <Page.Header fullWidth={true}>
-                <div className="alert-history-page--header">
-                  <Page.Title
-                    title="Check Statuses"
-                    testID="alert-history-title"
-                  />
+                <Page.Title
+                  title="Check Statuses"
+                  testID="alert-history-title"
+                />
+              </Page.Header>
+              <Page.ControlBar fullWidth={true}>
+                <Page.ControlBarLeft>
+                  <CheckHistoryControls eventViewerProps={props} />
                   <AlertHistoryQueryParams
                     searchInput={props.state.searchInput}
                     historyType={historyType}
                   />
-                  <CheckHistoryControls eventViewerProps={props} />
-                </div>
-              </Page.Header>
+                </Page.ControlBarLeft>
+              </Page.ControlBar>
               <Page.Contents
                 fullWidth={true}
                 scrollable={false}

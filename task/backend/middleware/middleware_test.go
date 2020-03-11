@@ -43,7 +43,7 @@ func inmemTaskService() influxdb.TaskService {
 			id := gen.ID()
 			task := &influxdb.Task{ID: id, Flux: tc.Flux, Cron: "* * * * *", Status: tc.Status, OrganizationID: tc.OrganizationID, Organization: tc.Organization}
 			if task.Status == "" {
-				task.Status = string(backend.TaskActive)
+				task.Status = string(influxdb.TaskActive)
 			}
 			tasks[id] = task
 
@@ -152,7 +152,7 @@ func TestCoordinatingTaskService(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	inactive := string(backend.TaskInactive)
+	inactive := string(influxdb.TaskInactive)
 	res, err := middleware.UpdateTask(context.Background(), task.ID, influxdb.TaskUpdate{Status: &inactive})
 	if err != nil {
 		t.Fatal(err)
@@ -172,7 +172,7 @@ func TestCoordinatingTaskService(t *testing.T) {
 		t.Fatal("task sent to scheduler doesnt match task created")
 	}
 
-	active := string(backend.TaskActive)
+	active := string(influxdb.TaskActive)
 	if _, err := middleware.UpdateTask(context.Background(), task.ID, influxdb.TaskUpdate{Status: &active}); err != nil {
 		t.Fatal(err)
 	}

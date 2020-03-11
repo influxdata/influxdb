@@ -6,13 +6,17 @@ describe('Variables', () => {
 
     cy.signin().then(({body}) => {
       cy.wrap(body.org).as('org')
-      cy.createVariable(body.org.id)
+      cy.createQueryVariable(body.org.id)
       cy.visit(`orgs/${body.org.id}/settings/variables`)
     })
   })
 
   it('can create a variable', () => {
     cy.getByTestID('resource-card').should('have.length', 1)
+    // ensure that the default variables are not accessible on the Variables Tab
+    cy.getByTestID('resource-card').should('not.contain', 'timeRangeStart')
+    cy.getByTestID('resource-card').should('not.contain', 'timeRangeStop')
+    cy.getByTestID('resource-card').should('not.contain', 'windowPeriod')
 
     cy.getByTestID('add-resource-dropdown--button').click()
 
@@ -64,7 +68,7 @@ describe('Variables', () => {
 
   it('can delete a variable', () => {
     cy.get<Organization>('@org').then(({id}) => {
-      cy.createVariable(id, 'anotherVariable')
+      cy.createQueryVariable(id, 'anotherVariable')
     })
 
     cy.getByTestID('resource-card').should('have.length', 2)

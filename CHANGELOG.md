@@ -1,8 +1,12 @@
 ## v2.0.0-beta.6 [unreleased]
 
 ### Features
+
 1. [17085](https://github.com/influxdata/influxdb/pull/17085): Clicking on bucket name takes user to Data Explorer with bucket selected
 1. [17095](https://github.com/influxdata/influxdb/pull/17095): Extend pkger dashboards with table view support
+1. [17114](https://github.com/influxdata/influxdb/pull/17114): Allow for retention to be provided to influx setup command as a duration
+1. [17138](https://github.com/influxdata/influxdb/pull/17138): Extend pkger export all capabilities to support filtering by lable name and resource type
+1. [17049](https://github.com/influxdata/influxdb/pull/17049): Added new login and sign-up screen that for cloud users that allows direct login from their region
 
 ### Bug Fixes
 
@@ -13,6 +17,12 @@
 1. [17072](https://github.com/influxdata/influxdb/pull/17072): Fixed issue where creating a variable of type map was piping the incorrect value when map variables were used in queries
 1. [17050](https://github.com/influxdata/influxdb/pull/17050): Added missing user names to auth CLI commands
 1. [17091](https://github.com/influxdata/influxdb/pull/17091): Require Content-Type for query endpoint
+1. [17113](https://github.com/influxdata/influxdb/pull/17113): Disabled group functionality for check query builder
+1. [17120](https://github.com/influxdata/influxdb/pull/17120): Fixed cell configuration error that was popping up when users create a dashboard and accessed the disk usage cell for the first time
+1. [17097](https://github.com/influxdata/influxdb/pull/17097): Listing all the default variables in the VariableTab of the script editor
+1. [17049](https://github.com/influxdata/influxdb/pull/17049): Fixed bug that was preventing the interval status on the dashboard header from refreshing on selections
+1. [17161](https://github.com/influxdata/influxdb/pull/17161): Update table custom decimal feature for tables to update table onFocus
+1. [17168](https://github.com/influxdata/influxdb/pull/17168): Fixed UI bug that was setting Telegraf config buttons off-center and was resizing config selections when filtering through the data
 
 ## v2.0.0-beta.5 [2020-02-27]
 

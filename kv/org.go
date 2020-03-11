@@ -730,6 +730,24 @@ func (s *Service) FindResourceOrganizationID(ctx context.Context, rt influxdb.Re
 			return influxdb.InvalidID(), err
 		}
 		return r.OrgID, nil
+	case influxdb.ChecksResourceType:
+		r, err := s.FindCheckByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.GetOrgID(), nil
+	case influxdb.NotificationEndpointResourceType:
+		r, err := s.FindNotificationEndpointByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.GetOrgID(), nil
+	case influxdb.NotificationRuleResourceType:
+		r, err := s.FindNotificationRuleByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.GetOrgID(), nil
 	}
 
 	return influxdb.InvalidID(), &influxdb.Error{

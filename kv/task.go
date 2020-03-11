@@ -6,11 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/resource"
-
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/resource"
 	"github.com/influxdata/influxdb/task/options"
 	"go.uber.org/zap"
 )
@@ -34,7 +32,6 @@ var (
 )
 
 var _ influxdb.TaskService = (*Service)(nil)
-var _ backend.TaskControlService = (*Service)(nil)
 
 type kvTask struct {
 	ID              influxdb.ID            `json:"id"`
@@ -600,7 +597,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 	}
 
 	if tc.Status == "" {
-		tc.Status = string(backend.TaskActive)
+		tc.Status = string(influxdb.TaskActive)
 	}
 
 	createdAt := s.clock.Now().Truncate(time.Second).UTC()
@@ -1163,7 +1160,7 @@ func (s *Service) retryRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID
 	}
 
 	r.ID = s.IDGenerator.ID()
-	r.Status = backend.RunScheduled.String()
+	r.Status = influxdb.RunScheduled.String()
 	r.StartedAt = time.Time{}
 	r.FinishedAt = time.Time{}
 	r.RequestedAt = time.Time{}
@@ -1231,7 +1228,7 @@ func (s *Service) forceRun(ctx context.Context, tx Tx, taskID influxdb.ID, sched
 	r := &influxdb.Run{
 		ID:           s.IDGenerator.ID(),
 		TaskID:       taskID,
-		Status:       backend.RunScheduled.String(),
+		Status:       influxdb.RunScheduled.String(),
 		RequestedAt:  time.Now().UTC(),
 		ScheduledFor: t,
 		Log:          []influxdb.Log{},
@@ -1296,7 +1293,7 @@ func (s *Service) createRun(ctx context.Context, tx Tx, taskID influxdb.ID, sche
 		TaskID:       taskID,
 		ScheduledFor: t,
 		RunAt:        runAt,
-		Status:       backend.RunScheduled.String(),
+		Status:       influxdb.RunScheduled.String(),
 		Log:          []influxdb.Log{},
 	}
 
@@ -1553,7 +1550,7 @@ func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 }
 
 // UpdateRunState sets the run state at the respective time.
-func (s *Service) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state backend.RunStatus) error {
+func (s *Service) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state influxdb.RunStatus) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		err := s.updateRunState(ctx, tx, taskID, runID, when, state)
 		if err != nil {
@@ -1564,7 +1561,7 @@ func (s *Service) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID,
 	return err
 }
 
-func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influxdb.ID, when time.Time, state backend.RunStatus) error {
+func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influxdb.ID, when time.Time, state influxdb.RunStatus) error {
 	// find run
 	run, err := s.findRunByID(ctx, tx, taskID, runID)
 	if err != nil {
@@ -1574,9 +1571,9 @@ func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influ
 	// update state
 	run.Status = state.String()
 	switch state {
-	case backend.RunStarted:
+	case influxdb.RunStarted:
 		run.StartedAt = when
-	case backend.RunSuccess, backend.RunFail, backend.RunCanceled:
+	case influxdb.RunSuccess, influxdb.RunFail, influxdb.RunCanceled:
 		run.FinishedAt = when
 	}
 

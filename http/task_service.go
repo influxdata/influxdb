@@ -17,7 +17,6 @@ import (
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/pkg/httpc"
-	"github.com/influxdata/influxdb/task/backend"
 	"go.uber.org/zap"
 )
 
@@ -1634,7 +1633,7 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID influxdb.ID) (*
 			return nil, influxdb.ErrRunNotFound
 		}
 		// RequestStillQueuedError is also part of the contract.
-		if e := backend.ParseRequestStillQueuedError(err.Error()); e != nil {
+		if e := influxdb.ParseRequestStillQueuedError(err.Error()); e != nil {
 			return nil, *e
 		}
 
@@ -1668,7 +1667,7 @@ func (t TaskService) ForceRun(ctx context.Context, taskID influxdb.ID, scheduled
 		}
 
 		// RequestStillQueuedError is also part of the contract.
-		if e := backend.ParseRequestStillQueuedError(err.Error()); e != nil {
+		if e := influxdb.ParseRequestStillQueuedError(err.Error()); e != nil {
 			return nil, *e
 		}
 
