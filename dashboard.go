@@ -913,7 +913,7 @@ func (b BuilderConfig) MarshalJSON() ([]byte, error) {
 // isn't technically required, but working with struct literals with embedded
 // struct tags is really painful. This is to get around that bit. Would be nicer
 // to have these as actual types maybe.
-func NewBuilderTag(key string, values []string, functionType string) struct {
+func NewBuilderTag(key string, functionType string, values ...string) struct {
 	Key                   string   `json:"key"`
 	Values                []string `json:"values"`
 	AggregateFunctionType string   `json:"aggregateFunctionType"`
