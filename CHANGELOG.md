@@ -25,6 +25,7 @@
 1. [17168](https://github.com/influxdata/influxdb/pull/17168): Fixed UI bug that was setting Telegraf config buttons off-center and was resizing config selections when filtering through the data
 1. [17208](https://github.com/influxdata/influxdb/pull/17208): Fixed UI bug that was setting causing dashboard cells to error when the a v.bucket was being used and was being configured for the first time
 1. [17214](https://github.com/influxdata/influxdb/pull/17214): Fix appearance of client library logos in Safari
+1. [17202](https://github.com/influxdata/influxdb/pull/17202): Fixed UI bug that was preventing checks created with the query builder from updating. Also fixed a bug that was preventing dashboard cell queries from working properly when creating group queries using the query builder
 
 ## v2.0.0-beta.5 [2020-02-27]
 

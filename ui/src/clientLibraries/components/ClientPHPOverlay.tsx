@@ -7,13 +7,13 @@ import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOv
 import TemplatedCodeSnippet from 'src/shared/components/TemplatedCodeSnippet'
 
 // Constants
-import {clientJSLibrary} from 'src/clientLibraries/constants'
-
-// Types
-import {AppState} from 'src/types'
+import {clientPHPLibrary} from 'src/clientLibraries/constants'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
+
+// Types
+import {AppState} from 'src/types'
 
 interface StateProps {
   org: string
@@ -21,15 +21,17 @@ interface StateProps {
 
 type Props = StateProps
 
-const ClientJSOverlay: FunctionComponent<Props> = props => {
+const ClientPHPOverlay: FunctionComponent<Props> = props => {
   const {
     name,
     url,
-    initializeNPMCodeSnippet,
+    initializeComposerCodeSnippet,
     initializeClientCodeSnippet,
     executeQueryCodeSnippet,
     writingDataLineProtocolCodeSnippet,
-  } = clientJSLibrary
+    writingDataPointCodeSnippet,
+    writingDataArrayCodeSnippet,
+  } = clientPHPLibrary
   const {org} = props
   const server = window.location.origin
 
@@ -41,14 +43,17 @@ const ClientJSOverlay: FunctionComponent<Props> = props => {
           GitHub Repository
         </a>
       </p>
-      <h5>Install via NPM</h5>
-      <TemplatedCodeSnippet template={initializeNPMCodeSnippet} label="Code" />
+      <h5>Install via Composer</h5>
+      <TemplatedCodeSnippet
+        template={initializeComposerCodeSnippet}
+        label="Code"
+      />
       <h5>Initialize the Client</h5>
       <TemplatedCodeSnippet
         template={initializeClientCodeSnippet}
-        label="JavaScript Code"
+        label="PHP Code"
         defaults={{
-          server: 'server',
+          server: 'serverUrl',
           token: 'token',
         }}
         values={{
@@ -56,12 +61,37 @@ const ClientJSOverlay: FunctionComponent<Props> = props => {
         }}
       />
       <h5>Write Data</h5>
+      <p>Option 1: Use InfluxDB Line Protocol to write data</p>
       <TemplatedCodeSnippet
         template={writingDataLineProtocolCodeSnippet}
-        label="JavaScript Code"
+        label="PHP Code"
         defaults={{
-          org: 'orgID',
           bucket: 'bucketID',
+          org: 'orgID',
+        }}
+        values={{
+          org,
+        }}
+      />
+      <p>Option 2: Use a Data Point to write data</p>
+      <TemplatedCodeSnippet
+        template={writingDataPointCodeSnippet}
+        label="PHP Code"
+        defaults={{
+          bucket: 'bucketID',
+          org: 'orgID',
+        }}
+        values={{
+          org,
+        }}
+      />
+      <p>Option 3: Use an Array structure to write data</p>
+      <TemplatedCodeSnippet
+        template={writingDataArrayCodeSnippet}
+        label="PHP Code"
+        defaults={{
+          bucket: 'bucketID',
+          org: 'orgID',
         }}
         values={{
           org,
@@ -70,8 +100,9 @@ const ClientJSOverlay: FunctionComponent<Props> = props => {
       <h5>Execute a Flux query</h5>
       <TemplatedCodeSnippet
         template={executeQueryCodeSnippet}
-        label="JavaScript Code"
+        label="Ruby Code"
         defaults={{
+          bucket: 'my_bucket',
           org: 'orgID',
         }}
         values={{
@@ -90,8 +121,8 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export {ClientJSOverlay}
+export {ClientPHPOverlay}
 export default connect<StateProps, {}, Props>(
   mstp,
   null
-)(ClientJSOverlay)
+)(ClientPHPOverlay)
