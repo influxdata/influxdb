@@ -35,6 +35,24 @@
     background-color: $g8-storm;
   }
 
+  .cell:hover .cell--draggable:hover .cell--dot-grid,
+  .cell:hover .cell--draggable:hover .cell--dot-grid:before,
+  .cell:hover .cell--draggable:hover .cell--dot-grid:after {
+    background-color: $c-pool;
+  }
+
+  .cell--context  {
+    color: $g13-mist;
+  }
+  .cell:hover .cell--context {
+    color: $g8-storm;
+  }
+  .cell:hover .cell--context:hover,
+  .cell .cell--context.cell--context__active,
+  .cell:hover .cell--context.cell--context__active {
+    color: $c-pool;
+  }
+
   .cell--note-indicator {
     color: $g13-mist;
 
@@ -52,5 +70,37 @@
       font-weight: 700;
       color: $c-star;
     }
+  }
+
+  .cell--view-empty {
+    color: $g11-sidewalk;
+  }
+}
+
+/*
+  Light Mode Cells
+  ------------------------------------------------------------------------------
+*/
+
+.clockface--app-wrapper.dashboard-light-mode {
+  .react-resizable-handle {
+    border-right-color: $g14-chromium;
+    border-bottom-color: $g14-chromium;
+
+    &:before,
+    &:after {
+      background-color: $g20-white;
+    }
+
+    &:hover {
+      border-right-color: $c-comet;
+      border-bottom-color: $c-comet;
+    }
+  }
+  .react-grid-item.resizing .react-resizable-handle,
+  .react-grid-item.react-draggable-dragging .react-resizable-handle {
+    opacity: 1;
+    border-right-color: $c-comet;
+    border-bottom-color: $c-comet;
   }
 }
