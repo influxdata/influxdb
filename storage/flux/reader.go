@@ -1,4 +1,4 @@
-package reads
+package storageflux
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
+	storage "github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
@@ -24,10 +25,11 @@ type storageTable interface {
 }
 
 type storeReader struct {
-	s Store
+	s storage.Store
 }
 
-func NewReader(s Store) influxdb.Reader {
+// NewReader returns a new storageflux reader
+func NewReader(s storage.Store) influxdb.Reader {
 	return &storeReader{s: s}
 }
 
@@ -95,7 +97,7 @@ func (r *storeReader) Close() {}
 
 type filterIterator struct {
 	ctx   context.Context
-	s     Store
+	s     storage.Store
 	spec  influxdb.ReadFilterSpec
 	stats cursors.CursorStats
 	cache *tagsCache
@@ -143,7 +145,7 @@ func (fi *filterIterator) Do(f func(flux.Table) error) error {
 	return fi.handleRead(f, rs)
 }
 
-func (fi *filterIterator) handleRead(f func(flux.Table) error, rs ResultSet) error {
+func (fi *filterIterator) handleRead(f func(flux.Table) error, rs storage.ResultSet) error {
 	// these resources must be closed if not nil on return
 	var (
 		cur   cursors.Cursor
@@ -219,7 +221,7 @@ READ:
 
 type groupIterator struct {
 	ctx   context.Context
-	s     Store
+	s     storage.Store
 	spec  influxdb.ReadGroupSpec
 	stats cursors.CursorStats
 	cache *tagsCache
@@ -275,10 +277,10 @@ func (gi *groupIterator) Do(f func(flux.Table) error) error {
 	return gi.handleRead(f, rs)
 }
 
-func (gi *groupIterator) handleRead(f func(flux.Table) error, rs GroupResultSet) error {
+func (gi *groupIterator) handleRead(f func(flux.Table) error, rs storage.GroupResultSet) error {
 	// these resources must be closed if not nil on return
 	var (
-		gc    GroupCursor
+		gc    storage.GroupCursor
 		cur   cursors.Cursor
 		table storageTable
 	)
@@ -502,7 +504,7 @@ func groupKeyForGroup(kv [][]byte, spec *influxdb.ReadGroupSpec, bnds execute.Bo
 type tagKeysIterator struct {
 	ctx       context.Context
 	bounds    execute.Bounds
-	s         Store
+	s         storage.Store
 	readSpec  influxdb.ReadTagKeysSpec
 	predicate *datatypes.Predicate
 	alloc     *memory.Allocator
@@ -515,11 +517,12 @@ func (ti *tagKeysIterator) Do(f func(flux.Table) error) error {
 	)
 
 	var req datatypes.TagKeysRequest
-	if any, err := types.MarshalAny(src); err != nil {
+	any, err := types.MarshalAny(src)
+	if err != nil {
 		return err
-	} else {
-		req.TagsSource = any
 	}
+
+	req.TagsSource = any
 	req.Predicate = ti.predicate
 	req.Range.Start = int64(ti.bounds.Start)
 	req.Range.End = int64(ti.bounds.Stop)
@@ -584,7 +587,7 @@ func (ti *tagKeysIterator) Statistics() cursors.CursorStats {
 type tagValuesIterator struct {
 	ctx       context.Context
 	bounds    execute.Bounds
-	s         Store
+	s         storage.Store
 	readSpec  influxdb.ReadTagValuesSpec
 	predicate *datatypes.Predicate
 	alloc     *memory.Allocator
@@ -597,11 +600,12 @@ func (ti *tagValuesIterator) Do(f func(flux.Table) error) error {
 	)
 
 	var req datatypes.TagValuesRequest
-	if any, err := types.MarshalAny(src); err != nil {
+	any, err := types.MarshalAny(src)
+	if err != nil {
 		return err
-	} else {
-		req.TagsSource = any
 	}
+	req.TagsSource = any
+
 	switch ti.readSpec.TagKey {
 	case "_measurement":
 		req.TagKey = models.MeasurementTagKey

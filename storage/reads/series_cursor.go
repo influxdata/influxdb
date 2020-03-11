@@ -31,8 +31,8 @@ type SeriesRow struct {
 }
 
 var (
-	fieldKeyBytes       = []byte(fieldKey)
-	measurementKeyBytes = []byte(measurementKey)
+	fieldKeyBytes       = []byte(datatypes.FieldKey)
+	measurementKeyBytes = []byte(datatypes.MeasurementKey)
 )
 
 type indexSeriesCursor struct {

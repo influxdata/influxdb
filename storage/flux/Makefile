@@ -1,14 +1,11 @@
 # List any generated files here
-TARGETS = array_cursor.gen.go
+TARGETS = table.gen.go
 
 # List any source files used to generate the targets here
-SOURCES = gen.go \
-	array_cursor.gen.go.tmpl \
-	array_cursor.gen.go.tmpldata \
-	types.tmpldata
+SOURCES = table.gen.go.tmpl
 
 # List any directories that have their own Makefile here
-SUBDIRS = datatypes
+SUBDIRS = 
 
 # Default target
 all: $(SUBDIRS) $(TARGETS)

@@ -1,4 +1,4 @@
-package reads
+package storageflux 
 
 import (
 	"sync"
@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/models"
+	storage "github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/pkg/errors"
 )
@@ -95,13 +96,13 @@ func (t *{{.name}}Table) advance() bool {
 type {{.name}}GroupTable struct {
 	table
 	mu     sync.Mutex
-	gc     GroupCursor
+	gc     storage.GroupCursor
 	cur    cursors.{{.Name}}ArrayCursor
 }
 
 func new{{.Name}}GroupTable(
 	done chan struct{},
-	gc GroupCursor,
+	gc storage.GroupCursor,
 	cur cursors.{{.Name}}ArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,

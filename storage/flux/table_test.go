@@ -1,4 +1,4 @@
-package reads_test
+package storageflux_test
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/data/gen"
 	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/storage/reads"
+	storageflux "github.com/influxdata/influxdb/storage/flux"
 	"github.com/influxdata/influxdb/storage/readservice"
 	"go.uber.org/zap/zaptest"
 )
@@ -154,7 +154,7 @@ func benchmarkRead(b *testing.B, sg gen.SeriesGenerator, f func(r influxdb.Reade
 	if err := engine.Open(context.Background()); err != nil {
 		b.Fatal(err)
 	}
-	reader := reads.NewReader(readservice.NewStore(engine))
+	reader := storageflux.NewReader(readservice.NewStore(engine))
 
 	b.ResetTimer()
 	b.ReportAllocs()
