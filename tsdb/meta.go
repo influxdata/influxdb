@@ -1,7 +1,5 @@
 package tsdb
 
-//go:generate protoc --plugin ../scripts/protoc-gen-gogo --gogo_out=. internal/meta.proto
-
 import (
 	"github.com/influxdata/influxdb/models"
 )
