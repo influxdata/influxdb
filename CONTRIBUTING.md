@@ -72,7 +72,7 @@ Changes that cause tests to fail cannot be merged.
 There will usually be some back and forth as we finalize the change, but once that completes it may be merged.
 
 To assist in review for the PR,
-[check the PR template](blob/master/.github/PULL_REQUEST_TEMPLATE.md)
+[check the PR template](.github/PULL_REQUEST_TEMPLATE.md)
 which is automatically added to your pull request comment.
 
 
