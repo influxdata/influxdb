@@ -63,10 +63,10 @@ func TestNotificationEndpointService_FindNotificationEndpointByID(t *testing.T) 
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-						ID:   influxdbtesting.IDPtr(10),
+						Type:  influxdb.NotificationEndpointResourceType,
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 				id: 1,
@@ -92,7 +92,7 @@ func TestNotificationEndpointService_FindNotificationEndpointByID(t *testing.T) 
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.NotificationEndpointResourceType,
 						ID:   influxdbtesting.IDPtr(2),
@@ -102,7 +102,7 @@ func TestNotificationEndpointService_FindNotificationEndpointByID(t *testing.T) 
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:orgs/000000000000000a is unauthorized",
+					Msg:  "read:orgs/000000000000000a/notificationEndpoints/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -164,10 +164,10 @@ func TestNotificationEndpointService_FindNotificationEndpoints(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-						ID:   influxdbtesting.IDPtr(10),
+						Type:  influxdb.NotificationEndpointResourceType,
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 			},
@@ -254,17 +254,17 @@ func TestNotificationEndpointService_UpdateNotificationEndpoint(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationEndpointResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationEndpointResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -299,17 +299,17 @@ func TestNotificationEndpointService_UpdateNotificationEndpoint(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationEndpointResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a is unauthorized",
+					Msg:  "write:orgs/000000000000000a/notificationEndpoints/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -375,17 +375,17 @@ func TestNotificationEndpointService_PatchNotificationEndpoint(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationEndpointResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationEndpointResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -420,17 +420,17 @@ func TestNotificationEndpointService_PatchNotificationEndpoint(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationEndpointResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a is unauthorized",
+					Msg:  "write:orgs/000000000000000a/notificationEndpoints/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -490,17 +490,17 @@ func TestNotificationEndpointService_DeleteNotificationEndpoint(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationEndpointResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationEndpointResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -530,17 +530,17 @@ func TestNotificationEndpointService_DeleteNotificationEndpoint(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
-							Type: influxdb.OrgsResourceType,
-							ID:   influxdbtesting.IDPtr(10),
+							Type:  influxdb.NotificationEndpointResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a is unauthorized",
+					Msg:  "write:orgs/000000000000000a/notificationEndpoints/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -592,7 +592,7 @@ func TestNotificationEndpointService_CreateNotificationEndpoint(t *testing.T) {
 			args: args{
 				orgID: 10,
 				permission: influxdb.Permission{
-					Action: "write",
+					Action: influxdb.WriteAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.NotificationEndpointResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
@@ -615,10 +615,10 @@ func TestNotificationEndpointService_CreateNotificationEndpoint(t *testing.T) {
 			args: args{
 				orgID: 10,
 				permission: influxdb.Permission{
-					Action: "write",
+					Action: influxdb.WriteAction,
 					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-						ID:   influxdbtesting.IDPtr(10),
+						Type:  influxdb.NotificationEndpointResourceType,
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 			},
@@ -638,7 +638,7 @@ func TestNotificationEndpointService_CreateNotificationEndpoint(t *testing.T) {
 			args: args{
 				orgID: 10,
 				permission: influxdb.Permission{
-					Action: "write",
+					Action: influxdb.WriteAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.NotificationEndpointResourceType,
 						ID:   influxdbtesting.IDPtr(1),
