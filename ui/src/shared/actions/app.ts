@@ -10,6 +10,8 @@ import {
   ActionTypes,
   EnablePresentationModeAction,
   DisablePresentationModeAction,
+  ExpandNavTreeAction,
+  CollapseNavTreeAction,
   DelayEnablePresentationModeDispatcher,
   SetAutoRefreshActionCreator,
   SetAutoRefreshAction,
@@ -53,4 +55,12 @@ export const setTimeZone = (timeZone: TimeZone): SetTimeZoneAction => ({
 
 export const templateControlBarVisibilityToggled = (): TemplateControlBarVisibilityToggledAction => ({
   type: ActionTypes.TemplateControlBarVisibilityToggled,
+})
+
+export const expandNavTree = (): ExpandNavTreeAction => ({
+  type: ActionTypes.ExpandNavTree,
+})
+
+export const collapseNavTree = (): CollapseNavTreeAction => ({
+  type: ActionTypes.CollapseNavTree,
 })

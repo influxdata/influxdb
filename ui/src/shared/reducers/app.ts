@@ -12,6 +12,7 @@ export interface AppState {
     autoRefresh: number
     showTemplateControlBar: boolean
     timeZone: TimeZone
+    navTreeExpanded: boolean
   }
 }
 
@@ -23,6 +24,7 @@ const initialState: AppState = {
     autoRefresh: AUTOREFRESH_DEFAULT_INTERVAL,
     showTemplateControlBar: false,
     timeZone: 'Local',
+    navTreeExpanded: true,
   },
 }
 
@@ -77,6 +79,20 @@ const appPersistedReducer = (
       const {timeZone} = action.payload
 
       return {...state, timeZone}
+    }
+
+    case ActionTypes.ExpandNavTree: {
+      return {
+        ...state,
+        navTreeExpanded: true,
+      }
+    }
+
+    case ActionTypes.CollapseNavTree: {
+      return {
+        ...state,
+        navTreeExpanded: false,
+      }
     }
 
     default:

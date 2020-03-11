@@ -26,16 +26,11 @@ import {getNavItemActivation} from 'src/pageLayout/utils'
 import {AppState} from 'src/types'
 import {IconFont} from '@influxdata/clockface'
 
+// Actions
+import {expandNavTree, collapseNavTree} from 'src/shared/actions/app'
+
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-interface StateProps {
-  isHidden: boolean
-}
-
-interface State {
-  isShowingOrganizations: boolean
-}
 
 interface NavSubItem {
   id: string
@@ -56,7 +51,21 @@ interface NavItem {
   menu?: NavSubItem[]
 }
 
-type Props = StateProps & WithRouterProps
+interface StateProps {
+  isHidden: boolean
+  navTreeExpanded: boolean
+}
+
+interface DispatchProps {
+  handleExpandNavTree: typeof expandNavTree
+  handleCollapseNavTree: typeof collapseNavTree
+}
+
+interface State {
+  isShowingOrganizations: boolean
+}
+
+type Props = StateProps & DispatchProps & WithRouterProps
 
 @ErrorHandling
 class SideNav extends PureComponent<Props, State> {
@@ -72,10 +81,21 @@ class SideNav extends PureComponent<Props, State> {
     const {
       isHidden,
       params: {orgID},
+      navTreeExpanded,
+      handleExpandNavTree,
+      handleCollapseNavTree,
     } = this.props
 
     if (isHidden) {
       return null
+    }
+
+    const handleToggleNavExpansion = (): void => {
+      if (navTreeExpanded) {
+        handleCollapseNavTree()
+      } else {
+        handleExpandNavTree()
+      }
     }
 
     // Home page
@@ -202,9 +222,10 @@ class SideNav extends PureComponent<Props, State> {
 
     return (
       <TreeNav
-        expanded={true}
+        expanded={navTreeExpanded}
         headerElement={<NavHeader link={orgPrefix} />}
         userElement={<UserWidget />}
+        onToggleClick={handleToggleNavExpansion}
       >
         {navItems.map(item => {
           let navItemElement = (
@@ -297,10 +318,19 @@ class SideNav extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
-  const isHidden = state.app.ephemeral.inPresentationMode
-
-  return {isHidden}
+const mdtp: DispatchProps = {
+  handleExpandNavTree: expandNavTree,
+  handleCollapseNavTree: collapseNavTree,
 }
 
-export default connect<StateProps>(mstp)(withRouter(SideNav))
+const mstp = (state: AppState): StateProps => {
+  const isHidden = state.app.ephemeral.inPresentationMode
+  const navTreeExpanded = state.app.persisted.navTreeExpanded
+
+  return {isHidden, navTreeExpanded}
+}
+
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(withRouter(SideNav))
