@@ -62,7 +62,7 @@ func NewSeriesFile(path string) *SeriesFile {
 		metricsEnabled: true,
 		Logger:         zap.NewNop(),
 
-		LargeWriteThreshold: tsdb.DefaultLargeSeriesWriteThreshold,
+		LargeWriteThreshold: DefaultLargeSeriesWriteThreshold,
 	}
 }
 
