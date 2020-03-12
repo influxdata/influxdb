@@ -114,8 +114,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"show_tag_keys":     "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
 	},
 	"influxdata/influxdb/monitor": {
-		"check":         "Cannot see overridden options from inside stdlib functions (https://github.com/influxdata/flux/issues/1720)",
-		"state_changes": "algo-w: https://github.com/influxdata/influxdb/issues/17064",
+		"check": "Cannot see overridden options from inside stdlib functions (https://github.com/influxdata/flux/issues/1720)",
 	},
 	"influxdata/influxdb/secrets": {
 		"secrets": "Cannot inject custom deps into the test framework so the secrets don't lookup correctly",
@@ -136,8 +135,5 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	"testing/promql": {
 		"emptyTable": "tests a source",
 		"year":       "flakey test: https://github.com/influxdata/influxdb/issues/15667",
-	},
-	"testing/influxql": {
-		"aggregate_group_by_time": "algo-w: https://github.com/influxdata/influxdb/issues/17064",
 	},
 }
