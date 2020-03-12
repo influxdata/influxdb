@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb/pkg/lifecycle"
-	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 )
 
@@ -849,9 +848,3 @@ func assert(condition bool, msg string, v ...interface{}) {
 		panic(fmt.Sprintf("assert failed: "+msg, v...))
 	}
 }
-
-type ByTagKey []*query.TagSet
-
-func (t ByTagKey) Len() int           { return len(t) }
-func (t ByTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
-func (t ByTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }

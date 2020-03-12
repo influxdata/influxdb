@@ -1089,10 +1089,16 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 	for _, v := range tagSets {
 		sortedTagsSets = append(sortedTagsSets, v)
 	}
-	sort.Sort(tsdb.ByTagKey(sortedTagsSets))
+	sort.Sort(byTagKey(sortedTagsSets))
 
 	return sortedTagsSets, nil
 }
+
+type byTagKey []*query.TagSet
+
+func (t byTagKey) Len() int           { return len(t) }
+func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
+func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
 func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
