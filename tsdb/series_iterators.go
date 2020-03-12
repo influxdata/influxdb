@@ -775,28 +775,6 @@ func (a TagValueIterators) Close() (err error) {
 	return err
 }
 
-// NewTagValueSliceIterator returns a TagValueIterator that iterates over a slice.
-func NewTagValueSliceIterator(values [][]byte) *tagValueSliceIterator {
-	return &tagValueSliceIterator{values: values}
-}
-
-// tagValueSliceIterator iterates over a slice of tag values.
-type tagValueSliceIterator struct {
-	values [][]byte
-}
-
-// Next returns the next tag value in the slice.
-func (itr *tagValueSliceIterator) Next() ([]byte, error) {
-	if len(itr.values) == 0 {
-		return nil, nil
-	}
-	value := itr.values[0]
-	itr.values = itr.values[1:]
-	return value, nil
-}
-
-func (itr *tagValueSliceIterator) Close() error { return nil }
-
 // MergeTagValueIterators returns an iterator that merges a set of iterators.
 func MergeTagValueIterators(itrs ...TagValueIterator) TagValueIterator {
 	if len(itrs) == 0 {
