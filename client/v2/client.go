@@ -442,6 +442,9 @@ type Query struct {
 	Parameters      map[string]interface{}
 }
 
+// Params is a type alias to the query parameters.
+type Params map[string]interface{}
+
 // NewQuery returns a query object.
 // The database and precision arguments can be empty strings if they are not needed for the query.
 func NewQuery(command, database, precision string) Query {
