@@ -188,11 +188,11 @@ enum FieldValue {
 }
 
 // TODO: Return an error for invalid inputs
-pub fn parse(input: &str) -> Vec<PointType> {
+pub fn parse(input: &str) -> Result<Vec<PointType>> {
     input
         .lines()
         .flat_map(|line| match parse_line(line) {
-            Ok((_remaining, parsed_line)) => line_to_points(parsed_line),
+            Ok((_remaining, parsed_line)) => line_to_points(parsed_line).map(Ok),
             Err(e) => panic!("TODO: Failed to parse: {}", e),
         })
         .collect()
@@ -292,40 +292,49 @@ mod test {
     use super::*;
     use crate::tests::approximately_equal;
 
+    type Error = Box<dyn std::error::Error>;
+    type Result<T = (), E = Error> = std::result::Result<T, E>;
+
     #[test]
-    fn parse_single_field_integer() {
+    fn parse_single_field_integer() -> Result {
         let input = "foo asdf=23i 1234";
-        let vals = parse(input);
+        let vals = parse(input)?;
 
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
         assert_eq!(vals[0].i64_value().unwrap(), 23);
+
+        Ok(())
     }
 
     #[test]
-    fn parse_single_field_float_no_decimal() {
+    fn parse_single_field_float_no_decimal() -> Result {
         let input = "foo asdf=44 546";
-        let vals = parse(input);
+        let vals = parse(input)?;
 
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 546);
         assert!(approximately_equal(vals[0].f64_value().unwrap(), 44.0));
+
+        Ok(())
     }
 
     #[test]
-    fn parse_single_field_float_with_decimal() {
+    fn parse_single_field_float_with_decimal() -> Result {
         let input = "foo asdf=3.74 123";
-        let vals = parse(input);
+        let vals = parse(input)?;
 
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 123);
         assert!(approximately_equal(vals[0].f64_value().unwrap(), 3.74));
+
+        Ok(())
     }
 
     #[test]
-    fn parse_two_fields_integer() {
+    fn parse_two_fields_integer() -> Result {
         let input = "foo asdf=23i,bar=5i 1234";
-        let vals = parse(input);
+        let vals = parse(input)?;
 
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
@@ -334,12 +343,14 @@ mod test {
         assert_eq!(vals[1].series(), "foo\tbar");
         assert_eq!(vals[1].time(), 1234);
         assert_eq!(vals[1].i64_value().unwrap(), 5);
+
+        Ok(())
     }
 
     #[test]
-    fn parse_two_fields_float() {
+    fn parse_two_fields_float() -> Result {
         let input = "foo asdf=23.1,bar=5 1234";
-        let vals = parse(input);
+        let vals = parse(input)?;
 
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
@@ -348,12 +359,14 @@ mod test {
         assert_eq!(vals[1].series(), "foo\tbar");
         assert_eq!(vals[1].time(), 1234);
         assert!(approximately_equal(vals[1].f64_value().unwrap(), 5.0));
+
+        Ok(())
     }
 
     #[test]
-    fn parse_mixed_float_and_integer() {
+    fn parse_mixed_float_and_integer() -> Result {
         let input = "foo asdf=23.1,bar=5i 1234";
-        let vals = parse(input);
+        let vals = parse(input)?;
 
         assert_eq!(vals[0].series(), "foo\tasdf");
         assert_eq!(vals[0].time(), 1234);
@@ -362,22 +375,28 @@ mod test {
         assert_eq!(vals[1].series(), "foo\tbar");
         assert_eq!(vals[1].time(), 1234);
         assert_eq!(vals[1].i64_value().unwrap(), 5);
+
+        Ok(())
     }
 
     #[test]
-    fn parse_tag_set_included_in_series() {
+    fn parse_tag_set_included_in_series() -> Result {
         let input = "foo,tag1=1,tag2=2 value=1 123";
-        let vals = parse(input);
+        let vals = parse(input)?;
 
         assert_eq!(vals[0].series(), "foo,tag1=1,tag2=2\tvalue");
+
+        Ok(())
     }
 
     #[test]
-    fn parse_tag_set_unsorted() {
+    fn parse_tag_set_unsorted() -> Result {
         let input = "foo,tag2=2,tag1=1 value=1 123";
-        let vals = parse(input);
+        let vals = parse(input)?;
 
         assert_eq!(vals[0].series(), "foo,tag1=1,tag2=2\tvalue");
+
+        Ok(())
     }
 
     #[test]
