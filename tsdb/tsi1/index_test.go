@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -637,7 +638,7 @@ func BenchmarkIndex_CreateSeriesListIfNotExist(b *testing.B) {
 			return nil, nil, rmdir, err
 		}
 
-		sfile := tsdb.NewSeriesFile(seriesPath)
+		sfile := seriesfile.NewSeriesFile(seriesPath)
 		if err := sfile.Open(context.Background()); err != nil {
 			return nil, nil, rmdir, err
 		}

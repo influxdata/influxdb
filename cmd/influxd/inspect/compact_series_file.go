@@ -12,7 +12,7 @@ import (
 
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 )
@@ -85,8 +85,8 @@ func RunCompactSeriesFile(cmd *cobra.Command, args []string) error {
 
 	// Limit maximum concurrency to the total number of series file partitions.
 	concurrency := compactSeriesFileFlags.Concurrency
-	if concurrency > tsdb.SeriesFilePartitionN {
-		concurrency = tsdb.SeriesFilePartitionN
+	if concurrency > seriesfile.SeriesFilePartitionN {
+		concurrency = seriesfile.SeriesFilePartitionN
 	}
 
 	// Concurrently process each partition in the series file
@@ -106,12 +106,12 @@ func RunCompactSeriesFile(cmd *cobra.Command, args []string) error {
 	}
 
 	// Build new series file indexes
-	sfile := tsdb.NewSeriesFile(compactSeriesFileFlags.SeriesFilePath)
+	sfile := seriesfile.NewSeriesFile(compactSeriesFileFlags.SeriesFilePath)
 	if err = sfile.Open(context.Background()); err != nil {
 		return err
 	}
 
-	compactor := tsdb.NewSeriesPartitionCompactor()
+	compactor := seriesfile.NewSeriesPartitionCompactor()
 	for _, partition := range sfile.Partitions() {
 		duration, err := compactor.Compact(partition)
 		if err != nil {
@@ -132,7 +132,7 @@ func compactSeriesFilePartition(path string) error {
 	if err != nil {
 		return fmt.Errorf("cannot parse partition id from path: %s", path)
 	}
-	p := tsdb.NewSeriesPartition(partitionID, path)
+	p := seriesfile.NewSeriesPartition(partitionID, path)
 	if err := p.Open(); err != nil {
 		return fmt.Errorf("cannot open partition: path=%s err=%s", path, err)
 	}
@@ -176,7 +176,7 @@ func compactSeriesFilePartition(path string) error {
 
 // seriesFilePartitionPaths returns the paths to each partition in the series file.
 func seriesFilePartitionPaths(path string) ([]string, error) {
-	sfile := tsdb.NewSeriesFile(path)
+	sfile := seriesfile.NewSeriesFile(path)
 	if err := sfile.Open(context.Background()); err != nil {
 		return nil, err
 	}

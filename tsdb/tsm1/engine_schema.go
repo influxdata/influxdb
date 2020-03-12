@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxql"
 )
 
@@ -202,7 +203,7 @@ func (e *Engine) tagValuesPredicate(ctx context.Context, orgBucket, tagKeyBytes 
 			}
 		}
 
-		_, tags = tsdb.ParseSeriesKeyInto(keys[i], tags[:0])
+		_, tags = seriesfile.ParseSeriesKeyInto(keys[i], tags[:0])
 		curVal := tags.Get(tagKeyBytes)
 		if len(curVal) == 0 {
 			continue
@@ -450,7 +451,7 @@ func (e *Engine) tagKeysPredicate(ctx context.Context, orgBucket []byte, start, 
 			}
 		}
 
-		_, tags = tsdb.ParseSeriesKeyInto(keys[i], tags[:0])
+		_, tags = seriesfile.ParseSeriesKeyInto(keys[i], tags[:0])
 		if keyset.IsSupersetKeys(tags) {
 			continue
 		}

@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxql"
 )
@@ -68,7 +69,7 @@ type Index struct {
 
 	config tsi1.Config
 	*tsi1.Index
-	sfile *tsdb.SeriesFile
+	sfile *seriesfile.SeriesFile
 }
 
 // MustNewIndex will initialize a new index using the provide type. It creates
@@ -86,7 +87,7 @@ func MustNewIndex(c tsi1.Config) *Index {
 		panic(err)
 	}
 
-	sfile := tsdb.NewSeriesFile(seriesPath)
+	sfile := seriesfile.NewSeriesFile(seriesPath)
 	if err := sfile.Open(context.Background()); err != nil {
 		panic(err)
 	}
@@ -131,7 +132,7 @@ func (i *Index) Reopen() error {
 		return err
 	}
 
-	i.sfile = tsdb.NewSeriesFile(i.sfile.Path())
+	i.sfile = seriesfile.NewSeriesFile(i.sfile.Path())
 	if err := i.sfile.Open(context.Background()); err != nil {
 		return err
 	}

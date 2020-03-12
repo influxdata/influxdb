@@ -1,4 +1,4 @@
-package tsdb_test
+package seriesfile_test
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"go.uber.org/zap"
 )
 
@@ -19,7 +20,7 @@ func TestVerifies_Valid(t *testing.T) {
 	test := NewTest(t)
 	defer test.Close()
 
-	verify := tsdb.NewVerify()
+	verify := seriesfile.NewVerify()
 	if testing.Verbose() {
 		verify.Logger, _ = zap.NewDevelopment()
 	}
@@ -51,7 +52,7 @@ func TestVerifies_Invalid(t *testing.T) {
 		test.AssertNoError(err)
 		test.AssertNoError(fh.Close())
 
-		passed, err := tsdb.NewVerify().VerifySeriesFile(test.Path)
+		passed, err := seriesfile.NewVerify().VerifySeriesFile(test.Path)
 		test.AssertNoError(err)
 		test.Assert(!passed)
 
@@ -78,7 +79,7 @@ func NewTest(t *testing.T) *Test {
 
 	// create a series file in the directory
 	err = func() error {
-		seriesFile := tsdb.NewSeriesFile(dir)
+		seriesFile := seriesfile.NewSeriesFile(dir)
 		if err := seriesFile.Open(context.Background()); err != nil {
 			return err
 		}
@@ -87,7 +88,7 @@ func NewTest(t *testing.T) *Test {
 
 		const (
 			compactionThreshold = 100
-			numSeries           = 2 * tsdb.SeriesFilePartitionN * compactionThreshold
+			numSeries           = 2 * seriesfile.SeriesFilePartitionN * compactionThreshold
 		)
 
 		for _, partition := range seriesFile.Partitions() {
@@ -102,7 +103,7 @@ func NewTest(t *testing.T) *Test {
 			tagsSlice = append(tagsSlice, nil)
 		}
 
-		keys := tsdb.GenerateSeriesKeys(names, tagsSlice)
+		keys := seriesfile.GenerateSeriesKeys(names, tagsSlice)
 		//keyPartitionIDs := seriesFile.SeriesKeysPartitionIDs(keys)
 		ids := make([]uint64, len(keys))
 

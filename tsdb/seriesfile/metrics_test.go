@@ -1,4 +1,4 @@
-package tsdb
+package seriesfile
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
@@ -173,7 +174,7 @@ func TestMetrics_Disabled(t *testing.T) {
 
 	// Step 3. add a series
 	points := []models.Point{models.MustNewPoint("a", models.Tags{}, models.Fields{"f": 1.0}, time.Now())}
-	if err := sfile.CreateSeriesListIfNotExists(NewSeriesCollection(points)); err != nil {
+	if err := sfile.CreateSeriesListIfNotExists(tsdb.NewSeriesCollection(points)); err != nil {
 		t.Fatal(err)
 	}
 }

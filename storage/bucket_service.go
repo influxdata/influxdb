@@ -4,28 +4,28 @@ import (
 	"context"
 	"errors"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 // BucketDeleter defines the behaviour of deleting a bucket.
 type BucketDeleter interface {
-	DeleteBucket(context.Context, platform.ID, platform.ID) error
+	DeleteBucket(context.Context, influxdb.ID, influxdb.ID) error
 }
 
-// BucketService wraps an existing platform.BucketService implementation.
+// BucketService wraps an existing influxdb.BucketService implementation.
 //
 // BucketService ensures that when a bucket is deleted, all stored data
 // associated with the bucket is either removed, or marked to be removed via a
 // future compaction.
 type BucketService struct {
-	inner  platform.BucketService
+	inner  influxdb.BucketService
 	engine BucketDeleter
 }
 
 // NewBucketService returns a new BucketService for the provided BucketDeleter,
 // which typically will be an Engine.
-func NewBucketService(s platform.BucketService, engine BucketDeleter) *BucketService {
+func NewBucketService(s influxdb.BucketService, engine BucketDeleter) *BucketService {
 	return &BucketService{
 		inner:  s,
 		engine: engine,
@@ -33,7 +33,7 @@ func NewBucketService(s platform.BucketService, engine BucketDeleter) *BucketSer
 }
 
 // FindBucketByID returns a single bucket by ID.
-func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -44,7 +44,7 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 }
 
 // FindBucketByName returns a single bucket by name.
-func (s *BucketService) FindBucketByName(ctx context.Context, orgID platform.ID, name string) (*platform.Bucket, error) {
+func (s *BucketService) FindBucketByName(ctx context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -55,7 +55,7 @@ func (s *BucketService) FindBucketByName(ctx context.Context, orgID platform.ID,
 }
 
 // FindBucket returns the first bucket that matches filter.
-func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
+func (s *BucketService) FindBucket(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -67,7 +67,7 @@ func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFi
 
 // FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
 // Additional options provide pagination & sorting.
-func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -78,7 +78,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 }
 
 // CreateBucket creates a new bucket and sets b.ID with the new identifier.
-func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) error {
+func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -90,7 +90,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 
 // UpdateBucket updates a single bucket with changeset.
 // Returns the new bucket state after update.
-func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
+func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -101,7 +101,7 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 }
 
 // DeleteBucket removes a bucket by ID.
-func (s *BucketService) DeleteBucket(ctx context.Context, bucketID platform.ID) error {
+func (s *BucketService) DeleteBucket(ctx context.Context, bucketID influxdb.ID) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 

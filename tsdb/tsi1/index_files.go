@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 )
 
 // IndexFiles represents a layered set of index files.
@@ -154,7 +155,7 @@ func (p IndexFiles) TagValueSeriesIDSet(name, key, value []byte) (*tsdb.SeriesID
 }
 
 // CompactTo merges all index files and writes them to w.
-func (p IndexFiles) CompactTo(w io.Writer, sfile *tsdb.SeriesFile, m, k uint64, cancel <-chan struct{}) (n int64, err error) {
+func (p IndexFiles) CompactTo(w io.Writer, sfile *seriesfile.SeriesFile, m, k uint64, cancel <-chan struct{}) (n int64, err error) {
 	var t IndexFileTrailer
 
 	// Check for cancellation.
