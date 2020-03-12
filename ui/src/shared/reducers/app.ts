@@ -80,12 +80,6 @@ const appPersistedReducer = (
       }
     }
 
-    case ActionTypes.TemplateControlBarVisibilityToggled: {
-      const {showTemplateControlBar} = state
-
-      return {...state, showTemplateControlBar: !showTemplateControlBar}
-    }
-
     case ActionTypes.SetTimeZone: {
       const {timeZone} = action.payload
 

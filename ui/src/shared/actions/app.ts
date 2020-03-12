@@ -64,8 +64,3 @@ export const setTimeZone = (timeZone: TimeZone) =>
     type: ActionTypes.SetTimeZone,
     payload: {timeZone},
   } as const)
-
-export const templateControlBarVisibilityToggled = () =>
-  ({
-    type: ActionTypes.TemplateControlBarVisibilityToggled,
-  } as const)
