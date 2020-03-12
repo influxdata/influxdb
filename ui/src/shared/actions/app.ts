@@ -17,11 +17,10 @@ export enum ActionTypes {
 }
 
 export type Action =
-  | EnablePresentationModeAction
-  | DisablePresentationModeAction
-  | SetAutoRefreshAction
-  | SetTimeZoneAction
-  | TemplateControlBarVisibilityToggledAction
+  | ReturnType<typeof enablePresentationMode>
+  | ReturnType<typeof disablePresentationMode>
+  | ReturnType<typeof setAutoRefresh>
+  | ReturnType<typeof setTimeZone>
   | ReturnType<typeof setTheme>
   | ReturnType<typeof setCurrentPage>
 
@@ -30,56 +29,20 @@ export const setCurrentPage = (currentPage: CurrentPage) =>
 
 export const setTheme = (theme: Theme) => ({type: 'SET_THEME', theme} as const)
 
-export type EnablePresentationModeActionCreator = () => EnablePresentationModeAction
-
-export interface SetTimeZoneAction {
-  type: ActionTypes.SetTimeZone
-  payload: {timeZone: TimeZone}
-}
-
-export interface EnablePresentationModeAction {
-  type: ActionTypes.EnablePresentationMode
-}
-
-export interface DisablePresentationModeAction {
-  type: ActionTypes.DisablePresentationMode
-}
-
-export type DelayEnablePresentationModeDispatcher = () => DelayEnablePresentationModeThunk
-
-export type DelayEnablePresentationModeThunk = (
-  dispatch: Dispatch<EnablePresentationModeAction>
-) => NodeJS.Timer
-
-export type SetAutoRefreshActionCreator = (
-  milliseconds: number
-) => SetAutoRefreshAction
-
-export interface SetAutoRefreshAction {
-  type: ActionTypes.SetAutoRefresh
-  payload: {
-    milliseconds: number
-  }
-}
-
-export type TemplateControlBarVisibilityToggledActionCreator = () => TemplateControlBarVisibilityToggledAction
-
-export interface TemplateControlBarVisibilityToggledAction {
-  type: ActionTypes.TemplateControlBarVisibilityToggled
-}
-
 // ephemeral state action creators
 
-export const enablePresentationMode = (): EnablePresentationModeAction => ({
-  type: ActionTypes.EnablePresentationMode,
-})
+export const enablePresentationMode = () =>
+  ({
+    type: ActionTypes.EnablePresentationMode,
+  } as const)
 
-export const disablePresentationMode = (): DisablePresentationModeAction => ({
-  type: ActionTypes.DisablePresentationMode,
-})
+export const disablePresentationMode = () =>
+  ({
+    type: ActionTypes.DisablePresentationMode,
+  } as const)
 
-export const delayEnablePresentationMode: DelayEnablePresentationModeDispatcher = () => (
-  dispatch: Dispatch<EnablePresentationModeAction>
+export const delayEnablePresentationMode = () => (
+  dispatch: Dispatch<ReturnType<typeof enablePresentationMode>>
 ): NodeJS.Timer =>
   setTimeout(() => {
     dispatch(enablePresentationMode())
@@ -88,20 +51,21 @@ export const delayEnablePresentationMode: DelayEnablePresentationModeDispatcher 
 
 // persistent state action creators
 
-export const setAutoRefresh: SetAutoRefreshActionCreator = (
-  milliseconds: number
-): SetAutoRefreshAction => ({
-  type: ActionTypes.SetAutoRefresh,
-  payload: {
-    milliseconds,
-  },
-})
+export const setAutoRefresh = (milliseconds: number) =>
+  ({
+    type: ActionTypes.SetAutoRefresh,
+    payload: {
+      milliseconds,
+    },
+  } as const)
 
-export const setTimeZone = (timeZone: TimeZone): SetTimeZoneAction => ({
-  type: ActionTypes.SetTimeZone,
-  payload: {timeZone},
-})
+export const setTimeZone = (timeZone: TimeZone) =>
+  ({
+    type: ActionTypes.SetTimeZone,
+    payload: {timeZone},
+  } as const)
 
-export const templateControlBarVisibilityToggled = (): TemplateControlBarVisibilityToggledAction => ({
-  type: ActionTypes.TemplateControlBarVisibilityToggled,
-})
+export const templateControlBarVisibilityToggled = () =>
+  ({
+    type: ActionTypes.TemplateControlBarVisibilityToggled,
+  } as const)
