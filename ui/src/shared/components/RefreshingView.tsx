@@ -18,7 +18,6 @@ import {
 } from 'src/variables/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
-import {isLightMode} from 'src/dashboards/utils/dashboardLightMode'
 
 // Types
 import {
@@ -29,6 +28,7 @@ import {
   DashboardQuery,
   VariableAssignment,
   QueryViewProperties,
+  Theme,
 } from 'src/types'
 
 interface OwnProps {
@@ -37,12 +37,12 @@ interface OwnProps {
 }
 
 interface StateProps {
+  theme: Theme
   timeRange: TimeRange
   ranges: TimeRange | null
   timeZone: TimeZone
   variableAssignments: VariableAssignment[]
   variablesStatus: RemoteDataState
-  dashboardLightMode: boolean
 }
 
 interface State {
@@ -72,21 +72,8 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      ranges,
-      properties,
-      manualRefresh,
-      timeZone,
-      location,
-      dashboardLightMode,
-    } = this.props
+    const {ranges, properties, manualRefresh, timeZone, theme} = this.props
     const {submitToken} = this.state
-
-    const lightMode = isLightMode(
-      dashboardLightMode,
-      location.pathname,
-      location.search
-    )
 
     return (
       <TimeSeries
@@ -121,7 +108,7 @@ class RefreshingView extends PureComponent<Props, State> {
                 timeRange={ranges}
                 statuses={statuses}
                 timeZone={timeZone}
-                lightMode={lightMode}
+                lightMode={theme === 'light'}
               />
             </EmptyQueryView>
           )
@@ -172,12 +159,7 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const timeRange = getTimeRangeByDashboardID(state, dashboard)
   const valuesStatus = getDashboardValuesStatus(state, dashboard)
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)
-  const timeZone = state.app.persisted.timeZone
-  const {
-    app: {
-      persisted: {dashboardLightMode},
-    },
-  } = state
+  const {timeZone, theme} = state.app.persisted
 
   return {
     timeRange,
@@ -185,7 +167,7 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     timeZone,
     variableAssignments,
     variablesStatus: valuesStatus,
-    dashboardLightMode,
+    theme,
   }
 }
 

@@ -1,7 +1,8 @@
 import {combineReducers} from 'redux'
 
+// Types
+import {ActionTypes, Action} from 'src/shared/actions/app'
 import {AUTOREFRESH_DEFAULT_INTERVAL} from 'src/shared/constants'
-import {ActionTypes, Action} from 'src/types/actions/app'
 import {TimeZone} from 'src/types'
 
 export interface AppState {
@@ -12,7 +13,8 @@ export interface AppState {
     autoRefresh: number
     showTemplateControlBar: boolean
     timeZone: TimeZone
-    dashboardLightMode: boolean
+    theme: 'dark' | 'light'
+    currentPage: 'dashboard' | 'not set'
   }
 }
 
@@ -21,10 +23,11 @@ const initialState: AppState = {
     inPresentationMode: false,
   },
   persisted: {
+    theme: 'dark',
+    currentPage: 'not set',
     autoRefresh: AUTOREFRESH_DEFAULT_INTERVAL,
     showTemplateControlBar: false,
     timeZone: 'Local',
-    dashboardLightMode: false,
   },
 }
 
@@ -36,7 +39,7 @@ const {
 const appEphemeralReducer = (
   state = initialAppEphemeralState,
   action: Action
-) => {
+): AppState['ephemeral'] => {
   switch (action.type) {
     case ActionTypes.EnablePresentationMode: {
       return {
@@ -60,8 +63,16 @@ const appEphemeralReducer = (
 const appPersistedReducer = (
   state = initialAppPersistedState,
   action: Action
-) => {
+): AppState['persisted'] => {
   switch (action.type) {
+    case 'SET_CURRENT_PAGE': {
+      return {...state, currentPage: action.currentPage}
+    }
+
+    case 'SET_THEME': {
+      return {...state, theme: action.theme}
+    }
+
     case ActionTypes.SetAutoRefresh: {
       return {
         ...state,
@@ -79,20 +90,6 @@ const appPersistedReducer = (
       const {timeZone} = action.payload
 
       return {...state, timeZone}
-    }
-
-    case ActionTypes.EnableDashboardLightMode: {
-      return {
-        ...state,
-        dashboardLightMode: true,
-      }
-    }
-
-    case ActionTypes.DisableDashboardLightMode: {
-      return {
-        ...state,
-        dashboardLightMode: false,
-      }
     }
 
     default:

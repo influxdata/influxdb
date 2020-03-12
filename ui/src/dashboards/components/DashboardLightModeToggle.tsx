@@ -6,55 +6,39 @@ import {connect} from 'react-redux'
 import {SelectGroup} from '@influxdata/clockface'
 
 // Actions
-import {
-  enableDashboardLightMode,
-  disableDashboardLightMode,
-} from 'src/shared/actions/app'
+import {setTheme} from 'src/shared/actions/app'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, Theme} from 'src/types'
 
 interface StateProps {
-  dashboardLightMode: boolean
+  theme: Theme
 }
 
 interface DispatchProps {
-  handleEnableLightMode: typeof enableDashboardLightMode
-  handleDisableLightMode: typeof disableDashboardLightMode
+  onSetTheme: typeof setTheme
 }
 
 interface OwnProps {}
 
 type Props = OwnProps & StateProps & DispatchProps
 
-const DashboardLightModeToggle: FC<Props> = ({
-  handleEnableLightMode,
-  handleDisableLightMode,
-  dashboardLightMode,
-}) => {
-  const handleOptionClick = (mode: boolean): void => {
-    if (mode) {
-      handleEnableLightMode()
-    } else {
-      handleDisableLightMode()
-    }
-  }
-
+const DashboardLightModeToggle: FC<Props> = ({theme, onSetTheme}) => {
   return (
     <SelectGroup testID="presentation-mode-toggle">
       <SelectGroup.Option
-        onClick={handleOptionClick}
-        id="presentation-mode-toggle--light"
+        onClick={() => onSetTheme('dark')}
         value={false}
-        active={dashboardLightMode === false}
+        id="presentation-mode-toggle--dark"
+        active={theme === 'dark'}
       >
         Dark
       </SelectGroup.Option>
       <SelectGroup.Option
-        onClick={handleOptionClick}
+        onClick={() => onSetTheme('light')}
         id="presentation-mode-toggle--light"
         value={true}
-        active={dashboardLightMode === true}
+        active={theme === 'light'}
       >
         Light
       </SelectGroup.Option>
@@ -65,16 +49,15 @@ const DashboardLightModeToggle: FC<Props> = ({
 const mstp = (state: AppState): StateProps => {
   const {
     app: {
-      persisted: {dashboardLightMode},
+      persisted: {theme},
     },
   } = state
 
-  return {dashboardLightMode}
+  return {theme}
 }
 
 const mdtp: DispatchProps = {
-  handleEnableLightMode: enableDashboardLightMode,
-  handleDisableLightMode: disableDashboardLightMode,
+  onSetTheme: setTheme,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

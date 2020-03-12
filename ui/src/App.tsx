@@ -14,15 +14,14 @@ import OverlayController from 'src/overlays/components/OverlayController'
 import CloudNav from 'src/pageLayout/components/CloudNav'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 
-// Utils
-import {isLightMode} from 'src/dashboards/utils/dashboardLightMode'
-
 // Types
-import {AppState} from 'src/types'
+import {AppState, CurrentPage, Theme} from 'src/types'
 
 interface StateProps {
   inPresentationMode: boolean
   dashboardLightMode: boolean
+  currentPage: CurrentPage
+  theme: Theme
 }
 interface OwnProps {
   children: ReactChildren
@@ -33,15 +32,11 @@ type Props = OwnProps & StateProps & WithRouterProps
 const App: SFC<Props> = ({
   children,
   inPresentationMode,
-  location,
-  dashboardLightMode,
+  currentPage,
+  theme,
 }) => {
   const appWrapperClass = classnames('', {
-    'dashboard-light-mode': isLightMode(
-      dashboardLightMode,
-      location.pathname,
-      location.search
-    ),
+    'dashboard-light-mode': currentPage === 'dashboard' && theme === 'light',
   })
 
   return (
@@ -68,11 +63,11 @@ const mstp = (state: AppState): StateProps => {
   const {
     app: {
       ephemeral: {inPresentationMode},
-      persisted: {dashboardLightMode},
+      persisted: {currentPage, theme},
     },
   } = state
 
-  return {inPresentationMode, dashboardLightMode}
+  return {inPresentationMode, currentPage, theme}
 }
 
 export default connect<StateProps, {}>(
