@@ -75,6 +75,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
               tables={tables}
               properties={properties}
               timeZone={timeZone}
+              lightMode={lightMode}
             />
           )}
         </FluxTablesTransform>

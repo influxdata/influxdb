@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
+import classnames from 'classnames'
 
 // Components
 import {Input, DapperScrollbars} from '@influxdata/clockface'
@@ -17,6 +18,7 @@ interface Props {
   data: FluxTable[]
   selectedTableName: string
   onSelectTable: (name: string) => void
+  lightMode?: boolean
 }
 
 interface State {
@@ -30,11 +32,15 @@ export default class TableSidebar extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {selectedTableName, onSelectTable} = this.props
+    const {selectedTableName, onSelectTable, lightMode} = this.props
     const {searchTerm} = this.state
 
+    const sidebarClassName = classnames('time-machine-sidebar', {
+      'time-machine-sidebar__light': lightMode,
+    })
+
     return (
-      <div className="time-machine-sidebar">
+      <div className={sidebarClassName}>
         {!this.isDataEmpty && (
           <div className="time-machine-sidebar--heading">
             <Input

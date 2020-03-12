@@ -15,6 +15,7 @@ interface Props {
   table: FluxTable
   properties: TableViewProperties
   timeZone: TimeZone
+  lightMode: boolean
 }
 
 interface State {
@@ -39,7 +40,7 @@ class TableGraph extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {table, properties, timeZone} = this.props
+    const {table, properties, timeZone, lightMode} = this.props
     const {sortOptions} = this.state
     return (
       <TableGraphTransform
@@ -55,6 +56,7 @@ class TableGraph extends PureComponent<Props, State> {
             onSort={this.handleSetSort}
             transformedDataBundle={transformedDataBundle}
             timeZone={timeZone}
+            lightMode={lightMode}
           />
         )}
       </TableGraphTransform>

@@ -22,6 +22,7 @@ interface PassedProps {
   tables: FluxTable[]
   properties: TableViewProperties
   timeZone: TimeZone
+  lightMode: boolean
 }
 
 interface DispatchProps {
@@ -41,7 +42,7 @@ class TableGraphs extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {tables, properties, timeZone} = this.props
+    const {tables, properties, timeZone, lightMode} = this.props
 
     return (
       <div className="time-machine-tables">
@@ -50,6 +51,7 @@ class TableGraphs extends PureComponent<Props, State> {
             data={tables}
             selectedTableName={this.nameOfSelectedTable}
             onSelectTable={this.handleSelectTable}
+            lightMode={lightMode}
           />
         )}
         {this.shouldShowTable && (
@@ -58,6 +60,7 @@ class TableGraphs extends PureComponent<Props, State> {
             table={this.selectedTable}
             properties={properties}
             timeZone={timeZone}
+            lightMode={lightMode}
           />
         )}
         {!this.hasData && (

@@ -2,6 +2,7 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {timeFormatter} from '@influxdata/giraffe'
+import classnames from 'classnames'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -49,6 +50,7 @@ interface OwnProps {
   properties: TableViewProperties
   onSort: (fieldName: string) => void
   timeZone: TimeZone
+  lightMode: boolean
 }
 
 type Props = OwnProps & InjectedHoverProps
@@ -90,15 +92,19 @@ class TableGraphTable extends PureComponent<Props, State> {
   public render() {
     const {
       transformedDataBundle: {transformedData},
+      lightMode,
     } = this.props
 
     const rowCount = this.columnCount === 0 ? 0 : transformedData.length
     const fixedColumnCount = this.fixFirstColumn && this.columnCount > 1 ? 1 : 0
     const {scrollToColumn, scrollToRow} = this.scrollToColRow
+    const tableClassName = classnames('time-machine-table', {
+      'time-machine-table__light-mode': lightMode,
+    })
 
     return (
       <div
-        className="time-machine-table"
+        className={tableClassName}
         ref={gridContainer => (this.gridContainer = gridContainer)}
         onMouseLeave={this.handleMouseLeave}
       >
