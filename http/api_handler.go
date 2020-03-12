@@ -127,6 +127,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	bucketBackend := NewBucketBackend(b.Logger.With(zap.String("handler", "bucket")), b)
 	bucketBackend.BucketService = authorizer.NewBucketService(b.BucketService, b.UserResourceMappingService)
+	bucketBackend.LabelService = authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService)
 	h.Mount(prefixBuckets, NewBucketHandler(b.Logger, bucketBackend))
 
 	checkBackend := NewCheckBackend(b.Logger.With(zap.String("handler", "check")), b)
@@ -166,6 +167,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	orgBackend := NewOrgBackend(b.Logger.With(zap.String("handler", "org")), b)
 	orgBackend.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
 	orgBackend.SecretService = authorizer.NewSecretService(b.SecretService)
+	orgBackend.LabelService = authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService)
 	h.Mount(prefixOrganizations, NewOrgHandler(b.Logger, orgBackend))
 
 	scraperBackend := NewScraperBackend(b.Logger.With(zap.String("handler", "scraper")), b)
