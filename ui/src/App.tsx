@@ -19,7 +19,6 @@ import {AppState, CurrentPage, Theme} from 'src/types'
 
 interface StateProps {
   inPresentationMode: boolean
-  dashboardLightMode: boolean
   currentPage: CurrentPage
   theme: Theme
 }
