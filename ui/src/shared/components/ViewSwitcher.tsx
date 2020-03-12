@@ -174,6 +174,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           table={table}
           timeZone={timeZone}
           viewProperties={properties}
+          lightMode={lightMode}
         >
           {config => <Plot config={config} />}
         </HeatmapPlot>
