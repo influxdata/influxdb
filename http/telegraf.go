@@ -102,11 +102,12 @@ func NewTelegrafHandler(log *zap.Logger, b *TelegrafBackend) *TelegrafHandler {
 	}
 	h.HandlerFunc("POST", telegrafsIDMembersPath, newPostMemberHandler(memberBackend))
 	h.HandlerFunc("GET", telegrafsIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("GET", telegrafsIDMembersIDPath, newGetMemberHandler(memberBackend))
 	h.HandlerFunc("DELETE", telegrafsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		log:                        b.log.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "owner")),
 		ResourceType:               platform.TelegrafsResourceType,
 		UserType:                   platform.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -114,6 +115,7 @@ func NewTelegrafHandler(log *zap.Logger, b *TelegrafBackend) *TelegrafHandler {
 	}
 	h.HandlerFunc("POST", telegrafsIDOwnersPath, newPostMemberHandler(ownerBackend))
 	h.HandlerFunc("GET", telegrafsIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("GET", telegrafsIDOwnersIDPath, newGetMemberHandler(ownerBackend))
 	h.HandlerFunc("DELETE", telegrafsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{

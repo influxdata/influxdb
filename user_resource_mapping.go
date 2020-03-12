@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 )
 
 var (
@@ -140,6 +141,26 @@ type UserResourceMappingFilter struct {
 	ResourceType ResourceType
 	UserID       ID
 	UserType     UserType
+}
+
+func (f UserResourceMappingFilter) String() string {
+	rid := f.ResourceID.String()
+	if !f.ResourceID.Valid() {
+		rid = "*"
+	}
+	uid := f.UserID.String()
+	if !f.UserID.Valid() {
+		uid = "*"
+	}
+	userType := string(f.UserType)
+	if err := f.UserType.Valid(); err != nil {
+		userType = "any_role"
+	}
+	resourceType := string(f.ResourceType)
+	if err := f.ResourceType.Valid(); err != nil {
+		resourceType = "any_type"
+	}
+	return fmt.Sprintf("[resource: %s/%s, user: %s/%s]", resourceType, rid, userType, uid)
 }
 
 func (m *UserResourceMapping) ownerPerms() ([]Permission, error) {

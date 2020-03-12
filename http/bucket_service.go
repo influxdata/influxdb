@@ -103,11 +103,12 @@ func NewBucketHandler(log *zap.Logger, b *BucketBackend) *BucketHandler {
 	}
 	h.HandlerFunc("POST", bucketsIDMembersPath, newPostMemberHandler(memberBackend))
 	h.HandlerFunc("GET", bucketsIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("GET", bucketsIDMembersIDPath, newGetMemberHandler(memberBackend))
 	h.HandlerFunc("DELETE", bucketsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		log:                        b.log.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "owner")),
 		ResourceType:               influxdb.BucketsResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -115,6 +116,7 @@ func NewBucketHandler(log *zap.Logger, b *BucketBackend) *BucketHandler {
 	}
 	h.HandlerFunc("POST", bucketsIDOwnersPath, newPostMemberHandler(ownerBackend))
 	h.HandlerFunc("GET", bucketsIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("GET", bucketsIDOwnersIDPath, newGetMemberHandler(ownerBackend))
 	h.HandlerFunc("DELETE", bucketsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{

@@ -95,11 +95,12 @@ func NewScraperHandler(log *zap.Logger, b *ScraperBackend) *ScraperHandler {
 	}
 	h.HandlerFunc("POST", targetsIDMembersPath, newPostMemberHandler(memberBackend))
 	h.HandlerFunc("GET", targetsIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("GET", targetsIDMembersIDPath, newGetMemberHandler(memberBackend))
 	h.HandlerFunc("DELETE", targetsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		log:                        b.log.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "owner")),
 		ResourceType:               influxdb.ScraperResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -107,6 +108,7 @@ func NewScraperHandler(log *zap.Logger, b *ScraperBackend) *ScraperHandler {
 	}
 	h.HandlerFunc("POST", targetsIDOwnersPath, newPostMemberHandler(ownerBackend))
 	h.HandlerFunc("GET", targetsIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("GET", targetsIDOwnersIDPath, newGetMemberHandler(ownerBackend))
 	h.HandlerFunc("DELETE", targetsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{
