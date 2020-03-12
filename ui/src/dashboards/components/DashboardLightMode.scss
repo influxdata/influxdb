@@ -15,10 +15,6 @@
     color: $g13-mist;
   }
 
-  .variables-control-bar--empty {
-    background-color: $g17-whisper;
-  }
-
   .cell {
     background-color: $g20-white;
   }
@@ -74,6 +70,10 @@
 
   .cell--view-empty {
     color: $g11-sidewalk;
+  }
+  .variables-control-bar--empty,
+  .variables-control-bar--full {
+    background-color: $g20-white;
   }
 }
 
