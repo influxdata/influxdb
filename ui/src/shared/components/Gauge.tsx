@@ -57,9 +57,8 @@ class Gauge extends Component<Props> {
   }
 
   public render() {
-    const {width, height, theme} = this.props
+    const {width, height} = this.props
 
-    console.log(theme)
     return (
       <canvas
         className="gauge"
