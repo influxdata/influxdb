@@ -4,6 +4,7 @@
 use std::{error, fmt};
 
 pub mod encoders;
+pub mod id;
 pub mod line_parser;
 pub mod storage;
 pub mod time;
