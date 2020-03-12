@@ -39,12 +39,13 @@ import {
   Label,
   Template,
   TaskTemplate,
+  ResourceType,
 } from 'src/types'
 
 // Utils
 import {templateToExport} from 'src/shared/utils/resourceToTemplate'
 import {getOrg} from 'src/organizations/selectors'
-import {getLabels} from 'src/resources/selectors'
+import {getLabels, getStatus} from 'src/resources/selectors'
 
 type Action = TemplateAction | NotifyAction
 
@@ -57,8 +58,13 @@ export const getTemplates = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ): Promise<void> => {
-  const org = getOrg(getState())
-  dispatch(setTemplatesStatus(RemoteDataState.Loading))
+  const state = getState()
+  if (getStatus(state, ResourceType.Templates) === RemoteDataState.NotStarted) {
+    dispatch(setTemplatesStatus(RemoteDataState.Loading))
+  }
+
+  const org = getOrg(state)
+
   const items = await client.templates.getAll(org.id)
   const templateSummaries = normalize<
     TemplateSummary,

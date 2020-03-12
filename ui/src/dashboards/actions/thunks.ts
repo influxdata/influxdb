@@ -48,7 +48,7 @@ import {getSaveableView} from 'src/timeMachine/selectors'
 import {incrementCloneName} from 'src/utils/naming'
 import {isLimitError} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
-import {getAll, getByID} from 'src/resources/selectors'
+import {getAll, getByID, getStatus} from 'src/resources/selectors'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -193,10 +193,17 @@ export const getDashboards = () => async (
   getState: GetState
 ): Promise<void> => {
   try {
-    const org = getOrg(getState())
     const {setDashboards} = creators
 
-    dispatch(setDashboards(RemoteDataState.Loading))
+    const state = getState()
+    if (
+      getStatus(state, ResourceType.Dashboards) === RemoteDataState.NotStarted
+    ) {
+      dispatch(setDashboards(RemoteDataState.Loading))
+    }
+
+    const org = getOrg(state)
+
     const resp = await api.getDashboards({query: {orgID: org.id}})
 
     if (resp.status !== 200) {

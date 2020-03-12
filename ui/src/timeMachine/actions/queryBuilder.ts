@@ -1,5 +1,7 @@
 // APIs
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
+import * as api from 'src/client'
+import {get} from 'lodash'
 
 // Utils
 import {
@@ -144,20 +146,22 @@ export const loadBuckets = () => async (
   dispatch: Dispatch<Action | ReturnType<typeof selectBucket>>,
   getState: GetState
 ) => {
-  const queryURL = getState().links.query.self
   const orgID = getOrg(getState()).id
 
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
   try {
-    let buckets = await queryBuilderFetcher.findBuckets({
-      url: queryURL,
-      orgID,
-    })
+    const resp = await api.getBuckets({query: {orgID}})
 
-    const systemBuckets = buckets.filter(b => b.startsWith('_'))
-    const userBuckets = buckets.filter(b => !b.startsWith('_'))
-    buckets = [...userBuckets, ...systemBuckets]
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const allBuckets = resp.data.buckets.map(b => b.name)
+
+    const systemBuckets = allBuckets.filter(b => b.startsWith('_'))
+    const userBuckets = allBuckets.filter(b => !b.startsWith('_'))
+    const buckets = [...userBuckets, ...systemBuckets]
 
     const selectedBucket = getActiveQuery(getState()).builderConfig.buckets[0]
 
@@ -195,12 +199,17 @@ export const loadTagSelector = (index: number) => async (
   if (!tags[index] || !buckets[0]) {
     return
   }
+  dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
 
   const tagsSelections = tags.slice(0, index)
   const queryURL = getState().links.query.self
-  const orgID = getOrg(getState()).id
 
-  dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
+  const bucket = buckets[0]
+
+  const allBuckets = getAll<Bucket>(getState(), ResourceType.Buckets)
+  const foundBucket = allBuckets.find(b => b.name === bucket)
+
+  const orgID = get(foundBucket, 'orgID', getOrg(getState()).id)
 
   try {
     const timeRange = getTimeRange(getState())
@@ -210,7 +219,7 @@ export const loadTagSelector = (index: number) => async (
     const keys = await queryBuilderFetcher.findKeys(index, {
       url: queryURL,
       orgID,
-      bucket: buckets[0],
+      bucket,
       tagsSelections,
       searchTerm,
       timeRange,
@@ -254,11 +263,16 @@ const loadTagSelectorValues = (index: number) => async (
   const {buckets, tags} = getActiveQuery(state).builderConfig
   const tagsSelections = tags.slice(0, index)
   const queryURL = state.links.query.self
-  const orgID = getOrg(getState()).id
 
   if (!buckets[0]) {
     return
   }
+
+  const bucket = buckets[0]
+
+  const allBuckets = getAll<Bucket>(state, ResourceType.Buckets)
+  const foundBucket = allBuckets.find(b => b.name === bucket)
+  const orgID = get(foundBucket, 'orgID', getOrg(getState()).id)
 
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 
@@ -271,7 +285,7 @@ const loadTagSelectorValues = (index: number) => async (
     const values = await queryBuilderFetcher.findValues(index, {
       url: queryURL,
       orgID,
-      bucket: buckets[0],
+      bucket,
       tagsSelections,
       key,
       searchTerm,

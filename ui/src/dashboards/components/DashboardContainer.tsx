@@ -4,6 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import GetResource from 'src/resources/components/GetResource'
+import GetResources from 'src/resources/components/GetResources'
 import DashboardPage from 'src/dashboards/components/DashboardPage'
 import GetTimeRange from 'src/dashboards/components/GetTimeRange'
 import DashboardRoute from 'src/shared/components/DashboardRoute'
@@ -43,9 +44,11 @@ const DashboardContainer: FC<Props> = ({autoRefresh, dashboard, children}) => {
   return (
     <DashboardRoute>
       <GetResource resources={[{type: ResourceType.Dashboards, id: dashboard}]}>
-        <GetTimeRange />
-        <DashboardPage autoRefresh={autoRefresh} />
-        {children}
+        <GetResources resources={[ResourceType.Buckets]}>
+          <GetTimeRange />
+          <DashboardPage autoRefresh={autoRefresh} />
+          {children}
+        </GetResources>
       </GetResource>
     </DashboardRoute>
   )

@@ -1,4 +1,5 @@
 // Libraries
+import {Dispatch} from 'react'
 import {get} from 'lodash'
 import {normalize} from 'normalizr'
 
@@ -7,10 +8,14 @@ import * as api from 'src/client'
 import {memberSchema, arrayOfMembers} from 'src/schemas'
 
 // Types
-import {RemoteDataState, GetState} from 'src/types'
+import {
+  RemoteDataState,
+  GetState,
+  Member,
+  MemberEntities,
+  ResourceType,
+} from 'src/types'
 import {AddResourceMemberRequestBody} from '@influxdata/influx'
-import {Dispatch} from 'react'
-import {Member, MemberEntities} from 'src/types'
 
 // Actions
 import {
@@ -29,14 +34,19 @@ import {
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
+import {getStatus} from 'src/resources/selectors'
 
 export const getMembers = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
   try {
-    const {id} = getOrg(getState())
-    dispatch(setMembers(RemoteDataState.Loading))
+    const state = getState()
+    if (getStatus(state, ResourceType.Members) === RemoteDataState.NotStarted) {
+      dispatch(setMembers(RemoteDataState.Loading))
+    }
+
+    const {id} = getOrg(state)
 
     const [ownersResp, membersResp] = await Promise.all([
       api.getOrgsOwners({orgID: id}),

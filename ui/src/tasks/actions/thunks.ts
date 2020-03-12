@@ -40,6 +40,7 @@ import {
   TaskSchedule,
   RemoteDataState,
   TaskEntities,
+  ResourceType,
 } from 'src/types'
 
 // Utils
@@ -49,6 +50,7 @@ import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {isLimitError} from 'src/cloud/utils/limits'
 import {checkTaskLimits} from 'src/cloud/actions/limits'
 import {getOrg} from 'src/organizations/selectors'
+import {getStatus} from 'src/resources/selectors'
 
 type Action = TaskAction | ExternalActions | ReturnType<typeof getTasks>
 type ExternalActions = NotifyAction | ReturnType<typeof checkTaskLimits>
@@ -59,9 +61,13 @@ export const getTasks = () => async (
   getState: GetState
 ): Promise<void> => {
   try {
-    dispatch(setTasks(RemoteDataState.Loading))
+    const state = getState()
+    if (getStatus(state, ResourceType.Tasks) === RemoteDataState.NotStarted) {
+      dispatch(setTasks(RemoteDataState.Loading))
+    }
 
-    const org = getOrg(getState())
+    const org = getOrg(state)
+
     const resp = await api.getTasks({query: {orgID: org.id}})
 
     if (resp.status !== 200) {
