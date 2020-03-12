@@ -9,6 +9,26 @@ use nom::{
 };
 use std::{error, fmt};
 
+#[derive(Debug, Clone)]
+pub struct ParseError {
+    description: String,
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.description)
+    }
+}
+
+impl error::Error for ParseError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+pub type Result<T, E = ParseError> = std::result::Result<T, E>;
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Point<T> {
     pub series: String,
@@ -18,7 +38,7 @@ pub struct Point<T> {
 }
 
 impl<T> Point<T> {
-    pub fn index_pairs(&self) -> Result<Vec<Pair>, ParseError> {
+    pub fn index_pairs(&self) -> Result<Vec<Pair>> {
         index_pairs(&self.series)
     }
 }
@@ -97,7 +117,7 @@ impl PointType {
         }
     }
 
-    pub fn index_pairs(&self) -> Result<Vec<Pair>, ParseError> {
+    pub fn index_pairs(&self) -> Result<Vec<Pair>> {
         match self {
             PointType::I64(p) => p.index_pairs(),
             PointType::F64(p) => p.index_pairs(),
@@ -109,7 +129,7 @@ impl PointType {
 /// index_pairs parses the series key into key value pairs for insertion into the index. In
 /// cases where this series is already in the database, this parse step can be skipped entirely.
 /// The measurement is represented as a _m key and field as _f.
-pub fn index_pairs(key: &str) -> Result<Vec<Pair>, ParseError> {
+pub fn index_pairs(key: &str) -> Result<Vec<Pair>> {
     let chars = key.chars();
     let mut pairs = vec![];
     let mut key = "_m".to_string();
@@ -151,24 +171,6 @@ pub fn index_pairs(key: &str) -> Result<Vec<Pair>, ParseError> {
 pub struct Pair {
     pub key: String,
     pub value: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct ParseError {
-    description: String,
-}
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.description)
-    }
-}
-
-impl error::Error for ParseError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        // Generic error, underlying cause isn't tracked.
-        None
-    }
 }
 
 #[derive(Debug)]
