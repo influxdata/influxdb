@@ -190,43 +190,42 @@ pub fn parse(input: &str) -> Vec<PointType> {
     input
         .lines()
         .flat_map(|line| match parse_line(line) {
-            Ok((_remaining, parsed_line)) => {
-                let ParsedLine {
-                    measurement,
-                    tag_set,
-                    field_set,
-                    timestamp,
-                } = parsed_line;
-
-                let mut tag_set = tag_set.unwrap_or_default();
-                // TODO: handle duplicates?
-                tag_set.sort_by(|a, b| a.0.cmp(&b.0));
-                let tag_set = tag_set;
-
-                let timestamp = timestamp.expect("TODO: default timestamp not supported");
-
-                let mut series_base = String::from(measurement);
-                for (tag_key, tag_value) in tag_set {
-                    use std::fmt::Write;
-                    write!(&mut series_base, ",{}={}", tag_key, tag_value)
-                        .expect("Could not append string");
-                }
-                let series_base = series_base;
-
-                field_set.into_iter().map(move |(field_key, field_value)| {
-                    let series = format!("{}\t{}", series_base, field_key);
-
-                    match field_value {
-                        FieldValue::I64(value) => PointType::new_i64(series, value, timestamp),
-                        FieldValue::F64(value) => PointType::new_f64(series, value, timestamp),
-                    }
-                })
-            }
-            Err(e) => {
-                panic!("TODO: Failed to parse: {}", e);
-            }
+            Ok((_remaining, parsed_line)) => line_to_points(parsed_line),
+            Err(e) => panic!("TODO: Failed to parse: {}", e),
         })
         .collect()
+}
+
+fn line_to_points(parsed_line: ParsedLine<'_>) -> impl Iterator<Item = PointType> + '_ {
+    let ParsedLine {
+        measurement,
+        tag_set,
+        field_set,
+        timestamp,
+    } = parsed_line;
+
+    let mut tag_set = tag_set.unwrap_or_default();
+    // TODO: handle duplicates?
+    tag_set.sort_by(|a, b| a.0.cmp(&b.0));
+    let tag_set = tag_set;
+
+    let timestamp = timestamp.expect("TODO: default timestamp not supported");
+
+    let mut series_base = String::from(measurement);
+    for (tag_key, tag_value) in tag_set {
+        use std::fmt::Write;
+        write!(&mut series_base, ",{}={}", tag_key, tag_value).expect("Could not append string");
+    }
+    let series_base = series_base;
+
+    field_set.into_iter().map(move |(field_key, field_value)| {
+        let series = format!("{}\t{}", series_base, field_key);
+
+        match field_value {
+            FieldValue::I64(value) => PointType::new_i64(series, value, timestamp),
+            FieldValue::F64(value) => PointType::new_f64(series, value, timestamp),
+        }
+    })
 }
 
 fn parse_line(i: &str) -> IResult<&str, ParsedLine<'_>> {
