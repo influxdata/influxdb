@@ -17,12 +17,12 @@ const JSLogo: SFC = () => {
            .js2{fill-rule:evenodd;clip-rule:evenodd;fill:#FFFFFF;}
            .js3{fill-rule:evenodd;clip-rule:evenodd;fill:#699F63;}
            .js4{clip-path:url(#XMLID_5_);}
-           .js5{fill:url(#SVGID_1_);}
-           .js6{fill:url(#SVGID_2_);}
-           .js7{fill:url(#SVGID_3_);}
-           .js8{fill:url(#SVGID_4_);}
-           .js9{fill:url(#SVGID_5_);}
-           .js10{fill:url(#SVGID_6_);}
+           .js5{fill:#699F63;}
+           .js6{fill:#699F63;}
+           .js7{fill:#699F63;}
+           .js8{fill:#699F63;}
+           .js9{fill:#699F63;}
+           .js10{fill:#699F63;}
         `}
       </style>
       <rect className="js0" width={300} height={300} />
@@ -92,20 +92,6 @@ const JSLogo: SFC = () => {
             				l25.7,14.9c1,0.6,2.1,0.6,3.1,0l25.7-14.9c1-0.6,1.6-1.6,1.6-2.7v-29.7c0-1.1-0.6-2.1-1.6-2.7L116.2,108.5z"
             />
           </defs>
-          <linearGradient
-            id="XMLID_4_"
-            gradientUnits="userSpaceOnUse"
-            x1="125.1041"
-            y1="119.5736"
-            x2="101.8713"
-            y2="166.9685"
-          >
-            <stop offset={0} style={{stopColor: '#41873F'}} />
-            <stop offset="0.3288" style={{stopColor: '#418B3D'}} />
-            <stop offset="0.6352" style={{stopColor: '#419637'}} />
-            <stop offset="0.9319" style={{stopColor: '#3FA92D'}} />
-            <stop offset={1} style={{stopColor: '#3FAE2A'}} />
-          </linearGradient>
           <use
             xlinkHref="#XMLID_143_"
             style={{
@@ -129,19 +115,6 @@ const JSLogo: SFC = () => {
               d="M115.5,173.6c0.3-0.1,0.5-0.2,0.7-0.3l25.7-14.9c1-0.6,1.6-1.6,1.6-2.7v-29.7c0-0.8-0.4-1.6-0.9-2.2
             				L115.5,173.6z"
             />
-            <linearGradient
-              id="SVGID_1_"
-              gradientUnits="userSpaceOnUse"
-              x1="110.7341"
-              y1="144.3775"
-              x2="175.9236"
-              y2="96.212"
-            >
-              <stop offset="0.1376" style={{stopColor: '#41873F'}} />
-              <stop offset="0.4032" style={{stopColor: '#54A044'}} />
-              <stop offset="0.7136" style={{stopColor: '#66B848'}} />
-              <stop offset="0.9081" style={{stopColor: '#6CC04A'}} />
-            </linearGradient>
             <path
               className="js5"
               d="M142,123.4l-25.8-14.8c-0.3-0.1-0.5-0.3-0.8-0.3l-29,49.5c0.2,0.3,0.5,0.5,0.9,0.7l25.8,14.9
@@ -159,90 +132,24 @@ const JSLogo: SFC = () => {
               d="M87.3,123.4c-1,0.6-1.7,1.6-1.7,2.7v29.7c0,1.1,0.7,2.1,1.7,2.7l25.8,14.9c0.6,0.4,1.3,0.5,2,0.4l-27.7-50.4
             				L87.3,123.4z"
             />
-            <linearGradient
-              id="SVGID_2_"
-              gradientUnits="userSpaceOnUse"
-              x1="84.9192"
-              y1="103.1674"
-              x2="144.3774"
-              y2="103.1674"
-            >
-              <stop offset="9.191646e-02" style={{stopColor: '#6CC04A'}} />
-              <stop offset="0.2864" style={{stopColor: '#66B848'}} />
-              <stop offset="0.5968" style={{stopColor: '#54A044'}} />
-              <stop offset="0.8624" style={{stopColor: '#41873F'}} />
-            </linearGradient>
             <polygon
               className="js6"
               points="112.2,103.1 111.9,103.3 112.4,103.3 			"
             />
-            <linearGradient
-              id="SVGID_3_"
-              gradientUnits="userSpaceOnUse"
-              x1="84.9192"
-              y1="140.8973"
-              x2="144.3774"
-              y2="140.8973"
-            >
-              <stop offset="9.191646e-02" style={{stopColor: '#6CC04A'}} />
-              <stop offset="0.2864" style={{stopColor: '#66B848'}} />
-              <stop offset="0.5968" style={{stopColor: '#54A044'}} />
-              <stop offset="0.8624" style={{stopColor: '#41873F'}} />
-            </linearGradient>
             <path
               className="js7"
               d="M142,158.4c0.7-0.4,1.3-1.2,1.5-2l-28.3-48.3c-0.7-0.1-1.5,0-2.2,0.3l-25.6,14.8l27.7,50.4
             				c0.4-0.1,0.8-0.2,1.1-0.4L142,158.4z"
             />
-            <linearGradient
-              id="SVGID_4_"
-              gradientUnits="userSpaceOnUse"
-              x1="84.9192"
-              y1="157.8714"
-              x2="144.3774"
-              y2="157.8714"
-            >
-              <stop offset="9.191646e-02" style={{stopColor: '#6CC04A'}} />
-              <stop offset="0.2864" style={{stopColor: '#66B848'}} />
-              <stop offset="0.5968" style={{stopColor: '#54A044'}} />
-              <stop offset="0.8624" style={{stopColor: '#41873F'}} />
-            </linearGradient>
             <polygon
               className="js8"
               points="144.4,158 144.2,157.7 144.2,158.1 			"
             />
-            <linearGradient
-              id="SVGID_5_"
-              gradientUnits="userSpaceOnUse"
-              x1="84.9192"
-              y1="165.5433"
-              x2="144.3774"
-              y2="165.5433"
-            >
-              <stop offset="9.191646e-02" style={{stopColor: '#6CC04A'}} />
-              <stop offset="0.2864" style={{stopColor: '#66B848'}} />
-              <stop offset="0.5968" style={{stopColor: '#54A044'}} />
-              <stop offset="0.8624" style={{stopColor: '#41873F'}} />
-            </linearGradient>
             <path
               className="js9"
               d="M142,158.4l-25.7,14.9c-0.4,0.2-0.7,0.3-1.1,0.4l0.5,0.9l28.6-16.6v-0.4l-0.7-1.2
             				C143.3,157.3,142.7,158,142,158.4z"
             />
-            <linearGradient
-              id="SVGID_6_"
-              gradientUnits="userSpaceOnUse"
-              x1="153.0397"
-              y1="118.1685"
-              x2="116.3697"
-              y2="192.9754"
-            >
-              <stop offset={0} style={{stopColor: '#41873F'}} />
-              <stop offset="0.3288" style={{stopColor: '#418B3D'}} />
-              <stop offset="0.6352" style={{stopColor: '#419637'}} />
-              <stop offset="0.9319" style={{stopColor: '#3FA92D'}} />
-              <stop offset={1} style={{stopColor: '#3FAE2A'}} />
-            </linearGradient>
             <path
               className="js10"
               d="M142,158.4l-25.7,14.9c-0.4,0.2-0.7,0.3-1.1,0.4l0.5,0.9l28.6-16.6v-0.4l-0.7-1.2
