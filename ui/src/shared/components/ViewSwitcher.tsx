@@ -161,6 +161,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           loading={loading}
           timeZone={timeZone}
           viewProperties={properties}
+          lightMode={lightMode}
         >
           {config => <Plot config={config} />}
         </HistogramPlot>
