@@ -7,7 +7,6 @@ require (
 	collectd.org v0.3.0
 	github.com/BurntSushi/toml v0.3.1
 	github.com/apache/arrow/go/arrow v0.0.0-20191024131854-af6fa24be0db
-	github.com/aws/aws-sdk-go v1.25.16 // indirect
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40
 	github.com/boltdb/bolt v1.3.1
 	github.com/cespare/xxhash v1.1.0
@@ -19,7 +18,7 @@ require (
 	github.com/gogo/protobuf v1.1.1
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
 	github.com/google/go-cmp v0.4.0
-	github.com/influxdata/flux v0.50.2
+	github.com/influxdata/flux v0.64.0
 	github.com/influxdata/influxql v1.0.1
 	github.com/influxdata/roaring v0.4.13-0.20180809181101-fc520f41fab6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
@@ -30,7 +29,6 @@ require (
 	github.com/klauspost/crc32 v0.0.0-20161016154125-cb6bfca970f6 // indirect
 	github.com/klauspost/pgzip v1.0.2-0.20170402124221-0bf5dcad4ada
 	github.com/mattn/go-isatty v0.0.4
-	github.com/mattn/go-zglob v0.0.1 // indirect
 	github.com/mschoch/smat v0.0.0-20160514031455-90eadee771ae // indirect
 	github.com/opentracing/opentracing-go v1.0.3-0.20180606204148-bd9c31933947
 	github.com/paulbellamy/ratecounter v0.2.0

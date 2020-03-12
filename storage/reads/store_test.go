@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
-func CursorToString(wr io.Writer, cur cursors.Cursor, opts ...optionFn) {
+func cursorToString(wr io.Writer, cur cursors.Cursor) {
 	switch ccur := cur.(type) {
 	case cursors.IntegerArrayCursor:
 		fmt.Fprintln(wr, "Integer")
@@ -87,10 +87,6 @@ func CursorToString(wr io.Writer, cur cursors.Cursor, opts ...optionFn) {
 
 const nilVal = "<nil>"
 
-var (
-	nilValBytes = []byte(nilVal)
-)
-
 func joinString(b [][]byte) string {
 	s := make([]string, len(b))
 	for i := range b {
@@ -104,14 +100,14 @@ func joinString(b [][]byte) string {
 	return strings.Join(s, ",")
 }
 
-func TagsToString(wr io.Writer, tags models.Tags, opts ...optionFn) {
+func tagsToString(wr io.Writer, tags models.Tags, opts ...optionFn) {
 	if k := tags.HashKey(); len(k) > 0 {
 		fmt.Fprintf(wr, "%s", string(k[1:]))
 	}
 	fmt.Fprintln(wr)
 }
 
-func ResultSetToString(wr io.Writer, rs reads.ResultSet, opts ...optionFn) {
+func resultSetToString(wr io.Writer, rs reads.ResultSet, opts ...optionFn) {
 	var po PrintOptions
 	for _, o := range opts {
 		o(&po)
@@ -122,7 +118,7 @@ func ResultSetToString(wr io.Writer, rs reads.ResultSet, opts ...optionFn) {
 
 	for rs.Next() {
 		fmt.Fprint(wr, "series: ")
-		TagsToString(wr, rs.Tags())
+		tagsToString(wr, rs.Tags())
 		cur := rs.Cursor()
 
 		if po.SkipNilCursor && cur == nil {
@@ -137,7 +133,7 @@ func ResultSetToString(wr io.Writer, rs reads.ResultSet, opts ...optionFn) {
 			goto LOOP
 		}
 
-		CursorToString(wr, cur)
+		cursorToString(wr, cur)
 	LOOP:
 		iw.Indent(-2)
 	}
@@ -154,7 +150,7 @@ func GroupResultSetToString(wr io.Writer, rs reads.GroupResultSet, opts ...optio
 		fmt.Fprintf(wr, "tag key      : %s\n", joinString(gc.Keys()))
 		fmt.Fprintf(wr, "partition key: %s\n", joinString(gc.PartitionKeyVals()))
 		iw.Indent(2)
-		ResultSetToString(wr, gc, opts...)
+		resultSetToString(wr, gc, opts...)
 		iw.Indent(-4)
 		gc = rs.Next()
 	}
