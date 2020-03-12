@@ -15,7 +15,7 @@ import {
 } from 'src/shared/utils/vis'
 
 // Constants
-import {VIS_THEME} from 'src/shared/constants'
+import {VIS_THEME, VIS_THEME_LIGHT} from 'src/shared/constants'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
@@ -35,6 +35,7 @@ interface Props {
   table: Table
   timeZone: TimeZone
   viewProperties: ScatterViewProperties
+  lightMode?: boolean
 }
 
 const ScatterPlot: FunctionComponent<Props> = ({
@@ -59,6 +60,7 @@ const ScatterPlot: FunctionComponent<Props> = ({
     yColumn: storedYColumn,
     timeFormat,
   },
+  lightMode,
 }) => {
   const fillColumns = storedFill || []
   const symbolColumns = storedSymbol || []
@@ -108,8 +110,10 @@ const ScatterPlot: FunctionComponent<Props> = ({
     timeFormat,
   })
 
+  const theme = lightMode ? VIS_THEME_LIGHT : VIS_THEME
+
   const config: Config = {
-    ...VIS_THEME,
+    ...theme,
     table,
     xAxisLabel,
     yAxisLabel,

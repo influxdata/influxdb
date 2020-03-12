@@ -189,6 +189,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           table={table}
           viewProperties={properties}
           timeZone={timeZone}
+          lightMode={lightMode}
         >
           {config => <Plot config={config} />}
         </ScatterPlot>
