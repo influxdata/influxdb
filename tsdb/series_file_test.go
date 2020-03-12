@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestParseSeriesKeyInto(t *testing.T) {
@@ -268,6 +269,148 @@ func TestSeriesFile_DeleteSeriesID(t *testing.T) {
 		t.Fatal("expected deletion after reopen")
 	} else if got, exp := sfile.SeriesCount(), uint64(2); got != exp {
 		t.Fatalf("SeriesCount()=%d, expected %d (after recreate & compaction)", got, exp)
+	}
+}
+
+func TestSeriesFile_Compaction(t *testing.T) {
+	const n = 1000
+
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	// Generate a bunch of keys.
+	var collection tsdb.SeriesCollection
+	for i := 0; i < n; i++ {
+		collection.Names = append(collection.Names, []byte("cpu"))
+		collection.Tags = append(collection.Tags, models.NewTags(map[string]string{"region": fmt.Sprintf("r%d", i)}))
+		collection.Types = append(collection.Types, models.Integer)
+	}
+
+	// Add all to the series file.
+	err := sfile.CreateSeriesListIfNotExists(&collection)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Delete a subset of keys.
+	for i := 0; i < n; i++ {
+		if i%10 != 0 {
+			continue
+		}
+
+		if id := sfile.SeriesID(collection.Names[i], collection.Tags[i], nil); id.IsZero() {
+			t.Fatal("expected series id")
+		} else if err := sfile.DeleteSeriesID(id); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Compute total size of all series data.
+	origSize, err := sfile.FileSize()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Compact all segments.
+	var paths []string
+	for _, p := range sfile.Partitions() {
+		for _, ss := range p.Segments() {
+			if err := ss.CompactToPath(ss.Path()+".tmp", p.Index()); err != nil {
+				t.Fatal(err)
+			}
+			paths = append(paths, ss.Path())
+		}
+	}
+
+	// Close index.
+	if err := sfile.SeriesFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Overwrite files.
+	for _, path := range paths {
+		if err := os.Rename(path+".tmp", path); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Reopen index.
+	sfile.SeriesFile = tsdb.NewSeriesFile(sfile.SeriesFile.Path())
+	if err := sfile.SeriesFile.Open(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Ensure series status is correct.
+	for i := 0; i < n; i++ {
+		if id := sfile.SeriesID(collection.Names[i], collection.Tags[i], nil); id.IsZero() {
+			continue
+		} else if got, want := sfile.IsDeleted(id), (i%10) == 0; got != want {
+			t.Fatalf("IsDeleted(%d)=%v, want %v", id, got, want)
+		}
+	}
+
+	// Verify new size is smaller.
+	newSize, err := sfile.FileSize()
+	if err != nil {
+		t.Fatal(err)
+	} else if newSize >= origSize {
+		t.Fatalf("expected new size (%d) to be smaller than original size (%d)", newSize, origSize)
+	}
+
+	t.Logf("original size: %d, new size: %d", origSize, newSize)
+}
+
+var cachedCompactionSeriesFile *SeriesFile
+
+func BenchmarkSeriesFile_Compaction(b *testing.B) {
+	const n = 1000000
+
+	if cachedCompactionSeriesFile == nil {
+		sfile := MustOpenSeriesFile()
+
+		// Generate a bunch of keys.
+		ids := make([]tsdb.SeriesID, n)
+		for i := 0; i < n; i++ {
+			collection := &tsdb.SeriesCollection{
+				Names: [][]byte{[]byte("cpu")},
+				Tags:  []models.Tags{models.NewTags(map[string]string{"region": fmt.Sprintf("r%d", i)})},
+				Types: []models.FieldType{models.Integer},
+			}
+
+			if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+				b.Fatal(err)
+			} else if ids[i] = sfile.SeriesID(collection.Names[0], collection.Tags[0], nil); ids[i].IsZero() {
+				b.Fatalf("expected series id: i=%d", i)
+			}
+		}
+
+		// Delete a subset of keys.
+		for i := 0; i < len(ids); i += 10 {
+			if err := sfile.DeleteSeriesID(ids[i]); err != nil {
+				b.Fatal(err)
+			}
+		}
+
+		cachedCompactionSeriesFile = sfile
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// Compact all segments in parallel.
+		var g errgroup.Group
+		for _, p := range cachedCompactionSeriesFile.Partitions() {
+			for _, segment := range p.Segments() {
+				p, segment := p, segment
+				g.Go(func() error {
+					return segment.CompactToPath(segment.Path()+".tmp", p.Index())
+				})
+			}
+		}
+
+		if err := g.Wait(); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
