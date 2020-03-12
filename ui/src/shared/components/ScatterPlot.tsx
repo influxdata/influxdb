@@ -25,6 +25,7 @@ import {
   ScatterViewProperties,
   TimeZone,
   TimeRange,
+  Theme,
 } from 'src/types'
 
 interface Props {
@@ -35,7 +36,7 @@ interface Props {
   table: Table
   timeZone: TimeZone
   viewProperties: ScatterViewProperties
-  lightMode?: boolean
+  theme?: Theme
 }
 
 const ScatterPlot: FunctionComponent<Props> = ({
@@ -60,7 +61,7 @@ const ScatterPlot: FunctionComponent<Props> = ({
     yColumn: storedYColumn,
     timeFormat,
   },
-  lightMode,
+  theme,
 }) => {
   const fillColumns = storedFill || []
   const symbolColumns = storedSymbol || []
@@ -110,10 +111,10 @@ const ScatterPlot: FunctionComponent<Props> = ({
     timeFormat,
   })
 
-  const theme = lightMode ? VIS_THEME_LIGHT : VIS_THEME
+  const currentTheme = theme === 'light' ? VIS_THEME_LIGHT : VIS_THEME
 
   const config: Config = {
-    ...theme,
+    ...currentTheme,
     table,
     xAxisLabel,
     yAxisLabel,

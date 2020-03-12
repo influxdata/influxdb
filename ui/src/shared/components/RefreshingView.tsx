@@ -108,7 +108,7 @@ class RefreshingView extends PureComponent<Props, State> {
                 timeRange={ranges}
                 statuses={statuses}
                 timeZone={timeZone}
-                lightMode={theme === 'light'}
+                theme={theme}
               />
             </EmptyQueryView>
           )

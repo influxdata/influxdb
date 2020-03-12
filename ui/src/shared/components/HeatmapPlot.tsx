@@ -21,6 +21,7 @@ import {
   HeatmapViewProperties,
   TimeZone,
   TimeRange,
+  Theme,
 } from 'src/types'
 
 interface Props {
@@ -30,7 +31,7 @@ interface Props {
   timeZone: TimeZone
   viewProperties: HeatmapViewProperties
   children: (config: Config) => JSX.Element
-  lightMode?: boolean
+  theme?: Theme
 }
 
 const HeatmapPlot: FunctionComponent<Props> = ({
@@ -54,7 +55,7 @@ const HeatmapPlot: FunctionComponent<Props> = ({
     timeFormat,
   },
   children,
-  lightMode,
+  theme,
 }) => {
   const columnKeys = table.columnKeys
 
@@ -98,10 +99,10 @@ const HeatmapPlot: FunctionComponent<Props> = ({
     timeFormat,
   })
 
-  const theme = lightMode ? VIS_THEME_LIGHT : VIS_THEME
+  const currentTheme = theme === 'light' ? VIS_THEME_LIGHT : VIS_THEME
 
   const config: Config = {
-    ...theme,
+    ...currentTheme,
     table,
     xAxisLabel,
     yAxisLabel,

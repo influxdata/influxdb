@@ -29,7 +29,13 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, XYViewProperties, TimeZone, TimeRange} from 'src/types'
+import {
+  RemoteDataState,
+  XYViewProperties,
+  TimeZone,
+  TimeRange,
+  Theme,
+} from 'src/types'
 
 interface Props {
   children: (config: Config) => JSX.Element
@@ -39,7 +45,7 @@ interface Props {
   table: Table
   timeZone: TimeZone
   viewProperties: XYViewProperties
-  lightMode: boolean
+  theme: Theme
 }
 
 const XYPlot: FunctionComponent<Props> = ({
@@ -74,7 +80,7 @@ const XYPlot: FunctionComponent<Props> = ({
     position,
     timeFormat,
   },
-  lightMode,
+  theme,
 }) => {
   const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
   const storedYDomain = useMemo(() => parseBounds(yBounds), [yBounds])
@@ -150,10 +156,10 @@ const XYPlot: FunctionComponent<Props> = ({
     timeFormat,
   })
 
-  const theme = lightMode ? VIS_THEME_LIGHT : VIS_THEME
+  const currentTheme = theme === 'light' ? VIS_THEME_LIGHT : VIS_THEME
 
   const config: Config = {
-    ...theme,
+    ...currentTheme,
     table,
     xAxisLabel,
     yAxisLabel,

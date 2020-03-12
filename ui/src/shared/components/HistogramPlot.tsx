@@ -16,7 +16,12 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, HistogramViewProperties, TimeZone} from 'src/types'
+import {
+  RemoteDataState,
+  HistogramViewProperties,
+  TimeZone,
+  Theme,
+} from 'src/types'
 
 interface Props {
   table: Table
@@ -24,7 +29,7 @@ interface Props {
   viewProperties: HistogramViewProperties
   children: (config: Config) => JSX.Element
   timeZone: TimeZone
-  lightMode?: boolean
+  theme?: Theme
 }
 
 const HistogramPlot: FunctionComponent<Props> = ({
@@ -41,7 +46,7 @@ const HistogramPlot: FunctionComponent<Props> = ({
     xAxisLabel,
     xDomain: storedXDomain,
   },
-  lightMode,
+  theme,
 }) => {
   const columnKeys = table.columnKeys
 
@@ -66,10 +71,10 @@ const HistogramPlot: FunctionComponent<Props> = ({
 
   const xFormatter = getFormatter(table.getColumnType(xColumn), {timeZone})
 
-  const theme = lightMode ? VIS_THEME_LIGHT : VIS_THEME
+  const currentTheme = theme === 'light' ? VIS_THEME_LIGHT : VIS_THEME
 
   const config: Config = {
-    ...theme,
+    ...currentTheme,
     table,
     xAxisLabel,
     xDomain,

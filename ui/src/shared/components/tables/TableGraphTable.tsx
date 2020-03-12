@@ -28,7 +28,7 @@ const COLUMN_MIN_WIDTH = 100
 const ROW_HEIGHT = 30
 
 // Types
-import {TableViewProperties, TimeZone} from 'src/types'
+import {TableViewProperties, TimeZone, Theme} from 'src/types'
 import {TransformTableDataReturnType} from 'src/dashboards/utils/tableGraph'
 
 export interface ColumnWidths {
@@ -50,7 +50,7 @@ interface OwnProps {
   properties: TableViewProperties
   onSort: (fieldName: string) => void
   timeZone: TimeZone
-  lightMode: boolean
+  theme: Theme
 }
 
 type Props = OwnProps & InjectedHoverProps
@@ -92,14 +92,14 @@ class TableGraphTable extends PureComponent<Props, State> {
   public render() {
     const {
       transformedDataBundle: {transformedData},
-      lightMode,
+      theme,
     } = this.props
 
     const rowCount = this.columnCount === 0 ? 0 : transformedData.length
     const fixedColumnCount = this.fixFirstColumn && this.columnCount > 1 ? 1 : 0
     const {scrollToColumn, scrollToRow} = this.scrollToColRow
     const tableClassName = classnames('time-machine-table', {
-      'time-machine-table__light-mode': lightMode,
+      'time-machine-table__light-mode': theme === 'light',
     })
 
     return (

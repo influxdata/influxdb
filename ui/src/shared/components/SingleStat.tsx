@@ -7,11 +7,12 @@ import {formatStatValue} from 'src/shared/utils/formatStatValue'
 
 // Types
 import {SingleStatViewProperties} from 'src/types/dashboards'
+import {Theme} from 'src/types'
 
 interface Props {
   properties: SingleStatViewProperties
   stat: number
-  lightMode: boolean
+  theme: Theme
 }
 
 const SingleStat: SFC<Props> = ({stat, properties}) => {

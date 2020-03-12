@@ -26,6 +26,7 @@ import {
   TimeRange,
   CheckType,
   Threshold,
+  Theme,
 } from 'src/types'
 
 interface Props {
@@ -38,7 +39,7 @@ interface Props {
   timeRange: TimeRange | null
   checkType?: CheckType
   checkThresholds?: Threshold[]
-  lightMode: boolean
+  theme: Theme
 }
 
 const ViewSwitcher: FunctionComponent<Props> = ({
@@ -51,7 +52,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
   statuses,
   checkType = null,
   checkThresholds = [],
-  lightMode,
+  theme,
 }) => {
   switch (properties.type) {
     case 'single-stat':
@@ -61,7 +62,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
             <SingleStat
               stat={latestValue}
               properties={properties}
-              lightMode={lightMode}
+              theme={theme}
             />
           )}
         </LatestValueTransform>
@@ -75,7 +76,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
               tables={tables}
               properties={properties}
               timeZone={timeZone}
-              lightMode={lightMode}
+              theme={theme}
             />
           )}
         </FluxTablesTransform>
@@ -88,7 +89,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
             <GaugeChart
               value={latestValue}
               properties={properties}
-              lightMode={lightMode}
+              theme={theme}
             />
           )}
         </LatestValueTransform>
@@ -102,7 +103,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           table={table}
           timeZone={timeZone}
           viewProperties={properties}
-          lightMode={lightMode}
+          theme={theme}
         >
           {config => <Plot config={config} />}
         </XYPlot>
@@ -132,7 +133,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           table={table}
           timeZone={timeZone}
           viewProperties={xyProperties}
-          lightMode={lightMode}
+          theme={theme}
         >
           {config => (
             <Plot config={config}>
@@ -145,7 +146,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
                   <SingleStat
                     stat={latestValue}
                     properties={singleStatProperties}
-                    lightMode={lightMode}
+                    theme={theme}
                   />
                 )}
               </LatestValueTransform>
@@ -161,7 +162,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           loading={loading}
           timeZone={timeZone}
           viewProperties={properties}
-          lightMode={lightMode}
+          theme={theme}
         >
           {config => <Plot config={config} />}
         </HistogramPlot>
@@ -175,7 +176,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           table={table}
           timeZone={timeZone}
           viewProperties={properties}
-          lightMode={lightMode}
+          theme={theme}
         >
           {config => <Plot config={config} />}
         </HeatmapPlot>
@@ -189,7 +190,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           table={table}
           viewProperties={properties}
           timeZone={timeZone}
-          lightMode={lightMode}
+          theme={theme}
         >
           {config => <Plot config={config} />}
         </ScatterPlot>
