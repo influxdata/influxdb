@@ -2,15 +2,15 @@ import appReducer from 'src/shared/reducers/app'
 import {
   enablePresentationMode,
   disablePresentationMode,
-  enableDashboardLightMode,
-  disableDashboardLightMode,
+  setTheme,
+  setCurrentPage,
   setAutoRefresh,
-  templateControlBarVisibilityToggled,
 } from 'src/shared/actions/app'
 import {TimeZone} from 'src/types'
+import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 
 describe('Shared.Reducers.appReducer', () => {
-  const initialState = {
+  const initialState: AppPresentationState = {
     ephemeral: {
       inPresentationMode: false,
     },
@@ -18,7 +18,8 @@ describe('Shared.Reducers.appReducer', () => {
       autoRefresh: 0,
       showTemplateControlBar: false,
       timeZone: 'Local' as TimeZone,
-      dashboardLightMode: false,
+      theme: 'dark',
+      currentPage: 'not set',
     },
   }
 
@@ -36,18 +37,24 @@ describe('Shared.Reducers.appReducer', () => {
     expect(reducedState.ephemeral.inPresentationMode).toBe(false)
   })
 
-  it('should handle ENABLE_DASHBOARD_LIGHT_MODE', () => {
-    const reducedState = appReducer(initialState, enableDashboardLightMode())
+  it('should handle SET_THEME with light theme', () => {
+    const reducedState = appReducer(initialState, setTheme('light'))
 
-    expect(reducedState.persisted.dashboardLightMode).toBe(true)
+    expect(reducedState.persisted.theme).toBe('light')
   })
 
-  it('should handle DISABLE_DASHBOARD_LIGHT_MODE', () => {
-    Object.assign(initialState, {persisted: {dashboardLightMode: true}})
+  it('should handle SET_THEME with dark theme', () => {
+    Object.assign(initialState, {persisted: {theme: 'light'}})
 
-    const reducedState = appReducer(initialState, disableDashboardLightMode())
+    const reducedState = appReducer(initialState, setTheme('dark'))
 
-    expect(reducedState.persisted.dashboardLightMode).toBe(false)
+    expect(reducedState.persisted.theme).toBe('dark')
+  })
+
+  it('should handle SET_CURRENT_PAGE', () => {
+    const reducedState = appReducer(initialState, setCurrentPage('dashboard'))
+
+    expect(reducedState.persisted.currentPage).toBe('dashboard')
   })
 
   it('should handle SET_AUTOREFRESH', () => {
@@ -56,18 +63,5 @@ describe('Shared.Reducers.appReducer', () => {
     const reducedState = appReducer(initialState, setAutoRefresh(expectedMs))
 
     expect(reducedState.persisted.autoRefresh).toBe(expectedMs)
-  })
-
-  it('should handle TEMPLATE_CONTROL_BAR_VISIBILITY_TOGGLED', () => {
-    const reducedState = appReducer(
-      initialState,
-      templateControlBarVisibilityToggled()
-    )
-
-    const expectedTestState = !reducedState.persisted.showTemplateControlBar
-
-    expect(initialState.persisted.showTemplateControlBar).toBe(
-      expectedTestState
-    )
   })
 })
