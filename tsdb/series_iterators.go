@@ -14,13 +14,6 @@ type SeriesIDElem struct {
 	Expr     influxql.Expr
 }
 
-// SeriesIDElems represents a list of series id elements.
-type SeriesIDElems []SeriesIDElem
-
-func (a SeriesIDElems) Len() int           { return len(a) }
-func (a SeriesIDElems) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a SeriesIDElems) Less(i, j int) bool { return a[i].SeriesID.Less(a[j].SeriesID) }
-
 // SeriesIDIterator represents a iterator over a list of series ids.
 type SeriesIDIterator interface {
 	Next() (SeriesIDElem, error)
