@@ -2,6 +2,8 @@ import appReducer from 'src/shared/reducers/app'
 import {
   enablePresentationMode,
   disablePresentationMode,
+  enableDashboardLightMode,
+  disableDashboardLightMode,
   setAutoRefresh,
   templateControlBarVisibilityToggled,
 } from 'src/shared/actions/app'
@@ -16,6 +18,7 @@ describe('Shared.Reducers.appReducer', () => {
       autoRefresh: 0,
       showTemplateControlBar: false,
       timeZone: 'Local' as TimeZone,
+      dashboardLightMode: false,
     },
   }
 
@@ -31,6 +34,20 @@ describe('Shared.Reducers.appReducer', () => {
     const reducedState = appReducer(initialState, disablePresentationMode())
 
     expect(reducedState.ephemeral.inPresentationMode).toBe(false)
+  })
+
+  it('should handle ENABLE_DASHBOARD_LIGHT_MODE', () => {
+    const reducedState = appReducer(initialState, enableDashboardLightMode())
+
+    expect(reducedState.persisted.dashboardLightMode).toBe(true)
+  })
+
+  it('should handle DISABLE_DASHBOARD_LIGHT_MODE', () => {
+    Object.assign(initialState, {persisted: {dashboardLightMode: true}})
+
+    const reducedState = appReducer(initialState, disableDashboardLightMode())
+
+    expect(reducedState.persisted.dashboardLightMode).toBe(false)
   })
 
   it('should handle SET_AUTOREFRESH', () => {
