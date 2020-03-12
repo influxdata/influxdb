@@ -67,25 +67,6 @@ func NewSeriesIDSetIterators(itrs []SeriesIDIterator) []SeriesIDSetIterator {
 	return a
 }
 
-// ReadAllSeriesIDIterator returns all ids from the iterator.
-func ReadAllSeriesIDIterator(itr SeriesIDIterator) ([]SeriesID, error) {
-	if itr == nil {
-		return nil, nil
-	}
-
-	var a []SeriesID
-	for {
-		e, err := itr.Next()
-		if err != nil {
-			return nil, err
-		} else if e.SeriesID.IsZero() {
-			break
-		}
-		a = append(a, e.SeriesID)
-	}
-	return a, nil
-}
-
 // NewSeriesIDSliceIterator returns a SeriesIDIterator that iterates over a slice.
 func NewSeriesIDSliceIterator(ids []SeriesID) *SeriesIDSliceIterator {
 	return &SeriesIDSliceIterator{ids: ids}
