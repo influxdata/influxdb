@@ -106,7 +106,7 @@ func authCreateCmd() *cobra.Command {
 }
 
 func authorizationCreateF(cmd *cobra.Command, args []string) error {
-	if err := authCreateFlags.org.validOrgFlags(); err != nil {
+	if err := authCreateFlags.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 

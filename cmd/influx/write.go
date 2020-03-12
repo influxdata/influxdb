@@ -146,8 +146,8 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 
 	s := write.Batcher{
 		Service: &http.WriteService{
-			Addr:               flags.host,
-			Token:              flags.token,
+			Addr:               flags.Host,
+			Token:              flags.Token,
 			Precision:          writeFlags.Precision,
 			InsecureSkipVerify: flags.skipVerify,
 		},

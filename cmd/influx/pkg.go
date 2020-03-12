@@ -105,7 +105,7 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 }
 
 func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error {
-	if err := b.org.validOrgFlags(); err != nil {
+	if err := b.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 	color.NoColor = b.disableColor
@@ -115,7 +115,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		return err
 	}
 
-	if err := b.org.validOrgFlags(); err != nil {
+	if err := b.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 
