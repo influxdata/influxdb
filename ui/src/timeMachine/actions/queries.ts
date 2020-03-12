@@ -133,11 +133,7 @@ export const getOrgIDFromBuckets = (
   // if there are buckets from multiple orgs in a query, query will error, and user will receive error from query
   const bucketMatch = allBuckets.find(a => bucketsInQuery.includes(a.name))
 
-  if (!bucketMatch) {
-    return null
-  }
-
-  return bucketMatch.orgID
+  return get(bucketMatch, 'orgID', null)
 }
 
 const isFromBucket = (node: Node) => {
