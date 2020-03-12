@@ -20,25 +20,55 @@ type ResponseWriter interface {
 	http.ResponseWriter
 }
 
+type formatter interface {
+	WriteResponse(w io.Writer, resp Response) error
+}
+
+type supportedContentType struct {
+	full          string
+	acceptType    string
+	acceptSubType string
+	formatter     func(pretty bool) formatter
+}
+
+var (
+	csvFormatFactory     = func(pretty bool) formatter { return &csvFormatter{statementID: -1} }
+	msgpackFormatFactory = func(pretty bool) formatter { return &msgpackFormatter{} }
+	jsonFormatFactory    = func(pretty bool) formatter { return &jsonFormatter{Pretty: pretty} }
+
+	contentTypes = []supportedContentType{
+		{full: "application/json", acceptType: "application", acceptSubType: "json", formatter: jsonFormatFactory},
+		{full: "application/csv", acceptType: "application", acceptSubType: "csv", formatter: csvFormatFactory},
+		{full: "text/csv", acceptType: "text", acceptSubType: "csv", formatter: csvFormatFactory},
+		{full: "application/x-msgpack", acceptType: "application", acceptSubType: "x-msgpack", formatter: msgpackFormatFactory},
+	}
+	defaultContentType = contentTypes[0]
+)
+
 // NewResponseWriter creates a new ResponseWriter based on the Accept header
 // in the request that wraps the ResponseWriter.
 func NewResponseWriter(w http.ResponseWriter, r *http.Request) ResponseWriter {
 	pretty := r.URL.Query().Get("pretty") == "true"
 	rw := &responseWriter{ResponseWriter: w}
-	switch r.Header.Get("Accept") {
-	case "application/csv", "text/csv":
-		w.Header().Add("Content-Type", "text/csv")
-		rw.formatter = &csvFormatter{statementID: -1}
-	case "application/x-msgpack":
-		w.Header().Add("Content-Type", "application/x-msgpack")
-		rw.formatter = &msgpackFormatter{}
-	case "application/json":
-		fallthrough
-	default:
-		w.Header().Add("Content-Type", "application/json")
-		rw.formatter = &jsonFormatter{Pretty: pretty}
+
+	acceptHeaders := parseAccept(r.Header["Accept"])
+	for _, accept := range acceptHeaders {
+		for _, ct := range contentTypes {
+			if match(accept, ct) {
+				w.Header().Add("Content-Type", ct.full)
+				rw.formatter = ct.formatter(pretty)
+				return rw
+			}
+		}
 	}
+	w.Header().Add("Content-Type", defaultContentType.full)
+	rw.formatter = defaultContentType.formatter(pretty)
 	return rw
+}
+
+func match(ah accept, sct supportedContentType) bool {
+	return (ah.Type == "*" || ah.Type == sct.acceptType) &&
+		(ah.SubType == "*" || ah.SubType == sct.acceptSubType)
 }
 
 // WriteError is a convenience function for writing an error response to the ResponseWriter.
