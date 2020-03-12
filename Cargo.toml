@@ -38,6 +38,8 @@ croaring = "0.4.2"
 http = "0.2.0"
 serde_urlencoded = "0.6.1"
 nom = "5.1.1"
+snafu = "0.6.2"
+either = "1.5.3"
 
 [dev-dependencies]
 criterion = "0.3"

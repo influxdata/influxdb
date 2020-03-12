@@ -1,3 +1,4 @@
+use either::Either;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
@@ -7,27 +8,16 @@ use nom::{
     sequence::{separated_pair, terminated, tuple},
     IResult,
 };
-use std::{error, fmt};
+use snafu::Snafu;
+use std::collections::BTreeMap;
 
-#[derive(Debug, Clone)]
-pub struct ParseError {
-    description: String,
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display(r#"Must not contain duplicate tags, but "{}" was repeated"#, tag_key))]
+    DuplicateTag { tag_key: String },
 }
 
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.description)
-    }
-}
-
-impl error::Error for ParseError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        // Generic error, underlying cause isn't tracked.
-        None
-    }
-}
-
-pub type Result<T, E = ParseError> = std::result::Result<T, E>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Point<T> {
@@ -192,13 +182,16 @@ pub fn parse(input: &str) -> Result<Vec<PointType>> {
     input
         .lines()
         .flat_map(|line| match parse_line(line) {
-            Ok((_remaining, parsed_line)) => line_to_points(parsed_line).map(Ok),
+            Ok((_remaining, parsed_line)) => match line_to_points(parsed_line) {
+                Ok(i) => Either::Left(i.map(Ok)),
+                Err(e) => Either::Right(std::iter::once(Err(e))),
+            },
             Err(e) => panic!("TODO: Failed to parse: {}", e),
         })
         .collect()
 }
 
-fn line_to_points(parsed_line: ParsedLine<'_>) -> impl Iterator<Item = PointType> + '_ {
+fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = PointType> + '_> {
     let ParsedLine {
         measurement,
         tag_set,
@@ -206,10 +199,13 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> impl Iterator<Item = PointType
         timestamp,
     } = parsed_line;
 
-    let mut tag_set = tag_set.unwrap_or_default();
-    // TODO: handle duplicates?
-    tag_set.sort_by(|a, b| a.0.cmp(&b.0));
-    let tag_set = tag_set;
+    let mut unique_sorted_tag_set = BTreeMap::new();
+    for (tag_key, tag_value) in tag_set.unwrap_or_default() {
+        if unique_sorted_tag_set.insert(tag_key, tag_value).is_some() {
+            return DuplicateTag { tag_key }.fail();
+        }
+    }
+    let tag_set = unique_sorted_tag_set;
 
     let timestamp = timestamp.expect("TODO: default timestamp not supported");
 
@@ -220,14 +216,14 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> impl Iterator<Item = PointType
     }
     let series_base = series_base;
 
-    field_set.into_iter().map(move |(field_key, field_value)| {
+    Ok(field_set.into_iter().map(move |(field_key, field_value)| {
         let series = format!("{}\t{}", series_base, field_key);
 
         match field_value {
             FieldValue::I64(value) => PointType::new_i64(series, value, timestamp),
             FieldValue::F64(value) => PointType::new_f64(series, value, timestamp),
         }
-    })
+    }))
 }
 
 fn parse_line(i: &str) -> IResult<&str, ParsedLine<'_>> {
@@ -395,6 +391,19 @@ mod test {
         let vals = parse(input)?;
 
         assert_eq!(vals[0].series(), "foo,tag1=1,tag2=2\tvalue");
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_tag_set_duplicate_tags() -> Result {
+        let input = "foo,tag=1,tag=2 value=1 123";
+        let err = parse(input).expect_err("Parsing duplicate tags should fail");
+
+        assert_eq!(
+            err.to_string(),
+            r#"Must not contain duplicate tags, but "tag" was repeated"#
+        );
 
         Ok(())
     }
