@@ -7,8 +7,8 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 )
 
 type arrayCursorIterator struct {
@@ -33,7 +33,7 @@ type arrayCursorIterator struct {
 }
 
 func (q *arrayCursorIterator) Next(ctx context.Context, r *cursors.CursorRequest) (cursors.Cursor, error) {
-	q.key = tsdb.AppendSeriesKey(q.key[:0], r.Name, r.Tags)
+	q.key = seriesfile.AppendSeriesKey(q.key[:0], r.Name, r.Tags)
 	id := q.e.sfile.SeriesIDTypedBySeriesKey(q.key)
 	if id.IsZero() {
 		return nil, nil

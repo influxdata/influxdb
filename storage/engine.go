@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/influxdata/influxdb/tsdb/value"
@@ -55,7 +56,7 @@ type Engine struct {
 	mu      sync.RWMutex
 	closing chan struct{} // closing returns the zero value when the engine is shutting down.
 	index   *tsi1.Index
-	sfile   *tsdb.SeriesFile
+	sfile   *seriesfile.SeriesFile
 	engine  *tsm1.Engine
 	wal     *wal.WAL
 
@@ -167,7 +168,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	}
 
 	// Initialize series file.
-	e.sfile = tsdb.NewSeriesFile(c.GetSeriesFilePath(path))
+	e.sfile = seriesfile.NewSeriesFile(c.GetSeriesFilePath(path))
 	e.sfile.LargeWriteThreshold = c.TSDB.LargeSeriesWriteThreshold
 
 	// Initialise index.
@@ -225,7 +226,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 // the engine and its components.
 func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	var metrics []prometheus.Collector
-	metrics = append(metrics, tsdb.PrometheusCollectors()...)
+	metrics = append(metrics, seriesfile.PrometheusCollectors()...)
 	metrics = append(metrics, tsi1.PrometheusCollectors()...)
 	metrics = append(metrics, tsm1.PrometheusCollectors()...)
 	metrics = append(metrics, wal.PrometheusCollectors()...)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 )
 
@@ -289,7 +290,7 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 	})
 }
 
-func mustReadAllSeriesIDIteratorString(sfile *tsdb.SeriesFile, itr tsdb.SeriesIDIterator) []string {
+func mustReadAllSeriesIDIteratorString(sfile *seriesfile.SeriesFile, itr tsdb.SeriesIDIterator) []string {
 	if itr == nil {
 		return nil
 	}
@@ -308,12 +309,12 @@ func mustReadAllSeriesIDIteratorString(sfile *tsdb.SeriesFile, itr tsdb.SeriesID
 
 	// Convert to keys and sort.
 	keys := sfile.SeriesKeys(ids)
-	sort.Slice(keys, func(i, j int) bool { return tsdb.CompareSeriesKeys(keys[i], keys[j]) == -1 })
+	sort.Slice(keys, func(i, j int) bool { return seriesfile.CompareSeriesKeys(keys[i], keys[j]) == -1 })
 
 	// Convert to strings.
 	a := make([]string, len(keys))
 	for i := range a {
-		name, tags := tsdb.ParseSeriesKey(keys[i])
+		name, tags := seriesfile.ParseSeriesKey(keys[i])
 		a[i] = fmt.Sprintf("%s,%s", name, tags.String())
 	}
 	return a

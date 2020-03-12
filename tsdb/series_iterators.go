@@ -2,9 +2,7 @@ package tsdb
 
 import (
 	"bytes"
-	"fmt"
 
-	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxql"
 )
 
@@ -107,48 +105,6 @@ func (a SeriesIDIterators) Close() (err error) {
 		}
 	}
 	return err
-}
-
-// filterUndeletedSeriesIDIterator returns all series which are not deleted.
-type filterUndeletedSeriesIDIterator struct {
-	sfile    *SeriesFile
-	sfileref *lifecycle.Reference
-	itr      SeriesIDIterator
-}
-
-// FilterUndeletedSeriesIDIterator returns an iterator which filters all deleted series.
-func FilterUndeletedSeriesIDIterator(sfile *SeriesFile, itr SeriesIDIterator) (SeriesIDIterator, error) {
-	if itr == nil {
-		return nil, nil
-	}
-	sfileref, err := sfile.Acquire()
-	if err != nil {
-		return nil, err
-	}
-	return &filterUndeletedSeriesIDIterator{
-		sfile:    sfile,
-		sfileref: sfileref,
-		itr:      itr,
-	}, nil
-}
-
-func (itr *filterUndeletedSeriesIDIterator) Close() (err error) {
-	itr.sfileref.Release()
-	return itr.itr.Close()
-}
-
-func (itr *filterUndeletedSeriesIDIterator) Next() (SeriesIDElem, error) {
-	for {
-		e, err := itr.itr.Next()
-		if err != nil {
-			return SeriesIDElem{}, err
-		} else if e.SeriesID.IsZero() {
-			return SeriesIDElem{}, nil
-		} else if itr.sfile.IsDeleted(e.SeriesID) {
-			continue
-		}
-		return e, nil
-	}
 }
 
 // seriesIDExprIterator is an iterator that attaches an associated expression.
@@ -814,11 +770,4 @@ func (itr *tagValueMergeIterator) Next() (_ []byte, err error) {
 		itr.buf[i] = nil
 	}
 	return value, nil
-}
-
-// assert will panic with a given formatted message if the given condition is false.
-func assert(condition bool, msg string, v ...interface{}) {
-	if !condition {
-		panic(fmt.Sprintf("assert failed: "+msg, v...))
-	}
 }

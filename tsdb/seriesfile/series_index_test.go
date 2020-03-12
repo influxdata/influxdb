@@ -1,4 +1,4 @@
-package tsdb_test
+package seriesfile_test
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 )
 
 func toTypedSeriesID(id uint64) tsdb.SeriesIDTyped {
@@ -18,15 +19,15 @@ func TestSeriesIndex_Count(t *testing.T) {
 	dir, cleanup := MustTempDir()
 	defer cleanup()
 
-	idx := tsdb.NewSeriesIndex(filepath.Join(dir, "index"))
+	idx := seriesfile.NewSeriesIndex(filepath.Join(dir, "index"))
 	if err := idx.Open(); err != nil {
 		t.Fatal(err)
 	}
 	defer idx.Close()
 
-	key0 := tsdb.AppendSeriesKey(nil, []byte("m0"), nil)
+	key0 := seriesfile.AppendSeriesKey(nil, []byte("m0"), nil)
 	idx.Insert(key0, toTypedSeriesID(1), 10)
-	key1 := tsdb.AppendSeriesKey(nil, []byte("m1"), nil)
+	key1 := seriesfile.AppendSeriesKey(nil, []byte("m1"), nil)
 	idx.Insert(key1, toTypedSeriesID(2), 20)
 
 	if n := idx.Count(); n != 2 {
@@ -38,15 +39,15 @@ func TestSeriesIndex_Delete(t *testing.T) {
 	dir, cleanup := MustTempDir()
 	defer cleanup()
 
-	idx := tsdb.NewSeriesIndex(filepath.Join(dir, "index"))
+	idx := seriesfile.NewSeriesIndex(filepath.Join(dir, "index"))
 	if err := idx.Open(); err != nil {
 		t.Fatal(err)
 	}
 	defer idx.Close()
 
-	key0 := tsdb.AppendSeriesKey(nil, []byte("m0"), nil)
+	key0 := seriesfile.AppendSeriesKey(nil, []byte("m0"), nil)
 	idx.Insert(key0, toTypedSeriesID(1), 10)
-	key1 := tsdb.AppendSeriesKey(nil, []byte("m1"), nil)
+	key1 := seriesfile.AppendSeriesKey(nil, []byte("m1"), nil)
 	idx.Insert(key1, toTypedSeriesID(2), 20)
 	idx.Delete(tsdb.NewSeriesID(1))
 
@@ -65,17 +66,17 @@ func TestSeriesIndex_FindIDBySeriesKey(t *testing.T) {
 	dir, cleanup := MustTempDir()
 	defer cleanup()
 
-	idx := tsdb.NewSeriesIndex(filepath.Join(dir, "index"))
+	idx := seriesfile.NewSeriesIndex(filepath.Join(dir, "index"))
 	if err := idx.Open(); err != nil {
 		t.Fatal(err)
 	}
 	defer idx.Close()
 
-	key0 := tsdb.AppendSeriesKey(nil, []byte("m0"), nil)
+	key0 := seriesfile.AppendSeriesKey(nil, []byte("m0"), nil)
 	idx.Insert(key0, toTypedSeriesID(1), 10)
-	key1 := tsdb.AppendSeriesKey(nil, []byte("m1"), nil)
+	key1 := seriesfile.AppendSeriesKey(nil, []byte("m1"), nil)
 	idx.Insert(key1, toTypedSeriesID(2), 20)
-	badKey := tsdb.AppendSeriesKey(nil, []byte("not_found"), nil)
+	badKey := seriesfile.AppendSeriesKey(nil, []byte("not_found"), nil)
 
 	if id := idx.FindIDBySeriesKey(nil, key0); id != toTypedSeriesID(1) {
 		t.Fatalf("unexpected id(0): %d", id)
@@ -98,14 +99,14 @@ func TestSeriesIndex_FindOffsetByID(t *testing.T) {
 	dir, cleanup := MustTempDir()
 	defer cleanup()
 
-	idx := tsdb.NewSeriesIndex(filepath.Join(dir, "index"))
+	idx := seriesfile.NewSeriesIndex(filepath.Join(dir, "index"))
 	if err := idx.Open(); err != nil {
 		t.Fatal(err)
 	}
 	defer idx.Close()
 
-	idx.Insert(tsdb.AppendSeriesKey(nil, []byte("m0"), nil), toTypedSeriesID(1), 10)
-	idx.Insert(tsdb.AppendSeriesKey(nil, []byte("m1"), nil), toTypedSeriesID(2), 20)
+	idx.Insert(seriesfile.AppendSeriesKey(nil, []byte("m0"), nil), toTypedSeriesID(1), 10)
+	idx.Insert(seriesfile.AppendSeriesKey(nil, []byte("m1"), nil), toTypedSeriesID(2), 20)
 
 	if offset := idx.FindOffsetByID(tsdb.NewSeriesID(1)); offset != 10 {
 		t.Fatalf("unexpected offset(0): %d", offset)
@@ -118,8 +119,8 @@ func TestSeriesIndex_FindOffsetByID(t *testing.T) {
 
 func TestSeriesIndexHeader(t *testing.T) {
 	// Verify header initializes correctly.
-	hdr := tsdb.NewSeriesIndexHeader()
-	if hdr.Version != tsdb.SeriesIndexVersion {
+	hdr := seriesfile.NewSeriesIndexHeader()
+	if hdr.Version != seriesfile.SeriesIndexVersion {
 		t.Fatalf("unexpected version: %d", hdr.Version)
 	}
 	hdr.MaxSeriesID = tsdb.NewSeriesID(10)
@@ -133,7 +134,7 @@ func TestSeriesIndexHeader(t *testing.T) {
 	var buf bytes.Buffer
 	if _, err := hdr.WriteTo(&buf); err != nil {
 		t.Fatal(err)
-	} else if other, err := tsdb.ReadSeriesIndexHeader(buf.Bytes()); err != nil {
+	} else if other, err := seriesfile.ReadSeriesIndexHeader(buf.Bytes()); err != nil {
 		t.Fatal(err)
 	} else if diff := cmp.Diff(hdr, other); diff != "" {
 		t.Fatal(diff)

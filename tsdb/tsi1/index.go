@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -122,7 +123,7 @@ type Index struct {
 	config             Config      // The index configuration
 
 	// The following must be set when initializing an Index.
-	sfile *tsdb.SeriesFile // series lookup file
+	sfile *seriesfile.SeriesFile // series lookup file
 
 	// Index's version.
 	version int
@@ -139,7 +140,7 @@ func (i *Index) UniqueReferenceID() uintptr {
 }
 
 // NewIndex returns a new instance of Index.
-func NewIndex(sfile *tsdb.SeriesFile, c Config, options ...IndexOption) *Index {
+func NewIndex(sfile *seriesfile.SeriesFile, c Config, options ...IndexOption) *Index {
 	idx := &Index{
 		tagValueCache:    NewTagValueSeriesIDCache(c.SeriesIDSetCacheSize),
 		partitionMetrics: newPartitionMetrics(nil),
@@ -199,7 +200,7 @@ func (i *Index) WithLogger(l *zap.Logger) {
 }
 
 // SeriesFile returns the series file attached to the index.
-func (i *Index) SeriesFile() *tsdb.SeriesFile { return i.sfile }
+func (i *Index) SeriesFile() *seriesfile.SeriesFile { return i.sfile }
 
 // SeriesIDSet returns the set of series ids associated with series in this
 // index. Any series IDs for series no longer present in the index are filtered out.
@@ -552,7 +553,7 @@ func (i *Index) measurementSeriesByExprIterator(name []byte, expr influxql.Expr)
 		if err != nil {
 			return nil, err
 		}
-		return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
+		return FilterUndeletedSeriesIDIterator(i.sfile, itr)
 	}
 
 	itr, err := i.seriesByExprIterator(name, expr)
@@ -560,7 +561,7 @@ func (i *Index) measurementSeriesByExprIterator(name []byte, expr influxql.Expr)
 		return nil, err
 	}
 
-	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
+	return FilterUndeletedSeriesIDIterator(i.sfile, itr)
 }
 
 // MeasurementSeriesIDIterator returns an iterator over all non-tombstoned series
@@ -570,7 +571,7 @@ func (i *Index) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDIterator,
 	if err != nil {
 		return nil, err
 	}
-	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
+	return FilterUndeletedSeriesIDIterator(i.sfile, itr)
 }
 
 // measurementSeriesIDIterator returns an iterator over all series in a measurement.
@@ -926,7 +927,7 @@ func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator,
 	if err != nil {
 		return nil, err
 	}
-	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
+	return FilterUndeletedSeriesIDIterator(i.sfile, itr)
 }
 
 // tagKeySeriesIDIterator returns a series iterator for all values across a single key.
@@ -953,7 +954,7 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 	if err != nil {
 		return nil, err
 	}
-	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
+	return FilterUndeletedSeriesIDIterator(i.sfile, itr)
 }
 
 // tagValueSeriesIDIterator returns a series iterator for a single tag value.
@@ -1053,7 +1054,7 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 		}
 
 		// NOTE - must not escape this loop iteration.
-		_, tagsBuf = tsdb.ParseSeriesKeyInto(key, tagsBuf)
+		_, tagsBuf = seriesfile.ParseSeriesKeyInto(key, tagsBuf)
 		var tagsAsKey []byte
 		if len(dims) > 0 {
 			tagsAsKey = tsdb.MakeTagsKey(dims, tagsBuf)
@@ -1436,7 +1437,7 @@ func (i *Index) MatchTagValueSeriesIDIterator(name, key []byte, value *regexp.Re
 	if err != nil {
 		return nil, err
 	}
-	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
+	return FilterUndeletedSeriesIDIterator(i.sfile, itr)
 }
 
 // matchTagValueSeriesIDIterator returns a series iterator for tags which match
@@ -1618,4 +1619,46 @@ func IsIndexDir(path string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// filterUndeletedSeriesIDIterator returns all series which are not deleted.
+type filterUndeletedSeriesIDIterator struct {
+	sfile    *seriesfile.SeriesFile
+	sfileref *lifecycle.Reference
+	itr      tsdb.SeriesIDIterator
+}
+
+// FilterUndeletedSeriesIDIterator returns an iterator which filters all deleted series.
+func FilterUndeletedSeriesIDIterator(sfile *seriesfile.SeriesFile, itr tsdb.SeriesIDIterator) (tsdb.SeriesIDIterator, error) {
+	if itr == nil {
+		return nil, nil
+	}
+	sfileref, err := sfile.Acquire()
+	if err != nil {
+		return nil, err
+	}
+	return &filterUndeletedSeriesIDIterator{
+		sfile:    sfile,
+		sfileref: sfileref,
+		itr:      itr,
+	}, nil
+}
+
+func (itr *filterUndeletedSeriesIDIterator) Close() (err error) {
+	itr.sfileref.Release()
+	return itr.itr.Close()
+}
+
+func (itr *filterUndeletedSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
+	for {
+		e, err := itr.itr.Next()
+		if err != nil {
+			return tsdb.SeriesIDElem{}, err
+		} else if e.SeriesID.IsZero() {
+			return tsdb.SeriesIDElem{}, nil
+		} else if itr.sfile.IsDeleted(e.SeriesID) {
+			continue
+		}
+		return e, nil
+	}
 }

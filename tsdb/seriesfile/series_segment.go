@@ -1,4 +1,4 @@
-package tsdb
+package seriesfile
 
 import (
 	"bufio"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/pkg/mmap"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 const (
@@ -216,8 +217,8 @@ func (s *SeriesSegment) Flush() error {
 }
 
 // AppendSeriesIDs appends all the segments ids to a slice. Returns the new slice.
-func (s *SeriesSegment) AppendSeriesIDs(a []SeriesID) []SeriesID {
-	s.ForEachEntry(func(flag uint8, id SeriesIDTyped, _ int64, _ []byte) error {
+func (s *SeriesSegment) AppendSeriesIDs(a []tsdb.SeriesID) []tsdb.SeriesID {
+	s.ForEachEntry(func(flag uint8, id tsdb.SeriesIDTyped, _ int64, _ []byte) error {
 		if flag == SeriesEntryInsertFlag {
 			a = append(a, id.SeriesID())
 		}
@@ -227,9 +228,9 @@ func (s *SeriesSegment) AppendSeriesIDs(a []SeriesID) []SeriesID {
 }
 
 // MaxSeriesID returns the highest series id in the segment.
-func (s *SeriesSegment) MaxSeriesID() SeriesID {
-	var max SeriesID
-	s.ForEachEntry(func(flag uint8, id SeriesIDTyped, _ int64, _ []byte) error {
+func (s *SeriesSegment) MaxSeriesID() tsdb.SeriesID {
+	var max tsdb.SeriesID
+	s.ForEachEntry(func(flag uint8, id tsdb.SeriesIDTyped, _ int64, _ []byte) error {
 		untypedID := id.SeriesID()
 		if flag == SeriesEntryInsertFlag && untypedID.Greater(max) {
 			max = untypedID
@@ -240,7 +241,7 @@ func (s *SeriesSegment) MaxSeriesID() SeriesID {
 }
 
 // ForEachEntry executes fn for every entry in the segment.
-func (s *SeriesSegment) ForEachEntry(fn func(flag uint8, id SeriesIDTyped, offset int64, key []byte) error) error {
+func (s *SeriesSegment) ForEachEntry(fn func(flag uint8, id tsdb.SeriesIDTyped, offset int64, key []byte) error) error {
 	for pos := uint32(SeriesSegmentHeaderSize); pos < uint32(len(s.data)); {
 		flag, id, key, sz := ReadSeriesEntry(s.data[pos:])
 		if !IsValidSeriesEntryFlag(flag) {
@@ -281,7 +282,7 @@ func (s *SeriesSegment) CompactToPath(path string, index *SeriesIndex) error {
 	// Iterate through the segment and write any entries to a new segment
 	// that exist in the index.
 	var buf []byte
-	if err = s.ForEachEntry(func(flag uint8, id SeriesIDTyped, _ int64, key []byte) error {
+	if err = s.ForEachEntry(func(flag uint8, id tsdb.SeriesIDTyped, _ int64, key []byte) error {
 		if index.IsDeleted(id.SeriesID()) {
 			return nil // series id has been deleted from index
 		} else if flag == SeriesEntryTombstoneFlag {
@@ -411,14 +412,14 @@ func (hdr *SeriesSegmentHeader) WriteTo(w io.Writer) (n int64, err error) {
 	return buf.WriteTo(w)
 }
 
-func ReadSeriesEntry(data []byte) (flag uint8, id SeriesIDTyped, key []byte, sz int64) {
+func ReadSeriesEntry(data []byte) (flag uint8, id tsdb.SeriesIDTyped, key []byte, sz int64) {
 	// If flag byte is zero then no more entries exist.
 	flag, data = uint8(data[0]), data[1:]
 	if !IsValidSeriesEntryFlag(flag) {
-		return 0, SeriesIDTyped{}, nil, 1
+		return 0, tsdb.SeriesIDTyped{}, nil, 1
 	}
 
-	id, data = NewSeriesIDTyped(binary.BigEndian.Uint64(data)), data[8:]
+	id, data = tsdb.NewSeriesIDTyped(binary.BigEndian.Uint64(data)), data[8:]
 	switch flag {
 	case SeriesEntryInsertFlag:
 		key, _ = ReadSeriesKey(data)
@@ -426,7 +427,7 @@ func ReadSeriesEntry(data []byte) (flag uint8, id SeriesIDTyped, key []byte, sz 
 	return flag, id, key, int64(SeriesEntryHeaderSize + len(key))
 }
 
-func AppendSeriesEntry(dst []byte, flag uint8, id SeriesIDTyped, key []byte) []byte {
+func AppendSeriesEntry(dst []byte, flag uint8, id tsdb.SeriesIDTyped, key []byte) []byte {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, id.RawID())
 
