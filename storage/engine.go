@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/influxdata/influxdb/tsdb/value"
@@ -434,7 +435,7 @@ func (e *Engine) CreateSeriesCursor(ctx context.Context, orgID, bucketID influxd
 }
 
 // CreateCursorIterator creates a CursorIterator for usage with the read service.
-func (e *Engine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator, error) {
+func (e *Engine) CreateCursorIterator(ctx context.Context) (cursors.CursorIterator, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if e.closing == nil {

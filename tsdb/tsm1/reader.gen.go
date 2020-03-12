@@ -7,7 +7,7 @@
 package tsm1
 
 import (
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 // ReadFloatBlockAt returns the float values corresponding to the given index entry.
@@ -19,7 +19,7 @@ func (t *TSMReader) ReadFloatBlockAt(entry *IndexEntry, vals *[]FloatValue) ([]F
 }
 
 // ReadFloatArrayBlockAt fills vals with the float values corresponding to the given index entry.
-func (t *TSMReader) ReadFloatArrayBlockAt(entry *IndexEntry, vals *tsdb.FloatArray) error {
+func (t *TSMReader) ReadFloatArrayBlockAt(entry *IndexEntry, vals *cursors.FloatArray) error {
 	t.mu.RLock()
 	err := t.accessor.readFloatArrayBlock(entry, vals)
 	t.mu.RUnlock()
@@ -35,7 +35,7 @@ func (t *TSMReader) ReadIntegerBlockAt(entry *IndexEntry, vals *[]IntegerValue) 
 }
 
 // ReadIntegerArrayBlockAt fills vals with the integer values corresponding to the given index entry.
-func (t *TSMReader) ReadIntegerArrayBlockAt(entry *IndexEntry, vals *tsdb.IntegerArray) error {
+func (t *TSMReader) ReadIntegerArrayBlockAt(entry *IndexEntry, vals *cursors.IntegerArray) error {
 	t.mu.RLock()
 	err := t.accessor.readIntegerArrayBlock(entry, vals)
 	t.mu.RUnlock()
@@ -51,7 +51,7 @@ func (t *TSMReader) ReadUnsignedBlockAt(entry *IndexEntry, vals *[]UnsignedValue
 }
 
 // ReadUnsignedArrayBlockAt fills vals with the unsigned values corresponding to the given index entry.
-func (t *TSMReader) ReadUnsignedArrayBlockAt(entry *IndexEntry, vals *tsdb.UnsignedArray) error {
+func (t *TSMReader) ReadUnsignedArrayBlockAt(entry *IndexEntry, vals *cursors.UnsignedArray) error {
 	t.mu.RLock()
 	err := t.accessor.readUnsignedArrayBlock(entry, vals)
 	t.mu.RUnlock()
@@ -67,7 +67,7 @@ func (t *TSMReader) ReadStringBlockAt(entry *IndexEntry, vals *[]StringValue) ([
 }
 
 // ReadStringArrayBlockAt fills vals with the string values corresponding to the given index entry.
-func (t *TSMReader) ReadStringArrayBlockAt(entry *IndexEntry, vals *tsdb.StringArray) error {
+func (t *TSMReader) ReadStringArrayBlockAt(entry *IndexEntry, vals *cursors.StringArray) error {
 	t.mu.RLock()
 	err := t.accessor.readStringArrayBlock(entry, vals)
 	t.mu.RUnlock()
@@ -83,7 +83,7 @@ func (t *TSMReader) ReadBooleanBlockAt(entry *IndexEntry, vals *[]BooleanValue) 
 }
 
 // ReadBooleanArrayBlockAt fills vals with the boolean values corresponding to the given index entry.
-func (t *TSMReader) ReadBooleanArrayBlockAt(entry *IndexEntry, vals *tsdb.BooleanArray) error {
+func (t *TSMReader) ReadBooleanArrayBlockAt(entry *IndexEntry, vals *cursors.BooleanArray) error {
 	t.mu.RLock()
 	err := t.accessor.readBooleanArrayBlock(entry, vals)
 	t.mu.RUnlock()
@@ -98,15 +98,15 @@ type blockAccessor interface {
 	readAll(key []byte) ([]Value, error)
 	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
 	readFloatBlock(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error)
-	readFloatArrayBlock(entry *IndexEntry, values *tsdb.FloatArray) error
+	readFloatArrayBlock(entry *IndexEntry, values *cursors.FloatArray) error
 	readIntegerBlock(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error)
-	readIntegerArrayBlock(entry *IndexEntry, values *tsdb.IntegerArray) error
+	readIntegerArrayBlock(entry *IndexEntry, values *cursors.IntegerArray) error
 	readUnsignedBlock(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error)
-	readUnsignedArrayBlock(entry *IndexEntry, values *tsdb.UnsignedArray) error
+	readUnsignedArrayBlock(entry *IndexEntry, values *cursors.UnsignedArray) error
 	readStringBlock(entry *IndexEntry, values *[]StringValue) ([]StringValue, error)
-	readStringArrayBlock(entry *IndexEntry, values *tsdb.StringArray) error
+	readStringArrayBlock(entry *IndexEntry, values *cursors.StringArray) error
 	readBooleanBlock(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error)
-	readBooleanArrayBlock(entry *IndexEntry, values *tsdb.BooleanArray) error
+	readBooleanArrayBlock(entry *IndexEntry, values *cursors.BooleanArray) error
 	readBytes(entry *IndexEntry, buf []byte) (uint32, []byte, error)
 	rename(path string) error
 	path() string
@@ -133,7 +133,7 @@ func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values *[]FloatValue) (
 	return a, nil
 }
 
-func (m *mmapAccessor) readFloatArrayBlock(entry *IndexEntry, values *tsdb.FloatArray) error {
+func (m *mmapAccessor) readFloatArrayBlock(entry *IndexEntry, values *cursors.FloatArray) error {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -167,7 +167,7 @@ func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValu
 	return a, nil
 }
 
-func (m *mmapAccessor) readIntegerArrayBlock(entry *IndexEntry, values *tsdb.IntegerArray) error {
+func (m *mmapAccessor) readIntegerArrayBlock(entry *IndexEntry, values *cursors.IntegerArray) error {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -201,7 +201,7 @@ func (m *mmapAccessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedVa
 	return a, nil
 }
 
-func (m *mmapAccessor) readUnsignedArrayBlock(entry *IndexEntry, values *tsdb.UnsignedArray) error {
+func (m *mmapAccessor) readUnsignedArrayBlock(entry *IndexEntry, values *cursors.UnsignedArray) error {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -235,7 +235,7 @@ func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values *[]StringValue)
 	return a, nil
 }
 
-func (m *mmapAccessor) readStringArrayBlock(entry *IndexEntry, values *tsdb.StringArray) error {
+func (m *mmapAccessor) readStringArrayBlock(entry *IndexEntry, values *cursors.StringArray) error {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -269,7 +269,7 @@ func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values *[]BooleanValu
 	return a, nil
 }
 
-func (m *mmapAccessor) readBooleanArrayBlock(entry *IndexEntry, values *tsdb.BooleanArray) error {
+func (m *mmapAccessor) readBooleanArrayBlock(entry *IndexEntry, values *cursors.BooleanArray) error {
 	m.incAccess()
 
 	m.mu.RLock()

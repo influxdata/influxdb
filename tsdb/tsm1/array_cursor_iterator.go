@@ -32,7 +32,7 @@ type arrayCursorIterator struct {
 	}
 }
 
-func (q *arrayCursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (tsdb.Cursor, error) {
+func (q *arrayCursorIterator) Next(ctx context.Context, r *cursors.CursorRequest) (cursors.Cursor, error) {
 	q.key = tsdb.AppendSeriesKey(q.key[:0], r.Name, r.Tags)
 	id := q.e.sfile.SeriesIDTypedBySeriesKey(q.key)
 	if id.IsZero() {

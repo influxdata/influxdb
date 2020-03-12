@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 )
 
@@ -25,7 +25,7 @@ func TestDecodeFloatArrayBlock(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	got := tsdb.NewFloatArrayLen(exp.Len())
+	got := cursors.NewFloatArrayLen(exp.Len())
 	tsm1.DecodeFloatArrayBlock(b, got)
 	if !cmp.Equal(got, exp) {
 		t.Fatalf("unexpected values -got/+exp\n%s", cmp.Diff(got, exp))
@@ -58,7 +58,7 @@ func BenchmarkDecodeBooleanArrayBlock(b *testing.B) {
 			b.SetBytes(int64(tsm1.Values(values).Size()))
 
 			b.RunParallel(func(pb *testing.PB) {
-				decodedValues := tsdb.NewBooleanArrayLen(len(values))
+				decodedValues := cursors.NewBooleanArrayLen(len(values))
 
 				for pb.Next() {
 					err = tsm1.DecodeBooleanArrayBlock(bytes, decodedValues)
@@ -97,7 +97,7 @@ func BenchmarkDecodeFloatArrayBlock(b *testing.B) {
 			b.SetBytes(int64(tsm1.Values(values).Size()))
 
 			b.RunParallel(func(pb *testing.PB) {
-				decodedValues := tsdb.NewFloatArrayLen(len(values))
+				decodedValues := cursors.NewFloatArrayLen(len(values))
 
 				for pb.Next() {
 					err = tsm1.DecodeFloatArrayBlock(bytes, decodedValues)
@@ -149,7 +149,7 @@ func BenchmarkDecodeIntegerArrayBlock(b *testing.B) {
 			b.SetBytes(int64(tsm1.Values(values).Size()))
 
 			b.RunParallel(func(pb *testing.PB) {
-				decodedValues := tsdb.NewIntegerArrayLen(len(values))
+				decodedValues := cursors.NewIntegerArrayLen(len(values))
 
 				for pb.Next() {
 					err = tsm1.DecodeIntegerArrayBlock(bytes, decodedValues)
@@ -188,7 +188,7 @@ func BenchmarkDecodeStringArrayBlock(b *testing.B) {
 			b.SetBytes(int64(tsm1.Values(values).Size()))
 
 			b.RunParallel(func(pb *testing.PB) {
-				decodedValues := tsdb.NewStringArrayLen(len(values))
+				decodedValues := cursors.NewStringArrayLen(len(values))
 
 				for pb.Next() {
 					err = tsm1.DecodeStringArrayBlock(bytes, decodedValues)

@@ -7,21 +7,21 @@
 package gen
 
 import (
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 )
 
 type FloatValues interface {
-	Copy(*tsdb.FloatArray)
+	Copy(*cursors.FloatArray)
 }
 
 type floatArray struct {
-	tsdb.FloatArray
+	cursors.FloatArray
 }
 
 func newFloatArrayLen(sz int) *floatArray {
 	return &floatArray{
-		FloatArray: tsdb.FloatArray{
+		FloatArray: cursors.FloatArray{
 			Timestamps: make([]int64, sz),
 			Values:     make([]float64, sz),
 		},
@@ -32,22 +32,22 @@ func (a *floatArray) Encode(b []byte) ([]byte, error) {
 	return tsm1.EncodeFloatArrayBlock(&a.FloatArray, b)
 }
 
-func (a *floatArray) Copy(dst *tsdb.FloatArray) {
+func (a *floatArray) Copy(dst *cursors.FloatArray) {
 	dst.Timestamps = append(dst.Timestamps[:0], a.Timestamps...)
 	dst.Values = append(dst.Values[:0], a.Values...)
 }
 
 type IntegerValues interface {
-	Copy(*tsdb.IntegerArray)
+	Copy(*cursors.IntegerArray)
 }
 
 type integerArray struct {
-	tsdb.IntegerArray
+	cursors.IntegerArray
 }
 
 func newIntegerArrayLen(sz int) *integerArray {
 	return &integerArray{
-		IntegerArray: tsdb.IntegerArray{
+		IntegerArray: cursors.IntegerArray{
 			Timestamps: make([]int64, sz),
 			Values:     make([]int64, sz),
 		},
@@ -58,22 +58,22 @@ func (a *integerArray) Encode(b []byte) ([]byte, error) {
 	return tsm1.EncodeIntegerArrayBlock(&a.IntegerArray, b)
 }
 
-func (a *integerArray) Copy(dst *tsdb.IntegerArray) {
+func (a *integerArray) Copy(dst *cursors.IntegerArray) {
 	dst.Timestamps = append(dst.Timestamps[:0], a.Timestamps...)
 	dst.Values = append(dst.Values[:0], a.Values...)
 }
 
 type UnsignedValues interface {
-	Copy(*tsdb.UnsignedArray)
+	Copy(*cursors.UnsignedArray)
 }
 
 type unsignedArray struct {
-	tsdb.UnsignedArray
+	cursors.UnsignedArray
 }
 
 func newUnsignedArrayLen(sz int) *unsignedArray {
 	return &unsignedArray{
-		UnsignedArray: tsdb.UnsignedArray{
+		UnsignedArray: cursors.UnsignedArray{
 			Timestamps: make([]int64, sz),
 			Values:     make([]uint64, sz),
 		},
@@ -84,22 +84,22 @@ func (a *unsignedArray) Encode(b []byte) ([]byte, error) {
 	return tsm1.EncodeUnsignedArrayBlock(&a.UnsignedArray, b)
 }
 
-func (a *unsignedArray) Copy(dst *tsdb.UnsignedArray) {
+func (a *unsignedArray) Copy(dst *cursors.UnsignedArray) {
 	dst.Timestamps = append(dst.Timestamps[:0], a.Timestamps...)
 	dst.Values = append(dst.Values[:0], a.Values...)
 }
 
 type StringValues interface {
-	Copy(*tsdb.StringArray)
+	Copy(*cursors.StringArray)
 }
 
 type stringArray struct {
-	tsdb.StringArray
+	cursors.StringArray
 }
 
 func newStringArrayLen(sz int) *stringArray {
 	return &stringArray{
-		StringArray: tsdb.StringArray{
+		StringArray: cursors.StringArray{
 			Timestamps: make([]int64, sz),
 			Values:     make([]string, sz),
 		},
@@ -110,22 +110,22 @@ func (a *stringArray) Encode(b []byte) ([]byte, error) {
 	return tsm1.EncodeStringArrayBlock(&a.StringArray, b)
 }
 
-func (a *stringArray) Copy(dst *tsdb.StringArray) {
+func (a *stringArray) Copy(dst *cursors.StringArray) {
 	dst.Timestamps = append(dst.Timestamps[:0], a.Timestamps...)
 	dst.Values = append(dst.Values[:0], a.Values...)
 }
 
 type BooleanValues interface {
-	Copy(*tsdb.BooleanArray)
+	Copy(*cursors.BooleanArray)
 }
 
 type booleanArray struct {
-	tsdb.BooleanArray
+	cursors.BooleanArray
 }
 
 func newBooleanArrayLen(sz int) *booleanArray {
 	return &booleanArray{
-		BooleanArray: tsdb.BooleanArray{
+		BooleanArray: cursors.BooleanArray{
 			Timestamps: make([]int64, sz),
 			Values:     make([]bool, sz),
 		},
@@ -136,7 +136,7 @@ func (a *booleanArray) Encode(b []byte) ([]byte, error) {
 	return tsm1.EncodeBooleanArrayBlock(&a.BooleanArray, b)
 }
 
-func (a *booleanArray) Copy(dst *tsdb.BooleanArray) {
+func (a *booleanArray) Copy(dst *cursors.BooleanArray) {
 	dst.Timestamps = append(dst.Timestamps[:0], a.Timestamps...)
 	dst.Values = append(dst.Values[:0], a.Values...)
 }
