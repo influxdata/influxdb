@@ -150,6 +150,13 @@ const basepath = getBrowserBasepath()
 declare global {
   interface Window {
     basepath: string
+    context: {
+      identity: {
+        userID: string
+        username: string
+        orgID: string
+      }
+    }
   }
 }
 

@@ -7,18 +7,18 @@ const location = {
   ...window.location,
   href: `${baseUrl}${pathname}`,
   pathname,
-};
+}
 Object.defineProperty(window, 'location', {
   writable: true,
   value: location,
-});
+})
 
 describe('getting an orgId', () => {
   it('gets the org id from the simplest url', () => {
     expect(getOrgIDFromUrl()).toEqual(orgID)
   })
 
-  it ("returns -1 if it can't find the org id", () => {
+  it("returns -1 if it can't find the org id", () => {
     const newPathname = '/'
     window.location.pathname = newPathname
     window.location.href = `${baseUrl}${pathname}`

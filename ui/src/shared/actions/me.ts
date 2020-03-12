@@ -1,6 +1,8 @@
-import {MeState} from 'src/shared/reducers/me'
-import {client} from 'src/utils/api'
 import HoneyBadger from 'honeybadger-js'
+import {MeState} from 'src/shared/reducers/me'
+import {getOrgIDFromUrl} from 'src/shared/utils/getOrgIDFromUrl'
+import {CLOUD} from 'src/shared/constants'
+import {client} from 'src/utils/api'
 
 export enum ActionTypes {
   SetMe = 'SET_ME',
@@ -25,6 +27,18 @@ export const setMe = me => ({
 export const getMe = () => async dispatch => {
   try {
     const user = await client.users.me()
+
+    if (CLOUD) {
+      const orgID = getOrgIDFromUrl()
+
+      window.context = {
+        identity: {
+          userID: user.id,
+          username: user.name,
+          orgID,
+        },
+      }
+    }
 
     HoneyBadger.setContext({
       user_id: user.id,
