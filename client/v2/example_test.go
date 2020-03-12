@@ -263,3 +263,23 @@ func ExampleClient_createDatabase() {
 		fmt.Println(response.Results)
 	}
 }
+
+func ExampleClient_queryWithParams() {
+	// Make client
+	c, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr: "http://localhost:8086",
+	})
+	if err != nil {
+		fmt.Println("Error creating InfluxDB Client: ", err.Error())
+	}
+	defer c.Close()
+
+	q := client.NewQueryWithParameters("SELECT $fn($value) FROM $m", "square_holes", "ns", client.Params{
+		"fn":    client.Identifier("count"),
+		"value": client.Identifier("value"),
+		"m":     client.Identifier("shapes"),
+	})
+	if response, err := c.Query(q); err == nil && response.Error() == nil {
+		fmt.Println(response.Results)
+	}
+}
