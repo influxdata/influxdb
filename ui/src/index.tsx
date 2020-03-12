@@ -150,11 +150,28 @@ const basepath = getBrowserBasepath()
 declare global {
   interface Window {
     basepath: string
+    context: {
+      identity: {
+        userID: string
+        username: string
+        orgIDs: string[]
+      }
+    }
   }
 }
 
 // Older method used for pre-IE 11 compatibility
 window.basepath = basepath
+
+if (CLOUD) {
+  window.context = {
+    identity: {
+      userID: '',
+      username: '',
+      orgIDs: [''],
+    },
+  }
+}
 
 const history: History = useRouterHistory(createHistory)({
   basename: basepath, // this is written in when available by the URL prefixer middleware

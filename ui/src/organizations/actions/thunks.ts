@@ -2,6 +2,7 @@
 import {Dispatch} from 'redux'
 import {push, RouterAction} from 'react-router-redux'
 import {normalize} from 'normalizr'
+import {CLOUD} from 'src/shared/constants'
 
 // APIs
 import {getErrorMessage} from 'src/utils/api'
@@ -60,6 +61,10 @@ export const getOrganizations = () => async (
       orgs,
       arrayOfOrgs
     )
+
+    if (CLOUD) {
+      window.context.identity.orgIDs = organizations.result
+    }
 
     dispatch(setOrgs(RemoteDataState.Done, organizations))
 
