@@ -6,6 +6,7 @@ extern crate log;
 use delorean::delorean::{
     delorean_server::DeloreanServer, storage_server::StorageServer, TimestampRange,
 };
+use delorean::id::Id;
 use delorean::line_parser;
 use delorean::line_parser::index_pairs;
 use delorean::storage::database::Database;
@@ -38,8 +39,8 @@ const MAX_SIZE: usize = 1_048_576; // max write request size of 1MB
 
 #[derive(Deserialize)]
 struct WriteInfo {
-    org_id: u32,
-    bucket_name: String,
+    org: Id,
+    bucket: Id,
 }
 
 async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, ApplicationError> {
@@ -47,9 +48,13 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>,
     let write_info: WriteInfo =
         serde_urlencoded::from_str(query).map_err(|_| StatusCode::BAD_REQUEST)?;
 
+    // Even though tools like `inch` and `storectl query` pass bucket IDs, treat them as
+    // `bucket_name` in delorean because MemDB sets auto-incrementing IDs for buckets.
+    let bucket_name = write_info.bucket.to_string();
+
     let bucket_id = app
         .db
-        .get_bucket_id_by_name(write_info.org_id, &write_info.bucket_name)
+        .get_bucket_id_by_name(write_info.org, &bucket_name)
         .await
         .map_err(|e| {
             debug!("Error getting bucket id: {}", e);
@@ -58,7 +63,7 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>,
         .ok_or_else(|| {
             ApplicationError::new(
                 StatusCode::NOT_FOUND,
-                &format!("bucket {} not found", write_info.bucket_name),
+                &format!("bucket {} not found", bucket_name),
             )
         })?;
 
@@ -82,7 +87,7 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>,
     let mut points = line_parser::parse(body).expect("TODO: Unable to parse lines");
 
     app.db
-        .write_points(write_info.org_id, bucket_id, &mut points)
+        .write_points(write_info.org, bucket_id, &mut points)
         .await
         .map_err(|e| {
             debug!("Error writing points: {}", e);
@@ -94,8 +99,8 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>,
 
 #[derive(Deserialize, Debug)]
 struct ReadInfo {
-    org_id: u32,
-    bucket_name: String,
+    org: Id,
+    bucket: Id,
     predicate: String,
     start: Option<String>,
     stop: Option<String>,
@@ -126,6 +131,10 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
     let read_info: ReadInfo =
         serde_urlencoded::from_str(query).map_err(|_| StatusCode::BAD_REQUEST)?;
 
+    // Even though tools like `inch` and `storectl query` pass bucket IDs, treat them as
+    // `bucket_name` in delorean because RocksDB sets auto-incrementing IDs for buckets.
+    let bucket_name = read_info.bucket.to_string();
+
     let predicate = parse_predicate(&read_info.predicate).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     let now = std::time::SystemTime::now();
@@ -144,19 +153,19 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Option<Body>, 
 
     let bucket_id = app
         .db
-        .get_bucket_id_by_name(read_info.org_id, &read_info.bucket_name)
+        .get_bucket_id_by_name(read_info.org, &bucket_name)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or_else(|| {
             ApplicationError::new(
                 StatusCode::NOT_FOUND,
-                &format!("bucket {} not found", read_info.bucket_name),
+                &format!("bucket {} not found", bucket_name),
             )
         })?;
 
     let batches = app
         .db
-        .read_points(read_info.org_id, bucket_id, &predicate, &range)
+        .read_points(read_info.org, bucket_id, &predicate, &range)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

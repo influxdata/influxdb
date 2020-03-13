@@ -1,4 +1,5 @@
 use crate::delorean::{Bucket, Predicate, TimestampRange};
+use crate::id::Id;
 use crate::line_parser::PointType;
 use crate::storage::memdb::MemDB;
 use crate::storage::partitioned_store::{Partition, ReadBatch};
@@ -10,27 +11,28 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 pub struct Database {
-    organizations: RwLock<HashMap<u32, RwLock<Organization>>>,
+    organizations: RwLock<HashMap<Id, RwLock<Organization>>>,
 }
 
 #[derive(Default)]
 struct Organization {
-    bucket_data: HashMap<u32, Arc<BucketData>>,
-    bucket_name_to_id: HashMap<String, u32>,
+    bucket_data: HashMap<Id, Arc<BucketData>>,
+    bucket_name_to_id: HashMap<String, Id>,
 }
 
 impl Organization {
     // create_bucket_if_not_exists inserts the bucket into the map and returns its id
-    fn create_bucket_if_not_exists(&mut self, mut bucket: Bucket) -> u32 {
+    fn create_bucket_if_not_exists(&mut self, mut bucket: Bucket) -> Id {
         match self.bucket_name_to_id.get(&bucket.name) {
             Some(id) => *id,
             None => {
-                let id = (self.bucket_data.len() + 1) as u32;
+                let id = (self.bucket_data.len() + 1) as u64;
                 bucket.id = id;
-                self.bucket_name_to_id.insert(bucket.name.clone(), id);
+                self.bucket_name_to_id
+                    .insert(bucket.name.clone(), id.into());
                 self.bucket_data
-                    .insert(id, Arc::new(BucketData::new(bucket)));
-                id
+                    .insert(id.into(), Arc::new(BucketData::new(bucket)));
+                id.into()
             }
         }
     }
@@ -102,8 +104,8 @@ impl Database {
 
     pub async fn write_points(
         &self,
-        org_id: u32,
-        bucket_id: u32,
+        org_id: Id,
+        bucket_id: Id,
         points: &mut [PointType],
     ) -> Result<(), StorageError> {
         let bucket_data = self.bucket_data(org_id, bucket_id).await?;
@@ -113,9 +115,9 @@ impl Database {
 
     pub async fn get_bucket_id_by_name(
         &self,
-        org_id: u32,
+        org_id: Id,
         bucket_name: &str,
-    ) -> Result<Option<u32>, StorageError> {
+    ) -> Result<Option<Id>, StorageError> {
         let orgs = self.organizations.read().await;
 
         let org = match orgs.get(&org_id) {
@@ -133,9 +135,9 @@ impl Database {
 
     pub async fn create_bucket_if_not_exists(
         &self,
-        org_id: u32,
+        org_id: Id,
         bucket: Bucket,
-    ) -> Result<u32, StorageError> {
+    ) -> Result<Id, StorageError> {
         let mut orgs = self.organizations.write().await;
         let org = orgs
             .entry(org_id)
@@ -147,8 +149,8 @@ impl Database {
 
     pub async fn read_points(
         &self,
-        org_id: u32,
-        bucket_id: u32,
+        org_id: Id,
+        bucket_id: Id,
         predicate: &Predicate,
         range: &TimestampRange,
     ) -> Result<Vec<ReadBatch>, StorageError> {
@@ -159,8 +161,8 @@ impl Database {
 
     pub async fn get_tag_keys(
         &self,
-        org_id: u32,
-        bucket_id: u32,
+        org_id: Id,
+        bucket_id: Id,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
     ) -> Result<Vec<String>, StorageError> {
@@ -171,8 +173,8 @@ impl Database {
 
     pub async fn get_tag_values(
         &self,
-        org_id: u32,
-        bucket_id: u32,
+        org_id: Id,
+        bucket_id: Id,
         tag_key: &str,
         predicate: Option<&Predicate>,
         range: Option<&TimestampRange>,
@@ -182,7 +184,7 @@ impl Database {
         bucket_data.get_tag_values(tag_key, predicate, range).await
     }
 
-    pub async fn buckets(&self, org_id: u32) -> Result<Vec<Bucket>, StorageError> {
+    pub async fn buckets(&self, org_id: Id) -> Result<Vec<Bucket>, StorageError> {
         Ok(match self.organizations.read().await.get(&org_id) {
             None => vec![],
             Some(org) => org
@@ -197,8 +199,8 @@ impl Database {
 
     async fn bucket_data(
         &self,
-        org_id: u32,
-        bucket_id: u32,
+        org_id: Id,
+        bucket_id: Id,
     ) -> Result<Arc<BucketData>, StorageError> {
         let orgs = self.organizations.read().await;
         let org = orgs.get(&org_id).ok_or_else(|| StorageError {
@@ -228,9 +230,9 @@ mod tests {
     #[tokio::test]
     async fn create_bucket() {
         let database = Database::new("");
-        let org_id = 2;
+        let org_id: Id = 2u64.into();
         let bucket = Bucket {
-            org_id,
+            org_id: org_id.into(),
             id: 0,
             name: "first".to_string(),
             retention: "0".to_string(),
@@ -241,10 +243,10 @@ mod tests {
             .create_bucket_if_not_exists(org_id, bucket.clone())
             .await
             .unwrap();
-        assert_eq!(bucket_id, 1);
+        assert_eq!(bucket_id, 1u64.into());
 
         let bucket_two = Bucket {
-            org_id,
+            org_id: org_id.into(),
             id: 0,
             name: "second".to_string(),
             retention: "0".to_string(),
@@ -256,13 +258,13 @@ mod tests {
             .create_bucket_if_not_exists(org_id, bucket_two)
             .await
             .unwrap();
-        assert_eq!(bucket_id, 2);
+        assert_eq!(bucket_id, 2u64.into());
 
         let bucket_id = database
             .create_bucket_if_not_exists(org_id, bucket)
             .await
             .unwrap();
-        assert_eq!(bucket_id, 1);
+        assert_eq!(bucket_id, 1u64.into());
     }
 
     #[tokio::test]
@@ -353,11 +355,11 @@ mod tests {
         );
     }
 
-    async fn setup_db_and_bucket() -> (Database, u32, u32) {
+    async fn setup_db_and_bucket() -> (Database, Id, Id) {
         let database = Database::new("");
-        let org_id = 1;
+        let org_id: Id = 1u64.into();
         let bucket = Bucket {
-            org_id,
+            org_id: org_id.into(),
             id: 0,
             name: "foo".to_string(),
             retention: "0".to_string(),

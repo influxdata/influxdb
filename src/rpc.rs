@@ -9,6 +9,7 @@ use delorean::delorean::{
     ReadGroupRequest, ReadResponse, ReadSource, StringValuesResponse, Tag, TagKeysRequest,
     TagValuesRequest, TimestampRange,
 };
+use delorean::id::Id;
 use delorean::storage::partitioned_store::{PartitionKeyValues, ReadValues};
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -32,7 +33,10 @@ impl Delorean for GrpcServer {
     ) -> Result<tonic::Response<CreateBucketResponse>, Status> {
         let create_bucket_request = req.into_inner();
 
-        let org_id = create_bucket_request.org_id;
+        let org_id = create_bucket_request
+            .org_id
+            .try_into()
+            .map_err(|_| Status::invalid_argument("org_id did not fit in a u64"))?;
         let bucket = create_bucket_request
             .bucket
             .ok_or_else(|| Status::invalid_argument("missing bucket argument"))?;
@@ -59,7 +63,10 @@ impl Delorean for GrpcServer {
     ) -> Result<tonic::Response<GetBucketsResponse>, Status> {
         let org = req.into_inner();
 
-        let org_id = org.id;
+        let org_id = org
+            .id
+            .try_into()
+            .map_err(|_| Status::invalid_argument("org_id did not fit in a u64"))?;
 
         let buckets = self
             .app
@@ -92,20 +99,20 @@ trait GrpcInputs {
         })?)
     }
 
-    fn org_id(&self) -> Result<u32, Status> {
+    fn org_id(&self) -> Result<Id, Status> {
         Ok(self
             .read_source()?
             .org_id
             .try_into()
-            .map_err(|_| Status::invalid_argument("org_id did not fit in a u32"))?)
+            .map_err(|_| Status::invalid_argument("org_id did not fit in a u64"))?)
     }
 
-    fn bucket_id(&self) -> Result<u32, Status> {
+    fn bucket_id(&self) -> Result<Id, Status> {
         Ok(self
             .read_source()?
             .bucket_id
             .try_into()
-            .map_err(|_| Status::invalid_argument("bucket_id did not fit in a u32"))?)
+            .map_err(|_| Status::invalid_argument("bucket_id did not fit in a u64"))?)
     }
 }
 
@@ -319,8 +326,8 @@ impl Storage for GrpcServer {
 async fn send_series_filters(
     mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
     app: Arc<App>,
-    org_id: u32,
-    bucket_id: u32,
+    org_id: Id,
+    bucket_id: Id,
     predicate: &Predicate,
     range: &TimestampRange,
 ) -> Result<(), Status> {
@@ -376,8 +383,8 @@ async fn send_series_filters(
 async fn send_groups(
     mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
     app: Arc<App>,
-    org_id: u32,
-    bucket_id: u32,
+    org_id: Id,
+    bucket_id: Id,
     predicate: &Predicate,
     range: &TimestampRange,
     group_keys: Vec<String>,
