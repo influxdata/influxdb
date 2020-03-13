@@ -14,6 +14,9 @@ import (
 // ensure *KVStore implement kv.Store interface
 var _ kv.Store = (*KVStore)(nil)
 
+// ensure *KVStore implements kv.AutoMigrationStore
+var _ kv.AutoMigrationStore = (*KVStore)(nil)
+
 // cursorBatchSize is the size of a batch sent by a forward cursors
 // tree iterator
 const cursorBatchSize = 1000
@@ -61,9 +64,9 @@ func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
 	panic("not implemented")
 }
 
-// AutoMigrate returns true as inmem KVStore is safe to migrate on initialize.
-func (s *KVStore) AutoMigrate() bool {
-	return true
+// AutoMigrate returns itlsef as *KVStore is safe to migrate automically on initialize.
+func (s *KVStore) AutoMigrate() kv.Store {
+	return s
 }
 
 // Flush removes all data from the buckets.  Used for testing.

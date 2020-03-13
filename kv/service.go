@@ -101,11 +101,12 @@ type ServiceConfig struct {
 
 // AutoMigrationStore is a Store which also describes whether or not
 // migrations can be applied automatically.
-// Given the AutoMigrate method is defined and it returns true then migrations
-// will automatically be applied on Service.Initialize(...).
+// Given the AutoMigrate method is defined and it returns a non-nil kv.Store
+// implementation, then it will automatically invoke migrator.Up(store)
+// on the returned kv.Store during Service.Initialize(...).
 type AutoMigrationStore interface {
 	Store
-	AutoMigrate() bool
+	AutoMigrate() Store
 }
 
 // Initialize creates Buckets needed.
@@ -114,8 +115,12 @@ func (s *Service) Initialize(ctx context.Context) error {
 		return err
 	}
 
-	if store, ok := s.kv.(AutoMigrationStore); ok && store.AutoMigrate() {
-		return s.Migrator.Up(ctx, s.kv)
+	// if store implements auto migrate and the resulting Store from
+	// AutoMigrate() is non-nil, apply migrator.Up() to the resulting store.
+	if store, ok := s.kv.(AutoMigrationStore); ok {
+		if migrateStore := store.AutoMigrate(); migrateStore != nil {
+			return s.Migrator.Up(ctx, migrateStore)
+		}
 	}
 
 	return nil

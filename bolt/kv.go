@@ -18,6 +18,9 @@ import (
 // check that *KVStore implement kv.Store interface.
 var _ kv.Store = (*KVStore)(nil)
 
+// ensure *KVStore implements kv.AutoMigrationStore.
+var _ kv.AutoMigrationStore = (*KVStore)(nil)
+
 // KVStore is a kv.Store backed by boltdb.
 type KVStore struct {
 	path string
@@ -34,9 +37,9 @@ func NewKVStore(log *zap.Logger, path string) *KVStore {
 	}
 }
 
-// AutoMigrate returns true as the bolt KVStore is safe to migrate on initialize.
-func (s *KVStore) AutoMigrate() bool {
-	return true
+// AutoMigrate returns itself as it is safe to automatically apply migrations on initialization.
+func (s *KVStore) AutoMigrate() kv.Store {
+	return s
 }
 
 // Open creates boltDB file it doesn't exists and opens it otherwise.
