@@ -34,11 +34,8 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 		}
 		defer fs.Release()
 
-		itr := fs.SeriesFile().SeriesIDIterator()
-		if itr == nil {
-			t.Fatal("expected iterator")
-		}
-		if result := mustReadAllSeriesIDIteratorString(fs.SeriesFile(), itr); !reflect.DeepEqual(result, []string{
+		seriesIDs := fs.SeriesFile().AllSeriesIDs()
+		if result := seriesIDsToStrings(fs.SeriesFile(), seriesIDs); !reflect.DeepEqual(result, []string{
 			"cpu,[{region east}]",
 			"cpu,[{region west}]",
 			"mem,[{region east}]",
@@ -64,12 +61,8 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 		}
 		defer fs.Release()
 
-		itr := fs.SeriesFile().SeriesIDIterator()
-		if itr == nil {
-			t.Fatal("expected iterator")
-		}
-
-		if result := mustReadAllSeriesIDIteratorString(fs.SeriesFile(), itr); !reflect.DeepEqual(result, []string{
+		seriesIDs := fs.SeriesFile().AllSeriesIDs()
+		if result := seriesIDsToStrings(fs.SeriesFile(), seriesIDs); !reflect.DeepEqual(result, []string{
 			"cpu,[{region east}]",
 			"cpu,[{region north}]",
 			"cpu,[{region west}]",
@@ -307,6 +300,10 @@ func mustReadAllSeriesIDIteratorString(sfile *seriesfile.SeriesFile, itr tsdb.Se
 		ids = append(ids, e.SeriesID)
 	}
 
+	return seriesIDsToStrings(sfile, ids)
+}
+
+func seriesIDsToStrings(sfile *seriesfile.SeriesFile, ids []tsdb.SeriesID) []string {
 	// Convert to keys and sort.
 	keys := sfile.SeriesKeys(ids)
 	sort.Slice(keys, func(i, j int) bool { return seriesfile.CompareSeriesKeys(keys[i], keys[j]) == -1 })

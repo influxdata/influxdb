@@ -62,7 +62,7 @@ func NewSeriesFile(path string) *SeriesFile {
 		metricsEnabled: true,
 		Logger:         zap.NewNop(),
 
-		LargeWriteThreshold: tsdb.DefaultLargeSeriesWriteThreshold,
+		LargeWriteThreshold: DefaultLargeSeriesWriteThreshold,
 	}
 }
 
@@ -346,14 +346,15 @@ func (f *SeriesFile) SeriesCount() uint64 {
 	return n
 }
 
-// SeriesIterator returns an iterator over all the series.
-func (f *SeriesFile) SeriesIDIterator() tsdb.SeriesIDIterator {
+// AllSeriesIDs returns a slice of all series IDs, sorted.
+// This may return a lot of data at once, so use sparingly.
+func (f *SeriesFile) AllSeriesIDs() []tsdb.SeriesID {
 	var ids []tsdb.SeriesID
 	for _, p := range f.partitions {
 		ids = p.AppendSeriesIDs(ids)
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i].Less(ids[j]) })
-	return tsdb.NewSeriesIDSliceIterator(ids)
+	return ids
 }
 
 func (f *SeriesFile) SeriesIDPartitionID(id tsdb.SeriesID) int {

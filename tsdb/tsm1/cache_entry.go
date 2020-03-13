@@ -4,7 +4,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
 
@@ -39,7 +38,7 @@ func newEntryValues(values []Value) (*entry, error) {
 	for _, v := range values {
 		// Make sure all the values are the same type
 		if et != valueType(v) {
-			return nil, tsdb.ErrFieldTypeConflict
+			return nil, errFieldTypeConflict
 		}
 	}
 
@@ -59,7 +58,7 @@ func (e *entry) add(values []Value) error {
 	if e.vtype != 0 {
 		for _, v := range values {
 			if e.vtype != valueType(v) {
-				return tsdb.ErrFieldTypeConflict
+				return errFieldTypeConflict
 			}
 		}
 	}

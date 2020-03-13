@@ -1,11 +1,4 @@
-package tsdb
-
-import (
-	"github.com/influxdata/influxdb/query"
-)
-
-// EOF represents a "not found" key returned by a Cursor.
-const EOF = query.ZeroTime
+package seriesfile
 
 const (
 	// DefaultLargeSeriesWriteThreshold is the number of series per write
