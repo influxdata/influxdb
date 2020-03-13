@@ -91,20 +91,16 @@ export const LoginForm: FC<Props> = ({
           </Grid.Column>
         </Grid.Row>
       </Grid>
-      {
-        // @ts-ignore
-        // TODO: remove this ts-ignore when clockface v2.0.2 is released
-        <Heading
-          element={HeadingElement.H5}
-          type={Typeface.Rubik}
-          weight={FontWeight.Regular}
-          onClick={handleForgotPasswordClick}
-          className="login--forgot-password"
-          selectable={true}
-        >
-          Forgot Password?
-        </Heading>
-      }
+      <Heading
+        element={HeadingElement.H5}
+        type={Typeface.Rubik}
+        weight={FontWeight.Regular}
+        onClick={handleForgotPasswordClick}
+        className="login--forgot-password"
+        selectable={true}
+      >
+        Forgot Password?
+      </Heading>
       <Button
         className="create-account--button"
         text="Log In"
