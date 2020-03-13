@@ -109,10 +109,10 @@ export const clientJavaLibrary = {
   buildWithMavenCodeSnippet: `<dependency>
   <groupId>com.influxdb</groupId>
   <artifactId>influxdb-client-java</artifactId>
-  <version>1.5.0</version>
+  <version>1.6.0</version>
 </dependency>`,
   buildWithGradleCodeSnippet: `dependencies {
-  compile "com.influxdb:influxdb-client-java:1.5.0"
+  compile "com.influxdb:influxdb-client-java:1.6.0"
 }`,
   initializeClientCodeSnippet: `package example;
 
@@ -223,7 +223,7 @@ export const clientRubyLibrary = {
   name: 'Ruby',
   url: 'https://github.com/influxdata/influxdb-client-ruby',
   image: RubyLogo,
-  initializeGemCodeSnippet: `gem install influxdb-client -v 1.0.0.beta`,
+  initializeGemCodeSnippet: `gem install influxdb-client`,
   initializeClientCodeSnippet: `## You can generate a Token from the "Tokens Tab" in the UI
 client = InfluxDB2::Client.new('<%= server %>', '<%= token %>')`,
   executeQueryCodeSnippet: `query = 'from(bucket: "<%= bucket %>") |> range(start: -1h)'
