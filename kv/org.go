@@ -259,17 +259,7 @@ func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.Organiz
 // CreateOrganization creates a influxdb organization and sets b.ID.
 func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organization) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		if err := s.createOrganization(ctx, tx, o); err != nil {
-			return err
-		}
-
-		// Attempt to add user as owner of organization, if that is not possible allow the
-		// organization to be created anyways.
-		if err := s.addOrgOwner(ctx, tx, o.ID); err != nil {
-			s.log.Info("Failed to make user owner of organization", zap.Error(err))
-		}
-
-		return s.createSystemBuckets(ctx, tx, o)
+		return s.createOrganization(ctx, tx, o)
 	})
 }
 
@@ -303,6 +293,16 @@ func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Org
 		return &influxdb.Error{
 			Err: err,
 		}
+	}
+
+	// Attempt to add user as owner of organization, if that is not possible allow the
+	// organization to be created anyways.
+	if err := s.addOrgOwner(ctx, tx, o.ID); err != nil {
+		s.log.Info("Failed to make user owner of organization", zap.Error(err))
+	}
+
+	if err := s.createSystemBuckets(ctx, tx, o); err != nil {
+		return err
 	}
 
 	uid, _ := icontext.GetUserID(ctx)
