@@ -11,7 +11,7 @@ import {flatMap} from 'lodash'
 // Types
 import {Threshold, DurationTimeRange} from 'src/types'
 
-const POINTS_PER_CHECK_PLOT = 300
+const POINTS_PER_CHECK_PLOT = 100
 
 /*
   Given the duration in a check's `every` field, return a `TimeRange` suitable
