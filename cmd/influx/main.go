@@ -192,6 +192,9 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		c.Flags().BoolP("help", "h", false, fmt.Sprintf("Help for the %s command ", c.Name()))
 	})
 
+	// completion command goes last, after the walk, so that all
+	// commands have every flag listed in the bash|zsh completions.
+	cmd.AddCommand(completionCmd(cmd))
 	return cmd
 }
 

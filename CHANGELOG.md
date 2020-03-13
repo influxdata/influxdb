@@ -2,6 +2,8 @@
 
 ### Features
 
+1. [17273](https://github.com/influxdata/influxdb/pull/17273): Add shell completions command for the influx cli
+
 ### Bug Fixes
 
 1. [17240](https://github.com/influxdata/influxdb/pull/17240): NodeJS logo displays properly in Firefox
