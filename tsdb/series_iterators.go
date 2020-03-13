@@ -556,39 +556,6 @@ type TagKeyIterator interface {
 	Next() ([]byte, error)
 }
 
-type TagKeyIterators []TagKeyIterator
-
-func (a TagKeyIterators) Close() (err error) {
-	for i := range a {
-		if e := a[i].Close(); e != nil && err == nil {
-			err = e
-		}
-	}
-	return err
-}
-
-// NewTagKeySliceIterator returns a TagKeyIterator that iterates over a slice.
-func NewTagKeySliceIterator(keys [][]byte) *tagKeySliceIterator {
-	return &tagKeySliceIterator{keys: keys}
-}
-
-// tagKeySliceIterator iterates over a slice of tag keys.
-type tagKeySliceIterator struct {
-	keys [][]byte
-}
-
-// Next returns the next tag key in the slice.
-func (itr *tagKeySliceIterator) Next() ([]byte, error) {
-	if len(itr.keys) == 0 {
-		return nil, nil
-	}
-	key := itr.keys[0]
-	itr.keys = itr.keys[1:]
-	return key, nil
-}
-
-func (itr *tagKeySliceIterator) Close() error { return nil }
-
 // MergeTagKeyIterators returns an iterator that merges a set of iterators.
 func MergeTagKeyIterators(itrs ...TagKeyIterator) TagKeyIterator {
 	if len(itrs) == 0 {
