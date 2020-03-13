@@ -382,32 +382,37 @@ func (s *Service) readRequest(conn net.Conn) (Request, []byte, error) {
 	if err := d.Decode(&r); err != nil {
 		return r, nil, err
 	}
-
-	bits := make([]byte, r.UploadSize+1)
-
+	var buffer bytes.Buffer
 	if r.UploadSize > 0 {
-
+		bits := make([]byte, r.UploadSize+1)
 		remainder := d.Buffered()
-
 		n, err := remainder.Read(bits)
 		if err != nil && err != io.EOF {
 			return r, bits, err
 		}
-
-		// it is a bit random but sometimes the Json decoder will consume all the bytes and sometimes
-		// it will leave a few behind.
-		if err != io.EOF && n < int(r.UploadSize+1) {
-			_, err = conn.Read(bits[n:])
+		buffer.Write(bits[0:n])
+		if err := conn.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
+			return r, buffer.Bytes(), err
 		}
-
-		if err != nil && err != io.EOF {
-			return r, bits, err
+		for {
+			nu, err := conn.Read(bits)
+			if err != nil && err != io.EOF {
+				return r, buffer.Bytes(), err
+			}
+			if err != io.EOF && n < int(r.UploadSize+1) {
+				buffer.Write(bits[0:nu])
+				n += nu
+				if n >= int(r.UploadSize) {
+					// upStream receiving completed
+					break
+				}
+				continue
+			}
 		}
 		// the JSON encoder on the client side seems to write an extra byte, so trim that off the front.
-		return r, bits[1:], nil
+		return r, buffer.Bytes()[1:], nil
 	}
-
-	return r, bits, nil
+	return r, buffer.Bytes(), nil
 }
 
 // RequestType indicates the typeof snapshot request.
