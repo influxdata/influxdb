@@ -308,7 +308,7 @@ func (c *Cache) Type(key []byte) (models.FieldType, error) {
 	if e != nil {
 		typ, err := e.InfluxQLType()
 		if err != nil {
-			return models.Empty, errUnknownFieldType
+			return models.Empty, tsdb.ErrUnknownFieldType
 		}
 
 		switch typ {
@@ -325,7 +325,7 @@ func (c *Cache) Type(key []byte) (models.FieldType, error) {
 		}
 	}
 
-	return models.Empty, errUnknownFieldType
+	return models.Empty, tsdb.ErrUnknownFieldType
 }
 
 // Values returns a copy of all values, deduped and sorted, for the given key.

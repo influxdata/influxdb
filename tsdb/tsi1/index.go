@@ -528,9 +528,7 @@ func (i *Index) MeasurementIterator() (tsdb.MeasurementIterator, error) {
 	for _, p := range i.partitions {
 		itr, err := p.MeasurementIterator()
 		if err != nil {
-			for _, itr := range itrs {
-				itr.Close()
-			}
+			tsdb.MeasurementIterators(itrs).Close()
 			return nil, err
 		} else if itr != nil {
 			itrs = append(itrs, itr)

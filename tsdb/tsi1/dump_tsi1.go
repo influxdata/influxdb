@@ -119,18 +119,21 @@ func (cmd *DumpTSI) printSeries(sfile *seriesfile.SeriesFile) error {
 	fmt.Fprintln(tw, "Series\t")
 
 	// Iterate over each series.
-	seriesIDs := sfile.AllSeriesIDs()
-	for _, seriesID := range seriesIDs {
-		if seriesID.ID == 0 {
+	itr := sfile.SeriesIDIterator()
+	for {
+		e, err := itr.Next()
+		if err != nil {
+			return err
+		} else if e.SeriesID.ID == 0 {
 			break
 		}
-		name, tags := seriesfile.ParseSeriesKey(sfile.SeriesKey(seriesID))
+		name, tags := seriesfile.ParseSeriesKey(sfile.SeriesKey(e.SeriesID))
 
 		if !cmd.matchSeries(name, tags) {
 			continue
 		}
 
-		deleted := sfile.IsDeleted(seriesID)
+		deleted := sfile.IsDeleted(e.SeriesID)
 
 		fmt.Fprintf(tw, "%s%s\t%v\n", name, tags.HashKey(), deletedString(deleted))
 	}
