@@ -926,6 +926,7 @@ export const viewProperties: ViewProperties = {
           {
             key: '_measurement',
             values: [],
+            aggregateFunctionType: 'filter',
           },
         ],
         functions: [],

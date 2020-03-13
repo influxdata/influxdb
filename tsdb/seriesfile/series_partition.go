@@ -1,4 +1,4 @@
-package tsdb
+package seriesfile
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/pkg/rhh"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -61,8 +62,8 @@ func NewSeriesPartition(id int, path string) *SeriesPartition {
 		path:                path,
 		closing:             make(chan struct{}),
 		CompactThreshold:    DefaultSeriesPartitionCompactThreshold,
-		LargeWriteThreshold: DefaultLargeSeriesWriteThreshold,
-		tracker:             newSeriesPartitionTracker(newSeriesFileMetrics(nil), nil),
+		LargeWriteThreshold: tsdb.DefaultLargeSeriesWriteThreshold,
+		tracker:             newSeriesPartitionTracker(newSeriesFileMetrics(nil), prometheus.Labels{"series_file_partition": fmt.Sprint(id)}),
 		Logger:              zap.NewNop(),
 		seq:                 uint64(id) + 1,
 	}
@@ -184,10 +185,28 @@ func (p *SeriesPartition) Path() string { return p.path }
 // IndexPath returns the path to the series index.
 func (p *SeriesPartition) IndexPath() string { return filepath.Join(p.path, "index") }
 
+// Index returns the partition's index.
+func (p *SeriesPartition) Index() *SeriesIndex { return p.index }
+
+// Segments returns the segments in the partition.
+func (p *SeriesPartition) Segments() []*SeriesSegment { return p.segments }
+
+// FileSize returns the size of all partitions, in bytes.
+func (p *SeriesPartition) FileSize() (n int64, err error) {
+	for _, ss := range p.segments {
+		fi, err := os.Stat(ss.Path())
+		if err != nil {
+			return 0, err
+		}
+		n += fi.Size()
+	}
+	return n, err
+}
+
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The ids parameter is modified to contain series IDs for all keys belonging to this partition.
 // If the type does not match the existing type for the key, a zero id is stored.
-func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollection, keyPartitionIDs []int) error {
+func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection, keyPartitionIDs []int) error {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
@@ -225,13 +244,13 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 
 	type keyRange struct {
 		key    []byte
-		id     SeriesIDTyped
+		id     tsdb.SeriesIDTyped
 		offset int64
 	}
 
 	// Preallocate the space we'll need before grabbing the lock.
 	newKeyRanges := make([]keyRange, 0, writeRequired)
-	newIDs := make(map[string]SeriesIDTyped, writeRequired)
+	newIDs := make(map[string]tsdb.SeriesIDTyped, writeRequired)
 
 	// Pre-grow index for large writes.
 	if writeRequired >= p.LargeWriteThreshold {
@@ -351,7 +370,7 @@ func (p *SeriesPartition) Compacting() bool {
 
 // DeleteSeriesID flags a series as permanently deleted.
 // If the series is reintroduced later then it must create a new id.
-func (p *SeriesPartition) DeleteSeriesID(id SeriesID) error {
+func (p *SeriesPartition) DeleteSeriesID(id tsdb.SeriesID) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -384,7 +403,7 @@ func (p *SeriesPartition) DeleteSeriesID(id SeriesID) error {
 }
 
 // IsDeleted returns true if the ID has been deleted before.
-func (p *SeriesPartition) IsDeleted(id SeriesID) bool {
+func (p *SeriesPartition) IsDeleted(id tsdb.SeriesID) bool {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
@@ -396,7 +415,7 @@ func (p *SeriesPartition) IsDeleted(id SeriesID) bool {
 }
 
 // SeriesKey returns the series key for a given id.
-func (p *SeriesPartition) SeriesKey(id SeriesID) []byte {
+func (p *SeriesPartition) SeriesKey(id tsdb.SeriesID) []byte {
 	if id.IsZero() {
 		return nil
 	}
@@ -411,7 +430,7 @@ func (p *SeriesPartition) SeriesKey(id SeriesID) []byte {
 }
 
 // Series returns the parsed series name and tags for an offset.
-func (p *SeriesPartition) Series(id SeriesID) ([]byte, models.Tags) {
+func (p *SeriesPartition) Series(id tsdb.SeriesID) ([]byte, models.Tags) {
 	key := p.SeriesKey(id)
 	if key == nil {
 		return nil, nil
@@ -420,16 +439,16 @@ func (p *SeriesPartition) Series(id SeriesID) ([]byte, models.Tags) {
 }
 
 // FindIDBySeriesKey return the series id for the series key.
-func (p *SeriesPartition) FindIDBySeriesKey(key []byte) SeriesID {
+func (p *SeriesPartition) FindIDBySeriesKey(key []byte) tsdb.SeriesID {
 	return p.FindIDTypedBySeriesKey(key).SeriesID()
 }
 
 // FindIDTypedBySeriesKey return the typed series id for the series key.
-func (p *SeriesPartition) FindIDTypedBySeriesKey(key []byte) SeriesIDTyped {
+func (p *SeriesPartition) FindIDTypedBySeriesKey(key []byte) tsdb.SeriesIDTyped {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
-		return SeriesIDTyped{}
+		return tsdb.SeriesIDTyped{}
 	}
 	id := p.index.FindIDBySeriesKey(p.segments, key)
 	p.mu.RUnlock()
@@ -484,7 +503,7 @@ func (p *SeriesPartition) compactionsEnabled() bool {
 }
 
 // AppendSeriesIDs returns a list of all series ids.
-func (p *SeriesPartition) AppendSeriesIDs(a []SeriesID) []SeriesID {
+func (p *SeriesPartition) AppendSeriesIDs(a []tsdb.SeriesID) []tsdb.SeriesID {
 	for _, segment := range p.segments {
 		a = segment.AppendSeriesIDs(a)
 	}
@@ -499,11 +518,11 @@ func (p *SeriesPartition) activeSegment() *SeriesSegment {
 	return p.segments[len(p.segments)-1]
 }
 
-func (p *SeriesPartition) insert(key []byte, typ models.FieldType) (id SeriesIDTyped, offset int64, err error) {
-	id = NewSeriesID(p.seq).WithType(typ)
+func (p *SeriesPartition) insert(key []byte, typ models.FieldType) (id tsdb.SeriesIDTyped, offset int64, err error) {
+	id = tsdb.NewSeriesID(p.seq).WithType(typ)
 	offset, err = p.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryInsertFlag, id, key))
 	if err != nil {
-		return SeriesIDTyped{}, 0, err
+		return tsdb.SeriesIDTyped{}, 0, err
 	}
 
 	p.seq += SeriesFilePartitionN
@@ -773,7 +792,7 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 	for _, segment := range segments {
 		errDone := errors.New("done")
 
-		if err := segment.ForEachEntry(func(flag uint8, id SeriesIDTyped, offset int64, key []byte) error {
+		if err := segment.ForEachEntry(func(flag uint8, id tsdb.SeriesIDTyped, offset int64, key []byte) error {
 			// Make sure we don't go past the offset where the compaction began.
 			if offset > index.maxOffset {
 				return errDone
@@ -850,7 +869,7 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 	return nil
 }
 
-func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, segments []*SeriesSegment, key []byte, offset int64, id SeriesIDTyped) error {
+func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, segments []*SeriesSegment, key []byte, offset int64, id tsdb.SeriesIDTyped) error {
 	mask := capacity - 1
 	hash := rhh.HashKey(key)
 
@@ -861,7 +880,7 @@ func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, se
 
 		// If empty slot found or matching offset, insert and exit.
 		elemOffset := int64(binary.BigEndian.Uint64(elem[:SeriesOffsetSize]))
-		elemID := NewSeriesIDTyped(binary.BigEndian.Uint64(elem[SeriesOffsetSize:]))
+		elemID := tsdb.NewSeriesIDTyped(binary.BigEndian.Uint64(elem[SeriesOffsetSize:]))
 		if elemOffset == 0 || elemOffset == offset {
 			binary.BigEndian.PutUint64(elem[:SeriesOffsetSize], uint64(offset))
 			binary.BigEndian.PutUint64(elem[SeriesOffsetSize:], id.RawID())
@@ -888,7 +907,7 @@ func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, se
 	}
 }
 
-func (c *SeriesPartitionCompactor) insertIDOffsetMap(dst []byte, capacity int64, id SeriesID, offset int64) {
+func (c *SeriesPartitionCompactor) insertIDOffsetMap(dst []byte, capacity int64, id tsdb.SeriesID, offset int64) {
 	mask := capacity - 1
 	hash := rhh.HashUint64(id.RawID())
 
@@ -898,7 +917,7 @@ func (c *SeriesPartitionCompactor) insertIDOffsetMap(dst []byte, capacity int64,
 		elem := dst[(pos * SeriesIndexElemSize):]
 
 		// If empty slot found or matching id, insert and exit.
-		elemID := NewSeriesID(binary.BigEndian.Uint64(elem[:SeriesIDSize]))
+		elemID := tsdb.NewSeriesID(binary.BigEndian.Uint64(elem[:SeriesIDSize]))
 		elemOffset := int64(binary.BigEndian.Uint64(elem[SeriesIDSize:]))
 		if elemOffset == 0 || elemOffset == offset {
 			binary.BigEndian.PutUint64(elem[:SeriesIDSize], id.RawID())
@@ -934,4 +953,11 @@ func pow2(v int64) int64 {
 		}
 	}
 	panic("unreachable")
+}
+
+// assert will panic with a given formatted message if the given condition is false.
+func assert(condition bool, msg string, v ...interface{}) {
+	if !condition {
+		panic(fmt.Sprintf("assert failed: "+msg, v...))
+	}
 }

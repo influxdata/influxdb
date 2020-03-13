@@ -1577,7 +1577,7 @@ func TestService(t *testing.T) {
 					EditMode: "advanced",
 				}
 				// TODO: remove this when issue that forced the builder tag to be here to render in UI.
-				q.BuilderConfig.Tags = append(q.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", ""))
+				q.BuilderConfig.Tags = append(q.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", "filter", ""))
 				return q
 			}
 

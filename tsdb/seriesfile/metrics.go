@@ -1,4 +1,4 @@
-package tsdb
+package seriesfile
 
 import (
 	"sort"

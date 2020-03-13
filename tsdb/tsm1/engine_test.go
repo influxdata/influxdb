@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/influxdata/influxql"
@@ -50,7 +51,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 			break
 		}
 
-		name, tags := tsdb.ParseSeriesKey(engine.sfile.SeriesKey(e.SeriesID))
+		name, tags := seriesfile.ParseSeriesKey(engine.sfile.SeriesKey(e.SeriesID))
 		key := fmt.Sprintf("%s%s", name, tags.HashKey())
 		seriesIDMap[key] = e.SeriesID
 	}
@@ -365,7 +366,7 @@ type Engine struct {
 	root      string
 	indexPath string
 	index     *tsi1.Index
-	sfile     *tsdb.SeriesFile
+	sfile     *seriesfile.SeriesFile
 }
 
 // NewEngine returns a new instance of Engine at a temporary location.
@@ -376,7 +377,7 @@ func NewEngine(config tsm1.Config, tb testing.TB) (*Engine, error) {
 	}
 
 	// Setup series file.
-	sfile := tsdb.NewSeriesFile(filepath.Join(root, "_series"))
+	sfile := seriesfile.NewSeriesFile(filepath.Join(root, "_series"))
 	sfile.Logger = zaptest.NewLogger(tb)
 	if testing.Verbose() {
 		sfile.Logger = logger.New(os.Stdout)
@@ -447,7 +448,7 @@ func (e *Engine) Reopen() error {
 	}
 
 	// Re-open series file. Must create a new series file using the same data.
-	e.sfile = tsdb.NewSeriesFile(e.sfile.Path())
+	e.sfile = seriesfile.NewSeriesFile(e.sfile.Path())
 	if err := e.sfile.Open(context.Background()); err != nil {
 		return err
 	}
@@ -545,7 +546,7 @@ func (e *Engine) MustDeleteBucketRange(orgID, bucketID influxdb.ID, min, max int
 	}
 }
 
-func MustOpenIndex(path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile) *tsi1.Index {
+func MustOpenIndex(path string, seriesIDSet *tsdb.SeriesIDSet, sfile *seriesfile.SeriesFile) *tsi1.Index {
 	idx := tsi1.NewIndex(sfile, tsi1.NewConfig(), tsi1.WithPath(path))
 	if err := idx.Open(context.Background()); err != nil {
 		panic(err)
@@ -555,7 +556,7 @@ func MustOpenIndex(path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.Serie
 
 // SeriesFile is a test wrapper for tsdb.SeriesFile.
 type SeriesFile struct {
-	*tsdb.SeriesFile
+	*seriesfile.SeriesFile
 }
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
@@ -564,7 +565,7 @@ func NewSeriesFile() *SeriesFile {
 	if err != nil {
 		panic(err)
 	}
-	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(dir)}
+	return &SeriesFile{SeriesFile: seriesfile.NewSeriesFile(dir)}
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.

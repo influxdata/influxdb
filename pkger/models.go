@@ -2638,7 +2638,7 @@ func (q queries) influxDashQueries() []influxdb.DashboardQuery {
 			EditMode: "advanced",
 		}
 		// TODO: axe this builder configs when issue https://github.com/influxdata/influxdb/issues/15708 is fixed up
-		newQuery.BuilderConfig.Tags = append(newQuery.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", ""))
+		newQuery.BuilderConfig.Tags = append(newQuery.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", "filter", ""))
 		iQueries = append(iQueries, newQuery)
 	}
 	return iQueries

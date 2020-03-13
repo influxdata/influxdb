@@ -6,12 +6,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 )
 
 func Test_NewSeriesCursor_UnexpectedOrg(t *testing.T) {
 	makeKey := func(orgID, bucketID influxdb.ID) []byte {
 		name := tsdb.EncodeName(orgID, bucketID)
-		return tsdb.AppendSeriesKey(nil, name[:], nil)
+		return seriesfile.AppendSeriesKey(nil, name[:], nil)
 	}
 
 	orgID := influxdb.ID(0x0f0f)

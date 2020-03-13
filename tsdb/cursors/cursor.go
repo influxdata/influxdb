@@ -53,17 +53,6 @@ type CursorIterator interface {
 	Stats() CursorStats
 }
 
-type CursorIterators []CursorIterator
-
-// Stats returns the aggregate stats of all cursor iterators.
-func (a CursorIterators) Stats() CursorStats {
-	var stats CursorStats
-	for _, itr := range a {
-		stats.Add(itr.Stats())
-	}
-	return stats
-}
-
 // CursorStats represents stats collected by a cursor.
 type CursorStats struct {
 	ScannedValues int // number of values scanned

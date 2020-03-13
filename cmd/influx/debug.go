@@ -84,7 +84,7 @@ in the following ways:
 
 // inspectReportTSMF runs the report-tsm tool.
 func inspectReportTSMF(cmd *cobra.Command, args []string) error {
-	if err := inspectReportTSMFlags.organization.validOrgFlags(); err != nil {
+	if err := inspectReportTSMFlags.organization.validOrgFlags(&flags); err != nil {
 		return err
 	}
 	report := &tsm1.Report{

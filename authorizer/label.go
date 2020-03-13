@@ -133,6 +133,10 @@ func (s *LabelService) FindLabels(ctx context.Context, filter influxdb.LabelFilt
 // FindResourceLabels retrieves all labels belonging to the filtering resource if the authorizer on context has read access to it.
 // Then it filters the list down to only the labels that are authorized.
 func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+	if err := filter.ResourceType.Valid(); err != nil {
+		return nil, err
+	}
+
 	if s.orgSvc == nil {
 		return nil, errors.New("failed to find orgSvc")
 	}
@@ -167,9 +171,9 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.L
 	return labels, nil
 }
 
-// CreateLabel checks to see if the authorizer on context has read access to the new label's org.
+// CreateLabel checks to see if the authorizer on context has write access to the new label's org.
 func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error {
-	if err := authorizeReadOrg(ctx, l.OrgID); err != nil {
+	if err := authorizeWriteOrg(ctx, l.OrgID); err != nil {
 		return err
 	}
 

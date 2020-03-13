@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -51,8 +52,8 @@ type Partition struct {
 	resmu sync.Mutex // protects res Open and Close
 	res   lifecycle.Resource
 
-	sfile    *tsdb.SeriesFile     // series lookup file
-	sfileref *lifecycle.Reference // reference to series lookup file
+	sfile    *seriesfile.SeriesFile // series lookup file
+	sfileref *lifecycle.Reference   // reference to series lookup file
 
 	activeLogFile *LogFile // current log file
 	fileSet       *FileSet // current file set
@@ -95,7 +96,7 @@ type Partition struct {
 }
 
 // NewPartition returns a new instance of Partition.
-func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
+func NewPartition(sfile *seriesfile.SeriesFile, path string) *Partition {
 	partition := &Partition{
 		path:        path,
 		sfile:       sfile,
@@ -408,7 +409,7 @@ func (p *Partition) close() error {
 func (p *Partition) Path() string { return p.path }
 
 // SeriesFile returns the attached series file.
-func (p *Partition) SeriesFile() *tsdb.SeriesFile { return p.sfile }
+func (p *Partition) SeriesFile() *seriesfile.SeriesFile { return p.sfile }
 
 // NextSequence returns the next file identifier.
 func (p *Partition) NextSequence() int {

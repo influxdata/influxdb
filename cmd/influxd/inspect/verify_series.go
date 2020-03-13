@@ -5,7 +5,7 @@ import (
 	"runtime"
 
 	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/zapcore"
 )
@@ -56,7 +56,7 @@ func verifySeriesRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	v := tsdb.NewVerify()
+	v := seriesfile.NewVerify()
 	v.Logger = logger
 	v.Concurrent = VerifySeriesFlags.concurrent
 

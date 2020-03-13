@@ -12,6 +12,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
+	"github.com/influxdata/influxdb/cmd/influx/config"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/internal/fs"
@@ -42,7 +43,7 @@ func newHTTPClient() (*httpc.Client, error) {
 		return httpClient, nil
 	}
 
-	c, err := http.NewHTTPClient(flags.host, flags.token, flags.skipVerify)
+	c, err := http.NewHTTPClient(flags.Host, flags.Token, flags.skipVerify)
 	if err != nil {
 		return nil, err
 	}
@@ -95,8 +96,7 @@ func out(w io.Writer) genericCLIOptFn {
 }
 
 type globalFlags struct {
-	token      string
-	host       string
+	config.Config
 	local      bool
 	skipVerify bool
 }
@@ -141,14 +141,14 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 
 	fOpts := flagOpts{
 		{
-			DestP:      &flags.token,
+			DestP:      &flags.Token,
 			Flag:       "token",
 			Short:      't',
 			Desc:       "API token to be used throughout client calls",
 			Persistent: true,
 		},
 		{
-			DestP:      &flags.host,
+			DestP:      &flags.Host,
 			Flag:       "host",
 			Default:    "http://localhost:9999",
 			Desc:       "HTTP address of Influx",
@@ -157,11 +157,14 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 	}
 	fOpts.mustRegister(cmd)
 
-	if flags.token == "" {
+	if flags.Token == "" {
+		// migration credential token
+		migrateOldCredential()
+
 		// this is after the flagOpts register b/c we don't want to show the default value
-		// in the usage display. This will add it as the token value, then if a token flag
+		// in the usage display. This will add it as the config, then if a token flag
 		// is provided too, the flag will take precedence.
-		flags.token = getTokenFromDefaultPath()
+		flags.Config = getConfigFromDefaultPath()
 	}
 
 	cmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
@@ -185,6 +188,7 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 		cmdOrganization,
 		cmdPing,
 		cmdPkg,
+		cmdConfig,
 		cmdQuery,
 		cmdTranspile,
 		cmdREPL,
@@ -224,31 +228,56 @@ func seeHelp(c *cobra.Command, args []string) {
 	c.Printf("See '%s -h' for help\n", c.CommandPath())
 }
 
-func defaultTokenPath() (string, string, error) {
+func defaultConfigPath() (string, string, error) {
 	dir, err := fs.InfluxDir()
 	if err != nil {
 		return "", "", err
 	}
-	return filepath.Join(dir, http.DefaultTokenFile), dir, nil
+	return filepath.Join(dir, http.DefaultConfigsFile), dir, nil
 }
 
-func getTokenFromDefaultPath() string {
-	path, _, err := defaultTokenPath()
+func getConfigFromDefaultPath() config.Config {
+	path, _, err := defaultConfigPath()
 	if err != nil {
-		return ""
+		return config.DefaultConfig
 	}
-	b, err := ioutil.ReadFile(path)
+	r, err := os.Open(path)
 	if err != nil {
-		return ""
+		return config.DefaultConfig
 	}
-	return strings.TrimSpace(string(b))
+	activated, _ := config.ParseActiveConfig(r)
+	return activated
 }
 
-func writeTokenToPath(tok, path, dir string) error {
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-		return err
+func migrateOldCredential() {
+	dir, err := fs.InfluxDir()
+	if err != nil {
+		return // no need for migration
 	}
-	return ioutil.WriteFile(path, []byte(tok), 0600)
+	tokB, err := ioutil.ReadFile(filepath.Join(dir, http.DefaultTokenFile))
+	if err != nil {
+		return // no need for migration
+	}
+	err = writeConfigToPath(strings.TrimSpace(string(tokB)), "", filepath.Join(dir, http.DefaultConfigsFile), dir)
+	if err != nil {
+		return
+	}
+	// ignore the remove err
+	_ = os.Remove(filepath.Join(dir, http.DefaultTokenFile))
+}
+
+func writeConfigToPath(tok, org, path, dir string) error {
+	p := &config.DefaultConfig
+	p.Token = tok
+	p.Org = org
+	pp := map[string]config.Config{
+		"default": *p,
+	}
+
+	return config.LocalConfigsSVC{
+		Path: path,
+		Dir:  dir,
+	}.WriteConfigs(pp)
 }
 
 func checkSetup(host string, skipVerify bool) error {
@@ -277,7 +306,7 @@ func checkSetupRunEMiddleware(f *globalFlags) cobraRuneEMiddleware {
 				return nil
 			}
 
-			if setupErr := checkSetup(f.host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
+			if setupErr := checkSetup(f.Host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
 				return internal.ErrorFmt(setupErr)
 			}
 
@@ -350,7 +379,11 @@ func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, 
 	return 0, fmt.Errorf("failed to locate an organization id")
 }
 
-func (o *organization) validOrgFlags() error {
+func (o *organization) validOrgFlags(f *globalFlags) error {
+	if o.id == "" && o.name == "" && f != nil {
+		o.name = f.Org
+	}
+
 	if o.id == "" && o.name == "" {
 		return fmt.Errorf("must specify org-id, or org name")
 	} else if o.id != "" && o.name != "" {

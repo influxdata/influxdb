@@ -1,4 +1,4 @@
-package tsdb_test
+package seriesfile_test
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 )
 
 func BenchmarkSeriesPartition_CreateSeriesListIfNotExists(b *testing.B) {
@@ -27,7 +28,7 @@ func BenchmarkSeriesPartition_CreateSeriesListIfNotExists(b *testing.B) {
 				})
 				collection.Types = append(collection.Types, models.Integer)
 			}
-			collection.SeriesKeys = tsdb.GenerateSeriesKeys(collection.Names, collection.Tags)
+			collection.SeriesKeys = seriesfile.GenerateSeriesKeys(collection.Names, collection.Tags)
 			collection.SeriesIDs = make([]tsdb.SeriesID, len(collection.SeriesKeys))
 			keyPartitionIDs := make([]int, n)
 
@@ -46,7 +47,7 @@ func BenchmarkSeriesPartition_CreateSeriesListIfNotExists(b *testing.B) {
 
 // SeriesPartition is a test wrapper for tsdb.SeriesPartition.
 type SeriesPartition struct {
-	*tsdb.SeriesPartition
+	*seriesfile.SeriesPartition
 }
 
 // NewSeriesPartition returns a new instance of SeriesPartition with a temporary file path.
@@ -55,7 +56,7 @@ func NewSeriesPartition() *SeriesPartition {
 	if err != nil {
 		panic(err)
 	}
-	return &SeriesPartition{SeriesPartition: tsdb.NewSeriesPartition(0, dir)}
+	return &SeriesPartition{SeriesPartition: seriesfile.NewSeriesPartition(0, dir)}
 }
 
 // MustOpenSeriesPartition returns a new, open instance of SeriesPartition. Panic on error.

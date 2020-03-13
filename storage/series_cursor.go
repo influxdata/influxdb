@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxql"
 )
@@ -26,7 +27,7 @@ type SeriesCursor interface {
 type seriesCursor struct {
 	index        *tsi1.Index
 	indexref     *lifecycle.Reference
-	sfile        *tsdb.SeriesFile
+	sfile        *seriesfile.SeriesFile
 	sfileref     *lifecycle.Reference
 	orgID        influxdb.ID
 	encodedOrgID []byte
@@ -44,7 +45,7 @@ type SeriesCursorRow struct {
 }
 
 // newSeriesCursor returns a new instance of SeriesCursor.
-func newSeriesCursor(orgID, bucketID influxdb.ID, index *tsi1.Index, sfile *tsdb.SeriesFile, cond influxql.Expr) (SeriesCursor, error) {
+func newSeriesCursor(orgID, bucketID influxdb.ID, index *tsi1.Index, sfile *seriesfile.SeriesFile, cond influxql.Expr) (SeriesCursor, error) {
 	if cond != nil {
 		var err error
 		influxql.WalkFunc(cond, func(node influxql.Node) {
@@ -106,7 +107,7 @@ func (cur *seriesCursor) Next() (*SeriesCursorRow, error) {
 	}
 
 	if cur.ofs < len(cur.keys) {
-		cur.row.Name, cur.row.Tags = tsdb.ParseSeriesKeyInto(cur.keys[cur.ofs], cur.row.Tags)
+		cur.row.Name, cur.row.Tags = seriesfile.ParseSeriesKeyInto(cur.keys[cur.ofs], cur.row.Tags)
 		if !bytes.HasPrefix(cur.row.Name, cur.encodedOrgID) {
 			return nil, errUnexpectedOrg
 		}

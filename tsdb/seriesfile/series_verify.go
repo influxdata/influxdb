@@ -1,4 +1,4 @@
-package tsdb
+package seriesfile
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 )
 
@@ -352,7 +353,7 @@ func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment,
 
 		IDData := ids[id]
 
-		if gotDeleted := index.IsDeleted(NewSeriesID(id)); gotDeleted != IDData.Deleted {
+		if gotDeleted := index.IsDeleted(tsdb.NewSeriesID(id)); gotDeleted != IDData.Deleted {
 			v.Logger.Error("Index inconsistency",
 				zap.Uint64("id", id),
 				zap.Bool("got_deleted", gotDeleted),
@@ -366,7 +367,7 @@ func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment,
 		}
 
 		// otherwise, check both that the offset is right and that we get the right id for the key
-		if gotOffset := index.FindOffsetByID(NewSeriesID(id)); gotOffset != IDData.Offset {
+		if gotOffset := index.FindOffsetByID(tsdb.NewSeriesID(id)); gotOffset != IDData.Offset {
 			v.Logger.Error("Index inconsistency",
 				zap.Uint64("id", id),
 				zap.Int64("got_offset", gotOffset),
@@ -374,7 +375,7 @@ func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment,
 			return false, nil
 		}
 
-		if gotID := index.FindIDBySeriesKey(segments, IDData.Key); gotID != NewSeriesIDTyped(id) {
+		if gotID := index.FindIDBySeriesKey(segments, IDData.Key); gotID != tsdb.NewSeriesIDTyped(id) {
 			v.Logger.Error("Index inconsistency",
 				zap.Uint64("id", id),
 				zap.Uint64("got_id", gotID.RawID()),

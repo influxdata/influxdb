@@ -1,7 +1,7 @@
 package tsm1
 
 import (
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 {{range .}}
@@ -14,7 +14,7 @@ func (t *TSMReader) Read{{.Name}}BlockAt(entry *IndexEntry, vals *[]{{.Name}}Val
 }
 
 // Read{{.Name}}ArrayBlockAt fills vals with the {{.name}} values corresponding to the given index entry.
-func (t *TSMReader) Read{{.Name}}ArrayBlockAt(entry *IndexEntry, vals *tsdb.{{.Name}}Array) error {
+func (t *TSMReader) Read{{.Name}}ArrayBlockAt(entry *IndexEntry, vals *cursors.{{.Name}}Array) error {
 	t.mu.RLock()
 	err := t.accessor.read{{.Name}}ArrayBlock(entry, vals)
 	t.mu.RUnlock()
@@ -31,7 +31,7 @@ type blockAccessor interface {
 	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
 {{- range .}}
 	read{{.Name}}Block(entry *IndexEntry, values *[]{{.Name}}Value) ([]{{.Name}}Value, error)
-	read{{.Name}}ArrayBlock(entry *IndexEntry, values *tsdb.{{.Name}}Array) error
+	read{{.Name}}ArrayBlock(entry *IndexEntry, values *cursors.{{.Name}}Array) error
 {{- end}}
 	readBytes(entry *IndexEntry, buf []byte) (uint32, []byte, error)
 	rename(path string) error
@@ -60,7 +60,7 @@ func (m *mmapAccessor) read{{.Name}}Block(entry *IndexEntry, values *[]{{.Name}}
 	return a, nil
 }
 
-func (m *mmapAccessor) read{{.Name}}ArrayBlock(entry *IndexEntry, values *tsdb.{{.Name}}Array) error {
+func (m *mmapAccessor) read{{.Name}}ArrayBlock(entry *IndexEntry, values *cursors.{{.Name}}Array) error {
 	m.incAccess()
 
 	m.mu.RLock()

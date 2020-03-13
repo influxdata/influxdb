@@ -19,7 +19,7 @@ func cmdPing(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 		c := http.Client{
 			Timeout: 5 * time.Second,
 		}
-		url := flags.host + "/health"
+		url := flags.Host + "/health"
 		resp, err := c.Get(url)
 		if err != nil {
 			return err

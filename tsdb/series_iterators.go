@@ -2,10 +2,7 @@ package tsdb
 
 import (
 	"bytes"
-	"fmt"
 
-	"github.com/influxdata/influxdb/pkg/lifecycle"
-	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 )
 
@@ -14,13 +11,6 @@ type SeriesIDElem struct {
 	SeriesID SeriesID
 	Expr     influxql.Expr
 }
-
-// SeriesIDElems represents a list of series id elements.
-type SeriesIDElems []SeriesIDElem
-
-func (a SeriesIDElems) Len() int           { return len(a) }
-func (a SeriesIDElems) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a SeriesIDElems) Less(i, j int) bool { return a[i].SeriesID.Less(a[j].SeriesID) }
 
 // SeriesIDIterator represents a iterator over a list of series ids.
 type SeriesIDIterator interface {
@@ -75,25 +65,6 @@ func NewSeriesIDSetIterators(itrs []SeriesIDIterator) []SeriesIDSetIterator {
 	return a
 }
 
-// ReadAllSeriesIDIterator returns all ids from the iterator.
-func ReadAllSeriesIDIterator(itr SeriesIDIterator) ([]SeriesID, error) {
-	if itr == nil {
-		return nil, nil
-	}
-
-	var a []SeriesID
-	for {
-		e, err := itr.Next()
-		if err != nil {
-			return nil, err
-		} else if e.SeriesID.IsZero() {
-			break
-		}
-		a = append(a, e.SeriesID)
-	}
-	return a, nil
-}
-
 // NewSeriesIDSliceIterator returns a SeriesIDIterator that iterates over a slice.
 func NewSeriesIDSliceIterator(ids []SeriesID) *SeriesIDSliceIterator {
 	return &SeriesIDSliceIterator{ids: ids}
@@ -134,48 +105,6 @@ func (a SeriesIDIterators) Close() (err error) {
 		}
 	}
 	return err
-}
-
-// filterUndeletedSeriesIDIterator returns all series which are not deleted.
-type filterUndeletedSeriesIDIterator struct {
-	sfile    *SeriesFile
-	sfileref *lifecycle.Reference
-	itr      SeriesIDIterator
-}
-
-// FilterUndeletedSeriesIDIterator returns an iterator which filters all deleted series.
-func FilterUndeletedSeriesIDIterator(sfile *SeriesFile, itr SeriesIDIterator) (SeriesIDIterator, error) {
-	if itr == nil {
-		return nil, nil
-	}
-	sfileref, err := sfile.Acquire()
-	if err != nil {
-		return nil, err
-	}
-	return &filterUndeletedSeriesIDIterator{
-		sfile:    sfile,
-		sfileref: sfileref,
-		itr:      itr,
-	}, nil
-}
-
-func (itr *filterUndeletedSeriesIDIterator) Close() (err error) {
-	itr.sfileref.Release()
-	return itr.itr.Close()
-}
-
-func (itr *filterUndeletedSeriesIDIterator) Next() (SeriesIDElem, error) {
-	for {
-		e, err := itr.itr.Next()
-		if err != nil {
-			return SeriesIDElem{}, err
-		} else if e.SeriesID.IsZero() {
-			return SeriesIDElem{}, nil
-		} else if itr.sfile.IsDeleted(e.SeriesID) {
-			continue
-		}
-		return e, nil
-	}
 }
 
 // seriesIDExprIterator is an iterator that attaches an associated expression.
@@ -775,28 +704,6 @@ func (a TagValueIterators) Close() (err error) {
 	return err
 }
 
-// NewTagValueSliceIterator returns a TagValueIterator that iterates over a slice.
-func NewTagValueSliceIterator(values [][]byte) *tagValueSliceIterator {
-	return &tagValueSliceIterator{values: values}
-}
-
-// tagValueSliceIterator iterates over a slice of tag values.
-type tagValueSliceIterator struct {
-	values [][]byte
-}
-
-// Next returns the next tag value in the slice.
-func (itr *tagValueSliceIterator) Next() ([]byte, error) {
-	if len(itr.values) == 0 {
-		return nil, nil
-	}
-	value := itr.values[0]
-	itr.values = itr.values[1:]
-	return value, nil
-}
-
-func (itr *tagValueSliceIterator) Close() error { return nil }
-
 // MergeTagValueIterators returns an iterator that merges a set of iterators.
 func MergeTagValueIterators(itrs ...TagValueIterator) TagValueIterator {
 	if len(itrs) == 0 {
@@ -864,16 +771,3 @@ func (itr *tagValueMergeIterator) Next() (_ []byte, err error) {
 	}
 	return value, nil
 }
-
-// assert will panic with a given formatted message if the given condition is false.
-func assert(condition bool, msg string, v ...interface{}) {
-	if !condition {
-		panic(fmt.Sprintf("assert failed: "+msg, v...))
-	}
-}
-
-type ByTagKey []*query.TagSet
-
-func (t ByTagKey) Len() int           { return len(t) }
-func (t ByTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
-func (t ByTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
