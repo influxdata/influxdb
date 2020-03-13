@@ -8,10 +8,14 @@ import {
   ComponentColor,
   ComponentSize,
   ComponentStatus,
+  FontWeight,
   Form,
   Grid,
+  Heading,
+  HeadingElement,
   Input,
   InputType,
+  Typeface,
   VisibilityInput,
 } from '@influxdata/clockface'
 
@@ -87,12 +91,23 @@ export const LoginForm: FC<Props> = ({
           </Grid.Column>
         </Grid.Row>
       </Grid>
-      <a onClick={handleForgotPasswordClick} className="login--forgot-password">
-        Forgot Password?
-      </a>
+      {
+        // @ts-ignore
+        // TODO: remove this ts-ignore when clockface v2.0.2 is released
+        <Heading
+          element={HeadingElement.H5}
+          type={Typeface.Rubik}
+          weight={FontWeight.Regular}
+          onClick={handleForgotPasswordClick}
+          className="login--forgot-password"
+          selectable={true}
+        >
+          Forgot Password?
+        </Heading>
+      }
       <Button
         className="create-account--button"
-        text="Login"
+        text="Log In"
         color={ComponentColor.Primary}
         size={ComponentSize.Large}
         type={ButtonType.Submit}
