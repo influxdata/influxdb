@@ -89,8 +89,11 @@ const TimeMachineVis: SFC<Props> = ({
     symbolColumns,
   }
 
-  const noQueries = loading === RemoteDataState.NotStarted || !viewProperties.queries.length
-  const timeMachineViewClassName = classnames('time-machine--view', {'time-machine--view__empty': noQueries})
+  const noQueries =
+    loading === RemoteDataState.NotStarted || !viewProperties.queries.length
+  const timeMachineViewClassName = classnames('time-machine--view', {
+    'time-machine--view__empty': noQueries,
+  })
 
   return (
     <div className={timeMachineViewClassName}>
