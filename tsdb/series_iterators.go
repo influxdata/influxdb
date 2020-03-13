@@ -480,25 +480,6 @@ type MeasurementIterator interface {
 	Next() ([]byte, error)
 }
 
-type measurementSliceIterator struct {
-	names [][]byte
-}
-
-// NewMeasurementSliceIterator returns an iterator over a slice of in-memory measurement names.
-func NewMeasurementSliceIterator(names [][]byte) *measurementSliceIterator {
-	return &measurementSliceIterator{names: names}
-}
-
-func (itr *measurementSliceIterator) Close() (err error) { return nil }
-
-func (itr *measurementSliceIterator) Next() (name []byte, err error) {
-	if len(itr.names) == 0 {
-		return nil, nil
-	}
-	name, itr.names = itr.names[0], itr.names[1:]
-	return name, nil
-}
-
 // MergeMeasurementIterators returns an iterator that merges a set of iterators.
 // Iterators that are first in the list take precedence and a deletion by those
 // early iterators will invalidate elements by later iterators.
