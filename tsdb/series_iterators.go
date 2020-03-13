@@ -480,17 +480,6 @@ type MeasurementIterator interface {
 	Next() ([]byte, error)
 }
 
-type MeasurementIterators []MeasurementIterator
-
-func (a MeasurementIterators) Close() (err error) {
-	for i := range a {
-		if e := a[i].Close(); e != nil && err == nil {
-			err = e
-		}
-	}
-	return err
-}
-
 type measurementSliceIterator struct {
 	names [][]byte
 }
