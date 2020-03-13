@@ -53,3 +53,14 @@
     left: 0;
   }
 }
+
+.time-machine--view__empty {
+  background-position: center center;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-image: url('../../assets/images/radial-power-level.svg');
+
+  > .cell--view-empty {
+    justify-content: flex-end;
+  }
+}
