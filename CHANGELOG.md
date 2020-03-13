@@ -4,6 +4,8 @@
 
 ### Bug Fixes
 
+1. [17240](https://github.com/influxdata/influxdb/pull/17240): NodeJS logo displays properly in Firefox
+
 ## v2.0.0-beta.6 [2020-03-12]
 
 ### Features
