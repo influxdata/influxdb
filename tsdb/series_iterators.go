@@ -693,17 +693,6 @@ type TagValueIterator interface {
 	Next() ([]byte, error)
 }
 
-type TagValueIterators []TagValueIterator
-
-func (a TagValueIterators) Close() (err error) {
-	for i := range a {
-		if e := a[i].Close(); e != nil && err == nil {
-			err = e
-		}
-	}
-	return err
-}
-
 // MergeTagValueIterators returns an iterator that merges a set of iterators.
 func MergeTagValueIterators(itrs ...TagValueIterator) TagValueIterator {
 	if len(itrs) == 0 {
