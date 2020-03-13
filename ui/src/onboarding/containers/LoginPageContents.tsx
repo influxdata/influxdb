@@ -83,13 +83,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
 
   public async componentDidMount() {
     try {
-      // const config = await getAuth0Config()
-      const config = {
-        clientID: 'Sx39M1RX5oQLFrqHTQESlMS4CJuGAca4',
-        domain: 'https://auth.influxdata.com',
-        redirectURL:
-          'https://us-west-2-1.aws.cloud2.influxdata.com/oauth2/auth0/callback',
-      }
+      const config = await getAuth0Config()
       this.auth0 = new auth0js.WebAuth({
         domain: config.domain,
         clientID: config.clientID,
