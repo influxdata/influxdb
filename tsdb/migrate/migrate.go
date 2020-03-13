@@ -26,6 +26,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"go.uber.org/zap"
@@ -173,7 +174,7 @@ func (m *Migrator) Process1xShards(dbFilter, rpFilter string) error {
 	fmt.Fprintln(m.Stdout, "Building TSI index")
 
 	sfilePath := filepath.Join(filepath.Dir(m.DestPath), storage.DefaultSeriesFileDirectoryName)
-	sfile := tsdb.NewSeriesFile(sfilePath)
+	sfile := seriesfile.NewSeriesFile(sfilePath)
 	sfile.Logger = logger.New(m.verboseStdout)
 	if err := sfile.Open(context.Background()); err != nil {
 		return err
