@@ -20,8 +20,24 @@ import (
 var Command = &cobra.Command{
 	Use:   "migrate",
 	Short: "Migrate from InfluxDB >= 1.7.x to InfluxDB 2.x",
-	Long: `
-TODO(edd)
+	Long: `NOTE!
+	
+⚠️⚠️ This tool is in a very early prototype stage. It can corrupt your 2.x TSM data.⚠️⚠️
+
+Please see the following issues for progress towards making this tool production
+ready:
+
+- Ensure retention policy duration carried over to 2.x bucket: https://github.com/influxdata/influxdb/issues/17257
+- Support migrating arbitrary time-ranges: https://github.com/influxdata/influxdb/issues/17249
+- Ensure hot shards not migrated by default: https://github.com/influxdata/influxdb/issues/17250
+- Handle cases where multiple 1.x shards have different field types for same series: https://github.com/influxdata/influxdb/issues/17251
+
+This tool allows an operator to migrate their TSM data from an OSS 1.x server 
+into an OSS 2.x server in an offline manner.
+
+It is very important when running this tool that the 2.x server is not running, 
+and ideally the 1.x server is not running, or at least, it is not writing into 
+any of the shards that will be migrated.
 `,
 	Args: cobra.ExactArgs(0),
 	RunE: migrateE,
