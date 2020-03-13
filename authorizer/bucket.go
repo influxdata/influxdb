@@ -100,7 +100,7 @@ func authorizeReadSystemBucket(ctx context.Context, b *influxdb.Bucket, u influx
 
 	return &influxdb.Error{
 		Code: influxdb.EUnauthorized,
-		Msg:  fmt.Sprintf("unauthorized"),
+		Msg:  "unauthorized",
 	}
 }
 
