@@ -786,17 +786,6 @@ func (e *Engine) Path() string {
 	return e.path
 }
 
-// ApplyFnToSeriesIDSet allows the caller to apply fn to the SeriesIDSet held
-// within the engine's index.
-func (e *Engine) ApplyFnToSeriesIDSet(fn func(*tsdb.SeriesIDSet)) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return
-	}
-	fn(e.index.SeriesIDSet())
-}
-
 // MeasurementCardinalityStats returns cardinality stats for all measurements.
 func (e *Engine) MeasurementCardinalityStats() (tsi1.MeasurementCardinalityStats, error) {
 	e.mu.RLock()
