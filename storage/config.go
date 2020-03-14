@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/toml"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 )
@@ -27,8 +27,8 @@ type Config struct {
 	// Series file config.
 	SeriesFilePath string `toml:"series-file-path"` // Overrides the default path.
 
-	// Series file config.
-	SeriesFile seriesfile.Config `toml:"tsdb"`
+	// TSDB config.
+	TSDB tsdb.Config `toml:"tsdb"`
 
 	// WAL config.
 	WAL     tsm1.WALConfig `toml:"wal"`
@@ -47,7 +47,7 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		RetentionInterval: toml.Duration(DefaultRetentionInterval),
-		SeriesFile:        seriesfile.NewConfig(),
+		TSDB:              tsdb.NewConfig(),
 		WAL:               tsm1.NewWALConfig(),
 		Engine:            tsm1.NewConfig(),
 		Index:             tsi1.NewConfig(),

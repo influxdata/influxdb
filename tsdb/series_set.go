@@ -48,10 +48,6 @@ func (s *SeriesIDSet) Bytes() int {
 	return b
 }
 
-func (s *SeriesIDSet) IsEmpty() bool {
-	return s.bitmap == nil || s.bitmap.IsEmpty()
-}
-
 // Add adds the series id to the set.
 func (s *SeriesIDSet) Add(id SeriesID) {
 	s.Lock()

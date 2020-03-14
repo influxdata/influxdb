@@ -40,14 +40,20 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 
 	// Collect series IDs.
 	seriesIDMap := map[string]tsdb.SeriesID{}
-	for _, seriesID := range engine.sfile.AllSeriesIDs() {
-		if seriesID.IsZero() {
+	var e tsdb.SeriesIDElem
+	var err error
+
+	itr := engine.sfile.SeriesIDIterator()
+	for e, err = itr.Next(); ; e, err = itr.Next() {
+		if err != nil {
+			t.Fatal(err)
+		} else if e.SeriesID.IsZero() {
 			break
 		}
 
-		name, tags := seriesfile.ParseSeriesKey(engine.sfile.SeriesKey(seriesID))
+		name, tags := seriesfile.ParseSeriesKey(engine.sfile.SeriesKey(e.SeriesID))
 		key := fmt.Sprintf("%s%s", name, tags.HashKey())
-		seriesIDMap[key] = seriesID
+		seriesIDMap[key] = e.SeriesID
 	}
 
 	for _, id := range seriesIDMap {
