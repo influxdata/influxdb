@@ -30,7 +30,7 @@ type seriesIDSetIterator struct {
 }
 
 func NewSeriesIDSetIterator(ss *SeriesIDSet) SeriesIDSetIterator {
-	if ss.IsEmpty() {
+	if ss == nil || ss.IsEmpty() {
 		return nil
 	}
 	return &seriesIDSetIterator{ss: ss, itr: ss.Iterator()}
