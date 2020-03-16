@@ -8,11 +8,15 @@ import {
   ComponentStatus,
   FlexBox,
   FlexDirection,
+  FontWeight,
   Grid,
+  Heading,
+  HeadingElement,
   JustifyContent,
   Method,
   Panel,
   SelectGroup,
+  Typeface,
 } from '@influxdata/clockface'
 import auth0js, {WebAuth} from 'auth0-js'
 
@@ -60,7 +64,7 @@ interface State {
 }
 
 class LoginPageContents extends PureComponent<DispatchProps> {
-  private auth0?: typeof WebAuth
+  private auth0: typeof WebAuth
 
   state: State = {
     activeTab: ActiveTab.Login,
@@ -80,7 +84,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
   public async componentDidMount() {
     try {
       const config = await getAuth0Config()
-      this.auth0 = auth0js.WebAuth({
+      this.auth0 = new auth0js.WebAuth({
         domain: config.domain,
         clientID: config.clientID,
         redirectUri: config.redirectURL,
@@ -118,8 +122,14 @@ class LoginPageContents extends PureComponent<DispatchProps> {
         className="sign-up--form"
       >
         <div className="sign-up--login-container">
-          <h2>Create your Free InfluxDB Cloud Account</h2>
-          <p className="sign-up--login-text">No credit card required</p>
+          <Heading
+            element={HeadingElement.H5}
+            type={Typeface.Rubik}
+            weight={FontWeight.Regular}
+            className="sign-up--subheader"
+          >
+            No credit card required
+          </Heading>
         </div>
         <Panel className="sign-up--form-panel">
           <Panel.Header size={ComponentSize.Large}>
@@ -170,13 +180,13 @@ class LoginPageContents extends PureComponent<DispatchProps> {
                   color={ComponentColor.Default}
                 >
                   <SelectGroup.Option
-                    titleText="Login"
+                    titleText="Log In"
                     value={ActiveTab.Login}
                     id="login-option"
                     active={loginTabActive}
                     onClick={this.handleTabChange}
                   >
-                    Login
+                    Log In
                   </SelectGroup.Option>
                   <SelectGroup.Option
                     titleText="Sign Up"
@@ -404,7 +414,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
       const emailError = `An account with that email address already exists. Try logging in instead.`
       this.setState({...errors, emailError})
     } else {
-      const emailError = `We have been notified of an issue while creating your account. If this issue persists, please contact support@influxdata.com`
+      const emailError = `We have been notified of an issue while accessing your account. If this issue persists, please contact support@influxdata.com`
       this.setState({...errors, emailError})
     }
   }
