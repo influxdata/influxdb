@@ -2,6 +2,8 @@
 
 ### Features
 
+1. [17232](https://github.com/influxdata/influxdb/pull/17232): Allow dashboards to optionally be displayed in light mode
+
 ### Bug Fixes
 
 ## v2.0.0-beta.6 [2020-03-12]
