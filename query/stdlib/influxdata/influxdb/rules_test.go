@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/plan/plantest"
@@ -140,64 +141,17 @@ func TestPushDownFilterRule(t *testing.T) {
 			Stop:  fluxTime(10),
 		}
 
-		pushableExpr1 = &semantic.BinaryExpression{
-			Operator: ast.EqualOperator,
-			Left: &semantic.MemberExpression{
-				Object:   &semantic.IdentifierExpression{Name: "r"},
-				Property: "_measurement",
-			},
-			Right: &semantic.StringLiteral{Value: "cpu"}}
-
-		pushableExpr2 = &semantic.BinaryExpression{
-			Operator: ast.EqualOperator,
-			Left: &semantic.MemberExpression{
-				Object:   &semantic.IdentifierExpression{Name: "r"},
-				Property: "_field",
-			},
-			Right: &semantic.StringLiteral{Value: "cpu"}}
-
-		unpushableExpr = &semantic.BinaryExpression{
-			Operator: ast.LessThanOperator,
-			Left:     &semantic.FloatLiteral{Value: 0.5},
-			Right: &semantic.MemberExpression{
-				Object:   &semantic.IdentifierExpression{Name: "r"},
-				Property: "_value"},
-		}
-
-		statementFn = interpreter.ResolvedFunction{
-			Scope: nil,
-			Fn: &semantic.FunctionExpression{
-				Block: &semantic.FunctionBlock{
-					Parameters: &semantic.FunctionParameters{
-						List: []*semantic.FunctionParameter{
-							{Key: &semantic.Identifier{Name: "r"}},
-						},
-					},
-					Body: &semantic.ReturnStatement{
-						Argument: &semantic.BooleanLiteral{Value: true},
-					},
-				},
-			},
-		}
+		pushableFn1             = executetest.FunctionExpression(t, `(r) => r._measurement == "cpu"`)
+		pushableFn2             = executetest.FunctionExpression(t, `(r) => r._field == "cpu"`)
+		pushableFn1and2         = executetest.FunctionExpression(t, `(r) => r._measurement == "cpu" and r._field == "cpu"`)
+		unpushableFn            = executetest.FunctionExpression(t, `(r) => 0.5 < r._value`)
+		pushableAndUnpushableFn = executetest.FunctionExpression(t, `(r) => r._measurement == "cpu" and 0.5 < r._value`)
 	)
 
-	makeFilterFn := func(exprs ...semantic.Expression) *semantic.FunctionExpression {
-		body := semantic.ExprsToConjunction(exprs...)
-		return &semantic.FunctionExpression{
-			Block: &semantic.FunctionBlock{
-				Parameters: &semantic.FunctionParameters{
-					List: []*semantic.FunctionParameter{
-						{Key: &semantic.Identifier{Name: "r"}},
-					},
-				},
-				Body: body,
-			},
-		}
-	}
-	makeResolvedFilterFn := func(exprs ...semantic.Expression) interpreter.ResolvedFunction {
+	makeResolvedFilterFn := func(expr *semantic.FunctionExpression) interpreter.ResolvedFunction {
 		return interpreter.ResolvedFunction{
 			Scope: nil,
-			Fn:    makeFilterFn(exprs...),
+			Fn:    expr,
 		}
 	}
 
@@ -212,7 +166,7 @@ func TestPushDownFilterRule(t *testing.T) {
 						Bounds: bounds,
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(pushableExpr1),
+						Fn: makeResolvedFilterFn(pushableFn1),
 					}),
 				},
 				Edges: [][2]int{
@@ -224,7 +178,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter:    makeFilterFn(pushableExpr1),
+						Filter:    pushableFn1,
 					}),
 				},
 			},
@@ -239,10 +193,10 @@ func TestPushDownFilterRule(t *testing.T) {
 						Bounds: bounds,
 					}),
 					plan.CreatePhysicalNode("filter1", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(pushableExpr1),
+						Fn: makeResolvedFilterFn(pushableFn1),
 					}),
 					plan.CreatePhysicalNode("filter2", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(pushableExpr2),
+						Fn: makeResolvedFilterFn(pushableFn2),
 					}),
 				},
 				Edges: [][2]int{
@@ -255,7 +209,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter1_filter2", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter:    makeFilterFn(pushableExpr1, pushableExpr2),
+						Filter:    pushableFn1and2,
 					}),
 				},
 			},
@@ -270,7 +224,7 @@ func TestPushDownFilterRule(t *testing.T) {
 						Bounds: bounds,
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(pushableExpr1, unpushableExpr),
+						Fn: makeResolvedFilterFn(pushableAndUnpushableFn),
 					}),
 				},
 				Edges: [][2]int{
@@ -282,10 +236,10 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("ReadRange", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter:    makeFilterFn(pushableExpr1),
+						Filter:    pushableFn1,
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(unpushableExpr),
+						Fn: makeResolvedFilterFn(unpushableFn),
 					}),
 				},
 				Edges: [][2]int{
@@ -308,7 +262,7 @@ func TestPushDownFilterRule(t *testing.T) {
 						Bounds: bounds,
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(pushableExpr1)},
+						Fn: makeResolvedFilterFn(pushableFn1)},
 					),
 				},
 				Edges: [][2]int{
@@ -321,7 +275,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter:    makeFilterFn(pushableExpr1),
+						Filter:    pushableFn1,
 					}),
 				},
 			},
@@ -336,26 +290,7 @@ func TestPushDownFilterRule(t *testing.T) {
 						Bounds: bounds,
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(unpushableExpr),
-					}),
-				},
-				Edges: [][2]int{
-					{0, 1},
-				},
-			},
-			NoChange: true,
-		},
-		{
-			Name: "statement filter",
-			// ReadRange -> filter(with statement function)  =>  ReadRange -> filter(with statement function)  (no change)
-			Rules: []plan.Rule{influxdb.PushDownFilterRule{}},
-			Before: &plantest.PlanSpec{
-				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadRange", &influxdb.ReadRangePhysSpec{
-						Bounds: bounds,
-					}),
-					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: statementFn,
+						Fn: makeResolvedFilterFn(unpushableFn),
 					}),
 				},
 				Edges: [][2]int{
@@ -373,13 +308,7 @@ func TestPushDownFilterRule(t *testing.T) {
 						Bounds: bounds,
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(&semantic.UnaryExpression{
-							Operator: ast.ExistsOperator,
-							Argument: &semantic.MemberExpression{
-								Object:   &semantic.IdentifierExpression{Name: "r"},
-								Property: "host",
-							},
-						}),
+						Fn: makeResolvedFilterFn(executetest.FunctionExpression(t, `(r) => exists r.host`)),
 					}),
 				},
 				Edges: [][2]int{
@@ -391,16 +320,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter: makeFilterFn(&semantic.BinaryExpression{
-							Operator: ast.NotEqualOperator,
-							Left: &semantic.MemberExpression{
-								Object:   &semantic.IdentifierExpression{Name: "r"},
-								Property: "host",
-							},
-							Right: &semantic.StringLiteral{
-								Value: "",
-							},
-						}),
+						Filter:    executetest.FunctionExpression(t, `(r) => r.host != ""`),
 					}),
 				},
 			},
@@ -414,16 +334,7 @@ func TestPushDownFilterRule(t *testing.T) {
 						Bounds: bounds,
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(&semantic.UnaryExpression{
-							Operator: ast.NotOperator,
-							Argument: &semantic.UnaryExpression{
-								Operator: ast.ExistsOperator,
-								Argument: &semantic.MemberExpression{
-									Object:   &semantic.IdentifierExpression{Name: "r"},
-									Property: "host",
-								},
-							},
-						}),
+						Fn: makeResolvedFilterFn(executetest.FunctionExpression(t, `(r) => not exists r.host`)),
 					}),
 				},
 				Edges: [][2]int{
@@ -435,16 +346,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter: makeFilterFn(&semantic.BinaryExpression{
-							Operator: ast.EqualOperator,
-							Left: &semantic.MemberExpression{
-								Object:   &semantic.IdentifierExpression{Name: "r"},
-								Property: "host",
-							},
-							Right: &semantic.StringLiteral{
-								Value: "",
-							},
-						}),
+						Filter:    executetest.FunctionExpression(t, `(r) => r.host == ""`),
 					}),
 				},
 			},
@@ -458,14 +360,7 @@ func TestPushDownFilterRule(t *testing.T) {
 						Bounds: bounds,
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(&semantic.BinaryExpression{
-							Operator: ast.EqualOperator,
-							Left: &semantic.MemberExpression{
-								Object:   &semantic.IdentifierExpression{Name: "r"},
-								Property: "host",
-							},
-							Right: &semantic.StringLiteral{Value: ""},
-						}),
+						Fn: makeResolvedFilterFn(executetest.FunctionExpression(t, `(r) => r.host == ""`)),
 					}),
 				},
 				Edges: [][2]int{
@@ -483,14 +378,7 @@ func TestPushDownFilterRule(t *testing.T) {
 						Bounds: bounds,
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(&semantic.BinaryExpression{
-							Operator: ast.NotEqualOperator,
-							Left: &semantic.MemberExpression{
-								Object:   &semantic.IdentifierExpression{Name: "r"},
-								Property: "host",
-							},
-							Right: &semantic.StringLiteral{Value: ""},
-						}),
+						Fn: makeResolvedFilterFn(executetest.FunctionExpression(t, `(r) => r.host != ""`)),
 					}),
 				},
 				Edges: [][2]int{
@@ -502,16 +390,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter: makeFilterFn(&semantic.BinaryExpression{
-							Operator: ast.NotEqualOperator,
-							Left: &semantic.MemberExpression{
-								Object:   &semantic.IdentifierExpression{Name: "r"},
-								Property: "host",
-							},
-							Right: &semantic.StringLiteral{
-								Value: "",
-							},
-						}),
+						Filter:    executetest.FunctionExpression(t, `(r) => r.host != ""`),
 					}),
 				},
 			},
@@ -525,14 +404,7 @@ func TestPushDownFilterRule(t *testing.T) {
 						Bounds: bounds,
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(&semantic.BinaryExpression{
-							Operator: ast.EqualOperator,
-							Left: &semantic.MemberExpression{
-								Object:   &semantic.IdentifierExpression{Name: "r"},
-								Property: "_value",
-							},
-							Right: &semantic.StringLiteral{Value: ""},
-						}),
+						Fn: makeResolvedFilterFn(executetest.FunctionExpression(t, `(r) => r._value == ""`)),
 					}),
 				},
 				Edges: [][2]int{
@@ -544,14 +416,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter: makeFilterFn(&semantic.BinaryExpression{
-							Operator: ast.EqualOperator,
-							Left: &semantic.MemberExpression{
-								Object:   &semantic.IdentifierExpression{Name: "r"},
-								Property: "_value",
-							},
-							Right: &semantic.StringLiteral{Value: ""},
-						}),
+						Filter:    executetest.FunctionExpression(t, `(r) => r._value == ""`),
 					}),
 				},
 			},
@@ -566,17 +431,7 @@ func TestPushDownFilterRule(t *testing.T) {
 						Bounds: bounds,
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(&semantic.UnaryExpression{
-							Operator: ast.NotOperator,
-							Argument: &semantic.BinaryExpression{
-								Operator: ast.EqualOperator,
-								Left: &semantic.MemberExpression{
-									Object:   &semantic.IdentifierExpression{Name: "r"},
-									Property: "host",
-								},
-								Right: &semantic.StringLiteral{Value: "server01"},
-							},
-						}),
+						Fn: makeResolvedFilterFn(executetest.FunctionExpression(t, `(r) => not r.host == "server01"`)),
 					}),
 				},
 				Edges: [][2]int{
@@ -594,26 +449,7 @@ func TestPushDownFilterRule(t *testing.T) {
 						Bounds: bounds,
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(&semantic.LogicalExpression{
-							Operator: ast.AndOperator,
-							Left: &semantic.BinaryExpression{
-								Operator: ast.EqualOperator,
-								Left: &semantic.MemberExpression{
-									Object:   &semantic.IdentifierExpression{Name: "r"},
-									Property: "host",
-								},
-								Right: &semantic.StringLiteral{
-									Value: "cpu",
-								},
-							},
-							Right: &semantic.UnaryExpression{
-								Operator: ast.ExistsOperator,
-								Argument: &semantic.MemberExpression{
-									Object:   &semantic.IdentifierExpression{Name: "r"},
-									Property: "host",
-								},
-							},
-						}),
+						Fn: makeResolvedFilterFn(executetest.FunctionExpression(t, `(r) => r.host == "cpu" and exists r.host`)),
 					}),
 				},
 				Edges: [][2]int{
@@ -625,29 +461,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter: makeFilterFn(&semantic.LogicalExpression{
-							Operator: ast.AndOperator,
-							Left: &semantic.BinaryExpression{
-								Operator: ast.EqualOperator,
-								Left: &semantic.MemberExpression{
-									Object:   &semantic.IdentifierExpression{Name: "r"},
-									Property: "host",
-								},
-								Right: &semantic.StringLiteral{
-									Value: "cpu",
-								},
-							},
-							Right: &semantic.BinaryExpression{
-								Operator: ast.NotEqualOperator,
-								Left: &semantic.MemberExpression{
-									Object:   &semantic.IdentifierExpression{Name: "r"},
-									Property: "host",
-								},
-								Right: &semantic.StringLiteral{
-									Value: "",
-								},
-							},
-						}),
+						Filter:    executetest.FunctionExpression(t, `(r) => r.host == "cpu" and not r.host == ""`),
 					}),
 				},
 			},
