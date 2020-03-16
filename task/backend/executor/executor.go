@@ -364,7 +364,7 @@ func (w *worker) executeQuery(p *promise) {
 	// start
 	w.start(p)
 
-	pkg, err := runtime.Parse(p.task.Flux)
+	pkg, err := runtime.ParseToJSON(p.task.Flux)
 	if err != nil {
 		w.finish(p, influxdb.RunFail, influxdb.ErrFluxParseError(err))
 		return

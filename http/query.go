@@ -31,9 +31,9 @@ type QueryRequest struct {
 	Query string `json:"query"`
 
 	// Flux fields
-	Extern  *ast.File    `json:"extern,omitempty"`
-	AST     *ast.Package `json:"ast,omitempty"`
-	Dialect QueryDialect `json:"dialect"`
+	Extern  json.RawMessage `json:"extern,omitempty"`
+	AST     json.RawMessage `json:"ast,omitempty"`
+	Dialect QueryDialect    `json:"dialect"`
 
 	// InfluxQL fields
 	Bucket string `json:"bucket,omitempty"`
@@ -263,13 +263,11 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 				Query:  r.Query,
 			}
 		}
-	} else if r.AST != nil {
+	} else if len(r.AST) > 0 {
 		c := lang.ASTCompiler{
-			AST: r.AST,
-			Now: now(),
-		}
-		if r.Extern != nil {
-			c.PrependFile(r.Extern)
+			Extern: r.Extern,
+			AST:    r.AST,
+			Now:    now(),
 		}
 		compiler = c
 	}
