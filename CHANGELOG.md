@@ -12,6 +12,7 @@
 ### UI Improvements
 
 1. [17291](https://github.com/influxdata/influxdb/pull/17291): Redesign OSS Login page
+1. [17297](https://github.com/influxdata/influxdb/pull/17297): Display graphic when a dashboard has no cells
 
 ## v2.0.0-beta.6 [2020-03-12]
 
