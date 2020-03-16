@@ -1,8 +1,28 @@
-.cf-panel.signin-panel {
+.signin-page {
+  .cf-funnel-page--content {
+    display: flex;
+    justify-content: center;
+    height: 100%;
+  }
+
+  .cf-dapper-scrollbars--content {
+    display: flex !important;
+    align-items: center;
+  }
+}
+
+.cf-panel.signin-page--panel {
   width: 300px;
 
   .cf-panel--body {
     padding: $ix-marg-d;
     text-align: center;
   }
+}
+
+.signin-page--logo {
+  width: 70%;
+  height: auto;
+  margin-top: 1em;
+  margin-bottom: 3em;
 }
