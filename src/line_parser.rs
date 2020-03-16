@@ -5,7 +5,7 @@ use nom::{
     character::complete::digit1,
     combinator::{map, opt, recognize},
     multi::separated_list,
-    sequence::{separated_pair, terminated, tuple},
+    sequence::{preceded, separated_pair, terminated, tuple},
     IResult,
 };
 use snafu::Snafu;
@@ -228,9 +228,9 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = Po
 }
 
 fn parse_line(i: &str) -> IResult<&str, ParsedLine<'_>> {
-    let tag_set = map(tuple((tag(","), tag_set)), |(_, ts)| ts);
-    let field_set = map(tuple((tag(" "), field_set)), |(_, fs)| fs);
-    let timestamp = map(tuple((tag(" "), timestamp)), |(_, ts)| ts);
+    let tag_set = preceded(tag(","), tag_set);
+    let field_set = preceded(tag(" "), field_set);
+    let timestamp = preceded(tag(" "), timestamp);
 
     let line = tuple((measurement, opt(tag_set), field_set, opt(timestamp)));
 
