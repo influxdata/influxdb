@@ -3,7 +3,6 @@ import {
   enablePresentationMode,
   disablePresentationMode,
   setTheme,
-  setCurrentPage,
   setAutoRefresh,
 } from 'src/shared/actions/app'
 import {TimeZone} from 'src/types'
@@ -19,7 +18,6 @@ describe('Shared.Reducers.appReducer', () => {
       showTemplateControlBar: false,
       timeZone: 'Local' as TimeZone,
       theme: 'dark',
-      currentPage: 'not set',
     },
   }
 
@@ -49,12 +47,6 @@ describe('Shared.Reducers.appReducer', () => {
     const reducedState = appReducer(initialState, setTheme('dark'))
 
     expect(reducedState.persisted.theme).toBe('dark')
-  })
-
-  it('should handle SET_CURRENT_PAGE', () => {
-    const reducedState = appReducer(initialState, setCurrentPage('dashboard'))
-
-    expect(reducedState.persisted.currentPage).toBe('dashboard')
   })
 
   it('should handle SET_AUTOREFRESH', () => {
