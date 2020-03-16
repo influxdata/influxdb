@@ -108,7 +108,7 @@ metadata:
 `,
 				},
 				{
-					name:           "duplicate bucket meta name and display name",
+					name:           "duplicate meta name and display name",
 					resourceErrs:   1,
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldName},
@@ -154,22 +154,43 @@ spec:
 	t.Run("pkg with a label", func(t *testing.T) {
 		t.Run("with valid label pkg should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
-				labels := pkg.labels()
-				require.Len(t, labels, 2)
+				labels := pkg.Summary().Labels
+				require.Len(t, labels, 3)
 
-				expectedLabel1 := label{
-					name:        &references{val: "label_1"},
-					Description: "label 1 description",
-					Color:       "#FFFFFF",
+				expectedLabel0 := SummaryLabel{
+					Name: "display name",
+					Properties: struct {
+						Color       string `json:"color"`
+						Description string `json:"description"`
+					}{
+						Description: "label 3 description",
+					},
 				}
-				assert.Equal(t, expectedLabel1, *labels[0])
+				assert.Equal(t, expectedLabel0, labels[0])
 
-				expectedLabel2 := label{
-					name:        &references{val: "label_2"},
-					Description: "label 2 description",
-					Color:       "#000000",
+				expectedLabel1 := SummaryLabel{
+					Name: "label_1",
+					Properties: struct {
+						Color       string `json:"color"`
+						Description string `json:"description"`
+					}{
+						Color:       "#FFFFFF",
+						Description: "label 1 description",
+					},
 				}
-				assert.Equal(t, expectedLabel2, *labels[1])
+				assert.Equal(t, expectedLabel1, labels[1])
+
+				expectedLabel2 := SummaryLabel{
+					Name: "label_2",
+					Properties: struct {
+						Color       string `json:"color"`
+						Description string `json:"description"`
+					}{
+						Color:       "#000000",
+						Description: "label 2 description",
+					},
+				}
+				assert.Equal(t, expectedLabel2, labels[2])
 			})
 		})
 
@@ -203,6 +224,23 @@ spec:
 `,
 				},
 				{
+					name:           "duplicate names",
+					validationErrs: 1,
+					valFields:      []string{fieldMetadata, fieldName},
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: valid name
+spec:
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: valid name
+spec:
+`,
+				},
+				{
 					name:           "multiple labels with missing name",
 					resourceErrs:   2,
 					validationErrs: 1,
@@ -213,6 +251,42 @@ kind: Label
 apiVersion: influxdata.com/v2alpha1
 kind: Label
 
+`,
+				},
+				{
+					name:           "duplicate meta name and display name",
+					validationErrs: 1,
+					valFields:      []string{fieldSpec, fieldName},
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: valid name
+spec:
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label_1
+spec:
+  name: valid name
+`,
+				},
+				{
+					name:           "display name to short",
+					validationErrs: 1,
+					valFields:      []string{fieldSpec, fieldName},
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: valid name
+spec:
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Label
+metadata:
+  name: label_1
+spec:
+  name: a
 `,
 				},
 			}

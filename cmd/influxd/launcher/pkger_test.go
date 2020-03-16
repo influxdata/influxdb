@@ -151,12 +151,12 @@ func TestLauncher_Pkger(t *testing.T) {
 		labels := sum.Labels
 		require.Len(t, labels, 2)
 		assert.Equal(t, "label_1", labels[0].Name)
-		assert.Equal(t, "label_2", labels[1].Name)
+		assert.Equal(t, "the 2nd label", labels[1].Name)
 
 		bkts := sum.Buckets
 		require.Len(t, bkts, 1)
 		assert.Equal(t, "rucketeer", bkts[0].Name)
-		hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "label_2")
+		hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "the 2nd label")
 
 		checks := sum.Checks
 		require.Len(t, checks, 2)
@@ -169,7 +169,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.Len(t, dashs, 1)
 		assert.Equal(t, "dash_1", dashs[0].Name)
 		assert.Equal(t, "desc1", dashs[0].Description)
-		hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "label_2")
+		hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "the 2nd label")
 
 		endpoints := sum.NotificationEndpoints
 		require.Len(t, endpoints, 1)
@@ -257,7 +257,7 @@ spec:
 				assert.NotZero(t, labels[0].ID)
 			}
 			assert.Equal(t, "label_1", labels[0].Name)
-			assert.Equal(t, "label_2", labels[1].Name)
+			assert.Equal(t, "the 2nd label", labels[1].Name)
 
 			bkts := sum1.Buckets
 			if exportAllSum {
@@ -270,7 +270,7 @@ spec:
 				assert.NotZero(t, bkts[0].ID)
 			}
 			assert.Equal(t, "rucketeer", bkts[0].Name)
-			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "label_2")
+			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "the 2nd label")
 
 			checks := sum1.Checks
 			require.Len(t, checks, 2)
@@ -289,7 +289,7 @@ spec:
 			}
 			assert.Equal(t, "dash_1", dashs[0].Name)
 			assert.Equal(t, "desc1", dashs[0].Description)
-			hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "label_2")
+			hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "the 2nd label")
 			require.Len(t, dashs[0].Charts, 1)
 			assert.Equal(t, influxdb.ViewPropertyTypeSingleStat, dashs[0].Charts[0].Properties.GetType())
 
@@ -444,7 +444,7 @@ spec:
 				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
 					pkger.CreateByOrgIDOpt{
 						OrgID:      l.Org.ID,
-						LabelNames: []string{"label_2"},
+						LabelNames: []string{"the 2nd label"},
 					},
 				))
 				require.NoError(t, err)
@@ -464,7 +464,7 @@ spec:
 				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
 					pkger.CreateByOrgIDOpt{
 						OrgID:         l.Org.ID,
-						LabelNames:    []string{"label_2"},
+						LabelNames:    []string{"the 2nd label"},
 						ResourceKinds: []pkger.Kind{pkger.KindDashboard},
 					},
 				))
@@ -612,13 +612,13 @@ spec:
 			assert.Zero(t, labels[0].ID)
 			assert.Equal(t, "label_1", labels[0].Name)
 			assert.Zero(t, labels[1].ID)
-			assert.Equal(t, "label_2", labels[1].Name)
+			assert.Equal(t, "the 2nd label", labels[1].Name)
 
 			bkts := newSum.Buckets
 			require.Len(t, bkts, 1)
 			assert.Zero(t, bkts[0].ID)
 			assert.Equal(t, "rucketeer", bkts[0].Name)
-			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "label_2")
+			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "the 2nd label")
 
 			checks := newSum.Checks
 			require.Len(t, checks, 2)
@@ -633,7 +633,7 @@ spec:
 			assert.Zero(t, dashs[0].ID)
 			assert.Equal(t, "dash_1", dashs[0].Name)
 			assert.Equal(t, "desc1", dashs[0].Description)
-			hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "label_2")
+			hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "the 2nd label")
 			require.Len(t, dashs[0].Charts, 1)
 			assert.Equal(t, influxdb.ViewPropertyTypeSingleStat, dashs[0].Charts[0].Properties.GetType())
 
@@ -988,7 +988,9 @@ metadata:
 apiVersion: %[1]s
 kind: Label
 metadata:
-  name: label_2
+  name: the 2nd label
+spec:
+  name: the 2nd label
 ---
 apiVersion: %[1]s
 kind: Bucket
@@ -1000,7 +1002,7 @@ spec:
     - kind: Label
       name: label_1
     - kind: Label
-      name: label_2
+      name: the 2nd label
 ---
 apiVersion: %[1]s
 kind: Dashboard
@@ -1026,7 +1028,7 @@ spec:
     - kind: Label
       name: label_1
     - kind: Label
-      name: label_2
+      name: the 2nd label
 ---
 apiVersion: %[1]s
 kind: Variable

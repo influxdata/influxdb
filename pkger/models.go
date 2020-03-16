@@ -826,6 +826,10 @@ func (b *bucket) Name() string {
 	return b.name.String()
 }
 
+func (b *bucket) PkgName() string {
+	return b.name.String()
+}
+
 func (b *bucket) ResourceType() influxdb.ResourceType {
 	return KindBucket.ResourceType()
 }
@@ -847,7 +851,7 @@ func (b *bucket) summarize() SummaryBucket {
 
 func (b *bucket) valid() []validationErr {
 	var vErrs []validationErr
-	if len(b.Name()) < 2 {
+	if len(b.Name()) < bucketNameMinLength {
 		vErrs = append(vErrs, validationErr{
 			Field: fieldName,
 			Msg:   fmt.Sprintf("must be a string of at least %d chars in length", bucketNameMinLength),
@@ -1240,10 +1244,13 @@ const (
 	fieldLabelColor = "color"
 )
 
+const labelNameMinLength = 2
+
 type label struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
 	name        *references
+	displayName *references
 	Color       string
 	Description string
 	associationMapping
@@ -1255,6 +1262,13 @@ type label struct {
 }
 
 func (l *label) Name() string {
+	if displayName := l.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return l.name.String()
+}
+
+func (l *label) PkgName() string {
 	return l.name.String()
 }
 
@@ -1318,6 +1332,22 @@ func (l *label) toInfluxLabel() influxdb.Label {
 		OrgID:      l.OrgID,
 		Name:       l.Name(),
 		Properties: l.properties(),
+	}
+}
+
+func (l *label) valid() []validationErr {
+	var vErrs []validationErr
+	if len(l.Name()) < labelNameMinLength {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldName,
+			Msg:   fmt.Sprintf("must be a string of at least %d chars in length", labelNameMinLength),
+		})
+	}
+	if len(vErrs) == 0 {
+		return nil
+	}
+	return []validationErr{
+		objectValidationErr(fieldSpec, vErrs...),
 	}
 }
 
