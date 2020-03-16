@@ -155,6 +155,26 @@ func TestPushDownFilterRule(t *testing.T) {
 		}
 	}
 
+	makeExprBody := func(expr *semantic.FunctionExpression) *semantic.FunctionExpression {
+		switch e := expr.Block.Body.(type) {
+		case *semantic.Block:
+			if len(e.Body) != 1 {
+				panic("more than one statement in function body")
+			}
+			returnExpr, ok := e.Body[0].(*semantic.ReturnStatement)
+			if !ok {
+				panic("non-return statement in function body")
+			}
+			newExpr := expr.Copy().(*semantic.FunctionExpression)
+			newExpr.Block.Body = returnExpr.Argument.Copy()
+			return newExpr
+		case semantic.Expression:
+			return expr
+		default:
+			panic("unexpected function body type")
+		}
+	}
+
 	tests := []plantest.RuleTestCase{
 		{
 			Name: "simple",
@@ -178,7 +198,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter:    pushableFn1,
+						Filter:    makeExprBody(pushableFn1),
 					}),
 				},
 			},
@@ -209,7 +229,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter1_filter2", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter:    pushableFn1and2,
+						Filter:    makeExprBody(pushableFn1and2),
 					}),
 				},
 			},
@@ -236,10 +256,10 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("ReadRange", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter:    pushableFn1,
+						Filter:    makeExprBody(pushableFn1),
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(unpushableFn),
+						Fn: makeResolvedFilterFn(makeExprBody(unpushableFn)),
 					}),
 				},
 				Edges: [][2]int{
@@ -275,7 +295,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter:    pushableFn1,
+						Filter:    makeExprBody(pushableFn1),
 					}),
 				},
 			},
@@ -320,7 +340,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter:    executetest.FunctionExpression(t, `(r) => r.host != ""`),
+						Filter:    makeExprBody(executetest.FunctionExpression(t, `(r) => r.host != ""`)),
 					}),
 				},
 			},
@@ -346,7 +366,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter:    executetest.FunctionExpression(t, `(r) => r.host == ""`),
+						Filter:    makeExprBody(executetest.FunctionExpression(t, `(r) => r.host == ""`)),
 					}),
 				},
 			},
@@ -390,7 +410,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter:    executetest.FunctionExpression(t, `(r) => r.host != ""`),
+						Filter:    makeExprBody(executetest.FunctionExpression(t, `(r) => r.host != ""`)),
 					}),
 				},
 			},
@@ -416,7 +436,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter:    executetest.FunctionExpression(t, `(r) => r._value == ""`),
+						Filter:    makeExprBody(executetest.FunctionExpression(t, `(r) => r._value == ""`)),
 					}),
 				},
 			},
@@ -461,7 +481,7 @@ func TestPushDownFilterRule(t *testing.T) {
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
 						FilterSet: true,
-						Filter:    executetest.FunctionExpression(t, `(r) => r.host == "cpu" and not r.host == ""`),
+						Filter:    makeExprBody(executetest.FunctionExpression(t, `(r) => r.host == "cpu" and r.host != ""`)),
 					}),
 				},
 			},
