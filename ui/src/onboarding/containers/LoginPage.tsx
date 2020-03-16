@@ -6,10 +6,14 @@ import {
   Columns,
   FlexBox,
   FlexDirection,
+  FontWeight,
   Grid,
+  Heading,
+  HeadingElement,
   JustifyContent,
   Page,
   Panel,
+  Typeface,
 } from '@influxdata/clockface'
 
 // Components
@@ -26,6 +30,13 @@ export const LoginPage: FC = () => (
           className="sign-up--page-contents"
         >
           <Panel className="sign-up--panel">
+            <Heading
+              element={HeadingElement.H2}
+              type={Typeface.Rubik}
+              weight={FontWeight.Regular}
+            >
+              Create your Free InfluxDB Cloud Account
+            </Heading>
             <FlexBox
               direction={FlexDirection.Column}
               stretchToFitHeight={true}
