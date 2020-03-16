@@ -125,12 +125,12 @@ func TestService(t *testing.T) {
 				existing := &icheck.Deadman{
 					Base: icheck.Base{
 						ID:          id,
-						Name:        "check_1",
+						Name:        "display name",
 						Description: "old desc",
 					},
 				}
 				fakeCheckSVC.FindCheckFn = func(ctx context.Context, f influxdb.CheckFilter) (influxdb.Check, error) {
-					if f.Name != nil && *f.Name == "check_1" {
+					if f.Name != nil && *f.Name == "display name" {
 						return existing, nil
 					}
 					return nil, errors.New("not found")
@@ -151,7 +151,7 @@ func TestService(t *testing.T) {
 
 				check1 := checks[1]
 				assert.False(t, check1.IsNew())
-				assert.Equal(t, "check_1", check1.Name)
+				assert.Equal(t, "display name", check1.Name)
 				assert.NotZero(t, check1.ID)
 				assert.Equal(t, existing, check1.Old.Check)
 			})
@@ -552,6 +552,8 @@ func TestService(t *testing.T) {
 					require.Len(t, sum.Checks, 2)
 
 					containsWithID := func(t *testing.T, name string) {
+						t.Helper()
+
 						for _, actualNotification := range sum.Checks {
 							actual := actualNotification.Check
 							if actual.GetID() == 0 {
@@ -564,7 +566,7 @@ func TestService(t *testing.T) {
 						assert.Fail(t, "did not find notification by name: "+name)
 					}
 
-					for _, expectedName := range []string{"check_0", "check_1"} {
+					for _, expectedName := range []string{"check_0", "display name"} {
 						containsWithID(t, expectedName)
 					}
 				})

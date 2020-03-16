@@ -108,7 +108,7 @@ metadata:
 `,
 				},
 				{
-					name:           "duplicate meta name and display name",
+					name:           "duplicate meta name and spec name",
 					resourceErrs:   1,
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldName},
@@ -126,7 +126,7 @@ spec:
 `,
 				},
 				{
-					name:           "display name too short",
+					name:           "spec name too short",
 					resourceErrs:   1,
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldName},
@@ -254,7 +254,7 @@ kind: Label
 `,
 				},
 				{
-					name:           "duplicate meta name and display name",
+					name:           "duplicate meta name and spec name",
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldName},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
@@ -272,7 +272,7 @@ spec:
 `,
 				},
 				{
-					name:           "display name to short",
+					name:           "spec name to short",
 					validationErrs: 1,
 					valFields:      []string{fieldSpec, fieldName},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
@@ -498,7 +498,7 @@ spec:
 				require.Truef(t, ok, "got: %#v", check2)
 
 				expectedBase = icheck.Base{
-					Name:                  "check_1",
+					Name:                  "display name",
 					Description:           "desc_1",
 					Every:                 mustDuration(t, 5*time.Minute),
 					Offset:                mustDuration(t, 10*time.Second),
@@ -524,7 +524,7 @@ spec:
 					},
 					labelMapping{
 						labelName: "label_1",
-						resName:   "check_1",
+						resName:   "display name",
 						resType:   influxdb.ChecksResourceType,
 					},
 				)
@@ -541,7 +541,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "duplicate name",
 						validationErrs: 1,
-						valFields:      []string{fieldName},
+						valFields:      []string{fieldMetadata, fieldName},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
@@ -571,7 +571,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing every duration",
 						validationErrs: 1,
-						valFields:      []string{fieldEvery},
+						valFields:      []string{fieldSpec, fieldEvery},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
@@ -594,7 +594,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "invalid threshold value provided",
 						validationErrs: 1,
-						valFields:      []string{fieldLevel},
+						valFields:      []string{fieldSpec, fieldLevel},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
@@ -616,7 +616,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "invalid threshold type provided",
 						validationErrs: 1,
-						valFields:      []string{fieldType},
+						valFields:      []string{fieldSpec, fieldType},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
@@ -638,7 +638,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "invalid min for inside range",
 						validationErrs: 1,
-						valFields:      []string{fieldMin},
+						valFields:      []string{fieldSpec, fieldMin},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
@@ -661,7 +661,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "no threshold values provided",
 						validationErrs: 1,
-						valFields:      []string{fieldCheckThresholds},
+						valFields:      []string{fieldSpec, fieldCheckThresholds},
 						pkgStr: `---
 apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
@@ -681,7 +681,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "threshold missing query",
 						validationErrs: 1,
-						valFields:      []string{fieldQuery},
+						valFields:      []string{fieldSpec, fieldQuery},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
@@ -701,7 +701,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "invalid status provided",
 						validationErrs: 1,
-						valFields:      []string{fieldStatus},
+						valFields:      []string{fieldSpec, fieldStatus},
 						pkgStr: `---
 apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
@@ -726,7 +726,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing status message template",
 						validationErrs: 1,
-						valFields:      []string{fieldCheckStatusMessageTemplate},
+						valFields:      []string{fieldSpec, fieldCheckStatusMessageTemplate},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckThreshold
 metadata:
@@ -747,7 +747,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing every",
 						validationErrs: 1,
-						valFields:      []string{fieldEvery},
+						valFields:      []string{fieldSpec, fieldEvery},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
@@ -766,7 +766,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "deadman missing every",
 						validationErrs: 1,
-						valFields:      []string{fieldQuery},
+						valFields:      []string{fieldSpec, fieldQuery},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
@@ -784,7 +784,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing association label",
 						validationErrs: 1,
-						valFields:      []string{fieldAssociations},
+						valFields:      []string{fieldSpec, fieldAssociations},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: CheckDeadman
 metadata:
@@ -807,7 +807,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "duplicate association labels",
 						validationErrs: 1,
-						valFields:      []string{fieldAssociations},
+						valFields:      []string{fieldSpec, fieldAssociations},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
@@ -829,6 +829,40 @@ spec:
       name: label_1
     - kind: Label
       name: label_1
+`,
+					},
+				},
+				{
+					kind: KindCheckDeadman,
+					resErr: testPkgResourceError{
+						name:           "duplicate meta name and spec name",
+						validationErrs: 1,
+						valFields:      []string{fieldSpec, fieldAssociations},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: CheckDeadman
+metadata:
+  name: check_1
+spec:
+  every: 5m
+  level: cRiT
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  timeSince: 90s
+---
+apiVersion: influxdata.com/v2alpha1
+kind: CheckDeadman
+metadata:
+  name: valid name
+spec:
+  name: check_1
+  every: 5m
+  level: cRiT
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+  timeSince: 90s
 `,
 					},
 				},

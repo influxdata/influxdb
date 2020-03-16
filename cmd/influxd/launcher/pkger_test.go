@@ -160,10 +160,10 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		checks := sum.Checks
 		require.Len(t, checks, 2)
-		for i, ch := range checks {
-			assert.Equal(t, fmt.Sprintf("check_%d", i), ch.Check.GetName())
-			hasLabelAssociations(t, ch.LabelAssociations, 1, "label_1")
-		}
+		assert.Equal(t, "check 0 name", checks[0].Check.GetName())
+		hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label_1")
+		assert.Equal(t, "check_1", checks[1].Check.GetName())
+		hasLabelAssociations(t, checks[1].LabelAssociations, 1, "label_1")
 
 		dashs := sum.Dashboards
 		require.Len(t, dashs, 1)
@@ -274,12 +274,14 @@ spec:
 
 			checks := sum1.Checks
 			require.Len(t, checks, 2)
-			for i, ch := range checks {
+			assert.Equal(t, "check 0 name", checks[0].Check.GetName())
+			hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label_1")
+			assert.Equal(t, "check_1", checks[1].Check.GetName())
+			hasLabelAssociations(t, checks[1].LabelAssociations, 1, "label_1")
+			for _, ch := range checks {
 				if !exportAllSum {
 					assert.NotZero(t, ch.Check.GetID())
 				}
-				assert.Equal(t, fmt.Sprintf("check_%d", i), ch.Check.GetName())
-				hasLabelAssociations(t, ch.LabelAssociations, 1, "label_1")
 			}
 
 			dashs := sum1.Dashboards
@@ -622,11 +624,10 @@ spec:
 
 			checks := newSum.Checks
 			require.Len(t, checks, 2)
-			for i := range make([]struct{}, 2) {
-				assert.Zero(t, checks[0].Check.GetID())
-				assert.Equal(t, fmt.Sprintf("check_%d", i), checks[i].Check.GetName())
-				hasLabelAssociations(t, checks[i].LabelAssociations, 1, "label_1")
-			}
+			assert.Equal(t, "check 0 name", checks[0].Check.GetName())
+			hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label_1")
+			assert.Equal(t, "check_1", checks[1].Check.GetName())
+			hasLabelAssociations(t, checks[1].LabelAssociations, 1, "label_1")
 
 			dashs := newSum.Dashboards
 			require.Len(t, dashs, 1)
@@ -1074,6 +1075,7 @@ kind: CheckThreshold
 metadata:
   name:  check_0
 spec:
+  name: check 0 name
   every: 1m
   query:  >
     from(bucket: "rucket_1")
