@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"time"
 
 	"github.com/influxdata/flux/ast"
@@ -13,12 +16,13 @@ import (
 )
 
 var transpileFlags struct {
-	Now string
+	Now      string
+	UseStdin bool
 }
 
 func cmdTranspile(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("transpile [InfluxQL query]", transpileF)
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Short = "Transpile an InfluxQL query to Flux source code"
 	cmd.Long = `Transpile an InfluxQL query to Flux source code.
 
@@ -32,6 +36,11 @@ The transpiled query will be written for absolute time ranges using the provided
 			DestP: &transpileFlags.Now,
 			Flag:  "now",
 			Desc:  "An RFC3339Nano formatted time to use as the now() time. Defaults to the current time",
+		},
+		{
+			DestP: &transpileFlags.UseStdin,
+			Flag:  "use-stdin",
+			Desc:  "Read InfluxQL query from STDIN instead of a command line argument",
 		},
 	}
 	opts.mustRegister(cmd)
@@ -52,7 +61,18 @@ func transpileF(cmd *cobra.Command, args []string) error {
 		Now:            now,
 		FallbackToDBRP: true,
 	})
-	pkg, err := t.Transpile(context.Background(), args[0])
+	var inputQuery string
+	if transpileFlags.UseStdin {
+		buf := new(bytes.Buffer)
+		_, err := io.Copy(buf, os.Stdin)
+		if err != nil {
+			return errors.Wrap(err, "failed to read query from STDIN")
+		}
+		inputQuery = buf.String()
+	} else {
+		inputQuery = args[0]
+	}
+	pkg, err := t.Transpile(context.Background(), inputQuery)
 	if err != nil {
 		return err
 	}
