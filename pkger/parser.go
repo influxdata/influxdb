@@ -218,7 +218,7 @@ type Object struct {
 
 // Name returns the name of the kind.
 func (k Object) Name() string {
-	return k.Metadata.references("name").String()
+	return k.Metadata.references(fieldName).String()
 }
 
 // Pkg is the model for a package. The resources are more generic that one might
@@ -440,7 +440,7 @@ func (p *Pkg) buckets() []*bucket {
 		buckets = append(buckets, b)
 	}
 
-	sort.Slice(buckets, func(i, j int) bool { return buckets[i].name.String() < buckets[j].name.String() })
+	sort.Slice(buckets, func(i, j int) bool { return buckets[i].Name() < buckets[j].Name() })
 
 	return buckets
 }
@@ -631,17 +631,37 @@ func (p *Pkg) graphResources() error {
 
 func (p *Pkg) graphBuckets() *parseErr {
 	p.mBuckets = make(map[string]*bucket)
-	return p.eachResource(KindBucket, 2, func(o Object) []validationErr {
+	uniqNames := make(map[string]bool)
+	return p.eachResource(KindBucket, bucketNameMinLength, func(o Object) []validationErr {
 		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
 		if _, ok := p.mBuckets[nameRef.String()]; ok {
-			return []validationErr{{
-				Field: fieldName,
-				Msg:   "duplicate name: " + nameRef.String(),
-			}}
+			return []validationErr{
+				objectValidationErr(fieldMetadata, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
 		}
+
+		displayNameRef := p.getRefWithKnownEnvs(o.Spec, fieldName)
+
+		name := nameRef.String()
+		if displayName := displayNameRef.String(); displayName != "" {
+			name = displayName
+		}
+		if uniqNames[name] {
+			return []validationErr{
+				objectValidationErr(fieldSpec, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
+		}
+		uniqNames[name] = true
 
 		bkt := &bucket{
 			name:        nameRef,
+			displayName: displayNameRef,
 			Description: o.Spec.stringShort(fieldDescription),
 		}
 		if rules, ok := o.Spec[fieldBucketRetentionRules].(retentionRules); ok {
@@ -654,7 +674,7 @@ func (p *Pkg) graphBuckets() *parseErr {
 				})
 			}
 		}
-		p.setRefs(bkt.name)
+		p.setRefs(bkt.name, bkt.displayName)
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			bkt.labels = append(bkt.labels, l)
@@ -1040,10 +1060,10 @@ func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(o Object) 
 				Kind: k.Type.String(),
 				Idx:  intPtr(i),
 				ValidationErrs: []validationErr{
-					{
-						Field: "name",
+					objectValidationErr(fieldMetadata, validationErr{
+						Field: fieldName,
 						Msg:   fmt.Sprintf("must be a string of at least %d chars in length", minNameLen),
-					},
+					}),
 				},
 			})
 			continue
@@ -1730,6 +1750,13 @@ func IsParseErr(err error) bool {
 		return false
 	}
 	return IsParseErr(iErr.Err)
+}
+
+func objectValidationErr(field string, vErrs ...validationErr) validationErr {
+	return validationErr{
+		Field:  field,
+		Nested: vErrs,
+	}
 }
 
 func normStr(s string) string {

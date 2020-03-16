@@ -22,10 +22,18 @@ func TestParse(t *testing.T) {
 		t.Run("with valid bucket pkg should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
 				buckets := pkg.Summary().Buckets
-				require.Len(t, buckets, 1)
+				require.Len(t, buckets, 2)
 
 				actual := buckets[0]
 				expectedBucket := SummaryBucket{
+					Name:              "display name",
+					Description:       "bucket 2 description",
+					LabelAssociations: []SummaryLabel{},
+				}
+				assert.Equal(t, expectedBucket, actual)
+
+				actual = buckets[1]
+				expectedBucket = SummaryBucket{
 					Name:              "rucket_11",
 					Description:       "bucket 1 description",
 					RetentionPeriod:   time.Hour,
@@ -40,7 +48,7 @@ func TestParse(t *testing.T) {
 				{
 					name:           "missing name",
 					validationErrs: 1,
-					valFields:      []string{fieldName},
+					valFields:      []string{fieldMetadata, fieldName},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
@@ -50,7 +58,7 @@ spec:
 				{
 					name:           "mixed valid and missing name",
 					validationErrs: 1,
-					valFields:      []string{fieldName},
+					valFields:      []string{fieldMetadata, fieldName},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
@@ -66,7 +74,7 @@ spec:
 					name:           "mixed valid and multiple bad names",
 					resourceErrs:   2,
 					validationErrs: 1,
-					valFields:      []string{fieldName},
+					valFields:      []string{fieldMetadata, fieldName},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
@@ -87,7 +95,7 @@ spec:
 					name:           "duplicate bucket names",
 					resourceErrs:   1,
 					validationErrs: 1,
-					valFields:      []string{fieldName},
+					valFields:      []string{fieldMetadata, fieldName},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
@@ -97,6 +105,42 @@ apiVersion: influxdata.com/v2alpha1
 kind: Bucket
 metadata:
   name:  valid name
+`,
+				},
+				{
+					name:           "duplicate bucket meta name and display name",
+					resourceErrs:   1,
+					validationErrs: 1,
+					valFields:      []string{fieldSpec, fieldName},
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name:  rucket_1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name:  valid name
+spec:
+  name:  rucket_1
+`,
+				},
+				{
+					name:           "display name too short",
+					resourceErrs:   1,
+					validationErrs: 1,
+					valFields:      []string{fieldSpec, fieldName},
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name:  rucket_1
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Bucket
+metadata:
+  name:  invalid name
+spec:
+  name:  f
 `,
 				},
 			}
@@ -134,7 +178,7 @@ metadata:
 				{
 					name:           "missing name",
 					validationErrs: 1,
-					valFields:      []string{"name"},
+					valFields:      []string{fieldMetadata, fieldName},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
@@ -144,7 +188,7 @@ spec:
 				{
 					name:           "mixed valid and missing name",
 					validationErrs: 1,
-					valFields:      []string{"name"},
+					valFields:      []string{fieldMetadata, fieldName},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
@@ -162,7 +206,7 @@ spec:
 					name:           "multiple labels with missing name",
 					resourceErrs:   2,
 					validationErrs: 1,
-					valFields:      []string{"name"},
+					valFields:      []string{fieldMetadata, fieldName},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 ---
@@ -2873,7 +2917,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing name",
 						validationErrs: 1,
-						valFields:      []string{fieldName},
+						valFields:      []string{fieldMetadata, fieldName},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3124,7 +3168,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing name",
 						validationErrs: 1,
-						valFields:      []string{fieldName},
+						valFields:      []string{fieldMetadata, fieldName},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
@@ -3348,7 +3392,7 @@ spec:
 				{
 					name:           "name missing",
 					validationErrs: 1,
-					valFields:      []string{"name"},
+					valFields:      []string{fieldMetadata, fieldName},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:

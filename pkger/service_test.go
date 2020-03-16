@@ -59,6 +59,9 @@ func TestService(t *testing.T) {
 				testfileRunner(t, "testdata/bucket.yml", func(t *testing.T, pkg *Pkg) {
 					fakeBktSVC := mock.NewBucketService()
 					fakeBktSVC.FindBucketByNameFn = func(_ context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
+						if name != "rucket_11" {
+							return nil, errors.New("not found")
+						}
 						return &influxdb.Bucket{
 							ID:              influxdb.ID(1),
 							OrgID:           orgID,
@@ -72,7 +75,7 @@ func TestService(t *testing.T) {
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
 					require.NoError(t, err)
 
-					require.Len(t, diff.Buckets, 1)
+					require.Len(t, diff.Buckets, 2)
 
 					expected := DiffBucket{
 						ID:   SafeID(1),
@@ -86,7 +89,7 @@ func TestService(t *testing.T) {
 							RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 						},
 					}
-					assert.Equal(t, expected, diff.Buckets[0])
+					assert.Contains(t, diff.Buckets, expected)
 				})
 			})
 
@@ -101,7 +104,7 @@ func TestService(t *testing.T) {
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
 					require.NoError(t, err)
 
-					require.Len(t, diff.Buckets, 1)
+					require.Len(t, diff.Buckets, 2)
 
 					expected := DiffBucket{
 						Name: "rucket_11",
@@ -110,7 +113,7 @@ func TestService(t *testing.T) {
 							RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 						},
 					}
-					assert.Equal(t, expected, diff.Buckets[0])
+					assert.Contains(t, diff.Buckets, expected)
 				})
 			})
 		})
@@ -442,30 +445,38 @@ func TestService(t *testing.T) {
 					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
-					require.Len(t, sum.Buckets, 1)
-					buck1 := sum.Buckets[0]
-					assert.Equal(t, SafeID(time.Hour), buck1.ID)
-					assert.Equal(t, SafeID(orgID), buck1.OrgID)
-					assert.Equal(t, "rucket_11", buck1.Name)
-					assert.Equal(t, time.Hour, buck1.RetentionPeriod)
-					assert.Equal(t, "bucket 1 description", buck1.Description)
+					require.Len(t, sum.Buckets, 2)
+
+					expected := SummaryBucket{
+						ID:                SafeID(time.Hour),
+						OrgID:             SafeID(orgID),
+						Name:              "rucket_11",
+						Description:       "bucket 1 description",
+						RetentionPeriod:   time.Hour,
+						LabelAssociations: []SummaryLabel{},
+					}
+					assert.Contains(t, sum.Buckets, expected)
 				})
 			})
 
 			t.Run("will not apply bucket if no changes to be applied", func(t *testing.T) {
-				testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
+				testfileRunner(t, "testdata/bucket.yml", func(t *testing.T, pkg *Pkg) {
 					orgID := influxdb.ID(9000)
 
 					pkg.isVerified = true
-					pkgBkt := pkg.mBuckets["rucket_11"]
-					pkgBkt.existing = &influxdb.Bucket{
-						// makes all pkg changes same as they are on thes existing bucket
-						ID:              influxdb.ID(3),
-						OrgID:           orgID,
-						Name:            pkgBkt.Name(),
-						Description:     pkgBkt.Description,
-						RetentionPeriod: pkgBkt.RetentionRules.RP(),
+					stubExisting := func(name string, id influxdb.ID) {
+						pkgBkt := pkg.mBuckets[name]
+						pkgBkt.existing = &influxdb.Bucket{
+							// makes all pkg changes same as they are on thes existing bucket
+							ID:              id,
+							OrgID:           orgID,
+							Name:            pkgBkt.Name(),
+							Description:     pkgBkt.Description,
+							RetentionPeriod: pkgBkt.RetentionRules.RP(),
+						}
 					}
+					stubExisting("rucket_11", 3)
+					stubExisting("rucket_222", 4)
 
 					fakeBktSVC := mock.NewBucketService()
 					fakeBktSVC.UpdateBucketFn = func(_ context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
@@ -477,13 +488,17 @@ func TestService(t *testing.T) {
 					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
-					require.Len(t, sum.Buckets, 1)
-					buck1 := sum.Buckets[0]
-					assert.Equal(t, SafeID(3), buck1.ID)
-					assert.Equal(t, SafeID(orgID), buck1.OrgID)
-					assert.Equal(t, "rucket_11", buck1.Name)
-					assert.Equal(t, time.Hour, buck1.RetentionPeriod)
-					assert.Equal(t, "bucket 1 description", buck1.Description)
+					require.Len(t, sum.Buckets, 2)
+
+					expected := SummaryBucket{
+						ID:                SafeID(3),
+						OrgID:             SafeID(orgID),
+						Name:              "rucket_11",
+						Description:       "bucket 1 description",
+						RetentionPeriod:   time.Hour,
+						LabelAssociations: []SummaryLabel{},
+					}
+					assert.Contains(t, sum.Buckets, expected)
 					assert.Zero(t, fakeBktSVC.CreateBucketCalls.Count())
 					assert.Zero(t, fakeBktSVC.UpdateBucketCalls.Count())
 				})

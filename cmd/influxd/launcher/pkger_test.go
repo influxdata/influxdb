@@ -155,7 +155,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		bkts := sum.Buckets
 		require.Len(t, bkts, 1)
-		assert.Equal(t, "rucket_1", bkts[0].Name)
+		assert.Equal(t, "rucketeer", bkts[0].Name)
 		hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "label_2")
 
 		checks := sum.Checks
@@ -269,7 +269,7 @@ spec:
 			if !exportAllSum {
 				assert.NotZero(t, bkts[0].ID)
 			}
-			assert.Equal(t, "rucket_1", bkts[0].Name)
+			assert.Equal(t, "rucketeer", bkts[0].Name)
 			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "label_2")
 
 			checks := sum1.Checks
@@ -617,7 +617,7 @@ spec:
 			bkts := newSum.Buckets
 			require.Len(t, bkts, 1)
 			assert.Zero(t, bkts[0].ID)
-			assert.Equal(t, "rucket_1", bkts[0].Name)
+			assert.Equal(t, "rucketeer", bkts[0].Name)
 			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "label_2")
 
 			checks := newSum.Checks
@@ -995,6 +995,7 @@ kind: Bucket
 metadata:
   name: rucket_1
 spec:
+  name: rucketeer
   associations:
     - kind: Label
       name: label_1
