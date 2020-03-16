@@ -12,7 +12,6 @@ import {dismissAllNotifications} from 'src/shared/actions/notifications'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import SplashPage from 'src/shared/components/splash_page/SplashPage'
 import SigninForm from 'src/onboarding/components/SigninForm'
 import {
   SpinnerContainer,
@@ -72,7 +71,7 @@ class SigninPage extends PureComponent<Props, State> {
         <FunnelPage className="signin-page">
           <Panel className="signin-page--panel">
             <Panel.Body alignItems={AlignItems.Center}>
-              <SplashPage.Logo />
+              <div className="signin-page--cubo" />
               <InfluxDBCloudLogo cloud={false} className="signin-page--logo" />
               <SigninForm />
             </Panel.Body>
