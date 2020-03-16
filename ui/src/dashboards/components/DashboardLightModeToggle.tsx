@@ -3,7 +3,7 @@ import React, {FC} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {SelectGroup} from '@influxdata/clockface'
+import {SelectGroup, ButtonShape, Icon, IconFont} from '@influxdata/clockface'
 
 // Actions
 import {setTheme} from 'src/shared/actions/app'
@@ -25,22 +25,24 @@ type Props = OwnProps & StateProps & DispatchProps
 
 const DashboardLightModeToggle: FC<Props> = ({theme, onSetTheme}) => {
   return (
-    <SelectGroup testID="presentation-mode-toggle">
+    <SelectGroup testID="presentation-mode-toggle" shape={ButtonShape.Square}>
       <SelectGroup.Option
         onClick={() => onSetTheme('dark')}
         value={false}
         id="presentation-mode-toggle--dark"
         active={theme === 'dark'}
+        titleText="Dark Mode"
       >
-        Dark
+        <Icon glyph={IconFont.Moon} />
       </SelectGroup.Option>
       <SelectGroup.Option
         onClick={() => onSetTheme('light')}
         id="presentation-mode-toggle--light"
         value={true}
         active={theme === 'light'}
+        titleText="Light Mode"
       >
-        Light
+        <Icon glyph={IconFont.Sun} />
       </SelectGroup.Option>
     </SelectGroup>
   )
