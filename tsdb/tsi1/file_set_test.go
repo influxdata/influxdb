@@ -34,7 +34,7 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 		}
 		defer fs.Release()
 
-		seriesIDs := fs.SeriesFile().AllSeriesIDs()
+		seriesIDs := fs.SeriesFile().SeriesIDs()
 		if result := seriesIDsToStrings(fs.SeriesFile(), seriesIDs); !reflect.DeepEqual(result, []string{
 			"cpu,[{region east}]",
 			"cpu,[{region west}]",
@@ -61,7 +61,7 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 		}
 		defer fs.Release()
 
-		seriesIDs := fs.SeriesFile().AllSeriesIDs()
+		seriesIDs := fs.SeriesFile().SeriesIDs()
 		if result := seriesIDsToStrings(fs.SeriesFile(), seriesIDs); !reflect.DeepEqual(result, []string{
 			"cpu,[{region east}]",
 			"cpu,[{region north}]",

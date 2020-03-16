@@ -40,7 +40,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 
 	// Collect series IDs.
 	seriesIDMap := map[string]tsdb.SeriesID{}
-	for _, seriesID := range engine.sfile.AllSeriesIDs() {
+	for _, seriesID := range engine.sfile.SeriesIDs() {
 		if seriesID.IsZero() {
 			break
 		}

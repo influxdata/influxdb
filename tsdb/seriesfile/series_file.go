@@ -346,9 +346,9 @@ func (f *SeriesFile) SeriesCount() uint64 {
 	return n
 }
 
-// AllSeriesIDs returns a slice of all series IDs, sorted.
+// SeriesIDs returns a slice of series IDs in all partitions, sorted.
 // This may return a lot of data at once, so use sparingly.
-func (f *SeriesFile) AllSeriesIDs() []tsdb.SeriesID {
+func (f *SeriesFile) SeriesIDs() []tsdb.SeriesID {
 	var ids []tsdb.SeriesID
 	for _, p := range f.partitions {
 		ids = p.AppendSeriesIDs(ids)

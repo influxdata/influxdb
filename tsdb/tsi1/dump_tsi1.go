@@ -119,7 +119,7 @@ func (cmd *DumpTSI) printSeries(sfile *seriesfile.SeriesFile) error {
 	fmt.Fprintln(tw, "Series\t")
 
 	// Iterate over each series.
-	seriesIDs := sfile.AllSeriesIDs()
+	seriesIDs := sfile.SeriesIDs()
 	for _, seriesID := range seriesIDs {
 		if seriesID.ID == 0 {
 			break
