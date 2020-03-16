@@ -62,8 +62,9 @@ const mstp = (state: AppState): StateProps => {
   const {
     app: {
       ephemeral: {inPresentationMode},
-      persisted: {currentPage, theme},
+      persisted: {theme},
     },
+    currentPage,
   } = state
 
   return {inPresentationMode, currentPage, theme}

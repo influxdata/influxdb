@@ -5,7 +5,7 @@ import {presentationMode} from 'src/shared/copy/notifications'
 
 import {Dispatch} from 'redux'
 
-import {TimeZone, Theme, CurrentPage} from 'src/types'
+import {TimeZone, Theme} from 'src/types'
 
 export enum ActionTypes {
   EnablePresentationMode = 'ENABLE_PRESENTATION_MODE',
@@ -22,10 +22,6 @@ export type Action =
   | ReturnType<typeof setAutoRefresh>
   | ReturnType<typeof setTimeZone>
   | ReturnType<typeof setTheme>
-  | ReturnType<typeof setCurrentPage>
-
-export const setCurrentPage = (currentPage: CurrentPage) =>
-  ({type: 'SET_CURRENT_PAGE', currentPage} as const)
 
 export const setTheme = (theme: Theme) => ({type: 'SET_THEME', theme} as const)
 

@@ -22,7 +22,6 @@ export const localState: LocalStorage = {
       showTemplateControlBar: false,
       timeZone: 'Local' as TimeZone,
       theme: 'dark',
-      currentPage: 'not set',
     },
   },
   VERSION: '2.0.0',

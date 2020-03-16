@@ -14,7 +14,6 @@ export interface AppState {
     showTemplateControlBar: boolean
     timeZone: TimeZone
     theme: 'dark' | 'light'
-    currentPage: 'dashboard' | 'not set'
   }
 }
 
@@ -24,7 +23,6 @@ const initialState: AppState = {
   },
   persisted: {
     theme: 'dark',
-    currentPage: 'not set',
     autoRefresh: AUTOREFRESH_DEFAULT_INTERVAL,
     showTemplateControlBar: false,
     timeZone: 'Local',
@@ -65,10 +63,6 @@ const appPersistedReducer = (
   action: Action
 ): AppState['persisted'] => {
   switch (action.type) {
-    case 'SET_CURRENT_PAGE': {
-      return {...state, currentPage: action.currentPage}
-    }
-
     case 'SET_THEME': {
       return {...state, theme: action.theme}
     }
