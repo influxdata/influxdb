@@ -202,8 +202,25 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = Po
         timestamp,
     } = parsed_line;
 
+    let series_base = generate_series_base(measurement, tag_set.unwrap_or_default())?;
+    let timestamp = timestamp.expect("TODO: default timestamp not supported");
+
+    Ok(field_set.into_iter().map(move |(field_key, field_value)| {
+        let series = format!("{}\t{}", series_base, field_key);
+
+        match field_value {
+            FieldValue::I64(value) => PointType::new_i64(series, value, timestamp),
+            FieldValue::F64(value) => PointType::new_f64(series, value, timestamp),
+        }
+    }))
+}
+
+fn generate_series_base(
+    measurement: Cow<'_, str>,
+    tag_set: Vec<ParsedTagPair<'_>>,
+) -> Result<String> {
     let mut unique_sorted_tag_set = BTreeMap::new();
-    for (tag_key, tag_value) in tag_set.unwrap_or_default() {
+    for (tag_key, tag_value) in tag_set {
         match unique_sorted_tag_set.entry(tag_key) {
             Entry::Vacant(e) => {
                 e.insert(tag_value);
@@ -214,25 +231,14 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = Po
             }
         }
     }
-    let tag_set = unique_sorted_tag_set;
-
-    let timestamp = timestamp.expect("TODO: default timestamp not supported");
 
     let mut series_base = measurement.into_owned();
-    for (tag_key, tag_value) in tag_set {
+    for (tag_key, tag_value) in unique_sorted_tag_set {
         use std::fmt::Write;
         write!(&mut series_base, ",{}={}", tag_key, tag_value).expect("Could not append string");
     }
-    let series_base = series_base;
 
-    Ok(field_set.into_iter().map(move |(field_key, field_value)| {
-        let series = format!("{}\t{}", series_base, field_key);
-
-        match field_value {
-            FieldValue::I64(value) => PointType::new_i64(series, value, timestamp),
-            FieldValue::F64(value) => PointType::new_f64(series, value, timestamp),
-        }
-    }))
+    Ok(series_base)
 }
 
 fn parse_line(i: &str) -> IResult<&str, ParsedLine<'_>> {
