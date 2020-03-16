@@ -134,7 +134,7 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 		return pn, false, nil
 	}
 
-	bodyExpr, ok := filterSpec.Fn.Fn.Block.Body.(semantic.Expression)
+	bodyExpr, ok := getFunctionBodyExpr(filterSpec.Fn.Fn.Block)
 	if !ok {
 		return pn, false, nil
 	}
@@ -165,7 +165,7 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 		newFromSpec.Filter.Block.Body = newBody
 	} else {
 		newFromSpec.FilterSet = true
-		// NOTE: We loose the scope here, but that is ok because we can't push down the scope to storage.
+		// NOTE: We lose the scope here, but that is ok because we can't push down the scope to storage.
 		newFromSpec.Filter = filterSpec.Fn.Fn.Copy().(*semantic.FunctionExpression)
 		newFromSpec.Filter.Block.Body = pushable
 	}
@@ -622,4 +622,26 @@ func (SortedPivotRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 		return nil, false, err
 	}
 	return pn, false, nil
+}
+
+// getFunctionBodyExpr will return the return value expression from
+// the function block. This will only return an expression if there
+// is exactly one expression in the block. It will return false
+// as the second argument if the statement is more complex.
+func getFunctionBodyExpr(fn *semantic.FunctionBlock) (semantic.Expression, bool) {
+	switch e := fn.Body.(type) {
+	case *semantic.Block:
+		if len(e.Body) != 1 {
+			return nil, false
+		}
+		returnExpr, ok := e.Body[0].(*semantic.ReturnStatement)
+		if !ok {
+			return nil, false
+		}
+		return returnExpr.Argument, true
+	case semantic.Expression:
+		return e, true
+	default:
+		return nil, false
+	}
 }

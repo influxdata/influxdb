@@ -471,7 +471,6 @@ func TestPushDownFilterRule(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
-			t.Parallel()
 			plantest.PhysicalRuleTestHelper(t, &tc)
 		})
 	}
