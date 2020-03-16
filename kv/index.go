@@ -193,18 +193,20 @@ func (i *IndexMigration) Name() string {
 
 // Up initializes the index bucket and populates the index.
 func (i *IndexMigration) Up(ctx context.Context, store Store) (err error) {
-	defer func() {
-		if err != nil {
-			err = fmt.Errorf("migration (up) %s: %w", i.Name(), err)
+	wrapErr := func(err error) error {
+		if err == nil {
+			return nil
 		}
-	}()
+
+		return fmt.Errorf("migration (up) %s: %w", i.Name(), err)
+	}
 
 	if err = i.initialize(ctx, store); err != nil {
-		return err
+		return wrapErr(err)
 	}
 
 	_, err = i.Populate(ctx, store, i.opts...)
-	return err
+	return wrapErr(err)
 }
 
 // Down deletes all entries from the index.

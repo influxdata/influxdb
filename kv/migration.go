@@ -148,21 +148,23 @@ func (m *Migrator) List(ctx context.Context, store Store) (migrations []Migratio
 // 0003 add index "foo on baz" | (down)
 //
 // Up would apply migration 0002 and then 0003.
-func (m *Migrator) Up(ctx context.Context, store Store) (err error) {
-	defer func() {
-		if err != nil {
-			err = fmt.Errorf("up: %w", err)
+func (m *Migrator) Up(ctx context.Context, store Store) error {
+	wrapErr := func(err error) error {
+		if err == nil {
+			return nil
 		}
-	}()
+
+		return fmt.Errorf("up: %w", err)
+	}
 
 	var lastMigration int
-	if err = m.walk(ctx, store, func(id influxdb.ID, mig Migration) {
+	if err := m.walk(ctx, store, func(id influxdb.ID, mig Migration) {
 		// we're interested in the last up migration
 		if mig.State == UpMigrationState {
 			lastMigration = int(id)
 		}
 	}); err != nil {
-		return
+		return wrapErr(err)
 	}
 
 	for idx, mig := range m.Migrations[lastMigration:] {
@@ -176,11 +178,11 @@ func (m *Migrator) Up(ctx context.Context, store Store) (err error) {
 		m.logMigrationEvent(UpMigrationState, migration, "started")
 
 		if err := m.putMigration(ctx, store, migration); err != nil {
-			return err
+			return wrapErr(err)
 		}
 
 		if err := mig.Up(ctx, store); err != nil {
-			return err
+			return wrapErr(err)
 		}
 
 		finishedAt := m.now()
@@ -188,7 +190,7 @@ func (m *Migrator) Up(ctx context.Context, store Store) (err error) {
 		migration.State = UpMigrationState
 
 		if err := m.putMigration(ctx, store, migration); err != nil {
-			return err
+			return wrapErr(err)
 		}
 
 		m.logMigrationEvent(UpMigrationState, migration, "completed")
@@ -207,18 +209,20 @@ func (m *Migrator) Up(ctx context.Context, store Store) (err error) {
 //
 // Down would call down() on 0002 and then on 0001.
 func (m *Migrator) Down(ctx context.Context, store Store) (err error) {
-	defer func() {
-		if err != nil {
-			err = fmt.Errorf("down: %w", err)
+	wrapErr := func(err error) error {
+		if err == nil {
+			return nil
 		}
-	}()
+
+		return fmt.Errorf("down: %w", err)
+	}
 
 	var migrations []struct {
 		MigrationSpec
 		Migration
 	}
 
-	if err = m.walk(ctx, store, func(id influxdb.ID, mig Migration) {
+	if err := m.walk(ctx, store, func(id influxdb.ID, mig Migration) {
 		migrations = append(
 			migrations,
 			struct {
@@ -230,7 +234,7 @@ func (m *Migrator) Down(ctx context.Context, store Store) (err error) {
 			},
 		)
 	}); err != nil {
-		return
+		return wrapErr(err)
 	}
 
 	for i := len(migrations) - 1; i >= 0; i-- {
@@ -238,17 +242,18 @@ func (m *Migrator) Down(ctx context.Context, store Store) (err error) {
 
 		m.logMigrationEvent(DownMigrationState, migration.Migration, "started")
 
-		if err = migration.MigrationSpec.Down(ctx, store); err != nil {
-			return
+		if err := migration.MigrationSpec.Down(ctx, store); err != nil {
+			return wrapErr(err)
 		}
 
-		if err = m.deleteMigration(ctx, store, migration.Migration); err != nil {
-			return
+		if err := m.deleteMigration(ctx, store, migration.Migration); err != nil {
+			return wrapErr(err)
 		}
 
 		m.logMigrationEvent(DownMigrationState, migration.Migration, "completed")
 	}
-	return
+
+	return nil
 }
 
 func (m *Migrator) logMigrationEvent(state MigrationState, mig Migration, event string) {
