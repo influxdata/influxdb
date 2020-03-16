@@ -739,6 +739,7 @@ func (p *Pkg) graphLabels() *parseErr {
 
 func (p *Pkg) graphChecks() *parseErr {
 	p.mChecks = make(map[string]*check)
+	uniqNames := make(map[string]bool)
 
 	checkKinds := []struct {
 		kind      Kind
@@ -749,18 +750,37 @@ func (p *Pkg) graphChecks() *parseErr {
 	}
 	var pErr parseErr
 	for _, checkKind := range checkKinds {
-		err := p.eachResource(checkKind.kind, 1, func(o Object) []validationErr {
+		err := p.eachResource(checkKind.kind, checkNameMinLength, func(o Object) []validationErr {
 			nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
 			if _, ok := p.mChecks[nameRef.String()]; ok {
-				return []validationErr{{
-					Field: fieldName,
-					Msg:   "duplicate name: " + o.Name(),
-				}}
+				return []validationErr{
+					objectValidationErr(fieldMetadata, validationErr{
+						Field: fieldName,
+						Msg:   "duplicate name: " + nameRef.String(),
+					}),
+				}
 			}
+
+			displayNameRef := p.getRefWithKnownEnvs(o.Spec, fieldName)
+
+			name := nameRef.String()
+			if displayName := displayNameRef.String(); displayName != "" {
+				name = displayName
+			}
+			if uniqNames[name] {
+				return []validationErr{
+					objectValidationErr(fieldSpec, validationErr{
+						Field: fieldName,
+						Msg:   "duplicate name: " + nameRef.String(),
+					}),
+				}
+			}
+			uniqNames[name] = true
 
 			ch := &check{
 				kind:          checkKind.checkKind,
 				name:          nameRef,
+				displayName:   displayNameRef,
 				description:   o.Spec.stringShort(fieldDescription),
 				every:         o.Spec.durationShort(fieldEvery),
 				level:         o.Spec.stringShort(fieldLevel),
@@ -796,8 +816,8 @@ func (p *Pkg) graphChecks() *parseErr {
 			})
 			sort.Sort(ch.labels)
 
-			p.mChecks[ch.Name()] = ch
-			p.setRefs(nameRef)
+			p.mChecks[ch.PkgName()] = ch
+			p.setRefs(nameRef, displayNameRef)
 			return append(failures, ch.valid()...)
 		})
 		if err != nil {

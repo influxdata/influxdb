@@ -851,11 +851,8 @@ func (b *bucket) summarize() SummaryBucket {
 
 func (b *bucket) valid() []validationErr {
 	var vErrs []validationErr
-	if len(b.Name()) < bucketNameMinLength {
-		vErrs = append(vErrs, validationErr{
-			Field: fieldName,
-			Msg:   fmt.Sprintf("must be a string of at least %d chars in length", bucketNameMinLength),
-		})
+	if err, ok := isValidName(b.Name(), bucketNameMinLength); !ok {
+		vErrs = append(vErrs, err)
 	}
 	vErrs = append(vErrs, b.RetentionRules.valid()...)
 	if len(vErrs) == 0 {
@@ -963,11 +960,14 @@ const (
 	fieldCheckTimeSince             = "timeSince"
 )
 
+const checkNameMinLength = 1
+
 type check struct {
 	id            influxdb.ID
 	orgID         influxdb.ID
 	kind          checkKind
 	name          *references
+	displayName   *references
 	description   string
 	every         time.Duration
 	level         string
@@ -1002,6 +1002,13 @@ func (c *check) Labels() []*label {
 }
 
 func (c *check) Name() string {
+	if displayName := c.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return c.name.String()
+}
+
+func (c *check) PkgName() string {
 	return c.name.String()
 }
 
@@ -1056,6 +1063,9 @@ func (c *check) summarize() SummaryCheck {
 
 func (c *check) valid() []validationErr {
 	var vErrs []validationErr
+	if err, ok := isValidName(c.Name(), checkNameMinLength); !ok {
+		vErrs = append(vErrs, err)
+	}
 	if c.every == 0 {
 		vErrs = append(vErrs, validationErr{
 			Field: fieldEvery,
@@ -1096,7 +1106,14 @@ func (c *check) valid() []validationErr {
 			}
 		}
 	}
-	return vErrs
+
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
 }
 
 type mapperChecks []*check
@@ -1337,11 +1354,8 @@ func (l *label) toInfluxLabel() influxdb.Label {
 
 func (l *label) valid() []validationErr {
 	var vErrs []validationErr
-	if len(l.Name()) < labelNameMinLength {
-		vErrs = append(vErrs, validationErr{
-			Field: fieldName,
-			Msg:   fmt.Sprintf("must be a string of at least %d chars in length", labelNameMinLength),
-		})
+	if err, ok := isValidName(l.Name(), labelNameMinLength); !ok {
+		vErrs = append(vErrs, err)
 	}
 	if len(vErrs) == 0 {
 		return nil
@@ -2844,6 +2858,16 @@ func (r *references) SecretField() influxdb.SecretField {
 		return influxdb.SecretField{Value: &str}
 	}
 	return influxdb.SecretField{}
+}
+
+func isValidName(name string, minLength int) (validationErr, bool) {
+	if len(name) >= minLength {
+		return validationErr{}, true
+	}
+	return validationErr{
+		Field: fieldName,
+		Msg:   fmt.Sprintf("must be a string of at least %d chars in length", minLength),
+	}, false
 }
 
 func toNotificationDuration(dur time.Duration) *notification.Duration {
