@@ -168,7 +168,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 
 	// Initialize series file.
 	e.sfile = seriesfile.NewSeriesFile(c.GetSeriesFilePath(path))
-	e.sfile.LargeWriteThreshold = c.TSDB.LargeSeriesWriteThreshold
+	e.sfile.LargeWriteThreshold = c.SeriesFile.LargeSeriesWriteThreshold
 
 	// Initialise index.
 	e.index = tsi1.NewIndex(e.sfile, c.Index,
@@ -784,17 +784,6 @@ func (e *Engine) SeriesCardinality() int64 {
 // Path returns the path of the engine's base directory.
 func (e *Engine) Path() string {
 	return e.path
-}
-
-// ApplyFnToSeriesIDSet allows the caller to apply fn to the SeriesIDSet held
-// within the engine's index.
-func (e *Engine) ApplyFnToSeriesIDSet(fn func(*tsdb.SeriesIDSet)) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return
-	}
-	fn(e.index.SeriesIDSet())
 }
 
 // MeasurementCardinalityStats returns cardinality stats for all measurements.

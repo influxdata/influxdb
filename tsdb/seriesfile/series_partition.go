@@ -62,7 +62,7 @@ func NewSeriesPartition(id int, path string) *SeriesPartition {
 		path:                path,
 		closing:             make(chan struct{}),
 		CompactThreshold:    DefaultSeriesPartitionCompactThreshold,
-		LargeWriteThreshold: tsdb.DefaultLargeSeriesWriteThreshold,
+		LargeWriteThreshold: DefaultLargeSeriesWriteThreshold,
 		tracker:             newSeriesPartitionTracker(newSeriesFileMetrics(nil), prometheus.Labels{"series_file_partition": fmt.Sprint(id)}),
 		Logger:              zap.NewNop(),
 		seq:                 uint64(id) + 1,

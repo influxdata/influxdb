@@ -1,10 +1,5 @@
 .clockface--app-wrapper.sign-up--page {
-  background-image: linear-gradient(
-    47deg,
-    rgba(19, 0, 45, 0) 65%,
-    rgba(191, 47, 229, 0.4) 100%
-  );
-  background-color: #13002d;
+  background-image: url('../../assets/images/influxLogoBg.svg');
 }
 
 .create-account--button {
@@ -40,11 +35,8 @@
 
 .login--forgot-password {
   color: $c-pool;
-  font-family: Roboto;
-  font-style: normal;
-  font-weight: 500;
-  font-size: 13px;
   line-height: 15px;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -70,14 +62,9 @@
 }
 
 .sign-up--login-container {
-  padding: $ix-marg-b;
+  padding: 24px;
   text-align: center;
   color: $g20-white;
-}
-
-.sign-up--login-text {
-  font-size: 16px;
-  margin-bottom: 0;
 }
 
 .sign-up--page-contents {
@@ -97,6 +84,7 @@
   z-index: 0;
   background: transparent !important;
   z-index: 100;
+  text-align: center;
 }
 
 @media screen and (min-width: $cf-grid--breakpoint-md) {

@@ -480,36 +480,6 @@ type MeasurementIterator interface {
 	Next() ([]byte, error)
 }
 
-type MeasurementIterators []MeasurementIterator
-
-func (a MeasurementIterators) Close() (err error) {
-	for i := range a {
-		if e := a[i].Close(); e != nil && err == nil {
-			err = e
-		}
-	}
-	return err
-}
-
-type measurementSliceIterator struct {
-	names [][]byte
-}
-
-// NewMeasurementSliceIterator returns an iterator over a slice of in-memory measurement names.
-func NewMeasurementSliceIterator(names [][]byte) *measurementSliceIterator {
-	return &measurementSliceIterator{names: names}
-}
-
-func (itr *measurementSliceIterator) Close() (err error) { return nil }
-
-func (itr *measurementSliceIterator) Next() (name []byte, err error) {
-	if len(itr.names) == 0 {
-		return nil, nil
-	}
-	name, itr.names = itr.names[0], itr.names[1:]
-	return name, nil
-}
-
 // MergeMeasurementIterators returns an iterator that merges a set of iterators.
 // Iterators that are first in the list take precedence and a deletion by those
 // early iterators will invalidate elements by later iterators.
@@ -586,39 +556,6 @@ type TagKeyIterator interface {
 	Next() ([]byte, error)
 }
 
-type TagKeyIterators []TagKeyIterator
-
-func (a TagKeyIterators) Close() (err error) {
-	for i := range a {
-		if e := a[i].Close(); e != nil && err == nil {
-			err = e
-		}
-	}
-	return err
-}
-
-// NewTagKeySliceIterator returns a TagKeyIterator that iterates over a slice.
-func NewTagKeySliceIterator(keys [][]byte) *tagKeySliceIterator {
-	return &tagKeySliceIterator{keys: keys}
-}
-
-// tagKeySliceIterator iterates over a slice of tag keys.
-type tagKeySliceIterator struct {
-	keys [][]byte
-}
-
-// Next returns the next tag key in the slice.
-func (itr *tagKeySliceIterator) Next() ([]byte, error) {
-	if len(itr.keys) == 0 {
-		return nil, nil
-	}
-	key := itr.keys[0]
-	itr.keys = itr.keys[1:]
-	return key, nil
-}
-
-func (itr *tagKeySliceIterator) Close() error { return nil }
-
 // MergeTagKeyIterators returns an iterator that merges a set of iterators.
 func MergeTagKeyIterators(itrs ...TagKeyIterator) TagKeyIterator {
 	if len(itrs) == 0 {
@@ -691,17 +628,6 @@ func (itr *tagKeyMergeIterator) Next() (_ []byte, err error) {
 type TagValueIterator interface {
 	Close() error
 	Next() ([]byte, error)
-}
-
-type TagValueIterators []TagValueIterator
-
-func (a TagValueIterators) Close() (err error) {
-	for i := range a {
-		if e := a[i].Close(); e != nil && err == nil {
-			err = e
-		}
-	}
-	return err
 }
 
 // MergeTagValueIterators returns an iterator that merges a set of iterators.
