@@ -127,6 +127,11 @@ func FromHTTPRequest(addr string) ReaderFn {
 		if _, err := io.Copy(&buf, resp.Body); err != nil {
 			return nil, err
 		}
+
+		if resp.StatusCode/100 != 2 {
+			return nil, fmt.Errorf("bad response: status_code=%d body=%q", resp.StatusCode, strings.TrimSpace(buf.String()))
+		}
+
 		return &buf, nil
 	}
 }
