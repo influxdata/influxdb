@@ -29,6 +29,9 @@ class DashboardEmpty extends Component<Props> {
     return (
       <div className="dashboard-empty">
         <EmptyState size={ComponentSize.Large}>
+          <div className="dashboard-empty--graphic">
+            <div className="dashbpard-empty--graphic-content" />
+          </div>
           <EmptyState.Text>
             This Dashboard doesn't have any <b>Cells</b>, why not add one?
           </EmptyState.Text>
