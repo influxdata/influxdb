@@ -1,4 +1,5 @@
 export * from './alerting'
+export * from './app'
 export * from './arguments'
 export * from './ast'
 export * from './auth'

@@ -84,6 +84,20 @@ export const VIS_THEME: Partial<Config> = {
   legendCrosshairColor: InfluxColors.Smoke,
 }
 
+export const VIS_THEME_LIGHT: Partial<Config> = {
+  axisColor: InfluxColors.Whisper,
+  gridColor: InfluxColors.Whisper,
+  gridOpacity: 1,
+  tickFont: '500 11px Rubik',
+  tickFontColor: InfluxColors.Mountain,
+  legendFont: '12px Rubik',
+  legendFontColor: InfluxColors.Graphite,
+  legendFontBrightColor: InfluxColors.Forge,
+  legendBackgroundColor: InfluxColors.Ghost,
+  legendBorder: `1px solid ${InfluxColors.Whisper}`,
+  legendCrosshairColor: InfluxColors.Smoke,
+}
+
 export const GIRAFFE_COLOR_SCHEMES = [
   {name: 'Nineteen Eighty Four', colors: NINETEEN_EIGHTY_FOUR},
   {name: 'Atlantis', colors: ATLANTIS},

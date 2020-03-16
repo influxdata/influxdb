@@ -130,6 +130,7 @@ const TimeMachineVis: SFC<Props> = ({
               checkThresholds={checkThresholds}
               timeZone={timeZone}
               statuses={statuses}
+              theme="dark"
             />
           )}
         </EmptyQueryView>

@@ -80,15 +80,52 @@ $renamable-page-title--padding: 0;
 /* Ensure placeholder text matches font weight of title */
 .cf-input.renamable-page-title--input > input {
   &::-webkit-input-placeholder {
-      font-weight: $cf-page--title-weight !important;
+    font-weight: $cf-page--title-weight !important;
+  }
+  &::-moz-placeholder {
+    font-weight: $cf-page--title-weight !important;
+  }
+  &:-ms-input-placeholder {
+    font-weight: $cf-page--title-weight !important;
+  }
+  &:-moz-placeholder {
+    font-weight: $cf-page--title-weight !important;
+  }
+}
+
+/*
+  Light Mode
+  ------------------------------------------------------------------------------
+*/
+
+.clockface--app-wrapper.dashboard-light-mode {
+  .renamable-page-title > .cf-heading.cf-page--title,
+  .cf-input.renamable-page-title--input > input {
+    color: $g8-storm;
+  }
+  .renamable-page-title.untitled > .cf-heading.cf-page--title {
+    color: $g15-platinum;
+  }
+
+  .renamable-page-title:hover > .cf-heading.cf-page--title {
+    color: $g10-wolf;
+    border-color: $g16-pearl;
+  }
+
+  .cf-input.renamable-page-title--input > input {
+    background-color: $g20-white;
+
+    &::-webkit-input-placeholder {
+      color: $g15-platinum;
     }
     &::-moz-placeholder {
-      font-weight: $cf-page--title-weight !important;
+      color: $g15-platinum;
     }
     &:-ms-input-placeholder {
-      font-weight: $cf-page--title-weight !important;
+      color: $g15-platinum;
     }
     &:-moz-placeholder {
-      font-weight: $cf-page--title-weight !important;
+      color: $g15-platinum;
     }
+  }
 }

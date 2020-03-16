@@ -2,6 +2,7 @@
 
 ### Features
 
+1. [17232](https://github.com/influxdata/influxdb/pull/17232): Allow dashboards to optionally be displayed in light mode
 1. [17273](https://github.com/influxdata/influxdb/pull/17273): Add shell completions command for the influx cli
 
 ### Bug Fixes

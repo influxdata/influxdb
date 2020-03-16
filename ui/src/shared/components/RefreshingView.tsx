@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -27,6 +28,7 @@ import {
   DashboardQuery,
   VariableAssignment,
   QueryViewProperties,
+  Theme,
 } from 'src/types'
 
 interface OwnProps {
@@ -35,6 +37,7 @@ interface OwnProps {
 }
 
 interface StateProps {
+  theme: Theme
   timeRange: TimeRange
   ranges: TimeRange | null
   timeZone: TimeZone
@@ -46,7 +49,7 @@ interface State {
   submitToken: number
 }
 
-type Props = OwnProps & StateProps
+type Props = OwnProps & StateProps & WithRouterProps
 
 class RefreshingView extends PureComponent<Props, State> {
   public static defaultProps = {
@@ -69,7 +72,7 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {ranges, properties, manualRefresh, timeZone} = this.props
+    const {ranges, properties, manualRefresh, timeZone, theme} = this.props
     const {submitToken} = this.state
 
     return (
@@ -105,6 +108,7 @@ class RefreshingView extends PureComponent<Props, State> {
                 timeRange={ranges}
                 statuses={statuses}
                 timeZone={timeZone}
+                theme={theme}
               />
             </EmptyQueryView>
           )
@@ -155,7 +159,7 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const timeRange = getTimeRangeByDashboardID(state, dashboard)
   const valuesStatus = getDashboardValuesStatus(state, dashboard)
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)
-  const timeZone = state.app.persisted.timeZone
+  const {timeZone, theme} = state.app.persisted
 
   return {
     timeRange,
@@ -163,7 +167,10 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     timeZone,
     variableAssignments,
     variablesStatus: valuesStatus,
+    theme,
   }
 }
 
-export default connect<StateProps, {}, OwnProps>(mstp)(RefreshingView)
+export default connect<StateProps, {}, OwnProps>(mstp)(
+  withRouter(RefreshingView)
+)
