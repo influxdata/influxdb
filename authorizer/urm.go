@@ -22,57 +22,12 @@ func NewURMService(orgSvc OrganizationService, s influxdb.UserResourceMappingSer
 	}
 }
 
-func newURMPermission(a influxdb.Action, rt influxdb.ResourceType, orgID, id influxdb.ID) (*influxdb.Permission, error) {
-	return influxdb.NewPermissionAtID(id, a, rt, orgID)
-}
-
-func authorizeReadURM(ctx context.Context, rt influxdb.ResourceType, orgID, id influxdb.ID) error {
-	p, err := newURMPermission(influxdb.ReadAction, rt, orgID, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func authorizeWriteURM(ctx context.Context, rt influxdb.ResourceType, orgID, id influxdb.ID) error {
-	p, err := newURMPermission(influxdb.WriteAction, rt, orgID, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (s *URMService) FindUserResourceMappings(ctx context.Context, filter influxdb.UserResourceMappingFilter, opt ...influxdb.FindOptions) ([]*influxdb.UserResourceMapping, int, error) {
 	urms, _, err := s.s.FindUserResourceMappings(ctx, filter, opt...)
 	if err != nil {
 		return nil, 0, err
 	}
-
-	mappings := urms[:0]
-	for _, urm := range urms {
-		orgID, err := s.orgService.FindResourceOrganizationID(ctx, urm.ResourceType, urm.ResourceID)
-		if err != nil {
-			return nil, 0, err
-		}
-
-		if err := authorizeReadURM(ctx, urm.ResourceType, orgID, urm.ResourceID); err != nil {
-			continue
-		}
-
-		mappings = append(mappings, urm)
-	}
-
-	return mappings, len(mappings), nil
+	return AuthorizeFindUserResourceMappings(ctx, s.orgService, urms)
 }
 
 func (s *URMService) CreateUserResourceMapping(ctx context.Context, m *influxdb.UserResourceMapping) error {
@@ -80,11 +35,9 @@ func (s *URMService) CreateUserResourceMapping(ctx context.Context, m *influxdb.
 	if err != nil {
 		return err
 	}
-
-	if err := authorizeWriteURM(ctx, m.ResourceType, orgID, m.ResourceID); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, m.ResourceType, m.ResourceID, orgID); err != nil {
 		return err
 	}
-
 	return s.s.CreateUserResourceMapping(ctx, m)
 }
 
@@ -100,15 +53,12 @@ func (s *URMService) DeleteUserResourceMapping(ctx context.Context, resourceID i
 		if err != nil {
 			return err
 		}
-
-		if err := authorizeWriteURM(ctx, urm.ResourceType, orgID, urm.ResourceID); err != nil {
+		if _, _, err := AuthorizeWrite(ctx, urm.ResourceType, urm.ResourceID, orgID); err != nil {
 			return err
 		}
-
 		if err := s.s.DeleteUserResourceMapping(ctx, urm.ResourceID, urm.UserID); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
