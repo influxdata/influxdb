@@ -8,6 +8,10 @@
 
 1. [17240](https://github.com/influxdata/influxdb/pull/17240): NodeJS logo displays properly in Firefox
 
+### UI Improvements
+
+1. [17291](https://github.com/influxdata/influxdb/pull/17291): Redesign OSS Login page
+
 ## v2.0.0-beta.6 [2020-03-12]
 
 ### Features
