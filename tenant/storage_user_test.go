@@ -156,7 +156,7 @@ func TestUser(t *testing.T) {
 			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				user5 := "user5"
 				_, err := store.UpdateUser(context.Background(), tx, influxdb.ID(3), influxdb.UserUpdate{Name: &user5})
-				if err != kv.NotUniqueError {
+				if err.Error() != tenant.UserAlreadyExistsError(user5).Error() {
 					t.Fatal("failed to error on duplicate username")
 				}
 

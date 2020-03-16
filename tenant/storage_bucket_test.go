@@ -124,7 +124,7 @@ func TestBucket(t *testing.T) {
 					t.Fatal("failed to get correct error when looking for invalid bucket by id")
 				}
 
-				if _, err := store.GetBucketByName(context.Background(), tx, 3, "notabucket"); err != tenant.ErrBucketNotFound {
+				if _, err := store.GetBucketByName(context.Background(), tx, 3, "notabucket"); err.Error() != tenant.ErrBucketNotFoundByName("notabucket").Error() {
 					t.Fatal("failed to get correct error when looking for invalid bucket by name")
 				}
 
@@ -214,7 +214,7 @@ func TestBucket(t *testing.T) {
 			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				bucket5 := "bucket5"
 				_, err := store.UpdateBucket(context.Background(), tx, influxdb.ID(3), influxdb.BucketUpdate{Name: &bucket5})
-				if err != kv.NotUniqueError {
+				if err != tenant.ErrBucketNameNotUnique {
 					t.Fatal("failed to error on duplicate bucketname")
 				}
 
