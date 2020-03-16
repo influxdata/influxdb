@@ -9,7 +9,7 @@ use nom::{
     IResult,
 };
 use snafu::Snafu;
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{borrow::Cow, collections::btree_map::Entry, collections::BTreeMap};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -164,11 +164,13 @@ pub struct Pair {
     pub value: String,
 }
 
+type ParsedTagPair<'a> = (Cow<'a, str>, Cow<'a, str>);
+
 #[derive(Debug)]
 struct ParsedLine<'a> {
     measurement: Cow<'a, str>,
-    tag_set: Option<Vec<(&'a str, &'a str)>>,
-    field_set: Vec<(&'a str, FieldValue)>,
+    tag_set: Option<Vec<ParsedTagPair<'a>>>,
+    field_set: Vec<(Cow<'a, str>, FieldValue)>,
     timestamp: Option<i64>,
 }
 
@@ -202,8 +204,14 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = Po
 
     let mut unique_sorted_tag_set = BTreeMap::new();
     for (tag_key, tag_value) in tag_set.unwrap_or_default() {
-        if unique_sorted_tag_set.insert(tag_key, tag_value).is_some() {
-            return DuplicateTag { tag_key }.fail();
+        match unique_sorted_tag_set.entry(tag_key) {
+            Entry::Vacant(e) => {
+                e.insert(tag_value);
+            }
+            Entry::Occupied(e) => {
+                let (tag_key, _) = e.remove_entry();
+                return DuplicateTag { tag_key }.fail();
+            }
         }
     }
     let tag_set = unique_sorted_tag_set;
@@ -256,17 +264,30 @@ fn measurement(i: &str) -> IResult<&str, Cow<'_, str>> {
     escape_or_fallback(normal_char, '\\', escaped)(i)
 }
 
-fn tag_set(i: &str) -> IResult<&str, Vec<(&str, &str)>> {
-    let tag_key = take_while1(|c| c != '=');
-    let tag_value = take_while1(|c| c != ',' && c != ' ');
+fn tag_set(i: &str) -> IResult<&str, Vec<ParsedTagPair<'_>>> {
     let one_tag = separated_pair(tag_key, tag("="), tag_value);
     separated_list(tag(","), one_tag)(i)
 }
 
-fn field_set(i: &str) -> IResult<&str, Vec<(&str, FieldValue)>> {
-    let field_key = take_while1(|c| c != '=');
+fn tag_key(i: &str) -> IResult<&str, Cow<'_, str>> {
+    let normal_char = take_while1(|c| c != '=' && c != '\\');
+
+    escaped_value(normal_char)(i)
+}
+
+fn tag_value(i: &str) -> IResult<&str, Cow<'_, str>> {
+    let normal_char = take_while1(|c| c != ',' && c != ' ' && c != '\\');
+    escaped_value(normal_char)(i)
+}
+
+fn field_set(i: &str) -> IResult<&str, Vec<(Cow<'_, str>, FieldValue)>> {
     let one_field = separated_pair(field_key, tag("="), field_value);
     separated_list(tag(","), one_field)(i)
+}
+
+fn field_key(i: &str) -> IResult<&str, Cow<'_, str>> {
+    let normal_char = take_while1(|c| c != '=' && c != '\\');
+    escaped_value(normal_char)(i)
 }
 
 fn field_value(i: &str) -> IResult<&str, FieldValue> {
@@ -290,6 +311,27 @@ fn timestamp(i: &str) -> IResult<&str, i64> {
     map(digit1, |f: &str| {
         f.parse().expect("TODO: parsing timestamp failed")
     })(i)
+}
+
+/// While not all of these escape characters are required to be
+/// escaped, we support the client escaping them proactively to
+/// provide a common experience.
+fn escaped_value<'a, Error>(
+    normal: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
+) -> impl FnOnce(&'a str) -> IResult<&'a str, Cow<'a, str>, Error>
+where
+    Error: nom::error::ParseError<&'a str>,
+{
+    move |i| {
+        let backslash = map(tag("\\"), |_| "\\");
+        let comma = map(tag(","), |_| ",");
+        let equal = map(tag("="), |_| "=");
+        let space = map(tag(" "), |_| " ");
+
+        let escaped = alt((backslash, comma, equal, space));
+
+        escape_or_fallback(normal, '\\', escaped)(i)
+    }
 }
 
 /// Parse an unescaped piece of text, interspersed with
@@ -510,6 +552,81 @@ mod test {
     #[test]
     fn measurement_allows_backslash_with_unknown_escape() -> Result {
         assert_fully_parsed!(measurement(r#"\wea\ther\"#), r#"\wea\ther\"#)
+    }
+
+    #[test]
+    fn tag_key_allows_escaping_comma() -> Result {
+        assert_fully_parsed!(tag_key(r#"wea\,ther"#), r#"wea,ther"#)
+    }
+
+    #[test]
+    fn tag_key_allows_escaping_equal() -> Result {
+        assert_fully_parsed!(tag_key(r#"wea\=ther"#), r#"wea=ther"#)
+    }
+
+    #[test]
+    fn tag_key_allows_escaping_space() -> Result {
+        assert_fully_parsed!(tag_key(r#"wea\ ther"#), r#"wea ther"#)
+    }
+
+    #[test]
+    fn tag_key_allows_escaping_backslash() -> Result {
+        assert_fully_parsed!(tag_key(r#"\\wea\\ther\\"#), r#"\wea\ther\"#)
+    }
+
+    #[test]
+    fn tag_key_allows_backslash_with_unknown_escape() -> Result {
+        assert_fully_parsed!(tag_key(r#"\wea\ther\"#), r#"\wea\ther\"#)
+    }
+
+    #[test]
+    fn tag_value_allows_escaping_comma() -> Result {
+        assert_fully_parsed!(tag_value(r#"wea\,ther"#), r#"wea,ther"#)
+    }
+
+    #[test]
+    fn tag_value_allows_escaping_equal() -> Result {
+        assert_fully_parsed!(tag_value(r#"wea\=ther"#), r#"wea=ther"#)
+    }
+
+    #[test]
+    fn tag_value_allows_escaping_space() -> Result {
+        assert_fully_parsed!(tag_value(r#"wea\ ther"#), r#"wea ther"#)
+    }
+
+    #[test]
+    fn tag_value_allows_escaping_backslash() -> Result {
+        assert_fully_parsed!(tag_value(r#"\\wea\\ther\\"#), r#"\wea\ther\"#)
+    }
+
+    #[test]
+    fn tag_value_allows_backslash_with_unknown_escape() -> Result {
+        assert_fully_parsed!(tag_value(r#"\wea\ther\"#), r#"\wea\ther\"#)
+    }
+
+    #[test]
+    fn field_key_allows_escaping_comma() -> Result {
+        assert_fully_parsed!(field_key(r#"wea\,ther"#), r#"wea,ther"#)
+    }
+
+    #[test]
+    fn field_key_allows_escaping_equal() -> Result {
+        assert_fully_parsed!(field_key(r#"wea\=ther"#), r#"wea=ther"#)
+    }
+
+    #[test]
+    fn field_key_allows_escaping_space() -> Result {
+        assert_fully_parsed!(field_key(r#"wea\ ther"#), r#"wea ther"#)
+    }
+
+    #[test]
+    fn field_key_allows_escaping_backslash() -> Result {
+        assert_fully_parsed!(field_key(r#"\\wea\\ther\\"#), r#"\wea\ther\"#)
+    }
+
+    #[test]
+    fn field_key_allows_backslash_with_unknown_escape() -> Result {
+        assert_fully_parsed!(field_key(r#"\wea\ther\"#), r#"\wea\ther\"#)
     }
 
     #[test]
