@@ -447,7 +447,7 @@ workflows:
               only: /^(?!pull\/).*$/
       - litmus_integration:
           requires:
-            - build
+            - litmus_daily
           filters:
             branches:
               only:
