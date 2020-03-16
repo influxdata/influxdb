@@ -773,12 +773,14 @@ const (
 	fieldLevel        = "level"
 	fieldMin          = "min"
 	fieldMax          = "max"
+	fieldMetadata     = "metadata"
 	fieldName         = "name"
 	fieldOffset       = "offset"
 	fieldOperator     = "operator"
 	fieldPrefix       = "prefix"
 	fieldQuery        = "query"
 	fieldSuffix       = "suffix"
+	fieldSpec         = "spec"
 	fieldStatus       = "status"
 	fieldType         = "type"
 	fieldValue        = "value"
@@ -789,11 +791,14 @@ const (
 	fieldBucketRetentionRules = "retentionRules"
 )
 
+const bucketNameMinLength = 2
+
 type bucket struct {
 	id             influxdb.ID
 	OrgID          influxdb.ID
 	Description    string
 	name           *references
+	displayName    *references
 	RetentionRules retentionRules
 	labels         sortedLabels
 
@@ -815,6 +820,9 @@ func (b *bucket) Labels() []*label {
 }
 
 func (b *bucket) Name() string {
+	if displayName := b.displayName.String(); displayName != "" {
+		return displayName
+	}
 	return b.name.String()
 }
 
@@ -838,7 +846,20 @@ func (b *bucket) summarize() SummaryBucket {
 }
 
 func (b *bucket) valid() []validationErr {
-	return b.RetentionRules.valid()
+	var vErrs []validationErr
+	if len(b.Name()) < 2 {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldName,
+			Msg:   fmt.Sprintf("must be a string of at least %d chars in length", bucketNameMinLength),
+		})
+	}
+	vErrs = append(vErrs, b.RetentionRules.valid()...)
+	if len(vErrs) == 0 {
+		return nil
+	}
+	return []validationErr{
+		objectValidationErr(fieldSpec, vErrs...),
+	}
 }
 
 func (b *bucket) shouldApply() bool {
@@ -2765,6 +2786,9 @@ func (r *references) hasValue() bool {
 }
 
 func (r *references) String() string {
+	if r == nil {
+		return ""
+	}
 	if v := r.StringVal(); v != "" {
 		return v
 	}
