@@ -1310,7 +1310,7 @@ func (s *Service) applyBuckets(buckets []*bucket) applier {
 		influxBucket, err := s.applyBucket(ctx, b)
 		if err != nil {
 			return &applyErrBody{
-				name: b.Name(),
+				name: b.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -1582,7 +1582,7 @@ func (s *Service) applyLabels(labels []*label) applier {
 		influxLabel, err := s.applyLabel(ctx, l)
 		if err != nil {
 			return &applyErrBody{
-				name: l.Name(),
+				name: l.PkgName(),
 				msg:  err.Error(),
 			}
 		}

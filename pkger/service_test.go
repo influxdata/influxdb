@@ -178,7 +178,7 @@ func TestService(t *testing.T) {
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
 					require.NoError(t, err)
 
-					require.Len(t, diff.Labels, 2)
+					require.Len(t, diff.Labels, 3)
 
 					expected := DiffLabel{
 						ID:   SafeID(1),
@@ -192,12 +192,12 @@ func TestService(t *testing.T) {
 							Description: "label 1 description",
 						},
 					}
-					assert.Equal(t, expected, diff.Labels[0])
+					assert.Contains(t, diff.Labels, expected)
 
 					expected.Name = "label_2"
 					expected.New.Color = "#000000"
 					expected.New.Description = "label 2 description"
-					assert.Equal(t, expected, diff.Labels[1])
+					assert.Contains(t, diff.Labels, expected)
 				})
 			})
 
@@ -212,7 +212,7 @@ func TestService(t *testing.T) {
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), 0, pkg)
 					require.NoError(t, err)
 
-					require.Len(t, diff.Labels, 2)
+					require.Len(t, diff.Labels, 3)
 
 					expected := DiffLabel{
 						Name: "label_1",
@@ -221,12 +221,12 @@ func TestService(t *testing.T) {
 							Description: "label 1 description",
 						},
 					}
-					assert.Equal(t, expected, diff.Labels[0])
+					assert.Contains(t, diff.Labels, expected)
 
 					expected.Name = "label_2"
 					expected.New.Color = "#000000"
 					expected.New.Description = "label 2 description"
-					assert.Equal(t, expected, diff.Labels[1])
+					assert.Contains(t, diff.Labels, expected)
 				})
 			})
 		})
@@ -600,12 +600,12 @@ func TestService(t *testing.T) {
 
 		t.Run("labels", func(t *testing.T) {
 			t.Run("successfully creates pkg of labels", func(t *testing.T) {
-				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
+				testfileRunner(t, "testdata/label.json", func(t *testing.T, pkg *Pkg) {
 					fakeLabelSVC := mock.NewLabelService()
 					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
 						i, err := strconv.Atoi(l.Name[len(l.Name)-1:])
 						if err != nil {
-							return err
+							return nil
 						}
 						l.ID = influxdb.ID(i)
 						return nil
@@ -618,20 +618,33 @@ func TestService(t *testing.T) {
 					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
-					require.Len(t, sum.Labels, 2)
-					label1 := sum.Labels[0]
-					assert.Equal(t, SafeID(1), label1.ID)
-					assert.Equal(t, SafeID(orgID), label1.OrgID)
-					assert.Equal(t, "label_1", label1.Name)
-					assert.Equal(t, "#FFFFFF", label1.Properties.Color)
-					assert.Equal(t, "label 1 description", label1.Properties.Description)
+					require.Len(t, sum.Labels, 3)
 
-					label2 := sum.Labels[1]
-					assert.Equal(t, SafeID(2), label2.ID)
-					assert.Equal(t, SafeID(orgID), label2.OrgID)
-					assert.Equal(t, "label_2", label2.Name)
-					assert.Equal(t, "#000000", label2.Properties.Color)
-					assert.Equal(t, "label 2 description", label2.Properties.Description)
+					assert.Contains(t, sum.Labels, SummaryLabel{
+						ID:    1,
+						OrgID: SafeID(orgID),
+						Name:  "label_1",
+						Properties: struct {
+							Color       string `json:"color"`
+							Description string `json:"description"`
+						}{
+							Color:       "#FFFFFF",
+							Description: "label 1 description",
+						},
+					})
+
+					assert.Contains(t, sum.Labels, SummaryLabel{
+						ID:    2,
+						OrgID: SafeID(orgID),
+						Name:  "label_2",
+						Properties: struct {
+							Color       string `json:"color"`
+							Description string `json:"description"`
+						}{
+							Color:       "#000000",
+							Description: "label 2 description",
+						},
+					})
 				})
 			})
 
@@ -665,23 +678,26 @@ func TestService(t *testing.T) {
 					orgID := influxdb.ID(9000)
 
 					pkg.isVerified = true
-					pkgLabel := pkg.mLabels["label_1"]
-					pkgLabel.existing = &influxdb.Label{
-						// makes all pkg changes same as they are on the existing
-						ID:    influxdb.ID(1),
-						OrgID: orgID,
-						Name:  pkgLabel.Name(),
-						Properties: map[string]string{
-							"color":       pkgLabel.Color,
-							"description": pkgLabel.Description,
-						},
+					stubExisting := func(name string, id influxdb.ID) {
+						pkgLabel := pkg.mLabels[name]
+						pkgLabel.existing = &influxdb.Label{
+							// makes all pkg changes same as they are on the existing
+							ID:    id,
+							OrgID: orgID,
+							Name:  pkgLabel.Name(),
+							Properties: map[string]string{
+								"color":       pkgLabel.Color,
+								"description": pkgLabel.Description,
+							},
+						}
 					}
+					stubExisting("label_1", 1)
+					stubExisting("label_3", 3)
 
 					fakeLabelSVC := mock.NewLabelService()
 					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
 						if l.Name == "label_2" {
-							l.ID = influxdb.ID(2)
-							return nil
+							l.ID = 2
 						}
 						return nil
 					}
@@ -697,20 +713,33 @@ func TestService(t *testing.T) {
 					sum, err := svc.Apply(context.TODO(), orgID, 0, pkg)
 					require.NoError(t, err)
 
-					require.Len(t, sum.Labels, 2)
-					label1 := sum.Labels[0]
-					assert.Equal(t, SafeID(1), label1.ID)
-					assert.Equal(t, SafeID(orgID), label1.OrgID)
-					assert.Equal(t, "label_1", label1.Name)
-					assert.Equal(t, "#FFFFFF", label1.Properties.Color)
-					assert.Equal(t, "label 1 description", label1.Properties.Description)
+					require.Len(t, sum.Labels, 3)
 
-					label2 := sum.Labels[1]
-					assert.Equal(t, SafeID(2), label2.ID)
-					assert.Equal(t, SafeID(orgID), label2.OrgID)
-					assert.Equal(t, "label_2", label2.Name)
-					assert.Equal(t, "#000000", label2.Properties.Color)
-					assert.Equal(t, "label 2 description", label2.Properties.Description)
+					assert.Contains(t, sum.Labels, SummaryLabel{
+						ID:    1,
+						OrgID: SafeID(orgID),
+						Name:  "label_1",
+						Properties: struct {
+							Color       string `json:"color"`
+							Description string `json:"description"`
+						}{
+							Color:       "#FFFFFF",
+							Description: "label 1 description",
+						},
+					})
+
+					assert.Contains(t, sum.Labels, SummaryLabel{
+						ID:    2,
+						OrgID: SafeID(orgID),
+						Name:  "label_2",
+						Properties: struct {
+							Color       string `json:"color"`
+							Description string `json:"description"`
+						}{
+							Color:       "#000000",
+							Description: "label 2 description",
+						},
+					})
 
 					assert.Equal(t, 1, fakeLabelSVC.CreateLabelCalls.Count()) // only called for second label
 				})

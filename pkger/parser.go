@@ -678,12 +678,12 @@ func (p *Pkg) graphBuckets() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			bkt.labels = append(bkt.labels, l)
-			p.mLabels[l.Name()].setMapping(bkt, false)
+			p.mLabels[l.PkgName()].setMapping(bkt, false)
 			return nil
 		})
 		sort.Sort(bkt.labels)
 
-		p.mBuckets[o.Name()] = bkt
+		p.mBuckets[bkt.PkgName()] = bkt
 
 		return append(failures, bkt.valid()...)
 	})
@@ -691,24 +691,44 @@ func (p *Pkg) graphBuckets() *parseErr {
 
 func (p *Pkg) graphLabels() *parseErr {
 	p.mLabels = make(map[string]*label)
-	return p.eachResource(KindLabel, 2, func(o Object) []validationErr {
+	uniqNames := make(map[string]bool)
+	return p.eachResource(KindLabel, labelNameMinLength, func(o Object) []validationErr {
 		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
 		if _, ok := p.mLabels[nameRef.String()]; ok {
-			return []validationErr{{
-				Field: fieldName,
-				Msg:   "duplicate name: " + o.Name(),
-			}}
+			return []validationErr{
+				objectValidationErr(fieldMetadata, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
 		}
+
+		displayNameRef := p.getRefWithKnownEnvs(o.Spec, fieldName)
+
+		name := nameRef.String()
+		if displayName := displayNameRef.String(); displayName != "" {
+			name = displayName
+		}
+		if uniqNames[name] {
+			return []validationErr{
+				objectValidationErr(fieldSpec, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
+		}
+		uniqNames[name] = true
 
 		l := &label{
 			name:        nameRef,
+			displayName: displayNameRef,
 			Color:       o.Spec.stringShort(fieldLabelColor),
 			Description: o.Spec.stringShort(fieldDescription),
 		}
-		p.mLabels[l.Name()] = l
-		p.setRefs(nameRef)
+		p.mLabels[l.PkgName()] = l
+		p.setRefs(nameRef, displayNameRef)
 
-		return nil
+		return l.valid()
 	})
 }
 
@@ -766,7 +786,7 @@ func (p *Pkg) graphChecks() *parseErr {
 
 			failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 				ch.labels = append(ch.labels, l)
-				p.mLabels[l.Name()].setMapping(ch, false)
+				p.mLabels[l.PkgName()].setMapping(ch, false)
 				return nil
 			})
 			sort.Sort(ch.labels)
@@ -796,7 +816,7 @@ func (p *Pkg) graphDashboards() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			dash.labels = append(dash.labels, l)
-			p.mLabels[l.Name()].setMapping(dash, false)
+			p.mLabels[l.PkgName()].setMapping(dash, false)
 			return nil
 		})
 		sort.Sort(dash.labels)
@@ -868,7 +888,7 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 			}
 			failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 				endpoint.labels = append(endpoint.labels, l)
-				p.mLabels[l.Name()].setMapping(endpoint, false)
+				p.mLabels[l.PkgName()].setMapping(endpoint, false)
 				return nil
 			})
 			sort.Sort(endpoint.labels)
@@ -919,7 +939,7 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			rule.labels = append(rule.labels, l)
-			p.mLabels[l.Name()].setMapping(rule, false)
+			p.mLabels[l.PkgName()].setMapping(rule, false)
 			return nil
 		})
 		sort.Sort(rule.labels)
@@ -945,7 +965,7 @@ func (p *Pkg) graphTasks() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			t.labels = append(t.labels, l)
-			p.mLabels[l.Name()].setMapping(t, false)
+			p.mLabels[l.PkgName()].setMapping(t, false)
 			return nil
 		})
 		sort.Sort(t.labels)
@@ -966,7 +986,7 @@ func (p *Pkg) graphTelegrafs() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			tele.labels = append(tele.labels, l)
-			p.mLabels[l.Name()].setMapping(tele, false)
+			p.mLabels[l.PkgName()].setMapping(tele, false)
 			return nil
 		})
 		sort.Sort(tele.labels)
@@ -1009,7 +1029,7 @@ func (p *Pkg) graphVariables() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			newVar.labels = append(newVar.labels, l)
-			p.mLabels[l.Name()].setMapping(newVar, false)
+			p.mLabels[l.PkgName()].setMapping(newVar, false)
 			return nil
 		})
 		sort.Sort(newVar.labels)
