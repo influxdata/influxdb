@@ -124,7 +124,7 @@ func NewCheckHandler(log *zap.Logger, b *CheckBackend) *CheckHandler {
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
-		ResourceType:     influxdb.TelegrafsResourceType,
+		ResourceType:     influxdb.ChecksResourceType,
 	}
 	h.HandlerFunc("GET", checksIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", checksIDLabelsPath, newPostLabelHandler(labelBackend))

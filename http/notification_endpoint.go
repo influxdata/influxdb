@@ -119,7 +119,7 @@ func NewNotificationEndpointHandler(log *zap.Logger, b *NotificationEndpointBack
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
-		ResourceType:     influxdb.TelegrafsResourceType,
+		ResourceType:     influxdb.NotificationEndpointResourceType,
 	}
 	h.HandlerFunc("GET", notificationEndpointsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", notificationEndpointsIDLabelsPath, newPostLabelHandler(labelBackend))
