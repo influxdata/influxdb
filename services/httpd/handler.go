@@ -985,7 +985,14 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 
 // serveHealth maps v2 health endpoint to ping endpoint
 func (h *Handler) serveHealth(w http.ResponseWriter, r *http.Request) {
-	b, _ := json.Marshal(map[string]interface{}{"name": "influxdb", "message": "ready for queries and writes", "status": "pass", "checks": []string{}, "version": h.Version})
+	resp := map[string]interface{}{
+		"name":    "influxdb",
+		"message": "ready for queries and writes",
+		"status":  "pass",
+		"checks":  []string{},
+		"version": h.Version,
+	}
+	b, _ := json.Marshal(resp)
 	h.writeHeader(w, http.StatusOK)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if _, err := w.Write(b); err != nil {
