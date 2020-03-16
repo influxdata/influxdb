@@ -33,7 +33,7 @@ func completionCmd(rootCmd *cobra.Command) *cobra.Command {
 		$ source <(influx completion bash) # for bash users
 		$ source <(influx completion zsh)  # for zsh users
 
-	Additionally, you may want to output the completion to a file and source in your .bashrc/.zshrc
+	Additionally, you may want to add this to your .bashrc/.zshrc
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			writer := rootCmd.OutOrStdout()
