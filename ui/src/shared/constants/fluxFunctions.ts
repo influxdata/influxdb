@@ -490,7 +490,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     name: 'csv.from',
     args: [
       {
-        name: 'URL',
+        name: 'url',
         desc: 'The URL to retrieve annotated CSV from.',
         type: 'String',
       },
