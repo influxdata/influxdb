@@ -9,7 +9,7 @@ use nom::{
     IResult,
 };
 use snafu::Snafu;
-use std::collections::BTreeMap;
+use std::{borrow::Cow, collections::BTreeMap};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -166,7 +166,7 @@ pub struct Pair {
 
 #[derive(Debug)]
 struct ParsedLine<'a> {
-    measurement: &'a str,
+    measurement: Cow<'a, str>,
     tag_set: Option<Vec<(&'a str, &'a str)>>,
     field_set: Vec<(&'a str, FieldValue)>,
     timestamp: Option<i64>,
@@ -210,7 +210,7 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = Po
 
     let timestamp = timestamp.expect("TODO: default timestamp not supported");
 
-    let mut series_base = String::from(measurement);
+    let mut series_base = measurement.into_owned();
     for (tag_key, tag_value) in tag_set {
         use std::fmt::Write;
         write!(&mut series_base, ",{}={}", tag_key, tag_value).expect("Could not append string");
@@ -244,8 +244,16 @@ fn parse_line(i: &str) -> IResult<&str, ParsedLine<'_>> {
     })(i)
 }
 
-fn measurement(i: &str) -> IResult<&str, &str> {
-    take_while1(|c| c != ' ' && c != ',')(i)
+fn measurement(i: &str) -> IResult<&str, Cow<'_, str>> {
+    let normal_char = take_while1(|c| c != ' ' && c != ',' && c != '\\');
+
+    let space = map(tag(" "), |_| " ");
+    let comma = map(tag(","), |_| ",");
+    let backslash = map(tag("\\"), |_| "\\");
+
+    let escaped = alt((space, comma, backslash));
+
+    escape_or_fallback(normal_char, '\\', escaped)(i)
 }
 
 fn tag_set(i: &str) -> IResult<&str, Vec<(&str, &str)>> {
@@ -282,6 +290,66 @@ fn timestamp(i: &str) -> IResult<&str, i64> {
     map(digit1, |f: &str| {
         f.parse().expect("TODO: parsing timestamp failed")
     })(i)
+}
+
+/// Parse an unescaped piece of text, interspersed with
+/// potentially-escaped characters. If the character *isn't* escaped,
+/// treat it as a literal character.
+fn escape_or_fallback<'a, Error>(
+    normal: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
+    escape_char: char,
+    escaped: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
+) -> impl Fn(&'a str) -> IResult<&'a str, Cow<'a, str>, Error>
+where
+    Error: nom::error::ParseError<&'a str>,
+{
+    move |i| {
+        let mut result = Cow::from("");
+        let mut head = i;
+
+        if let Ok((remaining, parsed)) = normal(head) {
+            result = Cow::from(parsed);
+            head = remaining;
+        }
+
+        loop {
+            match normal(head) {
+                Ok((remaining, parsed)) => {
+                    result.to_mut().push_str(parsed);
+                    head = remaining;
+                }
+                Err(nom::Err::Error(_)) => {
+                    // FUTURE: https://doc.rust-lang.org/std/primitive.str.html#method.strip_prefix
+                    if head.starts_with(escape_char) {
+                        let after = &head[escape_char.len_utf8()..];
+
+                        match escaped(after) {
+                            Ok((remaining, parsed)) => {
+                                result.to_mut().push_str(parsed);
+                                head = remaining;
+                            }
+                            Err(nom::Err::Error(_)) => {
+                                result.to_mut().push(escape_char);
+                                head = after;
+                            }
+                            Err(e) => return Err(e),
+                        }
+                    } else {
+                        // have we parsed *anything*?
+                        if head == i {
+                            return Err(nom::Err::Error(Error::from_error_kind(
+                                head,
+                                nom::error::ErrorKind::EscapedTransform,
+                            )));
+                        } else {
+                            return Ok((head, result));
+                        }
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -407,6 +475,41 @@ mod test {
         );
 
         Ok(())
+    }
+
+    macro_rules! assert_fully_parsed {
+        ($parse_result:expr, $output:expr $(,)?) => {{
+            let (remaining, parsed) = $parse_result?;
+
+            assert!(
+                remaining.is_empty(),
+                "Some input remained to be parsed: {:?}",
+                remaining,
+            );
+            assert_eq!(parsed, $output, "Did not parse the expected output");
+
+            Ok(())
+        }};
+    }
+
+    #[test]
+    fn measurement_allows_escaping_comma() -> Result {
+        assert_fully_parsed!(measurement(r#"wea\,ther"#), r#"wea,ther"#)
+    }
+
+    #[test]
+    fn measurement_allows_escaping_space() -> Result {
+        assert_fully_parsed!(measurement(r#"wea\ ther"#), r#"wea ther"#)
+    }
+
+    #[test]
+    fn measurement_allows_escaping_backslash() -> Result {
+        assert_fully_parsed!(measurement(r#"\\wea\\ther\\"#), r#"\wea\ther\"#)
+    }
+
+    #[test]
+    fn measurement_allows_backslash_with_unknown_escape() -> Result {
+        assert_fully_parsed!(measurement(r#"\wea\ther\"#), r#"\wea\ther\"#)
     }
 
     #[test]
