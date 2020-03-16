@@ -10,7 +10,7 @@ import GetTimeRange from 'src/dashboards/components/GetTimeRange'
 import DashboardRoute from 'src/shared/components/DashboardRoute'
 
 // Actions
-import {setCurrentPage} from 'src/shared/actions/app'
+import {setCurrentPage} from 'src/shared/reducers/currentPage'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
