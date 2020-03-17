@@ -84,7 +84,7 @@ interface State {
   sortType: SortTypes
 }
 
-type SortKey = keyof Task
+export type SortKey = keyof Task
 
 const Filter = FilterList<Task>()
 
@@ -135,6 +135,10 @@ class TasksPage extends PureComponent<Props, State> {
             limitStatus={limitStatus}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            sortType={sortType}
+            onSort={this.handleSort}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
             <GetResources resources={[ResourceType.Tasks, ResourceType.Labels]}>
@@ -169,7 +173,6 @@ class TasksPage extends PureComponent<Props, State> {
                       sortKey={sortKey}
                       sortDirection={sortDirection}
                       sortType={sortType}
-                      onClickColumn={this.handleClickColumn}
                       checkTaskLimits={checkTaskLimits}
                     />
                   )}
@@ -184,14 +187,12 @@ class TasksPage extends PureComponent<Props, State> {
     )
   }
 
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    let sortType = SortTypes.String
-
-    if (sortKey === 'latestCompleted') {
-      sortType = SortTypes.Date
-    }
-
-    this.setState({sortKey, sortDirection: nextSort, sortType})
+  private handleSort = (
+    sortKey: SortKey,
+    sortDirection: Sort,
+    sortType: SortTypes
+  ) => {
+    this.setState({sortKey, sortDirection, sortType})
   }
 
   private handleActivate = (task: Task) => {
