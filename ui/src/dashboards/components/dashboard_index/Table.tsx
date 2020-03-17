@@ -63,7 +63,7 @@ class DashboardsTable extends PureComponent<Props> {
           <EmptyState size={ComponentSize.Large} testID="empty-dashboards-list">
             <EmptyState.Text>
               No Dashboards match your search term
-          </EmptyState.Text>
+            </EmptyState.Text>
           </EmptyState>
         )
       }
@@ -72,7 +72,7 @@ class DashboardsTable extends PureComponent<Props> {
         <EmptyState size={ComponentSize.Large} testID="empty-dashboards-list">
           <EmptyState.Text>
             Looks like you don't have any <b>Dashboards</b>, why not create one?
-        </EmptyState.Text>
+          </EmptyState.Text>
           <AddResourceDropdown
             onSelectNew={onCreateDashboard}
             onSelectImport={this.summonImportOverlay}

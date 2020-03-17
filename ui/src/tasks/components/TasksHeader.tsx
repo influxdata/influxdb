@@ -10,9 +10,11 @@ import {
   Page,
 } from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 
 // Types
 import {LimitStatus} from 'src/cloud/actions/limits'
+import {setSearchTerm as setSearchTermAction} from 'src/tasks/actions/creators'
 
 interface Props {
   onCreateTask: () => void
@@ -21,6 +23,8 @@ interface Props {
   onImportTask: () => void
   limitStatus: LimitStatus
   onImportFromTemplate: () => void
+  searchTerm: string
+  setSearchTerm: typeof setSearchTermAction
 }
 
 export default class TasksHeader extends PureComponent<Props> {
@@ -31,6 +35,8 @@ export default class TasksHeader extends PureComponent<Props> {
       showInactive,
       onImportTask,
       onImportFromTemplate,
+      setSearchTerm,
+      searchTerm,
     } = this.props
 
     return (
@@ -40,6 +46,11 @@ export default class TasksHeader extends PureComponent<Props> {
         </Page.Header>
         <Page.ControlBar fullWidth={false}>
           <Page.ControlBarLeft>
+            <SearchWidget
+              placeholderText="Filter tasks..."
+              onSearch={setSearchTerm}
+              searchTerm={searchTerm}
+            />
             <InputLabel>Show Inactive</InputLabel>
             <SlideToggle
               active={showInactive}

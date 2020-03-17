@@ -134,6 +134,8 @@ class TasksPage extends PureComponent<Props, State> {
             onImportTask={this.summonImportOverlay}
             onImportFromTemplate={this.summonImportFromTemplateOverlay}
             limitStatus={limitStatus}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
             <GetResources resources={[ResourceType.Tasks, ResourceType.Labels]}>
@@ -160,7 +162,6 @@ class TasksPage extends PureComponent<Props, State> {
                       onAddTaskLabel={onAddTaskLabel}
                       onRunTask={onRunTask}
                       onFilterChange={setSearchTerm}
-                      filterComponent={this.search}
                       onUpdate={updateTaskName}
                       onImportTask={this.summonImportOverlay}
                       onImportFromTemplate={
@@ -231,18 +232,6 @@ class TasksPage extends PureComponent<Props, State> {
     } = this.props
 
     router.push(`/orgs/${orgID}/tasks/import`)
-  }
-
-  private get search(): JSX.Element {
-    const {setSearchTerm, searchTerm} = this.props
-
-    return (
-      <SearchWidget
-        placeholderText="Filter tasks..."
-        onSearch={setSearchTerm}
-        searchTerm={searchTerm}
-      />
-    )
   }
 
   private get filteredTasks(): Task[] {
