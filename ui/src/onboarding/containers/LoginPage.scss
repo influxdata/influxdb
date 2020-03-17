@@ -1,5 +1,8 @@
 .clockface--app-wrapper.sign-up--page {
   background-image: url('../../assets/images/influxLogoBg.svg');
+  background-position: center;
+  background-repeat: none;
+  background-size: cover;
 }
 
 .create-account--button {
@@ -58,33 +61,21 @@
   max-width: 500px;
   width: 400px;
   height: 100%;
-  justify-content: space-between;
 }
 
-.sign-up--login-container {
+.sign-up--subheader {
   padding: 24px;
   text-align: center;
   color: $g20-white;
 }
 
 .sign-up--page-contents {
+  text-align: center;
   .cf-page-contents--padding {
     height: 100vh;
     display: inline-flex;
     width: 100%;
   }
-}
-
-.sign-up--panel {
-  height: 100%;
-  max-width: 1600px;
-  min-height: 670px + $ix-marg-d;
-  padding: $ix-marg-d;
-  margin: auto;
-  z-index: 0;
-  background: transparent !important;
-  z-index: 100;
-  text-align: center;
 }
 
 @media screen and (min-width: $cf-grid--breakpoint-md) {
@@ -96,34 +87,15 @@
     min-height: 100%;
   }
 
-  .sign-up--header-align {
-    text-align: center;
-  }
-
-  .sign-up--image {
-    display: inline-block;
-    position: fixed;
-    z-index: 0;
-    top: 20%;
-    right: 7%;
-    width: 160%;
-    height: 160%;
-  }
-
-  .sign-up--panel:not(.aws) {
+  .sign-up--panel {
     height: 80vh;
     padding: 64px;
-  }
-
-  .sign-up--panel {
     max-height: 800px;
   }
 }
 
 .sign-up--social-button-group {
   position: relative;
-  top: $ix-marg-b;
-  text-align: center;
 
   .signup-text {
     position: relative;
@@ -138,17 +110,4 @@
     float: left;
     top: $icon-margin;
   }
-}
-
-.sign-up--social-header {
-  text-align: center;
-  font-size: 16px;
-  font-weight: 400;
-  margin: 0;
-  line-height: 0;
-}
-
-.sign-up--or {
-  position: relative;
-  top: 7px;
 }
