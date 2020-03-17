@@ -124,7 +124,12 @@ func (s *Service) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 			return err
 		}
 
-		return s.store.CreateBucket(ctx, tx, b)
+		err := s.store.CreateBucket(ctx, tx, b)
+		if err != nil {
+			return err
+		}
+
+		return s.addOrgRelationToResource(ctx, tx, b.OrgID, b.ID, influxdb.BucketsResourceType)
 	})
 }
 
@@ -159,6 +164,10 @@ func (s *Service) DeleteBucket(ctx context.Context, id influxdb.ID) error {
 			// TODO: I think we should allow bucket deletes but maybe im wrong.
 			return errDeleteSystemBucket
 		}
-		return s.store.DeleteBucket(ctx, tx, id)
+
+		if err := s.store.DeleteBucket(ctx, tx, id); err != nil {
+			return err
+		}
+		return s.removeResourceRelations(ctx, tx, id)
 	})
 }

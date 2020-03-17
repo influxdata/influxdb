@@ -270,7 +270,13 @@ func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id influxdb.ID) error 
 		return ErrInternalServiceError(err)
 	}
 
-	return nil
+	// clean up users password
+	ub, err := tx.Bucket(userpasswordBucket)
+	if err != nil {
+		return UnavailablePasswordServiceError(err)
+	}
+
+	return ub.Delete(encodedID)
 }
 
 func (s *Store) GetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID) (string, error) {

@@ -163,6 +163,9 @@ func (s *Service) ComparePassword(ctx context.Context, userID influxdb.ID, passw
 		}
 		h, err := s.store.GetPassword(ctx, tx, userID)
 		if err != nil {
+			if err == kv.ErrKeyNotFound {
+				return EIncorrectPassword
+			}
 			return err
 		}
 		hash = []byte(h)
