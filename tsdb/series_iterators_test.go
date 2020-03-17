@@ -18,7 +18,6 @@ import (
 	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxql"
-	"github.com/stretchr/testify/assert"
 )
 
 func toSeriesIDs(ids []uint64) []tsdb.SeriesID {
@@ -355,26 +354,4 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 			})
 		})
 	}
-}
-
-func TestSeriesIDSet_isEmpty(t *testing.T) {
-	sis := tsdb.NewSeriesIDSet(tsdb.NewSeriesID(1))
-	assert.False(t, sis.IsEmpty())
-
-	sis = tsdb.NewSeriesIDSet()
-	assert.True(t, sis.IsEmpty())
-
-	sis = &tsdb.SeriesIDSet{} // sis.bitmap == nil
-	assert.True(t, sis.IsEmpty())
-}
-
-func TestNewSeriesIDSetIterator(t *testing.T) {
-	sisi := tsdb.NewSeriesIDSetIterator(tsdb.NewSeriesIDSet(tsdb.NewSeriesID(1)))
-	assert.NotNil(t, sisi)
-
-	sisi = tsdb.NewSeriesIDSetIterator(tsdb.NewSeriesIDSet())
-	assert.Nil(t, sisi)
-
-	sisi = tsdb.NewSeriesIDSetIterator(nil)
-	assert.Nil(t, sisi)
 }
