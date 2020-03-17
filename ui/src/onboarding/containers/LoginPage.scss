@@ -63,12 +63,6 @@
   height: 100%;
 }
 
-.sign-up--subheader {
-  padding: 24px;
-  text-align: center;
-  color: $g20-white;
-}
-
 .sign-up--page-contents {
   text-align: center;
   .cf-page-contents--padding {
@@ -81,16 +75,6 @@
 @media screen and (min-width: $cf-grid--breakpoint-md) {
   .sign-up--form-panel {
     max-width: 100%;
-  }
-
-  .sign-up--full-height {
-    min-height: 100%;
-  }
-
-  .sign-up--panel {
-    height: 80vh;
-    padding: 64px;
-    max-height: 800px;
   }
 }
 
