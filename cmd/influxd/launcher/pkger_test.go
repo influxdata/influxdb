@@ -192,7 +192,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		vars := sum.Variables
 		require.Len(t, vars, 1)
-		assert.Equal(t, "var_query_1", vars[0].Name)
+		assert.Equal(t, "query var", vars[0].Name)
 		hasLabelAssociations(t, vars[0].LabelAssociations, 1, "label_1")
 		varArgs := vars[0].Arguments
 		require.NotNil(t, varArgs)
@@ -344,7 +344,7 @@ spec:
 			if !exportAllSum {
 				assert.NotZero(t, vars[0].ID)
 			}
-			assert.Equal(t, "var_query_1", vars[0].Name)
+			assert.Equal(t, "query var", vars[0].Name)
 			hasLabelAssociations(t, vars[0].LabelAssociations, 1, "label_1")
 			varArgs := vars[0].Arguments
 			require.NotNil(t, varArgs)
@@ -1040,6 +1040,7 @@ kind: Variable
 metadata:
   name:  var_query_1
 spec:
+  name: query var
   description: var_query_1 desc
   type: query
   language: flux
@@ -1200,7 +1201,7 @@ kind: Variable
 metadata:
   name:  var_query_1
 spec:
-  descriptin: new desc
+  description: new desc
   type: query
   language: flux
   query: |

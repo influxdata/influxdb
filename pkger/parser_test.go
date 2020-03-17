@@ -3483,28 +3483,28 @@ spec:
 					assert.Equal(t, vals, v.Arguments.Values)
 				}
 
+				varEquals(t,
+					"query var",
+					"query",
+					influxdb.VariableQueryValues{
+						Query:    `buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])`,
+						Language: "flux",
+					},
+					sum.Variables[0],
+				)
+
 				// validates we support all known variable types
 				varEquals(t,
 					"var_const_3",
 					"constant",
 					influxdb.VariableConstantValues([]string{"first val"}),
-					sum.Variables[0],
+					sum.Variables[1],
 				)
 
 				varEquals(t,
 					"var_map_4",
 					"map",
 					influxdb.VariableMapValues{"k1": "v1"},
-					sum.Variables[1],
-				)
-
-				varEquals(t,
-					"var_query_1",
-					"query",
-					influxdb.VariableQueryValues{
-						Query:    `buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])`,
-						Language: "flux",
-					},
 					sum.Variables[2],
 				)
 
@@ -3539,7 +3539,7 @@ spec:
 				{
 					name:           "map var missing values",
 					validationErrs: 1,
-					valFields:      []string{"values"},
+					valFields:      []string{fieldSpec, fieldValues},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
@@ -3552,7 +3552,7 @@ spec:
 				{
 					name:           "const var missing values",
 					validationErrs: 1,
-					valFields:      []string{"values"},
+					valFields:      []string{fieldSpec, fieldValues},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
@@ -3565,7 +3565,7 @@ spec:
 				{
 					name:           "query var missing query",
 					validationErrs: 1,
-					valFields:      []string{"query"},
+					valFields:      []string{fieldSpec, fieldQuery},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
@@ -3579,7 +3579,7 @@ spec:
 				{
 					name:           "query var missing query language",
 					validationErrs: 1,
-					valFields:      []string{"language"},
+					valFields:      []string{fieldSpec, fieldLanguage},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
@@ -3593,7 +3593,7 @@ spec:
 				{
 					name:           "query var provides incorrect query language",
 					validationErrs: 1,
-					valFields:      []string{"language"},
+					valFields:      []string{fieldSpec, fieldLanguage},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
@@ -3608,7 +3608,7 @@ spec:
 				{
 					name:           "duplicate var names",
 					validationErrs: 1,
-					valFields:      []string{"name"},
+					valFields:      []string{fieldMetadata, fieldName},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Variable
 metadata:
@@ -3624,6 +3624,32 @@ kind: Variable
 metadata:
   name:  var_query_2
 spec:
+  description: var_query_2 desc
+  type: query
+  query: an influxql query of sorts
+  language: influxql
+`,
+				},
+				{
+					name:           "duplicate meta name and spec name",
+					validationErrs: 1,
+					valFields:      []string{fieldSpec, fieldName},
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Variable
+metadata:
+  name:  var_query_2
+spec:
+  description: var_query_2 desc
+  type: query
+  query: an influxql query of sorts
+  language: influxql
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Variable
+metadata:
+  name:  valid_query
+spec:
+  name: var_query_2
   description: var_query_2 desc
   type: query
   query: an influxql query of sorts

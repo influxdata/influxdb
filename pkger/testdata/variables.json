@@ -6,7 +6,8 @@
       "name": "var_query_1"
     },
     "spec": {
-      "description": "var_query_1 desc",
+      "name": "query var",
+      "description": "query var desc",
       "type": "query",
       "query": "buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: \"_value\"})  |> keep(columns: [\"_value\"])",
       "language": "flux"

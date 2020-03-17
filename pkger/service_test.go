@@ -403,7 +403,7 @@ func TestService(t *testing.T) {
 						},
 					},
 				}
-				assert.Equal(t, expected, diff.Variables[0])
+				assert.Equal(t, expected, diff.Variables[1])
 
 				expected = DiffVariable{
 					// no ID here since this one would be new
@@ -416,7 +416,7 @@ func TestService(t *testing.T) {
 						},
 					},
 				}
-				assert.Equal(t, expected, diff.Variables[1])
+				assert.Equal(t, expected, diff.Variables[2])
 			})
 		})
 	})
@@ -1330,11 +1330,7 @@ func TestService(t *testing.T) {
 				testfileRunner(t, "testdata/variables.yml", func(t *testing.T, pkg *Pkg) {
 					fakeVarSVC := mock.NewVariableService()
 					fakeVarSVC.CreateVariableF = func(_ context.Context, v *influxdb.Variable) error {
-						id, err := strconv.Atoi(v.Name[len(v.Name)-1:])
-						if err != nil {
-							return err
-						}
-						v.ID = influxdb.ID(id)
+						v.ID = influxdb.ID(fakeVarSVC.CreateVariableCalls.Count() + 1)
 						return nil
 					}
 
@@ -1346,8 +1342,8 @@ func TestService(t *testing.T) {
 					require.NoError(t, err)
 
 					require.Len(t, sum.Variables, 4)
-					expected := sum.Variables[0]
-					assert.Equal(t, SafeID(3), expected.ID)
+					expected := sum.Variables[1]
+					assert.True(t, expected.ID > 0 && expected.ID < 5)
 					assert.Equal(t, SafeID(orgID), expected.OrgID)
 					assert.Equal(t, "var_const_3", expected.Name)
 					assert.Equal(t, "var_const_3 desc", expected.Description)
@@ -1355,7 +1351,7 @@ func TestService(t *testing.T) {
 					assert.Equal(t, influxdb.VariableConstantValues{"first val"}, expected.Arguments.Values)
 
 					for _, actual := range sum.Variables {
-						assert.Contains(t, []SafeID{1, 2, 3, 4}, actual.ID)
+						assert.Containsf(t, []SafeID{1, 2, 3, 4}, actual.ID, "actual var: %+v", actual)
 					}
 				})
 			})
@@ -1419,7 +1415,7 @@ func TestService(t *testing.T) {
 					require.NoError(t, err)
 
 					require.Len(t, sum.Variables, 4)
-					expected := sum.Variables[0]
+					expected := sum.Variables[1]
 					assert.Equal(t, SafeID(1), expected.ID)
 					assert.Equal(t, "var_const_3", expected.Name)
 
