@@ -2004,8 +2004,9 @@ const (
 )
 
 type telegraf struct {
-	name   *references
-	config influxdb.TelegrafConfig
+	name        *references
+	displayName *references
+	config      influxdb.TelegrafConfig
 
 	labels sortedLabels
 }
@@ -2019,6 +2020,13 @@ func (t *telegraf) Labels() []*label {
 }
 
 func (t *telegraf) Name() string {
+	if displayName := t.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return t.name.String()
+}
+
+func (t *telegraf) PkgName() string {
 	return t.name.String()
 }
 
@@ -2037,6 +2045,24 @@ func (t *telegraf) summarize() SummaryTelegraf {
 		TelegrafConfig:    cfg,
 		LabelAssociations: toSummaryLabels(t.labels...),
 	}
+}
+
+func (t *telegraf) valid() []validationErr {
+	var vErrs []validationErr
+	if t.config.Config == "" {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldTelegrafConfig,
+			Msg:   "no config provided",
+		})
+	}
+
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
 }
 
 type mapperTelegrafs []*telegraf

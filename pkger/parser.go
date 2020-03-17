@@ -242,7 +242,7 @@ type Pkg struct {
 	mNotificationEndpoints map[string]*notificationEndpoint
 	mNotificationRules     []*notificationRule
 	mTasks                 []*task
-	mTelegrafs             []*telegraf
+	mTelegrafs             map[string]*telegraf
 	mVariables             map[string]*variable
 
 	mEnv     map[string]bool
@@ -1029,11 +1029,23 @@ func (p *Pkg) graphTasks() *parseErr {
 }
 
 func (p *Pkg) graphTelegrafs() *parseErr {
-	p.mTelegrafs = make([]*telegraf, 0)
+	p.mTelegrafs = make(map[string]*telegraf)
 	return p.eachResource(KindTelegraf, 0, func(o Object) []validationErr {
-		tele := &telegraf{
-			name: p.getRefWithKnownEnvs(o.Metadata, fieldName),
+		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
+		if _, ok := p.mTelegrafs[nameRef.String()]; ok {
+			return []validationErr{
+				objectValidationErr(fieldMetadata, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
 		}
+
+		tele := &telegraf{
+			name:        p.getRefWithKnownEnvs(o.Metadata, fieldName),
+			displayName: p.getRefWithKnownEnvs(o.Spec, fieldName),
+		}
+		tele.config.Config = o.Spec.stringShort(fieldTelegrafConfig)
 		tele.config.Description = o.Spec.stringShort(fieldDescription)
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
@@ -1043,18 +1055,10 @@ func (p *Pkg) graphTelegrafs() *parseErr {
 		})
 		sort.Sort(tele.labels)
 
-		tele.config.Config = o.Spec.stringShort(fieldTelegrafConfig)
-		if tele.config.Config == "" {
-			failures = append(failures, validationErr{
-				Field: fieldTelegrafConfig,
-				Msg:   "no config provided",
-			})
-		}
-
-		p.mTelegrafs = append(p.mTelegrafs, tele)
+		p.mTelegrafs[tele.PkgName()] = tele
 		p.setRefs(tele.name)
 
-		return failures
+		return append(failures, tele.valid()...)
 	})
 }
 

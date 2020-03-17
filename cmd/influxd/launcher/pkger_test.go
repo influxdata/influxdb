@@ -186,7 +186,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		teles := sum.TelegrafConfigs
 		require.Len(t, teles, 1)
-		assert.Equal(t, "first_tele_config", teles[0].TelegrafConfig.Name)
+		assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
 		assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
 		hasLabelAssociations(t, teles[0].LabelAssociations, 1, "label_1")
 
@@ -335,7 +335,7 @@ spec:
 				assert.NotZero(t, teles[0].TelegrafConfig.ID)
 				assert.Equal(t, l.Org.ID, teles[0].TelegrafConfig.OrgID)
 			}
-			assert.Equal(t, "first_tele_config", teles[0].TelegrafConfig.Name)
+			assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
 			assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
 			assert.Equal(t, telConf, teles[0].TelegrafConfig.Config)
 
@@ -1055,6 +1055,7 @@ kind: Telegraf
 metadata:
   name:  first_tele_config
 spec:
+  name: first tele config
   description: desc
   associations:
     - kind: Label
