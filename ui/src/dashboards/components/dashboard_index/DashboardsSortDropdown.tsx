@@ -81,6 +81,7 @@ const DashboardsSortDropdown: FC<ComponentProps> = ({
           key={`${item.sortKey}${item.sortDirection}`}
           value={item}
           onClick={handleItemClick}
+          testID={`dashboard-sort--${item.sortKey}-${item.sortDirection}`}
           selected={
             item.sortKey === sortKey &&
             item.sortType === sortType &&
