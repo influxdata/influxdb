@@ -1,6 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
-import {AppWrapper, Columns, Grid, Page} from '@influxdata/clockface'
+import {AppWrapper, Page} from '@influxdata/clockface'
 
 // Components
 import ErrorBoundary from 'src/shared/components/ErrorBoundary'
