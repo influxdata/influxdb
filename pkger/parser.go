@@ -1060,17 +1060,37 @@ func (p *Pkg) graphTelegrafs() *parseErr {
 
 func (p *Pkg) graphVariables() *parseErr {
 	p.mVariables = make(map[string]*variable)
+	uniqNames := make(map[string]bool)
 	return p.eachResource(KindVariable, 1, func(o Object) []validationErr {
 		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
 		if _, ok := p.mVariables[nameRef.String()]; ok {
-			return []validationErr{{
-				Field: fieldName,
-				Msg:   "duplicate name: " + nameRef.String(),
-			}}
+			return []validationErr{
+				objectValidationErr(fieldMetadata, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
 		}
+
+		displayNameRef := p.getRefWithKnownEnvs(o.Spec, fieldName)
+
+		name := nameRef.String()
+		if displayName := displayNameRef.String(); displayName != "" {
+			name = displayName
+		}
+		if uniqNames[name] {
+			return []validationErr{
+				objectValidationErr(fieldSpec, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
+		}
+		uniqNames[name] = true
 
 		newVar := &variable{
 			name:        nameRef,
+			displayName: displayNameRef,
 			Description: o.Spec.stringShort(fieldDescription),
 			Type:        normStr(o.Spec.stringShort(fieldType)),
 			Query:       strings.TrimSpace(o.Spec.stringShort(fieldQuery)),
@@ -1086,8 +1106,8 @@ func (p *Pkg) graphVariables() *parseErr {
 		})
 		sort.Sort(newVar.labels)
 
-		p.mVariables[o.Name()] = newVar
-		p.setRefs(newVar.name)
+		p.mVariables[newVar.PkgName()] = newVar
+		p.setRefs(newVar.name, newVar.displayName)
 
 		return append(failures, newVar.valid()...)
 	})

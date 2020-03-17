@@ -2059,6 +2059,7 @@ type variable struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
 	name        *references
+	displayName *references
 	Description string
 	Type        string
 	Query       string
@@ -2087,6 +2088,13 @@ func (v *variable) Labels() []*label {
 }
 
 func (v *variable) Name() string {
+	if displayName := v.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return v.name.String()
+}
+
+func (v *variable) PkgName() string {
 	return v.name.String()
 }
 
@@ -2161,7 +2169,13 @@ func (v *variable) valid() []validationErr {
 			})
 		}
 	}
-	return failures
+	if len(failures) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, failures...),
+		}
+	}
+
+	return nil
 }
 
 type mapperVariables []*variable
