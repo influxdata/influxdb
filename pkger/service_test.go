@@ -1068,6 +1068,7 @@ func TestService(t *testing.T) {
 					require.Len(t, sum.NotificationEndpoints, 5)
 
 					containsWithID := func(t *testing.T, name string) {
+						var endpoints []string
 						for _, actualNotification := range sum.NotificationEndpoints {
 							actual := actualNotification.NotificationEndpoint
 							if actual.GetID() == 0 {
@@ -1076,16 +1077,17 @@ func TestService(t *testing.T) {
 							if actual.GetName() == name {
 								return
 							}
+							endpoints = append(endpoints, fmt.Sprintf("%+v", actual))
 						}
-						assert.Fail(t, "did not find notification by name: "+name)
+						assert.Failf(t, "did not find notification by name: "+name, "endpoints received: %s", endpoints)
 					}
 
 					expectedNames := []string{
-						"http_basic_auth_notification_endpoint",
+						"basic endpoint name",
 						"http_bearer_auth_notification_endpoint",
 						"http_none_auth_notification_endpoint",
-						"pager_duty_notification_endpoint",
-						"slack_notification_endpoint",
+						"pager duty name",
+						"slack name",
 					}
 					for _, expectedName := range expectedNames {
 						containsWithID(t, expectedName)

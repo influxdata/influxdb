@@ -969,7 +969,7 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 	mPkgEndpoints := make(map[string]influxdb.NotificationEndpoint)
 	for _, e := range pkg.mNotificationEndpoints {
 		influxEndpoint := e.summarize().NotificationEndpoint
-		mPkgEndpoints[influxEndpoint.GetName()] = influxEndpoint
+		mPkgEndpoints[e.PkgName()] = influxEndpoint
 	}
 
 	diffs := make([]DiffNotificationRule, 0, len(mExisting))
@@ -1271,7 +1271,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 
 	// this has to be run after the above primary resources, because it relies on
 	// notification endpoints already being applied.
-	app, err := s.applyNotificationRulesGenerator(ctx, orgID, pkg.notificationRules())
+	app, err := s.applyNotificationRulesGenerator(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, err
 	}
@@ -1753,7 +1753,7 @@ func (s *Service) rollbackNotificationEndpoints(endpoints []*notificationEndpoin
 	return nil
 }
 
-func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID influxdb.ID, rules []*notificationRule) (applier, error) {
+func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (applier, error) {
 	endpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
 		OrgID: &orgID,
 	})
@@ -1772,6 +1772,17 @@ func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID inf
 			eType: e.Type(),
 		}
 	}
+	for _, e := range pkg.notificationEndpoints() {
+		if _, ok := mEndpoints[e.PkgName()]; ok {
+			continue
+		}
+		mEndpoints[e.PkgName()] = mVal{
+			id:    e.ID(),
+			eType: e.summarize().NotificationEndpoint.Type(),
+		}
+	}
+
+	rules := pkg.notificationRules()
 
 	var errs applyErrs
 	for _, r := range rules {

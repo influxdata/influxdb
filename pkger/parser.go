@@ -868,6 +868,7 @@ func (p *Pkg) graphDashboards() *parseErr {
 
 func (p *Pkg) graphNotificationEndpoints() *parseErr {
 	p.mNotificationEndpoints = make(map[string]*notificationEndpoint)
+	uniqNames := make(map[string]bool)
 
 	notificationKinds := []struct {
 		kind             Kind
@@ -892,15 +893,34 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 		err := p.eachResource(nk.kind, 1, func(o Object) []validationErr {
 			nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
 			if _, ok := p.mNotificationEndpoints[nameRef.String()]; ok {
-				return []validationErr{{
-					Field: fieldName,
-					Msg:   "duplicate name: " + o.Name(),
-				}}
+				return []validationErr{
+					objectValidationErr(fieldMetadata, validationErr{
+						Field: fieldName,
+						Msg:   "duplicate name: " + nameRef.String(),
+					}),
+				}
 			}
+
+			displayNameRef := p.getRefWithKnownEnvs(o.Spec, fieldName)
+
+			name := nameRef.String()
+			if displayName := displayNameRef.String(); displayName != "" {
+				name = displayName
+			}
+			if uniqNames[name] {
+				return []validationErr{
+					objectValidationErr(fieldSpec, validationErr{
+						Field: fieldName,
+						Msg:   "duplicate name: " + nameRef.String(),
+					}),
+				}
+			}
+			uniqNames[name] = true
 
 			endpoint := &notificationEndpoint{
 				kind:        nk.notificationKind,
 				name:        nameRef,
+				displayName: displayNameRef,
 				description: o.Spec.stringShort(fieldDescription),
 				method:      strings.TrimSpace(strings.ToUpper(o.Spec.stringShort(fieldNotificationEndpointHTTPMethod))),
 				httpType:    normStr(o.Spec.stringShort(fieldType)),
@@ -918,9 +938,16 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 			})
 			sort.Sort(endpoint.labels)
 
-			p.setRefs(nameRef, endpoint.password, endpoint.routingKey, endpoint.token, endpoint.username)
+			p.setRefs(
+				nameRef,
+				displayNameRef,
+				endpoint.password,
+				endpoint.routingKey,
+				endpoint.token,
+				endpoint.username,
+			)
 
-			p.mNotificationEndpoints[endpoint.Name()] = endpoint
+			p.mNotificationEndpoints[endpoint.PkgName()] = endpoint
 			return append(failures, endpoint.valid()...)
 		})
 		if err != nil {

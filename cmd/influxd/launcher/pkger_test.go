@@ -173,7 +173,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		endpoints := sum.NotificationEndpoints
 		require.Len(t, endpoints, 1)
-		assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].NotificationEndpoint.GetName())
+		assert.Equal(t, "no auth endpoint", endpoints[0].NotificationEndpoint.GetName())
 		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
 		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
 
@@ -300,7 +300,7 @@ spec:
 			if !exportAllSum {
 				assert.NotZero(t, endpoints[0].NotificationEndpoint.GetID())
 			}
-			assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].NotificationEndpoint.GetName())
+			assert.Equal(t, "no auth endpoint", endpoints[0].NotificationEndpoint.GetName())
 			assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
 			assert.Equal(t, influxdb.TaskStatusInactive, string(endpoints[0].NotificationEndpoint.GetStatus()))
 			hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
@@ -312,7 +312,11 @@ spec:
 			}
 			assert.Equal(t, "rule_0", rule.Name)
 			assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
-			assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointName)
+			endpointName := "http_none_auth_notification_endpoint"
+			if exportAllSum {
+				endpointName = "no auth endpoint"
+			}
+			assert.Equal(t, endpointName, rule.EndpointName)
 			if !exportAllSum {
 				assert.Equalf(t, "http", rule.EndpointType, "rule: %+v", rule)
 			}
@@ -648,7 +652,7 @@ spec:
 			newRule := newSum.NotificationRules[0]
 			assert.Equal(t, "new rule name", newRule.Name)
 			assert.Zero(t, newRule.EndpointID)
-			assert.Equal(t, sum1Rules[0].EndpointName, newRule.EndpointName)
+			assert.Equal(t, "no auth endpoint", newRule.EndpointName)
 			hasLabelAssociations(t, newRule.LabelAssociations, 1, "label_1")
 
 			require.Len(t, newSum.Tasks, 1)
@@ -1061,6 +1065,7 @@ kind: NotificationEndpointHTTP
 metadata:
   name:  http_none_auth_notification_endpoint
 spec:
+  name: no auth endpoint
   type: none
   description: http none auth desc
   method: GET
@@ -1209,6 +1214,7 @@ kind: NotificationEndpointHTTP
 metadata:
   name:  http_none_auth_notification_endpoint
 spec:
+  name: no auth endpoint
   type: none
   description: new desc
   method: GET
