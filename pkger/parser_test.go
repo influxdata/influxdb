@@ -3429,7 +3429,7 @@ spec:
 				require.Len(t, sum.TelegrafConfigs, 1)
 
 				actual := sum.TelegrafConfigs[0]
-				assert.Equal(t, "first_tele_config", actual.TelegrafConfig.Name)
+				assert.Equal(t, "display name", actual.TelegrafConfig.Name)
 				assert.Equal(t, "desc", actual.TelegrafConfig.Description)
 
 				require.Len(t, actual.LabelAssociations, 1)
@@ -3437,7 +3437,7 @@ spec:
 
 				require.Len(t, sum.LabelMappings, 1)
 				expectedMapping := SummaryLabelMapping{
-					ResourceName: "first_tele_config",
+					ResourceName: "display name",
 					LabelName:    "label_1",
 					ResourceType: influxdb.TelegrafsResourceType,
 				}
@@ -3450,12 +3450,31 @@ spec:
 				{
 					name:           "config missing",
 					validationErrs: 1,
-					valFields:      []string{"config"},
+					valFields:      []string{fieldSpec, fieldTelegrafConfig},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Telegraf
 metadata:
   name: first_tele_config
 spec:
+`,
+				},
+				{
+					name:           "duplicate metadata names",
+					validationErrs: 1,
+					valFields:      []string{fieldMetadata, fieldName},
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Telegraf
+metadata:
+  name: tele_0
+spec:
+  config: fake tele config
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Telegraf
+metadata:
+  name: tele_0
+spec:
+  config: fake tele config
 `,
 				},
 			}

@@ -1289,7 +1289,7 @@ func TestService(t *testing.T) {
 					require.NoError(t, err)
 
 					require.Len(t, sum.TelegrafConfigs, 1)
-					assert.Equal(t, "first_tele_config", sum.TelegrafConfigs[0].TelegrafConfig.Name)
+					assert.Equal(t, "display name", sum.TelegrafConfigs[0].TelegrafConfig.Name)
 					assert.Equal(t, "desc", sum.TelegrafConfigs[0].TelegrafConfig.Description)
 				})
 			})
@@ -1311,7 +1311,7 @@ func TestService(t *testing.T) {
 						return nil
 					}
 
-					pkg.mTelegrafs = append(pkg.mTelegrafs, pkg.mTelegrafs[0])
+					pkg.mTelegrafs["first_tele_config_copy"] = pkg.mTelegrafs["first_tele_config"]
 
 					svc := newTestService(WithTelegrafSVC(fakeTeleSVC))
 
