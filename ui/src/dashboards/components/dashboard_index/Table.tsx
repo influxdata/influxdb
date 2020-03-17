@@ -14,6 +14,7 @@ import {getLabels} from 'src/labels/actions/thunks'
 // Types
 import {AppState, Dashboard, RemoteDataState} from 'src/types'
 import {Sort, ComponentSize} from '@influxdata/clockface'
+import {SortKey} from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 import {SortTypes} from 'src/shared/utils/sort'
 
 interface OwnProps {
@@ -21,11 +22,8 @@ interface OwnProps {
   onFilterChange: (searchTerm: string) => void
   filterComponent?: JSX.Element
   dashboards: Dashboard[]
-}
-
-interface State {
-  sortKey: SortKey
   sortDirection: Sort
+  sortKey: SortKey
   sortType: SortTypes
 }
 
@@ -39,26 +37,23 @@ interface DispatchProps {
   getLabels: typeof getLabels
 }
 
-type SortKey = keyof Dashboard | 'meta.updatedAt'
-
 type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
 
-class DashboardsTable extends PureComponent<Props, State> {
-  state: State = {
-    sortKey: 'name',
-    sortDirection: Sort.Ascending,
-    sortType: SortTypes.String,
-  }
-
+class DashboardsTable extends PureComponent<Props> {
   public componentDidMount() {
     this.props.getDashboards()
     this.props.getLabels()
   }
 
   public render() {
-    const {status, dashboards, filterComponent, onFilterChange} = this.props
-
-    const {sortKey, sortDirection, sortType} = this.state
+    const {
+      status,
+      dashboards,
+      onFilterChange,
+      sortKey,
+      sortDirection,
+      sortType,
+    } = this.props
 
     let body
 
@@ -84,7 +79,7 @@ class DashboardsTable extends PureComponent<Props, State> {
 
     return (
       <ResourceList>
-        <ResourceList.Header filterComponent={filterComponent}>
+        {/* <ResourceList.Header filterComponent={filterComponent}>
           <ResourceList.Sorter
             name="name"
             sortKey="name"
@@ -97,7 +92,7 @@ class DashboardsTable extends PureComponent<Props, State> {
             sort={sortKey === 'meta.updatedAt' ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
-        </ResourceList.Header>
+        </ResourceList.Header> */}
         {body}
       </ResourceList>
     )
