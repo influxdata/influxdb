@@ -94,7 +94,13 @@ const DashboardsSortDropdown: FC<ComponentProps> = ({
     </Dropdown.Menu>
   )
 
-  return <Dropdown button={button} menu={menu} style={{width: '210px'}} />
+  return (
+    <Dropdown
+      button={button}
+      menu={menu}
+      style={{flexBasis: '210px', width: '210px'}}
+    />
+  )
 }
 
 export default DashboardsSortDropdown
