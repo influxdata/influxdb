@@ -1415,6 +1415,7 @@ type notificationEndpoint struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
 	name        *references
+	displayName *references
 	description string
 	method      string
 	password    *references
@@ -1446,6 +1447,13 @@ func (n *notificationEndpoint) Labels() []*label {
 }
 
 func (n *notificationEndpoint) Name() string {
+	if displayName := n.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return n.name.String()
+}
+
+func (n *notificationEndpoint) PkgName() string {
 	return n.name.String()
 }
 
@@ -1590,7 +1598,14 @@ func (n *notificationEndpoint) valid() []validationErr {
 			})
 		}
 	}
-	return failures
+
+	if len(failures) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, failures...),
+		}
+	}
+
+	return nil
 }
 
 type mapperNotificationEndpoints []*notificationEndpoint

@@ -2664,7 +2664,7 @@ spec:
 					{
 						NotificationEndpoint: &endpoint.HTTP{
 							Base: endpoint.Base{
-								Name:        "http_basic_auth_notification_endpoint",
+								Name:        "basic endpoint name",
 								Description: "http basic auth desc",
 								Status:      influxdb.TaskStatusInactive,
 							},
@@ -2703,7 +2703,7 @@ spec:
 					{
 						NotificationEndpoint: &endpoint.PagerDuty{
 							Base: endpoint.Base{
-								Name:        "pager_duty_notification_endpoint",
+								Name:        "pager duty name",
 								Description: "pager duty desc",
 								Status:      influxdb.TaskStatusActive,
 							},
@@ -2714,7 +2714,7 @@ spec:
 					{
 						NotificationEndpoint: &endpoint.Slack{
 							Base: endpoint.Base{
-								Name:        "slack_notification_endpoint",
+								Name:        "slack name",
 								Description: "slack desc",
 								Status:      influxdb.TaskStatusActive,
 							},
@@ -2754,7 +2754,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing slack url",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationEndpointURL},
+						valFields:      []string{fieldSpec, fieldNotificationEndpointURL},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointSlack
 metadata:
@@ -2768,7 +2768,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing pager duty url",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationEndpointURL},
+						valFields:      []string{fieldSpec, fieldNotificationEndpointURL},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointPagerDuty
 metadata:
@@ -2782,7 +2782,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing http url",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationEndpointURL},
+						valFields:      []string{fieldSpec, fieldNotificationEndpointURL},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
@@ -2798,7 +2798,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "bad url",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationEndpointURL},
+						valFields:      []string{fieldSpec, fieldNotificationEndpointURL},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
@@ -2815,7 +2815,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing http method",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationEndpointHTTPMethod},
+						valFields:      []string{fieldSpec, fieldNotificationEndpointHTTPMethod},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
@@ -2831,7 +2831,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "invalid http method",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationEndpointHTTPMethod},
+						valFields:      []string{fieldSpec, fieldNotificationEndpointHTTPMethod},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
@@ -2849,7 +2849,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing basic username",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationEndpointUsername},
+						valFields:      []string{fieldSpec, fieldNotificationEndpointUsername},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
@@ -2867,7 +2867,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing basic password",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationEndpointPassword},
+						valFields:      []string{fieldSpec, fieldNotificationEndpointPassword},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
@@ -2885,7 +2885,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing basic password and username",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationEndpointPassword, fieldNotificationEndpointUsername},
+						valFields:      []string{fieldSpec, fieldNotificationEndpointPassword, fieldNotificationEndpointUsername},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
@@ -2903,7 +2903,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing bearer token",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationEndpointToken},
+						valFields:      []string{fieldSpec, fieldNotificationEndpointToken},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
@@ -2921,7 +2921,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "invalid http type",
 						validationErrs: 1,
-						valFields:      []string{fieldType},
+						valFields:      []string{fieldSpec, fieldType},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointHTTP
 metadata:
@@ -2939,7 +2939,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "duplicate endpoints",
 						validationErrs: 1,
-						valFields:      []string{fieldName},
+						valFields:      []string{fieldMetadata, fieldName},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointSlack
 metadata:
@@ -2961,7 +2961,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "invalid status",
 						validationErrs: 1,
-						valFields:      []string{fieldStatus},
+						valFields:      []string{fieldSpec, fieldStatus},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationEndpointSlack
 metadata:
@@ -2970,6 +2970,31 @@ spec:
   description: slack desc
   url: https://hooks.slack.com/services/bip/piddy/boppidy
   status: RANDO STATUS
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointSlack,
+					resErr: testPkgResourceError{
+						name:           "duplicate meta name and spec name",
+						validationErrs: 1,
+						valFields:      []string{fieldSpec, fieldName},
+						pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointSlack
+metadata:
+  name: slack
+spec:
+  description: slack desc
+  url: https://hooks.slack.com/services/bip/piddy/boppidy
+---
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationEndpointSlack
+metadata:
+  name: slack_notification_endpoint
+spec:
+  name: slack
+  description: slack desc
+  url: https://hooks.slack.com/services/bip/piddy/boppidy
 `,
 					},
 				},
