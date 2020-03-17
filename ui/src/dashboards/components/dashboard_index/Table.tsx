@@ -5,7 +5,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {EmptyState, ResourceList} from '@influxdata/clockface'
+import {EmptyState} from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
 import {createDashboard, getDashboards} from 'src/dashboards/actions/thunks'
@@ -53,58 +53,46 @@ class DashboardsTable extends PureComponent<Props> {
       sortKey,
       sortDirection,
       sortType,
+      onCreateDashboard,
+      searchTerm,
     } = this.props
 
-    let body
-
     if (status === RemoteDataState.Done && !dashboards.length) {
-      body = (
-        <ResourceList.Body emptyState={null}>
-          {this.emptyState}
-        </ResourceList.Body>
-      )
-    } else {
-      body = (
-        <ResourceList.Body style={{height: '100%'}} emptyState={null}>
-          <DashboardCards
-            dashboards={dashboards}
-            sortKey={sortKey}
-            sortDirection={sortDirection}
-            sortType={sortType}
-            onFilterChange={onFilterChange}
+      if (searchTerm) {
+        return (
+          <EmptyState size={ComponentSize.Large} testID="empty-dashboards-list">
+            <EmptyState.Text>
+              No Dashboards match your search term
+          </EmptyState.Text>
+          </EmptyState>
+        )
+      }
+
+      return (
+        <EmptyState size={ComponentSize.Large} testID="empty-dashboards-list">
+          <EmptyState.Text>
+            Looks like you don't have any <b>Dashboards</b>, why not create one?
+        </EmptyState.Text>
+          <AddResourceDropdown
+            onSelectNew={onCreateDashboard}
+            onSelectImport={this.summonImportOverlay}
+            onSelectTemplate={this.summonImportFromTemplateOverlay}
+            resourceName="Dashboard"
+            canImportFromTemplate={true}
           />
-        </ResourceList.Body>
+        </EmptyState>
       )
     }
 
     return (
-      <ResourceList>
-        {/* <ResourceList.Header filterComponent={filterComponent}>
-          <ResourceList.Sorter
-            name="name"
-            sortKey="name"
-            sort={sortKey === 'name' ? sortDirection : Sort.None}
-            onClick={this.handleClickColumn}
-          />
-          <ResourceList.Sorter
-            name="modified"
-            sortKey="meta.updatedAt"
-            sort={sortKey === 'meta.updatedAt' ? sortDirection : Sort.None}
-            onClick={this.handleClickColumn}
-          />
-        </ResourceList.Header> */}
-        {body}
-      </ResourceList>
+      <DashboardCards
+        dashboards={dashboards}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        sortType={sortType}
+        onFilterChange={onFilterChange}
+      />
     )
-  }
-
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    let sortType = SortTypes.String
-    if (sortKey === 'meta.updatedAt') {
-      sortType = SortTypes.Date
-    }
-
-    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
   private summonImportOverlay = (): void => {
@@ -121,35 +109,6 @@ class DashboardsTable extends PureComponent<Props> {
       params: {orgID},
     } = this.props
     router.push(`/orgs/${orgID}/dashboards/import/template`)
-  }
-
-  private get emptyState(): JSX.Element {
-    const {onCreateDashboard, searchTerm} = this.props
-
-    if (searchTerm) {
-      return (
-        <EmptyState size={ComponentSize.Large} testID="empty-dashboards-list">
-          <EmptyState.Text>
-            No Dashboards match your search term
-          </EmptyState.Text>
-        </EmptyState>
-      )
-    }
-
-    return (
-      <EmptyState size={ComponentSize.Large} testID="empty-dashboards-list">
-        <EmptyState.Text>
-          Looks like you don't have any <b>Dashboards</b>, why not create one?
-        </EmptyState.Text>
-        <AddResourceDropdown
-          onSelectNew={onCreateDashboard}
-          onSelectImport={this.summonImportOverlay}
-          onSelectTemplate={this.summonImportFromTemplateOverlay}
-          resourceName="Dashboard"
-          canImportFromTemplate={true}
-        />
-      </EmptyState>
-    )
   }
 }
 
