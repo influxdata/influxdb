@@ -15,13 +15,15 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Utils
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+import {parseUrl} from 'src/shared/utils/parseUrl'
 
 const Logout: FC<WithRouterProps> = ({router}) => {
   const handleSignOut = async () => {
     if (CLOUD && isFlagEnabled('regionBasedLoginPage')) {
       const config = await getAuth0Config()
+      const domain = parseUrl(config.domain)
       const auth0 = new auth0js.WebAuth({
-        domain: config.domain,
+        domain,
         clientID: config.clientID,
       })
       auth0.logout({})

@@ -35,6 +35,9 @@ import {notify} from 'src/shared/actions/notifications'
 import {passwordResetSuccessfully} from 'src/shared/copy/notifications'
 import {getAuth0Config} from 'src/authorizations/apis'
 
+// Utils
+import {parseUrl} from 'src/shared/utils/parseUrl'
+
 interface ErrorObject {
   [key: string]: string | undefined
 }
@@ -84,8 +87,9 @@ class LoginPageContents extends PureComponent<DispatchProps> {
   public async componentDidMount() {
     try {
       const config = await getAuth0Config()
+      const domain = parseUrl(config.domain)
       this.auth0 = new auth0js.WebAuth({
-        domain: config.domain,
+        domain,
         clientID: config.clientID,
         redirectUri: config.redirectURL,
         responseType: 'code',
