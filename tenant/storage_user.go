@@ -11,6 +11,8 @@ import (
 var (
 	userBucket = []byte("usersv1")
 	userIndex  = []byte("userindexv1")
+
+	userpasswordBucket = []byte("userspasswordv1")
 )
 
 func unmarshalUser(v []byte) (*influxdb.User, error) {
@@ -46,7 +48,7 @@ func (s *Store) uniqueUserName(ctx context.Context, tx kv.Tx, uname string) erro
 
 	// no error means this is not unique
 	if err == nil {
-		return kv.NotUniqueError
+		return UserAlreadyExistsError(uname)
 	}
 
 	// any other error is some sort of internal server error
@@ -144,6 +146,14 @@ func (s *Store) ListUsers(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpt
 }
 
 func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) error {
+	if !u.ID.Valid() {
+		id, err := s.generateSafeID(ctx, tx, userBucket)
+		if err != nil {
+			return err
+		}
+		u.ID = id
+	}
+
 	encodedID, err := u.ID.Encode()
 	if err != nil {
 		return InvalidUserIDError(err)
@@ -260,5 +270,56 @@ func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id influxdb.ID) error 
 		return ErrInternalServiceError(err)
 	}
 
-	return nil
+	// clean up users password
+	ub, err := tx.Bucket(userpasswordBucket)
+	if err != nil {
+		return UnavailablePasswordServiceError(err)
+	}
+
+	return ub.Delete(encodedID)
+}
+
+func (s *Store) GetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID) (string, error) {
+	encodedID, err := id.Encode()
+	if err != nil {
+		return "", InvalidUserIDError(err)
+	}
+
+	b, err := tx.Bucket(userpasswordBucket)
+	if err != nil {
+		return "", UnavailablePasswordServiceError(err)
+	}
+
+	passwd, err := b.Get(encodedID)
+
+	return string(passwd), err
+}
+
+func (s *Store) SetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID, password string) error {
+	encodedID, err := id.Encode()
+	if err != nil {
+		return InvalidUserIDError(err)
+	}
+
+	b, err := tx.Bucket(userpasswordBucket)
+	if err != nil {
+		return UnavailablePasswordServiceError(err)
+	}
+
+	return b.Put(encodedID, []byte(password))
+}
+
+func (s *Store) DeletePassword(ctx context.Context, tx kv.Tx, id influxdb.ID) error {
+	encodedID, err := id.Encode()
+	if err != nil {
+		return InvalidUserIDError(err)
+	}
+
+	b, err := tx.Bucket(userpasswordBucket)
+	if err != nil {
+		return UnavailablePasswordServiceError(err)
+	}
+
+	return b.Delete(encodedID)
+
 }

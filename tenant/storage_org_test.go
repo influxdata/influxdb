@@ -109,7 +109,7 @@ func TestOrg(t *testing.T) {
 					t.Fatal("failed to get correct error when looking for invalid org by id")
 				}
 
-				if _, err := store.GetOrgByName(context.Background(), tx, "notaorg"); err != tenant.ErrOrgNotFound {
+				if _, err := store.GetOrgByName(context.Background(), tx, "notaorg"); err.Error() != tenant.OrgNotFoundByName("notaorg").Error() {
 					t.Fatal("failed to get correct error when looking for invalid org by name")
 				}
 
@@ -175,7 +175,7 @@ func TestOrg(t *testing.T) {
 			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
 				org5 := "org5"
 				_, err := store.UpdateOrg(context.Background(), tx, influxdb.ID(3), influxdb.OrganizationUpdate{Name: &org5})
-				if err != kv.NotUniqueError {
+				if err.Error() != tenant.OrgAlreadyExistsError(org5).Error() {
 					t.Fatal("failed to error on duplicate orgname")
 				}
 
