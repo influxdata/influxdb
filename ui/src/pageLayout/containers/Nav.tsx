@@ -86,6 +86,7 @@ class SideNav extends PureComponent<Props, State> {
             <TreeNav.Item
               key={item.id}
               id={item.id}
+              testID={item.testID}
               icon={<Icon glyph={item.icon} />}
               label={item.label}
               active={getNavItemActivation([item.id], location.pathname)}
@@ -100,6 +101,7 @@ class SideNav extends PureComponent<Props, State> {
                       <TreeNav.SubItem
                         key={menuItem.id}
                         id={menuItem.id}
+                        testID={menuItem.testID}
                         active={getNavItemActivation(
                           [menuItem.id],
                           location.pathname
