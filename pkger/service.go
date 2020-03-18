@@ -229,69 +229,38 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 		}
 	}
 
-	pkg := &Pkg{
-		Objects: make([]Object, 0, len(opt.Resources)),
+	exporter := exportCoordinator{
+		bucketSVC:   s.bucketSVC,
+		checkSVC:    s.checkSVC,
+		dashSVC:     s.dashSVC,
+		labelSVC:    s.labelSVC,
+		endpointSVC: s.endpointSVC,
+		ruleSVC:     s.ruleSVC,
+		taskSVC:     s.taskSVC,
+		teleSVC:     s.teleSVC,
+		varSVC:      s.varSVC,
+		mObjects:    make(map[exportKey]Object),
 	}
 
 	for _, orgIDOpt := range opt.OrgIDs {
-		cloneAssFn, err := s.resourceCloneAssociationsGen(ctx, orgIDOpt.LabelNames...)
-		if err != nil {
-			return nil, err
-		}
 		resourcesToClone, err := s.cloneOrgResources(ctx, orgIDOpt.OrgID, orgIDOpt.ResourceKinds)
 		if err != nil {
 			return nil, internalErr(err)
 		}
-		for _, r := range uniqResourcesToClone(resourcesToClone) {
-			newKinds, err := s.resourceCloneToKind(ctx, r, cloneAssFn)
-			if err != nil {
-				return nil, internalErr(fmt.Errorf("failed to clone resource: resource_id=%s resource_kind=%s err=%q", r.ID, r.Kind, err))
-			}
-			pkg.Objects = append(pkg.Objects, newKinds...)
+
+		if err := exporter.Export(ctx, resourcesToClone, orgIDOpt.LabelNames...); err != nil {
+			return nil, internalErr(err)
 		}
 	}
 
-	cloneAssFn, err := s.resourceCloneAssociationsGen(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, r := range uniqResourcesToClone(opt.Resources) {
-		newKinds, err := s.resourceCloneToKind(ctx, r, cloneAssFn)
-		if err != nil {
-			return nil, internalErr(fmt.Errorf("failed to clone resource: resource_id=%s resource_kind=%s err=%q", r.ID, r.Kind, err))
-		}
-		pkg.Objects = append(pkg.Objects, newKinds...)
+	if err := exporter.Export(ctx, opt.Resources); err != nil {
+		return nil, internalErr(err)
 	}
 
-	pkg.Objects = uniqResources(pkg.Objects)
-
+	pkg := &Pkg{Objects: exporter.Objects()}
 	if err := pkg.Validate(ValidWithoutResources()); err != nil {
 		return nil, failedValidationErr(err)
 	}
-
-	var kindPriorities = map[Kind]int{
-		KindLabel:                         1,
-		KindBucket:                        2,
-		KindCheckDeadman:                  3,
-		KindCheckThreshold:                4,
-		KindNotificationEndpointHTTP:      5,
-		KindNotificationEndpointPagerDuty: 6,
-		KindNotificationEndpointSlack:     7,
-		KindNotificationRule:              8,
-		KindVariable:                      9,
-		KindTelegraf:                      10,
-		KindDashboard:                     11,
-	}
-
-	sort.Slice(pkg.Objects, func(i, j int) bool {
-		iName, jName := pkg.Objects[i].Name(), pkg.Objects[j].Name()
-		iKind, jKind := pkg.Objects[i].Type, pkg.Objects[j].Type
-
-		if iKind.is(jKind) {
-			return iName < jName
-		}
-		return kindPriorities[iKind] < kindPriorities[jKind]
-	})
 
 	return pkg, nil
 }
@@ -504,110 +473,6 @@ func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID) ([]R
 	return resources, nil
 }
 
-func (s *Service) resourceCloneToKind(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) (newKinds []Object, e error) {
-	defer func() {
-		if e != nil {
-			e = ierrors.Wrap(e, "cloning resource")
-		}
-	}()
-
-	var (
-		newKind      Object
-		sidecarKinds []Object
-	)
-	switch {
-	case r.Kind.is(KindBucket):
-		bkt, err := s.bucketSVC.FindBucketByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = bucketToObject(*bkt, r.Name)
-	case r.Kind.is(KindCheck),
-		r.Kind.is(KindCheckDeadman),
-		r.Kind.is(KindCheckThreshold):
-		ch, err := s.checkSVC.FindCheckByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = checkToObject(ch, r.Name)
-	case r.Kind.is(KindDashboard):
-		dash, err := s.findDashboardByIDFull(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = DashboardToObject(*dash, r.Name)
-	case r.Kind.is(KindLabel):
-		l, err := s.labelSVC.FindLabelByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = labelToObject(*l, r.Name)
-	case r.Kind.is(KindNotificationEndpoint),
-		r.Kind.is(KindNotificationEndpointHTTP),
-		r.Kind.is(KindNotificationEndpointPagerDuty),
-		r.Kind.is(KindNotificationEndpointSlack):
-		e, err := s.endpointSVC.FindNotificationEndpointByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = endpointKind(e, r.Name)
-	case r.Kind.is(KindNotificationRule):
-		ruleRes, endpointRes, err := s.exportNotificationRule(ctx, r)
-		if err != nil {
-			return nil, err
-		}
-		newKind, sidecarKinds = ruleRes, append(sidecarKinds, endpointRes)
-	case r.Kind.is(KindTask):
-		t, err := s.taskSVC.FindTaskByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = taskToObject(*t, r.Name)
-	case r.Kind.is(KindTelegraf):
-		t, err := s.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = telegrafToObject(*t, r.Name)
-	case r.Kind.is(KindVariable):
-		v, err := s.varSVC.FindVariableByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = VariableToObject(*v, r.Name)
-	default:
-		return nil, errors.New("unsupported kind provided: " + string(r.Kind))
-	}
-
-	ass, skipResource, err := cFn(ctx, r)
-	if err != nil {
-		return nil, err
-	}
-	if skipResource {
-		return nil, nil
-	}
-
-	if len(ass.associations) > 0 {
-		newKind.Spec[fieldAssociations] = ass.associations
-	}
-
-	return append(ass.newLableResources, append(sidecarKinds, newKind)...), nil
-}
-
-func (s *Service) exportNotificationRule(ctx context.Context, r ResourceToClone) (Object, Object, error) {
-	rule, err := s.ruleSVC.FindNotificationRuleByID(ctx, r.ID)
-	if err != nil {
-		return Object{}, Object{}, err
-	}
-
-	ruleEndpoint, err := s.endpointSVC.FindNotificationEndpointByID(ctx, rule.GetEndpointID())
-	if err != nil {
-		return Object{}, Object{}, err
-	}
-
-	return ruleToObject(rule, ruleEndpoint.GetName(), r.Name), endpointKind(ruleEndpoint, ""), nil
-}
-
 type cloneResFn func(context.Context, influxdb.ID) ([]ResourceToClone, error)
 
 func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []struct {
@@ -661,88 +526,6 @@ func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []struct {
 	}
 
 	return resourceTypeGens
-}
-
-type (
-	associations struct {
-		associations      []Resource
-		newLableResources []Object
-	}
-
-	cloneAssociationsFn func(context.Context, ResourceToClone) (associations associations, skipResource bool, err error)
-)
-
-func (s *Service) resourceCloneAssociationsGen(ctx context.Context, labelNames ...string) (cloneAssociationsFn, error) {
-	mLabelNames := make(map[string]bool)
-	for _, labelName := range labelNames {
-		mLabelNames[labelName] = true
-	}
-
-	mLabelIDs, err := getLabelIDMap(ctx, s.labelSVC, labelNames)
-	if err != nil {
-		return nil, err
-	}
-
-	type key struct {
-		id   influxdb.ID
-		name string
-	}
-	// memoize the labels so we dont' create duplicates
-	m := make(map[key]bool)
-	cloneFn := func(ctx context.Context, r ResourceToClone) (associations, bool, error) {
-		if r.Kind.is(KindUnknown) {
-			return associations{}, true, nil
-		}
-		if r.Kind.is(KindLabel) {
-			// check here verifies the label maps to an id of a valid label name
-			shouldSkip := len(mLabelIDs) > 0 && !mLabelIDs[r.ID]
-			return associations{}, shouldSkip, nil
-		}
-
-		labels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
-			ResourceID:   r.ID,
-			ResourceType: r.Kind.ResourceType(),
-		})
-		if err != nil {
-			return associations{}, false, ierrors.Wrap(err, "finding resource labels")
-		}
-
-		if len(mLabelNames) > 0 {
-			shouldSkip := true
-			for _, l := range labels {
-				if _, ok := mLabelNames[l.Name]; ok {
-					shouldSkip = false
-					break
-				}
-			}
-			if shouldSkip {
-				return associations{}, true, nil
-			}
-		}
-
-		var ass associations
-		for _, l := range labels {
-			if len(mLabelNames) > 0 {
-				if _, ok := mLabelNames[l.Name]; !ok {
-					continue
-				}
-			}
-
-			ass.associations = append(ass.associations, Resource{
-				fieldKind: KindLabel.String(),
-				fieldName: l.Name,
-			})
-			k := key{id: l.ID, name: l.Name}
-			if m[k] {
-				continue
-			}
-			m[k] = true
-			ass.newLableResources = append(ass.newLableResources, labelToObject(*l, ""))
-		}
-		return ass, false, nil
-	}
-
-	return cloneFn, nil
 }
 
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
@@ -2192,21 +1975,6 @@ func (s *Service) deleteByIDs(resource string, numIDs int, deleteFn func(context
 	}
 
 	return nil
-}
-
-func (s *Service) findDashboardByIDFull(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
-	dash, err := s.dashSVC.FindDashboardByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	for _, cell := range dash.Cells {
-		v, err := s.dashSVC.GetDashboardCellView(ctx, id, cell.ID)
-		if err != nil {
-			return nil, err
-		}
-		cell.View = v
-	}
-	return dash, nil
 }
 
 func getLabelIDMap(ctx context.Context, labelSVC influxdb.LabelService, labelNames []string) (map[influxdb.ID]bool, error) {

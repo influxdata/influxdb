@@ -216,7 +216,7 @@ func parse(dec decoder, opts ...ValidateOptFn) (*Pkg, error) {
 // Object describes the metadata and raw spec for an entity of a package kind.
 type Object struct {
 	APIVersion string   `json:"apiVersion" yaml:"apiVersion"`
-	Type       Kind     `json:"kind" yaml:"kind"`
+	Kind       Kind     `json:"kind" yaml:"kind"`
 	Metadata   Resource `json:"metadata" yaml:"metadata"`
 	Spec       Resource `json:"spec" yaml:"spec"`
 }
@@ -1120,9 +1120,9 @@ func (p *Pkg) graphVariables() *parseErr {
 func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(o Object) []validationErr) *parseErr {
 	var pErr parseErr
 	for i, k := range p.Objects {
-		if err := k.Type.OK(); err != nil {
+		if err := k.Kind.OK(); err != nil {
 			pErr.append(resourceErr{
-				Kind: k.Type.String(),
+				Kind: k.Kind.String(),
 				Idx:  intPtr(i),
 				ValidationErrs: []validationErr{
 					{
@@ -1133,13 +1133,13 @@ func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(o Object) 
 			})
 			continue
 		}
-		if !k.Type.is(resourceKind) {
+		if !k.Kind.is(resourceKind) {
 			continue
 		}
 
 		if k.APIVersion != APIVersion {
 			pErr.append(resourceErr{
-				Kind: k.Type.String(),
+				Kind: k.Kind.String(),
 				Idx:  intPtr(i),
 				ValidationErrs: []validationErr{
 					{
@@ -1153,7 +1153,7 @@ func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(o Object) 
 
 		if len(k.Name()) < minNameLen {
 			pErr.append(resourceErr{
-				Kind: k.Type.String(),
+				Kind: k.Kind.String(),
 				Idx:  intPtr(i),
 				ValidationErrs: []validationErr{
 					objectValidationErr(fieldMetadata, validationErr{
@@ -1646,44 +1646,6 @@ func ifaceToStr(v interface{}) (string, bool) {
 	}
 
 	return "", false
-}
-
-func uniqResources(kinds []Object) []Object {
-	type key struct {
-		kind Kind
-		name string
-	}
-
-	// these 2 maps are used to eliminate duplicates that come
-	// from dependencies while keeping the Object that has any
-	// associations. If there are no associations, then the kinds
-	// are no different from one another.
-	m := make(map[key]bool)
-	res := make(map[key]Object)
-
-	out := make([]Object, 0, len(kinds))
-	for _, k := range kinds {
-		if err := k.Type.OK(); err != nil {
-			continue
-		}
-
-		if kindsUniqByName[k.Type] {
-			rKey := key{kind: k.Type, name: k.Name()}
-			if hasAssociations, ok := m[rKey]; ok && hasAssociations {
-				continue
-			}
-			_, hasAssociations := k.Spec[fieldAssociations]
-			m[rKey] = hasAssociations
-			res[rKey] = k
-			continue
-		}
-		out = append(out, k)
-	}
-
-	for _, r := range res {
-		out = append(out, r)
-	}
-	return out
 }
 
 // ParseError is the error from parsing the given package. The ParseError
