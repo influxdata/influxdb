@@ -50,13 +50,15 @@ export const delayEnablePresentationMode = () => (
 
 // persistent state action creators
 
-export const expandNavTree = () => ({
-  type: ActionTypes.ExpandNavTree,
-} as const)
+export const expandNavTree = () =>
+  ({
+    type: ActionTypes.ExpandNavTree,
+  } as const)
 
-export const collapseNavTree = () => ({
-  type: ActionTypes.CollapseNavTree,
-} as const)
+export const collapseNavTree = () =>
+  ({
+    type: ActionTypes.CollapseNavTree,
+  } as const)
 
 export const setAutoRefresh = (milliseconds: number) =>
   ({
