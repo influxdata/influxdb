@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -116,6 +117,42 @@ func TestEngine_DeletePrefix(t *testing.T) {
 		}
 		if !elem.SeriesID.IsZero() {
 			t.Fatalf("got an undeleted series id, but series should be dropped from index")
+		}
+	}
+}
+
+func BenchmarkEngine_DeletePrefixRange(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		e, err := NewEngine(tsm1.NewConfig(), b)
+		if err != nil {
+			b.Fatal(err)
+		} else if err := e.Open(context.Background()); err != nil {
+			b.Fatal(err)
+		}
+		defer e.Close()
+
+		const n = 100000
+		var points []models.Point
+		for i := 0; i < n; i++ {
+			points = append(points, MustParsePointString(fmt.Sprintf("cpu,host=A%d value=1", i), "mm0"))
+			points = append(points, MustParsePointString(fmt.Sprintf("cpu,host=B%d value=1", i), "mm1"))
+		}
+		if err := e.writePoints(points...); err != nil {
+			b.Fatal(err)
+		}
+
+		if err := e.WriteSnapshot(context.Background(), tsm1.CacheStatusColdNoWrites); err != nil {
+			b.Fatal(err)
+		} else if got, want := len(e.FileStore.Keys()), n*2; got != want {
+			b.Fatalf("len(Keys())=%d, want %d", got, want)
+		}
+		b.StartTimer()
+
+		if err := e.DeletePrefixRange(context.Background(), []byte("mm0"), 0, 3, nil); err != nil {
+			b.Fatal(err)
+		} else if err := e.Close(); err != nil {
+			b.Fatal(err)
 		}
 	}
 }

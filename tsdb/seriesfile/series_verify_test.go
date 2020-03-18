@@ -113,7 +113,7 @@ func NewTest(t *testing.T) *Test {
 		}
 
 		// delete one series
-		if err := seriesFile.DeleteSeriesID(tsdb.NewSeriesID(ids[0])); err != nil {
+		if err := seriesFile.DeleteSeriesIDs([]tsdb.SeriesID{tsdb.NewSeriesID(ids[0])}); err != nil {
 			return err
 		}
 
