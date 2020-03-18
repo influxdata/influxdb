@@ -32,7 +32,7 @@ export const generateNavItems = (orgID: string): NavItem[] => {
   return [
     {
       id: 'load-data',
-      icon: IconFont.Disks,
+      icon: IconFont.DisksNav,
       label: 'Data',
       link: `${orgPrefix}/load-data/buckets`,
       menu: [
