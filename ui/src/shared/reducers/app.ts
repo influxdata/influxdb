@@ -3,7 +3,7 @@ import {combineReducers} from 'redux'
 // Types
 import {ActionTypes, Action} from 'src/shared/actions/app'
 import {AUTOREFRESH_DEFAULT_INTERVAL} from 'src/shared/constants'
-import {TimeZone} from 'src/types'
+import {TimeZone, NavBarState, Theme} from 'src/types'
 
 export interface AppState {
   ephemeral: {
@@ -13,8 +13,8 @@ export interface AppState {
     autoRefresh: number
     showTemplateControlBar: boolean
     timeZone: TimeZone
-    navTreeExpanded: boolean
-    theme: 'dark' | 'light'
+    navBarState: NavBarState
+    theme: Theme
   }
 }
 
@@ -27,7 +27,7 @@ const initialState: AppState = {
     autoRefresh: AUTOREFRESH_DEFAULT_INTERVAL,
     showTemplateControlBar: false,
     timeZone: 'Local',
-    navTreeExpanded: true,
+    navBarState: 'expanded',
   },
 }
 
@@ -82,17 +82,11 @@ const appPersistedReducer = (
       return {...state, timeZone}
     }
 
-    case ActionTypes.ExpandNavTree: {
+    case 'SET_NAV_BAR_STATE': {
+      const navBarState = action.navBarState
       return {
         ...state,
-        navTreeExpanded: true,
-      }
-    }
-
-    case ActionTypes.CollapseNavTree: {
-      return {
-        ...state,
-        navTreeExpanded: false,
+        navBarState,
       }
     }
 

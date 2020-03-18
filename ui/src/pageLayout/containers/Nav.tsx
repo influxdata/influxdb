@@ -18,22 +18,21 @@ import {generateNavItems} from 'src/pageLayout/constants/navigationHierarchy'
 import {getNavItemActivation} from 'src/pageLayout/utils'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, NavBarState} from 'src/types'
 
 // Actions
-import {expandNavTree, collapseNavTree} from 'src/shared/actions/app'
+import {setNavBarState} from 'src/shared/actions/app'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface StateProps {
   isHidden: boolean
-  navTreeExpanded: boolean
+  navBarState: NavBarState
 }
 
 interface DispatchProps {
-  handleExpandNavTree: typeof expandNavTree
-  handleCollapseNavTree: typeof collapseNavTree
+  handleSetNavBarState: typeof setNavBarState
 }
 
 interface State {
@@ -56,9 +55,8 @@ class SideNav extends PureComponent<Props, State> {
     const {
       isHidden,
       params: {orgID},
-      navTreeExpanded,
-      handleExpandNavTree,
-      handleCollapseNavTree,
+      navBarState,
+      handleSetNavBarState,
     } = this.props
 
     if (isHidden) {
@@ -66,10 +64,10 @@ class SideNav extends PureComponent<Props, State> {
     }
 
     const handleToggleNavExpansion = (): void => {
-      if (navTreeExpanded) {
-        handleCollapseNavTree()
+      if (navBarState === 'expanded') {
+        handleSetNavBarState('collapsed')
       } else {
-        handleExpandNavTree()
+        handleSetNavBarState('expanded')
       }
     }
 
@@ -78,7 +76,7 @@ class SideNav extends PureComponent<Props, State> {
 
     return (
       <TreeNav
-        expanded={navTreeExpanded}
+        expanded={navBarState === 'expanded'}
         headerElement={<NavHeader link={orgPrefix} />}
         userElement={<UserWidget />}
         onToggleClick={handleToggleNavExpansion}
@@ -175,15 +173,14 @@ class SideNav extends PureComponent<Props, State> {
 }
 
 const mdtp: DispatchProps = {
-  handleExpandNavTree: expandNavTree,
-  handleCollapseNavTree: collapseNavTree,
+  handleSetNavBarState: setNavBarState,
 }
 
 const mstp = (state: AppState): StateProps => {
   const isHidden = state.app.ephemeral.inPresentationMode
-  const navTreeExpanded = state.app.persisted.navTreeExpanded
+  const navBarState = state.app.persisted.navBarState
 
-  return {isHidden, navTreeExpanded}
+  return {isHidden, navBarState}
 }
 
 export default connect<StateProps, DispatchProps>(

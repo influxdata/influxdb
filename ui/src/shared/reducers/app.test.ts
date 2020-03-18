@@ -16,7 +16,7 @@ describe('Shared.Reducers.appReducer', () => {
     persisted: {
       autoRefresh: 0,
       showTemplateControlBar: false,
-      navTreeExpanded: false,
+      navBarState: false,
       timeZone: 'Local' as TimeZone,
       theme: 'dark',
     },
