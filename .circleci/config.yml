@@ -44,7 +44,7 @@ jobs:
       - attach_workspace:
           at: ~/project
       - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e INFLUXPATH=/Litmus/result/bin/linux/influx -e BINARYPATH=/Litmus/result/bin/linux/influxd -e BOLTPATH=/Litmus/result/influxd_test/influxd.bolt -e ENGINEPATH=/Litmus/result/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e INFLUXPATH=/Litmus/result/bin/linux/influx -e BINARYPATH=/Litmus/result/bin/linux/influxd -e BOLTPATH=/tmp/influxd_test/influxd.bolt -e ENGINEPATH=/tmp/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - run:
           name: Litmus Integration Tests Success
           when: on_success
