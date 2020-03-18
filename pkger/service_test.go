@@ -2357,15 +2357,15 @@ func TestService(t *testing.T) {
 
 				for _, tt := range tests {
 					fn := func(t *testing.T) {
-						endpointSVC := mock.NewTaskService()
-						endpointSVC.FindTaskByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+						taskSVC := mock.NewTaskService()
+						taskSVC.FindTaskByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 							if id != tt.task.ID {
 								return nil, errors.New("wrong id provided: " + id.String())
 							}
 							return &tt.task, nil
 						}
 
-						svc := newTestService(WithTaskSVC(endpointSVC))
+						svc := newTestService(WithTaskSVC(taskSVC))
 
 						resToClone := ResourceToClone{
 							Kind: KindTask,
@@ -2398,6 +2398,51 @@ func TestService(t *testing.T) {
 					}
 					t.Run(tt.name, fn)
 				}
+			})
+
+			t.Run("telegraf configs", func(t *testing.T) {
+				t.Run("allows for duplicate telegraf names to be exported", func(t *testing.T) {
+					teleStore := mock.NewTelegrafConfigStore()
+					teleStore.FindTelegrafConfigByIDF = func(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+						return &influxdb.TelegrafConfig{
+							ID:          id,
+							OrgID:       influxdb.ID(teleStore.FindTelegrafConfigByIDCalls.Count() + 1),
+							Name:        "same name",
+							Description: "desc",
+							Config:      "some config string",
+						}, nil
+					}
+
+					svc := newTestService(WithTelegrafSVC(teleStore))
+
+					resourcesToClone := []ResourceToClone{
+						{
+							Kind: KindTelegraf,
+							ID:   1,
+						},
+
+						{
+							Kind: KindTelegraf,
+							ID:   2,
+						},
+					}
+					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
+					require.NoError(t, err)
+
+					newPkg := encodeAndDecode(t, pkg)
+
+					sum := newPkg.Summary()
+
+					teles := sum.TelegrafConfigs
+					require.Len(t, teles, len(resourcesToClone))
+
+					for i := range resourcesToClone {
+						actual := teles[i]
+						assert.Equal(t, "same name", actual.TelegrafConfig.Name)
+						assert.Equal(t, "desc", actual.TelegrafConfig.Description)
+						assert.Equal(t, "some config string", actual.TelegrafConfig.Config)
+					}
+				})
 			})
 
 			t.Run("variable", func(t *testing.T) {
