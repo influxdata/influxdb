@@ -35,7 +35,7 @@ func (s *OnboardingService) IsOnboarding(ctx context.Context) (bool, error) {
 	return s.IsOnboardingFn(ctx)
 }
 
-// Generate OnboardingResults.
-func (s *OnboardingService) Generate(ctx context.Context, req *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
+// OnboardInitalUser OnboardingResults.
+func (s *OnboardingService) OnboardInitalUser(ctx context.Context, req *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
 	return s.GenerateFn(ctx, req)
 }
