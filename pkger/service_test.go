@@ -771,7 +771,7 @@ func TestService(t *testing.T) {
 					dash1 := sum.Dashboards[0]
 					assert.Equal(t, SafeID(1), dash1.ID)
 					assert.Equal(t, SafeID(orgID), dash1.OrgID)
-					assert.Equal(t, "dash_1", dash1.Name)
+					assert.Equal(t, "display name", dash1.Name)
 					require.Len(t, dash1.Charts, 1)
 				})
 			})
@@ -793,7 +793,7 @@ func TestService(t *testing.T) {
 						return nil
 					}
 
-					pkg.mDashboards = append(pkg.mDashboards, pkg.mDashboards[0])
+					pkg.mDashboards["dash_1_copy"] = pkg.mDashboards["dash_1"]
 
 					svc := newTestService(WithDashboardSVC(fakeDashSVC))
 
@@ -1660,311 +1660,350 @@ func TestService(t *testing.T) {
 			}
 
 			t.Run("dashboard", func(t *testing.T) {
-				tests := []struct {
-					name         string
-					newName      string
-					expectedView influxdb.View
-				}{
-					{
-						name:    "gauge",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.GaugeViewProperties{
-								Type:              influxdb.ViewPropertyTypeGauge,
-								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-								Note:              "a note",
-								Prefix:            "pre",
-								TickPrefix:        "true",
-								Suffix:            "suf",
-								TickSuffix:        "false",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ShowNoteWhenEmpty: true,
-								ViewColors:        newColors("min", "max", "threshold"),
-							},
-						},
-					},
-					{
-						name:    "heatmap",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.HeatmapViewProperties{
-								Type:              influxdb.ViewPropertyTypeHeatMap,
-								Note:              "a note",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ShowNoteWhenEmpty: true,
-								ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
-								XColumn:           "x",
-								YColumn:           "y",
-								XDomain:           []float64{0, 10},
-								YDomain:           []float64{0, 100},
-								XAxisLabel:        "x_label",
-								XPrefix:           "x_prefix",
-								XSuffix:           "x_suffix",
-								YAxisLabel:        "y_label",
-								YPrefix:           "y_prefix",
-								YSuffix:           "y_suffix",
-								BinSize:           10,
-								TimeFormat:        "",
+				t.Run("with single chart", func(t *testing.T) {
+					tests := []struct {
+						name         string
+						newName      string
+						expectedView influxdb.View
+					}{
+						{
+							name:    "gauge",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.GaugeViewProperties{
+									Type:              influxdb.ViewPropertyTypeGauge,
+									DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+									Note:              "a note",
+									Prefix:            "pre",
+									TickPrefix:        "true",
+									Suffix:            "suf",
+									TickSuffix:        "false",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ShowNoteWhenEmpty: true,
+									ViewColors:        newColors("min", "max", "threshold"),
+								},
 							},
 						},
-					},
-					{
-						name:    "histogram",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.HistogramViewProperties{
-								Type:              influxdb.ViewPropertyTypeHistogram,
-								Note:              "a note",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ShowNoteWhenEmpty: true,
-								ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
-								FillColumns:       []string{},
-								XColumn:           "_value",
-								XDomain:           []float64{0, 10},
-								XAxisLabel:        "x_label",
-								BinCount:          30,
-								Position:          "stacked",
-							},
-						},
-					},
-					{
-						name:    "scatter",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.ScatterViewProperties{
-								Type:              influxdb.ViewPropertyTypeScatter,
-								Note:              "a note",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ShowNoteWhenEmpty: true,
-								ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
-								XColumn:           "x",
-								YColumn:           "y",
-								XDomain:           []float64{0, 10},
-								YDomain:           []float64{0, 100},
-								XAxisLabel:        "x_label",
-								XPrefix:           "x_prefix",
-								XSuffix:           "x_suffix",
-								YAxisLabel:        "y_label",
-								YPrefix:           "y_prefix",
-								YSuffix:           "y_suffix",
-								TimeFormat:        "",
+						{
+							name:    "heatmap",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.HeatmapViewProperties{
+									Type:              influxdb.ViewPropertyTypeHeatMap,
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ShowNoteWhenEmpty: true,
+									ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+									XColumn:           "x",
+									YColumn:           "y",
+									XDomain:           []float64{0, 10},
+									YDomain:           []float64{0, 100},
+									XAxisLabel:        "x_label",
+									XPrefix:           "x_prefix",
+									XSuffix:           "x_suffix",
+									YAxisLabel:        "y_label",
+									YPrefix:           "y_prefix",
+									YSuffix:           "y_suffix",
+									BinSize:           10,
+									TimeFormat:        "",
+								},
 							},
 						},
-					},
-					{
-						name: "without new name single stat",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.SingleStatViewProperties{
-								Type:              influxdb.ViewPropertyTypeSingleStat,
-								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-								Note:              "a note",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								Prefix:            "pre",
-								TickPrefix:        "false",
-								ShowNoteWhenEmpty: true,
-								Suffix:            "suf",
-								TickSuffix:        "true",
-								ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
-							},
-						},
-					},
-					{
-						name:    "with new name single stat",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.SingleStatViewProperties{
-								Type:              influxdb.ViewPropertyTypeSingleStat,
-								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-								Note:              "a note",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								Prefix:            "pre",
-								TickPrefix:        "false",
-								ShowNoteWhenEmpty: true,
-								Suffix:            "suf",
-								TickSuffix:        "true",
-								ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+						{
+							name:    "histogram",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.HistogramViewProperties{
+									Type:              influxdb.ViewPropertyTypeHistogram,
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ShowNoteWhenEmpty: true,
+									ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+									FillColumns:       []string{},
+									XColumn:           "_value",
+									XDomain:           []float64{0, 10},
+									XAxisLabel:        "x_label",
+									BinCount:          30,
+									Position:          "stacked",
+								},
 							},
 						},
-					},
-					{
-						name:    "single stat plus line",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.LinePlusSingleStatProperties{
-								Type:              influxdb.ViewPropertyTypeSingleStatPlusLine,
-								Axes:              newAxes(),
-								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-								Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
-								Note:              "a note",
-								Prefix:            "pre",
-								Suffix:            "suf",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ShadeBelow:        true,
-								ShowNoteWhenEmpty: true,
-								ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
-								XColumn:           "x",
-								YColumn:           "y",
-								Position:          "stacked",
-							},
-						},
-					},
-					{
-						name:    "xy",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.XYViewProperties{
-								Type:              influxdb.ViewPropertyTypeXY,
-								Axes:              newAxes(),
-								Geom:              "step",
-								Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
-								Note:              "a note",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ShadeBelow:        true,
-								ShowNoteWhenEmpty: true,
-								ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
-								XColumn:           "x",
-								YColumn:           "y",
-								Position:          "overlaid",
-								TimeFormat:        "",
+						{
+							name:    "scatter",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.ScatterViewProperties{
+									Type:              influxdb.ViewPropertyTypeScatter,
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ShowNoteWhenEmpty: true,
+									ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+									XColumn:           "x",
+									YColumn:           "y",
+									XDomain:           []float64{0, 10},
+									YDomain:           []float64{0, 100},
+									XAxisLabel:        "x_label",
+									XPrefix:           "x_prefix",
+									XSuffix:           "x_suffix",
+									YAxisLabel:        "y_label",
+									YPrefix:           "y_prefix",
+									YSuffix:           "y_suffix",
+									TimeFormat:        "",
+								},
 							},
 						},
-					},
-					{
-						name:    "markdown",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.MarkdownViewProperties{
-								Type: influxdb.ViewPropertyTypeMarkdown,
-								Note: "a note",
+						{
+							name: "without new name single stat",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.SingleStatViewProperties{
+									Type:              influxdb.ViewPropertyTypeSingleStat,
+									DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									Prefix:            "pre",
+									TickPrefix:        "false",
+									ShowNoteWhenEmpty: true,
+									Suffix:            "suf",
+									TickSuffix:        "true",
+									ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+								},
 							},
 						},
-					},
-					{
-						name:    "table",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
+						{
+							name:    "with new name single stat",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.SingleStatViewProperties{
+									Type:              influxdb.ViewPropertyTypeSingleStat,
+									DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									Prefix:            "pre",
+									TickPrefix:        "false",
+									ShowNoteWhenEmpty: true,
+									Suffix:            "suf",
+									TickSuffix:        "true",
+									ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+								},
 							},
-							Properties: influxdb.TableViewProperties{
-								Type:              influxdb.ViewPropertyTypeTable,
-								Note:              "a note",
-								ShowNoteWhenEmpty: true,
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
-								TableOptions: influxdb.TableOptions{
-									VerticalTimeAxis: true,
-									SortBy: influxdb.RenamableField{
-										InternalName: "_time",
+						},
+						{
+							name:    "single stat plus line",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.LinePlusSingleStatProperties{
+									Type:              influxdb.ViewPropertyTypeSingleStatPlusLine,
+									Axes:              newAxes(),
+									DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+									Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
+									Note:              "a note",
+									Prefix:            "pre",
+									Suffix:            "suf",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ShadeBelow:        true,
+									ShowNoteWhenEmpty: true,
+									ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+									XColumn:           "x",
+									YColumn:           "y",
+									Position:          "stacked",
+								},
+							},
+						},
+						{
+							name:    "xy",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.XYViewProperties{
+									Type:              influxdb.ViewPropertyTypeXY,
+									Axes:              newAxes(),
+									Geom:              "step",
+									Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
+									Note:              "a note",
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ShadeBelow:        true,
+									ShowNoteWhenEmpty: true,
+									ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+									XColumn:           "x",
+									YColumn:           "y",
+									Position:          "overlaid",
+									TimeFormat:        "",
+								},
+							},
+						},
+						{
+							name:    "markdown",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.MarkdownViewProperties{
+									Type: influxdb.ViewPropertyTypeMarkdown,
+									Note: "a note",
+								},
+							},
+						},
+						{
+							name:    "table",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.TableViewProperties{
+									Type:              influxdb.ViewPropertyTypeTable,
+									Note:              "a note",
+									ShowNoteWhenEmpty: true,
+									Queries:           []influxdb.DashboardQuery{newQuery()},
+									ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+									TableOptions: influxdb.TableOptions{
+										VerticalTimeAxis: true,
+										SortBy: influxdb.RenamableField{
+											InternalName: "_time",
+										},
+										Wrapping:       "truncate",
+										FixFirstColumn: true,
 									},
-									Wrapping:       "truncate",
-									FixFirstColumn: true,
-								},
-								FieldOptions: []influxdb.RenamableField{
-									{
-										InternalName: "_time",
-										DisplayName:  "time (ms)",
-										Visible:      true,
+									FieldOptions: []influxdb.RenamableField{
+										{
+											InternalName: "_time",
+											DisplayName:  "time (ms)",
+											Visible:      true,
+										},
 									},
-								},
-								TimeFormat: "YYYY:MM:DD",
-								DecimalPlaces: influxdb.DecimalPlaces{
-									IsEnforced: true,
-									Digits:     1,
+									TimeFormat: "YYYY:MM:DD",
+									DecimalPlaces: influxdb.DecimalPlaces{
+										IsEnforced: true,
+										Digits:     1,
+									},
 								},
 							},
 						},
-					},
-				}
-
-				for _, tt := range tests {
-					fn := func(t *testing.T) {
-						expectedCell := &influxdb.Cell{
-							ID:           5,
-							CellProperty: influxdb.CellProperty{X: 1, Y: 2, W: 3, H: 4},
-							View:         &tt.expectedView,
-						}
-						expected := &influxdb.Dashboard{
-							ID:          3,
-							Name:        "bucket name",
-							Description: "desc",
-							Cells:       []*influxdb.Cell{expectedCell},
-						}
-
-						dashSVC := mock.NewDashboardService()
-						dashSVC.FindDashboardByIDF = func(_ context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
-							if id != expected.ID {
-								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
-							}
-							return expected, nil
-						}
-						dashSVC.GetDashboardCellViewF = func(_ context.Context, id influxdb.ID, cID influxdb.ID) (*influxdb.View, error) {
-							if id == expected.ID && cID == expectedCell.ID {
-								return &tt.expectedView, nil
-							}
-							return nil, errors.New("wrongo ids")
-						}
-
-						svc := newTestService(WithDashboardSVC(dashSVC), WithLabelSVC(mock.NewLabelService()))
-
-						resToClone := ResourceToClone{
-							Kind: KindDashboard,
-							ID:   expected.ID,
-							Name: tt.newName,
-						}
-						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
-						require.NoError(t, err)
-
-						newPkg := encodeAndDecode(t, pkg)
-
-						dashs := newPkg.Summary().Dashboards
-						require.Len(t, dashs, 1)
-
-						actual := dashs[0]
-						expectedName := expected.Name
-						if tt.newName != "" {
-							expectedName = tt.newName
-						}
-						assert.Equal(t, expectedName, actual.Name)
-						assert.Equal(t, expected.Description, actual.Description)
-
-						require.Len(t, actual.Charts, 1)
-						ch := actual.Charts[0]
-						assert.Equal(t, int(expectedCell.X), ch.XPosition)
-						assert.Equal(t, int(expectedCell.Y), ch.YPosition)
-						assert.Equal(t, int(expectedCell.H), ch.Height)
-						assert.Equal(t, int(expectedCell.W), ch.Width)
-						assert.Equal(t, tt.expectedView.Properties, ch.Properties)
 					}
-					t.Run(tt.name, fn)
-				}
+
+					for _, tt := range tests {
+						fn := func(t *testing.T) {
+							expectedCell := &influxdb.Cell{
+								ID:           5,
+								CellProperty: influxdb.CellProperty{X: 1, Y: 2, W: 3, H: 4},
+								View:         &tt.expectedView,
+							}
+							expected := &influxdb.Dashboard{
+								ID:          3,
+								Name:        "bucket name",
+								Description: "desc",
+								Cells:       []*influxdb.Cell{expectedCell},
+							}
+
+							dashSVC := mock.NewDashboardService()
+							dashSVC.FindDashboardByIDF = func(_ context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+								if id != expected.ID {
+									return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+								}
+								return expected, nil
+							}
+							dashSVC.GetDashboardCellViewF = func(_ context.Context, id influxdb.ID, cID influxdb.ID) (*influxdb.View, error) {
+								if id == expected.ID && cID == expectedCell.ID {
+									return &tt.expectedView, nil
+								}
+								return nil, errors.New("wrongo ids")
+							}
+
+							svc := newTestService(WithDashboardSVC(dashSVC), WithLabelSVC(mock.NewLabelService()))
+
+							resToClone := ResourceToClone{
+								Kind: KindDashboard,
+								ID:   expected.ID,
+								Name: tt.newName,
+							}
+							pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+							require.NoError(t, err)
+
+							newPkg := encodeAndDecode(t, pkg)
+
+							dashs := newPkg.Summary().Dashboards
+							require.Len(t, dashs, 1)
+
+							actual := dashs[0]
+							expectedName := expected.Name
+							if tt.newName != "" {
+								expectedName = tt.newName
+							}
+							assert.Equal(t, expectedName, actual.Name)
+							assert.Equal(t, expected.Description, actual.Description)
+
+							require.Len(t, actual.Charts, 1)
+							ch := actual.Charts[0]
+							assert.Equal(t, int(expectedCell.X), ch.XPosition)
+							assert.Equal(t, int(expectedCell.Y), ch.YPosition)
+							assert.Equal(t, int(expectedCell.H), ch.Height)
+							assert.Equal(t, int(expectedCell.W), ch.Width)
+							assert.Equal(t, tt.expectedView.Properties, ch.Properties)
+						}
+						t.Run(tt.name, fn)
+					}
+				})
+
+				t.Run("handles duplicate dashboard names", func(t *testing.T) {
+					dashSVC := mock.NewDashboardService()
+					dashSVC.FindDashboardByIDF = func(_ context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+						return &influxdb.Dashboard{
+							ID:          id,
+							Name:        "dash name",
+							Description: "desc",
+						}, nil
+					}
+
+					svc := newTestService(WithDashboardSVC(dashSVC), WithLabelSVC(mock.NewLabelService()))
+
+					resourcesToClone := []ResourceToClone{
+						{
+							Kind: KindDashboard,
+							ID:   1,
+						},
+						{
+							Kind: KindDashboard,
+							ID:   2,
+						},
+					}
+					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
+					require.NoError(t, err)
+
+					newPkg := encodeAndDecode(t, pkg)
+
+					dashs := newPkg.Summary().Dashboards
+					require.Len(t, dashs, len(resourcesToClone))
+
+					for i := range resourcesToClone {
+						actual := dashs[i]
+						assert.Equal(t, "dash name", actual.Name)
+						assert.Equal(t, "desc", actual.Description)
+					}
+				})
 			})
 
 			t.Run("label", func(t *testing.T) {
@@ -2406,7 +2445,7 @@ func TestService(t *testing.T) {
 					teleStore.FindTelegrafConfigByIDF = func(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
 							ID:          id,
-							OrgID:       influxdb.ID(teleStore.FindTelegrafConfigByIDCalls.Count() + 1),
+							OrgID:       9000,
 							Name:        "same name",
 							Description: "desc",
 							Config:      "some config string",
@@ -2420,7 +2459,6 @@ func TestService(t *testing.T) {
 							Kind: KindTelegraf,
 							ID:   1,
 						},
-
 						{
 							Kind: KindTelegraf,
 							ID:   2,

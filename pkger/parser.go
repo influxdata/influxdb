@@ -238,7 +238,7 @@ type Pkg struct {
 	mLabels                map[string]*label
 	mBuckets               map[string]*bucket
 	mChecks                map[string]*check
-	mDashboards            []*dashboard
+	mDashboards            map[string]*dashboard
 	mNotificationEndpoints map[string]*notificationEndpoint
 	mNotificationRules     []*notificationRule
 	mTasks                 []*task
@@ -473,7 +473,10 @@ func (p *Pkg) labels() []*label {
 }
 
 func (p *Pkg) dashboards() []*dashboard {
-	dashes := p.mDashboards[:]
+	dashes := make([]*dashboard, 0, len(p.mDashboards))
+	for _, d := range p.mDashboards {
+		dashes = append(dashes, d)
+	}
 	sort.Slice(dashes, func(i, j int) bool { return dashes[i].Name() < dashes[j].Name() })
 	return dashes
 }
@@ -831,11 +834,20 @@ func (p *Pkg) graphChecks() *parseErr {
 }
 
 func (p *Pkg) graphDashboards() *parseErr {
-	p.mDashboards = make([]*dashboard, 0)
-	return p.eachResource(KindDashboard, 2, func(o Object) []validationErr {
+	p.mDashboards = make(map[string]*dashboard)
+	return p.eachResource(KindDashboard, dashboardNameMinLength, func(o Object) []validationErr {
 		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
+		if _, ok := p.mDashboards[nameRef.String()]; ok {
+			return []validationErr{
+				objectValidationErr(fieldMetadata, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
+		}
 		dash := &dashboard{
 			name:        nameRef,
+			displayName: p.getRefWithKnownEnvs(o.Spec, fieldName),
 			Description: o.Spec.stringShort(fieldDescription),
 		}
 
@@ -849,20 +861,22 @@ func (p *Pkg) graphDashboards() *parseErr {
 		for i, cr := range o.Spec.slcResource(fieldDashCharts) {
 			ch, fails := parseChart(cr)
 			if fails != nil {
-				failures = append(failures, validationErr{
-					Field:  fieldDashCharts,
-					Index:  intPtr(i),
-					Nested: fails,
-				})
+				failures = append(failures,
+					objectValidationErr(fieldSpec, validationErr{
+						Field:  fieldDashCharts,
+						Index:  intPtr(i),
+						Nested: fails,
+					}),
+				)
 				continue
 			}
 			dash.Charts = append(dash.Charts, ch)
 		}
 
-		p.mDashboards = append(p.mDashboards, dash)
-		p.setRefs(nameRef)
+		p.mDashboards[dash.PkgName()] = dash
+		p.setRefs(dash.name, dash.displayName)
 
-		return failures
+		return append(failures, dash.valid()...)
 	})
 }
 
@@ -1056,7 +1070,7 @@ func (p *Pkg) graphTelegrafs() *parseErr {
 		sort.Sort(tele.labels)
 
 		p.mTelegrafs[tele.PkgName()] = tele
-		p.setRefs(tele.name)
+		p.setRefs(tele.name, tele.displayName)
 
 		return append(failures, tele.valid()...)
 	})
@@ -1273,7 +1287,7 @@ func parseChart(r Resource) (chart, []validationErr) {
 	ck, err := r.chartKind()
 	if err != nil {
 		return chart{}, []validationErr{{
-			Field: "kind",
+			Field: fieldKind,
 			Msg:   err.Error(),
 		}}
 	}

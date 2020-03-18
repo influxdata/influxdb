@@ -1012,8 +1012,9 @@ spec:
 apiVersion: %[1]s
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash_UUID
 spec:
+  name: dash_1
   description: desc1
   charts:
     - kind:   Single_Stat
