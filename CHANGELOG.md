@@ -24,6 +24,7 @@
 1. [17138](https://github.com/influxdata/influxdb/pull/17138): Extend pkger export all capabilities to support filtering by lable name and resource type
 1. [17049](https://github.com/influxdata/influxdb/pull/17049): Added new login and sign-up screen that for cloud users that allows direct login from their region
 1. [17170](https://github.com/influxdata/influxdb/pull/17170): Added new cli multiple profiles management tool
+1. [17145](https://github.com/influxdata/influxdb/pull/17145): Update kv.Store to define schema changes via new kv.Migrator types
 
 ### Bug Fixes
 

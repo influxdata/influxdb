@@ -8,15 +8,11 @@ import {
   ComponentStatus,
   FlexBox,
   FlexDirection,
-  FontWeight,
   Grid,
-  Heading,
-  HeadingElement,
   JustifyContent,
   Method,
   Panel,
   SelectGroup,
-  Typeface,
 } from '@influxdata/clockface'
 import auth0js, {WebAuth} from 'auth0-js'
 
@@ -121,22 +117,15 @@ class LoginPageContents extends PureComponent<DispatchProps> {
         onSubmit={this.handleSubmit}
         className="sign-up--form"
       >
-        <div className="sign-up--login-container">
-          <Heading
-            element={HeadingElement.H5}
-            type={Typeface.Rubik}
-            weight={FontWeight.Regular}
-            className="sign-up--subheader"
-          >
-            No credit card required
-          </Heading>
-        </div>
         <Panel className="sign-up--form-panel">
-          <Panel.Header size={ComponentSize.Large}>
+          <Panel.Header
+            size={ComponentSize.Large}
+            justifyContent={JustifyContent.Center}
+          >
+            <h3 className="cf-funnel-page--panel-title">Continue with</h3>
+          </Panel.Header>
+          <Panel.Body size={ComponentSize.Large}>
             <Grid>
-              <Grid.Row>
-                <p className="sign-up--social-header">Continue with</p>
-              </Grid.Row>
               <Grid.Row className="sign-up--social-button-group">
                 <FlexBox
                   stretchToFitWidth={true}
@@ -164,42 +153,36 @@ class LoginPageContents extends PureComponent<DispatchProps> {
                 </FlexBox>
               </Grid.Row>
             </Grid>
-          </Panel.Header>
-          <div className="sign-up--or">
-            <p className="sign-up--social-header">OR</p>
-          </div>
-          <Panel.Body size={ComponentSize.Large}>
-            <div>
-              <FlexBox
-                stretchToFitWidth={true}
-                direction={FlexDirection.Row}
-                justifyContent={JustifyContent.Center}
+            <h5 className="cf-funnel-page--panel-title">OR</h5>
+            <FlexBox
+              stretchToFitWidth={true}
+              direction={FlexDirection.Row}
+              justifyContent={JustifyContent.Center}
+            >
+              <SelectGroup
+                size={ComponentSize.Large}
+                color={ComponentColor.Default}
               >
-                <SelectGroup
-                  size={ComponentSize.Large}
-                  color={ComponentColor.Default}
+                <SelectGroup.Option
+                  titleText="Log In"
+                  value={ActiveTab.Login}
+                  id="login-option"
+                  active={loginTabActive}
+                  onClick={this.handleTabChange}
                 >
-                  <SelectGroup.Option
-                    titleText="Log In"
-                    value={ActiveTab.Login}
-                    id="login-option"
-                    active={loginTabActive}
-                    onClick={this.handleTabChange}
-                  >
-                    Log In
-                  </SelectGroup.Option>
-                  <SelectGroup.Option
-                    titleText="Sign Up"
-                    value={ActiveTab.SignUp}
-                    id="signup-option"
-                    active={!loginTabActive}
-                    onClick={this.handleTabChange}
-                  >
-                    Sign Up
-                  </SelectGroup.Option>
-                </SelectGroup>
-              </FlexBox>
-            </div>
+                  Log In
+                </SelectGroup.Option>
+                <SelectGroup.Option
+                  titleText="Sign Up"
+                  value={ActiveTab.SignUp}
+                  id="signup-option"
+                  active={!loginTabActive}
+                  onClick={this.handleTabChange}
+                >
+                  Sign Up
+                </SelectGroup.Option>
+              </SelectGroup>
+            </FlexBox>
             <Transition
               native
               reset
