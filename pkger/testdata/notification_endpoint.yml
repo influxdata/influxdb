@@ -8,6 +8,7 @@ kind: NotificationEndpointSlack
 metadata:
   name: slack_notification_endpoint
 spec:
+  name: slack name
   description: slack desc
   url: https://hooks.slack.com/services/bip/piddy/boppidy
   status: active
@@ -35,6 +36,7 @@ kind: NotificationEndpointHTTP
 metadata:
   name: http_basic_auth_notification_endpoint
 spec:
+  name: basic endpoint name
   description: http basic auth desc
   type: basic
   method: pOsT
@@ -65,6 +67,7 @@ kind: NotificationEndpointPagerDuty
 metadata:
   name: pager_duty_notification_endpoint
 spec:
+  name: pager duty name
   description: pager duty desc
   url:  http://localhost:8080/orgs/7167eb6719fa34e5/alert-history
   routingKey: "secret routing-key"

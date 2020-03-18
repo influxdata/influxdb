@@ -124,7 +124,7 @@ func NewCheckHandler(log *zap.Logger, b *CheckBackend) *CheckHandler {
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
-		ResourceType:     influxdb.TelegrafsResourceType,
+		ResourceType:     influxdb.ChecksResourceType,
 	}
 	h.HandlerFunc("GET", checksIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", checksIDLabelsPath, newPostLabelHandler(labelBackend))
@@ -237,7 +237,7 @@ func (h *CheckHandler) newChecksResponse(ctx context.Context, chks []influxdb.Ch
 		Links:  newPagingLinks(prefixChecks, opts, f, len(chks)),
 	}
 	for _, chk := range chks {
-		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID()})
+		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID(), ResourceType: influxdb.ChecksResourceType})
 		cr, err := h.newCheckResponse(ctx, chk, labels)
 		if err != nil {
 			h.log.Info("Failed to retrieve task associated with check", zap.String("checkID", chk.GetID().String()))
@@ -334,7 +334,7 @@ func (h *CheckHandler) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log.Debug("Check retrieved", zap.String("check", fmt.Sprint(chk)))
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID(), ResourceType: influxdb.ChecksResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -613,7 +613,7 @@ func (h *CheckHandler) handlePutCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: c.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: c.GetID(), ResourceType: influxdb.ChecksResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -648,7 +648,7 @@ func (h *CheckHandler) handlePatchCheck(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID(), ResourceType: influxdb.ChecksResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return

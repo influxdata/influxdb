@@ -24,12 +24,18 @@ import {
 } from 'src/shared/utils/vis'
 
 // Constants
-import {VIS_THEME} from 'src/shared/constants'
+import {VIS_THEME, VIS_THEME_LIGHT} from 'src/shared/constants'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, XYViewProperties, TimeZone, TimeRange} from 'src/types'
+import {
+  RemoteDataState,
+  XYViewProperties,
+  TimeZone,
+  TimeRange,
+  Theme,
+} from 'src/types'
 
 interface Props {
   children: (config: Config) => JSX.Element
@@ -39,6 +45,7 @@ interface Props {
   table: Table
   timeZone: TimeZone
   viewProperties: XYViewProperties
+  theme: Theme
 }
 
 const XYPlot: FunctionComponent<Props> = ({
@@ -73,6 +80,7 @@ const XYPlot: FunctionComponent<Props> = ({
     position,
     timeFormat,
   },
+  theme,
 }) => {
   const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
   const storedYDomain = useMemo(() => parseBounds(yBounds), [yBounds])
@@ -148,8 +156,10 @@ const XYPlot: FunctionComponent<Props> = ({
     timeFormat,
   })
 
+  const currentTheme = theme === 'light' ? VIS_THEME_LIGHT : VIS_THEME
+
   const config: Config = {
-    ...VIS_THEME,
+    ...currentTheme,
     table,
     xAxisLabel,
     yAxisLabel,

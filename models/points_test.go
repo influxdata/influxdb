@@ -160,7 +160,7 @@ func TestPoint_Tags(t *testing.T) {
 }
 
 func TestPoint_StringSize(t *testing.T) {
-	testPoint_cube(t, func(p models.Point) {
+	testPointCube(t, func(p models.Point) {
 		l := p.StringSize()
 		s := p.String()
 
@@ -171,7 +171,7 @@ func TestPoint_StringSize(t *testing.T) {
 }
 
 func TestPoint_AppendString(t *testing.T) {
-	testPoint_cube(t, func(p models.Point) {
+	testPointCube(t, func(p models.Point) {
 		got := p.AppendString(nil)
 		exp := []byte(p.String())
 
@@ -181,7 +181,7 @@ func TestPoint_AppendString(t *testing.T) {
 	})
 }
 
-func testPoint_cube(t *testing.T, f func(p models.Point)) {
+func testPointCube(t *testing.T, f func(p models.Point)) {
 	// heard of a table-driven test? let's make a cube-driven test...
 	tagList := []models.Tags{nil, {models.NewTag([]byte("foo"), []byte("bar"))}, tags}
 	fieldList := []models.Fields{{"a": 42.0}, {"a": 42, "b": "things"}, fields}
@@ -1276,6 +1276,37 @@ func TestParsePointUnescape(t *testing.T) {
 				"value": int64(1),
 			},
 			time.Unix(0, 0)))
+}
+
+func TestPoints_String(t *testing.T) {
+	tags := models.NewTags(map[string]string{
+		"t1": "v1",
+		"t2": "v2",
+	})
+	pts := make(models.Points, 5)
+	for i := 0; i < len(pts); i++ {
+		point, err := models.NewPoint(
+			"m1",
+			tags,
+			models.Fields{
+				"f1": i,
+			},
+			time.Unix(0, int64(i)),
+		)
+		if err != nil {
+			t.Fatalf("unable to create point %v", err)
+		}
+		pts[i] = point
+	}
+	got := pts.String()
+	want := `m1,t1=v1,t2=v2 f1=0i 0
+m1,t1=v1,t2=v2 f1=1i 1
+m1,t1=v1,t2=v2 f1=2i 2
+m1,t1=v1,t2=v2 f1=3i 3
+m1,t1=v1,t2=v2 f1=4i 4`
+	if got != want {
+		t.Errorf("Points.String() %v| \n want \n%v", got, want)
+	}
 }
 
 func TestParsePointWithTags(t *testing.T) {

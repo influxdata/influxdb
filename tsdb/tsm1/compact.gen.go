@@ -9,7 +9,7 @@ package tsm1
 import (
 	"sort"
 
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 // merge combines the next set of blocks into merged blocks.
@@ -1069,7 +1069,7 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 					continue
 				}
 
-				var v tsdb.FloatArray
+				var v cursors.FloatArray
 				var err error
 				if err = DecodeFloatArrayBlock(k.blocks[i].b, &v); err != nil {
 					k.err = err
@@ -1154,7 +1154,7 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 			continue
 		}
 
-		var v tsdb.FloatArray
+		var v cursors.FloatArray
 		if err := DecodeFloatArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.err = err
 			return nil
@@ -1183,7 +1183,7 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 
 func (k *tsmBatchKeyIterator) chunkFloat(dst blocks) blocks {
 	if k.mergedFloatValues.Len() > k.size {
-		var values tsdb.FloatArray
+		var values cursors.FloatArray
 		values.Timestamps = k.mergedFloatValues.Timestamps[:k.size]
 		minTime, maxTime := values.Timestamps[0], values.Timestamps[len(values.Timestamps)-1]
 		values.Values = k.mergedFloatValues.Values[:k.size]
@@ -1288,7 +1288,7 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 					continue
 				}
 
-				var v tsdb.IntegerArray
+				var v cursors.IntegerArray
 				var err error
 				if err = DecodeIntegerArrayBlock(k.blocks[i].b, &v); err != nil {
 					k.err = err
@@ -1373,7 +1373,7 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 			continue
 		}
 
-		var v tsdb.IntegerArray
+		var v cursors.IntegerArray
 		if err := DecodeIntegerArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.err = err
 			return nil
@@ -1402,7 +1402,7 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 
 func (k *tsmBatchKeyIterator) chunkInteger(dst blocks) blocks {
 	if k.mergedIntegerValues.Len() > k.size {
-		var values tsdb.IntegerArray
+		var values cursors.IntegerArray
 		values.Timestamps = k.mergedIntegerValues.Timestamps[:k.size]
 		minTime, maxTime := values.Timestamps[0], values.Timestamps[len(values.Timestamps)-1]
 		values.Values = k.mergedIntegerValues.Values[:k.size]
@@ -1507,7 +1507,7 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 					continue
 				}
 
-				var v tsdb.UnsignedArray
+				var v cursors.UnsignedArray
 				var err error
 				if err = DecodeUnsignedArrayBlock(k.blocks[i].b, &v); err != nil {
 					k.err = err
@@ -1592,7 +1592,7 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 			continue
 		}
 
-		var v tsdb.UnsignedArray
+		var v cursors.UnsignedArray
 		if err := DecodeUnsignedArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.err = err
 			return nil
@@ -1621,7 +1621,7 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 
 func (k *tsmBatchKeyIterator) chunkUnsigned(dst blocks) blocks {
 	if k.mergedUnsignedValues.Len() > k.size {
-		var values tsdb.UnsignedArray
+		var values cursors.UnsignedArray
 		values.Timestamps = k.mergedUnsignedValues.Timestamps[:k.size]
 		minTime, maxTime := values.Timestamps[0], values.Timestamps[len(values.Timestamps)-1]
 		values.Values = k.mergedUnsignedValues.Values[:k.size]
@@ -1726,7 +1726,7 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 					continue
 				}
 
-				var v tsdb.StringArray
+				var v cursors.StringArray
 				var err error
 				if err = DecodeStringArrayBlock(k.blocks[i].b, &v); err != nil {
 					k.err = err
@@ -1811,7 +1811,7 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 			continue
 		}
 
-		var v tsdb.StringArray
+		var v cursors.StringArray
 		if err := DecodeStringArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.err = err
 			return nil
@@ -1840,7 +1840,7 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 
 func (k *tsmBatchKeyIterator) chunkString(dst blocks) blocks {
 	if k.mergedStringValues.Len() > k.size {
-		var values tsdb.StringArray
+		var values cursors.StringArray
 		values.Timestamps = k.mergedStringValues.Timestamps[:k.size]
 		minTime, maxTime := values.Timestamps[0], values.Timestamps[len(values.Timestamps)-1]
 		values.Values = k.mergedStringValues.Values[:k.size]
@@ -1945,7 +1945,7 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 					continue
 				}
 
-				var v tsdb.BooleanArray
+				var v cursors.BooleanArray
 				var err error
 				if err = DecodeBooleanArrayBlock(k.blocks[i].b, &v); err != nil {
 					k.err = err
@@ -2030,7 +2030,7 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 			continue
 		}
 
-		var v tsdb.BooleanArray
+		var v cursors.BooleanArray
 		if err := DecodeBooleanArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.err = err
 			return nil
@@ -2059,7 +2059,7 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 
 func (k *tsmBatchKeyIterator) chunkBoolean(dst blocks) blocks {
 	if k.mergedBooleanValues.Len() > k.size {
-		var values tsdb.BooleanArray
+		var values cursors.BooleanArray
 		values.Timestamps = k.mergedBooleanValues.Timestamps[:k.size]
 		minTime, maxTime := values.Timestamps[0], values.Timestamps[len(values.Timestamps)-1]
 		values.Values = k.mergedBooleanValues.Values[:k.size]

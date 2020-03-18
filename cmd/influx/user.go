@@ -214,7 +214,7 @@ func (b *cmdUserBuilder) cmdCreate() *cobra.Command {
 
 func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 	ctx := context.Background()
-	if err := b.org.validOrgFlags(); err != nil {
+	if err := b.org.validOrgFlags(b.globalFlags); err != nil {
 		return err
 	}
 

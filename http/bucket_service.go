@@ -308,7 +308,7 @@ type bucketsResponse struct {
 func newBucketsResponse(ctx context.Context, opts influxdb.FindOptions, f influxdb.BucketFilter, bs []*influxdb.Bucket, labelService influxdb.LabelService) *bucketsResponse {
 	rs := make([]*bucketResponse, 0, len(bs))
 	for _, b := range bs {
-		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID})
+		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID, ResourceType: influxdb.BucketsResourceType})
 		rs = append(rs, NewBucketResponse(b, labels))
 	}
 	return &bucketsResponse{
@@ -405,7 +405,7 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID, ResourceType: influxdb.BucketsResourceType})
 	if err != nil {
 		h.api.Err(w, err)
 		return
@@ -600,7 +600,8 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 	// TODO: should move to service to encapsulate labels and what any other dependencies. Future
 	// 	work for service definition
 	labels, err := h.LabelService.FindResourceLabels(r.Context(), influxdb.LabelMappingFilter{
-		ResourceID: b.ID,
+		ResourceID:   b.ID,
+		ResourceType: influxdb.BucketsResourceType,
 	})
 	if err != nil {
 		h.api.Err(w, err)

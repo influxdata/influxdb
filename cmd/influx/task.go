@@ -53,7 +53,7 @@ func taskCreateCmd(opt genericCLIOpts) *cobra.Command {
 }
 
 func taskCreateF(cmd *cobra.Command, args []string) error {
-	if err := taskCreateFlags.org.validOrgFlags(); err != nil {
+	if err := taskCreateFlags.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 
@@ -141,7 +141,7 @@ func taskFindCmd(opt genericCLIOpts) *cobra.Command {
 }
 
 func taskFindF(cmd *cobra.Command, args []string) error {
-	if err := taskFindFlags.org.validOrgFlags(); err != nil {
+	if err := taskFindFlags.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 

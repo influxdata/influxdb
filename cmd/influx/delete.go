@@ -68,8 +68,8 @@ func fluxDeleteF(cmd *cobra.Command, args []string) error {
 	}
 
 	s := &http.DeleteService{
-		Addr:               flags.host,
-		Token:              flags.token,
+		Addr:               flags.Host,
+		Token:              flags.Token,
 		InsecureSkipVerify: flags.skipVerify,
 	}
 

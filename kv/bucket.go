@@ -133,7 +133,14 @@ func (s *Service) FindBucketByName(ctx context.Context, orgID influxdb.ID, n str
 	return b, err
 }
 
-// CreateSystemBuckets creates the task and monitoring system buckets for an organization
+// CreateSystemBuckets for an organization
+func (s *Service) CreateSystemBuckets(ctx context.Context, o *influxdb.Organization) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
+		return s.createSystemBuckets(ctx, tx, o)
+	})
+}
+
+// createSystemBuckets creates the task and monitoring system buckets for an organization
 func (s *Service) createSystemBuckets(ctx context.Context, tx Tx, o *influxdb.Organization) error {
 	tb := &influxdb.Bucket{
 		OrgID:           o.ID,

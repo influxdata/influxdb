@@ -773,12 +773,14 @@ const (
 	fieldLevel        = "level"
 	fieldMin          = "min"
 	fieldMax          = "max"
+	fieldMetadata     = "metadata"
 	fieldName         = "name"
 	fieldOffset       = "offset"
 	fieldOperator     = "operator"
 	fieldPrefix       = "prefix"
 	fieldQuery        = "query"
 	fieldSuffix       = "suffix"
+	fieldSpec         = "spec"
 	fieldStatus       = "status"
 	fieldType         = "type"
 	fieldValue        = "value"
@@ -789,11 +791,14 @@ const (
 	fieldBucketRetentionRules = "retentionRules"
 )
 
+const bucketNameMinLength = 2
+
 type bucket struct {
 	id             influxdb.ID
 	OrgID          influxdb.ID
 	Description    string
 	name           *references
+	displayName    *references
 	RetentionRules retentionRules
 	labels         sortedLabels
 
@@ -815,6 +820,13 @@ func (b *bucket) Labels() []*label {
 }
 
 func (b *bucket) Name() string {
+	if displayName := b.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return b.name.String()
+}
+
+func (b *bucket) PkgName() string {
 	return b.name.String()
 }
 
@@ -838,7 +850,17 @@ func (b *bucket) summarize() SummaryBucket {
 }
 
 func (b *bucket) valid() []validationErr {
-	return b.RetentionRules.valid()
+	var vErrs []validationErr
+	if err, ok := isValidName(b.Name(), bucketNameMinLength); !ok {
+		vErrs = append(vErrs, err)
+	}
+	vErrs = append(vErrs, b.RetentionRules.valid()...)
+	if len(vErrs) == 0 {
+		return nil
+	}
+	return []validationErr{
+		objectValidationErr(fieldSpec, vErrs...),
+	}
 }
 
 func (b *bucket) shouldApply() bool {
@@ -938,11 +960,14 @@ const (
 	fieldCheckTimeSince             = "timeSince"
 )
 
+const checkNameMinLength = 1
+
 type check struct {
 	id            influxdb.ID
 	orgID         influxdb.ID
 	kind          checkKind
 	name          *references
+	displayName   *references
 	description   string
 	every         time.Duration
 	level         string
@@ -977,6 +1002,13 @@ func (c *check) Labels() []*label {
 }
 
 func (c *check) Name() string {
+	if displayName := c.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return c.name.String()
+}
+
+func (c *check) PkgName() string {
 	return c.name.String()
 }
 
@@ -1031,6 +1063,9 @@ func (c *check) summarize() SummaryCheck {
 
 func (c *check) valid() []validationErr {
 	var vErrs []validationErr
+	if err, ok := isValidName(c.Name(), checkNameMinLength); !ok {
+		vErrs = append(vErrs, err)
+	}
 	if c.every == 0 {
 		vErrs = append(vErrs, validationErr{
 			Field: fieldEvery,
@@ -1071,7 +1106,14 @@ func (c *check) valid() []validationErr {
 			}
 		}
 	}
-	return vErrs
+
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
 }
 
 type mapperChecks []*check
@@ -1219,10 +1261,13 @@ const (
 	fieldLabelColor = "color"
 )
 
+const labelNameMinLength = 2
+
 type label struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
 	name        *references
+	displayName *references
 	Color       string
 	Description string
 	associationMapping
@@ -1234,6 +1279,13 @@ type label struct {
 }
 
 func (l *label) Name() string {
+	if displayName := l.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return l.name.String()
+}
+
+func (l *label) PkgName() string {
 	return l.name.String()
 }
 
@@ -1300,6 +1352,19 @@ func (l *label) toInfluxLabel() influxdb.Label {
 	}
 }
 
+func (l *label) valid() []validationErr {
+	var vErrs []validationErr
+	if err, ok := isValidName(l.Name(), labelNameMinLength); !ok {
+		vErrs = append(vErrs, err)
+	}
+	if len(vErrs) == 0 {
+		return nil
+	}
+	return []validationErr{
+		objectValidationErr(fieldSpec, vErrs...),
+	}
+}
+
 func toSummaryLabels(labels ...*label) []SummaryLabel {
 	iLabels := make([]SummaryLabel, 0, len(labels))
 	for _, l := range labels {
@@ -1350,6 +1415,7 @@ type notificationEndpoint struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
 	name        *references
+	displayName *references
 	description string
 	method      string
 	password    *references
@@ -1381,6 +1447,13 @@ func (n *notificationEndpoint) Labels() []*label {
 }
 
 func (n *notificationEndpoint) Name() string {
+	if displayName := n.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return n.name.String()
+}
+
+func (n *notificationEndpoint) PkgName() string {
 	return n.name.String()
 }
 
@@ -1525,7 +1598,14 @@ func (n *notificationEndpoint) valid() []validationErr {
 			})
 		}
 	}
-	return failures
+
+	if len(failures) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, failures...),
+		}
+	}
+
+	return nil
 }
 
 type mapperNotificationEndpoints []*notificationEndpoint
@@ -1979,6 +2059,7 @@ type variable struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
 	name        *references
+	displayName *references
 	Description string
 	Type        string
 	Query       string
@@ -2007,6 +2088,13 @@ func (v *variable) Labels() []*label {
 }
 
 func (v *variable) Name() string {
+	if displayName := v.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return v.name.String()
+}
+
+func (v *variable) PkgName() string {
 	return v.name.String()
 }
 
@@ -2081,7 +2169,13 @@ func (v *variable) valid() []validationErr {
 			})
 		}
 	}
-	return failures
+	if len(failures) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, failures...),
+		}
+	}
+
+	return nil
 }
 
 type mapperVariables []*variable
@@ -2638,7 +2732,7 @@ func (q queries) influxDashQueries() []influxdb.DashboardQuery {
 			EditMode: "advanced",
 		}
 		// TODO: axe this builder configs when issue https://github.com/influxdata/influxdb/issues/15708 is fixed up
-		newQuery.BuilderConfig.Tags = append(newQuery.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", ""))
+		newQuery.BuilderConfig.Tags = append(newQuery.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement", "filter", ""))
 		iQueries = append(iQueries, newQuery)
 	}
 	return iQueries
@@ -2765,6 +2859,9 @@ func (r *references) hasValue() bool {
 }
 
 func (r *references) String() string {
+	if r == nil {
+		return ""
+	}
 	if v := r.StringVal(); v != "" {
 		return v
 	}
@@ -2790,6 +2887,16 @@ func (r *references) SecretField() influxdb.SecretField {
 		return influxdb.SecretField{Value: &str}
 	}
 	return influxdb.SecretField{}
+}
+
+func isValidName(name string, minLength int) (validationErr, bool) {
+	if len(name) >= minLength {
+		return validationErr{}, true
+	}
+	return validationErr{
+		Field: fieldName,
+		Msg:   fmt.Sprintf("must be a string of at least %d chars in length", minLength),
+	}, false
 }
 
 func toNotificationDuration(dur time.Duration) *notification.Duration {

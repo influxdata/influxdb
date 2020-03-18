@@ -29,6 +29,36 @@ func NewNotificationEndpointService(
 	}
 }
 
+func newNotificationEndpointPermission(a influxdb.Action, orgID, id influxdb.ID) (*influxdb.Permission, error) {
+	return influxdb.NewPermissionAtID(id, a, influxdb.NotificationEndpointResourceType, orgID)
+}
+
+func authorizeReadNotificationEndpoint(ctx context.Context, orgID, id influxdb.ID) error {
+	p, err := newNotificationEndpointPermission(influxdb.ReadAction, orgID, id)
+	if err != nil {
+		return err
+	}
+
+	if err := IsAllowed(ctx, *p); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func authorizeWriteNotificationEndpoint(ctx context.Context, orgID, id influxdb.ID) error {
+	p, err := newNotificationEndpointPermission(influxdb.WriteAction, orgID, id)
+	if err != nil {
+		return err
+	}
+
+	if err := IsAllowed(ctx, *p); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // FindNotificationEndpointByID checks to see if the authorizer on context has read access to the id provided.
 func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
 	edp, err := s.s.FindNotificationEndpointByID(ctx, id)
@@ -36,7 +66,7 @@ func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.C
 		return nil, err
 	}
 
-	if err := authorizeReadOrg(ctx, edp.GetOrgID()); err != nil {
+	if err := authorizeReadNotificationEndpoint(ctx, edp.GetOrgID(), edp.GetID()); err != nil {
 		return nil, err
 	}
 
@@ -64,7 +94,7 @@ func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Cont
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	endpoints := edps[:0]
 	for _, edp := range edps {
-		err := authorizeReadOrg(ctx, edp.GetOrgID())
+		err := authorizeReadNotificationEndpoint(ctx, edp.GetOrgID(), edp.GetID())
 		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
 			return nil, 0, err
 		}
@@ -85,19 +115,9 @@ func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Con
 	if err != nil {
 		return err
 	}
-
-	pOrg, err := newOrgPermission(influxdb.WriteAction, edp.GetOrgID())
-	if err != nil {
+	if err := IsAllowed(ctx, *p); err != nil {
 		return err
 	}
-
-	err0 := IsAllowed(ctx, *p)
-	err1 := IsAllowed(ctx, *pOrg)
-
-	if err0 != nil && err1 != nil {
-		return err0
-	}
-
 	return s.s.CreateNotificationEndpoint(ctx, edp, userID)
 }
 
@@ -108,7 +128,7 @@ func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Con
 		return nil, err
 	}
 
-	if err := authorizeWriteOrg(ctx, edp.GetOrgID()); err != nil {
+	if err := authorizeWriteNotificationEndpoint(ctx, edp.GetOrgID(), edp.GetID()); err != nil {
 		return nil, err
 	}
 
@@ -122,7 +142,7 @@ func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Cont
 		return nil, err
 	}
 
-	if err := authorizeWriteOrg(ctx, edp.GetOrgID()); err != nil {
+	if err := authorizeWriteNotificationEndpoint(ctx, edp.GetOrgID(), edp.GetID()); err != nil {
 		return nil, err
 	}
 
@@ -136,7 +156,7 @@ func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Con
 		return nil, 0, err
 	}
 
-	if err := authorizeWriteOrg(ctx, edp.GetOrgID()); err != nil {
+	if err := authorizeWriteNotificationEndpoint(ctx, edp.GetOrgID(), edp.GetID()); err != nil {
 		return nil, 0, err
 	}
 

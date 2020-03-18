@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+
 	platform "github.com/influxdata/influxdb"
 )
 
@@ -9,12 +10,13 @@ var _ platform.OrganizationService = &OrganizationService{}
 
 // OrganizationService is a mock organization server.
 type OrganizationService struct {
-	FindOrganizationByIDF func(ctx context.Context, id platform.ID) (*platform.Organization, error)
-	FindOrganizationF     func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error)
-	FindOrganizationsF    func(ctx context.Context, filter platform.OrganizationFilter, opt ...platform.FindOptions) ([]*platform.Organization, int, error)
-	CreateOrganizationF   func(ctx context.Context, b *platform.Organization) error
-	UpdateOrganizationF   func(ctx context.Context, id platform.ID, upd platform.OrganizationUpdate) (*platform.Organization, error)
-	DeleteOrganizationF   func(ctx context.Context, id platform.ID) error
+	FindOrganizationByIDF       func(ctx context.Context, id platform.ID) (*platform.Organization, error)
+	FindOrganizationF           func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error)
+	FindOrganizationsF          func(ctx context.Context, filter platform.OrganizationFilter, opt ...platform.FindOptions) ([]*platform.Organization, int, error)
+	CreateOrganizationF         func(ctx context.Context, b *platform.Organization) error
+	UpdateOrganizationF         func(ctx context.Context, id platform.ID, upd platform.OrganizationUpdate) (*platform.Organization, error)
+	DeleteOrganizationF         func(ctx context.Context, id platform.ID) error
+	FindResourceOrganizationIDF func(ctx context.Context, rt platform.ResourceType, id platform.ID) (platform.ID, error)
 }
 
 // NewOrganizationService returns a mock OrganizationService where its methods will return
@@ -64,4 +66,9 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platfor
 // DeleteOrganization calls DeleteOrganizationF.
 func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platform.ID) error {
 	return s.DeleteOrganizationF(ctx, id)
+}
+
+// FindResourceOrganizationID calls FindResourceOrganizationIDF.
+func (s *OrganizationService) FindResourceOrganizationID(ctx context.Context, rt platform.ResourceType, id platform.ID) (platform.ID, error) {
+	return s.FindResourceOrganizationIDF(ctx, rt, id)
 }

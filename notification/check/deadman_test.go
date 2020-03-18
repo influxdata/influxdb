@@ -38,12 +38,14 @@ func TestDeadman_GenerateFlux(t *testing.T) {
 							Text: `from(bucket: "foo") |> range(start: -1d, stop: now()) |> aggregateWindow(fn: mean, every: 1m) |> yield()`,
 							BuilderConfig: influxdb.BuilderConfig{
 								Tags: []struct {
-									Key    string   `json:"key"`
-									Values []string `json:"values"`
+									Key                   string   `json:"key"`
+									Values                []string `json:"values"`
+									AggregateFunctionType string   `json:"aggregateFunctionType"`
 								}{
 									{
-										Key:    "_field",
-										Values: []string{"usage_user"},
+										Key:                   "_field",
+										Values:                []string{"usage_user"},
+										AggregateFunctionType: "filter",
 									},
 								},
 							},
@@ -99,12 +101,14 @@ data
 							Text: `from(bucket: "foo") |> range(start: -1d, stop: now()) |> yield()`,
 							BuilderConfig: influxdb.BuilderConfig{
 								Tags: []struct {
-									Key    string   `json:"key"`
-									Values []string `json:"values"`
+									Key                   string   `json:"key"`
+									Values                []string `json:"values"`
+									AggregateFunctionType string   `json:"aggregateFunctionType"`
 								}{
 									{
-										Key:    "_field",
-										Values: []string{"usage_user"},
+										Key:                   "_field",
+										Values:                []string{"usage_user"},
+										AggregateFunctionType: "filter",
 									},
 								},
 							},

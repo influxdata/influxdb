@@ -73,7 +73,7 @@ func setup(t *testing.T) (func(auth influxdb.Authorizer) *httptest.Server, func(
 	backend := NewMockDocumentBackend(t)
 	backend.HTTPErrorHandler = http.ErrorHandler(0)
 	backend.DocumentService = authorizer.NewDocumentService(svc)
-	backend.LabelService = authorizer.NewLabelService(svc)
+	backend.LabelService = authorizer.NewLabelServiceWithOrg(svc, svc)
 	serverFn := func(auth influxdb.Authorizer) *httptest.Server {
 		handler := httpmock.NewAuthMiddlewareHandler(NewDocumentHandler(backend), auth)
 		return httptest.NewServer(handler)

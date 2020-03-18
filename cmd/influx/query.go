@@ -31,7 +31,7 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("local flag not supported for query command")
 	}
 
-	if err := queryFlags.org.validOrgFlags(); err != nil {
+	if err := queryFlags.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 
@@ -52,7 +52,7 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 
 	flux.FinalizeBuiltIns()
 
-	r, err := getFluxREPL(flags.host, flags.token, flags.skipVerify, orgID)
+	r, err := getFluxREPL(flags.Host, flags.Token, flags.skipVerify, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get the flux REPL: %v", err)
 	}

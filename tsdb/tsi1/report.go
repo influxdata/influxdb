@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 )
 
 const (
@@ -36,7 +37,7 @@ type ReportCommand struct {
 	orgToBucket         map[influxdb.ID][]influxdb.ID
 
 	SeriesDirPath string // optional. Defaults to dbPath/_series
-	sfile         *tsdb.SeriesFile
+	sfile         *seriesfile.SeriesFile
 	indexFile     *Index
 
 	TopN          int
@@ -79,7 +80,7 @@ func newSummary() *Summary {
 func (report *ReportCommand) Run(print bool) (*Summary, error) {
 	report.start = time.Now()
 
-	sfile := tsdb.NewSeriesFile(report.SeriesDirPath)
+	sfile := seriesfile.NewSeriesFile(report.SeriesDirPath)
 
 	if err := sfile.Open(context.Background()); err != nil {
 		return nil, err

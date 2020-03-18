@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/storage"
@@ -14,7 +14,7 @@ import (
 func TestBucketService(t *testing.T) {
 	service := storage.NewBucketService(nil, nil)
 
-	i, err := platform.IDFromString("2222222222222222")
+	i, err := influxdb.IDFromString("2222222222222222")
 	if err != nil {
 		panic(err)
 	}
@@ -30,12 +30,12 @@ func TestBucketService(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 
-	org := &platform.Organization{Name: "org1"}
+	org := &influxdb.Organization{Name: "org1"}
 	if err := inmemService.CreateOrganization(context.TODO(), org); err != nil {
 		panic(err)
 	}
 
-	bucket := &platform.Bucket{OrgID: org.ID}
+	bucket := &influxdb.Bucket{OrgID: org.ID}
 	if err := inmemService.CreateBucket(context.TODO(), bucket); err != nil {
 		panic(err)
 	}
@@ -56,10 +56,10 @@ func TestBucketService(t *testing.T) {
 }
 
 type MockDeleter struct {
-	orgID, bucketID platform.ID
+	orgID, bucketID influxdb.ID
 }
 
-func (m *MockDeleter) DeleteBucket(_ context.Context, orgID, bucketID platform.ID) error {
+func (m *MockDeleter) DeleteBucket(_ context.Context, orgID, bucketID influxdb.ID) error {
 	m.orgID, m.bucketID = orgID, bucketID
 	return nil
 }

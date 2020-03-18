@@ -60,7 +60,7 @@ interface State {
 }
 
 class LoginPageContents extends PureComponent<DispatchProps> {
-  private auth0?: typeof WebAuth
+  private auth0: typeof WebAuth
 
   state: State = {
     activeTab: ActiveTab.Login,
@@ -80,7 +80,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
   public async componentDidMount() {
     try {
       const config = await getAuth0Config()
-      this.auth0 = auth0js.WebAuth({
+      this.auth0 = new auth0js.WebAuth({
         domain: config.domain,
         clientID: config.clientID,
         redirectUri: config.redirectURL,
@@ -117,16 +117,15 @@ class LoginPageContents extends PureComponent<DispatchProps> {
         onSubmit={this.handleSubmit}
         className="sign-up--form"
       >
-        <div className="sign-up--login-container">
-          <h2>Create your Free InfluxDB Cloud Account</h2>
-          <p className="sign-up--login-text">No credit card required</p>
-        </div>
         <Panel className="sign-up--form-panel">
-          <Panel.Header size={ComponentSize.Large}>
+          <Panel.Header
+            size={ComponentSize.Large}
+            justifyContent={JustifyContent.Center}
+          >
+            <h3 className="cf-funnel-page--panel-title">Continue with</h3>
+          </Panel.Header>
+          <Panel.Body size={ComponentSize.Large}>
             <Grid>
-              <Grid.Row>
-                <p className="sign-up--social-header">Continue with</p>
-              </Grid.Row>
               <Grid.Row className="sign-up--social-button-group">
                 <FlexBox
                   stretchToFitWidth={true}
@@ -154,42 +153,36 @@ class LoginPageContents extends PureComponent<DispatchProps> {
                 </FlexBox>
               </Grid.Row>
             </Grid>
-          </Panel.Header>
-          <div className="sign-up--or">
-            <p className="sign-up--social-header">OR</p>
-          </div>
-          <Panel.Body size={ComponentSize.Large}>
-            <div>
-              <FlexBox
-                stretchToFitWidth={true}
-                direction={FlexDirection.Row}
-                justifyContent={JustifyContent.Center}
+            <h5 className="cf-funnel-page--panel-title">OR</h5>
+            <FlexBox
+              stretchToFitWidth={true}
+              direction={FlexDirection.Row}
+              justifyContent={JustifyContent.Center}
+            >
+              <SelectGroup
+                size={ComponentSize.Large}
+                color={ComponentColor.Default}
               >
-                <SelectGroup
-                  size={ComponentSize.Large}
-                  color={ComponentColor.Default}
+                <SelectGroup.Option
+                  titleText="Log In"
+                  value={ActiveTab.Login}
+                  id="login-option"
+                  active={loginTabActive}
+                  onClick={this.handleTabChange}
                 >
-                  <SelectGroup.Option
-                    titleText="Login"
-                    value={ActiveTab.Login}
-                    id="login-option"
-                    active={loginTabActive}
-                    onClick={this.handleTabChange}
-                  >
-                    Login
-                  </SelectGroup.Option>
-                  <SelectGroup.Option
-                    titleText="Sign Up"
-                    value={ActiveTab.SignUp}
-                    id="signup-option"
-                    active={!loginTabActive}
-                    onClick={this.handleTabChange}
-                  >
-                    Sign Up
-                  </SelectGroup.Option>
-                </SelectGroup>
-              </FlexBox>
-            </div>
+                  Log In
+                </SelectGroup.Option>
+                <SelectGroup.Option
+                  titleText="Sign Up"
+                  value={ActiveTab.SignUp}
+                  id="signup-option"
+                  active={!loginTabActive}
+                  onClick={this.handleTabChange}
+                >
+                  Sign Up
+                </SelectGroup.Option>
+              </SelectGroup>
+            </FlexBox>
             <Transition
               native
               reset
@@ -404,7 +397,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
       const emailError = `An account with that email address already exists. Try logging in instead.`
       this.setState({...errors, emailError})
     } else {
-      const emailError = `We have been notified of an issue while creating your account. If this issue persists, please contact support@influxdata.com`
+      const emailError = `We have been notified of an issue while accessing your account. If this issue persists, please contact support@influxdata.com`
       this.setState({...errors, emailError})
     }
   }

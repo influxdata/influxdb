@@ -24,22 +24,22 @@ type SeriesRow struct {
 	SortKey    []byte
 	Name       []byte      // measurement name
 	SeriesTags models.Tags // unmodified series tags
-	Tags       models.Tags
+	Tags       models.Tags // SeriesTags with field key renamed from \xff to _field and measurement key renamed from \x00 to _measurement
 	Field      string
 	Query      cursors.CursorIterator
 	ValueCond  influxql.Expr
 }
 
 var (
-	fieldKeyBytes       = []byte(fieldKey)
-	measurementKeyBytes = []byte(measurementKey)
+	fieldKeyBytes       = []byte(datatypes.FieldKey)
+	measurementKeyBytes = []byte(datatypes.MeasurementKey)
 )
 
 type indexSeriesCursor struct {
 	sqry         storage.SeriesCursor
 	err          error
 	cond         influxql.Expr
-	row          SeriesRow
+	seriesRow    SeriesRow
 	eof          bool
 	hasValueExpr bool
 }
@@ -63,7 +63,7 @@ func NewIndexSeriesCursor(ctx context.Context, orgID, bucketID influxdb.ID, pred
 		Ascending:  true,
 		Ordered:    true,
 	}
-	p := &indexSeriesCursor{row: SeriesRow{Query: cursorIterator}}
+	p := &indexSeriesCursor{seriesRow: SeriesRow{Query: cursorIterator}}
 
 	if root := predicate.GetRoot(); root != nil {
 		if p.cond, err = NodeToExpr(root, nil); err != nil {
@@ -132,35 +132,35 @@ func (c *indexSeriesCursor) Next() *SeriesRow {
 		return nil
 	}
 
-	c.row.Name = sr.Name
+	c.seriesRow.Name = sr.Name
 	// TODO(edd): check this.
-	c.row.SeriesTags = copyTags(c.row.SeriesTags, sr.Tags)
-	c.row.Tags = copyTags(c.row.Tags, sr.Tags)
+	c.seriesRow.SeriesTags = copyTags(c.seriesRow.SeriesTags, sr.Tags)
+	c.seriesRow.Tags = copyTags(c.seriesRow.Tags, sr.Tags)
 
 	if c.cond != nil && c.hasValueExpr {
 		// TODO(sgc): lazily evaluate valueCond
-		c.row.ValueCond = influxql.Reduce(c.cond, c)
-		if IsTrueBooleanLiteral(c.row.ValueCond) {
+		c.seriesRow.ValueCond = influxql.Reduce(c.cond, c)
+		if IsTrueBooleanLiteral(c.seriesRow.ValueCond) {
 			// we've reduced the expression to "true"
-			c.row.ValueCond = nil
+			c.seriesRow.ValueCond = nil
 		}
 	}
 
 	// Normalise the special tag keys to the emitted format.
-	mv := c.row.Tags.Get(models.MeasurementTagKeyBytes)
-	c.row.Tags.Delete(models.MeasurementTagKeyBytes)
-	c.row.Tags.Set(measurementKeyBytes, mv)
+	mv := c.seriesRow.Tags.Get(models.MeasurementTagKeyBytes)
+	c.seriesRow.Tags.Delete(models.MeasurementTagKeyBytes)
+	c.seriesRow.Tags.Set(measurementKeyBytes, mv)
 
-	fv := c.row.Tags.Get(models.FieldKeyTagKeyBytes)
-	c.row.Field = string(fv)
-	c.row.Tags.Delete(models.FieldKeyTagKeyBytes)
-	c.row.Tags.Set(fieldKeyBytes, fv)
+	fv := c.seriesRow.Tags.Get(models.FieldKeyTagKeyBytes)
+	c.seriesRow.Field = string(fv)
+	c.seriesRow.Tags.Delete(models.FieldKeyTagKeyBytes)
+	c.seriesRow.Tags.Set(fieldKeyBytes, fv)
 
-	return &c.row
+	return &c.seriesRow
 }
 
 func (c *indexSeriesCursor) Value(key string) (interface{}, bool) {
-	res := c.row.Tags.Get([]byte(key))
+	res := c.seriesRow.Tags.Get([]byte(key))
 	// Return res as a string so it compares correctly with the string literals
 	return string(res), res != nil
 }

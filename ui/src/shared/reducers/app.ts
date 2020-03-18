@@ -1,7 +1,8 @@
 import {combineReducers} from 'redux'
 
+// Types
+import {ActionTypes, Action} from 'src/shared/actions/app'
 import {AUTOREFRESH_DEFAULT_INTERVAL} from 'src/shared/constants'
-import {ActionTypes, Action} from 'src/types/actions/app'
 import {TimeZone} from 'src/types'
 
 export interface AppState {
@@ -13,6 +14,7 @@ export interface AppState {
     showTemplateControlBar: boolean
     timeZone: TimeZone
     navTreeExpanded: boolean
+    theme: 'dark' | 'light'
   }
 }
 
@@ -21,6 +23,7 @@ const initialState: AppState = {
     inPresentationMode: false,
   },
   persisted: {
+    theme: 'dark',
     autoRefresh: AUTOREFRESH_DEFAULT_INTERVAL,
     showTemplateControlBar: false,
     timeZone: 'Local',
@@ -36,7 +39,7 @@ const {
 const appEphemeralReducer = (
   state = initialAppEphemeralState,
   action: Action
-) => {
+): AppState['ephemeral'] => {
   switch (action.type) {
     case ActionTypes.EnablePresentationMode: {
       return {
@@ -60,19 +63,17 @@ const appEphemeralReducer = (
 const appPersistedReducer = (
   state = initialAppPersistedState,
   action: Action
-) => {
+): AppState['persisted'] => {
   switch (action.type) {
+    case 'SET_THEME': {
+      return {...state, theme: action.theme}
+    }
+
     case ActionTypes.SetAutoRefresh: {
       return {
         ...state,
         autoRefresh: action.payload.milliseconds,
       }
-    }
-
-    case ActionTypes.TemplateControlBarVisibilityToggled: {
-      const {showTemplateControlBar} = state
-
-      return {...state, showTemplateControlBar: !showTemplateControlBar}
     }
 
     case ActionTypes.SetTimeZone: {

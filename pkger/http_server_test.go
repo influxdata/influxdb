@@ -6,7 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"path"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi"
@@ -23,6 +28,27 @@ import (
 )
 
 func TestPkgerHTTPServer(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		b, err := ioutil.ReadFile(strings.TrimPrefix(r.URL.Path, "/"))
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Write(b)
+	})
+	filesvr := httptest.NewServer(mux)
+	defer filesvr.Close()
+
+	newPkgURL := func(t *testing.T, svrURL string, pkgPath string) string {
+		t.Helper()
+
+		u, err := url.Parse(svrURL)
+		require.NoError(t, err)
+		u.Path = path.Join(u.Path, pkgPath)
+		return u.String()
+	}
+
 	t.Run("create pkg", func(t *testing.T) {
 		t.Run("should successfully return with valid req body", func(t *testing.T) {
 			fakeLabelSVC := mock.NewLabelService()
@@ -104,17 +130,8 @@ func TestPkgerHTTPServer(t *testing.T) {
 						DryRun: true,
 						OrgID:  influxdb.ID(9000).String(),
 						Remotes: []pkger.PkgRemote{{
-							URL: "https://gist.githubusercontent.com/jsteenb2/3a3b2b5fcbd6179b2494c2b54aa2feb0/raw/989d361db7a851a3c388eaed0b59dce7fca7fdf3/bucket_pkg.json",
+							URL: newPkgURL(t, filesvr.URL, "testdata/remote_bucket.json"),
 						}},
-					},
-				},
-				{
-					name:        "app jsonnet",
-					contentType: "application/x-jsonnet",
-					reqBody: pkger.ReqApplyPkg{
-						DryRun: true,
-						OrgID:  influxdb.ID(9000).String(),
-						RawPkg: bucketPkgKinds(t, pkger.EncodingJsonnet),
 					},
 				},
 				{

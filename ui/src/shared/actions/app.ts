@@ -4,33 +4,44 @@ import {notify} from 'src/shared/actions/notifications'
 import {presentationMode} from 'src/shared/copy/notifications'
 
 import {Dispatch} from 'redux'
-import {TimeZone} from 'src/types'
+import {TimeZone, Theme} from 'src/types'
 
-import {
-  ActionTypes,
-  EnablePresentationModeAction,
-  DisablePresentationModeAction,
-  ExpandNavTreeAction,
-  CollapseNavTreeAction,
-  DelayEnablePresentationModeDispatcher,
-  SetAutoRefreshActionCreator,
-  SetAutoRefreshAction,
-  SetTimeZoneAction,
-  TemplateControlBarVisibilityToggledAction,
-} from 'src/types/actions/app'
+export enum ActionTypes {
+  EnablePresentationMode = 'ENABLE_PRESENTATION_MODE',
+  DisablePresentationMode = 'DISABLE_PRESENTATION_MODE',
+  ExpandNavTree = 'EXPAND_NAV_TREE',
+  CollapseNavTree = 'COLLAPSE_NAV_TREE',
+  SetAutoRefresh = 'SET_AUTOREFRESH',
+  SetTimeZone = 'SET_APP_TIME_ZONE',
+  TemplateControlBarVisibilityToggled = 'TemplateControlBarVisibilityToggledAction',
+  Noop = 'NOOP',
+}
+
+export type Action =
+  | ReturnType<typeof enablePresentationMode>
+  | ReturnType<typeof disablePresentationMode>
+  | ReturnType<typeof expandNavTree>
+  | ReturnType<typeof collapseNavTree>
+  | ReturnType<typeof setAutoRefresh>
+  | ReturnType<typeof setTimeZone>
+  | ReturnType<typeof setTheme>
+
+export const setTheme = (theme: Theme) => ({type: 'SET_THEME', theme} as const)
 
 // ephemeral state action creators
 
-export const enablePresentationMode = (): EnablePresentationModeAction => ({
-  type: ActionTypes.EnablePresentationMode,
-})
+export const enablePresentationMode = () =>
+  ({
+    type: ActionTypes.EnablePresentationMode,
+  } as const)
 
-export const disablePresentationMode = (): DisablePresentationModeAction => ({
-  type: ActionTypes.DisablePresentationMode,
-})
+export const disablePresentationMode = () =>
+  ({
+    type: ActionTypes.DisablePresentationMode,
+  } as const)
 
-export const delayEnablePresentationMode: DelayEnablePresentationModeDispatcher = () => (
-  dispatch: Dispatch<EnablePresentationModeAction>
+export const delayEnablePresentationMode = () => (
+  dispatch: Dispatch<ReturnType<typeof enablePresentationMode>>
 ): NodeJS.Timer =>
   setTimeout(() => {
     dispatch(enablePresentationMode())
@@ -39,28 +50,24 @@ export const delayEnablePresentationMode: DelayEnablePresentationModeDispatcher 
 
 // persistent state action creators
 
-export const setAutoRefresh: SetAutoRefreshActionCreator = (
-  milliseconds: number
-): SetAutoRefreshAction => ({
-  type: ActionTypes.SetAutoRefresh,
-  payload: {
-    milliseconds,
-  },
-})
-
-export const setTimeZone = (timeZone: TimeZone): SetTimeZoneAction => ({
-  type: ActionTypes.SetTimeZone,
-  payload: {timeZone},
-})
-
-export const templateControlBarVisibilityToggled = (): TemplateControlBarVisibilityToggledAction => ({
-  type: ActionTypes.TemplateControlBarVisibilityToggled,
-})
-
-export const expandNavTree = (): ExpandNavTreeAction => ({
+export const expandNavTree = () => ({
   type: ActionTypes.ExpandNavTree,
-})
+} as const)
 
-export const collapseNavTree = (): CollapseNavTreeAction => ({
+export const collapseNavTree = () => ({
   type: ActionTypes.CollapseNavTree,
-})
+} as const)
+
+export const setAutoRefresh = (milliseconds: number) =>
+  ({
+    type: ActionTypes.SetAutoRefresh,
+    payload: {
+      milliseconds,
+    },
+  } as const)
+
+export const setTimeZone = (timeZone: TimeZone) =>
+  ({
+    type: ActionTypes.SetTimeZone,
+    payload: {timeZone},
+  } as const)

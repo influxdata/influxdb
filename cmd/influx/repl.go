@@ -33,7 +33,7 @@ func replF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("local flag not supported for repl command")
 	}
 
-	if err := replFlags.org.validOrgFlags(); err != nil {
+	if err := replFlags.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 
@@ -49,7 +49,7 @@ func replF(cmd *cobra.Command, args []string) error {
 
 	flux.FinalizeBuiltIns()
 
-	r, err := getFluxREPL(flags.host, flags.token, flags.skipVerify, orgID)
+	r, err := getFluxREPL(flags.Host, flags.Token, flags.skipVerify, orgID)
 	if err != nil {
 		return err
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 )
 
 // Log errors.
@@ -58,7 +59,7 @@ type LogFile struct {
 	buf        []byte        // marshaling buffer
 	keyBuf     []byte
 
-	sfile    *tsdb.SeriesFile // series lookup
+	sfile    *seriesfile.SeriesFile // series lookup
 	sfileref *lifecycle.Reference
 	size     int64     // tracks current file size
 	modTime  time.Time // tracks last time write occurred
@@ -77,7 +78,7 @@ type LogFile struct {
 }
 
 // NewLogFile returns a new instance of LogFile.
-func NewLogFile(sfile *tsdb.SeriesFile, path string) *LogFile {
+func NewLogFile(sfile *seriesfile.SeriesFile, path string) *LogFile {
 	return &LogFile{
 		sfile: sfile,
 		path:  path,
@@ -726,11 +727,11 @@ func (f *LogFile) execDeleteTagValueEntry(e *LogEntry) {
 func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	var seriesKey []byte
 	if e.cached {
-		sz := tsdb.SeriesKeySize(e.name, e.tags)
+		sz := seriesfile.SeriesKeySize(e.name, e.tags)
 		if len(f.keyBuf) < sz {
 			f.keyBuf = make([]byte, 0, sz)
 		}
-		seriesKey = tsdb.AppendSeriesKey(f.keyBuf[:0], e.name, e.tags)
+		seriesKey = seriesfile.AppendSeriesKey(f.keyBuf[:0], e.name, e.tags)
 	} else {
 		seriesKey = f.sfile.SeriesKey(e.SeriesID)
 	}
@@ -748,10 +749,10 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	deleted := e.Flag == LogEntrySeriesTombstoneFlag
 
 	// Read key size.
-	_, remainder := tsdb.ReadSeriesKeyLen(seriesKey)
+	_, remainder := seriesfile.ReadSeriesKeyLen(seriesKey)
 
 	// Read measurement name.
-	name, remainder := tsdb.ReadSeriesKeyMeasurement(remainder)
+	name, remainder := seriesfile.ReadSeriesKeyMeasurement(remainder)
 	mm := f.createMeasurementIfNotExists(name)
 	mm.deleted = false
 	if !deleted {
@@ -761,12 +762,12 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	}
 
 	// Read tag count.
-	tagN, remainder := tsdb.ReadSeriesKeyTagN(remainder)
+	tagN, remainder := seriesfile.ReadSeriesKeyTagN(remainder)
 
 	// Save tags.
 	var k, v []byte
 	for i := 0; i < tagN; i++ {
-		k, v, remainder = tsdb.ReadSeriesKeyTag(remainder)
+		k, v, remainder = seriesfile.ReadSeriesKeyTag(remainder)
 		ts := mm.createTagSetIfNotExists(k)
 		tv := ts.createTagValueIfNotExists(v)
 

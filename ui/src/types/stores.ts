@@ -22,6 +22,7 @@ import {OverlayState} from 'src/overlays/reducers/overlays'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
 import {AlertBuilderState} from 'src/alerting/reducers/alertBuilder'
+import {CurrentPage} from 'src/shared/reducers/currentPage'
 
 import {ResourceState} from 'src/types'
 
@@ -30,6 +31,7 @@ export interface AppState {
   app: AppPresentationState
   autoRefresh: AutoRefreshState
   cloud: {limits: LimitsState}
+  currentPage: CurrentPage
   currentDashboard: CurrentDashboardState
   dataLoading: DataLoadingState
   links: Links
