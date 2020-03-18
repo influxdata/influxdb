@@ -27,7 +27,7 @@ const initialState: AppState = {
     autoRefresh: AUTOREFRESH_DEFAULT_INTERVAL,
     showTemplateControlBar: false,
     timeZone: 'Local',
-    navBarState: 'expanded',
+    navBarState: 'collapsed',
   },
 }
 
