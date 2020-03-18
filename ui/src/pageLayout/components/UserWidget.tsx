@@ -8,6 +8,9 @@ import {TreeNav} from '@influxdata/clockface'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 
+// Actions
+import {showOverlay, dismissOverlay} from 'src/overlays/actions/overlays'
+
 // Constants
 import {CLOUD_URL, CLOUD_LOGOUT_PATH} from 'src/shared/constants'
 
@@ -23,11 +26,27 @@ interface StateProps {
   me: MeState
 }
 
-const UserWidget: FC<StateProps> = ({org, me}) => {
+interface DispatchProps {
+  handleShowOverlay: typeof showOverlay
+  handleDismissOverlay: typeof dismissOverlay
+}
+
+type Props = StateProps & DispatchProps
+
+const UserWidget: FC<Props> = ({
+  org,
+  me,
+  handleShowOverlay,
+  handleDismissOverlay,
+}) => {
   const logoutURL = `${CLOUD_URL}${CLOUD_LOGOUT_PATH}`
 
   if (!org) {
     return null
+  }
+
+  const handleSwitchOrganizations = (): void => {
+    handleShowOverlay('switch-organizations', {}, handleDismissOverlay)
   }
 
   return (
@@ -50,7 +69,7 @@ const UserWidget: FC<StateProps> = ({org, me}) => {
         <TreeNav.UserItem
           id="switch-orgs"
           label="Switch Organizations"
-          linkElement={className => <Link className={className} to="/logout" />}
+          onClick={handleSwitchOrganizations}
         />
         <TreeNav.UserItem
           id="create-org"
@@ -70,4 +89,12 @@ const mstp = (state: AppState) => {
   return {org, me}
 }
 
-export default connect<StateProps>(mstp)(UserWidget)
+const mdtp = {
+  handleShowOverlay: showOverlay,
+  handleDismissOverlay: dismissOverlay,
+}
+
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(UserWidget)
