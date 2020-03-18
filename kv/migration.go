@@ -257,7 +257,7 @@ func (m *Migrator) Down(ctx context.Context, store Store) (err error) {
 }
 
 func (m *Migrator) logMigrationEvent(state MigrationState, mig Migration, event string) {
-	m.logger.Info(fmt.Sprintf("(%s): %q %s", state, mig.Name, event))
+	m.logger.Info(fmt.Sprintf("Migration %q %s (%s)", mig.Name, event, state))
 }
 
 func (m *Migrator) walk(ctx context.Context, store Store, fn func(id influxdb.ID, m Migration)) error {
