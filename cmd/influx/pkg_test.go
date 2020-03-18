@@ -202,7 +202,7 @@ func TestCmdPkg(t *testing.T) {
 					for _, labelName := range orgIDOpt.LabelNames {
 						pkg.Objects = append(pkg.Objects, pkger.Object{
 							APIVersion: pkger.APIVersion,
-							Type:       pkger.KindLabel,
+							Kind:       pkger.KindLabel,
 							Metadata:   pkger.Resource{"name": labelName},
 						})
 					}
@@ -210,7 +210,7 @@ func TestCmdPkg(t *testing.T) {
 						for _, k := range orgIDOpt.ResourceKinds {
 							pkg.Objects = append(pkg.Objects, pkger.Object{
 								APIVersion: pkger.APIVersion,
-								Type:       k,
+								Kind:       k,
 								Metadata: pkger.Resource{
 									"name": k.String(),
 								},
@@ -222,7 +222,7 @@ func TestCmdPkg(t *testing.T) {
 
 					pkg.Objects = append(pkg.Objects, pkger.Object{
 						APIVersion: pkger.APIVersion,
-						Type:       pkger.KindBucket,
+						Kind:       pkger.KindBucket,
 						Metadata:   pkger.Resource{"name": "bucket1"},
 					})
 					return &pkg, nil
@@ -338,7 +338,7 @@ func TestCmdPkg(t *testing.T) {
 						name := rc.Kind.String() + strconv.Itoa(int(rc.ID))
 						pkg.Objects = append(pkg.Objects, pkger.Object{
 							APIVersion: pkger.APIVersion,
-							Type:       rc.Kind,
+							Kind:       rc.Kind,
 							Metadata:   pkger.Resource{"name": name},
 						})
 					}
