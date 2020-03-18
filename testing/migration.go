@@ -316,7 +316,7 @@ func Migrator(t *testing.T, store kv.Store, newMigrator func(*zap.Logger, NowFun
 
 	t.Run("List() missing migration spec errors as expected", func(t *testing.T) {
 		// remove last specification from migration list
-		migrator.Migrations = migrator.Migrations[:len(migrator.Migrations)-1]
+		migrator.MigrationSpecs = migrator.MigrationSpecs[:len(migrator.MigrationSpecs)-1]
 		// list migration again
 		_, err := migrator.List(ctx, store)
 		if !errors.Is(err, kv.ErrMigrationSpecNotFound) {
@@ -335,7 +335,7 @@ type spyMigrationSpec struct {
 	downCalled int
 }
 
-func (s *spyMigrationSpec) Name() string {
+func (s *spyMigrationSpec) MigrationName() string {
 	return s.name
 }
 

@@ -54,7 +54,7 @@ type Migration struct {
 // It describes the name of the migration and up and down operations
 // needed to fulfill the migration.
 type MigrationSpec interface {
-	Name() string
+	MigrationName() string
 	Up(ctx context.Context, store Store) error
 	Down(ctx context.Context, store Store) error
 }
@@ -75,7 +75,7 @@ func NewAnonymousMigration(name string, up, down MigrationFunc) AnonymousMigrati
 }
 
 // Name returns the name of the migration.
-func (a AnonymousMigration) Name() string { return a.name }
+func (a AnonymousMigration) MigrationName() string { return a.name }
 
 // Up calls the underlying up migration func.
 func (a AnonymousMigration) Up(ctx context.Context, store Store) error { return a.up(ctx, store) }
@@ -87,8 +87,8 @@ func (a AnonymousMigration) Down(ctx context.Context, store Store) error { retur
 // It takes a list of migration specifications and undo (down) all or apply (up) outstanding migrations.
 // It records the state of the world in store under the migrations bucket.
 type Migrator struct {
-	logger     *zap.Logger
-	Migrations []MigrationSpec
+	logger         *zap.Logger
+	MigrationSpecs []MigrationSpec
 
 	now func() time.Time
 }
@@ -107,7 +107,7 @@ func NewMigrator(logger *zap.Logger, ms ...MigrationSpec) *Migrator {
 
 // AddMigrations appends the provided migration specs onto the Migrator.
 func (m *Migrator) AddMigrations(ms ...MigrationSpec) {
-	m.Migrations = append(m.Migrations, ms...)
+	m.MigrationSpecs = append(m.MigrationSpecs, ms...)
 }
 
 // Initialize creates the migration bucket if it does not yet exist.
@@ -127,10 +127,10 @@ func (m *Migrator) List(ctx context.Context, store Store) (migrations []Migratio
 	}
 
 	migrationsLen := len(migrations)
-	for idx, migration := range m.Migrations[migrationsLen:] {
+	for idx, spec := range m.MigrationSpecs[migrationsLen:] {
 		migration := Migration{
 			ID:   influxdb.ID(migrationsLen + idx + 1),
-			Name: migration.Name(),
+			Name: spec.MigrationName(),
 		}
 
 		migrations = append(migrations, migration)
@@ -167,11 +167,11 @@ func (m *Migrator) Up(ctx context.Context, store Store) error {
 		return wrapErr(err)
 	}
 
-	for idx, mig := range m.Migrations[lastMigration:] {
+	for idx, spec := range m.MigrationSpecs[lastMigration:] {
 		startedAt := m.now()
 		migration := Migration{
 			ID:        influxdb.ID(lastMigration + idx + 1),
-			Name:      mig.Name(),
+			Name:      spec.MigrationName(),
 			StartedAt: &startedAt,
 		}
 
@@ -181,7 +181,7 @@ func (m *Migrator) Up(ctx context.Context, store Store) error {
 			return wrapErr(err)
 		}
 
-		if err := mig.Up(ctx, store); err != nil {
+		if err := spec.Up(ctx, store); err != nil {
 			return wrapErr(err)
 		}
 
@@ -229,7 +229,7 @@ func (m *Migrator) Down(ctx context.Context, store Store) (err error) {
 				MigrationSpec
 				Migration
 			}{
-				m.Migrations[int(id)-1],
+				m.MigrationSpecs[int(id)-1],
 				mig,
 			},
 		)
@@ -284,12 +284,12 @@ func (m *Migrator) walk(ctx context.Context, store Store, fn func(id influxdb.ID
 			}
 
 			idx := int(id) - 1
-			if idx >= len(m.Migrations) {
+			if idx >= len(m.MigrationSpecs) {
 				return fmt.Errorf("migration %q: %w", migration.Name, ErrMigrationSpecNotFound)
 			}
 
-			if mig := m.Migrations[idx]; mig.Name() != migration.Name {
-				return fmt.Errorf("expected migration %q, found %q", mig.Name(), migration.Name)
+			if spec := m.MigrationSpecs[idx]; spec.MigrationName() != migration.Name {
+				return fmt.Errorf("expected migration %q, found %q", spec.MigrationName(), migration.Name)
 			}
 
 			if migration.FinishedAt != nil {

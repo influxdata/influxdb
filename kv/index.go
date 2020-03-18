@@ -179,6 +179,9 @@ func indexKeyParts(indexKey []byte) (fk, pk []byte, err error) {
 	return
 }
 
+// ensure IndexMigration implements MigrationSpec
+var _ MigrationSpec = (*IndexMigration)(nil)
+
 // IndexMigration is a migration for adding and removing an index.
 // These are constructed via the Index.Migration function.
 type IndexMigration struct {
@@ -187,7 +190,7 @@ type IndexMigration struct {
 }
 
 // Name returns a readable name for the index migration.
-func (i *IndexMigration) Name() string {
+func (i *IndexMigration) MigrationName() string {
 	return fmt.Sprintf("add index %q", string(i.IndexBucket()))
 }
 
@@ -198,7 +201,7 @@ func (i *IndexMigration) Up(ctx context.Context, store Store) (err error) {
 			return nil
 		}
 
-		return fmt.Errorf("migration (up) %s: %w", i.Name(), err)
+		return fmt.Errorf("migration (up) %s: %w", i.MigrationName(), err)
 	}
 
 	if err = i.initialize(ctx, store); err != nil {
@@ -212,7 +215,7 @@ func (i *IndexMigration) Up(ctx context.Context, store Store) (err error) {
 // Down deletes all entries from the index.
 func (i *IndexMigration) Down(ctx context.Context, store Store) error {
 	if err := i.DeleteAll(ctx, store); err != nil {
-		return fmt.Errorf("migration (down) %s: %w", i.Name(), err)
+		return fmt.Errorf("migration (down) %s: %w", i.MigrationName(), err)
 	}
 
 	return nil

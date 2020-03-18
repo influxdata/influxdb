@@ -77,6 +77,7 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 				return nil
 			},
 		),
+		// and new migrations below here (and move this comment down):
 	)
 
 	if len(configs) > 0 {
@@ -127,6 +128,9 @@ func (s *Service) Initialize(ctx context.Context) error {
 }
 
 func (s *Service) initializeAll(ctx context.Context, store Store) error {
+	// please do not initialize anymore buckets here
+	// add them as a new migration to the list of migrations
+	// defined in NewService.
 	if err := store.Update(ctx, func(tx Tx) error {
 		if err := s.initializeAuths(ctx, tx); err != nil {
 			return err
