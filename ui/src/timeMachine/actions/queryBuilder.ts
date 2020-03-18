@@ -29,6 +29,9 @@ import {
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
 
+// Constants
+import {LIMIT} from 'src/resources/constants'
+
 export type Action =
   | ReturnType<typeof setBuilderAggregateFunctionType>
   | ReturnType<typeof setBuilderBucket>
@@ -151,7 +154,7 @@ export const loadBuckets = () => async (
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
   try {
-    const resp = await api.getBuckets({query: {orgID}})
+    const resp = await api.getBuckets({query: {orgID, limit: LIMIT}})
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
