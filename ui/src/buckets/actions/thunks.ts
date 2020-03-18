@@ -62,7 +62,7 @@ export const getBuckets = () => async (
     }
     const org = getOrg(state)
 
-    const resp = await api.getBuckets({query: {orgID: org.id}})
+    const resp = await api.getBuckets({query: {orgID: org.id, limit: 100}})
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)

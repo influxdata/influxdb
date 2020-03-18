@@ -151,7 +151,7 @@ export const loadBuckets = () => async (
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
   try {
-    const resp = await api.getBuckets({query: {orgID}})
+    const resp = await api.getBuckets({query: {orgID, limit: 100}})
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
