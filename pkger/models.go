@@ -2205,10 +2205,13 @@ const (
 	fieldDashCharts = "charts"
 )
 
+const dashboardNameMinLength = 2
+
 type dashboard struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
 	name        *references
+	displayName *references
 	Description string
 	Charts      []chart
 
@@ -2224,6 +2227,13 @@ func (d *dashboard) Labels() []*label {
 }
 
 func (d *dashboard) Name() string {
+	if displayName := d.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return d.name.String()
+}
+
+func (d *dashboard) PkgName() string {
 	return d.name.String()
 }
 
@@ -2253,6 +2263,19 @@ func (d *dashboard) summarize() SummaryDashboard {
 		})
 	}
 	return iDash
+}
+
+func (d *dashboard) valid() []validationErr {
+	var vErrs []validationErr
+	if err, ok := isValidName(d.Name(), dashboardNameMinLength); !ok {
+		vErrs = append(vErrs, err)
+	}
+	if len(vErrs) == 0 {
+		return nil
+	}
+	return []validationErr{
+		objectValidationErr(fieldSpec, vErrs...),
+	}
 }
 
 type mapperDashboards []*dashboard

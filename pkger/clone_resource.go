@@ -56,13 +56,15 @@ var kindPriorities = map[Kind]int{
 
 type exportKey struct {
 	orgID influxdb.ID
+	id    influxdb.ID
 	name  string
 	kind  Kind
 }
 
-func newExportKey(orgID influxdb.ID, k Kind, name string) exportKey {
+func newExportKey(orgID, id influxdb.ID, k Kind, name string) exportKey {
 	return exportKey{
 		orgID: orgID,
+		id:    id,
 		name:  name,
 		kind:  k,
 	}
@@ -147,6 +149,14 @@ func (ex *resourceExporter) Objects() []Object {
 	return objects
 }
 
+func (ex *resourceExporter) uniqByNameResID() influxdb.ID {
+	// we only need an id when we have resources that are not unique by name via the
+	// metastore. resoureces that are unique by name will be provided a default stamp
+	// making looksup unique since each resource will be unique by name.
+	const uniqByNameResID = 0
+	return uniqByNameResID
+}
+
 type cloneAssociationsFn func(context.Context, ResourceToClone) (associations []Resource, skipResource bool, err error)
 
 func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) (e error) {
@@ -164,13 +174,15 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		return nil
 	}
 
-	mapResource := func(orgID influxdb.ID, k Kind, object Object) {
+	mapResource := func(orgID, uniqResID influxdb.ID, k Kind, object Object) {
 		if len(ass) > 0 {
 			object.Spec[fieldAssociations] = ass
 		}
-		key := newExportKey(orgID, k, object.Spec.stringShort(fieldName))
+		key := newExportKey(orgID, uniqResID, k, object.Spec.stringShort(fieldName))
 		ex.mObjects[key] = object
 	}
+
+	uniqByNameResID := ex.uniqByNameResID()
 
 	switch {
 	case r.Kind.is(KindBucket):
@@ -178,7 +190,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(bkt.OrgID, KindBucket, bucketToObject(*bkt, r.Name))
+		mapResource(bkt.OrgID, uniqByNameResID, KindBucket, bucketToObject(*bkt, r.Name))
 	case r.Kind.is(KindCheck),
 		r.Kind.is(KindCheckDeadman),
 		r.Kind.is(KindCheckThreshold):
@@ -186,19 +198,19 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(ch.GetOrgID(), KindCheck, checkToObject(ch, r.Name))
+		mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, checkToObject(ch, r.Name))
 	case r.Kind.is(KindDashboard):
 		dash, err := ex.findDashboardByIDFull(ctx, r.ID)
 		if err != nil {
 			return err
 		}
-		mapResource(dash.OrganizationID, KindDashboard, DashboardToObject(*dash, r.Name))
+		mapResource(dash.OrganizationID, dash.ID, KindDashboard, DashboardToObject(*dash, r.Name))
 	case r.Kind.is(KindLabel):
 		l, err := ex.labelSVC.FindLabelByID(ctx, r.ID)
 		if err != nil {
 			return err
 		}
-		mapResource(l.OrgID, KindLabel, labelToObject(*l, r.Name))
+		mapResource(l.OrgID, uniqByNameResID, KindLabel, labelToObject(*l, r.Name))
 	case r.Kind.is(KindNotificationEndpoint),
 		r.Kind.is(KindNotificationEndpointHTTP),
 		r.Kind.is(KindNotificationEndpointPagerDuty),
@@ -207,40 +219,40 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(e.GetOrgID(), KindNotificationEndpoint, endpointKind(e, r.Name))
+		mapResource(e.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, endpointKind(e, r.Name))
 	case r.Kind.is(KindNotificationRule):
 		rule, ruleEndpoint, err := ex.getEndpointRule(ctx, r.ID)
 		if err != nil {
 			return err
 		}
 
-		endpointKey := newExportKey(ruleEndpoint.GetOrgID(), KindNotificationEndpoint, ruleEndpoint.GetName())
+		endpointKey := newExportKey(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, ruleEndpoint.GetName())
 		object, ok := ex.mObjects[endpointKey]
 		if !ok {
-			mapResource(ruleEndpoint.GetOrgID(), KindNotificationEndpoint, endpointKind(ruleEndpoint, ""))
+			mapResource(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, endpointKind(ruleEndpoint, ""))
 			object = ex.mObjects[endpointKey]
 		}
 		endpointObjectName := object.Name()
 
-		mapResource(rule.GetOrgID(), KindNotificationRule, ruleToObject(rule, endpointObjectName, r.Name))
+		mapResource(rule.GetOrgID(), rule.GetID(), KindNotificationRule, ruleToObject(rule, endpointObjectName, r.Name))
 	case r.Kind.is(KindTask):
 		t, err := ex.taskSVC.FindTaskByID(ctx, r.ID)
 		if err != nil {
 			return err
 		}
-		mapResource(t.OrganizationID, KindTask, taskToObject(*t, r.Name))
+		mapResource(t.OrganizationID, t.ID, KindTask, taskToObject(*t, r.Name))
 	case r.Kind.is(KindTelegraf):
 		t, err := ex.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
 		if err != nil {
 			return err
 		}
-		mapResource(t.OrgID, KindTelegraf, telegrafToObject(*t, r.Name))
+		mapResource(t.OrgID, t.ID, KindTelegraf, telegrafToObject(*t, r.Name))
 	case r.Kind.is(KindVariable):
 		v, err := ex.varSVC.FindVariableByID(ctx, r.ID)
 		if err != nil {
 			return err
 		}
-		mapResource(v.OrganizationID, KindVariable, VariableToObject(*v, r.Name))
+		mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(*v, r.Name))
 	default:
 		return errors.New("unsupported kind provided: " + string(r.Kind))
 	}
@@ -300,7 +312,7 @@ func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, la
 
 			labelObject := labelToObject(*l, "")
 
-			k := newExportKey(l.OrgID, KindLabel, l.Name)
+			k := newExportKey(l.OrgID, ex.uniqByNameResID(), KindLabel, l.Name)
 			existing, ok := ex.mObjects[k]
 			if ok {
 				associations = append(associations, Resource{
@@ -747,15 +759,10 @@ func DashboardToObject(dash influxdb.Dashboard, name string) Object {
 		charts = append(charts, convertChartToResource(ch))
 	}
 
-	return Object{
-		APIVersion: APIVersion,
-		Kind:       KindDashboard,
-		Metadata:   convertToMetadataResource(name),
-		Spec: Resource{
-			fieldDescription: dash.Description,
-			fieldDashCharts:  charts,
-		},
-	}
+	o := newObject(KindDashboard, name)
+	o.Spec[fieldDescription] = dash.Description
+	o.Spec[fieldDashCharts] = charts
+	return o
 }
 
 func labelToObject(l influxdb.Label, name string) Object {
