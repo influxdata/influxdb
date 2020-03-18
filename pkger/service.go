@@ -229,18 +229,7 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 		}
 	}
 
-	exporter := exportCoordinator{
-		bucketSVC:   s.bucketSVC,
-		checkSVC:    s.checkSVC,
-		dashSVC:     s.dashSVC,
-		labelSVC:    s.labelSVC,
-		endpointSVC: s.endpointSVC,
-		ruleSVC:     s.ruleSVC,
-		taskSVC:     s.taskSVC,
-		teleSVC:     s.teleSVC,
-		varSVC:      s.varSVC,
-		mObjects:    make(map[exportKey]Object),
-	}
+	exporter := newResourceExporter(s)
 
 	for _, orgIDOpt := range opt.OrgIDs {
 		resourcesToClone, err := s.cloneOrgResources(ctx, orgIDOpt.OrgID, orgIDOpt.ResourceKinds)
