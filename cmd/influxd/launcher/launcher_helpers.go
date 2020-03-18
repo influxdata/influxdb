@@ -131,7 +131,7 @@ func (tl *TestLauncher) SetupOrFail(tb testing.TB) {
 // OnBoard attempts an on-boarding request.
 // The on-boarding status is also reset to allow multiple user/org/buckets to be created.
 func (tl *TestLauncher) OnBoard(req *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
-	res, err := tl.KeyValueService().Generate(context.Background(), req)
+	res, err := tl.KeyValueService().OnboardInitalUser(context.Background(), req)
 	if err != nil {
 		return nil, err
 	}
