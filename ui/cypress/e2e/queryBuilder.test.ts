@@ -45,7 +45,7 @@ describe('The Query Builder', () => {
 
       cy.get('.giraffe-plot').should('exist')
 
-      cy.contains('Save As').click()
+      cy.getByTestID('save-query-as').click()
 
       // open the dashboard selector dropdown
       cy.getByTestID('save-as-dashboard-cell--dropdown').click()
@@ -64,9 +64,10 @@ describe('The Query Builder', () => {
       cy.get('.notification-close').click()
       cy.wait(250)
 
-      // force a click on the hidden dashboard nav item (cypress can't do the hover)
-      // i assure you i spent a nonzero amount of time trying to do this the way a user would
-      cy.getByTestID('nav-menu_dashboard').click({force: true})
+      // This is a fragile way to select the dashboards item in the navbar
+      // Once https://github.com/influxdata/clockface/issues/458 is fixed
+      // we should circle back and refactor this
+      cy.contains('Boards').click()
 
       cy.contains('Basic Ole Dashboard').click()
       cy.getByTestID('cell-context--toggle').click()
@@ -78,7 +79,7 @@ describe('The Query Builder', () => {
       cy.contains('Submit').click()
       cy.getByTestID('save-cell--button').click()
 
-      cy.getByTestID('nav-menu_dashboard').click({force: true})
+      cy.contains('Boards').click()
 
       cy.contains('Basic Ole Dashboard').click()
       cy.getByTestID('cell-context--toggle').click()
