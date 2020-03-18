@@ -68,7 +68,7 @@ func newExportKey(orgID influxdb.ID, k Kind, name string) exportKey {
 	}
 }
 
-type exportCoordinator struct {
+type resourceExporter struct {
 	bucketSVC   influxdb.BucketService
 	checkSVC    influxdb.CheckService
 	dashSVC     influxdb.DashboardService
@@ -82,7 +82,22 @@ type exportCoordinator struct {
 	mObjects map[exportKey]Object
 }
 
-func (ex *exportCoordinator) Export(ctx context.Context, resourcesToClone []ResourceToClone, labelNames ...string) error {
+func newResourceExporter(svc *Service) *resourceExporter {
+	return &resourceExporter{
+		bucketSVC:   svc.bucketSVC,
+		checkSVC:    svc.checkSVC,
+		dashSVC:     svc.dashSVC,
+		labelSVC:    svc.labelSVC,
+		endpointSVC: svc.endpointSVC,
+		ruleSVC:     svc.ruleSVC,
+		taskSVC:     svc.taskSVC,
+		teleSVC:     svc.teleSVC,
+		varSVC:      svc.varSVC,
+		mObjects:    make(map[exportKey]Object),
+	}
+}
+
+func (ex *resourceExporter) Export(ctx context.Context, resourcesToClone []ResourceToClone, labelNames ...string) error {
 	cloneAssFn, err := ex.resourceCloneAssociationsGen(ctx, labelNames...)
 	if err != nil {
 		return err
@@ -113,7 +128,7 @@ func (ex *exportCoordinator) Export(ctx context.Context, resourcesToClone []Reso
 	return nil
 }
 
-func (ex *exportCoordinator) Objects() []Object {
+func (ex *resourceExporter) Objects() []Object {
 	objects := make([]Object, 0, len(ex.mObjects))
 	for _, obj := range ex.mObjects {
 		objects = append(objects, obj)
@@ -134,7 +149,7 @@ func (ex *exportCoordinator) Objects() []Object {
 
 type cloneAssociationsFn func(context.Context, ResourceToClone) (associations []Resource, skipResource bool, err error)
 
-func (ex *exportCoordinator) resourceCloneToKind(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) (e error) {
+func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) (e error) {
 	defer func() {
 		if e != nil {
 			e = ierrors.Wrap(e, "cloning resource")
@@ -233,7 +248,7 @@ func (ex *exportCoordinator) resourceCloneToKind(ctx context.Context, r Resource
 	return nil
 }
 
-func (ex *exportCoordinator) resourceCloneAssociationsGen(ctx context.Context, labelNames ...string) (cloneAssociationsFn, error) {
+func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, labelNames ...string) (cloneAssociationsFn, error) {
 	mLabelNames := make(map[string]bool)
 	for _, labelName := range labelNames {
 		mLabelNames[labelName] = true
@@ -306,7 +321,7 @@ func (ex *exportCoordinator) resourceCloneAssociationsGen(ctx context.Context, l
 	return cloneFn, nil
 }
 
-func (ex *exportCoordinator) getEndpointRule(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, influxdb.NotificationEndpoint, error) {
+func (ex *resourceExporter) getEndpointRule(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, influxdb.NotificationEndpoint, error) {
 	rule, err := ex.ruleSVC.FindNotificationRuleByID(ctx, id)
 	if err != nil {
 		return nil, nil, err
@@ -320,7 +335,7 @@ func (ex *exportCoordinator) getEndpointRule(ctx context.Context, id influxdb.ID
 	return rule, ruleEndpoint, nil
 }
 
-func (ex *exportCoordinator) findDashboardByIDFull(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+func (ex *resourceExporter) findDashboardByIDFull(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
 	dash, err := ex.dashSVC.FindDashboardByID(ctx, id)
 	if err != nil {
 		return nil, err
