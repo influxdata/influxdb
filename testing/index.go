@@ -36,16 +36,11 @@ type someResourceStore struct {
 	ownerIDIndex *kv.Index
 }
 
-func newSomeResourceStore(ctx context.Context, store kv.Store) (*someResourceStore, error) {
-	ownerIDIndex := kv.NewIndex(mapping)
-	if err := ownerIDIndex.Initialize(ctx, store); err != nil {
-		return nil, err
-	}
-
+func newSomeResourceStore(ctx context.Context, store kv.Store) *someResourceStore {
 	return &someResourceStore{
 		store:        store,
-		ownerIDIndex: ownerIDIndex,
-	}, nil
+		ownerIDIndex: kv.NewIndex(mapping),
+	}
 }
 
 func (s *someResourceStore) FindByOwner(ctx context.Context, ownerID string) (resources []someResource, err error) {
@@ -112,9 +107,9 @@ func TestIndex(t *testing.T, store kv.Store) {
 
 func testPopulateAndVerify(t *testing.T, store kv.Store) {
 	var (
-		ctx                = context.TODO()
-		resources          = newNResources(20)
-		resourceStore, err = newSomeResourceStore(ctx, store)
+		ctx           = context.TODO()
+		resources     = newNResources(20)
+		resourceStore = newSomeResourceStore(ctx, store)
 	)
 
 	// insert 20 resources, but only index the first half
@@ -270,7 +265,7 @@ func testWalk(t *testing.T, store kv.Store) {
 		ctx       = context.TODO()
 		resources = newNResources(20)
 		// configure resource store with read disabled
-		resourceStore, err = newSomeResourceStore(ctx, store)
+		resourceStore = newSomeResourceStore(ctx, store)
 
 		cases = []struct {
 			owner     string
@@ -323,10 +318,6 @@ func testWalk(t *testing.T, store kv.Store) {
 			},
 		}
 	)
-
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// insert all 20 resources with indexing enabled
 	for _, resource := range resources {
