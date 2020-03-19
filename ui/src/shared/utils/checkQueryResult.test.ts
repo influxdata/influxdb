@@ -1,7 +1,7 @@
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 
 describe('checkQueryResult', () => {
-  test('throws an error when the response has an error table', () => {
+  test('should not throw an error when the response has an error table', () => {
     const RESPONSE = `#group,true,true
 #datatype,string,string
 #default,,
@@ -10,7 +10,7 @@ describe('checkQueryResult', () => {
 
     expect(() => {
       checkQueryResult(RESPONSE)
-    }).toThrow('function references unknown column')
+    }).not.toThrow()
   })
 
   test('does not throw an error when the response is valid', () => {
