@@ -26,6 +26,7 @@ export interface NavItem {
   cloudOnly?: boolean
   featureFlag?: string
   menu?: NavSubItem[]
+  activeKeywords: string[]
 }
 
 export const generateNavItems = (orgID: string): NavItem[] => {
@@ -38,6 +39,7 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       icon: IconFont.DisksNav,
       label: 'Data',
       link: `${orgPrefix}/load-data/buckets`,
+      activeKeywords: ['load-data'],
       menu: [
         {
           id: 'buckets',
@@ -67,7 +69,7 @@ export const generateNavItems = (orgID: string): NavItem[] => {
         {
           id: 'client-libraries',
           testID: 'nav-subitem-client-libraries',
-          label: 'Tokens',
+          label: 'Client Libraries',
           link: `${orgPrefix}/load-data/client-libraries`,
         },
       ],
@@ -78,47 +80,115 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       icon: IconFont.GraphLine,
       label: 'Explore',
       link: `${orgPrefix}/data-explorer`,
+      activeKeywords: ['data-explorer'],
     },
     {
-      id: 'settings',
-      testID: 'nav-item-settings',
-      icon: IconFont.UsersDuo,
+      id: 'org-cloud',
+      testID: 'nav-item-org-cloud',
+      icon: IconFont.UsersTrio,
       label: 'Org',
-      link: `${orgPrefix}/settings/members`,
+      link: CLOUD_USAGE_PATH,
+      cloudOnly: true,
+      activeKeywords: ['org'],
       menu: [
-        {
-          id: 'members',
-          testID: 'nav-subitem-members',
-          label: 'Members',
-          link: `${orgPrefix}/settings/members`,
-        },
-        {
-          id: 'multi-user-members',
-          testID: 'nav-subitem-multi-user-members',
-          label: 'Org Members',
-          featureFlag: 'multiUser',
-          link: `${CLOUD_URL}/organizations/${orgID}/${CLOUD_USERS_PATH}`,
-        },
         {
           id: 'usage',
           testID: 'nav-subitem-usage',
           label: 'Usage',
           link: CLOUD_USAGE_PATH,
-          cloudOnly: true,
         },
         {
           id: 'billing',
           testID: 'nav-subitem-billing',
           label: 'Billing',
           link: CLOUD_BILLING_PATH,
-          cloudOnly: true,
         },
         {
-          id: 'profile',
-          testID: 'nav-subitem-profile',
-          label: 'Profile',
-          link: `${orgPrefix}/settings/profile`,
+          id: 'multi-user-members',
+          testID: 'nav-subitem-multi-user-members',
+          label: 'Members',
+          featureFlag: 'multiUser',
+          link: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
         },
+        {
+          id: 'about',
+          testID: 'nav-subitem-about',
+          label: 'About',
+          link: `${orgPrefix}/about`,
+        },
+      ],
+    },
+    {
+      id: 'org-oss',
+      testID: 'nav-item-org-oss',
+      icon: IconFont.UsersTrio,
+      label: 'Org',
+      link: `${orgPrefix}/members`,
+      cloudExclude: true,
+      activeKeywords: ['members', 'about'],
+      menu: [
+        {
+          id: 'members',
+          testID: 'nav-subitem-members',
+          label: 'Members',
+          link: `${orgPrefix}/members`,
+          cloudExclude: true,
+        },
+        {
+          id: 'multi-user-members',
+          testID: 'nav-subitem-multi-user-members',
+          label: 'Members',
+          featureFlag: 'multiUser',
+          link: `${CLOUD_URL}/organizations/${orgID}/${CLOUD_USERS_PATH}`,
+        },
+        {
+          id: 'about',
+          testID: 'nav-subitem-about',
+          label: 'About',
+          link: `${orgPrefix}/about`,
+        },
+      ],
+    },
+    {
+      id: 'dashboards',
+      testID: 'nav-item-dashboards',
+      icon: IconFont.Dashboards,
+      label: 'Boards',
+      link: `${orgPrefix}/dashboards`,
+      activeKeywords: ['dashboards'],
+    },
+    {
+      id: 'tasks',
+      testID: 'nav-item-tasks',
+      icon: IconFont.Calendar,
+      label: 'Tasks',
+      link: `${orgPrefix}/tasks`,
+      activeKeywords: ['tasks'],
+    },
+    {
+      id: 'alerting',
+      testID: 'nav-item-alerting',
+      icon: IconFont.Bell,
+      label: 'Alerts',
+      link: `${orgPrefix}/alerting`,
+      activeKeywords: ['alerting'],
+      menu: [
+        {
+          id: 'history',
+          testID: 'nav-subitem-history',
+          label: 'Alert History',
+          link: `${orgPrefix}/alert-history`,
+        },
+      ],
+    },
+    {
+      id: 'settings',
+      testID: 'nav-item-settings',
+      icon: IconFont.WrenchNav,
+      label: 'Settings',
+      link: `${orgPrefix}/settings/variables`,
+      activeKeywords: ['settings'],
+      menu: [
         {
           id: 'variables',
           testID: 'nav-subitem-variables',
@@ -136,35 +206,6 @@ export const generateNavItems = (orgID: string): NavItem[] => {
           testID: 'nav-subitem-labels',
           label: 'Labels',
           link: `${orgPrefix}/settings/labels`,
-        },
-      ],
-    },
-    {
-      id: 'dashboards',
-      testID: 'nav-item-dashboards',
-      icon: IconFont.Dashboards,
-      label: 'Boards',
-      link: `${orgPrefix}/dashboards`,
-    },
-    {
-      id: 'tasks',
-      testID: 'nav-item-tasks',
-      icon: IconFont.Calendar,
-      label: 'Tasks',
-      link: `${orgPrefix}/tasks`,
-    },
-    {
-      id: 'alerting',
-      testID: 'nav-item-alerting',
-      icon: IconFont.Bell,
-      label: 'Alerts',
-      link: `${orgPrefix}/alerting`,
-      menu: [
-        {
-          id: 'history',
-          testID: 'nav-subitem-history',
-          label: 'Alert History',
-          link: `${orgPrefix}/alert-history`,
         },
       ],
     },

@@ -89,7 +89,10 @@ class SideNav extends PureComponent<Props, State> {
               testID={item.testID}
               icon={<Icon glyph={item.icon} />}
               label={item.label}
-              active={getNavItemActivation([item.id], location.pathname)}
+              active={getNavItemActivation(
+                item.activeKeywords,
+                location.pathname
+              )}
               linkElement={className => (
                 <Link className={className} to={item.link} />
               )}

@@ -29,7 +29,7 @@ class TemplatesIndex extends Component<Props> {
     const {org, children} = this.props
     return (
       <>
-        <Page titleTag={pageTitleSuffixer(['Templates', 'Organization'])}>
+        <Page titleTag={pageTitleSuffixer(['Templates', 'Settings'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="templates" orgID={org.id}>
             <GetResources resources={[ResourceType.Templates]}>

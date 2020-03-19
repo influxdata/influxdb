@@ -28,7 +28,7 @@ class LabelsIndex extends PureComponent<StateProps> {
 
     return (
       <>
-        <Page titleTag={pageTitleSuffixer(['Labels', 'Organization'])}>
+        <Page titleTag={pageTitleSuffixer(['Labels', 'Settings'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="labels" orgID={org.id}>
             <GetResources resources={[ResourceType.Labels]}>

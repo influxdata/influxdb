@@ -362,18 +362,7 @@ class Root extends PureComponent {
                             </Route>
                           </Route>
                           <Route path="settings">
-                            {CLOUD ? (
-                              <IndexRoute component={VariablesIndex} />
-                            ) : (
-                              <>
-                                <IndexRoute component={MembersIndex} />
-                                <Route
-                                  path="members"
-                                  component={MembersIndex}
-                                />
-                              </>
-                            )}
-
+                            <IndexRoute component={VariablesIndex} />
                             <Route path="templates" component={TemplatesIndex}>
                               <Route
                                 path="import"
@@ -415,12 +404,6 @@ class Root extends PureComponent {
                               />
                             </Route>
                             <Route path="labels" component={LabelsIndex} />
-                            <Route path="profile" component={OrgProfilePage}>
-                              <Route
-                                path="rename"
-                                component={RenameOrgOverlay}
-                              />
-                            </Route>
                           </Route>
                           <Route path="alerting" component={AlertingIndex}>
                             <Route
@@ -460,6 +443,13 @@ class Root extends PureComponent {
                             path="checks/:checkID"
                             component={CheckHistory}
                           />
+                          <Route path="about" component={OrgProfilePage}>
+                            <Route path="rename" component={RenameOrgOverlay} />
+                          </Route>
+                          <Route path="about" component={OrgProfilePage}>
+                            <Route path="rename" component={RenameOrgOverlay} />
+                          </Route>
+                          {!CLOUD && <Route path="members" component={MembersIndex} />} 
                         </Route>
                       </Route>
                     </Route>

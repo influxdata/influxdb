@@ -28,11 +28,6 @@ class SettingsNavigation extends PureComponent<Props> {
 
     const tabs = [
       {
-        text: 'Members',
-        id: 'members',
-        cloudExclude: true,
-      },
-      {
         text: 'Variables',
         id: 'variables',
         cloudExclude: false,
@@ -45,11 +40,6 @@ class SettingsNavigation extends PureComponent<Props> {
       {
         text: 'Labels',
         id: 'labels',
-        cloudExclude: false,
-      },
-      {
-        text: 'Org Profile',
-        id: 'profile',
         cloudExclude: false,
       },
     ]
