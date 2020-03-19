@@ -26,7 +26,7 @@ pub trait SeriesStore: Sync + Send {
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>> + Send>, StorageError>;
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ReadPoint<T: Clone> {
     pub time: i64,
     pub value: T,
