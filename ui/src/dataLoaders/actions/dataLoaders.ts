@@ -497,8 +497,6 @@ const createTelegraf = async (dispatch, getState: GetState, plugins) => {
       permissions,
     }
 
-    console.log('token on create: ', token)
-
     // create token
     const createdToken = await createAuthorization(token)
 
