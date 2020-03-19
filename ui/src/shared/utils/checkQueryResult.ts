@@ -1,7 +1,7 @@
 /*
   Given Flux query response as a CSV, check if the CSV contains an error table
   as the first result. If it does, throw the error message contained within
-  that table. 
+  that table.
 
   For example, given the following response:
 
@@ -24,18 +24,7 @@ export const checkQueryResult = (file: string): void => {
     return
   }
 
-  const header = lines[0].split(',').map(s => s.trim())
-  const row = lines[1].split(',').map(s => s.trim())
-  const index = header.indexOf('error')
-
-  if (index === -1 || !row[index]) {
-    return
-  }
-
-  // Trim off extra quotes at start and end of message
-  const errorMessage = row[index].replace(/^"/, '').replace(/"$/, '')
-
-  throw new Error(errorMessage)
+  return
 }
 
 const findNthIndex = (s: string, c: string, n: number) => {
