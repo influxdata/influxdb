@@ -1,5 +1,9 @@
 import {ServerResponse} from 'src/types'
-import {CompletionContext, Position} from 'monaco-languageclient/lib/services'
+import {
+  CompletionContext,
+  Position,
+  SignatureHelpContext,
+} from 'monaco-languageclient/lib/services'
 
 interface Message {
   jsonrpc: string
@@ -84,6 +88,22 @@ export const completion = (
     textDocument: {uri},
     position,
     context,
+  })
+}
+
+export const signatureHelp = (
+  id: number,
+  uri: string,
+  position: Position,
+  context: SignatureHelpContext
+) => {
+  return createRequest(id, 'textDocument/signatureHelp', {
+    textDocument: {uri},
+    position,
+    context: {
+      isRetrigger: false,
+      ...context,
+    },
   })
 }
 
