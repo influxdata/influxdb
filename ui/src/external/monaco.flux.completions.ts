@@ -33,39 +33,9 @@ export function registerCompletion(
           ...context,
           triggerKind: CompletionTriggerKind.TriggerCharacter,
         })
-
         return p2m.asCompletionResult(items, defaultRange)
       },
-      triggerCharacters: [
-        '.',
-        ':',
-        'a',
-        'b',
-        'c',
-        'd',
-        'e',
-        'f',
-        'g',
-        'h',
-        'i',
-        'j',
-        'k',
-        'l',
-        'm',
-        'n',
-        'o',
-        'p',
-        'q',
-        'r',
-        's',
-        't',
-        'u',
-        'v',
-        'w',
-        'x',
-        'y',
-        'z',
-      ],
+      triggerCharacters: ['.', ':', '('],
     }
   )
 

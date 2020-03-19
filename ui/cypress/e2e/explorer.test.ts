@@ -407,6 +407,16 @@ describe('DataExplorer', () => {
         .click()
     })
 
+    it('shows flux errors', () => {
+      cy.getByTestID('time-machine--bottom').then(() => {
+        cy.getByTestID('flux-editor').within(() => {
+          cy.get('textarea').type('foo |> bar', {force: true})
+
+          cy.get('.squiggly-error').should('be.visible')
+        })
+      })
+    })
+
     it('enables the submit button when a query is typed', () => {
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
 

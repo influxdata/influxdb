@@ -5,12 +5,12 @@ interface Message {
   jsonrpc: string
 }
 
-interface ResponseMessage extends Message {
+export interface ResponseMessage extends Message {
   id: number | string | null
   result?: string | number | boolean | object | null
 }
 
-interface NotificationMessage extends Message {
+export interface NotificationMessage extends Message {
   method: string
   params?: object[] | object
 }
