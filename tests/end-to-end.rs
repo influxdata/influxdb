@@ -30,7 +30,7 @@ const URL_BASE: &str = "http://localhost:8080/api/v2";
 const GRPC_URL_BASE: &str = "http://localhost:8082/";
 
 mod grpc {
-    tonic::include_proto!("delorean");
+    tonic::include_proto!("influxdata.platform.storage");
 }
 
 use grpc::{
