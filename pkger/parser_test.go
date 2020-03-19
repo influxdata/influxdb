@@ -3343,14 +3343,14 @@ spec:
 
 				require.Len(t, sum.Labels, 1)
 
-				task1 := tasks[0]
-				baseEqual(t, 0, influxdb.Inactive, task1)
-				assert.Equal(t, (10 * time.Minute).String(), task1.Every)
-				assert.Equal(t, (15 * time.Second).String(), task1.Offset)
+				task0 := tasks[0]
+				baseEqual(t, 0, influxdb.Inactive, task0)
+				assert.Equal(t, (10 * time.Minute).String(), task0.Every)
+				assert.Equal(t, (15 * time.Second).String(), task0.Offset)
 
-				task2 := tasks[1]
-				baseEqual(t, 1, influxdb.Active, task2)
-				assert.Equal(t, "15 * * * *", task2.Cron)
+				task1 := tasks[1]
+				baseEqual(t, 1, influxdb.Active, task1)
+				assert.Equal(t, "15 * * * *", task1.Cron)
 			})
 		})
 
@@ -3381,7 +3381,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "invalid status",
 						validationErrs: 1,
-						valFields:      []string{fieldStatus},
+						valFields:      []string{fieldSpec, fieldStatus},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
@@ -3399,7 +3399,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing query",
 						validationErrs: 1,
-						valFields:      []string{fieldQuery},
+						valFields:      []string{fieldSpec, fieldQuery},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
@@ -3416,7 +3416,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing every and cron fields",
 						validationErrs: 1,
-						valFields:      []string{fieldEvery, fieldTaskCron},
+						valFields:      []string{fieldSpec, fieldEvery, fieldTaskCron},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
@@ -3432,7 +3432,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "invalid association",
 						validationErrs: 1,
-						valFields:      []string{fieldAssociations},
+						valFields:      []string{fieldSpec, fieldAssociations},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
@@ -3452,7 +3452,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "duplicate association",
 						validationErrs: 1,
-						valFields:      []string{fieldAssociations},
+						valFields:      []string{fieldSpec, fieldAssociations},
 						pkgStr: `---
 apiVersion: influxdata.com/v2alpha1
 kind: Label
@@ -3474,6 +3474,33 @@ spec:
       name: label_1
     - kind: Label
       name: label_1
+`,
+					},
+				},
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "duplicate meta names",
+						validationErrs: 1,
+						valFields:      []string{fieldMetadata, fieldName},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: Task
+metadata:
+  name: task_0
+spec:
+  every: 10m
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Task
+metadata:
+  name: task_0
+spec:
+  every: 10m
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
 `,
 					},
 				},

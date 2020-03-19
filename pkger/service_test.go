@@ -2427,78 +2427,125 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("tasks", func(t *testing.T) {
-				tests := []struct {
-					name    string
-					newName string
-					task    influxdb.Task
-				}{
-					{
-						name:    "every offset is set",
-						newName: "new name",
-						task: influxdb.Task{
-							ID:     1,
-							Name:   "name_9000",
-							Every:  time.Minute.String(),
-							Offset: 10 * time.Second,
-							Type:   influxdb.TaskSystemType,
-							Flux:   `option task = { name: "larry" } from(bucket: "rucket") |> yield()`,
+				t.Run("single task exports", func(t *testing.T) {
+					tests := []struct {
+						name    string
+						newName string
+						task    influxdb.Task
+					}{
+						{
+							name:    "every offset is set",
+							newName: "new name",
+							task: influxdb.Task{
+								ID:     1,
+								Name:   "name_9000",
+								Every:  time.Minute.String(),
+								Offset: 10 * time.Second,
+								Type:   influxdb.TaskSystemType,
+								Flux:   `option task = { name: "larry" } from(bucket: "rucket") |> yield()`,
+							},
 						},
-					},
-					{
-						name: "cron is set",
-						task: influxdb.Task{
-							ID:   1,
-							Name: "name_0",
-							Cron: "2 * * * *",
-							Type: influxdb.TaskSystemType,
-							Flux: `option task = { name: "larry" } from(bucket: "rucket") |> yield()`,
+						{
+							name: "cron is set",
+							task: influxdb.Task{
+								ID:   1,
+								Name: "name_0",
+								Cron: "2 * * * *",
+								Type: influxdb.TaskSystemType,
+								Flux: `option task = { name: "larry" } from(bucket: "rucket") |> yield()`,
+							},
 						},
-					},
-				}
-
-				for _, tt := range tests {
-					fn := func(t *testing.T) {
-						taskSVC := mock.NewTaskService()
-						taskSVC.FindTaskByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
-							if id != tt.task.ID {
-								return nil, errors.New("wrong id provided: " + id.String())
-							}
-							return &tt.task, nil
-						}
-
-						svc := newTestService(WithTaskSVC(taskSVC))
-
-						resToClone := ResourceToClone{
-							Kind: KindTask,
-							ID:   tt.task.ID,
-							Name: tt.newName,
-						}
-						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
-						require.NoError(t, err)
-
-						newPkg := encodeAndDecode(t, pkg)
-
-						sum := newPkg.Summary()
-
-						tasks := sum.Tasks
-						require.Len(t, tasks, 1)
-
-						expectedName := tt.task.Name
-						if tt.newName != "" {
-							expectedName = tt.newName
-						}
-						actual := tasks[0]
-						assert.Equal(t, expectedName, actual.Name)
-						assert.Equal(t, tt.task.Cron, actual.Cron)
-						assert.Equal(t, tt.task.Description, actual.Description)
-						assert.Equal(t, tt.task.Every, actual.Every)
-						assert.Equal(t, durToStr(tt.task.Offset), actual.Offset)
-
-						expectedQuery := `from(bucket: "rucket") |> yield()`
-						assert.Equal(t, expectedQuery, actual.Query)
 					}
-					t.Run(tt.name, fn)
-				}
+
+					for _, tt := range tests {
+						fn := func(t *testing.T) {
+							taskSVC := mock.NewTaskService()
+							taskSVC.FindTaskByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+								if id != tt.task.ID {
+									return nil, errors.New("wrong id provided: " + id.String())
+								}
+								return &tt.task, nil
+							}
+
+							svc := newTestService(WithTaskSVC(taskSVC))
+
+							resToClone := ResourceToClone{
+								Kind: KindTask,
+								ID:   tt.task.ID,
+								Name: tt.newName,
+							}
+							pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+							require.NoError(t, err)
+
+							newPkg := encodeAndDecode(t, pkg)
+
+							sum := newPkg.Summary()
+
+							tasks := sum.Tasks
+							require.Len(t, tasks, 1)
+
+							expectedName := tt.task.Name
+							if tt.newName != "" {
+								expectedName = tt.newName
+							}
+							actual := tasks[0]
+							assert.Equal(t, expectedName, actual.Name)
+							assert.Equal(t, tt.task.Cron, actual.Cron)
+							assert.Equal(t, tt.task.Description, actual.Description)
+							assert.Equal(t, tt.task.Every, actual.Every)
+							assert.Equal(t, durToStr(tt.task.Offset), actual.Offset)
+
+							expectedQuery := `from(bucket: "rucket") |> yield()`
+							assert.Equal(t, expectedQuery, actual.Query)
+						}
+						t.Run(tt.name, fn)
+					}
+				})
+
+				t.Run("handles multiple tasks of same name", func(t *testing.T) {
+					taskSVC := mock.NewTaskService()
+					taskSVC.FindTaskByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+						return &influxdb.Task{
+							ID:          id,
+							Type:        influxdb.TaskSystemType,
+							Name:        "same name",
+							Description: "desc",
+							Status:      influxdb.TaskStatusActive,
+							Flux:        `from(bucket: "foo")`,
+							Every:       "5m0s",
+						}, nil
+					}
+
+					svc := newTestService(WithTaskSVC(taskSVC))
+
+					resourcesToClone := []ResourceToClone{
+						{
+							Kind: KindTask,
+							ID:   1,
+						},
+						{
+							Kind: KindTask,
+							ID:   2,
+						},
+					}
+					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
+					require.NoError(t, err)
+
+					newPkg := encodeAndDecode(t, pkg)
+
+					sum := newPkg.Summary()
+
+					tasks := sum.Tasks
+					require.Len(t, tasks, len(resourcesToClone))
+
+					for _, actual := range sum.Tasks {
+						assert.Equal(t, "same name", actual.Name)
+						assert.Equal(t, "desc", actual.Description)
+						assert.Equal(t, influxdb.Active, actual.Status)
+						assert.Equal(t, `from(bucket: "foo")`, actual.Query)
+						assert.Equal(t, "5m0s", actual.Every)
+					}
+				})
 			})
 
 			t.Run("telegraf configs", func(t *testing.T) {
