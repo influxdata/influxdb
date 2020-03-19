@@ -3100,7 +3100,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing endpoint name",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationRuleEndpointName},
+						valFields:      []string{fieldSpec, fieldNotificationRuleEndpointName},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3118,7 +3118,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing every",
 						validationErrs: 1,
-						valFields:      []string{fieldEvery},
+						valFields:      []string{fieldSpec, fieldEvery},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3136,7 +3136,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing status rules",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationRuleStatusRules},
+						valFields:      []string{fieldSpec, fieldNotificationRuleStatusRules},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3153,7 +3153,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "bad current status rule level",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationRuleStatusRules},
+						valFields:      []string{fieldSpec, fieldNotificationRuleStatusRules},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3172,7 +3172,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "bad previous status rule level",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationRuleStatusRules},
+						valFields:      []string{fieldSpec, fieldNotificationRuleStatusRules},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3192,7 +3192,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "bad tag rule operator",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationRuleTagRules},
+						valFields:      []string{fieldSpec, fieldNotificationRuleTagRules},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3215,7 +3215,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "bad status provided",
 						validationErrs: 1,
-						valFields:      []string{fieldStatus},
+						valFields:      []string{fieldSpec, fieldStatus},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3235,7 +3235,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "label association does not exist",
 						validationErrs: 1,
-						valFields:      []string{fieldAssociations},
+						valFields:      []string{fieldSpec, fieldAssociations},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3257,7 +3257,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "label association dupe",
 						validationErrs: 1,
-						valFields:      []string{fieldAssociations},
+						valFields:      []string{fieldSpec, fieldAssociations},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
@@ -3278,6 +3278,37 @@ spec:
       name: label_1
     - kind: Label
       name: label_1
+`,
+					},
+				},
+				{
+					kind: KindNotificationRule,
+					resErr: testPkgResourceError{
+						name:           "duplicate meta names",
+						validationErrs: 1,
+						valFields:      []string{fieldMetadata, fieldName},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
+spec:
+  endpointName: endpoint_0
+  every: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: WARN
+---
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
+spec:
+  endpointName: endpoint_0
+  every: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: WARN
 `,
 					},
 				},

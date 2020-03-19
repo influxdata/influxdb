@@ -1616,9 +1616,10 @@ const (
 )
 
 type notificationRule struct {
-	id    influxdb.ID
-	orgID influxdb.ID
-	name  *references
+	id          influxdb.ID
+	orgID       influxdb.ID
+	name        *references
+	displayName *references
 
 	channel     string
 	description string
@@ -1649,6 +1650,13 @@ func (r *notificationRule) Labels() []*label {
 }
 
 func (r *notificationRule) Name() string {
+	if displayName := r.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return r.name.String()
+}
+
+func (r *notificationRule) PkgName() string {
 	return r.name.String()
 }
 
@@ -1799,7 +1807,13 @@ func (r *notificationRule) valid() []validationErr {
 		})
 	}
 
-	return vErrs
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
 }
 
 func toSummaryStatusRules(statusRules []struct{ curLvl, prevLvl string }) []SummaryStatusRule {

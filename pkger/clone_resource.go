@@ -782,63 +782,54 @@ func endpointKind(e influxdb.NotificationEndpoint, name string) Object {
 	if name == "" {
 		name = e.GetName()
 	}
-	k := Object{
-		APIVersion: APIVersion,
-		Metadata:   convertToMetadataResource(name),
-		Spec:       make(Resource),
-	}
-	assignNonZeroStrings(k.Spec, map[string]string{
-		fieldName:        name,
+
+	o := newObject(KindNotificationEndpoint, name)
+	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldDescription: e.GetDescription(),
 		fieldStatus:      string(e.GetStatus()),
 	})
 
 	switch actual := e.(type) {
 	case *endpoint.HTTP:
-		k.Kind = KindNotificationEndpointHTTP
-		k.Spec[fieldNotificationEndpointHTTPMethod] = actual.Method
-		k.Spec[fieldNotificationEndpointURL] = actual.URL
-		k.Spec[fieldType] = actual.AuthMethod
-		assignNonZeroSecrets(k.Spec, map[string]influxdb.SecretField{
+		o.Kind = KindNotificationEndpointHTTP
+		o.Spec[fieldNotificationEndpointHTTPMethod] = actual.Method
+		o.Spec[fieldNotificationEndpointURL] = actual.URL
+		o.Spec[fieldType] = actual.AuthMethod
+		assignNonZeroSecrets(o.Spec, map[string]influxdb.SecretField{
 			fieldNotificationEndpointPassword: actual.Password,
 			fieldNotificationEndpointToken:    actual.Token,
 			fieldNotificationEndpointUsername: actual.Username,
 		})
 	case *endpoint.PagerDuty:
-		k.Kind = KindNotificationEndpointPagerDuty
-		k.Spec[fieldNotificationEndpointURL] = actual.ClientURL
-		assignNonZeroSecrets(k.Spec, map[string]influxdb.SecretField{
+		o.Kind = KindNotificationEndpointPagerDuty
+		o.Spec[fieldNotificationEndpointURL] = actual.ClientURL
+		assignNonZeroSecrets(o.Spec, map[string]influxdb.SecretField{
 			fieldNotificationEndpointRoutingKey: actual.RoutingKey,
 		})
 	case *endpoint.Slack:
-		k.Kind = KindNotificationEndpointSlack
-		k.Spec[fieldNotificationEndpointURL] = actual.URL
-		assignNonZeroSecrets(k.Spec, map[string]influxdb.SecretField{
+		o.Kind = KindNotificationEndpointSlack
+		o.Spec[fieldNotificationEndpointURL] = actual.URL
+		assignNonZeroSecrets(o.Spec, map[string]influxdb.SecretField{
 			fieldNotificationEndpointToken: actual.Token,
 		})
 	}
 
-	return k
+	return o
 }
 
 func ruleToObject(iRule influxdb.NotificationRule, endpointName, name string) Object {
 	if name == "" {
 		name = iRule.GetName()
 	}
-	k := Object{
-		APIVersion: APIVersion,
-		Kind:       KindNotificationRule,
-		Metadata:   convertToMetadataResource(name),
-		Spec: Resource{
-			fieldNotificationRuleEndpointName: endpointName,
-		},
-	}
-	assignNonZeroStrings(k.Spec, map[string]string{
+
+	o := newObject(KindNotificationRule, name)
+	o.Spec[fieldNotificationRuleEndpointName] = endpointName
+	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldDescription: iRule.GetDescription(),
 	})
 
 	assignBase := func(base rule.Base) {
-		assignNonZeroFluxDurs(k.Spec, map[string]*notification.Duration{
+		assignNonZeroFluxDurs(o.Spec, map[string]*notification.Duration{
 			fieldEvery:  base.Every,
 			fieldOffset: base.Offset,
 		})
@@ -852,7 +843,7 @@ func ruleToObject(iRule influxdb.NotificationRule, endpointName, name string) Ob
 			})
 		}
 		if len(tagRes) > 0 {
-			k.Spec[fieldNotificationRuleTagRules] = tagRes
+			o.Spec[fieldNotificationRuleTagRules] = tagRes
 		}
 
 		var statusRuleRes []Resource
@@ -866,7 +857,7 @@ func ruleToObject(iRule influxdb.NotificationRule, endpointName, name string) Ob
 			statusRuleRes = append(statusRuleRes, sRes)
 		}
 		if len(statusRuleRes) > 0 {
-			k.Spec[fieldNotificationRuleStatusRules] = statusRuleRes
+			o.Spec[fieldNotificationRuleStatusRules] = statusRuleRes
 		}
 	}
 
@@ -875,14 +866,14 @@ func ruleToObject(iRule influxdb.NotificationRule, endpointName, name string) Ob
 		assignBase(t.Base)
 	case *rule.PagerDuty:
 		assignBase(t.Base)
-		k.Spec[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
+		o.Spec[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
 	case *rule.Slack:
 		assignBase(t.Base)
-		k.Spec[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
-		assignNonZeroStrings(k.Spec, map[string]string{fieldNotificationRuleChannel: t.Channel})
+		o.Spec[fieldNotificationRuleMessageTemplate] = t.MessageTemplate
+		assignNonZeroStrings(o.Spec, map[string]string{fieldNotificationRuleChannel: t.Channel})
 	}
 
-	return k
+	return o
 }
 
 // regex used to rip out the hard coded task option stuffs
