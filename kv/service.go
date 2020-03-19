@@ -109,13 +109,18 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		s.clock = clock.New()
 	}
 
+	if s.Config.URMByUserIndexReadPathEnabled {
+		WithIndexReadPathEnabled(s.urmByUserIndex)
+	}
+
 	return s
 }
 
 // ServiceConfig allows us to configure Services
 type ServiceConfig struct {
-	SessionLength time.Duration
-	Clock         clock.Clock
+	SessionLength                 time.Duration
+	Clock                         clock.Clock
+	URMByUserIndexReadPathEnabled bool
 }
 
 // AutoMigrationStore is a Store which also describes whether or not

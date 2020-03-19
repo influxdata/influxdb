@@ -25,24 +25,44 @@ type testable interface {
 }
 
 func TestBoltUserResourceMappingService(t *testing.T) {
-	influxdbtesting.UserResourceMappingService(initBoltUserResourceMappingService, t)
+	influxdbtesting.UserResourceMappingService(initURMServiceFunc(NewTestBoltStore), t)
 }
 
-func initBoltUserResourceMappingService(f influxdbtesting.UserResourceFields, t *testing.T) (influxdb.UserResourceMappingService, func()) {
-	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
+func TestBoltUserResourceMappingService_WithUserIndex(t *testing.T) {
+	influxdbtesting.UserResourceMappingService(initURMServiceFunc(NewTestBoltStore, kv.ServiceConfig{
+		URMByUserIndexReadPathEnabled: true,
+	}), t)
+}
 
-	svc, closeSvc := initUserResourceMappingService(s, f, t)
-	return svc, func() {
-		closeSvc()
-		closeBolt()
+func TestInmemUserResourceMappingService(t *testing.T) {
+	influxdbtesting.UserResourceMappingService(initURMServiceFunc(NewTestBoltStore), t)
+}
+
+func TestInmemUserResourceMappingService_WithUserIndex(t *testing.T) {
+	influxdbtesting.UserResourceMappingService(initURMServiceFunc(NewTestBoltStore, kv.ServiceConfig{
+		URMByUserIndexReadPathEnabled: true,
+	}), t)
+}
+
+type userResourceMappingTestFunc func(influxdbtesting.UserResourceFields, *testing.T) (influxdb.UserResourceMappingService, func())
+
+func initURMServiceFunc(storeFn func(*testing.T) (kv.Store, func(), error), confs ...kv.ServiceConfig) userResourceMappingTestFunc {
+	return func(f influxdbtesting.UserResourceFields, t *testing.T) (influxdb.UserResourceMappingService, func()) {
+		s, closeStore, err := storeFn(t)
+		if err != nil {
+			t.Fatalf("failed to create new kv store: %v", err)
+		}
+
+		svc, closeSvc := initUserResourceMappingService(s, f, t, confs...)
+		return svc, func() {
+			closeSvc()
+			closeStore()
+		}
 	}
 }
 
-func initUserResourceMappingService(s kv.Store, f influxdbtesting.UserResourceFields, t testable) (influxdb.UserResourceMappingService, func()) {
-	svc := kv.NewService(zaptest.NewLogger(t), s)
+func initUserResourceMappingService(s kv.Store, f influxdbtesting.UserResourceFields, t testable, configs ...kv.ServiceConfig) (influxdb.UserResourceMappingService, func()) {
+	svc := kv.NewService(zaptest.NewLogger(t), s, configs...)
 
 	ctx := context.Background()
 	if err := svc.Initialize(ctx); err != nil {

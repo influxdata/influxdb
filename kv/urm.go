@@ -123,10 +123,32 @@ func userResourceMappingPredicate(filter influxdb.UserResourceMappingFilter) Cur
 	}
 }
 
-func (s *Service) findUserResourceMappings(ctx context.Context, tx Tx, filter influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, error) {
-	ms := []*influxdb.UserResourceMapping{}
-	pred := userResourceMappingPredicate(filter)
+func (s *Service) findUserResourceMappings(ctx context.Context, tx Tx, filter influxdb.UserResourceMappingFilter) (ms []*influxdb.UserResourceMapping, _ error) {
 	filterFn := filterMappingsFn(filter)
+	if filter.UserID.Valid() {
+		// urm by user index lookup
+		userID, _ := filter.UserID.Encode()
+		if err := s.urmByUserIndex.Walk(tx, userID, func(k, v []byte) error {
+			m := &influxdb.UserResourceMapping{}
+			if err := json.Unmarshal(v, m); err != nil {
+				return CorruptURMError(err)
+			}
+
+			if filterFn(m) {
+				ms = append(ms, m)
+			}
+
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+
+		if len(ms) > 0 {
+			return
+		}
+	}
+
+	pred := userResourceMappingPredicate(filter)
 	err := s.forEachUserResourceMapping(ctx, tx, pred, func(m *influxdb.UserResourceMapping) bool {
 		if filterFn(m) {
 			ms = append(ms, m)
