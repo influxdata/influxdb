@@ -90,48 +90,19 @@ export const getWindowPeriodVariable = (
   query: string,
   variables: VariableAssignment[]
 ): Variable[] | null => {
-  if (query.length === 0) {
-    return null
-  }
-  try {
-    const ast = parse(query)
-
-    const substitutedAST: Package = {
-      package: '',
-      type: 'Package',
-      files: [ast, buildVarsOption(variables)],
-    }
-
-    const queryDuration = getMinDurationFromAST(substitutedAST) // in ms
-
-    const foundDuration = SELECTABLE_TIME_RANGES.find(
-      tr => tr.seconds * 1000 === queryDuration
-    )
-
-    let total: number = null
-
-    if (foundDuration) {
-      total = foundDuration.windowPeriod
-    }
-
-    total = Math.round(queryDuration / DESIRED_POINTS_PER_GRAPH)
+    const total = getWindowPeriod(query, variables)
 
     const windowPeriodVariable: Variable = {
       orgID: '',
-      id: 'windowPeriod',
-      name: 'windowPeriod',
+      id: WINDOW_PERIOD,
+      name: WINDOW_PERIOD,
       arguments: {
-        type: 'map',
-        values: {
-          [total]: total,
-        },
+        type: 'constant',
+        values: [total],
       },
       status: RemoteDataState.Done,
       labels: [],
     }
 
     return [windowPeriodVariable]
-  } catch (error) {
-    return null
-  }
 }

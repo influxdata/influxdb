@@ -14,7 +14,7 @@ import ErrorBoundary from 'src/shared/components/ErrorBoundary'
 
 // Utils
 import {
-  getVariablesForDashboard,
+  getVariables,
   getDashboardValuesStatus,
   getDashboardVariablesStatus,
 } from 'src/variables/selectors'
@@ -155,7 +155,7 @@ const mdtp = {
 
 const mstp = (state: AppState): StateProps => {
   const dashboardID = state.currentDashboard.id
-  const variables = getVariablesForDashboard(state, dashboardID)
+  const variables = getVariables(state, dashboardID)
   const valuesStatus = getDashboardValuesStatus(state, dashboardID)
   const variablesStatus = getDashboardVariablesStatus(state)
   const show = state.userSettings.showVariablesControls

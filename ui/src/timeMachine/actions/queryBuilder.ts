@@ -5,8 +5,10 @@ import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 import {
   getActiveQuery,
   getActiveTimeMachine,
-  getTimeRange,
 } from 'src/timeMachine/selectors'
+import {
+    getTimeRange
+} from 'src/dashboards/selectors'
 
 // Types
 import {
@@ -196,15 +198,16 @@ export const loadTagSelector = (index: number) => async (
     return
   }
 
+  const state = getState()
   const tagsSelections = tags.slice(0, index)
-  const queryURL = getState().links.query.self
-  const orgID = getOrg(getState()).id
+  const queryURL = state.links.query.self
+  const orgID = getOrg(state).id
 
   dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
 
   try {
-    const timeRange = getTimeRange(getState())
-    const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
+    const timeRange = getTimeRange(state, state.timeMachines.activeTimeMachineID)
+    const searchTerm = getActiveTimeMachine(state).queryBuilder.tags[index]
       .keysSearchTerm
 
     const keys = await queryBuilderFetcher.findKeys(index, {

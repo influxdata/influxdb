@@ -20,7 +20,7 @@ import VariableArgumentsEditor from 'src/variables/components/VariableArgumentsE
 import {updateVariable} from 'src/variables/actions/thunks'
 
 // Utils
-import {extractVariablesList} from 'src/variables/selectors'
+import {getVariables} from 'src/variables/selectors'
 
 // Constants
 import {variableItemTypes} from 'src/variables/constants'
@@ -255,7 +255,7 @@ class UpdateVariableOverlay extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState, {params: {id}}: Props): StateProps => {
-  const variables = extractVariablesList(state)
+  const variables = getVariables(state)
   const startVariable = variables.find(v => v.id === id)
 
   return {variables, startVariable}

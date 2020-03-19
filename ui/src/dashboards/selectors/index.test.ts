@@ -1,5 +1,5 @@
 // Funcs
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
+import {getTimeRange} from 'src/dashboards/selectors/index'
 
 // Types
 import {RangeState} from 'src/dashboards/reducers/ranges'
@@ -12,7 +12,7 @@ import {
   pastHourTimeRange,
 } from 'src/shared/constants/timeRanges'
 
-const untypedGetTimeRangeByDashboardID = getTimeRangeByDashboardID as (
+const untypedGetTimeRangeByDashboardID = getTimeRange as (
   a: {ranges: RangeState},
   dashID: string
 ) => TimeRange
@@ -25,20 +25,20 @@ describe('Dashboards.Selector', () => {
   }
 
   it('should return the the correct range when a matching dashboard ID is found', () => {
-    expect(untypedGetTimeRangeByDashboardID({ranges}, dashboardIDs[0])).toEqual(
+    expect(untypedGetTimeRange({ranges}, dashboardIDs[0])).toEqual(
       pastFifteenMinTimeRange
     )
   })
 
   it('should return the the default range when no matching dashboard ID is found', () => {
-    expect(untypedGetTimeRangeByDashboardID({ranges}, 'Oogum Boogum')).toEqual(
+    expect(untypedGetTimeRange({ranges}, 'Oogum Boogum')).toEqual(
       DEFAULT_TIME_RANGE
     )
   })
 
   it('should return the the default range when no ranges are passed in', () => {
     expect(
-      untypedGetTimeRangeByDashboardID({ranges: {}}, dashboardIDs[0])
+      untypedGetTimeRange({ranges: {}}, dashboardIDs[0])
     ).toEqual(DEFAULT_TIME_RANGE)
   })
 })

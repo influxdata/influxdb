@@ -3,7 +3,7 @@ import React from 'react'
 import {fireEvent} from 'react-testing-library'
 
 // Components
-import VariableDropdown from 'src/dashboards/components/variablesControlBar/VariableDropdown'
+import VariableDropdown from 'src/variables/components/VariableDropdown'
 
 // Utils
 import {renderWithRedux} from 'src/mockState'

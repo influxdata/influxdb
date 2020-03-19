@@ -47,9 +47,12 @@ export const variablesReducer = (
         const variable = get(schema, ['entities', 'variables', id])
         const variableExists = !!draftState.byID[id]
 
-        if (variable || !variableExists) {
+        if (variable) {
           draftState.byID[id] = {...variable, status}
-          draftState.allIDs.push(id)
+
+          if (!variableExists) {
+              draftState.allIDs.push(id)
+          }
         } else {
           draftState.byID[id].status = status
         }
@@ -89,18 +92,17 @@ export const variablesReducer = (
       case SELECT_VARIABLE_VALUE: {
         const {contextID, variableID, selectedValue} = action
 
-        const valuesExist = !!get(
-          draftState,
-          `values.${contextID}.values.${variableID}`
-        )
+        if (!draftState.values[contextID]) {
+            draftState.values[contextID] = { values: {} }
+        }
 
-        if (!valuesExist) {
-          return
+        if (!draftState.values[contextID].values[variableID]) {
+            draftState.values[contextID].values[variableID] = {}
         }
 
         draftState.values[contextID].values[
           variableID
-        ].selectedValue = selectedValue
+        ].selected = [selectedValue]
 
         return
       }

@@ -20,7 +20,7 @@ import {hydrateVars} from 'src/variables/utils/hydrateVars'
 import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/templates/api'
 
 // Utils
-import {getValueSelections, extractVariablesList} from 'src/variables/selectors'
+import {getVariables as getVariablesFromState} from 'src/variables/selectors'
 import {CancelBox} from 'src/types/promises'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {findDependentVariables} from 'src/variables/utils/exportVariables'
@@ -207,42 +207,6 @@ interface PendingValueRequests {
 }
 
 const pendingValueRequests: PendingValueRequests = {}
-
-export const refreshVariableValues = (
-  contextID: string,
-  variables: Variable[]
-) => async (dispatch: Dispatch<Action>, getState: GetState): Promise<void> => {
-  dispatch(setValues(contextID, RemoteDataState.Loading))
-
-  try {
-    const state = getState()
-    const org = getOrg(state)
-    const url = state.links.query.self
-    const selections = getValueSelections(state, contextID)
-    const allVariables = extractVariablesList(state)
-
-    if (pendingValueRequests[contextID]) {
-      pendingValueRequests[contextID].cancel()
-    }
-
-    pendingValueRequests[contextID] = hydrateVars(variables, allVariables, {
-      url,
-      orgID: org.id,
-      selections,
-    })
-
-    const values = await pendingValueRequests[contextID].promise
-
-    dispatch(setValues(contextID, RemoteDataState.Done, values))
-  } catch (error) {
-    if (error.name === 'CancellationError') {
-      return
-    }
-
-    console.error(error)
-    dispatch(setValues(contextID, RemoteDataState.Error))
-  }
-}
 
 export const convertToTemplate = (variableID: string) => async (
   dispatch,

@@ -10,34 +10,36 @@ import {
 } from '@influxdata/clockface'
 
 // Actions
-import {selectVariableValue} from 'src/dashboards/actions/thunks'
+import {selectValue} from 'src/variables/actions/creators'
 
 // Utils
-import {getVariableValuesForDropdown} from 'src/dashboards/selectors'
+import {getVariable} from 'src/variables/selectors'
 
 // Types
 import {AppState} from 'src/types'
 
 interface StateProps {
+    type: string
   values: {name: string; value: string}[]
   selectedValue: string
 }
 
 interface DispatchProps {
-  onSelectValue: typeof selectVariableValue
+  onSelectValue: typeof selectValue
 }
 
 interface OwnProps {
   variableID: string
-  dashboardID: string
+  contextID: string
+  onSelect?: () => void
 }
 
 type Props = StateProps & DispatchProps & OwnProps
 
 class VariableDropdown extends PureComponent<Props> {
   render() {
-    const {selectedValue} = this.props
-    const dropdownValues = this.props.values || []
+    const {selectedValue, type} = this.props
+    const dropdownValues = (type === 'map' ? Object.keys(this.props.values) : this.props.values) || []
 
     const dropdownStatus =
       dropdownValues.length === 0
@@ -50,7 +52,7 @@ class VariableDropdown extends PureComponent<Props> {
         <Dropdown
           style={{width: `${140}px`}}
           className="variable-dropdown--dropdown"
-          testID="variable-dropdown"
+          testID={ this.props.testID || "variable-dropdown" }
           button={(active, onClick) => (
             <Dropdown.Button
               active={active}
@@ -66,22 +68,20 @@ class VariableDropdown extends PureComponent<Props> {
               onCollapse={onCollapse}
               theme={DropdownMenuTheme.Amethyst}
             >
-              {dropdownValues.map(({name}) => (
-                /*
-                Use key as value since they are unique otherwise
-                multiple selection appear in the dropdown
-              */
-                <Dropdown.Item
-                  key={name}
-                  id={name}
-                  value={name}
-                  onClick={this.handleSelect}
-                  selected={name === selectedValue}
-                  testID="variable-dropdown--item"
-                >
-                  {name}
-                </Dropdown.Item>
-              ))}
+              {dropdownValues.map((val) => {
+                      return (
+                        <Dropdown.Item
+                          key={val}
+                          id={val}
+                          value={val}
+                          onClick={this.handleSelect}
+                          selected={val === selectedValue}
+                          testID="variable-dropdown--item"
+                        >
+                          {val}
+                        </Dropdown.Item>
+                      )
+               })}
             </Dropdown.Menu>
           )}
         />
@@ -90,26 +90,34 @@ class VariableDropdown extends PureComponent<Props> {
   }
 
   private handleSelect = (selectedValue: string) => {
-    const {dashboardID, variableID, onSelectValue} = this.props
+    const {contextID, variableID, onSelectValue, onSelect} = this.props
 
-    onSelectValue(dashboardID, variableID, selectedValue)
+    onSelectValue(contextID, variableID, selectedValue)
+
+    if (onSelect) {
+        onSelect()
+    }
   }
 }
 
 const mstp = (state: AppState, props: OwnProps): StateProps => {
-  const {dashboardID, variableID} = props
+  const {contextID, variableID} = props
 
-  const {selectedValue, list} = getVariableValuesForDropdown(
-    state,
-    variableID,
-    dashboardID
+  const variable = getVariable(
+      state,
+      contextID,
+      variableID
   )
 
-  return {values: list, selectedValue}
+  return {
+      type: variable.arguments.type,
+      values: variable.arguments.values,
+      selectedValue: variable.selected
+  }
 }
 
 const mdtp = {
-  onSelectValue: selectVariableValue,
+  onSelectValue: selectValue,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

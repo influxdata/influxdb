@@ -1,7 +1,6 @@
 import {CustomTimeRange, TimeRange, DurationTimeRange} from 'src/types/queries'
 
 import {SELECTABLE_TIME_RANGES} from 'src/shared/constants/timeRanges'
-import {isDateParseable} from 'src/variables/utils/getTimeRangeVars'
 import {isDurationWithNowParseable} from 'src/shared/utils/duration'
 
 interface InputTimeRange {
@@ -40,7 +39,7 @@ export const validateAndTypeRange = (timeRange: {
   upper: string
 }): TimeRange => {
   const {lower, upper} = timeRange
-  if (isDateParseable(lower) && isDateParseable(upper)) {
+  if (!isNaN(Date.parse(lower)) && !isNaN(Date.parse(upper))) {
     return {
       ...timeRange,
       type: 'custom',

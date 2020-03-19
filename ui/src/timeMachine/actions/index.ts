@@ -13,7 +13,7 @@ import {setValues} from 'src/variables/actions/creators'
 import {convertCheckToCustom} from 'src/alerting/actions/alertBuilder'
 
 // Selectors
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 import {getActiveQuery} from 'src/timeMachine/selectors'
 
 // Utils
@@ -671,7 +671,7 @@ export const loadNewVEO = (dashboardID: string) => (
   getState: GetState
 ): void => {
   const state = getState()
-  const timeRange = getTimeRangeByDashboardID(state, dashboardID)
+  const timeRange = getTimeRange(state, dashboardID)
 
   dispatch(
     setActiveTimeMachine('veo', {
@@ -682,10 +682,9 @@ export const loadNewVEO = (dashboardID: string) => (
 
   const values = get(
     state,
-    `resources.variables.values.${dashboardID}.values`,
+    `resources.variables.values["${dashboardID}"].values`,
     {}
   )
-
   if (!isEmpty(values)) {
     dispatch(setValues('veo', RemoteDataState.Done, values))
   }

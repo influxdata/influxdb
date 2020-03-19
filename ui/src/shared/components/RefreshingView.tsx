@@ -9,10 +9,9 @@ import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
-import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 import {
-  getVariableAssignments,
+    getAllVariables,
   getDashboardValuesStatus,
 } from 'src/variables/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
@@ -69,7 +68,7 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {ranges, properties, manualRefresh, timeZone} = this.props
+    const {ranges, properties, manualRefresh, timeZone, variableAssignments} = this.props
     const {submitToken} = this.state
 
     return (
@@ -77,7 +76,7 @@ class RefreshingView extends PureComponent<Props, State> {
         submitToken={submitToken}
         queries={this.queries}
         key={manualRefresh}
-        variables={this.variableAssignments}
+        variables={variableAssignments}
       >
         {({
           giraffeResult,
@@ -125,12 +124,6 @@ class RefreshingView extends PureComponent<Props, State> {
     }
   }
 
-  private get variableAssignments(): VariableAssignment[] {
-    const {timeRange, variableAssignments} = this.props
-
-    return [...variableAssignments, ...getTimeRangeVars(timeRange)]
-  }
-
   private get fallbackNote(): string {
     const {properties} = this.props
 
@@ -151,8 +144,9 @@ class RefreshingView extends PureComponent<Props, State> {
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const dashboard = state.currentDashboard.id
-  const variableAssignments = getVariableAssignments(state, dashboard)
-  const timeRange = getTimeRangeByDashboardID(state, dashboard)
+  const variableAssignments = getAllVariables(state, dashboard)
+      .map(v => v.asAssignment())
+  const timeRange = getTimeRange(state, dashboard)
   const valuesStatus = getDashboardValuesStatus(state, dashboard)
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)
   const timeZone = state.app.persisted.timeZone

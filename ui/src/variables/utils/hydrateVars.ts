@@ -167,6 +167,7 @@ const mapVariableValues = (
 ): VariableValues => {
   const keys: string[] = Object.keys(variable.arguments.values)
   const selectedKey = resolveSelectedKey(keys, prevSelection, defaultSelection)
+
   return {
     valueType: 'string',
     values: variable.arguments.values,
@@ -188,7 +189,6 @@ const constVariableValues = (
   defaultSelection: string
 ): VariableValues => {
   const {values} = variable.arguments
-
   return {
     valueType: 'string',
     values,
@@ -232,16 +232,10 @@ const hydrateVarsHelper = async (
 ): Promise<VariableValues> => {
   const variableType = node.variable.arguments.type
   const prevSelection = options.selections[node.variable.id]
-  const defaultSelection = node.variable.selected
-    ? node.variable.selected[0]
-    : null
 
-  if (variableType === 'map') {
-    return mapVariableValues(node.variable, prevSelection, defaultSelection)
-  }
-
-  if (variableType === 'constant') {
-    return constVariableValues(node.variable, prevSelection, defaultSelection)
+  // this assumes that the variable hydration is done in the selector 'getVariable'
+  if (variableType === 'map' || variableType === 'constant') {
+    return node.variable
   }
 
   const descendants = collectDescendants(node)
@@ -413,7 +407,7 @@ export const hydrateVars = (
 
     try {
       node.values = await hydrateVarsHelper(node, options)
-      node.variable.selected = [node.values.selectedKey]
+      console.log('await', options, node.values)
       node.status = RemoteDataState.Done
 
       return Promise.all(node.parents.filter(readyToResolve).map(resolve))

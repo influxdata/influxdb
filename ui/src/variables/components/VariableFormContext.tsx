@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 
 // Utils
 import {
-  extractVariablesList,
+  getVariables,
   extractVariableEditorName,
   extractVariableEditorType,
   extractVariableEditorQuery,
@@ -84,7 +84,7 @@ class VariableFormContext extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const variables = extractVariablesList(state),
+  const variables = getVariables(state),
     name = extractVariableEditorName(state),
     variableType = extractVariableEditorType(state),
     query = extractVariableEditorQuery(state),

@@ -9,7 +9,7 @@ import {Form, Input, Button, Grid, Columns} from '@influxdata/clockface'
 
 // Utils
 import {validateVariableName} from 'src/variables/utils/validation'
-import {extractVariablesList} from 'src/variables/selectors'
+import {getVariables} from 'src/variables/selectors'
 
 // Actions
 import {updateVariable} from 'src/variables/actions/thunks'
@@ -136,7 +136,7 @@ class RenameVariableOverlayForm extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState, {params: {id}}: Props): StateProps => {
-  const variables = extractVariablesList(state)
+  const variables = getVariables(state)
   const startVariable = variables.find(v => v.id === id)
 
   return {variables, startVariable}

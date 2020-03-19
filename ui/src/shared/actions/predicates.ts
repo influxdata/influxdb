@@ -8,7 +8,7 @@ import {postDelete} from 'src/client'
 import {runQuery} from 'src/shared/apis/query'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
-import {getVariableAssignments} from 'src/timeMachine/selectors'
+import {getVariables} from 'src/variables/selectors'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {getOrg} from 'src/organizations/selectors'
 
@@ -218,9 +218,11 @@ export const executePreviewQuery = (query: string) => async (
 ) => {
   dispatch(setPreviewStatus(RemoteDataState.Loading))
   try {
-    const orgID = getOrg(getState()).id
+      const state = getState()
+    const orgID = getOrg(state).id
 
-    const variableAssignments = getVariableAssignments(getState())
+    // TODO figure out how to do this better
+    const variableAssignments = getVariables(state, state.timeMachines.activeTimeMachineID).map(v => v.asAssignment)
     const windowVars = getWindowVars(query, variableAssignments)
     const extern = buildVarsOption([...variableAssignments, ...windowVars])
     const result = await runQuery(orgID, query, extern).promise

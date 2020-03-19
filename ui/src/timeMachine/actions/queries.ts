@@ -12,7 +12,6 @@ import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Actions
 import {selectValue, setValues} from 'src/variables/actions/creators'
-import {refreshVariableValues} from 'src/variables/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 
 // Constants
@@ -21,15 +20,14 @@ import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 // Utils
 import {
   getActiveTimeMachine,
-  getVariableAssignments,
   getActiveQuery,
 } from 'src/timeMachine/selectors'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {
-  extractVariablesList,
+  getVariables,
+  getAllVariables,
   getVariable,
-  getHydratedVariables,
 } from 'src/variables/selectors'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
@@ -71,44 +69,6 @@ const setQueryResults = (
   },
 })
 
-export const refreshTimeMachineVariableValues = (
-  prevContextID?: string
-) => async (dispatch, getState: GetState) => {
-  const state = getState()
-  const contextID = state.timeMachines.activeTimeMachineID
-
-  if (prevContextID) {
-    const values = get(
-      state,
-      `resources.variables.values.${prevContextID}.values`,
-      {}
-    )
-    if (!isEmpty(values)) {
-      dispatch(setValues(contextID, RemoteDataState.Done, values))
-      return
-    }
-  }
-  // Find variables currently used by queries in the TimeMachine
-  const {view, draftQueries} = getActiveTimeMachine(getState())
-  const draftView = {
-    ...view,
-    properties: {...view.properties, queries: draftQueries},
-  }
-  const variables = extractVariablesList(getState())
-  const variablesInUse = filterUnusedVars(variables, [view, draftView])
-
-  // Find variables whose values have already been loaded by the TimeMachine
-  // (regardless of whether these variables are currently being used)
-  const hydratedVariables = getHydratedVariables(getState(), contextID)
-
-  // Refresh values for all variables with existing values and in use variables
-  const variablesToRefresh = variables.filter(
-    v => variablesInUse.includes(v) || hydratedVariables.includes(v)
-  )
-
-  await dispatch(refreshVariableValues(contextID, variablesToRefresh))
-}
-
 let pendingResults: Array<CancelBox<RunQueryResult>> = []
 let pendingCheckStatuses: CancelBox<StatusRow[][]> = null
 
@@ -117,8 +77,8 @@ export const executeQueries = (dashboardID?: string) => async (
   getState: GetState
 ) => {
   const state = getState()
-  const {view} = getActiveTimeMachine(state)
-  const queries = view.properties.queries.filter(({text}) => !!text.trim())
+  const timeMachine = getActiveTimeMachine(state)
+  const queries = timeMachine.view.properties.queries.filter(({text}) => !!text.trim())
   const {
     alertBuilder: {id: checkID},
   } = state
@@ -130,12 +90,13 @@ export const executeQueries = (dashboardID?: string) => async (
   try {
     dispatch(setQueryResults(RemoteDataState.Loading, [], null))
 
-    await dispatch(refreshTimeMachineVariableValues(dashboardID))
+    const variableAssignments = getAllVariables(state, timeMachine.id)
+        .map(v => v.asAssignment())
+
     // keeping getState() here ensures that the state we are working with
     // is the most current one. By having this set to state, we were creating a race
     // condition that was causing the following bug:
     // https://github.com/influxdata/idpe/issues/6240
-    const variableAssignments = getVariableAssignments(getState())
     const orgID = getOrg(state).id
 
     const startTime = Date.now()
@@ -252,36 +213,4 @@ export const executeCheckQuery = () => async (dispatch, getState: GetState) => {
     console.error(e)
     dispatch(setQueryResults(RemoteDataState.Error, null, null, e.message))
   }
-}
-
-export const addVariableToTimeMachine = (variableID: string) => async (
-  dispatch,
-  getState: GetState
-) => {
-  const contextID = getState().timeMachines.activeTimeMachineID
-
-  const variable = getVariable(getState(), variableID)
-  const variables = getHydratedVariables(getState(), contextID)
-
-  if (!variables.includes(variable)) {
-    variables.push(variable)
-  }
-
-  await dispatch(refreshVariableValues(contextID, variables))
-}
-
-export const selectVariableValue = (
-  variableID: string,
-  selectedValue: string
-) => (dispatch, getState: GetState) => {
-  const state = getState()
-  const currDash = state.currentDashboard
-  const contextID = state.timeMachines.activeTimeMachineID
-
-  if (currDash) {
-    dispatch(selectValue(currDash.id, variableID, selectedValue))
-  }
-
-  dispatch(selectValue(contextID, variableID, selectedValue))
-  dispatch(executeQueries())
 }
