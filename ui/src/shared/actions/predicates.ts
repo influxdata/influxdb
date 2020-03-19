@@ -218,11 +218,14 @@ export const executePreviewQuery = (query: string) => async (
 ) => {
   dispatch(setPreviewStatus(RemoteDataState.Loading))
   try {
-      const state = getState()
+    const state = getState()
     const orgID = getOrg(state).id
 
     // TODO figure out how to do this better
-    const variableAssignments = getVariables(state, state.timeMachines.activeTimeMachineID).map(v => v.asAssignment)
+    const variableAssignments = getVariables(
+      state,
+      state.timeMachines.activeTimeMachineID
+    ).map(v => v.asAssignment)
     const windowVars = getWindowVars(query, variableAssignments)
     const extern = buildVarsOption([...variableAssignments, ...windowVars])
     const result = await runQuery(orgID, query, extern).promise

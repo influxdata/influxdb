@@ -11,7 +11,7 @@ import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {getTimeRange} from 'src/dashboards/selectors'
 import {
-    getAllVariables,
+  getAllVariables,
   getDashboardValuesStatus,
 } from 'src/variables/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
@@ -68,7 +68,13 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {ranges, properties, manualRefresh, timeZone, variableAssignments} = this.props
+    const {
+      ranges,
+      properties,
+      manualRefresh,
+      timeZone,
+      variableAssignments,
+    } = this.props
     const {submitToken} = this.state
 
     return (
@@ -144,8 +150,9 @@ class RefreshingView extends PureComponent<Props, State> {
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const dashboard = state.currentDashboard.id
-  const variableAssignments = getAllVariables(state, dashboard)
-      .map(v => v.asAssignment())
+  const variableAssignments = getAllVariables(state, dashboard).map(v =>
+    v.asAssignment()
+  )
   const timeRange = getTimeRange(state, dashboard)
   const valuesStatus = getDashboardValuesStatus(state, dashboard)
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)

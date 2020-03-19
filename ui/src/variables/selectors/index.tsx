@@ -3,13 +3,15 @@ import memoizeOne from 'memoize-one'
 import {get} from 'lodash'
 
 // Utils
-import {
-  getActiveQuery,
-} from 'src/timeMachine/selectors'
+import {getActiveQuery} from 'src/timeMachine/selectors'
 import {getRangeVariable} from 'src/variables/utils/getTimeRangeVars'
 import {getTimeRange} from 'src/dashboards/selectors'
 import {getWindowPeriodVariable} from 'src/variables/utils/getWindowVars'
-import {TIME_RANGE_START, TIME_RANGE_STOP, WINDOW_PERIOD} from 'src/variables/constants'
+import {
+  TIME_RANGE_START,
+  TIME_RANGE_STOP,
+  WINDOW_PERIOD,
+} from 'src/variables/constants'
 
 // Types
 import {
@@ -78,174 +80,164 @@ export const extractVariableEditorConstant = (
 // this function grabs all user defined variables
 // and hydrates them based on their context
 export const getVariables = (
-    state: AppState,
-    contextID: string
+  state: AppState,
+  contextID: string
 ): Variable[] => {
-  const variableIDs = get(
-    state,
-    `resources.variables.allIDs`,
-    []
-  )
+  const variableIDs = get(state, `resources.variables.allIDs`, [])
 
-  return variableIDs.reduce((prev, curr) => {
+  return variableIDs
+    .reduce((prev, curr) => {
       prev.push(getVariable(state, contextID, curr))
 
       return prev
-  }, []).filter(v => !!v)
+    }, [])
+    .filter(v => !!v)
 }
 
 // the same as the above method, but includes system
 // variables
 export const getAllVariables = (
-    state: AppState,
-    contextID?: string
+  state: AppState,
+  contextID?: string
 ): Variable[] => {
-  const variableIDs = get(
-    state,
-    `resources.variables.allIDs`,
-    []
-  ).concat([
-      TIME_RANGE_START,
-      TIME_RANGE_STOP,
-      WINDOW_PERIOD
+  const variableIDs = get(state, `resources.variables.allIDs`, []).concat([
+    TIME_RANGE_START,
+    TIME_RANGE_STOP,
+    WINDOW_PERIOD,
   ])
 
-  return variableIDs.reduce((prev, curr) => {
+  return variableIDs
+    .reduce((prev, curr) => {
       prev.push(getVariable(state, contextID, curr))
 
       return prev
-  }, []).filter(v => !!v)
+    }, [])
+    .filter(v => !!v)
 }
 
 export const getVariable = (
-    state: AppState,
-    contextID?: string,
-    variableID: string
+  state: AppState,
+  contextID?: string,
+  variableID: string
 ): Variable => {
-    const ctx = get(
-        state,
-        `resources.variables.values["${contextID}"]`
+  const ctx = get(state, `resources.variables.values["${contextID}"]`)
+  let vari = get(state, `resources.variables.byID["${variableID}"]`)
+
+  if (ctx && ctx.values && ctx.values.hasOwnProperty(variableID)) {
+    vari = {...vari, ...ctx.values[variableID]}
+  }
+
+  if (variableID === TIME_RANGE_START || variableID === TIME_RANGE_STOP) {
+    const timeRange = getTimeRange(state, contextID)
+
+    vari = getRangeVariable(variableID, timeRange)
+  }
+
+  if (variableID === WINDOW_PERIOD) {
+    const {text} = getActiveQuery(state)
+    const variables = getVariables(
+      state,
+      contextID || state.timeMachines.activeTimeMachineID
     )
-    let vari = get(
-        state,
-        `resources.variables.byID["${variableID}"]`
-    )
+    const range = getTimeRange(state, contextID)
+    const timeVars = [
+      getRangeVariable(TIME_RANGE_START, range),
+      getRangeVariable(TIME_RANGE_STOP, range),
+    ].map(v => asAssignment(v))
 
-    if (ctx && ctx.values && ctx.values.hasOwnProperty(variableID)) {
-        vari = { ...vari, ...ctx.values[variableID] }
-    }
+    const assignments = variables.reduce((acc, curr) => {
+      if (!curr.name || !curr.selected) {
+        return acc
+      }
 
-    if (variableID === TIME_RANGE_START || variableID === TIME_RANGE_STOP) {
-        const timeRange = getTimeRange(state, contextID)
+      return [...acc, asAssignment(curr)]
+    }, timeVars)
 
-        vari = getRangeVariable(variableID, timeRange)
-    }
+    vari = (getWindowPeriodVariable(text, assignments) || [])[0]
+  }
 
-    if (variableID === WINDOW_PERIOD) {
-        const {text} = getActiveQuery(state)
-        const variables = getVariables(state, contextID || state.timeMachines.activeTimeMachineID)
-        const range = getTimeRange(state, contextID)
-        const timeVars = [
-            getRangeVariable(TIME_RANGE_START, range),
-            getRangeVariable(TIME_RANGE_STOP, range),
-        ].map(v => asAssignment(v))
-
-        const assignments = variables
-            .reduce((acc, curr) => {
-                if (!curr.name || !curr.selected) {
-                    return acc
-                }
-
-                return [...acc, asAssignment(curr)]
-            }, timeVars)
-
-        vari = (getWindowPeriodVariable(text, assignments) || [])[0]
-    }
-
-    if (!vari) {
-        return vari
-    }
-
-    if (!vari.asAssignment) {
-        vari.asAssignment = () => asAssignment(vari)
-    }
-
-    if (vari.arguments.type === 'map') {
-        return vari
-    }
-
-    if (!vari.selected) {
-        vari.selected = [vari.arguments.values[0]]
-    }
-
+  if (!vari) {
     return vari
+  }
+
+  if (!vari.asAssignment) {
+    vari.asAssignment = () => asAssignment(vari)
+  }
+
+  if (vari.arguments.type === 'map') {
+    return vari
+  }
+
+  if (!vari.selected) {
+    vari.selected = [vari.arguments.values[0]]
+  }
+
+  return vari
 }
 
-export const asAssignment = (
-    variable: Variable
-): VariableAssignment => {
-      const out = {
-          type: 'VariableAssignment' as const,
-          id: {
-              type: 'Identifier' as const,
-              name: variable.name,
-          },
+export const asAssignment = (variable: Variable): VariableAssignment => {
+  const out = {
+    type: 'VariableAssignment' as const,
+    id: {
+      type: 'Identifier' as const,
+      name: variable.name,
+    },
+  }
+
+  if (variable.id === WINDOW_PERIOD) {
+    out.init = {
+      type: 'DurationLiteral',
+      values: [{magnitude: variable.arguments.values[0], unit: 'ms'}],
+    }
+
+    return out
+  }
+
+  if (variable.id === TIME_RANGE_START || variable.id === TIME_RANGE_STOP) {
+    const val = variable.arguments.values[0]
+
+    if (!isNaN(Date.parse(val))) {
+      out.init = {
+        type: 'DateTimeLiteral',
+        value: new Date(val).toISOString(),
       }
-
-      if (variable.id === WINDOW_PERIOD) {
-          out.init = {
-              type: 'DurationLiteral',
-              values: [{magnitude: variable.arguments.values[0], unit: 'ms'}],
-          }
-
-          return out
+    } else if (val === 'now()') {
+      out.init = {
+        type: 'CallExpression',
+        callee: {
+          type: 'Identifier',
+          name: 'now',
+        },
       }
-
-      if (variable.id === TIME_RANGE_START || variable.id === TIME_RANGE_STOP) {
-          const val = variable.arguments.values[0]
-
-          if(!isNaN(Date.parse(val))) {
-              out.init = {
-                  type: 'DateTimeLiteral',
-                  value: new Date(val).toISOString(),
-              }
-          } else if(val === 'now()') {
-              out.init = {
-                  type: 'CallExpression',
-                  callee: {
-                      type: 'Identifier',
-                      name: 'now',
-                  },
-              }
-          } else if (val) {
-              out.init = {
-                  type: 'UnaryExpression',
-                  operator: '-',
-                  argument: {
-                      type: 'DurationLiteral',
-                      values: val,
-                  },
-              }
-          }
-
-          return out
+    } else if (val) {
+      out.init = {
+        type: 'UnaryExpression',
+        operator: '-',
+        argument: {
+          type: 'DurationLiteral',
+          values: val,
+        },
       }
+    }
 
-      if (variable.arguments.type === 'map') {
-          out.init = {
-              type: 'StringLiteral',
-              value: variable.arguments.values[variable.selected[0]]
-          }
-      }
+    return out
+  }
 
-      if (variable.arguments.type === 'constant') {
-          out.init = {
-              type: 'StringLiteral',
-              value: variable.selected[0]
-          }
-      }
+  if (variable.arguments.type === 'map') {
+    out.init = {
+      type: 'StringLiteral',
+      value: variable.arguments.values[variable.selected[0]],
+    }
+  }
 
-      return out
+  if (variable.arguments.type === 'constant') {
+    out.init = {
+      type: 'StringLiteral',
+      value: variable.selected[0],
+    }
+  }
+
+  return out
 }
 
 // TODO kill this function
@@ -275,4 +267,3 @@ export const getDashboardValuesStatus = (
 ): RemoteDataState => {
   return get(state, `resources.variables.values.${dashboardID}.status`)
 }
-

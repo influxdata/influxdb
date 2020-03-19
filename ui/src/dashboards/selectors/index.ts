@@ -5,11 +5,8 @@ import {AppState, View, Check, ViewType, TimeRange} from 'src/types'
 // Constants
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
-export const getTimeRange = (
-  state: AppState,
-  contextID: string
-): TimeRange => {
-    return state.ranges[contextID] || DEFAULT_TIME_RANGE
+export const getTimeRange = (state: AppState, contextID: string): TimeRange => {
+  return state.ranges[contextID] || DEFAULT_TIME_RANGE
 }
 
 export const getCheckForView = (

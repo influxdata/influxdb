@@ -3,9 +3,7 @@ import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Actions
-import {
-    executeQueries
-} from 'src/timeMachine/actions/queries'
+import {executeQueries} from 'src/timeMachine/actions/queries'
 
 // Components
 import {
@@ -26,12 +24,12 @@ import {RemoteDataState, Variable} from 'src/types'
 import {AppState} from 'src/types'
 
 interface StateProps {
-    timeMachineID: string
+  timeMachineID: string
   valuesStatus: RemoteDataState
 }
 
 interface DispatchProps {
-    execute: typeof executeQueries
+  execute: typeof executeQueries
 }
 
 interface OwnProps {
@@ -47,18 +45,18 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
   onAddVariableToTimeMachine,
   execute,
 }) => {
-    const refresh = () => {
-        execute()
-    }
+  const refresh = () => {
+    execute()
+  }
   return (
     <div>
       <Form.Element label="Value">
-          <VariableDropdown
-              variableID={variableID}
-              contextID={ timeMachineID }
-              onSelect={ refresh }
-              testID="variable--tooltip-dropdown"
-          />
+        <VariableDropdown
+          variableID={variableID}
+          contextID={timeMachineID}
+          onSelect={refresh}
+          testID="variable--tooltip-dropdown"
+        />
       </Form.Element>
     </div>
   )
@@ -69,13 +67,13 @@ const mstp = (state: AppState) => {
   const activeTimeMachineID = state.timeMachines.activeTimeMachineID
 
   return {
-      timeMachineID: activeTimeMachineID,
-      valuesStatus
+    timeMachineID: activeTimeMachineID,
+    valuesStatus,
   }
 }
 
 const mdtp = {
-    execute: executeQueries
+  execute: executeQueries,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

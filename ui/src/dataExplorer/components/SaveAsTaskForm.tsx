@@ -57,10 +57,7 @@ type Props = StateProps & OwnProps & DispatchProps
 
 class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   public componentDidMount() {
-    const {
-      setTaskOption,
-      setNewScript,
-    } = this.props
+    const {setTaskOption, setNewScript} = this.props
 
     setTaskOption({
       key: 'taskScheduleType',
@@ -113,9 +110,9 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     const {saveNewScript, newScript, taskOptions} = this.props
 
     // Don't embed variables that are not used in the script
-    const vars = [
-      ...this.props.userDefinedVars,
-    ].filter(assignment => newScript.includes(assignment.id.name))
+    const vars = [...this.props.userDefinedVars].filter(assignment =>
+      newScript.includes(assignment.id.name)
+    )
 
     const varOption: string = formatVarsOption(vars) // option v = { ... }
     const taskOption: string = taskOptionsToFluxScript(taskOptions) // option task = { ... }
@@ -152,7 +149,7 @@ const mstp = (state: AppState): StateProps => {
   const activeQuery = getActiveQuery(state)
   const org = getOrg(state)
   const userDefinedVars = getAllVariables(
-      state,
+    state,
     state.timeMachines.activeTimeMachineID
   ).map(v => v.asAssignment)
 

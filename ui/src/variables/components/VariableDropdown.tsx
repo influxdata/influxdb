@@ -19,7 +19,7 @@ import {getVariable} from 'src/variables/selectors'
 import {AppState} from 'src/types'
 
 interface StateProps {
-    type: string
+  type: string
   values: {name: string; value: string}[]
   selectedValue: string
 }
@@ -39,7 +39,9 @@ type Props = StateProps & DispatchProps & OwnProps
 class VariableDropdown extends PureComponent<Props> {
   render() {
     const {selectedValue, type} = this.props
-    const dropdownValues = (type === 'map' ? Object.keys(this.props.values) : this.props.values) || []
+    const dropdownValues =
+      (type === 'map' ? Object.keys(this.props.values) : this.props.values) ||
+      []
 
     const dropdownStatus =
       dropdownValues.length === 0
@@ -52,7 +54,7 @@ class VariableDropdown extends PureComponent<Props> {
         <Dropdown
           style={{width: `${140}px`}}
           className="variable-dropdown--dropdown"
-          testID={ this.props.testID || "variable-dropdown" }
+          testID={this.props.testID || 'variable-dropdown'}
           button={(active, onClick) => (
             <Dropdown.Button
               active={active}
@@ -68,20 +70,20 @@ class VariableDropdown extends PureComponent<Props> {
               onCollapse={onCollapse}
               theme={DropdownMenuTheme.Amethyst}
             >
-              {dropdownValues.map((val) => {
-                      return (
-                        <Dropdown.Item
-                          key={val}
-                          id={val}
-                          value={val}
-                          onClick={this.handleSelect}
-                          selected={val === selectedValue}
-                          testID="variable-dropdown--item"
-                        >
-                          {val}
-                        </Dropdown.Item>
-                      )
-               })}
+              {dropdownValues.map(val => {
+                return (
+                  <Dropdown.Item
+                    key={val}
+                    id={val}
+                    value={val}
+                    onClick={this.handleSelect}
+                    selected={val === selectedValue}
+                    testID="variable-dropdown--item"
+                  >
+                    {val}
+                  </Dropdown.Item>
+                )
+              })}
             </Dropdown.Menu>
           )}
         />
@@ -95,7 +97,7 @@ class VariableDropdown extends PureComponent<Props> {
     onSelectValue(contextID, variableID, selectedValue)
 
     if (onSelect) {
-        onSelect()
+      onSelect()
     }
   }
 }
@@ -103,16 +105,12 @@ class VariableDropdown extends PureComponent<Props> {
 const mstp = (state: AppState, props: OwnProps): StateProps => {
   const {contextID, variableID} = props
 
-  const variable = getVariable(
-      state,
-      contextID,
-      variableID
-  )
+  const variable = getVariable(state, contextID, variableID)
 
   return {
-      type: variable.arguments.type,
-      values: variable.arguments.values,
-      selectedValue: variable.selected
+    type: variable.arguments.type,
+    values: variable.arguments.values,
+    selectedValue: variable.selected,
   }
 }
 

@@ -90,19 +90,19 @@ export const getWindowPeriodVariable = (
   query: string,
   variables: VariableAssignment[]
 ): Variable[] | null => {
-    const total = getWindowPeriod(query, variables)
+  const total = getWindowPeriod(query, variables)
 
-    const windowPeriodVariable: Variable = {
-      orgID: '',
-      id: WINDOW_PERIOD,
-      name: WINDOW_PERIOD,
-      arguments: {
-        type: 'constant',
-        values: [total],
-      },
-      status: RemoteDataState.Done,
-      labels: [],
-    }
+  const windowPeriodVariable: Variable = {
+    orgID: '',
+    id: WINDOW_PERIOD,
+    name: WINDOW_PERIOD,
+    arguments: {
+      type: 'constant',
+      values: [total],
+    },
+    status: RemoteDataState.Done,
+    labels: [],
+  }
 
-    return [windowPeriodVariable]
+  return [windowPeriodVariable]
 }

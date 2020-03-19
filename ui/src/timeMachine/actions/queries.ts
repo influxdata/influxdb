@@ -18,10 +18,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 
 // Utils
-import {
-  getActiveTimeMachine,
-  getActiveQuery,
-} from 'src/timeMachine/selectors'
+import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {
@@ -78,7 +75,9 @@ export const executeQueries = (dashboardID?: string) => async (
 ) => {
   const state = getState()
   const timeMachine = getActiveTimeMachine(state)
-  const queries = timeMachine.view.properties.queries.filter(({text}) => !!text.trim())
+  const queries = timeMachine.view.properties.queries.filter(
+    ({text}) => !!text.trim()
+  )
   const {
     alertBuilder: {id: checkID},
   } = state
@@ -90,8 +89,9 @@ export const executeQueries = (dashboardID?: string) => async (
   try {
     dispatch(setQueryResults(RemoteDataState.Loading, [], null))
 
-    const variableAssignments = getAllVariables(state, timeMachine.id)
-        .map(v => v.asAssignment())
+    const variableAssignments = getAllVariables(state, timeMachine.id).map(v =>
+      v.asAssignment()
+    )
 
     // keeping getState() here ensures that the state we are working with
     // is the most current one. By having this set to state, we were creating a race

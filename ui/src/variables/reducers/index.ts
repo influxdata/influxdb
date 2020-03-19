@@ -51,7 +51,7 @@ export const variablesReducer = (
           draftState.byID[id] = {...variable, status}
 
           if (!variableExists) {
-              draftState.allIDs.push(id)
+            draftState.allIDs.push(id)
           }
         } else {
           draftState.byID[id].status = status
@@ -93,16 +93,16 @@ export const variablesReducer = (
         const {contextID, variableID, selectedValue} = action
 
         if (!draftState.values[contextID]) {
-            draftState.values[contextID] = { values: {} }
+          draftState.values[contextID] = {values: {}}
         }
 
         if (!draftState.values[contextID].values[variableID]) {
-            draftState.values[contextID].values[variableID] = {}
+          draftState.values[contextID].values[variableID] = {}
         }
 
-        draftState.values[contextID].values[
-          variableID
-        ].selected = [selectedValue]
+        draftState.values[contextID].values[variableID].selected = [
+          selectedValue,
+        ]
 
         return
       }

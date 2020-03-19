@@ -38,9 +38,7 @@ import * as creators from 'src/dashboards/actions/creators'
 
 // Utils
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
-import {
-    getVariables as getVariablesFromState,
-} from 'src/variables/selectors'
+import {getVariables as getVariablesFromState} from 'src/variables/selectors'
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {exportVariables} from 'src/variables/utils/exportVariables'
 import {getSaveableView} from 'src/timeMachine/selectors'

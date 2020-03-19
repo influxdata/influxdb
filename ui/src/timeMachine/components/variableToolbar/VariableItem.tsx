@@ -23,14 +23,16 @@ const VariableItem: FC<Props> = ({variable, onClickVariable}) => {
   const trigger = useRef<HTMLDivElement>(null)
 
   if (
-      (variable.arguments.type === 'constant' && variable.arguments.values.length <= 1) ||
-      (variable.arguments.type === 'map' && Object.keys(variable.arguments.values).length <= 1)
+    (variable.arguments.type === 'constant' &&
+      variable.arguments.values.length <= 1) ||
+    (variable.arguments.type === 'map' &&
+      Object.keys(variable.arguments.values).length <= 1)
   ) {
-      return (
-    <div className="variables-toolbar--item" ref={trigger}>
-      <VariableLabel name={variable.name} onClickVariable={onClickVariable} />
-    </div>
-      )
+    return (
+      <div className="variables-toolbar--item" ref={trigger}>
+        <VariableLabel name={variable.name} onClickVariable={onClickVariable} />
+      </div>
+    )
   }
 
   return (
