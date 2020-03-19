@@ -647,37 +647,15 @@ func (p *Pkg) graphResources() error {
 
 func (p *Pkg) graphBuckets() *parseErr {
 	p.mBuckets = make(map[string]*bucket)
-	uniqNames := make(map[string]bool)
+	tracker := p.trackNames(true)
 	return p.eachResource(KindBucket, bucketNameMinLength, func(o Object) []validationErr {
-		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-		if _, ok := p.mBuckets[nameRef.String()]; ok {
-			return []validationErr{
-				objectValidationErr(fieldMetadata, validationErr{
-					Field: fieldName,
-					Msg:   "duplicate name: " + nameRef.String(),
-				}),
-			}
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
 		}
-
-		displayNameRef := p.getRefWithKnownEnvs(o.Spec, fieldName)
-
-		name := nameRef.String()
-		if displayName := displayNameRef.String(); displayName != "" {
-			name = displayName
-		}
-		if uniqNames[name] {
-			return []validationErr{
-				objectValidationErr(fieldSpec, validationErr{
-					Field: fieldName,
-					Msg:   "duplicate name: " + nameRef.String(),
-				}),
-			}
-		}
-		uniqNames[name] = true
 
 		bkt := &bucket{
-			name:        nameRef,
-			displayName: displayNameRef,
+			identity:    ident,
 			Description: o.Spec.stringShort(fieldDescription),
 		}
 		if rules, ok := o.Spec[fieldBucketRetentionRules].(retentionRules); ok {
@@ -707,42 +685,20 @@ func (p *Pkg) graphBuckets() *parseErr {
 
 func (p *Pkg) graphLabels() *parseErr {
 	p.mLabels = make(map[string]*label)
-	uniqNames := make(map[string]bool)
+	tracker := p.trackNames(true)
 	return p.eachResource(KindLabel, labelNameMinLength, func(o Object) []validationErr {
-		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-		if _, ok := p.mLabels[nameRef.String()]; ok {
-			return []validationErr{
-				objectValidationErr(fieldMetadata, validationErr{
-					Field: fieldName,
-					Msg:   "duplicate name: " + nameRef.String(),
-				}),
-			}
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
 		}
-
-		displayNameRef := p.getRefWithKnownEnvs(o.Spec, fieldName)
-
-		name := nameRef.String()
-		if displayName := displayNameRef.String(); displayName != "" {
-			name = displayName
-		}
-		if uniqNames[name] {
-			return []validationErr{
-				objectValidationErr(fieldSpec, validationErr{
-					Field: fieldName,
-					Msg:   "duplicate name: " + nameRef.String(),
-				}),
-			}
-		}
-		uniqNames[name] = true
 
 		l := &label{
-			name:        nameRef,
-			displayName: displayNameRef,
+			identity:    ident,
 			Color:       o.Spec.stringShort(fieldLabelColor),
 			Description: o.Spec.stringShort(fieldDescription),
 		}
 		p.mLabels[l.PkgName()] = l
-		p.setRefs(nameRef, displayNameRef)
+		p.setRefs(l.name, l.displayName)
 
 		return l.valid()
 	})
@@ -750,7 +706,7 @@ func (p *Pkg) graphLabels() *parseErr {
 
 func (p *Pkg) graphChecks() *parseErr {
 	p.mChecks = make(map[string]*check)
-	uniqNames := make(map[string]bool)
+	tracker := p.trackNames(true)
 
 	checkKinds := []struct {
 		kind      Kind
@@ -762,36 +718,14 @@ func (p *Pkg) graphChecks() *parseErr {
 	var pErr parseErr
 	for _, checkKind := range checkKinds {
 		err := p.eachResource(checkKind.kind, checkNameMinLength, func(o Object) []validationErr {
-			nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-			if _, ok := p.mChecks[nameRef.String()]; ok {
-				return []validationErr{
-					objectValidationErr(fieldMetadata, validationErr{
-						Field: fieldName,
-						Msg:   "duplicate name: " + nameRef.String(),
-					}),
-				}
+			ident, errs := tracker(o)
+			if len(errs) > 0 {
+				return errs
 			}
-
-			displayNameRef := p.getRefWithKnownEnvs(o.Spec, fieldName)
-
-			name := nameRef.String()
-			if displayName := displayNameRef.String(); displayName != "" {
-				name = displayName
-			}
-			if uniqNames[name] {
-				return []validationErr{
-					objectValidationErr(fieldSpec, validationErr{
-						Field: fieldName,
-						Msg:   "duplicate name: " + nameRef.String(),
-					}),
-				}
-			}
-			uniqNames[name] = true
 
 			ch := &check{
 				kind:          checkKind.checkKind,
-				name:          nameRef,
-				displayName:   displayNameRef,
+				identity:      ident,
 				description:   o.Spec.stringShort(fieldDescription),
 				every:         o.Spec.durationShort(fieldEvery),
 				level:         o.Spec.stringShort(fieldLevel),
@@ -828,7 +762,7 @@ func (p *Pkg) graphChecks() *parseErr {
 			sort.Sort(ch.labels)
 
 			p.mChecks[ch.PkgName()] = ch
-			p.setRefs(nameRef, displayNameRef)
+			p.setRefs(ch.name, ch.displayName)
 			return append(failures, ch.valid()...)
 		})
 		if err != nil {
@@ -843,20 +777,15 @@ func (p *Pkg) graphChecks() *parseErr {
 
 func (p *Pkg) graphDashboards() *parseErr {
 	p.mDashboards = make(map[string]*dashboard)
+	tracker := p.trackNames(false)
 	return p.eachResource(KindDashboard, dashboardNameMinLength, func(o Object) []validationErr {
-		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-		if _, ok := p.mDashboards[nameRef.String()]; ok {
-			return []validationErr{
-				objectValidationErr(fieldMetadata, validationErr{
-					Field: fieldName,
-					Msg:   "duplicate name: " + nameRef.String(),
-				}),
-			}
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
 		}
 
 		dash := &dashboard{
-			name:        nameRef,
-			displayName: p.getRefWithKnownEnvs(o.Spec, fieldName),
+			identity:    ident,
 			Description: o.Spec.stringShort(fieldDescription),
 		}
 
@@ -891,7 +820,7 @@ func (p *Pkg) graphDashboards() *parseErr {
 
 func (p *Pkg) graphNotificationEndpoints() *parseErr {
 	p.mNotificationEndpoints = make(map[string]*notificationEndpoint)
-	uniqNames := make(map[string]bool)
+	tracker := p.trackNames(true)
 
 	notificationKinds := []struct {
 		kind             Kind
@@ -914,36 +843,14 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 	var pErr parseErr
 	for _, nk := range notificationKinds {
 		err := p.eachResource(nk.kind, 1, func(o Object) []validationErr {
-			nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-			if _, ok := p.mNotificationEndpoints[nameRef.String()]; ok {
-				return []validationErr{
-					objectValidationErr(fieldMetadata, validationErr{
-						Field: fieldName,
-						Msg:   "duplicate name: " + nameRef.String(),
-					}),
-				}
+			ident, errs := tracker(o)
+			if len(errs) > 0 {
+				return errs
 			}
-
-			displayNameRef := p.getRefWithKnownEnvs(o.Spec, fieldName)
-
-			name := nameRef.String()
-			if displayName := displayNameRef.String(); displayName != "" {
-				name = displayName
-			}
-			if uniqNames[name] {
-				return []validationErr{
-					objectValidationErr(fieldSpec, validationErr{
-						Field: fieldName,
-						Msg:   "duplicate name: " + nameRef.String(),
-					}),
-				}
-			}
-			uniqNames[name] = true
 
 			endpoint := &notificationEndpoint{
 				kind:        nk.notificationKind,
-				name:        nameRef,
-				displayName: displayNameRef,
+				identity:    ident,
 				description: o.Spec.stringShort(fieldDescription),
 				method:      strings.TrimSpace(strings.ToUpper(o.Spec.stringShort(fieldNotificationEndpointHTTPMethod))),
 				httpType:    normStr(o.Spec.stringShort(fieldType)),
@@ -962,8 +869,8 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 			sort.Sort(endpoint.labels)
 
 			p.setRefs(
-				nameRef,
-				displayNameRef,
+				endpoint.name,
+				endpoint.displayName,
 				endpoint.password,
 				endpoint.routingKey,
 				endpoint.token,
@@ -985,20 +892,15 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 
 func (p *Pkg) graphNotificationRules() *parseErr {
 	p.mNotificationRules = make(map[string]*notificationRule)
+	tracker := p.trackNames(false)
 	return p.eachResource(KindNotificationRule, 1, func(o Object) []validationErr {
-		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-		if _, ok := p.mNotificationRules[nameRef.String()]; ok {
-			return []validationErr{
-				objectValidationErr(fieldMetadata, validationErr{
-					Field: fieldName,
-					Msg:   "duplicate name: " + nameRef.String(),
-				}),
-			}
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
 		}
 
 		rule := &notificationRule{
-			name:         nameRef,
-			displayName:  p.getRefWithKnownEnvs(o.Spec, fieldName),
+			identity:     ident,
 			endpointName: p.getRefWithKnownEnvs(o.Spec, fieldNotificationRuleEndpointName),
 			description:  o.Spec.stringShort(fieldDescription),
 			channel:      o.Spec.stringShort(fieldNotificationRuleChannel),
@@ -1038,20 +940,15 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 
 func (p *Pkg) graphTasks() *parseErr {
 	p.mTasks = make(map[string]*task)
+	tracker := p.trackNames(false)
 	return p.eachResource(KindTask, 1, func(o Object) []validationErr {
-		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-		if _, ok := p.mTasks[nameRef.String()]; ok {
-			return []validationErr{
-				objectValidationErr(fieldMetadata, validationErr{
-					Field: fieldName,
-					Msg:   "duplicate name: " + nameRef.String(),
-				}),
-			}
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
 		}
 
 		t := &task{
-			name:        p.getRefWithKnownEnvs(o.Metadata, fieldName),
-			displayName: p.getRefWithKnownEnvs(o.Spec, fieldName),
+			identity:    ident,
 			cron:        o.Spec.stringShort(fieldTaskCron),
 			description: o.Spec.stringShort(fieldDescription),
 			every:       o.Spec.durationShort(fieldEvery),
@@ -1068,27 +965,22 @@ func (p *Pkg) graphTasks() *parseErr {
 		sort.Sort(t.labels)
 
 		p.mTasks[t.PkgName()] = t
-		p.setRefs(t.name)
+		p.setRefs(t.name, t.displayName)
 		return append(failures, t.valid()...)
 	})
 }
 
 func (p *Pkg) graphTelegrafs() *parseErr {
 	p.mTelegrafs = make(map[string]*telegraf)
+	tracker := p.trackNames(false)
 	return p.eachResource(KindTelegraf, 0, func(o Object) []validationErr {
-		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-		if _, ok := p.mTelegrafs[nameRef.String()]; ok {
-			return []validationErr{
-				objectValidationErr(fieldMetadata, validationErr{
-					Field: fieldName,
-					Msg:   "duplicate name: " + nameRef.String(),
-				}),
-			}
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
 		}
 
 		tele := &telegraf{
-			name:        p.getRefWithKnownEnvs(o.Metadata, fieldName),
-			displayName: p.getRefWithKnownEnvs(o.Spec, fieldName),
+			identity: ident,
 		}
 		tele.config.Config = o.Spec.stringShort(fieldTelegrafConfig)
 		tele.config.Description = o.Spec.stringShort(fieldDescription)
@@ -1109,37 +1001,15 @@ func (p *Pkg) graphTelegrafs() *parseErr {
 
 func (p *Pkg) graphVariables() *parseErr {
 	p.mVariables = make(map[string]*variable)
-	uniqNames := make(map[string]bool)
+	tracker := p.trackNames(true)
 	return p.eachResource(KindVariable, 1, func(o Object) []validationErr {
-		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-		if _, ok := p.mVariables[nameRef.String()]; ok {
-			return []validationErr{
-				objectValidationErr(fieldMetadata, validationErr{
-					Field: fieldName,
-					Msg:   "duplicate name: " + nameRef.String(),
-				}),
-			}
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
 		}
-
-		displayNameRef := p.getRefWithKnownEnvs(o.Spec, fieldName)
-
-		name := nameRef.String()
-		if displayName := displayNameRef.String(); displayName != "" {
-			name = displayName
-		}
-		if uniqNames[name] {
-			return []validationErr{
-				objectValidationErr(fieldSpec, validationErr{
-					Field: fieldName,
-					Msg:   "duplicate name: " + nameRef.String(),
-				}),
-			}
-		}
-		uniqNames[name] = true
 
 		newVar := &variable{
-			name:        nameRef,
-			displayName: displayNameRef,
+			identity:    ident,
 			Description: o.Spec.stringShort(fieldDescription),
 			Type:        normStr(o.Spec.stringShort(fieldType)),
 			Query:       strings.TrimSpace(o.Spec.stringShort(fieldQuery)),
@@ -1293,6 +1163,45 @@ func (p *Pkg) parseNestedLabel(nr Resource, fn func(lb *label) error) *validatio
 		}
 	}
 	return nil
+}
+
+func (p *Pkg) trackNames(resourceUniqueByName bool) func(Object) (identity, []validationErr) {
+	mPkgNames := make(map[string]bool)
+	uniqNames := make(map[string]bool)
+	return func(o Object) (identity, []validationErr) {
+		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
+		if mPkgNames[nameRef.String()] {
+			return identity{}, []validationErr{
+				objectValidationErr(fieldMetadata, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
+		}
+		mPkgNames[nameRef.String()] = true
+
+		displayNameRef := p.getRefWithKnownEnvs(o.Spec, fieldName)
+		identity := identity{
+			name:        nameRef,
+			displayName: displayNameRef,
+		}
+		if !resourceUniqueByName {
+			return identity, nil
+		}
+
+		name := identity.Name()
+		if uniqNames[name] {
+			return identity, []validationErr{
+				objectValidationErr(fieldSpec, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
+		}
+		uniqNames[name] = true
+
+		return identity, nil
+	}
 }
 
 func (p *Pkg) getRefWithKnownEnvs(r Resource, field string) *references {
