@@ -49,7 +49,7 @@ class TelegrafInstructions extends PureComponent<Props> {
             able to see it again!
           </Alert>
         )}
-        <TokenCodeSnippet copyText={token} configID={configID} label="CLI" />
+        <TokenCodeSnippet token={token} configID={configID} label="CLI" />
         <h6>3. Start Telegraf</h6>
         <p>
           Finally, you can run the following command to start the Telegraf agent

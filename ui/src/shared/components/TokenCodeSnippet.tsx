@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {FC} from 'react'
 import {connect} from 'react-redux'
 import {
   Button,
@@ -10,7 +10,6 @@ import {
 } from '@influxdata/clockface'
 
 // Decorator
-import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Notification} from 'src/types'
 
 // Components
@@ -22,7 +21,7 @@ import {generateTelegrafToken} from 'src/dataLoaders/actions/dataLoaders'
 
 export interface Props {
   configID: string
-  copyText: string
+  token: string
   onCopyText?: (text: string, status: boolean) => Notification
   testID?: string
   label: string
@@ -32,62 +31,55 @@ interface DispatchProps {
   onGenerateTelegrafToken: typeof generateTelegrafToken
 }
 
-@ErrorHandling
-class TokenCodeSnippet extends PureComponent<Props & DispatchProps> {
-  public static defaultProps = {
-    label: 'Code Snippet',
-  }
-
-  public handleRefreshClick = () => {
+const TokenCodeSnippet: FC<Props & DispatchProps> = ({
+  token,
+  onCopyText,
+  testID,
+  label = 'Code Snippet',
+}) => {
+  const handleRefreshClick = () => {
     const {configID, onGenerateTelegrafToken} = this.props
     onGenerateTelegrafToken(configID)
   }
 
-  public render() {
-    const {copyText, label, onCopyText} = this.props
-    const testID = this.props.testID || 'code-snippet'
-
-    return (
-      <div className="code-snippet" data-testid={testID}>
-        <FancyScrollbar
-          autoHide={false}
-          autoHeight={true}
-          maxHeight={400}
-          className="code-snippet--scroll"
-        >
-          <div className="code-snippet--text">
-            <pre>
-              export INFLUX_TOKEN=<i>{copyText || '<INFLUX_TOKEN>'}</i>
-            </pre>
-          </div>
-        </FancyScrollbar>
-        <div className="code-snippet--footer">
-          <div>
-            <CopyButton
-              textToCopy={copyText}
-              onCopyText={onCopyText}
-              contentName="Script"
-            />
-            <Button
-              size={ComponentSize.ExtraSmall}
-              status={
-                copyText === ''
-                  ? ComponentStatus.Default
-                  : ComponentStatus.Disabled
-              }
-              text="Generate New Token"
-              titleText="Generate New Token"
-              icon={IconFont.Refresh}
-              color={ComponentColor.Success}
-              onClick={this.handleRefreshClick}
-              className="new-token--btn"
-            />
-          </div>
-          <label className="code-snippet--label">{label}</label>
+  return (
+    <div className="code-snippet" data-testid={testID}>
+      <FancyScrollbar
+        autoHide={false}
+        autoHeight={true}
+        maxHeight={400}
+        className="code-snippet--scroll"
+      >
+        <div className="code-snippet--text">
+          <pre>
+            export INFLUX_TOKEN=<i>{token || '<INFLUX_TOKEN>'}</i>
+          </pre>
         </div>
+      </FancyScrollbar>
+      <div className="code-snippet--footer">
+        <div>
+          <CopyButton
+            textToCopy={token}
+            onCopyText={onCopyText}
+            contentName="Script"
+          />
+          <Button
+            size={ComponentSize.ExtraSmall}
+            status={
+              token === '' ? ComponentStatus.Default : ComponentStatus.Disabled
+            }
+            text="Generate New Token"
+            titleText="Generate New Token"
+            icon={IconFont.Refresh}
+            color={ComponentColor.Success}
+            onClick={handleRefreshClick}
+            className="new-token--btn"
+          />
+        </div>
+        <label className="code-snippet--label">{label}</label>
       </div>
-    )
-  }
+    </div>
+  )
 }
 
 const mdtp: DispatchProps = {

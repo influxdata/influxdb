@@ -52,7 +52,7 @@ import {getAll} from 'src/resources/selectors'
 import {getOrg} from 'src/organizations/selectors'
 
 // Utils
-import {isSystemBucket} from 'src/buckets/constants/index'
+import {isSystemBucket} from 'src/buckets/constants'
 
 export interface CollectorsStepProps {
   currentStepIndex: number

@@ -14,11 +14,9 @@ import {telegrafSchema} from 'src/schemas/telegrafs'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
-import {
-  getBucketByName,
-  getDataLoaders,
-  getSteps,
-} from 'src/dataLoaders/selectors'
+import {getDataLoaders, getSteps} from 'src/dataLoaders/selectors'
+import {getBucketByName} from 'src/buckets/selectors'
+import {getByID} from 'src/resources/selectors'
 import {getOrg} from 'src/organizations/selectors'
 
 // Constants
@@ -42,6 +40,7 @@ import {
   RemoteDataState,
   Authorization,
   AuthEntities,
+  ResourceType,
   TelegrafEntities,
   Telegraf,
 } from 'src/types'
@@ -58,9 +57,10 @@ import {addTelegraf, editTelegraf} from 'src/telegrafs/actions/creators'
 import {addAuthorization} from 'src/authorizations/actions/creators'
 import {notify} from 'src/shared/actions/notifications'
 import {
+  readWriteCardinalityLimitReached,
   TelegrafConfigCreationError,
   TelegrafConfigCreationSuccess,
-  readWriteCardinalityLimitReached,
+  TokenCreationError,
 } from 'src/shared/copy/notifications'
 
 const DEFAULT_COLLECTION_INTERVAL = 10000
@@ -408,9 +408,14 @@ export const generateTelegrafToken = (configID: string) => async (
 ) => {
   try {
     const state = getState()
-    const org = getOrg(state)
-    const telegraf = get(state, `resources.telegrafs.byID.${configID}`, '')
+    const orgID = getOrg(state).id
+    const telegraf = getByID<Telegraf>(state, ResourceType.Telegrafs, configID)
     const bucketName = get(telegraf, 'metadata.buckets[0]', '')
+    if (bucketName === '') {
+      throw new Error(
+        'A token cannot be generated without a corresponding bucket'
+      )
+    }
     const bucket = getBucketByName(state, bucketName)
 
     const permissions = [
@@ -419,7 +424,7 @@ export const generateTelegrafToken = (configID: string) => async (
         resource: {
           type: PermissionResource.TypeEnum.Buckets,
           id: bucket.id,
-          orgID: org.id,
+          orgID,
         },
       },
       {
@@ -427,14 +432,14 @@ export const generateTelegrafToken = (configID: string) => async (
         resource: {
           type: PermissionResource.TypeEnum.Telegrafs,
           id: configID,
-          orgID: org.id,
+          orgID,
         },
       },
     ]
 
     const token = {
       name: `${telegraf.name} token`,
-      orgID: org.id,
+      orgID,
       description: `WRITE ${bucketName} bucket / READ ${
         telegraf.name
       } telegraf config`,
@@ -447,7 +452,8 @@ export const generateTelegrafToken = (configID: string) => async (
     // add token to data loader state
     dispatch(setToken(createdToken.token))
   } catch (error) {
-    console.error('error: ', error)
+    console.error(error)
+    dispatch(notify(TokenCreationError))
   }
 }
 
