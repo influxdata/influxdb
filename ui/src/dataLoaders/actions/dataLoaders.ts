@@ -6,7 +6,7 @@ import {normalize} from 'normalizr'
 import {client} from 'src/utils/api'
 import {ScraperTargetRequest, PermissionResource} from '@influxdata/influx'
 import {createAuthorization} from 'src/authorizations/apis'
-import {postWrite as apiPostWrite, postLabel as apiPostLabel} from 'src/client'
+import {postWrite as apiPostWrite} from 'src/client'
 
 // Schemas
 import {authSchema} from 'src/schemas'
@@ -14,8 +14,11 @@ import {telegrafSchema} from 'src/schemas/telegrafs'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
-import {addLabelDefaults} from 'src/labels/utils'
-import {getDataLoaders, getSteps} from 'src/dataLoaders/selectors'
+import {
+  getBucketByName,
+  getDataLoaders,
+  getSteps,
+} from 'src/dataLoaders/selectors'
 import {getOrg} from 'src/organizations/selectors'
 
 // Constants
@@ -37,13 +40,11 @@ import {
 import {
   GetState,
   RemoteDataState,
-  LabelProperties,
   Authorization,
   AuthEntities,
   TelegrafEntities,
   Telegraf,
 } from 'src/types'
-import {ILabel} from '@influxdata/influx'
 import {
   WritePrecision,
   TelegrafRequest,
@@ -401,6 +402,55 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
   createTelegraf(dispatch, getState, plugins)
 }
 
+export const generateTelegrafToken = (configID: string) => async (
+  dispatch,
+  getState: GetState
+) => {
+  try {
+    const state = getState()
+    const org = getOrg(state)
+    const telegraf = get(state, `resources.telegrafs.byID.${configID}`, '')
+    const bucketName = get(telegraf, 'metadata.buckets[0]', '')
+    const bucket = getBucketByName(state, bucketName)
+
+    const permissions = [
+      {
+        action: Permission.ActionEnum.Write,
+        resource: {
+          type: PermissionResource.TypeEnum.Buckets,
+          id: bucket.id,
+          orgID: org.id,
+        },
+      },
+      {
+        action: Permission.ActionEnum.Read,
+        resource: {
+          type: PermissionResource.TypeEnum.Telegrafs,
+          id: configID,
+          orgID: org.id,
+        },
+      },
+    ]
+
+    const token = {
+      name: `${telegraf.name} token`,
+      orgID: org.id,
+      description: `WRITE ${bucketName} bucket / READ ${
+        telegraf.name
+      } telegraf config`,
+      permissions,
+    }
+
+    // create token
+    const createdToken = await createAuthorization(token)
+
+    // add token to data loader state
+    dispatch(setToken(createdToken.token))
+  } catch (error) {
+    console.error('error: ', error)
+  }
+}
+
 const createTelegraf = async (dispatch, getState: GetState, plugins) => {
   try {
     const state = getState()
@@ -447,6 +497,8 @@ const createTelegraf = async (dispatch, getState: GetState, plugins) => {
       permissions,
     }
 
+    console.log('token on create: ', token)
+
     // create token
     const createdToken = await createAuthorization(token)
 
@@ -461,40 +513,8 @@ const createTelegraf = async (dispatch, getState: GetState, plugins) => {
     // add token to authorizations state
     dispatch(addAuthorization(normAuth))
 
-    // create token label
-    const properties = {
-      color: '#FFFFFF',
-      description: `token for telegraf config: ${telegrafConfigName}`,
-      tokenID: createdToken.id,
-    } as LabelProperties // hack to make compiler work
-
-    const resp = await apiPostLabel({
-      data: {
-        orgID: org.id,
-        name: `@influxdata.token-${new Date().getTime()}`, // fix for https://github.com/influxdata/influxdb/issues/15730
-        properties,
-      },
-    })
-
-    if (resp.status !== 201) {
-      throw new Error(resp.data.message)
-    }
-
-    const createdLabel = addLabelDefaults(resp.data.label)
-
-    // add label to telegraf config
-    const label = await client.telegrafConfigs.addLabel(
-      tc.id,
-      createdLabel as ILabel
-    )
-
-    const config = {
-      ...tc,
-      labels: [label],
-    }
-
     const normTelegraf = normalize<Telegraf, TelegrafEntities, string>(
-      config,
+      tc,
       telegrafSchema
     )
 
