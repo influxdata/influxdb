@@ -8,6 +8,7 @@
 ### Bug Fixes
 
 1. [17240](https://github.com/influxdata/influxdb/pull/17240): NodeJS logo displays properly in Firefox
+1. [17350](https://github.com/influxdata/influxdb/pull/17350): Query Columns with the name "error" should no longer throw an Error
 
 ### UI Improvements
 
