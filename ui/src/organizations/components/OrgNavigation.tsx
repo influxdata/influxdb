@@ -10,11 +10,7 @@ import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Constants
-import {
-  CLOUD_USERS_PATH,
-  CLOUD_USAGE_PATH,
-  CLOUD_BILLING_PATH,
-} from 'src/shared/constants'
+import {CLOUD_USERS_PATH} from 'src/shared/constants'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -56,22 +52,6 @@ class OrgNavigation extends PureComponent<Props> {
         cloudOnly: true,
         onClick: () => {
           window.location.assign(`/orgs/${orgID}/${CLOUD_USERS_PATH}`)
-        },
-      },
-      {
-        text: 'Usage',
-        id: 'usage',
-        cloudOnly: true,
-        onClick: () => {
-          window.location.assign(`/orgs/${orgID}/${CLOUD_USAGE_PATH}`)
-        },
-      },
-      {
-        text: 'Billing',
-        id: 'billing',
-        cloudOnly: true,
-        onClick: () => {
-          window.location.assign(`/orgs/${orgID}/${CLOUD_BILLING_PATH}`)
         },
       },
       {

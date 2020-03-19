@@ -1,10 +1,5 @@
 import {IconFont} from '@influxdata/clockface'
-import {
-  CLOUD_URL,
-  CLOUD_USERS_PATH,
-  CLOUD_USAGE_PATH,
-  CLOUD_BILLING_PATH,
-} from 'src/shared/constants'
+import {CLOUD_URL, CLOUD_USERS_PATH} from 'src/shared/constants'
 
 export interface NavSubItem {
   id: string
@@ -83,48 +78,11 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       activeKeywords: ['data-explorer'],
     },
     {
-      id: 'org-cloud',
-      testID: 'nav-item-org-cloud',
-      icon: IconFont.UsersTrio,
-      label: 'Org',
-      link: CLOUD_USAGE_PATH,
-      cloudOnly: true,
-      activeKeywords: ['org'],
-      menu: [
-        {
-          id: 'usage',
-          testID: 'nav-subitem-usage',
-          label: 'Usage',
-          link: CLOUD_USAGE_PATH,
-        },
-        {
-          id: 'billing',
-          testID: 'nav-subitem-billing',
-          label: 'Billing',
-          link: CLOUD_BILLING_PATH,
-        },
-        {
-          id: 'multi-user-members',
-          testID: 'nav-subitem-multi-user-members',
-          label: 'Members',
-          featureFlag: 'multiUser',
-          link: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
-        },
-        {
-          id: 'about',
-          testID: 'nav-subitem-about',
-          label: 'About',
-          link: `${orgPrefix}/about`,
-        },
-      ],
-    },
-    {
-      id: 'org-oss',
-      testID: 'nav-item-org-oss',
+      id: 'org',
+      testID: 'nav-item-org',
       icon: IconFont.UsersTrio,
       label: 'Org',
       link: `${orgPrefix}/members`,
-      cloudExclude: true,
       activeKeywords: ['members', 'about'],
       menu: [
         {

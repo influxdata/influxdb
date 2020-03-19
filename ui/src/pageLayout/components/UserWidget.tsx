@@ -12,7 +12,12 @@ import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 import {showOverlay, dismissOverlay} from 'src/overlays/actions/overlays'
 
 // Constants
-import {CLOUD_URL, CLOUD_LOGOUT_PATH} from 'src/shared/constants'
+import {
+  CLOUD_URL,
+  CLOUD_LOGOUT_PATH,
+  CLOUD_USAGE_PATH,
+  CLOUD_BILLING_PATH,
+} from 'src/shared/constants'
 
 // Types
 import {AppState, Organization} from 'src/types'
@@ -52,6 +57,20 @@ const UserWidget: FC<Props> = ({
   return (
     <TreeNav.User username={me.name} team={org.name}>
       <CloudOnly>
+        <TreeNav.UserItem
+          id="usage"
+          label="Usage"
+          linkElement={className => (
+            <a className={className} href={CLOUD_USAGE_PATH} />
+          )}
+        />
+        <TreeNav.UserItem
+          id="billing"
+          label="Billing"
+          linkElement={className => (
+            <a className={className} href={CLOUD_BILLING_PATH} />
+          )}
+        />
         <TreeNav.UserItem
           id="logout"
           label="Logout"
