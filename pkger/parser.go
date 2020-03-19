@@ -240,7 +240,7 @@ type Pkg struct {
 	mChecks                map[string]*check
 	mDashboards            map[string]*dashboard
 	mNotificationEndpoints map[string]*notificationEndpoint
-	mNotificationRules     []*notificationRule
+	mNotificationRules     map[string]*notificationRule
 	mTasks                 []*task
 	mTelegrafs             map[string]*telegraf
 	mVariables             map[string]*variable
@@ -497,7 +497,10 @@ func (p *Pkg) notificationEndpoints() []*notificationEndpoint {
 }
 
 func (p *Pkg) notificationRules() []*notificationRule {
-	rules := p.mNotificationRules[:]
+	rules := make([]*notificationRule, 0, len(p.mNotificationRules))
+	for _, r := range p.mNotificationRules {
+		rules = append(rules, r)
+	}
 	sort.Slice(rules, func(i, j int) bool { return rules[i].Name() < rules[j].Name() })
 	return rules
 }
@@ -975,10 +978,21 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 }
 
 func (p *Pkg) graphNotificationRules() *parseErr {
-	p.mNotificationRules = make([]*notificationRule, 0)
+	p.mNotificationRules = make(map[string]*notificationRule)
 	return p.eachResource(KindNotificationRule, 1, func(o Object) []validationErr {
+		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
+		if _, ok := p.mNotificationRules[nameRef.String()]; ok {
+			return []validationErr{
+				objectValidationErr(fieldMetadata, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
+		}
+
 		rule := &notificationRule{
-			name:         p.getRefWithKnownEnvs(o.Metadata, fieldName),
+			name:         nameRef,
+			displayName:  p.getRefWithKnownEnvs(o.Spec, fieldName),
 			endpointName: p.getRefWithKnownEnvs(o.Spec, fieldNotificationRuleEndpointName),
 			description:  o.Spec.stringShort(fieldDescription),
 			channel:      o.Spec.stringShort(fieldNotificationRuleChannel),
@@ -1010,8 +1024,8 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 		})
 		sort.Sort(rule.labels)
 
-		p.mNotificationRules = append(p.mNotificationRules, rule)
-		p.setRefs(rule.name, rule.endpointName)
+		p.mNotificationRules[rule.PkgName()] = rule
+		p.setRefs(rule.name, rule.displayName, rule.endpointName)
 		return append(failures, rule.valid()...)
 	})
 }

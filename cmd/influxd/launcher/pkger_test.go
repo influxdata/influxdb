@@ -312,13 +312,11 @@ spec:
 			}
 			assert.Equal(t, "rule_0", rule.Name)
 			assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
-			endpointName := "http_none_auth_notification_endpoint"
-			if exportAllSum {
-				endpointName = "no auth endpoint"
-			}
-			assert.Equal(t, endpointName, rule.EndpointName)
 			if !exportAllSum {
+				assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointName)
 				assert.Equalf(t, "http", rule.EndpointType, "rule: %+v", rule)
+			} else {
+				assert.Len(t, rule.EndpointName, influxdb.IDLength)
 			}
 
 			require.Len(t, sum1.Tasks, 1)
@@ -652,7 +650,7 @@ spec:
 			newRule := newSum.NotificationRules[0]
 			assert.Equal(t, "new rule name", newRule.Name)
 			assert.Zero(t, newRule.EndpointID)
-			assert.Equal(t, "no auth endpoint", newRule.EndpointName)
+			assert.Len(t, newRule.EndpointName, influxdb.IDLength)
 			hasLabelAssociations(t, newRule.LabelAssociations, 1, "label_1")
 
 			require.Len(t, newSum.Tasks, 1)
@@ -1066,7 +1064,7 @@ spec:
 apiVersion: %[1]s
 kind: NotificationEndpointHTTP
 metadata:
-  name:  http_none_auth_notification_endpoint
+  name:  http_none_auth_notification_endpoint # on export of resource created from this, will not be same name as this
 spec:
   name: no auth endpoint
   type: none
@@ -1142,8 +1140,9 @@ spec:
 apiVersion: %[1]s
 kind: NotificationRule
 metadata:
-  name:  rule_0
+  name:  rule_UUID
 spec:
+  name:  rule_0
   description: desc_0
   endpointName: http_none_auth_notification_endpoint
   every: 10m
