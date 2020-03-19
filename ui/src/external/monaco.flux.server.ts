@@ -8,6 +8,7 @@ import {
   didOpen,
   didChange,
   NotificationMessage,
+  signatureHelp,
 } from 'src/external/monaco.flux.messages'
 import {registerCompletion} from './monaco.flux.completions'
 import {AppState, LocalStorage} from 'src/types'
@@ -20,6 +21,7 @@ import {Store} from 'redux'
 import {
   CompletionItem,
   CompletionContext,
+  SignatureHelp,
   Position,
   Diagnostic,
 } from 'monaco-languageclient/lib/services'
@@ -56,6 +58,16 @@ export class LSPServer {
 
   initialize() {
     return this.send(initialize(this.currentMessageID))
+  }
+
+  async signatureHelp(uri, position, context): Promise<SignatureHelp> {
+    await this.sendPrelude(uri)
+
+    const response = (await this.send(
+      signatureHelp(this.currentMessageID, uri, position, context)
+    )) as {result: SignatureHelp}
+
+    return response.result
   }
 
   async completionItems(
