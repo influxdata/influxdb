@@ -1874,6 +1874,7 @@ type task struct {
 	id          influxdb.ID
 	orgID       influxdb.ID
 	name        *references
+	displayName *references
 	cron        string
 	description string
 	every       time.Duration
@@ -1897,6 +1898,13 @@ func (t *task) Labels() []*label {
 }
 
 func (t *task) Name() string {
+	if displayName := t.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return t.name.String()
+}
+
+func (t *task) PkgName() string {
 	return t.name.String()
 }
 
@@ -1914,7 +1922,7 @@ func (t *task) Status() influxdb.Status {
 var fluxRegex = regexp.MustCompile(`import\s+\".*\"`)
 
 func (t *task) flux() string {
-	taskOpts := []string{fmt.Sprintf("name: %q", t.name)}
+	taskOpts := []string{fmt.Sprintf("name: %q", t.Name())}
 	if t.cron != "" {
 		taskOpts = append(taskOpts, fmt.Sprintf("cron: %q", t.cron))
 	}
@@ -1987,7 +1995,14 @@ func (t *task) valid() []validationErr {
 			Msg:   "must be 1 of [active, inactive]",
 		})
 	}
-	return vErrs
+
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
 }
 
 type mapperTasks []*task

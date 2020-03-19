@@ -886,21 +886,15 @@ func taskToObject(t influxdb.Task, name string) Object {
 
 	query := strings.TrimSpace(taskFluxRegex.ReplaceAllString(t.Flux, ""))
 
-	k := Object{
-		APIVersion: APIVersion,
-		Kind:       KindTask,
-		Metadata:   convertToMetadataResource(name),
-		Spec: Resource{
-			fieldQuery: strings.TrimSpace(query),
-		},
-	}
-	assignNonZeroStrings(k.Spec, map[string]string{
+	o := newObject(KindTask, name)
+	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldTaskCron:    t.Cron,
 		fieldDescription: t.Description,
 		fieldEvery:       t.Every,
 		fieldOffset:      durToStr(t.Offset),
+		fieldQuery:       strings.TrimSpace(query),
 	})
-	return k
+	return o
 }
 
 func telegrafToObject(t influxdb.TelegrafConfig, name string) Object {
@@ -952,12 +946,6 @@ func VariableToObject(v influxdb.Variable, name string) Object {
 	}
 
 	return o
-}
-
-func convertToMetadataResource(name string) Resource {
-	return Resource{
-		fieldName: name,
-	}
 }
 
 func newObject(kind Kind, name string) Object {

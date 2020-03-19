@@ -241,7 +241,7 @@ type Pkg struct {
 	mDashboards            map[string]*dashboard
 	mNotificationEndpoints map[string]*notificationEndpoint
 	mNotificationRules     map[string]*notificationRule
-	mTasks                 []*task
+	mTasks                 map[string]*task
 	mTelegrafs             map[string]*telegraf
 	mVariables             map[string]*variable
 
@@ -528,7 +528,10 @@ func (p *Pkg) missingSecrets() []string {
 }
 
 func (p *Pkg) tasks() []*task {
-	tasks := p.mTasks[:]
+	tasks := make([]*task, 0, len(p.mTasks))
+	for _, t := range p.mTasks {
+		tasks = append(tasks, t)
+	}
 
 	sort.Slice(tasks, func(i, j int) bool { return tasks[i].Name() < tasks[j].Name() })
 
@@ -541,7 +544,9 @@ func (p *Pkg) telegrafs() []*telegraf {
 		t.config.Name = t.Name()
 		teles = append(teles, t)
 	}
+
 	sort.Slice(teles, func(i, j int) bool { return teles[i].Name() < teles[j].Name() })
+
 	return teles
 }
 
@@ -848,6 +853,7 @@ func (p *Pkg) graphDashboards() *parseErr {
 				}),
 			}
 		}
+
 		dash := &dashboard{
 			name:        nameRef,
 			displayName: p.getRefWithKnownEnvs(o.Spec, fieldName),
@@ -1031,10 +1037,21 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 }
 
 func (p *Pkg) graphTasks() *parseErr {
-	p.mTasks = make([]*task, 0)
+	p.mTasks = make(map[string]*task)
 	return p.eachResource(KindTask, 1, func(o Object) []validationErr {
+		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
+		if _, ok := p.mTasks[nameRef.String()]; ok {
+			return []validationErr{
+				objectValidationErr(fieldMetadata, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
+		}
+
 		t := &task{
 			name:        p.getRefWithKnownEnvs(o.Metadata, fieldName),
+			displayName: p.getRefWithKnownEnvs(o.Spec, fieldName),
 			cron:        o.Spec.stringShort(fieldTaskCron),
 			description: o.Spec.stringShort(fieldDescription),
 			every:       o.Spec.durationShort(fieldEvery),
@@ -1050,7 +1067,7 @@ func (p *Pkg) graphTasks() *parseErr {
 		})
 		sort.Sort(t.labels)
 
-		p.mTasks = append(p.mTasks, t)
+		p.mTasks[t.PkgName()] = t
 		p.setRefs(t.name)
 		return append(failures, t.valid()...)
 	})

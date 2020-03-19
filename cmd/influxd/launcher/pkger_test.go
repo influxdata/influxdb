@@ -230,7 +230,7 @@ spec:
 		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
 		require.NoError(t, err)
 
-		sum, _, err := svc.DryRun(context.Background(), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
+		sum, _, err := svc.DryRun(timedCtx(2*time.Second), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
 			"bkt-1-name-ref":   "new-bkt-name",
 			"label-1-name-ref": "new-label-name",
 		}))
@@ -1167,8 +1167,9 @@ spec:
 apiVersion: %[1]s
 kind: Task
 metadata:
-  name:  task_1
+  name:  task_UUID
 spec:
+  name:  task_1
   description: desc_1
   cron: 15 * * * *
   query:  >
