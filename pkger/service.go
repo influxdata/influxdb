@@ -19,14 +19,20 @@ import (
 const APIVersion = "influxdata.com/v2alpha1"
 
 type (
+	// Stack is an identifier for stateful application of a package(s). This stack
+	// will map created resources from the pkg(s) to existing resources on the
+	// platform. This stack is updated only after side effects of applying a pkg.
+	// If the pkg is applied, and no changes are had, then the stack is not updated.
 	Stack struct {
 		ID        influxdb.ID
-		CreatedAt time.Time
-		UpdatedAt time.Time
 		URLS      []url.URL
 		Resources []StackResource
+
+		influxdb.CRUDLog
 	}
 
+	// StackResource is a record for an individual resource side effect genereated from
+	// applying a pkg.
 	StackResource struct {
 		APIVersion string
 		ID         influxdb.ID
@@ -143,6 +149,7 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 	}
 }
 
+// Store is the storage behavior the Service depends on.
 type Store interface {
 	CreateStack(ctx context.Context, orgID influxdb.ID, stack Stack) error
 	ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, error)
@@ -203,9 +210,25 @@ func NewService(opts ...ServiceSetterFn) *Service {
 	}
 }
 
+// InitStack will create a new stack for the given user and its given org. The stack can be created
+// with urls that point to the location of packages that are included as part of the stack when
+// it is applied.
 func (s *Service) InitStack(ctx context.Context, orgID, userID influxdb.ID, urls ...url.URL) (Stack, error) {
+	now := s.timeGen.Now()
+
 	stack := Stack{
+		ID: s.idGen.ID(),
+		CRUDLog: influxdb.CRUDLog{
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		URLS: urls,
 	}
+
+	if err := s.store.CreateStack(ctx, orgID, stack); err != nil {
+		return Stack{}, err
+	}
+
 	return stack, nil
 }
 
