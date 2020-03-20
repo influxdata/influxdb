@@ -207,8 +207,8 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 	if err != nil {
 		return nil, err
 	}
-	if len(shardIDs) == 0 { // TODO(jeff): this was a typed nil
-		return nil, nil
+	if len(shardIDs) == 0 {
+		return cursors.NewStringSliceIterator(nil), nil
 	}
 
 	var expr influxql.Expr
@@ -282,8 +282,8 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 	if err != nil {
 		return nil, err
 	}
-	if len(shardIDs) == 0 { // TODO(jeff): this was a typed nil
-		return nil, nil
+	if len(shardIDs) == 0 {
+		return cursors.NewStringSliceIterator(nil), nil
 	}
 
 	var expr influxql.Expr
