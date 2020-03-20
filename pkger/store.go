@@ -66,8 +66,8 @@ func (s *StoreKV) Init(ctx context.Context) error {
 }
 
 // CreateStack will create a new stack. If collisions are found will fail.
-func (s *StoreKV) CreateStack(ctx context.Context, orgID influxdb.ID, stack Stack) error {
-	return s.put(ctx, orgID, stack, kv.PutNew())
+func (s *StoreKV) CreateStack(ctx context.Context, stack Stack) error {
+	return s.put(ctx, stack, kv.PutNew())
 }
 
 // ReadStackByID reads a stack by the provided ID.
@@ -85,19 +85,31 @@ func (s *StoreKV) ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, err
 }
 
 // UpdateStack updates a stack.
-func (s *StoreKV) UpdateStack(ctx context.Context, orgID influxdb.ID, stack Stack) error {
-	return s.put(ctx, orgID, stack, kv.PutUpdate())
+func (s *StoreKV) UpdateStack(ctx context.Context, stack Stack) error {
+	existing, err := s.ReadStackByID(ctx, stack.ID)
+	if err != nil {
+		return err
+	}
+
+	if stack.OrgID != existing.OrgID {
+		return &influxdb.Error{
+			Code: influxdb.EUnprocessableEntity,
+			Msg:  "org id does not match",
+		}
+	}
+
+	return s.put(ctx, stack, kv.PutUpdate())
 }
 
-// DeleteStack delets a stack by id.
+// DeleteStack deletes a stack by id.
 func (s *StoreKV) DeleteStack(ctx context.Context, id influxdb.ID) error {
 	return s.kvStore.Update(ctx, func(tx kv.Tx) error {
 		return s.indexBase.DeleteEnt(ctx, tx, kv.Entity{PK: kv.EncID(id)})
 	})
 }
 
-func (s *StoreKV) put(ctx context.Context, orgID influxdb.ID, stack Stack, opts ...kv.PutOptionFn) error {
-	ent, err := convertStackToEnt(orgID, stack)
+func (s *StoreKV) put(ctx context.Context, stack Stack, opts ...kv.PutOptionFn) error {
+	ent, err := convertStackToEnt(stack)
 	if err != nil {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -152,19 +164,19 @@ func (s *StoreKV) indexStoreBase(resource string) *kv.StoreBase {
 	return kv.NewStoreBase(resource, indexBucket, kv.EncUniqKey, kv.EncIDKey, kv.DecIndexID, decValToEntFn)
 }
 
-func convertStackToEnt(orgID influxdb.ID, stack Stack) (kv.Entity, error) {
+func convertStackToEnt(stack Stack) (kv.Entity, error) {
 	idBytes, err := stack.ID.Encode()
 	if err != nil {
 		return kv.Entity{}, err
 	}
 
-	orgIDBytes, err := orgID.Encode()
+	orgIDBytes, err := stack.OrgID.Encode()
 	if err != nil {
 		return kv.Entity{}, err
 	}
 
-	urlStrs := make([]string, 0, len(stack.URLS))
-	for _, u := range stack.URLS {
+	urlStrs := make([]string, 0, len(stack.URLs))
+	for _, u := range stack.URLs {
 		urlStrs = append(urlStrs, u.String())
 	}
 
@@ -207,12 +219,16 @@ func convertStackEntToStack(ent *entStack) (Stack, error) {
 		return Stack{}, err
 	}
 
+	if err := stack.OrgID.Decode(ent.OrgID); err != nil {
+		return Stack{}, err
+	}
+
 	for _, urlStr := range ent.URLs {
 		u, err := url.Parse(urlStr)
 		if err != nil {
 			return Stack{}, err
 		}
-		stack.URLS = append(stack.URLS, *u)
+		stack.URLs = append(stack.URLs, *u)
 	}
 
 	for _, res := range ent.Resources {

@@ -13,20 +13,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStoreKv(t *testing.T) {
+func TestStoreKV(t *testing.T) {
 	inMemStore := inmem.NewKVStore()
 
-	stackStub := func(id influxdb.ID) pkger.Stack {
+	stackStub := func(id, orgID influxdb.ID) pkger.Stack {
 		now := time.Time{}.Add(10 * 365 * 24 * time.Hour)
 		return pkger.Stack{
-			ID:   id,
-			Name: "threeve",
-			Desc: "desc",
+			ID:    id,
+			OrgID: orgID,
+			Name:  "threeve",
+			Desc:  "desc",
 			CRUDLog: influxdb.CRUDLog{
 				CreatedAt: now,
 				UpdatedAt: now.Add(time.Hour),
 			},
-			URLS: []url.URL{
+			URLs: []url.URL{
 				newURL(t, "http://example.com"),
 				newURL(t, "http://abc.gov"),
 			},
@@ -51,16 +52,17 @@ func TestStoreKv(t *testing.T) {
 		defer inMemStore.Flush(context.Background())
 
 		storeKV := pkger.NewStoreKV(inMemStore)
-		orgID := influxdb.ID(3)
 
-		seedEntities(t, storeKV, orgID, pkger.Stack{
-			ID: 1,
+		const orgID = 333
+		seedEntities(t, storeKV, pkger.Stack{
+			ID:    1,
+			OrgID: orgID,
 		})
 
 		t.Run("with no ID collisions creates successfully", func(t *testing.T) {
-			expected := stackStub(3)
+			expected := stackStub(3, orgID)
 
-			err := storeKV.CreateStack(context.Background(), orgID, expected)
+			err := storeKV.CreateStack(context.Background(), expected)
 			require.NoError(t, err)
 
 			readStackEqual(t, storeKV, expected)
@@ -68,7 +70,10 @@ func TestStoreKv(t *testing.T) {
 
 		t.Run("with ID collisions fails with conflict error", func(t *testing.T) {
 			for _, id := range []influxdb.ID{2, 3} {
-				err := storeKV.CreateStack(context.Background(), orgID, pkger.Stack{ID: 1})
+				err := storeKV.CreateStack(context.Background(), pkger.Stack{
+					ID:    1,
+					OrgID: orgID,
+				})
 				require.Errorf(t, err, "id=%d", id)
 				assert.Equalf(t, influxdb.EConflict, influxdb.ErrorCode(err), "id=%d", id)
 			}
@@ -79,11 +84,10 @@ func TestStoreKv(t *testing.T) {
 		defer inMemStore.Flush(context.Background())
 
 		storeKV := pkger.NewStoreKV(inMemStore)
-		orgID := influxdb.ID(3)
 
-		expected := stackStub(1)
+		expected := stackStub(1, 3)
 
-		seedEntities(t, storeKV, orgID, expected)
+		seedEntities(t, storeKV, expected)
 
 		t.Run("with valid ID returns stack successfully", func(t *testing.T) {
 			readStackEqual(t, storeKV, expected)
@@ -101,11 +105,12 @@ func TestStoreKv(t *testing.T) {
 		defer inMemStore.Flush(context.Background())
 
 		storeKV := pkger.NewStoreKV(inMemStore)
-		orgID := influxdb.ID(3)
 
-		expected := stackStub(1)
+		const orgID = 3
+		const id = 3
+		expected := stackStub(id, orgID)
 
-		seedEntities(t, storeKV, orgID, expected)
+		seedEntities(t, storeKV, expected)
 
 		t.Run("with valid ID updates stack successfully", func(t *testing.T) {
 			updateStack := expected
@@ -116,7 +121,7 @@ func TestStoreKv(t *testing.T) {
 				Name:       "beyond",
 			})
 
-			err := storeKV.UpdateStack(context.Background(), orgID, updateStack)
+			err := storeKV.UpdateStack(context.Background(), updateStack)
 			require.NoError(t, err)
 
 			readStackEqual(t, storeKV, updateStack)
@@ -124,9 +129,21 @@ func TestStoreKv(t *testing.T) {
 
 		t.Run("when no match found fails with not found error", func(t *testing.T) {
 			unmatchedID := influxdb.ID(3000)
-			err := storeKV.UpdateStack(context.Background(), orgID, pkger.Stack{ID: unmatchedID})
+			err := storeKV.UpdateStack(context.Background(), pkger.Stack{
+				ID:    unmatchedID,
+				OrgID: orgID,
+			})
 			require.Error(t, err)
 			assert.Equalf(t, influxdb.ENotFound, influxdb.ErrorCode(err), "err: %s", err)
+		})
+
+		t.Run("when org id does not match fails with unprocessable entity error", func(t *testing.T) {
+			err := storeKV.UpdateStack(context.Background(), pkger.Stack{
+				ID:    id,
+				OrgID: orgID + 9000,
+			})
+			require.Error(t, err)
+			assert.Equalf(t, influxdb.EUnprocessableEntity, influxdb.ErrorCode(err), "err: %s", err)
 		})
 	})
 
@@ -134,11 +151,11 @@ func TestStoreKv(t *testing.T) {
 		defer inMemStore.Flush(context.Background())
 
 		storeKV := pkger.NewStoreKV(inMemStore)
-		orgID := influxdb.ID(3)
 
-		expected := stackStub(1)
+		const orgID = 3
+		expected := stackStub(1, orgID)
 
-		seedEntities(t, storeKV, orgID, expected)
+		seedEntities(t, storeKV, expected)
 
 		t.Run("with valid ID deletes stack successfully", func(t *testing.T) {
 			err := storeKV.DeleteStack(context.Background(), expected.ID)
@@ -172,11 +189,11 @@ func errCodeEqual(t *testing.T, expected string, actual error) {
 	assert.Equalf(t, expected, influxdb.ErrorCode(actual), "err: %s", actual)
 }
 
-func seedEntities(t *testing.T, store pkger.Store, orgID influxdb.ID, first pkger.Stack, rest ...pkger.Stack) {
+func seedEntities(t *testing.T, store pkger.Store, first pkger.Stack, rest ...pkger.Stack) {
 	t.Helper()
 
 	for _, st := range append(rest, first) {
-		err := store.CreateStack(context.Background(), orgID, st)
+		err := store.CreateStack(context.Background(), st)
 		require.NoError(t, err)
 	}
 }
