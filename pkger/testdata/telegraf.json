@@ -13,6 +13,7 @@
       "name": "first_tele_config"
     },
     "spec": {
+      "name": "display name",
       "description": "desc",
       "associations": [
         {

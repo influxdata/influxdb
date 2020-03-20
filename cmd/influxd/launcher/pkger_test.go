@@ -186,7 +186,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		teles := sum.TelegrafConfigs
 		require.Len(t, teles, 1)
-		assert.Equal(t, "first_tele_config", teles[0].TelegrafConfig.Name)
+		assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
 		assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
 		hasLabelAssociations(t, teles[0].LabelAssociations, 1, "label_1")
 
@@ -230,7 +230,7 @@ spec:
 		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
 		require.NoError(t, err)
 
-		sum, _, err := svc.DryRun(context.Background(), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
+		sum, _, err := svc.DryRun(timedCtx(2*time.Second), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
 			"bkt-1-name-ref":   "new-bkt-name",
 			"label-1-name-ref": "new-label-name",
 		}))
@@ -312,13 +312,11 @@ spec:
 			}
 			assert.Equal(t, "rule_0", rule.Name)
 			assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
-			endpointName := "http_none_auth_notification_endpoint"
-			if exportAllSum {
-				endpointName = "no auth endpoint"
-			}
-			assert.Equal(t, endpointName, rule.EndpointName)
 			if !exportAllSum {
+				assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointName)
 				assert.Equalf(t, "http", rule.EndpointType, "rule: %+v", rule)
+			} else {
+				assert.NotEmpty(t, rule.EndpointName)
 			}
 
 			require.Len(t, sum1.Tasks, 1)
@@ -335,7 +333,7 @@ spec:
 				assert.NotZero(t, teles[0].TelegrafConfig.ID)
 				assert.Equal(t, l.Org.ID, teles[0].TelegrafConfig.OrgID)
 			}
-			assert.Equal(t, "first_tele_config", teles[0].TelegrafConfig.Name)
+			assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
 			assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
 			assert.Equal(t, telConf, teles[0].TelegrafConfig.Config)
 
@@ -652,7 +650,7 @@ spec:
 			newRule := newSum.NotificationRules[0]
 			assert.Equal(t, "new rule name", newRule.Name)
 			assert.Zero(t, newRule.EndpointID)
-			assert.Equal(t, "no auth endpoint", newRule.EndpointName)
+			assert.NotEmpty(t, newRule.EndpointName)
 			hasLabelAssociations(t, newRule.LabelAssociations, 1, "label_1")
 
 			require.Len(t, newSum.Tasks, 1)
@@ -928,7 +926,7 @@ spec:
 		}
 		assert.Equal(t, expectedMissingEnvs, sum.MissingEnvs)
 
-		sum, err = svc.Apply(timedCtx(time.Second), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
+		sum, err = svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
 			"bkt-1-name-ref":      "rucket_threeve",
 			"check-1-name-ref":    "check_threeve",
 			"dash-1-name-ref":     "dash_threeve",
@@ -1012,8 +1010,9 @@ spec:
 apiVersion: %[1]s
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash_UUID
 spec:
+  name: dash_1
   description: desc1
   charts:
     - kind:   Single_Stat
@@ -1055,6 +1054,7 @@ kind: Telegraf
 metadata:
   name:  first_tele_config
 spec:
+  name: first tele config
   description: desc
   associations:
     - kind: Label
@@ -1064,7 +1064,7 @@ spec:
 apiVersion: %[1]s
 kind: NotificationEndpointHTTP
 metadata:
-  name:  http_none_auth_notification_endpoint
+  name:  http_none_auth_notification_endpoint # on export of resource created from this, will not be same name as this
 spec:
   name: no auth endpoint
   type: none
@@ -1140,8 +1140,9 @@ spec:
 apiVersion: %[1]s
 kind: NotificationRule
 metadata:
-  name:  rule_0
+  name:  rule_UUID
 spec:
+  name:  rule_0
   description: desc_0
   endpointName: http_none_auth_notification_endpoint
   every: 10m
@@ -1166,8 +1167,9 @@ spec:
 apiVersion: %[1]s
 kind: Task
 metadata:
-  name:  task_1
+  name:  task_UUID
 spec:
+  name:  task_1
   description: desc_1
   cron: 15 * * * *
   query:  >

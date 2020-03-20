@@ -303,6 +303,11 @@ func (s *Service) CreateAuthorization(ctx context.Context, a *influxdb.Authoriza
 	})
 }
 
+// CreateAuthorizationTx is used when importing kv as a library
+func (s *Service) CreateAuthorizationTx(ctx context.Context, tx Tx, a *influxdb.Authorization) error {
+	return s.createAuthorization(ctx, tx, a)
+}
+
 func (s *Service) createAuthorization(ctx context.Context, tx Tx, a *influxdb.Authorization) error {
 	if err := a.Valid(); err != nil {
 		return &influxdb.Error{

@@ -279,6 +279,11 @@ func (s *Service) addOrgOwner(ctx context.Context, tx Tx, orgID influxdb.ID) err
 	return s.addResourceOwner(ctx, tx, influxdb.OrgsResourceType, orgID)
 }
 
+// CreateOrganizationTx is used when importing kv as a library
+func (s *Service) CreateOrganizationTx(ctx context.Context, tx Tx, o *influxdb.Organization) (err error) {
+	return s.createOrganization(ctx, tx, o)
+}
+
 func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Organization) (err error) {
 	if err := s.validOrganizationName(ctx, tx, o); err != nil {
 		return err

@@ -56,19 +56,6 @@ var kinds = map[Kind]bool{
 	KindVariable:                      true,
 }
 
-var kindsUniqByName = map[Kind]bool{
-	KindBucket:                        true,
-	KindCheck:                         true,
-	KindCheckDeadman:                  true,
-	KindCheckThreshold:                true,
-	KindLabel:                         true,
-	KindNotificationEndpoint:          true,
-	KindNotificationEndpointHTTP:      true,
-	KindNotificationEndpointPagerDuty: true,
-	KindNotificationEndpointSlack:     true,
-	KindVariable:                      true,
-}
-
 // Kind is a resource kind.
 type Kind string
 
@@ -762,6 +749,22 @@ type SummaryVariable struct {
 	LabelAssociations []SummaryLabel              `json:"labelAssociations"`
 }
 
+type identity struct {
+	name        *references
+	displayName *references
+}
+
+func (i *identity) Name() string {
+	if displayName := i.displayName.String(); displayName != "" {
+		return displayName
+	}
+	return i.name.String()
+}
+
+func (i *identity) PkgName() string {
+	return i.name.String()
+}
+
 const (
 	fieldAPIVersion   = "apiVersion"
 	fieldAssociations = "associations"
@@ -794,11 +797,11 @@ const (
 const bucketNameMinLength = 2
 
 type bucket struct {
+	identity
+
 	id             influxdb.ID
 	OrgID          influxdb.ID
 	Description    string
-	name           *references
-	displayName    *references
 	RetentionRules retentionRules
 	labels         sortedLabels
 
@@ -817,17 +820,6 @@ func (b *bucket) ID() influxdb.ID {
 
 func (b *bucket) Labels() []*label {
 	return b.labels
-}
-
-func (b *bucket) Name() string {
-	if displayName := b.displayName.String(); displayName != "" {
-		return displayName
-	}
-	return b.name.String()
-}
-
-func (b *bucket) PkgName() string {
-	return b.name.String()
 }
 
 func (b *bucket) ResourceType() influxdb.ResourceType {
@@ -963,11 +955,11 @@ const (
 const checkNameMinLength = 1
 
 type check struct {
+	identity
+
 	id            influxdb.ID
 	orgID         influxdb.ID
 	kind          checkKind
-	name          *references
-	displayName   *references
 	description   string
 	every         time.Duration
 	level         string
@@ -999,17 +991,6 @@ func (c *check) ID() influxdb.ID {
 
 func (c *check) Labels() []*label {
 	return c.labels
-}
-
-func (c *check) Name() string {
-	if displayName := c.displayName.String(); displayName != "" {
-		return displayName
-	}
-	return c.name.String()
-}
-
-func (c *check) PkgName() string {
-	return c.name.String()
 }
 
 func (c *check) ResourceType() influxdb.ResourceType {
@@ -1264,10 +1245,10 @@ const (
 const labelNameMinLength = 2
 
 type label struct {
+	identity
+
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	name        *references
-	displayName *references
 	Color       string
 	Description string
 	associationMapping
@@ -1276,17 +1257,6 @@ type label struct {
 	// exists in the platform. If a resource already exists(exists=true)
 	// then the ID should be populated.
 	existing *influxdb.Label
-}
-
-func (l *label) Name() string {
-	if displayName := l.displayName.String(); displayName != "" {
-		return displayName
-	}
-	return l.name.String()
-}
-
-func (l *label) PkgName() string {
-	return l.name.String()
 }
 
 func (l *label) ID() influxdb.ID {
@@ -1411,11 +1381,11 @@ const (
 )
 
 type notificationEndpoint struct {
+	identity
+
 	kind        notificationKind
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	name        *references
-	displayName *references
 	description string
 	method      string
 	password    *references
@@ -1444,17 +1414,6 @@ func (n *notificationEndpoint) ID() influxdb.ID {
 
 func (n *notificationEndpoint) Labels() []*label {
 	return n.labels
-}
-
-func (n *notificationEndpoint) Name() string {
-	if displayName := n.displayName.String(); displayName != "" {
-		return displayName
-	}
-	return n.name.String()
-}
-
-func (n *notificationEndpoint) PkgName() string {
-	return n.name.String()
 }
 
 func (n *notificationEndpoint) ResourceType() influxdb.ResourceType {
@@ -1629,9 +1588,10 @@ const (
 )
 
 type notificationRule struct {
+	identity
+
 	id    influxdb.ID
 	orgID influxdb.ID
-	name  *references
 
 	channel     string
 	description string
@@ -1659,10 +1619,6 @@ func (r *notificationRule) ID() influxdb.ID {
 
 func (r *notificationRule) Labels() []*label {
 	return r.labels
-}
-
-func (r *notificationRule) Name() string {
-	return r.name.String()
 }
 
 func (r *notificationRule) ResourceType() influxdb.ResourceType {
@@ -1812,7 +1768,13 @@ func (r *notificationRule) valid() []validationErr {
 		})
 	}
 
-	return vErrs
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
 }
 
 func toSummaryStatusRules(statusRules []struct{ curLvl, prevLvl string }) []SummaryStatusRule {
@@ -1870,9 +1832,10 @@ const (
 )
 
 type task struct {
+	identity
+
 	id          influxdb.ID
 	orgID       influxdb.ID
-	name        *references
 	cron        string
 	description string
 	every       time.Duration
@@ -1895,10 +1858,6 @@ func (t *task) Labels() []*label {
 	return t.labels
 }
 
-func (t *task) Name() string {
-	return t.name.String()
-}
-
 func (t *task) ResourceType() influxdb.ResourceType {
 	return KindTask.ResourceType()
 }
@@ -1913,7 +1872,7 @@ func (t *task) Status() influxdb.Status {
 var fluxRegex = regexp.MustCompile(`import\s+\".*\"`)
 
 func (t *task) flux() string {
-	taskOpts := []string{fmt.Sprintf("name: %q", t.name)}
+	taskOpts := []string{fmt.Sprintf("name: %q", t.Name())}
 	if t.cron != "" {
 		taskOpts = append(taskOpts, fmt.Sprintf("cron: %q", t.cron))
 	}
@@ -1986,7 +1945,14 @@ func (t *task) valid() []validationErr {
 			Msg:   "must be 1 of [active, inactive]",
 		})
 	}
-	return vErrs
+
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
 }
 
 type mapperTasks []*task
@@ -2004,7 +1970,8 @@ const (
 )
 
 type telegraf struct {
-	name   *references
+	identity
+
 	config influxdb.TelegrafConfig
 
 	labels sortedLabels
@@ -2016,10 +1983,6 @@ func (t *telegraf) ID() influxdb.ID {
 
 func (t *telegraf) Labels() []*label {
 	return t.labels
-}
-
-func (t *telegraf) Name() string {
-	return t.name.String()
 }
 
 func (t *telegraf) ResourceType() influxdb.ResourceType {
@@ -2039,6 +2002,24 @@ func (t *telegraf) summarize() SummaryTelegraf {
 	}
 }
 
+func (t *telegraf) valid() []validationErr {
+	var vErrs []validationErr
+	if t.config.Config == "" {
+		vErrs = append(vErrs, validationErr{
+			Field: fieldTelegrafConfig,
+			Msg:   "no config provided",
+		})
+	}
+
+	if len(vErrs) > 0 {
+		return []validationErr{
+			objectValidationErr(fieldSpec, vErrs...),
+		}
+	}
+
+	return nil
+}
+
 type mapperTelegrafs []*telegraf
 
 func (m mapperTelegrafs) Association(i int) labelAssociater {
@@ -2056,10 +2037,10 @@ const (
 )
 
 type variable struct {
+	identity
+
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	name        *references
-	displayName *references
 	Description string
 	Type        string
 	Query       string
@@ -2085,17 +2066,6 @@ func (v *variable) Exists() bool {
 
 func (v *variable) Labels() []*label {
 	return v.labels
-}
-
-func (v *variable) Name() string {
-	if displayName := v.displayName.String(); displayName != "" {
-		return displayName
-	}
-	return v.name.String()
-}
-
-func (v *variable) PkgName() string {
-	return v.name.String()
 }
 
 func (v *variable) ResourceType() influxdb.ResourceType {
@@ -2192,10 +2162,13 @@ const (
 	fieldDashCharts = "charts"
 )
 
+const dashboardNameMinLength = 2
+
 type dashboard struct {
+	identity
+
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	name        *references
 	Description string
 	Charts      []chart
 
@@ -2208,10 +2181,6 @@ func (d *dashboard) ID() influxdb.ID {
 
 func (d *dashboard) Labels() []*label {
 	return d.labels
-}
-
-func (d *dashboard) Name() string {
-	return d.name.String()
 }
 
 func (d *dashboard) ResourceType() influxdb.ResourceType {
@@ -2240,6 +2209,19 @@ func (d *dashboard) summarize() SummaryDashboard {
 		})
 	}
 	return iDash
+}
+
+func (d *dashboard) valid() []validationErr {
+	var vErrs []validationErr
+	if err, ok := isValidName(d.Name(), dashboardNameMinLength); !ok {
+		vErrs = append(vErrs, err)
+	}
+	if len(vErrs) == 0 {
+		return nil
+	}
+	return []validationErr{
+		objectValidationErr(fieldSpec, vErrs...),
+	}
 }
 
 type mapperDashboards []*dashboard

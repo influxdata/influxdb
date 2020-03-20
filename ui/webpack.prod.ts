@@ -35,7 +35,7 @@ module.exports = merge(common, {
     minimizer: [
       new TerserJSPlugin({
         cache: true,
-        parallel: true,
+        parallel: 2,
         sourceMap: true,
       }),
       new OptimizeCSSAssetsPlugin({}),

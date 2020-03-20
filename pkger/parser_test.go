@@ -918,7 +918,7 @@ spec:
 					{
 						name:           "color mixing a hex value",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].colors[0].hex"},
+						valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -954,7 +954,7 @@ spec:
 					{
 						name:           "missing a query value",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].queries[0].query"},
+						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1039,7 +1039,7 @@ spec:
 					{
 						name:           "a color is missing a hex value",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].colors[2].hex"},
+						valFields:      []string{fieldSpec, "charts[0].colors[2].hex"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1082,7 +1082,7 @@ spec:
 					{
 						name:           "missing axes",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].axes"},
+						valFields:      []string{fieldSpec, "charts[0].axes"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1108,7 +1108,7 @@ spec:
 					{
 						name:           "missing a query value",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].queries[0].query"},
+						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1194,7 +1194,7 @@ spec:
 					{
 						name:           "missing x-axis",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].axes"},
+						valFields:      []string{fieldSpec, "charts[0].axes"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1222,7 +1222,7 @@ spec:
 					{
 						name:           "missing a query value",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].queries[0].query"},
+						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1324,7 +1324,7 @@ spec:
 					{
 						name:           "missing axes",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].axes"},
+						valFields:      []string{fieldSpec, "charts[0].axes"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1351,7 +1351,7 @@ spec:
 					{
 						name:           "missing query value",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].queries[0].query"},
+						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1392,7 +1392,7 @@ spec:
 					{
 						name:           "no queries provided",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].queries"},
+						valFields:      []string{fieldSpec, "charts[0].queries"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1432,7 +1432,7 @@ spec:
 					{
 						name:           "no width provided",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].width"},
+						valFields:      []string{fieldSpec, "charts[0].width"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1474,7 +1474,7 @@ spec:
 					{
 						name:           "no height provided",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].height"},
+						valFields:      []string{fieldSpec, "charts[0].height"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1516,7 +1516,7 @@ spec:
 					{
 						name:           "missing hex color",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].colors[0].hex"},
+						valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1561,7 +1561,7 @@ spec:
 					{
 						name:           "missing x axis",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].axes"},
+						valFields:      []string{fieldSpec, "charts[0].axes"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1597,7 +1597,7 @@ spec:
 					{
 						name:           "missing y axis",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].axes"},
+						valFields:      []string{fieldSpec, "charts[0].axes"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1645,7 +1645,7 @@ spec:
 					require.Len(t, sum.Dashboards, 1)
 
 					actual := sum.Dashboards[0]
-					assert.Equal(t, "dash_1", actual.Name)
+					assert.Equal(t, "display name", actual.Name)
 					assert.Equal(t, "desc1", actual.Description)
 
 					require.Len(t, actual.Charts, 1)
@@ -1687,7 +1687,7 @@ spec:
 					{
 						name:           "color missing hex value",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].colors[0].hex"},
+						valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1714,7 +1714,7 @@ spec:
 					{
 						name:           "query missing text value",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].queries[0].query"},
+						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1739,7 +1739,7 @@ spec:
 					{
 						name:           "no queries provided",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].queries"},
+						valFields:      []string{fieldSpec, "charts[0].queries"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1762,7 +1762,7 @@ spec:
 					{
 						name:           "no width provided",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].width"},
+						valFields:      []string{fieldSpec, "charts[0].width"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1786,7 +1786,7 @@ spec:
 					{
 						name:           "no height provided",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].height"},
+						valFields:      []string{fieldSpec, "charts[0].height"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1805,6 +1805,38 @@ spec:
         - name: laser
           type: text
           hex: "#8F8AF4"
+`,
+					},
+					{
+						name:           "duplicate metadata names",
+						validationErrs: 1,
+						valFields:      []string{fieldMetadata, fieldName},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+`,
+					},
+
+					{
+						name:           "spec name too short",
+						validationErrs: 1,
+						valFields:      []string{fieldSpec, fieldName},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash_1
+spec:
+  name: d
 `,
 					},
 				}
@@ -1880,7 +1912,7 @@ spec:
 					{
 						name:           "color missing hex value",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].colors[0].hex"},
+						valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1920,7 +1952,7 @@ spec:
 					{
 						name:           "missing query value",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].queries[0].query"},
+						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -1964,7 +1996,7 @@ spec:
 					{
 						name:           "no queries provided",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].queries"},
+						valFields:      []string{fieldSpec, "charts[0].queries"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2006,7 +2038,7 @@ spec:
 					{
 						name:           "no width provided",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].width"},
+						valFields:      []string{fieldSpec, "charts[0].width"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2051,7 +2083,7 @@ spec:
 					{
 						name:           "no height provided",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].height"},
+						valFields:      []string{fieldSpec, "charts[0].height"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2095,7 +2127,7 @@ spec:
 					{
 						name:           "missing x axis",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].axes"},
+						valFields:      []string{fieldSpec, "charts[0].axes"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2134,7 +2166,7 @@ spec:
 					{
 						name:           "missing y axis",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].axes"},
+						valFields:      []string{fieldSpec, "charts[0].axes"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2243,7 +2275,7 @@ spec:
 					{
 						name:           "color missing hex value",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].colors[0].hex"},
+						valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
 						pkgStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
@@ -2270,7 +2302,7 @@ spec:
 					{
 						name:           "missing query value",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].queries[0].query"},
+						valFields:      []string{fieldSpec, "charts[0].queries[0].query"},
 						pkgStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
@@ -2296,7 +2328,7 @@ spec:
 					{
 						name:           "no queries provided",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].queries"},
+						valFields:      []string{fieldSpec, "charts[0].queries"},
 						pkgStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
@@ -2320,7 +2352,7 @@ spec:
 					{
 						name:           "no width provided",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].width"},
+						valFields:      []string{fieldSpec, "charts[0].width"},
 						pkgStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
@@ -2346,7 +2378,7 @@ spec:
 					{
 						name:           "no height provided",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].height"},
+						valFields:      []string{fieldSpec, "charts[0].height"},
 						pkgStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
@@ -2372,7 +2404,7 @@ spec:
 					{
 						name:           "invalid wrapping table option",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].tableOptions.wrapping"},
+						valFields:      []string{fieldSpec, "charts[0].tableOptions.wrapping"},
 						pkgStr: `
 apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
@@ -2453,7 +2485,7 @@ spec:
 					{
 						name:           "color missing hex value",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].colors[0].hex"},
+						valFields:      []string{fieldSpec, "charts[0].colors[0].hex"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -2494,7 +2526,7 @@ spec:
 					{
 						name:           "invalid geom flag",
 						validationErrs: 1,
-						valFields:      []string{"charts[0].geom"},
+						valFields:      []string{fieldSpec, "charts[0].geom"},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Dashboard
 metadata:
@@ -3068,7 +3100,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing endpoint name",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationRuleEndpointName},
+						valFields:      []string{fieldSpec, fieldNotificationRuleEndpointName},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3086,7 +3118,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing every",
 						validationErrs: 1,
-						valFields:      []string{fieldEvery},
+						valFields:      []string{fieldSpec, fieldEvery},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3104,7 +3136,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing status rules",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationRuleStatusRules},
+						valFields:      []string{fieldSpec, fieldNotificationRuleStatusRules},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3121,7 +3153,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "bad current status rule level",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationRuleStatusRules},
+						valFields:      []string{fieldSpec, fieldNotificationRuleStatusRules},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3140,7 +3172,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "bad previous status rule level",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationRuleStatusRules},
+						valFields:      []string{fieldSpec, fieldNotificationRuleStatusRules},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3160,7 +3192,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "bad tag rule operator",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationRuleTagRules},
+						valFields:      []string{fieldSpec, fieldNotificationRuleTagRules},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3183,7 +3215,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "bad status provided",
 						validationErrs: 1,
-						valFields:      []string{fieldStatus},
+						valFields:      []string{fieldSpec, fieldStatus},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3203,7 +3235,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "label association does not exist",
 						validationErrs: 1,
-						valFields:      []string{fieldAssociations},
+						valFields:      []string{fieldSpec, fieldAssociations},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: NotificationRule
 metadata:
@@ -3225,7 +3257,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "label association dupe",
 						validationErrs: 1,
-						valFields:      []string{fieldAssociations},
+						valFields:      []string{fieldSpec, fieldAssociations},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Label
 metadata:
@@ -3246,6 +3278,37 @@ spec:
       name: label_1
     - kind: Label
       name: label_1
+`,
+					},
+				},
+				{
+					kind: KindNotificationRule,
+					resErr: testPkgResourceError{
+						name:           "duplicate meta names",
+						validationErrs: 1,
+						valFields:      []string{fieldMetadata, fieldName},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
+spec:
+  endpointName: endpoint_0
+  every: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: WARN
+---
+apiVersion: influxdata.com/v2alpha1
+kind: NotificationRule
+metadata:
+  name: rule_0
+spec:
+  endpointName: endpoint_0
+  every: 10m
+  messageTemplate: "Notification Rule: ${ r._notification_rule_name } triggered by check: ${ r._check_name }: ${ r._message }"
+  statusRules:
+    - currentLevel: WARN
 `,
 					},
 				},
@@ -3280,14 +3343,14 @@ spec:
 
 				require.Len(t, sum.Labels, 1)
 
-				task1 := tasks[0]
-				baseEqual(t, 0, influxdb.Inactive, task1)
-				assert.Equal(t, (10 * time.Minute).String(), task1.Every)
-				assert.Equal(t, (15 * time.Second).String(), task1.Offset)
+				task0 := tasks[0]
+				baseEqual(t, 0, influxdb.Inactive, task0)
+				assert.Equal(t, (10 * time.Minute).String(), task0.Every)
+				assert.Equal(t, (15 * time.Second).String(), task0.Offset)
 
-				task2 := tasks[1]
-				baseEqual(t, 1, influxdb.Active, task2)
-				assert.Equal(t, "15 * * * *", task2.Cron)
+				task1 := tasks[1]
+				baseEqual(t, 1, influxdb.Active, task1)
+				assert.Equal(t, "15 * * * *", task1.Cron)
 			})
 		})
 
@@ -3318,7 +3381,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "invalid status",
 						validationErrs: 1,
-						valFields:      []string{fieldStatus},
+						valFields:      []string{fieldSpec, fieldStatus},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
@@ -3336,7 +3399,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing query",
 						validationErrs: 1,
-						valFields:      []string{fieldQuery},
+						valFields:      []string{fieldSpec, fieldQuery},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
@@ -3353,7 +3416,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "missing every and cron fields",
 						validationErrs: 1,
-						valFields:      []string{fieldEvery, fieldTaskCron},
+						valFields:      []string{fieldSpec, fieldEvery, fieldTaskCron},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
@@ -3369,7 +3432,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "invalid association",
 						validationErrs: 1,
-						valFields:      []string{fieldAssociations},
+						valFields:      []string{fieldSpec, fieldAssociations},
 						pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Task
 metadata:
@@ -3389,7 +3452,7 @@ spec:
 					resErr: testPkgResourceError{
 						name:           "duplicate association",
 						validationErrs: 1,
-						valFields:      []string{fieldAssociations},
+						valFields:      []string{fieldSpec, fieldAssociations},
 						pkgStr: `---
 apiVersion: influxdata.com/v2alpha1
 kind: Label
@@ -3414,6 +3477,33 @@ spec:
 `,
 					},
 				},
+				{
+					kind: KindTask,
+					resErr: testPkgResourceError{
+						name:           "duplicate meta names",
+						validationErrs: 1,
+						valFields:      []string{fieldMetadata, fieldName},
+						pkgStr: `
+apiVersion: influxdata.com/v2alpha1
+kind: Task
+metadata:
+  name: task_0
+spec:
+  every: 10m
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Task
+metadata:
+  name: task_0
+spec:
+  every: 10m
+  query:  >
+    from(bucket: "rucket_1") |> yield(name: "mean")
+`,
+					},
+				},
 			}
 
 			for _, tt := range tests {
@@ -3429,7 +3519,7 @@ spec:
 				require.Len(t, sum.TelegrafConfigs, 1)
 
 				actual := sum.TelegrafConfigs[0]
-				assert.Equal(t, "first_tele_config", actual.TelegrafConfig.Name)
+				assert.Equal(t, "display name", actual.TelegrafConfig.Name)
 				assert.Equal(t, "desc", actual.TelegrafConfig.Description)
 
 				require.Len(t, actual.LabelAssociations, 1)
@@ -3437,7 +3527,7 @@ spec:
 
 				require.Len(t, sum.LabelMappings, 1)
 				expectedMapping := SummaryLabelMapping{
-					ResourceName: "first_tele_config",
+					ResourceName: "display name",
 					LabelName:    "label_1",
 					ResourceType: influxdb.TelegrafsResourceType,
 				}
@@ -3450,12 +3540,31 @@ spec:
 				{
 					name:           "config missing",
 					validationErrs: 1,
-					valFields:      []string{"config"},
+					valFields:      []string{fieldSpec, fieldTelegrafConfig},
 					pkgStr: `apiVersion: influxdata.com/v2alpha1
 kind: Telegraf
 metadata:
   name: first_tele_config
 spec:
+`,
+				},
+				{
+					name:           "duplicate metadata names",
+					validationErrs: 1,
+					valFields:      []string{fieldMetadata, fieldName},
+					pkgStr: `apiVersion: influxdata.com/v2alpha1
+kind: Telegraf
+metadata:
+  name: tele_0
+spec:
+  config: fake tele config
+---
+apiVersion: influxdata.com/v2alpha1
+kind: Telegraf
+metadata:
+  name: tele_0
+spec:
+  config: fake tele config
 `,
 				},
 			}

@@ -3,6 +3,7 @@ kind: Dashboard
 metadata:
   name: dash_1
 spec:
+  name: display name
   description: desc1
   charts:
     - kind:   Single_Stat

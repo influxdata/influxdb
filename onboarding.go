@@ -12,8 +12,8 @@ type OnboardingService interface {
 
 	// IsOnboarding determine if onboarding request is allowed.
 	IsOnboarding(ctx context.Context) (bool, error)
-	// Generate OnboardingResults.
-	Generate(ctx context.Context, req *OnboardingRequest) (*OnboardingResults, error)
+	// OnboardInitialUser OnboardingResults.
+	OnboardInitialUser(ctx context.Context, req *OnboardingRequest) (*OnboardingResults, error)
 }
 
 // OnboardingResults is a group of elements required for first run.

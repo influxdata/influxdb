@@ -21,7 +21,7 @@ func TestOnboardingValidation(t *testing.T) {
 	svc := newKVSVC(t)
 	ts := authorizer.NewTaskService(zaptest.NewLogger(t), mockTaskService(3, 2, 1))
 
-	r, err := svc.Generate(context.Background(), &influxdb.OnboardingRequest{
+	r, err := svc.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
 		User:            "Setec Astronomy",
 		Password:        "too many secrets",
 		Org:             "thing",
@@ -121,7 +121,7 @@ func TestValidations(t *testing.T) {
 
 	svc := newKVSVC(t)
 
-	r, err := svc.Generate(context.Background(), &influxdb.OnboardingRequest{
+	r, err := svc.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
 		User:            "Setec Astronomy",
 		Password:        "too many secrets",
 		Org:             "thing",

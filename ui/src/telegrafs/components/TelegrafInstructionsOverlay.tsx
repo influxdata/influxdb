@@ -10,29 +10,29 @@ import {Overlay} from '@influxdata/clockface'
 import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/TelegrafInstructions'
 import GetResources from 'src/resources/components/GetResources'
 
-// Constants
-import {TOKEN_LABEL} from 'src/labels/constants'
-
 // Types
-import {Telegraf, AppState, ResourceType, Authorization} from 'src/types'
+import {Telegraf, AppState, ResourceType} from 'src/types'
 
 // Selectors
-import {getAll} from 'src/resources/selectors'
-
-const {Authorizations} = ResourceType
+import {getAll, getToken} from 'src/resources/selectors'
+import {clearDataLoaders} from 'src/dataLoaders/actions/dataLoaders'
 
 interface StateProps {
   username: string
-  telegrafs: Telegraf[]
-  tokens: Authorization[]
+  token: string
   collectors: Telegraf[]
 }
 
+interface DispatchProps {
+  onClearDataLoaders: typeof clearDataLoaders
+}
+
+type Props = StateProps & DispatchProps & WithRouterProps
+
 @ErrorHandling
-export class TelegrafInstructionsOverlay extends PureComponent<
-  StateProps & WithRouterProps
-> {
+export class TelegrafInstructionsOverlay extends PureComponent<Props> {
   public render() {
+    const {token} = this.props
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={700}>
@@ -43,7 +43,7 @@ export class TelegrafInstructionsOverlay extends PureComponent<
           <Overlay.Body>
             <GetResources resources={[ResourceType.Authorizations]}>
               <TelegrafInstructions
-                token={this.token}
+                token={token}
                 configID={get(this.collector, 'id', '')}
               />
             </GetResources>
@@ -51,28 +51,6 @@ export class TelegrafInstructionsOverlay extends PureComponent<
         </Overlay.Container>
       </Overlay>
     )
-  }
-
-  private get token(): string {
-    const {telegrafs, tokens} = this.props
-    const config =
-      telegrafs.find(t => get(this.collector, 'id', '') === t.id) ||
-      this.collector
-
-    if (!config) {
-      return 'no config found'
-    }
-
-    const labels = get(config, 'labels', [])
-
-    const label = labels.find(l => l.name === TOKEN_LABEL)
-    const auth = tokens.find(t => t.id === get(label, 'properties.tokenID'))
-
-    if (!label || !auth) {
-      return 'unknown token'
-    }
-
-    return auth.token
   }
 
   private get collector() {
@@ -87,11 +65,12 @@ export class TelegrafInstructionsOverlay extends PureComponent<
     const {
       router,
       params: {orgID},
+      onClearDataLoaders,
     } = this.props
     this.setState({
       collectorID: null,
     })
-
+    onClearDataLoaders()
     router.push(`/orgs/${orgID}/load-data/telegrafs/`)
   }
 }
@@ -101,18 +80,21 @@ const mstp = (state: AppState): StateProps => {
     me: {name},
   } = state
 
-  const tokens = getAll<Authorization>(state, Authorizations)
+  const token = getToken(state)
   const telegrafs = getAll<Telegraf>(state, ResourceType.Telegrafs)
 
   return {
     username: name,
-    tokens,
+    token,
     collectors: telegrafs,
-    telegrafs: telegrafs,
   }
 }
 
-export default connect<StateProps, {}, {}>(
+const mdtp: DispatchProps = {
+  onClearDataLoaders: clearDataLoaders,
+}
+
+export default connect<StateProps, DispatchProps>(
   mstp,
-  null
+  mdtp
 )(withRouter<StateProps>(TelegrafInstructionsOverlay))
