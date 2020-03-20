@@ -7,6 +7,7 @@ import classnames from 'classnames'
 // Components
 import {AppWrapper} from '@influxdata/clockface'
 import TreeNav from 'src/pageLayout/containers/TreeNav'
+import Nav from 'src/pageLayout/containers/Nav'
 import TooltipPortal from 'src/portals/TooltipPortal'
 import NotesPortal from 'src/portals/NotesPortal'
 import Notifications from 'src/shared/components/notifications/Notifications'
@@ -56,6 +57,9 @@ const App: SFC<Props> = ({
         <OverlayController />
         <FeatureFlag name="treeNav">
           <TreeNav />
+        </FeatureFlag>
+        <FeatureFlag name="treeNav" equals={false}>
+          <Nav />
         </FeatureFlag>
         {children}
       </AppWrapper>
