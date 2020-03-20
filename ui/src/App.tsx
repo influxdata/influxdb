@@ -6,11 +6,12 @@ import classnames from 'classnames'
 
 // Components
 import {AppWrapper} from '@influxdata/clockface'
-import Nav from 'src/pageLayout'
+import TreeNav from 'src/pageLayout/containers/TreeNav'
 import TooltipPortal from 'src/portals/TooltipPortal'
 import NotesPortal from 'src/portals/NotesPortal'
 import Notifications from 'src/shared/components/notifications/Notifications'
 import OverlayController from 'src/overlays/components/OverlayController'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Types
 import {AppState, CurrentPage, Theme} from 'src/types'
@@ -45,7 +46,9 @@ const App: SFC<Props> = ({
       <TooltipPortal />
       <NotesPortal />
       <OverlayController />
-      <Nav />
+      <FeatureFlag name="treeNav">
+        <TreeNav />
+      </FeatureFlag>
       {children}
     </AppWrapper>
   )
