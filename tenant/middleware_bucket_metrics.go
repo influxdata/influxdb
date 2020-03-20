@@ -2,7 +2,6 @@ package tenant
 
 import (
 	"context"
-
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/metric"
 	"github.com/influxdata/influxdb/kit/prom"
@@ -18,9 +17,10 @@ type BucketMetrics struct {
 var _ influxdb.BucketService = (*BucketMetrics)(nil)
 
 // NewBucketMetrics returns a metrics service middleware for the Bucket Service.
-func NewBucketMetrics(reg *prom.Registry, s influxdb.BucketService) *BucketMetrics {
+func NewBucketMetrics(reg *prom.Registry, s influxdb.BucketService, opts ...MetricsOption) *BucketMetrics {
+	o := applyOpts(opts...)
 	return &BucketMetrics{
-		rec:           metric.New(reg, "bucket"),
+		rec:           metric.New(reg, o.applySuffix("bucket")),
 		bucketService: s,
 	}
 }
