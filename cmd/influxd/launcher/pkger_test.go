@@ -926,7 +926,7 @@ spec:
 		}
 		assert.Equal(t, expectedMissingEnvs, sum.MissingEnvs)
 
-		sum, err = svc.Apply(timedCtx(time.Second), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
+		sum, err = svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
 			"bkt-1-name-ref":      "rucket_threeve",
 			"check-1-name-ref":    "check_threeve",
 			"dash-1-name-ref":     "dash_threeve",
