@@ -15,8 +15,10 @@ type (
 		ID    []byte `json:"id"`
 		OrgID []byte `json:"orgID"`
 
-		URLs      []string           `json:"urls,omitempty"`
-		Resources []entStackResource `json:"resources,omitempty"`
+		Name        string             `json:"name"`
+		Description string             `json:"description"`
+		URLs        []string           `json:"urls,omitempty"`
+		Resources   []entStackResource `json:"resources,omitempty"`
 
 		CreatedAt time.Time `json:"createdAt"`
 		UpdatedAt time.Time `json:"updatedAt"`
@@ -167,11 +169,13 @@ func convertStackToEnt(orgID influxdb.ID, stack Stack) (kv.Entity, error) {
 	}
 
 	stEnt := entStack{
-		ID:        idBytes,
-		OrgID:     orgIDBytes,
-		CreatedAt: stack.CreatedAt,
-		UpdatedAt: stack.UpdatedAt,
-		URLs:      urlStrs,
+		ID:          idBytes,
+		OrgID:       orgIDBytes,
+		Name:        stack.Name,
+		Description: stack.Desc,
+		CreatedAt:   stack.CreatedAt,
+		UpdatedAt:   stack.UpdatedAt,
+		URLs:        urlStrs,
 	}
 
 	for _, res := range stack.Resources {
@@ -192,6 +196,8 @@ func convertStackToEnt(orgID influxdb.ID, stack Stack) (kv.Entity, error) {
 
 func convertStackEntToStack(ent *entStack) (Stack, error) {
 	stack := Stack{
+		Name: ent.Name,
+		Desc: ent.Description,
 		CRUDLog: influxdb.CRUDLog{
 			CreatedAt: ent.CreatedAt,
 			UpdatedAt: ent.UpdatedAt,
