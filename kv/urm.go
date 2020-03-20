@@ -180,6 +180,11 @@ func (s *Service) CreateUserResourceMapping(ctx context.Context, m *influxdb.Use
 	})
 }
 
+// CreateUserResourceMappingTx is used when importing kv as a library
+func (s *Service) CreateUserResourceMappingTx(ctx context.Context, tx Tx, m *influxdb.UserResourceMapping) error {
+	return s.createUserResourceMapping(ctx, tx, m)
+}
+
 func (s *Service) createUserResourceMapping(ctx context.Context, tx Tx, m *influxdb.UserResourceMapping) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()

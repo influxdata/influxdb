@@ -455,6 +455,11 @@ func (s *Service) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 	})
 }
 
+// CreateBucketTx is used when importing kv as a library
+func (s *Service) CreateBucketTx(ctx context.Context, tx Tx, b *influxdb.Bucket) (err error) {
+	return s.createBucket(ctx, tx, b)
+}
+
 func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) (err error) {
 	if b.OrgID.Valid() {
 		span, ctx := tracing.StartSpanFromContext(ctx)
