@@ -30,6 +30,7 @@ func TestService(t *testing.T) {
 			dashSVC:     mock.NewDashboardService(),
 			labelSVC:    mock.NewLabelService(),
 			endpointSVC: mock.NewNotificationEndpointService(),
+			orgSVC:      mock.NewOrganizationService(),
 			ruleSVC:     mock.NewNotificationRuleStore(),
 			taskSVC:     mock.NewTaskService(),
 			teleSVC:     mock.NewTelegrafConfigStore(),
@@ -40,12 +41,16 @@ func TestService(t *testing.T) {
 		}
 
 		return NewService(
+			WithIDGenerator(opt.idGen),
+			WithTimeGenerator(opt.timeGen),
+			WithStore(opt.store),
 			WithBucketSVC(opt.bucketSVC),
 			WithCheckSVC(opt.checkSVC),
 			WithDashboardSVC(opt.dashSVC),
 			WithLabelSVC(opt.labelSVC),
 			WithNotificationEndpointSVC(opt.endpointSVC),
 			WithNotificationRuleSVC(opt.ruleSVC),
+			WithOrganizationService(opt.orgSVC),
 			WithSecretSVC(opt.secretSVC),
 			WithTaskSVC(opt.taskSVC),
 			WithTelegrafSVC(opt.teleSVC),
@@ -3029,6 +3034,100 @@ func TestService(t *testing.T) {
 			assert.Equal(t, "variable", vars[0].Name)
 		})
 	})
+
+	t.Run("InitStack", func(t *testing.T) {
+		safeCreateFn := func(ctx context.Context, stack Stack) error {
+			return nil
+		}
+
+		type createFn func(ctx context.Context, stack Stack) error
+
+		newFakeStore := func(fn createFn) *fakeStore {
+			return &fakeStore{
+				createFn: fn,
+			}
+		}
+
+		now := time.Time{}.Add(10 * 24 * time.Hour)
+
+		t.Run("when store call is successful", func(t *testing.T) {
+			svc := newTestService(
+				WithIDGenerator(newFakeIDGen(3)),
+				WithTimeGenerator(newTimeGen(now)),
+				WithStore(newFakeStore(safeCreateFn)),
+			)
+
+			stack, err := svc.InitStack(context.Background(), 9000, Stack{OrgID: 3333})
+			require.NoError(t, err)
+
+			assert.Equal(t, influxdb.ID(3), stack.ID)
+			assert.Equal(t, now, stack.CreatedAt)
+			assert.Equal(t, now, stack.UpdatedAt)
+		})
+
+		t.Run("handles unexpected error paths", func(t *testing.T) {
+			tests := []struct {
+				name            string
+				expectedErrCode string
+				store           func() *fakeStore
+				orgSVC          func() influxdb.OrganizationService
+			}{
+				{
+					name:            "unexpected store err",
+					expectedErrCode: influxdb.EInternal,
+					store: func() *fakeStore {
+						return newFakeStore(func(ctx context.Context, stack Stack) error {
+							return errors.New("unexpected error")
+						})
+					},
+				},
+				{
+					name:            "unexpected conflict store err",
+					expectedErrCode: influxdb.EInternal,
+					store: func() *fakeStore {
+						return newFakeStore(func(ctx context.Context, stack Stack) error {
+							return &influxdb.Error{Code: influxdb.EConflict}
+						})
+					},
+				},
+				{
+					name:            "org does not exist produces conflict error",
+					expectedErrCode: influxdb.EConflict,
+					store: func() *fakeStore {
+						return newFakeStore(safeCreateFn)
+					},
+					orgSVC: func() influxdb.OrganizationService {
+						orgSVC := mock.NewOrganizationService()
+						orgSVC.FindOrganizationByIDF = func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+							return nil, &influxdb.Error{Code: influxdb.ENotFound}
+						}
+						return orgSVC
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					var orgSVC influxdb.OrganizationService = mock.NewOrganizationService()
+					if tt.orgSVC != nil {
+						orgSVC = tt.orgSVC()
+					}
+
+					svc := newTestService(
+						WithIDGenerator(newFakeIDGen(3)),
+						WithTimeGenerator(newTimeGen(now)),
+						WithStore(tt.store()),
+						WithOrganizationService(orgSVC),
+					)
+
+					_, err := svc.InitStack(context.Background(), 9000, Stack{OrgID: 3333})
+					require.Error(t, err)
+					assert.Equal(t, tt.expectedErrCode, influxdb.ErrorCode(err))
+				}
+				t.Run(tt.name, fn)
+			}
+		})
+	})
 }
 
 func newTestIDPtr(i int) *influxdb.ID {
@@ -3038,4 +3137,53 @@ func newTestIDPtr(i int) *influxdb.ID {
 
 func levelPtr(l notification.CheckLevel) *notification.CheckLevel {
 	return &l
+}
+
+type fakeStore struct {
+	createFn func(ctx context.Context, stack Stack) error
+}
+
+var _ Store = (*fakeStore)(nil)
+
+func (s *fakeStore) CreateStack(ctx context.Context, stack Stack) error {
+	if s.createFn != nil {
+		return s.createFn(ctx, stack)
+	}
+	panic("not implemented")
+}
+
+func (s *fakeStore) ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, error) {
+	panic("not implemented")
+}
+
+func (s *fakeStore) UpdateStack(ctx context.Context, stack Stack) error {
+	panic("not implemented")
+}
+
+func (s *fakeStore) DeleteStack(ctx context.Context, id influxdb.ID) error {
+	panic("not implemented")
+}
+
+type fakeIDGen func() influxdb.ID
+
+func newFakeIDGen(id influxdb.ID) fakeIDGen {
+	return func() influxdb.ID {
+		return id
+	}
+}
+
+func (f fakeIDGen) ID() influxdb.ID {
+	return f()
+}
+
+type fakeTimeGen func() time.Time
+
+func newTimeGen(t time.Time) fakeTimeGen {
+	return func() time.Time {
+		return t
+	}
+}
+
+func (t fakeTimeGen) Now() time.Time {
+	return t()
 }
