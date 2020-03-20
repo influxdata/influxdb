@@ -61,14 +61,14 @@ const UserWidget: FC<Props> = ({
           id="usage"
           label="Usage"
           linkElement={className => (
-            <a className={className} href={CLOUD_USAGE_PATH} />
+            <a className={className} href={`${CLOUD_URL}/organizations/${org.id}/${CLOUD_USAGE_PATH}`} />
           )}
         />
         <TreeNav.UserItem
           id="billing"
           label="Billing"
           linkElement={className => (
-            <a className={className} href={CLOUD_BILLING_PATH} />
+            <a className={className} href={`${CLOUD_URL}/organizations/${org.id}/${CLOUD_BILLING_PATH}`} />
           )}
         />
         <TreeNav.UserItem
