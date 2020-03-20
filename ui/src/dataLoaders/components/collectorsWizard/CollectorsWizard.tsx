@@ -50,7 +50,9 @@ import {AppState, Bucket, Organization, ResourceType} from 'src/types'
 // Selectors
 import {getAll} from 'src/resources/selectors'
 import {getOrg} from 'src/organizations/selectors'
-import {isSystemBucket} from 'src/buckets/selectors'
+
+// Utils
+import {isSystemBucket} from 'src/buckets/constants'
 
 export interface CollectorsStepProps {
   currentStepIndex: number

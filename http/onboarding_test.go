@@ -62,5 +62,5 @@ func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (pl
 	return client, done
 }
 func TestOnboardingService(t *testing.T) {
-	platformtesting.Generate(initOnboardingService, t)
+	platformtesting.OnboardInitialUser(initOnboardingService, t)
 }

@@ -94,9 +94,9 @@ func (s *Service) setOnboarded(ctx context.Context, tx Tx) error {
 	return nil
 }
 
-// Generate OnboardingResults from onboarding request,
+// OnboardInitialUser OnboardingResults from onboarding request,
 // update db so this request will be disabled for the second run.
-func (s *Service) Generate(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
+func (s *Service) OnboardInitialUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
 	isOnboarding, err := s.IsOnboarding(ctx)
 	if err != nil {
 		return nil, err

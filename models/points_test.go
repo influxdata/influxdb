@@ -832,6 +832,23 @@ func TestParsePointFloatMultipleDecimals(t *testing.T) {
 	}
 }
 
+func TestParseWithLineBreaks(t *testing.T) {
+	ss := []string{
+		"cpu,host=serverA,region=us-west value=1i\ncpu,host=serverA,region=us-west value=2i",
+		"cpu,host=serverA,region=us-west value=1i\n\ncpu,host=serverA,region=us-west value=2i",
+		"cpu,host=serverA,region=us-west value=1i\r\ncpu,host=serverA,region=us-west value=2i",
+	}
+	for _, s := range ss {
+		pp, err := models.ParsePointsString(s, "mm")
+		if err != nil {
+			t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, s, err)
+		}
+		if l := len(pp); l != 2 {
+			t.Errorf(`ParsePoints("%s") mismatch. got %v, exp 2`, s, l)
+		}
+	}
+}
+
 func TestParsePointInteger(t *testing.T) {
 	_, err := models.ParsePointsString(`cpu,host=serverA,region=us-west value=1i`, "mm")
 	if err != nil {
