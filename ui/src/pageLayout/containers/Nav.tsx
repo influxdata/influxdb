@@ -89,6 +89,7 @@ class SideNav extends PureComponent<Props, State> {
               testID={item.testID}
               icon={<Icon glyph={item.icon} />}
               label={item.label}
+              shortLabel={item.shortLabel}
               active={getNavItemActivation(
                 item.activeKeywords,
                 location.pathname

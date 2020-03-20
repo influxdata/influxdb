@@ -15,6 +15,7 @@ export interface NavItem {
   id: string
   testID: string
   label: string
+  shortLabel?: string
   link: string
   icon: IconFont
   cloudExclude?: boolean
@@ -32,7 +33,8 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       id: 'load-data',
       testID: 'nav-item-load-data',
       icon: IconFont.DisksNav,
-      label: 'Data',
+      label: 'Load Data',
+      shortLabel: 'Data',
       link: `${orgPrefix}/load-data/buckets`,
       activeKeywords: ['load-data'],
       menu: [
@@ -73,7 +75,8 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       id: 'data-explorer',
       testID: 'nav-item-data-explorer',
       icon: IconFont.GraphLine,
-      label: 'Explore',
+      label: 'Data Explorer',
+      shortLabel: 'Explore',
       link: `${orgPrefix}/data-explorer`,
       activeKeywords: ['data-explorer'],
     },
@@ -81,7 +84,8 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       id: 'org',
       testID: 'nav-item-org',
       icon: IconFont.UsersTrio,
-      label: 'Org',
+      label: 'Organization',
+      shortLabel: 'Org',
       link: `${orgPrefix}/members`,
       activeKeywords: ['members', 'about'],
       menu: [
@@ -111,7 +115,8 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       id: 'dashboards',
       testID: 'nav-item-dashboards',
       icon: IconFont.Dashboards,
-      label: 'Boards',
+      label: 'Dashboards',
+      shortLabel: 'Boards',
       link: `${orgPrefix}/dashboards`,
       activeKeywords: ['dashboards'],
     },
