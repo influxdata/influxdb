@@ -475,6 +475,10 @@ type fakeSVC struct {
 	ApplyFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error)
 }
 
+func (f *fakeSVC) InitStack(ctx context.Context, orgID, userID influxdb.ID, urls ...url.URL) (pkger.Stack, error) {
+	panic("not implemented")
+}
+
 func (f *fakeSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
 	panic("not implemented")
 }

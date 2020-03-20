@@ -2,6 +2,7 @@ package pkger
 
 import (
 	"context"
+	"net/url"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/metric"
@@ -25,6 +26,12 @@ func MWMetrics(reg *prom.Registry) SVCMiddleware {
 			next: svc,
 		}
 	}
+}
+
+func (s *mwMetrics) InitStack(ctx context.Context, orgID, userID influxdb.ID, urls ...url.URL) (Stack, error) {
+	rec := s.rec.Record("init_stack")
+	stack, err := s.next.InitStack(ctx, orgID, userID, urls...)
+	return stack, rec(err)
 }
 
 func (s *mwMetrics) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {

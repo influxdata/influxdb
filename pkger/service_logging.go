@@ -2,6 +2,7 @@ package pkger
 
 import (
 	"context"
+	"net/url"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -24,6 +25,27 @@ func MWLogging(log *zap.Logger) SVCMiddleware {
 }
 
 var _ SVC = (*loggingMW)(nil)
+
+func (s *loggingMW) InitStack(ctx context.Context, orgID, userID influxdb.ID, urls ...url.URL) (stack Stack, err error) {
+	defer func(start time.Time) {
+		if err != nil {
+			urlStrs := make([]string, 0, len(urls))
+			for _, u := range urls {
+				urlStrs = append(urlStrs, u.String())
+			}
+			s.logger.Error(
+				"failed to init stack",
+				zap.Error(err),
+				zap.Duration("took", time.Since(start)),
+				zap.Stringer("orgID", orgID),
+				zap.Stringer("userID", userID),
+				zap.Strings("urls", urlStrs),
+			)
+			return
+		}
+	}(time.Now())
+	return s.next.InitStack(ctx, orgID, userID, urls...)
+}
 
 func (s *loggingMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (pkg *Pkg, err error) {
 	defer func(start time.Time) {
