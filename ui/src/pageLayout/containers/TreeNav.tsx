@@ -2,6 +2,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps, Link} from 'react-router'
 import {connect} from 'react-redux'
+import {get} from 'lodash'
 
 // Components
 import {Icon, TreeNav} from '@influxdata/clockface'
@@ -183,8 +184,8 @@ const mdtp: DispatchProps = {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const isHidden = state.app.ephemeral.inPresentationMode
-  const navBarState = state.app.persisted.navBarState
+  const isHidden = get(state, 'app.ephemeral.inPresentationMode', false)
+  const navBarState = get(state, 'app.persisted.navBarState', 'collapsed')
 
   return {isHidden, navBarState}
 }
