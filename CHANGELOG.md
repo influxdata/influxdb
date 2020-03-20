@@ -5,10 +5,12 @@
 1. [17232](https://github.com/influxdata/influxdb/pull/17232): Allow dashboards to optionally be displayed in light mode
 1. [17273](https://github.com/influxdata/influxdb/pull/17273): Add shell completions command for the influx cli
 1. [17353](https://github.com/influxdata/influxdb/pull/17353): Make all pkg resources unique by metadata.name field
+1. [17363](https://github.com/influxdata/influxdb/pull/17363): Telegraf config tokens can no longer be retrieved after creation, but new tokens can be created after a telegraf has been setup
 
 ### Bug Fixes
 
 1. [17240](https://github.com/influxdata/influxdb/pull/17240): NodeJS logo displays properly in Firefox
+1. [17363](https://github.com/influxdata/influxdb/pull/17363): Fixed telegraf configuration bugs where system buckets were appearing in the buckets dropdown
 
 ### UI Improvements
 
