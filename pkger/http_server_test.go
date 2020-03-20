@@ -275,7 +275,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 						OrgID:  influxdb.ID(9000).String(),
 						Remotes: []pkger.PkgRemote{{
 							ContentType: "json",
-							URL:         "https://gist.githubusercontent.com/jsteenb2/3a3b2b5fcbd6179b2494c2b54aa2feb0/raw/989d361db7a851a3c388eaed0b59dce7fca7fdf3/bucket_pkg.json",
+							URL:         newPkgURL(t, filesvr.URL, "testdata/remote_bucket.json"),
 						}},
 						RawPkgs: []json.RawMessage{
 							newBktPkg(t, "bkt1"),

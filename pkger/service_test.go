@@ -2313,7 +2313,7 @@ func TestService(t *testing.T) {
 							assert.Zero(t, actualRule.ID)
 							assert.Zero(t, actualRule.EndpointID)
 							assert.Zero(t, actualRule.EndpointType)
-							assert.Len(t, actualRule.EndpointName, influxdb.IDLength)
+							assert.NotEmpty(t, actualRule.EndpointName)
 
 							baseEqual := func(t *testing.T, base rule.Base) {
 								t.Helper()
@@ -3018,7 +3018,7 @@ func TestService(t *testing.T) {
 			rules := summary.NotificationRules
 			require.Len(t, rules, 1)
 			assert.Equal(t, expectedRule.Name, rules[0].Name)
-			assert.Len(t, rules[0].EndpointName, influxdb.IDLength)
+			assert.NotEmpty(t, rules[0].EndpointName)
 
 			require.Len(t, summary.Tasks, 1)
 			task1 := summary.Tasks[0]
