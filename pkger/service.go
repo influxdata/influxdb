@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -17,8 +18,26 @@ import (
 // APIVersion marks the current APIVersion for influx packages.
 const APIVersion = "influxdata.com/v2alpha1"
 
+type (
+	Stack struct {
+		ID        influxdb.ID
+		CreatedAt time.Time
+		UpdatedAt time.Time
+		URLS      []url.URL
+		Resources []StackResource
+	}
+
+	StackResource struct {
+		APIVersion string
+		ID         influxdb.ID
+		Kind       Kind
+		Name       string
+	}
+)
+
 // SVC is the packages service interface.
 type SVC interface {
+	InitStack(ctx context.Context, orgID, userID influxdb.ID, urls ...url.URL) (Stack, error)
 	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
 	DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error)
 	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, error)
@@ -124,11 +143,24 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 	}
 }
 
+type Store interface {
+	CreateStack(ctx context.Context, orgID influxdb.ID, stack Stack) error
+	ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, error)
+	UpdateStack(ctx context.Context, orgID influxdb.ID, stack Stack) error
+	DeleteStack(ctx context.Context, id influxdb.ID) error
+}
+
 // Service provides the pkger business logic including all the dependencies to make
 // this resource sausage.
 type Service struct {
 	log *zap.Logger
 
+	// internal dependencies
+	idGen   influxdb.IDGenerator
+	timeGen influxdb.TimeGenerator
+	store   Store
+
+	// external service dependencies
 	bucketSVC   influxdb.BucketService
 	checkSVC    influxdb.CheckService
 	dashSVC     influxdb.DashboardService
@@ -169,6 +201,12 @@ func NewService(opts ...ServiceSetterFn) *Service {
 		varSVC:        opt.varSVC,
 		applyReqLimit: opt.applyReqLimit,
 	}
+}
+
+func (s *Service) InitStack(ctx context.Context, orgID, userID influxdb.ID, urls ...url.URL) (Stack, error) {
+	stack := Stack{
+	}
+	return stack, nil
 }
 
 type (

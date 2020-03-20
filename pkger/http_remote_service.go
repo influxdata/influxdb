@@ -3,6 +3,7 @@ package pkger
 import (
 	"context"
 	"net/http"
+	"net/url"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/pkg/httpc"
@@ -14,6 +15,10 @@ type HTTPRemoteService struct {
 }
 
 var _ SVC = (*HTTPRemoteService)(nil)
+
+func (s *HTTPRemoteService) InitStack(ctx context.Context, orgID, userID influxdb.ID, urls ...url.URL) (Stack, error) {
+	panic("not implemented yet")
+}
 
 // CreatePkg will produce a pkg from the parameters provided.
 func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
