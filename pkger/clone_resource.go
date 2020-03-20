@@ -14,10 +14,15 @@ import (
 	icheck "github.com/influxdata/influxdb/notification/check"
 	"github.com/influxdata/influxdb/notification/endpoint"
 	"github.com/influxdata/influxdb/notification/rule"
+	"github.com/influxdata/influxdb/pkger/internal/wordplay"
 	"github.com/influxdata/influxdb/snowflake"
 )
 
-var idGenerator influxdb.IDGenerator = snowflake.NewDefaultIDGenerator()
+var idGenerator = snowflake.NewDefaultIDGenerator()
+
+// NameGenerator generates a random name. Includes an optional fuzz option to
+// further randomize the name.
+type NameGenerator func() string
 
 // ResourceToClone is a resource that will be cloned.
 type ResourceToClone struct {
@@ -71,6 +76,8 @@ func newExportKey(orgID, id influxdb.ID, k Kind, name string) exportKey {
 }
 
 type resourceExporter struct {
+	nameGen NameGenerator
+
 	bucketSVC   influxdb.BucketService
 	checkSVC    influxdb.CheckService
 	dashSVC     influxdb.DashboardService
@@ -81,11 +88,13 @@ type resourceExporter struct {
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
 
-	mObjects map[exportKey]Object
+	mObjects  map[exportKey]Object
+	mPkgNames map[string]bool
 }
 
 func newResourceExporter(svc *Service) *resourceExporter {
 	return &resourceExporter{
+		nameGen:     wordplay.GetRandomName,
 		bucketSVC:   svc.bucketSVC,
 		checkSVC:    svc.checkSVC,
 		dashSVC:     svc.dashSVC,
@@ -96,6 +105,7 @@ func newResourceExporter(svc *Service) *resourceExporter {
 		teleSVC:     svc.teleSVC,
 		varSVC:      svc.varSVC,
 		mObjects:    make(map[exportKey]Object),
+		mPkgNames:   make(map[string]bool),
 	}
 }
 
@@ -175,6 +185,9 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 	}
 
 	mapResource := func(orgID, uniqResID influxdb.ID, k Kind, object Object) {
+		// overwrite the default metadata.name field with export generated one here
+		object.Metadata[fieldName] = ex.uniqName()
+
 		if len(ass) > 0 {
 			object.Spec[fieldAssociations] = ass
 		}
@@ -311,6 +324,7 @@ func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, la
 			}
 
 			labelObject := labelToObject(*l, "")
+			labelObject.Metadata[fieldName] = ex.uniqName()
 
 			k := newExportKey(l.OrgID, ex.uniqByNameResID(), KindLabel, l.Name)
 			existing, ok := ex.mObjects[k]
@@ -360,6 +374,18 @@ func (ex *resourceExporter) findDashboardByIDFull(ctx context.Context, id influx
 		cell.View = v
 	}
 	return dash, nil
+}
+
+func (ex *resourceExporter) uniqName() string {
+	uuid := idGenerator.ID().String()
+	for i := 1; i < 250; i++ {
+		name := fmt.Sprintf("%s_%s", ex.nameGen(), uuid[10:])
+		if !ex.mPkgNames[name] {
+			return name
+		}
+	}
+	// if all else fails, generate a UUID for the name
+	return uuid
 }
 
 func uniqResourcesToClone(resources []ResourceToClone) []ResourceToClone {

@@ -316,7 +316,7 @@ spec:
 				assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointName)
 				assert.Equalf(t, "http", rule.EndpointType, "rule: %+v", rule)
 			} else {
-				assert.Len(t, rule.EndpointName, influxdb.IDLength)
+				assert.NotEmpty(t, rule.EndpointName)
 			}
 
 			require.Len(t, sum1.Tasks, 1)
@@ -650,7 +650,7 @@ spec:
 			newRule := newSum.NotificationRules[0]
 			assert.Equal(t, "new rule name", newRule.Name)
 			assert.Zero(t, newRule.EndpointID)
-			assert.Len(t, newRule.EndpointName, influxdb.IDLength)
+			assert.NotEmpty(t, newRule.EndpointName)
 			hasLabelAssociations(t, newRule.LabelAssociations, 1, "label_1")
 
 			require.Len(t, newSum.Tasks, 1)
