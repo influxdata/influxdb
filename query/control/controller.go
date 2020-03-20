@@ -411,10 +411,13 @@ func (c *Controller) executeQuery(q *Query) {
 		// client cancelled it, or because the controller is shutting down)
 		// In the case of cancellation, SetErr() should reset the error to an
 		// appropriate message.
-		q.setErr(&flux.Error{
+		err := &flux.Error{
 			Code: codes.Internal,
 			Msg:  "impossible state transition",
-		})
+		}
+		q.setErr(err)
+		c.log.Error(err.Msg, zap.Error(err))
+
 		return
 	}
 
