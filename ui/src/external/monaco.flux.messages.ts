@@ -1,6 +1,7 @@
 import {ServerResponse} from 'src/types'
 import {
   CompletionContext,
+  ReferenceContext,
   Position,
   SignatureHelpContext,
 } from 'monaco-languageclient/lib/services'
@@ -78,6 +79,45 @@ export const didChange = (
   })
 }
 
+export const rename = (
+  id: number,
+  uri: string,
+  position: Position,
+  newName: string
+) => {
+  return createRequest(id, 'textDocument/rename', {
+    textDocument: {uri},
+    position,
+    newName,
+  })
+}
+
+export const references = (
+  id: number,
+  uri: string,
+  position: Position,
+  context: ReferenceContext
+) => {
+  return createRequest(id, 'textDocument/references', {
+    textDocument: {uri},
+    position,
+    context,
+  })
+}
+
+export const definition = (id: number, uri: string, position: Position) => {
+  return createRequest(id, 'textDocument/definition', {
+    textDocument: {uri},
+    position,
+  })
+}
+
+export const symbols = (id: number, uri: string) => {
+  return createRequest(id, 'textDocument/documentSymbol', {
+    textDocument: {uri},
+  })
+}
+
 export const completion = (
   id: number,
   uri: string,
@@ -88,6 +128,12 @@ export const completion = (
     textDocument: {uri},
     position,
     context,
+  })
+}
+
+export const foldingRange = (id, uri) => {
+  return createRequest(id, 'textDocument/foldingRange', {
+    textDocument: {uri},
   })
 }
 

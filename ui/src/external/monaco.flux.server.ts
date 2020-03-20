@@ -9,8 +9,13 @@ import {
   didChange,
   NotificationMessage,
   signatureHelp,
+  foldingRange,
+  rename,
+  references,
+  definition,
+  symbols,
 } from 'src/external/monaco.flux.messages'
-import {registerCompletion} from './monaco.flux.completions'
+import {registerCompletion} from './monaco.flux.lsp'
 import {AppState, LocalStorage} from 'src/types'
 import {getVariableAssignments} from '../timeMachine/selectors'
 import {buildVarsOption} from '../variables/utils/buildVarsOption'
@@ -24,6 +29,10 @@ import {
   SignatureHelp,
   Position,
   Diagnostic,
+  FoldingRange,
+  WorkspaceEdit,
+  Location,
+  SymbolInformation,
 } from 'monaco-languageclient/lib/services'
 import {Server} from '@influxdata/flux-lsp-browser'
 
@@ -58,6 +67,46 @@ export class LSPServer {
 
   initialize() {
     return this.send(initialize(this.currentMessageID))
+  }
+
+  async rename(uri, position, newName): Promise<WorkspaceEdit> {
+    const response = (await this.send(
+      rename(this.currentMessageID, uri, position, newName)
+    )) as {result: WorkspaceEdit}
+
+    return response.result
+  }
+
+  async definition(uri, position): Promise<Location> {
+    const response = (await this.send(
+      definition(this.currentMessageID, uri, position)
+    )) as {result: Location}
+
+    return response.result
+  }
+
+  async symbols(uri): Promise<SymbolInformation[]> {
+    const response = (await this.send(symbols(this.currentMessageID, uri))) as {
+      result: SymbolInformation[]
+    }
+
+    return response.result
+  }
+
+  async references(uri, position, context): Promise<Location[]> {
+    const response = (await this.send(
+      references(this.currentMessageID, uri, position, context)
+    )) as {result: Location[]}
+
+    return response.result
+  }
+
+  async foldingRanges(uri): Promise<FoldingRange[]> {
+    const response = (await this.send(
+      foldingRange(this.currentMessageID, uri)
+    )) as {result: FoldingRange[]}
+
+    return response.result
   }
 
   async signatureHelp(uri, position, context): Promise<SignatureHelp> {
