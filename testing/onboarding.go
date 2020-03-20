@@ -19,8 +19,8 @@ type OnboardingFields struct {
 	IsOnboarding   bool
 }
 
-// OnboardInitalUser testing
-func OnboardInitalUser(
+// OnboardInitialUser testing
+func OnboardInitialUser(
 	init func(OnboardingFields, *testing.T) (platform.OnboardingService, func()),
 	t *testing.T,
 ) {
@@ -195,7 +195,7 @@ func OnboardInitalUser(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			results, err := s.OnboardInitalUser(ctx, tt.args.request)
+			results, err := s.OnboardInitialUser(ctx, tt.args.request)
 			if (err != nil) != (tt.wants.errCode != "") {
 				t.Logf("Error: %v", err)
 				t.Fatalf("expected error code '%s' got '%v'", tt.wants.errCode, err)

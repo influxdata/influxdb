@@ -91,7 +91,7 @@ func setupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to retrieve data to setup instance: %v", err)
 	}
 
-	result, err := s.OnboardInitalUser(context.Background(), req)
+	result, err := s.OnboardInitialUser(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("failed to setup instance: %v", err)
 	}
