@@ -19,7 +19,9 @@ func TestStoreKv(t *testing.T) {
 	stackStub := func(id influxdb.ID) pkger.Stack {
 		now := time.Time{}.Add(10 * 365 * 24 * time.Hour)
 		return pkger.Stack{
-			ID: id,
+			ID:   id,
+			Name: "threeve",
+			Desc: "desc",
 			CRUDLog: influxdb.CRUDLog{
 				CreatedAt: now,
 				UpdatedAt: now.Add(time.Hour),

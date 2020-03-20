@@ -25,6 +25,8 @@ type (
 	// If the pkg is applied, and no changes are had, then the stack is not updated.
 	Stack struct {
 		ID        influxdb.ID
+		Name      string
+		Desc      string
 		URLS      []url.URL
 		Resources []StackResource
 
