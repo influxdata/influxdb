@@ -28,11 +28,12 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id inf
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeReadAuthorization(ctx, a.UserID); err != nil {
+	if _, _, err := AuthorizeRead(ctx, influxdb.AuthorizationsResourceType, a.ID, a.OrgID); err != nil {
 		return nil, err
 	}
-
+	if _, _, err := AuthorizeReadResource(ctx, influxdb.UsersResourceType, a.UserID); err != nil {
+		return nil, err
+	}
 	return a, nil
 }
 
@@ -42,11 +43,12 @@ func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, t s
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeReadAuthorization(ctx, a.UserID); err != nil {
+	if _, _, err := AuthorizeRead(ctx, influxdb.AuthorizationsResourceType, a.ID, a.OrgID); err != nil {
 		return nil, err
 	}
-
+	if _, _, err := AuthorizeReadResource(ctx, influxdb.UsersResourceType, a.UserID); err != nil {
+		return nil, err
+	}
 	return a, nil
 }
 
@@ -58,36 +60,20 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter in
 	if err != nil {
 		return nil, 0, err
 	}
-
-	// This filters without allocating
-	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
-	authorizations := as[:0]
-	for _, a := range as {
-		err := authorizeReadAuthorization(ctx, a.UserID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
-			return nil, 0, err
-		}
-
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
-			continue
-		}
-
-		authorizations = append(authorizations, a)
-	}
-
-	return authorizations, len(authorizations), nil
+	return AuthorizeFindAuthorizations(ctx, as)
 }
 
 // CreateAuthorization checks to see if the authorizer on context has write access to the global authorizations resource.
 func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *influxdb.Authorization) error {
-	if err := authorizeWriteAuthorization(ctx, a.UserID); err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.AuthorizationsResourceType, a.OrgID); err != nil {
 		return err
 	}
-
+	if _, _, err := AuthorizeWriteResource(ctx, influxdb.UsersResourceType, a.UserID); err != nil {
+		return err
+	}
 	if err := VerifyPermissions(ctx, a.Permissions); err != nil {
 		return err
 	}
-
 	return s.s.CreateAuthorization(ctx, a)
 }
 
@@ -97,11 +83,12 @@ func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id influ
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeWriteAuthorization(ctx, a.UserID); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.AuthorizationsResourceType, a.ID, a.OrgID); err != nil {
 		return nil, err
 	}
-
+	if _, _, err := AuthorizeWriteResource(ctx, influxdb.UsersResourceType, a.UserID); err != nil {
+		return nil, err
+	}
 	return s.s.UpdateAuthorization(ctx, id, upd)
 }
 
@@ -111,11 +98,12 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id influ
 	if err != nil {
 		return err
 	}
-
-	if err := authorizeWriteAuthorization(ctx, a.UserID); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.AuthorizationsResourceType, a.ID, a.OrgID); err != nil {
 		return err
 	}
-
+	if _, _, err := AuthorizeWriteResource(ctx, influxdb.UsersResourceType, a.UserID); err != nil {
+		return err
+	}
 	return s.s.DeleteAuthorization(ctx, id)
 }
 
@@ -130,43 +118,5 @@ func VerifyPermissions(ctx context.Context, ps []influxdb.Permission) error {
 			}
 		}
 	}
-
-	return nil
-}
-
-func newAuthorizationPermission(a influxdb.Action, id influxdb.ID) (*influxdb.Permission, error) {
-	p := &influxdb.Permission{
-		Action: a,
-		Resource: influxdb.Resource{
-			Type: influxdb.UsersResourceType,
-			ID:   &id,
-		},
-	}
-	return p, p.Valid()
-}
-
-func authorizeReadAuthorization(ctx context.Context, id influxdb.ID) error {
-	p, err := newAuthorizationPermission(influxdb.ReadAction, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func authorizeWriteAuthorization(ctx context.Context, id influxdb.ID) error {
-	p, err := newAuthorizationPermission(influxdb.WriteAction, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
 	return nil
 }
