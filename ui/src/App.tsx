@@ -12,6 +12,8 @@ import NotesPortal from 'src/portals/NotesPortal'
 import Notifications from 'src/shared/components/notifications/Notifications'
 import OverlayController from 'src/overlays/components/OverlayController'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
+import CloudNav from 'src/pageLayout/components/CloudNav'
+import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 
 // Types
 import {AppState, CurrentPage, Theme} from 'src/types'
@@ -38,19 +40,26 @@ const App: SFC<Props> = ({
   })
 
   return (
-    <AppWrapper
-      presentationMode={inPresentationMode}
-      className={appWrapperClass}
-    >
-      <Notifications />
-      <TooltipPortal />
-      <NotesPortal />
-      <OverlayController />
-      <FeatureFlag name="treeNav">
-        <TreeNav />
+    <>
+      <FeatureFlag name="treeNav" equals={false}>
+        <CloudOnly>
+          <CloudNav />
+        </CloudOnly>
       </FeatureFlag>
-      {children}
-    </AppWrapper>
+      <AppWrapper
+        presentationMode={inPresentationMode}
+        className={appWrapperClass}
+      >
+        <Notifications />
+        <TooltipPortal />
+        <NotesPortal />
+        <OverlayController />
+        <FeatureFlag name="treeNav">
+          <TreeNav />
+        </FeatureFlag>
+        {children}
+      </AppWrapper>
+    </>
   )
 }
 
