@@ -1,15 +1,15 @@
+//! partitioned_store is a trait and set of helper functions and structs to define Partitions
+//! that store data. The helper funcs and structs merge results from multiple partitions together.
 use crate::delorean::{Predicate, TimestampRange};
 use crate::line_parser::PointType;
 use crate::storage::series_store::ReadPoint;
 use crate::storage::StorageError;
 
-use core::pin::Pin;
-use core::task::{Context, Poll};
-use failure::_core::cmp::Ordering;
+use std::pin::Pin;
+use std::mem;
+use std::task::{Context, Poll};
+use std::cmp::Ordering;
 use futures::stream::{BoxStream, Stream};
-
-/// partitioned_store is a trait and set of helper functions and structs to define Partitions
-/// that store data. The helper funcs and structs merge results from multiple partitions together.
 
 /// A Partition is a block of data. It has methods for reading the metadata like which measurements,
 /// tags, tag values, and fields exist. Along with the raw time series data. It is designed to work
@@ -76,14 +76,11 @@ pub struct StringMergeStream<'a> {
 
 impl StringMergeStream<'_> {
     fn new(streams: Vec<BoxStream<'_, String>>) -> StringMergeStream<'_> {
-        let mut next_vals = Vec::with_capacity(streams.len());
-        for _ in 0..streams.len() {
-            next_vals.push(Poll::Pending);
-        }
+        let len = streams.len();
 
         StringMergeStream {
             streams,
-            next_vals,
+            next_vals: vec![Poll::Pending; len],
             drained: false,
         }
     }
@@ -97,26 +94,24 @@ impl Stream for StringMergeStream<'_> {
             return Poll::Ready(None);
         }
 
+        let mut one_pending = false;
+
         for pos in 0..self.next_vals.len() {
             match self.next_vals[pos] {
                 Poll::Pending => {
                     let v = self.streams[pos].as_mut().poll_next(cx);
                     if v.is_pending() {
-                        return Poll::Pending;
-                    }
-
-                    self.next_vals[pos] = v;
-                }
-                Poll::Ready(None) => {
-                    let v = self.streams[pos].as_mut().poll_next(cx);
-                    if v.is_pending() {
-                        return Poll::Pending;
+                        one_pending = true;
                     }
 
                     self.next_vals[pos] = v;
                 }
                 Poll::Ready(_) => (),
             }
+        }
+
+        if one_pending {
+            return Poll::Pending;
         }
 
         let mut next_pos = 0;
@@ -137,18 +132,13 @@ impl Stream for StringMergeStream<'_> {
             }
         }
 
-        match &mut self.next_vals[next_pos] {
-            Poll::Ready(v) => {
-                let next = v.take();
+        let val = mem::replace(&mut self.next_vals[next_pos], Poll::Pending);
 
-                if next.is_none() {
-                    self.drained = true;
-                }
-
-                Poll::Ready(next)
-            }
-            Poll::Pending => Poll::Pending,
+        if let Poll::Ready(None) = val {
+            self.drained = true;
         }
+
+        val
     }
 }
 
@@ -164,14 +154,11 @@ pub struct ReadMergeStream<'a> {
 
 impl ReadMergeStream<'_> {
     fn new(streams: Vec<BoxStream<'_, ReadBatch>>) -> ReadMergeStream<'_> {
-        let mut next_vals = Vec::with_capacity(streams.len());
-        for _ in 0..streams.len() {
-            next_vals.push(Poll::Pending);
-        }
+        let len = streams.len();
 
         ReadMergeStream {
             streams,
-            next_vals,
+            next_vals: vec![Poll::Pending; len],
             drained: false,
         }
     }
@@ -189,11 +176,13 @@ impl Stream for ReadMergeStream<'_> {
         let mut min_time = std::i64::MAX;
         let mut min_pos = 0;
 
+        let mut one_pending = false;
+
         // find the key that we should send next and make sure that things are populated
         for pos in 0..self.next_vals.len() {
             match &self.next_vals[pos] {
                 Poll::Pending => match self.streams[pos].as_mut().poll_next(cx) {
-                    Poll::Pending => return Poll::Pending,
+                    Poll::Pending => one_pending = true,
                     Poll::Ready(Some(batch)) => {
                         match &min_key {
                             Some(k) => {
@@ -255,21 +244,22 @@ impl Stream for ReadMergeStream<'_> {
             }
         }
 
+        if one_pending {
+            return Poll::Pending;
+        }
+
         if min_key.is_none() {
             self.drained = true;
             return Poll::Ready(None);
         }
         let min_key = min_key.unwrap();
 
-        let mut batch = match &mut self.next_vals[min_pos] {
-            Poll::Ready(b) => b.take(),
-            Poll::Pending => Some(ReadBatch {
-                key: min_key.clone(),
-                values: ReadValues::I64(vec![]),
-            }), // shouldn't be possible to hit this
-        }
-        .unwrap();
-        self.next_vals[min_pos] = Poll::Pending;
+        let batch = mem::replace(&mut self.next_vals[min_pos], Poll::Pending);
+
+        let mut batch = match batch {
+            Poll::Ready(Some(b)) => b,
+            _ => unreachable!(),
+        };
 
         let mut sort = false;
 
@@ -292,7 +282,7 @@ impl Stream for ReadMergeStream<'_> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ReadValues {
     I64(Vec<ReadPoint<i64>>),
     F64(Vec<ReadPoint<f64>>),
@@ -310,7 +300,7 @@ impl<T: Eq + PartialEq + Clone> PartialOrd for ReadPoint<T> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ReadBatch {
     pub key: String,
     pub values: ReadValues,
@@ -323,13 +313,13 @@ impl ReadBatch {
                 if vals.is_empty() {
                     return None;
                 }
-                Some((vals[0].time, vals[vals.len() - 1].time))
+                Some((vals.first()?.time, vals.last()?.time))
             }
             ReadValues::F64(vals) => {
                 if vals.is_empty() {
                     return None;
                 }
-                Some((vals[0].time, vals[vals.len() - 1].time))
+                Some((vals.first()?.time, vals.last()?.time))
             }
         }
     }
@@ -350,7 +340,6 @@ impl ReadBatch {
                 match pos {
                     None => {
                         vals.append(other_vals);
-                        other_vals.clear();
                         true
                     }
                     Some(pos) => {

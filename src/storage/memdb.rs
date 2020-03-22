@@ -1,10 +1,9 @@
 use crate::delorean::{Node, Predicate, TimestampRange};
 use crate::line_parser::{ParseError, Point, PointType};
 use crate::storage::predicate::{Evaluate, EvaluateVisitor};
+use crate::storage::{SeriesDataType, StorageError};
+use crate::storage::partitioned_store::{ReadBatch, ReadValues};
 use crate::storage::series_store::ReadPoint;
-use crate::storage::{
-    partitioned_store::ReadBatch, partitioned_store::ReadValues, SeriesDataType, StorageError,
-};
 
 use croaring::Treemap;
 use futures::stream::{self, BoxStream};
@@ -26,7 +25,7 @@ pub struct MemDB {
 
 #[derive(Default)]
 struct SeriesData {
-    current_size: u64,
+    current_size: usize,
     i64_series: HashMap<u64, SeriesBuffer<i64>>,
     f64_series: HashMap<u64, SeriesBuffer<f64>>,
 }
@@ -37,36 +36,15 @@ struct SeriesBuffer<T: Clone> {
 
 impl<T: Clone> SeriesBuffer<T> {
     fn read(&self, range: &TimestampRange) -> Vec<ReadPoint<T>> {
-        let mut start = self.values.len();
-        let mut stop = start;
+        let start = match self.values.iter().position(|val| val.time >= range.start) {
+            Some(pos) => pos,
+            None => return vec![],
+        };
 
-        for (pos, val) in self.values.iter().enumerate() {
-            if val.time >= range.start {
-                start = pos;
-                break;
-            }
-        }
+        let stop = self.values[start..].iter().position(|val| val.time >= range.end);
+        let stop = stop.unwrap_or_else(|| self.values.len());
 
-        for (pos, val) in self.values[start..].iter().enumerate() {
-            if val.time >= range.end {
-                stop = pos;
-                break;
-            }
-        }
-
-        let size = stop - start;
-
-        if size == 0 {
-            return vec![];
-        }
-
-        let mut values = Vec::with_capacity(size);
-
-        for val in self.values[start..stop].iter() {
-            values.push(val.clone());
-        }
-
-        values
+        self.values[start..stop].to_vec()
     }
 }
 
@@ -89,13 +67,12 @@ impl StoreInSeriesData for Point<i64> {
             time: self.time,
             value: self.value,
         };
-        series_data.current_size += std::mem::size_of::<Point<i64>>() as u64;
+        series_data.current_size += std::mem::size_of::<Point<i64>>();
 
         match series_data.i64_series.get_mut(&self.series_id.unwrap()) {
             Some(buff) => buff.values.push(point),
             None => {
-                let mut buff = SeriesBuffer { values: Vec::new() };
-                buff.values.push(point);
+                let buff = SeriesBuffer { values: vec![point] };
                 series_data.i64_series.insert(self.series_id.unwrap(), buff);
             }
         }
@@ -108,13 +85,12 @@ impl StoreInSeriesData for Point<f64> {
             time: self.time,
             value: self.value,
         };
-        series_data.current_size += std::mem::size_of::<Point<f64>>() as u64;
+        series_data.current_size += std::mem::size_of::<Point<f64>>();
 
         match series_data.f64_series.get_mut(&self.series_id.unwrap()) {
             Some(buff) => buff.values.push(point),
             None => {
-                let mut buff = SeriesBuffer { values: Vec::new() };
-                buff.values.push(point);
+                let buff = SeriesBuffer { values: vec![point] };
                 series_data.f64_series.insert(self.series_id.unwrap(), buff);
             }
         }
@@ -123,7 +99,7 @@ impl StoreInSeriesData for Point<f64> {
 
 #[derive(Default)]
 struct SeriesMap {
-    current_size: u64,
+    current_size: usize,
     last_id: u64,
     series_key_to_id: HashMap<String, u64>,
     series_id_to_key_and_type: HashMap<u64, (String, SeriesDataType)>,
@@ -132,6 +108,13 @@ struct SeriesMap {
 }
 
 impl SeriesMap {
+    // SERIES_KEY_COPIES are the number of copies of the key this map contains. This is
+    // used to provide a rough estimate of the memory size.
+    const SERIES_KEY_COPIES: usize = 2;
+    // SERIES_ID_BYTES is the number of bytes the different copies of the series ID in
+    // this map represents. It's used to provide a rough estimate of the memory size.
+    const SERIES_ID_BYTES: usize = 24;
+
     fn insert_series(&mut self, point: &mut PointType) -> Result<(), ParseError> {
         if let Some(id) = self.series_key_to_id.get(point.series()) {
             point.set_series_id(*id);
@@ -151,15 +134,17 @@ impl SeriesMap {
         self.series_id_to_key_and_type
             .insert(self.last_id, (point.series().clone(), series_type));
 
-        // update the estimated size of the map
-        self.current_size += (point.series().len() * 2 + 16) as u64;
+        // update the estimated size of the map. This is a rough estimate based on
+        // having the series key twice (once in  the map to ID and again in the ID
+        // to map. And then adding another 16 bytes for the two IDs
+        self.current_size += point.series().len() * SeriesMap::SERIES_KEY_COPIES + SeriesMap::SERIES_ID_BYTES;
 
         for pair in point.index_pairs()? {
             // insert this id into the posting list
             let list_key = list_key(&pair.key, &pair.value);
 
             // update estimated size for the index pairs
-            self.current_size += (list_key.len() + pair.key.len() + pair.value.len() + 8) as u64;
+            self.current_size += list_key.len() + pair.key.len() + pair.value.len();
 
             let posting_list = self
                 .posting_list
@@ -196,7 +181,7 @@ impl MemDB {
         Default::default()
     }
 
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         self.series_data.current_size + self.series_map.current_size
     }
 
@@ -216,8 +201,8 @@ impl MemDB {
         _range: &TimestampRange,
         _predicate: &Predicate,
     ) -> Result<BoxStream<'_, String>, StorageError> {
-        let keys: Vec<String> = self.series_map.tag_keys.keys().cloned().collect();
-        Ok(stream::iter(keys.into_iter()).boxed())
+        let keys = self.series_map.tag_keys.keys().cloned();
+        Ok(stream::iter(keys).boxed())
     }
 
     fn get_tag_values(
@@ -228,10 +213,10 @@ impl MemDB {
     ) -> Result<BoxStream<'_, String>, StorageError> {
         match self.series_map.tag_keys.get(tag_key) {
             Some(values) => {
-                let values: Vec<String> = values.keys().cloned().collect();
-                Ok(stream::iter(values.into_iter()).boxed())
+                let values = values.keys().cloned();
+                Ok(stream::iter(values).boxed())
             }
-            None => Ok(stream::iter(vec![].into_iter()).boxed()),
+            None => Ok(stream::empty().boxed()),
         }
     }
 
@@ -297,43 +282,41 @@ mod tests {
     use crate::storage::predicate::parse_predicate;
 
     #[test]
-    fn write_and_read() {
-        let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 0);
-        let p2 = PointType::new_i64("cpu,host=a,region=west\tusage_system".to_string(), 1, 0);
-        let p3 = PointType::new_i64("cpu,host=a,region=west\tusage_user".to_string(), 1, 0);
-        let p4 = PointType::new_i64("mem,host=b,region=west\tfree".to_string(), 1, 0);
-        let p5 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 2, 1);
-
-        let mut points = vec![p1, p2, p3, p4, p5];
-
-        let mut memdb = MemDB::new();
-        memdb.write(&mut points).unwrap();
-
-        // check that we've accounted for the size.
-        assert_eq!(memdb.size(), 1000);
-
-        let empty_pred = &Predicate { root: None };
-        let empty_range = TimestampRange { start: 0, end: 0 };
-
-        let tag_keys = memdb.get_tag_keys(&empty_range, &empty_pred).unwrap();
-        let tag_keys: Vec<String> = futures::executor::block_on_stream(tag_keys).collect();
+    fn write_and_read_tag_keys() {
+        let memdb = setup_db();
+        let tag_keys = memdb
+            .get_tag_keys(&TimestampRange { start: 0, end: 0 }, &Predicate{root: None})
+            .unwrap();
+        let tag_keys: Vec<_> = futures::executor::block_on_stream(tag_keys).collect();
 
         assert_eq!(tag_keys, vec!["_f", "_m", "host", "region"]);
 
+    }
+
+    #[test]
+    fn write_and_read_tag_values() {
+        let memdb = setup_db();
         let tag_values = memdb
-            .get_tag_values("host", &empty_range, &empty_pred)
+            .get_tag_values("host", &TimestampRange { start: 0, end: 0 }, &Predicate{root: None})
             .unwrap();
-        let tag_values: Vec<String> = futures::executor::block_on_stream(tag_values).collect();
+        let tag_values: Vec<_> = futures::executor::block_on_stream(tag_values).collect();
         assert_eq!(tag_values, vec!["a", "b"]);
+    }
 
-        // get all series
+    #[test]
+    fn write_and_check_size() {
+        let memdb = setup_db();
+        assert_eq!(memdb.size(), 1000);
+    }
 
-        // get series with measurement = mem
+    #[test]
+    fn write_and_get_measurement_series() {
+        let memdb = setup_db();
         let pred = parse_predicate(r#"_m = "cpu""#).unwrap();
         let batches = memdb
             .read(10, &pred, &TimestampRange { start: 0, end: 5 })
             .unwrap();
-        let batches: Vec<ReadBatch> = futures::executor::block_on_stream(batches).collect();
+        let batches: Vec<_> = futures::executor::block_on_stream(batches).collect();
 
         assert_eq!(
             batches,
@@ -355,13 +338,16 @@ mod tests {
                 },
             ],
         );
+    }
 
-        // get series with host = a
+    #[test]
+    fn write_and_get_tag_match_series() {
+        let memdb = setup_db();
         let pred = parse_predicate(r#"host = "a""#).unwrap();
         let batches = memdb
             .read(10, &pred, &TimestampRange { start: 0, end: 5 })
             .unwrap();
-        let batches: Vec<ReadBatch> = futures::executor::block_on_stream(batches).collect();
+        let batches: Vec<_> = futures::executor::block_on_stream(batches).collect();
         assert_eq!(
             batches,
             vec![
@@ -375,13 +361,16 @@ mod tests {
                 },
             ]
         );
+    }
 
-        // get series with measurement = cpu and host = b
+    #[test]
+    fn write_and_measurement_and_tag_match_series() {
+        let memdb = setup_db();
         let pred = parse_predicate(r#"_m = "cpu" and host = "b""#).unwrap();
         let batches = memdb
             .read(10, &pred, &TimestampRange { start: 0, end: 5 })
             .unwrap();
-        let batches: Vec<ReadBatch> = futures::executor::block_on_stream(batches).collect();
+        let batches: Vec<_> = futures::executor::block_on_stream(batches).collect();
         assert_eq!(
             batches,
             vec![ReadBatch {
@@ -392,12 +381,16 @@ mod tests {
                 ]),
             },]
         );
+    }
 
+    #[test]
+    fn write_and_measurement_or_tag_match() {
+        let memdb = setup_db();
         let pred = parse_predicate(r#"host = "a" OR _m = "mem""#).unwrap();
         let batches = memdb
             .read(10, &pred, &TimestampRange { start: 0, end: 5 })
             .unwrap();
-        let batches: Vec<ReadBatch> = futures::executor::block_on_stream(batches).collect();
+        let batches: Vec<_> = futures::executor::block_on_stream(batches).collect();
         assert_eq!(
             batches,
             vec![
@@ -415,5 +408,19 @@ mod tests {
                 },
             ]
         );
+    }
+
+    fn setup_db() -> MemDB {
+        let p1 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 1, 0);
+        let p2 = PointType::new_i64("cpu,host=a,region=west\tusage_system".to_string(), 1, 0);
+        let p3 = PointType::new_i64("cpu,host=a,region=west\tusage_user".to_string(), 1, 0);
+        let p4 = PointType::new_i64("mem,host=b,region=west\tfree".to_string(), 1, 0);
+        let p5 = PointType::new_i64("cpu,host=b,region=west\tusage_system".to_string(), 2, 1);
+
+        let mut points = vec![p1, p2, p3, p4, p5];
+
+        let mut memdb = MemDB::new();
+        memdb.write(&mut points).unwrap();
+        memdb
     }
 }
