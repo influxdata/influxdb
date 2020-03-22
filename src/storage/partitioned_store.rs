@@ -5,11 +5,11 @@ use crate::line_parser::PointType;
 use crate::storage::series_store::ReadPoint;
 use crate::storage::StorageError;
 
-use std::pin::Pin;
-use std::mem;
-use std::task::{Context, Poll};
-use std::cmp::Ordering;
 use futures::stream::{BoxStream, Stream};
+use std::cmp::Ordering;
+use std::mem;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 /// A Partition is a block of data. It has methods for reading the metadata like which measurements,
 /// tags, tag values, and fields exist. Along with the raw time series data. It is designed to work
@@ -120,13 +120,13 @@ impl Stream for StringMergeStream<'_> {
             if let Poll::Ready(Some(s)) = &self.next_vals[pos] {
                 match &self.next_vals[next_pos] {
                     Poll::Ready(None) => next_pos = pos,
-                    Poll::Ready(Some(next)) => {
-                        match next.cmp(s) {
-                            Ordering::Greater => next_pos = pos,
-                            Ordering::Equal => self.next_vals[pos] = self.streams[pos].as_mut().poll_next(cx),
-                            Ordering::Less => (),
+                    Poll::Ready(Some(next)) => match next.cmp(s) {
+                        Ordering::Greater => next_pos = pos,
+                        Ordering::Equal => {
+                            self.next_vals[pos] = self.streams[pos].as_mut().poll_next(cx)
                         }
-                    }
+                        Ordering::Less => (),
+                    },
                     Poll::Pending => return Poll::Pending,
                 }
             }
@@ -185,24 +185,22 @@ impl Stream for ReadMergeStream<'_> {
                     Poll::Pending => one_pending = true,
                     Poll::Ready(Some(batch)) => {
                         match &min_key {
-                            Some(k) => {
-                                match batch.key.cmp(k) {
-                                    Ordering::Less => {
-                                        min_key = Some(batch.key.clone());
-                                        let (_, min) = batch.start_stop_times().unwrap();
+                            Some(k) => match batch.key.cmp(k) {
+                                Ordering::Less => {
+                                    min_key = Some(batch.key.clone());
+                                    let (_, min) = batch.start_stop_times().unwrap();
+                                    min_pos = pos;
+                                    min_time = min;
+                                }
+                                Ordering::Equal => {
+                                    let (_, min) = batch.start_stop_times().unwrap();
+                                    if min < min_time {
                                         min_pos = pos;
                                         min_time = min;
-                                    },
-                                    Ordering::Equal => {
-                                        let (_, min) = batch.start_stop_times().unwrap();
-                                        if min < min_time {
-                                            min_pos = pos;
-                                            min_time = min;
-                                        }
-                                    },
-                                    Ordering::Greater => (),
+                                    }
                                 }
-                            }
+                                Ordering::Greater => (),
+                            },
                             None => {
                                 min_key = Some(batch.key.clone());
                                 let (_, min) = batch.start_stop_times().unwrap();
@@ -216,24 +214,22 @@ impl Stream for ReadMergeStream<'_> {
                 },
                 Poll::Ready(None) => (),
                 Poll::Ready(Some(batch)) => match &min_key {
-                    Some(k) => {
-                        match batch.key.cmp(k) {
-                            Ordering::Less => {
-                                min_key = Some(batch.key.clone());
-                                let (_, min) = batch.start_stop_times().unwrap();
+                    Some(k) => match batch.key.cmp(k) {
+                        Ordering::Less => {
+                            min_key = Some(batch.key.clone());
+                            let (_, min) = batch.start_stop_times().unwrap();
+                            min_pos = pos;
+                            min_time = min;
+                        }
+                        Ordering::Equal => {
+                            let (_, min) = batch.start_stop_times().unwrap();
+                            if min < min_time {
                                 min_pos = pos;
                                 min_time = min;
-                            },
-                            Ordering::Equal => {
-                                let (_, min) = batch.start_stop_times().unwrap();
-                                if min < min_time {
-                                    min_pos = pos;
-                                    min_time = min;
-                                }
-                            },
-                            Ordering::Greater => (),
+                            }
                         }
-                    }
+                        Ordering::Greater => (),
+                    },
                     None => {
                         min_key = Some(batch.key.clone());
                         let (_, min) = batch.start_stop_times().unwrap();

@@ -1,9 +1,9 @@
 use crate::delorean::{Node, Predicate, TimestampRange};
 use crate::line_parser::{ParseError, Point, PointType};
-use crate::storage::predicate::{Evaluate, EvaluateVisitor};
-use crate::storage::{SeriesDataType, StorageError};
 use crate::storage::partitioned_store::{ReadBatch, ReadValues};
+use crate::storage::predicate::{Evaluate, EvaluateVisitor};
 use crate::storage::series_store::ReadPoint;
+use crate::storage::{SeriesDataType, StorageError};
 
 use croaring::Treemap;
 use futures::stream::{self, BoxStream};
@@ -41,7 +41,9 @@ impl<T: Clone> SeriesBuffer<T> {
             None => return vec![],
         };
 
-        let stop = self.values[start..].iter().position(|val| val.time >= range.end);
+        let stop = self.values[start..]
+            .iter()
+            .position(|val| val.time >= range.end);
         let stop = stop.unwrap_or_else(|| self.values.len());
 
         self.values[start..stop].to_vec()
@@ -72,7 +74,9 @@ impl StoreInSeriesData for Point<i64> {
         match series_data.i64_series.get_mut(&self.series_id.unwrap()) {
             Some(buff) => buff.values.push(point),
             None => {
-                let buff = SeriesBuffer { values: vec![point] };
+                let buff = SeriesBuffer {
+                    values: vec![point],
+                };
                 series_data.i64_series.insert(self.series_id.unwrap(), buff);
             }
         }
@@ -90,7 +94,9 @@ impl StoreInSeriesData for Point<f64> {
         match series_data.f64_series.get_mut(&self.series_id.unwrap()) {
             Some(buff) => buff.values.push(point),
             None => {
-                let buff = SeriesBuffer { values: vec![point] };
+                let buff = SeriesBuffer {
+                    values: vec![point],
+                };
                 series_data.f64_series.insert(self.series_id.unwrap(), buff);
             }
         }
@@ -137,7 +143,8 @@ impl SeriesMap {
         // update the estimated size of the map. This is a rough estimate based on
         // having the series key twice (once in  the map to ID and again in the ID
         // to map. And then adding another 16 bytes for the two IDs
-        self.current_size += point.series().len() * SeriesMap::SERIES_KEY_COPIES + SeriesMap::SERIES_ID_BYTES;
+        self.current_size +=
+            point.series().len() * SeriesMap::SERIES_KEY_COPIES + SeriesMap::SERIES_ID_BYTES;
 
         for pair in point.index_pairs()? {
             // insert this id into the posting list
@@ -285,19 +292,25 @@ mod tests {
     fn write_and_read_tag_keys() {
         let memdb = setup_db();
         let tag_keys = memdb
-            .get_tag_keys(&TimestampRange { start: 0, end: 0 }, &Predicate{root: None})
+            .get_tag_keys(
+                &TimestampRange { start: 0, end: 0 },
+                &Predicate { root: None },
+            )
             .unwrap();
         let tag_keys: Vec<_> = futures::executor::block_on_stream(tag_keys).collect();
 
         assert_eq!(tag_keys, vec!["_f", "_m", "host", "region"]);
-
     }
 
     #[test]
     fn write_and_read_tag_values() {
         let memdb = setup_db();
         let tag_values = memdb
-            .get_tag_values("host", &TimestampRange { start: 0, end: 0 }, &Predicate{root: None})
+            .get_tag_values(
+                "host",
+                &TimestampRange { start: 0, end: 0 },
+                &Predicate { root: None },
+            )
             .unwrap();
         let tag_values: Vec<_> = futures::executor::block_on_stream(tag_values).collect();
         assert_eq!(tag_values, vec!["a", "b"]);
@@ -306,7 +319,7 @@ mod tests {
     #[test]
     fn write_and_check_size() {
         let memdb = setup_db();
-        assert_eq!(memdb.size(), 1000);
+        assert_eq!(memdb.size(), 904);
     }
 
     #[test]
