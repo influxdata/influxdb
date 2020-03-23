@@ -84,6 +84,8 @@ func Test_toTypedValue(t *testing.T) {
 		{"base64Binary", "YWFh", []byte("aaa")},
 		{"dateTime:RFC3339", "1970-01-01T00:00:00Z", epochTime},
 		{"dateTime:RFC3339Nano", "1970-01-01T00:00:00.0Z", epochTime},
+		{"dateTime:RFC3339", "1970-01-01T00:00:00.000000001Z", epochTime.Add(time.Duration(1))},
+		{"dateTime:RFC3339Nano", "1970-01-01T00:00:00.000000002Z", epochTime.Add(time.Duration(2))},
 		{"u.type", "", nil},
 	}
 
