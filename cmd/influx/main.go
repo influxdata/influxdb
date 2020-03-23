@@ -306,6 +306,10 @@ func writeConfigToPath(tok, org, path, dir string) error {
 }
 
 func checkSetup(host string, skipVerify bool) error {
+	if host == "-" {
+		// dry run executed
+		return nil
+	}
 	s := &http.SetupService{
 		Addr:               host,
 		InsecureSkipVerify: skipVerify,
