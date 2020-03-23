@@ -17,7 +17,7 @@ import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 import {CLOUD_URL, CLOUD_CHECKOUT_PATH} from 'src/shared/constants'
 
 const CloudUpgradeNavBanner: FC = () => (
-  // <CloudOnly>
+  <CloudOnly>
   <Panel gradient={Gradients.HotelBreakfast} className="cloud-upgrade-banner">
     <Panel.Header size={ComponentSize.ExtraSmall} justifyContent={JustifyContent.Center}>
         <Heading element={HeadingElement.H5}>Need more wiggle room?</Heading>
@@ -31,7 +31,7 @@ const CloudUpgradeNavBanner: FC = () => (
         </Link>
       </Panel.Footer>
     </Panel>
-  // </CloudOnly>
+  </CloudOnly>
 )
 
 export default CloudUpgradeNavBanner
