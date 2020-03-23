@@ -10,6 +10,7 @@ import EndpointsColumn from 'src/notifications/endpoints/components/EndpointsCol
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import GetResources from 'src/resources/components/GetResources'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -37,6 +38,7 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
       <Page titleTag={pageTitleSuffixer(['Alerts'])}>
         <Page.Header fullWidth={false}>
           <Page.Title title="Alerts" />
+          <CloudUpgradeButton />
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={false}>
           <GetResources resources={[ResourceType.Labels]}>

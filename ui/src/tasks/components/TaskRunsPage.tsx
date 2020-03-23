@@ -6,6 +6,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {Page, IconFont, Sort} from '@influxdata/clockface'
 import TaskRunsList from 'src/tasks/components/TaskRunsList'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Types
 import {AppState, RemoteDataState, Task, Run} from 'src/types'
@@ -72,6 +73,7 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
         <Page titleTag={pageTitleSuffixer(['Task Runs'])}>
           <Page.Header fullWidth={false}>
             <Page.Title title={this.title} />
+            <CloudUpgradeButton />
           </Page.Header>
           <Page.ControlBar fullWidth={false}>
             <Page.ControlBarLeft>
