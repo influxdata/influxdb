@@ -395,6 +395,7 @@ func (c *Controller) executeQuery(q *Query) {
 			err, ok := e.(error)
 			if !ok {
 				err = fmt.Errorf("panic: %v", e)
+				c.log.Error(err.Error(), zap.Error(err))
 			}
 			q.setErr(err)
 			if entry := c.log.With(influxlogger.TraceFields(q.parentCtx)...).
