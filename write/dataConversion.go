@@ -12,22 +12,23 @@ import (
 
 // see https://v2.docs.influxdata.com/v2.0/reference/syntax/annotated-csv/#valid-data-types
 const (
-	stringDatatype       = "string"
-	doubleDatatype       = "double"
-	boolDatatype         = "boolean"
-	longDatatype         = "long"
-	uLongDatatype        = "unsignedLong"
-	durationDatatype     = "duration"
-	base64BinaryDataType = "base64Binary"
-	timeDatatypeRFC      = "dateTime:RFC3339"
-	timeDatatypeRFCNano  = "dateTime:RFC3339Nano"
-	timestamp            = "timestamp" //the same as long, but not serialized with i suffix
+	stringDatatype              = "string"
+	doubleDatatype              = "double"
+	boolDatatype                = "boolean"
+	longDatatype                = "long"
+	uLongDatatype               = "unsignedLong"
+	durationDatatype            = "duration"
+	base64BinaryDataType        = "base64Binary"
+	dateTimeDatatype            = "dateTime"
+	dateTimeDatatypeRFC3339     = "dateTime:RFC3339"
+	dateTimeDatatypeRFC3339Nano = "dateTime:RFC3339Nano"
+	timestampDatatype           = "timestamp" //the same as long, but not serialized with i suffix
 )
 
 var supportedDataTypes map[string]struct{}
 
 func init() {
-	supportedDataTypes = make(map[string]struct{}, 11)
+	supportedDataTypes = make(map[string]struct{}, 12)
 	supportedDataTypes[stringDatatype] = struct{}{}
 	supportedDataTypes[doubleDatatype] = struct{}{}
 	supportedDataTypes[boolDatatype] = struct{}{}
@@ -35,9 +36,10 @@ func init() {
 	supportedDataTypes[uLongDatatype] = struct{}{}
 	supportedDataTypes[durationDatatype] = struct{}{}
 	supportedDataTypes[base64BinaryDataType] = struct{}{}
-	supportedDataTypes[timeDatatypeRFC] = struct{}{}
-	supportedDataTypes[timeDatatypeRFCNano] = struct{}{}
-	supportedDataTypes[timestamp] = struct{}{}
+	supportedDataTypes[dateTimeDatatype] = struct{}{}
+	supportedDataTypes[dateTimeDatatypeRFC3339] = struct{}{}
+	supportedDataTypes[dateTimeDatatypeRFC3339Nano] = struct{}{}
+	supportedDataTypes[timestampDatatype] = struct{}{}
 	supportedDataTypes[""] = struct{}{}
 }
 
@@ -80,11 +82,13 @@ func toTypedValue(val string, dataType string) (interface{}, error) {
 	switch dataType {
 	case stringDatatype:
 		return val, nil
-	case timeDatatypeRFC:
+	case dateTimeDatatype:
 		return time.Parse(time.RFC3339, val)
-	case timeDatatypeRFCNano:
+	case dateTimeDatatypeRFC3339:
+		return time.Parse(time.RFC3339, val)
+	case dateTimeDatatypeRFC3339Nano:
 		return time.Parse(time.RFC3339Nano, val)
-	case timestamp:
+	case timestampDatatype:
 		t, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
 			return nil, err
