@@ -228,6 +228,11 @@ func TestCsvData(t *testing.T) {
 				`"cpu, ","""",\,a,b,c`,
 			`cpu\,\  s1="\"",s2="\\",a\,=a,b\ =b,c\==c`,
 		},
+		{
+			"default_values",
+			"#default cpu,0,1\n_measurement,col1,_time\n,,",
+			"cpu col1=0 1",
+		},
 	}
 
 	for _, test := range tests {
@@ -283,6 +288,10 @@ func TestCsvData_dataErrors(t *testing.T) {
 		{
 			"error_unsupportedFieldValueDataType",
 			"#datatype ,,whatever\n_measurement,_field,_value\na,1,2",
+		},
+		{
+			"error_no_measurement_data",
+			"_measurement,col1\n,2",
 		},
 	}
 

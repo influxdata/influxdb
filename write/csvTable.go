@@ -277,20 +277,25 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 	if t.cachedMeasurement == nil {
 		return buffer, errors.New("no measurement column found")
 	}
-	buffer = append(buffer, escapeMeasurement(row[t.cachedMeasurement.Index])...)
+	measurement := orDefault(row[t.cachedMeasurement.Index], t.cachedMeasurement.DefaultValue)
+	if measurement == "" {
+		return buffer, errors.New("no measurement supplied")
+	}
+	buffer = append(buffer, escapeMeasurement(measurement)...)
 	for _, tag := range t.cachedTags {
+		value := orDefault(row[tag.Index], tag.DefaultValue)
 		if tag.Index < len(row) && len(row[tag.Index]) > 0 {
 			buffer = append(buffer, ',')
 			buffer = append(buffer, tag.LineLabel()...)
 			buffer = append(buffer, '=')
-			buffer = append(buffer, escapeTag(row[tag.Index])...)
+			buffer = append(buffer, escapeTag(value)...)
 		}
 	}
 	buffer = append(buffer, ' ')
 	fieldAdded := false
 	if t.cachedFieldName != nil && t.cachedFieldValue != nil {
-		field := row[t.cachedFieldName.Index]
-		value := row[t.cachedFieldValue.Index]
+		field := orDefault(row[t.cachedFieldName.Index], t.cachedFieldName.DefaultValue)
+		value := orDefault(row[t.cachedFieldValue.Index], t.cachedFieldValue.DefaultValue)
 		if len(value) > 0 && len(field) > 0 {
 			buffer = append(buffer, escapeTag(field)...)
 			buffer = append(buffer, '=')
@@ -307,7 +312,7 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 	}
 	for _, field := range t.cachedFields {
 		if field.Index < len(row) {
-			value := row[field.Index]
+			value := orDefault(row[field.Index], field.DefaultValue)
 			if len(value) > 0 {
 				if !fieldAdded {
 					fieldAdded = true
@@ -332,7 +337,7 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 	}
 
 	if t.cachedTime != nil && t.cachedTime.Index < len(row) {
-		timeVal := row[t.cachedTime.Index]
+		timeVal := orDefault(row[t.cachedTime.Index], t.cachedTime.DefaultValue)
 		if len(timeVal) > 0 {
 			var dataType = t.cachedTime.DataType
 			if len(dataType) == 0 {
@@ -357,6 +362,13 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 		}
 	}
 	return buffer, nil
+}
+
+func orDefault(val string, defaultValue string) string {
+	if len(val) > 0 {
+		return val
+	}
+	return defaultValue
 }
 
 // Column returns the first column of the supplied label or nil
