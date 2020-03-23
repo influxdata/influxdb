@@ -63,8 +63,6 @@ func (cmd *Command) Run(args ...string) error {
 }
 
 func (cmd *Command) dump() error {
-	var errors []error
-
 	f, err := os.Open(cmd.path)
 	if err != nil {
 		return err
@@ -249,15 +247,6 @@ func (cmd *Command) dump() error {
 	fmt.Printf("    Per block: %0.2f bytes/point\n", float64(blockSize)/float64(pointCount))
 	fmt.Printf("    Total: %0.2f bytes/point\n", float64(stat.Size())/float64(pointCount))
 
-	if len(errors) > 0 {
-		println()
-		fmt.Printf("Errors (%d):\n", len(errors))
-		for _, err := range errors {
-			fmt.Printf("  * %v\n", err)
-		}
-		println()
-		return fmt.Errorf("error count %d", len(errors))
-	}
 	return nil
 }
 
