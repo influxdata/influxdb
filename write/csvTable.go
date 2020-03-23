@@ -189,6 +189,9 @@ func (t *CsvTable) AddRow(row []string) bool {
 			return false
 		}
 	}
+	if !strings.HasPrefix(row[0], "# ") {
+		log.Println("WARNING: unsupported annotation: ", row[0])
+	}
 	// comment row
 	return false
 }
@@ -279,7 +282,10 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 	}
 	measurement := orDefault(row[t.cachedMeasurement.Index], t.cachedMeasurement.DefaultValue)
 	if measurement == "" {
-		return buffer, errors.New("no measurement supplied")
+		return buffer, CsvColumnError{
+			t.cachedMeasurement.Label,
+			errors.New("no measurement supplied"),
+		}
 	}
 	buffer = append(buffer, escapeMeasurement(measurement)...)
 	for _, tag := range t.cachedTags {
