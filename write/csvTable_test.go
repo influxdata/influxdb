@@ -290,13 +290,11 @@ func TestCsvData_dataErrors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			rows := readCsv(t, test.csv)
 			table := CsvTable{}
-			var lines []string
 			var errors []error
 			for _, row := range rows {
 				rowProcessed := table.AddRow(row)
 				if rowProcessed {
-					line, err := table.CreateLine(row)
-					lines = append(lines, line)
+					_, err := table.CreateLine(row)
 					if err != nil {
 						errors = append(errors, err)
 					}

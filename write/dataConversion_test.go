@@ -47,20 +47,20 @@ func Test_escapeTag(t *testing.T) {
 	}
 }
 
-// Test_quoteValue
-func Test_quoteValue(t *testing.T) {
+// Test_escapeString
+func Test_escapeString(t *testing.T) {
 	var tests = []struct {
 		value  string
 		expect string
 	}{
-		{"a", `"a"`}, {"", `""`},
-		{`a"`, `"a\""`},
-		{`a\`, `"a\\"`},
+		{"a", `a`}, {"", ``},
+		{`a"`, `a\"`},
+		{`a\`, `a\\`},
 	}
 
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			require.Equal(t, test.expect, quoteValue(test.value))
+			require.Equal(t, test.expect, escapeString(test.value))
 		})
 	}
 }

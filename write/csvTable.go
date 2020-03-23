@@ -213,7 +213,6 @@ func (t *CsvTable) recomputeIndexes() {
 		col := t.columns[i]
 		switch {
 		case len(strings.TrimSpace(col.Label)) == 0 || col.LinePart == linePartIgnored:
-			break
 		case col.Label == labelMeasurement || col.LinePart == linePartMeasurement:
 			t.cachedMeasurement = &col
 		case col.Label == labelTime || col.LinePart == linePartTime:
@@ -223,7 +222,6 @@ func (t *CsvTable) recomputeIndexes() {
 		case col.Label == labelFieldValue:
 			t.cachedFieldValue = &col
 		case col.Label[0] == '_':
-			break
 		case col.LinePart == linePartTag:
 			col.escapedLabel = escapeTag(col.Label)
 			t.cachedTags = append(t.cachedTags, col)
@@ -339,9 +337,9 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 			var dataType = t.cachedTime.DataType
 			if len(dataType) == 0 {
 				//try to detect data type
-				if strings.Index(timeVal, ".") >= 0 {
+				if strings.Contains(timeVal, ".") {
 					dataType = "dateTime:RFC3339Nano"
-				} else if strings.Index(timeVal, "-") >= 0 {
+				} else if strings.Contains(timeVal, "-") {
 					dataType = "dateTime:RFC3339"
 				} else {
 					dataType = "timestamp"

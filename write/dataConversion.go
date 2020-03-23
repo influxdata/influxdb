@@ -67,9 +67,6 @@ func escapeTag(val string) string {
 	}
 	return val
 }
-func quoteValue(val string) string {
-	return "\"" + escapeString(val) + "\""
-}
 func escapeString(val string) string {
 	for i := 0; i < len(val); i++ {
 		if val[i] == '"' || val[i] == '\\' {
