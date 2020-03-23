@@ -15,12 +15,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	inputFormatCsv          = "csv"
+	inputFormatLineProtocol = "lp"
+)
+
 var writeFlags struct {
 	OrgID     string
 	Org       string
 	BucketID  string
 	Bucket    string
 	Precision string
+	Format    string
 }
 
 func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
@@ -66,6 +72,12 @@ or add an entire file specified with an @ prefix.`
 			Desc:       "Precision of the timestamps of the lines",
 			Persistent: true,
 		},
+		{
+			DestP:      &writeFlags.Format,
+			Flag:       "format",
+			Desc:       "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension",
+			Persistent: true,
+		},
 	}
 	opts.mustRegister(cmd)
 
@@ -75,60 +87,64 @@ or add an entire file specified with an @ prefix.`
 func fluxWriteF(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	if writeFlags.Org != "" && writeFlags.OrgID != "" {
-		return fmt.Errorf("please specify one of org or org-id")
-	}
+	var bucketID, orgID platform.ID
+	// validate flags unless writing to stdout
+	if flags.Host != "-" {
+		if writeFlags.Org != "" && writeFlags.OrgID != "" {
+			return fmt.Errorf("please specify one of org or org-id")
+		}
 
-	if writeFlags.Bucket != "" && writeFlags.BucketID != "" {
-		return fmt.Errorf("please specify one of bucket or bucket-id")
-	}
+		if writeFlags.Bucket != "" && writeFlags.BucketID != "" {
+			return fmt.Errorf("please specify one of bucket or bucket-id")
+		}
 
-	if !models.ValidPrecision(writeFlags.Precision) {
-		return fmt.Errorf("invalid precision")
-	}
+		if !models.ValidPrecision(writeFlags.Precision) {
+			return fmt.Errorf("invalid precision")
+		}
 
-	bs, err := newBucketService()
-	if err != nil {
-		return err
-	}
-
-	var filter platform.BucketFilter
-	if writeFlags.BucketID != "" {
-		filter.ID, err = platform.IDFromString(writeFlags.BucketID)
+		bs, err := newBucketService()
 		if err != nil {
-			return fmt.Errorf("failed to decode bucket-id: %v", err)
-		}
-	}
-	if writeFlags.Bucket != "" {
-		filter.Name = &writeFlags.Bucket
-	}
-
-	if writeFlags.OrgID != "" {
-		filter.OrganizationID, err = platform.IDFromString(writeFlags.OrgID)
-		if err != nil {
-			return fmt.Errorf("failed to decode org-id id: %v", err)
-		}
-	}
-	if writeFlags.Org != "" {
-		filter.Org = &writeFlags.Org
-	}
-
-	buckets, n, err := bs.FindBuckets(ctx, filter)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve buckets: %v", err)
-	}
-
-	if n == 0 {
-		if writeFlags.Bucket != "" {
-			return fmt.Errorf("bucket %q was not found", writeFlags.Bucket)
+			return err
 		}
 
+		var filter platform.BucketFilter
 		if writeFlags.BucketID != "" {
-			return fmt.Errorf("bucket with id %q does not exist", writeFlags.BucketID)
+			filter.ID, err = platform.IDFromString(writeFlags.BucketID)
+			if err != nil {
+				return fmt.Errorf("failed to decode bucket-id: %v", err)
+			}
 		}
-	}
+		if writeFlags.Bucket != "" {
+			filter.Name = &writeFlags.Bucket
+		}
 
-	bucketID, orgID := buckets[0].ID, buckets[0].OrgID
+		if writeFlags.OrgID != "" {
+			filter.OrganizationID, err = platform.IDFromString(writeFlags.OrgID)
+			if err != nil {
+				return fmt.Errorf("failed to decode org-id id: %v", err)
+			}
+		}
+		if writeFlags.Org != "" {
+			filter.Org = &writeFlags.Org
+		}
+
+		buckets, n, err := bs.FindBuckets(ctx, filter)
+		if err != nil {
+			return fmt.Errorf("failed to retrieve buckets: %v", err)
+		}
+
+		if n == 0 {
+			if writeFlags.Bucket != "" {
+				return fmt.Errorf("bucket %q was not found", writeFlags.Bucket)
+			}
+
+			if writeFlags.BucketID != "" {
+				return fmt.Errorf("bucket with id %q does not exist", writeFlags.BucketID)
+			}
+		}
+
+		bucketID, orgID = buckets[0].ID, buckets[0].OrgID
+	}
 
 	var r io.Reader
 	if args[0] == "-" {
@@ -140,22 +156,41 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 		}
 		defer f.Close()
 		r = f
+		if len(writeFlags.Format) == 0 && strings.HasSuffix(args[0], ".csv") {
+			writeFlags.Format = inputFormatCsv
+		}
 	} else {
 		r = strings.NewReader(args[0])
 	}
-
-	s := write.Batcher{
-		Service: &http.WriteService{
-			Addr:               flags.Host,
-			Token:              flags.Token,
-			Precision:          writeFlags.Precision,
-			InsecureSkipVerify: flags.skipVerify,
-		},
+	// validate input format
+	if len(writeFlags.Format) > 0 && writeFlags.Format != inputFormatLineProtocol && writeFlags.Format != inputFormatCsv {
+		return fmt.Errorf("unsupported input format: %s", writeFlags.Format)
 	}
 
-	ctx = signals.WithStandardSignals(ctx)
-	if err := s.Write(ctx, orgID, bucketID, r); err != nil && err != context.Canceled {
-		return fmt.Errorf("failed to write data: %v", err)
+	if writeFlags.Format == inputFormatCsv {
+		r = write.CsvToProtocolLines(r)
+	}
+
+	if flags.Host == "-" {
+		// write lines to tdout
+		_, err := io.Copy(os.Stdout, r)
+		if err != nil {
+			return fmt.Errorf("failed: %v", err)
+		}
+	} else {
+		s := write.Batcher{
+			Service: &http.WriteService{
+				Addr:               flags.Host,
+				Token:              flags.Token,
+				Precision:          writeFlags.Precision,
+				InsecureSkipVerify: flags.skipVerify,
+			},
+		}
+
+		ctx = signals.WithStandardSignals(ctx)
+		if err := s.Write(ctx, orgID, bucketID, r); err != nil && err != context.Canceled {
+			return fmt.Errorf("failed to write data: %v", err)
+		}
 	}
 
 	return nil
