@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -160,9 +161,14 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 	inspectCalls := stdlib.TestingInspectCalls(pkg)
 	pkg.Files = append(pkg.Files, inspectCalls)
 
+	bs, err := json.Marshal(pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	req := &query.Request{
 		OrganizationID: l.Org.ID,
-		Compiler:       lang.ASTCompiler{AST: pkg},
+		Compiler:       lang.ASTCompiler{AST: bs},
 	}
 	if r, err := l.FluxQueryService().Query(ctx, req); err != nil {
 		t.Fatal(err)

@@ -122,7 +122,7 @@ func TestPipeline_QueryMemoryLimits(t *testing.T) {
 
 	// compile a from query and get the spec
 	qs := fmt.Sprintf(`from(bucket:"%s") |> range(start:-5m)`, l.Bucket.Name)
-	pkg, err := runtime.Parse(qs)
+	pkg, err := runtime.ParseToJSON(qs)
 	if err != nil {
 		t.Fatal(err)
 	}

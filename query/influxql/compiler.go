@@ -2,6 +2,7 @@ package influxql
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/influxdata/flux"
@@ -64,7 +65,15 @@ func (c *Compiler) Compile(ctx context.Context, runtime flux.Runtime) (flux.Prog
 		return nil, err
 	}
 	compileOptions := lang.WithLogPlanOpts(c.logicalPlannerOptions...)
-	return lang.CompileAST(astPkg, runtime, now, compileOptions), nil
+	bs, err := json.Marshal(astPkg)
+	if err != nil {
+		return nil, err
+	}
+	hdl, err := runtime.JSONToHandle(bs)
+	if err != nil {
+		return nil, err
+	}
+	return lang.CompileAST(hdl, runtime, now, compileOptions), nil
 }
 
 func (c *Compiler) CompilerType() flux.CompilerType {

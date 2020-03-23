@@ -32,7 +32,7 @@ type fakeQueryService struct {
 var _ query.AsyncQueryService = (*fakeQueryService)(nil)
 
 func makeAST(q string) lang.ASTCompiler {
-	pkg, err := runtime.Parse(q)
+	pkg, err := runtime.ParseToJSON(q)
 	if err != nil {
 		panic(err)
 	}
