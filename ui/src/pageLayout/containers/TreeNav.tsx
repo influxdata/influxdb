@@ -8,6 +8,7 @@ import {get} from 'lodash'
 import {Icon, TreeNav} from '@influxdata/clockface'
 import UserWidget from 'src/pageLayout/components/UserWidget'
 import NavHeader from 'src/pageLayout/components/NavHeader'
+import CloudUpgradeNavBanner from 'src/shared/components/CloudUpgradeNavBanner'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
@@ -81,6 +82,7 @@ class SideNav extends PureComponent<Props, State> {
         headerElement={<NavHeader link={orgPrefix} />}
         userElement={<UserWidget />}
         onToggleClick={handleToggleNavExpansion}
+        bannerElement={<CloudUpgradeNavBanner />}
       >
         {navItems.map(item => {
           let navItemElement = (
