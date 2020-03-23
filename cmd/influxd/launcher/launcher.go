@@ -867,12 +867,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgerLogger := m.log.With(zap.String("service", "pkger"))
 		pkgSVC = pkger.NewService(
 			pkger.WithLogger(pkgerLogger),
+			pkger.WithStore(pkger.NewStoreKV(m.kvStore)),
 			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService, b.UserResourceMappingService)),
 			pkger.WithCheckSVC(authorizer.NewCheckService(b.CheckService, authedURMSVC, authedOrgSVC)),
 			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
 			pkger.WithLabelSVC(authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService)),
 			pkger.WithNotificationEndpointSVC(authorizer.NewNotificationEndpointService(b.NotificationEndpointService, authedURMSVC, authedOrgSVC)),
 			pkger.WithNotificationRuleSVC(authorizer.NewNotificationRuleStore(b.NotificationRuleStore, authedURMSVC, authedOrgSVC)),
+			pkger.WithOrganizationService(authorizer.NewOrgService(b.OrganizationService)),
 			pkger.WithSecretSVC(authorizer.NewSecretService(b.SecretService)),
 			pkger.WithTaskSVC(authorizer.NewTaskService(pkgerLogger, b.TaskService)),
 			pkger.WithTelegrafSVC(authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)),
