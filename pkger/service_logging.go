@@ -43,7 +43,7 @@ func (s *loggingMW) InitStack(ctx context.Context, userID influxdb.ID, newStack 
 			return
 		}
 	}(time.Now())
-	return s.next.InitStack(ctx, userID, stack)
+	return s.next.InitStack(ctx, userID, newStack)
 }
 
 func (s *loggingMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (pkg *Pkg, err error) {

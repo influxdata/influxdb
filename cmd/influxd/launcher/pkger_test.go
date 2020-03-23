@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
@@ -22,6 +23,28 @@ func TestLauncher_Pkger(t *testing.T) {
 	defer l.ShutdownOrFail(t, ctx)
 
 	svc := l.PkgerService(t)
+
+	t.Run("creating a stack", func(t *testing.T) {
+		expectedURLs := []url.URL{newURL(t, "http://example.com")}
+
+		fmt.Println("org init id: ", l.Org.ID)
+
+		newStack, err := svc.InitStack(timedCtx(5*time.Second), l.User.ID, pkger.Stack{
+			OrgID: l.Org.ID,
+			Name:  "first stack",
+			Desc:  "desc",
+			URLs:  expectedURLs,
+		})
+		require.NoError(t, err)
+
+		assert.NotZero(t, newStack.ID)
+		assert.Equal(t, l.Org.ID, newStack.OrgID)
+		assert.Equal(t, "first stack", newStack.Name)
+		assert.Equal(t, "desc", newStack.Desc)
+		assert.Equal(t, expectedURLs, newStack.URLs)
+		assert.NotNil(t, newStack.Resources)
+		assert.NotZero(t, newStack.CRUDLog)
+	})
 
 	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {
 		svc := pkger.NewService(
@@ -1266,4 +1289,12 @@ func (f *fakeLabelSVC) CreateLabelMapping(ctx context.Context, m *influxdb.Label
 		return errors.New("reached kill count")
 	}
 	return f.LabelService.CreateLabelMapping(ctx, m)
+}
+
+func newURL(t *testing.T, rawurl string) url.URL {
+	t.Helper()
+
+	u, err := url.Parse(rawurl)
+	require.NoError(t, err)
+	return *u
 }
