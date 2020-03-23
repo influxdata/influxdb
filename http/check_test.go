@@ -409,7 +409,46 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body:        "{\"flux\":\"package main\\nimport \\\"influxdata/influxdb/monitor\\\"\\nimport \\\"influxdata/influxdb/v1\\\"\\n\\ndata = from(bucket: \\\"foo\\\")\\n\\t|\\u003e range(start: -1h)\\n\\t|\\u003e filter(fn: (r) =\\u003e\\n\\t\\t(r._field == \\\"usage_idle\\\"))\\n\\t|\\u003e aggregateWindow(every: 1h, fn: mean, createEmpty: false)\\n\\noption task = {name: \\\"hello\\\", every: 1h}\\n\\ncheck = {\\n\\t_check_id: \\\"020f755c3c082000\\\",\\n\\t_check_name: \\\"hello\\\",\\n\\t_type: \\\"threshold\\\",\\n\\ttags: {aaa: \\\"vaaa\\\", bbb: \\\"vbbb\\\"},\\n}\\nok = (r) =\\u003e\\n\\t(r.usage_idle \\u003e 10.0)\\ninfo = (r) =\\u003e\\n\\t(r.usage_idle \\u003c 40.0)\\nwarn = (r) =\\u003e\\n\\t(r.usage_idle \\u003c 40.0 and r.usage_idle \\u003e 10.0)\\ncrit = (r) =\\u003e\\n\\t(r.usage_idle \\u003c 40.0 and r.usage_idle \\u003e 10.0)\\nmessageFn = (r) =\\u003e\\n\\t(\\\"whoa! {check.yeah}\\\")\\n\\ndata\\n\\t|\\u003e v1.fieldsAsCols()\\n\\t|\\u003e monitor.check(\\n\\t\\tdata: check,\\n\\t\\tmessageFn: messageFn,\\n\\t\\tok: ok,\\n\\t\\tinfo: info,\\n\\t\\twarn: warn,\\n\\t\\tcrit: crit,\\n\\t)\"}",
+				body: `{
+					"flux": "package main
+					import "influxdata/influxdb/monitor"
+					import "influxdata/influxdb/v1"
+
+					data = from(bucket: "foo")
+						|> range(start: -1h)
+						|> filter(fn: (r) =>
+							(r._field == "usage_idle"))
+						|> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+
+					option task = {name: "hello", every: 1h}
+
+					check = {
+						_check_id: "020f755c3c082000",
+						_check_name: "hello",
+						_type: "threshold",
+						tags: {aaa: "vaaa", bbb: "vbbb"},
+					}
+					ok = (r) =>
+						(r["usage_idle"] > 10.0)
+					info = (r) =>
+						(r["usage_idle"] < 40.0)
+					warn = (r) =>
+						(r["usage_idle"] < 40.0 and r["usage_idle"] > 10.0)
+					crit = (r) =>
+						(r["usage_idle"] < 40.0 and r["usage_idle"] > 10.0)
+					messageFn = (r) =>
+						("whoa! {check.yeah}")
+
+					data
+						|> v1["fieldsAsCols"]()
+						|> monitor["check"](
+							data: check,
+							messageFn: messageFn,
+							ok: ok,
+							info: info,
+							warn: warn,
+							crit: crit,
+						)`,
 			},
 		},
 	}
