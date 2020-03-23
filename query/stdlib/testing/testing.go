@@ -90,7 +90,6 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"to_uint": "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
 
 		"holt_winters_panic": "Expected output is an empty table which breaks the testing framework (https://github.com/influxdata/influxdb/issues/14749)",
-		"fill_previous":      "algo-w: https://github.com/influxdata/influxdb/issues/17065",
 	},
 	"experimental": {
 		"set": "Reason TBD",
