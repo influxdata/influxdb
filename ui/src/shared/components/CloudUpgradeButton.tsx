@@ -14,7 +14,7 @@ const CloudUpgradeButton: FC = () => {
     <CloudOnly>
       <FeatureFlag name="treeNav">
         <Link
-          className="cf-button cf-button-sm cf-button-success"
+          className="cf-button cf-button-sm cf-button-success upgrade-payg--button"
           to={`${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`}
         >
           Upgrade Now
