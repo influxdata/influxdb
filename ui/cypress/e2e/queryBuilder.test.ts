@@ -64,9 +64,8 @@ describe('The Query Builder', () => {
       cy.get('.notification-close').click()
       cy.wait(250)
 
-      // This is a fragile way to select the dashboards item in the navbar
-      // Once https://github.com/influxdata/clockface/issues/458 is fixed
-      // we should circle back and refactor this
+      // force a click on the hidden dashboard nav item (cypress can't do the hover)
+      // i assure you i spent a nonzero amount of time trying to do this the way a user would
       cy.getByTestID('nav-menu_dashboard').click({force: true})
 
       cy.contains('Basic Ole Dashboard').click()
