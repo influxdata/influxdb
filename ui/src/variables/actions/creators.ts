@@ -24,7 +24,6 @@ export type Action =
   | ReturnType<typeof removeVariable>
   | ReturnType<typeof moveVariable>
   | ReturnType<typeof setValues>
-  | ReturnType<typeof setValue>
   | ReturnType<typeof selectValue>
 
 // R is the type of the value of the "result" key in normalizr's normalization

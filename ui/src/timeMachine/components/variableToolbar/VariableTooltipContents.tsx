@@ -6,27 +6,17 @@ import {connect} from 'react-redux'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 
 // Components
-import {
-  Form,
-  DropdownMenuTheme,
-  Dropdown,
-  ComponentStatus,
-} from '@influxdata/clockface'
+import {Form} from '@influxdata/clockface'
 import VariableDropdown from 'src/variables/components/VariableDropdown'
 
 // Utils
-import {getTimeMachineValuesStatus} from 'src/variables/selectors'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-import {getVariable} from 'src/variables/selectors'
-import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 
 // Types
-import {RemoteDataState, Variable} from 'src/types'
 import {AppState} from 'src/types'
 
 interface StateProps {
   timeMachineID: string
-  valuesStatus: RemoteDataState
 }
 
 interface DispatchProps {
@@ -42,8 +32,6 @@ type Props = StateProps & DispatchProps & OwnProps
 const VariableTooltipContents: FunctionComponent<Props> = ({
   variableID,
   timeMachineID,
-  valuesStatus,
-  onAddVariableToTimeMachine,
   execute,
 }) => {
   const refresh = () => {
@@ -64,14 +52,12 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
 }
 
 const mstp = (state: AppState) => {
-  const valuesStatus = getTimeMachineValuesStatus(state)
   const timeMachine = getActiveTimeMachine(state)
   const contextID =
     timeMachine.contextID || state.timeMachines.activeTimeMachineID
 
   return {
     timeMachineID: contextID,
-    valuesStatus,
   }
 }
 

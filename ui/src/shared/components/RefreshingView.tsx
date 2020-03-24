@@ -10,14 +10,13 @@ import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {getTimeRange} from 'src/dashboards/selectors'
-import {getAllVariables} from 'src/variables/selectors'
+import {getAllVariables, asAssignment} from 'src/variables/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
 
 // Types
 import {
   TimeRange,
-  RemoteDataState,
   TimeZone,
   AppState,
   DashboardQuery,
@@ -147,7 +146,7 @@ class RefreshingView extends PureComponent<Props, State> {
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const dashboard = state.currentDashboard.id
   const variableAssignments = getAllVariables(state, dashboard).map(v =>
-    v.asAssignment()
+    asAssignment(v)
   )
   const timeRange = getTimeRange(state, dashboard)
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)

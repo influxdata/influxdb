@@ -2,10 +2,6 @@
 import {valueFetcher, ValueFetcher} from 'src/variables/utils/ValueFetcher'
 import Deferred from 'src/utils/Deferred'
 import {asAssignment} from 'src/variables/selectors'
-import {
-  resolveSelectedKey,
-  resolveSelectedValue,
-} from 'src/variables/utils/resolveSelectedValue'
 
 // Constants
 import {OPTION_NAME, BOUNDARY_GROUP} from 'src/variables/constants/index'
@@ -32,7 +28,7 @@ export interface VariableNode {
 interface HydrateVarsOptions {
   url: string
   orgID: string
-  selections: ValueSelections
+  selections?: ValueSelections
   fetcher?: ValueFetcher
 }
 

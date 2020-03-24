@@ -1,6 +1,5 @@
 // Libraries
 import {parse} from '@influxdata/flux-parser'
-import {get, isEmpty} from 'lodash'
 
 // API
 import {
@@ -11,7 +10,6 @@ import {
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Actions
-import {selectValue, setValues} from 'src/variables/actions/creators'
 import {notify} from 'src/shared/actions/notifications'
 
 // Constants
@@ -19,13 +17,8 @@ import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 
 // Utils
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
-import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
-import {
-  getVariables,
-  getAllVariables,
-  getVariable,
-} from 'src/variables/selectors'
+import {getAllVariables, asAssignment} from 'src/variables/selectors'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 
@@ -69,10 +62,7 @@ const setQueryResults = (
 let pendingResults: Array<CancelBox<RunQueryResult>> = []
 let pendingCheckStatuses: CancelBox<StatusRow[][]> = null
 
-export const executeQueries = (dashboardID?: string) => async (
-  dispatch,
-  getState: GetState
-) => {
+export const executeQueries = () => async (dispatch, getState: GetState) => {
   const state = getState()
   const timeMachine = getActiveTimeMachine(state)
   const queries = timeMachine.view.properties.queries.filter(
@@ -90,7 +80,7 @@ export const executeQueries = (dashboardID?: string) => async (
     dispatch(setQueryResults(RemoteDataState.Loading, [], null))
 
     const variableAssignments = getAllVariables(state, timeMachine.id).map(v =>
-      v.asAssignment()
+      asAssignment(v)
     )
 
     // keeping getState() here ensures that the state we are working with

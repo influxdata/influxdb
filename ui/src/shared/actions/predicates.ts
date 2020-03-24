@@ -8,7 +8,7 @@ import {postDelete} from 'src/client'
 import {runQuery} from 'src/shared/apis/query'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
-import {getVariables} from 'src/variables/selectors'
+import {getVariables, asAssignment} from 'src/variables/selectors'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {getOrg} from 'src/organizations/selectors'
 
@@ -225,7 +225,7 @@ export const executePreviewQuery = (query: string) => async (
     const variableAssignments = getVariables(
       state,
       state.timeMachines.activeTimeMachineID
-    ).map(v => v.asAssignment)
+    ).map(v => asAssignment(v))
     const windowVars = getWindowVars(query, variableAssignments)
     const extern = buildVarsOption([...variableAssignments, ...windowVars])
     const result = await runQuery(orgID, query, extern).promise

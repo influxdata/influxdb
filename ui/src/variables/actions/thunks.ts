@@ -5,7 +5,6 @@ import {normalize} from 'normalizr'
 import {notify} from 'src/shared/actions/notifications'
 import {setExportTemplate} from 'src/templates/actions/creators'
 import {
-  setValues,
   setVariables,
   setVariable,
   removeVariable,
@@ -24,7 +23,6 @@ import {
   getVariables as getVariablesFromState,
   getAllVariables as getAllVariablesFromState,
 } from 'src/variables/selectors'
-import {CancelBox} from 'src/types/promises'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {findDependentVariables} from 'src/variables/utils/exportVariables'
 import {getOrg} from 'src/organizations/selectors'
@@ -42,7 +40,6 @@ import {
   Label,
   Variable,
   VariableEntities,
-  VariableValuesByID,
 } from 'src/types'
 import {Action as NotifyAction} from 'src/shared/actions/notifications'
 import {
@@ -89,7 +86,7 @@ export const getVariables = () => async (
       url: getState().links.query.self,
     }).promise
 
-    const filtered = vars
+    vars
       .filter(v => {
         return vals[v.id] && v.arguments.type === 'query'
       })
@@ -244,12 +241,6 @@ export const deleteVariable = (id: string) => async (
     dispatch(notify(copy.deleteVariableFailed(error.message)))
   }
 }
-
-interface PendingValueRequests {
-  [contextID: string]: CancelBox<VariableValuesByID>
-}
-
-const pendingValueRequests: PendingValueRequests = {}
 
 export const convertToTemplate = (variableID: string) => async (
   dispatch,

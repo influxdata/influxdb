@@ -116,7 +116,7 @@ export const getViewForTimeMachine = (
         timeRange,
       })
     )
-    dispatch(executeQueries(dashboardID))
+    dispatch(executeQueries())
   } catch (error) {
     dispatch(notify(copy.getViewFailed(error.message)))
     dispatch(setView(cellID, RemoteDataState.Error))

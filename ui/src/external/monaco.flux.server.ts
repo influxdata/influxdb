@@ -107,7 +107,7 @@ export default async function loader(): Promise<LSPServer> {
   loading = true
 
   const {Server} = await import('@influxdata/flux-lsp-browser')
-  server = new LSPServer(new Server(false) as WASMServer)
+  server = new LSPServer(new Server(false, false) as WASMServer)
   registerCompletion(window.monaco, server)
 
   await server.initialize()

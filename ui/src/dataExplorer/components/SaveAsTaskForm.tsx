@@ -20,14 +20,13 @@ import {
   taskOptionsToFluxScript,
   addDestinationToFluxScript,
 } from 'src/utils/taskOptionsToFluxScript'
-import {getAllVariables} from 'src/variables/selectors'
+import {getAllVariables, asAssignment} from 'src/variables/selectors'
 import {getOrg} from 'src/organizations/selectors'
 import {getActiveQuery} from 'src/timeMachine/selectors'
 
 // Types
 import {
   AppState,
-  TimeRange,
   VariableAssignment,
   TaskSchedule,
   TaskOptions,
@@ -151,7 +150,7 @@ const mstp = (state: AppState): StateProps => {
   const userDefinedVars = getAllVariables(
     state,
     state.timeMachines.activeTimeMachineID
-  ).map(v => v.asAssignment)
+  ).map(v => asAssignment(v))
 
   return {
     newScript,

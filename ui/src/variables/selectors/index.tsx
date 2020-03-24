@@ -1,5 +1,4 @@
 // Libraries
-import memoizeOne from 'memoize-one'
 import {get} from 'lodash'
 
 // Utils
@@ -21,19 +20,7 @@ import {
   CSVArguments,
 } from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
-import {
-  AppState,
-  ResourceState,
-  VariableArguments,
-  VariableArgumentType,
-  Variable,
-  VariableValues,
-  VariableValuesByID,
-  ValueSelections,
-} from 'src/types'
-
-type VariablesState = ResourceState['variables']['byID']
-type ValuesState = ResourceState['variables']['values']['contextID']
+import {AppState, VariableArgumentType, Variable} from 'src/types'
 
 export const extractVariableEditorName = (state: AppState): string => {
   return state.variableEditor.name
@@ -81,7 +68,7 @@ export const extractVariableEditorConstant = (
 // and hydrates them based on their context
 export const getVariables = (
   state: AppState,
-  contextID: string
+  contextID?: string | null
 ): Variable[] => {
   const variableIDs = get(state, `resources.variables.allIDs`, [])
 
@@ -98,7 +85,7 @@ export const getVariables = (
 // variables
 export const getAllVariables = (
   state: AppState,
-  contextID?: string
+  contextID?: string | null
 ): Variable[] => {
   const variableIDs = get(state, `resources.variables.allIDs`, []).concat([
     TIME_RANGE_START,
@@ -117,7 +104,7 @@ export const getAllVariables = (
 
 export const getVariable = (
   state: AppState,
-  contextID?: string,
+  contextID: string | null,
   variableID: string
 ): Variable => {
   const ctx = get(state, `resources.variables.values["${contextID}"]`)
@@ -189,7 +176,7 @@ export const asAssignment = (variable: Variable): VariableAssignment => {
       type: 'Identifier' as const,
       name: variable.name,
     },
-  }
+  } as VariableAssignment
 
   if (variable.id === WINDOW_PERIOD) {
     out.init = {

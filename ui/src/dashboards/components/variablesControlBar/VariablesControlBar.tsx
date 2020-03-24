@@ -106,7 +106,7 @@ class VariablesControlBar extends PureComponent<Props, State> {
   }
 
   private get barContents(): JSX.Element {
-    const {dashboardID, variables, valuesStatus} = this.props
+    const {dashboardID, variables, variableStatus} = this.props
     return (
       <div className="variables-control-bar--full">
         {variables.map((v, i) => (
@@ -120,7 +120,7 @@ class VariablesControlBar extends PureComponent<Props, State> {
             />
           </ErrorBoundary>
         ))}
-        {valuesStatus === RemoteDataState.Loading && (
+        {variableStatus === RemoteDataState.Loading && (
           <TechnoSpinner diameterPixels={18} />
         )}
       </div>

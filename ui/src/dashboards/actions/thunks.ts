@@ -28,7 +28,6 @@ import {
   updateTimeRangeFromQueryParams,
 } from 'src/dashboards/actions/ranges'
 import {setViews} from 'src/views/actions/creators'
-import {selectValue} from 'src/variables/actions/creators'
 import {getVariables} from 'src/variables/actions/thunks'
 import {setExportTemplate} from 'src/templates/actions/creators'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
@@ -38,7 +37,6 @@ import * as creators from 'src/dashboards/actions/creators'
 
 // Utils
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
-import {getVariables as getVariablesFromState} from 'src/variables/selectors'
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {exportVariables} from 'src/variables/utils/exportVariables'
 import {getSaveableView} from 'src/timeMachine/selectors'

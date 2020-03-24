@@ -6,14 +6,13 @@ import {fromFlux, Table} from '@influxdata/giraffe'
 
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'
-import {getCheckVisTimeRange} from 'src/alerting/utils/vis'
 import {
   defaultXColumn,
   defaultYColumn,
   getNumericColumns as getNumericColumnsUtil,
   getGroupableColumns as getGroupableColumnsUtil,
 } from 'src/shared/utils/vis'
-import {getAllVariables} from 'src/variables/selectors'
+import {getAllVariables, asAssignment} from 'src/variables/selectors'
 import {getWindowPeriod} from 'src/variables/utils/getWindowVars'
 import {
   timeRangeToDuration,
@@ -57,7 +56,7 @@ export const getActiveWindowPeriod = (state: AppState) => {
   const variables = getAllVariables(
     state,
     state.timeMachines.activeTimeMachineID
-  ).map(v => v.asAssignment())
+  ).map(v => asAssignment(v))
 
   return getWindowPeriod(text, variables)
 }
