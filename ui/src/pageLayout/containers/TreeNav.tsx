@@ -53,8 +53,10 @@ class TreeSidebar extends PureComponent<Props> {
       return null
     }
 
+    const isExpanded = navBarState === 'expanded'
+
     const handleToggleNavExpansion = (): void => {
-      if (navBarState === 'expanded') {
+      if (isExpanded) {
         handleSetNavBarState('collapsed')
       } else {
         handleSetNavBarState('expanded')
@@ -66,7 +68,7 @@ class TreeSidebar extends PureComponent<Props> {
 
     return (
       <TreeNav
-        expanded={navBarState === 'expanded'}
+        expanded={isExpanded}
         headerElement={<NavHeader link={orgPrefix} />}
         userElement={<UserWidget />}
         onToggleClick={handleToggleNavExpansion}
