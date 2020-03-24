@@ -22,6 +22,7 @@ class TelegrafInstructions extends PureComponent<Props> {
     const configScript = `telegraf --config ${
       this.origin
     }/api/v2/telegrafs/${configID || ''}`
+    const exportToken = `export INFLUX_TOKEN=${token || '<INFLUX_TOKEN>'}`
     return (
       <div data-testid="setup-instructions" className="telegraf-instructions">
         <h6>1. Install the Latest Telegraf</h6>
@@ -49,7 +50,7 @@ class TelegrafInstructions extends PureComponent<Props> {
             able to see it again!
           </Alert>
         )}
-        <TokenCodeSnippet token={token} configID={configID} label="CLI" />
+        <TokenCodeSnippet token={exportToken} configID={configID} label="CLI" />
         <h6>3. Start Telegraf</h6>
         <p>
           Finally, you can run the following command to start the Telegraf agent

@@ -152,6 +152,13 @@ export const createCheckFromTimeMachine = () => async (
     const check = builderToPostCheck(state)
     const resp = await api.postCheck({data: check})
     if (resp.status !== 201) {
+      if (resp.data.code.includes('conflict')) {
+        throw new Error(
+          `A check named ${
+            check.name
+          } already exists. Please rename the check before saving`
+        )
+      }
       throw new Error(resp.data.message)
     }
 

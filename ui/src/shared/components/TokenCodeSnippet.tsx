@@ -51,9 +51,7 @@ const TokenCodeSnippet: FC<Props & DispatchProps> = ({
         className="code-snippet--scroll"
       >
         <div className="code-snippet--text">
-          <pre>
-            export INFLUX_TOKEN=<i>{token || '<INFLUX_TOKEN>'}</i>
-          </pre>
+          <pre>{token}</pre>
         </div>
       </FancyScrollbar>
       <div className="code-snippet--footer">
