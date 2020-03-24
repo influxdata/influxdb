@@ -362,7 +362,17 @@ class Root extends PureComponent {
                             </Route>
                           </Route>
                           <Route path="settings">
-                            <IndexRoute component={VariablesIndex} />
+                            {CLOUD ? (
+                              <IndexRoute component={VariablesIndex} />
+                            ) : (
+                              <>
+                                <IndexRoute component={MembersIndex} />
+                                <Route
+                                  path="members"
+                                  component={MembersIndex}
+                                />
+                              </>
+                            )}
                             <Route path="templates" component={TemplatesIndex}>
                               <Route
                                 path="import"
@@ -404,6 +414,12 @@ class Root extends PureComponent {
                               />
                             </Route>
                             <Route path="labels" component={LabelsIndex} />
+                            <Route path="about" component={OrgProfilePage}>
+                              <Route
+                                path="rename"
+                                component={RenameOrgOverlay}
+                              />
+                            </Route>
                           </Route>
                           <Route path="alerting" component={AlertingIndex}>
                             <Route
