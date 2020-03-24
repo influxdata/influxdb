@@ -111,7 +111,7 @@ export default class DashboardCards extends PureComponent<Props> {
     const frame = this._frame.getBoundingClientRect()
     const win = this._window.getBoundingClientRect()
 
-    if (frame.height == win.height) {
+    if (frame.height <= win.height) {
       this.setState(
         {
           windowSize: this.state.windowSize + 1,
