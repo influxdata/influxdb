@@ -11,6 +11,7 @@
 
 1. [17240](https://github.com/influxdata/influxdb/pull/17240): NodeJS logo displays properly in Firefox
 1. [17363](https://github.com/influxdata/influxdb/pull/17363): Fixed telegraf configuration bugs where system buckets were appearing in the buckets dropdown
+1. [17391](https://github.com/influxdata/influxdb/pull/17391): Fixed threshold check bug where checks could not be created when a field had a space in the name
 
 ### UI Improvements
 
