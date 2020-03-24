@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -592,7 +591,7 @@ type fakePkgSVC struct {
 	applyFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error)
 }
 
-func (f *fakePkgSVC) InitStack(ctx context.Context, orgID, userID influxdb.ID, urls ...url.URL) (pkger.Stack, error) {
+func (f *fakePkgSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
 	panic("not implemented")
 }
 

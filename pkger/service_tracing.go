@@ -2,7 +2,6 @@ package pkger
 
 import (
 	"context"
-	"net/url"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -21,10 +20,10 @@ func MWTracing() SVCMiddleware {
 
 var _ SVC = (*traceMW)(nil)
 
-func (s *traceMW) InitStack(ctx context.Context, orgID, userID influxdb.ID, urls ...url.URL) (Stack, error) {
+func (s *traceMW) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (Stack, error) {
 	span, ctx := tracing.StartSpanFromContextWithOperationName(ctx, "InitStack")
 	defer span.Finish()
-	return s.next.InitStack(ctx, orgID, userID, urls...)
+	return s.next.InitStack(ctx, userID, newStack)
 }
 
 func (s *traceMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (pkg *Pkg, err error) {

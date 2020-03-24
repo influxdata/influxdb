@@ -3,7 +3,6 @@ package pkger
 import (
 	"context"
 	"net/http"
-	"net/url"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/pkg/httpc"
@@ -16,7 +15,7 @@ type HTTPRemoteService struct {
 
 var _ SVC = (*HTTPRemoteService)(nil)
 
-func (s *HTTPRemoteService) InitStack(ctx context.Context, orgID, userID influxdb.ID, urls ...url.URL) (Stack, error) {
+func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error) {
 	panic("not implemented yet")
 }
 
