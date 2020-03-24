@@ -463,9 +463,6 @@ class Root extends PureComponent {
                           <Route path="about" component={OrgProfilePage}>
                             <Route path="rename" component={RenameOrgOverlay} />
                           </Route>
-                          <Route path="about" component={OrgProfilePage}>
-                            <Route path="rename" component={RenameOrgOverlay} />
-                          </Route>
                           {!CLOUD && (
                             <Route path="members" component={MembersIndex} />
                           )}
