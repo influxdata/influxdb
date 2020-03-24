@@ -21,10 +21,10 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import FilterList from 'src/shared/components/FilterList'
 import BucketList from 'src/buckets/components/BucketList'
-import {PrettyBucket} from 'src/buckets/components/BucketCard'
 import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import BucketExplainer from 'src/buckets/components/BucketExplainer'
+import DemoDataDropdown from 'src/buckets/components/DemoDataDropdown'
 
 // Actions
 import {
@@ -42,8 +42,10 @@ import {prettyBuckets} from 'src/shared/utils/prettyBucket'
 import {extractBucketLimits} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Types
+import {PrettyBucket} from 'src/buckets/components/BucketCard'
 import {
   OverlayState,
   AppState,
@@ -121,15 +123,20 @@ class BucketsTab extends PureComponent<Props, State> {
             searchTerm={searchTerm}
             onSearch={this.handleFilterChange}
           />
-          <Button
-            text="Create Bucket"
-            icon={IconFont.Plus}
-            color={ComponentColor.Primary}
-            onClick={this.handleOpenModal}
-            testID="Create Bucket"
-            status={this.createButtonStatus}
-            titleText={this.createButtonTitleText}
-          />
+          <div className="buckets-buttons-wrap">
+            <FeatureFlag name="demodata">
+              <DemoDataDropdown />
+            </FeatureFlag>
+            <Button
+              text="Create Bucket"
+              icon={IconFont.Plus}
+              color={ComponentColor.Primary}
+              onClick={this.handleOpenModal}
+              testID="Create Bucket"
+              status={this.createButtonStatus}
+              titleText={this.createButtonTitleText}
+            />
+          </div>
         </SettingsTabbedPageHeader>
         <Grid>
           <Grid.Row>
