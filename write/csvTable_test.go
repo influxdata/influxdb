@@ -230,8 +230,8 @@ func TestCsvData(t *testing.T) {
 		},
 		{
 			"default_values",
-			"#default cpu,0,1\n_measurement,col1,_time\n,,",
-			"cpu col1=0 1",
+			"#default cpu,yes,0,1\n#linepart ,tag,,\n_measurement,test,col1,_time\n,,,",
+			"cpu,test=yes col1=0 1",
 		},
 	}
 

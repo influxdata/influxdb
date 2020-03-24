@@ -290,7 +290,7 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 	buffer = append(buffer, escapeMeasurement(measurement)...)
 	for _, tag := range t.cachedTags {
 		value := orDefault(row[tag.Index], tag.DefaultValue)
-		if tag.Index < len(row) && len(row[tag.Index]) > 0 {
+		if tag.Index < len(row) && len(value) > 0 {
 			buffer = append(buffer, ',')
 			buffer = append(buffer, tag.LineLabel()...)
 			buffer = append(buffer, '=')
