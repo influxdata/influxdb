@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -27,14 +28,14 @@ var writeFlags struct {
 	Bucket    string
 	Precision string
 	Format    string
+	File      string
 }
 
 func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("write line protocol or @/path/to/points.txt", fluxWriteF, true)
-	cmd.Args = cobra.ExactArgs(1)
+	cmd := opt.newCmd("write line protocol or csv file", fluxWriteF, true)
+	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Short = "Write points to InfluxDB"
-	cmd.Long = `Write a single line of line protocol to InfluxDB,
-or add an entire file specified with an @ prefix.`
+	cmd.Long = `Write line protocol or CSV data to InfluxDB.`
 
 	opts := flagOpts{
 		{
@@ -72,14 +73,10 @@ or add an entire file specified with an @ prefix.`
 			Desc:       "Precision of the timestamps of the lines",
 			Persistent: true,
 		},
-		{
-			DestP:      &writeFlags.Format,
-			Flag:       "format",
-			Desc:       "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension",
-			Persistent: true,
-		},
 	}
 	opts.mustRegister(cmd)
+	cmd.Flags().StringVar(&writeFlags.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
+	cmd.Flags().StringVarP(&writeFlags.File, "file", "f", "", "The path to the file to import")
 
 	return cmd
 }
@@ -147,18 +144,27 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	}
 
 	var r io.Reader
-	if args[0] == "-" {
-		r = os.Stdin
-	} else if len(args[0]) > 0 && args[0][0] == '@' {
-		f, err := os.Open(args[0][1:])
+	if len(args) == 0 {
+		if len(writeFlags.File) == 0 {
+			return errors.New("requires at least one argument or a --file option")
+		}
+	} else if args[0][0] == '@' {
+		// backward compatibility
+		writeFlags.File = args[0][1:]
+	}
+
+	if len(writeFlags.File) > 0 {
+		f, err := os.Open(writeFlags.File)
 		if err != nil {
-			return fmt.Errorf("failed to open %q: %v", args[0][1:], err)
+			return fmt.Errorf("failed to open %q: %v", writeFlags.File, err)
 		}
 		defer f.Close()
 		r = f
-		if len(writeFlags.Format) == 0 && strings.HasSuffix(args[0], ".csv") {
+		if len(writeFlags.Format) == 0 && strings.HasSuffix(writeFlags.File, ".csv") {
 			writeFlags.Format = inputFormatCsv
 		}
+	} else if args[0] == "-" {
+		r = os.Stdin
 	} else {
 		r = strings.NewReader(args[0])
 	}
