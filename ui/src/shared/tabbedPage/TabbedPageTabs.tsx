@@ -45,12 +45,12 @@ const SettingsNavigation: FC<Props> = ({activeTab, tabs, onTabClick}) => {
           tab = <CloudOnly key={t.id}>{tab}</CloudOnly>
         }
 
-        if (t.featureFlag) {
+        if (t.featureFlagName) {
           tab = (
             <FeatureFlag
               key={t.id}
-              name={t.featureFlag}
-              equals={t.featureFlagEquals}
+              name={t.featureFlagName}
+              equals={t.featureFlagValue}
             >
               {tab}
             </FeatureFlag>
