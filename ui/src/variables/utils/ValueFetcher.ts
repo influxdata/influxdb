@@ -84,7 +84,7 @@ export class DefaultValueFetcher implements ValueFetcher {
     const extern = buildVarsOption(variables)
     const request = runQuery(orgID, query, extern)
 
-    const promise = request.promise.then<VariableValues>(result => {
+    const promise = request.promise.then(result => {
       if (result.type !== 'SUCCESS') {
         return Promise.reject(result.message)
       }

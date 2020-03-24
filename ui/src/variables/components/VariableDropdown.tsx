@@ -19,7 +19,6 @@ import {getVariable} from 'src/variables/selectors'
 import {AppState} from 'src/types'
 
 interface StateProps {
-  type: string
   values: {name: string; value: string}[]
   selectedValue: string
 }
@@ -38,13 +37,10 @@ type Props = StateProps & DispatchProps & OwnProps
 
 class VariableDropdown extends PureComponent<Props> {
   render() {
-    const {selectedValue, type} = this.props
-    const dropdownValues =
-      (type === 'map' ? Object.keys(this.props.values) : this.props.values) ||
-      []
+    const {selectedValue, values} = this.props
 
     const dropdownStatus =
-      dropdownValues.length === 0
+      values.length === 0
         ? ComponentStatus.Disabled
         : ComponentStatus.Default
 
@@ -70,7 +66,7 @@ class VariableDropdown extends PureComponent<Props> {
               onCollapse={onCollapse}
               theme={DropdownMenuTheme.Amethyst}
             >
-              {dropdownValues.map(val => {
+              {values.map(val => {
                 return (
                   <Dropdown.Item
                     key={val}
@@ -106,11 +102,32 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
   const {contextID, variableID} = props
 
   const variable = getVariable(state, contextID, variableID)
+  const type = variable.arguments.type;
+
+  if (type === 'constant') {
+      return {
+          values: variable.arguments.values,
+          selectedValue: variable.selected
+      }
+  }
+
+  if (type === 'map') {
+      return {
+          values: Object.keys(variable.arguments.values),
+          selectedValue: variable.selected
+      }
+  }
+
+  if (type === 'query') {
+      return {
+          values: variable.arguments.values.results || [],
+          selectedValue: variable.selected
+      }
+  }
 
   return {
-    type: variable.arguments.type,
-    values: variable.arguments.values,
-    selectedValue: variable.selected,
+      values: [],
+      selectedValue: []
   }
 }
 

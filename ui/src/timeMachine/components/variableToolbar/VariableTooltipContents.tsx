@@ -16,6 +16,7 @@ import VariableDropdown from 'src/variables/components/VariableDropdown'
 
 // Utils
 import {getTimeMachineValuesStatus} from 'src/variables/selectors'
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {getVariable} from 'src/variables/selectors'
 import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 
@@ -64,10 +65,11 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState) => {
   const valuesStatus = getTimeMachineValuesStatus(state)
-  const activeTimeMachineID = state.timeMachines.activeTimeMachineID
+    const timeMachine = getActiveTimeMachine(state)
+    const contextID = timeMachine.contextID || state.timeMachines.activeTimeMachineID
 
   return {
-    timeMachineID: activeTimeMachineID,
+    timeMachineID: contextID,
     valuesStatus,
   }
 }

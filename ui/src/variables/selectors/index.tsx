@@ -160,6 +160,14 @@ export const getVariable = (
     return vari
   }
 
+  if (vari.arguments.type === 'query') {
+      if (!ctx || !ctx.values || !ctx.values.hasOwnProperty(variableID)) {
+          // TODO load that ish for the context
+          // hydrateQueries(state, contextID, variableID)
+      }
+  }
+
+
   if (!vari.asAssignment) {
     vari.asAssignment = () => asAssignment(vari)
   }
@@ -235,6 +243,13 @@ export const asAssignment = (variable: Variable): VariableAssignment => {
       type: 'StringLiteral',
       value: variable.selected[0],
     }
+  }
+
+  if (variable.arguments.type === 'query') {
+      out.init = {
+          type: 'StringLiteral',
+          value: variable.selected[0]
+      }
   }
 
   return out
