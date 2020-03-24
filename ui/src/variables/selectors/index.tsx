@@ -274,10 +274,3 @@ export const getDashboardVariablesStatus = (
   return get(state, 'resources.variables.status')
 }
 
-// TODO kill this function
-export const getDashboardValuesStatus = (
-  state: AppState,
-  dashboardID: string
-): RemoteDataState => {
-  return get(state, `resources.variables.values.${dashboardID}.status`)
-}

@@ -10,10 +10,7 @@ import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {getTimeRange} from 'src/dashboards/selectors'
-import {
-  getAllVariables,
-  getDashboardValuesStatus,
-} from 'src/variables/selectors'
+import {getAllVariables} from 'src/variables/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
 
@@ -38,7 +35,6 @@ interface StateProps {
   ranges: TimeRange | null
   timeZone: TimeZone
   variableAssignments: VariableAssignment[]
-  variablesStatus: RemoteDataState
 }
 
 interface State {
@@ -154,7 +150,6 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     v.asAssignment()
   )
   const timeRange = getTimeRange(state, dashboard)
-  const valuesStatus = getDashboardValuesStatus(state, dashboard)
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)
   const timeZone = state.app.persisted.timeZone
 
@@ -163,7 +158,6 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     ranges,
     timeZone,
     variableAssignments,
-    variablesStatus: valuesStatus,
   }
 }
 

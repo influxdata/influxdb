@@ -15,7 +15,6 @@ import ErrorBoundary from 'src/shared/components/ErrorBoundary'
 // Utils
 import {
   getVariables,
-  getDashboardValuesStatus,
   getDashboardVariablesStatus,
 } from 'src/variables/selectors'
 
@@ -34,7 +33,6 @@ import withDragDropContext from 'src/shared/decorators/withDragDropContext'
 
 interface StateProps {
   variables: Variable[]
-  valuesStatus: RemoteDataState
   variablesStatus: RemoteDataState
   inPresentationMode: boolean
   dashboardID: string
@@ -155,7 +153,6 @@ const mdtp = {
 const mstp = (state: AppState): StateProps => {
   const dashboardID = state.currentDashboard.id
   const variables = getVariables(state, dashboardID)
-  const valuesStatus = getDashboardValuesStatus(state, dashboardID)
   const variablesStatus = getDashboardVariablesStatus(state)
   const show = state.userSettings.showVariablesControls
 
@@ -167,7 +164,6 @@ const mstp = (state: AppState): StateProps => {
 
   return {
     variables,
-    valuesStatus,
     variablesStatus,
     inPresentationMode,
     dashboardID,
