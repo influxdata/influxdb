@@ -40,9 +40,7 @@ class VariableDropdown extends PureComponent<Props> {
     const {selectedValue, values} = this.props
 
     const dropdownStatus =
-      values.length === 0
-        ? ComponentStatus.Disabled
-        : ComponentStatus.Default
+      values.length === 0 ? ComponentStatus.Disabled : ComponentStatus.Default
 
     return (
       <div className="variable-dropdown">
@@ -102,32 +100,32 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
   const {contextID, variableID} = props
 
   const variable = getVariable(state, contextID, variableID)
-  const type = variable.arguments.type;
+  const type = variable.arguments.type
 
   if (type === 'constant') {
-      return {
-          values: variable.arguments.values,
-          selectedValue: variable.selected
-      }
+    return {
+      values: variable.arguments.values,
+      selectedValue: variable.selected,
+    }
   }
 
   if (type === 'map') {
-      return {
-          values: Object.keys(variable.arguments.values),
-          selectedValue: variable.selected
-      }
+    return {
+      values: Object.keys(variable.arguments.values),
+      selectedValue: variable.selected,
+    }
   }
 
   if (type === 'query') {
-      return {
-          values: variable.arguments.values.results || [],
-          selectedValue: variable.selected
-      }
+    return {
+      values: variable.arguments.values.results || [],
+      selectedValue: variable.selected,
+    }
   }
 
   return {
-      values: [],
-      selectedValue: []
+    values: [],
+    selectedValue: [],
   }
 }
 

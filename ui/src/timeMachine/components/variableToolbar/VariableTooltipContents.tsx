@@ -65,8 +65,9 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState) => {
   const valuesStatus = getTimeMachineValuesStatus(state)
-    const timeMachine = getActiveTimeMachine(state)
-    const contextID = timeMachine.contextID || state.timeMachines.activeTimeMachineID
+  const timeMachine = getActiveTimeMachine(state)
+  const contextID =
+    timeMachine.contextID || state.timeMachines.activeTimeMachineID
 
   return {
     timeMachineID: contextID,

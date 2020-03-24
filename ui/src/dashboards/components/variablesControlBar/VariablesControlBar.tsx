@@ -57,7 +57,6 @@ class VariablesControlBar extends PureComponent<Props, State> {
 
   static getDerivedStateFromProps(props, state) {
     if (
-      props.valuesStatus === RemoteDataState.Done &&
       props.variablesStatus === RemoteDataState.Done &&
       state.initialLoading !== RemoteDataState.Done
     ) {

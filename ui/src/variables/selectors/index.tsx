@@ -161,23 +161,22 @@ export const getVariable = (
   }
 
   if (vari.arguments.type === 'query') {
-      if (!ctx || !ctx.values || !ctx.values.hasOwnProperty(variableID)) {
-          // TODO load that ish for the context
-          // hydrateQueries(state, contextID, variableID)
-      }
+    if (!ctx || !ctx.values || !ctx.values.hasOwnProperty(variableID)) {
+      // TODO load that ish for the context
+      // hydrateQueries(state, contextID, variableID)
+    }
   }
-
 
   if (!vari.asAssignment) {
     vari.asAssignment = () => asAssignment(vari)
   }
 
-  if (vari.arguments.type === 'map') {
-    return vari
-  }
-
   if (!vari.selected) {
-    vari.selected = [vari.arguments.values[0]]
+    if (vari.arguments.type === 'map') {
+      vari.selected = [Object.keys(vari.arguments.values)[0]]
+    } else {
+      vari.selected = [vari.arguments.values[0]]
+    }
   }
 
   return vari
@@ -246,10 +245,10 @@ export const asAssignment = (variable: Variable): VariableAssignment => {
   }
 
   if (variable.arguments.type === 'query') {
-      out.init = {
-          type: 'StringLiteral',
-          value: variable.selected[0]
-      }
+    out.init = {
+      type: 'StringLiteral',
+      value: variable.selected[0],
+    }
   }
 
   return out

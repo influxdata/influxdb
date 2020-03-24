@@ -20,7 +20,10 @@ import {hydrateVars} from 'src/variables/utils/hydrateVars'
 import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/templates/api'
 
 // Utils
-import {getVariables as getVariablesFromState, getAllVariables as getAllVariablesFromState} from 'src/variables/selectors'
+import {
+  getVariables as getVariablesFromState,
+  getAllVariables as getAllVariablesFromState,
+} from 'src/variables/selectors'
 import {CancelBox} from 'src/types/promises'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {findDependentVariables} from 'src/variables/utils/exportVariables'
@@ -66,47 +69,47 @@ export const getVariables = () => async (
       arrayOfVariables
     )
 
-    variables.result.map(k => {
+    variables.result
+      .map(k => {
         return variables.entities.variables[k]
-    }).filter(e => {
+      })
+      .filter(e => {
         return e.arguments.type === 'query'
-    }).forEach(v => {
+      })
+      .forEach(v => {
         variables.entities.variables[v.id].status = RemoteDataState.NotStarted
-    })
+      })
 
     await dispatch(setVariables(RemoteDataState.Done, variables))
 
     const state = getState()
     const vars = getVariablesFromState(state)
-    const vals = await hydrateVars(
-        vars,
-        getAllVariablesFromState(state),
-        {
-            orgID: org.id,
-            url: getState().links.query.self
-        }
-    ).promise
+    const vals = await hydrateVars(vars, getAllVariablesFromState(state), {
+      orgID: org.id,
+      url: getState().links.query.self,
+    }).promise
 
-    const filtered = vars.filter(v => {
-        return (
-            vals[v.id] &&
-            v.arguments.type === 'query'
-        )
-    }).forEach(v => {
+    const filtered = vars
+      .filter(v => {
+        return vals[v.id] && v.arguments.type === 'query'
+      })
+      .forEach(v => {
         v.arguments.values.results = vals[v.id].values
         v.selected = [vals[v.id].selectedValue]
-    })
+      })
 
-    await dispatch(setVariables(RemoteDataState.Done, {
+    await dispatch(
+      setVariables(RemoteDataState.Done, {
         result: vars.map(v => v.id),
         entities: {
-            variables: vars.reduce((prev, curr) => {
-                prev[curr.id] = curr
+          variables: vars.reduce((prev, curr) => {
+            prev[curr.id] = curr
 
-                return prev
-            }, {})
-        }
-    }))
+            return prev
+          }, {}),
+        },
+      })
+    )
   } catch (error) {
     console.error(error)
     dispatch(setVariables(RemoteDataState.Error))

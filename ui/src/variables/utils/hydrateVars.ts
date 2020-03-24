@@ -1,7 +1,7 @@
 // Utils
 import {valueFetcher, ValueFetcher} from 'src/variables/utils/ValueFetcher'
 import Deferred from 'src/utils/Deferred'
-import { asAssignment } from 'src/variables/selectors'
+import {asAssignment} from 'src/variables/selectors'
 import {
   resolveSelectedKey,
   resolveSelectedValue,
@@ -74,9 +74,11 @@ export const createVariableGraph = (
 
 const isQueryVar = (v: Variable) => v.arguments.type === 'query'
 export const isInQuery = (query: string, v: Variable) => {
-    const regexp = new RegExp(`${BOUNDARY_GROUP}${OPTION_NAME}.${v.name}${BOUNDARY_GROUP}`)
+  const regexp = new RegExp(
+    `${BOUNDARY_GROUP}${OPTION_NAME}.${v.name}${BOUNDARY_GROUP}`
+  )
 
-    return regexp.test(query)
+  return regexp.test(query)
 }
 
 const getVarChildren = (
@@ -192,21 +194,20 @@ const hydrateVarsHelper = async (
 
   // this assumes that the variable hydration is done in the selector 'getVariable'
   if (variableType === 'map') {
-      return {
-          valueType: 'string',
-        values: node.variable.arguments.values,
-        selectedValue: node.variable.selected[0]
-      }
+    return {
+      valueType: 'string',
+      values: node.variable.arguments.values,
+      selectedValue: node.variable.selected[0],
+    }
   }
 
-  if ( variableType === 'constant') {
-      return {
-          valueType: 'string',
-        values: node.variable.arguments.values,
-        selectedValue: node.variable.selected[0]
-      }
+  if (variableType === 'constant') {
+    return {
+      valueType: 'string',
+      values: node.variable.arguments.values,
+      selectedValue: node.variable.selected[0],
+    }
   }
-
 
   const descendants = collectDescendants(node)
   const assignments = descendants.map(node => asAssignment(node.variable))
