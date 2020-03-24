@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -32,10 +31,10 @@ var writeFlags struct {
 }
 
 func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("write line protocol or csv file", fluxWriteF, true)
+	cmd := opt.newCmd("write", fluxWriteF, true)
 	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Short = "Write points to InfluxDB"
-	cmd.Long = `Write line protocol or CSV data to InfluxDB.`
+	cmd.Long = `Write data to InfluxDB via stdin, or add an entire file specified with the -f flag`
 
 	opts := flagOpts{
 		{
@@ -144,11 +143,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	}
 
 	var r io.Reader
-	if len(args) == 0 {
-		if len(writeFlags.File) == 0 {
-			return errors.New("requires at least one argument or a --file option")
-		}
-	} else if args[0][0] == '@' {
+	if len(args) > 0 && args[0][0] == '@' {
 		// backward compatibility
 		writeFlags.File = args[0][1:]
 	}
@@ -163,7 +158,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 		if len(writeFlags.Format) == 0 && strings.HasSuffix(writeFlags.File, ".csv") {
 			writeFlags.Format = inputFormatCsv
 		}
-	} else if args[0] == "-" {
+	} else if len(args) == 0 || args[0] == "-" {
 		r = os.Stdin
 	} else {
 		r = strings.NewReader(args[0])
