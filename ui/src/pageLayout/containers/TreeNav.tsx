@@ -91,7 +91,7 @@ class TreeSidebar extends PureComponent<Props> {
                 <Link className={className} to={item.link} />
               )}
             >
-              {!!item.menu ? (
+              {Boolean(item.menu) && (
                 <TreeNav.SubMenu>
                   {item.menu.map(menuItem => {
                     let navSubItemElement = (
@@ -140,7 +140,7 @@ class TreeSidebar extends PureComponent<Props> {
                     return navSubItemElement
                   })}
                 </TreeNav.SubMenu>
-              ) : null}
+              )}
             </TreeNav.Item>
           )
 

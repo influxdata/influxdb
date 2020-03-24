@@ -32,8 +32,8 @@ class SettingsNavigation extends PureComponent<Props> {
       {
         text: 'Members',
         id: 'members',
-        featureFlag: 'treeNav',
-        featureFlagEquals: false,
+        featureFlagName: 'treeNav',
+        featureFlagValue: false,
       },
       {
         text: 'Variables',
@@ -50,8 +50,8 @@ class SettingsNavigation extends PureComponent<Props> {
       {
         text: 'Profile',
         id: 'about',
-        featureFlag: 'treeNav',
-        featureFlagEquals: false,
+        featureFlagName: 'treeNav',
+        featureFlagValue: false,
       },
     ]
 

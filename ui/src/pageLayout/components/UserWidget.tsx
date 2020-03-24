@@ -44,11 +44,11 @@ const UserWidget: FC<Props> = ({
   handleShowOverlay,
   handleDismissOverlay,
 }) => {
-  const logoutURL = `${CLOUD_URL}${CLOUD_LOGOUT_PATH}`
-
   if (!org) {
     return null
   }
+
+  const logoutURL = `${CLOUD_URL}${CLOUD_LOGOUT_PATH}`
 
   const handleSwitchOrganizations = (): void => {
     handleShowOverlay('switch-organizations', {}, handleDismissOverlay)

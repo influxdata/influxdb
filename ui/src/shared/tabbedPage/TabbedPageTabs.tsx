@@ -13,8 +13,8 @@ export interface TabbedPageTab {
   id: string
   cloudExclude?: boolean
   cloudOnly?: boolean
-  featureFlag?: string
-  featureFlagEquals?: boolean
+  featureFlagName?: string
+  featureFlagValue?: boolean
 }
 
 interface Props {
