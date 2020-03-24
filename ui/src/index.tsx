@@ -373,6 +373,7 @@ class Root extends PureComponent {
                                 />
                               </>
                             )}
+
                             <Route path="templates" component={TemplatesIndex}>
                               <Route
                                 path="import"

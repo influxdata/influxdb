@@ -67,7 +67,7 @@ describe('The Query Builder', () => {
       // This is a fragile way to select the dashboards item in the navbar
       // Once https://github.com/influxdata/clockface/issues/458 is fixed
       // we should circle back and refactor this
-      cy.contains('Boards').click()
+      cy.getByTestID('nav-menu_dashboard').click({force: true})
 
       cy.contains('Basic Ole Dashboard').click()
       cy.getByTestID('cell-context--toggle').click()
@@ -79,7 +79,7 @@ describe('The Query Builder', () => {
       cy.contains('Submit').click()
       cy.getByTestID('save-cell--button').click()
 
-      cy.contains('Boards').click()
+      cy.getByTestID('nav-menu_dashboard').click({force: true})
 
       cy.contains('Basic Ole Dashboard').click()
       cy.getByTestID('cell-context--toggle').click()

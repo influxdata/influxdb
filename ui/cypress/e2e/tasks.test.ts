@@ -326,12 +326,8 @@ http.post(
         .click()
       // verify that it is the correct data
       cy.getByInputValue(secondTask)
-      // NOTE: this is a janky way of selecting the tasks nav link
-      // Once https://github.com/influxdata/clockface/issues/458 is fixed
-      // we can refactor this to be cleaner
-      cy.get('.cf-tree-nav--item.cf-tree-nav--item__active').within(() => {
-        cy.get('.cf-tree-nav--item-block').click()
-      })
+
+      cy.get('div.cf-nav--item.active').click()
       // navigate back to the first one to verify that the name is correct
       cy.getByTestID('task-card--name')
         .contains(firstTask)
