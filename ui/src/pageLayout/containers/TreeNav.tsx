@@ -37,22 +37,10 @@ interface DispatchProps {
   handleSetNavBarState: typeof setNavBarState
 }
 
-interface State {
-  isShowingOrganizations: boolean
-}
-
 type Props = StateProps & DispatchProps & WithRouterProps
 
 @ErrorHandling
-class SideNav extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
-
-    this.state = {
-      isShowingOrganizations: false,
-    }
-  }
-
+class TreeSidebar extends PureComponent<Props> {
   public render() {
     const {
       isHidden,
@@ -195,4 +183,4 @@ const mstp = (state: AppState): StateProps => {
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter(SideNav))
+)(withRouter(TreeSidebar))
