@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {isEmpty} from 'lodash'
+import {isEmpty, get} from 'lodash'
 import {connect} from 'react-redux'
 
 // Components
@@ -36,6 +36,7 @@ import {
   checkBucketLimits as checkBucketLimitsAction,
   LimitStatus,
 } from 'src/cloud/actions/limits'
+import {getDemoDataBuckets} from 'src/cloud/actions/demodata'
 
 // Utils
 import {prettyBuckets} from 'src/shared/utils/prettyBucket'
@@ -59,6 +60,7 @@ interface StateProps {
   org: Organization
   buckets: Bucket[]
   limitStatus: LimitStatus
+  demoDataBuckets: Bucket[]
 }
 
 interface DispatchProps {
@@ -66,6 +68,7 @@ interface DispatchProps {
   updateBucket: typeof updateBucket
   deleteBucket: typeof deleteBucket
   checkBucketLimits: typeof checkBucketLimitsAction
+  getDemoDataBuckets: typeof getDemoDataBuckets
 }
 
 interface State {
@@ -98,10 +101,11 @@ class BucketsTab extends PureComponent<Props, State> {
 
   public componentDidMount() {
     this.props.checkBucketLimits()
+    this.props.getDemoDataBuckets()
   }
 
   public render() {
-    const {org, buckets, limitStatus} = this.props
+    const {org, buckets, limitStatus, demoDataBuckets} = this.props
     const {
       searchTerm,
       overlayState,
@@ -125,7 +129,9 @@ class BucketsTab extends PureComponent<Props, State> {
           />
           <div className="buckets-buttons-wrap">
             <FeatureFlag name="demodata">
-              <DemoDataDropdown />
+              {demoDataBuckets.length > 0 && (
+                <DemoDataDropdown buckets={demoDataBuckets} />
+              )}
             </FeatureFlag>
             <Button
               text="Create Bucket"
@@ -266,6 +272,7 @@ const mstp = (state: AppState): StateProps => ({
   org: getOrg(state),
   buckets: getAll<Bucket>(state, ResourceType.Buckets),
   limitStatus: extractBucketLimits(state.cloud.limits),
+  demoDataBuckets: get(state, 'cloud.demoData.buckets', []),
 })
 
 const mdtp = {
@@ -273,6 +280,7 @@ const mdtp = {
   updateBucket,
   deleteBucket,
   checkBucketLimits: checkBucketLimitsAction,
+  getDemoDataBuckets: getDemoDataBuckets,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

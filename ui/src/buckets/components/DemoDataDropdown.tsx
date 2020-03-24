@@ -4,22 +4,27 @@ import _ from 'lodash'
 
 // Components
 import {Dropdown} from '@influxdata/clockface'
-
-// Types
 import {IconFont, ComponentColor} from '@influxdata/clockface'
 
-const DemoDataDropdown: FC = () => {
-  const demoDataItems = [
+// Types
+import {Bucket} from 'src/types'
+
+interface Props {
+  buckets: Bucket[]
+}
+
+const DemoDataDropdown: FC<Props> = ({buckets}) => {
+  const demoDataItems = buckets.map(b => (
     <Dropdown.Item
       testID="dropdown-item demodata--1"
-      id={'1'}
-      key={'1'}
-      value={'1'}
+      id={b.name}
+      key={b.name}
+      value={b.name}
       onClick={v => console.log(v)}
     >
-      {'DemoData1'}
-    </Dropdown.Item>,
-  ]
+      {b.name}
+    </Dropdown.Item>
+  ))
 
   return (
     <Dropdown
