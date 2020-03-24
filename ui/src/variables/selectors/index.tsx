@@ -273,4 +273,3 @@ export const getDashboardVariablesStatus = (
 ): RemoteDataState => {
   return get(state, 'resources.variables.status')
 }
-
