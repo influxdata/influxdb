@@ -28,6 +28,7 @@ var writeFlags struct {
 	Precision string
 	Format    string
 	File      string
+	DryRun    bool
 }
 
 func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
@@ -76,12 +77,16 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	opts.mustRegister(cmd)
 	cmd.Flags().StringVar(&writeFlags.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
 	cmd.Flags().StringVarP(&writeFlags.File, "file", "f", "", "The path to the file to import")
+	cmd.Flags().BoolVar(&writeFlags.DryRun, "dry-run", false, "Write protocol lines to stdout")
 
 	return cmd
 }
 
 func fluxWriteF(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
+	if writeFlags.DryRun {
+		flags.Host = "-"
+	}
 
 	var bucketID, orgID platform.ID
 	// validate flags unless writing to stdout
