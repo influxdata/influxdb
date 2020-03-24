@@ -395,11 +395,10 @@ func (c *Controller) executeQuery(q *Query) {
 			err, ok := e.(error)
 			if !ok {
 				err = fmt.Errorf("panic: %v", e)
-				c.log.Error(err.Error(), zap.Error(err))
 			}
 			q.setErr(err)
 			if entry := c.log.With(influxlogger.TraceFields(q.parentCtx)...).
-				Check(zapcore.InfoLevel, "panic during program start"); entry != nil {
+				Check(zapcore.ErrorLevel, "panic during program start"); entry != nil {
 				entry.Stack = string(debug.Stack())
 				entry.Write(zap.Error(err))
 			}
@@ -412,12 +411,10 @@ func (c *Controller) executeQuery(q *Query) {
 		// client cancelled it, or because the controller is shutting down)
 		// In the case of cancellation, SetErr() should reset the error to an
 		// appropriate message.
-		err := &flux.Error{
+		q.setErr(&flux.Error{
 			Code: codes.Internal,
 			Msg:  "impossible state transition",
-		}
-		q.setErr(err)
-		c.log.Error(err.Msg, zap.Error(err))
+		})
 
 		return
 	}
