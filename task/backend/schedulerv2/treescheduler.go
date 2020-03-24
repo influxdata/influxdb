@@ -1,14 +1,12 @@
-package scheduler
+package schedulerv2
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/cespare/xxhash"
 	"github.com/google/btree"
 )
 
@@ -17,8 +15,6 @@ const (
 	// it is purely a performance tuning parameter, but required by github.com/google/btree
 	degreeBtreeScheduled = 3 // TODO(docmerlin): find the best number for this, its purely a perf optimization
 
-	// defaultMaxWorkers is a constant that sets the default number of maximum workers for a TreeScheduler
-	defaultMaxWorkers = 128
 )
 
 // TreeScheduler is a Scheduler based on a btree.
@@ -64,16 +60,16 @@ type TreeScheduler struct {
 	mu            sync.RWMutex
 	priorityQueue *btree.BTree
 	nextTime      map[ID]int64 // we need this index so we can delete items from the scheduled
-	when          time.Time
-	executor      Executor
-	onErr         ErrorFunc
-	time          clock.Clock
 	timer         *clock.Timer
-	done          chan struct{}
-	workchans     []chan Item
-	wg            sync.WaitGroup
-	checkpointer  SchedulableService
-	batch         itemList
+	time          clock.Clock
+	when          time.Time
+	state         SchedulerState
+
+	executor     Executor
+	onErr        ErrorFunc
+	checkpointer SchedulableService
+
+	batch itemList
 
 	sm *SchedulerMetrics
 }
@@ -92,14 +88,6 @@ func WithOnErrorFn(fn ErrorFunc) treeSchedulerOptFunc {
 	}
 }
 
-// WithMaxConcurrentWorkers is an option that sets the max number of concurrent workers that a TreeScheduler will use.
-func WithMaxConcurrentWorkers(n int) treeSchedulerOptFunc {
-	return func(t *TreeScheduler) error {
-		t.workchans = make([]chan Item, n)
-		return nil
-	}
-}
-
 // WithTime is an optiom for NewScheduler that allows you to inject a clock.Clock from ben johnson's github.com/benbjohnson/clock library, for testing purposes.
 func WithTime(t clock.Clock) treeSchedulerOptFunc {
 	return func(sch *TreeScheduler) error {
@@ -108,17 +96,27 @@ func WithTime(t clock.Clock) treeSchedulerOptFunc {
 	}
 }
 
-// NewScheduler gives us a new TreeScheduler and SchedulerMetrics when given an  Executor, a SchedulableService, and zero or more options.
+// WithSchedulerMetrics ...
+func WithScheduleMetrics(sm *SchedulerMetrics) treeSchedulerOptFunc {
+	return func(sch *TreeScheduler) error {
+		sch.sm = sm
+		return nil
+	}
+}
+
+var ErrNoExecutor = errors.New("executor must be a non-nil function")
+
+// NewTreeScheduler gives us a new TreeScheduler and SchedulerMetrics when given an  Executor, a SchedulableService, and zero or more options.
 // Schedulers should be initialized with this function.
-func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...treeSchedulerOptFunc) (*TreeScheduler, *SchedulerMetrics, error) {
+func NewTreeScheduler(executor Executor, checkpointer SchedulableService, opts ...treeSchedulerOptFunc) (*TreeScheduler, *SchedulerMetrics, error) {
 	s := &TreeScheduler{
 		executor:      executor,
 		priorityQueue: btree.New(degreeBtreeScheduled),
 		nextTime:      map[ID]int64{},
 		onErr:         func(_ context.Context, _ ID, _ time.Time, _ error) {},
 		time:          clock.New(),
-		done:          make(chan struct{}, 1),
 		checkpointer:  checkpointer,
+		state:         SchedulerStateReady,
 	}
 
 	// apply options
@@ -127,98 +125,69 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 			return nil, nil, err
 		}
 	}
-	if s.workchans == nil {
-		s.workchans = make([]chan Item, defaultMaxWorkers)
 
+	if s.sm == nil {
+		s.sm = NewSchedulerMetrics()
 	}
-
-	s.wg.Add(len(s.workchans))
-	for i := 0; i < len(s.workchans); i++ {
-		s.workchans[i] = make(chan Item)
-		go s.work(context.Background(), s.workchans[i])
-	}
-
-	s.sm = NewSchedulerMetrics(s)
 	s.when = time.Time{}
+	// Because a stopped timer will wait forever, this allows us to wait for
+	// items to be added before triggering.
 	s.timer = s.time.Timer(0)
 	s.timer.Stop()
-	// because a stopped timer will wait forever, this allows us to wait for items to be added before triggering.
 
 	if executor == nil {
-		return nil, nil, errors.New("executor must be a non-nil function")
+		return nil, nil, ErrNoExecutor
 	}
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-	schedulerLoop:
-		for {
-			select {
-			case <-s.done:
-				s.mu.Lock()
-				s.timer.Stop()
-				// close workchans
-				for i := range s.workchans {
-					close(s.workchans[i])
-				}
-				s.mu.Unlock()
-				return
-			case <-s.timer.C:
-				for { // this for loop is a work around to the way clock's mock works when you reset duration 0 in a different thread than you are calling your clock.Set
-					s.mu.Lock()
-					min := s.priorityQueue.Min()
-					if min == nil { // grab a new item, because there could be a different item at the top of the queue
-						s.when = time.Time{}
-						s.mu.Unlock()
-						continue schedulerLoop
-					}
-					it := min.(Item)
-					if ts := s.time.Now().UTC(); it.When().After(ts) {
-						s.timer.Reset(ts.Sub(it.When()))
-						s.mu.Unlock()
-						continue schedulerLoop
-					}
-					s.process()
-					min = s.priorityQueue.Min()
-					if min == nil { // grab a new item, because there could be a different item at the top of the queue after processing
-						s.when = time.Time{}
-						s.mu.Unlock()
-						continue schedulerLoop
-					}
-					it = min.(Item)
-					s.when = it.When()
-					until := s.when.Sub(s.time.Now())
-
-					if until > 0 {
-						s.resetTimer(until) // we can reset without a stop because we know it is fired here
-						s.mu.Unlock()
-						continue schedulerLoop
-					}
-					s.mu.Unlock()
-				}
-			}
-		}
-	}()
 	return s, s.sm, nil
 }
 
-func (s *TreeScheduler) Stop() {
+func (s *TreeScheduler) Process(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			s.mu.Lock()
+			s.timer.Stop()
+			s.state = SchedulerStateStopped
+			s.mu.Unlock()
+			return
+		case <-s.timer.C:
+			for s.process(ctx) {
+				// early exit
+				select {
+				case <-ctx.Done():
+					s.mu.Lock()
+					s.timer.Stop()
+					s.state = SchedulerStateStopped
+					s.mu.Unlock()
+					return
+				default:
+				}
+			}
+		}
+	}
+}
+
+func (s *TreeScheduler) process(ctx context.Context) bool {
 	s.mu.Lock()
-	close(s.done)
-	s.mu.Unlock()
-	s.wg.Wait()
-}
+	defer func() {
+		s.state = SchedulerStateWaiting
+		s.mu.Unlock()
+	}()
+	s.state = SchedulerStateProcessing
 
-// itemList is a list of items for deleting and inserting.  We have to do them seperately instead of just a re-add,
-// because usually the items key must be changed between the delete and insert
-type itemList struct {
-	toInsert []Item
-	toDelete []Item
-}
+	min := s.priorityQueue.Min()
+	if min == nil { // grab a new item, because there could be a different item at the top of the queue
+		s.when = time.Time{}
+		return false
+	}
+	it := min.(Item)
+	if ts := s.time.Now().UTC(); it.When().After(ts) {
+		s.timer.Reset(ts.Sub(it.When()))
+		return false
+	}
 
-func (s *TreeScheduler) process() {
-	iter := s.iterator(s.time.Now())
+	iter := s.iterator(ctx, s.time.Now())
 	s.priorityQueue.Ascend(iter)
-
 	for i := range s.batch.toDelete {
 		delete(s.nextTime, s.batch.toDelete[i].id)
 		s.priorityQueue.Delete(s.batch.toDelete[i])
@@ -230,6 +199,30 @@ func (s *TreeScheduler) process() {
 		s.priorityQueue.ReplaceOrInsert(s.batch.toInsert[i])
 	}
 	s.batch.toInsert = s.batch.toInsert[:0]
+
+	min = s.priorityQueue.Min()
+	if min == nil { // grab a new item, because there could be a different item at the top of the queue after processing
+		s.when = time.Time{}
+		return false
+	}
+	it = min.(Item)
+	s.when = it.When()
+
+	// Timer fired early.
+	until := s.when.Sub(s.time.Now())
+	if until > 0 {
+		s.resetTimer(until) // we can reset without a stop because we know it is fired here
+		return false
+	}
+
+	return true
+}
+
+// itemList is a list of items for deleting and inserting.  We have to do them seperately instead of just a re-add,
+// because usually the items key must be changed between the delete and insert
+type itemList struct {
+	toInsert []Item
+	toDelete []Item
 }
 
 func (s *TreeScheduler) resetTimer(whenFromNow time.Duration) {
@@ -237,37 +230,59 @@ func (s *TreeScheduler) resetTimer(whenFromNow time.Duration) {
 	s.timer.Reset(whenFromNow)
 }
 
-func (s *TreeScheduler) iterator(ts time.Time) btree.ItemIterator {
+func (s *TreeScheduler) iterator(ctx context.Context, ts time.Time) btree.ItemIterator {
 	return func(i btree.Item) bool {
 		if i == nil {
 			return false
 		}
-		it := i.(Item) // we want it to panic if things other than Items are populating the scheduler, as it is something we can't recover from.
-		if time.Unix(it.next+it.Offset, 0).After(ts) {
+
+		// we want it to panic if things other than Items are populating the
+		// scheduler, as it is something we can't recover from.
+
+		it := i.(Item)
+		if time.Unix(it.next+it.Offset, 0).UTC().After(ts.UTC()) {
 			return false
 		}
-		// distribute to the right worker.
-		{
-			buf := [8]byte{}
-			binary.LittleEndian.PutUint64(buf[:], uint64(it.id))
-			wc := xxhash.Sum64(buf[:]) % uint64(len(s.workchans)) // we just hash so that the number is uniformly distributed
-			select {
-			case s.workchans[wc] <- it:
-				s.batch.toDelete = append(s.batch.toDelete, it)
-				if err := it.updateNext(); err != nil {
-					// in this error case we can't schedule next, so we have to drop the task
-					s.onErr(context.Background(), it.id, it.Next(), &ErrUnrecoverable{err})
-					return true
-				}
-				s.batch.toInsert = append(s.batch.toInsert, it)
 
-			case <-s.done:
-				return false
-			default:
-				return true
-			}
+		t := time.Unix(it.next, 0)
+		err := func() (err error) {
+			defer func() {
+				if r := recover(); r != nil {
+					err = &ErrUnrecoverable{errors.New("executor panicked")}
+				}
+			}()
+			// report the difference between when the item was supposed to be
+			// scheduled and now
+			s.sm.reportScheduleDelay(time.Since(it.Next()))
+			preExec := time.Now().UTC()
+			// execute
+			err = s.executor.Execute(ctx, it.id, t, it.When())
+			// report how long execution took
+			s.sm.reportExecution(err, time.Since(preExec))
+			return err
+		}()
+		if err != nil {
+			s.onErr(ctx, it.id, it.Next(), err)
 		}
-		return true
+		if err := s.checkpointer.UpdateLastScheduled(ctx, it.id, t); err != nil {
+			s.onErr(ctx, it.id, it.Next(), err)
+		}
+
+		s.batch.toDelete = append(s.batch.toDelete, it)
+		if err := it.updateNext(); err != nil {
+			// in this error case we can't schedule next, so we have to drop the task
+			s.onErr(context.Background(), it.id, it.Next(), &ErrUnrecoverable{err})
+			return true
+		}
+		s.batch.toInsert = append(s.batch.toInsert, it)
+
+		// early exit if context is canceled.
+		select {
+		case <-ctx.Done():
+			return false
+		default:
+			return true
+		}
 	}
 }
 
@@ -299,39 +314,6 @@ func (s *TreeScheduler) Release(taskID ID) error {
 	s.release(taskID)
 	s.mu.Unlock()
 	return nil
-}
-
-// work does work from the channel and checkpoints it.
-func (s *TreeScheduler) work(ctx context.Context, ch chan Item) {
-	var it Item
-	defer func() {
-		s.wg.Done()
-	}()
-	for it = range ch {
-		t := time.Unix(it.next, 0)
-		err := func() (err error) {
-			defer func() {
-				if r := recover(); r != nil {
-					err = &ErrUnrecoverable{errors.New("executor panicked")}
-				}
-			}()
-			// report the difference between when the item was supposed to be scheduled and now
-			s.sm.reportScheduleDelay(time.Since(it.Next()))
-			preExec := time.Now()
-			// execute
-			err = s.executor.Execute(ctx, it.id, t, it.When())
-			// report how long execution took
-			s.sm.reportExecution(err, time.Since(preExec))
-			return err
-		}()
-		if err != nil {
-			s.onErr(ctx, it.id, it.Next(), err)
-		}
-		// TODO(docmerlin): we can increase performance by making the call to UpdateLastScheduled async
-		if err := s.checkpointer.UpdateLastScheduled(ctx, it.id, t); err != nil {
-			s.onErr(ctx, it.id, it.Next(), err)
-		}
-	}
 }
 
 // Schedule put puts a Schedulable on the TreeScheduler.
@@ -382,6 +364,10 @@ func (s *TreeScheduler) Schedule(sch Schedulable) error {
 	return nil
 }
 
+func (s *TreeScheduler) State() SchedulerState {
+	return SchedulerStateStopped
+}
+
 // Item is a task in the scheduler.
 type Item struct {
 	when   int64
@@ -392,11 +378,11 @@ type Item struct {
 }
 
 func (it Item) Next() time.Time {
-	return time.Unix(it.next, 0)
+	return time.Unix(it.next, 0).UTC()
 }
 
 func (it Item) When() time.Time {
-	return time.Unix(it.when, 0)
+	return time.Unix(it.when, 0).UTC()
 }
 
 // Less tells us if one Item is less than another
