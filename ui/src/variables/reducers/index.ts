@@ -115,19 +115,25 @@ export const variablesReducer = (
 
       case MOVE_VARIABLE: {
         const {originalIndex, newIndex, contextID} = action
+        let newOrder = get(draftState, `values.${contextID}.order`)
 
-        const variableIDToMove = get(
-          draftState,
-          `values.${contextID}.order[${originalIndex}]`
-        )
+        // if no order, take it from allIDs
+        if (!newOrder) {
+          newOrder = get(draftState, `allIDs`)
+        }
 
-        const variableIDToSwap = get(
-          draftState,
-          `values.${contextID}.order[${newIndex}]`
-        )
+        newOrder = newOrder.slice(0)
 
-        draftState.values[contextID].order[originalIndex] = variableIDToSwap
-        draftState.values[contextID].order[newIndex] = variableIDToMove
+        const idToMove = newOrder[originalIndex]
+        const idToSwap = newOrder[newIndex]
+
+        newOrder[originalIndex] = idToSwap
+        newOrder[newIndex] = idToMove
+
+        draftState.values[contextID] = {
+          ...draftState.values[contextID],
+          order: newOrder,
+        }
 
         return
       }

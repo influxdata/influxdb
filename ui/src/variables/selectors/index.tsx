@@ -70,7 +70,11 @@ export const getVariables = (
   state: AppState,
   contextID?: string | null
 ): Variable[] => {
-  const variableIDs = get(state, `resources.variables.allIDs`, [])
+  const variableIDs = get(
+    state,
+    `resources.variables.values['${contextID}'].order`,
+    get(state, `resources.variables.allIDs`, [])
+  )
 
   return variableIDs
     .reduce((prev, curr) => {
@@ -87,11 +91,11 @@ export const getAllVariables = (
   state: AppState,
   contextID?: string | null
 ): Variable[] => {
-  const variableIDs = get(state, `resources.variables.allIDs`, []).concat([
-    TIME_RANGE_START,
-    TIME_RANGE_STOP,
-    WINDOW_PERIOD,
-  ])
+  const variableIDs = get(
+    state,
+    `resources.variables.values['${contextID}'].order`,
+    get(state, `resources.variables.allIDs`, [])
+  ).concat([TIME_RANGE_START, TIME_RANGE_STOP, WINDOW_PERIOD])
 
   return variableIDs
     .reduce((prev, curr) => {
