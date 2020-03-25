@@ -1,5 +1,5 @@
 import {Variable as GenVariable, Label} from 'src/client'
-export {VariableProperties} from 'src/client'
+import {VariableProperties as GenVariableProperties} from 'src/client'
 
 import {
   VariableArgumentType,
@@ -16,12 +16,15 @@ export interface SystemVariableProperties {
   type?: 'system'
   values?: any
 }
+export type VariableProperties =
+  | SystemVariableProperties
+  | GenVariableProperties
 
 export interface Variable
   extends Omit<Omit<GenVariable, 'labels'>, 'arguments'> {
   status: RemoteDataState // Loading status of an individual variable
   labels: string[]
-  arguments: VariableProperties | SystemVariableProperties
+  arguments: VariableProperties
 }
 
 export interface PostVariable extends GenVariable {

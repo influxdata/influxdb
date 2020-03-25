@@ -38,6 +38,7 @@ import {
   RemoteDataState,
   VariableTemplate,
   Label,
+  GenVariable,
   Variable,
   VariableEntities,
 } from 'src/types'
@@ -139,7 +140,7 @@ export const getVariable = (id: string) => async (
 }
 
 export const createVariable = (
-  variable: Pick<Variable, 'name' | 'arguments'>
+  variable: Pick<GenVariable, 'name' | 'arguments'>
 ) => async (dispatch: Dispatch<Action>, getState: GetState) => {
   try {
     const org = getOrg(getState())
@@ -201,7 +202,7 @@ export const updateVariable = (id: string, props: Variable) => async (
     const resp = await api.patchVariable({
       variableID: id,
       data: {
-        ...props,
+        ...(props as GenVariable),
         labels,
       },
     })
