@@ -7,10 +7,11 @@ type controllerMetrics struct {
 	requests  *prometheus.CounterVec
 	functions *prometheus.CounterVec
 
-	all       *prometheus.GaugeVec
-	compiling *prometheus.GaugeVec
-	queueing  *prometheus.GaugeVec
-	executing *prometheus.GaugeVec
+	all          *prometheus.GaugeVec
+	compiling    *prometheus.GaugeVec
+	queueing     *prometheus.GaugeVec
+	executing    *prometheus.GaugeVec
+	memoryUnused *prometheus.GaugeVec
 
 	allDur       *prometheus.HistogramVec
 	compilingDur *prometheus.HistogramVec
@@ -76,6 +77,13 @@ func newControllerMetrics(labels []string) *controllerMetrics {
 			Help:      "Number of queries actively executing",
 		}, labels),
 
+		memoryUnused: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "memory_unused_bytes",
+			Help:      "The free memory as seen by the internal memory manager",
+		}, labels),
+
 		allDur: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
@@ -110,7 +118,7 @@ func newControllerMetrics(labels []string) *controllerMetrics {
 	}
 }
 
-// PrometheusCollectors satisifies the prom.PrometheusCollector interface.
+// PrometheusCollectors satisfies the prom.PrometheusCollector interface.
 func (cm *controllerMetrics) PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{
 		cm.requests,
@@ -120,6 +128,7 @@ func (cm *controllerMetrics) PrometheusCollectors() []prometheus.Collector {
 		cm.compiling,
 		cm.queueing,
 		cm.executing,
+		cm.memoryUnused,
 
 		cm.allDur,
 		cm.compilingDur,

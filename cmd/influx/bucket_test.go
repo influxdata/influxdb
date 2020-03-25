@@ -128,17 +128,32 @@ func TestCmdBucket(t *testing.T) {
 		tests := []struct {
 			name       string
 			expectedID influxdb.ID
-			flag       string
+			flags      []string
 		}{
 			{
 				name:       "with description and retention period",
 				expectedID: influxdb.ID(1),
-				flag:       "--id=",
+				flags:      []string{"--id=" + influxdb.ID(1).String()},
 			},
 			{
 				name:       "shorts",
 				expectedID: influxdb.ID(1),
-				flag:       "-i=",
+				flags:      []string{"-i=" + influxdb.ID(1).String()},
+			},
+			{
+				name:       "with name and org name",
+				expectedID: influxdb.ID(1),
+				flags:      []string{"--name=n1", "--org=org1"},
+			},
+			{
+				name:       "with name and org name short",
+				expectedID: influxdb.ID(1),
+				flags:      []string{"-n=n1", "-o=org1"},
+			},
+			{
+				name:       "with name and org id",
+				expectedID: influxdb.ID(1),
+				flags:      []string{"--name=n1", "--org-id=" + influxdb.ID(3).String()},
 			},
 		}
 
@@ -146,6 +161,15 @@ func TestCmdBucket(t *testing.T) {
 			svc := mock.NewBucketService()
 			svc.FindBucketByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
 				return &influxdb.Bucket{ID: id}, nil
+			}
+			svc.FindBucketFn = func(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
+				if filter.ID != nil {
+					return &influxdb.Bucket{ID: *filter.ID}, nil
+				}
+				if filter.Name != nil {
+					return &influxdb.Bucket{ID: expectedID}, nil
+				}
+				return nil, nil
 			}
 			svc.DeleteBucketFn = func(ctx context.Context, id influxdb.ID) error {
 				if expectedID != id {
@@ -161,14 +185,21 @@ func TestCmdBucket(t *testing.T) {
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
+				defer addEnvVars(t, envVarsZeroMap)()
+
+				outBuf := new(bytes.Buffer)
+				defer func() {
+					if t.Failed() && outBuf.Len() > 0 {
+						t.Log(outBuf.String())
+					}
+				}()
 				builder := newInfluxCmdBuilder(
 					in(new(bytes.Buffer)),
-					out(ioutil.Discard),
+					out(outBuf),
 				)
 
 				cmd := builder.cmd(cmdFn(tt.expectedID))
-				idFlag := tt.flag + tt.expectedID.String()
-				cmd.SetArgs([]string{"bucket", "delete", idFlag})
+				cmd.SetArgs(append([]string{"bucket", "delete"}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())
 			}

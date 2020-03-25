@@ -68,15 +68,20 @@ type genericCLIOpts struct {
 	runEWrapFn cobraRunEMiddleware
 }
 
-func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) error, useRunEMiddleware bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Args: cobra.NoArgs,
 		Use:  use,
 		RunE: runE,
 	}
-	if runE != nil && o.runEWrapFn != nil {
+
+	canWrapRunE := runE != nil && o.runEWrapFn != nil
+	if useRunEMiddleware && canWrapRunE {
 		cmd.RunE = o.runEWrapFn(runE)
+	} else if canWrapRunE {
+		cmd.RunE = runE
 	}
+
 	cmd.SetOut(o.w)
 	cmd.SetIn(o.in)
 	cmd.SetErr(o.errW)
@@ -148,7 +153,7 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		setViperOptions()
 	})
 
-	cmd := b.newCmd("influx", nil)
+	cmd := b.newCmd("influx", nil, false)
 	cmd.Short = "Influx Client"
 	cmd.SilenceUsage = true
 
@@ -327,6 +332,7 @@ func checkSetupRunEMiddleware(f *globalFlags) cobraRunEMiddleware {
 			}
 
 			if setupErr := checkSetup(f.Host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
+				cmd.OutOrStderr().Write([]byte(fmt.Sprintf("Error: %s\n", internal.ErrorFmt(err).Error())))
 				return internal.ErrorFmt(setupErr)
 			}
 

@@ -4038,7 +4038,7 @@ spec:
       name: label_2
 `, APIVersion)))
 
-		combinedPkg, err := Combine(pkgs...)
+		combinedPkg, err := Combine(pkgs)
 		require.NoError(t, err)
 
 		sum := combinedPkg.Summary()

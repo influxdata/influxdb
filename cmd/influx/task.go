@@ -23,7 +23,7 @@ func cmdTask(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 		return nil
 	}
 
-	cmd := opt.newCmd("task", runE)
+	cmd := opt.newCmd("task", runE, false)
 	cmd.Short = "Task management commands"
 
 	cmd.AddCommand(
@@ -43,7 +43,7 @@ var taskCreateFlags struct {
 }
 
 func taskCreateCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("create [query literal or @/path/to/query.flux]", taskCreateF)
+	cmd := opt.newCmd("create [query literal or @/path/to/query.flux]", taskCreateF, true)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Short = "Create task"
 
@@ -127,7 +127,7 @@ var taskFindFlags struct {
 }
 
 func taskFindCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("list", taskFindF)
+	cmd := opt.newCmd("list", taskFindF, true)
 	cmd.Short = "List tasks"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -235,7 +235,7 @@ var taskUpdateFlags struct {
 }
 
 func taskUpdateCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("update", taskUpdateF)
+	cmd := opt.newCmd("update", taskUpdateF, true)
 	cmd.Short = "Update task"
 
 	cmd.Flags().StringVarP(&taskUpdateFlags.id, "id", "i", "", "task ID (required)")
@@ -309,7 +309,7 @@ var taskDeleteFlags struct {
 }
 
 func taskDeleteCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("delete", taskDeleteF)
+	cmd := opt.newCmd("delete", taskDeleteF, true)
 	cmd.Short = "Delete task"
 
 	cmd.Flags().StringVarP(&taskDeleteFlags.id, "id", "i", "", "task id (required)")
@@ -371,7 +371,7 @@ func taskDeleteF(cmd *cobra.Command, args []string) error {
 }
 
 func taskLogCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("log", nil)
+	cmd := opt.newCmd("log", nil, false)
 	cmd.Run = seeHelp
 	cmd.Short = "Log related commands"
 
@@ -388,7 +388,7 @@ var taskLogFindFlags struct {
 }
 
 func taskLogFindCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("list", taskLogFindF)
+	cmd := opt.newCmd("list", taskLogFindF, true)
 	cmd.Short = "List logs for task"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -450,7 +450,7 @@ func taskLogFindF(cmd *cobra.Command, args []string) error {
 }
 
 func taskRunCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("run", nil)
+	cmd := opt.newCmd("run", nil, false)
 	cmd.Run = seeHelp
 	cmd.Short = "List runs for a task"
 	cmd.AddCommand(
@@ -470,7 +470,7 @@ var taskRunFindFlags struct {
 }
 
 func taskRunFindCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("list", taskRunFindF)
+	cmd := opt.newCmd("list", taskRunFindF, true)
 	cmd.Short = "List runs for a task"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -562,7 +562,7 @@ var runRetryFlags struct {
 }
 
 func taskRunRetryCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("retry", runRetryF)
+	cmd := opt.newCmd("retry", runRetryF, true)
 	cmd.Short = "retry a run"
 
 	cmd.Flags().StringVarP(&runRetryFlags.taskID, "task-id", "i", "", "task id (required)")

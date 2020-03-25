@@ -29,7 +29,7 @@ var setupFlags struct {
 }
 
 func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("setup", nil)
+	cmd := opt.newCmd("setup", nil, true)
 	cmd.RunE = setupF
 	cmd.Short = "Setup instance with initial user, org, bucket"
 

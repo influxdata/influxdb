@@ -11,7 +11,7 @@ import (
 )
 
 func cmdAuth(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("auth", nil)
+	cmd := opt.newCmd("auth", nil, false)
 	cmd.Aliases = []string{"authorization"}
 	cmd.Short = "Authorization management commands"
 	cmd.Run = seeHelp

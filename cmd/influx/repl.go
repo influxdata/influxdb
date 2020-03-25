@@ -19,7 +19,7 @@ var replFlags struct {
 }
 
 func cmdREPL(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("repl", replF)
+	cmd := opt.newCmd("repl", replF, true)
 	cmd.Short = "Interactive Flux REPL (read-eval-print-loop)"
 	cmd.Args = cobra.NoArgs
 

@@ -395,11 +395,10 @@ func (c *Controller) executeQuery(q *Query) {
 			err, ok := e.(error)
 			if !ok {
 				err = fmt.Errorf("panic: %v", e)
-				c.log.Error(err.Error(), zap.Error(err))
 			}
 			q.setErr(err)
 			if entry := c.log.With(influxlogger.TraceFields(q.parentCtx)...).
-				Check(zapcore.InfoLevel, "panic during program start"); entry != nil {
+				Check(zapcore.ErrorLevel, "panic during program start"); entry != nil {
 				entry.Stack = string(debug.Stack())
 				entry.Write(zap.Error(err))
 			}
@@ -412,17 +411,17 @@ func (c *Controller) executeQuery(q *Query) {
 		// client cancelled it, or because the controller is shutting down)
 		// In the case of cancellation, SetErr() should reset the error to an
 		// appropriate message.
-		err := &flux.Error{
+		q.setErr(&flux.Error{
 			Code: codes.Internal,
 			Msg:  "impossible state transition",
-		}
-		q.setErr(err)
-		c.log.Error(err.Msg, zap.Error(err))
+		})
 
 		return
 	}
 
 	q.c.createAllocator(q)
+	// Record unused memory before start.
+	q.recordUnusedMemory()
 	exec, err := q.program.Start(ctx, q.alloc)
 	if err != nil {
 		q.setErr(err)
@@ -564,6 +563,11 @@ func (q *Query) Results() <-chan flux.Result {
 	return q.results
 }
 
+func (q *Query) recordUnusedMemory() {
+	unused := q.memoryManager.getUnusedMemoryBytes()
+	q.c.metrics.memoryUnused.WithLabelValues(q.labelValues...).Set(float64(unused))
+}
+
 // Done signals to the Controller that this query is no longer
 // being used and resources related to the query may be freed.
 func (q *Query) Done() {
@@ -617,14 +621,17 @@ func (q *Query) Done() {
 		// Release the additional memory associated with this query.
 		if q.memoryManager != nil {
 			q.memoryManager.Release()
+			// Record unused memory after finish.
+			q.recordUnusedMemory()
 		}
 
-		// count query request
+		// Count query request.
 		if q.err != nil || len(q.runtimeErrs) > 0 {
 			q.c.countQueryRequest(q, labelRuntimeError)
 		} else {
 			q.c.countQueryRequest(q, labelSuccess)
 		}
+
 	})
 	<-q.doneCh
 }

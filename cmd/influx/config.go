@@ -39,7 +39,7 @@ type cmdConfigBuilder struct {
 }
 
 func (b *cmdConfigBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("config", nil)
+	cmd := b.newCmd("config", nil, false)
 	cmd.Short = "Config management commands"
 	cmd.Run = seeHelp
 	cmd.AddCommand(
@@ -52,8 +52,7 @@ func (b *cmdConfigBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", nil)
-	cmd.RunE = b.cmdCreateRunEFn
+	cmd := b.newCmd("create", b.cmdCreateRunEFn, false)
 	cmd.Short = "Create config"
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
 	cmd.MarkFlagRequired("name")
@@ -116,8 +115,7 @@ func (b *cmdConfigBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 }
 
 func (b *cmdConfigBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", nil)
-	cmd.RunE = b.cmdDeleteRunEFn
+	cmd := b.newCmd("delete", b.cmdDeleteRunEFn, false)
 	cmd.Short = "Delete config"
 
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
@@ -161,9 +159,8 @@ func (b *cmdConfigBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 }
 
 func (b *cmdConfigBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("set", b.cmdUpdateRunEFn)
+	cmd := b.newCmd("set", b.cmdUpdateRunEFn, false)
 	cmd.Aliases = []string{"update"}
-	cmd.RunE = b.cmdUpdateRunEFn
 	cmd.Short = "Update config"
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
 	cmd.MarkFlagRequired("name")
@@ -228,8 +225,7 @@ func (b *cmdConfigBuilder) cmdUpdateRunEFn(*cobra.Command, []string) error {
 }
 
 func (b *cmdConfigBuilder) cmdList() *cobra.Command {
-	cmd := b.newCmd("list", nil)
-	cmd.RunE = b.cmdListRunEFn
+	cmd := b.newCmd("list", b.cmdListRunEFn, false)
 	cmd.Aliases = []string{"ls"}
 	cmd.Short = "List configs"
 	return cmd
