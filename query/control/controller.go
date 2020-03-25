@@ -420,6 +420,8 @@ func (c *Controller) executeQuery(q *Query) {
 	}
 
 	q.c.createAllocator(q)
+	// Record unused memory before start.
+	q.recordUnusedMemory()
 	exec, err := q.program.Start(ctx, q.alloc)
 	if err != nil {
 		q.setErr(err)
@@ -561,6 +563,11 @@ func (q *Query) Results() <-chan flux.Result {
 	return q.results
 }
 
+func (q *Query) recordUnusedMemory() {
+	unused := q.memoryManager.getUnusedMemoryBytes()
+	q.c.metrics.memoryUnused.WithLabelValues(q.labelValues...).Set(float64(unused))
+}
+
 // Done signals to the Controller that this query is no longer
 // being used and resources related to the query may be freed.
 func (q *Query) Done() {
@@ -614,14 +621,17 @@ func (q *Query) Done() {
 		// Release the additional memory associated with this query.
 		if q.memoryManager != nil {
 			q.memoryManager.Release()
+			// Record unused memory after finish.
+			q.recordUnusedMemory()
 		}
 
-		// count query request
+		// Count query request.
 		if q.err != nil || len(q.runtimeErrs) > 0 {
 			q.c.countQueryRequest(q, labelRuntimeError)
 		} else {
 			q.c.countQueryRequest(q, labelSuccess)
 		}
+
 	})
 	<-q.doneCh
 }
