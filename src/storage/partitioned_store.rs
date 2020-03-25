@@ -271,7 +271,7 @@ impl Stream for ReadMergeStream<'_> {
         }
 
         if sort {
-            batch.sort();
+            batch.sort_by_time();
         }
 
         Poll::Ready(Some(batch))
@@ -282,18 +282,6 @@ impl Stream for ReadMergeStream<'_> {
 pub enum ReadValues {
     I64(Vec<ReadPoint<i64>>),
     F64(Vec<ReadPoint<f64>>),
-}
-
-impl<T: Eq + PartialEq + Clone> Ord for ReadPoint<T> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.time.cmp(&other.time)
-    }
-}
-
-impl<T: Eq + PartialEq + Clone> PartialOrd for ReadPoint<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -320,10 +308,10 @@ impl ReadBatch {
         }
     }
 
-    fn sort(&mut self) {
+    fn sort_by_time(&mut self) {
         match &mut self.values {
-            ReadValues::I64(vals) => vals.sort(),
-            ReadValues::F64(vals) => vals.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap()),
+            ReadValues::I64(vals) => vals.sort_by_key(|v| v.time),
+            ReadValues::F64(vals) => vals.sort_by_key(|v| v.time),
         }
     }
 
