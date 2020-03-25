@@ -12,9 +12,16 @@ import {
 
 // GenVariable is the shape of a variable from the server
 export type GenVariable = GenVariable
-export interface Variable extends Omit<GenVariable, 'labels'> {
+export interface SystemVariableProperties {
+  type?: 'system'
+  values?: any
+}
+
+export interface Variable
+  extends Omit<Omit<GenVariable, 'labels'>, 'arguments'> {
   status: RemoteDataState // Loading status of an individual variable
   labels: string[]
+  arguments: VariableProperties | SystemVariableProperties
 }
 
 export interface PostVariable extends GenVariable {

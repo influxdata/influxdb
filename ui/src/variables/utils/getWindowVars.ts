@@ -77,11 +77,6 @@ export const getWindowPeriod = (
 
     return Math.round(queryDuration / DESIRED_POINTS_PER_GRAPH)
   } catch (error) {
-    console.error(error)
-    reportError(error, {
-      context: {query},
-      name: 'getWindowPeriod function',
-    })
     return null
   }
 }
@@ -90,14 +85,14 @@ export const getWindowPeriodVariable = (
   query: string,
   variables: VariableAssignment[]
 ): Variable[] | null => {
-  const total = '' + getWindowPeriod(query, variables)
+  const total = getWindowPeriod(query, variables)
 
   const windowPeriodVariable: Variable = {
     orgID: '',
     id: WINDOW_PERIOD,
     name: WINDOW_PERIOD,
     arguments: {
-      type: 'constant',
+      type: 'system',
       values: [total],
     },
     status: RemoteDataState.Done,

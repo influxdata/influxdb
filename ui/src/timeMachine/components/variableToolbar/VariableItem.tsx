@@ -23,6 +23,7 @@ const VariableItem: FC<Props> = ({variable, onClickVariable}) => {
   const trigger = useRef<HTMLDivElement>(null)
 
   if (
+    variable.arguments.type === 'system' ||
     (variable.arguments.type === 'constant' &&
       variable.arguments.values.length <= 1) ||
     (variable.arguments.type === 'map' &&

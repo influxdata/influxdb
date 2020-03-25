@@ -31,7 +31,7 @@ export const getRangeVariable = (
       id: TIME_RANGE_STOP,
       name: TIME_RANGE_STOP,
       arguments: {
-        type: 'constant',
+        type: 'system',
         values: ['now()'],
       },
       status: RemoteDataState.Done,
@@ -47,7 +47,7 @@ export const getRangeVariable = (
       id: which,
       name: which,
       arguments: {
-        type: 'constant',
+        type: 'system',
         values: [duration],
       },
       status: RemoteDataState.Done,
@@ -61,7 +61,7 @@ export const getRangeVariable = (
       id: which,
       name: which,
       arguments: {
-        type: 'constant',
+        type: 'system',
         values: [null],
       },
       status: RemoteDataState.Done,
@@ -74,7 +74,7 @@ export const getRangeVariable = (
     id: which,
     name: which,
     arguments: {
-      type: 'constant',
+      type: 'system',
       values: [range],
     },
     status: RemoteDataState.Done,
