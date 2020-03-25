@@ -21,8 +21,7 @@ const (
 )
 
 var writeFlags struct {
-	OrgID     string
-	Org       string
+	org       organization
 	BucketID  string
 	Bucket    string
 	Precision string
@@ -37,20 +36,8 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Short = "Write points to InfluxDB"
 	cmd.Long = `Write data to InfluxDB via stdin, or add an entire file specified with the -f flag`
 
+	writeFlags.org.register(cmd, true)
 	opts := flagOpts{
-		{
-			DestP:      &writeFlags.OrgID,
-			Flag:       "org-id",
-			Desc:       "The ID of the organization that owns the bucket",
-			Persistent: true,
-		},
-		{
-			DestP:      &writeFlags.Org,
-			Flag:       "org",
-			Short:      'o',
-			Desc:       "The name of the organization that owns the bucket",
-			Persistent: true,
-		},
 		{
 			DestP:      &writeFlags.BucketID,
 			Flag:       "bucket-id",
@@ -96,8 +83,8 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 
 	// validate flags unless dry-run
 	if !writeFlags.DryRun {
-		if writeFlags.Org != "" && writeFlags.OrgID != "" {
-			return fmt.Errorf("please specify one of org or org-id")
+		if err := writeFlags.org.validOrgFlags(&flags); err != nil {
+			return err
 		}
 
 		if writeFlags.Bucket != "" && writeFlags.BucketID != "" {
@@ -124,14 +111,14 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 			filter.Name = &writeFlags.Bucket
 		}
 
-		if writeFlags.OrgID != "" {
-			filter.OrganizationID, err = platform.IDFromString(writeFlags.OrgID)
+		if writeFlags.org.id != "" {
+			filter.OrganizationID, err = platform.IDFromString(writeFlags.org.id)
 			if err != nil {
 				return fmt.Errorf("failed to decode org-id id: %v", err)
 			}
 		}
-		if writeFlags.Org != "" {
-			filter.Org = &writeFlags.Org
+		if writeFlags.org.name != "" {
+			filter.Org = &writeFlags.org.name
 		}
 
 		buckets, n, err := bs.FindBuckets(ctx, filter)
