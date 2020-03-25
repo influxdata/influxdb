@@ -75,22 +75,27 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 		},
 	}
 	opts.mustRegister(cmd)
-	cmd.Flags().StringVar(&writeFlags.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
-	cmd.Flags().StringVarP(&writeFlags.File, "file", "f", "", "The path to the file to import")
-	cmd.Flags().BoolVar(&writeFlags.DryRun, "dry-run", false, "Write protocol lines to stdout")
+	cmd.PersistentFlags().StringVar(&writeFlags.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
+	cmd.PersistentFlags().StringVarP(&writeFlags.File, "file", "f", "", "The path to the file to import")
 
+	cmdDryRun := opt.newCmd("dryrun", nil)
+	cmdDryRun.Args = cobra.MaximumNArgs(1)
+	cmdDryRun.Short = "Write to stdout instead of InfluxDB"
+	cmdDryRun.Long = `Write protocol lines to stdout instead of InfluxDB. Troubleshoot conversion from CSV to line protocol.`
+	cmdDryRun.RunE = func(command *cobra.Command, args []string) error {
+		writeFlags.DryRun = true
+		return fluxWriteF(command, args)
+	}
+	cmd.AddCommand(cmdDryRun)
 	return cmd
 }
 
 func fluxWriteF(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
-	if writeFlags.DryRun {
-		flags.Host = "-"
-	}
-
 	var bucketID, orgID platform.ID
-	// validate flags unless writing to stdout
-	if flags.Host != "-" {
+
+	// validate flags unless dry-run
+	if !writeFlags.DryRun {
 		if writeFlags.Org != "" && writeFlags.OrgID != "" {
 			return fmt.Errorf("please specify one of org or org-id")
 		}
@@ -149,7 +154,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 
 	var r io.Reader
 	if len(args) > 0 && args[0][0] == '@' {
-		// backward compatibility
+		// backward compatibility: @ in arg denotes a file
 		writeFlags.File = args[0][1:]
 	}
 
@@ -164,6 +169,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 			writeFlags.Format = inputFormatCsv
 		}
 	} else if len(args) == 0 || args[0] == "-" {
+		// backward compatibility: "-" also means stdin
 		r = os.Stdin
 	} else {
 		r = strings.NewReader(args[0])
@@ -177,7 +183,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 		r = write.CsvToProtocolLines(r)
 	}
 
-	if flags.Host == "-" {
+	if writeFlags.DryRun {
 		// write lines to tdout
 		_, err := io.Copy(os.Stdout, r)
 		if err != nil {
