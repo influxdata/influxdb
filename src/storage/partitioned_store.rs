@@ -257,7 +257,7 @@ impl Stream for ReadMergeStream<'_> {
             _ => unreachable!(),
         };
 
-        let mut sort = false;
+        let mut sort_needed = false;
 
         for pos in 0..self.next_vals.len() {
             if let Poll::Ready(Some(b)) = &mut self.next_vals[pos] {
@@ -265,12 +265,12 @@ impl Stream for ReadMergeStream<'_> {
                     if batch.append_below_time(b, min_time) {
                         self.next_vals[pos] = Poll::Pending;
                     }
-                    sort = true;
+                    sort_needed = true;
                 }
             }
         }
 
-        if sort {
+        if sort_needed {
             batch.sort_by_time();
         }
 
