@@ -37,7 +37,7 @@ func newCmdSecretBuilder(svcsFn secretSVCsFn, opt genericCLIOpts) *cmdSecretBuil
 }
 
 func (b *cmdSecretBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("secret", nil)
+	cmd := b.newCmd("secret", nil, false)
 	cmd.Short = "Secret management commands"
 	cmd.Run = seeHelp
 	cmd.AddCommand(
@@ -49,7 +49,7 @@ func (b *cmdSecretBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdSecretBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
+	cmd := b.newCmd("update", b.cmdUpdateRunEFn, true)
 	cmd.Short = "Update secret"
 	cmd.Flags().StringVarP(&b.key, "key", "k", "", "The secret key (required)")
 	cmd.Flags().StringVarP(&b.value, "value", "v", "", "Optional secret value for scripting convenience, using this might expose the secret to your local history")
@@ -60,7 +60,7 @@ func (b *cmdSecretBuilder) cmdUpdate() *cobra.Command {
 }
 
 func (b *cmdSecretBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.cmdDeleteRunEFn)
+	cmd := b.newCmd("delete", b.cmdDeleteRunEFn, true)
 	cmd.Short = "Delete secret"
 
 	cmd.Flags().StringVarP(&b.key, "key", "k", "", "The secret key (required)")
@@ -137,7 +137,7 @@ func (b *cmdSecretBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 }
 
 func (b *cmdSecretBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("list", b.cmdFindRunEFn)
+	cmd := b.newCmd("list", b.cmdFindRunEFn, true)
 	cmd.Short = "List secrets"
 	cmd.Aliases = []string{"find", "ls"}
 	b.org.register(cmd, false)

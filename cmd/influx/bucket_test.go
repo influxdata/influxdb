@@ -185,9 +185,17 @@ func TestCmdBucket(t *testing.T) {
 
 		for _, tt := range tests {
 			fn := func(t *testing.T) {
+				defer addEnvVars(t, envVarsZeroMap)()
+
+				outBuf := new(bytes.Buffer)
+				defer func() {
+					if t.Failed() && outBuf.Len() > 0 {
+						t.Log(outBuf.String())
+					}
+				}()
 				builder := newInfluxCmdBuilder(
 					in(new(bytes.Buffer)),
-					out(ioutil.Discard),
+					out(outBuf),
 				)
 
 				cmd := builder.cmd(cmdFn(tt.expectedID))
