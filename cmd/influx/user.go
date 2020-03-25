@@ -50,7 +50,7 @@ func newCmdUserBuilder(svcsFn userSVCsFn, opt genericCLIOpts) *cmdUserBuilder {
 }
 
 func (b *cmdUserBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("user", nil)
+	cmd := b.newCmd("user", nil, false)
 	cmd.Short = "User management commands"
 	cmd.Run = seeHelp
 	cmd.AddCommand(
@@ -65,7 +65,7 @@ func (b *cmdUserBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdUserBuilder) cmdPassword() *cobra.Command {
-	cmd := b.newCmd("password", b.cmdPasswordRunEFn)
+	cmd := b.newCmd("password", b.cmdPasswordRunEFn, true)
 	cmd.Short = "Update user password"
 
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID")
@@ -75,7 +75,7 @@ func (b *cmdUserBuilder) cmdPassword() *cobra.Command {
 }
 
 func (b *cmdUserBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
+	cmd := b.newCmd("update", b.cmdUpdateRunEFn, true)
 	cmd.Short = "Update user"
 
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID (required)")
@@ -192,7 +192,7 @@ func (b *cmdUserBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) erro
 }
 
 func (b *cmdUserBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", b.cmdCreateRunEFn)
+	cmd := b.newCmd("create", b.cmdCreateRunEFn, true)
 	cmd.Short = "Create user"
 
 	opts := flagOpts{
@@ -280,7 +280,7 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 }
 
 func (b *cmdUserBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("list", b.cmdFindRunEFn)
+	cmd := b.newCmd("list", b.cmdFindRunEFn, true)
 	cmd.Short = "List users"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -330,7 +330,7 @@ func (b *cmdUserBuilder) cmdFindRunEFn(*cobra.Command, []string) error {
 }
 
 func (b *cmdUserBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.cmdDeleteRunEFn)
+	cmd := b.newCmd("delete", b.cmdDeleteRunEFn, true)
 	cmd.Short = "Delete user"
 
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID (required)")

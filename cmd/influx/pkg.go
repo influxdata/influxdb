@@ -87,7 +87,7 @@ func (b *cmdPkgBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
-	cmd := b.newCmd("pkg", b.pkgApplyRunEFn)
+	cmd := b.newCmd("pkg", b.pkgApplyRunEFn, true)
 	cmd.Short = "Apply a pkg to create resources"
 
 	b.org.register(cmd, false)
@@ -180,7 +180,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 }
 
 func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
-	cmd := b.newCmd("export", b.pkgExportRunEFn)
+	cmd := b.newCmd("export", b.pkgExportRunEFn, true)
 	cmd.Short = "Export existing resources as a package"
 	cmd.AddCommand(b.cmdPkgExportAll())
 
@@ -254,7 +254,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 }
 
 func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
-	cmd := b.newCmd("all", b.pkgExportAllRunEFn)
+	cmd := b.newCmd("all", b.pkgExportAllRunEFn, true)
 	cmd.Short = "Export all existing resources for an organization as a package"
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
@@ -318,9 +318,8 @@ func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 		return nil
 	}
 
-	cmd := b.newCmd("summary", nil)
+	cmd := b.newCmd("summary", runE, false)
 	cmd.Short = "Summarize the provided package"
-	cmd.RunE = runE
 
 	b.registerPkgFileFlags(cmd)
 	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
@@ -338,9 +337,8 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 		return pkg.Validate()
 	}
 
-	cmd := b.newCmd("validate", nil)
+	cmd := b.newCmd("validate", runE, false)
 	cmd.Short = "Validate the provided package"
-	cmd.RunE = runE
 
 	b.registerPkgFileFlags(cmd)
 
