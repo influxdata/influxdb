@@ -65,14 +65,13 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&writeFlags.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
 	cmd.PersistentFlags().StringVarP(&writeFlags.File, "file", "f", "", "The path to the file to import")
 
-	cmdDryRun := opt.newCmd("dryrun", nil)
+	cmdDryRun := opt.newCmd("dryrun", func(command *cobra.Command, args []string) error {
+		writeFlags.DryRun = true
+		return fluxWriteF(command, args)
+	}, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
 	cmdDryRun.Short = "Write to stdout instead of InfluxDB"
 	cmdDryRun.Long = `Write protocol lines to stdout instead of InfluxDB. Troubleshoot conversion from CSV to line protocol.`
-	cmdDryRun.RunE = func(command *cobra.Command, args []string) error {
-		writeFlags.DryRun = true
-		return fluxWriteF(command, args)
-	}
 	cmd.AddCommand(cmdDryRun)
 	return cmd
 }
