@@ -181,12 +181,12 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 
 	if flags.Token == "" {
 		// migration credential token
-		if migrateOldCredential() {
-			// this is after the flagOpts register b/c we don't want to show the default value
-			// in the usage display. This will add it as the config, then if a token flag
-			// is provided too, the flag will take precedence.
-			flags.Config = getConfigFromDefaultPath()
-		}
+		migrateOldCredential()
+
+		// this is after the flagOpts register b/c we don't want to show the default value
+		// in the usage display. This will add it as the config, then if a token flag
+		// is provided too, the flag will take precedence.
+		flags.Config = getConfigFromDefaultPath()
 	}
 
 	cmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
@@ -274,22 +274,21 @@ func getConfigFromDefaultPath() config.Config {
 	return activated
 }
 
-func migrateOldCredential() bool {
+func migrateOldCredential() {
 	dir, err := fs.InfluxDir()
 	if err != nil {
-		return false // no need for migration
+		return // no need for migration
 	}
 	tokB, err := ioutil.ReadFile(filepath.Join(dir, http.DefaultTokenFile))
 	if err != nil {
-		return false // no need for migration
+		return // no need for migration
 	}
 	err = writeConfigToPath(strings.TrimSpace(string(tokB)), "", filepath.Join(dir, http.DefaultConfigsFile), dir)
 	if err != nil {
-		return false
+		return
 	}
 	// ignore the remove err
 	_ = os.Remove(filepath.Join(dir, http.DefaultTokenFile))
-	return true
 }
 
 func writeConfigToPath(tok, org, path, dir string) error {
@@ -308,7 +307,7 @@ func writeConfigToPath(tok, org, path, dir string) error {
 
 func checkSetup(host string, skipVerify bool) error {
 	if host == "-" {
-		// dry run executed
+		// dry-run executed
 		return nil
 	}
 	s := &http.SetupService{
