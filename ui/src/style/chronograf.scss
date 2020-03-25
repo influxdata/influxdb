@@ -75,8 +75,9 @@
 @import 'src/me/graphics/ExploreGraphic.scss';
 @import 'src/me/graphics/DashboardingGraphic.scss';
 @import 'src/me/graphics/CollectorGraphic.scss';
-@import 'src/pageLayout/components/RenamablePageTitle.scss';
 @import 'src/pageLayout/components/CloudNav.scss';
+@import 'src/pageLayout/components/RenamablePageTitle.scss';
+@import 'src/pageLayout/components/OrgSwitcherOverlay.scss';
 @import 'src/timeMachine/components/SelectorList.scss';
 @import 'src/timeMachine/components/Queries.scss';
 @import 'src/timeMachine/components/EditorShortcutsTooltip.scss';
@@ -110,6 +111,7 @@
 @import 'src/shared/components/EventMarkerTooltip.scss';
 @import 'src/shared/components/DeleteDataForm/DeleteDataForm.scss';
 @import 'src/shared/components/cloud/CloudOnly.scss';
+@import 'src/shared/components/CloudUpgradeNavBanner.scss';
 @import 'src/notifications/rules/components/NewRuleOverlay.scss';
 @import 'src/shared/components/dashed_button/DashedButton.scss';
 @import 'src/alerting/components/AlertingIndex.scss';

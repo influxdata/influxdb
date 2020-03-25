@@ -13,6 +13,7 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -66,6 +67,7 @@ class DashboardIndex extends PureComponent<Props, State> {
         >
           <Page.Header fullWidth={false}>
             <Page.Title title="Dashboards" />
+            <CloudUpgradeButton />
           </Page.Header>
           <Page.ControlBar fullWidth={false}>
             <Page.ControlBarLeft>

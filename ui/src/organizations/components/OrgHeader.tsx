@@ -4,15 +4,15 @@ import React, {Component} from 'react'
 import {Page} from '@influxdata/clockface'
 import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
-class SettingsHeader extends Component {
+class OrgHeader extends Component {
   public render() {
     return (
       <Page.Header fullWidth={false}>
-        <Page.Title title="Settings" />
+        <Page.Title title="Organization" />
         <CloudUpgradeButton />
       </Page.Header>
     )
   }
 }
 
-export default SettingsHeader
+export default OrgHeader
