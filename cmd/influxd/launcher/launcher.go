@@ -50,11 +50,12 @@ import (
 	"github.com/influxdata/influxdb/task/backend/middleware"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
 	"github.com/influxdata/influxdb/telemetry"
+	"github.com/influxdata/influxdb/tenant"
 	_ "github.com/influxdata/influxdb/tsdb/tsi1" // needed for tsi1
 	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
 	"github.com/influxdata/influxdb/vault"
 	pzap "github.com/influxdata/influxdb/zap"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
@@ -260,11 +261,22 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Default: "",
 			Desc:    "TLS key for HTTPs",
 		},
+		{
+			DestP:   &l.enableNewMetaStore,
+			Flag:    "new-meta-store",
+			Default: false,
+			Desc:    "enables the new meta store",
+		},
+		{
+			DestP:   &l.newMetaStoreReadOnly,
+			Flag:    "new-meta-store-read-only",
+			Default: true,
+			Desc:    "toggles read-only mode for the new meta store, if so, the reads are duplicated between the old and new store (has meaning only if the new meta store is enabled)",
+		},
 	}
 
 	cli.BindOptions(cmd, opts)
 	cmd.AddCommand(inspect.NewCommand())
-
 }
 
 // Launcher represents the main program execution.
@@ -288,7 +300,11 @@ type Launcher struct {
 	enginePath      string
 	secretStore     string
 
+	enableNewMetaStore   bool
+	newMetaStoreReadOnly bool
+
 	boltClient    *bolt.Client
+	kvStore       kv.Store
 	kvService     *kv.Service
 	engine        Engine
 	StorageConfig storage.Config
@@ -487,12 +503,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	case BoltStore:
 		store := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), m.boltPath)
 		store.WithDB(m.boltClient.DB())
+		m.kvStore = store
 		m.kvService = kv.NewService(m.log.With(zap.String("store", "kv")), store, serviceConfig)
 		if m.testing {
 			flushers = append(flushers, store)
 		}
 	case MemoryStore:
 		store := inmem.NewKVStore()
+		m.kvStore = store
 		m.kvService = kv.NewService(m.log.With(zap.String("store", "kv")), store, serviceConfig)
 		if m.testing {
 			flushers = append(flushers, store)
@@ -538,6 +556,33 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		lookupSvc                 platform.LookupService                   = m.kvService
 		notificationEndpointStore platform.NotificationEndpointService     = m.kvService
 	)
+
+	if m.enableNewMetaStore {
+		var ts platform.TenantService
+		if m.newMetaStoreReadOnly {
+			store, err := tenant.NewReadOnlyStore(m.kvStore)
+			if err != nil {
+				m.log.Error("Failed creating new meta store", zap.Error(err))
+				return err
+			}
+			oldSvc := m.kvService
+			newSvc := tenant.NewService(store)
+			ts = tenant.NewDuplicateReadTenantService(m.log, oldSvc, newSvc)
+		} else {
+			store, err := tenant.NewStore(m.kvStore)
+			if err != nil {
+				m.log.Error("Failed creating new meta store", zap.Error(err))
+				return err
+			}
+			ts = tenant.NewService(store)
+		}
+
+		bucketSvc = tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, tenant.WithSuffix("new")))
+		orgSvc = tenant.NewOrgLogger(m.log.With(zap.String("store", "new")), tenant.NewOrgMetrics(m.reg, ts, tenant.WithSuffix("new")))
+		userResourceSvc = tenant.NewURMLogger(m.log.With(zap.String("store", "new")), tenant.NewUrmMetrics(m.reg, ts, tenant.WithSuffix("new")))
+		userSvc = tenant.NewUserLogger(m.log.With(zap.String("store", "new")), tenant.NewUserMetrics(m.reg, ts, tenant.WithSuffix("new")))
+		passwdsSvc = tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, tenant.WithSuffix("new")))
+	}
 
 	switch m.secretStore {
 	case "bolt":
@@ -940,6 +985,11 @@ func (m *Launcher) BucketService() platform.BucketService {
 // UserService returns the internal user service.
 func (m *Launcher) UserService() platform.UserService {
 	return m.apibackend.UserService
+}
+
+// UserResourceMappingService returns the internal user resource mapping service.
+func (m *Launcher) UserResourceMappingService() platform.UserResourceMappingService {
+	return m.apibackend.UserResourceMappingService
 }
 
 // AuthorizationService returns the internal authorization service.
