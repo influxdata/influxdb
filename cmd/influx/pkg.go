@@ -115,10 +115,6 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		return err
 	}
 
-	if err := b.org.validOrgFlags(&flags); err != nil {
-		return err
-	}
-
 	influxOrgID, err := b.org.getID(orgSVC)
 	if err != nil {
 		return err
