@@ -318,8 +318,9 @@ func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 		return nil
 	}
 
-	cmd := b.newCmd("summary", runE)
+	cmd := b.newCmd("summary", nil)
 	cmd.Short = "Summarize the provided package"
+	cmd.RunE = runE
 
 	b.registerPkgFileFlags(cmd)
 	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
@@ -337,8 +338,9 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 		return pkg.Validate()
 	}
 
-	cmd := b.newCmd("validate", runE)
+	cmd := b.newCmd("validate", nil)
 	cmd.Short = "Validate the provided package"
+	cmd.RunE = runE
 
 	b.registerPkgFileFlags(cmd)
 
@@ -428,8 +430,13 @@ func (b *cmdPkgBuilder) readPkg() (*pkger.Pkg, bool, error) {
 	}
 	pkgs = append(pkgs, urlPkgs...)
 
+	// the pkger.ValidSkipParseError option allows our server to be the one to validate the
+	// the pkg is accurate. If a user has an older version of the CLI and cloud gets updated
+	// with new validation rules,they'll get immediate access to that change without having to
+	// rol their CLI build.
+
 	if _, err := b.inStdIn(); err != nil {
-		pkg, err := pkger.Combine(pkgs...)
+		pkg, err := pkger.Combine(pkgs, pkger.ValidSkipParseError())
 		return pkg, false, err
 	}
 
@@ -437,7 +444,7 @@ func (b *cmdPkgBuilder) readPkg() (*pkger.Pkg, bool, error) {
 	if err != nil {
 		return nil, true, err
 	}
-	pkg, err := pkger.Combine(append(pkgs, stdinPkg)...)
+	pkg, err := pkger.Combine(append(pkgs, stdinPkg), pkger.ValidSkipParseError())
 	return pkg, true, err
 }
 

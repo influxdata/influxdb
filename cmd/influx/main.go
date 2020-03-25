@@ -327,6 +327,7 @@ func checkSetupRunEMiddleware(f *globalFlags) cobraRunEMiddleware {
 			}
 
 			if setupErr := checkSetup(f.Host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
+				cmd.OutOrStderr().Write([]byte(fmt.Sprintf("Error: %s\n", internal.ErrorFmt(err).Error())))
 				return internal.ErrorFmt(setupErr)
 			}
 
