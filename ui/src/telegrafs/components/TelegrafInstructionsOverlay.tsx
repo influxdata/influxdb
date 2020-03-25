@@ -65,7 +65,7 @@ export class TelegrafInstructionsOverlay extends PureComponent<
 
     const labels = get(config, 'labels', [])
 
-    const label = labels.find(l => l.name === TOKEN_LABEL)
+    const label = labels.find(l => l === TOKEN_LABEL)
     const auth = tokens.find(t => t.id === get(label, 'properties.tokenID'))
 
     if (!label || !auth) {

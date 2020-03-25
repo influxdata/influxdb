@@ -90,7 +90,7 @@ export const getWindowPeriodVariable = (
   query: string,
   variables: VariableAssignment[]
 ): Variable[] | null => {
-  const total = getWindowPeriod(query, variables)
+  const total = '' + getWindowPeriod(query, variables)
 
   const windowPeriodVariable: Variable = {
     orgID: '',

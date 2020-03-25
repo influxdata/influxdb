@@ -150,8 +150,7 @@ const errorVariableValues = (
   message = 'Failed to load values for variable'
 ): VariableValues => ({
   values: null,
-  selectedKey: null,
-  selectedValue: null,
+  selected: null,
   valueType: null,
   error: message,
 })
@@ -193,7 +192,7 @@ const hydrateVarsHelper = async (
     return {
       valueType: 'string',
       values: node.variable.arguments.values,
-      selectedValue: node.variable.selected[0],
+      selected: node.variable.selected,
     }
   }
 
@@ -201,7 +200,7 @@ const hydrateVarsHelper = async (
     return {
       valueType: 'string',
       values: node.variable.arguments.values,
-      selectedValue: node.variable.selected[0],
+      selected: node.variable.selected,
     }
   }
 

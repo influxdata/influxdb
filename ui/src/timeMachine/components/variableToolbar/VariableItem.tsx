@@ -46,12 +46,7 @@ const VariableItem: FC<Props> = ({variable, onClickVariable}) => {
         hideEvent={PopoverInteraction.Hover}
         distanceFromTrigger={8}
         testID="toolbar-popover"
-        contents={() => (
-          <VariableTooltipContents
-            variable={variable}
-            variableID={variable.id}
-          />
-        )}
+        contents={() => <VariableTooltipContents variableID={variable.id} />}
       />
     </div>
   )

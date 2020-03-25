@@ -264,7 +264,8 @@ const loadTagSelectorValues = (index: number) => async (
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 
   try {
-    const timeRange = getTimeRange(getState())
+    const contextID = state.timeMachines.activeTimeMachineID
+    const timeRange = getTimeRange(state, contextID)
     const key = getActiveQuery(getState()).builderConfig.tags[index].key
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .valuesSearchTerm

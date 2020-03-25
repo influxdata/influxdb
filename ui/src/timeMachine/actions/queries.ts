@@ -79,9 +79,10 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
   try {
     dispatch(setQueryResults(RemoteDataState.Loading, [], null))
 
-    const variableAssignments = getAllVariables(state, timeMachine.id).map(v =>
-      asAssignment(v)
-    )
+    const variableAssignments = getAllVariables(
+      state,
+      state.timeMachines.activeTimeMachineID
+    ).map(v => asAssignment(v))
 
     // keeping getState() here ensures that the state we are working with
     // is the most current one. By having this set to state, we were creating a race

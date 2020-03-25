@@ -6,7 +6,7 @@ import {VariableValues, VariableAssignment} from 'src/types'
 
 export const getVarAssignment = (
   name: string,
-  {selectedValue, valueType}: VariableValues
+  {selected, valueType}: VariableValues
 ): VariableAssignment => {
   const assignment = {
     type: 'VariableAssignment' as 'VariableAssignment',
@@ -19,7 +19,7 @@ export const getVarAssignment = (
         ...assignment,
         init: {
           type: 'BooleanLiteral',
-          value: selectedValue === 'true' ? true : false,
+          value: selected[0] === 'true' ? true : false,
         },
       }
     case 'unsignedLong':
@@ -27,7 +27,7 @@ export const getVarAssignment = (
         ...assignment,
         init: {
           type: 'UnsignedIntegerLiteral',
-          value: Number(selectedValue),
+          value: Number(selected[0]),
         },
       }
     case 'long':
@@ -35,7 +35,7 @@ export const getVarAssignment = (
         ...assignment,
         init: {
           type: 'IntegerLiteral',
-          value: Number(selectedValue),
+          value: Number(selected[0]),
         },
       }
     case 'double':
@@ -43,7 +43,7 @@ export const getVarAssignment = (
         ...assignment,
         init: {
           type: 'FloatLiteral',
-          value: Number(selectedValue),
+          value: Number(selected[0]),
         },
       }
     case 'string':
@@ -51,7 +51,7 @@ export const getVarAssignment = (
         ...assignment,
         init: {
           type: 'StringLiteral',
-          value: selectedValue,
+          value: selected[0],
         },
       }
     case 'dateTime':
@@ -59,7 +59,7 @@ export const getVarAssignment = (
         ...assignment,
         init: {
           type: 'DateTimeLiteral',
-          value: selectedValue,
+          value: selected[0],
         },
       }
     case 'duration':
@@ -67,7 +67,7 @@ export const getVarAssignment = (
         ...assignment,
         init: {
           type: 'DurationLiteral',
-          values: parseDuration(selectedValue),
+          values: parseDuration(selected[0]),
         },
       }
     default:

@@ -92,7 +92,7 @@ export const getVariables = () => async (
       })
       .forEach(v => {
         v.arguments.values.results = vals[v.id].values
-        v.selected = [vals[v.id].selectedValue]
+        v.selected = vals[v.id].selected
       })
 
     await dispatch(

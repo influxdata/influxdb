@@ -36,10 +36,9 @@ export interface VariableMapObject {
   [mapKey: string]: mapValue
 }
 export interface VariableValues {
-  values: VariableMapObject | string[]
-  valueType: FluxColumnType
-  selectedKey?: string
-  selectedValue: string
+  values?: VariableMapObject | string[]
+  valueType?: FluxColumnType
+  selected?: string[]
   error?: string
 }
 

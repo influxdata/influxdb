@@ -93,16 +93,22 @@ export const variablesReducer = (
         const {contextID, variableID, selectedValue} = action
 
         if (!draftState.values[contextID]) {
-          draftState.values[contextID] = {values: {}}
+          draftState.values[contextID] = {
+            status: RemoteDataState.Done,
+            order: [],
+            values: {},
+          }
         }
 
         if (!draftState.values[contextID].values[variableID]) {
-          draftState.values[contextID].values[variableID] = {}
+          draftState.values[contextID].values[variableID] = {
+            selected: [selectedValue],
+          }
+        } else {
+          draftState.values[contextID].values[variableID].selected = [
+            selectedValue,
+          ]
         }
-
-        draftState.values[contextID].values[variableID].selected = [
-          selectedValue,
-        ]
 
         return
       }
