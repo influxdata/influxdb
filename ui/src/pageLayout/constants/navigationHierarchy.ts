@@ -101,7 +101,7 @@ export const generateNavItems = (orgID: string): NavItem[] => {
           testID: 'nav-subitem-multi-user-members',
           label: 'Members',
           featureFlag: 'multiUser',
-          link: `${CLOUD_URL}/organizations/${orgID}/${CLOUD_USERS_PATH}`,
+          link: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
         },
         {
           id: 'about',
