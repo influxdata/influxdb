@@ -69,18 +69,21 @@ pub trait Partition {
 /// is used for combining results from multiple partitions for calls to get measurements, tag keys,
 /// tag values, or field keys. It assumes the incoming streams are in sorted order.
 pub struct StringMergeStream<'a> {
-    streams: Vec<BoxStream<'a, String>>,
-    next_vals: Vec<Poll<Option<String>>>,
+    streams: Vec<StreamState<'a, String>>,
     drained: bool,
+}
+
+struct StreamState<'a, T> {
+    stream: BoxStream<'a, T>,
+    next: Poll<Option<T>>,
 }
 
 impl StringMergeStream<'_> {
     fn new(streams: Vec<BoxStream<'_, String>>) -> StringMergeStream<'_> {
-        let len = streams.len();
+        let streams = streams.into_iter().map(|s| StreamState{stream: s, next: Poll::Pending}).collect();
 
         StringMergeStream {
             streams,
-            next_vals: vec![Poll::Pending; len],
             drained: false,
         }
     }
@@ -96,17 +99,10 @@ impl Stream for StringMergeStream<'_> {
 
         let mut one_pending = false;
 
-        for pos in 0..self.next_vals.len() {
-            match self.next_vals[pos] {
-                Poll::Pending => {
-                    let v = self.streams[pos].as_mut().poll_next(cx);
-                    if v.is_pending() {
-                        one_pending = true;
-                    }
-
-                    self.next_vals[pos] = v;
-                }
-                Poll::Ready(_) => (),
+        for state in self.streams.iter_mut() {
+            if state.next.is_pending() {
+                state.next = state.stream.as_mut().poll_next(cx);
+                one_pending = one_pending || state.next.is_pending();
             }
         }
 
@@ -114,30 +110,37 @@ impl Stream for StringMergeStream<'_> {
             return Poll::Pending;
         }
 
+        let mut next_val: Option<String> = None;
         let mut next_pos = 0;
 
-        for pos in 1..self.next_vals.len() {
-            if let Poll::Ready(Some(s)) = &self.next_vals[pos] {
-                match &self.next_vals[next_pos] {
-                    Poll::Ready(None) => next_pos = pos,
-                    Poll::Ready(Some(next)) => match next.cmp(s) {
-                        Ordering::Greater => next_pos = pos,
-                        Ordering::Equal => {
-                            self.next_vals[pos] = self.streams[pos].as_mut().poll_next(cx)
-                        }
-                        Ordering::Less => (),
-                    },
-                    Poll::Pending => return Poll::Pending,
-                }
+        for (pos, state) in self.streams.iter_mut().enumerate() {
+            match (&next_val, &state.next) {
+                (None, Poll::Ready(Some(ref val))) => {
+                    next_val = Some(val.clone());
+                    next_pos = pos;
+                },
+                (Some(next), Poll::Ready(Some(ref val))) => {
+                    if next > val {
+                        next_val = Some(val.clone());
+                        next_pos = pos;
+
+                    } else if next == val {
+                        state.next = state.stream.as_mut().poll_next(cx);
+                    }
+                },
+                (Some(_), Poll::Ready(None)) => (),
+                _ => unreachable!(),
             }
         }
 
-        let val = mem::replace(&mut self.next_vals[next_pos], Poll::Pending);
-
-        if let Poll::Ready(None) = val {
+        if next_val.is_none() {
             self.drained = true;
+            return Poll::Ready(None);
         }
 
+        let next_state: &mut StreamState<'_, String> = &mut self.streams[next_pos];
+
+        let val = mem::replace(&mut next_state.next, next_state.stream.as_mut().poll_next(cx));
         val
     }
 }
@@ -339,7 +342,6 @@ impl ReadBatch {
                 match pos {
                     None => {
                         vals.append(other_vals);
-                        other_vals.clear();
                         true
                     }
                     Some(pos) => {
