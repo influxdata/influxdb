@@ -1,5 +1,5 @@
 import {IconFont} from '@influxdata/clockface'
-import {CLOUD_URL, CLOUD_USERS_PATH} from 'src/shared/constants'
+import {CLOUD, CLOUD_URL, CLOUD_USERS_PATH} from 'src/shared/constants'
 
 export interface NavSubItem {
   id: string
@@ -86,7 +86,7 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       icon: IconFont.UsersTrio,
       label: 'Organization',
       shortLabel: 'Org',
-      link: `${orgPrefix}/members`,
+      link: CLOUD ? `${orgPrefix}/about` : `${orgPrefix}/members`,
       activeKeywords: ['members', 'about'],
       menu: [
         {
