@@ -20,7 +20,7 @@ const (
 	inputFormatLineProtocol = "lp"
 )
 
-var writeFlags struct {
+type writeFlagsType struct {
 	org       organization
 	BucketID  string
 	Bucket    string
@@ -29,6 +29,8 @@ var writeFlags struct {
 	File      string
 	DryRun    bool
 }
+
+var writeFlags writeFlagsType
 
 func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("write", fluxWriteF, true)
@@ -65,10 +67,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&writeFlags.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
 	cmd.PersistentFlags().StringVarP(&writeFlags.File, "file", "f", "", "The path to the file to import")
 
-	cmdDryRun := opt.newCmd("dryrun", func(command *cobra.Command, args []string) error {
-		writeFlags.DryRun = true
-		return fluxWriteF(command, args)
-	}, false)
+	cmdDryRun := opt.newCmd("dryrun", fluxWriteDryrunF, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
 	cmdDryRun.Short = "Write to stdout instead of InfluxDB"
 	cmdDryRun.Long = `Write protocol lines to stdout instead of InfluxDB. Troubleshoot conversion from CSV to line protocol.`
@@ -76,69 +75,8 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	return cmd
 }
 
-func fluxWriteF(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
-	var bucketID, orgID platform.ID
-
-	// validate flags unless dry-run
-	if !writeFlags.DryRun {
-		if err := writeFlags.org.validOrgFlags(&flags); err != nil {
-			return err
-		}
-
-		if writeFlags.Bucket != "" && writeFlags.BucketID != "" {
-			return fmt.Errorf("please specify one of bucket or bucket-id")
-		}
-
-		if !models.ValidPrecision(writeFlags.Precision) {
-			return fmt.Errorf("invalid precision")
-		}
-
-		bs, err := newBucketService()
-		if err != nil {
-			return err
-		}
-
-		var filter platform.BucketFilter
-		if writeFlags.BucketID != "" {
-			filter.ID, err = platform.IDFromString(writeFlags.BucketID)
-			if err != nil {
-				return fmt.Errorf("failed to decode bucket-id: %v", err)
-			}
-		}
-		if writeFlags.Bucket != "" {
-			filter.Name = &writeFlags.Bucket
-		}
-
-		if writeFlags.org.id != "" {
-			filter.OrganizationID, err = platform.IDFromString(writeFlags.org.id)
-			if err != nil {
-				return fmt.Errorf("failed to decode org-id id: %v", err)
-			}
-		}
-		if writeFlags.org.name != "" {
-			filter.Org = &writeFlags.org.name
-		}
-
-		buckets, n, err := bs.FindBuckets(ctx, filter)
-		if err != nil {
-			return fmt.Errorf("failed to retrieve buckets: %v", err)
-		}
-
-		if n == 0 {
-			if writeFlags.Bucket != "" {
-				return fmt.Errorf("bucket %q was not found", writeFlags.Bucket)
-			}
-
-			if writeFlags.BucketID != "" {
-				return fmt.Errorf("bucket with id %q does not exist", writeFlags.BucketID)
-			}
-		}
-
-		bucketID, orgID = buckets[0].ID, buckets[0].OrgID
-	}
-
-	var r io.Reader
+// createLineReader uses writeFlags and cli arguments to create a reader that produces line protocol
+func (writeFlags *writeFlagsType) createLineReader(args []string) (r io.Reader, closer io.Closer, err error) {
 	if len(args) > 0 && args[0][0] == '@' {
 		// backward compatibility: @ in arg denotes a file
 		writeFlags.File = args[0][1:]
@@ -147,9 +85,9 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	if len(writeFlags.File) > 0 {
 		f, err := os.Open(writeFlags.File)
 		if err != nil {
-			return fmt.Errorf("failed to open %q: %v", writeFlags.File, err)
+			return nil, nil, fmt.Errorf("failed to open %q: %v", writeFlags.File, err)
 		}
-		defer f.Close()
+		closer = f
 		r = f
 		if len(writeFlags.Format) == 0 && strings.HasSuffix(writeFlags.File, ".csv") {
 			writeFlags.Format = inputFormatCsv
@@ -162,34 +100,111 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	}
 	// validate input format
 	if len(writeFlags.Format) > 0 && writeFlags.Format != inputFormatLineProtocol && writeFlags.Format != inputFormatCsv {
-		return fmt.Errorf("unsupported input format: %s", writeFlags.Format)
+		return nil, nil, fmt.Errorf("unsupported input format: %s", writeFlags.Format)
 	}
 
 	if writeFlags.Format == inputFormatCsv {
 		r = write.CsvToProtocolLines(r)
 	}
+	return r, closer, nil
+}
 
-	if writeFlags.DryRun {
-		// write lines to tdout
-		_, err := io.Copy(os.Stdout, r)
-		if err != nil {
-			return fmt.Errorf("failed: %v", err)
-		}
-	} else {
-		s := write.Batcher{
-			Service: &http.WriteService{
-				Addr:               flags.Host,
-				Token:              flags.Token,
-				Precision:          writeFlags.Precision,
-				InsecureSkipVerify: flags.skipVerify,
-			},
-		}
-
-		ctx = signals.WithStandardSignals(ctx)
-		if err := s.Write(ctx, orgID, bucketID, r); err != nil && err != context.Canceled {
-			return fmt.Errorf("failed to write data: %v", err)
-		}
+func fluxWriteF(cmd *cobra.Command, args []string) error {
+	// validate InfluxDB flags
+	if err := writeFlags.org.validOrgFlags(&flags); err != nil {
+		return err
 	}
 
+	if writeFlags.Bucket != "" && writeFlags.BucketID != "" {
+		return fmt.Errorf("please specify one of bucket or bucket-id")
+	}
+
+	if !models.ValidPrecision(writeFlags.Precision) {
+		return fmt.Errorf("invalid precision")
+	}
+
+	bs, err := newBucketService()
+	if err != nil {
+		return err
+	}
+
+	var filter platform.BucketFilter
+	if writeFlags.BucketID != "" {
+		filter.ID, err = platform.IDFromString(writeFlags.BucketID)
+		if err != nil {
+			return fmt.Errorf("failed to decode bucket-id: %v", err)
+		}
+	}
+	if writeFlags.Bucket != "" {
+		filter.Name = &writeFlags.Bucket
+	}
+
+	if writeFlags.org.id != "" {
+		filter.OrganizationID, err = platform.IDFromString(writeFlags.org.id)
+		if err != nil {
+			return fmt.Errorf("failed to decode org-id id: %v", err)
+		}
+	}
+	if writeFlags.org.name != "" {
+		filter.Org = &writeFlags.org.name
+	}
+
+	ctx := context.Background()
+	buckets, n, err := bs.FindBuckets(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve buckets: %v", err)
+	}
+
+	if n == 0 {
+		if writeFlags.Bucket != "" {
+			return fmt.Errorf("bucket %q was not found", writeFlags.Bucket)
+		}
+
+		if writeFlags.BucketID != "" {
+			return fmt.Errorf("bucket with id %q does not exist", writeFlags.BucketID)
+		}
+	}
+	bucketID, orgID := buckets[0].ID, buckets[0].OrgID
+
+	// create line reader
+	r, closer, err := writeFlags.createLineReader(args)
+	if closer != nil {
+		defer closer.Close()
+	}
+	if err != nil {
+		return err
+	}
+
+	// write to InfluxDB
+	s := write.Batcher{
+		Service: &http.WriteService{
+			Addr:               flags.Host,
+			Token:              flags.Token,
+			Precision:          writeFlags.Precision,
+			InsecureSkipVerify: flags.skipVerify,
+		},
+	}
+	ctx = signals.WithStandardSignals(ctx)
+	if err := s.Write(ctx, orgID, bucketID, r); err != nil && err != context.Canceled {
+		return fmt.Errorf("failed to write data: %v", err)
+	}
+
+	return nil
+}
+
+func fluxWriteDryrunF(cmd *cobra.Command, args []string) error {
+	// create line reader
+	r, closer, err := writeFlags.createLineReader(args)
+	if closer != nil {
+		defer closer.Close()
+	}
+	if err != nil {
+		return err
+	}
+	// dry run
+	_, err = io.Copy(os.Stdout, r)
+	if err != nil {
+		return fmt.Errorf("failed: %v", err)
+	}
 	return nil
 }
