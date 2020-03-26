@@ -39,6 +39,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/control"
 	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/rpc/flight"
 	"github.com/influxdata/influxdb/snowflake"
 	"github.com/influxdata/influxdb/source"
 	"github.com/influxdata/influxdb/storage"
@@ -145,6 +146,12 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Flag:    "http-bind-address",
 			Default: ":9999",
 			Desc:    "bind address for the REST HTTP API",
+		},
+		{
+			DestP:   &l.gRPCBindAddress,
+			Flag:    "grpc-bind-address",
+			Default: ":9998",
+			Desc:    "bind address for the gRPC API",
 		},
 		{
 			DestP:   &l.boltPath,
@@ -319,6 +326,10 @@ type Launcher struct {
 	natsServer *nats.Server
 	natsPort   int
 
+	// flight service
+	gRPCBindAddress string
+	flightService   *flight.Service
+
 	scheduler          *scheduler.TreeScheduler
 	executor           *executor.Executor
 	taskControlService taskbackend.TaskControlService
@@ -382,6 +393,7 @@ func (m *Launcher) Engine() Engine {
 // Shutdown shuts down the HTTP server and waits for all services to clean up.
 func (m *Launcher) Shutdown(ctx context.Context) {
 	m.httpServer.Shutdown(ctx)
+	m.flightService.Shutdown(ctx)
 
 	m.log.Info("Stopping", zap.String("service", "task"))
 
@@ -638,8 +650,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		QueueSize                = 10
 	)
 
+	store := readservice.NewStore(m.engine)
+
 	deps, err := influxdb.NewDependencies(
-		storageflux.NewReader(readservice.NewStore(m.engine)),
+		storageflux.NewReader(store),
 		m.engine,
 		authorizer.NewBucketService(bucketSvc, userResourceSvc),
 		authorizer.NewOrgService(orgSvc),
@@ -950,6 +964,20 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			}
 		}
 		log.Info("Stopping")
+	}(m.log)
+
+	// flight service
+	ln2, err := net.Listen("tcp", m.gRPCBindAddress)
+	if err != nil {
+		m.log.Error("failed gRPC listener", zap.Error(err))
+		m.log.Info("Stopping")
+		return err
+	}
+	m.flightService = flight.NewService(m.log, store, m.queryController)
+	m.wg.Add(1)
+	go func(log *zap.Logger) {
+		defer m.wg.Done()
+		m.flightService.Serve(ln2)
 	}(m.log)
 
 	return nil

@@ -1,0 +1,31 @@
+// An integration test service
+//
+// copied from https://github.com/grpc/grpc-go
+syntax = "proto3";
+
+package internal;
+
+// Unary request.
+message SimpleRequest { }
+
+// Unary response, as configured by the request.
+message SimpleResponse { }
+
+// Server-streaming request.
+message StreamingOutputCallRequest { }
+
+// Server-streaming response
+message StreamingOutputCallResponse { }
+
+// A simple service to test the various types of RPCs and experiment with
+// performance with various types of payload.
+service TestService {
+  // One request followed by one response.
+  // The server returns the client payload as-is.
+  rpc UnaryCall(SimpleRequest) returns (SimpleResponse);
+
+  // One request followed by a sequence of responses (streamed download).
+  // The server returns the payload with client desired type and sizes.
+  rpc StreamingOutputCall(StreamingOutputCallRequest)
+      returns (stream StreamingOutputCallResponse);
+}
