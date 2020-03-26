@@ -46,7 +46,7 @@ import {prettyBuckets} from 'src/shared/utils/prettyBucket'
 import {extractBucketLimits} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
-import {FeatureFlag, isFlagEnabled} from 'src/shared/utils/featureFlag'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
 import {PrettyBucket} from 'src/buckets/components/BucketCard'
@@ -140,14 +140,12 @@ class BucketsTab extends PureComponent<Props, State> {
             onSearch={this.handleFilterChange}
           />
           <div className="buckets-buttons-wrap">
-            <FeatureFlag name="demodata">
-              {demoDataBuckets.length > 0 && (
-                <DemoDataDropdown
-                  buckets={demoDataBuckets}
-                  getMembership={getDemoDataBucketMembership}
-                />
-              )}
-            </FeatureFlag>
+            {isFlagEnabled('demodata') && demoDataBuckets.length > 0 && (
+              <DemoDataDropdown
+                buckets={demoDataBuckets}
+                getMembership={getDemoDataBucketMembership}
+              />
+            )}
             <Button
               text="Create Bucket"
               icon={IconFont.Plus}
