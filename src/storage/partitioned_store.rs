@@ -10,6 +10,7 @@ use std::cmp::Ordering;
 use std::mem;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use futures::StreamExt;
 
 /// A Partition is a block of data. It has methods for reading the metadata like which measurements,
 /// tags, tag values, and fields exist. Along with the raw time series data. It is designed to work
@@ -69,7 +70,7 @@ pub trait Partition {
 /// is used for combining results from multiple partitions for calls to get measurements, tag keys,
 /// tag values, or field keys. It assumes the incoming streams are in sorted order.
 pub struct StringMergeStream<'a> {
-    streams: Vec<StreamState<'a, String>>,
+    states: Vec<StreamState<'a, String>>,
     drained: bool,
 }
 
@@ -80,10 +81,10 @@ struct StreamState<'a, T> {
 
 impl StringMergeStream<'_> {
     fn new(streams: Vec<BoxStream<'_, String>>) -> StringMergeStream<'_> {
-        let streams = streams.into_iter().map(|s| StreamState{stream: s, next: Poll::Pending}).collect();
+        let states = streams.into_iter().map(|s| StreamState{stream: s, next: Poll::Pending}).collect();
 
         StringMergeStream {
-            streams,
+            states,
             drained: false,
         }
     }
@@ -99,7 +100,7 @@ impl Stream for StringMergeStream<'_> {
 
         let mut one_pending = false;
 
-        for state in self.streams.iter_mut() {
+        for state in self.states.iter_mut() {
             if state.next.is_pending() {
                 state.next = state.stream.as_mut().poll_next(cx);
                 one_pending = one_pending || state.next.is_pending();
@@ -113,7 +114,7 @@ impl Stream for StringMergeStream<'_> {
         let mut next_val: Option<String> = None;
         let mut next_pos = 0;
 
-        for (pos, state) in self.streams.iter_mut().enumerate() {
+        for (pos, state) in self.states.iter_mut().enumerate() {
             match (&next_val, &state.next) {
                 (None, Poll::Ready(Some(ref val))) => {
                     next_val = Some(val.clone());
@@ -129,6 +130,7 @@ impl Stream for StringMergeStream<'_> {
                     }
                 },
                 (Some(_), Poll::Ready(None)) => (),
+                (None, Poll::Ready(None)) => (),
                 _ => unreachable!(),
             }
         }
@@ -138,7 +140,7 @@ impl Stream for StringMergeStream<'_> {
             return Poll::Ready(None);
         }
 
-        let next_state: &mut StreamState<'_, String> = &mut self.streams[next_pos];
+        let next_state: &mut StreamState<'_, String> = &mut self.states[next_pos];
 
         let val = mem::replace(&mut next_state.next, next_state.stream.as_mut().poll_next(cx));
         val
@@ -150,18 +152,16 @@ impl Stream for StringMergeStream<'_> {
 /// where multiple partitions have batches with the same key, they are merged together in time
 /// ascending order. For any given key, multiple read batches can come through.
 pub struct ReadMergeStream<'a> {
-    streams: Vec<BoxStream<'a, ReadBatch>>,
-    next_vals: Vec<Poll<Option<ReadBatch>>>,
+    states: Vec<StreamState<'a, ReadBatch>>,
     drained: bool,
 }
 
 impl ReadMergeStream<'_> {
     fn new(streams: Vec<BoxStream<'_, ReadBatch>>) -> ReadMergeStream<'_> {
-        let len = streams.len();
+        let states = streams.into_iter().map(|s| StreamState{stream: s, next: Poll::Pending}).collect();
 
         ReadMergeStream {
-            streams,
-            next_vals: vec![Poll::Pending; len],
+            states,
             drained: false,
         }
     }
@@ -175,71 +175,13 @@ impl Stream for ReadMergeStream<'_> {
             return Poll::Ready(None);
         }
 
-        let mut min_key: Option<String> = None;
-        let mut min_time = std::i64::MAX;
-        let mut min_pos = 0;
-
+        // ensure that every stream in pending state is called next and return if any are still pending
         let mut one_pending = false;
 
-        // find the key that we should send next and make sure that things are populated
-        for pos in 0..self.next_vals.len() {
-            match &self.next_vals[pos] {
-                Poll::Pending => match self.streams[pos].as_mut().poll_next(cx) {
-                    Poll::Pending => one_pending = true,
-                    Poll::Ready(Some(batch)) => {
-                        match &min_key {
-                            Some(k) => match batch.key.cmp(k) {
-                                Ordering::Less => {
-                                    min_key = Some(batch.key.clone());
-                                    let (_, min) = batch.start_stop_times().unwrap();
-                                    min_pos = pos;
-                                    min_time = min;
-                                }
-                                Ordering::Equal => {
-                                    let (_, min) = batch.start_stop_times().unwrap();
-                                    if min < min_time {
-                                        min_pos = pos;
-                                        min_time = min;
-                                    }
-                                }
-                                Ordering::Greater => (),
-                            },
-                            None => {
-                                min_key = Some(batch.key.clone());
-                                let (_, min) = batch.start_stop_times().unwrap();
-                                min_pos = pos;
-                                min_time = min;
-                            }
-                        }
-                        self.next_vals[pos] = Poll::Ready(Some(batch));
-                    }
-                    Poll::Ready(None) => self.next_vals[pos] = Poll::Ready(None),
-                },
-                Poll::Ready(None) => (),
-                Poll::Ready(Some(batch)) => match &min_key {
-                    Some(k) => match batch.key.cmp(k) {
-                        Ordering::Less => {
-                            min_key = Some(batch.key.clone());
-                            let (_, min) = batch.start_stop_times().unwrap();
-                            min_pos = pos;
-                            min_time = min;
-                        }
-                        Ordering::Equal => {
-                            let (_, min) = batch.start_stop_times().unwrap();
-                            if min < min_time {
-                                min_pos = pos;
-                                min_time = min;
-                            }
-                        }
-                        Ordering::Greater => (),
-                    },
-                    None => {
-                        min_key = Some(batch.key.clone());
-                        let (_, min) = batch.start_stop_times().unwrap();
-                        min_pos = pos;
-                        min_time = min;
-                    }
-                },
+        for state in self.states.iter_mut() {
+            if state.next.is_pending() {
+                state.next = state.stream.as_mut().poll_next(cx);
+                one_pending = one_pending || state.next.is_pending();
             }
         }
 
@@ -247,37 +189,75 @@ impl Stream for ReadMergeStream<'_> {
             return Poll::Pending;
         }
 
-        if min_key.is_none() {
-            self.drained = true;
-            return Poll::Ready(None);
-        }
-        let min_key = min_key.unwrap();
+        // find the minimum key for the next batch and keep track of the other batches that have
+        // the same key
+        let mut next_min_key: Option<String> = None;
+        let mut min_time = std::i64::MAX;
+        let mut min_pos = 0;
+        let mut positions = Vec::with_capacity(self.states.len());
 
-        let batch = mem::replace(&mut self.next_vals[min_pos], Poll::Pending);
-
-        let mut batch = match batch {
-            Poll::Ready(Some(b)) => b,
-            _ => unreachable!(),
-        };
-
-        let mut sort_needed = false;
-
-        for pos in 0..self.next_vals.len() {
-            if let Poll::Ready(Some(b)) = &mut self.next_vals[pos] {
-                if b.key == min_key {
-                    if batch.append_below_time(b, min_time) {
-                        self.next_vals[pos] = Poll::Pending;
+        for (pos, state) in self.states.iter().enumerate() {
+            match (&next_min_key, &state.next) {
+                (None, Poll::Ready(Some(batch))) => {
+                    next_min_key = Some(batch.key.clone());
+                    min_pos = pos;
+                    let (_, t) = batch.start_stop_times();
+                    min_time = t;
+                },
+                (Some(min_key), Poll::Ready(Some(batch))) => {
+                    if min_key > &batch.key {
+                        next_min_key = Some(batch.key.clone());
+                        min_pos = pos;
+                        positions = Vec::with_capacity(self.states.len());
+                        let (_, t) = batch.start_stop_times();
+                        min_time = t;
+                    } else if min_key == &batch.key {
+                        // if this batch has an end time less than the existing min time, make this
+                        // the batch that we want to pull out first
+                        let (_, t) = batch.start_stop_times();
+                        if t < min_time {
+                            min_time = t;
+                            positions.push(min_pos);
+                            min_pos = pos;
+                        } else {
+                            positions.push(pos);
+                        }
                     }
-                    sort_needed = true;
-                }
+                },
+                (Some(_), Poll::Ready(None)) => (),
+                (None, Poll::Ready(None)) => (),
+                _ => unreachable!(),
             }
         }
 
-        if sort_needed {
-            batch.sort_by_time();
+        if next_min_key.is_none() {
+            self.drained = true;
+            return Poll::Ready(None);
         }
 
-        Poll::Ready(Some(batch))
+        let mut val = mem::replace(&mut self.states[min_pos].next, Poll::Pending);
+
+        if positions.is_empty() {
+            return val;
+        }
+
+        // pull out all the values with times less than the end time from the val batch
+        match &mut val {
+            Poll::Ready(Some(batch)) => {
+                for pos in positions {
+                    if let Poll::Ready(Some(b)) = &mut self.states[pos].next {
+                        if batch.append_below_time(b, min_time) {
+                            let _ = mem::replace(&mut self.states[pos].next, Poll::Pending);
+                        }
+                    }
+                }
+
+                batch.sort_by_time();
+            },
+            _ => unreachable!(),
+        }
+
+        val
     }
 }
 
@@ -287,6 +267,15 @@ pub enum ReadValues {
     F64(Vec<ReadPoint<f64>>),
 }
 
+impl ReadValues {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            ReadValues::I64(vals) => vals.is_empty(),
+            ReadValues::F64(vals) => vals.is_empty(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct ReadBatch {
     pub key: String,
@@ -294,19 +283,13 @@ pub struct ReadBatch {
 }
 
 impl ReadBatch {
-    fn start_stop_times(&self) -> Option<(i64, i64)> {
+    fn start_stop_times(&self) -> (i64, i64) {
         match &self.values {
             ReadValues::I64(vals) => {
-                if vals.is_empty() {
-                    return None;
-                }
-                Some((vals.first()?.time, vals.last()?.time))
+                (vals.first().unwrap().time, vals.last().unwrap().time)
             }
             ReadValues::F64(vals) => {
-                if vals.is_empty() {
-                    return None;
-                }
-                Some((vals.first()?.time, vals.last()?.time))
+                (vals.first().unwrap().time, vals.last().unwrap().time)
             }
         }
     }

@@ -259,6 +259,10 @@ impl MemDB {
                 }
             };
 
+            if values.is_empty() {
+                continue;
+            }
+
             let batch = ReadBatch {
                 key: key.to_string(),
                 values,
