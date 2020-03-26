@@ -333,7 +333,6 @@ impl ReadBatch {
                 match pos {
                     None => {
                         vals.append(other_vals);
-                        other_vals.clear();
                         true
                     }
                     Some(pos) => {
