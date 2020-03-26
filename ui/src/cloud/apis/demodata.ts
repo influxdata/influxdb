@@ -1,6 +1,15 @@
-import AJAX from 'src/utils/ajax'
+// Libraries
 import {get} from 'lodash'
+import * as api from 'src/client'
+import AJAX from 'src/utils/ajax'
+
+//Utils
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+import {isDemoData} from 'src/cloud/utils/filterDemoData'
+
+//Types
 import {Bucket} from 'src/types'
+import {LIMIT} from 'src/resources/constants'
 
 const baseURL = '/api/v2/experimental/sampledata'
 
@@ -63,5 +72,22 @@ export const deleteDemoDataBucketMembership = async (
   } catch (error) {
     console.error(error)
     throw error
+  }
+}
+
+export const getDemoDataBucketsFromAll = async (): Promise<Bucket[]> => {
+  if (!isFlagEnabled('demodata')) return []
+  try {
+    const resp = await api.getBuckets({query: {limit: LIMIT}})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+    return resp.data.buckets
+      .filter(isDemoData)
+      .map(b => ({...b, type: 'system' as 'system', labels: []}))
+  } catch (error) {
+    console.error(error)
+    // demodata bucket fetching errors should not effect regular bucket fetching
   }
 }
