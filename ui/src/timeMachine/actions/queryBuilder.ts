@@ -161,7 +161,7 @@ export const loadBuckets = () => async (
       throw new Error(resp.data.message)
     }
 
-    let demoDataBuckets = await getDemoDataBucketsFromAll()
+    const demoDataBuckets = await getDemoDataBucketsFromAll()
 
     const allBuckets = [...resp.data.buckets, ...demoDataBuckets].map(
       b => b.name

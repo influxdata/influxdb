@@ -72,7 +72,7 @@ export const getBuckets = () => async (
       throw new Error(resp.data.message)
     }
 
-    let demoDataBuckets = await getDemoDataBucketsFromAll()
+    const demoDataBuckets = await getDemoDataBucketsFromAll()
 
     const buckets = normalize<Bucket, BucketEntities, string[]>(
       [...resp.data.buckets, ...demoDataBuckets],
