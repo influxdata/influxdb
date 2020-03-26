@@ -1,5 +1,7 @@
 // API
-import {getDemoDataBuckets as getDemoDataBucketsAJAX} from 'src/cloud/apis/demodata'
+import {
+  getDemoDataBuckets as getDemoDataBucketsAJAX,
+} from 'src/cloud/apis/demodata'
 
 // Types
 import {Bucket, RemoteDataState, GetState} from 'src/types'
@@ -32,10 +34,7 @@ export const getDemoDataBuckets = () => async (
   }
   try {
     const buckets = await getDemoDataBucketsAJAX()
-    if (!Array.isArray(buckets)) {
-      dispatch(setDemoDataStatus(RemoteDataState.Error))
-      return
-    }
+
     dispatch(setDemoDataStatus(RemoteDataState.Done))
     dispatch(setDemoDataBuckets(buckets))
   } catch (error) {
