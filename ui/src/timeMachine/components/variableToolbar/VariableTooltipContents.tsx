@@ -9,9 +9,6 @@ import {executeQueries} from 'src/timeMachine/actions/queries'
 import {Form} from '@influxdata/clockface'
 import VariableDropdown from 'src/variables/components/VariableDropdown'
 
-// Utils
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-
 // Types
 import {AppState} from 'src/types'
 

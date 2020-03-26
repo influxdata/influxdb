@@ -131,7 +131,10 @@ export const variablesReducer = (
         newOrder[newIndex] = idToMove
 
         draftState.values[contextID] = {
-          ...(draftState.values[contextID] || {values: {}}),
+          ...(draftState.values[contextID] || {
+            status: RemoteDataState.NotStarted,
+            values: {},
+          }),
           order: newOrder,
         }
 
