@@ -17,7 +17,7 @@ interface Props {
 const DemoDataDropdown: FC<Props> = ({buckets, getMembership}) => {
   const demoDataItems = buckets.map(b => (
     <Dropdown.Item
-      testID={`dropdown-item ${b.name}`}
+      testID={`dropdown-item--demodata-${b.name}`}
       id={b.id}
       key={b.id}
       value={b.id}
