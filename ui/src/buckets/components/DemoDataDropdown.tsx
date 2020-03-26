@@ -3,8 +3,7 @@ import React, {FC} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Dropdown} from '@influxdata/clockface'
-import {IconFont, ComponentColor} from '@influxdata/clockface'
+import {IconFont, ComponentColor, Dropdown} from '@influxdata/clockface'
 
 // Types
 import {Bucket} from 'src/types'
