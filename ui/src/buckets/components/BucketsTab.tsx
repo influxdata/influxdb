@@ -43,7 +43,7 @@ import {prettyBuckets} from 'src/shared/utils/prettyBucket'
 import {extractBucketLimits} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
+import {FeatureFlag, isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
 import {PrettyBucket} from 'src/buckets/components/BucketCard'
@@ -101,7 +101,9 @@ class BucketsTab extends PureComponent<Props, State> {
 
   public componentDidMount() {
     this.props.checkBucketLimits()
-    this.props.getDemoDataBuckets()
+    if (isFlagEnabled('demodata')) {
+      this.props.getDemoDataBuckets()
+    }
   }
 
   public render() {
