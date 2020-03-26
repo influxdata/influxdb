@@ -398,7 +398,7 @@ func (c *Controller) executeQuery(q *Query) {
 			}
 			q.setErr(err)
 			if entry := c.log.With(influxlogger.TraceFields(q.parentCtx)...).
-				Check(zapcore.ErrorLevel, "panic during program start"); entry != nil {
+				Check(zapcore.InfoLevel, "panic during program start"); entry != nil {
 				entry.Stack = string(debug.Stack())
 				entry.Write(zap.Error(err))
 			}
