@@ -857,6 +857,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	m.reg.MustRegister(m.apibackend.PrometheusCollectors()...)
 
+	authAgent := new(authorizer.AuthAgent)
+
 	var pkgSVC pkger.SVC
 	{
 		b := m.apibackend
@@ -879,6 +881,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgSVC = pkger.MWTracing()(pkgSVC)
 		pkgSVC = pkger.MWMetrics(m.reg)(pkgSVC)
 		pkgSVC = pkger.MWLogging(pkgerLogger)(pkgSVC)
+		pkgSVC = pkger.MWAuth(authAgent)(pkgSVC)
 	}
 
 	var pkgHTTPServer *pkger.HTTPServer
