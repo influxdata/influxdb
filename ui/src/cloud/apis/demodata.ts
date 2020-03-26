@@ -23,7 +23,7 @@ export const getDemoDataBuckets = async (): Promise<Bucket[]> => {
     // if sampledata endpoints are not available in a cluster
     // gateway responds with a list of links where 'buckets' field is a string
     const buckets = get(data, 'buckets', false)
-    if (!buckets || !Array.isArray(buckets)) {
+    if (!Array.isArray(buckets)) {
       throw new Error('Could not reach demodata endpoint')
     }
 
