@@ -5,8 +5,8 @@ import {connect} from 'react-redux'
 // Components
 import TransformToolbarFunctions from 'src/timeMachine/components/fluxFunctionsToolbar/TransformToolbarFunctions'
 import FunctionCategory from 'src/timeMachine/components/fluxFunctionsToolbar/FunctionCategory'
-import SearchBar from 'src/timeMachine/components/SearchBar'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+import FluxToolbarSearch from 'src/timeMachine/components/FluxToolbarSearch'
+import {DapperScrollbars} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
@@ -46,10 +46,13 @@ class FluxFunctionsToolbar extends PureComponent<Props, State> {
     const {searchTerm} = this.state
 
     return (
-      <div className="flux-functions-toolbar">
-        <SearchBar onSearch={this.handleSearch} resourceName="Functions" />
-        <FancyScrollbar>
-          <div className="flux-functions-toolbar--list">
+      <>
+        <FluxToolbarSearch
+          onSearch={this.handleSearch}
+          resourceName="Functions"
+        />
+        <DapperScrollbars className="flux-toolbar--scroll-area">
+          <div className="flux-toolbar--list">
             <TransformToolbarFunctions
               funcs={FLUX_FUNCTIONS}
               searchTerm={searchTerm}
@@ -66,8 +69,8 @@ class FluxFunctionsToolbar extends PureComponent<Props, State> {
               }
             </TransformToolbarFunctions>
           </div>
-        </FancyScrollbar>
-      </div>
+        </DapperScrollbars>
+      </>
     )
   }
 

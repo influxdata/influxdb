@@ -1,24 +1,32 @@
-.toolbar-tab-container {
-  width: 100%;
-  display: inline-flex;
-  align-items: stretch;
-  height: 38px;
-  background-color: $g2-kevlar;
-  padding: $ix-marg-b;
-  padding-bottom: 0;
-}
+$flux-editor--right-panel: 330px;
 
-.time-machine-flux-editor {
+.flux-editor {
   position: absolute;
-  top: 0;
+  top: $cf-marg-b;
   right: 0;
   bottom: 0;
   left: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: stretch;
 }
 
-.time-machine-editor {
+// Monaco Editor
+.flux-editor--left-panel {
+  flex: 1 0 0;
+  position: relative;
+  border-radius: $cf-radius;
+  overflow: hidden;
+}
+
+// Variables / Functions List
+.flux-editor--right-panel {
+  flex: 0 0 ($flux-editor--right-panel - $cf-marg-b);
+  margin-left: $cf-marg-b;
+  display: flex;
+}
+
+.flux-editor--monaco {
   position: absolute;
   top: 0;
   left: 0;
@@ -27,10 +35,9 @@
 }
 
 .time-machine-editor--embedded {
-  @extend .time-machine-editor;
-
-  border-radius: 4px;
-  border: 2px solid $g5-pepper;
+  @extend .flux-editor--monaco;
+  border-radius: $cf-radius;
+  border: $cf-border solid $g5-pepper;
   overflow: hidden;
 }
 

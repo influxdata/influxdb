@@ -6,7 +6,7 @@ interface Props {
 
 const TooltipDescription: SFC<Props> = ({description}) => (
   <article className="flux-functions-toolbar--description">
-    <div className="flux-functions-toolbar--heading">Description</div>
+    <div className="flux-function-docs--heading">Description</div>
     <span>{description}</span>
   </article>
 )
