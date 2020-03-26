@@ -18,9 +18,7 @@ export const getDemoDataBuckets = async (): Promise<Bucket[]> => {
       throw new Error('Could not reach demodata endpoint')
     }
 
-    return buckets
-      .filter(b => b.type == 'user') // remove returned _tasks and _monitoring buckets
-      .map(b => ({...b, type: 'system'})) as Bucket[] // treat sampledata buckets as system buckets
+    return buckets.filter(b => b.type == 'user') as Bucket[] // remove returned _tasks and _monitoring buckets
   } catch (error) {
     console.error(error)
     throw error
