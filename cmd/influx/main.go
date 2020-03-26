@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -86,6 +87,10 @@ func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) e
 	cmd.SetIn(o.in)
 	cmd.SetErr(o.errW)
 	return cmd
+}
+
+func (o genericCLIOpts) writeJSON(v interface{}) error {
+	return json.NewEncoder(o.w).Encode(v)
 }
 
 func (o genericCLIOpts) newTabWriter() *internal.TabWriter {

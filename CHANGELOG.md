@@ -8,6 +8,7 @@
 1. [17363](https://github.com/influxdata/influxdb/pull/17363): Telegraf config tokens can no longer be retrieved after creation, but new tokens can be created after a telegraf has been setup
 1. [17400](https://github.com/influxdata/influxdb/pull/17400): Be able to delete bucket by name via cli
 1. [17396](https://github.com/influxdata/influxdb/pull/17396): Add module to write line data to specified url, org, and bucket
+1. [17448](https://github.com/influxdata/influxdb/pull/17448): Add foundation for pkger stacks, stateful package management
 
 ### Bug Fixes
 
