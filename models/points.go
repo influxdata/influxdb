@@ -379,6 +379,39 @@ func ParseName(buf []byte) []byte {
 	return UnescapeMeasurement(name)
 }
 
+// ParseMeasurement returns the value of the tag identified by MeasurementTagKey
+// or nil if no tag key exists.
+//
+// buf must be a normalized series key, such that the tags are
+// lexicographically sorted or the results are undefined.
+func ParseMeasurement(buf []byte) []byte {
+	// extracted from walkTags to pars the first key
+	if len(buf) == 0 {
+		return nil
+	}
+
+	pos, name := scanTo(buf, 0, ',')
+
+	// it's an empty key, so there are no tags
+	if len(name) == 0 {
+		return nil
+	}
+
+	i := pos + 1
+	var key, value []byte
+	i, key = scanTo(buf, i, '=')
+	if string(key) != MeasurementTagKey {
+		return nil
+	}
+
+	_, value = scanTagValue(buf, i+1)
+	if bytes.IndexByte(value, '\\') != -1 {
+		// hasEscape
+		return unescapeTag(value)
+	}
+	return value
+}
+
 // ValidPrecision checks if the precision is known.
 func ValidPrecision(precision string) bool {
 	switch precision {

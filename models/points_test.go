@@ -360,6 +360,32 @@ func BenchmarkParseKey(b *testing.B) {
 	}
 }
 
+var (
+	dummyName []byte
+)
+
+func BenchmarkParseMeasurement(b *testing.B) {
+	benchmarks := []struct {
+		input string
+	}{
+		{input: "m,\x00=value"},
+		{input: "m\\ q,\x00=value"},
+		{input: "m,\x00=v\\ alue"},
+		{input: "m,\x00=value,tag0=val0"},
+		{input: "m,\x00=v\\ alue,tag0=val0"},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.input, func(b *testing.B) {
+			var name []byte
+			for i := 0; i < b.N; i++ {
+				name = models.ParseMeasurement([]byte(bm.input))
+			}
+			dummyName = name
+		})
+	}
+}
+
 // TestPoint wraps a models.Point but also makes available the raw
 // arguments to the Point.
 //
@@ -2769,6 +2795,30 @@ func TestParseName(t *testing.T) {
 			name := models.ParseName([]byte(testCase.input))
 			if !bytes.Equal([]byte(testCase.expectedName), name) {
 				t.Errorf("%s produced measurement %s but expected %s", testCase.input, string(name), testCase.expectedName)
+			}
+		})
+	}
+}
+
+func TestParseMeasurement(t *testing.T) {
+	testCases := []struct {
+		input string
+		exp   string
+	}{
+		{input: "m,\x00=value", exp: "value"},
+		{input: "m\\ q,\x00=value", exp: "value"},
+		{input: "m,\x00=v\\ alue", exp: "v alue"},
+		{input: "m,\x00=value,tag0=val0", exp: "value"},
+		{input: "m,\x00=v\\ alue,tag0=val0", exp: "v alue"},
+		{input: "m,tag0=val0", exp: ""}, // missing \x00
+		{input: "m", exp: ""},           // missing tags
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.input, func(t *testing.T) {
+			name := models.ParseMeasurement([]byte(testCase.input))
+			if !bytes.Equal([]byte(testCase.exp), name) {
+				t.Errorf("%s produced measurement %s but expected %s", testCase.input, string(name), testCase.exp)
 			}
 		})
 	}
