@@ -20,6 +20,12 @@ func MWTracing() SVCMiddleware {
 
 var _ SVC = (*traceMW)(nil)
 
+func (s *traceMW) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (Stack, error) {
+	span, ctx := tracing.StartSpanFromContextWithOperationName(ctx, "InitStack")
+	defer span.Finish()
+	return s.next.InitStack(ctx, userID, newStack)
+}
+
 func (s *traceMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (pkg *Pkg, err error) {
 	span, ctx := tracing.StartSpanFromContextWithOperationName(ctx, "CreatePkg")
 	defer span.Finish()

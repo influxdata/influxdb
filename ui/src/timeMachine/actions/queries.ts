@@ -1,5 +1,6 @@
 // Libraries
 import {parse} from '@influxdata/flux-parser'
+import {get} from 'lodash'
 
 // API
 import {
@@ -21,13 +22,22 @@ import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {getAllVariables, asAssignment} from 'src/variables/selectors'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
+import {findNodes} from 'src/shared/utils/ast'
 
 // Types
 import {CancelBox} from 'src/types/promises'
-import {GetState, RemoteDataState, StatusRow} from 'src/types'
+import {
+  GetState,
+  RemoteDataState,
+  StatusRow,
+  Node,
+  ResourceType,
+  Bucket,
+} from 'src/types'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
+import {getAll} from 'src/resources/selectors/index'
 
 export type Action = SaveDraftQueriesAction | SetQueryResults
 
@@ -62,12 +72,40 @@ const setQueryResults = (
 let pendingResults: Array<CancelBox<RunQueryResult>> = []
 let pendingCheckStatuses: CancelBox<StatusRow[][]> = null
 
-export const executeQueries = () => async (dispatch, getState: GetState) => {
-  const state = getState()
-  const timeMachine = getActiveTimeMachine(state)
-  const queries = timeMachine.view.properties.queries.filter(
-    ({text}) => !!text.trim()
+export const getOrgIDFromBuckets = (
+  text: string,
+  allBuckets: Bucket[]
+): string | null => {
+  const ast = parse(text)
+  const bucketsInQuery: string[] = findNodes(ast, isFromBucket).map(node =>
+    get(node, 'arguments.0.properties.0.value.value', '')
   )
+
+  // if there are buckets from multiple orgs in a query, query will error, and user will receive error from query
+  const bucketMatch = allBuckets.find(a => bucketsInQuery.includes(a.name))
+
+  return get(bucketMatch, 'orgID', null)
+}
+
+const isFromBucket = (node: Node) => {
+  return (
+    get(node, 'type') === 'CallExpression' &&
+    get(node, 'callee.type') === 'Identifier' &&
+    get(node, 'callee.name') === 'from' &&
+    get(node, 'arguments.0.properties.0.key.name') === 'bucket'
+  )
+}
+
+export const executeQueries = () => async (
+  dispatch,
+  getState: GetState
+) => {
+  const state = getState()
+
+  const allBuckets = getAll<Bucket>(state, ResourceType.Buckets)
+
+  const {view} = getActiveTimeMachine(state)
+  const queries = view.properties.queries.filter(({text}) => !!text.trim())
   const {
     alertBuilder: {id: checkID},
   } = state
@@ -88,13 +126,13 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     // is the most current one. By having this set to state, we were creating a race
     // condition that was causing the following bug:
     // https://github.com/influxdata/idpe/issues/6240
-    const orgID = getOrg(state).id
 
     const startTime = Date.now()
 
     pendingResults.forEach(({cancel}) => cancel())
 
     pendingResults = queries.map(({text}) => {
+      const orgID = getOrgIDFromBuckets(text, allBuckets) || getOrg(state).id
       const windowVars = getWindowVars(text, variableAssignments)
       const extern = buildVarsOption([...variableAssignments, ...windowVars])
 
@@ -107,7 +145,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     let statuses = [[]] as StatusRow[][]
     if (checkID) {
       const extern = buildVarsOption(variableAssignments)
-      pendingCheckStatuses = runStatusesQuery(orgID, checkID, extern)
+      pendingCheckStatuses = runStatusesQuery(getOrg(state).id, checkID, extern)
       statuses = await pendingCheckStatuses.promise
     }
 

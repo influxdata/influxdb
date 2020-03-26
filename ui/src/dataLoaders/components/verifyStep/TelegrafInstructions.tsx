@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {Alert, ComponentColor, IconFont} from '@influxdata/clockface'
 import _ from 'lodash'
 
 // Decorator
@@ -7,6 +8,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Components
 import CodeSnippet from 'src/shared/components/CodeSnippet'
+import TokenCodeSnippet from 'src/shared/components/TokenCodeSnippet'
 
 export interface Props {
   token: string
@@ -17,10 +19,10 @@ export interface Props {
 class TelegrafInstructions extends PureComponent<Props> {
   public render() {
     const {token, configID} = this.props
-    const exportToken = `export INFLUX_TOKEN=${token || ''}`
     const configScript = `telegraf --config ${
       this.origin
     }/api/v2/telegrafs/${configID || ''}`
+    const exportToken = `export INFLUX_TOKEN=${token || '<INFLUX_TOKEN>'}`
     return (
       <div data-testid="setup-instructions" className="telegraf-instructions">
         <h6>1. Install the Latest Telegraf</h6>
@@ -42,7 +44,13 @@ class TelegrafInstructions extends PureComponent<Props> {
           copy the following command to your terminal window to set an
           environment variable with your token.
         </p>
-        <CodeSnippet copyText={exportToken} label="CLI" />
+        {token && (
+          <Alert icon={IconFont.AlertTriangle} color={ComponentColor.Primary}>
+            Make sure to copy your new personal access token now. You won’t be
+            able to see it again!
+          </Alert>
+        )}
+        <TokenCodeSnippet token={exportToken} configID={configID} label="CLI" />
         <h6>3. Start Telegraf</h6>
         <p>
           Finally, you can run the following command to start the Telegraf agent

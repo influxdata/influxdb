@@ -73,6 +73,7 @@ type TreeScheduler struct {
 	workchans     []chan Item
 	wg            sync.WaitGroup
 	checkpointer  SchedulableService
+	items         *itemList
 
 	sm *SchedulerMetrics
 }
@@ -118,6 +119,7 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 		time:          clock.New(),
 		done:          make(chan struct{}, 1),
 		checkpointer:  checkpointer,
+		items:         &itemList{},
 	}
 
 	// apply options
@@ -215,7 +217,12 @@ type itemList struct {
 }
 
 func (s *TreeScheduler) process() {
-	iter, toReAdd := s.iterator(s.time.Now())
+	// Reset the length of the slice in preparation of the next iterator.
+	s.items.toDelete = s.items.toDelete[:0]
+	s.items.toInsert = s.items.toInsert[:0]
+
+	toReAdd := s.items
+	iter := s.iterator(s.time.Now())
 	s.priorityQueue.Ascend(iter)
 	for i := range toReAdd.toDelete {
 		delete(s.nextTime, toReAdd.toDelete[i].id)
@@ -232,8 +239,7 @@ func (s *TreeScheduler) resetTimer(whenFromNow time.Duration) {
 	s.timer.Reset(whenFromNow)
 }
 
-func (s *TreeScheduler) iterator(ts time.Time) (btree.ItemIterator, *itemList) {
-	itemsToPlace := &itemList{}
+func (s *TreeScheduler) iterator(ts time.Time) btree.ItemIterator {
 	return func(i btree.Item) bool {
 		if i == nil {
 			return false
@@ -249,13 +255,13 @@ func (s *TreeScheduler) iterator(ts time.Time) (btree.ItemIterator, *itemList) {
 			wc := xxhash.Sum64(buf[:]) % uint64(len(s.workchans)) // we just hash so that the number is uniformly distributed
 			select {
 			case s.workchans[wc] <- it:
-				itemsToPlace.toDelete = append(itemsToPlace.toDelete, it)
+				s.items.toDelete = append(s.items.toDelete, it)
 				if err := it.updateNext(); err != nil {
 					// in this error case we can't schedule next, so we have to drop the task
 					s.onErr(context.Background(), it.id, it.Next(), &ErrUnrecoverable{err})
 					return true
 				}
-				itemsToPlace.toInsert = append(itemsToPlace.toInsert, it)
+				s.items.toInsert = append(s.items.toInsert, it)
 
 			case <-s.done:
 				return false
@@ -264,7 +270,7 @@ func (s *TreeScheduler) iterator(ts time.Time) (btree.ItemIterator, *itemList) {
 			}
 		}
 		return true
-	}, itemsToPlace
+	}
 }
 
 // When gives us the next time the scheduler will run a task.

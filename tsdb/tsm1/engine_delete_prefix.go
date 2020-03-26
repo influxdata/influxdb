@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxql"
 )
 
@@ -245,11 +246,11 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 			// and remove from the series file.
 			span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "SFile Delete Series IDs")
 			span.LogKV("measurement_name", fmt.Sprintf("%x", name), "series_id_set_size", set.Cardinality())
-			set.ForEachNoLock(func(id tsdb.SeriesID) {
-				if err = e.sfile.DeleteSeriesID(id); err != nil {
-					return
-				}
-			})
+			var ids []tsdb.SeriesID
+			set.ForEachNoLock(func(id tsdb.SeriesID) { ids = append(ids, id) })
+			if err = e.sfile.DeleteSeriesIDs(ids); err != nil {
+				return err
+			}
 			span.Finish()
 			return err
 		}
@@ -257,22 +258,41 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 		// This is the slow path, when not dropping the entire bucket (measurement)
 		span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "TSI/SFile Delete keys")
 		span.LogKV("measurement_name", fmt.Sprintf("%x", name), "keys_to_delete", len(possiblyDead.keys))
+
+		// Convert key map to a slice.
+		possiblyDeadKeysSlice := make([][]byte, 0, len(possiblyDead.keys))
 		for key := range possiblyDead.keys {
-			// TODO(jeff): ugh reduce copies here
-			keyb := []byte(key)
-			keyb, _ = SeriesAndFieldFromCompositeKey(keyb)
+			possiblyDeadKeysSlice = append(possiblyDeadKeysSlice, []byte(key))
+		}
 
-			name, tags := models.ParseKeyBytes(keyb)
-			sid := e.sfile.SeriesID(name, tags, buf)
-			if sid.IsZero() {
-				continue
+		const batchSize = 1000
+		batch := make([]tsi1.DropSeriesItem, 0, batchSize)
+		ids := make([]tsdb.SeriesID, 0, batchSize)
+		for i := 0; i < len(possiblyDeadKeysSlice); i += batchSize {
+			isLastBatch := i+batchSize > len(possiblyDeadKeysSlice)
+			batch, ids = batch[:0], ids[:0]
+
+			for j := 0; (i*batchSize)+j < len(possiblyDeadKeysSlice) && j < batchSize; j++ {
+				var item tsi1.DropSeriesItem
+
+				// TODO(jeff): ugh reduce copies here
+				key := possiblyDeadKeysSlice[(i*batchSize)+j]
+				item.Key = []byte(key)
+				item.Key, _ = SeriesAndFieldFromCompositeKey(item.Key)
+
+				name, tags := models.ParseKeyBytes(item.Key)
+				item.SeriesID = e.sfile.SeriesID(name, tags, buf)
+				if item.SeriesID.IsZero() {
+					continue
+				}
+				batch = append(batch, item)
+				ids = append(ids, item.SeriesID)
 			}
 
-			if err := e.index.DropSeries(sid, keyb, true); err != nil {
+			// Remove from index & series file.
+			if err := e.index.DropSeries(batch, isLastBatch); err != nil {
 				return err
-			}
-
-			if err := e.sfile.DeleteSeriesID(sid); err != nil {
+			} else if err := e.sfile.DeleteSeriesIDs(ids); err != nil {
 				return err
 			}
 		}

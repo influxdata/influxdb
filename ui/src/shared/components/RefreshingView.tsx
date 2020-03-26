@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -22,6 +23,7 @@ import {
   DashboardQuery,
   VariableAssignment,
   QueryViewProperties,
+  Theme,
 } from 'src/types'
 
 interface OwnProps {
@@ -30,6 +32,7 @@ interface OwnProps {
 }
 
 interface StateProps {
+  theme: Theme
   timeRange: TimeRange
   ranges: TimeRange | null
   timeZone: TimeZone
@@ -40,7 +43,7 @@ interface State {
   submitToken: number
 }
 
-type Props = OwnProps & StateProps
+type Props = OwnProps & StateProps & WithRouterProps
 
 class RefreshingView extends PureComponent<Props, State> {
   public static defaultProps = {
@@ -69,6 +72,7 @@ class RefreshingView extends PureComponent<Props, State> {
       manualRefresh,
       timeZone,
       variableAssignments,
+      theme
     } = this.props
     const {submitToken} = this.state
 
@@ -105,6 +109,7 @@ class RefreshingView extends PureComponent<Props, State> {
                 timeRange={ranges}
                 statuses={statuses}
                 timeZone={timeZone}
+                theme={theme}
               />
             </EmptyQueryView>
           )
@@ -150,14 +155,17 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   )
   const timeRange = getTimeRange(state, dashboard)
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)
-  const timeZone = state.app.persisted.timeZone
+  const {timeZone, theme} = state.app.persisted
 
   return {
     timeRange,
     ranges,
     timeZone,
     variableAssignments,
+    theme,
   }
 }
 
-export default connect<StateProps, {}, OwnProps>(mstp)(RefreshingView)
+export default connect<StateProps, {}, OwnProps>(mstp)(
+  withRouter(RefreshingView)
+)

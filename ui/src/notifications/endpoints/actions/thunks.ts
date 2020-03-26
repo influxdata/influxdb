@@ -27,7 +27,7 @@ import * as api from 'src/client'
 // Utils
 import {incrementCloneName} from 'src/utils/naming'
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/resources/selectors'
+import {getAll, getStatus} from 'src/resources/selectors'
 import {toPostNotificationEndpoint} from 'src/notifications/endpoints/utils'
 import * as copy from 'src/shared/copy/notifications'
 
@@ -50,9 +50,15 @@ export const getEndpoints = () => async (
   getState: GetState
 ) => {
   try {
-    dispatch(setEndpoints(RemoteDataState.Loading))
+    const state = getState()
+    if (
+      getStatus(state, ResourceType.NotificationEndpoints) ===
+      RemoteDataState.NotStarted
+    ) {
+      dispatch(setEndpoints(RemoteDataState.Loading))
+    }
 
-    const {id: orgID} = getOrg(getState())
+    const {id: orgID} = getOrg(state)
 
     const resp = await api.getNotificationEndpoints({
       query: {orgID},

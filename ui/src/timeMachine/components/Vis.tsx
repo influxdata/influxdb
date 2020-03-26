@@ -3,6 +3,7 @@ import React, {SFC} from 'react'
 import {connect} from 'react-redux'
 import {FromFluxResult} from '@influxdata/giraffe'
 import {AutoSizer} from 'react-virtualized'
+import classnames from 'classnames'
 
 // Components
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
@@ -88,8 +89,14 @@ const TimeMachineVis: SFC<Props> = ({
     symbolColumns,
   }
 
+  const noQueries =
+    loading === RemoteDataState.NotStarted || !viewProperties.queries.length
+  const timeMachineViewClassName = classnames('time-machine--view', {
+    'time-machine--view__empty': noQueries,
+  })
+
   return (
-    <div className="time-machine--view">
+    <div className={timeMachineViewClassName}>
       <ErrorBoundary>
         <EmptyQueryView
           loading={loading}
@@ -123,6 +130,7 @@ const TimeMachineVis: SFC<Props> = ({
               checkThresholds={checkThresholds}
               timeZone={timeZone}
               statuses={statuses}
+              theme="dark"
             />
           )}
         </EmptyQueryView>

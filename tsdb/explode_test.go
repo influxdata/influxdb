@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -23,7 +23,7 @@ func TestNames(t *testing.T) {
 	for _, example := range goodExamples {
 		t.Run(fmt.Sprintf("%d%d", example.Org, example.Bucket), func(t *testing.T) {
 
-			name := tsdb.EncodeName(platform.ID(example.Org), platform.ID(example.Bucket))
+			name := tsdb.EncodeName(influxdb.ID(example.Org), influxdb.ID(example.Bucket))
 
 			if got, exp := name, example.Name; got != exp {
 				t.Errorf("got name %q, expected %q", got, exp)
@@ -31,10 +31,10 @@ func TestNames(t *testing.T) {
 
 			org, bucket := tsdb.DecodeName(name)
 
-			if gotOrg, expOrg := org, example.Org; gotOrg != platform.ID(expOrg) {
+			if gotOrg, expOrg := org, example.Org; gotOrg != influxdb.ID(expOrg) {
 				t.Errorf("got organization ID %q, expected %q", gotOrg, expOrg)
 			}
-			if gotBucket, expBucket := bucket, example.Bucket; gotBucket != platform.ID(expBucket) {
+			if gotBucket, expBucket := bucket, example.Bucket; gotBucket != influxdb.ID(expBucket) {
 				t.Errorf("got organization ID %q, expected %q", gotBucket, expBucket)
 			}
 		})

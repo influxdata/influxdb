@@ -3,11 +3,11 @@
 package tsm1
 
 import (
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 // ReadFloatArrayBlock reads the next block as a set of float values.
-func (c *KeyCursor) ReadFloatArrayBlock(values *tsdb.FloatArray) (*tsdb.FloatArray, error) {
+func (c *KeyCursor) ReadFloatArrayBlock(values *cursors.FloatArray) (*cursors.FloatArray, error) {
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -89,7 +89,7 @@ LOOP:
 				continue
 			}
 
-			v := &tsdb.FloatArray{}
+			v := &cursors.FloatArray{}
 			err := cur.r.ReadFloatArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
@@ -151,7 +151,7 @@ LOOP:
 				continue
 			}
 
-			v := &tsdb.FloatArray{}
+			v := &cursors.FloatArray{}
 			err := cur.r.ReadFloatArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
@@ -184,14 +184,14 @@ LOOP:
 	return values, err
 }
 
-func excludeTombstonesFloatArray(t []TimeRange, values *tsdb.FloatArray) {
+func excludeTombstonesFloatArray(t []TimeRange, values *cursors.FloatArray) {
 	for i := range t {
 		values.Exclude(t[i].Min, t[i].Max)
 	}
 }
 
 // ReadIntegerArrayBlock reads the next block as a set of integer values.
-func (c *KeyCursor) ReadIntegerArrayBlock(values *tsdb.IntegerArray) (*tsdb.IntegerArray, error) {
+func (c *KeyCursor) ReadIntegerArrayBlock(values *cursors.IntegerArray) (*cursors.IntegerArray, error) {
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -273,7 +273,7 @@ LOOP:
 				continue
 			}
 
-			v := &tsdb.IntegerArray{}
+			v := &cursors.IntegerArray{}
 			err := cur.r.ReadIntegerArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
@@ -335,7 +335,7 @@ LOOP:
 				continue
 			}
 
-			v := &tsdb.IntegerArray{}
+			v := &cursors.IntegerArray{}
 			err := cur.r.ReadIntegerArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
@@ -368,14 +368,14 @@ LOOP:
 	return values, err
 }
 
-func excludeTombstonesIntegerArray(t []TimeRange, values *tsdb.IntegerArray) {
+func excludeTombstonesIntegerArray(t []TimeRange, values *cursors.IntegerArray) {
 	for i := range t {
 		values.Exclude(t[i].Min, t[i].Max)
 	}
 }
 
 // ReadUnsignedArrayBlock reads the next block as a set of unsigned values.
-func (c *KeyCursor) ReadUnsignedArrayBlock(values *tsdb.UnsignedArray) (*tsdb.UnsignedArray, error) {
+func (c *KeyCursor) ReadUnsignedArrayBlock(values *cursors.UnsignedArray) (*cursors.UnsignedArray, error) {
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -457,7 +457,7 @@ LOOP:
 				continue
 			}
 
-			v := &tsdb.UnsignedArray{}
+			v := &cursors.UnsignedArray{}
 			err := cur.r.ReadUnsignedArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
@@ -519,7 +519,7 @@ LOOP:
 				continue
 			}
 
-			v := &tsdb.UnsignedArray{}
+			v := &cursors.UnsignedArray{}
 			err := cur.r.ReadUnsignedArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
@@ -552,14 +552,14 @@ LOOP:
 	return values, err
 }
 
-func excludeTombstonesUnsignedArray(t []TimeRange, values *tsdb.UnsignedArray) {
+func excludeTombstonesUnsignedArray(t []TimeRange, values *cursors.UnsignedArray) {
 	for i := range t {
 		values.Exclude(t[i].Min, t[i].Max)
 	}
 }
 
 // ReadStringArrayBlock reads the next block as a set of string values.
-func (c *KeyCursor) ReadStringArrayBlock(values *tsdb.StringArray) (*tsdb.StringArray, error) {
+func (c *KeyCursor) ReadStringArrayBlock(values *cursors.StringArray) (*cursors.StringArray, error) {
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -641,7 +641,7 @@ LOOP:
 				continue
 			}
 
-			v := &tsdb.StringArray{}
+			v := &cursors.StringArray{}
 			err := cur.r.ReadStringArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
@@ -703,7 +703,7 @@ LOOP:
 				continue
 			}
 
-			v := &tsdb.StringArray{}
+			v := &cursors.StringArray{}
 			err := cur.r.ReadStringArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
@@ -736,14 +736,14 @@ LOOP:
 	return values, err
 }
 
-func excludeTombstonesStringArray(t []TimeRange, values *tsdb.StringArray) {
+func excludeTombstonesStringArray(t []TimeRange, values *cursors.StringArray) {
 	for i := range t {
 		values.Exclude(t[i].Min, t[i].Max)
 	}
 }
 
 // ReadBooleanArrayBlock reads the next block as a set of boolean values.
-func (c *KeyCursor) ReadBooleanArrayBlock(values *tsdb.BooleanArray) (*tsdb.BooleanArray, error) {
+func (c *KeyCursor) ReadBooleanArrayBlock(values *cursors.BooleanArray) (*cursors.BooleanArray, error) {
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -825,7 +825,7 @@ LOOP:
 				continue
 			}
 
-			v := &tsdb.BooleanArray{}
+			v := &cursors.BooleanArray{}
 			err := cur.r.ReadBooleanArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
@@ -887,7 +887,7 @@ LOOP:
 				continue
 			}
 
-			v := &tsdb.BooleanArray{}
+			v := &cursors.BooleanArray{}
 			err := cur.r.ReadBooleanArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
@@ -920,7 +920,7 @@ LOOP:
 	return values, err
 }
 
-func excludeTombstonesBooleanArray(t []TimeRange, values *tsdb.BooleanArray) {
+func excludeTombstonesBooleanArray(t []TimeRange, values *cursors.BooleanArray) {
 	for i := range t {
 		values.Exclude(t[i].Min, t[i].Max)
 	}

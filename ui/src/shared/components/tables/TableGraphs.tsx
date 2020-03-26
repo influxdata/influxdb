@@ -16,12 +16,13 @@ import {setFieldOptions as setFieldOptionsAction} from 'src/timeMachine/actions'
 import {getDeep} from 'src/utils/wrappers'
 
 // Types
-import {TableViewProperties, FluxTable, TimeZone} from 'src/types'
+import {TableViewProperties, FluxTable, TimeZone, Theme} from 'src/types'
 
 interface PassedProps {
   tables: FluxTable[]
   properties: TableViewProperties
   timeZone: TimeZone
+  theme: Theme
 }
 
 interface DispatchProps {
@@ -41,7 +42,7 @@ class TableGraphs extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {tables, properties, timeZone} = this.props
+    const {tables, properties, timeZone, theme} = this.props
 
     return (
       <div className="time-machine-tables">
@@ -50,6 +51,7 @@ class TableGraphs extends PureComponent<Props, State> {
             data={tables}
             selectedTableName={this.nameOfSelectedTable}
             onSelectTable={this.handleSelectTable}
+            theme={theme}
           />
         )}
         {this.shouldShowTable && (
@@ -58,6 +60,7 @@ class TableGraphs extends PureComponent<Props, State> {
             table={this.selectedTable}
             properties={properties}
             timeZone={timeZone}
+            theme={theme}
           />
         )}
         {!this.hasData && (

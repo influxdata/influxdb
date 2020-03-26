@@ -7,7 +7,13 @@ import {
   DESCENDING,
   DEFAULT_SORT_DIRECTION,
 } from 'src/shared/constants/tableGraph'
-import {TableViewProperties, SortOptions, FluxTable, TimeZone} from 'src/types'
+import {
+  TableViewProperties,
+  SortOptions,
+  FluxTable,
+  TimeZone,
+  Theme,
+} from 'src/types'
 import TableGraphTransform from 'src/shared/components/tables/TableGraphTransform'
 import TableGraphTable from 'src/shared/components/tables/TableGraphTable'
 
@@ -15,6 +21,7 @@ interface Props {
   table: FluxTable
   properties: TableViewProperties
   timeZone: TimeZone
+  theme: Theme
 }
 
 interface State {
@@ -39,7 +46,7 @@ class TableGraph extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {table, properties, timeZone} = this.props
+    const {table, properties, timeZone, theme} = this.props
     const {sortOptions} = this.state
     return (
       <TableGraphTransform
@@ -55,6 +62,7 @@ class TableGraph extends PureComponent<Props, State> {
             onSort={this.handleSetSort}
             transformedDataBundle={transformedDataBundle}
             timeZone={timeZone}
+            theme={theme}
           />
         )}
       </TableGraphTransform>

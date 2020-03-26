@@ -60,7 +60,7 @@ func Add(lhs, rhs ast.Expression) *ast.BinaryExpression {
 func Member(p, c string) *ast.MemberExpression {
 	return &ast.MemberExpression{
 		Object:   &ast.Identifier{Name: p},
-		Property: &ast.Identifier{Name: c},
+		Property: String(c),
 	}
 }
 

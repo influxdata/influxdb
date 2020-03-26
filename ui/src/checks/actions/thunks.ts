@@ -18,7 +18,7 @@ import {reportError} from 'src/shared/utils/errors'
 import {createView} from 'src/views/helpers'
 import {getOrg} from 'src/organizations/selectors'
 import {toPostCheck, builderToPostCheck} from 'src/checks/utils'
-import {getAll} from 'src/resources/selectors'
+import {getAll, getStatus} from 'src/resources/selectors'
 
 // Actions
 import {
@@ -66,8 +66,11 @@ export const getChecks = () => async (
   getState: GetState
 ) => {
   try {
-    dispatch(setChecks(RemoteDataState.Loading))
-    const {id: orgID} = getOrg(getState())
+    const state = getState()
+    if (getStatus(state, ResourceType.Checks) === RemoteDataState.NotStarted) {
+      dispatch(setChecks(RemoteDataState.Loading))
+    }
+    const {id: orgID} = getOrg(state)
 
     const resp = await api.getChecks({query: {orgID}})
 
@@ -149,6 +152,13 @@ export const createCheckFromTimeMachine = () => async (
     const check = builderToPostCheck(state)
     const resp = await api.postCheck({data: check})
     if (resp.status !== 201) {
+      if (resp.data.code.includes('conflict')) {
+        throw new Error(
+          `A check named ${
+            check.name
+          } already exists. Please rename the check before saving`
+        )
+      }
       throw new Error(resp.data.message)
     }
 

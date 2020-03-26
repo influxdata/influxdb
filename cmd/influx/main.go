@@ -55,27 +55,36 @@ func newHTTPClient() (*httpc.Client, error) {
 type (
 	cobraRunEFn func(cmd *cobra.Command, args []string) error
 
-	cobraRuneEMiddleware func(fn cobraRunEFn) cobraRunEFn
+	cobraRunEMiddleware func(fn cobraRunEFn) cobraRunEFn
 
 	genericCLIOptFn func(*genericCLIOpts)
 )
 
 type genericCLIOpts struct {
-	in         io.Reader
-	w          io.Writer
-	runEWrapFn cobraRuneEMiddleware
+	in   io.Reader
+	w    io.Writer
+	errW io.Writer
+
+	runEWrapFn cobraRunEMiddleware
 }
 
-func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) error, useRunEMiddleware bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Args: cobra.NoArgs,
 		Use:  use,
 		RunE: runE,
 	}
-	if runE != nil && o.runEWrapFn != nil {
+
+	canWrapRunE := runE != nil && o.runEWrapFn != nil
+	if useRunEMiddleware && canWrapRunE {
 		cmd.RunE = o.runEWrapFn(runE)
+	} else if canWrapRunE {
+		cmd.RunE = runE
 	}
+
 	cmd.SetOut(o.w)
+	cmd.SetIn(o.in)
+	cmd.SetErr(o.errW)
 	return cmd
 }
 
@@ -92,6 +101,18 @@ func in(r io.Reader) genericCLIOptFn {
 func out(w io.Writer) genericCLIOptFn {
 	return func(o *genericCLIOpts) {
 		o.w = w
+	}
+}
+
+func err(w io.Writer) genericCLIOptFn {
+	return func(o *genericCLIOpts) {
+		o.errW = w
+	}
+}
+
+func runEMiddlware(mw cobraRunEMiddleware) genericCLIOptFn {
+	return func(o *genericCLIOpts) {
+		o.runEWrapFn = mw
 	}
 }
 
@@ -115,6 +136,7 @@ func newInfluxCmdBuilder(optFns ...genericCLIOptFn) *cmdInfluxBuilder {
 	opt := genericCLIOpts{
 		in:         os.Stdin,
 		w:          os.Stdout,
+		errW:       os.Stderr,
 		runEWrapFn: checkSetupRunEMiddleware(&flags),
 	}
 	for _, optFn := range optFns {
@@ -131,7 +153,7 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		setViperOptions()
 	})
 
-	cmd := b.newCmd("influx", nil)
+	cmd := b.newCmd("influx", nil, false)
 	cmd.Short = "Influx Client"
 	cmd.SilenceUsage = true
 
@@ -175,6 +197,9 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		c.Flags().BoolP("help", "h", false, fmt.Sprintf("Help for the %s command ", c.Name()))
 	})
 
+	// completion command goes last, after the walk, so that all
+	// commands have every flag listed in the bash|zsh completions.
+	cmd.AddCommand(completionCmd(cmd))
 	return cmd
 }
 
@@ -298,7 +323,7 @@ func checkSetup(host string, skipVerify bool) error {
 	return nil
 }
 
-func checkSetupRunEMiddleware(f *globalFlags) cobraRuneEMiddleware {
+func checkSetupRunEMiddleware(f *globalFlags) cobraRunEMiddleware {
 	return func(fn cobraRunEFn) cobraRunEFn {
 		return func(cmd *cobra.Command, args []string) error {
 			err := fn(cmd, args)
@@ -307,6 +332,7 @@ func checkSetupRunEMiddleware(f *globalFlags) cobraRuneEMiddleware {
 			}
 
 			if setupErr := checkSetup(f.Host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
+				cmd.OutOrStderr().Write([]byte(fmt.Sprintf("Error: %s\n", internal.ErrorFmt(err).Error())))
 				return internal.ErrorFmt(setupErr)
 			}
 

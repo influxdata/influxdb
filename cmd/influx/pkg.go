@@ -87,7 +87,7 @@ func (b *cmdPkgBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
-	cmd := b.newCmd("pkg", b.pkgApplyRunEFn)
+	cmd := b.newCmd("pkg", b.pkgApplyRunEFn, true)
 	cmd.Short = "Apply a pkg to create resources"
 
 	b.org.register(cmd, false)
@@ -112,10 +112,6 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 
 	svc, orgSVC, err := b.svcFn()
 	if err != nil {
-		return err
-	}
-
-	if err := b.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 
@@ -184,7 +180,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 }
 
 func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
-	cmd := b.newCmd("export", b.pkgExportRunEFn)
+	cmd := b.newCmd("export", b.pkgExportRunEFn, true)
 	cmd.Short = "Export existing resources as a package"
 	cmd.AddCommand(b.cmdPkgExportAll())
 
@@ -258,7 +254,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn(cmd *cobra.Command, args []string) error
 }
 
 func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
-	cmd := b.newCmd("all", b.pkgExportAllRunEFn)
+	cmd := b.newCmd("all", b.pkgExportAllRunEFn, true)
 	cmd.Short = "Export all existing resources for an organization as a package"
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
@@ -322,7 +318,7 @@ func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 		return nil
 	}
 
-	cmd := b.newCmd("summary", runE)
+	cmd := b.newCmd("summary", runE, false)
 	cmd.Short = "Summarize the provided package"
 
 	b.registerPkgFileFlags(cmd)
@@ -341,7 +337,7 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 		return pkg.Validate()
 	}
 
-	cmd := b.newCmd("validate", runE)
+	cmd := b.newCmd("validate", runE, false)
 	cmd.Short = "Validate the provided package"
 
 	b.registerPkgFileFlags(cmd)
@@ -432,8 +428,13 @@ func (b *cmdPkgBuilder) readPkg() (*pkger.Pkg, bool, error) {
 	}
 	pkgs = append(pkgs, urlPkgs...)
 
+	// the pkger.ValidSkipParseError option allows our server to be the one to validate the
+	// the pkg is accurate. If a user has an older version of the CLI and cloud gets updated
+	// with new validation rules,they'll get immediate access to that change without having to
+	// rol their CLI build.
+
 	if _, err := b.inStdIn(); err != nil {
-		pkg, err := pkger.Combine(pkgs...)
+		pkg, err := pkger.Combine(pkgs, pkger.ValidSkipParseError())
 		return pkg, false, err
 	}
 
@@ -441,7 +442,7 @@ func (b *cmdPkgBuilder) readPkg() (*pkger.Pkg, bool, error) {
 	if err != nil {
 		return nil, true, err
 	}
-	pkg, err := pkger.Combine(append(pkgs, stdinPkg)...)
+	pkg, err := pkger.Combine(append(pkgs, stdinPkg), pkger.ValidSkipParseError())
 	return pkg, true, err
 }
 

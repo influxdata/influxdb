@@ -351,11 +351,22 @@ func TestCmdOrg(t *testing.T) {
 		testMemberFn := func(t *testing.T, cmdName string, cmdFn func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called), testCases ...testCase) {
 			for _, tt := range testCases {
 				fn := func(t *testing.T) {
-					defer addEnvVars(t, tt.envVars)()
+					envVars := tt.envVars
+					if len(envVars) == 0 {
+						envVars = envVarsZeroMap
+					}
+					defer addEnvVars(t, envVars)()
+
+					outBuf := new(bytes.Buffer)
+					defer func() {
+						if t.Failed() && outBuf.Len() > 0 {
+							t.Log(outBuf.String())
+						}
+					}()
 
 					builder := newInfluxCmdBuilder(
 						in(new(bytes.Buffer)),
-						out(ioutil.Discard),
+						out(outBuf),
 					)
 					nestedCmd, calls := cmdFn()
 					cmd := builder.cmd(nestedCmd)

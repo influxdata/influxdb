@@ -15,6 +15,10 @@ type HTTPRemoteService struct {
 
 var _ SVC = (*HTTPRemoteService)(nil)
 
+func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error) {
+	panic("not implemented yet")
+}
+
 // CreatePkg will produce a pkg from the parameters provided.
 func (s *HTTPRemoteService) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
 	var opt CreateOpt

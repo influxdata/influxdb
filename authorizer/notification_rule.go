@@ -31,11 +31,9 @@ func (s *NotificationRuleStore) FindNotificationRuleByID(ctx context.Context, id
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeReadOrg(ctx, nr.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeRead(ctx, influxdb.NotificationRuleResourceType, nr.GetID(), nr.GetOrgID()); err != nil {
 		return nil, err
 	}
-
 	return nr, nil
 }
 
@@ -47,22 +45,12 @@ func (s *NotificationRuleStore) FindNotificationRules(ctx context.Context, filte
 	if err != nil {
 		return nil, 0, err
 	}
-
-	// This filters without allocating
-	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
-	rules := nrs[:0]
-	for _, nr := range nrs {
-		if err := authorizeReadOrg(ctx, nr.GetOrgID()); err == nil {
-			rules = append(rules, nr)
-		}
-	}
-
-	return rules, len(rules), nil
+	return AuthorizeFindNotificationRules(ctx, nrs)
 }
 
 // CreateNotificationRule checks to see if the authorizer on context has write access to the global notification rule resource.
 func (s *NotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
-	if err := authorizeWriteOrg(ctx, nr.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.NotificationRuleResourceType, nr.GetOrgID()); err != nil {
 		return err
 	}
 	return s.s.CreateNotificationRule(ctx, nr, userID)
@@ -74,11 +62,9 @@ func (s *NotificationRuleStore) UpdateNotificationRule(ctx context.Context, id i
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeWriteOrg(ctx, nr.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.NotificationRuleResourceType, nr.GetID(), nr.GetOrgID()); err != nil {
 		return nil, err
 	}
-
 	return s.s.UpdateNotificationRule(ctx, id, upd, userID)
 }
 
@@ -88,11 +74,9 @@ func (s *NotificationRuleStore) PatchNotificationRule(ctx context.Context, id in
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeWriteOrg(ctx, nr.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.NotificationRuleResourceType, nr.GetID(), nr.GetOrgID()); err != nil {
 		return nil, err
 	}
-
 	return s.s.PatchNotificationRule(ctx, id, upd)
 }
 
@@ -102,10 +86,8 @@ func (s *NotificationRuleStore) DeleteNotificationRule(ctx context.Context, id i
 	if err != nil {
 		return err
 	}
-
-	if err := authorizeWriteOrg(ctx, nr.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.NotificationRuleResourceType, nr.GetID(), nr.GetOrgID()); err != nil {
 		return err
 	}
-
 	return s.s.DeleteNotificationRule(ctx, id)
 }

@@ -40,7 +40,7 @@ func newCmdBucketBuilder(svcsFn bucketSVCsFn, opts genericCLIOpts) *cmdBucketBui
 }
 
 func (b *cmdBucketBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("bucket", nil)
+	cmd := b.newCmd("bucket", nil, false)
 	cmd.Short = "Bucket management commands"
 	cmd.TraverseChildren = true
 	cmd.Run = seeHelp
@@ -55,7 +55,7 @@ func (b *cmdBucketBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", b.cmdCreateRunEFn)
+	cmd := b.newCmd("create", b.cmdCreateRunEFn, true)
 	cmd.Short = "Create bucket"
 
 	opts := flagOpts{
@@ -115,11 +115,12 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 }
 
 func (b *cmdBucketBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.cmdDeleteRunEFn)
+	cmd := b.newCmd("delete", b.cmdDeleteRunEFn, true)
 	cmd.Short = "Delete bucket"
 
-	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID (required)")
-	cmd.MarkFlagRequired("id")
+	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID, required if name isn't provided")
+	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The bucket name, org or org-id will be required by choosing this")
+	b.org.register(cmd, false)
 
 	return cmd
 }
@@ -131,17 +132,34 @@ func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 	}
 
 	var id influxdb.ID
-	if err := id.DecodeFromString(b.id); err != nil {
+	var filter influxdb.BucketFilter
+	if b.id == "" && b.name != "" {
+		if err = b.org.validOrgFlags(&flags); err != nil {
+			return err
+		}
+		filter.Name = &b.name
+		if b.org.id != "" {
+			if filter.OrganizationID, err = influxdb.IDFromString(b.org.id); err != nil {
+				return err
+			}
+		} else if b.org.name != "" {
+			filter.Org = &b.org.name
+		}
+
+	} else if err := id.DecodeFromString(b.id); err != nil {
 		return fmt.Errorf("failed to decode bucket id %q: %v", b.id, err)
 	}
 
+	if id.Valid() {
+		filter.ID = &id
+	}
+
 	ctx := context.Background()
-	bkt, err := bktSVC.FindBucketByID(ctx, id)
+	bkt, err := bktSVC.FindBucket(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("failed to find bucket with id %q: %v", id, err)
 	}
-
-	if err := bktSVC.DeleteBucket(ctx, id); err != nil {
+	if err := bktSVC.DeleteBucket(ctx, bkt.ID); err != nil {
 		return fmt.Errorf("failed to delete bucket with id %q: %v", id, err)
 	}
 
@@ -160,7 +178,7 @@ func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 }
 
 func (b *cmdBucketBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("list", b.cmdFindRunEFn)
+	cmd := b.newCmd("list", b.cmdFindRunEFn, true)
 	cmd.Short = "List buckets"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -236,7 +254,7 @@ func (b *cmdBucketBuilder) cmdFindRunEFn(cmd *cobra.Command, args []string) erro
 }
 
 func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
+	cmd := b.newCmd("update", b.cmdUpdateRunEFn, true)
 	cmd.Short = "Update bucket"
 
 	opts := flagOpts{

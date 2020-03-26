@@ -8,10 +8,14 @@ import {
   ComponentColor,
   ComponentSize,
   ComponentStatus,
+  FontWeight,
   Form,
   Grid,
+  Heading,
+  HeadingElement,
   Input,
   InputType,
+  Typeface,
   VisibilityInput,
 } from '@influxdata/clockface'
 
@@ -87,12 +91,19 @@ export const LoginForm: FC<Props> = ({
           </Grid.Column>
         </Grid.Row>
       </Grid>
-      <a onClick={handleForgotPasswordClick} className="login--forgot-password">
+      <Heading
+        element={HeadingElement.H6}
+        type={Typeface.Rubik}
+        weight={FontWeight.Regular}
+        onClick={handleForgotPasswordClick}
+        className="login--forgot-password"
+        selectable={true}
+      >
         Forgot Password?
-      </a>
+      </Heading>
       <Button
         className="create-account--button"
-        text="Login"
+        text="Log In"
         color={ComponentColor.Primary}
         size={ComponentSize.Large}
         type={ButtonType.Submit}

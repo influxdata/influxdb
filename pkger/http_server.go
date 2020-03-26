@@ -213,7 +213,7 @@ func (r ReqApplyPkg) Pkgs(encoding Encoding) (*Pkg, error) {
 		rawPkgs = append(rawPkgs, pkg)
 	}
 
-	return Combine(rawPkgs...)
+	return Combine(rawPkgs)
 }
 
 // RespApplyPkg is the response body for the apply pkg endpoint.

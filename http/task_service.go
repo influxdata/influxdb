@@ -319,7 +319,7 @@ func newTasksResponse(ctx context.Context, ts []*influxdb.Task, f influxdb.TaskF
 	}
 
 	for i := range ts {
-		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: ts[i].ID})
+		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: ts[i].ID, ResourceType: influxdb.TasksResourceType})
 		rs.Tasks[i] = newTaskResponse(*ts[i], labels)
 	}
 	return rs
@@ -640,7 +640,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: task.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: task.ID, ResourceType: influxdb.TasksResourceType})
 	if err != nil {
 		err = &influxdb.Error{
 			Err: err,
@@ -707,7 +707,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: task.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: task.ID, ResourceType: influxdb.TasksResourceType})
 	if err != nil {
 		err = &influxdb.Error{
 			Err: err,

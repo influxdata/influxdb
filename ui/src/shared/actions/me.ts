@@ -1,6 +1,8 @@
 import {MeState} from 'src/shared/reducers/me'
 import {client} from 'src/utils/api'
+import {CLOUD} from 'src/shared/constants'
 import HoneyBadger from 'honeybadger-js'
+import {fireUserDataReady} from 'src/shared/utils/analytics'
 
 export enum ActionTypes {
   SetMe = 'SET_ME',
@@ -25,6 +27,10 @@ export const setMe = me => ({
 export const getMe = () => async dispatch => {
   try {
     const user = await client.users.me()
+
+    if (CLOUD) {
+      fireUserDataReady(user.id, user.name)
+    }
 
     HoneyBadger.setContext({
       user_id: user.id,

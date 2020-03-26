@@ -72,7 +72,7 @@ func TestLabelService_FindLabelByID(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.LabelsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
@@ -98,7 +98,7 @@ func TestLabelService_FindLabelByID(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.LabelsResourceType,
 						ID:   influxdbtesting.IDPtr(2),
@@ -170,7 +170,7 @@ func TestLabelService_FindLabels(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.LabelsResourceType,
 					},
@@ -217,7 +217,7 @@ func TestLabelService_FindLabels(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.LabelsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
@@ -257,7 +257,7 @@ func TestLabelService_FindLabels(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.LabelsResourceType,
 						ID:   influxdbtesting.IDPtr(10),
@@ -327,7 +327,7 @@ func TestLabelService_UpdateLabel(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.LabelsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
@@ -361,7 +361,7 @@ func TestLabelService_UpdateLabel(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.LabelsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
@@ -428,7 +428,7 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.LabelsResourceType,
 							ID:    influxdbtesting.IDPtr(1),
@@ -460,7 +460,7 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.LabelsResourceType,
 							ID:    influxdbtesting.IDPtr(1),
@@ -509,6 +509,56 @@ func TestLabelService_CreateLabel(t *testing.T) {
 		wants  wants
 	}{
 		{
+			name: "unauthorized to create label with read only permission",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					CreateLabelFn: func(ctx context.Context, l *influxdb.Label) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				permission: influxdb.Permission{
+					Action: influxdb.ReadAction,
+					Resource: influxdb.Resource{
+						ID:   influxdbtesting.IDPtr(orgOneInfluxID),
+						Type: influxdb.OrgsResourceType,
+					},
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Msg:  "write:orgs/020f755c3c083000/labels is unauthorized",
+					Code: influxdb.EUnauthorized,
+				},
+			},
+		},
+		{
+			name: "unauthorized to create label with wrong write permission",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					CreateLabelFn: func(ctx context.Context, b *influxdb.Label) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				permission: influxdb.Permission{
+					Action: influxdb.WriteAction,
+					Resource: influxdb.Resource{
+						Type: influxdb.OrgsResourceType,
+					},
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Msg:  "write:orgs/020f755c3c083000/labels is unauthorized",
+					Code: influxdb.EUnauthorized,
+				},
+			},
+		},
+
+		{
 			name: "authorized to create label",
 			fields: fields{
 				LabelService: &mock.LabelService{
@@ -519,39 +569,15 @@ func TestLabelService_CreateLabel(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.WriteAction,
 					Resource: influxdb.Resource{
-						ID:   influxdbtesting.IDPtr(orgOneInfluxID),
-						Type: influxdb.OrgsResourceType,
+						OrgID: influxdbtesting.IDPtr(orgOneInfluxID),
+						Type:  influxdb.LabelsResourceType,
 					},
 				},
 			},
 			wants: wants{
 				err: nil,
-			},
-		},
-		{
-			name: "unauthorized to create label",
-			fields: fields{
-				LabelService: &mock.LabelService{
-					CreateLabelFn: func(ctx context.Context, b *influxdb.Label) error {
-						return nil
-					},
-				},
-			},
-			args: args{
-				permission: influxdb.Permission{
-					Action: "read",
-					Resource: influxdb.Resource{
-						Type: influxdb.LabelsResourceType,
-					},
-				},
-			},
-			wants: wants{
-				err: &influxdb.Error{
-					Msg:  "read:orgs/020f755c3c083000 is unauthorized",
-					Code: influxdb.EUnauthorized,
-				},
 			},
 		},
 	}
@@ -616,13 +642,13 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 				},
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.LabelsResourceType,
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(10),
@@ -677,14 +703,14 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 				},
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.LabelsResourceType,
 							ID:   influxdbtesting.IDPtr(3),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(10),
@@ -731,7 +757,7 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 				},
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(10),
@@ -772,7 +798,7 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 				},
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.LabelsResourceType,
 						},
@@ -846,13 +872,13 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 				},
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.LabelsResourceType,
 						},
 					},
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(2),
@@ -887,7 +913,7 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 				},
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.LabelsResourceType,
 						},
@@ -924,7 +950,7 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 				},
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.LabelsResourceType,
 						},
@@ -994,13 +1020,13 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 				},
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.LabelsResourceType,
 						},
 					},
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(2),
@@ -1035,7 +1061,7 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 				},
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.LabelsResourceType,
 						},
@@ -1072,7 +1098,7 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 				},
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.LabelsResourceType,
 						},

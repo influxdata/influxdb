@@ -26,7 +26,7 @@ import {
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {findDependentVariables} from 'src/variables/utils/exportVariables'
 import {getOrg} from 'src/organizations/selectors'
-import {getLabels} from 'src/resources/selectors'
+import {getLabels, getStatus} from 'src/resources/selectors'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -41,6 +41,7 @@ import {
   GenVariable,
   Variable,
   VariableEntities,
+  ResourceType,
 } from 'src/types'
 import {Action as NotifyAction} from 'src/shared/actions/notifications'
 import {
@@ -55,8 +56,15 @@ export const getVariables = () => async (
   getState: GetState
 ) => {
   try {
-    dispatch(setVariables(RemoteDataState.Loading))
-    const org = getOrg(getState())
+    const state = getState()
+
+    if (
+      getStatus(state, ResourceType.Variables) === RemoteDataState.NotStarted
+    ) {
+      dispatch(setVariables(RemoteDataState.Loading))
+    }
+
+    const org = getOrg(state)
     const resp = await api.getVariables({query: {orgID: org.id}})
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
@@ -80,11 +88,11 @@ export const getVariables = () => async (
 
     await dispatch(setVariables(RemoteDataState.Done, variables))
 
-    const state = getState()
-    const vars = getVariablesFromState(state)
-    const vals = await hydrateVars(vars, getAllVariablesFromState(state), {
+    const _state = getState()
+    const vars = getVariablesFromState(_state)
+    const vals = await hydrateVars(vars, getAllVariablesFromState(_state), {
       orgID: org.id,
-      url: getState().links.query.self,
+      url: _state.links.query.self,
     }).promise
 
     vars

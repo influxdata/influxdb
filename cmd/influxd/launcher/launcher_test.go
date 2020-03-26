@@ -24,7 +24,7 @@ func TestLauncher_Setup(t *testing.T) {
 	defer l.Shutdown(ctx)
 
 	svc := &http.SetupService{Addr: l.URL()}
-	if results, err := svc.Generate(ctx, &platform.OnboardingRequest{
+	if results, err := svc.OnboardInitialUser(ctx, &platform.OnboardingRequest{
 		User:     "USER",
 		Password: "PASSWORD",
 		Org:      "ORG",

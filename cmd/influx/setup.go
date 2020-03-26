@@ -29,7 +29,7 @@ var setupFlags struct {
 }
 
 func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("setup", nil)
+	cmd := opt.newCmd("setup", nil, true)
 	cmd.RunE = setupF
 	cmd.Short = "Setup instance with initial user, org, bucket"
 
@@ -91,7 +91,7 @@ func setupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to retrieve data to setup instance: %v", err)
 	}
 
-	result, err := s.Generate(context.Background(), req)
+	result, err := s.OnboardInitialUser(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("failed to setup instance: %v", err)
 	}

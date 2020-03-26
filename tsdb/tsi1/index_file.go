@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 )
 
 // IndexFileVersion is the current TSI1 index file version.
@@ -52,7 +53,7 @@ type IndexFile struct {
 	res lifecycle.Resource
 
 	// Components
-	sfile    *tsdb.SeriesFile
+	sfile    *seriesfile.SeriesFile
 	sfileref *lifecycle.Reference
 
 	tblks map[string]*TagBlock // tag blocks by measurement name
@@ -75,7 +76,7 @@ type IndexFile struct {
 }
 
 // NewIndexFile returns a new instance of IndexFile.
-func NewIndexFile(sfile *tsdb.SeriesFile) *IndexFile {
+func NewIndexFile(sfile *seriesfile.SeriesFile) *IndexFile {
 	return &IndexFile{
 		sfile: sfile,
 	}

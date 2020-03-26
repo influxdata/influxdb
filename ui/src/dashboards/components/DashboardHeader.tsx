@@ -6,19 +6,14 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
+import PresentationModeToggle from 'src/shared/components/PresentationModeToggle'
+import DashboardLightModeToggle from 'src/dashboards/components/DashboardLightModeToggle'
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
-import {
-  SquareButton,
-  Button,
-  IconFont,
-  ComponentColor,
-  Page,
-} from '@influxdata/clockface'
+import {Button, IconFont, ComponentColor, Page} from '@influxdata/clockface'
 
 // Actions
-import {delayEnablePresentationMode} from 'src/shared/actions/app'
 import {toggleShowVariablesControls} from 'src/userSettings/actions'
 import {updateDashboard} from 'src/dashboards/actions/thunks'
 import {
@@ -65,7 +60,6 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  handleClickPresentationButton: typeof delayEnablePresentationMode
   toggleShowVariablesControls: typeof toggleShowVariablesControls
   updateDashboard: typeof updateDashboard
   onSetAutoRefreshStatus: typeof setAutoRefreshStatus
@@ -121,11 +115,8 @@ class DashboardHeader extends Component<Props> {
                   : ComponentColor.Default
               }
             />
-            <SquareButton
-              icon={IconFont.ExpandA}
-              titleText="Enter Presentation Mode"
-              onClick={this.handleClickPresentationButton}
-            />
+            <DashboardLightModeToggle />
+            <PresentationModeToggle />
             <GraphTips />
           </Page.ControlBarLeft>
           <Page.ControlBarRight>
@@ -159,10 +150,6 @@ class DashboardHeader extends Component<Props> {
     const {dashboard, updateDashboard} = this.props
 
     updateDashboard(dashboard.id, {name})
-  }
-
-  private handleClickPresentationButton = (): void => {
-    this.props.handleClickPresentationButton()
   }
 
   private handleChooseAutoRefresh = (milliseconds: number) => {
@@ -234,7 +221,6 @@ const mstp = (state: AppState): StateProps => {
 const mdtp: DispatchProps = {
   toggleShowVariablesControls: toggleShowVariablesControls,
   updateDashboard: updateDashboard,
-  handleClickPresentationButton: delayEnablePresentationMode,
   onSetAutoRefreshStatus: setAutoRefreshStatus,
   updateQueryParams: updateQueryParams,
   setDashboardTimeRange: setDashboardTimeRange,

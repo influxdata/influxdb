@@ -3,7 +3,7 @@ package tsm1
 import (
 	"sort"
 
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 {{range .}}
@@ -12,8 +12,8 @@ import (
 type {{.Name}}Values []{{.Name}}Value
 
 {{if ne .Name ""}}
-func New{{.Name}}ArrayFromValues(v {{.Name}}Values) *tsdb.{{.Name}}Array {
-	a := tsdb.New{{.Name}}ArrayLen(len(v))
+func New{{.Name}}ArrayFromValues(v {{.Name}}Values) *cursors.{{.Name}}Array {
+	a := cursors.New{{.Name}}ArrayLen(len(v))
 	for i, val := range v {
 		a.Timestamps[i] = val.UnixNano()
 		a.Values[i] = val.RawValue()
@@ -213,7 +213,7 @@ func (a {{.Name}}Values) Encode(buf []byte) ([]byte, error) {
 	return encode{{.Name}}ValuesBlock(buf, a)
 }
 
-func Encode{{ .Name }}ArrayBlock(a *tsdb.{{ .Name }}Array, b []byte) ([]byte, error) {
+func Encode{{ .Name }}ArrayBlock(a *cursors.{{ .Name }}Array, b []byte) ([]byte, error) {
 	if a.Len() == 0 {
 		return nil, nil
 	}

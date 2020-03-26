@@ -13,7 +13,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_inspect/buildtsi"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/spf13/cobra"
@@ -117,7 +117,7 @@ func RunBuildTSI(cmd *cobra.Command, args []string) error {
 
 	log := logger.New(buildTSIFlags.Stdout)
 
-	sfile := tsdb.NewSeriesFile(buildTSIFlags.SeriesFilePath)
+	sfile := seriesfile.NewSeriesFile(buildTSIFlags.SeriesFilePath)
 	sfile.Logger = log
 	if err := sfile.Open(context.Background()); err != nil {
 		return err

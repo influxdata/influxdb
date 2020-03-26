@@ -35,7 +35,7 @@ func (s *Store) uniqueOrgName(ctx context.Context, tx kv.Tx, uname string) error
 
 	// no error means this is not unique
 	if err == nil {
-		return kv.NotUniqueError
+		return OrgAlreadyExistsError(uname)
 	}
 
 	// any other error is some sort of internal server error
@@ -95,7 +95,7 @@ func (s *Store) GetOrgByName(ctx context.Context, tx kv.Tx, n string) (*influxdb
 
 	uid, err := b.Get(organizationIndexKey(n))
 	if err == kv.ErrKeyNotFound {
-		return nil, ErrOrgNotFound
+		return nil, OrgNotFoundByName(n)
 	}
 
 	if err != nil {
@@ -155,6 +155,14 @@ func (s *Store) ListOrgs(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpti
 }
 
 func (s *Store) CreateOrg(ctx context.Context, tx kv.Tx, o *influxdb.Organization) error {
+	if !o.ID.Valid() {
+		id, err := s.generateSafeID(ctx, tx, organizationBucket)
+		if err != nil {
+			return err
+		}
+		o.ID = id
+	}
+
 	encodedID, err := o.ID.Encode()
 	if err != nil {
 		return InvalidOrgIDError(err)

@@ -1,14 +1,14 @@
 package tsm1
 
 import (
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 {{$isArray := .D.isArray}}
 {{$isNotArray := not $isArray}}
 {{range .In}}
 {{if $isArray -}}
 // Read{{.Name}}ArrayBlock reads the next block as a set of {{.name}} values.
-func (c *KeyCursor) Read{{.Name}}ArrayBlock(values *tsdb.{{.Name}}Array) (*tsdb.{{.Name}}Array, error) {
+func (c *KeyCursor) Read{{.Name}}ArrayBlock(values *cursors.{{.Name}}Array) (*cursors.{{.Name}}Array, error) {
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -119,7 +119,7 @@ LOOP:
 			}
 
 {{if $isArray -}}
-			v := &tsdb.{{.Name}}Array{}
+			v := &cursors.{{.Name}}Array{}
             err := cur.r.Read{{.Name}}ArrayBlockAt(&cur.entry, v)
 {{else -}}
 			var a []{{.Name}}Value
@@ -206,7 +206,7 @@ LOOP:
 			}
 
 {{if $isArray -}}
-			v := &tsdb.{{.Name}}Array{}
+			v := &cursors.{{.Name}}Array{}
 			err := cur.r.Read{{.Name}}ArrayBlockAt(&cur.entry, v)
 {{else -}}
 			var a []{{.Name}}Value
@@ -261,7 +261,7 @@ LOOP:
 }
 
 {{if $isArray -}}
-func excludeTombstones{{.Name}}Array(t []TimeRange, values *tsdb.{{.Name}}Array) {
+func excludeTombstones{{.Name}}Array(t []TimeRange, values *cursors.{{.Name}}Array) {
 	for i := range t {
 		values.Exclude(t[i].Min, t[i].Max)
 	}

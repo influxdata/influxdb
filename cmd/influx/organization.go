@@ -39,7 +39,7 @@ func newCmdOrgBuilder(svcFn orgSVCFn, opts genericCLIOpts) *cmdOrgBuilder {
 }
 
 func (b *cmdOrgBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("org", nil)
+	cmd := b.newCmd("org", nil, false)
 	cmd.Aliases = []string{"organization"}
 	cmd.Short = "Organization management commands"
 	cmd.Run = seeHelp
@@ -56,7 +56,7 @@ func (b *cmdOrgBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdOrgBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", b.createRunEFn)
+	cmd := b.newCmd("create", b.createRunEFn, true)
 	cmd.Short = "Create organization"
 
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The name of organization that will be created")
@@ -93,7 +93,7 @@ func (b *cmdOrgBuilder) createRunEFn(cmd *cobra.Command, args []string) error {
 }
 
 func (b *cmdOrgBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.deleteRunEFn)
+	cmd := b.newCmd("delete", b.deleteRunEFn, true)
 	cmd.Short = "Delete organization"
 
 	opts := flagOpts{
@@ -144,7 +144,7 @@ func (b *cmdOrgBuilder) deleteRunEFn(cmd *cobra.Command, args []string) error {
 }
 
 func (b *cmdOrgBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("list", b.findRunEFn)
+	cmd := b.newCmd("list", b.findRunEFn, true)
 	cmd.Short = "List organizations"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -207,7 +207,7 @@ func (b *cmdOrgBuilder) findRunEFn(cmd *cobra.Command, args []string) error {
 }
 
 func (b *cmdOrgBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.updateRunEFn)
+	cmd := b.newCmd("update", b.updateRunEFn, true)
 	cmd.Short = "Update organization"
 
 	opts := flagOpts{
@@ -275,7 +275,7 @@ func (b *cmdOrgBuilder) updateRunEFn(cmd *cobra.Command, args []string) error {
 }
 
 func (b *cmdOrgBuilder) cmdMember() *cobra.Command {
-	cmd := b.newCmd("members", nil)
+	cmd := b.newCmd("members", nil, false)
 	cmd.Short = "Organization membership commands"
 	cmd.Run = seeHelp
 
@@ -289,7 +289,7 @@ func (b *cmdOrgBuilder) cmdMember() *cobra.Command {
 }
 
 func (b *cmdOrgBuilder) cmdMemberList() *cobra.Command {
-	cmd := b.newCmd("list", b.memberListRunEFn)
+	cmd := b.newCmd("list", b.memberListRunEFn, true)
 	cmd.Short = "List organization members"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -351,7 +351,7 @@ func (b *cmdOrgBuilder) memberListRunEFn(cmd *cobra.Command, args []string) erro
 }
 
 func (b *cmdOrgBuilder) cmdMemberAdd() *cobra.Command {
-	cmd := b.newCmd("add", b.memberAddRunEFn)
+	cmd := b.newCmd("add", b.memberAddRunEFn, true)
 	cmd.Short = "Add organization member"
 
 	cmd.Flags().StringVarP(&b.memberID, "member", "m", "", "The member ID")
@@ -427,7 +427,7 @@ func (b *cmdOrgBuilder) memberAddRunEFn(cmd *cobra.Command, args []string) error
 }
 
 func (b *cmdOrgBuilder) cmdMemberRemove() *cobra.Command {
-	cmd := b.newCmd("remove", b.membersRemoveRunEFn)
+	cmd := b.newCmd("remove", b.membersRemoveRunEFn, true)
 	cmd.Short = "Remove organization member"
 
 	opts := flagOpts{
