@@ -294,15 +294,9 @@ impl ReadBatch {
     fn start_stop_times(&self) -> Option<(i64, i64)> {
         match &self.values {
             ReadValues::I64(vals) => {
-                if vals.is_empty() {
-                    return None;
-                }
                 Some((vals.first()?.time, vals.last()?.time))
             }
             ReadValues::F64(vals) => {
-                if vals.is_empty() {
-                    return None;
-                }
                 Some((vals.first()?.time, vals.last()?.time))
             }
         }
