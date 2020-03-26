@@ -42,8 +42,11 @@ type cmdPkgBuilder struct {
 	file                string
 	files               []string
 	filters             []string
+	description         string
 	disableColor        bool
 	disableTableBorders bool
+	json                bool
+	name                string
 	org                 organization
 	quiet               bool
 	recurse             bool
@@ -82,7 +85,9 @@ func (b *cmdPkgBuilder) cmd() *cobra.Command {
 		b.cmdPkgExport(),
 		b.cmdPkgSummary(),
 		b.cmdPkgValidate(),
+		b.cmdStack(),
 	)
+
 	return cmd
 }
 
@@ -343,6 +348,68 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 	b.registerPkgFileFlags(cmd)
 
 	return cmd
+}
+
+func (b *cmdPkgBuilder) cmdStack() *cobra.Command {
+	cmd := b.newCmd("stack", nil, false)
+	cmd.Short = "Stack management commands"
+	cmd.AddCommand(b.cmdStackInit())
+	return cmd
+}
+
+func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
+	cmd := b.newCmd("init", b.stackInitRunEFn, true)
+	cmd.Short = "Initialize a stack"
+
+	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
+	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description given to created stack")
+	cmd.Flags().StringArrayVarP(&b.urls, "package-url", "u", nil, "Package urls to associate with new stack")
+	cmd.Flags().BoolVar(&b.json, "json", false, "Output data as json")
+
+	b.org.register(cmd, false)
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error {
+	pkgSVC, orgSVC, err := b.svcFn()
+	if err != nil {
+		return err
+	}
+
+	orgID, err := b.org.getID(orgSVC)
+	if err != nil {
+		return err
+	}
+
+	const fakeUserID = 0 // is 0 because user is pulled from token...
+	stack, err := pkgSVC.InitStack(context.Background(), fakeUserID, pkger.Stack{
+		OrgID:       orgID,
+		Name:        b.name,
+		Description: b.description,
+		URLs:        b.urls,
+	})
+	if err != nil {
+		return err
+	}
+
+	if b.json {
+		return b.writeJSON(stack)
+	}
+
+	tabW := b.newTabWriter()
+	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "URLs", "Created At")
+	tabW.Write(map[string]interface{}{
+		"ID":          stack.ID,
+		"OrgID":       stack.OrgID,
+		"Name":        stack.Name,
+		"Description": stack.Description,
+		"URLs":        stack.URLs,
+		"Created At":  stack.CreatedAt,
+	})
+	tabW.Flush()
+
+	return nil
 }
 
 func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
