@@ -96,10 +96,7 @@ const isFromBucket = (node: Node) => {
   )
 }
 
-export const executeQueries = () => async (
-  dispatch,
-  getState: GetState
-) => {
+export const executeQueries = () => async (dispatch, getState: GetState) => {
   const state = getState()
 
   const allBuckets = getAll<Bucket>(state, ResourceType.Buckets)

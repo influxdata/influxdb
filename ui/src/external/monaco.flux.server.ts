@@ -195,10 +195,12 @@ export class LSPServer {
 
   private async sendPrelude(uri: string): Promise<void> {
     const state = this.store.getState()
-    const contextID = state.currentDashboard.id || state.timeMachines.activeTimeMachineID
+    const contextID =
+      state.currentDashboard.id || state.timeMachines.activeTimeMachineID
 
-    const variables = getAllVariables(state, contextID)
-      .map(v => asAssignment(v))
+    const variables = getAllVariables(state, contextID).map(v =>
+      asAssignment(v)
+    )
     const file = buildVarsOption(variables)
 
     const parts = uri.split('/')

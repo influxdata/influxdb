@@ -131,7 +131,7 @@ export const variablesReducer = (
         newOrder[newIndex] = idToMove
 
         draftState.values[contextID] = {
-          ...draftState.values[contextID],
+          ...(draftState.values[contextID] || {values: {}}),
           order: newOrder,
         }
 

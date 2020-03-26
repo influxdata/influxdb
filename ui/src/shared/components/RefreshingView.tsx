@@ -72,7 +72,7 @@ class RefreshingView extends PureComponent<Props, State> {
       manualRefresh,
       timeZone,
       variableAssignments,
-      theme
+      theme,
     } = this.props
     const {submitToken} = this.state
 

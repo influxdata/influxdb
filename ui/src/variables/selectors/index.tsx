@@ -185,7 +185,7 @@ export const asAssignment = (variable: Variable): VariableAssignment => {
   if (variable.id === WINDOW_PERIOD) {
     out.init = {
       type: 'DurationLiteral',
-      values: [{magnitude: variable.arguments.values[0], unit: 'ms'}],
+      values: [{magnitude: variable.arguments.values[0] || 10000, unit: 'ms'}],
     }
 
     return out
