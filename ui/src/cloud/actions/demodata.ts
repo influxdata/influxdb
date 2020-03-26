@@ -1,10 +1,13 @@
 // API
 import {
   getDemoDataBuckets as getDemoDataBucketsAJAX,
+  getDemoDataBucketMembership as getDemoDataBucketMembershipAJAX,
+  deleteDemoDataBucketMembership as deleteDemoDataBucketMembershipAJAX,
 } from 'src/cloud/apis/demodata'
 
 // Types
 import {Bucket, RemoteDataState, GetState} from 'src/types'
+import {getBuckets} from 'src/buckets/actions/thunks'
 
 export type Actions =
   | ReturnType<typeof setDemoDataStatus>
@@ -40,5 +43,43 @@ export const getDemoDataBuckets = () => async (
   } catch (error) {
     console.error(error)
     dispatch(setDemoDataStatus(RemoteDataState.Error))
+  }
+}
+
+export const getDemoDataBucketMembership = (bucketID: string) => async (
+  dispatch,
+  getState: GetState
+) => {
+  const {
+    me: {id: userID},
+  } = getState()
+
+  try {
+    await getDemoDataBucketMembershipAJAX(bucketID, userID)
+
+    dispatch(getBuckets())
+    // TODO: check for success and error appropriately
+    // TODO: instantiate dashboard template
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+export const deleteDemoDataBucketMembership = (bucketID: string) => async (
+  dispatch,
+  getState: GetState
+) => {
+  const {
+    me: {id: userID},
+  } = getState()
+
+  try {
+    await deleteDemoDataBucketMembershipAJAX(bucketID, userID)
+    dispatch(getBuckets())
+
+    // TODO: check for success and error appropriately
+    // TODO: delete associated dashboard
+  } catch (error) {
+    console.error(error)
   }
 }

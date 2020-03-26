@@ -36,7 +36,10 @@ import {
   checkBucketLimits as checkBucketLimitsAction,
   LimitStatus,
 } from 'src/cloud/actions/limits'
-import {getDemoDataBuckets} from 'src/cloud/actions/demodata'
+import {
+  getDemoDataBuckets as getDemoDataBucketsAction,
+  getDemoDataBucketMembership as getDemoDataBucketMembershipAction,
+} from 'src/cloud/actions/demodata'
 
 // Utils
 import {prettyBuckets} from 'src/shared/utils/prettyBucket'
@@ -68,7 +71,8 @@ interface DispatchProps {
   updateBucket: typeof updateBucket
   deleteBucket: typeof deleteBucket
   checkBucketLimits: typeof checkBucketLimitsAction
-  getDemoDataBuckets: typeof getDemoDataBuckets
+  getDemoDataBuckets: typeof getDemoDataBucketsAction
+  getDemoDataBucketMembership: typeof getDemoDataBucketMembershipAction
 }
 
 interface State {
@@ -107,7 +111,13 @@ class BucketsTab extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {org, buckets, limitStatus, demoDataBuckets} = this.props
+    const {
+      org,
+      buckets,
+      limitStatus,
+      demoDataBuckets,
+      getDemoDataBucketMembership,
+    } = this.props
     const {
       searchTerm,
       overlayState,
@@ -132,7 +142,10 @@ class BucketsTab extends PureComponent<Props, State> {
           <div className="buckets-buttons-wrap">
             <FeatureFlag name="demodata">
               {demoDataBuckets.length > 0 && (
-                <DemoDataDropdown buckets={demoDataBuckets} />
+                <DemoDataDropdown
+                  buckets={demoDataBuckets}
+                  getMembership={getDemoDataBucketMembership}
+                />
               )}
             </FeatureFlag>
             <Button
@@ -277,12 +290,13 @@ const mstp = (state: AppState): StateProps => ({
   demoDataBuckets: get(state, 'cloud.demoData.buckets', []),
 })
 
-const mdtp = {
+const mdtp: DispatchProps = {
   createBucket,
   updateBucket,
   deleteBucket,
   checkBucketLimits: checkBucketLimitsAction,
-  getDemoDataBuckets: getDemoDataBuckets,
+  getDemoDataBuckets: getDemoDataBucketsAction,
+  getDemoDataBucketMembership: getDemoDataBucketMembershipAction,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

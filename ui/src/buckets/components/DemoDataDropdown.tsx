@@ -7,19 +7,21 @@ import {IconFont, ComponentColor, Dropdown} from '@influxdata/clockface'
 
 // Types
 import {Bucket} from 'src/types'
+import {getDemoDataBucketMembership as getDemoDataBucketMembershipAction} from 'src/cloud/actions/demodata'
 
 interface Props {
   buckets: Bucket[]
+  getMembership: typeof getDemoDataBucketMembershipAction
 }
 
-const DemoDataDropdown: FC<Props> = ({buckets}) => {
+const DemoDataDropdown: FC<Props> = ({buckets, getMembership}) => {
   const demoDataItems = buckets.map(b => (
     <Dropdown.Item
-      testID="dropdown-item demodata--1"
-      id={b.name}
-      key={b.name}
-      value={b.name}
-      onClick={v => console.log(v)}
+      testID={`dropdown-item ${b.name}`}
+      id={b.id}
+      key={b.id}
+      value={b.id}
+      onClick={getMembership}
     >
       {b.name}
     </Dropdown.Item>
