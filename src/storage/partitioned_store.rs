@@ -287,10 +287,10 @@ impl ReadBatch {
         match &self.values {
             ReadValues::I64(vals) => {
                 (vals.first().unwrap().time, vals.last().unwrap().time)
-            }
+            },
             ReadValues::F64(vals) => {
                 (vals.first().unwrap().time, vals.last().unwrap().time)
-            }
+            },
         }
     }
 
