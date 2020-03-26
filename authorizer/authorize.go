@@ -3,6 +3,7 @@ package authorizer
 import (
 	"context"
 	"fmt"
+
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 )
@@ -90,9 +91,9 @@ func authorizeReadSystemBucket(ctx context.Context, bid, oid influxdb.ID) (influ
 
 // AuthorizeReadBucket exists because buckets are a special case and should use this method.
 // I.e., instead of:
-//  AuthorizeRead(crx, influxdb.BucketsResourceType, b.ID, b.OrgID)
+//  AuthorizeRead(ctx, influxdb.BucketsResourceType, b.ID, b.OrgID)
 // use:
-//  AuthorizeReadBucket(crx, b.Type, b.ID, b.OrgID)
+//  AuthorizeReadBucket(ctx, b.Type, b.ID, b.OrgID)
 func AuthorizeReadBucket(ctx context.Context, bt influxdb.BucketType, bid, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	switch bt {
 	case influxdb.BucketTypeSystem:
@@ -108,7 +109,7 @@ func AuthorizeRead(ctx context.Context, rt influxdb.ResourceType, rid, oid influ
 	return authorize(ctx, influxdb.ReadAction, rt, &rid, &oid)
 }
 
-// AuthorizeRead authorizes the user in the context to write the specified resource (identified by its type, ID, and orgID).
+// AuthorizeWrite authorizes the user in the context to write the specified resource (identified by its type, ID, and orgID).
 // NOTE: authorization will pass even if the user only has permissions for the resource type and organization ID only.
 func AuthorizeWrite(ctx context.Context, rt influxdb.ResourceType, rid, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return authorize(ctx, influxdb.WriteAction, rt, &rid, &oid)
@@ -145,12 +146,12 @@ func AuthorizeCreate(ctx context.Context, rt influxdb.ResourceType, oid influxdb
 	return AuthorizeOrgWriteResource(ctx, rt, oid)
 }
 
-// AuthorizeOrg authorizes the user to read the given org.
+// AuthorizeReadOrg authorizes the user to read the given org.
 func AuthorizeReadOrg(ctx context.Context, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return authorize(ctx, influxdb.ReadAction, influxdb.OrgsResourceType, &oid, nil)
 }
 
-// AuthorizeOrg authorizes the user to write the given org.
+// AuthorizeWriteOrg authorizes the user to write the given org.
 func AuthorizeWriteOrg(ctx context.Context, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return authorize(ctx, influxdb.WriteAction, influxdb.OrgsResourceType, &oid, nil)
 }
