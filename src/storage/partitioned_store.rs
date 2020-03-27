@@ -80,6 +80,7 @@ struct StreamState<'a, T> {
 }
 
 impl StringMergeStream<'_> {
+    #[allow(dead_code)]
     fn new(streams: Vec<BoxStream<'_, String>>) -> StringMergeStream<'_> {
         let states = streams
             .into_iter()
@@ -165,6 +166,7 @@ pub struct ReadMergeStream<'a> {
 }
 
 impl ReadMergeStream<'_> {
+    #[allow(dead_code)]
     fn new(streams: Vec<BoxStream<'_, ReadBatch>>) -> ReadMergeStream<'_> {
         let states = streams
             .into_iter()

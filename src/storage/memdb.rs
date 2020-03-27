@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::delorean::{Node, Predicate, TimestampRange};
 use crate::line_parser::{ParseError, Point, PointType};
 use crate::storage::partitioned_store::{ReadBatch, ReadValues};
