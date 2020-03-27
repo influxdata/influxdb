@@ -86,6 +86,10 @@ export const getWindowPeriodVariable = (
 ): Variable[] | null => {
   const total = getWindowPeriod(query, variables)
 
+  if (total === null) {
+    return null
+  }
+
   const windowPeriodVariable: Variable = {
     orgID: '',
     id: WINDOW_PERIOD,

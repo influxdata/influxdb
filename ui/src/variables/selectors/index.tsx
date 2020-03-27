@@ -222,6 +222,9 @@ export const asAssignment = (variable: Variable): VariableAssignment => {
   }
 
   if (variable.arguments.type === 'map') {
+    if (!variable.selected) {
+      variable.selected = [Object.keys(variable.arguments.values)[0]]
+    }
     out.init = {
       type: 'StringLiteral',
       value: variable.arguments.values[variable.selected[0]],
@@ -229,6 +232,9 @@ export const asAssignment = (variable: Variable): VariableAssignment => {
   }
 
   if (variable.arguments.type === 'constant') {
+    if (!variable.selected) {
+      variable.selected = [variable.arguments.values[0]]
+    }
     out.init = {
       type: 'StringLiteral',
       value: variable.selected[0],

@@ -76,7 +76,7 @@ export const SELECTABLE_TIME_RANGES: SelectableDurationTimeRange[] = [
     label: 'Past 24h',
     duration: '24h',
     type: 'selectable-duration',
-    windowPeriod: 300000, // 5m
+    windowPeriod: 240000, // 5m
   },
   {
     seconds: 172800,

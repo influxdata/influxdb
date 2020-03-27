@@ -209,16 +209,9 @@ const hydrateVarsHelper = async (
 
   const {url, orgID} = options
   const {query} = node.variable.arguments.values
-  const fetcher = valueFetcher
+  const fetcher = options.fetcher || valueFetcher
 
-  const request = fetcher.fetch(
-    url,
-    orgID,
-    query,
-    assignments,
-    null,
-    descendants
-  )
+  const request = fetcher.fetch(url, orgID, query, assignments, null, '')
 
   node.cancel = request.cancel
 

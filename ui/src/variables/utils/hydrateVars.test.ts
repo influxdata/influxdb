@@ -280,39 +280,4 @@ describe('hydrate vars', () => {
 
     cancel()
   })
-
-  test('returns the selected key/value pair of the selected map', async () => {
-    const firstVariable = createMapVariable('0495e1b2c71fd000', {
-      key1: 'value1',
-      key2: 'value2',
-    })
-    const secondVariable = createMapVariable('04960a2028efe000', {
-      key3: 'value3',
-      key4: 'value4',
-    })
-
-    const expected = {
-      '0495e1b2c71fd000': {
-        valueType: 'string',
-        values: {
-          key1: 'value1',
-          key2: 'value2',
-        },
-        selectedKey: 'key2',
-        selectedValue: 'value2',
-      },
-    }
-
-    const actual = await hydrateVars(
-      [firstVariable],
-      [firstVariable, secondVariable],
-      {
-        url: '',
-        orgID: '',
-        selections: {'0495e1b2c71fd000': 'key2'},
-      }
-    ).promise
-
-    expect(actual).toEqual(expected)
-  })
 })

@@ -25,20 +25,20 @@ describe('Dashboards.Selector', () => {
   }
 
   it('should return the the correct range when a matching dashboard ID is found', () => {
-    expect(untypedGetTimeRange({ranges}, dashboardIDs[0])).toEqual(
+    expect(untypedGetTimeRangeByDashboardID({ranges}, dashboardIDs[0])).toEqual(
       pastFifteenMinTimeRange
     )
   })
 
   it('should return the the default range when no matching dashboard ID is found', () => {
-    expect(untypedGetTimeRange({ranges}, 'Oogum Boogum')).toEqual(
+    expect(untypedGetTimeRangeByDashboardID({ranges}, 'Oogum Boogum')).toEqual(
       DEFAULT_TIME_RANGE
     )
   })
 
   it('should return the the default range when no ranges are passed in', () => {
-    expect(untypedGetTimeRange({ranges: {}}, dashboardIDs[0])).toEqual(
-      DEFAULT_TIME_RANGE
-    )
+    expect(
+      untypedGetTimeRangeByDashboardID({ranges: {}}, dashboardIDs[0])
+    ).toEqual(DEFAULT_TIME_RANGE)
   })
 })

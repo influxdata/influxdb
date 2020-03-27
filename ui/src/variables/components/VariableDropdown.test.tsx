@@ -45,10 +45,8 @@ const setInitialState = (state: AppState): AppState => {
             status: RemoteDataState.Done,
             values: {
               '03cbdc8a53a63000': {
-                valueType: 'string',
                 values,
-                selectedValue: 'defbuck',
-                selectedKey: 'def',
+                selected: ['defbuck'],
               },
             },
             order: ['03cbdc8a53a63000'],
@@ -65,7 +63,7 @@ describe('Dashboards.Components.VariablesControlBar.VariableDropdown', () => {
       const {getByTestId, getAllByTestId} = renderWithRedux(
         <VariableDropdown
           variableID="03cbdc8a53a63000"
-          dashboardID="03c8070355fbd000"
+          contextID="03c8070355fbd000"
         />,
         setInitialState
       )
