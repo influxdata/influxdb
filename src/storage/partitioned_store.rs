@@ -6,8 +6,6 @@ use crate::storage::series_store::ReadPoint;
 use crate::storage::StorageError;
 
 use futures::stream::{BoxStream, Stream};
-use futures::StreamExt;
-use std::cmp::Ordering;
 use std::mem;
 use std::pin::Pin;
 use std::task::{Context, Poll};
