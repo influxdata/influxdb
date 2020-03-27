@@ -11,9 +11,11 @@ import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {getTimeRange} from 'src/dashboards/selectors'
-import {getAllVariables, asAssignment} from 'src/variables/selectors'
+import {getRangeVariable} from 'src/variables/utils/getTimeRangeVars'
+import {getVariables, asAssignment} from 'src/variables/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
+import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
 // Types
 import {
@@ -150,10 +152,17 @@ class RefreshingView extends PureComponent<Props, State> {
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const dashboard = state.currentDashboard.id
-  const variableAssignments = getAllVariables(state, dashboard).map(v =>
-    asAssignment(v)
-  )
   const timeRange = getTimeRange(state, dashboard)
+
+  // NOTE: cannot use getAllVariables here because the TimeSeries
+  // component appends it automatically. That should be fixed
+  const vars = getVariables(state, dashboard)
+  const variableAssignments = [
+    ...vars,
+    getRangeVariable(TIME_RANGE_START, timeRange),
+    getRangeVariable(TIME_RANGE_STOP, timeRange),
+  ].map(v => asAssignment(v))
+
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)
   const {timeZone, theme} = state.app.persisted
 

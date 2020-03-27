@@ -15,6 +15,7 @@ import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Utils
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
+import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import 'intersection-observer'
 import {getAll} from 'src/resources/selectors'
@@ -187,7 +188,8 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         const orgID =
           getOrgIDFromBuckets(text, buckets) || this.props.params.orgID
 
-        const extern = buildVarsOption(variables)
+        const windowVars = getWindowVars(text, variables)
+        const extern = buildVarsOption([...variables, ...windowVars])
 
         return runQuery(orgID, text, extern)
       })

@@ -32,11 +32,7 @@ const CheckHistoryVisualization: FC<Props> = ({check, timeZone}) => {
   const [submitToken] = useState(0)
   const [manualRefresh] = useState(0)
 
-  // TODO maybe create a "getSystemVariables" selector?
-  const vars = [
-    ...getTimeRangeVars({lower: 'now() - 5m'} as TimeRange),
-    ...getWindowVars(text, variables),
-  ]
+  const vars = [...getTimeRangeVars({lower: 'now() - 5m'} as TimeRange)]
 
   return (
     <TimeSeries
