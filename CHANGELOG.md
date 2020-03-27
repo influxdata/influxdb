@@ -1,4 +1,4 @@
-## v2.0.0-beta.7 [unreleased]
+## v2.0.0-beta.7 [2020-03-27]
 
 ### Features
 
