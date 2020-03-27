@@ -1,5 +1,6 @@
 #![deny(rust_2018_idioms)]
 #![warn(clippy::explicit_iter_loop)]
+#![allow(clippy::comparison_chain)]
 
 use std::{error, fmt};
 
