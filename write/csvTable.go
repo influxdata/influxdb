@@ -222,7 +222,6 @@ func (t *CsvTable) recomputeIndexes() {
 			t.cachedFieldName = &col
 		case col.Label == labelFieldValue:
 			t.cachedFieldValue = &col
-		case col.Label[0] == '_':
 		case col.LinePart == linePartTag:
 			col.escapedLabel = escapeTag(col.Label)
 			t.cachedTags = append(t.cachedTags, col)
