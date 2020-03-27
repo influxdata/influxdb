@@ -1,6 +1,4 @@
-import {
-  getTimeRangeVars,
-} from 'src/variables/utils/getTimeRangeVars'
+import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
 
 const custom = 'custom' as 'custom'
