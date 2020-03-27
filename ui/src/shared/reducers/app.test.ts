@@ -3,6 +3,7 @@ import {
   enablePresentationMode,
   disablePresentationMode,
   setTheme,
+  setNavBarState,
   setAutoRefresh,
 } from 'src/shared/actions/app'
 import {TimeZone} from 'src/types'
@@ -16,6 +17,7 @@ describe('Shared.Reducers.appReducer', () => {
     persisted: {
       autoRefresh: 0,
       showTemplateControlBar: false,
+      navBarState: 'expanded',
       timeZone: 'Local' as TimeZone,
       theme: 'dark',
     },
@@ -47,6 +49,20 @@ describe('Shared.Reducers.appReducer', () => {
     const reducedState = appReducer(initialState, setTheme('dark'))
 
     expect(reducedState.persisted.theme).toBe('dark')
+  })
+
+  it('should handle SET_NAV_BAR_STATE to collapsed', () => {
+    const reducedState = appReducer(initialState, setNavBarState('collapsed'))
+
+    expect(reducedState.persisted.navBarState).toBe('collapsed')
+  })
+
+  it('should handle SET_NAV_BAR_STATE to expanded', () => {
+    Object.assign(initialState, {persisted: {navBarState: 'collapsed'}})
+
+    const reducedState = appReducer(initialState, setNavBarState('expanded'))
+
+    expect(reducedState.persisted.navBarState).toBe('expanded')
   })
 
   it('should handle SET_AUTOREFRESH', () => {

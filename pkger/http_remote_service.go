@@ -2,7 +2,9 @@ package pkger
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/pkg/httpc"
@@ -16,7 +18,54 @@ type HTTPRemoteService struct {
 var _ SVC = (*HTTPRemoteService)(nil)
 
 func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error) {
-	panic("not implemented yet")
+	reqBody := ReqCreateStack{
+		OrgID:       stack.OrgID.String(),
+		Name:        stack.Name,
+		Description: stack.Desc,
+	}
+	for _, u := range stack.URLs {
+		reqBody.URLs = append(reqBody.URLs, u.String())
+	}
+
+	var respBody RespCreateStack
+	err := s.Client.
+		PostJSON(reqBody, RoutePrefix, "/stacks").
+		DecodeJSON(&respBody).
+		Do(ctx)
+	if err != nil {
+		return Stack{}, err
+	}
+
+	newStack := Stack{
+		Name:      respBody.Name,
+		Desc:      respBody.Description,
+		Resources: make([]StackResource, 0),
+		CRUDLog:   respBody.CRUDLog,
+	}
+
+	id, err := influxdb.IDFromString(respBody.ID)
+	if err != nil {
+		fmt.Println("IN HERE with id: ", respBody.ID)
+		return Stack{}, err
+	}
+	newStack.ID = *id
+
+	orgID, err := influxdb.IDFromString(respBody.OrgID)
+	if err != nil {
+		fmt.Println("IN HERE with orgID: ", respBody.OrgID)
+		return Stack{}, err
+	}
+	newStack.OrgID = *orgID
+
+	for _, rawurl := range respBody.URLs {
+		u, err := url.Parse(rawurl)
+		if err != nil {
+			return Stack{}, err
+		}
+		newStack.URLs = append(newStack.URLs, *u)
+	}
+
+	return newStack, nil
 }
 
 // CreatePkg will produce a pkg from the parameters provided.

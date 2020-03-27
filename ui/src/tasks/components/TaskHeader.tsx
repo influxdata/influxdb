@@ -1,13 +1,14 @@
 // Libraries
 import React, {PureComponent} from 'react'
 
-// Types
+// Components
 import {
   ComponentColor,
   Button,
   ComponentStatus,
   Page,
 } from '@influxdata/clockface'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 interface Props {
   title: string
@@ -23,6 +24,7 @@ export default class TaskHeader extends PureComponent<Props> {
       <>
         <Page.Header fullWidth={true}>
           <Page.Title title={title} />
+          <CloudUpgradeButton />
         </Page.Header>
         <Page.ControlBar fullWidth={true}>
           <Page.ControlBarRight>

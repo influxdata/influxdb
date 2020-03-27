@@ -67,7 +67,7 @@ func NewTestLauncher() *TestLauncher {
 	return l
 }
 
-// RunLauncherOrFail initializes and starts the server.
+// RunTestLauncherOrFail initializes and starts the server.
 func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, args ...string) *TestLauncher {
 	tb.Helper()
 	l := NewTestLauncher()

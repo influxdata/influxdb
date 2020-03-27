@@ -22,43 +22,6 @@ func NewAuthorizationService(s influxdb.AuthorizationService) *AuthorizationServ
 	}
 }
 
-func newAuthorizationPermission(a influxdb.Action, id influxdb.ID) (*influxdb.Permission, error) {
-	p := &influxdb.Permission{
-		Action: a,
-		Resource: influxdb.Resource{
-			Type: influxdb.UsersResourceType,
-			ID:   &id,
-		},
-	}
-	return p, p.Valid()
-}
-
-func authorizeReadAuthorization(ctx context.Context, id influxdb.ID) error {
-	p, err := newAuthorizationPermission(influxdb.ReadAction, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func authorizeWriteAuthorization(ctx context.Context, id influxdb.ID) error {
-	p, err := newAuthorizationPermission(influxdb.WriteAction, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // FindAuthorizationByID checks to see if the authorizer on context has read access to the id provided.
 func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error) {
 	a, err := s.s.FindAuthorizationByID(ctx, id)
@@ -73,7 +36,7 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id inf
 	return a, nil
 }
 
-// FindAuthorization retrieves the authorization and checks to see if the authorizer on context has read access to the authorization.
+// FindAuthorizationByToken retrieves the authorization and checks to see if the authorizer on context has read access to the authorization.
 func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, t string) (*influxdb.Authorization, error) {
 	a, err := s.s.FindAuthorizationByToken(ctx, t)
 	if err != nil {
@@ -128,21 +91,6 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *influ
 	return s.s.CreateAuthorization(ctx, a)
 }
 
-// VerifyPermission ensures that an authorization is allowed all of the appropriate permissions.
-func VerifyPermissions(ctx context.Context, ps []influxdb.Permission) error {
-	for _, p := range ps {
-		if err := IsAllowed(ctx, p); err != nil {
-			return &influxdb.Error{
-				Err:  err,
-				Msg:  fmt.Sprintf("permission %s is not allowed", p),
-				Code: influxdb.EForbidden,
-			}
-		}
-	}
-
-	return nil
-}
-
 // UpdateAuthorization checks to see if the authorizer on context has write access to the authorization provided.
 func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
 	a, err := s.s.FindAuthorizationByID(ctx, id)
@@ -169,4 +117,56 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id influ
 	}
 
 	return s.s.DeleteAuthorization(ctx, id)
+}
+
+// VerifyPermissions ensures that an authorization is allowed all of the appropriate permissions.
+func VerifyPermissions(ctx context.Context, ps []influxdb.Permission) error {
+	for _, p := range ps {
+		if err := IsAllowed(ctx, p); err != nil {
+			return &influxdb.Error{
+				Err:  err,
+				Msg:  fmt.Sprintf("permission %s is not allowed", p),
+				Code: influxdb.EForbidden,
+			}
+		}
+	}
+
+	return nil
+}
+
+func newAuthorizationPermission(a influxdb.Action, id influxdb.ID) (*influxdb.Permission, error) {
+	p := &influxdb.Permission{
+		Action: a,
+		Resource: influxdb.Resource{
+			Type: influxdb.UsersResourceType,
+			ID:   &id,
+		},
+	}
+	return p, p.Valid()
+}
+
+func authorizeReadAuthorization(ctx context.Context, id influxdb.ID) error {
+	p, err := newAuthorizationPermission(influxdb.ReadAction, id)
+	if err != nil {
+		return err
+	}
+
+	if err := IsAllowed(ctx, *p); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func authorizeWriteAuthorization(ctx context.Context, id influxdb.ID) error {
+	p, err := newAuthorizationPermission(influxdb.WriteAction, id)
+	if err != nil {
+		return err
+	}
+
+	if err := IsAllowed(ctx, *p); err != nil {
+		return err
+	}
+
+	return nil
 }
