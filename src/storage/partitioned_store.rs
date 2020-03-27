@@ -105,7 +105,7 @@ impl Stream for StringMergeStream<'_> {
 
         let mut one_pending = false;
 
-        for state in self.states.iter_mut() {
+        for state in &mut self.states {
             if state.next.is_pending() {
                 state.next = state.stream.as_mut().poll_next(cx);
                 one_pending = one_pending || state.next.is_pending();
@@ -191,7 +191,7 @@ impl Stream for ReadMergeStream<'_> {
         // ensure that every stream in pending state is called next and return if any are still pending
         let mut one_pending = false;
 
-        for state in self.states.iter_mut() {
+        for state in &mut self.states {
             if state.next.is_pending() {
                 state.next = state.stream.as_mut().poll_next(cx);
                 one_pending = one_pending || state.next.is_pending();
