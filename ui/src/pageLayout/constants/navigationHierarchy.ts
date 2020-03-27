@@ -1,14 +1,20 @@
 import {IconFont} from '@influxdata/clockface'
-import {CLOUD, CLOUD_URL, CLOUD_USERS_PATH} from 'src/shared/constants'
+import {CLOUD_URL, CLOUD_USERS_PATH} from 'src/shared/constants'
+
+export interface NavItemLink {
+  type: 'link' | 'href'
+  location: string
+}
 
 export interface NavSubItem {
   id: string
   testID: string
   label: string
-  link: string
+  link: NavItemLink
   cloudExclude?: boolean
   cloudOnly?: boolean
   featureFlag?: string
+  featureFlagValue?: boolean
 }
 
 export interface NavItem {
@@ -16,11 +22,12 @@ export interface NavItem {
   testID: string
   label: string
   shortLabel?: string
-  link: string
+  link: NavItemLink
   icon: IconFont
   cloudExclude?: boolean
   cloudOnly?: boolean
   featureFlag?: string
+  featureFlagValue?: boolean
   menu?: NavSubItem[]
   activeKeywords: string[]
 }
@@ -35,39 +42,57 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       icon: IconFont.DisksNav,
       label: 'Load Data',
       shortLabel: 'Data',
-      link: `${orgPrefix}/load-data/buckets`,
+      link: {
+        type: 'link',
+        location: `${orgPrefix}/load-data/buckets`,
+      },
       activeKeywords: ['load-data'],
       menu: [
         {
           id: 'buckets',
           testID: 'nav-subitem-buckets',
           label: 'Buckets',
-          link: `${orgPrefix}/load-data/buckets`,
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/load-data/buckets`,
+          },
         },
         {
           id: 'telegrafs',
           testID: 'nav-subitem-telegrafs',
           label: 'Telegraf',
-          link: `${orgPrefix}/load-data/telegrafs`,
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/load-data/telegrafs`,
+          },
         },
         {
           id: 'scrapers',
           testID: 'nav-subitem-scrapers',
           label: 'Scrapers',
-          link: `${orgPrefix}/load-data/scrapers`,
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/load-data/scrapers`,
+          },
           cloudExclude: true,
         },
         {
           id: 'tokens',
           testID: 'nav-subitem-tokens',
           label: 'Tokens',
-          link: `${orgPrefix}/load-data/tokens`,
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/load-data/tokens`,
+          },
         },
         {
           id: 'client-libraries',
           testID: 'nav-subitem-client-libraries',
           label: 'Client Libraries',
-          link: `${orgPrefix}/load-data/client-libraries`,
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/load-data/client-libraries`,
+          },
         },
       ],
     },
@@ -77,7 +102,10 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       icon: IconFont.GraphLine,
       label: 'Data Explorer',
       shortLabel: 'Explore',
-      link: `${orgPrefix}/data-explorer`,
+      link: {
+        type: 'link',
+        location: `${orgPrefix}/data-explorer`,
+      },
       activeKeywords: ['data-explorer'],
     },
     {
@@ -86,35 +114,87 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       icon: IconFont.UsersTrio,
       label: 'Organization',
       shortLabel: 'Org',
-      link: CLOUD ? `${CLOUD_URL}${CLOUD_USERS_PATH}` : `${orgPrefix}/members`,
+      link: {
+        type: 'link',
+        location: `${orgPrefix}/members`,
+      },
+      cloudExclude: true,
       activeKeywords: ['members', 'about'],
       menu: [
-        {
-          id: 'quartz-members',
-          testID: 'nav-subitem-quartz-members',
-          label: 'Members',
-          link: `${CLOUD_URL}${CLOUD_USERS_PATH}`,
-          cloudOnly: true,
-        },
         {
           id: 'members',
           testID: 'nav-subitem-members',
           label: 'Members',
-          link: `${orgPrefix}/members`,
-          cloudExclude: true,
+          featureFlag: 'multiUser',
+          featureFlagValue: false,
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/members`,
+          },
         },
         {
           id: 'multi-user-members',
           testID: 'nav-subitem-multi-user-members',
           label: 'Members',
           featureFlag: 'multiUser',
-          link: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
+          link: {
+            type: 'href',
+            location: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
+          },
         },
         {
           id: 'about',
           testID: 'nav-subitem-about',
           label: 'About',
-          link: `${orgPrefix}/about`,
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/about`,
+          },
+        },
+      ],
+    },
+    {
+      id: 'org-quartz',
+      testID: 'nav-item-quartz-org',
+      icon: IconFont.UsersTrio,
+      label: 'Organization',
+      shortLabel: 'Org',
+      cloudOnly: true,
+      link: {
+        type: 'href',
+        location: `${CLOUD_URL}${CLOUD_USERS_PATH}`,
+      },
+      activeKeywords: ['members', 'about'],
+      menu: [
+        {
+          id: 'quartz-members',
+          testID: 'nav-subitem-quartz-members',
+          label: 'Members',
+          featureFlag: 'multiUser',
+          featureFlagValue: false,
+          link: {
+            type: 'href',
+            location: `${CLOUD_URL}${CLOUD_USERS_PATH}`,
+          },
+        },
+        {
+          id: 'multi-user-members',
+          testID: 'nav-subitem-multi-user-members',
+          label: 'Members',
+          featureFlag: 'multiUser',
+          link: {
+            type: 'href',
+            location: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
+          },
+        },
+        {
+          id: 'about',
+          testID: 'nav-subitem-about',
+          label: 'About',
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/about`,
+          },
         },
       ],
     },
@@ -124,7 +204,10 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       icon: IconFont.Dashboards,
       label: 'Dashboards',
       shortLabel: 'Boards',
-      link: `${orgPrefix}/dashboards`,
+      link: {
+        type: 'link',
+        location: `${orgPrefix}/dashboards`,
+      },
       activeKeywords: ['dashboards'],
     },
     {
@@ -132,7 +215,10 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       testID: 'nav-item-tasks',
       icon: IconFont.Calendar,
       label: 'Tasks',
-      link: `${orgPrefix}/tasks`,
+      link: {
+        type: 'link',
+        location: `${orgPrefix}/tasks`,
+      },
       activeKeywords: ['tasks'],
     },
     {
@@ -140,14 +226,20 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       testID: 'nav-item-alerting',
       icon: IconFont.Bell,
       label: 'Alerts',
-      link: `${orgPrefix}/alerting`,
+      link: {
+        type: 'link',
+        location: `${orgPrefix}/alerting`,
+      },
       activeKeywords: ['alerting'],
       menu: [
         {
           id: 'history',
           testID: 'nav-subitem-history',
           label: 'Alert History',
-          link: `${orgPrefix}/alert-history`,
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/alert-history`,
+          },
         },
       ],
     },
@@ -156,26 +248,38 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       testID: 'nav-item-settings',
       icon: IconFont.WrenchNav,
       label: 'Settings',
-      link: `${orgPrefix}/settings/variables`,
+      link: {
+        type: 'link',
+        location: `${orgPrefix}/settings/variables`,
+      },
       activeKeywords: ['settings'],
       menu: [
         {
           id: 'variables',
           testID: 'nav-subitem-variables',
           label: 'Variables',
-          link: `${orgPrefix}/settings/variables`,
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/settings/variables`,
+          },
         },
         {
           id: 'templates',
           testID: 'nav-subitem-templates',
           label: 'Templates',
-          link: `${orgPrefix}/settings/templates`,
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/settings/templates`,
+          },
         },
         {
           id: 'labels',
           testID: 'nav-subitem-labels',
           label: 'Labels',
-          link: `${orgPrefix}/settings/labels`,
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/settings/labels`,
+          },
         },
       ],
     },
