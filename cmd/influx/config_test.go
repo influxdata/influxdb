@@ -99,6 +99,84 @@ func TestCmdConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("switch", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			original config.Configs
+			expected config.Configs
+			arg      string
+		}{
+			{
+				name: "basic",
+				arg:  "default",
+				original: config.Configs{
+					"config1": {
+						Org:    "org2",
+						Active: true,
+						Token:  "tok2",
+						Host:   "http://localhost:8888",
+					},
+					"default": {
+						Org:    "org1",
+						Active: false,
+						Token:  "tok1",
+						Host:   "http://localhost:9999",
+					},
+				},
+				expected: config.Configs{
+					"config1": {
+						Org:    "org2",
+						Active: false,
+						Token:  "tok2",
+						Host:   "http://localhost:8888",
+					},
+					"default": {
+						Org:    "org1",
+						Active: true,
+						Token:  "tok1",
+						Host:   "http://localhost:9999",
+					},
+				},
+			},
+		}
+		cmdFn := func(orginal, expected config.Configs) func(*globalFlags, genericCLIOpts) *cobra.Command {
+			svc := &config.MockConfigService{
+				ParseConfigsFn: func() (config.Configs, error) {
+					return orginal, nil
+				},
+				WriteConfigsFn: func(pp config.Configs) error {
+					if diff := cmp.Diff(expected, pp); diff != "" {
+						return &influxdb.Error{
+							Msg: fmt.Sprintf("write configs failed, diff %s", diff),
+						}
+					}
+					return nil
+				},
+			}
+
+			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				builder := cmdConfigBuilder{
+					genericCLIOpts: opt,
+					globalFlags:    g,
+					svc:            svc,
+				}
+				return builder.cmd()
+			}
+		}
+		for _, tt := range tests {
+			fn := func(t *testing.T) {
+				builder := newInfluxCmdBuilder(
+					in(new(bytes.Buffer)),
+					out(ioutil.Discard),
+				)
+				cmd := builder.cmd(cmdFn(tt.original, tt.expected))
+				cmd.SetArgs([]string{"config", tt.arg})
+				require.NoError(t, cmd.Execute())
+			}
+			t.Run(tt.name, fn)
+		}
+	})
+
 	t.Run("set", func(t *testing.T) {
 		tests := []struct {
 			name     string
