@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
-import {withRouter, WithRouterProps} from 'react-router'
+import {Link} from 'react-router'
 
 // Components
 import {Tabs, Orientation, ComponentSize} from '@influxdata/clockface'
@@ -10,56 +10,49 @@ import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Constants
-import {CLOUD_USERS_PATH} from 'src/shared/constants'
+import {CLOUD_USERS_PATH, CLOUD_URL} from 'src/shared/constants'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface OwnProps {
+interface Props {
   activeTab: string
   orgID: string
 }
-
-type Props = OwnProps & WithRouterProps
 
 interface OrgPageTab {
   text: string
   id: string
   cloudExclude?: boolean
   cloudOnly?: boolean
-  onClick: () => void
+  href?: string
+  link?: string
   featureFlag?: string
 }
 
 @ErrorHandling
 class OrgNavigation extends PureComponent<Props> {
   public render() {
-    const {activeTab, orgID, router} = this.props
+    const {activeTab, orgID} = this.props
 
     const tabs: OrgPageTab[] = [
       {
         text: 'Members',
         id: 'members-oss',
         cloudExclude: true,
-        onClick: () => {
-          router.push(`/orgs/${orgID}/members`)
-        },
+        link: `/orgs/${orgID}/members`,
       },
       {
         text: 'Members',
         id: 'members-cloud',
         featureFlag: 'multiUser',
         cloudOnly: true,
-        onClick: () => {
-          window.location.assign(`/orgs/${orgID}/${CLOUD_USERS_PATH}`)
-        },
+        href: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
       },
       {
         text: 'About',
         id: 'about',
-        onClick: () => {
-          router.push(`/orgs/${orgID}/about`)
-        },
+        link: `/orgs/${orgID}/about`,
       },
     ]
 
@@ -67,22 +60,38 @@ class OrgNavigation extends PureComponent<Props> {
       <Tabs orientation={Orientation.Horizontal} size={ComponentSize.Large}>
         {tabs.map(t => {
           let isActive = t.id === activeTab
-
+          let tab = <></>
           if (t.id === 'members-oss' || t.id === 'members-cloud') {
             if (activeTab === 'members') {
               isActive = true
             }
           }
 
-          let tab = (
-            <Tabs.Tab
-              key={t.id}
-              text={t.text}
-              id={t.id}
-              onClick={t.onClick}
-              active={isActive}
-            />
-          )
+          if (t.href) {
+            tab = (
+              <Tabs.Tab
+                key={t.id}
+                text={t.text}
+                id={t.id}
+                linkElement={className => (
+                  <a href={t.href} className={className} />
+                )}
+                active={isActive}
+              />
+            )
+          } else if (t.link) {
+            tab = (
+              <Tabs.Tab
+                key={t.id}
+                text={t.text}
+                id={t.id}
+                linkElement={className => (
+                  <Link to={t.link} className={className} />
+                )}
+                active={isActive}
+              />
+            )
+          }
 
           if (t.cloudExclude) {
             tab = <CloudExclude key={t.id}>{tab}</CloudExclude>
@@ -107,4 +116,4 @@ class OrgNavigation extends PureComponent<Props> {
   }
 }
 
-export default withRouter(OrgNavigation)
+export default OrgNavigation
