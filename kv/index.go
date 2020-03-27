@@ -589,7 +589,7 @@ func (i *Index) readEntireIndex(ctx context.Context, store Store) (map[string]ma
 			continue
 		}
 
-		index[string(fk)] = map[string]struct{}{string(pk): struct{}{}}
+		index[string(fk)] = map[string]struct{}{string(pk): {}}
 	}
 
 	return index, nil
