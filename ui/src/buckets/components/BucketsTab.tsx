@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {isEmpty} from 'lodash'
+import {isEmpty, get} from 'lodash'
 import {connect} from 'react-redux'
 
 // Components
@@ -21,10 +21,10 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import FilterList from 'src/shared/components/FilterList'
 import BucketList from 'src/buckets/components/BucketList'
-import {PrettyBucket} from 'src/buckets/components/BucketCard'
 import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import BucketExplainer from 'src/buckets/components/BucketExplainer'
+import DemoDataDropdown from 'src/buckets/components/DemoDataDropdown'
 
 // Actions
 import {
@@ -36,14 +36,20 @@ import {
   checkBucketLimits as checkBucketLimitsAction,
   LimitStatus,
 } from 'src/cloud/actions/limits'
+import {
+  getDemoDataBuckets as getDemoDataBucketsAction,
+  getDemoDataBucketMembership as getDemoDataBucketMembershipAction,
+} from 'src/cloud/actions/demodata'
 
 // Utils
 import {prettyBuckets} from 'src/shared/utils/prettyBucket'
 import {extractBucketLimits} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
+import {PrettyBucket} from 'src/buckets/components/BucketCard'
 import {
   OverlayState,
   AppState,
@@ -57,6 +63,7 @@ interface StateProps {
   org: Organization
   buckets: Bucket[]
   limitStatus: LimitStatus
+  demoDataBuckets: Bucket[]
 }
 
 interface DispatchProps {
@@ -64,6 +71,8 @@ interface DispatchProps {
   updateBucket: typeof updateBucket
   deleteBucket: typeof deleteBucket
   checkBucketLimits: typeof checkBucketLimitsAction
+  getDemoDataBuckets: typeof getDemoDataBucketsAction
+  getDemoDataBucketMembership: typeof getDemoDataBucketMembershipAction
 }
 
 interface State {
@@ -96,10 +105,19 @@ class BucketsTab extends PureComponent<Props, State> {
 
   public componentDidMount() {
     this.props.checkBucketLimits()
+    if (isFlagEnabled('demodata')) {
+      this.props.getDemoDataBuckets()
+    }
   }
 
   public render() {
-    const {org, buckets, limitStatus} = this.props
+    const {
+      org,
+      buckets,
+      limitStatus,
+      demoDataBuckets,
+      getDemoDataBucketMembership,
+    } = this.props
     const {
       searchTerm,
       overlayState,
@@ -121,15 +139,23 @@ class BucketsTab extends PureComponent<Props, State> {
             searchTerm={searchTerm}
             onSearch={this.handleFilterChange}
           />
-          <Button
-            text="Create Bucket"
-            icon={IconFont.Plus}
-            color={ComponentColor.Primary}
-            onClick={this.handleOpenModal}
-            testID="Create Bucket"
-            status={this.createButtonStatus}
-            titleText={this.createButtonTitleText}
-          />
+          <div className="buckets-buttons-wrap">
+            {isFlagEnabled('demodata') && demoDataBuckets.length > 0 && (
+              <DemoDataDropdown
+                buckets={demoDataBuckets}
+                getMembership={getDemoDataBucketMembership}
+              />
+            )}
+            <Button
+              text="Create Bucket"
+              icon={IconFont.Plus}
+              color={ComponentColor.Primary}
+              onClick={this.handleOpenModal}
+              testID="Create Bucket"
+              status={this.createButtonStatus}
+              titleText={this.createButtonTitleText}
+            />
+          </div>
         </SettingsTabbedPageHeader>
         <Grid>
           <Grid.Row>
@@ -259,13 +285,16 @@ const mstp = (state: AppState): StateProps => ({
   org: getOrg(state),
   buckets: getAll<Bucket>(state, ResourceType.Buckets),
   limitStatus: extractBucketLimits(state.cloud.limits),
+  demoDataBuckets: get(state, 'cloud.demoData.buckets', []),
 })
 
-const mdtp = {
+const mdtp: DispatchProps = {
   createBucket,
   updateBucket,
   deleteBucket,
   checkBucketLimits: checkBucketLimitsAction,
+  getDemoDataBuckets: getDemoDataBucketsAction,
+  getDemoDataBucketMembership: getDemoDataBucketMembershipAction,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

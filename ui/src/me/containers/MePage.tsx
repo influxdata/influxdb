@@ -16,6 +16,7 @@ import {
 import Resources from 'src/me/components/Resources'
 import Docs from 'src/me/components/Docs'
 import GettingStarted from 'src/me/components/GettingStarted'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -39,6 +40,7 @@ export class MePage extends PureComponent<StateProps> {
       <Page titleTag={pageTitleSuffixer(['Home'])}>
         <Page.Header fullWidth={false}>
           <Page.Title title="Getting Started" />
+          <CloudUpgradeButton />
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={true}>
           <Grid>

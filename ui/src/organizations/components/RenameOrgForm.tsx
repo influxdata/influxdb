@@ -118,7 +118,7 @@ class RenameOrgForm extends PureComponent<Props, State> {
   }
 
   private handleGoBack = () => {
-    this.props.router.push(`/orgs/${this.props.startOrg.id}/settings/profile`)
+    this.props.router.push(`/orgs/${this.props.startOrg.id}/settings/about`)
   }
 
   private handleValidation = (orgName: string): string | null => {

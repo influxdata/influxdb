@@ -54,3 +54,12 @@
 .system-bucket {
   color: mix($c-honeydew, $g13-mist);
 }
+
+.buckets-buttons-wrap {
+  display: flex;
+  box-sizing: border-box;
+  text-align: right;
+  @media screen and (max-width: 680px) {
+    margin: 8px auto 0;
+  }
+}

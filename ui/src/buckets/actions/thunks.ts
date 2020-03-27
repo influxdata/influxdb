@@ -49,6 +49,7 @@ import {
   removeBucketLabelFailed,
 } from 'src/shared/copy/notifications'
 import {LIMIT} from 'src/resources/constants'
+import {getDemoDataBucketsFromAll} from 'src/cloud/apis/demodata'
 
 type Action = BucketAction | NotifyAction
 
@@ -71,8 +72,10 @@ export const getBuckets = () => async (
       throw new Error(resp.data.message)
     }
 
+    const demoDataBuckets = await getDemoDataBucketsFromAll()
+
     const buckets = normalize<Bucket, BucketEntities, string[]>(
-      resp.data.buckets,
+      [...resp.data.buckets, ...demoDataBuckets],
       arrayOfBuckets
     )
 

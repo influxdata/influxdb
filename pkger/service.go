@@ -12,6 +12,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	ierrors "github.com/influxdata/influxdb/kit/errors"
+	"github.com/influxdata/influxdb/snowflake"
 	"go.uber.org/zap"
 )
 
@@ -43,6 +44,8 @@ type (
 		Name       string
 	}
 )
+
+const ResourceTypeStack influxdb.ResourceType = "stack"
 
 // SVC is the packages service interface.
 type SVC interface {
@@ -224,6 +227,8 @@ func NewService(opts ...ServiceSetterFn) *Service {
 	opt := &serviceOpt{
 		logger:        zap.NewNop(),
 		applyReqLimit: 5,
+		idGen:         snowflake.NewDefaultIDGenerator(),
+		timeGen:       influxdb.RealTimeGenerator{},
 	}
 	for _, o := range opts {
 		o(opt)

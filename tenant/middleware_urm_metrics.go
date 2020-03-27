@@ -18,9 +18,10 @@ type UrmMetrics struct {
 var _ influxdb.UserResourceMappingService = (*UrmMetrics)(nil)
 
 // NewUrmMetrics returns a metrics service middleware for the User Resource Mapping Service.
-func NewUrmMetrics(reg *prom.Registry, s influxdb.UserResourceMappingService) *UrmMetrics {
+func NewUrmMetrics(reg *prom.Registry, s influxdb.UserResourceMappingService, opts ...MetricsOption) *UrmMetrics {
+	o := applyOpts(opts...)
 	return &UrmMetrics{
-		rec:        metric.New(reg, "urm"),
+		rec:        metric.New(reg, o.applySuffix("urm")),
 		urmService: s,
 	}
 }
