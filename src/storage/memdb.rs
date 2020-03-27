@@ -110,11 +110,12 @@ struct SeriesMap {
 }
 
 impl SeriesMap {
-    // SERIES_KEY_COPIES are the number of copies of the key this map contains. This is
-    // used to provide a rough estimate of the memory size.
+    /// The number of copies of the key this map contains. This is
+    /// used to provide a rough estimate of the memory size.
     const SERIES_KEY_COPIES: usize = 2;
-    // SERIES_ID_BYTES is the number of bytes the different copies of the series ID in
-    // this map represents. It's used to provide a rough estimate of the memory size.
+    /// The number of bytes the different copies of the series ID in
+    /// this map represents. This is used to provide a rough estimate
+    /// of the memory size.
     const SERIES_ID_BYTES: usize = 24;
 
     fn insert_series(&mut self, point: &mut PointType) -> Result<(), ParseError> {
