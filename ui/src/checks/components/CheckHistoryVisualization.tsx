@@ -32,12 +32,18 @@ const CheckHistoryVisualization: FC<Props> = ({check, timeZone}) => {
   const [submitToken] = useState(0)
   const [manualRefresh] = useState(0)
 
+  // TODO maybe create a "getSystemVariables" selector?
+  const vars = [
+    ...getTimeRangeVars({lower: 'now() - 5m'} as TimeRange),
+    ...getWindowVars(text, variables),
+  ]
+
   return (
     <TimeSeries
       submitToken={submitToken}
       queries={[check.query]}
       key={manualRefresh}
-      variables={getTimeRangeVars({lower: 'now() - 5m'} as TimeRange)}
+      variables={vars}
       check={check}
     >
       {({giraffeResult, loading, errorMessage, isInitialFetch, statuses}) => {

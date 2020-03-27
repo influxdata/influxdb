@@ -20,7 +20,6 @@ import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {getAllVariables, asAssignment} from 'src/variables/selectors'
-import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import {findNodes} from 'src/shared/utils/ast'
 
@@ -130,8 +129,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
     pendingResults = queries.map(({text}) => {
       const orgID = getOrgIDFromBuckets(text, allBuckets) || getOrg(state).id
-      const windowVars = getWindowVars(text, variableAssignments)
-      const extern = buildVarsOption([...variableAssignments, ...windowVars])
+      const extern = buildVarsOption(variableAssignments)
 
       return runQuery(orgID, text, extern)
     })
