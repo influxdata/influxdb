@@ -67,10 +67,7 @@ impl StoreInSeriesData for PointType {
 
 impl StoreInSeriesData for Point<i64> {
     fn write(&self, series_data: &mut SeriesData) {
-        let point = ReadPoint {
-            time: self.time,
-            value: self.value,
-        };
+        let point: ReadPoint<_> = self.into();
         series_data.current_size += std::mem::size_of::<Point<i64>>();
 
         match series_data.i64_series.get_mut(&self.series_id.unwrap()) {
@@ -87,10 +84,7 @@ impl StoreInSeriesData for Point<i64> {
 
 impl StoreInSeriesData for Point<f64> {
     fn write(&self, series_data: &mut SeriesData) {
-        let point = ReadPoint {
-            time: self.time,
-            value: self.value,
-        };
+        let point: ReadPoint<_> = self.into();
         series_data.current_size += std::mem::size_of::<Point<f64>>();
 
         match series_data.f64_series.get_mut(&self.series_id.unwrap()) {

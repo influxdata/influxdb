@@ -32,6 +32,13 @@ pub struct ReadPoint<T: Clone> {
     pub value: T,
 }
 
+impl<T: Copy + Clone> From<&'_ crate::line_parser::Point<T>> for ReadPoint<T> {
+    fn from(other: &'_ crate::line_parser::Point<T>) -> Self {
+        let crate::line_parser::Point { time, value, .. } = other;
+        Self { time: *time, value: *value }
+    }
+}
+
 // Test helpers for other implementations to run
 #[cfg(test)]
 pub mod tests {
