@@ -86,11 +86,16 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       icon: IconFont.UsersTrio,
       label: 'Organization',
       shortLabel: 'Org',
-      link: CLOUD
-        ? `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`
-        : `${orgPrefix}/members`,
+      link: CLOUD ? `${CLOUD_URL}${CLOUD_USERS_PATH}` : `${orgPrefix}/members`,
       activeKeywords: ['members', 'about'],
       menu: [
+        {
+          id: 'quartz-members',
+          testID: 'nav-subitem-quartz-members',
+          label: 'Members',
+          link: `${CLOUD_URL}${CLOUD_USERS_PATH}`,
+          cloudOnly: true,
+        },
         {
           id: 'members',
           testID: 'nav-subitem-members',

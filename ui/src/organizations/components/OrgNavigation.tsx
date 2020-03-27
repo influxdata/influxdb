@@ -28,6 +28,7 @@ interface OrgPageTab {
   href?: string
   link?: string
   featureFlag?: string
+  featureFlagValue?: boolean
 }
 
 @ErrorHandling
@@ -44,9 +45,16 @@ class OrgNavigation extends PureComponent<Props> {
       },
       {
         text: 'Members',
+        id: 'members-quartz',
+        cloudOnly: true,
+        link: `${CLOUD_URL}${CLOUD_USERS_PATH}`,
+        featureFlag: 'multiUser',
+        featureFlagValue: false,
+      },
+      {
+        text: 'Members',
         id: 'members-cloud',
         featureFlag: 'multiUser',
-        cloudOnly: true,
         href: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
       },
       {
@@ -103,7 +111,11 @@ class OrgNavigation extends PureComponent<Props> {
 
           if (t.featureFlag) {
             tab = (
-              <FeatureFlag key={t.id} name={t.featureFlag}>
+              <FeatureFlag
+                key={t.id}
+                name={t.featureFlag}
+                equals={t.featureFlagValue}
+              >
                 {tab}
               </FeatureFlag>
             )
