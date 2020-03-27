@@ -427,3 +427,11 @@ func TestBatcher_WriteTimeout(t *testing.T) {
 		t.Errorf(" Batcher.Write() with timeout got %s", got)
 	}
 }
+
+func TestBatcher_WriteWithoutService(t *testing.T) {
+	b := Batcher{}
+	err := b.Write(context.Background(), platform.ID(1), platform.ID(1), strings.NewReader("m1,t1=v1 f1=1"))
+	if err == nil || !strings.Contains(err.Error(), "write service required") {
+		t.Errorf(" Batcher.Write() error expected, but got %v", err)
+	}
+}
