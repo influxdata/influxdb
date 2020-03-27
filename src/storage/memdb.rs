@@ -112,6 +112,11 @@ struct SeriesMap {
 impl SeriesMap {
     /// The number of copies of the key this map contains. This is
     /// used to provide a rough estimate of the memory size.
+    ///
+    /// It occurs:
+    ///
+    /// 1. in the map to ID
+    /// 2. in the ID to map
     const SERIES_KEY_COPIES: usize = 2;
     /// The number of bytes the different copies of the series ID in
     /// this map represents. This is used to provide a rough estimate
@@ -137,9 +142,7 @@ impl SeriesMap {
         self.series_id_to_key_and_type
             .insert(self.last_id, (point.series().clone(), series_type));
 
-        // update the estimated size of the map. This is a rough estimate based on
-        // having the series key twice (once in  the map to ID and again in the ID
-        // to map. And then adding another 16 bytes for the two IDs
+        // update the estimated size of the map.
         self.current_size +=
             point.series().len() * SeriesMap::SERIES_KEY_COPIES + SeriesMap::SERIES_ID_BYTES;
 
