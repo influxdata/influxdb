@@ -6,6 +6,7 @@ use crate::storage::series_store::ReadPoint;
 use crate::storage::StorageError;
 
 use futures::stream::{BoxStream, Stream};
+use std::cmp::Ordering;
 use std::mem;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -125,14 +126,16 @@ impl Stream for StringMergeStream<'_> {
                     next_val = Some(val.clone());
                     next_pos = pos;
                 }
-                (Some(next), Poll::Ready(Some(ref val))) => {
-                    if next > val {
+                (Some(next), Poll::Ready(Some(ref val))) => match next.cmp(val) {
+                    Ordering::Greater => {
                         next_val = Some(val.clone());
                         next_pos = pos;
-                    } else if next == val {
+                    }
+                    Ordering::Equal => {
                         state.next = state.stream.as_mut().poll_next(cx);
                     }
-                }
+                    _ => (),
+                },
                 (Some(_), Poll::Ready(None)) => (),
                 (None, Poll::Ready(None)) => (),
                 _ => unreachable!(),
@@ -218,23 +221,27 @@ impl Stream for ReadMergeStream<'_> {
                     min_time = t;
                 }
                 (Some(min_key), Poll::Ready(Some(batch))) => {
-                    if min_key > &batch.key {
-                        next_min_key = Some(batch.key.clone());
-                        min_pos = pos;
-                        positions = Vec::with_capacity(self.states.len());
-                        let (_, t) = batch.start_stop_times();
-                        min_time = t;
-                    } else if min_key == &batch.key {
-                        // if this batch has an end time less than the existing min time, make this
-                        // the batch that we want to pull out first
-                        let (_, t) = batch.start_stop_times();
-                        if t < min_time {
-                            min_time = t;
-                            positions.push(min_pos);
+                    match min_key.cmp(&batch.key) {
+                        Ordering::Greater => {
+                            next_min_key = Some(batch.key.clone());
                             min_pos = pos;
-                        } else {
-                            positions.push(pos);
+                            positions = Vec::with_capacity(self.states.len());
+                            let (_, t) = batch.start_stop_times();
+                            min_time = t;
                         }
+                        Ordering::Equal => {
+                            // if this batch has an end time less than the existing min time, make this
+                            // the batch that we want to pull out first
+                            let (_, t) = batch.start_stop_times();
+                            if t < min_time {
+                                min_time = t;
+                                positions.push(min_pos);
+                                min_pos = pos;
+                            } else {
+                                positions.push(pos);
+                            }
+                        }
+                        _ => (),
                     }
                 }
                 (Some(_), Poll::Ready(None)) => (),
