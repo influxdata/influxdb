@@ -64,7 +64,9 @@ const TokenCodeSnippet: FC<Props & DispatchProps> = ({
           <Button
             size={ComponentSize.ExtraSmall}
             status={
-              token === '' ? ComponentStatus.Default : ComponentStatus.Disabled
+              token.includes('<INFLUX_TOKEN>')
+                ? ComponentStatus.Default
+                : ComponentStatus.Disabled
             }
             text="Generate New Token"
             titleText="Generate New Token"
