@@ -372,7 +372,7 @@ mod tests {
             StringMergeStream::new(vec![one.boxed(), two.boxed(), three.boxed(), four.boxed()]);
 
         let stream = futures::executor::block_on_stream(merger);
-        let vals: Vec<String> = stream.collect();
+        let vals: Vec<_> = stream.collect();
 
         assert_eq!(
             vals,
@@ -465,7 +465,7 @@ mod tests {
         let merger =
             ReadMergeStream::new(vec![one.boxed(), two.boxed(), three.boxed(), four.boxed()]);
         let stream = futures::executor::block_on_stream(merger);
-        let vals: Vec<ReadBatch> = stream.collect();
+        let vals: Vec<_> = stream.collect();
 
         assert_eq!(
             vals,
