@@ -126,6 +126,9 @@ func (r QueryRequest) ProxyRequest() *ProxyRequest {
 	cfg := csv.DefaultEncoderConfig()
 	cfg.NoHeader = noHeader
 	cfg.Delimiter = delimiter
+	if r.Dialect.Annotations != nil {
+		cfg.Annotations = r.Dialect.Annotations
+	}
 
 	return &ProxyRequest{
 		Compiler: compiler,
