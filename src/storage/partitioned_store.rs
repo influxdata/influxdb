@@ -6,11 +6,11 @@ use crate::storage::series_store::ReadPoint;
 use crate::storage::StorageError;
 
 use futures::stream::{BoxStream, Stream};
+use futures::StreamExt;
 use std::cmp::Ordering;
 use std::mem;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use futures::StreamExt;
 
 /// A Partition is a block of data. It has methods for reading the metadata like which measurements,
 /// tags, tag values, and fields exist. Along with the raw time series data. It is designed to work
@@ -81,7 +81,13 @@ struct StreamState<'a, T> {
 
 impl StringMergeStream<'_> {
     fn new(streams: Vec<BoxStream<'_, String>>) -> StringMergeStream<'_> {
-        let states = streams.into_iter().map(|s| StreamState{stream: s, next: Poll::Pending}).collect();
+        let states = streams
+            .into_iter()
+            .map(|s| StreamState {
+                stream: s,
+                next: Poll::Pending,
+            })
+            .collect();
 
         StringMergeStream {
             states,
@@ -119,16 +125,15 @@ impl Stream for StringMergeStream<'_> {
                 (None, Poll::Ready(Some(ref val))) => {
                     next_val = Some(val.clone());
                     next_pos = pos;
-                },
+                }
                 (Some(next), Poll::Ready(Some(ref val))) => {
                     if next > val {
                         next_val = Some(val.clone());
                         next_pos = pos;
-
                     } else if next == val {
                         state.next = state.stream.as_mut().poll_next(cx);
                     }
-                },
+                }
                 (Some(_), Poll::Ready(None)) => (),
                 (None, Poll::Ready(None)) => (),
                 _ => unreachable!(),
@@ -142,7 +147,10 @@ impl Stream for StringMergeStream<'_> {
 
         let next_state: &mut StreamState<'_, String> = &mut self.states[next_pos];
 
-        let val = mem::replace(&mut next_state.next, next_state.stream.as_mut().poll_next(cx));
+        let val = mem::replace(
+            &mut next_state.next,
+            next_state.stream.as_mut().poll_next(cx),
+        );
         val
     }
 }
@@ -158,7 +166,13 @@ pub struct ReadMergeStream<'a> {
 
 impl ReadMergeStream<'_> {
     fn new(streams: Vec<BoxStream<'_, ReadBatch>>) -> ReadMergeStream<'_> {
-        let states = streams.into_iter().map(|s| StreamState{stream: s, next: Poll::Pending}).collect();
+        let states = streams
+            .into_iter()
+            .map(|s| StreamState {
+                stream: s,
+                next: Poll::Pending,
+            })
+            .collect();
 
         ReadMergeStream {
             states,
@@ -203,7 +217,7 @@ impl Stream for ReadMergeStream<'_> {
                     min_pos = pos;
                     let (_, t) = batch.start_stop_times();
                     min_time = t;
-                },
+                }
                 (Some(min_key), Poll::Ready(Some(batch))) => {
                     if min_key > &batch.key {
                         next_min_key = Some(batch.key.clone());
@@ -223,7 +237,7 @@ impl Stream for ReadMergeStream<'_> {
                             positions.push(pos);
                         }
                     }
-                },
+                }
                 (Some(_), Poll::Ready(None)) => (),
                 (None, Poll::Ready(None)) => (),
                 _ => unreachable!(),
@@ -253,7 +267,7 @@ impl Stream for ReadMergeStream<'_> {
                 }
 
                 batch.sort_by_time();
-            },
+            }
             _ => unreachable!(),
         }
 
@@ -285,12 +299,8 @@ pub struct ReadBatch {
 impl ReadBatch {
     fn start_stop_times(&self) -> (i64, i64) {
         match &self.values {
-            ReadValues::I64(vals) => {
-                (vals.first().unwrap().time, vals.last().unwrap().time)
-            },
-            ReadValues::F64(vals) => {
-                (vals.first().unwrap().time, vals.last().unwrap().time)
-            },
+            ReadValues::I64(vals) => (vals.first().unwrap().time, vals.last().unwrap().time),
+            ReadValues::F64(vals) => (vals.first().unwrap().time, vals.last().unwrap().time),
         }
     }
 
