@@ -1,4 +1,4 @@
-package authorizer_test
+package tenant_test
 
 import (
 	"bytes"
@@ -8,18 +8,18 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/authorizer"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
-var sourceCmpOptions = cmp.Options{
+var bucketCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
-	cmp.Transformer("Sort", func(in []*influxdb.Source) []*influxdb.Source {
-		out := append([]*influxdb.Source(nil), in...) // Copy input to avoid mutating it
+	cmp.Transformer("Sort", func(in []*influxdb.Bucket) []*influxdb.Bucket {
+		out := append([]*influxdb.Bucket(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
 			return out[i].ID.String() > out[j].ID.String()
 		})
@@ -27,94 +27,9 @@ var sourceCmpOptions = cmp.Options{
 	}),
 }
 
-func TestSourceService_DefaultSource(t *testing.T) {
+func TestBucketService_FindBucketByID(t *testing.T) {
 	type fields struct {
-		SourceService influxdb.SourceService
-	}
-	type args struct {
-		permission influxdb.Permission
-	}
-	type wants struct {
-		err error
-	}
-
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		wants  wants
-	}{
-		{
-			name: "authorized to access id",
-			fields: fields{
-				SourceService: &mock.SourceService{
-					DefaultSourceFn: func(ctx context.Context) (*influxdb.Source, error) {
-						return &influxdb.Source{
-							ID:             1,
-							OrganizationID: 10,
-						}, nil
-					},
-				},
-			},
-			args: args{
-				permission: influxdb.Permission{
-					Action: "read",
-					Resource: influxdb.Resource{
-						Type: influxdb.SourcesResourceType,
-						ID:   influxdbtesting.IDPtr(1),
-					},
-				},
-			},
-			wants: wants{
-				err: nil,
-			},
-		},
-		{
-			name: "unauthorized to access id",
-			fields: fields{
-				SourceService: &mock.SourceService{
-					DefaultSourceFn: func(ctx context.Context) (*influxdb.Source, error) {
-						return &influxdb.Source{
-							ID:             1,
-							OrganizationID: 10,
-						}, nil
-					},
-				},
-			},
-			args: args{
-				permission: influxdb.Permission{
-					Action: "read",
-					Resource: influxdb.Resource{
-						Type: influxdb.SourcesResourceType,
-						ID:   influxdbtesting.IDPtr(2),
-					},
-				},
-			},
-			wants: wants{
-				err: &influxdb.Error{
-					Msg:  "read:orgs/000000000000000a/sources/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewSourceService(tt.fields.SourceService)
-
-			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
-
-			_, err := s.DefaultSource(ctx)
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
-		})
-	}
-}
-
-func TestSourceService_FindSourceByID(t *testing.T) {
-	type fields struct {
-		SourceService influxdb.SourceService
+		BucketService influxdb.BucketService
 	}
 	type args struct {
 		permission influxdb.Permission
@@ -133,11 +48,11 @@ func TestSourceService_FindSourceByID(t *testing.T) {
 		{
 			name: "authorized to access id",
 			fields: fields{
-				SourceService: &mock.SourceService{
-					FindSourceByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
-						return &influxdb.Source{
-							ID:             id,
-							OrganizationID: 10,
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:    id,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -146,7 +61,7 @@ func TestSourceService_FindSourceByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.SourcesResourceType,
+						Type: influxdb.BucketsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
@@ -159,11 +74,11 @@ func TestSourceService_FindSourceByID(t *testing.T) {
 		{
 			name: "unauthorized to access id",
 			fields: fields{
-				SourceService: &mock.SourceService{
-					FindSourceByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
-						return &influxdb.Source{
-							ID:             id,
-							OrganizationID: 10,
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:    id,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -172,7 +87,7 @@ func TestSourceService_FindSourceByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.SourcesResourceType,
+						Type: influxdb.BucketsResourceType,
 						ID:   influxdbtesting.IDPtr(2),
 					},
 				},
@@ -180,7 +95,7 @@ func TestSourceService_FindSourceByID(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:orgs/000000000000000a/sources/0000000000000001 is unauthorized",
+					Msg:  "read:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -189,27 +104,112 @@ func TestSourceService_FindSourceByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewSourceService(tt.fields.SourceService)
+			s := tenant.NewAuthedBucketService(tt.fields.BucketService, nil)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
-			_, err := s.FindSourceByID(ctx, tt.args.id)
+			_, err := s.FindBucketByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestSourceService_FindSources(t *testing.T) {
+func TestBucketService_FindBucket(t *testing.T) {
 	type fields struct {
-		SourceService influxdb.SourceService
+		BucketService influxdb.BucketService
+	}
+	type args struct {
+		permission influxdb.Permission
+	}
+	type wants struct {
+		err error
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "authorized to access bucket",
+			fields: fields{
+				BucketService: &mock.BucketService{
+					FindBucketFn: func(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:    1,
+							OrgID: 10,
+						}, nil
+					},
+				},
+			},
+			args: args{
+				permission: influxdb.Permission{
+					Action: "read",
+					Resource: influxdb.Resource{
+						Type: influxdb.BucketsResourceType,
+						ID:   influxdbtesting.IDPtr(1),
+					},
+				},
+			},
+			wants: wants{
+				err: nil,
+			},
+		},
+		{
+			name: "unauthorized to access bucket",
+			fields: fields{
+				BucketService: &mock.BucketService{
+					FindBucketFn: func(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:    1,
+							OrgID: 10,
+						}, nil
+					},
+				},
+			},
+			args: args{
+				permission: influxdb.Permission{
+					Action: "read",
+					Resource: influxdb.Resource{
+						Type: influxdb.BucketsResourceType,
+						ID:   influxdbtesting.IDPtr(2),
+					},
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Msg:  "read:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
+					Code: influxdb.EUnauthorized,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := tenant.NewAuthedBucketService(tt.fields.BucketService, nil)
+
+			ctx := context.Background()
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
+
+			_, err := s.FindBucket(ctx, influxdb.BucketFilter{})
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+		})
+	}
+}
+
+func TestBucketService_FindBuckets(t *testing.T) {
+	type fields struct {
+		BucketService influxdb.BucketService
 	}
 	type args struct {
 		permission influxdb.Permission
 	}
 	type wants struct {
 		err     error
-		sources []*influxdb.Source
+		buckets []*influxdb.Bucket
 	}
 
 	tests := []struct {
@@ -219,22 +219,22 @@ func TestSourceService_FindSources(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to see all sources",
+			name: "authorized to see all buckets",
 			fields: fields{
-				SourceService: &mock.SourceService{
-					FindSourcesFn: func(ctx context.Context, opts influxdb.FindOptions) ([]*influxdb.Source, int, error) {
-						return []*influxdb.Source{
+				BucketService: &mock.BucketService{
+					FindBucketsFn: func(ctx context.Context, filter influxdb.BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{
 							{
-								ID:             1,
-								OrganizationID: 10,
+								ID:    1,
+								OrgID: 10,
 							},
 							{
-								ID:             2,
-								OrganizationID: 10,
+								ID:    2,
+								OrgID: 10,
 							},
 							{
-								ID:             3,
-								OrganizationID: 11,
+								ID:    3,
+								OrgID: 11,
 							},
 						}, 3, nil
 					},
@@ -244,44 +244,45 @@ func TestSourceService_FindSources(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.SourcesResourceType,
+						Type: influxdb.BucketsResourceType,
 					},
 				},
 			},
 			wants: wants{
-				sources: []*influxdb.Source{
+				buckets: []*influxdb.Bucket{
 					{
-						ID:             1,
-						OrganizationID: 10,
+						ID:    1,
+						OrgID: 10,
 					},
 					{
-						ID:             2,
-						OrganizationID: 10,
+						ID:    2,
+						OrgID: 10,
 					},
 					{
-						ID:             3,
-						OrganizationID: 11,
+						ID:    3,
+						OrgID: 11,
 					},
 				},
 			},
 		},
 		{
-			name: "authorized to access a single org sources",
+			name: "authorized to access a single orgs buckets",
 			fields: fields{
-				SourceService: &mock.SourceService{
-					FindSourcesFn: func(ctx context.Context, opts influxdb.FindOptions) ([]*influxdb.Source, int, error) {
-						return []*influxdb.Source{
+				BucketService: &mock.BucketService{
+
+					FindBucketsFn: func(ctx context.Context, filter influxdb.BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{
 							{
-								ID:             1,
-								OrganizationID: 10,
+								ID:    1,
+								OrgID: 10,
 							},
 							{
-								ID:             2,
-								OrganizationID: 10,
+								ID:    2,
+								OrgID: 10,
 							},
 							{
-								ID:             3,
-								OrganizationID: 11,
+								ID:    3,
+								OrgID: 11,
 							},
 						}, 3, nil
 					},
@@ -291,20 +292,20 @@ func TestSourceService_FindSources(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type:  influxdb.SourcesResourceType,
+						Type:  influxdb.BucketsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 			},
 			wants: wants{
-				sources: []*influxdb.Source{
+				buckets: []*influxdb.Bucket{
 					{
-						ID:             1,
-						OrganizationID: 10,
+						ID:    1,
+						OrgID: 10,
 					},
 					{
-						ID:             2,
-						OrganizationID: 10,
+						ID:    2,
+						OrgID: 10,
 					},
 				},
 			},
@@ -313,24 +314,24 @@ func TestSourceService_FindSources(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewSourceService(tt.fields.SourceService)
+			s := tenant.NewAuthedBucketService(tt.fields.BucketService, nil)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
-			sources, _, err := s.FindSources(ctx, influxdb.DefaultSourceFindOptions)
+			buckets, _, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
-			if diff := cmp.Diff(sources, tt.wants.sources, sourceCmpOptions...); diff != "" {
-				t.Errorf("sources are different -got/+want\ndiff %s", diff)
+			if diff := cmp.Diff(buckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
+				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
 			}
 		})
 	}
 }
 
-func TestSourceService_UpdateSource(t *testing.T) {
+func TestBucketService_UpdateBucket(t *testing.T) {
 	type fields struct {
-		SourceService influxdb.SourceService
+		BucketService influxdb.BucketService
 	}
 	type args struct {
 		id          influxdb.ID
@@ -347,19 +348,19 @@ func TestSourceService_UpdateSource(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to update source",
+			name: "authorized to update bucket",
 			fields: fields{
-				SourceService: &mock.SourceService{
-					FindSourceByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
-						return &influxdb.Source{
-							ID:             1,
-							OrganizationID: 10,
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
-					UpdateSourceFn: func(ctx context.Context, id influxdb.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
-						return &influxdb.Source{
-							ID:             1,
-							OrganizationID: 10,
+					UpdateBucketFn: func(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -370,14 +371,14 @@ func TestSourceService_UpdateSource(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.SourcesResourceType,
+							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.SourcesResourceType,
+							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -388,19 +389,19 @@ func TestSourceService_UpdateSource(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to update source",
+			name: "unauthorized to update bucket",
 			fields: fields{
-				SourceService: &mock.SourceService{
-					FindSourceByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
-						return &influxdb.Source{
-							ID:             1,
-							OrganizationID: 10,
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
-					UpdateSourceFn: func(ctx context.Context, id influxdb.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
-						return &influxdb.Source{
-							ID:             1,
-							OrganizationID: 10,
+					UpdateBucketFn: func(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -411,7 +412,7 @@ func TestSourceService_UpdateSource(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.SourcesResourceType,
+							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -419,7 +420,7 @@ func TestSourceService_UpdateSource(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/sources/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -428,20 +429,20 @@ func TestSourceService_UpdateSource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewSourceService(tt.fields.SourceService)
+			s := tenant.NewAuthedBucketService(tt.fields.BucketService, nil)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
-			_, err := s.UpdateSource(ctx, tt.args.id, influxdb.SourceUpdate{})
+			_, err := s.UpdateBucket(ctx, tt.args.id, influxdb.BucketUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestSourceService_DeleteSource(t *testing.T) {
+func TestBucketService_DeleteBucket(t *testing.T) {
 	type fields struct {
-		SourceService influxdb.SourceService
+		BucketService influxdb.BucketService
 	}
 	type args struct {
 		id          influxdb.ID
@@ -458,16 +459,16 @@ func TestSourceService_DeleteSource(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to delete source",
+			name: "authorized to delete bucket",
 			fields: fields{
-				SourceService: &mock.SourceService{
-					FindSourceByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
-						return &influxdb.Source{
-							ID:             1,
-							OrganizationID: 10,
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
-					DeleteSourceFn: func(ctx context.Context, id influxdb.ID) error {
+					DeleteBucketFn: func(ctx context.Context, id influxdb.ID) error {
 						return nil
 					},
 				},
@@ -478,14 +479,14 @@ func TestSourceService_DeleteSource(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.SourcesResourceType,
+							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.SourcesResourceType,
+							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -496,16 +497,16 @@ func TestSourceService_DeleteSource(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to delete source",
+			name: "unauthorized to delete bucket",
 			fields: fields{
-				SourceService: &mock.SourceService{
-					FindSourceByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
-						return &influxdb.Source{
-							ID:             1,
-							OrganizationID: 10,
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
-					DeleteSourceFn: func(ctx context.Context, id influxdb.ID) error {
+					DeleteBucketFn: func(ctx context.Context, id influxdb.ID) error {
 						return nil
 					},
 				},
@@ -516,7 +517,7 @@ func TestSourceService_DeleteSource(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.SourcesResourceType,
+							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -524,7 +525,7 @@ func TestSourceService_DeleteSource(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/sources/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -533,20 +534,20 @@ func TestSourceService_DeleteSource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewSourceService(tt.fields.SourceService)
+			s := tenant.NewAuthedBucketService(tt.fields.BucketService, nil)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
-			err := s.DeleteSource(ctx, tt.args.id)
+			err := s.DeleteBucket(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestSourceService_CreateSource(t *testing.T) {
+func TestBucketService_CreateBucket(t *testing.T) {
 	type fields struct {
-		SourceService influxdb.SourceService
+		BucketService influxdb.BucketService
 	}
 	type args struct {
 		permission influxdb.Permission
@@ -563,10 +564,10 @@ func TestSourceService_CreateSource(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to create Source",
+			name: "authorized to create bucket",
 			fields: fields{
-				SourceService: &mock.SourceService{
-					CreateSourceFn: func(ctx context.Context, o *influxdb.Source) error {
+				BucketService: &mock.BucketService{
+					CreateBucketFn: func(ctx context.Context, b *influxdb.Bucket) error {
 						return nil
 					},
 				},
@@ -576,7 +577,7 @@ func TestSourceService_CreateSource(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type:  influxdb.SourcesResourceType,
+						Type:  influxdb.BucketsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
@@ -586,10 +587,10 @@ func TestSourceService_CreateSource(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to create Source",
+			name: "unauthorized to create bucket",
 			fields: fields{
-				SourceService: &mock.SourceService{
-					CreateSourceFn: func(ctx context.Context, o *influxdb.Source) error {
+				BucketService: &mock.BucketService{
+					CreateBucketFn: func(ctx context.Context, b *influxdb.Bucket) error {
 						return nil
 					},
 				},
@@ -599,14 +600,14 @@ func TestSourceService_CreateSource(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type: influxdb.SourcesResourceType,
+						Type: influxdb.BucketsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/sources is unauthorized",
+					Msg:  "write:orgs/000000000000000a/buckets is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -615,12 +616,12 @@ func TestSourceService_CreateSource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewSourceService(tt.fields.SourceService)
+			s := tenant.NewAuthedBucketService(tt.fields.BucketService, nil)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
-			err := s.CreateSource(ctx, &influxdb.Source{OrganizationID: tt.args.orgID})
+			err := s.CreateBucket(ctx, &influxdb.Bucket{OrgID: tt.args.orgID})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}

@@ -112,7 +112,7 @@ func TestCheckService_FindCheckByID(t *testing.T) {
 			s := authorizer.NewCheckService(tt.fields.CheckService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindCheckByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -258,7 +258,7 @@ func TestCheckService_FindChecks(t *testing.T) {
 			s := authorizer.NewCheckService(tt.fields.CheckService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			ts, _, err := s.FindChecks(ctx, influxdb.CheckFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -381,7 +381,7 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 			s := authorizer.NewCheckService(tt.fields.CheckService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			cc := influxdb.CheckCreate{
 				Check:  &check.Deadman{},
@@ -505,7 +505,7 @@ func TestCheckService_PatchCheck(t *testing.T) {
 			s := authorizer.NewCheckService(tt.fields.CheckService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.PatchCheck(ctx, tt.args.id, influxdb.CheckUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -614,7 +614,7 @@ func TestCheckService_DeleteCheck(t *testing.T) {
 			s := authorizer.NewCheckService(tt.fields.CheckService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteCheck(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -696,7 +696,7 @@ func TestCheckService_CreateCheck(t *testing.T) {
 			s := authorizer.NewCheckService(tt.fields.CheckService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			c := &check.Deadman{
 				Base: check.Base{

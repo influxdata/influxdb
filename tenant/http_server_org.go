@@ -1,6 +1,7 @@
 package tenant
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -52,10 +53,11 @@ func NewHTTPOrgHandler(log *zap.Logger, orgService influxdb.OrganizationService,
 			r.Delete("/", svr.handleDeleteOrg)
 
 			// mount embedded resources
-			r.Mount("/members", urm)
-			r.Mount("/owners", urm)
-			r.Mount("/labels", labelHandler)
-			r.Mount("/secrets", secretHandler)
+			mountableRouter := r.With(ValidResource(svr.api, svr.lookupOrgByID))
+			mountableRouter.Mount("/members", urm)
+			mountableRouter.Mount("/owners", urm)
+			mountableRouter.Mount("/labels", labelHandler)
+			mountableRouter.Mount("/secrets", secretHandler)
 		})
 	})
 
@@ -64,6 +66,7 @@ func NewHTTPOrgHandler(log *zap.Logger, orgService influxdb.OrganizationService,
 }
 
 type orgResponse struct {
+	Links map[string]string `json:"links"`
 	influxdb.Organization
 }
 
@@ -74,7 +77,8 @@ func newOrgResponse(o influxdb.Organization) orgResponse {
 }
 
 type orgsResponse struct {
-	Organizations []orgResponse `json:"orgs"`
+	Links         map[string]string `json:"links"`
+	Organizations []orgResponse     `json:"orgs"`
 }
 
 func newOrgsResponse(orgs []*influxdb.Organization) *orgsResponse {
@@ -188,4 +192,13 @@ func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 	h.log.Debug("Org deleted", zap.String("orgID", fmt.Sprint(id)))
 
 	h.api.Respond(w, http.StatusNoContent, nil)
+}
+
+func (h *OrgHandler) lookupOrgByID(ctx context.Context, id influxdb.ID) (influxdb.ID, error) {
+	_, err := h.orgSvc.FindOrganizationByID(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
 }

@@ -117,6 +117,7 @@ func (tl *TestLauncher) Setup() error {
 	}
 
 	tl.User = results.User
+	fmt.Println(tl.User)
 	tl.Org = results.Org
 	tl.Bucket = results.Bucket
 	tl.Auth = results.Auth
@@ -223,7 +224,7 @@ func (tl *TestLauncher) MustExecuteQuery(query string) *QueryResults {
 // ExecuteQuery executes the provided query against the ith query node.
 // Callers of ExecuteQuery must call Done on the returned QueryResults.
 func (tl *TestLauncher) ExecuteQuery(q string) (*QueryResults, error) {
-	ctx := influxdbcontext.SetAuthorizer(context.Background(), &mock.Authorization{})
+	ctx := influxdbcontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(true, nil))
 	fq, err := tl.QueryController().Query(ctx, &query.Request{
 		Authorization:  tl.Auth,
 		OrganizationID: tl.Auth.OrgID,

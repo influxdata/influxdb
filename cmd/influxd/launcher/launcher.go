@@ -610,6 +610,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	userSvcForAuth := userSvc
 	if m.enableNewMetaStore {
 		var ts platform.TenantService
 		if m.newMetaStoreReadOnly {
@@ -624,12 +625,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		} else {
 			ts = tenant.NewService(store)
 		}
+		userSvcForAuth = ts
 
-		bucketSvc = tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, tenant.WithSuffix("new")))
-		orgSvc = tenant.NewOrgLogger(m.log.With(zap.String("store", "new")), tenant.NewOrgMetrics(m.reg, ts, tenant.WithSuffix("new")))
-		userResourceSvc = tenant.NewURMLogger(m.log.With(zap.String("store", "new")), tenant.NewUrmMetrics(m.reg, ts, tenant.WithSuffix("new")))
-		userSvc = tenant.NewUserLogger(m.log.With(zap.String("store", "new")), tenant.NewUserMetrics(m.reg, ts, tenant.WithSuffix("new")))
-		passwdsSvc = tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, tenant.WithSuffix("new")))
+		userSvc = tenant.NewAuthedUserService(tenant.NewUserLogger(m.log.With(zap.String("store", "new")), tenant.NewUserMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+		orgSvc = tenant.NewAuthedOrgService(tenant.NewOrgLogger(m.log.With(zap.String("store", "new")), tenant.NewOrgMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+		userResourceSvc = tenant.NewAuthedURMService(ts, tenant.NewURMLogger(m.log.With(zap.String("store", "new")), tenant.NewUrmMetrics(m.reg, ts, tenant.WithSuffix("new"))))
+		bucketSvc = tenant.NewAuthedBucketService(tenant.NewBucketLogger(m.log.With(zap.String("store", "new")), tenant.NewBucketMetrics(m.reg, ts, tenant.WithSuffix("new"))), userResourceSvc)
+		passwdsSvc = tenant.NewAuthedPasswordService(tenant.NewPasswordLogger(m.log.With(zap.String("store", "new")), tenant.NewPasswordMetrics(m.reg, ts, tenant.WithSuffix("new"))))
 	}
 
 	switch m.secretStore {
@@ -953,7 +955,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	{
-		platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer), http.WithResourceHandler(onboardHTTPServer))
+		platformHandler := http.NewPlatformHandler(m.apibackend, userSvcForAuth, http.WithResourceHandler(pkgHTTPServer), http.WithResourceHandler(onboardHTTPServer))
 
 		httpLogger := m.log.With(zap.String("service", "http"))
 		m.httpServer.Handler = http.NewHandlerFromRegistry(

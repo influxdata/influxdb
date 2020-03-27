@@ -159,7 +159,7 @@ func TestAuthorizationService_ReadAuthorization(t *testing.T) {
 			s := authorizer.NewAuthorizationService(m)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			t.Run("find authorization by id", func(t *testing.T) {
 				_, err := s.FindAuthorizationByID(ctx, 10)
@@ -298,7 +298,7 @@ func TestAuthorizationService_WriteAuthorization(t *testing.T) {
 			s := authorizer.NewAuthorizationService(m)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			t.Run("update authorization", func(t *testing.T) {
 				_, err := s.UpdateAuthorization(ctx, 10, &influxdb.AuthorizationUpdate{Status: influxdb.Active.Ptr()})
@@ -429,7 +429,7 @@ func TestAuthorizationService_CreateAuthorization(t *testing.T) {
 			s := authorizer.NewAuthorizationService(m)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.CreateAuthorization(ctx, &influxdb.Authorization{OrgID: 1, UserID: 1})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)

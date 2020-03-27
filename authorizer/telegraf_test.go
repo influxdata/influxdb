@@ -107,7 +107,7 @@ func TestTelegrafConfigStore_FindTelegrafConfigByID(t *testing.T) {
 			s := authorizer.NewTelegrafConfigService(tt.fields.TelegrafConfigStore, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindTelegrafConfigByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -231,7 +231,7 @@ func TestTelegrafConfigStore_FindTelegrafConfigs(t *testing.T) {
 			s := authorizer.NewTelegrafConfigService(tt.fields.TelegrafConfigStore, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			ts, _, err := s.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -346,7 +346,7 @@ func TestTelegrafConfigStore_UpdateTelegrafConfig(t *testing.T) {
 			s := authorizer.NewTelegrafConfigService(tt.fields.TelegrafConfigStore, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.UpdateTelegrafConfig(ctx, tt.args.id, &influxdb.TelegrafConfig{}, influxdb.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -451,7 +451,7 @@ func TestTelegrafConfigStore_DeleteTelegrafConfig(t *testing.T) {
 			s := authorizer.NewTelegrafConfigService(tt.fields.TelegrafConfigStore, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteTelegrafConfig(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -533,7 +533,7 @@ func TestTelegrafConfigStore_CreateTelegrafConfig(t *testing.T) {
 			s := authorizer.NewTelegrafConfigService(tt.fields.TelegrafConfigStore, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.CreateTelegrafConfig(ctx, &influxdb.TelegrafConfig{OrgID: tt.args.orgID}, influxdb.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)

@@ -1,4 +1,4 @@
-package authorizer_test
+package tenant
 
 import (
 	"context"
@@ -6,27 +6,22 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/authorizer"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
-type OrgService struct {
-	OrgID influxdb.ID
-}
-
-func (s *OrgService) FindResourceOrganizationID(ctx context.Context, rt influxdb.ResourceType, id influxdb.ID) (influxdb.ID, error) {
-	return s.OrgID, nil
-}
+var idOne influxdb.ID = 1
+var idTwo influxdb.ID = 2
+var idThree influxdb.ID = 3
 
 func TestURMService_FindUserResourceMappings(t *testing.T) {
 	type fields struct {
 		UserResourceMappingService influxdb.UserResourceMappingService
-		OrgService                 authorizer.OrganizationService
+		OrgService                 influxdb.OrganizationService
 	}
 	type args struct {
-		permission influxdb.Permission
+		permissions []influxdb.Permission
 	}
 	type wants struct {
 		err  error
@@ -40,9 +35,8 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to see all users",
+			name: "authorized to see all users by org auth",
 			fields: fields{
-				OrgService: &OrgService{OrgID: 10},
 				UserResourceMappingService: &mock.UserResourceMappingService{
 					FindMappingsFn: func(ctx context.Context, filter influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, int, error) {
 						return []*influxdb.UserResourceMapping{
@@ -63,11 +57,28 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 				},
 			},
 			args: args{
-				permission: influxdb.Permission{
-					Action: "read",
-					Resource: influxdb.Resource{
-						Type:  influxdb.BucketsResourceType,
-						OrgID: influxdbtesting.IDPtr(10),
+				permissions: []influxdb.Permission{
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type: influxdb.BucketsResourceType,
+							// ID:    &idOne,
+							OrgID: influxdbtesting.IDPtr(10),
+						},
+					},
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type:  influxdb.BucketsResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
+						},
+					},
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type:  influxdb.BucketsResourceType,
+							OrgID: influxdbtesting.IDPtr(10),
+						},
 					},
 				},
 			},
@@ -88,10 +99,47 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewAuthedURMService(tt.fields.OrgService, tt.fields.UserResourceMappingService)
+			orgID := influxdbtesting.IDPtr(10)
+			ctx := context.WithValue(context.Background(), ctxOrgKey, *orgID)
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
+
+			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{})
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+
+			if diff := cmp.Diff(urms, tt.wants.urms); diff != "" {
+				t.Errorf("urms are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+func TestURMService_FindUserResourceMappingsBucketAuth(t *testing.T) {
+	type fields struct {
+		UserResourceMappingService influxdb.UserResourceMappingService
+		OrgService                 influxdb.OrganizationService
+	}
+	type args struct {
+		permissions []influxdb.Permission
+	}
+	type wants struct {
+		err  error
+		urms []*influxdb.UserResourceMapping
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
 		{
-			name: "authorized to see all users",
+			name: "authorized to see all users by bucket auth",
 			fields: fields{
-				OrgService: &OrgService{OrgID: 10},
 				UserResourceMappingService: &mock.UserResourceMappingService{
 					FindMappingsFn: func(ctx context.Context, filter influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, int, error) {
 						return []*influxdb.UserResourceMapping{
@@ -112,26 +160,55 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 				},
 			},
 			args: args{
-				permission: influxdb.Permission{
-					Action: "read",
-					Resource: influxdb.Resource{
-						Type:  influxdb.BucketsResourceType,
-						OrgID: influxdbtesting.IDPtr(11),
+				permissions: []influxdb.Permission{
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type: influxdb.BucketsResourceType,
+							ID:   &idOne,
+						},
+					},
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type: influxdb.BucketsResourceType,
+							ID:   &idTwo,
+						},
+					},
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type: influxdb.BucketsResourceType,
+							ID:   &idThree,
+						},
 					},
 				},
 			},
 			wants: wants{
-				urms: []*influxdb.UserResourceMapping{},
+				urms: []*influxdb.UserResourceMapping{
+					{
+						ResourceID:   1,
+						ResourceType: influxdb.BucketsResourceType,
+					},
+					{
+						ResourceID:   2,
+						ResourceType: influxdb.BucketsResourceType,
+					},
+					{
+						ResourceID:   3,
+						ResourceType: influxdb.BucketsResourceType,
+					},
+				},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewURMService(tt.fields.OrgService, tt.fields.UserResourceMappingService)
+			s := NewAuthedURMService(tt.fields.OrgService, tt.fields.UserResourceMappingService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -146,7 +223,7 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 func TestURMService_WriteUserResourceMapping(t *testing.T) {
 	type fields struct {
 		UserResourceMappingService influxdb.UserResourceMappingService
-		OrgService                 authorizer.OrganizationService
+		OrgService                 influxdb.OrganizationService
 	}
 	type args struct {
 		permission influxdb.Permission
@@ -164,7 +241,6 @@ func TestURMService_WriteUserResourceMapping(t *testing.T) {
 		{
 			name: "authorized to write urm",
 			fields: fields{
-				OrgService: &OrgService{OrgID: 10},
 				UserResourceMappingService: &mock.UserResourceMappingService{
 					CreateMappingFn: func(ctx context.Context, m *influxdb.UserResourceMapping) error {
 						return nil
@@ -188,6 +264,7 @@ func TestURMService_WriteUserResourceMapping(t *testing.T) {
 					Action: "write",
 					Resource: influxdb.Resource{
 						Type:  influxdb.BucketsResourceType,
+						ID:    &idOne,
 						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
@@ -199,7 +276,6 @@ func TestURMService_WriteUserResourceMapping(t *testing.T) {
 		{
 			name: "unauthorized to write urm",
 			fields: fields{
-				OrgService: &OrgService{OrgID: 10},
 				UserResourceMappingService: &mock.UserResourceMappingService{
 					CreateMappingFn: func(ctx context.Context, m *influxdb.UserResourceMapping) error {
 						return nil
@@ -229,7 +305,7 @@ func TestURMService_WriteUserResourceMapping(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
+					Msg:  "write:buckets/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -238,7 +314,7 @@ func TestURMService_WriteUserResourceMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewURMService(tt.fields.OrgService, tt.fields.UserResourceMappingService)
+			s := NewAuthedURMService(tt.fields.OrgService, tt.fields.UserResourceMappingService)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))

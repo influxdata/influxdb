@@ -52,9 +52,10 @@ func NewHTTPBucketHandler(log *zap.Logger, bucketSvc influxdb.BucketService, urm
 			r.Delete("/", svr.handleDeleteBucket)
 
 			// mount embedded resources
-			r.Mount("/members", urmHandler)
-			r.Mount("/owners", urmHandler)
-			r.Mount("/labels", labelHandler)
+			mountableRouter := r.With(ValidResource(svr.api, svr.lookupOrgByBucketID))
+			mountableRouter.Mount("/members", urmHandler)
+			mountableRouter.Mount("/owners", urmHandler)
+			mountableRouter.Mount("/labels", labelHandler)
 		})
 	})
 
@@ -463,6 +464,14 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 	h.log.Debug("Bucket updated", zap.String("bucket", fmt.Sprint(b)))
 
 	h.api.Respond(w, http.StatusOK, NewBucketResponse(b))
+}
+
+func (h *BucketHandler) lookupOrgByBucketID(ctx context.Context, id influxdb.ID) (influxdb.ID, error) {
+	b, err := h.bucketSvc.FindBucketByID(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	return b.OrgID, nil
 }
 
 // validBucketName reports any errors with bucket names
