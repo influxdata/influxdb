@@ -21,10 +21,11 @@ import {generateTelegrafToken} from 'src/dataLoaders/actions/dataLoaders'
 
 export interface Props {
   configID: string
-  token: string
-  onCopyText?: (text: string, status: boolean) => Notification
-  testID?: string
   label: string
+  onCopyText?: (text: string, status: boolean) => Notification
+  onGenerateTelegrafToken: typeof generateTelegrafToken
+  testID?: string
+  token: string
 }
 
 interface DispatchProps {
@@ -32,13 +33,14 @@ interface DispatchProps {
 }
 
 const TokenCodeSnippet: FC<Props & DispatchProps> = ({
-  token,
+  configID,
   onCopyText,
-  testID,
   label = 'Code Snippet',
+  testID,
+  token,
+  onGenerateTelegrafToken,
 }) => {
   const handleRefreshClick = () => {
-    const {configID, onGenerateTelegrafToken} = this.props
     onGenerateTelegrafToken(configID)
   }
 
