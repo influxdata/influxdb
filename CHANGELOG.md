@@ -11,6 +11,7 @@
 1. [17448](https://github.com/influxdata/influxdb/pull/17448): Add foundation for pkger stacks, stateful package management
 1. [17462](https://github.com/influxdata/influxdb/pull/17462): Flag to disable scheduling of tasks
 1. [17470](https://github.com/influxdata/influxdb/pull/17470): Add ability to output cli output as json and hide table headers
+1. [17472](https://github.com/influxdata/influxdb/pull/17472): Add an easy way to switch config via cli
 
 ### Bug Fixes
 

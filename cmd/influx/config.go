@@ -42,9 +42,10 @@ type cmdConfigBuilder struct {
 }
 
 func (b *cmdConfigBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("config", nil, false)
+	cmd := b.newCmd("config", b.cmdSwitchActiveRunEFn, false)
 	cmd.Short = "Config management commands"
-	cmd.Run = seeHelp
+	cmd.Args = cobra.ExactArgs(1)
+
 	cmd.AddCommand(
 		b.cmdCreate(),
 		b.cmdDelete(),
@@ -52,6 +53,37 @@ func (b *cmdConfigBuilder) cmd() *cobra.Command {
 		b.cmdList(),
 	)
 	return cmd
+}
+
+func (b *cmdConfigBuilder) cmdSwitchActiveRunEFn(cmd *cobra.Command, args []string) error {
+	pp, err := b.svc.ParseConfigs()
+	if err != nil {
+		return err
+	}
+	b.name = args[0]
+	p0, ok := pp[b.name]
+	if !ok {
+		return &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Msg:  fmt.Sprintf("name %q is not found", b.name),
+		}
+	}
+	pp[b.name] = p0
+
+	if err := pp.Switch(b.name); err != nil {
+		return err
+	}
+
+	if err = b.svc.WriteConfigs(pp); err != nil {
+		return err
+	}
+
+	return b.printConfigs(configPrintOpts{
+		config: cfg{
+			name:   b.name,
+			Config: pp[b.name],
+		},
+	})
 }
 
 func (b *cmdConfigBuilder) cmdCreate() *cobra.Command {
@@ -201,7 +233,7 @@ func (b *cmdConfigBuilder) cmdUpdateRunEFn(*cobra.Command, []string) error {
 	return b.printConfigs(configPrintOpts{
 		config: cfg{
 			name:   b.name,
-			Config: p0,
+			Config: pp[b.name],
 		},
 	})
 }
