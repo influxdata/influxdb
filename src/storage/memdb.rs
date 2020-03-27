@@ -38,12 +38,14 @@ struct SeriesBuffer<T: Clone> {
 
 impl<T: Clone> SeriesBuffer<T> {
     fn read(&self, range: &TimestampRange) -> Vec<ReadPoint<T>> {
-        let start = match self.values.iter().position(|val| val.time >= range.start) {
+        let start = match self.values
+            .iter()
+            .position(|val| val.time >= range.start) {
             Some(pos) => pos,
             None => return vec![],
         };
 
-        let stop = self.values[start..]
+        let stop = self.values
             .iter()
             .position(|val| val.time >= range.end);
         let stop = stop.unwrap_or_else(|| self.values.len());
@@ -68,7 +70,7 @@ impl StoreInSeriesData for PointType {
 impl StoreInSeriesData for Point<i64> {
     fn write(&self, series_data: &mut SeriesData) {
         let point: ReadPoint<_> = self.into();
-        series_data.current_size += std::mem::size_of::<Point<i64>>();
+        series_data.current_size += std::mem::size_of::<ReadPoint<i64>>();
 
         match series_data.i64_series.get_mut(&self.series_id.unwrap()) {
             Some(buff) => buff.values.push(point),
@@ -325,7 +327,7 @@ mod tests {
     #[test]
     fn write_and_check_size() {
         let memdb = setup_db();
-        assert_eq!(memdb.size(), 904);
+        assert_eq!(memdb.size(), 704);
     }
 
     #[test]

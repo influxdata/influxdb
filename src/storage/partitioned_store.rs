@@ -24,26 +24,6 @@ pub trait Partition {
 
     fn write(&self, points: &[PointType]) -> Result<(), StorageError>;
 
-    //    fn measurements(
-    //        &self,
-    //    ) -> Result<Box<dyn Iterator<Item = Vec<String>>>, StorageError>;
-    //
-    //    fn tag_keys(
-    //        &self,
-    //        measurement: &str,
-    //    ) -> Result<Box<dyn Iterator<Item = Vec<String>>>, StorageError>;
-    //
-    //    fn fields(
-    //        &self,
-    //        measurement: &str,
-    //    ) -> Result<Box<dyn Iterator<Item = Vec<&Field>>>, StorageError>;
-    //
-    //    fn tag_values(
-    //        &self,
-    //        measurement: &str,
-    //        key: &str,
-    //    ) -> Result<Box<dyn Iterator<Item = Vec<String>>>, StorageError>;
-
     fn get_tag_keys(
         &self,
         range: &TimestampRange,
@@ -67,7 +47,7 @@ pub trait Partition {
 
 /// StringMergeStream will do a merge sort with deduplication of multiple streams of Strings. This
 /// is used for combining results from multiple partitions for calls to get measurements, tag keys,
-/// tag values, or field keys. It assumes the incoming streams are in sorted order.
+/// tag values, or field keys. It assumes the incoming streams are in sorted order with no duplicates.
 pub struct StringMergeStream<'a> {
     states: Vec<StreamState<'a, String>>,
     drained: bool,
@@ -160,6 +140,11 @@ impl Stream for StringMergeStream<'_> {
 /// it will ensure that batches are sent through in lexographical order by key. In situations
 /// where multiple partitions have batches with the same key, they are merged together in time
 /// ascending order. For any given key, multiple read batches can come through.
+///
+/// It assume that the input streams send batches in key lexographical order and that values are
+/// always of the same type for a given key, and that those values are in time sorted order. A
+/// stream can have multiple batches with the same key, as long as the values across those batches
+/// are in time sorted order (ascending).
 pub struct ReadMergeStream<'a> {
     states: Vec<StreamState<'a, ReadBatch>>,
     drained: bool,
@@ -267,7 +252,7 @@ impl Stream for ReadMergeStream<'_> {
                 for pos in positions {
                     if let Poll::Ready(Some(b)) = &mut self.states[pos].next {
                         if batch.append_below_time(b, min_time) {
-                            let _ = mem::replace(&mut self.states[pos].next, Poll::Pending);
+                            self.states[pos].next = Poll::Pending;
                         }
                     }
                 }
@@ -330,32 +315,18 @@ impl ReadBatch {
             (ReadValues::I64(vals), ReadValues::I64(other_vals)) => {
                 let pos = other_vals.iter().position(|val| val.time > t);
                 match pos {
-                    None => {
-                        vals.append(other_vals);
-                        true
-                    }
-                    Some(pos) => {
-                        let mut rest = other_vals.split_off(pos);
-                        vals.append(other_vals);
-                        other_vals.append(&mut rest);
-                        false
-                    }
+                    None => vals.append(other_vals),
+                    Some(pos) => vals.extend(other_vals.drain(..pos)),
                 }
+                other_vals.is_empty()
             }
             (ReadValues::F64(vals), ReadValues::F64(other_vals)) => {
                 let pos = other_vals.iter().position(|val| val.time > t);
                 match pos {
-                    None => {
-                        vals.append(other_vals);
-                        true
-                    }
-                    Some(pos) => {
-                        let mut rest = other_vals.split_off(pos);
-                        vals.append(other_vals);
-                        other_vals.append(&mut rest);
-                        false
-                    }
+                    None => vals.append(other_vals),
+                    Some(pos) => vals.extend(other_vals.drain(..pos)),
                 }
+                other_vals.is_empty()
             }
             (_, _) => true, // do nothing here
         }
