@@ -248,13 +248,13 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 	if name := qp.Get(Org); name != "" {
 		filter.Name = &name
 	}
-	id, err := decodeIDFromQuery(qp, OrgID)
-	if err != nil {
-		h.API.Err(w, err)
-		return
-	}
-	if id > 0 {
-		filter.ID = &id
+	if orgID := qp.Get("orgID"); orgID != "" {
+		id, err := influxdb.IDFromString(orgID)
+		if err != nil {
+			h.API.Err(w, err)
+			return
+		}
+		filter.ID = id
 	}
 
 	orgs, _, err := h.OrgSVC.FindOrganizations(r.Context(), filter)

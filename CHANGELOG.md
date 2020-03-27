@@ -9,6 +9,7 @@
 1. [17400](https://github.com/influxdata/influxdb/pull/17400): Be able to delete bucket by name via cli
 1. [17396](https://github.com/influxdata/influxdb/pull/17396): Add module to write line data to specified url, org, and bucket
 1. [17398](https://github.com/influxdata/influxdb/pull/17398): Extend influx cli write command with ability to process CSV data
+1. [17448](https://github.com/influxdata/influxdb/pull/17448): Add foundation for pkger stacks, stateful package management
 
 ### Bug Fixes
 
