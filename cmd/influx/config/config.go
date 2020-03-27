@@ -14,11 +14,11 @@ import (
 
 // Config store the crendentials of influxdb host and token.
 type Config struct {
-	Host string `toml:"url"`
+	Host string `toml:"url" json:"url"`
 	// Token is base64 encoded sequence.
-	Token  string `toml:"token"`
-	Org    string `toml:"org,omitempty"`
-	Active bool   `toml:"active,omitempty"`
+	Token  string `toml:"token" json:"token"`
+	Org    string `toml:"org" json:"org"`
+	Active bool   `toml:"active" json:"active"`
 }
 
 // DefaultConfig is default config without token
