@@ -86,7 +86,9 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       icon: IconFont.UsersTrio,
       label: 'Organization',
       shortLabel: 'Org',
-      link: CLOUD ? `${orgPrefix}/about` : `${orgPrefix}/members`,
+      link: CLOUD
+        ? `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`
+        : `${orgPrefix}/members`,
       activeKeywords: ['members', 'about'],
       menu: [
         {
