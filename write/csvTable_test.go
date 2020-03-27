@@ -82,8 +82,7 @@ func TestQueryResult(t *testing.T) {
 							// some traling data are missing
 							require.Equal(t, col.DefaultValue, "")
 						}
-						require.Equal(t, col.DataType, rows[i-3][j])
-						require.Equal(t, col.LinePart == linePartTag, rows[i-4][j] == "true")
+						require.Equal(t, col.DataType, rows[i-3][j], "row %d, col %d", i-3, j)
 					}
 				}
 				// verify cached values
@@ -201,8 +200,8 @@ func TestCsvData(t *testing.T) {
 		},
 		{
 			"annotated7",
-			"#linepart measurement,,\n#datatype ,dateTime:RFC3339Nano,\nmeasurement,a,b\ncpu,2020-01-10T10:10:10.0Z,2",
-			"cpu a=1578651010000000000,b=2",
+			"#datatype measurement,dateTime,\nmeasurement,a,b\ncpu,2020-01-10T10:10:10.0Z,2",
+			"cpu b=2 1578651010000000000",
 		},
 		{
 			"annotated8",
@@ -215,11 +214,32 @@ func TestCsvData(t *testing.T) {
 			"cpu,a=2,b=1 time=4 3",
 		},
 		{
-			"allTypes1",
+			"allFieldTypes",
+			"#datatype measurement,string,double,boolean,long,unsignedLong,duration,base64Binary,dateTime\n" +
+				"m,s,d,b,l,ul,dur,by,d1,d2,time\n" +
+				`cpu,"str",1.0,true,1,1,1ms,YWFh,1`,
+			"cpu s=\"str\",d=1,b=true,l=1i,ul=1u,dur=1000000i,by=YWFh 1",
+		},
+		{
+			"allFieldTypes",
+			"#datatype measurement,string,double,boolean,long,unsignedLong,duration,base64Binary,dateTime\n" +
+				"m,s,d,b,l,ul,dur,by,d1,d2,time\n" +
+				`cpu,"str",1.0,true,1,1,1ms,YWFh,1`,
+			"cpu s=\"str\",d=1,b=true,l=1i,ul=1u,dur=1000000i,by=YWFh 1",
+		},
+		{
+			"allFieldTypes_ignoreAdditionalDateTimes",
 			"#datatype ,string,double,boolean,long,unsignedLong,duration,base64Binary,dateTime:RFC3339,dateTime:RFC3339Nano,\n" +
 				"_measurement,s,d,b,l,ul,dur,by,d1,d2,_time\n" +
 				`cpu,"str",1.0,true,1,1,1ms,YWFh,2020-01-10T10:10:10Z,2020-01-10T10:10:10Z,1`,
-			"cpu s=\"str\",d=1,b=true,l=1i,ul=1u,dur=1000000i,by=YWFh,d1=1578651010000000000,d2=1578651010000000000 1",
+			"cpu s=\"str\",d=1,b=true,l=1i,ul=1u,dur=1000000i,by=YWFh 1",
+		},
+		{
+			"allExtraDataTypes",
+			"#datatype measurement,tag,field,ignored,dateTime\n" +
+				"m,t,f,i,dt\n" +
+				`cpu,myTag,0,myIgnored,1`,
+			"cpu,t=myTag f=0 1",
 		},
 		{
 			"allTypes_escaped",

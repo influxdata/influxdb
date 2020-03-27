@@ -83,7 +83,11 @@ func toTypedValue(val string, dataType string) (interface{}, error) {
 	case stringDatatype:
 		return val, nil
 	case dateTimeDatatype:
-		return time.Parse(time.RFC3339, val)
+		t, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return time.Parse(time.RFC3339, val)
+		}
+		return time.Unix(0, t), nil
 	case dateTimeDatatypeRFC3339:
 		return time.Parse(time.RFC3339, val)
 	case dateTimeDatatypeRFC3339Nano:

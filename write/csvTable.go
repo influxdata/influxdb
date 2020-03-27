@@ -13,6 +13,8 @@ const (
 	labelFieldName   = "_field"
 	labelFieldValue  = "_value"
 	labelTime        = "_time"
+	labelStart       = "_start"
+	labelStop        = "_stop"
 	labelMeasurement = "_measurement"
 )
 
@@ -49,7 +51,23 @@ var annotationComments = []annotationComment{
 		return nil
 	}},
 	{"#datatype", 2, func(column *CsvTableColumn, value string) error {
-		column.DataType = ignoreLeadingComment(value)
+		val := ignoreLeadingComment(value)
+		column.DataType = val
+		// use extra data type values to identify line parts
+		switch {
+		case val == "tag":
+			column.LinePart = linePartTag
+		case strings.HasPrefix(val, "ignore"):
+			column.LinePart = linePartIgnored
+		case strings.HasPrefix(val, "dateTime"):
+			// dateTime field shall be used only for time line part
+			column.LinePart = linePartTime
+		case val == "measurement":
+			column.LinePart = linePartMeasurement
+		case val == "field":
+			column.LinePart = linePartField
+			column.DataType = ""
+		}
 		return nil
 	}},
 	{"#default", 4, func(column *CsvTableColumn, value string) error {
@@ -219,6 +237,9 @@ func (t *CsvTable) recomputeIndexes() {
 		case col.Label == labelMeasurement || col.LinePart == linePartMeasurement:
 			t.cachedMeasurement = &col
 		case col.Label == labelTime || col.LinePart == linePartTime:
+			if t.cachedTime != nil && t.cachedTime.Label != labelStart && t.cachedTime.Label != labelStop {
+				log.Printf("WARNING: at most one dateTime column is expected, '%s' column is ignored\n", t.cachedTime.Label)
+			}
 			t.cachedTime = &col
 		case col.Label == labelFieldName:
 			t.cachedFieldName = &col
