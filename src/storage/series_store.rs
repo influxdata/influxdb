@@ -35,7 +35,10 @@ pub struct ReadPoint<T: Clone> {
 impl<T: Copy + Clone> From<&'_ crate::line_parser::Point<T>> for ReadPoint<T> {
     fn from(other: &'_ crate::line_parser::Point<T>) -> Self {
         let crate::line_parser::Point { time, value, .. } = other;
-        Self { time: *time, value: *value }
+        Self {
+            time: *time,
+            value: *value,
+        }
     }
 }
 
