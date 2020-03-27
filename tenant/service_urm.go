@@ -78,7 +78,7 @@ func (s *Service) removeResourceRelations(ctx context.Context, tx kv.Tx, resourc
 	}
 	for _, urm := range urms {
 		err := s.store.DeleteURM(ctx, tx, urm.ResourceID, urm.UserID)
-		if err != nil {
+		if err != nil && err != ErrURMNotFound {
 			return err
 		}
 	}
