@@ -3,7 +3,7 @@ import {ValueFetcher} from 'src/variables/utils/ValueFetcher'
 import {hydrateVars} from 'src/variables/utils/hydrateVars'
 
 // Mocks
-import {createMapVariable, createVariable} from 'src/variables/mocks'
+import {createVariable} from 'src/variables/mocks'
 
 // Types
 import {Variable, CancellationError, RemoteDataState} from 'src/types'
