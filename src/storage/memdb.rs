@@ -259,6 +259,8 @@ impl MemDB {
                 }
             };
 
+            // TODO: Encode in the type system that `ReadBatch`es will never be created with an
+            // empty vector, as we're doing here.
             if values.is_empty() {
                 continue;
             }

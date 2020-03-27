@@ -275,6 +275,7 @@ impl Stream for ReadMergeStream<'_> {
     }
 }
 
+// TODO: Make a constructor function that fails if given an empty `Vec` of `ReadPoint`s.
 #[derive(Debug, PartialEq, Clone)]
 pub enum ReadValues {
     I64(Vec<ReadPoint<i64>>),
@@ -297,6 +298,11 @@ pub struct ReadBatch {
 }
 
 impl ReadBatch {
+    /// Returns the first time and the last time in the batch.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if there are no values in the `ReadValues`.
     fn start_stop_times(&self) -> (i64, i64) {
         match &self.values {
             ReadValues::I64(vals) => (vals.first().unwrap().time, vals.last().unwrap().time),
