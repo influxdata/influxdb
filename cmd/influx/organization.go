@@ -322,6 +322,7 @@ func (b *cmdOrgBuilder) cmdMemberList() *cobra.Command {
 		},
 	}
 	opts.mustRegister(cmd)
+	b.registerPrintFlags(cmd)
 	return cmd
 }
 
