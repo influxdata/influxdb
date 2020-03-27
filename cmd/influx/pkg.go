@@ -359,7 +359,7 @@ func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
 	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description given to created stack")
 	cmd.Flags().StringArrayVarP(&b.urls, "package-url", "u", nil, "Package urls to associate with new stack")
-	cmd.Flags().BoolVar(&b.json, "json", false, "Output data as json")
+	registerPrintOptions(cmd, nil, &b.json)
 
 	b.org.register(cmd, false)
 
