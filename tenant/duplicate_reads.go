@@ -3,6 +3,7 @@ package tenant
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
@@ -11,6 +12,16 @@ import (
 )
 
 var _ influxdb.TenantService = (*tenantService)(nil)
+
+var bucketCmpOptions = cmp.Options{
+	cmp.Transformer("Sort", func(in []*influxdb.Bucket) []*influxdb.Bucket {
+		out := append([]*influxdb.Bucket(nil), in...) // Copy input to avoid mutating it
+		sort.Slice(out, func(i, j int) bool {
+			return out[i].Name > out[j].Name
+		})
+		return out
+	}),
+}
 
 // readOnlyStore is a wrapper for kv.Store that ensures that updates are not applied.
 type readOnlyStore struct {
@@ -165,7 +176,7 @@ func (s tenantService) FindBuckets(ctx context.Context, filter influxdb.BucketFi
 	n, _, err := s.newBucketSvc.FindBuckets(ctx, filter, opt...)
 	if err != nil {
 		s.log.Error("error in new meta store", zap.Error(err))
-	} else if diff := cmp.Diff(o, n); diff != "" {
+	} else if diff := cmp.Diff(o, n, bucketCmpOptions); diff != "" {
 		s.log.Error(fmt.Sprintf("unexpected read result -old/+new:\n\t%s", diff), zap.String("diff", diff), zap.String("call", "FindBuckets"))
 	}
 	return o, no, nil
