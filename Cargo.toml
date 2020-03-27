@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 
+[profile.release]
+debug = true
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -49,6 +52,10 @@ tempfile = "3.1.0"
 
 [[bench]]
 name = "encoders"
+harness = false
+
+[[bench]]
+name = "line_parser"
 harness = false
 
 [build-dependencies]
