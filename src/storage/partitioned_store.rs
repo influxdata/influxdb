@@ -146,11 +146,10 @@ impl Stream for StringMergeStream<'_> {
 
         let next_state: &mut StreamState<'_, String> = &mut self.states[next_pos];
 
-        let val = mem::replace(
+        mem::replace(
             &mut next_state.next,
             next_state.stream.as_mut().poll_next(cx),
-        );
-        val
+        )
     }
 }
 
