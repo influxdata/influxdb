@@ -16,6 +16,7 @@ func init() {
 		PushDownGroupRule{},
 		PushDownReadTagKeysRule{},
 		PushDownReadTagValuesRule{},
+		SortedPivotRule{},
 	)
 }
 
@@ -99,6 +100,11 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 	filterSpec := pn.ProcedureSpec().(*universe.FilterProcedureSpec)
 	fromNode := pn.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
+
+	// Cannot push down when keeping empty tables.
+	if filterSpec.KeepEmptyTables {
+		return pn, false, nil
+	}
 
 	bodyExpr, ok := filterSpec.Fn.Fn.Block.Body.(semantic.Expression)
 	if !ok {
@@ -460,6 +466,15 @@ func rewritePushableExpr(e semantic.Expression) (semantic.Expression, bool) {
 			e.Left, e.Right = left, right
 			return e, true
 		}
+
+	case *semantic.LogicalExpression:
+		left, lok := rewritePushableExpr(e.Left)
+		right, rok := rewritePushableExpr(e.Right)
+		if lok || rok {
+			e = e.Copy().(*semantic.LogicalExpression)
+			e.Left, e.Right = left, right
+			return e, true
+		}
 	}
 	return e, false
 }
@@ -550,4 +565,56 @@ func isPushableFieldOperator(kind ast.OperatorKind) bool {
 	}
 
 	return false
+}
+
+// SortedPivotRule is a rule that optimizes a pivot when it is directly
+// after an influxdb from.
+type SortedPivotRule struct{}
+
+func (SortedPivotRule) Name() string {
+	return "SortedPivotRule"
+}
+
+func (SortedPivotRule) Pattern() plan.Pattern {
+	return plan.Pat(universe.PivotKind, plan.Pat(ReadRangePhysKind))
+}
+
+func (SortedPivotRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
+	pivotSpec := pn.ProcedureSpec().Copy().(*universe.PivotProcedureSpec)
+	pivotSpec.IsSortedByFunc = func(cols []string, desc bool) bool {
+		if desc {
+			return false
+		}
+
+		// The only thing that disqualifies this from being
+		// sorted is if the _value column is mentioned or if
+		// the tag does not exist.
+		for _, label := range cols {
+			if label == execute.DefaultTimeColLabel {
+				continue
+			} else if label == execute.DefaultValueColLabel {
+				return false
+			}
+
+			// Everything else is a tag. Even if the tag does not exist,
+			// this is still considered sorted since sorting doesn't depend
+			// on a tag existing.
+		}
+
+		// We are already sorted.
+		return true
+	}
+	pivotSpec.IsKeyColumnFunc = func(label string) bool {
+		if label == execute.DefaultTimeColLabel || label == execute.DefaultValueColLabel {
+			return false
+		}
+		// Everything else would be a tag if it existed.
+		// The transformation itself will catch if the column does not exist.
+		return true
+	}
+
+	if err := pn.ReplaceSpec(pivotSpec); err != nil {
+		return nil, false, err
+	}
+	return pn, false, nil
 }

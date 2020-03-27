@@ -7,7 +7,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/repl"
-	_ "github.com/influxdata/influxdb/flux/builtin"
+	"github.com/influxdata/influxdb/flux/builtin"
 	"github.com/influxdata/influxdb/flux/client"
 )
 
@@ -32,6 +32,8 @@ func (q *replQuerier) Query(ctx context.Context, deps flux.Dependencies, compile
 }
 
 func getFluxREPL(u url.URL, username, password string) (*repl.REPL, error) {
+	builtin.Initialize()
+
 	c, err := client.NewHTTP(u)
 	if err != nil {
 		return nil, err
