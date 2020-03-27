@@ -112,7 +112,7 @@ func toTypedValue(val string, dataType string) (interface{}, error) {
 	case base64BinaryDataType:
 		return base64.StdEncoding.DecodeString(val)
 	default:
-		return nil, fmt.Errorf("value '%s' has unsupported data type '%s'", val, dataType)
+		return nil, fmt.Errorf("unsupported data type '%s'", dataType)
 	}
 }
 

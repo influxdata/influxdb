@@ -15,12 +15,7 @@ type CsvLineError struct {
 }
 
 func (e CsvLineError) Error() string {
-	switch err := e.Err.(type) {
-	case CsvColumnError:
-		return fmt.Sprintf("line %d, column '%s': %v", e.Line, err.Column, err)
-	default:
-		return fmt.Sprintf("line %d: %v", e.Line, e.Err)
-	}
+	return fmt.Sprintf("line %d: %v", e.Line, e.Err)
 }
 
 type lineReader struct {

@@ -1,6 +1,7 @@
 package write
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -73,5 +74,25 @@ func Test_CsvToProtocolLines_success(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// Test_CsvLineError checks formating of line errors
+func Test_CsvLineError(t *testing.T) {
+	var tests = []struct {
+		err   CsvLineError
+		value string
+	}{
+		{
+			CsvLineError{Line: 1, Err: errors.New("cause")},
+			"line 1: cause",
+		},
+		{
+			CsvLineError{Line: 2, Err: CsvColumnError{"a", errors.New("cause")}},
+			"line 2: column 'a': cause",
+		},
+	}
+	for _, test := range tests {
+		require.Equal(t, test.value, test.err.Error())
 	}
 }
