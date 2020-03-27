@@ -45,6 +45,7 @@ type cmdPkgBuilder struct {
 	description         string
 	disableColor        bool
 	disableTableBorders bool
+	hideHeaders         bool
 	json                bool
 	name                string
 	org                 organization
@@ -359,7 +360,7 @@ func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
 	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description given to created stack")
 	cmd.Flags().StringArrayVarP(&b.urls, "package-url", "u", nil, "Package urls to associate with new stack")
-	registerPrintOptions(cmd, nil, &b.json)
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
 
 	b.org.register(cmd, false)
 
@@ -393,6 +394,10 @@ func (b *cmdPkgBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error
 	}
 
 	tabW := b.newTabWriter()
+	defer tabW.Flush()
+
+	tabW.HideHeaders(b.hideHeaders)
+
 	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "URLs", "Created At")
 	tabW.Write(map[string]interface{}{
 		"ID":          stack.ID,
@@ -402,7 +407,6 @@ func (b *cmdPkgBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error
 		"URLs":        stack.URLs,
 		"Created At":  stack.CreatedAt,
 	})
-	tabW.Flush()
 
 	return nil
 }
