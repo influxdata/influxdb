@@ -22,7 +22,7 @@ const (
 	dateTimeDatatype            = "dateTime"
 	dateTimeDatatypeRFC3339     = "dateTime:RFC3339"
 	dateTimeDatatypeRFC3339Nano = "dateTime:RFC3339Nano"
-	timestampDatatype           = "timestamp" //the same as long, but not serialized with i suffix
+	dateTimeDatatypeNumber      = "dateTime:number" //the same as long, but serialized without i suffix
 )
 
 var supportedDataTypes map[string]struct{}
@@ -39,7 +39,7 @@ func init() {
 	supportedDataTypes[dateTimeDatatype] = struct{}{}
 	supportedDataTypes[dateTimeDatatypeRFC3339] = struct{}{}
 	supportedDataTypes[dateTimeDatatypeRFC3339Nano] = struct{}{}
-	supportedDataTypes[timestampDatatype] = struct{}{}
+	supportedDataTypes[dateTimeDatatypeNumber] = struct{}{}
 	supportedDataTypes[""] = struct{}{}
 }
 
@@ -88,7 +88,7 @@ func toTypedValue(val string, dataType string) (interface{}, error) {
 		return time.Parse(time.RFC3339, val)
 	case dateTimeDatatypeRFC3339Nano:
 		return time.Parse(time.RFC3339Nano, val)
-	case timestampDatatype:
+	case dateTimeDatatypeNumber:
 		t, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
 			return nil, err
@@ -112,7 +112,7 @@ func toTypedValue(val string, dataType string) (interface{}, error) {
 	case base64BinaryDataType:
 		return base64.StdEncoding.DecodeString(val)
 	default:
-		return nil, fmt.Errorf("%s has unsupported data type %s", val, dataType)
+		return nil, fmt.Errorf("value '%s' has unsupported data type '%s'", val, dataType)
 	}
 }
 

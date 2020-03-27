@@ -147,7 +147,7 @@ func Test_appendConverted(t *testing.T) {
 	}{
 		{"", "1", "1"},
 		{"long", "a", ""},
-		{"timestamp", "a", ""},
+		{dateTimeDatatypeNumber, "a", ""},
 		{"string", "a", `"a"`},
 	}
 
@@ -174,7 +174,7 @@ func Test_IsTypeSupported(t *testing.T) {
 	require.Equal(t, IsTypeSupported(dateTimeDatatype), true)
 	require.Equal(t, IsTypeSupported(dateTimeDatatypeRFC3339), true)
 	require.Equal(t, IsTypeSupported(dateTimeDatatypeRFC3339Nano), true)
-	require.Equal(t, IsTypeSupported(timestampDatatype), true)
+	require.Equal(t, IsTypeSupported(dateTimeDatatypeNumber), true)
 	require.Equal(t, IsTypeSupported(""), true)
 	require.Equal(t, IsTypeSupported(" "), false)
 }
