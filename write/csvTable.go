@@ -29,7 +29,7 @@ const (
 type annotationComment struct {
 	label string
 	flag  uint8
-	setup func(column *CsvTableColumn, value string) error
+	setup func(column *CsvTableColumn, value string)
 }
 
 func ignoreLeadingComment(value string) string {
@@ -43,14 +43,13 @@ func ignoreLeadingComment(value string) string {
 	return value
 }
 
-var annotationComments = []annotationComment{
-	{"#group", 1, func(column *CsvTableColumn, value string) error {
+var supportedAnnotations = []annotationComment{
+	{"#group", 1, func(column *CsvTableColumn, value string) {
 		if strings.HasSuffix(value, "true") {
 			column.LinePart = linePartTag
 		}
-		return nil
 	}},
-	{"#datatype", 2, func(column *CsvTableColumn, value string) error {
+	{"#datatype", 2, func(column *CsvTableColumn, value string) {
 		val := ignoreLeadingComment(value)
 		column.DataType = val
 		// use extra data type values to identify line parts
@@ -67,32 +66,13 @@ var annotationComments = []annotationComment{
 		case val == "field":
 			column.LinePart = linePartField
 			column.DataType = ""
-		}
-		return nil
-	}},
-	{"#default", 4, func(column *CsvTableColumn, value string) error {
-		column.DefaultValue = ignoreLeadingComment(value)
-		return nil
-	}},
-	{"#linepart", 8, func(column *CsvTableColumn, value string) error {
-		val := ignoreLeadingComment(value)
-		switch {
-		case val == "tag":
-			column.LinePart = linePartTag
-		case strings.HasPrefix(val, "ignore"):
-			column.LinePart = linePartIgnored
-		case val == "time":
+		case val == "time": // time is an alias for dateTime
 			column.LinePart = linePartTime
-		case val == "measurement":
-			column.LinePart = linePartMeasurement
-		case val == "field":
-			column.LinePart = linePartField
-		case val == "":
-			// detect line type
-		default:
-			return fmt.Errorf("unsupported line type: %s", value)
+			column.DataType = dateTimeDatatype
 		}
-		return nil
+	}},
+	{"#default", 4, func(column *CsvTableColumn, value string) {
+		column.DefaultValue = ignoreLeadingComment(value)
 	}},
 }
 
@@ -175,8 +155,8 @@ func (t *CsvTable) AddRow(row []string) bool {
 		return true
 	}
 	// process supported anotation comments
-	for i := 0; i < len(annotationComments); i++ {
-		supportedAnnotation := &annotationComments[i]
+	for i := 0; i < len(supportedAnnotations); i++ {
+		supportedAnnotation := &supportedAnnotations[i]
 		if strings.HasPrefix(strings.ToLower(row[0]), supportedAnnotation.label) {
 			if len(row[0]) > len(supportedAnnotation.label) && row[0][len(supportedAnnotation.label)] != ' ' {
 				continue // not a comment from the supported annotation
@@ -198,10 +178,7 @@ func (t *CsvTable) AddRow(row []string) bool {
 				if col.Index >= len(row) {
 					continue // missing value
 				} else {
-					err := supportedAnnotation.setup(col, row[col.Index])
-					if err != nil {
-						log.Println("WARNING:", err)
-					}
+					supportedAnnotation.setup(col, row[col.Index])
 				}
 			}
 			return false
@@ -368,14 +345,8 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 		if len(timeVal) > 0 {
 			var dataType = t.cachedTime.DataType
 			if len(dataType) == 0 {
-				//try to detect data type
-				if strings.Contains(timeVal, ".") {
-					dataType = dateTimeDatatypeRFC3339Nano
-				} else if strings.Contains(timeVal, "-") {
-					dataType = dateTimeDatatypeRFC3339
-				} else {
-					dataType = dateTimeDatatypeNumber
-				}
+				// assume dateTime data type (number or RFC3339)
+				dataType = dateTimeDatatypeNumber
 			}
 			buffer = append(buffer, ' ')
 			var err error

@@ -37,7 +37,7 @@ func Test_CsvToProtocolLines_success(t *testing.T) {
 		},
 		{
 			"simple3",
-			"_measurement,a,_time\ncpu,1,1\ncpu,2,x\n",
+			"_measurement,a,_time\ncpu,1,1\ncpu,2,invalidTime\n",
 			"",
 			"invalid syntax", // x is not valid for time column
 		},
