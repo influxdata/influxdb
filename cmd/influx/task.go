@@ -476,6 +476,7 @@ func taskRunFindCmd(opt genericCLIOpts) *cobra.Command {
 	cmd.Short = "List runs for a task"
 	cmd.Aliases = []string{"find", "ls"}
 
+	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskRunFindFlags.taskID, "task-id", "", "", "task id (required)")
 	cmd.Flags().StringVarP(&taskRunFindFlags.runID, "run-id", "", "", "run id")
 	cmd.Flags().StringVarP(&taskRunFindFlags.afterTime, "after", "", "", "after time for filtering")
