@@ -86,6 +86,8 @@ func Test_toTypedValue(t *testing.T) {
 		{"dateTime:RFC3339Nano", "1970-01-01T00:00:00.0Z", epochTime},
 		{"dateTime:RFC3339", "1970-01-01T00:00:00.000000001Z", epochTime.Add(time.Duration(1))},
 		{"dateTime:RFC3339Nano", "1970-01-01T00:00:00.000000002Z", epochTime.Add(time.Duration(2))},
+		{"dateTime:number", "3", epochTime.Add(time.Duration(3))},
+		{"dateTime", "4", epochTime.Add(time.Duration(4))},
 		{"dateTime", "1970-01-01T00:00:00Z", epochTime},
 		{"dateTime", "1970-01-01T00:00:00.000000001Z", epochTime.Add(time.Duration(1))},
 		{"u.type", "", nil},

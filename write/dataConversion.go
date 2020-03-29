@@ -87,7 +87,7 @@ func toTypedValue(val string, dataType string) (interface{}, error) {
 		if err != nil {
 			return time.Parse(time.RFC3339, val)
 		}
-		return time.Unix(0, t), nil
+		return time.Unix(0, t).UTC(), nil
 	case dateTimeDatatypeRFC3339:
 		return time.Parse(time.RFC3339, val)
 	case dateTimeDatatypeRFC3339Nano:
@@ -97,7 +97,7 @@ func toTypedValue(val string, dataType string) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		return time.Unix(0, t), nil
+		return time.Unix(0, t).UTC(), nil
 	case durationDatatype:
 		return time.ParseDuration(val)
 	case doubleDatatype:

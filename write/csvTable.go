@@ -345,7 +345,7 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 			var dataType = t.cachedTime.DataType
 			if len(dataType) == 0 {
 				// assume dateTime data type (number or RFC3339)
-				dataType = dateTimeDatatypeNumber
+				dataType = dateTimeDatatype
 			}
 			buffer = append(buffer, ' ')
 			var err error

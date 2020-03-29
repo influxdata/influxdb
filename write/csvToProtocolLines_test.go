@@ -3,6 +3,7 @@ package write
 import (
 	"errors"
 	"io"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -39,14 +40,14 @@ func Test_CsvToProtocolLines_success(t *testing.T) {
 			"simple3",
 			"_measurement,a,_time\ncpu,1,1\ncpu,2,invalidTime\n",
 			"",
-			"invalid syntax", // x is not valid for time column
+			"_time", // error in _time column
 		},
 	}
 	bufferSizes := []int{40, 7, 3, 1}
 
 	for _, test := range tests {
 		for _, bufferSize := range bufferSizes {
-			t.Run(test.name+"_"+string(bufferSize), func(t *testing.T) {
+			t.Run(test.name+"_"+strconv.Itoa(bufferSize), func(t *testing.T) {
 				reader := CsvToProtocolLines(strings.NewReader(test.csv))
 				buffer := make([]byte, bufferSize)
 				lines := make([]byte, 0, 100)
