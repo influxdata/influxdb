@@ -2,13 +2,22 @@ package main
 
 import (
 	"context"
-	"os"
+	"io"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
 )
+
+type token struct {
+	ID          platform.ID `json:"id"`
+	Token       string      `json:"token"`
+	Status      string      `json:"status"`
+	UserName    string      `json:"userName"`
+	UserID      platform.ID `json:"userID"`
+	Permissions []string    `json:"permissions"`
+}
 
 func cmdAuth(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("auth", nil, false)
@@ -25,6 +34,12 @@ func cmdAuth(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	)
 
 	return cmd
+}
+
+var authCRUDFlags struct {
+	id          string
+	json        bool
+	hideHeaders bool
 }
 
 var authCreateFlags struct {
@@ -71,6 +86,7 @@ func authCreateCmd() *cobra.Command {
 	authCreateFlags.org.register(cmd, false)
 
 	cmd.Flags().StringVarP(&authCreateFlags.user, "user", "u", "", "The user name")
+	registerPrintOptions(cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
 
 	cmd.Flags().BoolVarP(&authCreateFlags.writeUserPermission, "write-user", "", false, "Grants the permission to perform mutative actions against organization users")
 	cmd.Flags().BoolVarP(&authCreateFlags.readUserPermission, "read-user", "", false, "Grants the permission to perform read actions against organization users")
@@ -107,6 +123,11 @@ func authCreateCmd() *cobra.Command {
 
 func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	if err := authCreateFlags.org.validOrgFlags(&flags); err != nil {
+		return err
+	}
+
+	userSvc, err := newUserService()
+	if err != nil {
 		return err
 	}
 
@@ -221,10 +242,6 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if userName := authCreateFlags.user; userName != "" {
-		userSvc, err := newUserService()
-		if err != nil {
-			return err
-		}
 		user, err := userSvc.FindUser(context.Background(), platform.UserFilter{
 			Name: &userName,
 		})
@@ -243,38 +260,34 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"Token",
-		"Status",
-		"UserID",
-		"Permissions",
-	)
+	user, err := userSvc.FindUserByID(context.Background(), authorization.UserID)
+	if err != nil {
+		return err
+	}
 
-	ps := []string{}
+	ps := make([]string, 0, len(authorization.Permissions))
 	for _, p := range authorization.Permissions {
 		ps = append(ps, p.String())
 	}
 
-	w.Write(map[string]interface{}{
-		"ID":          authorization.ID.String(),
-		"Token":       authorization.Token,
-		"Status":      authorization.Status,
-		"UserID":      authorization.UserID.String(),
-		"Permissions": ps,
+	return writeTokens(cmd.OutOrStdout(), tokenPrintOpt{
+		jsonOut:     authCRUDFlags.json,
+		hideHeaders: authCRUDFlags.hideHeaders,
+		token: token{
+			ID:          authorization.ID,
+			Token:       authorization.Token,
+			Status:      string(authorization.Status),
+			UserName:    user.Name,
+			UserID:      user.ID,
+			Permissions: ps,
+		},
 	})
-
-	w.Flush()
-
-	return nil
 }
 
 var authorizationFindFlags struct {
 	org    organization
 	user   string
 	userID string
-	id     string
 }
 
 func authFindCmd() *cobra.Command {
@@ -285,27 +298,14 @@ func authFindCmd() *cobra.Command {
 		RunE:    checkSetupRunEMiddleware(&flags)(authorizationFindF),
 	}
 
+	authorizationFindFlags.org.register(cmd, false)
+	registerPrintOptions(cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
 	cmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")
 	cmd.Flags().StringVarP(&authorizationFindFlags.userID, "user-id", "", "", "The user ID")
 
-	cmd.Flags().StringVarP(&authorizationFindFlags.id, "id", "i", "", "The authorization ID")
+	cmd.Flags().StringVarP(&authCRUDFlags.id, "id", "i", "", "The authorization ID")
 
 	return cmd
-}
-
-func newAuthorizationService() (platform.AuthorizationService, error) {
-	if flags.local {
-		return newLocalKVService()
-	}
-
-	httpClient, err := newHTTPClient()
-	if err != nil {
-		return nil, err
-	}
-
-	return &http.AuthorizationService{
-		Client: httpClient,
-	}, nil
 }
 
 func authorizationFindF(cmd *cobra.Command, args []string) error {
@@ -319,9 +319,9 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	filter := platform.AuthorizationFilter{}
-	if authorizationFindFlags.id != "" {
-		fID, err := platform.IDFromString(authorizationFindFlags.id)
+	var filter platform.AuthorizationFilter
+	if authCRUDFlags.id != "" {
+		fID, err := platform.IDFromString(authCRUDFlags.id)
 		if err != nil {
 			return err
 		}
@@ -353,43 +353,33 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"Token",
-		"Status",
-		"User",
-		"UserID",
-		"Permissions",
-	)
-
+	var tokens []token
 	for _, a := range authorizations {
 		var permissions []string
 		for _, p := range a.Permissions {
 			permissions = append(permissions, p.String())
 		}
+
 		user, err := us.FindUserByID(context.Background(), a.UserID)
 		if err != nil {
 			return err
 		}
 
-		w.Write(map[string]interface{}{
-			"ID":          a.ID,
-			"Token":       a.Token,
-			"Status":      a.Status,
-			"User":        user.Name,
-			"UserID":      a.UserID.String(),
-			"Permissions": permissions,
+		tokens = append(tokens, token{
+			ID:          a.ID,
+			Token:       a.Token,
+			Status:      string(a.Status),
+			UserName:    user.Name,
+			UserID:      a.UserID,
+			Permissions: permissions,
 		})
 	}
 
-	w.Flush()
-
-	return nil
-}
-
-var authorizationDeleteFlags struct {
-	id string
+	return writeTokens(cmd.OutOrStdout(), tokenPrintOpt{
+		jsonOut:     authCRUDFlags.json,
+		hideHeaders: authCRUDFlags.hideHeaders,
+		tokens:      tokens,
+	})
 }
 
 func authDeleteCmd() *cobra.Command {
@@ -399,7 +389,8 @@ func authDeleteCmd() *cobra.Command {
 		RunE:  checkSetupRunEMiddleware(&flags)(authorizationDeleteF),
 	}
 
-	cmd.Flags().StringVarP(&authorizationDeleteFlags.id, "id", "i", "", "The authorization ID (required)")
+	registerPrintOptions(cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
+	cmd.Flags().StringVarP(&authCRUDFlags.id, "id", "i", "", "The authorization ID (required)")
 	cmd.MarkFlagRequired("id")
 
 	return cmd
@@ -411,7 +402,12 @@ func authorizationDeleteF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	id, err := platform.IDFromString(authorizationDeleteFlags.id)
+	us, err := newUserService()
+	if err != nil {
+		return err
+	}
+
+	id, err := platform.IDFromString(authCRUDFlags.id)
 	if err != nil {
 		return err
 	}
@@ -426,36 +422,29 @@ func authorizationDeleteF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"Token",
-		"User",
-		"UserID",
-		"Permissions",
-		"Deleted",
-	)
+	user, err := us.FindUserByID(context.Background(), a.UserID)
+	if err != nil {
+		return err
+	}
 
-	ps := []string{}
+	ps := make([]string, 0, len(a.Permissions))
 	for _, p := range a.Permissions {
 		ps = append(ps, p.String())
 	}
 
-	w.Write(map[string]interface{}{
-		"ID":          a.ID.String(),
-		"Token":       a.Token,
-		"UserID":      a.UserID.String(),
-		"Permissions": ps,
-		"Deleted":     true,
+	return writeTokens(cmd.OutOrStdout(), tokenPrintOpt{
+		jsonOut:     authCRUDFlags.json,
+		deleted:     true,
+		hideHeaders: authCRUDFlags.hideHeaders,
+		token: token{
+			ID:          a.ID,
+			Token:       a.Token,
+			Status:      string(a.Status),
+			UserName:    user.Name,
+			UserID:      user.ID,
+			Permissions: ps,
+		},
 	})
-
-	w.Flush()
-
-	return nil
-}
-
-var authorizationActiveFlags struct {
-	id string
 }
 
 func authActiveCmd() *cobra.Command {
@@ -465,7 +454,8 @@ func authActiveCmd() *cobra.Command {
 		RunE:  checkSetupRunEMiddleware(&flags)(authorizationActiveF),
 	}
 
-	cmd.Flags().StringVarP(&authorizationActiveFlags.id, "id", "i", "", "The authorization ID (required)")
+	registerPrintOptions(cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
+	cmd.Flags().StringVarP(&authCRUDFlags.id, "id", "i", "", "The authorization ID (required)")
 	cmd.MarkFlagRequired("id")
 
 	return cmd
@@ -483,7 +473,7 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 	}
 
 	var id platform.ID
-	if err := id.DecodeFromString(authorizationActiveFlags.id); err != nil {
+	if err := id.DecodeFromString(authCRUDFlags.id); err != nil {
 		return err
 	}
 
@@ -499,42 +489,28 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"Token",
-		"Status",
-		"User",
-		"UserID",
-		"Permissions",
-	)
-
-	ps := []string{}
-	for _, p := range a.Permissions {
-		ps = append(ps, p.String())
-	}
-
 	user, err := us.FindUserByID(context.Background(), a.UserID)
 	if err != nil {
 		return err
 	}
 
-	w.Write(map[string]interface{}{
-		"ID":          a.ID.String(),
-		"Token":       a.Token,
-		"Status":      a.Status,
-		"User":        user.Name,
-		"UserID":      a.UserID.String(),
-		"Permissions": ps,
+	ps := make([]string, 0, len(a.Permissions))
+	for _, p := range a.Permissions {
+		ps = append(ps, p.String())
+	}
+
+	return writeTokens(cmd.OutOrStdout(), tokenPrintOpt{
+		jsonOut:     authCRUDFlags.json,
+		hideHeaders: authCRUDFlags.hideHeaders,
+		token: token{
+			ID:          a.ID,
+			Token:       a.Token,
+			Status:      string(a.Status),
+			UserName:    user.Name,
+			UserID:      user.ID,
+			Permissions: ps,
+		},
 	})
-
-	w.Flush()
-
-	return nil
-}
-
-var authorizationInactiveFlags struct {
-	id string
 }
 
 func authInactiveCmd() *cobra.Command {
@@ -544,7 +520,8 @@ func authInactiveCmd() *cobra.Command {
 		RunE:  checkSetupRunEMiddleware(&flags)(authorizationInactiveF),
 	}
 
-	cmd.Flags().StringVarP(&authorizationInactiveFlags.id, "id", "i", "", "The authorization ID (required)")
+	registerPrintOptions(cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
+	cmd.Flags().StringVarP(&authCRUDFlags.id, "id", "i", "", "The authorization ID (required)")
 	cmd.MarkFlagRequired("id")
 
 	return cmd
@@ -556,8 +533,13 @@ func authorizationInactiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	us, err := newUserService()
+	if err != nil {
+		return err
+	}
+
 	var id platform.ID
-	if err := id.DecodeFromString(authorizationInactiveFlags.id); err != nil {
+	if err := id.DecodeFromString(authCRUDFlags.id); err != nil {
 		return err
 	}
 
@@ -573,30 +555,96 @@ func authorizationInactiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"Token",
-		"Status",
-		"User",
-		"UserID",
-		"Permissions",
-	)
+	user, err := us.FindUserByID(context.Background(), a.UserID)
+	if err != nil {
+		return err
+	}
 
-	ps := []string{}
+	ps := make([]string, 0, len(a.Permissions))
 	for _, p := range a.Permissions {
 		ps = append(ps, p.String())
 	}
 
-	w.Write(map[string]interface{}{
-		"ID":          a.ID.String(),
-		"Token":       a.Token,
-		"Status":      a.Status,
-		"UserID":      a.UserID.String(),
-		"Permissions": ps,
+	return writeTokens(cmd.OutOrStdout(), tokenPrintOpt{
+		jsonOut:     authCRUDFlags.json,
+		hideHeaders: authCRUDFlags.hideHeaders,
+		token: token{
+			ID:          a.ID,
+			Token:       a.Token,
+			Status:      string(a.Status),
+			UserName:    user.Name,
+			UserID:      user.ID,
+			Permissions: ps,
+		},
 	})
+}
 
-	w.Flush()
+type tokenPrintOpt struct {
+	jsonOut     bool
+	deleted     bool
+	hideHeaders bool
+	token       token
+	tokens      []token
+}
+
+func writeTokens(w io.Writer, printOpts tokenPrintOpt) error {
+	if printOpts.jsonOut {
+		var v interface{} = printOpts.tokens
+		if printOpts.tokens == nil {
+			v = printOpts.token
+		}
+		return writeJSON(w, v)
+	}
+
+	tabW := internal.NewTabWriter(w)
+	defer tabW.Flush()
+
+	tabW.HideHeaders(printOpts.hideHeaders)
+
+	headers := []string{
+		"ID",
+		"Token",
+		"User Name",
+		"User ID",
+		"Permissions",
+	}
+	if printOpts.deleted {
+		headers = append(headers, "Deleted")
+	}
+	tabW.WriteHeaders(headers...)
+
+	if printOpts.tokens == nil {
+		printOpts.tokens = append(printOpts.tokens, printOpts.token)
+	}
+
+	for _, t := range printOpts.tokens {
+		m := map[string]interface{}{
+			"ID":          t.ID.String(),
+			"Token":       t.Token,
+			"User Name":   t.UserName,
+			"User ID":     t.UserID.String(),
+			"Permissions": t.Permissions,
+		}
+		if printOpts.deleted {
+			m["Deleted"] = true
+		}
+		tabW.Write(m)
+	}
 
 	return nil
+}
+
+func newAuthorizationService() (platform.AuthorizationService, error) {
+	if flags.local {
+		return newLocalKVService()
+	}
+
+	httpClient, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return &http.AuthorizationService{
+		Client: httpClient,
+	}, nil
 }

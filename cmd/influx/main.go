@@ -25,7 +25,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const maxTCPConnections = 128
+const maxTCPConnections = 10
 
 func main() {
 	influxCmd := influxCmd()
