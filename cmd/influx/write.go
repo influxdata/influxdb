@@ -27,7 +27,6 @@ type writeFlagsType struct {
 	Precision string
 	Format    string
 	File      string
-	DryRun    bool
 }
 
 var writeFlags writeFlagsType
