@@ -95,7 +95,7 @@ export const variablesReducer = (
         if (!draftState.values[contextID]) {
           draftState.values[contextID] = {
             status: RemoteDataState.Done,
-            order: [],
+            order: draftState.allIDs,
             values: {},
           }
         }
