@@ -89,24 +89,30 @@ describe('Dashboard', () => {
   const getSelectedVariable = (contextID: string, index?: number) => win => {
     const state = win.store.getState() as AppState
     const defaultVarOrder = state.resources.variables.allIDs
-    const defaultVarDawg = state.resources.variables.byID[defaultVarOrder[index]] || {}
-    const filledVarDawg = (state.resources.variables.values[contextID] || { values: {} }).values[defaultVarOrder[index]] || {}
+    const defaultVarDawg =
+      state.resources.variables.byID[defaultVarOrder[index]] || {}
+    const filledVarDawg =
+      (state.resources.variables.values[contextID] || {values: {}}).values[
+        defaultVarOrder[index]
+      ] || {}
 
     const hydratedVarDawg = {
       ...defaultVarDawg,
-      ...filledVarDawg
+      ...filledVarDawg,
     }
 
     if (hydratedVarDawg.arguments.type === 'map') {
       if (!hydratedVarDawg.selected) {
-        hydratedVarDawg.selected = [ Object.keys(hydratedVarDawg.arguments.values)[0] ]
+        hydratedVarDawg.selected = [
+          Object.keys(hydratedVarDawg.arguments.values)[0],
+        ]
       }
 
       return hydratedVarDawg.arguments.values[hydratedVarDawg.selected[0]]
     }
 
     if (!hydratedVarDawg.selected) {
-      hydratedVarDawg.selected = [ hydratedVarDawg.arguments.values[0] ]
+      hydratedVarDawg.selected = [hydratedVarDawg.arguments.values[0]]
     }
 
     return hydratedVarDawg.selected[0]
