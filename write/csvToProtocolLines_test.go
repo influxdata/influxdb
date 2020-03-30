@@ -97,8 +97,8 @@ func Test_CsvToProtocolLines(t *testing.T) {
 	}
 }
 
-// TestCsvData_dataErrors validates table data errors
-func TestCsvData_logWarnings(t *testing.T) {
+// TestCsvData_LogTableColumns checks correct logging
+func TestCsvData_LogTableColumns(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 	oldFlags := log.Flags()
@@ -115,6 +115,8 @@ func TestCsvData_logWarnings(t *testing.T) {
 	csv := "_measurement,a,b\ncpu,1,1\ncpu,b2\n"
 
 	reader := CsvToProtocolLines(strings.NewReader(csv)).LogTableColumns(true)
+	require.Equal(t, reader.logCsvErrors, false)
+	require.Equal(t, reader.logTableDataColumns, true)
 	buffer := make([]byte, 100)
 	lines := make([]byte, 0, 100)
 	for {
@@ -128,6 +130,41 @@ func TestCsvData_logWarnings(t *testing.T) {
 	fmt.Println(out)
 	messages := strings.Count(out, prefix)
 	require.Equal(t, messages, 1)
+}
+
+// TestCsvData_LogCsvErrors checks correct logging
+func TestCsvData_LogCsvErrors(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	oldFlags := log.Flags()
+	log.SetFlags(0)
+	oldPrefix := log.Prefix()
+	prefix := "::PREFIX::"
+	log.SetPrefix(prefix)
+	defer func() {
+		log.SetOutput(os.Stderr)
+		log.SetFlags(oldFlags)
+		log.SetPrefix(oldPrefix)
+	}()
+
+	csv := "_measurement,a,_time\n,1,1\ncpu,2,2\ncpu,3,3a\n"
+
+	reader := CsvToProtocolLines(strings.NewReader(csv)).LogCsvErrors(true)
+	require.Equal(t, reader.logCsvErrors, true)
+	require.Equal(t, reader.logTableDataColumns, false)
+	buffer := make([]byte, 100)
+	lines := make([]byte, 0, 100)
+	for {
+		n, err := reader.Read(buffer)
+		if err != nil {
+			break
+		}
+		lines = append(lines, buffer[:n]...)
+	}
+	out := buf.String()
+	fmt.Println(out)
+	messages := strings.Count(out, prefix)
+	require.Equal(t, messages, 2)
 }
 
 // Test_CsvLineError checks formating of line errors

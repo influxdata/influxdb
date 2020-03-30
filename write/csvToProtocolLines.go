@@ -27,20 +27,29 @@ type CsvToLineReader struct {
 	Table CsvTable
 	// LineNumber represent line number of csv.Reader, 1-originated
 	LineNumber int
-	// LogTableColumns when set, logs table data columns before reading data rows
+	// when set, logs table data columns before reading data rows
 	logTableDataColumns bool
 	// flag that indicates whether data row was read
 	dataRowAdded bool
+	// log CSV data errors to sterr and continue with CSV processing
+	logCsvErrors bool
 
 	// reader results
-	buffer   []byte
-	index    int
-	finished error
+	buffer     []byte
+	lineBuffer []byte
+	index      int
+	finished   error
 }
 
 // LogTableColumns turns on/off logging of table data columns before reading data rows
 func (state *CsvToLineReader) LogTableColumns(val bool) *CsvToLineReader {
-	state.logTableDataColumns = true
+	state.logTableDataColumns = val
+	return state
+}
+
+// LogCsvErrors controls whether to fail on every CSV conversion error (false) or to log the error and continue (true)
+func (state *CsvToLineReader) LogCsvErrors(val bool) *CsvToLineReader {
+	state.logCsvErrors = val
 	return state
 }
 
@@ -81,16 +90,25 @@ func (state *CsvToLineReader) Read(p []byte) (n int, err error) {
 			continue
 		}
 		if state.Table.AddRow(row) {
-			buffer, err := state.Table.AppendLine(state.buffer, row)
+			var err error
+			state.lineBuffer = state.lineBuffer[:0] // reuse line buffer
+			state.lineBuffer, err = state.Table.AppendLine(state.lineBuffer, row)
 			if !state.dataRowAdded && state.logTableDataColumns {
 				log.Println(state.Table.DataColumnsInfo())
 			}
 			state.dataRowAdded = true
 			if err != nil {
-				state.finished = CsvLineError{state.LineNumber, err}
+				lineError := CsvLineError{state.LineNumber, err}
+				if state.logCsvErrors {
+					log.Println(lineError)
+					continue
+				}
+				state.finished = lineError
 				return state.Read(p)
 			}
-			state.buffer = append(buffer, '\n')
+
+			state.buffer = append(state.buffer, state.lineBuffer...)
+			state.buffer = append(state.buffer, '\n')
 			break
 		} else {
 			state.dataRowAdded = false
