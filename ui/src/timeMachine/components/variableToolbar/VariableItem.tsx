@@ -19,16 +19,37 @@ interface Props {
   onClickVariable: (variableName: string) => void
 }
 
+function shouldShowTooltip(variable: Variable): boolean {
+  // a system variable isn't selectable in this manor
+  if (variable.arguments.type === 'system') {
+    return false
+  }
+
+  // if a static list is empty or has a single component, we dont want to show the tooltip,
+  // as it would have nothing for the user to do on it
+  if (
+    variable.arguments.type === 'constant' &&
+    variable.arguments.values.length <= 1
+  ) {
+    return false
+  }
+
+  // if a static map object is empty or has a single component, we dont want to show the tooltip,
+  // as it would have nothing for the user to do on it
+  if (
+    variable.arguments.type === 'map' &&
+    Object.keys(variable.arguments.values.length) <= 1
+  ) {
+    return false
+  }
+
+  return true
+}
+
 const VariableItem: FC<Props> = ({variable, onClickVariable}) => {
   const trigger = useRef<HTMLDivElement>(null)
 
-  if (
-    variable.arguments.type === 'system' ||
-    (variable.arguments.type === 'constant' &&
-      variable.arguments.values.length <= 1) ||
-    (variable.arguments.type === 'map' &&
-      Object.keys(variable.arguments.values).length <= 1)
-  ) {
+  if (!shouldShowTooltip(variable)) {
     return (
       <div className="variables-toolbar--item" ref={trigger}>
         <VariableLabel name={variable.name} onClickVariable={onClickVariable} />

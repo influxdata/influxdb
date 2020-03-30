@@ -72,8 +72,8 @@ export const getVariables = (
 ): Variable[] => {
   const variableIDs = get(
     state,
-    `resources.variables.values['${contextID}'].order`,
-    get(state, `resources.variables.allIDs`, [])
+    ['resources', 'variables', 'values', contextID, 'order'],
+    get(state, ['resources', 'variables', 'allIDs'], [])
   )
 
   return variableIDs
@@ -93,8 +93,8 @@ export const getAllVariables = (
 ): Variable[] => {
   const variableIDs = get(
     state,
-    `resources.variables.values['${contextID}'].order`,
-    get(state, `resources.variables.allIDs`, [])
+    ['resources', 'variables', 'values', contextID, 'order'],
+    get(state, ['resources', 'variables', 'allIDs'], [])
   ).concat([TIME_RANGE_START, TIME_RANGE_STOP, WINDOW_PERIOD])
 
   return variableIDs
@@ -111,8 +111,8 @@ export const getVariable = (
   contextID: string | null,
   variableID: string
 ): Variable => {
-  const ctx = get(state, `resources.variables.values["${contextID}"]`)
-  let vari = get(state, `resources.variables.byID["${variableID}"]`)
+  const ctx = get(state, ['resources', 'variables', 'values', contextID])
+  let vari = get(state, ['resources', 'variables', 'byID', variableID])
 
   if (ctx && ctx.values && ctx.values.hasOwnProperty(variableID)) {
     vari = {...vari, ...ctx.values[variableID]}

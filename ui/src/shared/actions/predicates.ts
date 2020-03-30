@@ -222,6 +222,11 @@ export const executePreviewQuery = (query: string) => async (
     const orgID = getOrg(state).id
 
     // TODO figure out how to do this better
+    // for some reason we can't use the time range variables
+    // for preview query, which means we can't use getAllVariables
+    // which means we have to drag around all this asAssignment
+    // garbage to be able to run a query instead of just being able
+    // to executeQuery as normal
     const variableAssignments = getVariables(
       state,
       state.timeMachines.activeTimeMachineID

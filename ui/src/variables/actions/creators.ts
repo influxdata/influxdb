@@ -23,7 +23,6 @@ export type Action =
   | ReturnType<typeof setVariable>
   | ReturnType<typeof removeVariable>
   | ReturnType<typeof moveVariable>
-  | ReturnType<typeof setValues>
   | ReturnType<typeof selectValue>
 
 // R is the type of the value of the "result" key in normalizr's normalization
@@ -70,18 +69,6 @@ export const moveVariable = (
     originalIndex,
     newIndex,
     contextID,
-  } as const)
-
-export const setValues = (
-  contextID: string,
-  status: RemoteDataState,
-  values?: VariableValuesByID
-) =>
-  ({
-    type: SET_VARIABLE_VALUES,
-    contextID,
-    status,
-    values,
   } as const)
 
 export const selectValue = (
