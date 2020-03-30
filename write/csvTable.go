@@ -109,6 +109,18 @@ func (c *CsvTableColumn) LineLabel() string {
 	return c.Label
 }
 
+// Value return the value of the column for the row supplied
+func (c *CsvTableColumn) Value(row []string) string {
+	if c.Index < 0 || c.Index >= len(row) {
+		return c.DefaultValue
+	}
+	val := row[c.Index]
+	if len(val) > 0 {
+		return val
+	}
+	return c.DefaultValue
+}
+
 // CsvColumnError indicates conversion in a specific column
 type CsvColumnError struct {
 	Column string
@@ -286,7 +298,7 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 	if t.cachedMeasurement == nil {
 		return buffer, errors.New("no measurement column found")
 	}
-	measurement := orDefault(row[t.cachedMeasurement.Index], t.cachedMeasurement.DefaultValue)
+	measurement := t.cachedMeasurement.Value(row)
 	if measurement == "" {
 		return buffer, CsvColumnError{
 			t.cachedMeasurement.Label,
@@ -295,7 +307,7 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 	}
 	buffer = append(buffer, escapeMeasurement(measurement)...)
 	for _, tag := range t.cachedTags {
-		value := orDefault(row[tag.Index], tag.DefaultValue)
+		value := tag.Value(row)
 		if tag.Index < len(row) && len(value) > 0 {
 			buffer = append(buffer, ',')
 			buffer = append(buffer, tag.LineLabel()...)
@@ -306,8 +318,8 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 	buffer = append(buffer, ' ')
 	fieldAdded := false
 	if t.cachedFieldName != nil && t.cachedFieldValue != nil {
-		field := orDefault(row[t.cachedFieldName.Index], t.cachedFieldName.DefaultValue)
-		value := orDefault(row[t.cachedFieldValue.Index], t.cachedFieldValue.DefaultValue)
+		field := t.cachedFieldName.Value(row)
+		value := t.cachedFieldValue.Value(row)
 		if len(value) > 0 && len(field) > 0 {
 			buffer = append(buffer, escapeTag(field)...)
 			buffer = append(buffer, '=')
@@ -323,23 +335,21 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 		}
 	}
 	for _, field := range t.cachedFields {
-		if field.Index < len(row) {
-			value := orDefault(row[field.Index], field.DefaultValue)
-			if len(value) > 0 {
-				if !fieldAdded {
-					fieldAdded = true
-				} else {
-					buffer = append(buffer, ',')
-				}
-				buffer = append(buffer, field.LineLabel()...)
-				buffer = append(buffer, '=')
-				var err error
-				buffer, err = appendConverted(buffer, value, &field)
-				if err != nil {
-					return buffer, CsvColumnError{
-						field.Label,
-						err,
-					}
+		value := field.Value(row)
+		if len(value) > 0 {
+			if !fieldAdded {
+				fieldAdded = true
+			} else {
+				buffer = append(buffer, ',')
+			}
+			buffer = append(buffer, field.LineLabel()...)
+			buffer = append(buffer, '=')
+			var err error
+			buffer, err = appendConverted(buffer, value, &field)
+			if err != nil {
+				return buffer, CsvColumnError{
+					field.Label,
+					err,
 				}
 			}
 		}
@@ -349,7 +359,7 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 	}
 
 	if t.cachedTime != nil && t.cachedTime.Index < len(row) {
-		timeVal := orDefault(row[t.cachedTime.Index], t.cachedTime.DefaultValue)
+		timeVal := t.cachedTime.Value(row)
 		if len(timeVal) > 0 {
 			if len(t.cachedTime.DataType) == 0 {
 				// assume dateTime data type (number or RFC3339)
@@ -368,13 +378,6 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 		}
 	}
 	return buffer, nil
-}
-
-func orDefault(val string, defaultValue string) string {
-	if len(val) > 0 {
-		return val
-	}
-	return defaultValue
 }
 
 // Column returns the first column of the supplied label or nil
