@@ -1,9 +1,6 @@
 package main
 
 import (
-	"fmt"
-
-	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/config"
 	"github.com/spf13/cobra"
 )
@@ -16,10 +13,7 @@ func cmdConfig(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	builder := cmdConfigBuilder{
 		genericCLIOpts: opt,
 		globalFlags:    f,
-		svc: config.LocalConfigsSVC{
-			Path: path,
-			Dir:  dir,
-		},
+		svc:            config.NewLocalConfigSVC(path, dir),
 	}
 	builder.globalFlags = f
 	return builder.cmd()
@@ -56,33 +50,13 @@ func (b *cmdConfigBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdSwitchActiveRunEFn(cmd *cobra.Command, args []string) error {
-	pp, err := b.svc.ParseConfigs()
+	cfg, err := b.svc.SwitchActive(args[0])
 	if err != nil {
-		return err
-	}
-	b.name = args[0]
-	p0, ok := pp[b.name]
-	if !ok {
-		return &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Msg:  fmt.Sprintf("name %q is not found", b.name),
-		}
-	}
-	pp[b.name] = p0
-
-	if err := pp.Switch(b.name); err != nil {
-		return err
-	}
-
-	if err = b.svc.WriteConfigs(pp); err != nil {
 		return err
 	}
 
 	return b.printConfigs(configPrintOpts{
-		config: cfg{
-			name:   b.name,
-			Config: pp[b.name],
-		},
+		config: cfg,
 	})
 }
 
@@ -104,40 +78,19 @@ func (b *cmdConfigBuilder) cmdCreate() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
-	pp, err := b.svc.ParseConfigs()
-	if err != nil {
-		return err
-	}
-
-	p := config.Config{
+	cfg, err := b.svc.CreateConfig(config.Config{
+		Name:   b.name,
 		Host:   b.url,
 		Token:  b.token,
 		Org:    b.org,
 		Active: b.active,
-	}
-	if _, ok := pp[b.name]; ok {
-		return &influxdb.Error{
-			Code: influxdb.EConflict,
-			Msg:  fmt.Sprintf("name %q already exists", b.name),
-		}
-	}
-
-	pp[b.name] = p
-	if p.Active {
-		if err := pp.Switch(b.name); err != nil {
-			return err
-		}
-	}
-
-	if err = b.svc.WriteConfigs(pp); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
 	return b.printConfigs(configPrintOpts{
-		config: cfg{
-			name:   b.name,
-			Config: p,
-		},
+		config: cfg,
 	})
 }
 
@@ -153,30 +106,14 @@ func (b *cmdConfigBuilder) cmdDelete() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) error {
-	pp, err := b.svc.ParseConfigs()
+	cfg, err := b.svc.DeleteConfig(b.name)
 	if err != nil {
-		return err
-	}
-
-	p, ok := pp[b.name]
-	if !ok {
-		return &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Msg:  fmt.Sprintf("name %q is not found", b.name),
-		}
-	}
-	delete(pp, b.name)
-
-	if err = b.svc.WriteConfigs(pp); err != nil {
 		return err
 	}
 
 	return b.printConfigs(configPrintOpts{
 		delete: true,
-		config: cfg{
-			name:   b.name,
-			Config: p,
-		},
+		config: cfg,
 	})
 }
 
@@ -197,44 +134,19 @@ func (b *cmdConfigBuilder) cmdUpdate() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdUpdateRunEFn(*cobra.Command, []string) error {
-	pp, err := b.svc.ParseConfigs()
+	cfg, err := b.svc.UpdateConfig(config.Config{
+		Name:   b.name,
+		Host:   b.url,
+		Token:  b.token,
+		Org:    b.org,
+		Active: b.active,
+	})
 	if err != nil {
 		return err
 	}
 
-	p0, ok := pp[b.name]
-	if !ok {
-		return &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Msg:  fmt.Sprintf("name %q is not found", b.name),
-		}
-	}
-	if b.token != "" {
-		p0.Token = b.token
-	}
-	if b.url != "" {
-		p0.Host = b.url
-	}
-	if b.org != "" {
-		p0.Org = b.org
-	}
-
-	pp[b.name] = p0
-	if b.active {
-		if err := pp.Switch(b.name); err != nil {
-			return err
-		}
-	}
-
-	if err = b.svc.WriteConfigs(pp); err != nil {
-		return err
-	}
-
 	return b.printConfigs(configPrintOpts{
-		config: cfg{
-			name:   b.name,
-			Config: pp[b.name],
-		},
+		config: cfg,
 	})
 }
 
@@ -247,17 +159,9 @@ func (b *cmdConfigBuilder) cmdList() *cobra.Command {
 }
 
 func (b *cmdConfigBuilder) cmdListRunEFn(*cobra.Command, []string) error {
-	pp, err := b.svc.ParseConfigs()
+	cfgs, err := b.svc.ListConfigs()
 	if err != nil {
 		return err
-	}
-
-	var cfgs []cfg
-	for n, p := range pp {
-		cfgs = append(cfgs, cfg{
-			name:   n,
-			Config: p,
-		})
 	}
 
 	return b.printConfigs(configPrintOpts{configs: cfgs})
@@ -288,7 +192,9 @@ func (b *cmdConfigBuilder) printConfigs(opts configPrintOpts) error {
 	w.WriteHeaders(headers...)
 
 	if opts.configs == nil {
-		opts.configs = append(opts.configs, opts.config)
+		opts.configs = config.Configs{
+			opts.config.Name: opts.config,
+		}
 	}
 	for _, c := range opts.configs {
 		var active string
@@ -297,7 +203,7 @@ func (b *cmdConfigBuilder) printConfigs(opts configPrintOpts) error {
 		}
 		m := map[string]interface{}{
 			"Active": active,
-			"Name":   c.name,
+			"Name":   c.Name,
 			"URL":    c.Host,
 			"Org":    c.Org,
 		}
@@ -314,12 +220,7 @@ func (b *cmdConfigBuilder) printConfigs(opts configPrintOpts) error {
 type (
 	configPrintOpts struct {
 		delete  bool
-		config  cfg
-		configs []cfg
-	}
-
-	cfg struct {
-		name string
-		config.Config
+		config  config.Config
+		configs config.Configs
 	}
 )
