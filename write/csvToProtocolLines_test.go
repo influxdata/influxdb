@@ -2,6 +2,7 @@ package write
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -58,6 +59,7 @@ func Test_CsvToProtocolLines_success(t *testing.T) {
 							break
 						}
 						if test.err != "" {
+							fmt.Println(err)
 							if err := err.Error(); !strings.Contains(err, test.err) {
 								require.Equal(t, err, test.err)
 							}

@@ -79,7 +79,11 @@ func TestQueryResult(t *testing.T) {
 							// some traling data are missing
 							require.Equal(t, col.DefaultValue, "")
 						}
-						require.Equal(t, col.DataType, rows[i-3][j], "row %d, col %d", i-3, j)
+						types := strings.Split(rows[i-3][j], ":")
+						require.Equal(t, types[0], col.DataType, "row %d, col %d", i-3, j)
+						if len(types) > 1 {
+							require.Equal(t, types[1], col.DataFormat, "row %d, col %d", i-3, j)
+						}
 					}
 				}
 				// verify cached values

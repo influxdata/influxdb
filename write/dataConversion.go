@@ -12,23 +12,23 @@ import (
 
 // see https://v2.docs.influxdata.com/v2.0/reference/syntax/annotated-csv/#valid-data-types
 const (
-	stringDatatype              = "string"
-	doubleDatatype              = "double"
-	boolDatatype                = "boolean"
-	longDatatype                = "long"
-	uLongDatatype               = "unsignedLong"
-	durationDatatype            = "duration"
-	base64BinaryDataType        = "base64Binary"
-	dateTimeDatatype            = "dateTime"
-	dateTimeDatatypeRFC3339     = "dateTime:RFC3339"
-	dateTimeDatatypeRFC3339Nano = "dateTime:RFC3339Nano"
-	dateTimeDatatypeNumber      = "dateTime:number" //the same as long, but serialized without i suffix
+	stringDatatype                = "string"
+	doubleDatatype                = "double"
+	boolDatatype                  = "boolean"
+	longDatatype                  = "long"
+	uLongDatatype                 = "unsignedLong"
+	durationDatatype              = "duration"
+	base64BinaryDataType          = "base64Binary"
+	dateTimeDatatype              = "dateTime"
+	dateTimeDataFormatRFC3339     = "RFC3339"
+	dateTimeDataFormatRFC3339Nano = "RFC3339Nano"
+	dateTimeDataFormatNumber      = "number" //the same as long, but serialized without i suffix
 )
 
 var supportedDataTypes map[string]struct{}
 
 func init() {
-	supportedDataTypes = make(map[string]struct{}, 12)
+	supportedDataTypes = make(map[string]struct{}, 9)
 	supportedDataTypes[stringDatatype] = struct{}{}
 	supportedDataTypes[doubleDatatype] = struct{}{}
 	supportedDataTypes[boolDatatype] = struct{}{}
@@ -37,9 +37,6 @@ func init() {
 	supportedDataTypes[durationDatatype] = struct{}{}
 	supportedDataTypes[base64BinaryDataType] = struct{}{}
 	supportedDataTypes[dateTimeDatatype] = struct{}{}
-	supportedDataTypes[dateTimeDatatypeRFC3339] = struct{}{}
-	supportedDataTypes[dateTimeDatatypeRFC3339Nano] = struct{}{}
-	supportedDataTypes[dateTimeDatatypeNumber] = struct{}{}
 	supportedDataTypes[""] = struct{}{}
 }
 
@@ -78,26 +75,31 @@ func escapeString(val string) string {
 	return val
 }
 
-func toTypedValue(val string, dataType string) (interface{}, error) {
+func toTypedValue(val string, dataType string, dataFormat string) (interface{}, error) {
 	switch dataType {
 	case stringDatatype:
 		return val, nil
 	case dateTimeDatatype:
-		t, err := strconv.ParseInt(val, 10, 64)
-		if err != nil {
+		switch dataFormat {
+		case "": // number or time.RFC3339
+			t, err := strconv.ParseInt(val, 10, 64)
+			if err != nil {
+				return time.Parse(time.RFC3339, val)
+			}
+			return time.Unix(0, t).UTC(), nil
+		case dateTimeDataFormatRFC3339:
 			return time.Parse(time.RFC3339, val)
+		case dateTimeDataFormatRFC3339Nano:
+			return time.Parse(time.RFC3339Nano, val)
+		case dateTimeDataFormatNumber:
+			t, err := strconv.ParseInt(val, 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			return time.Unix(0, t).UTC(), nil
+		default:
+			return time.Parse(dataFormat, val)
 		}
-		return time.Unix(0, t).UTC(), nil
-	case dateTimeDatatypeRFC3339:
-		return time.Parse(time.RFC3339, val)
-	case dateTimeDatatypeRFC3339Nano:
-		return time.Parse(time.RFC3339Nano, val)
-	case dateTimeDatatypeNumber:
-		t, err := strconv.ParseInt(val, 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		return time.Unix(0, t).UTC(), nil
 	case durationDatatype:
 		return time.ParseDuration(val)
 	case doubleDatatype:
@@ -168,11 +170,11 @@ func appendProtocolValue(buffer []byte, value interface{}) ([]byte, error) {
 	}
 }
 
-func appendConverted(buffer []byte, val string, dataType string) ([]byte, error) {
-	if len(dataType) == 0 { // keep the value as it is
+func appendConverted(buffer []byte, val string, column *CsvTableColumn) ([]byte, error) {
+	if len(column.DataType) == 0 { // keep the value as it is
 		return append(buffer, val...), nil
 	}
-	typedVal, err := toTypedValue(val, dataType)
+	typedVal, err := toTypedValue(val, column.DataType, column.DataFormat)
 	if err != nil {
 		return buffer, err
 	}

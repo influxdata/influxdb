@@ -51,7 +51,6 @@ var supportedAnnotations = []annotationComment{
 	}},
 	{"#datatype", 2, func(column *CsvTableColumn, value string) {
 		val := ignoreLeadingComment(value)
-		column.DataType = val
 		// use extra data type values to identify line parts
 		switch {
 		case val == "tag":
@@ -65,10 +64,18 @@ var supportedAnnotations = []annotationComment{
 			column.LinePart = linePartMeasurement
 		case val == "field":
 			column.LinePart = linePartField
-			column.DataType = ""
+			val = ""
 		case val == "time": // time is an alias for dateTime
 			column.LinePart = linePartTime
-			column.DataType = dateTimeDatatype
+			val = dateTimeDatatype
+		}
+		colonIndex := strings.Index(val, ":")
+		if colonIndex > 1 {
+			column.DataType = val[:colonIndex]
+			column.DataFormat = val[colonIndex+1:]
+		} else {
+			column.DataType = val
+			column.DataFormat = ""
 		}
 	}},
 	{"#default", 4, func(column *CsvTableColumn, value string) {
@@ -80,8 +87,10 @@ var supportedAnnotations = []annotationComment{
 type CsvTableColumn struct {
 	// label such as "_start", "_stop", "_time"
 	Label string
-	// "string", "long", "dateTime:RFC3339" ...
+	// "string", "long", "dateTime" ...
 	DataType string
+	// "RFC3339", "2006-01-02"
+	DataFormat string
 	// column's line part (0 means not determined), see linePart constants
 	LinePart int
 	// default value to be used for rows where value is an empty string.
@@ -303,7 +312,7 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 			buffer = append(buffer, escapeTag(field)...)
 			buffer = append(buffer, '=')
 			var err error
-			buffer, err = appendConverted(buffer, value, t.cachedFieldValue.DataType)
+			buffer, err = appendConverted(buffer, value, t.cachedFieldValue)
 			if err != nil {
 				return buffer, CsvColumnError{
 					t.cachedFieldName.Label,
@@ -325,7 +334,7 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 				buffer = append(buffer, field.LineLabel()...)
 				buffer = append(buffer, '=')
 				var err error
-				buffer, err = appendConverted(buffer, value, field.DataType)
+				buffer, err = appendConverted(buffer, value, &field)
 				if err != nil {
 					return buffer, CsvColumnError{
 						field.Label,
@@ -342,14 +351,14 @@ func (t *CsvTable) AppendLine(buffer []byte, row []string) ([]byte, error) {
 	if t.cachedTime != nil && t.cachedTime.Index < len(row) {
 		timeVal := orDefault(row[t.cachedTime.Index], t.cachedTime.DefaultValue)
 		if len(timeVal) > 0 {
-			var dataType = t.cachedTime.DataType
-			if len(dataType) == 0 {
+			if len(t.cachedTime.DataType) == 0 {
 				// assume dateTime data type (number or RFC3339)
-				dataType = dateTimeDatatype
+				t.cachedTime.DataType = dateTimeDatatype
+				t.cachedTime.DataFormat = ""
 			}
 			buffer = append(buffer, ' ')
 			var err error
-			buffer, err = appendConverted(buffer, timeVal, dataType)
+			buffer, err = appendConverted(buffer, timeVal, t.cachedTime)
 			if err != nil {
 				return buffer, CsvColumnError{
 					t.cachedTime.Label,

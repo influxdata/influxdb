@@ -3,6 +3,7 @@ package write
 import (
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,6 +66,17 @@ func Test_escapeString(t *testing.T) {
 	}
 }
 
+func splitTypeAndFormat(val string) (dataType string, dataFormat string) {
+	colonIndex := strings.Index(val, ":")
+	if colonIndex > 1 {
+		dataType = val[:colonIndex]
+		dataFormat = val[colonIndex+1:]
+	} else {
+		dataType = val
+	}
+	return dataType, dataFormat
+}
+
 // Test_toTypedValue
 func Test_toTypedValue(t *testing.T) {
 	epochTime, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:00Z")
@@ -88,6 +100,7 @@ func Test_toTypedValue(t *testing.T) {
 		{"dateTime:RFC3339Nano", "1970-01-01T00:00:00.000000002Z", epochTime.Add(time.Duration(2))},
 		{"dateTime:number", "3", epochTime.Add(time.Duration(3))},
 		{"dateTime", "4", epochTime.Add(time.Duration(4))},
+		{"dateTime:2006-01-02", "1970-01-01", epochTime},
 		{"dateTime", "1970-01-01T00:00:00Z", epochTime},
 		{"dateTime", "1970-01-01T00:00:00.000000001Z", epochTime.Add(time.Duration(1))},
 		{"u.type", "", nil},
@@ -95,7 +108,8 @@ func Test_toTypedValue(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			val, err := toTypedValue(test.value, test.dataType)
+			dataType, dataFormat := splitTypeAndFormat(test.dataType)
+			val, err := toTypedValue(test.value, dataType, dataFormat)
 			if err != nil && test.expect != nil {
 				require.Nil(t, err.Error())
 			}
@@ -149,13 +163,15 @@ func Test_appendConverted(t *testing.T) {
 	}{
 		{"", "1", "1"},
 		{"long", "a", ""},
-		{dateTimeDatatypeNumber, "a", ""},
+		{"dateTime", "a", ""},
+		{"dateTime:number", "a", ""},
 		{"string", "a", `"a"`},
 	}
 
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			val, err := appendConverted(nil, test.value, test.dataType)
+			dataType, dataFormat := splitTypeAndFormat(test.dataType)
+			val, err := appendConverted(nil, test.value, &CsvTableColumn{DataType: dataType, DataFormat: dataFormat})
 			if err != nil && test.expect != "" {
 				require.Nil(t, err.Error())
 			}
@@ -174,9 +190,10 @@ func Test_IsTypeSupported(t *testing.T) {
 	require.Equal(t, IsTypeSupported(durationDatatype), true)
 	require.Equal(t, IsTypeSupported(base64BinaryDataType), true)
 	require.Equal(t, IsTypeSupported(dateTimeDatatype), true)
-	require.Equal(t, IsTypeSupported(dateTimeDatatypeRFC3339), true)
-	require.Equal(t, IsTypeSupported(dateTimeDatatypeRFC3339Nano), true)
-	require.Equal(t, IsTypeSupported(dateTimeDatatypeNumber), true)
 	require.Equal(t, IsTypeSupported(""), true)
 	require.Equal(t, IsTypeSupported(" "), false)
+	// time format is not part of data type
+	require.Equal(t, IsTypeSupported(dateTimeDatatype+":"+dateTimeDataFormatRFC3339), false)
+	require.Equal(t, IsTypeSupported(dateTimeDatatype+":"+dateTimeDataFormatRFC3339Nano), false)
+	require.Equal(t, IsTypeSupported(dateTimeDatatype+":"+dateTimeDataFormatNumber), false)
 }
