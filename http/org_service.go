@@ -126,11 +126,12 @@ func NewOrgHandler(log *zap.Logger, b *OrgBackend) *OrgHandler {
 	}
 	h.HandlerFunc("POST", organizationsIDMembersPath, newPostMemberHandler(memberBackend))
 	h.Handler("GET", organizationsIDMembersPath, applyMW(newGetMembersHandler(memberBackend), checkOrganizationExists(h)))
+	h.HandlerFunc("GET", organizationsIDMembersIDPath, newGetMemberHandler(memberBackend))
 	h.HandlerFunc("DELETE", organizationsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		log:                        b.log.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "owner")),
 		ResourceType:               influxdb.OrgsResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -138,6 +139,7 @@ func NewOrgHandler(log *zap.Logger, b *OrgBackend) *OrgHandler {
 	}
 	h.HandlerFunc("POST", organizationsIDOwnersPath, newPostMemberHandler(ownerBackend))
 	h.Handler("GET", organizationsIDOwnersPath, applyMW(newGetMembersHandler(ownerBackend), checkOrganizationExists(h)))
+	h.HandlerFunc("GET", organizationsIDOwnersIDPath, newGetMemberHandler(ownerBackend))
 	h.HandlerFunc("DELETE", organizationsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	h.HandlerFunc("GET", organizationsIDSecretsPath, h.handleGetSecrets)

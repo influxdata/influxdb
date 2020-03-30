@@ -108,11 +108,12 @@ func NewDashboardHandler(log *zap.Logger, b *DashboardBackend) *DashboardHandler
 	}
 	h.HandlerFunc("POST", dashboardsIDMembersPath, newPostMemberHandler(memberBackend))
 	h.HandlerFunc("GET", dashboardsIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("GET", dashboardsIDMembersIDPath, newGetMemberHandler(memberBackend))
 	h.HandlerFunc("DELETE", dashboardsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		log:                        b.log.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "owner")),
 		ResourceType:               influxdb.DashboardsResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -120,6 +121,7 @@ func NewDashboardHandler(log *zap.Logger, b *DashboardBackend) *DashboardHandler
 	}
 	h.HandlerFunc("POST", dashboardsIDOwnersPath, newPostMemberHandler(ownerBackend))
 	h.HandlerFunc("GET", dashboardsIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("GET", dashboardsIDOwnersIDPath, newGetMemberHandler(ownerBackend))
 	h.HandlerFunc("DELETE", dashboardsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{

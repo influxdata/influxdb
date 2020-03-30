@@ -106,11 +106,12 @@ func NewCheckHandler(log *zap.Logger, b *CheckBackend) *CheckHandler {
 	}
 	h.HandlerFunc("POST", checksIDMembersPath, newPostMemberHandler(memberBackend))
 	h.HandlerFunc("GET", checksIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("GET", checksIDMembersIDPath, newGetMemberHandler(memberBackend))
 	h.HandlerFunc("DELETE", checksIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		log:                        b.log.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "owner")),
 		ResourceType:               influxdb.ChecksResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -118,6 +119,7 @@ func NewCheckHandler(log *zap.Logger, b *CheckBackend) *CheckHandler {
 	}
 	h.HandlerFunc("POST", checksIDOwnersPath, newPostMemberHandler(ownerBackend))
 	h.HandlerFunc("GET", checksIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("GET", checksIDOwnersIDPath, newGetMemberHandler(ownerBackend))
 	h.HandlerFunc("DELETE", checksIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{

@@ -117,11 +117,12 @@ func NewTaskHandler(log *zap.Logger, b *TaskBackend) *TaskHandler {
 	}
 	h.HandlerFunc("POST", tasksIDMembersPath, newPostMemberHandler(memberBackend))
 	h.HandlerFunc("GET", tasksIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("GET", tasksIDMembersIDPath, newGetMemberHandler(memberBackend))
 	h.HandlerFunc("DELETE", tasksIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		log:                        b.log.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "owner")),
 		ResourceType:               influxdb.TasksResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -129,6 +130,7 @@ func NewTaskHandler(log *zap.Logger, b *TaskBackend) *TaskHandler {
 	}
 	h.HandlerFunc("POST", tasksIDOwnersPath, newPostMemberHandler(ownerBackend))
 	h.HandlerFunc("GET", tasksIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("GET", tasksIDOwnersIDPath, newGetMemberHandler(ownerBackend))
 	h.HandlerFunc("DELETE", tasksIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	h.HandlerFunc("GET", tasksIDRunsPath, h.handleGetRuns)

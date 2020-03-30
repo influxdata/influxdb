@@ -114,11 +114,12 @@ func NewNotificationRuleHandler(log *zap.Logger, b *NotificationRuleBackend) *No
 	}
 	h.HandlerFunc("POST", notificationRulesIDMembersPath, newPostMemberHandler(memberBackend))
 	h.HandlerFunc("GET", notificationRulesIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("GET", notificationRulesIDMembersIDPath, newGetMemberHandler(memberBackend))
 	h.HandlerFunc("DELETE", notificationRulesIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		log:                        b.log.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "owner")),
 		ResourceType:               influxdb.NotificationRuleResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -126,6 +127,7 @@ func NewNotificationRuleHandler(log *zap.Logger, b *NotificationRuleBackend) *No
 	}
 	h.HandlerFunc("POST", notificationRulesIDOwnersPath, newPostMemberHandler(ownerBackend))
 	h.HandlerFunc("GET", notificationRulesIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("GET", notificationRulesIDOwnersIDPath, newGetMemberHandler(ownerBackend))
 	h.HandlerFunc("DELETE", notificationRulesIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{
