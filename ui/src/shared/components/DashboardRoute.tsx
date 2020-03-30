@@ -4,7 +4,8 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {setDashboard} from 'src/shared/actions/currentDashboard'
 import {getVariables} from 'src/variables/selectors'
 import {selectValue} from 'src/variables/actions/creators'
-import {AppState, Variable} from 'src/types'
+import {updateQueryParams} from 'src/dashboards/actions/ranges'
+import {AppState, Variable, RemoteDataState} from 'src/types'
 
 interface StateProps {
   variables: Variable[]
@@ -14,6 +15,7 @@ interface StateProps {
 interface DispatchProps {
   updateDashboard: typeof setDashboard
   selectValue: typeof selectValue
+  updateQueryParams: typeof updateQueryParams
 }
 
 type Props = StateProps & DispatchProps & WithRouterProps
@@ -70,43 +72,44 @@ function parseURLVariables(searchString: string) {
   return output
 }
 
-// returns a list of variables that need updating
-function filterVars(variables: Variable[], selections): Variable[] {
-  if (!selections) {
-    return []
-  }
-
-  return variables.filter(v => {
-    return (
-      selections.hasOwnProperty(v.name) &&
-      (!v.selected || v.selected[0] !== selections[v.name])
-    )
-  })
-}
-
 class DashboardRoute extends PureComponent<Props> {
   check(props) {
     const {dashboard, updateDashboard, variables, selectValue} = props
     const dashboardID = props.params.dashboardID
     const urlVars = parseURLVariables(props.location.search)
 
-    variables.forEach(v => {
-      let val
 
-      if (v.selected) {
-        val = v.selected[0]
-      }
+        variables.forEach(v => {
+          let val
 
-      if (urlVars.vars && urlVars.vars.hasOwnProperty(v.name)) {
-        val = urlVars.vars[v.name]
-      }
+          if (v.selected) {
+            val = v.selected[0]
+          }
 
-      if (!val) {
-        return
-      }
+          console.log('search', props.location.search, urlVars)
+          if(!urlVars.vars || !urlVars.vars.hasOwnProperty(v.name)) {
+              if (!val) {
+                  return
+              }
 
-      selectValue(dashboardID, v.id, val)
-    })
+              const params = {
+                  vars: {}
+              }
+              params.vars[v.name] = val
+
+              console.log('update One!', params)
+
+              updateQueryParams(params)
+
+              return
+          }
+
+          if (val !== urlVars.vars[v.name]) {
+                console.log('updateTwo!', v.name, val, urlVars.vars[v.name])
+              val = urlVars.vars[v.name]
+              selectValue(dashboardID, v.id, val)
+          }
+        })
 
     if (dashboard !== dashboardID) {
       updateDashboard(dashboardID)
@@ -131,7 +134,9 @@ class DashboardRoute extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const variables = getVariables(state, state.currentDashboard.id)
+  const variables = state.resources.variables.status === RemoteDataState.Done ? getVariables(state, state.currentDashboard.id)
+  .filter(v => v.status === RemoteDataState.Done): []
+
   return {
     variables,
     dashboard: state.currentDashboard.id,
@@ -141,6 +146,7 @@ const mstp = (state: AppState): StateProps => {
 const mdtp: DispatchProps = {
   updateDashboard: setDashboard,
   selectValue: selectValue,
+  updateQueryParams: updateQueryParams
 }
 
 export default connect<StateProps, DispatchProps>(
