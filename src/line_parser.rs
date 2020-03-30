@@ -331,12 +331,11 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = Po
 
 fn parse_lines(mut i: &str) -> impl Iterator<Item = Result<ParsedLine<'_>>> {
     std::iter::from_fn(move || {
+        let (remaining, _) = line_whitespace(i).expect("Cannot fail to parse whitespace");
+        i = remaining;
+
         if i.is_empty() {
             return None;
-        }
-
-        if i.starts_with('\n') {
-            i = &i['\n'.len_utf8()..];
         }
 
         match parse_line(i) {
@@ -440,6 +439,24 @@ fn timestamp(i: &str) -> IResult<&str, i64> {
     map(digit1, |f: &str| {
         f.parse().expect("TODO: parsing timestamp failed")
     })(i)
+}
+
+/// Consumes all whitespace at the beginning / end of lines, including
+/// completely commented-out lines
+fn line_whitespace(mut i: &str) -> IResult<&str, ()> {
+    loop {
+        let offset = i
+            .find(|c| c != ' ' && c != '\t' && c != '\n')
+            .unwrap_or_else(|| i.len());
+        i = &i[offset..];
+
+        if i.starts_with('#') {
+            let offset = i.find('\n').unwrap_or_else(|| i.len());
+            i = &i[offset..];
+        } else {
+            break Ok((i, ()));
+        }
+    }
 }
 
 /// While not all of these escape characters are required to be
@@ -747,6 +764,26 @@ foo value2=2i 123"#;
         assert_eq!(vals[1].series(), "foo\tvalue2");
         assert_eq!(vals[1].time(), 123);
         assert_eq!(vals[1].i64_value().unwrap(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_blank_lines_are_ignored() -> Result {
+        let input = "\n\n\n";
+        let vals = parse(input)?;
+
+        assert!(vals.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_commented_lines_are_ignored() -> Result {
+        let input = "# comment";
+        let vals = parse(input)?;
+
+        assert!(vals.is_empty());
 
         Ok(())
     }
