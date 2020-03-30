@@ -2,7 +2,6 @@ package write
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -12,7 +11,7 @@ import (
 )
 
 // TestCsvData checks data that are writen in an annotated CSV file
-func Test_CsvToProtocolLines_success(t *testing.T) {
+func Test_CsvToProtocolLines(t *testing.T) {
 	var tests = []struct {
 		name  string
 		csv   string
@@ -43,6 +42,20 @@ func Test_CsvToProtocolLines_success(t *testing.T) {
 			"",
 			"_time", // error in _time column
 		},
+		{
+			"constant_annotations",
+			"#constant,measurement,,cpu\n" +
+				"#constant,tag,xpu,xpu1\n" +
+				"#constant,tag,cpu,cpu1\n" +
+				"#constant,long,of,100\n" +
+				"#constant,dateTime,,2\n" +
+				"x,y\n" +
+				"1,2\n" +
+				"3,4\n",
+			"cpu,cpu=cpu1,xpu=xpu1 x=1,y=2,of=100i 2\n" +
+				"cpu,cpu=cpu1,xpu=xpu1 x=3,y=4,of=100i 2\n",
+			"", // no error
+		},
 	}
 	bufferSizes := []int{40, 7, 3, 1}
 
@@ -59,7 +72,7 @@ func Test_CsvToProtocolLines_success(t *testing.T) {
 							break
 						}
 						if test.err != "" {
-							fmt.Println(err)
+							// fmt.Println(err)
 							if err := err.Error(); !strings.Contains(err, test.err) {
 								require.Equal(t, err, test.err)
 							}

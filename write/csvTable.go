@@ -26,63 +26,6 @@ const (
 	linePartTime
 )
 
-type annotationComment struct {
-	label string
-	flag  uint8
-	setup func(column *CsvTableColumn, value string)
-}
-
-func ignoreLeadingComment(value string) string {
-	if len(value) > 0 && value[0] == '#' {
-		pos := strings.Index(value, " ")
-		if pos > 0 {
-			return strings.TrimLeft(value[pos+1:], " ")
-		}
-		return ""
-	}
-	return value
-}
-
-var supportedAnnotations = []annotationComment{
-	{"#group", 1, func(column *CsvTableColumn, value string) {
-		if strings.HasSuffix(value, "true") {
-			column.LinePart = linePartTag
-		}
-	}},
-	{"#datatype", 2, func(column *CsvTableColumn, value string) {
-		val := ignoreLeadingComment(value)
-		// use extra data type values to identify line parts
-		switch {
-		case val == "tag":
-			column.LinePart = linePartTag
-		case strings.HasPrefix(val, "ignore"):
-			column.LinePart = linePartIgnored
-		case strings.HasPrefix(val, "dateTime"):
-			// dateTime field shall be used only for time line part
-			column.LinePart = linePartTime
-		case val == "measurement":
-			column.LinePart = linePartMeasurement
-		case val == "field":
-			column.LinePart = linePartField
-			val = ""
-		case val == "time": // time is an alias for dateTime
-			column.LinePart = linePartTime
-			val = dateTimeDatatype
-		}
-		colonIndex := strings.Index(val, ":")
-		if colonIndex > 1 {
-			column.DataType = val[:colonIndex]
-			column.DataFormat = val[colonIndex+1:]
-		} else {
-			column.DataType = val
-			column.DataFormat = ""
-		}
-	}},
-	{"#default", 4, func(column *CsvTableColumn, value string) {
-		column.DefaultValue = ignoreLeadingComment(value)
-	}},
-}
-
 // CsvTableColumn represents metadata of a csv column
 type CsvTableColumn struct {
 	// label such as "_start", "_stop", "_time"
@@ -133,7 +76,7 @@ func (e CsvColumnError) Error() string {
 
 // CsvTable gathers metadata about columns
 type CsvTable struct {
-	// all Table columns
+	// table columns that extract value from data row
 	columns []CsvTableColumn
 	// bitmap indicating presence of group, datatype and default comments
 	partBits uint8
@@ -141,6 +84,8 @@ type CsvTable struct {
 	readTableData bool
 	// indicated whether a table layout has changed
 	indexed bool
+	// extra columns are added by annotations
+	extraColumns []CsvTableColumn
 
 	/* cached columns are initialized before reading the data rows */
 
@@ -150,6 +95,14 @@ type CsvTable struct {
 	cachedFieldValue  *CsvTableColumn
 	cachedFields      []CsvTableColumn
 	cachedTags        []CsvTableColumn
+}
+
+// NextTable resets the table in order to parse a new set of columns
+func (t *CsvTable) NextTable() {
+	t.partBits = 0
+	t.readTableData = false
+	t.columns = []CsvTableColumn{}
+	t.extraColumns = []CsvTableColumn{}
 }
 
 // AddRow adds header, comment or data row
@@ -182,8 +135,15 @@ func (t *CsvTable) AddRow(row []string) bool {
 			if len(row[0]) > len(supportedAnnotation.label) && row[0][len(supportedAnnotation.label)] != ' ' {
 				continue // not a comment from the supported annotation
 			}
+			if supportedAnnotation.isTableAnnotation() {
+				// process table-level annotation
+				supportedAnnotation.setupTable(t, row)
+				return false
+			}
+			if t.readTableData {
+				t.NextTable()
+			}
 			t.indexed = false
-			t.readTableData = false
 			// create new columns when data change
 			if t.partBits == 0 || t.partBits&supportedAnnotation.flag == 1 {
 				t.partBits = supportedAnnotation.flag
@@ -199,7 +159,7 @@ func (t *CsvTable) AddRow(row []string) bool {
 				if col.Index >= len(row) {
 					continue // missing value
 				} else {
-					supportedAnnotation.setup(col, row[col.Index])
+					supportedAnnotation.setupColumn(col, row[col.Index])
 				}
 			}
 			return false
@@ -228,8 +188,9 @@ func (t *CsvTable) recomputeIndexes() {
 	t.cachedTags = nil
 	t.cachedFields = nil
 	defaultIsField := t.Column(labelFieldName) == nil
-	for i := 0; i < len(t.columns); i++ {
-		col := t.columns[i]
+	columns := append(append([]CsvTableColumn{}, t.columns...), t.extraColumns...)
+	for i := 0; i < len(columns); i++ {
+		col := columns[i]
 		switch {
 		case len(strings.TrimSpace(col.Label)) == 0 || col.LinePart == linePartIgnored:
 		case col.Label == labelMeasurement || col.LinePart == linePartMeasurement:

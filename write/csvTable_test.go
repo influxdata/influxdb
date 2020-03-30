@@ -276,6 +276,51 @@ func TestCsvData(t *testing.T) {
 	}
 }
 
+func TestConstantAnnotations(t *testing.T) {
+	var tests = []struct {
+		name string
+		csv  string
+		line string
+	}{
+		{
+			"measurement_1",
+			"#constant measurement,cpu\n" +
+				"a,b\n" +
+				"1,1",
+			"cpu a=1,b=1",
+		},
+		{
+			"measurement_2",
+			"#constant,measurement,,cpu\n" +
+				"#constant,tag,cpu,cpu1\n" +
+				"#constant,long,of,0\n" +
+				"#constant,dateTime,,2\n" +
+				"a,b\n" +
+				"1,1",
+			"cpu,cpu=cpu1 a=1,b=1,of=0i 2",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rows := readCsv(t, test.csv)
+			table := CsvTable{}
+			var lines []string
+			for _, row := range rows {
+				rowProcessed := table.AddRow(row)
+				if rowProcessed {
+					line, err := table.CreateLine(row)
+					if err != nil && test.line != "" {
+						require.Nil(t, err.Error())
+					}
+					lines = append(lines, line)
+				}
+			}
+			require.Equal(t, []string{test.line}, lines)
+		})
+	}
+}
+
 // TestCsvData_dataErrors validates table data errors
 func TestCsvData_dataErrors(t *testing.T) {
 	var tests = []struct {
