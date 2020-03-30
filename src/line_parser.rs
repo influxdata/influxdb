@@ -15,6 +15,10 @@ use std::{borrow::Cow, collections::btree_map::Entry, collections::BTreeMap, fmt
 pub enum Error {
     #[snafu(display(r#"Must not contain duplicate tags, but "{}" was repeated"#, tag_key))]
     DuplicateTag { tag_key: String },
+
+    // TODO: Replace this with specific failures.
+    #[snafu(display(r#"A generic parsing error occurred: {:?}"#, kind))]
+    GenericParsingError { kind: nom::error::ErrorKind },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -294,14 +298,13 @@ enum FieldValue {
 
 // TODO: Return an error for invalid inputs
 pub fn parse(input: &str) -> Result<Vec<PointType>> {
-    input
-        .lines()
-        .flat_map(|line| match parse_line(line) {
-            Ok((_remaining, parsed_line)) => match line_to_points(parsed_line) {
+    parse_lines(input)
+        .flat_map(|parsed_line| match parsed_line {
+            Ok(parsed_line) => match line_to_points(parsed_line) {
                 Ok(i) => Either::Left(i.map(Ok)),
                 Err(e) => Either::Right(std::iter::once(Err(e))),
             },
-            Err(e) => panic!("TODO: Failed to parse: {}", e),
+            Err(e) => Either::Right(std::iter::once(Err(e))),
         })
         .collect()
 }
@@ -324,6 +327,29 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = Po
             FieldValue::F64(value) => PointType::new_f64(series, value, timestamp),
         }
     }))
+}
+
+fn parse_lines(mut i: &str) -> impl Iterator<Item = Result<ParsedLine<'_>>> {
+    std::iter::from_fn(move || {
+        if i.is_empty() {
+            return None;
+        }
+
+        if i.starts_with('\n') {
+            i = &i['\n'.len_utf8()..];
+        }
+
+        match parse_line(i) {
+            Ok((remaining, line)) => {
+                i = remaining;
+                Some(Ok(line))
+            }
+            Err(nom::Err::Error((_, kind))) | Err(nom::Err::Failure((_, kind))) => {
+                Some(GenericParsingError { kind }.fail())
+            }
+            Err(nom::Err::Incomplete(_)) => unreachable!("Cannot have incomplete data"), // Only streaming parsers have this
+        }
+    })
 }
 
 fn parse_line(i: &str) -> IResult<&str, ParsedLine<'_>> {
@@ -704,6 +730,23 @@ mod test {
             err.to_string(),
             r#"Must not contain duplicate tags, but "tag" was repeated"#
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_multiple_lines_become_multiple_points() -> Result {
+        let input = r#"foo value1=1i 123
+foo value2=2i 123"#;
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].series(), "foo\tvalue1");
+        assert_eq!(vals[0].time(), 123);
+        assert_eq!(vals[0].i64_value().unwrap(), 1);
+
+        assert_eq!(vals[1].series(), "foo\tvalue2");
+        assert_eq!(vals[1].time(), 123);
+        assert_eq!(vals[1].i64_value().unwrap(), 2);
 
         Ok(())
     }
