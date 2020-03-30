@@ -61,5 +61,5 @@ tmux split-window -t $sess -v
 tmux send-keys "sleep 5; $tmp_dir/bin/inch -bucket $bucket_id -org $org_id -host http://localhost:8080" 'C-m'
 tmux select-pane -t $sess -R
 tmux split-window -t $sess -v
-tmux send-keys "$tmp_dir/bin/storectl query -b $bucket_id -o $org_id --silent -c 1 --csv-out"
+tmux send-keys "$tmp_dir/bin/storectl query -b $bucket_id -o $org_id --silent -c 1 --csv-out --expr \"tag0='value0'\""
 tmux attach -t $sess
