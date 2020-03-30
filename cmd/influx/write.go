@@ -28,6 +28,7 @@ type writeFlagsType struct {
 	Format    string
 	File      string
 	Headers   []string
+	Debug     bool
 }
 
 var writeFlags writeFlagsType
@@ -67,6 +68,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&writeFlags.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
 	cmd.PersistentFlags().StringVarP(&writeFlags.File, "file", "f", "", "The path to the file to import")
 	cmd.PersistentFlags().StringArrayVar(&writeFlags.Headers, "header", []string{}, "One or more header lines to prepend to input data")
+	cmd.PersistentFlags().BoolVar(&writeFlags.Debug, "debug", false, "Log CSV columns to stderr before reading data rows")
 
 	cmdDryRun := opt.newCmd("dryrun", fluxWriteDryrunF, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
@@ -117,7 +119,7 @@ func (writeFlags *writeFlagsType) createLineReader(args []string) (r io.Reader, 
 	}
 
 	if writeFlags.Format == inputFormatCsv {
-		r = write.CsvToProtocolLines(r)
+		r = write.CsvToProtocolLines(r).LogTableColumns(writeFlags.Debug)
 	}
 	return r, closer, nil
 }

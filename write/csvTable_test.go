@@ -385,3 +385,29 @@ func TestCsvData_dataErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestCsvTable_ColumnInfo(t *testing.T) {
+	data := "#constant,measurement,cpu\n" +
+		"#constant,tag,xpu,xpu1\n" +
+		"#constant,tag,cpu,cpu1\n" +
+		"#constant,long,of,100\n" +
+		"#constant,dateTime,2\n" +
+		"x,y\n"
+	table := CsvTable{}
+	for _, row := range readCsv(t, data) {
+		require.False(t, table.AddRow(row))
+	}
+	table.computeIndexes()
+	columnInfo := "CsvTable{ dataColumns: 2 constantColumns: 5\n" +
+		" measurement: &{Label:#constant measurement DataType:measurement DataFormat: LinePart:2 DefaultValue:cpu Index:-1 escapedLabel:}\n" +
+		" tag:         {Label:cpu DataType:tag DataFormat: LinePart:3 DefaultValue:cpu1 Index:-1 escapedLabel:cpu}\n" +
+		" tag:         {Label:xpu DataType:tag DataFormat: LinePart:3 DefaultValue:xpu1 Index:-1 escapedLabel:xpu}\n" +
+		" field:       {Label:x DataType: DataFormat: LinePart:0 DefaultValue: Index:0 escapedLabel:x}\n" +
+		" field:       {Label:y DataType: DataFormat: LinePart:0 DefaultValue: Index:1 escapedLabel:y}\n" +
+		" field:       {Label:of DataType:long DataFormat: LinePart:0 DefaultValue:100 Index:-1 escapedLabel:of}\n" +
+		" time:        &{Label:#constant dateTime DataType:dateTime DataFormat: LinePart:5 DefaultValue:2 Index:-1 escapedLabel:}" +
+		"\n}"
+	require.Equal(t, columnInfo, table.DataColumnsInfo())
+	var table2 *CsvTable
+	require.Equal(t, "<nil>", table2.DataColumnsInfo())
+}

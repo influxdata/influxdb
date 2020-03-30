@@ -88,13 +88,32 @@ type CsvTable struct {
 	extraColumns []CsvTableColumn
 
 	/* cached columns are initialized before reading the data rows */
-
 	cachedMeasurement *CsvTableColumn
 	cachedTime        *CsvTableColumn
 	cachedFieldName   *CsvTableColumn
 	cachedFieldValue  *CsvTableColumn
 	cachedFields      []CsvTableColumn
 	cachedTags        []CsvTableColumn
+}
+
+// DataColumnsInfo returns string representation of columns that are used to process CSV data
+func (t *CsvTable) DataColumnsInfo() string {
+	if t == nil {
+		return "<nil>"
+	}
+	var builder = strings.Builder{}
+	builder.WriteString(fmt.Sprintf("CsvTable{ dataColumns: %d constantColumns: %d\n", len(t.columns), len(t.extraColumns)))
+	builder.WriteString(fmt.Sprintf(" measurement: %+v\n", t.cachedMeasurement))
+	for _, col := range t.cachedTags {
+		builder.WriteString(fmt.Sprintf(" tag:         %+v\n", col))
+	}
+	for _, col := range t.cachedFields {
+		builder.WriteString(fmt.Sprintf(" field:       %+v\n", col))
+	}
+	builder.WriteString(fmt.Sprintf(" time:        %+v\n", t.cachedTime))
+	builder.WriteString("}")
+
+	return builder.String()
 }
 
 // NextTable resets the table in order to parse a new set of columns

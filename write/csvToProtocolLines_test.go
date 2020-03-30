@@ -1,8 +1,12 @@
 package write
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io"
+	"log"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -62,7 +66,7 @@ func Test_CsvToProtocolLines(t *testing.T) {
 	for _, test := range tests {
 		for _, bufferSize := range bufferSizes {
 			t.Run(test.name+"_"+strconv.Itoa(bufferSize), func(t *testing.T) {
-				reader := CsvToProtocolLines(strings.NewReader(test.csv))
+				reader := CsvToProtocolLines(strings.NewReader(test.csv)).LogTableColumns(true)
 				buffer := make([]byte, bufferSize)
 				lines := make([]byte, 0, 100)
 				for {
@@ -91,6 +95,39 @@ func Test_CsvToProtocolLines(t *testing.T) {
 			})
 		}
 	}
+}
+
+// TestCsvData_dataErrors validates table data errors
+func TestCsvData_logWarnings(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	oldFlags := log.Flags()
+	log.SetFlags(0)
+	oldPrefix := log.Prefix()
+	prefix := "::PREFIX::"
+	log.SetPrefix(prefix)
+	defer func() {
+		log.SetOutput(os.Stderr)
+		log.SetFlags(oldFlags)
+		log.SetPrefix(oldPrefix)
+	}()
+
+	csv := "_measurement,a,b\ncpu,1,1\ncpu,b2\n"
+
+	reader := CsvToProtocolLines(strings.NewReader(csv)).LogTableColumns(true)
+	buffer := make([]byte, 100)
+	lines := make([]byte, 0, 100)
+	for {
+		n, err := reader.Read(buffer)
+		if err != nil {
+			break
+		}
+		lines = append(lines, buffer[:n]...)
+	}
+	out := buf.String()
+	fmt.Println(out)
+	messages := strings.Count(out, prefix)
+	require.Equal(t, messages, 1)
 }
 
 // Test_CsvLineError checks formating of line errors

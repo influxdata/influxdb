@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 )
 
@@ -18,11 +19,18 @@ func (e CsvLineError) Error() string {
 	return fmt.Sprintf("line %d: %v", e.Line, e.Err)
 }
 
-type lineReader struct {
+// CsvToLineReader represents state of transformation from csv data to lien protocol reader
+type CsvToLineReader struct {
 	// csv reading
-	csv        *csv.Reader
-	table      CsvTable
-	lineNumber int
+	csv *csv.Reader
+	// Table collect information about used columns
+	Table CsvTable
+	// LineNumber represent line number of csv.Reader, 1-originated
+	LineNumber int
+	// LogTableColumns when set, logs table data columns before reading data rows
+	logTableDataColumns bool
+	// flag that indicates whether data row was read
+	dataRowAdded bool
 
 	// reader results
 	buffer   []byte
@@ -30,7 +38,13 @@ type lineReader struct {
 	finished error
 }
 
-func (state *lineReader) Read(p []byte) (n int, err error) {
+// LogTableColumns turns on/off logging of table data columns before reading data rows
+func (state *CsvToLineReader) LogTableColumns(val bool) *CsvToLineReader {
+	state.logTableDataColumns = true
+	return state
+}
+
+func (state *CsvToLineReader) Read(p []byte) (n int, err error) {
 	// state1: finished
 	if state.finished != nil {
 		return 0, state.finished
@@ -54,34 +68,40 @@ func (state *lineReader) Read(p []byte) (n int, err error) {
 	// state3: fill buffer with data to read from
 	for {
 		// Read each record from csv
-		state.lineNumber++
+		state.LineNumber++
 		row, err := state.csv.Read()
 		if err != nil {
 			state.finished = err
 			return state.Read(p)
 		}
 		state.csv.FieldsPerRecord = 0 // reset fields because every row can have different count of columns
-		if state.lineNumber == 1 && len(row) == 1 && strings.HasPrefix(row[0], "sep=") && len(row[0]) > 4 {
+		if state.LineNumber == 1 && len(row) == 1 && strings.HasPrefix(row[0], "sep=") && len(row[0]) > 4 {
 			// separator specified in the first line
 			state.csv.Comma = rune(row[0][4])
 			continue
 		}
-		if state.table.AddRow(row) {
-			buffer, err := state.table.AppendLine(state.buffer, row)
+		if state.Table.AddRow(row) {
+			buffer, err := state.Table.AppendLine(state.buffer, row)
+			if !state.dataRowAdded && state.logTableDataColumns {
+				log.Println(state.Table.DataColumnsInfo())
+			}
+			state.dataRowAdded = true
 			if err != nil {
-				state.finished = CsvLineError{state.lineNumber, err}
+				state.finished = CsvLineError{state.LineNumber, err}
 				return state.Read(p)
 			}
 			state.buffer = append(buffer, '\n')
 			break
+		} else {
+			state.dataRowAdded = false
 		}
 	}
 	return state.Read(p)
 }
 
 // CsvToProtocolLines transforms csv data into line protocol data
-func CsvToProtocolLines(reader io.Reader) io.Reader {
-	return &lineReader{
+func CsvToProtocolLines(reader io.Reader) *CsvToLineReader {
+	return &CsvToLineReader{
 		csv: csv.NewReader(reader),
 	}
 }
