@@ -10,7 +10,7 @@ import {
 } from '@influxdata/clockface'
 
 // Actions
-import {selectValue} from 'src/variables/actions/creators'
+import {selectValue} from 'src/variables/actions/thunks'
 
 // Utils
 import {getVariable} from 'src/variables/selectors'
