@@ -352,8 +352,8 @@ fn parse_lines(mut i: &str) -> impl Iterator<Item = Result<ParsedLine<'_>>> {
 }
 
 fn parse_line(i: &str) -> IResult<&str, ParsedLine<'_>> {
-    let field_set = preceded(tag(" "), field_set);
-    let timestamp = preceded(tag(" "), timestamp);
+    let field_set = preceded(whitespace, field_set);
+    let timestamp = preceded(whitespace, timestamp);
 
     let line = tuple((series, field_set, opt(timestamp)));
 
@@ -457,6 +457,10 @@ fn line_whitespace(mut i: &str) -> IResult<&str, ()> {
             break Ok((i, ()));
         }
     }
+}
+
+fn whitespace(i: &str) -> IResult<&str, &str> {
+    take_while1(|c| c == ' ')(i)
 }
 
 /// While not all of these escape characters are required to be
@@ -784,6 +788,18 @@ foo value2=2i 123"#;
         let vals = parse(input)?;
 
         assert!(vals.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_multiple_whitespace_between_elements_is_allowed() -> Result {
+        let input = "  measurement  a=1i  123  ";
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].series(), "measurement\ta");
+        assert_eq!(vals[0].time(), 123);
+        assert_eq!(vals[0].i64_value().unwrap(), 1);
 
         Ok(())
     }
