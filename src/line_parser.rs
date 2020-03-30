@@ -840,6 +840,17 @@ foo value2=2i 123"#;
     }
 
     #[test]
+    fn measurement_allows_literal_newline_as_unknown_escape() -> Result {
+        assert_fully_parsed!(
+            measurement(
+                r#"weat\
+her"#
+            ),
+            "weat\\\nher",
+        )
+    }
+
+    #[test]
     fn tag_key_allows_escaping_comma() -> Result {
         assert_fully_parsed!(tag_key(r#"wea\,ther"#), r#"wea,ther"#)
     }
@@ -862,6 +873,17 @@ foo value2=2i 123"#;
     #[test]
     fn tag_key_allows_backslash_with_unknown_escape() -> Result {
         assert_fully_parsed!(tag_key(r#"\wea\ther\"#), r#"\wea\ther\"#)
+    }
+
+    #[test]
+    fn tag_key_allows_literal_newline_as_unknown_escape() -> Result {
+        assert_fully_parsed!(
+            tag_key(
+                r#"weat\
+her"#
+            ),
+            "weat\\\nher",
+        )
     }
 
     #[test]
@@ -890,6 +912,17 @@ foo value2=2i 123"#;
     }
 
     #[test]
+    fn tag_value_allows_literal_newline_as_unknown_escape() -> Result {
+        assert_fully_parsed!(
+            tag_value(
+                r#"weat\
+her"#
+            ),
+            "weat\\\nher",
+        )
+    }
+
+    #[test]
     fn field_key_allows_escaping_comma() -> Result {
         assert_fully_parsed!(field_key(r#"wea\,ther"#), r#"wea,ther"#)
     }
@@ -912,6 +945,17 @@ foo value2=2i 123"#;
     #[test]
     fn field_key_allows_backslash_with_unknown_escape() -> Result {
         assert_fully_parsed!(field_key(r#"\wea\ther\"#), r#"\wea\ther\"#)
+    }
+
+    #[test]
+    fn field_key_allows_literal_newline_as_unknown_escape() -> Result {
+        assert_fully_parsed!(
+            field_key(
+                r#"weat\
+her"#
+            ),
+            "weat\\\nher",
+        )
     }
 
     #[test]
