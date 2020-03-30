@@ -8,6 +8,7 @@ import (
 	_ "github.com/gogo/protobuf/protoc-gen-gogo"
 	_ "github.com/gogo/protobuf/protoc-gen-gogofaster"
 	_ "github.com/goreleaser/goreleaser"
+	_ "github.com/influxdata/pkg-config"
 	_ "github.com/kevinburke/go-bindata/go-bindata"
 	_ "github.com/mna/pigeon"
 	_ "golang.org/x/tools/cmd/stringer"
