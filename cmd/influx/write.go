@@ -27,6 +27,7 @@ type writeFlagsType struct {
 	Precision string
 	Format    string
 	File      string
+	Headers   []string
 }
 
 var writeFlags writeFlagsType
@@ -65,6 +66,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	opts.mustRegister(cmd)
 	cmd.PersistentFlags().StringVar(&writeFlags.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
 	cmd.PersistentFlags().StringVarP(&writeFlags.File, "file", "f", "", "The path to the file to import")
+	cmd.PersistentFlags().StringArrayVar(&writeFlags.Headers, "header", []string{}, "One or more header lines to prepend to input data")
 
 	cmdDryRun := opt.newCmd("dryrun", fluxWriteDryrunF, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
@@ -100,6 +102,18 @@ func (writeFlags *writeFlagsType) createLineReader(args []string) (r io.Reader, 
 	// validate input format
 	if len(writeFlags.Format) > 0 && writeFlags.Format != inputFormatLineProtocol && writeFlags.Format != inputFormatCsv {
 		return nil, nil, fmt.Errorf("unsupported input format: %s", writeFlags.Format)
+	}
+	// prepend header lines
+	if len(writeFlags.Headers) > 0 {
+		readers := make([]io.Reader, len(writeFlags.Headers)+1)
+		for i, header := range writeFlags.Headers {
+			readers[i] = strings.NewReader(header + "\n")
+		}
+		readers[len(readers)-1] = r
+		r = io.MultiReader(readers...)
+		if len(writeFlags.Format) == 0 {
+			writeFlags.Format = inputFormatCsv
+		}
 	}
 
 	if writeFlags.Format == inputFormatCsv {
