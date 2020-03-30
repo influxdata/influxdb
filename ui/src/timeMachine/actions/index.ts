@@ -1,5 +1,4 @@
 // Libraries
-import {get, isEmpty} from 'lodash'
 import {Dispatch} from 'react'
 
 // Actions
@@ -36,7 +35,6 @@ import {
   TimeMachineID,
   XYViewProperties,
   GetState,
-  RemoteDataState,
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition, LinePosition} from '@influxdata/giraffe'

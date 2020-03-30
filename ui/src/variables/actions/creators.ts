@@ -6,7 +6,6 @@ import {
   QueryArguments,
   MapArguments,
   CSVArguments,
-  VariableValuesByID,
 } from 'src/types'
 import {NormalizedSchema} from 'normalizr'
 
@@ -14,8 +13,6 @@ export const SET_VARIABLES = 'SET_VARIABLES'
 export const SET_VARIABLE = 'SET_VARIABLE'
 export const REMOVE_VARIABLE = 'REMOVE_VARIABLE'
 export const MOVE_VARIABLE = 'MOVE_VARIABLE'
-export const SET_VARIABLE_VALUES = 'SET_VARIABLE_VALUES'
-export const SET_VARIABLE_VALUE = 'SET_VARIABLE_VALUE'
 export const SELECT_VARIABLE_VALUE = 'SELECT_VARIABLE_VALUE'
 
 export type Action =

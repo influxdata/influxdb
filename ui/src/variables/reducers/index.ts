@@ -15,7 +15,6 @@ import {
   SET_VARIABLE,
   REMOVE_VARIABLE,
   MOVE_VARIABLE,
-  SET_VARIABLE_VALUES,
   SELECT_VARIABLE_VALUE,
 } from 'src/variables/actions/creators'
 

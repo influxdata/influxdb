@@ -38,7 +38,7 @@ function shouldShowTooltip(variable: Variable): boolean {
   // as it would have nothing for the user to do on it
   if (
     variable.arguments.type === 'map' &&
-    Object.keys(variable.arguments.values.length) <= 1
+    Object.keys(variable.arguments.values).length <= 1
   ) {
     return false
   }

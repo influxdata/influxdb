@@ -49,7 +49,7 @@ export const validateAndTypeRange = (timeRange: {
   upper: string
 }): TimeRange => {
   const {lower, upper} = timeRange
-  if (isDate(Date.parse(lower)) && isDate(Date.parse(upper))) {
+  if (isDate(lower) && isDate(upper)) {
     return {
       ...timeRange,
       type: 'custom',
