@@ -43,10 +43,12 @@ export const myView: View = {
             {
               key: '_measurement',
               values: ['cpu'],
+              aggregateFunctionType: 'filter',
             },
             {
               key: '_field',
               values: [],
+              aggregateFunctionType: 'filter',
             },
           ],
           functions: [],

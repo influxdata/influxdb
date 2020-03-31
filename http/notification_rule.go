@@ -132,7 +132,7 @@ func NewNotificationRuleHandler(log *zap.Logger, b *NotificationRuleBackend) *No
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
-		ResourceType:     influxdb.TelegrafsResourceType,
+		ResourceType:     influxdb.NotificationRuleResourceType,
 	}
 	h.HandlerFunc("GET", notificationRulesIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", notificationRulesIDLabelsPath, newPostLabelHandler(labelBackend))
@@ -233,7 +233,7 @@ func (h *NotificationRuleHandler) newNotificationRulesResponse(ctx context.Conte
 		Links:             newPagingLinks(prefixNotificationRules, opts, f, len(nrs)),
 	}
 	for _, nr := range nrs {
-		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID()})
+		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID(), ResourceType: influxdb.NotificationRuleResourceType})
 		res, err := h.newNotificationRuleResponse(ctx, nr, labels)
 		if err != nil {
 			continue
@@ -333,7 +333,7 @@ func (h *NotificationRuleHandler) handleGetNotificationRule(w http.ResponseWrite
 	}
 	h.log.Debug("Notification rule retrieved", zap.String("notificationRule", fmt.Sprint(nr)))
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID(), ResourceType: influxdb.NotificationRuleResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -634,7 +634,7 @@ func (h *NotificationRuleHandler) handlePutNotificationRule(w http.ResponseWrite
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID(), ResourceType: influxdb.NotificationRuleResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -669,7 +669,7 @@ func (h *NotificationRuleHandler) handlePatchNotificationRule(w http.ResponseWri
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID(), ResourceType: influxdb.NotificationRuleResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return

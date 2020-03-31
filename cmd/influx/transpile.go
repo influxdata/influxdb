@@ -17,7 +17,7 @@ var transpileFlags struct {
 }
 
 func cmdTranspile(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("transpile [InfluxQL query]", transpileF)
+	cmd := opt.newCmd("transpile [InfluxQL query]", transpileF, false)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Short = "Transpile an InfluxQL query to Flux source code"
 	cmd.Long = `Transpile an InfluxQL query to Flux source code.

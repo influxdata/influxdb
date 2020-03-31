@@ -1,7 +1,6 @@
 package tsm1
 
 import (
-	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
@@ -18,7 +17,7 @@ type TimeRangeIterator struct {
 	// temporary storage
 	trbuf []TimeRange
 	buf   []byte
-	a     tsdb.TimestampArray
+	a     cursors.TimestampArray
 }
 
 func (b *TimeRangeIterator) Err() error {

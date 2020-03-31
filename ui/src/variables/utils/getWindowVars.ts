@@ -4,7 +4,6 @@ import {parse} from '@influxdata/flux-parser'
 // Utils
 import {getMinDurationFromAST} from 'src/shared/utils/getMinDurationFromAST'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
-import {reportError} from 'src/shared/utils/errors'
 // Constants
 import {WINDOW_PERIOD} from 'src/variables/constants'
 
@@ -77,11 +76,6 @@ export const getWindowPeriod = (
 
     return Math.round(queryDuration / DESIRED_POINTS_PER_GRAPH)
   } catch (error) {
-    console.error(error)
-    reportError(error, {
-      context: {query},
-      name: 'getWindowPeriod function',
-    })
     return null
   }
 }
@@ -90,52 +84,23 @@ export const getWindowPeriodVariable = (
   query: string,
   variables: VariableAssignment[]
 ): Variable[] | null => {
-  if (query.length === 0) {
+  const total = getWindowPeriod(query, variables)
+
+  if (total === null) {
     return null
   }
-  try {
-    const ast = parse(query)
 
-    const substitutedAST: Package = {
-      package: '',
-      type: 'Package',
-      files: [ast, buildVarsOption(variables)],
-    }
-
-    const queryDuration = getMinDurationFromAST(substitutedAST) // in ms
-
-    const foundDuration = SELECTABLE_TIME_RANGES.find(
-      tr => tr.seconds * 1000 === queryDuration
-    )
-
-    let total: number = null
-
-    if (foundDuration) {
-      total = foundDuration.windowPeriod
-    }
-
-    total = Math.round(queryDuration / DESIRED_POINTS_PER_GRAPH)
-
-    const windowPeriodVariable: Variable = {
-      orgID: '',
-      id: 'windowPeriod',
-      name: 'windowPeriod',
-      arguments: {
-        type: 'map',
-        values: {
-          [total]: total,
-        },
-      },
-      status: RemoteDataState.Done,
-      labels: [],
-    }
-
-    return [windowPeriodVariable]
-  } catch (error) {
-    reportError(error, {
-      context: {query},
-      name: 'getWindowPeriodVariable function',
-    })
-    return null
+  const windowPeriodVariable: Variable = {
+    orgID: '',
+    id: WINDOW_PERIOD,
+    name: WINDOW_PERIOD,
+    arguments: {
+      type: 'system',
+      values: [total],
+    },
+    status: RemoteDataState.Done,
+    labels: [],
   }
+
+  return [windowPeriodVariable]
 }

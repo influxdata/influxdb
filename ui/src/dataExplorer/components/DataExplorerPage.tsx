@@ -10,6 +10,7 @@ import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDr
 import GetResources from 'src/resources/components/GetResources'
 import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
 import DeleteDataButton from 'src/dataExplorer/components/DeleteDataButton'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Types
 import {ResourceType} from 'src/types'
@@ -21,9 +22,10 @@ const DataExplorerPage: SFC = ({children}) => {
   return (
     <Page titleTag={pageTitleSuffixer(['Data Explorer'])}>
       {children}
-      <GetResources resources={[ResourceType.Variables]}>
+      <GetResources resources={[ResourceType.Variables, ResourceType.Buckets]}>
         <Page.Header fullWidth={true}>
           <Page.Title title="Data Explorer" />
+          <CloudUpgradeButton />
         </Page.Header>
         <Page.ControlBar fullWidth={true}>
           <Page.ControlBarLeft>

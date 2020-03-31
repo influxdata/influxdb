@@ -13,13 +13,14 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/influxdata/influxdb/tsdb/value"
@@ -54,7 +55,7 @@ type Engine struct {
 	mu      sync.RWMutex
 	closing chan struct{} // closing returns the zero value when the engine is shutting down.
 	index   *tsi1.Index
-	sfile   *tsdb.SeriesFile
+	sfile   *seriesfile.SeriesFile
 	engine  *tsm1.Engine
 	wal     *wal.WAL
 
@@ -166,8 +167,8 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	}
 
 	// Initialize series file.
-	e.sfile = tsdb.NewSeriesFile(c.GetSeriesFilePath(path))
-	e.sfile.LargeWriteThreshold = c.TSDB.LargeSeriesWriteThreshold
+	e.sfile = seriesfile.NewSeriesFile(c.GetSeriesFilePath(path))
+	e.sfile.LargeWriteThreshold = c.SeriesFile.LargeSeriesWriteThreshold
 
 	// Initialise index.
 	e.index = tsi1.NewIndex(e.sfile, c.Index,
@@ -224,7 +225,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 // the engine and its components.
 func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	var metrics []prometheus.Collector
-	metrics = append(metrics, tsdb.PrometheusCollectors()...)
+	metrics = append(metrics, seriesfile.PrometheusCollectors()...)
 	metrics = append(metrics, tsi1.PrometheusCollectors()...)
 	metrics = append(metrics, tsm1.PrometheusCollectors()...)
 	metrics = append(metrics, wal.PrometheusCollectors()...)
@@ -434,7 +435,7 @@ func (e *Engine) CreateSeriesCursor(ctx context.Context, orgID, bucketID influxd
 }
 
 // CreateCursorIterator creates a CursorIterator for usage with the read service.
-func (e *Engine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator, error) {
+func (e *Engine) CreateCursorIterator(ctx context.Context) (cursors.CursorIterator, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if e.closing == nil {
@@ -601,14 +602,14 @@ func (e *Engine) CommitSegments(ctx context.Context, segs []string, fn func() er
 }
 
 // DeleteBucket deletes an entire bucket from the storage engine.
-func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID platform.ID) error {
+func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	return e.DeleteBucketRange(ctx, orgID, bucketID, math.MinInt64, math.MaxInt64)
 }
 
 // DeleteBucketRange deletes an entire bucket from the storage engine.
-func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID platform.ID, min, max int64) error {
+func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -628,7 +629,7 @@ func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID platform
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
 // deleted must be in [min, max], and the key must match the predicate if provided.
-func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred platform.Predicate) error {
+func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -658,7 +659,7 @@ func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID
 
 // deleteBucketRangeLocked does the work of deleting a bucket range and must be called under
 // some sort of lock.
-func (e *Engine) deleteBucketRangeLocked(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred tsm1.Predicate) error {
+func (e *Engine) deleteBucketRangeLocked(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred tsm1.Predicate) error {
 	// TODO(edd): we need to clean up how we're encoding the prefix so that we
 	// don't have to remember to get it right everywhere we need to touch TSM data.
 	encoded := tsdb.EncodeName(orgID, bucketID)
@@ -783,17 +784,6 @@ func (e *Engine) SeriesCardinality() int64 {
 // Path returns the path of the engine's base directory.
 func (e *Engine) Path() string {
 	return e.path
-}
-
-// ApplyFnToSeriesIDSet allows the caller to apply fn to the SeriesIDSet held
-// within the engine's index.
-func (e *Engine) ApplyFnToSeriesIDSet(fn func(*tsdb.SeriesIDSet)) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return
-	}
-	fn(e.index.SeriesIDSet())
 }
 
 // MeasurementCardinalityStats returns cardinality stats for all measurements.

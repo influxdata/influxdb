@@ -128,6 +128,7 @@ const TimeMachineFluxEditor: FC<Props> = ({
       },
     },
     {
+      style: {overflow: 'hidden'},
       render: () => {
         return (
           <>

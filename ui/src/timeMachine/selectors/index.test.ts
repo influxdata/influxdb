@@ -12,6 +12,7 @@ const custom = 'custom' as 'custom'
 describe('TimeMachine.Selectors.Index', () => {
   const thirty = moment()
     .subtract(30, 'days')
+    .subtract(moment().isDST() ? 1 : 0, 'hours') // added to account for DST
     .valueOf()
   it(`getStartTime should return ${thirty} when lower is now() - 30d`, () => {
     expect(getStartTime(pastThirtyDaysTimeRange)).toBeGreaterThanOrEqual(thirty)

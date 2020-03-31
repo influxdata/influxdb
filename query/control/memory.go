@@ -49,6 +49,10 @@ type queryMemoryManager struct {
 	given int64
 }
 
+func (q *queryMemoryManager) getUnusedMemoryBytes() int64 {
+	return atomic.LoadInt64(&q.m.unusedMemoryBytes)
+}
+
 // RequestMemory will determine if the query can be given more memory
 // when it is requested.
 //

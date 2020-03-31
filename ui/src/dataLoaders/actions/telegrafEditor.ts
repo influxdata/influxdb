@@ -1,20 +1,32 @@
-import {Bucket} from 'src/types'
-import {getTelegrafPlugins} from 'src/client'
-import {RemoteDataState} from 'src/types'
 import {Dispatch} from 'react'
+
+import {getTelegrafPlugins} from 'src/client'
+
 import {
   TelegrafEditorPluginState,
   TelegrafEditorActivePluginState,
   TelegrafEditorBasicPlugin,
 } from 'src/dataLoaders/reducers/telegrafEditor'
 
+// Utils
+
+// Types
+import {Bucket, RemoteDataState, ResourceType, GetState} from 'src/types'
+import {getStatus} from 'src/resources/selectors'
+
 export type PluginResourceAction =
   | ReturnType<typeof setPlugins>
   | ReturnType<typeof setPluginLoadingState>
 
 export const getPlugins = () => async (
-  dispatch: Dispatch<PluginResourceAction>
+  dispatch: Dispatch<PluginResourceAction>,
+  getState: GetState
 ) => {
+  const state = getState()
+  if (getStatus(state, ResourceType.Plugins) === RemoteDataState.NotStarted) {
+    dispatch(setPluginLoadingState(RemoteDataState.Loading))
+  }
+
   dispatch(setPluginLoadingState(RemoteDataState.Loading))
 
   const result = await getTelegrafPlugins({}, {})

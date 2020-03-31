@@ -192,8 +192,9 @@ func TestJSON(t *testing.T) {
 						BuilderConfig: influxdb.BuilderConfig{
 							Buckets: []string{},
 							Tags: []struct {
-								Key    string   `json:"key"`
-								Values []string `json:"values"`
+								Key                   string   `json:"key"`
+								Values                []string `json:"values"`
+								AggregateFunctionType string   `json:"aggregateFunctionType"`
 							}{},
 							Functions: []struct {
 								Name string `json:"name"`
@@ -233,8 +234,9 @@ func TestJSON(t *testing.T) {
 						BuilderConfig: influxdb.BuilderConfig{
 							Buckets: []string{},
 							Tags: []struct {
-								Key    string   `json:"key"`
-								Values []string `json:"values"`
+								Key                   string   `json:"key"`
+								Values                []string `json:"values"`
+								AggregateFunctionType string   `json:"aggregateFunctionType"`
 							}{},
 							Functions: []struct {
 								Name string `json:"name"`

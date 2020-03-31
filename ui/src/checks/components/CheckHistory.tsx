@@ -10,6 +10,7 @@ import CheckHistoryVisualization from 'src/checks/components/CheckHistoryVisuali
 import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryParams'
 import EventTable from 'src/eventViewer/components/EventTable'
 import GetResources from 'src/resources/components/GetResources'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 //Context
 import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'
@@ -63,6 +64,7 @@ const CheckHistory: FC<Props> = ({
                   title="Check Statuses"
                   testID="alert-history-title"
                 />
+                <CloudUpgradeButton />
               </Page.Header>
               <Page.ControlBar fullWidth={true}>
                 <Page.ControlBarLeft>

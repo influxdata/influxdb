@@ -1,7 +1,19 @@
 // Types
-import {Bucket} from 'src/types'
+import {AppState, Bucket, ResourceType} from 'src/types'
+
+// Selectors
+import {getAll} from 'src/resources/selectors'
 
 export const SYSTEM = 'system'
+
+export const getBucketByName = (
+  state: AppState,
+  bucketName: string
+): Bucket => {
+  const buckets = getAll<Bucket>(state, ResourceType.Buckets)
+  const bucket = buckets.find(b => b.name === bucketName)
+  return bucket
+}
 
 export const isSystemBucket = (type: string): boolean => type === SYSTEM
 

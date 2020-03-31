@@ -55,7 +55,7 @@ func TestSecretService_LoadSecret(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.SecretsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
@@ -85,7 +85,7 @@ func TestSecretService_LoadSecret(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.SecretsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
@@ -118,7 +118,7 @@ func TestSecretService_LoadSecret(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.SecretsResourceType,
 						ID:   influxdbtesting.IDPtr(10),
@@ -183,7 +183,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.SecretsResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
@@ -214,7 +214,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.SecretsResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
@@ -244,7 +244,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.SecretsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
@@ -310,7 +310,7 @@ func TestSecretService_PatchSecrets(t *testing.T) {
 				org: influxdb.ID(1),
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(1),
@@ -335,7 +335,7 @@ func TestSecretService_PatchSecrets(t *testing.T) {
 				org: influxdb.ID(1),
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(10),
@@ -397,7 +397,7 @@ func TestSecretService_DeleteSecret(t *testing.T) {
 				org: influxdb.ID(1),
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(1),
@@ -422,7 +422,7 @@ func TestSecretService_DeleteSecret(t *testing.T) {
 				org: 10,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(1),
@@ -482,7 +482,7 @@ func TestSecretService_PutSecret(t *testing.T) {
 			args: args{
 				orgID: influxdb.ID(10),
 				permission: influxdb.Permission{
-					Action: "write",
+					Action: influxdb.WriteAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.SecretsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
@@ -505,7 +505,7 @@ func TestSecretService_PutSecret(t *testing.T) {
 			args: args{
 				orgID: 10,
 				permission: influxdb.Permission{
-					Action: "write",
+					Action: influxdb.WriteAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.SecretsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
@@ -565,14 +565,14 @@ func TestSecretService_PutSecrets(t *testing.T) {
 				orgID: influxdb.ID(10),
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(10),
@@ -597,14 +597,14 @@ func TestSecretService_PutSecrets(t *testing.T) {
 				orgID: influxdb.ID(2),
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(1),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(2),
@@ -635,7 +635,7 @@ func TestSecretService_PutSecrets(t *testing.T) {
 				orgID: 10,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(10),
@@ -666,7 +666,7 @@ func TestSecretService_PutSecrets(t *testing.T) {
 				orgID: 10,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.SecretsResourceType,
 							OrgID: influxdbtesting.IDPtr(10),

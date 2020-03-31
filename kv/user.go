@@ -230,6 +230,11 @@ func (s *Service) CreateUser(ctx context.Context, u *influxdb.User) error {
 	})
 }
 
+// CreateUserTx is used when importing kv as a library
+func (s *Service) CreateUserTx(ctx context.Context, tx Tx, u *influxdb.User) error {
+	return s.createUser(ctx, tx, u)
+}
+
 func (s *Service) createUser(ctx context.Context, tx Tx, u *influxdb.User) error {
 	if err := s.uniqueUserName(ctx, tx, u); err != nil {
 		return err

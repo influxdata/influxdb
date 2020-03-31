@@ -39,6 +39,9 @@ var mappingCmpOptions = cmp.Options{
 
 // UserResourceFields includes prepopulated data for mapping tests
 type UserResourceFields struct {
+	Organizations        []*platform.Organization
+	Users                []*platform.User
+	Buckets              []*platform.Bucket
 	UserResourceMappings []*platform.UserResourceMapping
 }
 
@@ -241,6 +244,46 @@ func DeleteUserResourceMapping(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{},
 				err:      fmt.Errorf("user to resource mapping not found"),
+			},
+		},
+		{
+			name: "delete user resource mapping for org",
+			fields: UserResourceFields{
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+				},
+				Users: []*platform.User{
+					{
+						ID:   MustIDBase16(userOneID),
+						Name: "user1",
+					},
+				},
+				Buckets: []*platform.Bucket{
+					{
+						ID:    MustIDBase16(bucketOneID),
+						Name:  "bucket1",
+						OrgID: MustIDBase16(orgOneID),
+					},
+				},
+				UserResourceMappings: []*platform.UserResourceMapping{
+					{
+						ResourceID:   MustIDBase16(orgOneID),
+						ResourceType: platform.OrgsResourceType,
+						MappingType:  platform.UserMappingType,
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+					},
+				},
+			},
+			args: args{
+				resourceID: MustIDBase16(orgOneID),
+				userID:     MustIDBase16(userOneID),
+			},
+			wants: wants{
+				mappings: []*platform.UserResourceMapping{},
 			},
 		},
 	}

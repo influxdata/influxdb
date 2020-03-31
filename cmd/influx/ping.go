@@ -19,7 +19,7 @@ func cmdPing(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 		c := http.Client{
 			Timeout: 5 * time.Second,
 		}
-		url := flags.host + "/health"
+		url := flags.Host + "/health"
 		resp, err := c.Get(url)
 		if err != nil {
 			return err
@@ -43,7 +43,7 @@ func cmdPing(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 		return nil
 	}
 
-	cmd := opts.newCmd("ping", runE)
+	cmd := opts.newCmd("ping", runE, true)
 	cmd.Short = "Check the InfluxDB /health endpoint"
 	cmd.Long = `Checks the health of a running InfluxDB instance by querying /health. Does not require valid token.`
 

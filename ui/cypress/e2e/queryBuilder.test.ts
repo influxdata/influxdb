@@ -45,7 +45,7 @@ describe('The Query Builder', () => {
 
       cy.get('.giraffe-plot').should('exist')
 
-      cy.contains('Save As').click()
+      cy.getByTestID('save-query-as').click()
 
       // open the dashboard selector dropdown
       cy.getByTestID('save-as-dashboard-cell--dropdown').click()

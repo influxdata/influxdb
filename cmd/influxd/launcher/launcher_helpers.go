@@ -67,7 +67,7 @@ func NewTestLauncher() *TestLauncher {
 	return l
 }
 
-// RunLauncherOrFail initializes and starts the server.
+// RunTestLauncherOrFail initializes and starts the server.
 func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, args ...string) *TestLauncher {
 	tb.Helper()
 	l := NewTestLauncher()
@@ -131,7 +131,7 @@ func (tl *TestLauncher) SetupOrFail(tb testing.TB) {
 // OnBoard attempts an on-boarding request.
 // The on-boarding status is also reset to allow multiple user/org/buckets to be created.
 func (tl *TestLauncher) OnBoard(req *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
-	res, err := tl.KeyValueService().Generate(context.Background(), req)
+	res, err := tl.KeyValueService().OnboardInitialUser(context.Background(), req)
 	if err != nil {
 		return nil, err
 	}

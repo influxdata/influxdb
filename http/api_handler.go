@@ -118,7 +118,9 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 		Router: newBaseChiRouter(b.HTTPErrorHandler),
 	}
 
+	noAuthUserResourceMappingService := b.UserResourceMappingService
 	b.UserResourceMappingService = authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
+	b.LabelService = authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService)
 
 	h.Mount("/api/v2", serveLinksHandler(b.HTTPErrorHandler))
 
@@ -127,7 +129,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h.Mount(prefixAuthorization, NewAuthorizationHandler(b.Logger, authorizationBackend))
 
 	bucketBackend := NewBucketBackend(b.Logger.With(zap.String("handler", "bucket")), b)
-	bucketBackend.BucketService = authorizer.NewBucketService(b.BucketService)
+	bucketBackend.BucketService = authorizer.NewBucketService(b.BucketService, noAuthUserResourceMappingService)
 	h.Mount(prefixBuckets, NewBucketHandler(b.Logger, bucketBackend))
 
 	checkBackend := NewCheckBackend(b.Logger.With(zap.String("handler", "check")), b)
@@ -145,14 +147,13 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h.Mount(prefixDelete, NewDeleteHandler(b.Logger, deleteBackend))
 
 	documentBackend := NewDocumentBackend(b.Logger.With(zap.String("handler", "document")), b)
-	documentBackend.LabelService = authorizer.NewLabelService(b.LabelService)
 	documentBackend.DocumentService = authorizer.NewDocumentService(b.DocumentService)
 	h.Mount(prefixDocuments, NewDocumentHandler(documentBackend))
 
 	fluxBackend := NewFluxBackend(b.Logger.With(zap.String("handler", "query")), b)
 	h.Mount(prefixQuery, NewFluxHandler(b.Logger, fluxBackend))
 
-	h.Mount(prefixLabels, NewLabelHandler(b.Logger, authorizer.NewLabelService(b.LabelService), b.HTTPErrorHandler))
+	h.Mount(prefixLabels, NewLabelHandler(b.Logger, b.LabelService, b.HTTPErrorHandler))
 
 	notificationEndpointBackend := NewNotificationEndpointBackend(b.Logger.With(zap.String("handler", "notificationEndpoint")), b)
 	notificationEndpointBackend.NotificationEndpointService = authorizer.NewNotificationEndpointService(b.NotificationEndpointService,
@@ -185,7 +186,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	sourceBackend := NewSourceBackend(b.Logger.With(zap.String("handler", "source")), b)
 	sourceBackend.SourceService = authorizer.NewSourceService(b.SourceService)
-	sourceBackend.BucketService = authorizer.NewBucketService(b.BucketService)
+	sourceBackend.BucketService = authorizer.NewBucketService(b.BucketService, noAuthUserResourceMappingService)
 	h.Mount(prefixSources, NewSourceHandler(b.Logger, sourceBackend))
 
 	h.Mount("/api/v2/swagger.json", newSwaggerLoader(b.Logger.With(zap.String("service", "swagger-loader")), b.HTTPErrorHandler))

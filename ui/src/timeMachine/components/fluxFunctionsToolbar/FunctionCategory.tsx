@@ -22,7 +22,7 @@ const FunctionCategory: SFC<Props> = props => {
       {funcs.map(func => (
         <ToolbarFunction
           onClickFunction={onClickFunction}
-          key={func.name}
+          key={`${func.name}_${func.desc}`}
           func={func}
           testID="toolbar-function"
         />

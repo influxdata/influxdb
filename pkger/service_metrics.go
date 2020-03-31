@@ -27,6 +27,12 @@ func MWMetrics(reg *prom.Registry) SVCMiddleware {
 	}
 }
 
+func (s *mwMetrics) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (Stack, error) {
+	rec := s.rec.Record("init_stack")
+	stack, err := s.next.InitStack(ctx, userID, newStack)
+	return stack, rec(err)
+}
+
 func (s *mwMetrics) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
 	rec := s.rec.Record("create_pkg")
 	pkg, err := s.next.CreatePkg(ctx, setters...)

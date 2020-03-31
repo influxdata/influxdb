@@ -52,6 +52,7 @@ import ClientCSharpOverlay from 'src/clientLibraries/components/ClientCSharpOver
 import ClientGoOverlay from 'src/clientLibraries/components/ClientGoOverlay'
 import ClientJavaOverlay from 'src/clientLibraries/components/ClientJavaOverlay'
 import ClientJSOverlay from 'src/clientLibraries/components/ClientJSOverlay'
+import ClientPHPOverlay from 'src/clientLibraries/components/ClientPHPOverlay'
 import ClientPythonOverlay from 'src/clientLibraries/components/ClientPythonOverlay'
 import ClientRubyOverlay from 'src/clientLibraries/components/ClientRubyOverlay'
 import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
@@ -149,6 +150,7 @@ const basepath = getBrowserBasepath()
 declare global {
   interface Window {
     basepath: string
+    dataLayer: any[]
   }
 }
 
@@ -348,6 +350,7 @@ class Root extends PureComponent {
                                 path="javascript-node"
                                 component={ClientJSOverlay}
                               />
+                              <Route path="php" component={ClientPHPOverlay} />
                               <Route
                                 path="python"
                                 component={ClientPythonOverlay}
@@ -412,7 +415,7 @@ class Root extends PureComponent {
                               />
                             </Route>
                             <Route path="labels" component={LabelsIndex} />
-                            <Route path="profile" component={OrgProfilePage}>
+                            <Route path="about" component={OrgProfilePage}>
                               <Route
                                 path="rename"
                                 component={RenameOrgOverlay}
@@ -457,6 +460,12 @@ class Root extends PureComponent {
                             path="checks/:checkID"
                             component={CheckHistory}
                           />
+                          <Route path="about" component={OrgProfilePage}>
+                            <Route path="rename" component={RenameOrgOverlay} />
+                          </Route>
+                          {!CLOUD && (
+                            <Route path="members" component={MembersIndex} />
+                          )}
                         </Route>
                       </Route>
                     </Route>

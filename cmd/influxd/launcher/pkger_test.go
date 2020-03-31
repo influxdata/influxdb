@@ -23,6 +23,28 @@ func TestLauncher_Pkger(t *testing.T) {
 
 	svc := l.PkgerService(t)
 
+	t.Run("creating a stack", func(t *testing.T) {
+		expectedURLs := []string{"http://example.com"}
+
+		fmt.Println("org init id: ", l.Org.ID)
+
+		newStack, err := svc.InitStack(timedCtx(5*time.Second), l.User.ID, pkger.Stack{
+			OrgID:       l.Org.ID,
+			Name:        "first stack",
+			Description: "desc",
+			URLs:        expectedURLs,
+		})
+		require.NoError(t, err)
+
+		assert.NotZero(t, newStack.ID)
+		assert.Equal(t, l.Org.ID, newStack.OrgID)
+		assert.Equal(t, "first stack", newStack.Name)
+		assert.Equal(t, "desc", newStack.Description)
+		assert.Equal(t, expectedURLs, newStack.URLs)
+		assert.NotNil(t, newStack.Resources)
+		assert.NotZero(t, newStack.CRUDLog)
+	})
+
 	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {
 		svc := pkger.NewService(
 			pkger.WithBucketSVC(l.BucketService(t)),
@@ -151,29 +173,29 @@ func TestLauncher_Pkger(t *testing.T) {
 		labels := sum.Labels
 		require.Len(t, labels, 2)
 		assert.Equal(t, "label_1", labels[0].Name)
-		assert.Equal(t, "label_2", labels[1].Name)
+		assert.Equal(t, "the 2nd label", labels[1].Name)
 
 		bkts := sum.Buckets
 		require.Len(t, bkts, 1)
-		assert.Equal(t, "rucket_1", bkts[0].Name)
-		hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "label_2")
+		assert.Equal(t, "rucketeer", bkts[0].Name)
+		hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "the 2nd label")
 
 		checks := sum.Checks
 		require.Len(t, checks, 2)
-		for i, ch := range checks {
-			assert.Equal(t, fmt.Sprintf("check_%d", i), ch.Check.GetName())
-			hasLabelAssociations(t, ch.LabelAssociations, 1, "label_1")
-		}
+		assert.Equal(t, "check 0 name", checks[0].Check.GetName())
+		hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label_1")
+		assert.Equal(t, "check_1", checks[1].Check.GetName())
+		hasLabelAssociations(t, checks[1].LabelAssociations, 1, "label_1")
 
 		dashs := sum.Dashboards
 		require.Len(t, dashs, 1)
 		assert.Equal(t, "dash_1", dashs[0].Name)
 		assert.Equal(t, "desc1", dashs[0].Description)
-		hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "label_2")
+		hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "the 2nd label")
 
 		endpoints := sum.NotificationEndpoints
 		require.Len(t, endpoints, 1)
-		assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].NotificationEndpoint.GetName())
+		assert.Equal(t, "no auth endpoint", endpoints[0].NotificationEndpoint.GetName())
 		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
 		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
 
@@ -186,13 +208,13 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		teles := sum.TelegrafConfigs
 		require.Len(t, teles, 1)
-		assert.Equal(t, "first_tele_config", teles[0].TelegrafConfig.Name)
+		assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
 		assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
 		hasLabelAssociations(t, teles[0].LabelAssociations, 1, "label_1")
 
 		vars := sum.Variables
 		require.Len(t, vars, 1)
-		assert.Equal(t, "var_query_1", vars[0].Name)
+		assert.Equal(t, "query var", vars[0].Name)
 		hasLabelAssociations(t, vars[0].LabelAssociations, 1, "label_1")
 		varArgs := vars[0].Arguments
 		require.NotNil(t, varArgs)
@@ -230,7 +252,7 @@ spec:
 		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgStr))
 		require.NoError(t, err)
 
-		sum, _, err := svc.DryRun(context.Background(), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
+		sum, _, err := svc.DryRun(timedCtx(2*time.Second), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
 			"bkt-1-name-ref":   "new-bkt-name",
 			"label-1-name-ref": "new-label-name",
 		}))
@@ -257,7 +279,7 @@ spec:
 				assert.NotZero(t, labels[0].ID)
 			}
 			assert.Equal(t, "label_1", labels[0].Name)
-			assert.Equal(t, "label_2", labels[1].Name)
+			assert.Equal(t, "the 2nd label", labels[1].Name)
 
 			bkts := sum1.Buckets
 			if exportAllSum {
@@ -269,17 +291,19 @@ spec:
 			if !exportAllSum {
 				assert.NotZero(t, bkts[0].ID)
 			}
-			assert.Equal(t, "rucket_1", bkts[0].Name)
-			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "label_2")
+			assert.Equal(t, "rucketeer", bkts[0].Name)
+			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "the 2nd label")
 
 			checks := sum1.Checks
 			require.Len(t, checks, 2)
-			for i, ch := range checks {
+			assert.Equal(t, "check 0 name", checks[0].Check.GetName())
+			hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label_1")
+			assert.Equal(t, "check_1", checks[1].Check.GetName())
+			hasLabelAssociations(t, checks[1].LabelAssociations, 1, "label_1")
+			for _, ch := range checks {
 				if !exportAllSum {
 					assert.NotZero(t, ch.Check.GetID())
 				}
-				assert.Equal(t, fmt.Sprintf("check_%d", i), ch.Check.GetName())
-				hasLabelAssociations(t, ch.LabelAssociations, 1, "label_1")
 			}
 
 			dashs := sum1.Dashboards
@@ -289,7 +313,7 @@ spec:
 			}
 			assert.Equal(t, "dash_1", dashs[0].Name)
 			assert.Equal(t, "desc1", dashs[0].Description)
-			hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "label_2")
+			hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "the 2nd label")
 			require.Len(t, dashs[0].Charts, 1)
 			assert.Equal(t, influxdb.ViewPropertyTypeSingleStat, dashs[0].Charts[0].Properties.GetType())
 
@@ -298,7 +322,7 @@ spec:
 			if !exportAllSum {
 				assert.NotZero(t, endpoints[0].NotificationEndpoint.GetID())
 			}
-			assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].NotificationEndpoint.GetName())
+			assert.Equal(t, "no auth endpoint", endpoints[0].NotificationEndpoint.GetName())
 			assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
 			assert.Equal(t, influxdb.TaskStatusInactive, string(endpoints[0].NotificationEndpoint.GetStatus()))
 			hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
@@ -310,9 +334,11 @@ spec:
 			}
 			assert.Equal(t, "rule_0", rule.Name)
 			assert.Equal(t, pkger.SafeID(endpoints[0].NotificationEndpoint.GetID()), rule.EndpointID)
-			assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointName)
 			if !exportAllSum {
+				assert.Equal(t, "http_none_auth_notification_endpoint", rule.EndpointName)
 				assert.Equalf(t, "http", rule.EndpointType, "rule: %+v", rule)
+			} else {
+				assert.NotEmpty(t, rule.EndpointName)
 			}
 
 			require.Len(t, sum1.Tasks, 1)
@@ -329,7 +355,7 @@ spec:
 				assert.NotZero(t, teles[0].TelegrafConfig.ID)
 				assert.Equal(t, l.Org.ID, teles[0].TelegrafConfig.OrgID)
 			}
-			assert.Equal(t, "first_tele_config", teles[0].TelegrafConfig.Name)
+			assert.Equal(t, "first tele config", teles[0].TelegrafConfig.Name)
 			assert.Equal(t, "desc", teles[0].TelegrafConfig.Description)
 			assert.Equal(t, telConf, teles[0].TelegrafConfig.Config)
 
@@ -338,7 +364,7 @@ spec:
 			if !exportAllSum {
 				assert.NotZero(t, vars[0].ID)
 			}
-			assert.Equal(t, "var_query_1", vars[0].Name)
+			assert.Equal(t, "query var", vars[0].Name)
 			hasLabelAssociations(t, vars[0].LabelAssociations, 1, "label_1")
 			varArgs := vars[0].Arguments
 			require.NotNil(t, varArgs)
@@ -444,7 +470,7 @@ spec:
 				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
 					pkger.CreateByOrgIDOpt{
 						OrgID:      l.Org.ID,
-						LabelNames: []string{"label_2"},
+						LabelNames: []string{"the 2nd label"},
 					},
 				))
 				require.NoError(t, err)
@@ -464,7 +490,7 @@ spec:
 				newPkg, err := svc.CreatePkg(timedCtx(2*time.Second), pkger.CreateWithAllOrgResources(
 					pkger.CreateByOrgIDOpt{
 						OrgID:         l.Org.ID,
-						LabelNames:    []string{"label_2"},
+						LabelNames:    []string{"the 2nd label"},
 						ResourceKinds: []pkger.Kind{pkger.KindDashboard},
 					},
 				))
@@ -612,28 +638,27 @@ spec:
 			assert.Zero(t, labels[0].ID)
 			assert.Equal(t, "label_1", labels[0].Name)
 			assert.Zero(t, labels[1].ID)
-			assert.Equal(t, "label_2", labels[1].Name)
+			assert.Equal(t, "the 2nd label", labels[1].Name)
 
 			bkts := newSum.Buckets
 			require.Len(t, bkts, 1)
 			assert.Zero(t, bkts[0].ID)
-			assert.Equal(t, "rucket_1", bkts[0].Name)
-			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "label_2")
+			assert.Equal(t, "rucketeer", bkts[0].Name)
+			hasLabelAssociations(t, bkts[0].LabelAssociations, 2, "label_1", "the 2nd label")
 
 			checks := newSum.Checks
 			require.Len(t, checks, 2)
-			for i := range make([]struct{}, 2) {
-				assert.Zero(t, checks[0].Check.GetID())
-				assert.Equal(t, fmt.Sprintf("check_%d", i), checks[i].Check.GetName())
-				hasLabelAssociations(t, checks[i].LabelAssociations, 1, "label_1")
-			}
+			assert.Equal(t, "check 0 name", checks[0].Check.GetName())
+			hasLabelAssociations(t, checks[0].LabelAssociations, 1, "label_1")
+			assert.Equal(t, "check_1", checks[1].Check.GetName())
+			hasLabelAssociations(t, checks[1].LabelAssociations, 1, "label_1")
 
 			dashs := newSum.Dashboards
 			require.Len(t, dashs, 1)
 			assert.Zero(t, dashs[0].ID)
 			assert.Equal(t, "dash_1", dashs[0].Name)
 			assert.Equal(t, "desc1", dashs[0].Description)
-			hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "label_2")
+			hasLabelAssociations(t, dashs[0].LabelAssociations, 2, "label_1", "the 2nd label")
 			require.Len(t, dashs[0].Charts, 1)
 			assert.Equal(t, influxdb.ViewPropertyTypeSingleStat, dashs[0].Charts[0].Properties.GetType())
 
@@ -647,7 +672,7 @@ spec:
 			newRule := newSum.NotificationRules[0]
 			assert.Equal(t, "new rule name", newRule.Name)
 			assert.Zero(t, newRule.EndpointID)
-			assert.Equal(t, sum1Rules[0].EndpointName, newRule.EndpointName)
+			assert.NotEmpty(t, newRule.EndpointName)
 			hasLabelAssociations(t, newRule.LabelAssociations, 1, "label_1")
 
 			require.Len(t, newSum.Tasks, 1)
@@ -923,7 +948,7 @@ spec:
 		}
 		assert.Equal(t, expectedMissingEnvs, sum.MissingEnvs)
 
-		sum, err = svc.Apply(timedCtx(time.Second), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
+		sum, err = svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkg, pkger.ApplyWithEnvRefs(map[string]string{
 			"bkt-1-name-ref":      "rucket_threeve",
 			"check-1-name-ref":    "check_threeve",
 			"dash-1-name-ref":     "dash_threeve",
@@ -988,24 +1013,28 @@ metadata:
 apiVersion: %[1]s
 kind: Label
 metadata:
-  name: label_2
+  name: the 2nd label
+spec:
+  name: the 2nd label
 ---
 apiVersion: %[1]s
 kind: Bucket
 metadata:
   name: rucket_1
 spec:
+  name: rucketeer
   associations:
     - kind: Label
       name: label_1
     - kind: Label
-      name: label_2
+      name: the 2nd label
 ---
 apiVersion: %[1]s
 kind: Dashboard
 metadata:
-  name: dash_1
+  name: dash_UUID
 spec:
+  name: dash_1
   description: desc1
   charts:
     - kind:   Single_Stat
@@ -1025,13 +1054,14 @@ spec:
     - kind: Label
       name: label_1
     - kind: Label
-      name: label_2
+      name: the 2nd label
 ---
 apiVersion: %[1]s
 kind: Variable
 metadata:
   name:  var_query_1
 spec:
+  name: query var
   description: var_query_1 desc
   type: query
   language: flux
@@ -1046,6 +1076,7 @@ kind: Telegraf
 metadata:
   name:  first_tele_config
 spec:
+  name: first tele config
   description: desc
   associations:
     - kind: Label
@@ -1055,8 +1086,9 @@ spec:
 apiVersion: %[1]s
 kind: NotificationEndpointHTTP
 metadata:
-  name:  http_none_auth_notification_endpoint
+  name:  http_none_auth_notification_endpoint # on export of resource created from this, will not be same name as this
 spec:
+  name: no auth endpoint
   type: none
   description: http none auth desc
   method: GET
@@ -1071,6 +1103,7 @@ kind: CheckThreshold
 metadata:
   name:  check_0
 spec:
+  name: check 0 name
   every: 1m
   query:  >
     from(bucket: "rucket_1")
@@ -1129,8 +1162,9 @@ spec:
 apiVersion: %[1]s
 kind: NotificationRule
 metadata:
-  name:  rule_0
+  name:  rule_UUID
 spec:
+  name:  rule_0
   description: desc_0
   endpointName: http_none_auth_notification_endpoint
   every: 10m
@@ -1155,8 +1189,9 @@ spec:
 apiVersion: %[1]s
 kind: Task
 metadata:
-  name:  task_1
+  name:  task_UUID
 spec:
+  name:  task_1
   description: desc_1
   cron: 15 * * * *
   query:  >
@@ -1190,7 +1225,7 @@ kind: Variable
 metadata:
   name:  var_query_1
 spec:
-  descriptin: new desc
+  description: new desc
   type: query
   language: flux
   query: |
@@ -1204,6 +1239,7 @@ kind: NotificationEndpointHTTP
 metadata:
   name:  http_none_auth_notification_endpoint
 spec:
+  name: no auth endpoint
   type: none
   description: new desc
   method: GET

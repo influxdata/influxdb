@@ -4,7 +4,6 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/data/gen"
 	"github.com/influxdata/influxdb/storage/reads"
-	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
@@ -81,7 +80,7 @@ func (t timeValuesGeneratorCursor) Stats() cursors.CursorStats { return t.stats 
 
 type floatTimeValuesGeneratorCursor struct {
 	timeValuesGeneratorCursor
-	a tsdb.FloatArray
+	a cursors.FloatArray
 }
 
 func (c *floatTimeValuesGeneratorCursor) Next() *cursors.FloatArray {
@@ -98,7 +97,7 @@ func (c *floatTimeValuesGeneratorCursor) Next() *cursors.FloatArray {
 
 type integerTimeValuesGeneratorCursor struct {
 	timeValuesGeneratorCursor
-	a tsdb.IntegerArray
+	a cursors.IntegerArray
 }
 
 func (c *integerTimeValuesGeneratorCursor) Next() *cursors.IntegerArray {
@@ -115,7 +114,7 @@ func (c *integerTimeValuesGeneratorCursor) Next() *cursors.IntegerArray {
 
 type unsignedTimeValuesGeneratorCursor struct {
 	timeValuesGeneratorCursor
-	a tsdb.UnsignedArray
+	a cursors.UnsignedArray
 }
 
 func (c *unsignedTimeValuesGeneratorCursor) Next() *cursors.UnsignedArray {
@@ -132,7 +131,7 @@ func (c *unsignedTimeValuesGeneratorCursor) Next() *cursors.UnsignedArray {
 
 type stringTimeValuesGeneratorCursor struct {
 	timeValuesGeneratorCursor
-	a tsdb.StringArray
+	a cursors.StringArray
 }
 
 func (c *stringTimeValuesGeneratorCursor) Next() *cursors.StringArray {
@@ -151,7 +150,7 @@ func (c *stringTimeValuesGeneratorCursor) Next() *cursors.StringArray {
 
 type booleanTimeValuesGeneratorCursor struct {
 	timeValuesGeneratorCursor
-	a tsdb.BooleanArray
+	a cursors.BooleanArray
 }
 
 func (c *booleanTimeValuesGeneratorCursor) Next() *cursors.BooleanArray {

@@ -73,6 +73,7 @@ export interface TimeMachineState {
   activeQueryIndex: number | null
   queryBuilder: QueryBuilderState
   queryResults: QueryResultsState
+  contextID?: string | null
 }
 
 export interface TimeMachinesState {
@@ -803,6 +804,7 @@ export const timeMachineReducer = (
 
         tag.key = key
         tag.values = []
+        tag.aggregateFunctionType = 'filter'
       })
     }
 
@@ -812,7 +814,6 @@ export const timeMachineReducer = (
         const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
 
         draftQuery.builderConfig.tags[index].values = values
-
         buildActiveQuery(draftState)
       })
     }

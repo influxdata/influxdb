@@ -9,7 +9,6 @@ package tsm1
 import (
 	"sort"
 
-	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
@@ -22,22 +21,22 @@ type floatArrayAscendingCursor struct {
 	}
 
 	tsm struct {
-		buf       *tsdb.FloatArray
-		values    *tsdb.FloatArray
+		buf       *cursors.FloatArray
+		values    *cursors.FloatArray
 		pos       int
 		keyCursor *KeyCursor
 	}
 
 	end   int64
-	res   *tsdb.FloatArray
+	res   *cursors.FloatArray
 	stats cursors.CursorStats
 }
 
 func newFloatArrayAscendingCursor() *floatArrayAscendingCursor {
 	c := &floatArrayAscendingCursor{
-		res: tsdb.NewFloatArrayLen(MaxPointsPerBlock),
+		res: cursors.NewFloatArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewFloatArrayLen(MaxPointsPerBlock)
+	c.tsm.buf = cursors.NewFloatArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -70,7 +69,7 @@ func (c *floatArrayAscendingCursor) Close() {
 func (c *floatArrayAscendingCursor) Stats() cursors.CursorStats { return c.stats }
 
 // Next returns the next key/value for the cursor.
-func (c *floatArrayAscendingCursor) Next() *tsdb.FloatArray {
+func (c *floatArrayAscendingCursor) Next() *cursors.FloatArray {
 	pos := 0
 	cvals := c.cache.values
 	tvals := c.tsm.values
@@ -153,14 +152,14 @@ func (c *floatArrayAscendingCursor) Next() *tsdb.FloatArray {
 	return c.res
 }
 
-func (c *floatArrayAscendingCursor) nextTSM() *tsdb.FloatArray {
+func (c *floatArrayAscendingCursor) nextTSM() *cursors.FloatArray {
 	c.tsm.keyCursor.Next()
 	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = 0
 	return c.tsm.values
 }
 
-func (c *floatArrayAscendingCursor) readArrayBlock() *tsdb.FloatArray {
+func (c *floatArrayAscendingCursor) readArrayBlock() *cursors.FloatArray {
 	values, _ := c.tsm.keyCursor.ReadFloatArrayBlock(c.tsm.buf)
 	return values
 }
@@ -172,22 +171,22 @@ type floatArrayDescendingCursor struct {
 	}
 
 	tsm struct {
-		buf       *tsdb.FloatArray
-		values    *tsdb.FloatArray
+		buf       *cursors.FloatArray
+		values    *cursors.FloatArray
 		pos       int
 		keyCursor *KeyCursor
 	}
 
 	end   int64
-	res   *tsdb.FloatArray
+	res   *cursors.FloatArray
 	stats cursors.CursorStats
 }
 
 func newFloatArrayDescendingCursor() *floatArrayDescendingCursor {
 	c := &floatArrayDescendingCursor{
-		res: tsdb.NewFloatArrayLen(MaxPointsPerBlock),
+		res: cursors.NewFloatArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewFloatArrayLen(MaxPointsPerBlock)
+	c.tsm.buf = cursors.NewFloatArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -236,7 +235,7 @@ func (c *floatArrayDescendingCursor) Close() {
 
 func (c *floatArrayDescendingCursor) Stats() cursors.CursorStats { return c.stats }
 
-func (c *floatArrayDescendingCursor) Next() *tsdb.FloatArray {
+func (c *floatArrayDescendingCursor) Next() *cursors.FloatArray {
 	pos := 0
 	cvals := c.cache.values
 	tvals := c.tsm.values
@@ -308,14 +307,14 @@ func (c *floatArrayDescendingCursor) Next() *tsdb.FloatArray {
 	return c.res
 }
 
-func (c *floatArrayDescendingCursor) nextTSM() *tsdb.FloatArray {
+func (c *floatArrayDescendingCursor) nextTSM() *cursors.FloatArray {
 	c.tsm.keyCursor.Next()
 	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = len(c.tsm.values.Timestamps) - 1
 	return c.tsm.values
 }
 
-func (c *floatArrayDescendingCursor) readArrayBlock() *tsdb.FloatArray {
+func (c *floatArrayDescendingCursor) readArrayBlock() *cursors.FloatArray {
 	values, _ := c.tsm.keyCursor.ReadFloatArrayBlock(c.tsm.buf)
 
 	c.stats.ScannedValues += len(values.Values)
@@ -332,22 +331,22 @@ type integerArrayAscendingCursor struct {
 	}
 
 	tsm struct {
-		buf       *tsdb.IntegerArray
-		values    *tsdb.IntegerArray
+		buf       *cursors.IntegerArray
+		values    *cursors.IntegerArray
 		pos       int
 		keyCursor *KeyCursor
 	}
 
 	end   int64
-	res   *tsdb.IntegerArray
+	res   *cursors.IntegerArray
 	stats cursors.CursorStats
 }
 
 func newIntegerArrayAscendingCursor() *integerArrayAscendingCursor {
 	c := &integerArrayAscendingCursor{
-		res: tsdb.NewIntegerArrayLen(MaxPointsPerBlock),
+		res: cursors.NewIntegerArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewIntegerArrayLen(MaxPointsPerBlock)
+	c.tsm.buf = cursors.NewIntegerArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -380,7 +379,7 @@ func (c *integerArrayAscendingCursor) Close() {
 func (c *integerArrayAscendingCursor) Stats() cursors.CursorStats { return c.stats }
 
 // Next returns the next key/value for the cursor.
-func (c *integerArrayAscendingCursor) Next() *tsdb.IntegerArray {
+func (c *integerArrayAscendingCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	cvals := c.cache.values
 	tvals := c.tsm.values
@@ -463,14 +462,14 @@ func (c *integerArrayAscendingCursor) Next() *tsdb.IntegerArray {
 	return c.res
 }
 
-func (c *integerArrayAscendingCursor) nextTSM() *tsdb.IntegerArray {
+func (c *integerArrayAscendingCursor) nextTSM() *cursors.IntegerArray {
 	c.tsm.keyCursor.Next()
 	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = 0
 	return c.tsm.values
 }
 
-func (c *integerArrayAscendingCursor) readArrayBlock() *tsdb.IntegerArray {
+func (c *integerArrayAscendingCursor) readArrayBlock() *cursors.IntegerArray {
 	values, _ := c.tsm.keyCursor.ReadIntegerArrayBlock(c.tsm.buf)
 	return values
 }
@@ -482,22 +481,22 @@ type integerArrayDescendingCursor struct {
 	}
 
 	tsm struct {
-		buf       *tsdb.IntegerArray
-		values    *tsdb.IntegerArray
+		buf       *cursors.IntegerArray
+		values    *cursors.IntegerArray
 		pos       int
 		keyCursor *KeyCursor
 	}
 
 	end   int64
-	res   *tsdb.IntegerArray
+	res   *cursors.IntegerArray
 	stats cursors.CursorStats
 }
 
 func newIntegerArrayDescendingCursor() *integerArrayDescendingCursor {
 	c := &integerArrayDescendingCursor{
-		res: tsdb.NewIntegerArrayLen(MaxPointsPerBlock),
+		res: cursors.NewIntegerArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewIntegerArrayLen(MaxPointsPerBlock)
+	c.tsm.buf = cursors.NewIntegerArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -546,7 +545,7 @@ func (c *integerArrayDescendingCursor) Close() {
 
 func (c *integerArrayDescendingCursor) Stats() cursors.CursorStats { return c.stats }
 
-func (c *integerArrayDescendingCursor) Next() *tsdb.IntegerArray {
+func (c *integerArrayDescendingCursor) Next() *cursors.IntegerArray {
 	pos := 0
 	cvals := c.cache.values
 	tvals := c.tsm.values
@@ -618,14 +617,14 @@ func (c *integerArrayDescendingCursor) Next() *tsdb.IntegerArray {
 	return c.res
 }
 
-func (c *integerArrayDescendingCursor) nextTSM() *tsdb.IntegerArray {
+func (c *integerArrayDescendingCursor) nextTSM() *cursors.IntegerArray {
 	c.tsm.keyCursor.Next()
 	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = len(c.tsm.values.Timestamps) - 1
 	return c.tsm.values
 }
 
-func (c *integerArrayDescendingCursor) readArrayBlock() *tsdb.IntegerArray {
+func (c *integerArrayDescendingCursor) readArrayBlock() *cursors.IntegerArray {
 	values, _ := c.tsm.keyCursor.ReadIntegerArrayBlock(c.tsm.buf)
 
 	c.stats.ScannedValues += len(values.Values)
@@ -642,22 +641,22 @@ type unsignedArrayAscendingCursor struct {
 	}
 
 	tsm struct {
-		buf       *tsdb.UnsignedArray
-		values    *tsdb.UnsignedArray
+		buf       *cursors.UnsignedArray
+		values    *cursors.UnsignedArray
 		pos       int
 		keyCursor *KeyCursor
 	}
 
 	end   int64
-	res   *tsdb.UnsignedArray
+	res   *cursors.UnsignedArray
 	stats cursors.CursorStats
 }
 
 func newUnsignedArrayAscendingCursor() *unsignedArrayAscendingCursor {
 	c := &unsignedArrayAscendingCursor{
-		res: tsdb.NewUnsignedArrayLen(MaxPointsPerBlock),
+		res: cursors.NewUnsignedArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewUnsignedArrayLen(MaxPointsPerBlock)
+	c.tsm.buf = cursors.NewUnsignedArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -690,7 +689,7 @@ func (c *unsignedArrayAscendingCursor) Close() {
 func (c *unsignedArrayAscendingCursor) Stats() cursors.CursorStats { return c.stats }
 
 // Next returns the next key/value for the cursor.
-func (c *unsignedArrayAscendingCursor) Next() *tsdb.UnsignedArray {
+func (c *unsignedArrayAscendingCursor) Next() *cursors.UnsignedArray {
 	pos := 0
 	cvals := c.cache.values
 	tvals := c.tsm.values
@@ -773,14 +772,14 @@ func (c *unsignedArrayAscendingCursor) Next() *tsdb.UnsignedArray {
 	return c.res
 }
 
-func (c *unsignedArrayAscendingCursor) nextTSM() *tsdb.UnsignedArray {
+func (c *unsignedArrayAscendingCursor) nextTSM() *cursors.UnsignedArray {
 	c.tsm.keyCursor.Next()
 	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = 0
 	return c.tsm.values
 }
 
-func (c *unsignedArrayAscendingCursor) readArrayBlock() *tsdb.UnsignedArray {
+func (c *unsignedArrayAscendingCursor) readArrayBlock() *cursors.UnsignedArray {
 	values, _ := c.tsm.keyCursor.ReadUnsignedArrayBlock(c.tsm.buf)
 	return values
 }
@@ -792,22 +791,22 @@ type unsignedArrayDescendingCursor struct {
 	}
 
 	tsm struct {
-		buf       *tsdb.UnsignedArray
-		values    *tsdb.UnsignedArray
+		buf       *cursors.UnsignedArray
+		values    *cursors.UnsignedArray
 		pos       int
 		keyCursor *KeyCursor
 	}
 
 	end   int64
-	res   *tsdb.UnsignedArray
+	res   *cursors.UnsignedArray
 	stats cursors.CursorStats
 }
 
 func newUnsignedArrayDescendingCursor() *unsignedArrayDescendingCursor {
 	c := &unsignedArrayDescendingCursor{
-		res: tsdb.NewUnsignedArrayLen(MaxPointsPerBlock),
+		res: cursors.NewUnsignedArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewUnsignedArrayLen(MaxPointsPerBlock)
+	c.tsm.buf = cursors.NewUnsignedArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -856,7 +855,7 @@ func (c *unsignedArrayDescendingCursor) Close() {
 
 func (c *unsignedArrayDescendingCursor) Stats() cursors.CursorStats { return c.stats }
 
-func (c *unsignedArrayDescendingCursor) Next() *tsdb.UnsignedArray {
+func (c *unsignedArrayDescendingCursor) Next() *cursors.UnsignedArray {
 	pos := 0
 	cvals := c.cache.values
 	tvals := c.tsm.values
@@ -928,14 +927,14 @@ func (c *unsignedArrayDescendingCursor) Next() *tsdb.UnsignedArray {
 	return c.res
 }
 
-func (c *unsignedArrayDescendingCursor) nextTSM() *tsdb.UnsignedArray {
+func (c *unsignedArrayDescendingCursor) nextTSM() *cursors.UnsignedArray {
 	c.tsm.keyCursor.Next()
 	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = len(c.tsm.values.Timestamps) - 1
 	return c.tsm.values
 }
 
-func (c *unsignedArrayDescendingCursor) readArrayBlock() *tsdb.UnsignedArray {
+func (c *unsignedArrayDescendingCursor) readArrayBlock() *cursors.UnsignedArray {
 	values, _ := c.tsm.keyCursor.ReadUnsignedArrayBlock(c.tsm.buf)
 
 	c.stats.ScannedValues += len(values.Values)
@@ -952,22 +951,22 @@ type stringArrayAscendingCursor struct {
 	}
 
 	tsm struct {
-		buf       *tsdb.StringArray
-		values    *tsdb.StringArray
+		buf       *cursors.StringArray
+		values    *cursors.StringArray
 		pos       int
 		keyCursor *KeyCursor
 	}
 
 	end   int64
-	res   *tsdb.StringArray
+	res   *cursors.StringArray
 	stats cursors.CursorStats
 }
 
 func newStringArrayAscendingCursor() *stringArrayAscendingCursor {
 	c := &stringArrayAscendingCursor{
-		res: tsdb.NewStringArrayLen(MaxPointsPerBlock),
+		res: cursors.NewStringArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewStringArrayLen(MaxPointsPerBlock)
+	c.tsm.buf = cursors.NewStringArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -1000,7 +999,7 @@ func (c *stringArrayAscendingCursor) Close() {
 func (c *stringArrayAscendingCursor) Stats() cursors.CursorStats { return c.stats }
 
 // Next returns the next key/value for the cursor.
-func (c *stringArrayAscendingCursor) Next() *tsdb.StringArray {
+func (c *stringArrayAscendingCursor) Next() *cursors.StringArray {
 	pos := 0
 	cvals := c.cache.values
 	tvals := c.tsm.values
@@ -1085,14 +1084,14 @@ func (c *stringArrayAscendingCursor) Next() *tsdb.StringArray {
 	return c.res
 }
 
-func (c *stringArrayAscendingCursor) nextTSM() *tsdb.StringArray {
+func (c *stringArrayAscendingCursor) nextTSM() *cursors.StringArray {
 	c.tsm.keyCursor.Next()
 	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = 0
 	return c.tsm.values
 }
 
-func (c *stringArrayAscendingCursor) readArrayBlock() *tsdb.StringArray {
+func (c *stringArrayAscendingCursor) readArrayBlock() *cursors.StringArray {
 	values, _ := c.tsm.keyCursor.ReadStringArrayBlock(c.tsm.buf)
 	return values
 }
@@ -1104,22 +1103,22 @@ type stringArrayDescendingCursor struct {
 	}
 
 	tsm struct {
-		buf       *tsdb.StringArray
-		values    *tsdb.StringArray
+		buf       *cursors.StringArray
+		values    *cursors.StringArray
 		pos       int
 		keyCursor *KeyCursor
 	}
 
 	end   int64
-	res   *tsdb.StringArray
+	res   *cursors.StringArray
 	stats cursors.CursorStats
 }
 
 func newStringArrayDescendingCursor() *stringArrayDescendingCursor {
 	c := &stringArrayDescendingCursor{
-		res: tsdb.NewStringArrayLen(MaxPointsPerBlock),
+		res: cursors.NewStringArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewStringArrayLen(MaxPointsPerBlock)
+	c.tsm.buf = cursors.NewStringArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -1168,7 +1167,7 @@ func (c *stringArrayDescendingCursor) Close() {
 
 func (c *stringArrayDescendingCursor) Stats() cursors.CursorStats { return c.stats }
 
-func (c *stringArrayDescendingCursor) Next() *tsdb.StringArray {
+func (c *stringArrayDescendingCursor) Next() *cursors.StringArray {
 	pos := 0
 	cvals := c.cache.values
 	tvals := c.tsm.values
@@ -1240,14 +1239,14 @@ func (c *stringArrayDescendingCursor) Next() *tsdb.StringArray {
 	return c.res
 }
 
-func (c *stringArrayDescendingCursor) nextTSM() *tsdb.StringArray {
+func (c *stringArrayDescendingCursor) nextTSM() *cursors.StringArray {
 	c.tsm.keyCursor.Next()
 	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = len(c.tsm.values.Timestamps) - 1
 	return c.tsm.values
 }
 
-func (c *stringArrayDescendingCursor) readArrayBlock() *tsdb.StringArray {
+func (c *stringArrayDescendingCursor) readArrayBlock() *cursors.StringArray {
 	values, _ := c.tsm.keyCursor.ReadStringArrayBlock(c.tsm.buf)
 
 	c.stats.ScannedValues += len(values.Values)
@@ -1266,22 +1265,22 @@ type booleanArrayAscendingCursor struct {
 	}
 
 	tsm struct {
-		buf       *tsdb.BooleanArray
-		values    *tsdb.BooleanArray
+		buf       *cursors.BooleanArray
+		values    *cursors.BooleanArray
 		pos       int
 		keyCursor *KeyCursor
 	}
 
 	end   int64
-	res   *tsdb.BooleanArray
+	res   *cursors.BooleanArray
 	stats cursors.CursorStats
 }
 
 func newBooleanArrayAscendingCursor() *booleanArrayAscendingCursor {
 	c := &booleanArrayAscendingCursor{
-		res: tsdb.NewBooleanArrayLen(MaxPointsPerBlock),
+		res: cursors.NewBooleanArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewBooleanArrayLen(MaxPointsPerBlock)
+	c.tsm.buf = cursors.NewBooleanArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -1314,7 +1313,7 @@ func (c *booleanArrayAscendingCursor) Close() {
 func (c *booleanArrayAscendingCursor) Stats() cursors.CursorStats { return c.stats }
 
 // Next returns the next key/value for the cursor.
-func (c *booleanArrayAscendingCursor) Next() *tsdb.BooleanArray {
+func (c *booleanArrayAscendingCursor) Next() *cursors.BooleanArray {
 	pos := 0
 	cvals := c.cache.values
 	tvals := c.tsm.values
@@ -1397,14 +1396,14 @@ func (c *booleanArrayAscendingCursor) Next() *tsdb.BooleanArray {
 	return c.res
 }
 
-func (c *booleanArrayAscendingCursor) nextTSM() *tsdb.BooleanArray {
+func (c *booleanArrayAscendingCursor) nextTSM() *cursors.BooleanArray {
 	c.tsm.keyCursor.Next()
 	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = 0
 	return c.tsm.values
 }
 
-func (c *booleanArrayAscendingCursor) readArrayBlock() *tsdb.BooleanArray {
+func (c *booleanArrayAscendingCursor) readArrayBlock() *cursors.BooleanArray {
 	values, _ := c.tsm.keyCursor.ReadBooleanArrayBlock(c.tsm.buf)
 	return values
 }
@@ -1416,22 +1415,22 @@ type booleanArrayDescendingCursor struct {
 	}
 
 	tsm struct {
-		buf       *tsdb.BooleanArray
-		values    *tsdb.BooleanArray
+		buf       *cursors.BooleanArray
+		values    *cursors.BooleanArray
 		pos       int
 		keyCursor *KeyCursor
 	}
 
 	end   int64
-	res   *tsdb.BooleanArray
+	res   *cursors.BooleanArray
 	stats cursors.CursorStats
 }
 
 func newBooleanArrayDescendingCursor() *booleanArrayDescendingCursor {
 	c := &booleanArrayDescendingCursor{
-		res: tsdb.NewBooleanArrayLen(MaxPointsPerBlock),
+		res: cursors.NewBooleanArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewBooleanArrayLen(MaxPointsPerBlock)
+	c.tsm.buf = cursors.NewBooleanArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -1480,7 +1479,7 @@ func (c *booleanArrayDescendingCursor) Close() {
 
 func (c *booleanArrayDescendingCursor) Stats() cursors.CursorStats { return c.stats }
 
-func (c *booleanArrayDescendingCursor) Next() *tsdb.BooleanArray {
+func (c *booleanArrayDescendingCursor) Next() *cursors.BooleanArray {
 	pos := 0
 	cvals := c.cache.values
 	tvals := c.tsm.values
@@ -1552,14 +1551,14 @@ func (c *booleanArrayDescendingCursor) Next() *tsdb.BooleanArray {
 	return c.res
 }
 
-func (c *booleanArrayDescendingCursor) nextTSM() *tsdb.BooleanArray {
+func (c *booleanArrayDescendingCursor) nextTSM() *cursors.BooleanArray {
 	c.tsm.keyCursor.Next()
 	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = len(c.tsm.values.Timestamps) - 1
 	return c.tsm.values
 }
 
-func (c *booleanArrayDescendingCursor) readArrayBlock() *tsdb.BooleanArray {
+func (c *booleanArrayDescendingCursor) readArrayBlock() *cursors.BooleanArray {
 	values, _ := c.tsm.keyCursor.ReadBooleanArrayBlock(c.tsm.buf)
 
 	c.stats.ScannedValues += len(values.Values)

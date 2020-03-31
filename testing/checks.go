@@ -48,12 +48,14 @@ var deadman1 = &check.Deadman{
 			BuilderConfig: influxdb.BuilderConfig{
 				Buckets: []string{},
 				Tags: []struct {
-					Key    string   `json:"key"`
-					Values []string `json:"values"`
+					Key                   string   `json:"key"`
+					Values                []string `json:"values"`
+					AggregateFunctionType string   `json:"aggregateFunctionType"`
 				}{
 					{
-						Key:    "_field",
-						Values: []string{"usage_user"},
+						Key:                   "_field",
+						Values:                []string{"usage_user"},
+						AggregateFunctionType: "filter",
 					},
 				},
 				Functions: []struct {
@@ -93,8 +95,9 @@ var threshold1 = &check.Threshold{
 			BuilderConfig: influxdb.BuilderConfig{
 				Buckets: []string{},
 				Tags: []struct {
-					Key    string   `json:"key"`
-					Values []string `json:"values"`
+					Key                   string   `json:"key"`
+					Values                []string `json:"values"`
+					AggregateFunctionType string   `json:"aggregateFunctionType"`
 				}{},
 				Functions: []struct {
 					Name string `json:"name"`
@@ -272,12 +275,14 @@ func CreateCheck(
 							Text: script,
 							BuilderConfig: influxdb.BuilderConfig{
 								Tags: []struct {
-									Key    string   `json:"key"`
-									Values []string `json:"values"`
+									Key                   string   `json:"key"`
+									Values                []string `json:"values"`
+									AggregateFunctionType string   `json:"aggregateFunctionType"`
 								}{
 									{
-										Key:    "_field",
-										Values: []string{"usage_user"},
+										Key:                   "_field",
+										Values:                []string{"usage_user"},
+										AggregateFunctionType: "filter",
 									},
 								},
 							},
@@ -328,12 +333,14 @@ func CreateCheck(
 								BuilderConfig: influxdb.BuilderConfig{
 									Buckets: []string{},
 									Tags: []struct {
-										Key    string   `json:"key"`
-										Values []string `json:"values"`
+										Key                   string   `json:"key"`
+										Values                []string `json:"values"`
+										AggregateFunctionType string   `json:"aggregateFunctionType"`
 									}{
 										{
-											Key:    "_field",
-											Values: []string{"usage_user"},
+											Key:                   "_field",
+											Values:                []string{"usage_user"},
+											AggregateFunctionType: "filter",
 										},
 									},
 									Functions: []struct {
@@ -521,12 +528,14 @@ func CreateCheck(
 							Text: script,
 							BuilderConfig: influxdb.BuilderConfig{
 								Tags: []struct {
-									Key    string   `json:"key"`
-									Values []string `json:"values"`
+									Key                   string   `json:"key"`
+									Values                []string `json:"values"`
+									AggregateFunctionType string   `json:"aggregateFunctionType"`
 								}{
 									{
-										Key:    "_field",
-										Values: []string{"usage_user"},
+										Key:                   "_field",
+										Values:                []string{"usage_user"},
+										AggregateFunctionType: "filter",
 									},
 								},
 							},
@@ -613,12 +622,14 @@ func CreateCheck(
 							Text: script,
 							BuilderConfig: influxdb.BuilderConfig{
 								Tags: []struct {
-									Key    string   `json:"key"`
-									Values []string `json:"values"`
+									Key                   string   `json:"key"`
+									Values                []string `json:"values"`
+									AggregateFunctionType string   `json:"aggregateFunctionType"`
 								}{
 									{
-										Key:    "_field",
-										Values: []string{"usage_user"},
+										Key:                   "_field",
+										Values:                []string{"usage_user"},
+										AggregateFunctionType: "filter",
 									},
 								},
 							},
@@ -659,12 +670,14 @@ func CreateCheck(
 								BuilderConfig: influxdb.BuilderConfig{
 									Buckets: []string{},
 									Tags: []struct {
-										Key    string   `json:"key"`
-										Values []string `json:"values"`
+										Key                   string   `json:"key"`
+										Values                []string `json:"values"`
+										AggregateFunctionType string   `json:"aggregateFunctionType"`
 									}{
 										{
-											Key:    "_field",
-											Values: []string{"usage_user"},
+											Key:                   "_field",
+											Values:                []string{"usage_user"},
+											AggregateFunctionType: "filter",
 										},
 									},
 									Functions: []struct {
@@ -707,12 +720,14 @@ func CreateCheck(
 							Text: script,
 							BuilderConfig: influxdb.BuilderConfig{
 								Tags: []struct {
-									Key    string   `json:"key"`
-									Values []string `json:"values"`
+									Key                   string   `json:"key"`
+									Values                []string `json:"values"`
+									AggregateFunctionType string   `json:"aggregateFunctionType"`
 								}{
 									{
-										Key:    "_field",
-										Values: []string{"usage_user"},
+										Key:                   "_field",
+										Values:                []string{"usage_user"},
+										AggregateFunctionType: "filter",
 									},
 								},
 							},
@@ -1497,12 +1512,14 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 							Text: script,
 							BuilderConfig: influxdb.BuilderConfig{
 								Tags: []struct {
-									Key    string   `json:"key"`
-									Values []string `json:"values"`
+									Key                   string   `json:"key"`
+									Values                []string `json:"values"`
+									AggregateFunctionType string   `json:"aggregateFunctionType"`
 								}{
 									{
-										Key:    "_field",
-										Values: []string{"usage_user"},
+										Key:                   "_field",
+										Values:                []string{"usage_user"},
+										AggregateFunctionType: "filter",
 									},
 								},
 							},
@@ -1557,12 +1574,14 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 							Text: script,
 							BuilderConfig: influxdb.BuilderConfig{
 								Tags: []struct {
-									Key    string   `json:"key"`
-									Values []string `json:"values"`
+									Key                   string   `json:"key"`
+									Values                []string `json:"values"`
+									AggregateFunctionType string   `json:"aggregateFunctionType"`
 								}{
 									{
-										Key:    "_field",
-										Values: []string{"usage_user"},
+										Key:                   "_field",
+										Values:                []string{"usage_user"},
+										AggregateFunctionType: "filter",
 									},
 								},
 							},
@@ -1626,12 +1645,14 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 								Text: script,
 								BuilderConfig: influxdb.BuilderConfig{
 									Tags: []struct {
-										Key    string   `json:"key"`
-										Values []string `json:"values"`
+										Key                   string   `json:"key"`
+										Values                []string `json:"values"`
+										AggregateFunctionType string   `json:"aggregateFunctionType"`
 									}{
 										{
-											Key:    "_field",
-											Values: []string{"usage_user"},
+											Key:                   "_field",
+											Values:                []string{"usage_user"},
+											AggregateFunctionType: "filter",
 										},
 									},
 								},
@@ -1765,12 +1786,14 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 							BuilderConfig: influxdb.BuilderConfig{
 								Buckets: []string{},
 								Tags: []struct {
-									Key    string   `json:"key"`
-									Values []string `json:"values"`
+									Key                   string   `json:"key"`
+									Values                []string `json:"values"`
+									AggregateFunctionType string   `json:"aggregateFunctionType"`
 								}{
 									{
-										Key:    "_field",
-										Values: []string{"usage_user"},
+										Key:                   "_field",
+										Values:                []string{"usage_user"},
+										AggregateFunctionType: "filter",
 									},
 								},
 								Functions: []struct {
@@ -1818,12 +1841,14 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 								Text: script,
 								BuilderConfig: influxdb.BuilderConfig{
 									Tags: []struct {
-										Key    string   `json:"key"`
-										Values []string `json:"values"`
+										Key                   string   `json:"key"`
+										Values                []string `json:"values"`
+										AggregateFunctionType string   `json:"aggregateFunctionType"`
 									}{
 										{
-											Key:    "_field",
-											Values: []string{"usage_user"},
+											Key:                   "_field",
+											Values:                []string{"usage_user"},
+											AggregateFunctionType: "filter",
 										},
 									},
 								},

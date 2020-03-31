@@ -43,6 +43,9 @@ const EditViewVEO: FunctionComponent<Props> = ({
   view,
 }) => {
   useEffect(() => {
+    // TODO split this up into "loadView" "setActiveTimeMachine"
+    // and something to tell the component to pull from the context
+    // of the dashboardID
     getViewForTimeMachine(dashboardID, cellID, 'veo')
   }, [])
 

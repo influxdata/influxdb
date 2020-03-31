@@ -21,7 +21,7 @@
 }
 
 .threesizer--division {
-  overflow: hidden;
+  /* overflow: hidden; */
   display: flex;
   align-items: stretch;
   transition: height 0.25s ease-in-out, width 0.25s ease-in-out;

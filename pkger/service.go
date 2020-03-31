@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -11,14 +12,44 @@ import (
 
 	"github.com/influxdata/influxdb"
 	ierrors "github.com/influxdata/influxdb/kit/errors"
+	"github.com/influxdata/influxdb/snowflake"
 	"go.uber.org/zap"
 )
 
 // APIVersion marks the current APIVersion for influx packages.
 const APIVersion = "influxdata.com/v2alpha1"
 
+type (
+	// Stack is an identifier for stateful application of a package(s). This stack
+	// will map created resources from the pkg(s) to existing resources on the
+	// platform. This stack is updated only after side effects of applying a pkg.
+	// If the pkg is applied, and no changes are had, then the stack is not updated.
+	Stack struct {
+		ID          influxdb.ID     `json:"id"`
+		OrgID       influxdb.ID     `json:"orgID"`
+		Name        string          `json:"name"`
+		Description string          `json:"description"`
+		URLs        []string        `json:"urls"`
+		Resources   []StackResource `json:"resources"`
+
+		influxdb.CRUDLog
+	}
+
+	// StackResource is a record for an individual resource side effect genereated from
+	// applying a pkg.
+	StackResource struct {
+		APIVersion string      `json:"apiVersion"`
+		ID         influxdb.ID `json:"resourceID"`
+		Kind       Kind        `json:"kind"`
+		Name       string      `json:"pkgName"`
+	}
+)
+
+const ResourceTypeStack influxdb.ResourceType = "stack"
+
 // SVC is the packages service interface.
 type SVC interface {
+	InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error)
 	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
 	DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, Diff, error)
 	Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg, opts ...ApplyOptFn) (Summary, error)
@@ -31,12 +62,16 @@ type serviceOpt struct {
 	logger *zap.Logger
 
 	applyReqLimit int
+	idGen         influxdb.IDGenerator
+	timeGen       influxdb.TimeGenerator
+	store         Store
 
 	bucketSVC   influxdb.BucketService
 	checkSVC    influxdb.CheckService
 	dashSVC     influxdb.DashboardService
 	labelSVC    influxdb.LabelService
 	endpointSVC influxdb.NotificationEndpointService
+	orgSVC      influxdb.OrganizationService
 	ruleSVC     influxdb.NotificationRuleStore
 	secretSVC   influxdb.SecretService
 	taskSVC     influxdb.TaskService
@@ -51,6 +86,27 @@ type ServiceSetterFn func(opt *serviceOpt)
 func WithLogger(log *zap.Logger) ServiceSetterFn {
 	return func(o *serviceOpt) {
 		o.logger = log
+	}
+}
+
+// WithIDGenerator sets the id generator for the service.
+func WithIDGenerator(idGen influxdb.IDGenerator) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.idGen = idGen
+	}
+}
+
+// WithTimeGenerator sets the time generator for the service.
+func WithTimeGenerator(timeGen influxdb.TimeGenerator) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.timeGen = timeGen
+	}
+}
+
+// WithStore sets the store for the service.
+func WithStore(store Store) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.store = store
 	}
 }
 
@@ -89,6 +145,13 @@ func WithNotificationRuleSVC(ruleSVC influxdb.NotificationRuleStore) ServiceSett
 	}
 }
 
+// WithOrganizationService sets the organization service for the service.
+func WithOrganizationService(orgSVC influxdb.OrganizationService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.orgSVC = orgSVC
+	}
+}
+
 // WithLabelSVC sets the label service.
 func WithLabelSVC(labelSVC influxdb.LabelService) ServiceSetterFn {
 	return func(opt *serviceOpt) {
@@ -124,23 +187,37 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 	}
 }
 
+// Store is the storage behavior the Service depends on.
+type Store interface {
+	CreateStack(ctx context.Context, stack Stack) error
+	ReadStackByID(ctx context.Context, id influxdb.ID) (Stack, error)
+	UpdateStack(ctx context.Context, stack Stack) error
+	DeleteStack(ctx context.Context, id influxdb.ID) error
+}
+
 // Service provides the pkger business logic including all the dependencies to make
 // this resource sausage.
 type Service struct {
 	log *zap.Logger
 
+	// internal dependencies
+	applyReqLimit int
+	idGen         influxdb.IDGenerator
+	store         Store
+	timeGen       influxdb.TimeGenerator
+
+	// external service dependencies
 	bucketSVC   influxdb.BucketService
 	checkSVC    influxdb.CheckService
 	dashSVC     influxdb.DashboardService
 	labelSVC    influxdb.LabelService
 	endpointSVC influxdb.NotificationEndpointService
+	orgSVC      influxdb.OrganizationService
 	ruleSVC     influxdb.NotificationRuleStore
 	secretSVC   influxdb.SecretService
 	taskSVC     influxdb.TaskService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
-
-	applyReqLimit int
 }
 
 var _ SVC = (*Service)(nil)
@@ -150,25 +227,63 @@ func NewService(opts ...ServiceSetterFn) *Service {
 	opt := &serviceOpt{
 		logger:        zap.NewNop(),
 		applyReqLimit: 5,
+		idGen:         snowflake.NewDefaultIDGenerator(),
+		timeGen:       influxdb.RealTimeGenerator{},
 	}
 	for _, o := range opts {
 		o(opt)
 	}
 
 	return &Service{
-		log:           opt.logger,
-		bucketSVC:     opt.bucketSVC,
-		checkSVC:      opt.checkSVC,
-		labelSVC:      opt.labelSVC,
-		dashSVC:       opt.dashSVC,
-		endpointSVC:   opt.endpointSVC,
-		ruleSVC:       opt.ruleSVC,
-		secretSVC:     opt.secretSVC,
-		taskSVC:       opt.taskSVC,
-		teleSVC:       opt.teleSVC,
-		varSVC:        opt.varSVC,
+		log: opt.logger,
+
 		applyReqLimit: opt.applyReqLimit,
+		idGen:         opt.idGen,
+		store:         opt.store,
+		timeGen:       opt.timeGen,
+
+		bucketSVC:   opt.bucketSVC,
+		checkSVC:    opt.checkSVC,
+		labelSVC:    opt.labelSVC,
+		dashSVC:     opt.dashSVC,
+		endpointSVC: opt.endpointSVC,
+		orgSVC:      opt.orgSVC,
+		ruleSVC:     opt.ruleSVC,
+		secretSVC:   opt.secretSVC,
+		taskSVC:     opt.taskSVC,
+		teleSVC:     opt.teleSVC,
+		varSVC:      opt.varSVC,
 	}
+}
+
+// InitStack will create a new stack for the given user and its given org. The stack can be created
+// with urls that point to the location of packages that are included as part of the stack when
+// it is applied.
+func (s *Service) InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error) {
+	if err := validURLs(stack.URLs); err != nil {
+		return Stack{}, err
+	}
+
+	if _, err := s.orgSVC.FindOrganizationByID(ctx, stack.OrgID); err != nil {
+		if influxdb.ErrorCode(err) == influxdb.ENotFound {
+			msg := fmt.Sprintf("organization dependency does not exist for id[%q]", stack.OrgID.String())
+			return Stack{}, toInfluxError(influxdb.EConflict, msg)
+		}
+		return Stack{}, internalErr(err)
+	}
+
+	stack.ID = s.idGen.ID()
+	now := s.timeGen.Now()
+	stack.CRUDLog = influxdb.CRUDLog{
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := s.store.CreateStack(ctx, stack); err != nil {
+		return Stack{}, internalErr(err)
+	}
+
+	return stack, nil
 }
 
 type (
@@ -229,69 +344,27 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 		}
 	}
 
-	pkg := &Pkg{
-		Objects: make([]Object, 0, len(opt.Resources)),
-	}
+	exporter := newResourceExporter(s)
 
 	for _, orgIDOpt := range opt.OrgIDs {
-		cloneAssFn, err := s.resourceCloneAssociationsGen(ctx, orgIDOpt.LabelNames...)
-		if err != nil {
-			return nil, err
-		}
 		resourcesToClone, err := s.cloneOrgResources(ctx, orgIDOpt.OrgID, orgIDOpt.ResourceKinds)
 		if err != nil {
 			return nil, internalErr(err)
 		}
-		for _, r := range uniqResourcesToClone(resourcesToClone) {
-			newKinds, err := s.resourceCloneToKind(ctx, r, cloneAssFn)
-			if err != nil {
-				return nil, internalErr(fmt.Errorf("failed to clone resource: resource_id=%s resource_kind=%s err=%q", r.ID, r.Kind, err))
-			}
-			pkg.Objects = append(pkg.Objects, newKinds...)
+
+		if err := exporter.Export(ctx, resourcesToClone, orgIDOpt.LabelNames...); err != nil {
+			return nil, internalErr(err)
 		}
 	}
 
-	cloneAssFn, err := s.resourceCloneAssociationsGen(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, r := range uniqResourcesToClone(opt.Resources) {
-		newKinds, err := s.resourceCloneToKind(ctx, r, cloneAssFn)
-		if err != nil {
-			return nil, internalErr(fmt.Errorf("failed to clone resource: resource_id=%s resource_kind=%s err=%q", r.ID, r.Kind, err))
-		}
-		pkg.Objects = append(pkg.Objects, newKinds...)
+	if err := exporter.Export(ctx, opt.Resources); err != nil {
+		return nil, internalErr(err)
 	}
 
-	pkg.Objects = uniqResources(pkg.Objects)
-
+	pkg := &Pkg{Objects: exporter.Objects()}
 	if err := pkg.Validate(ValidWithoutResources()); err != nil {
 		return nil, failedValidationErr(err)
 	}
-
-	var kindPriorities = map[Kind]int{
-		KindLabel:                         1,
-		KindBucket:                        2,
-		KindCheckDeadman:                  3,
-		KindCheckThreshold:                4,
-		KindNotificationEndpointHTTP:      5,
-		KindNotificationEndpointPagerDuty: 6,
-		KindNotificationEndpointSlack:     7,
-		KindNotificationRule:              8,
-		KindVariable:                      9,
-		KindTelegraf:                      10,
-		KindDashboard:                     11,
-	}
-
-	sort.Slice(pkg.Objects, func(i, j int) bool {
-		iName, jName := pkg.Objects[i].Name(), pkg.Objects[j].Name()
-		iKind, jKind := pkg.Objects[i].Type, pkg.Objects[j].Type
-
-		if iKind.is(jKind) {
-			return iName < jName
-		}
-		return kindPriorities[iKind] < kindPriorities[jKind]
-	})
 
 	return pkg, nil
 }
@@ -504,110 +577,6 @@ func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID) ([]R
 	return resources, nil
 }
 
-func (s *Service) resourceCloneToKind(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) (newKinds []Object, e error) {
-	defer func() {
-		if e != nil {
-			e = ierrors.Wrap(e, "cloning resource")
-		}
-	}()
-
-	var (
-		newKind      Object
-		sidecarKinds []Object
-	)
-	switch {
-	case r.Kind.is(KindBucket):
-		bkt, err := s.bucketSVC.FindBucketByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = bucketToObject(*bkt, r.Name)
-	case r.Kind.is(KindCheck),
-		r.Kind.is(KindCheckDeadman),
-		r.Kind.is(KindCheckThreshold):
-		ch, err := s.checkSVC.FindCheckByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = checkToObject(ch, r.Name)
-	case r.Kind.is(KindDashboard):
-		dash, err := s.findDashboardByIDFull(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = DashboardToObject(*dash, r.Name)
-	case r.Kind.is(KindLabel):
-		l, err := s.labelSVC.FindLabelByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = labelToObject(*l, r.Name)
-	case r.Kind.is(KindNotificationEndpoint),
-		r.Kind.is(KindNotificationEndpointHTTP),
-		r.Kind.is(KindNotificationEndpointPagerDuty),
-		r.Kind.is(KindNotificationEndpointSlack):
-		e, err := s.endpointSVC.FindNotificationEndpointByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = endpointKind(e, r.Name)
-	case r.Kind.is(KindNotificationRule):
-		ruleRes, endpointRes, err := s.exportNotificationRule(ctx, r)
-		if err != nil {
-			return nil, err
-		}
-		newKind, sidecarKinds = ruleRes, append(sidecarKinds, endpointRes)
-	case r.Kind.is(KindTask):
-		t, err := s.taskSVC.FindTaskByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = taskToObject(*t, r.Name)
-	case r.Kind.is(KindTelegraf):
-		t, err := s.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = telegrafToObject(*t, r.Name)
-	case r.Kind.is(KindVariable):
-		v, err := s.varSVC.FindVariableByID(ctx, r.ID)
-		if err != nil {
-			return nil, err
-		}
-		newKind = VariableToObject(*v, r.Name)
-	default:
-		return nil, errors.New("unsupported kind provided: " + string(r.Kind))
-	}
-
-	ass, skipResource, err := cFn(ctx, r)
-	if err != nil {
-		return nil, err
-	}
-	if skipResource {
-		return nil, nil
-	}
-
-	if len(ass.associations) > 0 {
-		newKind.Spec[fieldAssociations] = ass.associations
-	}
-
-	return append(ass.newLableResources, append(sidecarKinds, newKind)...), nil
-}
-
-func (s *Service) exportNotificationRule(ctx context.Context, r ResourceToClone) (Object, Object, error) {
-	rule, err := s.ruleSVC.FindNotificationRuleByID(ctx, r.ID)
-	if err != nil {
-		return Object{}, Object{}, err
-	}
-
-	ruleEndpoint, err := s.endpointSVC.FindNotificationEndpointByID(ctx, rule.GetEndpointID())
-	if err != nil {
-		return Object{}, Object{}, err
-	}
-
-	return ruleToObject(rule, ruleEndpoint.GetName(), r.Name), endpointKind(ruleEndpoint, ""), nil
-}
-
 type cloneResFn func(context.Context, influxdb.ID) ([]ResourceToClone, error)
 
 func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []struct {
@@ -661,88 +630,6 @@ func (s *Service) filterOrgResourceKinds(resourceKindFilters []Kind) []struct {
 	}
 
 	return resourceTypeGens
-}
-
-type (
-	associations struct {
-		associations      []Resource
-		newLableResources []Object
-	}
-
-	cloneAssociationsFn func(context.Context, ResourceToClone) (associations associations, skipResource bool, err error)
-)
-
-func (s *Service) resourceCloneAssociationsGen(ctx context.Context, labelNames ...string) (cloneAssociationsFn, error) {
-	mLabelNames := make(map[string]bool)
-	for _, labelName := range labelNames {
-		mLabelNames[labelName] = true
-	}
-
-	mLabelIDs, err := getLabelIDMap(ctx, s.labelSVC, labelNames)
-	if err != nil {
-		return nil, err
-	}
-
-	type key struct {
-		id   influxdb.ID
-		name string
-	}
-	// memoize the labels so we dont' create duplicates
-	m := make(map[key]bool)
-	cloneFn := func(ctx context.Context, r ResourceToClone) (associations, bool, error) {
-		if r.Kind.is(KindUnknown) {
-			return associations{}, true, nil
-		}
-		if r.Kind.is(KindLabel) {
-			// check here verifies the label maps to an id of a valid label name
-			shouldSkip := len(mLabelIDs) > 0 && !mLabelIDs[r.ID]
-			return associations{}, shouldSkip, nil
-		}
-
-		labels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
-			ResourceID:   r.ID,
-			ResourceType: r.Kind.ResourceType(),
-		})
-		if err != nil {
-			return associations{}, false, ierrors.Wrap(err, "finding resource labels")
-		}
-
-		if len(mLabelNames) > 0 {
-			shouldSkip := true
-			for _, l := range labels {
-				if _, ok := mLabelNames[l.Name]; ok {
-					shouldSkip = false
-					break
-				}
-			}
-			if shouldSkip {
-				return associations{}, true, nil
-			}
-		}
-
-		var ass associations
-		for _, l := range labels {
-			if len(mLabelNames) > 0 {
-				if _, ok := mLabelNames[l.Name]; !ok {
-					continue
-				}
-			}
-
-			ass.associations = append(ass.associations, Resource{
-				fieldKind: KindLabel.String(),
-				fieldName: l.Name,
-			})
-			k := key{id: l.ID, name: l.Name}
-			if m[k] {
-				continue
-			}
-			m[k] = true
-			ass.newLableResources = append(ass.newLableResources, labelToObject(*l, ""))
-		}
-		return ass, false, nil
-	}
-
-	return cloneFn, nil
 }
 
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
@@ -838,7 +725,7 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 		diffs = append(diffs, diff)
 	}
 	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].Name < diffs[j].Name
+		return diffs[i].PkgName < diffs[j].PkgName
 	})
 
 	return diffs
@@ -969,7 +856,7 @@ func (s *Service) dryRunNotificationRules(ctx context.Context, orgID influxdb.ID
 	mPkgEndpoints := make(map[string]influxdb.NotificationEndpoint)
 	for _, e := range pkg.mNotificationEndpoints {
 		influxEndpoint := e.summarize().NotificationEndpoint
-		mPkgEndpoints[influxEndpoint.GetName()] = influxEndpoint
+		mPkgEndpoints[e.PkgName()] = influxEndpoint
 	}
 
 	diffs := make([]DiffNotificationRule, 0, len(mExisting))
@@ -1271,7 +1158,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 
 	// this has to be run after the above primary resources, because it relies on
 	// notification endpoints already being applied.
-	app, err := s.applyNotificationRulesGenerator(ctx, orgID, pkg.notificationRules())
+	app, err := s.applyNotificationRulesGenerator(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, err
 	}
@@ -1310,7 +1197,7 @@ func (s *Service) applyBuckets(buckets []*bucket) applier {
 		influxBucket, err := s.applyBucket(ctx, b)
 		if err != nil {
 			return &applyErrBody{
-				name: b.Name(),
+				name: b.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -1582,7 +1469,7 @@ func (s *Service) applyLabels(labels []*label) applier {
 		influxLabel, err := s.applyLabel(ctx, l)
 		if err != nil {
 			return &applyErrBody{
-				name: l.Name(),
+				name: l.PkgName(),
 				msg:  err.Error(),
 			}
 		}
@@ -1753,7 +1640,7 @@ func (s *Service) rollbackNotificationEndpoints(endpoints []*notificationEndpoin
 	return nil
 }
 
-func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID influxdb.ID, rules []*notificationRule) (applier, error) {
+func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (applier, error) {
 	endpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
 		OrgID: &orgID,
 	})
@@ -1772,6 +1659,17 @@ func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID inf
 			eType: e.Type(),
 		}
 	}
+	for _, e := range pkg.notificationEndpoints() {
+		if _, ok := mEndpoints[e.PkgName()]; ok {
+			continue
+		}
+		mEndpoints[e.PkgName()] = mVal{
+			id:    e.ID(),
+			eType: e.summarize().NotificationEndpoint.Type(),
+		}
+	}
+
+	rules := pkg.notificationRules()
 
 	var errs applyErrs
 	for _, r := range rules {
@@ -2183,21 +2081,6 @@ func (s *Service) deleteByIDs(resource string, numIDs int, deleteFn func(context
 	return nil
 }
 
-func (s *Service) findDashboardByIDFull(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
-	dash, err := s.dashSVC.FindDashboardByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	for _, cell := range dash.Cells {
-		v, err := s.dashSVC.GetDashboardCellView(ctx, id, cell.ID)
-		if err != nil {
-			return nil, err
-		}
-		cell.View = v
-	}
-	return dash, nil
-}
-
 func getLabelIDMap(ctx context.Context, labelSVC influxdb.LabelService, labelNames []string) (map[influxdb.ID]bool, error) {
 	mLabelIDs := make(map[influxdb.ID]bool)
 	for _, labelName := range labelNames {
@@ -2374,6 +2257,16 @@ func (a applyErrs) toError(resType, msg string) error {
 	return errors.New(errMsg)
 }
 
+func validURLs(urls []string) error {
+	for _, u := range urls {
+		if _, err := url.Parse(u); err != nil {
+			msg := fmt.Sprintf("url invalid for entry %q", u)
+			return toInfluxError(influxdb.EInvalid, msg)
+		}
+	}
+	return nil
+}
+
 func labelSlcToMap(labels []*label) map[string]*label {
 	m := make(map[string]*label)
 	for i := range labels {
@@ -2393,5 +2286,12 @@ func internalErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	return &influxdb.Error{Code: influxdb.EInternal, Err: err}
+	return toInfluxError(influxdb.EInternal, err.Error())
+}
+
+func toInfluxError(code string, msg string) *influxdb.Error {
+	return &influxdb.Error{
+		Code: code,
+		Msg:  msg,
+	}
 }

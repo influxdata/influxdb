@@ -20,6 +20,9 @@ export const getAll = <R>(
   return allIDs.map(id => byID[id])
 }
 
+export const getToken = (state: AppState): string =>
+  get(state, 'dataLoading.dataLoaders.token', '') || ''
+
 export const getByID = <R>(
   {resources}: AppState,
   type: ResourceType,

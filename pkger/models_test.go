@@ -19,13 +19,13 @@ func TestPkg(t *testing.T) {
 						id:             influxdb.ID(2),
 						OrgID:          influxdb.ID(100),
 						Description:    "desc2",
-						name:           &references{val: "name2"},
+						identity:       identity{name: &references{val: "name2"}},
 						RetentionRules: retentionRules{newRetentionRule(2 * time.Hour)},
 					},
 					"buck_1": {
 						id:             influxdb.ID(1),
 						OrgID:          influxdb.ID(100),
-						name:           &references{val: "name1"},
+						identity:       identity{name: &references{val: "name1"}},
 						Description:    "desc1",
 						RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 					},
@@ -51,14 +51,14 @@ func TestPkg(t *testing.T) {
 					"2": {
 						id:          influxdb.ID(2),
 						OrgID:       influxdb.ID(100),
-						name:        &references{val: "name2"},
+						identity:    identity{name: &references{val: "name2"}},
 						Description: "desc2",
 						Color:       "blurple",
 					},
 					"1": {
 						id:          influxdb.ID(1),
 						OrgID:       influxdb.ID(100),
-						name:        &references{val: "name1"},
+						identity:    identity{name: &references{val: "name1"}},
 						Description: "desc1",
 						Color:       "peru",
 					},
@@ -85,13 +85,13 @@ func TestPkg(t *testing.T) {
 
 		t.Run("label mappings returned in asc order by name", func(t *testing.T) {
 			bucket1 := &bucket{
-				id:   influxdb.ID(20),
-				name: &references{val: "b1"},
+				id:       influxdb.ID(20),
+				identity: identity{name: &references{val: "b1"}},
 			}
 			label1 := &label{
 				id:          influxdb.ID(2),
 				OrgID:       influxdb.ID(100),
-				name:        &references{val: "name2"},
+				identity:    identity{name: &references{val: "name2"}},
 				Description: "desc2",
 				Color:       "blurple",
 				associationMapping: associationMapping{
@@ -136,7 +136,7 @@ func TestPkg(t *testing.T) {
 				{
 					name: "new bucket",
 					resource: DiffBucket{
-						Name: "new bucket",
+						PkgName: "new bucket",
 						New: DiffBucketValues{
 							Description: "new desc",
 						},
@@ -146,8 +146,8 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with no changes",
 					resource: DiffBucket{
-						ID:   3,
-						Name: "new bucket",
+						ID:      3,
+						PkgName: "new bucket",
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
@@ -168,8 +168,8 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with desc changes",
 					resource: DiffBucket{
-						ID:   3,
-						Name: "existing bucket",
+						ID:      3,
+						PkgName: "existing bucket",
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
@@ -190,8 +190,8 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with retention changes",
 					resource: DiffBucket{
-						ID:   3,
-						Name: "existing bucket",
+						ID:      3,
+						PkgName: "existing bucket",
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
@@ -208,8 +208,8 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with retention changes",
 					resource: DiffBucket{
-						ID:   3,
-						Name: "existing bucket",
+						ID:      3,
+						PkgName: "existing bucket",
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
@@ -230,8 +230,8 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with retention changes",
 					resource: DiffBucket{
-						ID:   3,
-						Name: "existing bucket",
+						ID:      3,
+						PkgName: "existing bucket",
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{

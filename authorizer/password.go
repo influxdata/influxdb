@@ -18,10 +18,9 @@ func NewPasswordService(svc influxdb.PasswordsService) *PasswordService {
 
 // SetPassword overrides the password of a known user.
 func (s *PasswordService) SetPassword(ctx context.Context, userID influxdb.ID, password string) error {
-	if err := authorizeWriteUser(ctx, userID); err != nil {
+	if _, _, err := AuthorizeWriteResource(ctx, influxdb.UsersResourceType, userID); err != nil {
 		return err
 	}
-
 	return s.next.SetPassword(ctx, userID, password)
 }
 

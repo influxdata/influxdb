@@ -127,6 +127,11 @@ func FromHTTPRequest(addr string) ReaderFn {
 		if _, err := io.Copy(&buf, resp.Body); err != nil {
 			return nil, err
 		}
+
+		if resp.StatusCode/100 != 2 {
+			return nil, fmt.Errorf("bad response: status_code=%d body=%q", resp.StatusCode, strings.TrimSpace(buf.String()))
+		}
+
 		return &buf, nil
 	}
 }
@@ -211,14 +216,14 @@ func parse(dec decoder, opts ...ValidateOptFn) (*Pkg, error) {
 // Object describes the metadata and raw spec for an entity of a package kind.
 type Object struct {
 	APIVersion string   `json:"apiVersion" yaml:"apiVersion"`
-	Type       Kind     `json:"kind" yaml:"kind"`
+	Kind       Kind     `json:"kind" yaml:"kind"`
 	Metadata   Resource `json:"metadata" yaml:"metadata"`
 	Spec       Resource `json:"spec" yaml:"spec"`
 }
 
 // Name returns the name of the kind.
 func (k Object) Name() string {
-	return k.Metadata.references("name").String()
+	return k.Metadata.references(fieldName).String()
 }
 
 // Pkg is the model for a package. The resources are more generic that one might
@@ -233,11 +238,11 @@ type Pkg struct {
 	mLabels                map[string]*label
 	mBuckets               map[string]*bucket
 	mChecks                map[string]*check
-	mDashboards            []*dashboard
+	mDashboards            map[string]*dashboard
 	mNotificationEndpoints map[string]*notificationEndpoint
-	mNotificationRules     []*notificationRule
-	mTasks                 []*task
-	mTelegrafs             []*telegraf
+	mNotificationRules     map[string]*notificationRule
+	mTasks                 map[string]*task
+	mTelegrafs             map[string]*telegraf
 	mVariables             map[string]*variable
 
 	mEnv     map[string]bool
@@ -365,13 +370,13 @@ func (p *Pkg) applySecrets(secrets map[string]string) {
 
 // Combine combines pkgs together. Is useful when you want to take multiple disparate pkgs
 // and compile them into one to take advantage of the parser and service guarantees.
-func Combine(pkgs ...*Pkg) (*Pkg, error) {
+func Combine(pkgs []*Pkg, validationOpts ...ValidateOptFn) (*Pkg, error) {
 	newPkg := new(Pkg)
 	for _, p := range pkgs {
 		newPkg.Objects = append(newPkg.Objects, p.Objects...)
 	}
 
-	return newPkg, newPkg.Validate()
+	return newPkg, newPkg.Validate(validationOpts...)
 }
 
 type (
@@ -440,7 +445,7 @@ func (p *Pkg) buckets() []*bucket {
 		buckets = append(buckets, b)
 	}
 
-	sort.Slice(buckets, func(i, j int) bool { return buckets[i].name.String() < buckets[j].name.String() })
+	sort.Slice(buckets, func(i, j int) bool { return buckets[i].Name() < buckets[j].Name() })
 
 	return buckets
 }
@@ -468,7 +473,10 @@ func (p *Pkg) labels() []*label {
 }
 
 func (p *Pkg) dashboards() []*dashboard {
-	dashes := p.mDashboards[:]
+	dashes := make([]*dashboard, 0, len(p.mDashboards))
+	for _, d := range p.mDashboards {
+		dashes = append(dashes, d)
+	}
 	sort.Slice(dashes, func(i, j int) bool { return dashes[i].Name() < dashes[j].Name() })
 	return dashes
 }
@@ -489,7 +497,10 @@ func (p *Pkg) notificationEndpoints() []*notificationEndpoint {
 }
 
 func (p *Pkg) notificationRules() []*notificationRule {
-	rules := p.mNotificationRules[:]
+	rules := make([]*notificationRule, 0, len(p.mNotificationRules))
+	for _, r := range p.mNotificationRules {
+		rules = append(rules, r)
+	}
 	sort.Slice(rules, func(i, j int) bool { return rules[i].Name() < rules[j].Name() })
 	return rules
 }
@@ -517,7 +528,10 @@ func (p *Pkg) missingSecrets() []string {
 }
 
 func (p *Pkg) tasks() []*task {
-	tasks := p.mTasks[:]
+	tasks := make([]*task, 0, len(p.mTasks))
+	for _, t := range p.mTasks {
+		tasks = append(tasks, t)
+	}
 
 	sort.Slice(tasks, func(i, j int) bool { return tasks[i].Name() < tasks[j].Name() })
 
@@ -530,7 +544,9 @@ func (p *Pkg) telegrafs() []*telegraf {
 		t.config.Name = t.Name()
 		teles = append(teles, t)
 	}
+
 	sort.Slice(teles, func(i, j int) bool { return teles[i].Name() < teles[j].Name() })
+
 	return teles
 }
 
@@ -631,17 +647,15 @@ func (p *Pkg) graphResources() error {
 
 func (p *Pkg) graphBuckets() *parseErr {
 	p.mBuckets = make(map[string]*bucket)
-	return p.eachResource(KindBucket, 2, func(o Object) []validationErr {
-		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-		if _, ok := p.mBuckets[nameRef.String()]; ok {
-			return []validationErr{{
-				Field: fieldName,
-				Msg:   "duplicate name: " + nameRef.String(),
-			}}
+	tracker := p.trackNames(true)
+	return p.eachResource(KindBucket, bucketNameMinLength, func(o Object) []validationErr {
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
 		}
 
 		bkt := &bucket{
-			name:        nameRef,
+			identity:    ident,
 			Description: o.Spec.stringShort(fieldDescription),
 		}
 		if rules, ok := o.Spec[fieldBucketRetentionRules].(retentionRules); ok {
@@ -654,16 +668,16 @@ func (p *Pkg) graphBuckets() *parseErr {
 				})
 			}
 		}
-		p.setRefs(bkt.name)
+		p.setRefs(bkt.name, bkt.displayName)
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			bkt.labels = append(bkt.labels, l)
-			p.mLabels[l.Name()].setMapping(bkt, false)
+			p.mLabels[l.PkgName()].setMapping(bkt, false)
 			return nil
 		})
 		sort.Sort(bkt.labels)
 
-		p.mBuckets[o.Name()] = bkt
+		p.mBuckets[bkt.PkgName()] = bkt
 
 		return append(failures, bkt.valid()...)
 	})
@@ -671,29 +685,28 @@ func (p *Pkg) graphBuckets() *parseErr {
 
 func (p *Pkg) graphLabels() *parseErr {
 	p.mLabels = make(map[string]*label)
-	return p.eachResource(KindLabel, 2, func(o Object) []validationErr {
-		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-		if _, ok := p.mLabels[nameRef.String()]; ok {
-			return []validationErr{{
-				Field: fieldName,
-				Msg:   "duplicate name: " + o.Name(),
-			}}
+	tracker := p.trackNames(true)
+	return p.eachResource(KindLabel, labelNameMinLength, func(o Object) []validationErr {
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
 		}
 
 		l := &label{
-			name:        nameRef,
+			identity:    ident,
 			Color:       o.Spec.stringShort(fieldLabelColor),
 			Description: o.Spec.stringShort(fieldDescription),
 		}
-		p.mLabels[l.Name()] = l
-		p.setRefs(nameRef)
+		p.mLabels[l.PkgName()] = l
+		p.setRefs(l.name, l.displayName)
 
-		return nil
+		return l.valid()
 	})
 }
 
 func (p *Pkg) graphChecks() *parseErr {
 	p.mChecks = make(map[string]*check)
+	tracker := p.trackNames(true)
 
 	checkKinds := []struct {
 		kind      Kind
@@ -704,18 +717,15 @@ func (p *Pkg) graphChecks() *parseErr {
 	}
 	var pErr parseErr
 	for _, checkKind := range checkKinds {
-		err := p.eachResource(checkKind.kind, 1, func(o Object) []validationErr {
-			nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-			if _, ok := p.mChecks[nameRef.String()]; ok {
-				return []validationErr{{
-					Field: fieldName,
-					Msg:   "duplicate name: " + o.Name(),
-				}}
+		err := p.eachResource(checkKind.kind, checkNameMinLength, func(o Object) []validationErr {
+			ident, errs := tracker(o)
+			if len(errs) > 0 {
+				return errs
 			}
 
 			ch := &check{
 				kind:          checkKind.checkKind,
-				name:          nameRef,
+				identity:      ident,
 				description:   o.Spec.stringShort(fieldDescription),
 				every:         o.Spec.durationShort(fieldEvery),
 				level:         o.Spec.stringShort(fieldLevel),
@@ -746,13 +756,13 @@ func (p *Pkg) graphChecks() *parseErr {
 
 			failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 				ch.labels = append(ch.labels, l)
-				p.mLabels[l.Name()].setMapping(ch, false)
+				p.mLabels[l.PkgName()].setMapping(ch, false)
 				return nil
 			})
 			sort.Sort(ch.labels)
 
-			p.mChecks[ch.Name()] = ch
-			p.setRefs(nameRef)
+			p.mChecks[ch.PkgName()] = ch
+			p.setRefs(ch.name, ch.displayName)
 			return append(failures, ch.valid()...)
 		})
 		if err != nil {
@@ -766,17 +776,22 @@ func (p *Pkg) graphChecks() *parseErr {
 }
 
 func (p *Pkg) graphDashboards() *parseErr {
-	p.mDashboards = make([]*dashboard, 0)
-	return p.eachResource(KindDashboard, 2, func(o Object) []validationErr {
-		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
+	p.mDashboards = make(map[string]*dashboard)
+	tracker := p.trackNames(false)
+	return p.eachResource(KindDashboard, dashboardNameMinLength, func(o Object) []validationErr {
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
+		}
+
 		dash := &dashboard{
-			name:        nameRef,
+			identity:    ident,
 			Description: o.Spec.stringShort(fieldDescription),
 		}
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			dash.labels = append(dash.labels, l)
-			p.mLabels[l.Name()].setMapping(dash, false)
+			p.mLabels[l.PkgName()].setMapping(dash, false)
 			return nil
 		})
 		sort.Sort(dash.labels)
@@ -784,25 +799,28 @@ func (p *Pkg) graphDashboards() *parseErr {
 		for i, cr := range o.Spec.slcResource(fieldDashCharts) {
 			ch, fails := parseChart(cr)
 			if fails != nil {
-				failures = append(failures, validationErr{
-					Field:  fieldDashCharts,
-					Index:  intPtr(i),
-					Nested: fails,
-				})
+				failures = append(failures,
+					objectValidationErr(fieldSpec, validationErr{
+						Field:  fieldDashCharts,
+						Index:  intPtr(i),
+						Nested: fails,
+					}),
+				)
 				continue
 			}
 			dash.Charts = append(dash.Charts, ch)
 		}
 
-		p.mDashboards = append(p.mDashboards, dash)
-		p.setRefs(nameRef)
+		p.mDashboards[dash.PkgName()] = dash
+		p.setRefs(dash.name, dash.displayName)
 
-		return failures
+		return append(failures, dash.valid()...)
 	})
 }
 
 func (p *Pkg) graphNotificationEndpoints() *parseErr {
 	p.mNotificationEndpoints = make(map[string]*notificationEndpoint)
+	tracker := p.trackNames(true)
 
 	notificationKinds := []struct {
 		kind             Kind
@@ -825,17 +843,14 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 	var pErr parseErr
 	for _, nk := range notificationKinds {
 		err := p.eachResource(nk.kind, 1, func(o Object) []validationErr {
-			nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-			if _, ok := p.mNotificationEndpoints[nameRef.String()]; ok {
-				return []validationErr{{
-					Field: fieldName,
-					Msg:   "duplicate name: " + o.Name(),
-				}}
+			ident, errs := tracker(o)
+			if len(errs) > 0 {
+				return errs
 			}
 
 			endpoint := &notificationEndpoint{
 				kind:        nk.notificationKind,
-				name:        nameRef,
+				identity:    ident,
 				description: o.Spec.stringShort(fieldDescription),
 				method:      strings.TrimSpace(strings.ToUpper(o.Spec.stringShort(fieldNotificationEndpointHTTPMethod))),
 				httpType:    normStr(o.Spec.stringShort(fieldType)),
@@ -848,14 +863,21 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 			}
 			failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 				endpoint.labels = append(endpoint.labels, l)
-				p.mLabels[l.Name()].setMapping(endpoint, false)
+				p.mLabels[l.PkgName()].setMapping(endpoint, false)
 				return nil
 			})
 			sort.Sort(endpoint.labels)
 
-			p.setRefs(nameRef, endpoint.password, endpoint.routingKey, endpoint.token, endpoint.username)
+			p.setRefs(
+				endpoint.name,
+				endpoint.displayName,
+				endpoint.password,
+				endpoint.routingKey,
+				endpoint.token,
+				endpoint.username,
+			)
 
-			p.mNotificationEndpoints[endpoint.Name()] = endpoint
+			p.mNotificationEndpoints[endpoint.PkgName()] = endpoint
 			return append(failures, endpoint.valid()...)
 		})
 		if err != nil {
@@ -869,10 +891,16 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 }
 
 func (p *Pkg) graphNotificationRules() *parseErr {
-	p.mNotificationRules = make([]*notificationRule, 0)
+	p.mNotificationRules = make(map[string]*notificationRule)
+	tracker := p.trackNames(false)
 	return p.eachResource(KindNotificationRule, 1, func(o Object) []validationErr {
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
+		}
+
 		rule := &notificationRule{
-			name:         p.getRefWithKnownEnvs(o.Metadata, fieldName),
+			identity:     ident,
 			endpointName: p.getRefWithKnownEnvs(o.Spec, fieldNotificationRuleEndpointName),
 			description:  o.Spec.stringShort(fieldDescription),
 			channel:      o.Spec.stringShort(fieldNotificationRuleChannel),
@@ -899,22 +927,28 @@ func (p *Pkg) graphNotificationRules() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			rule.labels = append(rule.labels, l)
-			p.mLabels[l.Name()].setMapping(rule, false)
+			p.mLabels[l.PkgName()].setMapping(rule, false)
 			return nil
 		})
 		sort.Sort(rule.labels)
 
-		p.mNotificationRules = append(p.mNotificationRules, rule)
-		p.setRefs(rule.name, rule.endpointName)
+		p.mNotificationRules[rule.PkgName()] = rule
+		p.setRefs(rule.name, rule.displayName, rule.endpointName)
 		return append(failures, rule.valid()...)
 	})
 }
 
 func (p *Pkg) graphTasks() *parseErr {
-	p.mTasks = make([]*task, 0)
+	p.mTasks = make(map[string]*task)
+	tracker := p.trackNames(false)
 	return p.eachResource(KindTask, 1, func(o Object) []validationErr {
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
+		}
+
 		t := &task{
-			name:        p.getRefWithKnownEnvs(o.Metadata, fieldName),
+			identity:    ident,
 			cron:        o.Spec.stringShort(fieldTaskCron),
 			description: o.Spec.stringShort(fieldDescription),
 			every:       o.Spec.durationShort(fieldEvery),
@@ -925,60 +959,57 @@ func (p *Pkg) graphTasks() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			t.labels = append(t.labels, l)
-			p.mLabels[l.Name()].setMapping(t, false)
+			p.mLabels[l.PkgName()].setMapping(t, false)
 			return nil
 		})
 		sort.Sort(t.labels)
 
-		p.mTasks = append(p.mTasks, t)
-		p.setRefs(t.name)
+		p.mTasks[t.PkgName()] = t
+		p.setRefs(t.name, t.displayName)
 		return append(failures, t.valid()...)
 	})
 }
 
 func (p *Pkg) graphTelegrafs() *parseErr {
-	p.mTelegrafs = make([]*telegraf, 0)
+	p.mTelegrafs = make(map[string]*telegraf)
+	tracker := p.trackNames(false)
 	return p.eachResource(KindTelegraf, 0, func(o Object) []validationErr {
-		tele := &telegraf{
-			name: p.getRefWithKnownEnvs(o.Metadata, fieldName),
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
 		}
+
+		tele := &telegraf{
+			identity: ident,
+		}
+		tele.config.Config = o.Spec.stringShort(fieldTelegrafConfig)
 		tele.config.Description = o.Spec.stringShort(fieldDescription)
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			tele.labels = append(tele.labels, l)
-			p.mLabels[l.Name()].setMapping(tele, false)
+			p.mLabels[l.PkgName()].setMapping(tele, false)
 			return nil
 		})
 		sort.Sort(tele.labels)
 
-		tele.config.Config = o.Spec.stringShort(fieldTelegrafConfig)
-		if tele.config.Config == "" {
-			failures = append(failures, validationErr{
-				Field: fieldTelegrafConfig,
-				Msg:   "no config provided",
-			})
-		}
+		p.mTelegrafs[tele.PkgName()] = tele
+		p.setRefs(tele.name, tele.displayName)
 
-		p.mTelegrafs = append(p.mTelegrafs, tele)
-		p.setRefs(tele.name)
-
-		return failures
+		return append(failures, tele.valid()...)
 	})
 }
 
 func (p *Pkg) graphVariables() *parseErr {
 	p.mVariables = make(map[string]*variable)
+	tracker := p.trackNames(true)
 	return p.eachResource(KindVariable, 1, func(o Object) []validationErr {
-		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
-		if _, ok := p.mVariables[nameRef.String()]; ok {
-			return []validationErr{{
-				Field: fieldName,
-				Msg:   "duplicate name: " + nameRef.String(),
-			}}
+		ident, errs := tracker(o)
+		if len(errs) > 0 {
+			return errs
 		}
 
 		newVar := &variable{
-			name:        nameRef,
+			identity:    ident,
 			Description: o.Spec.stringShort(fieldDescription),
 			Type:        normStr(o.Spec.stringShort(fieldType)),
 			Query:       strings.TrimSpace(o.Spec.stringShort(fieldQuery)),
@@ -989,13 +1020,13 @@ func (p *Pkg) graphVariables() *parseErr {
 
 		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
 			newVar.labels = append(newVar.labels, l)
-			p.mLabels[l.Name()].setMapping(newVar, false)
+			p.mLabels[l.PkgName()].setMapping(newVar, false)
 			return nil
 		})
 		sort.Sort(newVar.labels)
 
-		p.mVariables[o.Name()] = newVar
-		p.setRefs(newVar.name)
+		p.mVariables[newVar.PkgName()] = newVar
+		p.setRefs(newVar.name, newVar.displayName)
 
 		return append(failures, newVar.valid()...)
 	})
@@ -1004,9 +1035,9 @@ func (p *Pkg) graphVariables() *parseErr {
 func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(o Object) []validationErr) *parseErr {
 	var pErr parseErr
 	for i, k := range p.Objects {
-		if err := k.Type.OK(); err != nil {
+		if err := k.Kind.OK(); err != nil {
 			pErr.append(resourceErr{
-				Kind: k.Type.String(),
+				Kind: k.Kind.String(),
 				Idx:  intPtr(i),
 				ValidationErrs: []validationErr{
 					{
@@ -1017,13 +1048,13 @@ func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(o Object) 
 			})
 			continue
 		}
-		if !k.Type.is(resourceKind) {
+		if !k.Kind.is(resourceKind) {
 			continue
 		}
 
 		if k.APIVersion != APIVersion {
 			pErr.append(resourceErr{
-				Kind: k.Type.String(),
+				Kind: k.Kind.String(),
 				Idx:  intPtr(i),
 				ValidationErrs: []validationErr{
 					{
@@ -1037,13 +1068,13 @@ func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(o Object) 
 
 		if len(k.Name()) < minNameLen {
 			pErr.append(resourceErr{
-				Kind: k.Type.String(),
+				Kind: k.Kind.String(),
 				Idx:  intPtr(i),
 				ValidationErrs: []validationErr{
-					{
-						Field: "name",
+					objectValidationErr(fieldMetadata, validationErr{
+						Field: fieldName,
 						Msg:   fmt.Sprintf("must be a string of at least %d chars in length", minNameLen),
-					},
+					}),
 				},
 			})
 			continue
@@ -1134,6 +1165,45 @@ func (p *Pkg) parseNestedLabel(nr Resource, fn func(lb *label) error) *validatio
 	return nil
 }
 
+func (p *Pkg) trackNames(resourceUniqueByName bool) func(Object) (identity, []validationErr) {
+	mPkgNames := make(map[string]bool)
+	uniqNames := make(map[string]bool)
+	return func(o Object) (identity, []validationErr) {
+		nameRef := p.getRefWithKnownEnvs(o.Metadata, fieldName)
+		if mPkgNames[nameRef.String()] {
+			return identity{}, []validationErr{
+				objectValidationErr(fieldMetadata, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
+		}
+		mPkgNames[nameRef.String()] = true
+
+		displayNameRef := p.getRefWithKnownEnvs(o.Spec, fieldName)
+		identity := identity{
+			name:        nameRef,
+			displayName: displayNameRef,
+		}
+		if !resourceUniqueByName {
+			return identity, nil
+		}
+
+		name := identity.Name()
+		if uniqNames[name] {
+			return identity, []validationErr{
+				objectValidationErr(fieldSpec, validationErr{
+					Field: fieldName,
+					Msg:   "duplicate name: " + nameRef.String(),
+				}),
+			}
+		}
+		uniqNames[name] = true
+
+		return identity, nil
+	}
+}
+
 func (p *Pkg) getRefWithKnownEnvs(r Resource, field string) *references {
 	nameRef := r.references(field)
 	if v, ok := p.mEnvVals[nameRef.EnvRef]; ok {
@@ -1157,7 +1227,7 @@ func parseChart(r Resource) (chart, []validationErr) {
 	ck, err := r.chartKind()
 	if err != nil {
 		return chart{}, []validationErr{{
-			Field: "kind",
+			Field: fieldKind,
 			Msg:   err.Error(),
 		}}
 	}
@@ -1532,44 +1602,6 @@ func ifaceToStr(v interface{}) (string, bool) {
 	return "", false
 }
 
-func uniqResources(kinds []Object) []Object {
-	type key struct {
-		kind Kind
-		name string
-	}
-
-	// these 2 maps are used to eliminate duplicates that come
-	// from dependencies while keeping the Object that has any
-	// associations. If there are no associations, then the kinds
-	// are no different from one another.
-	m := make(map[key]bool)
-	res := make(map[key]Object)
-
-	out := make([]Object, 0, len(kinds))
-	for _, k := range kinds {
-		if err := k.Type.OK(); err != nil {
-			continue
-		}
-
-		if kindsUniqByName[k.Type] {
-			rKey := key{kind: k.Type, name: k.Name()}
-			if hasAssociations, ok := m[rKey]; ok && hasAssociations {
-				continue
-			}
-			_, hasAssociations := k.Spec[fieldAssociations]
-			m[rKey] = hasAssociations
-			res[rKey] = k
-			continue
-		}
-		out = append(out, k)
-	}
-
-	for _, r := range res {
-		out = append(out, r)
-	}
-	return out
-}
-
 // ParseError is the error from parsing the given package. The ParseError
 // behavior provides a list of resources that failed and all validations
 // that failed for that resource. A resource can multiple errors, and
@@ -1730,6 +1762,13 @@ func IsParseErr(err error) bool {
 		return false
 	}
 	return IsParseErr(iErr.Err)
+}
+
+func objectValidationErr(field string, vErrs ...validationErr) validationErr {
+	return validationErr{
+		Field:  field,
+		Nested: vErrs,
+	}
 }
 
 func normStr(s string) string {

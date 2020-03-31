@@ -52,7 +52,7 @@ export function defaultViewQuery(): DashboardQuery {
 export function defaultBuilderConfig(): BuilderConfig {
   return {
     buckets: [],
-    tags: [{key: '_measurement', values: []}],
+    tags: [{key: '_measurement', values: [], aggregateFunctionType: 'filter'}],
     functions: [],
     aggregateWindow: {period: 'auto'},
   }
@@ -269,7 +269,13 @@ const NEW_VIEW_CREATORS = {
           editMode: 'builder',
           builderConfig: {
             buckets: [],
-            tags: [{key: '_measurement', values: []}],
+            tags: [
+              {
+                key: '_measurement',
+                values: [],
+                aggregateFunctionType: 'filter',
+              },
+            ],
             functions: [{name: 'mean'}],
             aggregateWindow: {period: DEFAULT_CHECK_EVERY},
           },
@@ -291,7 +297,13 @@ const NEW_VIEW_CREATORS = {
           editMode: 'builder',
           builderConfig: {
             buckets: [],
-            tags: [{key: '_measurement', values: []}],
+            tags: [
+              {
+                key: '_measurement',
+                values: [],
+                aggregateFunctionType: 'filter',
+              },
+            ],
             functions: [],
           },
         },

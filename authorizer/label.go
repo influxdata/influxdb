@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"context"
+	"errors"
 
 	"github.com/influxdata/influxdb"
 )
@@ -11,95 +12,17 @@ var _ influxdb.LabelService = (*LabelService)(nil)
 // LabelService wraps a influxdb.LabelService and authorizes actions
 // against it appropriately.
 type LabelService struct {
-	s influxdb.LabelService
+	s      influxdb.LabelService
+	orgSvc OrganizationService
 }
 
-// NewLabelService constructs an instance of an authorizing label serivce.
-func NewLabelService(s influxdb.LabelService) *LabelService {
+// NewLabelServiceWithOrg constructs an instance of an authorizing label serivce.
+// Replaces NewLabelService.
+func NewLabelServiceWithOrg(s influxdb.LabelService, orgSvc OrganizationService) *LabelService {
 	return &LabelService{
-		s: s,
+		s:      s,
+		orgSvc: orgSvc,
 	}
-}
-
-func newLabelPermission(a influxdb.Action, orgID, id influxdb.ID) (*influxdb.Permission, error) {
-	return influxdb.NewPermissionAtID(id, a, influxdb.LabelsResourceType, orgID)
-}
-
-func newResourcePermission(a influxdb.Action, id influxdb.ID, resourceType influxdb.ResourceType) (*influxdb.Permission, error) {
-	if err := resourceType.Valid(); err != nil {
-		return nil, err
-	}
-
-	p := &influxdb.Permission{
-		Action: a,
-		Resource: influxdb.Resource{
-			Type: resourceType,
-			ID:   &id,
-		},
-	}
-
-	return p, p.Valid()
-}
-
-func authorizeLabelMappingAction(ctx context.Context, action influxdb.Action, id influxdb.ID, resourceType influxdb.ResourceType) error {
-	p, err := newResourcePermission(action, id, resourceType)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// NOTE(affo): documents only create a URM of type `OrgMappingType`.
-// So, the permissions are not user-scoped, but org-scoped.
-// When a user authenticates he/she is allowed to read/write documents for an org, instead,
-// in other services, a user is allowed to read/write specific resources (e.g. dashboard with ID xxx).
-// This makes documents a special case for the label service.
-// Changing labels for a document must be checked against a permission for the org the user is in,
-// not for the specific document.
-// However we don't know the orgs for the user, so, the best we can do, is to check that the user has
-// permissions for the label's org rather than the document's.
-func authorizeDocumentLabelMappingAction(ctx context.Context, action influxdb.Action, orgID influxdb.ID) error {
-	p, err := newDocumentOrgPermission(action, orgID)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func authorizeReadLabel(ctx context.Context, orgID, id influxdb.ID) error {
-	p, err := newLabelPermission(influxdb.ReadAction, orgID, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func authorizeWriteLabel(ctx context.Context, orgID, id influxdb.ID) error {
-	p, err := newLabelPermission(influxdb.WriteAction, orgID, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // FindLabelByID checks to see if the authorizer on context has read access to the label id provided.
@@ -108,11 +31,9 @@ func (s *LabelService) FindLabelByID(ctx context.Context, id influxdb.ID) (*infl
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeReadLabel(ctx, l.OrgID, id); err != nil {
+	if _, _, err := AuthorizeRead(ctx, influxdb.LabelsResourceType, id, l.OrgID); err != nil {
 		return nil, err
 	}
-
 	return l, nil
 }
 
@@ -124,75 +45,40 @@ func (s *LabelService) FindLabels(ctx context.Context, filter influxdb.LabelFilt
 	if err != nil {
 		return nil, err
 	}
-
-	// This filters without allocating
-	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
-	labels := ls[:0]
-	for _, l := range ls {
-		err := authorizeReadLabel(ctx, l.OrgID, l.ID)
-		if err != nil &&
-			influxdb.ErrorCode(err) != influxdb.EUnauthorized &&
-			influxdb.ErrorCode(err) != influxdb.EInvalid {
-			return nil, err
-		}
-
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized ||
-			influxdb.ErrorCode(err) == influxdb.EInvalid {
-			continue
-		}
-
-		labels = append(labels, l)
-	}
-
-	return labels, nil
+	ls, _, err = AuthorizeFindLabels(ctx, ls)
+	return ls, err
 }
 
 // FindResourceLabels retrieves all labels belonging to the filtering resource if the authorizer on context has read access to it.
 // Then it filters the list down to only the labels that are authorized.
 func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
-	// NOTE(affo): see `authorizeDocumentLabelMappingAction` note.
-	//  The best we can do here is to skip this first check because we don't have
-	//  any document-specific permission available.
-	//  Then, we canm check that the user is authorized to access documents under the label's orgID.
-	if filter.ResourceType != influxdb.DocumentsResourceType {
-		if err := authorizeLabelMappingAction(ctx, influxdb.ReadAction, filter.ResourceID, filter.ResourceType); err != nil {
-			return nil, err
-		}
+	if err := filter.ResourceType.Valid(); err != nil {
+		return nil, err
+	}
+	if s.orgSvc == nil {
+		return nil, errors.New("failed to find orgSvc")
+	}
+	orgID, err := s.orgSvc.FindResourceOrganizationID(ctx, filter.ResourceType, filter.ResourceID)
+	if err != nil {
+		return nil, err
+	}
+	if _, _, err := AuthorizeRead(ctx, filter.ResourceType, filter.ResourceID, orgID); err != nil {
+		return nil, err
 	}
 
 	ls, err := s.s.FindResourceLabels(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
-
-	labels := ls[:0]
-	for _, l := range ls {
-		var err error
-		err = authorizeDocumentLabelMappingAction(ctx, influxdb.ReadAction, l.OrgID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
-			return nil, err
-		}
-		err = authorizeReadLabel(ctx, l.OrgID, l.ID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
-			return nil, err
-		}
-
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
-			continue
-		}
-
-		labels = append(labels, l)
-	}
-
-	return labels, nil
+	ls, _, err = AuthorizeFindLabels(ctx, ls)
+	return ls, err
 }
 
-// CreateLabel checks to see if the authorizer on context has read access to the new label's org.
+// CreateLabel checks to see if the authorizer on context has write access to the new label's org.
 func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error {
-	if err := authorizeReadOrg(ctx, l.OrgID); err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.LabelsResourceType, l.OrgID); err != nil {
 		return err
 	}
-
 	return s.s.CreateLabel(ctx, l)
 }
 
@@ -202,24 +88,12 @@ func (s *LabelService) CreateLabelMapping(ctx context.Context, m *influxdb.Label
 	if err != nil {
 		return err
 	}
-
-	if err := authorizeWriteLabel(ctx, l.OrgID, m.LabelID); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.LabelsResourceType, m.LabelID, l.OrgID); err != nil {
 		return err
 	}
-
-	// NOTE(affo): see `authorizeDocumentLabelMappingAction` note.
-	//  The best we can do here is to check that the user is authorized to access documents
-	//  under the label's orgID, because we don't have any document-specific permission available.
-	if m.ResourceType == influxdb.DocumentsResourceType {
-		if err := authorizeDocumentLabelMappingAction(ctx, influxdb.ReadAction, l.OrgID); err != nil {
-			return err
-		}
-	} else {
-		if err := authorizeLabelMappingAction(ctx, influxdb.WriteAction, m.ResourceID, m.ResourceType); err != nil {
-			return err
-		}
+	if _, _, err := AuthorizeWrite(ctx, m.ResourceType, m.ResourceID, l.OrgID); err != nil {
+		return err
 	}
-
 	return s.s.CreateLabelMapping(ctx, m)
 }
 
@@ -229,11 +103,9 @@ func (s *LabelService) UpdateLabel(ctx context.Context, id influxdb.ID, upd infl
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeWriteLabel(ctx, l.OrgID, id); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.LabelsResourceType, l.ID, l.OrgID); err != nil {
 		return nil, err
 	}
-
 	return s.s.UpdateLabel(ctx, id, upd)
 }
 
@@ -243,11 +115,9 @@ func (s *LabelService) DeleteLabel(ctx context.Context, id influxdb.ID) error {
 	if err != nil {
 		return err
 	}
-
-	if err := authorizeWriteLabel(ctx, l.OrgID, id); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.LabelsResourceType, l.ID, l.OrgID); err != nil {
 		return err
 	}
-
 	return s.s.DeleteLabel(ctx, id)
 }
 
@@ -257,23 +127,11 @@ func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *influxdb.Label
 	if err != nil {
 		return err
 	}
-
-	if err := authorizeWriteLabel(ctx, l.OrgID, m.LabelID); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.LabelsResourceType, m.LabelID, l.OrgID); err != nil {
 		return err
 	}
-
-	// NOTE(affo): see `authorizeDocumentLabelMappingAction` note.
-	//  The best we can do here is to check that the user is authorized to access documents
-	//  under the label's orgID, because we don't have any document-specific permission available.
-	if m.ResourceType == influxdb.DocumentsResourceType {
-		if err := authorizeDocumentLabelMappingAction(ctx, influxdb.ReadAction, l.OrgID); err != nil {
-			return err
-		}
-	} else {
-		if err := authorizeLabelMappingAction(ctx, influxdb.WriteAction, m.ResourceID, m.ResourceType); err != nil {
-			return err
-		}
+	if _, _, err := AuthorizeWrite(ctx, m.ResourceType, m.ResourceID, l.OrgID); err != nil {
+		return err
 	}
-
 	return s.s.DeleteLabelMapping(ctx, m)
 }

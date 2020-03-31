@@ -236,13 +236,32 @@ type FieldIterator interface {
 type Points []Point
 
 // Len implements sort.Interface.
-func (a Points) Len() int { return len(a) }
+func (p Points) Len() int { return len(p) }
 
 // Less implements sort.Interface.
-func (a Points) Less(i, j int) bool { return a[i].Time().Before(a[j].Time()) }
+func (p Points) Less(i, j int) bool { return p[i].Time().Before(p[j].Time()) }
 
 // Swap implements sort.Interface.
-func (a Points) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (p Points) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
+
+func (p Points) String() string {
+	const sep = "\n"
+	switch len(p) {
+	case 0:
+		return ""
+	case 1:
+		return p[0].String()
+	}
+	var b strings.Builder
+	b.WriteString(p[0].String())
+
+	for _, s := range p[1:] {
+		b.WriteString(sep)
+		b.WriteString(s.String())
+	}
+
+	return b.String()
+}
 
 // point is the default implementation of Point.
 type point struct {

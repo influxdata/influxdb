@@ -17,11 +17,13 @@ import {
   Bucket,
   BucketEntities,
   Label,
+  ResourceType,
 } from 'src/types'
 
 // Utils
 import {getErrorMessage} from 'src/utils/api'
 import {getOrg} from 'src/organizations/selectors'
+import {getLabels, getStatus} from 'src/resources/selectors'
 
 // Actions
 import {
@@ -33,6 +35,7 @@ import {
 } from 'src/buckets/actions/creators'
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {checkBucketLimits} from 'src/cloud/actions/limits'
+import {fetchDemoDataBuckets} from 'src/cloud/apis/demodata'
 
 // Constants
 import {
@@ -46,7 +49,7 @@ import {
   addBucketLabelFailed,
   removeBucketLabelFailed,
 } from 'src/shared/copy/notifications'
-import {getLabels} from 'src/resources/selectors'
+import {LIMIT} from 'src/resources/constants'
 
 type Action = BucketAction | NotifyAction
 
@@ -55,17 +58,24 @@ export const getBuckets = () => async (
   getState: GetState
 ) => {
   try {
-    dispatch(setBuckets(RemoteDataState.Loading))
-    const org = getOrg(getState())
+    const state = getState()
+    if (getStatus(state, ResourceType.Buckets) === RemoteDataState.NotStarted) {
+      dispatch(setBuckets(RemoteDataState.Loading))
+    }
+    const org = getOrg(state)
 
-    const resp = await api.getBuckets({query: {orgID: org.id}})
+    const resp = await api.getBuckets({
+      query: {orgID: org.id, limit: LIMIT},
+    })
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
 
+    const demoDataBuckets = await fetchDemoDataBuckets()
+
     const buckets = normalize<Bucket, BucketEntities, string[]>(
-      resp.data.buckets,
+      [...resp.data.buckets, ...demoDataBuckets],
       arrayOfBuckets
     )
 

@@ -1,23 +1,12 @@
 // Libraries
 import {normalize} from 'normalizr'
+import {Dispatch} from 'react'
 
 // API
 import {client} from 'src/utils/api'
 
 // Schemas
 import {telegrafSchema, arrayOfTelegrafs} from 'src/schemas/telegrafs'
-
-// Types
-import {ILabel} from '@influxdata/influx'
-import {
-  AppThunk,
-  RemoteDataState,
-  GetState,
-  Telegraf,
-  Label,
-  TelegrafEntities,
-} from 'src/types'
-import {Dispatch} from 'react'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -30,7 +19,7 @@ import {
   setCurrentConfig,
 } from 'src/telegrafs/actions/creators'
 
-// Utils
+// Constants
 import {
   telegrafGetFailed,
   telegrafCreateFailed,
@@ -40,17 +29,35 @@ import {
   removeTelegrafLabelFailed,
   getTelegrafConfigFailed,
 } from 'src/shared/copy/notifications'
+
+// Utils
 import {getOrg} from 'src/organizations/selectors'
-import {getLabels} from 'src/resources/selectors'
+import {getLabels, getStatus} from 'src/resources/selectors'
+
+// Types
+import {ILabel} from '@influxdata/influx'
+import {
+  AppThunk,
+  RemoteDataState,
+  GetState,
+  Telegraf,
+  Label,
+  TelegrafEntities,
+  ResourceType,
+} from 'src/types'
 
 export const getTelegrafs = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
-  const org = getOrg(getState())
-
   try {
-    dispatch(setTelegrafs(RemoteDataState.Loading))
+    const state = getState()
+    if (
+      getStatus(state, ResourceType.Telegrafs) === RemoteDataState.NotStarted
+    ) {
+      dispatch(setTelegrafs(RemoteDataState.Loading))
+    }
+    const org = getOrg(state)
 
     const telegrafs = await client.telegrafConfigs.getAll(org.id)
 

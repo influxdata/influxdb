@@ -68,36 +68,36 @@ import "experimental"
 
 option task = {name: "foo", every: 1h}
 
-pagerduty_secret = secrets.get(key: "pagerduty_token")
-pagerduty_endpoint = pagerduty.endpoint()
+pagerduty_secret = secrets["get"](key: "pagerduty_token")
+pagerduty_endpoint = pagerduty["endpoint"]()
 notification = {
 	_notification_rule_id: "0000000000000001",
 	_notification_rule_name: "foo",
 	_notification_endpoint_id: "0000000000000002",
 	_notification_endpoint_name: "foo",
 }
-statuses = monitor.from(start: -2h, fn: (r) =>
-	(r.foo == "bar" and r.baz == "bang"))
+statuses = monitor["from"](start: -2h, fn: (r) =>
+	(r["foo"] == "bar" and r["baz"] == "bang"))
 crit = statuses
 	|> filter(fn: (r) =>
-		(r._level == "crit"))
+		(r["_level"] == "crit"))
 all_statuses = crit
 	|> filter(fn: (r) =>
-		(r._time > experimental.subDuration(from: now(), d: 1h)))
+		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
-	|> monitor.notify(data: notification, endpoint: pagerduty_endpoint(mapFn: (r) =>
+	|> monitor["notify"](data: notification, endpoint: pagerduty_endpoint(mapFn: (r) =>
 		({
 			routingKey: pagerduty_secret,
 			client: "influxdata",
 			clientURL: "http://localhost:7777/host/${r.host}",
 			class: r._check_name,
-			group: r._source_measurement,
-			severity: pagerduty.severityFromLevel(level: r._level),
-			eventAction: pagerduty.actionFromLevel(level: r._level),
-			source: notification._notification_rule_name,
-			summary: r._message,
-			timestamp: time(v: r._source_timestamp),
+			group: r["_source_measurement"],
+			severity: pagerduty["severityFromLevel"](level: r["_level"]),
+			eventAction: pagerduty["actionFromLevel"](level: r["_level"]),
+			source: notification["_notification_rule_name"],
+			summary: r["_message"],
+			timestamp: time(v: r["_source_timestamp"]),
 		})))`,
 		},
 		{
@@ -152,35 +152,35 @@ import "experimental"
 
 option task = {name: "foo", every: 1h}
 
-pagerduty_secret = secrets.get(key: "pagerduty_token")
-pagerduty_endpoint = pagerduty.endpoint()
+pagerduty_secret = secrets["get"](key: "pagerduty_token")
+pagerduty_endpoint = pagerduty["endpoint"]()
 notification = {
 	_notification_rule_id: "0000000000000001",
 	_notification_rule_name: "foo",
 	_notification_endpoint_id: "0000000000000002",
 	_notification_endpoint_name: "foo",
 }
-statuses = monitor.from(start: -2h, fn: (r) =>
-	(r.foo == "bar" and r.baz == "bang"))
+statuses = monitor["from"](start: -2h, fn: (r) =>
+	(r["foo"] == "bar" and r["baz"] == "bang"))
 info_to_crit = statuses
-	|> monitor.stateChanges(fromLevel: "info", toLevel: "crit")
+	|> monitor["stateChanges"](fromLevel: "info", toLevel: "crit")
 all_statuses = info_to_crit
 	|> filter(fn: (r) =>
-		(r._time > experimental.subDuration(from: now(), d: 1h)))
+		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
-	|> monitor.notify(data: notification, endpoint: pagerduty_endpoint(mapFn: (r) =>
+	|> monitor["notify"](data: notification, endpoint: pagerduty_endpoint(mapFn: (r) =>
 		({
 			routingKey: pagerduty_secret,
 			client: "influxdata",
 			clientURL: "http://localhost:7777/host/${r.host}",
 			class: r._check_name,
-			group: r._source_measurement,
-			severity: pagerduty.severityFromLevel(level: r._level),
-			eventAction: pagerduty.actionFromLevel(level: r._level),
-			source: notification._notification_rule_name,
-			summary: r._message,
-			timestamp: time(v: r._source_timestamp),
+			group: r["_source_measurement"],
+			severity: pagerduty["severityFromLevel"](level: r["_level"]),
+			eventAction: pagerduty["actionFromLevel"](level: r["_level"]),
+			source: notification["_notification_rule_name"],
+			summary: r["_message"],
+			timestamp: time(v: r["_source_timestamp"]),
 		})))`,
 		},
 		{
@@ -238,39 +238,39 @@ import "experimental"
 
 option task = {name: "foo", every: 1h}
 
-pagerduty_secret = secrets.get(key: "pagerduty_token")
-pagerduty_endpoint = pagerduty.endpoint()
+pagerduty_secret = secrets["get"](key: "pagerduty_token")
+pagerduty_endpoint = pagerduty["endpoint"]()
 notification = {
 	_notification_rule_id: "0000000000000001",
 	_notification_rule_name: "foo",
 	_notification_endpoint_id: "0000000000000002",
 	_notification_endpoint_name: "foo",
 }
-statuses = monitor.from(start: -2h, fn: (r) =>
-	(r.foo == "bar" and r.baz == "bang"))
+statuses = monitor["from"](start: -2h, fn: (r) =>
+	(r["foo"] == "bar" and r["baz"] == "bang"))
 crit = statuses
 	|> filter(fn: (r) =>
-		(r._level == "crit"))
+		(r["_level"] == "crit"))
 ok_to_warn = statuses
-	|> monitor.stateChanges(fromLevel: "ok", toLevel: "warn")
+	|> monitor["stateChanges"](fromLevel: "ok", toLevel: "warn")
 all_statuses = union(tables: [crit, ok_to_warn])
 	|> sort(columns: ["_time"])
 	|> filter(fn: (r) =>
-		(r._time > experimental.subDuration(from: now(), d: 1h)))
+		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
-	|> monitor.notify(data: notification, endpoint: pagerduty_endpoint(mapFn: (r) =>
+	|> monitor["notify"](data: notification, endpoint: pagerduty_endpoint(mapFn: (r) =>
 		({
 			routingKey: pagerduty_secret,
 			client: "influxdata",
 			clientURL: "http://localhost:7777/host/${r.host}",
 			class: r._check_name,
-			group: r._source_measurement,
-			severity: pagerduty.severityFromLevel(level: r._level),
-			eventAction: pagerduty.actionFromLevel(level: r._level),
-			source: notification._notification_rule_name,
-			summary: r._message,
-			timestamp: time(v: r._source_timestamp),
+			group: r["_source_measurement"],
+			severity: pagerduty["severityFromLevel"](level: r["_level"]),
+			eventAction: pagerduty["actionFromLevel"](level: r["_level"]),
+			source: notification["_notification_rule_name"],
+			summary: r["_message"],
+			timestamp: time(v: r["_source_timestamp"]),
 		})))`,
 		},
 	}

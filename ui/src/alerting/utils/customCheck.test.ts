@@ -4,7 +4,10 @@ import {AlertBuilderState} from '../reducers/alertBuilder'
 
 const bc1: BuilderConfig = {
   buckets: ['bestBuck'],
-  tags: [{key: 'k1', values: ['v1']}, {key: '_field', values: ['v2']}],
+  tags: [
+    {key: 'k1', values: ['v1'], aggregateFunctionType: 'filter'},
+    {key: '_field', values: ['v2'], aggregateFunctionType: 'filter'},
+  ],
   functions: [{name: 'mean'}],
 }
 

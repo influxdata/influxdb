@@ -31,7 +31,7 @@ import {setLabelOnResource} from 'src/labels/actions/creators'
 // Utils
 import {draftRuleToPostRule} from 'src/notifications/rules/utils'
 import {getOrg} from 'src/organizations/selectors'
-import {getAll} from 'src/resources/selectors'
+import {getAll, getStatus} from 'src/resources/selectors'
 
 // Types
 import {
@@ -54,8 +54,16 @@ export const getNotificationRules = () => async (
   getState: GetState
 ) => {
   try {
-    dispatch(setRules(RemoteDataState.Loading))
-    const {id: orgID} = getOrg(getState())
+    const state = getState()
+    if (
+      getStatus(state, ResourceType.NotificationRules) ===
+      RemoteDataState.NotStarted
+    ) {
+      dispatch(setRules(RemoteDataState.Loading))
+    }
+
+    const {id: orgID} = getOrg(state)
+
     const resp = await api.getNotificationRules({query: {orgID}})
 
     if (resp.status !== 200) {

@@ -6,7 +6,7 @@ describe('Variables', () => {
 
     cy.signin().then(({body}) => {
       cy.wrap(body.org).as('org')
-      cy.createVariable(body.org.id)
+      cy.createQueryVariable(body.org.id)
       cy.visit(`orgs/${body.org.id}/settings/variables`)
     })
   })
@@ -68,7 +68,7 @@ describe('Variables', () => {
 
   it('can delete a variable', () => {
     cy.get<Organization>('@org').then(({id}) => {
-      cy.createVariable(id, 'anotherVariable')
+      cy.createQueryVariable(id, 'anotherVariable')
     })
 
     cy.getByTestID('resource-card').should('have.length', 2)

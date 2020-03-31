@@ -129,8 +129,9 @@
     "webpack-merge": "^4.2.1"
   },
   "dependencies": {
-    "@influxdata/clockface": "2.0.1",
-    "@influxdata/flux-lsp-browser": "0.3.1",
+    "@influxdata/clockface": "2.0.3",
+    "@influxdata/flux": "^0.4.0",
+    "@influxdata/flux-lsp-browser": "^0.4.1",
     "@influxdata/flux-parser": "^0.3.0",
     "@influxdata/giraffe": "0.17.6",
     "@influxdata/influx": "0.5.5",

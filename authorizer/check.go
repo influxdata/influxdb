@@ -32,11 +32,9 @@ func (s *CheckService) FindCheckByID(ctx context.Context, id influxdb.ID) (influ
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeReadOrg(ctx, chk.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeRead(ctx, influxdb.ChecksResourceType, chk.GetID(), chk.GetOrgID()); err != nil {
 		return nil, err
 	}
-
 	return chk, nil
 }
 
@@ -48,17 +46,7 @@ func (s *CheckService) FindChecks(ctx context.Context, filter influxdb.CheckFilt
 	if err != nil {
 		return nil, 0, err
 	}
-
-	// This filters without allocating
-	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
-	rules := chks[:0]
-	for _, chk := range chks {
-		if err := authorizeReadOrg(ctx, chk.GetOrgID()); err == nil {
-			rules = append(rules, chk)
-		}
-	}
-
-	return rules, len(rules), nil
+	return AuthorizeFindChecks(ctx, chks)
 }
 
 // FindCheck will return the check.
@@ -67,20 +55,17 @@ func (s *CheckService) FindCheck(ctx context.Context, filter influxdb.CheckFilte
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeReadOrg(ctx, chk.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeRead(ctx, influxdb.ChecksResourceType, chk.GetID(), chk.GetOrgID()); err != nil {
 		return nil, err
 	}
-
 	return chk, nil
 }
 
 // CreateCheck checks to see if the authorizer on context has write access to the global check resource.
 func (s *CheckService) CreateCheck(ctx context.Context, chk influxdb.CheckCreate, userID influxdb.ID) error {
-	if err := authorizeWriteOrg(ctx, chk.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.ChecksResourceType, chk.GetOrgID()); err != nil {
 		return err
 	}
-
 	return s.s.CreateCheck(ctx, chk, userID)
 }
 
@@ -90,11 +75,9 @@ func (s *CheckService) UpdateCheck(ctx context.Context, id influxdb.ID, upd infl
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeWriteOrg(ctx, chk.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.ChecksResourceType, chk.GetID(), chk.GetOrgID()); err != nil {
 		return nil, err
 	}
-
 	return s.s.UpdateCheck(ctx, id, upd)
 }
 
@@ -104,11 +87,9 @@ func (s *CheckService) PatchCheck(ctx context.Context, id influxdb.ID, upd influ
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeWriteOrg(ctx, chk.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.ChecksResourceType, chk.GetID(), chk.GetOrgID()); err != nil {
 		return nil, err
 	}
-
 	return s.s.PatchCheck(ctx, id, upd)
 }
 
@@ -118,10 +99,8 @@ func (s *CheckService) DeleteCheck(ctx context.Context, id influxdb.ID) error {
 	if err != nil {
 		return err
 	}
-
-	if err := authorizeWriteOrg(ctx, chk.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.ChecksResourceType, chk.GetID(), chk.GetOrgID()); err != nil {
 		return err
 	}
-
 	return s.s.DeleteCheck(ctx, id)
 }

@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/pkg/fs"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -241,7 +241,7 @@ func TestFileStore_MergeBlocksLargerThat1000_SecondEntirelyContained(t *testing.
 
 // FloatArray attaches the methods of sort.Interface to *tsdb.FloatArray, sorting in increasing order.
 type FloatArray struct {
-	*tsdb.FloatArray
+	*cursors.FloatArray
 }
 
 func (a *FloatArray) Less(i, j int) bool { return a.Timestamps[i] < a.Timestamps[j] }
@@ -272,8 +272,8 @@ func TestFileStore_MergeBlocksLargerThat1000_MultipleBlocksInEachFile(t *testing
 		return vals
 	}
 
-	makeArray := func(ts, count, step int64, v float64) *tsdb.FloatArray {
-		ar := tsdb.NewFloatArrayLen(int(count))
+	makeArray := func(ts, count, step int64, v float64) *cursors.FloatArray {
+		ar := cursors.NewFloatArrayLen(int(count))
 		for i := range ar.Timestamps {
 			ar.Timestamps[i] = ts
 			ar.Values[i] = v
@@ -306,7 +306,7 @@ func TestFileStore_MergeBlocksLargerThat1000_MultipleBlocksInEachFile(t *testing
 		a2 := makeArray(4005, 3500, 5, 2.01)
 		exp.Merge(a2)
 
-		got := tsdb.NewFloatArrayLen(exp.Len())
+		got := cursors.NewFloatArrayLen(exp.Len())
 		got.Timestamps = got.Timestamps[:0]
 		got.Values = got.Values[:0]
 
@@ -334,7 +334,7 @@ func TestFileStore_MergeBlocksLargerThat1000_MultipleBlocksInEachFile(t *testing
 		exp.Merge(a2)
 		sort.Sort(sort.Reverse(&FloatArray{exp}))
 
-		got := tsdb.NewFloatArrayLen(exp.Len())
+		got := cursors.NewFloatArrayLen(exp.Len())
 		got.Timestamps = got.Timestamps[:0]
 		got.Values = got.Values[:0]
 

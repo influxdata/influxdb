@@ -326,6 +326,7 @@ http.post(
         .click()
       // verify that it is the correct data
       cy.getByInputValue(secondTask)
+
       cy.get('div.cf-nav--item.active').click()
       // navigate back to the first one to verify that the name is correct
       cy.getByTestID('task-card--name')
