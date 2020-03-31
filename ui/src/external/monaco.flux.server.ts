@@ -199,7 +199,7 @@ export class LSPServer {
       state.currentDashboard.id || state.timeMachines.activeTimeMachineID
 
     // NOTE: we use the AST intermediate format as a means of reducing
-    // drift between the two parser and the internal representation
+    // drift between the parser and the internal representation
     const variables = getAllVariables(state, contextID).map(v =>
       asAssignment(v)
     )

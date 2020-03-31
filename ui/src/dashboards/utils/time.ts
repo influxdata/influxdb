@@ -34,12 +34,22 @@ export const millisecondTimeRange = ({
   return {since, until}
 }
 
+function isDate(date: string): boolean {
+  const parsed = Date.parse(date)
+
+  if (isNaN(parsed)) {
+    return false
+  }
+
+  return true
+}
+
 export const validateAndTypeRange = (timeRange: {
   lower: string
   upper: string
 }): TimeRange => {
   const {lower, upper} = timeRange
-  if (!isNaN(Date.parse(lower)) && !isNaN(Date.parse(upper))) {
+  if (isDate(lower) && isDate(upper)) {
     return {
       ...timeRange,
       type: 'custom',

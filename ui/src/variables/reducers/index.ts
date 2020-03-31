@@ -15,7 +15,6 @@ import {
   SET_VARIABLE,
   REMOVE_VARIABLE,
   MOVE_VARIABLE,
-  SET_VARIABLE_VALUES,
   SELECT_VARIABLE_VALUE,
 } from 'src/variables/actions/creators'
 
@@ -66,29 +65,6 @@ export const variablesReducer = (
         return
       }
 
-      case SET_VARIABLE_VALUES: {
-        const {contextID, status, values} = action
-        const prevOrder = get(draftState, `values.${contextID}.order`, [])
-
-        if (values) {
-          const order = Object.keys(values).sort(
-            (a, b) => prevOrder.indexOf(a) - prevOrder.indexOf(b)
-          )
-
-          draftState.values[contextID] = {
-            status,
-            values,
-            order,
-          }
-        } else if (draftState.values[contextID]) {
-          draftState.values[contextID].status = status
-        } else {
-          draftState.values[contextID] = {status, values: null, order: []}
-        }
-
-        return
-      }
-
       case SELECT_VARIABLE_VALUE: {
         const {contextID, variableID, selectedValue} = action
 
@@ -104,11 +80,13 @@ export const variablesReducer = (
           draftState.values[contextID].values[variableID] = {
             selected: [selectedValue],
           }
-        } else {
-          draftState.values[contextID].values[variableID].selected = [
-            selectedValue,
-          ]
+
+          return
         }
+
+        draftState.values[contextID].values[variableID].selected = [
+          selectedValue,
+        ]
 
         return
       }
