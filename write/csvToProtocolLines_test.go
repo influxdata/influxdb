@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -117,15 +118,9 @@ func TestCsvData_LogTableColumns(t *testing.T) {
 	reader := CsvToProtocolLines(strings.NewReader(csv)).LogTableColumns(true)
 	require.Equal(t, reader.logCsvErrors, false)
 	require.Equal(t, reader.logTableDataColumns, true)
-	buffer := make([]byte, 100)
-	lines := make([]byte, 0, 100)
-	for {
-		n, err := reader.Read(buffer)
-		if err != nil {
-			break
-		}
-		lines = append(lines, buffer[:n]...)
-	}
+	// read all the data
+	ioutil.ReadAll(reader)
+
 	out := buf.String()
 	fmt.Println(out)
 	messages := strings.Count(out, prefix)
@@ -152,15 +147,9 @@ func TestCsvData_LogCsvErrors(t *testing.T) {
 	reader := CsvToProtocolLines(strings.NewReader(csv)).LogCsvErrors(true)
 	require.Equal(t, reader.logCsvErrors, true)
 	require.Equal(t, reader.logTableDataColumns, false)
-	buffer := make([]byte, 100)
-	lines := make([]byte, 0, 100)
-	for {
-		n, err := reader.Read(buffer)
-		if err != nil {
-			break
-		}
-		lines = append(lines, buffer[:n]...)
-	}
+	// read all the data
+	ioutil.ReadAll(reader)
+
 	out := buf.String()
 	fmt.Println(out)
 	messages := strings.Count(out, prefix)
