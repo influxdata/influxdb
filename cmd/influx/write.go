@@ -26,7 +26,7 @@ type writeFlagsType struct {
 	Bucket       string
 	Precision    string
 	Format       string
-	File         string
+	Files        []string
 	Headers      []string
 	Debug        bool
 	LogCsvErrors bool
@@ -67,7 +67,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	}
 	opts.mustRegister(cmd)
 	cmd.PersistentFlags().StringVar(&writeFlags.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
-	cmd.PersistentFlags().StringVarP(&writeFlags.File, "file", "f", "", "The path to the file to import")
+	cmd.PersistentFlags().StringArrayVarP(&writeFlags.Files, "file", "f", []string{}, "The path to the file to import")
 	cmd.PersistentFlags().StringArrayVar(&writeFlags.Headers, "header", []string{}, "One or more header lines to prepend to input data")
 	cmd.PersistentFlags().BoolVar(&writeFlags.Debug, "debug", false, "Log CSV columns to stderr before reading data rows")
 	cmd.PersistentFlags().BoolVar(&writeFlags.LogCsvErrors, "logCsvErrors", false, "Log CSV data errors to sterr and continue with CSV processing")
@@ -81,45 +81,61 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 }
 
 // createLineReader uses writeFlags and cli arguments to create a reader that produces line protocol
-func (writeFlags *writeFlagsType) createLineReader(args []string) (r io.Reader, closer io.Closer, err error) {
-	if len(args) > 0 && args[0][0] == '@' {
+func (writeFlags *writeFlagsType) createLineReader(args []string) (io.Reader, io.Closer, error) {
+	readers := make([]io.Reader, 0, 2*len(writeFlags.Headers)+2*len(writeFlags.Files)+1)
+	closers := make([]io.Closer, 0, len(writeFlags.Files))
+
+	if len(args) > 0 && len(args[0]) > 1 && args[0][0] == '@' {
 		// backward compatibility: @ in arg denotes a file
-		writeFlags.File = args[0][1:]
+		writeFlags.Files = append(writeFlags.Files, args[0][1:])
+		args = args[:0]
 	}
 
-	if len(writeFlags.File) > 0 {
-		f, err := os.Open(writeFlags.File)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to open %q: %v", writeFlags.File, err)
-		}
-		closer = f
-		r = f
-		if len(writeFlags.Format) == 0 && strings.HasSuffix(writeFlags.File, ".csv") {
-			writeFlags.Format = inputFormatCsv
-		}
-	} else if len(args) == 0 || args[0] == "-" {
-		// backward compatibility: "-" also means stdin
-		r = os.Stdin
-	} else {
-		r = strings.NewReader(args[0])
-	}
 	// validate input format
 	if len(writeFlags.Format) > 0 && writeFlags.Format != inputFormatLineProtocol && writeFlags.Format != inputFormatCsv {
-		return nil, nil, fmt.Errorf("unsupported input format: %s", writeFlags.Format)
+		return nil, write.MultiCloser(closers...), fmt.Errorf("unsupported input format: %s", writeFlags.Format)
 	}
+
 	// prepend header lines
 	if len(writeFlags.Headers) > 0 {
-		readers := make([]io.Reader, len(writeFlags.Headers)+1)
-		for i, header := range writeFlags.Headers {
-			readers[i] = strings.NewReader(header + "\n")
+		for _, header := range writeFlags.Headers {
+			readers = append(readers, strings.NewReader(header), strings.NewReader("\n"))
 		}
-		readers[len(readers)-1] = r
-		r = io.MultiReader(readers...)
 		if len(writeFlags.Format) == 0 {
 			writeFlags.Format = inputFormatCsv
 		}
 	}
 
+	// add files
+	if len(writeFlags.Files) > 0 {
+		for _, file := range writeFlags.Files {
+			f, err := os.Open(file)
+			if err != nil {
+				return nil, write.MultiCloser(closers...), fmt.Errorf("failed to open %q: %v", file, err)
+			}
+			closers = append(closers, f)
+			readers = append(readers, f, strings.NewReader("\n"))
+			if len(writeFlags.Format) == 0 && strings.HasSuffix(file, ".csv") {
+				writeFlags.Format = inputFormatCsv
+			}
+		}
+	}
+
+	// add stdin or a single argument
+	switch {
+	case len(args) == 0:
+		// either --file or stdin when no arguments are supplied
+		if len(writeFlags.Files) == 0 {
+			readers = append(readers, os.Stdin)
+		}
+	case args[0] == "-":
+		// "-" also means stdin
+		readers = append(readers, os.Stdin)
+	default:
+		readers = append(readers, strings.NewReader(args[0]))
+	}
+
+	r := io.MultiReader(readers...)
 	if writeFlags.Format == inputFormatCsv {
 		csvReader := write.CsvToProtocolLines(r)
 		csvReader.LogTableColumns(writeFlags.Debug)
@@ -127,7 +143,7 @@ func (writeFlags *writeFlagsType) createLineReader(args []string) (r io.Reader, 
 		csvReader.LineNumber = -len(writeFlags.Headers)
 		r = csvReader
 	}
-	return r, closer, nil
+	return r, write.MultiCloser(closers...), nil
 }
 
 func fluxWriteF(cmd *cobra.Command, args []string) error {
