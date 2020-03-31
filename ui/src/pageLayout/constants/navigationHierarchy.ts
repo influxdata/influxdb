@@ -1,5 +1,6 @@
 import {IconFont} from '@influxdata/clockface'
 import {CLOUD_URL, CLOUD_USERS_PATH} from 'src/shared/constants'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 export interface NavItemLink {
   type: 'link' | 'href'
@@ -34,6 +35,18 @@ export interface NavItem {
 
 export const generateNavItems = (orgID: string): NavItem[] => {
   const orgPrefix = `/orgs/${orgID}`
+
+  const isMultiUserEnabled = isFlagEnabled('multiUser')
+
+  const quartzMembersHeaderLink: NavItemLink = isMultiUserEnabled
+    ? {
+        type: 'href',
+        location: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
+      }
+    : {
+        type: 'link',
+        location: `${orgPrefix}/about`,
+      }
 
   return [
     {
@@ -125,21 +138,9 @@ export const generateNavItems = (orgID: string): NavItem[] => {
           id: 'members',
           testID: 'nav-subitem-members',
           label: 'Members',
-          featureFlag: 'multiUser',
-          featureFlagValue: false,
           link: {
             type: 'link',
             location: `${orgPrefix}/members`,
-          },
-        },
-        {
-          id: 'multi-user-members',
-          testID: 'nav-subitem-multi-user-members',
-          label: 'Members',
-          featureFlag: 'multiUser',
-          link: {
-            type: 'href',
-            location: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
           },
         },
         {
@@ -160,26 +161,12 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       label: 'Organization',
       shortLabel: 'Org',
       cloudOnly: true,
-      link: {
-        type: 'href',
-        location: `${CLOUD_URL}${CLOUD_USERS_PATH}`,
-      },
+      link: quartzMembersHeaderLink,
       activeKeywords: ['members', 'about'],
       menu: [
         {
-          id: 'quartz-members',
-          testID: 'nav-subitem-quartz-members',
-          label: 'Members',
-          featureFlag: 'multiUser',
-          featureFlagValue: false,
-          link: {
-            type: 'href',
-            location: `${CLOUD_URL}${CLOUD_USERS_PATH}`,
-          },
-        },
-        {
-          id: 'multi-user-members',
-          testID: 'nav-subitem-multi-user-members',
+          id: 'users',
+          testID: 'nav-subitem-users',
           label: 'Members',
           featureFlag: 'multiUser',
           link: {
