@@ -127,7 +127,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     // condition that was causing the following bug:
     // https://github.com/influxdata/idpe/issues/6240
 
-    const startTime = Date.now()
+    const startTime = window.performance.now()
 
     pendingResults.forEach(({cancel}) => cancel())
 
@@ -139,7 +139,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     })
 
     const results = await Promise.all(pendingResults.map(r => r.promise))
-    const duration = Date.now() - startTime
+    const duration = window.performance.now() - startTime
 
     let statuses = [[]] as StatusRow[][]
     if (checkID) {
