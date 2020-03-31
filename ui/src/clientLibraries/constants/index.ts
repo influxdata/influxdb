@@ -269,24 +269,24 @@ $client = new InfluxDB2\\Client([
   "token" => "<%= token %>",
 ]);`,
   executeQueryCodeSnippet: `$query = 'from(bucket: "<%= bucket %>") |> range(start: -1h)';
-$tables = $client->createQueryApi()->query($query);`,
+$tables = $client->createQueryApi()->query($query, '<%= org %>');`,
   writingDataLineProtocolCodeSnippet: `$writeApi = $client->createWriteApi();
   
 $data = "mem,host=host1 used_percent=23.43234543 1556896326";
 
-$writeApi->write($data, \\InfluxDB2\\Model\\WritePrecision::NS, '<%= bucket %>', '<%= org %>');`,
-  writingDataPointCodeSnippet: `$point = Point::measurement('mem')
+$writeApi->write($data, \\InfluxDB2\\Model\\WritePrecision::S, '<%= bucket %>', '<%= org %>');`,
+  writingDataPointCodeSnippet: `$point = \\InfluxDB2\\Point::measurement('mem')
   ->addTag('host', 'host1')
   ->addField('used_percent', 23.43234543)
   ->time(1556896326);
 
-$writeApi->write($point, \\InfluxDB2\\Model\\WritePrecision::NS, '<%= bucket %>', '<%= org %>');`,
+$writeApi->write($point, \\InfluxDB2\\Model\\WritePrecision::S, '<%= bucket %>', '<%= org %>');`,
   writingDataArrayCodeSnippet: `$dataArray = ['name' => 'cpu',
   'tags' => ['host' => 'server_nl', 'region' => 'us'],
   'fields' => ['internal' => 5, 'external' => 6],
-  'time' => microtime()];
+  'time' => microtime(true)];
 
-$writeApi->write($dataArray, \\InfluxDB2\\Model\\WritePrecision::NS, '<%= bucket %>', '<%= org %>');`,
+$writeApi->write($dataArray, \\InfluxDB2\\Model\\WritePrecision::S, '<%= bucket %>', '<%= org %>');`,
 }
 
 export const clientLibraries: ClientLibrary[] = [
