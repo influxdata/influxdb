@@ -16,10 +16,10 @@ interface Props {
 }
 
 const FunctionTooltipContents: FunctionComponent<Props> = ({
-  func: {desc, args, example, link},
+  func: {desc, args, example, link, name},
 }) => {
   return (
-    <div className="flux-function-docs">
+    <div className="flux-function-docs" data-testid={`flux-docs--${name}`}>
       <DapperScrollbars autoHide={false}>
         <div className="flux-toolbar--popover">
           <TooltipDescription description={desc} />

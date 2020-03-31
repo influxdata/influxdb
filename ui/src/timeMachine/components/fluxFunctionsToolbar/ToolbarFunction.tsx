@@ -46,12 +46,12 @@ const ToolbarFunction: FC<Props> = ({func, onClickFunction, testID}) => {
       />
       <dd
         ref={functionRef}
-        data-testid={`${testID} ${func.name}`}
+        data-testid={`flux--${testID}`}
         className="flux-toolbar--list-item flux-toolbar--function"
       >
         <code>{func.name}</code>
         <Button
-          testID={`${testID}--inject`}
+          testID={`flux--${testID}--inject`}
           text="Inject"
           onClick={handleClickFunction}
           size={ComponentSize.ExtraSmall}

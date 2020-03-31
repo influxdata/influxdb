@@ -24,7 +24,7 @@ const FunctionCategory: SFC<Props> = props => {
           onClickFunction={onClickFunction}
           key={`${func.name}_${func.desc}`}
           func={func}
-          testID="toolbar-function"
+          testID={func.name}
         />
       ))}
     </dl>

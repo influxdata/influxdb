@@ -40,7 +40,12 @@ const VariableToolbar: FunctionComponent<OwnProps & StateProps> = ({
 
   if (Boolean(filteredVariables.length)) {
     content = filteredVariables.map(v => (
-      <VariableItem variable={v} key={v.id} onClickVariable={onClickVariable} />
+      <VariableItem
+        variable={v}
+        key={v.id}
+        onClickVariable={onClickVariable}
+        testID={v.name}
+      />
     ))
   }
 

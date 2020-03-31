@@ -39,10 +39,11 @@ const VariableItem: FC<Props> = ({
         className="flux-toolbar--list-item flux-toolbar--variable"
         onClick={handleClick}
         ref={trigger}
+        data-testid={`variable--${testID}`}
       >
-        <code>{variable.name}</code>
+        <code data-testid={`variable-name--${testID}`}>{variable.name}</code>
         <Button
-          testID={`${testID}--inject`}
+          testID={`variable--${testID}--inject`}
           text="Inject"
           onClick={handleClick}
           size={ComponentSize.ExtraSmall}
