@@ -23,6 +23,28 @@ func TestLauncher_Pkger(t *testing.T) {
 
 	svc := l.PkgerService(t)
 
+	t.Run("creating a stack", func(t *testing.T) {
+		expectedURLs := []string{"http://example.com"}
+
+		fmt.Println("org init id: ", l.Org.ID)
+
+		newStack, err := svc.InitStack(timedCtx(5*time.Second), l.User.ID, pkger.Stack{
+			OrgID:       l.Org.ID,
+			Name:        "first stack",
+			Description: "desc",
+			URLs:        expectedURLs,
+		})
+		require.NoError(t, err)
+
+		assert.NotZero(t, newStack.ID)
+		assert.Equal(t, l.Org.ID, newStack.OrgID)
+		assert.Equal(t, "first stack", newStack.Name)
+		assert.Equal(t, "desc", newStack.Description)
+		assert.Equal(t, expectedURLs, newStack.URLs)
+		assert.NotNil(t, newStack.Resources)
+		assert.NotZero(t, newStack.CRUDLog)
+	})
+
 	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {
 		svc := pkger.NewService(
 			pkger.WithBucketSVC(l.BucketService(t)),

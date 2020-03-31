@@ -4359,6 +4359,64 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /packages/stacks:
+    post:
+      operationId: CreatePkg
+      tags:
+        - InfluxPackages
+      summary: Create a new Influx package
+      requestBody:
+        description: Influx package to create.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orgID:
+                  type: string
+                name:
+                  type: string
+                description:
+                  type: string
+                urls:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Influx stack created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  orgID:
+                    type: string
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  urls:
+                    type: array
+                    items:
+                      type: string
+                  createdAt:
+                    type: string
+                    format: date-time
+                    readOnly: true
+                  updatedAt:
+                    type: string
+                    format: date-time
+                    readOnly: true
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /tasks:
     get:
       operationId: GetTasks

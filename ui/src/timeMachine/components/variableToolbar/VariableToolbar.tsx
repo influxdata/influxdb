@@ -12,7 +12,7 @@ import {
 import VariableItem from 'src/timeMachine/components/variableToolbar/VariableItem'
 
 // Utils
-import {extractVariablesListWithDefaults} from 'src/variables/selectors'
+import {getAllVariables} from 'src/variables/selectors'
 
 // Types
 import {AppState, Variable} from 'src/types'
@@ -60,7 +60,7 @@ const VariableToolbar: FunctionComponent<OwnProps & StateProps> = ({
 }
 
 const mstp = (state: AppState): StateProps => {
-  const variables = extractVariablesListWithDefaults(state)
+  const variables = getAllVariables(state)
 
   return {variables}
 }

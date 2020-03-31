@@ -34,6 +34,7 @@ class SettingsNavigation extends PureComponent<Props> {
         id: 'members',
         featureFlagName: 'treeNav',
         featureFlagValue: false,
+        cloudExclude: true,
       },
       {
         text: 'Variables',

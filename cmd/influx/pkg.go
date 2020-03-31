@@ -42,8 +42,12 @@ type cmdPkgBuilder struct {
 	file                string
 	files               []string
 	filters             []string
+	description         string
 	disableColor        bool
 	disableTableBorders bool
+	hideHeaders         bool
+	json                bool
+	name                string
 	org                 organization
 	quiet               bool
 	recurse             bool
@@ -82,7 +86,9 @@ func (b *cmdPkgBuilder) cmd() *cobra.Command {
 		b.cmdPkgExport(),
 		b.cmdPkgSummary(),
 		b.cmdPkgValidate(),
+		b.cmdStack(),
 	)
+
 	return cmd
 }
 
@@ -92,10 +98,9 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 
 	b.org.register(cmd, false)
 	b.registerPkgFileFlags(cmd)
+	b.registerPkgPrintOpts(cmd)
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
-	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
-	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
 
 	b.applyOpts.secrets = []string{}
 	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the package; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
@@ -150,8 +155,8 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		}
 	}
 
-	if !b.quiet {
-		b.printPkgDiff(diff)
+	if err := b.printPkgDiff(diff); err != nil {
+		return err
 	}
 
 	isForced, _ := strconv.ParseBool(b.applyOpts.force)
@@ -172,9 +177,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		return err
 	}
 
-	if !b.quiet {
-		b.printPkgSummary(summary)
-	}
+	b.printPkgSummary(summary)
 
 	return nil
 }
@@ -314,16 +317,14 @@ func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
 			return err
 		}
 
-		b.printPkgSummary(pkg.Summary())
-		return nil
+		return b.printPkgSummary(pkg.Summary())
 	}
 
 	cmd := b.newCmd("summary", runE, false)
 	cmd.Short = "Summarize the provided package"
 
 	b.registerPkgFileFlags(cmd)
-	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
-	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
+	b.registerPkgPrintOpts(cmd)
 
 	return cmd
 }
@@ -343,6 +344,77 @@ func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 	b.registerPkgFileFlags(cmd)
 
 	return cmd
+}
+
+func (b *cmdPkgBuilder) cmdStack() *cobra.Command {
+	cmd := b.newCmd("stack", nil, false)
+	cmd.Short = "Stack management commands"
+	cmd.AddCommand(b.cmdStackInit())
+	return cmd
+}
+
+func (b *cmdPkgBuilder) cmdStackInit() *cobra.Command {
+	cmd := b.newCmd("init", b.stackInitRunEFn, true)
+	cmd.Short = "Initialize a stack"
+
+	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
+	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description given to created stack")
+	cmd.Flags().StringArrayVarP(&b.urls, "package-url", "u", nil, "Package urls to associate with new stack")
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+
+	b.org.register(cmd, false)
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error {
+	pkgSVC, orgSVC, err := b.svcFn()
+	if err != nil {
+		return err
+	}
+
+	orgID, err := b.org.getID(orgSVC)
+	if err != nil {
+		return err
+	}
+
+	const fakeUserID = 0 // is 0 because user is pulled from token...
+	stack, err := pkgSVC.InitStack(context.Background(), fakeUserID, pkger.Stack{
+		OrgID:       orgID,
+		Name:        b.name,
+		Description: b.description,
+		URLs:        b.urls,
+	})
+	if err != nil {
+		return err
+	}
+
+	if b.json {
+		return b.writeJSON(stack)
+	}
+
+	tabW := b.newTabWriter()
+	defer tabW.Flush()
+
+	tabW.HideHeaders(b.hideHeaders)
+
+	tabW.WriteHeaders("ID", "OrgID", "Name", "Description", "URLs", "Created At")
+	tabW.Write(map[string]interface{}{
+		"ID":          stack.ID,
+		"OrgID":       stack.OrgID,
+		"Name":        stack.Name,
+		"Description": stack.Description,
+		"URLs":        stack.URLs,
+		"Created At":  stack.CreatedAt,
+	})
+
+	return nil
+}
+
+func (b *cmdPkgBuilder) registerPkgPrintOpts(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
+	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
+	registerPrintOptions(cmd, nil, &b.json)
 }
 
 func (b *cmdPkgBuilder) registerPkgFileFlags(cmd *cobra.Command) {
@@ -597,7 +669,15 @@ func newPkgerSVC() (pkger.SVC, influxdb.OrganizationService, error) {
 	return &pkger.HTTPRemoteService{Client: httpClient}, orgSvc, nil
 }
 
-func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
+func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
+	if b.quiet {
+		return nil
+	}
+
+	if b.json {
+		return b.writeJSON(diff)
+	}
+
 	red := color.New(color.FgRed).SprintFunc()
 	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
 
@@ -786,9 +866,19 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 			}
 		})
 	}
+
+	return nil
 }
 
-func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
+func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
+	if b.quiet {
+		return nil
+	}
+
+	if b.json {
+		return b.writeJSON(sum)
+	}
+
 	tablePrintFn := b.tablePrinterGen()
 	if labels := sum.Labels; len(labels) > 0 {
 		headers := []string{"ID", "Name", "Description", "Color"}
@@ -930,6 +1020,8 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 			return []string{secrets[i]}
 		})
 	}
+
+	return nil
 }
 
 func (b *cmdPkgBuilder) tablePrinterGen() func(table string, headers []string, count int, rowFn func(i int) []string) {

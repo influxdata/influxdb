@@ -62,7 +62,7 @@ export const CLOUD_CHECKOUT_PATH = '/checkout'
 export const CLOUD_BILLING_PATH = '/billing'
 export const CLOUD_USAGE_PATH = '/usage'
 export const CLOUD_LOGOUT_PATH = '/logout'
-export const CLOUD_USERS_PATH = '/users/index'
+export const CLOUD_USERS_PATH = '/users'
 
 export const FLUX_RESPONSE_BYTES_LIMIT = CLOUD
   ? 10 * 1024 * 1024 // 10 MiB

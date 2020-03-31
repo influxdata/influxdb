@@ -55,7 +55,7 @@ export const extractValues = (
   return {
     values,
     valueType: table.dataTypes._value as FluxColumnType,
-    selectedValue: resolveSelectedKey(values, prevSelection, defaultSelection),
+    selected: [resolveSelectedKey(values, prevSelection, defaultSelection)],
   }
 }
 
@@ -84,7 +84,7 @@ export class DefaultValueFetcher implements ValueFetcher {
     const extern = buildVarsOption(variables)
     const request = runQuery(orgID, query, extern)
 
-    const promise = request.promise.then<VariableValues>(result => {
+    const promise = request.promise.then(result => {
       if (result.type !== 'SUCCESS') {
         return Promise.reject(result.message)
       }
@@ -115,11 +115,13 @@ export class DefaultValueFetcher implements ValueFetcher {
 
     return {
       ...cachedValues,
-      selectedValue: resolveSelectedKey(
-        cachedValues.values as string[],
-        prevSelection,
-        defaultSelection
-      ),
+      selected: [
+        resolveSelectedKey(
+          cachedValues.values as string[],
+          prevSelection,
+          defaultSelection
+        ),
+      ],
     }
   }
 }

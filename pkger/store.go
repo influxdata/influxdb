@@ -3,7 +3,6 @@ package pkger
 import (
 	"context"
 	"encoding/json"
-	"net/url"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -175,19 +174,14 @@ func convertStackToEnt(stack Stack) (kv.Entity, error) {
 		return kv.Entity{}, err
 	}
 
-	urlStrs := make([]string, 0, len(stack.URLs))
-	for _, u := range stack.URLs {
-		urlStrs = append(urlStrs, u.String())
-	}
-
 	stEnt := entStack{
 		ID:          idBytes,
 		OrgID:       orgIDBytes,
 		Name:        stack.Name,
-		Description: stack.Desc,
+		Description: stack.Description,
 		CreatedAt:   stack.CreatedAt,
 		UpdatedAt:   stack.UpdatedAt,
-		URLs:        urlStrs,
+		URLs:        stack.URLs,
 	}
 
 	for _, res := range stack.Resources {
@@ -208,8 +202,9 @@ func convertStackToEnt(stack Stack) (kv.Entity, error) {
 
 func convertStackEntToStack(ent *entStack) (Stack, error) {
 	stack := Stack{
-		Name: ent.Name,
-		Desc: ent.Description,
+		Name:        ent.Name,
+		Description: ent.Description,
+		URLs:        ent.URLs,
 		CRUDLog: influxdb.CRUDLog{
 			CreatedAt: ent.CreatedAt,
 			UpdatedAt: ent.UpdatedAt,
@@ -221,14 +216,6 @@ func convertStackEntToStack(ent *entStack) (Stack, error) {
 
 	if err := stack.OrgID.Decode(ent.OrgID); err != nil {
 		return Stack{}, err
-	}
-
-	for _, urlStr := range ent.URLs {
-		u, err := url.Parse(urlStr)
-		if err != nil {
-			return Stack{}, err
-		}
-		stack.URLs = append(stack.URLs, *u)
 	}
 
 	for _, res := range ent.Resources {

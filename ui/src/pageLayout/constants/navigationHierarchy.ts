@@ -1,5 +1,5 @@
 import {IconFont} from '@influxdata/clockface'
-import {CLOUD_URL, CLOUD_USERS_PATH} from 'src/shared/constants'
+import {CLOUD, CLOUD_URL, CLOUD_USERS_PATH} from 'src/shared/constants'
 
 export interface NavSubItem {
   id: string
@@ -86,7 +86,9 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       icon: IconFont.UsersTrio,
       label: 'Organization',
       shortLabel: 'Org',
-      link: `${orgPrefix}/members`,
+      link: CLOUD
+        ? `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`
+        : `${orgPrefix}/members`,
       activeKeywords: ['members', 'about'],
       menu: [
         {
@@ -101,7 +103,7 @@ export const generateNavItems = (orgID: string): NavItem[] => {
           testID: 'nav-subitem-multi-user-members',
           label: 'Members',
           featureFlag: 'multiUser',
-          link: `${CLOUD_URL}/organizations/${orgID}/${CLOUD_USERS_PATH}`,
+          link: `${CLOUD_URL}/organizations/${orgID}${CLOUD_USERS_PATH}`,
         },
         {
           id: 'about',

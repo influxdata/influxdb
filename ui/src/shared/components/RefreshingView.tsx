@@ -10,19 +10,16 @@ import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
-import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
-import {
-  getVariableAssignments,
-  getDashboardValuesStatus,
-} from 'src/variables/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
+import {getRangeVariable} from 'src/variables/utils/getTimeRangeVars'
+import {getVariables, asAssignment} from 'src/variables/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
+import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
 // Types
 import {
   TimeRange,
-  RemoteDataState,
   TimeZone,
   AppState,
   DashboardQuery,
@@ -42,7 +39,6 @@ interface StateProps {
   ranges: TimeRange | null
   timeZone: TimeZone
   variableAssignments: VariableAssignment[]
-  variablesStatus: RemoteDataState
 }
 
 interface State {
@@ -72,7 +68,14 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {ranges, properties, manualRefresh, timeZone, theme} = this.props
+    const {
+      ranges,
+      properties,
+      manualRefresh,
+      timeZone,
+      variableAssignments,
+      theme,
+    } = this.props
     const {submitToken} = this.state
 
     return (
@@ -80,7 +83,7 @@ class RefreshingView extends PureComponent<Props, State> {
         submitToken={submitToken}
         queries={this.queries}
         key={manualRefresh}
-        variables={this.variableAssignments}
+        variables={variableAssignments}
       >
         {({
           giraffeResult,
@@ -129,12 +132,6 @@ class RefreshingView extends PureComponent<Props, State> {
     }
   }
 
-  private get variableAssignments(): VariableAssignment[] {
-    const {timeRange, variableAssignments} = this.props
-
-    return [...variableAssignments, ...getTimeRangeVars(timeRange)]
-  }
-
   private get fallbackNote(): string {
     const {properties} = this.props
 
@@ -155,9 +152,17 @@ class RefreshingView extends PureComponent<Props, State> {
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const dashboard = state.currentDashboard.id
-  const variableAssignments = getVariableAssignments(state, dashboard)
-  const timeRange = getTimeRangeByDashboardID(state, dashboard)
-  const valuesStatus = getDashboardValuesStatus(state, dashboard)
+  const timeRange = getTimeRange(state, dashboard)
+
+  // NOTE: cannot use getAllVariables here because the TimeSeries
+  // component appends it automatically. That should be fixed
+  const vars = getVariables(state, dashboard)
+  const variableAssignments = [
+    ...vars,
+    getRangeVariable(TIME_RANGE_START, timeRange),
+    getRangeVariable(TIME_RANGE_STOP, timeRange),
+  ].map(v => asAssignment(v))
+
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)
   const {timeZone, theme} = state.app.persisted
 
@@ -166,7 +171,6 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     ranges,
     timeZone,
     variableAssignments,
-    variablesStatus: valuesStatus,
     theme,
   }
 }

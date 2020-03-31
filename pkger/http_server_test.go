@@ -13,6 +13,7 @@ import (
 	"path"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb"
@@ -148,7 +149,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						DryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
 							if err := pkg.Validate(); err != nil {
 								return pkger.Summary{}, pkger.Diff{}, err
 							}
@@ -202,7 +203,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						DryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
 							if err := pkg.Validate(); err != nil {
 								return pkger.Summary{}, pkger.Diff{}, err
 							}
@@ -304,7 +305,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					svc := &fakeSVC{
-						DryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
 							if err := pkg.Validate(); err != nil {
 								return pkger.Summary{}, pkger.Diff{}, err
 							}
@@ -344,7 +345,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 
 	t.Run("apply a pkg", func(t *testing.T) {
 		svc := &fakeSVC{
-			DryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
+			dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
 				if err := pkg.Validate(); err != nil {
 					return pkger.Summary{}, pkger.Diff{}, err
 				}
@@ -357,7 +358,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				}
 				return sum, diff, nil
 			},
-			ApplyFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error) {
+			applyFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error) {
 				var opt pkger.ApplyOpt
 				for _, o := range opts {
 					require.NoError(t, o(&opt))
@@ -390,6 +391,115 @@ func TestPkgerHTTPServer(t *testing.T) {
 				assert.Equal(t, []string{"secret1"}, resp.Summary.MissingSecrets)
 				assert.Nil(t, resp.Errors)
 			})
+	})
+
+	t.Run("create a stack", func(t *testing.T) {
+		t.Run("should successfully return with valid req body", func(t *testing.T) {
+			svc := &fakeSVC{
+				initStack: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
+					stack.ID = 3
+					stack.CreatedAt = time.Now()
+					stack.UpdatedAt = time.Now()
+					return stack, nil
+				},
+			}
+			pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+			svr := newMountedHandler(pkgHandler, 1)
+
+			reqBody := pkger.ReqCreateStack{
+				OrgID:       influxdb.ID(3).String(),
+				Name:        "threeve",
+				Description: "desc",
+				URLs:        []string{"http://example.com"},
+			}
+
+			testttp.
+				PostJSON(t, "/api/v2/packages/stacks", reqBody).
+				Headers("Content-Type", "application/json").
+				Do(svr).
+				ExpectStatus(http.StatusCreated).
+				ExpectBody(func(buf *bytes.Buffer) {
+					var resp pkger.RespCreateStack
+					decodeBody(t, buf, &resp)
+
+					assert.NotZero(t, resp.ID)
+					assert.Equal(t, reqBody.OrgID, resp.OrgID)
+					assert.Equal(t, reqBody.Name, resp.Name)
+					assert.Equal(t, reqBody.Description, resp.Description)
+					assert.Equal(t, reqBody.URLs, resp.URLs)
+					assert.NotZero(t, resp.CRUDLog)
+				})
+
+		})
+
+		t.Run("error cases", func(t *testing.T) {
+			tests := []struct {
+				name           string
+				reqBody        pkger.ReqCreateStack
+				expectedStatus int
+				svc            pkger.SVC
+			}{
+				{
+					name: "bad org id",
+					reqBody: pkger.ReqCreateStack{
+						OrgID: "invalid id",
+					},
+					expectedStatus: http.StatusBadRequest,
+				},
+				{
+					name: "bad url",
+					reqBody: pkger.ReqCreateStack{
+						OrgID: influxdb.ID(3).String(),
+						URLs:  []string{"invalid @% url"},
+					},
+					expectedStatus: http.StatusBadRequest,
+				},
+				{
+					name:    "translates svc conflict error",
+					reqBody: pkger.ReqCreateStack{OrgID: influxdb.ID(3).String()},
+					svc: &fakeSVC{
+						initStack: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
+							return pkger.Stack{}, &influxdb.Error{Code: influxdb.EConflict}
+						},
+					},
+					expectedStatus: http.StatusUnprocessableEntity,
+				},
+				{
+					name:    "translates svc internal error",
+					reqBody: pkger.ReqCreateStack{OrgID: influxdb.ID(3).String()},
+					svc: &fakeSVC{
+						initStack: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
+							return pkger.Stack{}, &influxdb.Error{Code: influxdb.EInternal}
+						},
+					},
+					expectedStatus: http.StatusInternalServerError,
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					svc := tt.svc
+					if svc == nil {
+						svc = &fakeSVC{
+							initStack: func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
+								return stack, nil
+							},
+						}
+					}
+
+					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+					svr := newMountedHandler(pkgHandler, 1)
+
+					testttp.
+						PostJSON(t, "/api/v2/packages/stacks", tt.reqBody).
+						Headers("Content-Type", "application/json").
+						Do(svr).
+						ExpectStatus(tt.expectedStatus)
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
 	})
 }
 
@@ -471,14 +581,18 @@ func decodeBody(t *testing.T, r io.Reader, v interface{}) {
 }
 
 type fakeSVC struct {
-	DryRunFn func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error)
-	ApplyFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error)
+	initStack func(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error)
+	dryRunFn  func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error)
+	applyFn   func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error)
 }
 
 var _ pkger.SVC = (*fakeSVC)(nil)
 
 func (f *fakeSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pkger.Stack) (pkger.Stack, error) {
-	panic("not implemented")
+	if f.initStack == nil {
+		panic("not implemented")
+	}
+	return f.initStack(ctx, userID, stack)
 }
 
 func (f *fakeSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn) (*pkger.Pkg, error) {
@@ -486,18 +600,18 @@ func (f *fakeSVC) CreatePkg(ctx context.Context, setters ...pkger.CreatePkgSetFn
 }
 
 func (f *fakeSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
-	if f.DryRunFn == nil {
+	if f.dryRunFn == nil {
 		panic("not implemented")
 	}
 
-	return f.DryRunFn(ctx, orgID, userID, pkg, opts...)
+	return f.dryRunFn(ctx, orgID, userID, pkg, opts...)
 }
 
 func (f *fakeSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error) {
-	if f.ApplyFn == nil {
+	if f.applyFn == nil {
 		panic("not implemented")
 	}
-	return f.ApplyFn(ctx, orgID, userID, pkg, opts...)
+	return f.applyFn(ctx, orgID, userID, pkg, opts...)
 }
 
 func newMountedHandler(rh kithttp.ResourceHandler, userID influxdb.ID) chi.Router {

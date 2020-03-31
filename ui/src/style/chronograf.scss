@@ -54,6 +54,7 @@
 @import 'src/telegrafs/components/Collectors.scss';
 @import 'src/telegrafs/components/TelegrafConfigOverlay.scss';
 @import 'src/variables/components/CreateVariableOverlay.scss';
+@import 'src/variables/components/VariableDropdown.scss';
 @import 'src/authorizations/components/BucketsSelector.scss';
 @import 'src/tasks/components/TaskForm.scss';
 @import 'src/tasks/components/TasksPage.scss';
@@ -67,7 +68,6 @@
 @import 'src/dataExplorer/components/SaveAsButton.scss';
 @import 'src/dashboards/components/VEO.scss';
 @import 'src/dashboards/components/NoteEditor.scss';
-@import 'src/dashboards/components/variablesControlBar/VariableDropdown.scss';
 @import 'src/dashboards/components/variablesControlBar/VariablesControlBar.scss';
 @import 'src/me/components/GettingStarted.scss';
 @import 'src/me/containers/MePage.scss';

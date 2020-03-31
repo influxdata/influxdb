@@ -13,7 +13,7 @@ import {
 import classnames from 'classnames'
 
 // Components
-import VariableDropdown from './VariableDropdown'
+import VariableDropdown from 'src/variables/components/VariableDropdown'
 
 // Constants
 const dropdownType = 'dropdown'
@@ -96,7 +96,7 @@ class Dropdown extends React.Component<
               )}
               <span>{name}</span>
             </div>
-            <VariableDropdown variableID={id} dashboardID={dashboardID} variableName={name} />
+            <VariableDropdown variableID={id} contextID={dashboardID} />
           </div>
         )}
         <div className="variable-dropdown--placeholder" />

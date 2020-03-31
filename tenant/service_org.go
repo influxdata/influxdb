@@ -188,7 +188,9 @@ func (s *Service) DeleteOrganization(ctx context.Context, id influxdb.ID) error 
 		}
 		for _, b := range bs {
 			if err := s.store.DeleteBucket(ctx, tx, b.ID); err != nil {
-				return err
+				if err != ErrBucketNotFound {
+					return err
+				}
 			}
 			if err := s.removeResourceRelations(ctx, tx, b.ID); err != nil {
 				return err

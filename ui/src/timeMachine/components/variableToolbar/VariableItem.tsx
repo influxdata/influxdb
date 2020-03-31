@@ -23,6 +23,33 @@ interface Props {
   testID?: string
 }
 
+function shouldShowTooltip(variable: Variable): boolean {
+  // a system variable isn't selectable in this manor
+  if (variable.arguments.type === 'system') {
+    return false
+  }
+
+  // if a static list is empty or has a single component, we dont want to show the tooltip,
+  // as it would have nothing for the user to do on it
+  if (
+    variable.arguments.type === 'constant' &&
+    variable.arguments.values.length <= 1
+  ) {
+    return false
+  }
+
+  // if a static map object is empty or has a single component, we dont want to show the tooltip,
+  // as it would have nothing for the user to do on it
+  if (
+    variable.arguments.type === 'map' &&
+    Object.keys(variable.arguments.values).length <= 1
+  ) {
+    return false
+  }
+
+  return true
+}
+
 const VariableItem: FC<Props> = ({
   variable,
   onClickVariable,
@@ -33,6 +60,25 @@ const VariableItem: FC<Props> = ({
   const handleClick = (): void => {
     const variableName = get(variable, 'name', 'variableName')
     onClickVariable(variableName)
+  }
+
+  if (!shouldShowTooltip(variable)) {
+    return (
+      <div
+        className="flux-toolbar--list-item flux-toolbar--variable"
+        data-testid={`variable--${testID}`}
+      >
+        <code data-testid={`variable-name--${testID}`}>{variable.name}</code>
+        <Button
+          testID={`variable--${testID}--inject`}
+          text="Inject"
+          onClick={handleClick}
+          size={ComponentSize.ExtraSmall}
+          className="flux-toolbar--injector"
+          color={ComponentColor.Success}
+        />
+      </div>
+    )
   }
 
   return (
@@ -64,7 +110,6 @@ const VariableItem: FC<Props> = ({
         enableDefaultStyles={false}
         contents={() => (
           <VariableTooltipContents
-            variable={variable}
             variableID={variable.id}
           />
         )}

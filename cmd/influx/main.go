@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -24,7 +25,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const maxTCPConnections = 128
+const maxTCPConnections = 10
 
 func main() {
 	influxCmd := influxCmd()
@@ -86,6 +87,10 @@ func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) e
 	cmd.SetIn(o.in)
 	cmd.SetErr(o.errW)
 	return cmd
+}
+
+func (o genericCLIOpts) writeJSON(v interface{}) error {
+	return writeJSON(o.w, v)
 }
 
 func (o genericCLIOpts) newTabWriter() *internal.TabWriter {
@@ -436,10 +441,39 @@ func (f flagOpts) mustRegister(cmd *cobra.Command) {
 	cli.BindOptions(cmd, f)
 }
 
+func registerPrintOptions(cmd *cobra.Command, headersP, jsonOutP *bool) {
+	var opts flagOpts
+	if headersP != nil {
+		opts = append(opts, cli.Opt{
+			DestP:   headersP,
+			Flag:    "hide-headers",
+			EnvVar:  "HIDE_HEADERS",
+			Desc:    "Hide the table headers; defaults false",
+			Default: false,
+		})
+	}
+	if jsonOutP != nil {
+		opts = append(opts, cli.Opt{
+			DestP:   jsonOutP,
+			Flag:    "json",
+			EnvVar:  "OUTPUT_JSON",
+			Desc:    "Output data as json; defaults false",
+			Default: false,
+		})
+	}
+	opts.mustRegister(cmd)
+}
+
 func setViperOptions() {
 	viper.SetEnvPrefix("INFLUX")
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+}
+
+func writeJSON(w io.Writer, v interface{}) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "\t")
+	return enc.Encode(v)
 }
 
 func newBucketService() (influxdb.BucketService, error) {

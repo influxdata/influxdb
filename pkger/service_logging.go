@@ -27,23 +27,20 @@ var _ SVC = (*loggingMW)(nil)
 
 func (s *loggingMW) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (stack Stack, err error) {
 	defer func(start time.Time) {
-		if err != nil {
-			urlStrs := make([]string, 0, len(newStack.URLs))
-			for _, u := range newStack.URLs {
-				urlStrs = append(urlStrs, u.String())
-			}
-			s.logger.Error(
-				"failed to init stack",
-				zap.Error(err),
-				zap.Duration("took", time.Since(start)),
-				zap.Stringer("orgID", newStack.OrgID),
-				zap.Stringer("userID", userID),
-				zap.Strings("urls", urlStrs),
-			)
+		if err == nil {
 			return
 		}
+
+		s.logger.Error(
+			"failed to init stack",
+			zap.Error(err),
+			zap.Duration("took", time.Since(start)),
+			zap.Stringer("orgID", newStack.OrgID),
+			zap.Stringer("userID", userID),
+			zap.Strings("urls", newStack.URLs),
+		)
 	}(time.Now())
-	return s.next.InitStack(ctx, userID, stack)
+	return s.next.InitStack(ctx, userID, newStack)
 }
 
 func (s *loggingMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (pkg *Pkg, err error) {

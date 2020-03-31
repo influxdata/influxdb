@@ -273,6 +273,12 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Default: true,
 			Desc:    "toggles read-only mode for the new meta store, if so, the reads are duplicated between the old and new store (has meaning only if the new meta store is enabled)",
 		},
+		{
+			DestP:   &l.noTasks,
+			Flag:    "no-tasks",
+			Default: false,
+			Desc:    "disables the task scheduler",
+		},
 	}
 
 	cli.BindOptions(cmd, opts)
@@ -319,7 +325,8 @@ type Launcher struct {
 	natsServer *nats.Server
 	natsPort   int
 
-	scheduler          *scheduler.TreeScheduler
+	noTasks            bool
+	scheduler          stoppingScheduler
 	executor           *executor.Executor
 	taskControlService taskbackend.TaskControlService
 
@@ -331,6 +338,11 @@ type Launcher struct {
 	Stdout     io.Writer
 	Stderr     io.Writer
 	apibackend *http.APIBackend
+}
+
+type stoppingScheduler interface {
+	scheduler.Scheduler
+	Stop()
 }
 
 // NewLauncher returns a new instance of Launcher connected to standard in/out/err.
@@ -682,22 +694,31 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)
 		schLogger := m.log.With(zap.String("service", "task-scheduler"))
 
-		sch, sm, err := scheduler.NewScheduler(
-			executor,
-			taskbackend.NewSchedulableTaskService(m.kvService),
-			scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledAt time.Time, err error) {
-				schLogger.Info(
-					"error in scheduler run",
-					zap.String("taskID", platform.ID(taskID).String()),
-					zap.Time("scheduledAt", scheduledAt),
-					zap.Error(err))
-			}),
-		)
-		if err != nil {
-			m.log.Fatal("could not start task scheduler", zap.Error(err))
+		var sch stoppingScheduler = &scheduler.NoopScheduler{}
+		if !m.noTasks {
+			var (
+				sm  *scheduler.SchedulerMetrics
+				err error
+			)
+			sch, sm, err = scheduler.NewScheduler(
+				executor,
+				taskbackend.NewSchedulableTaskService(m.kvService),
+				scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledAt time.Time, err error) {
+					schLogger.Info(
+						"error in scheduler run",
+						zap.String("taskID", platform.ID(taskID).String()),
+						zap.Time("scheduledAt", scheduledAt),
+						zap.Error(err))
+				}),
+			)
+			if err != nil {
+				m.log.Fatal("could not start task scheduler", zap.Error(err))
+			}
+			m.reg.MustRegister(sm.PrometheusCollectors()...)
 		}
+
 		m.scheduler = sch
-		m.reg.MustRegister(sm.PrometheusCollectors()...)
+
 		coordLogger := m.log.With(zap.String("service", "task-coordinator"))
 		taskCoord := coordinator.NewCoordinator(
 			coordLogger,
@@ -867,12 +888,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgerLogger := m.log.With(zap.String("service", "pkger"))
 		pkgSVC = pkger.NewService(
 			pkger.WithLogger(pkgerLogger),
+			pkger.WithStore(pkger.NewStoreKV(m.kvStore)),
 			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService, b.UserResourceMappingService)),
 			pkger.WithCheckSVC(authorizer.NewCheckService(b.CheckService, authedURMSVC, authedOrgSVC)),
 			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
 			pkger.WithLabelSVC(authorizer.NewLabelServiceWithOrg(b.LabelService, b.OrgLookupService)),
 			pkger.WithNotificationEndpointSVC(authorizer.NewNotificationEndpointService(b.NotificationEndpointService, authedURMSVC, authedOrgSVC)),
 			pkger.WithNotificationRuleSVC(authorizer.NewNotificationRuleStore(b.NotificationRuleStore, authedURMSVC, authedOrgSVC)),
+			pkger.WithOrganizationService(authorizer.NewOrgService(b.OrganizationService)),
 			pkger.WithSecretSVC(authorizer.NewSecretService(b.SecretService)),
 			pkger.WithTaskSVC(authorizer.NewTaskService(pkgerLogger, b.TaskService)),
 			pkger.WithTelegrafSVC(authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)),
