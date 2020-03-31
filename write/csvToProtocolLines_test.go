@@ -3,7 +3,6 @@ package write
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -17,6 +16,19 @@ import (
 
 // TestCsvData checks data that are writen in an annotated CSV file
 func Test_CsvToProtocolLines(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	oldFlags := log.Flags()
+	log.SetFlags(0)
+	oldPrefix := log.Prefix()
+	prefix := "::PREFIX::"
+	log.SetPrefix(prefix)
+	defer func() {
+		log.SetOutput(os.Stderr)
+		log.SetFlags(oldFlags)
+		log.SetPrefix(oldPrefix)
+	}()
+
 	var tests = []struct {
 		name  string
 		csv   string
@@ -67,6 +79,7 @@ func Test_CsvToProtocolLines(t *testing.T) {
 	for _, test := range tests {
 		for _, bufferSize := range bufferSizes {
 			t.Run(test.name+"_"+strconv.Itoa(bufferSize), func(t *testing.T) {
+				buf.Reset() // logging buffer
 				reader := CsvToProtocolLines(strings.NewReader(test.csv)).LogTableColumns(true)
 				buffer := make([]byte, bufferSize)
 				lines := make([]byte, 0, 100)
@@ -90,6 +103,7 @@ func Test_CsvToProtocolLines(t *testing.T) {
 				}
 				if test.err == "" {
 					require.Equal(t, test.lines, string(lines))
+					require.Equal(t, strings.Count(buf.String(), prefix), 1) // onedescribe table per LogTableColumns
 				} else {
 					require.Fail(t, "error message with '"+test.err+"' expected")
 				}
@@ -122,7 +136,7 @@ func TestCsvData_LogTableColumns(t *testing.T) {
 	ioutil.ReadAll(reader)
 
 	out := buf.String()
-	fmt.Println(out)
+	// fmt.Println(out)
 	messages := strings.Count(out, prefix)
 	require.Equal(t, messages, 1)
 }
@@ -151,7 +165,7 @@ func TestCsvData_LogCsvErrors(t *testing.T) {
 	ioutil.ReadAll(reader)
 
 	out := buf.String()
-	fmt.Println(out)
+	// fmt.Println(out)
 	messages := strings.Count(out, prefix)
 	require.Equal(t, messages, 2)
 }
