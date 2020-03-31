@@ -20,7 +20,7 @@ interface DispatchProps {
 type Props = StateProps & DispatchProps & WithRouterProps
 
 class DashboardRoute extends PureComponent<Props> {
-    pendingVars: [{[key: string]: any }]
+  pendingVars: [{[key: string]: any}]
 
   syncVariables(props, urlVars) {
     const dashboardID = props.params.dashboardID
