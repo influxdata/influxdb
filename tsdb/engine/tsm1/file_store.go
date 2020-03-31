@@ -924,7 +924,9 @@ func (f *FileStore) BlockCount(path string, idx int) int {
 				}
 			}
 			_, _, _, _, _, block, _ := iter.Read()
-			return BlockCount(block)
+			// on Error, BlockCount(block) returns 0 for cnt
+			cnt, _ := BlockCount(block)
+			return cnt
 		}
 	}
 	return 0

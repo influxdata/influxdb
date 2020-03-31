@@ -76,7 +76,7 @@ func (k *tsmKeyIterator) combineFloat(dedup bool) blocks {
 
 				v, err := DecodeFloatBlock(k.blocks[i].b, &[]FloatValue{})
 				if err != nil {
-					k.err = err
+					k.AppendError(err)
 					return nil
 				}
 
@@ -105,20 +105,25 @@ func (k *tsmKeyIterator) combineFloat(dedup bool) blocks {
 	} else {
 		var i int
 
-		for i < len(k.blocks) {
-
+		for ; i < len(k.blocks); i++ {
 			// skip this block if it's values were already read
 			if k.blocks[i].read() {
-				i++
 				continue
 			}
-			// If we this block is already full, just add it as is
-			if BlockCount(k.blocks[i].b) >= k.size {
-				k.merged = append(k.merged, k.blocks[i])
-			} else {
+
+			// If this block is already full, just add it as is
+			count, err := BlockCount(k.blocks[i].b)
+			if err != nil {
+				// accumulate all errors to tsmKeyIterator.err
+				k.AppendError(err)
+				continue
+			}
+
+			if count < k.size {
 				break
 			}
-			i++
+
+			k.merged = append(k.merged, k.blocks[i])
 		}
 
 		if k.fast {
@@ -152,7 +157,7 @@ func (k *tsmKeyIterator) combineFloat(dedup bool) blocks {
 
 			v, err := DecodeFloatBlock(k.blocks[i].b, &[]FloatValue{})
 			if err != nil {
-				k.err = err
+				k.AppendError(err)
 				return nil
 			}
 
@@ -178,7 +183,7 @@ func (k *tsmKeyIterator) chunkFloat(dst blocks) blocks {
 		values := k.mergedFloatValues[:k.size]
 		cb, err := FloatValues(values).Encode(nil)
 		if err != nil {
-			k.err = err
+			k.AppendError(err)
 			return nil
 		}
 
@@ -196,7 +201,7 @@ func (k *tsmKeyIterator) chunkFloat(dst blocks) blocks {
 	if len(k.mergedFloatValues) > 0 {
 		cb, err := FloatValues(k.mergedFloatValues).Encode(nil)
 		if err != nil {
-			k.err = err
+			k.AppendError(err)
 			return nil
 		}
 
@@ -275,7 +280,7 @@ func (k *tsmKeyIterator) combineInteger(dedup bool) blocks {
 
 				v, err := DecodeIntegerBlock(k.blocks[i].b, &[]IntegerValue{})
 				if err != nil {
-					k.err = err
+					k.AppendError(err)
 					return nil
 				}
 
@@ -304,20 +309,25 @@ func (k *tsmKeyIterator) combineInteger(dedup bool) blocks {
 	} else {
 		var i int
 
-		for i < len(k.blocks) {
-
+		for ; i < len(k.blocks); i++ {
 			// skip this block if it's values were already read
 			if k.blocks[i].read() {
-				i++
 				continue
 			}
-			// If we this block is already full, just add it as is
-			if BlockCount(k.blocks[i].b) >= k.size {
-				k.merged = append(k.merged, k.blocks[i])
-			} else {
+
+			// If this block is already full, just add it as is
+			count, err := BlockCount(k.blocks[i].b)
+			if err != nil {
+				// accumulate all errors to tsmKeyIterator.err
+				k.AppendError(err)
+				continue
+			}
+
+			if count < k.size {
 				break
 			}
-			i++
+
+			k.merged = append(k.merged, k.blocks[i])
 		}
 
 		if k.fast {
@@ -351,7 +361,7 @@ func (k *tsmKeyIterator) combineInteger(dedup bool) blocks {
 
 			v, err := DecodeIntegerBlock(k.blocks[i].b, &[]IntegerValue{})
 			if err != nil {
-				k.err = err
+				k.AppendError(err)
 				return nil
 			}
 
@@ -377,7 +387,7 @@ func (k *tsmKeyIterator) chunkInteger(dst blocks) blocks {
 		values := k.mergedIntegerValues[:k.size]
 		cb, err := IntegerValues(values).Encode(nil)
 		if err != nil {
-			k.err = err
+			k.AppendError(err)
 			return nil
 		}
 
@@ -395,7 +405,7 @@ func (k *tsmKeyIterator) chunkInteger(dst blocks) blocks {
 	if len(k.mergedIntegerValues) > 0 {
 		cb, err := IntegerValues(k.mergedIntegerValues).Encode(nil)
 		if err != nil {
-			k.err = err
+			k.AppendError(err)
 			return nil
 		}
 
@@ -474,7 +484,7 @@ func (k *tsmKeyIterator) combineUnsigned(dedup bool) blocks {
 
 				v, err := DecodeUnsignedBlock(k.blocks[i].b, &[]UnsignedValue{})
 				if err != nil {
-					k.err = err
+					k.AppendError(err)
 					return nil
 				}
 
@@ -503,20 +513,25 @@ func (k *tsmKeyIterator) combineUnsigned(dedup bool) blocks {
 	} else {
 		var i int
 
-		for i < len(k.blocks) {
-
+		for ; i < len(k.blocks); i++ {
 			// skip this block if it's values were already read
 			if k.blocks[i].read() {
-				i++
 				continue
 			}
-			// If we this block is already full, just add it as is
-			if BlockCount(k.blocks[i].b) >= k.size {
-				k.merged = append(k.merged, k.blocks[i])
-			} else {
+
+			// If this block is already full, just add it as is
+			count, err := BlockCount(k.blocks[i].b)
+			if err != nil {
+				// accumulate all errors to tsmKeyIterator.err
+				k.AppendError(err)
+				continue
+			}
+
+			if count < k.size {
 				break
 			}
-			i++
+
+			k.merged = append(k.merged, k.blocks[i])
 		}
 
 		if k.fast {
@@ -550,7 +565,7 @@ func (k *tsmKeyIterator) combineUnsigned(dedup bool) blocks {
 
 			v, err := DecodeUnsignedBlock(k.blocks[i].b, &[]UnsignedValue{})
 			if err != nil {
-				k.err = err
+				k.AppendError(err)
 				return nil
 			}
 
@@ -576,7 +591,7 @@ func (k *tsmKeyIterator) chunkUnsigned(dst blocks) blocks {
 		values := k.mergedUnsignedValues[:k.size]
 		cb, err := UnsignedValues(values).Encode(nil)
 		if err != nil {
-			k.err = err
+			k.AppendError(err)
 			return nil
 		}
 
@@ -594,7 +609,7 @@ func (k *tsmKeyIterator) chunkUnsigned(dst blocks) blocks {
 	if len(k.mergedUnsignedValues) > 0 {
 		cb, err := UnsignedValues(k.mergedUnsignedValues).Encode(nil)
 		if err != nil {
-			k.err = err
+			k.AppendError(err)
 			return nil
 		}
 
@@ -673,7 +688,7 @@ func (k *tsmKeyIterator) combineString(dedup bool) blocks {
 
 				v, err := DecodeStringBlock(k.blocks[i].b, &[]StringValue{})
 				if err != nil {
-					k.err = err
+					k.AppendError(err)
 					return nil
 				}
 
@@ -702,20 +717,25 @@ func (k *tsmKeyIterator) combineString(dedup bool) blocks {
 	} else {
 		var i int
 
-		for i < len(k.blocks) {
-
+		for ; i < len(k.blocks); i++ {
 			// skip this block if it's values were already read
 			if k.blocks[i].read() {
-				i++
 				continue
 			}
-			// If we this block is already full, just add it as is
-			if BlockCount(k.blocks[i].b) >= k.size {
-				k.merged = append(k.merged, k.blocks[i])
-			} else {
+
+			// If this block is already full, just add it as is
+			count, err := BlockCount(k.blocks[i].b)
+			if err != nil {
+				// accumulate all errors to tsmKeyIterator.err
+				k.AppendError(err)
+				continue
+			}
+
+			if count < k.size {
 				break
 			}
-			i++
+
+			k.merged = append(k.merged, k.blocks[i])
 		}
 
 		if k.fast {
@@ -749,7 +769,7 @@ func (k *tsmKeyIterator) combineString(dedup bool) blocks {
 
 			v, err := DecodeStringBlock(k.blocks[i].b, &[]StringValue{})
 			if err != nil {
-				k.err = err
+				k.AppendError(err)
 				return nil
 			}
 
@@ -775,7 +795,7 @@ func (k *tsmKeyIterator) chunkString(dst blocks) blocks {
 		values := k.mergedStringValues[:k.size]
 		cb, err := StringValues(values).Encode(nil)
 		if err != nil {
-			k.err = err
+			k.AppendError(err)
 			return nil
 		}
 
@@ -793,7 +813,7 @@ func (k *tsmKeyIterator) chunkString(dst blocks) blocks {
 	if len(k.mergedStringValues) > 0 {
 		cb, err := StringValues(k.mergedStringValues).Encode(nil)
 		if err != nil {
-			k.err = err
+			k.AppendError(err)
 			return nil
 		}
 
@@ -872,7 +892,7 @@ func (k *tsmKeyIterator) combineBoolean(dedup bool) blocks {
 
 				v, err := DecodeBooleanBlock(k.blocks[i].b, &[]BooleanValue{})
 				if err != nil {
-					k.err = err
+					k.AppendError(err)
 					return nil
 				}
 
@@ -901,20 +921,25 @@ func (k *tsmKeyIterator) combineBoolean(dedup bool) blocks {
 	} else {
 		var i int
 
-		for i < len(k.blocks) {
-
+		for ; i < len(k.blocks); i++ {
 			// skip this block if it's values were already read
 			if k.blocks[i].read() {
-				i++
 				continue
 			}
-			// If we this block is already full, just add it as is
-			if BlockCount(k.blocks[i].b) >= k.size {
-				k.merged = append(k.merged, k.blocks[i])
-			} else {
+
+			// If this block is already full, just add it as is
+			count, err := BlockCount(k.blocks[i].b)
+			if err != nil {
+				// accumulate all errors to tsmKeyIterator.err
+				k.AppendError(err)
+				continue
+			}
+
+			if count < k.size {
 				break
 			}
-			i++
+
+			k.merged = append(k.merged, k.blocks[i])
 		}
 
 		if k.fast {
@@ -948,7 +973,7 @@ func (k *tsmKeyIterator) combineBoolean(dedup bool) blocks {
 
 			v, err := DecodeBooleanBlock(k.blocks[i].b, &[]BooleanValue{})
 			if err != nil {
-				k.err = err
+				k.AppendError(err)
 				return nil
 			}
 
@@ -974,7 +999,7 @@ func (k *tsmKeyIterator) chunkBoolean(dst blocks) blocks {
 		values := k.mergedBooleanValues[:k.size]
 		cb, err := BooleanValues(values).Encode(nil)
 		if err != nil {
-			k.err = err
+			k.AppendError(err)
 			return nil
 		}
 
@@ -992,7 +1017,7 @@ func (k *tsmKeyIterator) chunkBoolean(dst blocks) blocks {
 	if len(k.mergedBooleanValues) > 0 {
 		cb, err := BooleanValues(k.mergedBooleanValues).Encode(nil)
 		if err != nil {
-			k.err = err
+			k.AppendError(err)
 			return nil
 		}
 
@@ -1109,20 +1134,25 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 	}
 	var i int
 
-	for i < len(k.blocks) {
+	for ; i < len(k.blocks); i++ {
 
 		// skip this block if it's values were already read
 		if k.blocks[i].read() {
-			i++
 			continue
 		}
-		// If we this block is already full, just add it as is
-		if BlockCount(k.blocks[i].b) >= k.size {
-			k.merged = append(k.merged, k.blocks[i])
-		} else {
+
+		// if this block is already full, just add it as is
+		count, err := BlockCount(k.blocks[i].b)
+		if err != nil {
+			k.AppendError(err)
+			continue
+		}
+
+		if count < k.size {
 			break
 		}
-		i++
+
+		k.merged = append(k.merged, k.blocks[i])
 	}
 
 	if k.fast {
@@ -1138,7 +1168,7 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 		}
 	}
 
-	// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
+	// if we only have 1 blocks left, just append it as is and avoid decoding/recoding
 	if i == len(k.blocks)-1 {
 		if !k.blocks[i].read() {
 			k.merged = append(k.merged, k.blocks[i])
@@ -1328,20 +1358,25 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 	}
 	var i int
 
-	for i < len(k.blocks) {
+	for ; i < len(k.blocks); i++ {
 
 		// skip this block if it's values were already read
 		if k.blocks[i].read() {
-			i++
 			continue
 		}
-		// If we this block is already full, just add it as is
-		if BlockCount(k.blocks[i].b) >= k.size {
-			k.merged = append(k.merged, k.blocks[i])
-		} else {
+
+		// if this block is already full, just add it as is
+		count, err := BlockCount(k.blocks[i].b)
+		if err != nil {
+			k.AppendError(err)
+			continue
+		}
+
+		if count < k.size {
 			break
 		}
-		i++
+
+		k.merged = append(k.merged, k.blocks[i])
 	}
 
 	if k.fast {
@@ -1357,7 +1392,7 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 		}
 	}
 
-	// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
+	// if we only have 1 blocks left, just append it as is and avoid decoding/recoding
 	if i == len(k.blocks)-1 {
 		if !k.blocks[i].read() {
 			k.merged = append(k.merged, k.blocks[i])
@@ -1547,20 +1582,25 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 	}
 	var i int
 
-	for i < len(k.blocks) {
+	for ; i < len(k.blocks); i++ {
 
 		// skip this block if it's values were already read
 		if k.blocks[i].read() {
-			i++
 			continue
 		}
-		// If we this block is already full, just add it as is
-		if BlockCount(k.blocks[i].b) >= k.size {
-			k.merged = append(k.merged, k.blocks[i])
-		} else {
+
+		// if this block is already full, just add it as is
+		count, err := BlockCount(k.blocks[i].b)
+		if err != nil {
+			k.AppendError(err)
+			continue
+		}
+
+		if count < k.size {
 			break
 		}
-		i++
+
+		k.merged = append(k.merged, k.blocks[i])
 	}
 
 	if k.fast {
@@ -1576,7 +1616,7 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 		}
 	}
 
-	// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
+	// if we only have 1 blocks left, just append it as is and avoid decoding/recoding
 	if i == len(k.blocks)-1 {
 		if !k.blocks[i].read() {
 			k.merged = append(k.merged, k.blocks[i])
@@ -1766,20 +1806,25 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 	}
 	var i int
 
-	for i < len(k.blocks) {
+	for ; i < len(k.blocks); i++ {
 
 		// skip this block if it's values were already read
 		if k.blocks[i].read() {
-			i++
 			continue
 		}
-		// If we this block is already full, just add it as is
-		if BlockCount(k.blocks[i].b) >= k.size {
-			k.merged = append(k.merged, k.blocks[i])
-		} else {
+
+		// if this block is already full, just add it as is
+		count, err := BlockCount(k.blocks[i].b)
+		if err != nil {
+			k.AppendError(err)
+			continue
+		}
+
+		if count < k.size {
 			break
 		}
-		i++
+
+		k.merged = append(k.merged, k.blocks[i])
 	}
 
 	if k.fast {
@@ -1795,7 +1840,7 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 		}
 	}
 
-	// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
+	// if we only have 1 blocks left, just append it as is and avoid decoding/recoding
 	if i == len(k.blocks)-1 {
 		if !k.blocks[i].read() {
 			k.merged = append(k.merged, k.blocks[i])
@@ -1985,20 +2030,25 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 	}
 	var i int
 
-	for i < len(k.blocks) {
+	for ; i < len(k.blocks); i++ {
 
 		// skip this block if it's values were already read
 		if k.blocks[i].read() {
-			i++
 			continue
 		}
-		// If we this block is already full, just add it as is
-		if BlockCount(k.blocks[i].b) >= k.size {
-			k.merged = append(k.merged, k.blocks[i])
-		} else {
+
+		// if this block is already full, just add it as is
+		count, err := BlockCount(k.blocks[i].b)
+		if err != nil {
+			k.AppendError(err)
+			continue
+		}
+
+		if count < k.size {
 			break
 		}
-		i++
+
+		k.merged = append(k.merged, k.blocks[i])
 	}
 
 	if k.fast {
@@ -2014,7 +2064,7 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 		}
 	}
 
-	// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
+	// if we only have 1 blocks left, just append it as is and avoid decoding/recoding
 	if i == len(k.blocks)-1 {
 		if !k.blocks[i].read() {
 			k.merged = append(k.merged, k.blocks[i])
