@@ -251,7 +251,7 @@ func (i *Index) Delete(tx Tx, foreignKey, primaryKey []byte) error {
 
 // Walk walks the source bucket using keys found in the index using the provided foreign key
 // given the index has been fully populated.
-func (i *Index) Walk(tx Tx, foreignKey []byte, visitFn VisitFunc) error {
+func (i *Index) Walk(ctx context.Context, tx Tx, foreignKey []byte, visitFn VisitFunc) error {
 	// skip walking if configured to do so as the index
 	// is currently being used purely to write the index
 	if !i.canRead {
@@ -274,7 +274,7 @@ func (i *Index) Walk(tx Tx, foreignKey []byte, visitFn VisitFunc) error {
 		return err
 	}
 
-	return indexWalk(cursor, sourceBucket, visitFn)
+	return indexWalk(ctx, cursor, sourceBucket, visitFn)
 }
 
 // PopulateConfig configures a call to Populate
@@ -549,7 +549,7 @@ func (i *Index) verify(ctx context.Context, store Store, includeMissingSource bo
 // indexWalk consumes the indexKey and primaryKey pairs in the index bucket and looks up their
 // associated primaryKey's value in the provided source bucket.
 // When an item is located in the source, the provided visit function is called with primary key and associated value.
-func indexWalk(indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc) (err error) {
+func indexWalk(ctx context.Context, indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc) (err error) {
 	defer func() {
 		if cerr := indexCursor.Close(); cerr != nil && err == nil {
 			err = cerr
@@ -557,7 +557,13 @@ func indexWalk(indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc) 
 	}()
 
 	for ik, pk := indexCursor.Next(); ik != nil; ik, pk = indexCursor.Next() {
-		v, err := sourceBucket.Get(pk)
+		// TODO(george): this is a work-around as lots of calls to Get()
+		// on a transaction causes issues with a particular implementation
+		// of kv.Store.
+		// The use of a cursor on this store bypasses the transaction
+		// and gives us the access pattern we desire.
+		// Please do not change back to a bucket.Get().
+		v, err := getKeyUsingRange(ctx, sourceBucket, pk)
 		if err != nil {
 			return err
 		}
@@ -568,6 +574,27 @@ func indexWalk(indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc) 
 	}
 
 	return indexCursor.Err()
+}
+
+// getKeyUsingRange is a work around to for a particular implementation of kv.Store
+// which needs to lookup using cursors instead of individual get operations.
+func getKeyUsingRange(ctx context.Context, bucket Bucket, key []byte) ([]byte, error) {
+	cursor, err := bucket.ForwardCursor(key,
+		WithCursorPrefix(key))
+	if err != nil {
+		return nil, err
+	}
+
+	_, value := cursor.Next()
+	if value == nil {
+		return nil, ErrKeyNotFound
+	}
+
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	return value, cursor.Close()
 }
 
 // readEntireIndex returns the entire current state of the index
@@ -589,7 +616,7 @@ func (i *Index) readEntireIndex(ctx context.Context, store Store) (map[string]ma
 			continue
 		}
 
-		index[string(fk)] = map[string]struct{}{string(pk): struct{}{}}
+		index[string(fk)] = map[string]struct{}{string(pk): {}}
 	}
 
 	return index, nil

@@ -32,12 +32,14 @@ const CheckHistoryVisualization: FC<Props> = ({check, timeZone}) => {
   const [submitToken] = useState(0)
   const [manualRefresh] = useState(0)
 
+  const vars = [...getTimeRangeVars({lower: 'now() - 5m'} as TimeRange)]
+
   return (
     <TimeSeries
       submitToken={submitToken}
       queries={[check.query]}
       key={manualRefresh}
-      variables={getTimeRangeVars({lower: 'now() - 5m'} as TimeRange)}
+      variables={vars}
       check={check}
     >
       {({giraffeResult, loading, errorMessage, isInitialFetch, statuses}) => {

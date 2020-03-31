@@ -6,7 +6,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Utils
 import {deleteVariable} from 'src/variables/actions/thunks'
-import {extractVariablesList} from 'src/variables/selectors'
+import {getVariables} from 'src/variables/selectors'
 
 // Components
 import {EmptyState} from '@influxdata/clockface'
@@ -159,7 +159,7 @@ class VariablesTab extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const variables = extractVariablesList(state)
+  const variables = getVariables(state)
 
   return {variables}
 }

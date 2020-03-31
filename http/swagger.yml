@@ -7504,11 +7504,13 @@ components:
                 properties:
                   id:
                     type: string
-                  name:
+                  pkgName:
                     type: string
                   new:
                     type: object
                     properties:
+                      name:
+                        type: string
                       description:
                         type: string
                       retentionRules:
@@ -7516,6 +7518,8 @@ components:
                   old:
                     type: object
                     properties:
+                      name:
+                        type: string
                       description:
                         type: string
                       retentionRules:

@@ -2,7 +2,6 @@ package pkger_test
 
 import (
 	"context"
-	"net/url"
 	"testing"
 	"time"
 
@@ -19,17 +18,17 @@ func TestStoreKV(t *testing.T) {
 	stackStub := func(id, orgID influxdb.ID) pkger.Stack {
 		now := time.Time{}.Add(10 * 365 * 24 * time.Hour)
 		return pkger.Stack{
-			ID:    id,
-			OrgID: orgID,
-			Name:  "threeve",
-			Desc:  "desc",
+			ID:          id,
+			OrgID:       orgID,
+			Name:        "threeve",
+			Description: "desc",
 			CRUDLog: influxdb.CRUDLog{
 				CreatedAt: now,
 				UpdatedAt: now.Add(time.Hour),
 			},
-			URLs: []url.URL{
-				newURL(t, "http://example.com"),
-				newURL(t, "http://abc.gov"),
+			URLs: []string{
+				"http://example.com",
+				"http://abc.gov",
 			},
 			Resources: []pkger.StackResource{
 				{
@@ -196,13 +195,4 @@ func seedEntities(t *testing.T, store pkger.Store, first pkger.Stack, rest ...pk
 		err := store.CreateStack(context.Background(), st)
 		require.NoError(t, err)
 	}
-}
-
-func newURL(t *testing.T, rawurl string) url.URL {
-	t.Helper()
-
-	u, err := url.Parse(rawurl)
-	require.NoError(t, err)
-
-	return *u
 }

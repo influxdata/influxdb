@@ -8,6 +8,8 @@ import (
 	"github.com/influxdata/influxdb"
 )
 
+// TODO remove this file once bucket and org service are moved to the tenant service
+
 func decodeIDFromCtx(ctx context.Context, name string) (influxdb.ID, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	idStr := params.ByName(name)

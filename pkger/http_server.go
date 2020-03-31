@@ -96,15 +96,6 @@ func (r *ReqCreateStack) orgID() influxdb.ID {
 	return *orgID
 }
 
-func (r *ReqCreateStack) urls() []url.URL {
-	urls := make([]url.URL, 0, len(r.URLs))
-	for _, urlStr := range r.URLs {
-		u, _ := url.Parse(urlStr)
-		urls = append(urls, *u)
-	}
-	return urls
-}
-
 // RespCreateStack is the response body for the create stack call.
 type RespCreateStack struct {
 	ID          string   `json:"id"`
@@ -130,27 +121,22 @@ func (s *HTTPServer) createStack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	stack, err := s.svc.InitStack(r.Context(), auth.GetUserID(), Stack{
-		OrgID: reqBody.orgID(),
-		Name:  reqBody.Name,
-		Desc:  reqBody.Description,
-		URLs:  reqBody.urls(),
+		OrgID:       reqBody.orgID(),
+		Name:        reqBody.Name,
+		Description: reqBody.Description,
+		URLs:        reqBody.URLs,
 	})
 	if err != nil {
 		s.api.Err(w, err)
 		return
 	}
 
-	urlStrs := make([]string, 0, len(stack.URLs))
-	for _, u := range stack.URLs {
-		urlStrs = append(urlStrs, u.String())
-	}
-
 	s.api.Respond(w, http.StatusCreated, RespCreateStack{
 		ID:          stack.ID.String(),
 		OrgID:       stack.OrgID.String(),
 		Name:        stack.Name,
-		Description: stack.Desc,
-		URLs:        urlStrs,
+		Description: stack.Description,
+		URLs:        stack.URLs,
 		CRUDLog:     stack.CRUDLog,
 	})
 }

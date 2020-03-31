@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/pkg/httpc"
@@ -21,10 +20,8 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 	reqBody := ReqCreateStack{
 		OrgID:       stack.OrgID.String(),
 		Name:        stack.Name,
-		Description: stack.Desc,
-	}
-	for _, u := range stack.URLs {
-		reqBody.URLs = append(reqBody.URLs, u.String())
+		Description: stack.Description,
+		URLs:        stack.URLs,
 	}
 
 	var respBody RespCreateStack
@@ -37,10 +34,11 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 	}
 
 	newStack := Stack{
-		Name:      respBody.Name,
-		Desc:      respBody.Description,
-		Resources: make([]StackResource, 0),
-		CRUDLog:   respBody.CRUDLog,
+		Name:        respBody.Name,
+		Description: respBody.Description,
+		URLs:        respBody.URLs,
+		Resources:   make([]StackResource, 0),
+		CRUDLog:     respBody.CRUDLog,
 	}
 
 	id, err := influxdb.IDFromString(respBody.ID)
@@ -56,14 +54,6 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 		return Stack{}, err
 	}
 	newStack.OrgID = *orgID
-
-	for _, rawurl := range respBody.URLs {
-		u, err := url.Parse(rawurl)
-		if err != nil {
-			return Stack{}, err
-		}
-		newStack.URLs = append(newStack.URLs, *u)
-	}
 
 	return newStack, nil
 }

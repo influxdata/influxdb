@@ -87,9 +87,35 @@ describe('Dashboard', () => {
   })
 
   const getSelectedVariable = (contextID: string, index?: number) => win => {
-    const {resources} = win.store.getState() as AppState
-    const vardawg = resources.variables.values[contextID].values
-    return vardawg[Object.keys(vardawg)[index]].selectedValue
+    const state = win.store.getState() as AppState
+    const defaultVarOrder = state.resources.variables.allIDs
+    const defaultVarDawg =
+      state.resources.variables.byID[defaultVarOrder[index]] || {}
+    const filledVarDawg =
+      (state.resources.variables.values[contextID] || {values: {}}).values[
+        defaultVarOrder[index]
+      ] || {}
+
+    const hydratedVarDawg = {
+      ...defaultVarDawg,
+      ...filledVarDawg,
+    }
+
+    if (hydratedVarDawg.arguments.type === 'map') {
+      if (!hydratedVarDawg.selected) {
+        hydratedVarDawg.selected = [
+          Object.keys(hydratedVarDawg.arguments.values)[0],
+        ]
+      }
+
+      return hydratedVarDawg.arguments.values[hydratedVarDawg.selected[0]]
+    }
+
+    if (!hydratedVarDawg.selected) {
+      hydratedVarDawg.selected = [hydratedVarDawg.arguments.values[0]]
+    }
+
+    return hydratedVarDawg.selected[0]
   }
 
   it('can manage variable state with a lot of pointing and clicking', () => {
@@ -136,6 +162,7 @@ describe('Dashboard', () => {
             .eq(0)
             .click()
           cy.get(`#c2`).click()
+          // breaks here
 
           // selected value in dashboard is 2nd value
           cy.getByTestID('variable-dropdown')
@@ -151,7 +178,7 @@ describe('Dashboard', () => {
 
           // selected value in cell context is 2nd value
           cy.window()
-            .pipe(getSelectedVariable('veo', 0))
+            .pipe(getSelectedVariable(dashboard.id, 0))
             .should('equal', 'c2')
 
           cy.getByTestID('toolbar-tab').click()
@@ -171,7 +198,7 @@ describe('Dashboard', () => {
 
           // selected value in cell context is 1st value
           cy.window()
-            .pipe(getSelectedVariable('veo', 0))
+            .pipe(getSelectedVariable(dashboard.id, 0))
             .should('equal', 'c1')
 
           // selected value in dashboard is 1st value
@@ -183,24 +210,24 @@ describe('Dashboard', () => {
           // TESTING MAP VARIABLE
           // selected value in dashboard is 1st value
           cy.getByTestID('variable-dropdown')
-            .eq(1)
+            .eq(2)
             .should('contain', 'k1')
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 1))
+            .pipe(getSelectedVariable(dashboard.id, 2))
             .should('equal', 'v1')
 
           // select 2nd value in dashboard
           cy.getByTestID('variable-dropdown--button')
-            .eq(1)
+            .eq(2)
             .click()
           cy.get(`#k2`).click()
 
           // selected value in dashboard is 2nd value
           cy.getByTestID('variable-dropdown')
-            .eq(1)
+            .eq(2)
             .should('contain', 'k2')
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 1))
+            .pipe(getSelectedVariable(dashboard.id, 2))
             .should('equal', 'v2')
 
           // open CEO
@@ -210,7 +237,7 @@ describe('Dashboard', () => {
 
           // selected value in cell context is 2nd value
           cy.window()
-            .pipe(getSelectedVariable('veo', 1))
+            .pipe(getSelectedVariable(dashboard.id, 2))
             .should('equal', 'v2')
 
           cy.getByTestID('toolbar-tab').click()
@@ -230,13 +257,13 @@ describe('Dashboard', () => {
 
           // selected value in cell context is 1st value
           cy.window()
-            .pipe(getSelectedVariable('veo', 1))
+            .pipe(getSelectedVariable(dashboard.id, 2))
             .should('equal', 'v1')
 
           // selected value in dashboard is 1st value
           cy.getByTestID('variable-dropdown').should('contain', 'k1')
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 1))
+            .pipe(getSelectedVariable(dashboard.id, 2))
             .should('equal', 'v1')
         })
       })

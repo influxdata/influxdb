@@ -25,12 +25,12 @@ type (
 	// platform. This stack is updated only after side effects of applying a pkg.
 	// If the pkg is applied, and no changes are had, then the stack is not updated.
 	Stack struct {
-		ID        influxdb.ID
-		OrgID     influxdb.ID
-		Name      string
-		Desc      string
-		URLs      []url.URL
-		Resources []StackResource
+		ID          influxdb.ID     `json:"id"`
+		OrgID       influxdb.ID     `json:"orgID"`
+		Name        string          `json:"name"`
+		Description string          `json:"description"`
+		URLs        []string        `json:"urls"`
+		Resources   []StackResource `json:"resources"`
 
 		influxdb.CRUDLog
 	}
@@ -38,10 +38,10 @@ type (
 	// StackResource is a record for an individual resource side effect genereated from
 	// applying a pkg.
 	StackResource struct {
-		APIVersion string
-		ID         influxdb.ID
-		Kind       Kind
-		Name       string
+		APIVersion string      `json:"apiVersion"`
+		ID         influxdb.ID `json:"resourceID"`
+		Kind       Kind        `json:"kind"`
+		Name       string      `json:"pkgName"`
 	}
 )
 
@@ -260,6 +260,10 @@ func NewService(opts ...ServiceSetterFn) *Service {
 // with urls that point to the location of packages that are included as part of the stack when
 // it is applied.
 func (s *Service) InitStack(ctx context.Context, userID influxdb.ID, stack Stack) (Stack, error) {
+	if err := validURLs(stack.URLs); err != nil {
+		return Stack{}, err
+	}
+
 	if _, err := s.orgSVC.FindOrganizationByID(ctx, stack.OrgID); err != nil {
 		if influxdb.ErrorCode(err) == influxdb.ENotFound {
 			msg := fmt.Sprintf("organization dependency does not exist for id[%q]", stack.OrgID.String())
@@ -721,7 +725,7 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 		diffs = append(diffs, diff)
 	}
 	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].Name < diffs[j].Name
+		return diffs[i].PkgName < diffs[j].PkgName
 	})
 
 	return diffs
@@ -2251,6 +2255,16 @@ func (a applyErrs) toError(resType, msg string) error {
 		errMsg += fmt.Sprintf("\n\tname=%q err_msg=%q", e.name, e.msg)
 	}
 	return errors.New(errMsg)
+}
+
+func validURLs(urls []string) error {
+	for _, u := range urls {
+		if _, err := url.Parse(u); err != nil {
+			msg := fmt.Sprintf("url invalid for entry %q", u)
+			return toInfluxError(influxdb.EInvalid, msg)
+		}
+	}
+	return nil
 }
 
 func labelSlcToMap(labels []*label) map[string]*label {

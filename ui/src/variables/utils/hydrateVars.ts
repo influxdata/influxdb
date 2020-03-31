@@ -1,11 +1,7 @@
 // Utils
 import {valueFetcher, ValueFetcher} from 'src/variables/utils/ValueFetcher'
 import Deferred from 'src/utils/Deferred'
-import {getVarAssignment} from 'src/variables/utils/getVarAssignment'
-import {
-  resolveSelectedKey,
-  resolveSelectedValue,
-} from 'src/variables/utils/resolveSelectedValue'
+import {asAssignment} from 'src/variables/selectors'
 
 // Constants
 import {OPTION_NAME, BOUNDARY_GROUP} from 'src/variables/constants/index'
@@ -32,7 +28,7 @@ export interface VariableNode {
 interface HydrateVarsOptions {
   url: string
   orgID: string
-  selections: ValueSelections
+  selections?: ValueSelections
   fetcher?: ValueFetcher
 }
 
@@ -73,10 +69,13 @@ export const createVariableGraph = (
 }
 
 const isQueryVar = (v: Variable) => v.arguments.type === 'query'
-export const isInQuery = (query: string, v: Variable) =>
-  !!query.match(
-    new RegExp(`${BOUNDARY_GROUP}${OPTION_NAME}.${v.name}${BOUNDARY_GROUP}`)
+export const isInQuery = (query: string, v: Variable) => {
+  const regexp = new RegExp(
+    `${BOUNDARY_GROUP}${OPTION_NAME}.${v.name}${BOUNDARY_GROUP}`
   )
+
+  return regexp.test(query)
+}
 
 const getVarChildren = (
   {
@@ -151,54 +150,10 @@ const errorVariableValues = (
   message = 'Failed to load values for variable'
 ): VariableValues => ({
   values: null,
-  selectedKey: null,
-  selectedValue: null,
+  selected: null,
   valueType: null,
   error: message,
 })
-
-/*
-  Get the `VariableValues` for a map variable.
-*/
-const mapVariableValues = (
-  variable: Variable,
-  prevSelection: string,
-  defaultSelection: string
-): VariableValues => {
-  const keys: string[] = Object.keys(variable.arguments.values)
-  const selectedKey = resolveSelectedKey(keys, prevSelection, defaultSelection)
-  return {
-    valueType: 'string',
-    values: variable.arguments.values,
-    selectedKey,
-    selectedValue: resolveSelectedValue(
-      variable.arguments.values,
-      selectedKey,
-      defaultSelection
-    ),
-  }
-}
-
-/*
-  Get the `VariableValues` for a constant variable.
-*/
-const constVariableValues = (
-  variable: Variable,
-  prevSelection: string,
-  defaultSelection: string
-): VariableValues => {
-  const {values} = variable.arguments
-
-  return {
-    valueType: 'string',
-    values,
-    selectedValue: resolveSelectedValue(
-      values,
-      prevSelection,
-      defaultSelection
-    ),
-  }
-}
 
 /*
   Find all the descendants of a node.
@@ -231,36 +186,32 @@ const hydrateVarsHelper = async (
   options: HydrateVarsOptions
 ): Promise<VariableValues> => {
   const variableType = node.variable.arguments.type
-  const prevSelection = options.selections[node.variable.id]
-  const defaultSelection = node.variable.selected
-    ? node.variable.selected[0]
-    : null
 
+  // this assumes that the variable hydration is done in the selector 'getVariable'
   if (variableType === 'map') {
-    return mapVariableValues(node.variable, prevSelection, defaultSelection)
+    return {
+      valueType: 'string',
+      values: node.variable.arguments.values,
+      selected: node.variable.selected,
+    }
   }
 
   if (variableType === 'constant') {
-    return constVariableValues(node.variable, prevSelection, defaultSelection)
+    return {
+      valueType: 'string',
+      values: node.variable.arguments.values,
+      selected: node.variable.selected,
+    }
   }
 
   const descendants = collectDescendants(node)
-  const assignments = descendants.map(node =>
-    getVarAssignment(node.variable.name, node.values)
-  )
+  const assignments = descendants.map(node => asAssignment(node.variable))
 
   const {url, orgID} = options
   const {query} = node.variable.arguments.values
   const fetcher = options.fetcher || valueFetcher
 
-  const request = fetcher.fetch(
-    url,
-    orgID,
-    query,
-    assignments,
-    prevSelection,
-    defaultSelection
-  )
+  const request = fetcher.fetch(url, orgID, query, assignments, null, '')
 
   node.cancel = request.cancel
 
@@ -413,7 +364,6 @@ export const hydrateVars = (
 
     try {
       node.values = await hydrateVarsHelper(node, options)
-      node.variable.selected = [node.values.selectedKey]
       node.status = RemoteDataState.Done
 
       return Promise.all(node.parents.filter(readyToResolve).map(resolve))

@@ -18,14 +18,16 @@ import (
 )
 
 var setupFlags struct {
-	username  string
-	password  string
-	token     string
-	org       string
-	bucket    string
-	retention time.Duration
-	name      string
-	force     bool
+	bucket      string
+	force       bool
+	hideHeaders bool
+	json        bool
+	name        string
+	org         string
+	password    string
+	retention   time.Duration
+	token       string
+	username    string
 }
 
 func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
@@ -41,6 +43,7 @@ func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().StringVarP(&setupFlags.name, "name", "n", "", "config name, only required if you already have existing configs")
 	cmd.Flags().DurationVarP(&setupFlags.retention, "retention", "r", -1, "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
+	registerPrintOptions(cmd, &setupFlags.hideHeaders, &setupFlags.json)
 
 	return cmd
 }
@@ -120,19 +123,26 @@ func setupF(cmd *cobra.Command, args []string) error {
 
 	fmt.Println(string(promptWithColor(fmt.Sprintf("Config %s has been stored in %s.", configName, dPath), colorCyan)))
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"User",
-		"Organization",
-		"Bucket",
-	)
-	w.Write(map[string]interface{}{
+	w := cmd.OutOrStdout()
+	if setupFlags.json {
+		return writeJSON(w, map[string]interface{}{
+			"user":         result.User.Name,
+			"organization": result.Org.Name,
+			"bucket":       result.Bucket.Name,
+		})
+	}
+
+	tabW := internal.NewTabWriter(w)
+	defer tabW.Flush()
+
+	tabW.HideHeaders(setupFlags.hideHeaders)
+
+	tabW.WriteHeaders("User", "Organization", "Bucket")
+	tabW.Write(map[string]interface{}{
 		"User":         result.User.Name,
 		"Organization": result.Org.Name,
 		"Bucket":       result.Bucket.Name,
 	})
-
-	w.Flush()
 
 	return nil
 }

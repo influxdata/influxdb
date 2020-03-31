@@ -28,8 +28,7 @@ import {
   updateTimeRangeFromQueryParams,
 } from 'src/dashboards/actions/ranges'
 import {setViews} from 'src/views/actions/creators'
-import {selectValue} from 'src/variables/actions/creators'
-import {getVariables, refreshVariableValues} from 'src/variables/actions/thunks'
+import {getVariables} from 'src/variables/actions/thunks'
 import {setExportTemplate} from 'src/templates/actions/creators'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
 import {updateViewAndVariables} from 'src/views/actions/thunks'
@@ -38,10 +37,6 @@ import * as creators from 'src/dashboards/actions/creators'
 
 // Utils
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
-import {
-  extractVariablesList,
-  getHydratedVariables,
-} from 'src/variables/selectors'
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {exportVariables} from 'src/variables/utils/exportVariables'
 import {getSaveableView} from 'src/timeMachine/selectors'
@@ -274,16 +269,6 @@ export const deleteDashboard = (dashboardID: string, name: string) => async (
   }
 }
 
-export const refreshDashboardVariableValues = (
-  dashboardID: string,
-  nextViews: View[]
-) => (dispatch, getState: GetState) => {
-  const variables = extractVariablesList(getState())
-  const variablesInUse = filterUnusedVars(variables, nextViews)
-
-  return dispatch(refreshVariableValues(dashboardID, variablesInUse))
-}
-
 export const getDashboard = (dashboardID: string) => async (
   dispatch,
   getState: GetState
@@ -315,9 +300,6 @@ export const getDashboard = (dashboardID: string) => async (
     )
 
     dispatch(setViews(RemoteDataState.Done, normViews))
-
-    // Ensure the values for the variables in use on the dashboard are populated
-    await dispatch(refreshDashboardVariableValues(dashboardID, viewsData))
 
     // Now that all the necessary state has been loaded, set the dashboard
     dispatch(creators.setDashboard(dashboardID, RemoteDataState.Done, normDash))
@@ -413,24 +395,6 @@ export const removeDashboardLabel = (
     console.error(error)
     dispatch(notify(copy.removedDashboardLabelFailed()))
   }
-}
-
-export const selectVariableValue = (
-  dashboardID: string,
-  variableID: string,
-  value: string
-) => async (dispatch, getState: GetState): Promise<void> => {
-  const state = getState()
-  const variables = getHydratedVariables(state, dashboardID)
-  const dashboard = getByID<Dashboard>(
-    state,
-    ResourceType.Dashboards,
-    dashboardID
-  )
-
-  dispatch(selectValue(dashboardID, variableID, value))
-
-  await dispatch(refreshVariableValues(dashboard.id, variables))
 }
 
 export const convertToTemplate = (dashboardID: string) => async (

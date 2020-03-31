@@ -108,6 +108,36 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 		return nil, 0, err
 	}
 
+	needsSystemBuckets := true
+	for _, b := range buckets {
+		if b.Type == influxdb.BucketTypeSystem {
+			needsSystemBuckets = false
+			break
+		}
+	}
+
+	if needsSystemBuckets {
+		tb := &influxdb.Bucket{
+			ID:              influxdb.TasksSystemBucketID,
+			Type:            influxdb.BucketTypeSystem,
+			Name:            influxdb.TasksSystemBucketName,
+			RetentionPeriod: influxdb.TasksSystemBucketRetention,
+			Description:     "System bucket for task logs",
+		}
+
+		buckets = append(buckets, tb)
+
+		mb := &influxdb.Bucket{
+			ID:              influxdb.MonitoringSystemBucketID,
+			Type:            influxdb.BucketTypeSystem,
+			Name:            influxdb.MonitoringSystemBucketName,
+			RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
+			Description:     "System bucket for monitoring logs",
+		}
+
+		buckets = append(buckets, mb)
+	}
+
 	return buckets, len(buckets), nil
 }
 

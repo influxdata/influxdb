@@ -45,7 +45,7 @@ func newSomeResourceStore(ctx context.Context, store kv.Store) *someResourceStor
 
 func (s *someResourceStore) FindByOwner(ctx context.Context, ownerID string) (resources []someResource, err error) {
 	err = s.store.View(ctx, func(tx kv.Tx) error {
-		return s.ownerIDIndex.Walk(tx, []byte(ownerID), func(k, v []byte) error {
+		return s.ownerIDIndex.Walk(ctx, tx, []byte(ownerID), func(k, v []byte) error {
 			var resource someResource
 			if err := json.Unmarshal(v, &resource); err != nil {
 				return err
@@ -144,18 +144,18 @@ func testPopulateAndVerify(t *testing.T, store kv.Store) {
 
 	expected := kv.IndexDiff{
 		PresentInIndex: map[string]map[string]struct{}{
-			"owner 0": map[string]struct{}{"resource 0": struct{}{}, "resource 5": struct{}{}},
-			"owner 1": map[string]struct{}{"resource 1": struct{}{}, "resource 6": struct{}{}},
-			"owner 2": map[string]struct{}{"resource 2": struct{}{}, "resource 7": struct{}{}},
-			"owner 3": map[string]struct{}{"resource 3": struct{}{}, "resource 8": struct{}{}},
-			"owner 4": map[string]struct{}{"resource 4": struct{}{}, "resource 9": struct{}{}},
+			"owner 0": {"resource 0": {}, "resource 5": {}},
+			"owner 1": {"resource 1": {}, "resource 6": {}},
+			"owner 2": {"resource 2": {}, "resource 7": {}},
+			"owner 3": {"resource 3": {}, "resource 8": {}},
+			"owner 4": {"resource 4": {}, "resource 9": {}},
 		},
 		MissingFromIndex: map[string]map[string]struct{}{
-			"owner 0": map[string]struct{}{"resource 10": struct{}{}, "resource 15": struct{}{}},
-			"owner 1": map[string]struct{}{"resource 11": struct{}{}, "resource 16": struct{}{}},
-			"owner 2": map[string]struct{}{"resource 12": struct{}{}, "resource 17": struct{}{}},
-			"owner 3": map[string]struct{}{"resource 13": struct{}{}, "resource 18": struct{}{}},
-			"owner 4": map[string]struct{}{"resource 14": struct{}{}, "resource 19": struct{}{}},
+			"owner 0": {"resource 10": {}, "resource 15": {}},
+			"owner 1": {"resource 11": {}, "resource 16": {}},
+			"owner 2": {"resource 12": {}, "resource 17": {}},
+			"owner 3": {"resource 13": {}, "resource 18": {}},
+			"owner 4": {"resource 14": {}, "resource 19": {}},
 		},
 	}
 
@@ -195,26 +195,26 @@ func testPopulateAndVerify(t *testing.T, store kv.Store) {
 	})
 
 	if expected := [][2][]byte{
-		[2][]byte{[]byte("owner 0/resource 0"), []byte("resource 0")},
-		[2][]byte{[]byte("owner 0/resource 10"), []byte("resource 10")},
-		[2][]byte{[]byte("owner 0/resource 15"), []byte("resource 15")},
-		[2][]byte{[]byte("owner 0/resource 5"), []byte("resource 5")},
-		[2][]byte{[]byte("owner 1/resource 1"), []byte("resource 1")},
-		[2][]byte{[]byte("owner 1/resource 11"), []byte("resource 11")},
-		[2][]byte{[]byte("owner 1/resource 16"), []byte("resource 16")},
-		[2][]byte{[]byte("owner 1/resource 6"), []byte("resource 6")},
-		[2][]byte{[]byte("owner 2/resource 12"), []byte("resource 12")},
-		[2][]byte{[]byte("owner 2/resource 17"), []byte("resource 17")},
-		[2][]byte{[]byte("owner 2/resource 2"), []byte("resource 2")},
-		[2][]byte{[]byte("owner 2/resource 7"), []byte("resource 7")},
-		[2][]byte{[]byte("owner 3/resource 13"), []byte("resource 13")},
-		[2][]byte{[]byte("owner 3/resource 18"), []byte("resource 18")},
-		[2][]byte{[]byte("owner 3/resource 3"), []byte("resource 3")},
-		[2][]byte{[]byte("owner 3/resource 8"), []byte("resource 8")},
-		[2][]byte{[]byte("owner 4/resource 14"), []byte("resource 14")},
-		[2][]byte{[]byte("owner 4/resource 19"), []byte("resource 19")},
-		[2][]byte{[]byte("owner 4/resource 4"), []byte("resource 4")},
-		[2][]byte{[]byte("owner 4/resource 9"), []byte("resource 9")},
+		{[]byte("owner 0/resource 0"), []byte("resource 0")},
+		{[]byte("owner 0/resource 10"), []byte("resource 10")},
+		{[]byte("owner 0/resource 15"), []byte("resource 15")},
+		{[]byte("owner 0/resource 5"), []byte("resource 5")},
+		{[]byte("owner 1/resource 1"), []byte("resource 1")},
+		{[]byte("owner 1/resource 11"), []byte("resource 11")},
+		{[]byte("owner 1/resource 16"), []byte("resource 16")},
+		{[]byte("owner 1/resource 6"), []byte("resource 6")},
+		{[]byte("owner 2/resource 12"), []byte("resource 12")},
+		{[]byte("owner 2/resource 17"), []byte("resource 17")},
+		{[]byte("owner 2/resource 2"), []byte("resource 2")},
+		{[]byte("owner 2/resource 7"), []byte("resource 7")},
+		{[]byte("owner 3/resource 13"), []byte("resource 13")},
+		{[]byte("owner 3/resource 18"), []byte("resource 18")},
+		{[]byte("owner 3/resource 3"), []byte("resource 3")},
+		{[]byte("owner 3/resource 8"), []byte("resource 8")},
+		{[]byte("owner 4/resource 14"), []byte("resource 14")},
+		{[]byte("owner 4/resource 19"), []byte("resource 19")},
+		{[]byte("owner 4/resource 4"), []byte("resource 4")},
+		{[]byte("owner 4/resource 9"), []byte("resource 9")},
 	}; !reflect.DeepEqual(allKvs, expected) {
 		t.Errorf("expected %#v, found %#v", expected, allKvs)
 	}
@@ -241,18 +241,18 @@ func testPopulateAndVerify(t *testing.T, store kv.Store) {
 
 	expected = kv.IndexDiff{
 		PresentInIndex: map[string]map[string]struct{}{
-			"owner 0": map[string]struct{}{"resource 0": struct{}{}, "resource 5": struct{}{}, "resource 10": struct{}{}, "resource 15": struct{}{}},
-			"owner 1": map[string]struct{}{"resource 1": struct{}{}, "resource 6": struct{}{}, "resource 11": struct{}{}, "resource 16": struct{}{}},
-			"owner 2": map[string]struct{}{"resource 2": struct{}{}, "resource 7": struct{}{}, "resource 12": struct{}{}, "resource 17": struct{}{}},
-			"owner 3": map[string]struct{}{"resource 3": struct{}{}, "resource 8": struct{}{}, "resource 13": struct{}{}, "resource 18": struct{}{}},
-			"owner 4": map[string]struct{}{"resource 4": struct{}{}, "resource 9": struct{}{}, "resource 14": struct{}{}, "resource 19": struct{}{}},
+			"owner 0": {"resource 0": {}, "resource 5": {}, "resource 10": {}, "resource 15": {}},
+			"owner 1": {"resource 1": {}, "resource 6": {}, "resource 11": {}, "resource 16": {}},
+			"owner 2": {"resource 2": {}, "resource 7": {}, "resource 12": {}, "resource 17": {}},
+			"owner 3": {"resource 3": {}, "resource 8": {}, "resource 13": {}, "resource 18": {}},
+			"owner 4": {"resource 4": {}, "resource 9": {}, "resource 14": {}, "resource 19": {}},
 		},
 		MissingFromSource: map[string]map[string]struct{}{
-			"owner 0": map[string]struct{}{"resource 10": struct{}{}, "resource 15": struct{}{}},
-			"owner 1": map[string]struct{}{"resource 11": struct{}{}, "resource 16": struct{}{}},
-			"owner 2": map[string]struct{}{"resource 12": struct{}{}, "resource 17": struct{}{}},
-			"owner 3": map[string]struct{}{"resource 13": struct{}{}, "resource 18": struct{}{}},
-			"owner 4": map[string]struct{}{"resource 14": struct{}{}, "resource 19": struct{}{}},
+			"owner 0": {"resource 10": {}, "resource 15": {}},
+			"owner 1": {"resource 11": {}, "resource 16": {}},
+			"owner 2": {"resource 12": {}, "resource 17": {}},
+			"owner 3": {"resource 13": {}, "resource 18": {}},
+			"owner 4": {"resource 14": {}, "resource 19": {}},
 		},
 	}
 	if !reflect.DeepEqual(expected, diff) {

@@ -1,5 +1,4 @@
 // Libraries
-import {get, isEmpty} from 'lodash'
 import {Dispatch} from 'react'
 
 // Actions
@@ -9,11 +8,10 @@ import {
   reloadTagSelectors,
   Action as QueryBuilderAction,
 } from 'src/timeMachine/actions/queryBuilder'
-import {setValues} from 'src/variables/actions/creators'
 import {convertCheckToCustom} from 'src/alerting/actions/alertBuilder'
 
 // Selectors
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 import {getActiveQuery} from 'src/timeMachine/selectors'
 
 // Utils
@@ -37,7 +35,6 @@ import {
   TimeMachineID,
   XYViewProperties,
   GetState,
-  RemoteDataState,
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition, LinePosition} from '@influxdata/giraffe'
@@ -99,7 +96,6 @@ export type Action =
 type ExternalActions =
   | ReturnType<typeof loadBuckets>
   | ReturnType<typeof saveAndExecuteQueries>
-  | ReturnType<typeof setValues>
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -671,7 +667,7 @@ export const loadNewVEO = (dashboardID: string) => (
   getState: GetState
 ): void => {
   const state = getState()
-  const timeRange = getTimeRangeByDashboardID(state, dashboardID)
+  const timeRange = getTimeRange(state, dashboardID)
 
   dispatch(
     setActiveTimeMachine('veo', {
@@ -679,17 +675,6 @@ export const loadNewVEO = (dashboardID: string) => (
       timeRange,
     })
   )
-
-  const values = get(
-    state,
-    `resources.variables.values.${dashboardID}.values`,
-    {}
-  )
-
-  if (!isEmpty(values)) {
-    dispatch(setValues('veo', RemoteDataState.Done, values))
-  }
-  // no need to refresh variable values since there is no query in a new view
 }
 
 export const loadCustomCheckQueryState = () => (

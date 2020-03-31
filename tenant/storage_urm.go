@@ -8,7 +8,10 @@ import (
 	"github.com/influxdata/influxdb/kv"
 )
 
-var urmBucket = []byte("userresourcemappingsv1")
+var (
+	urmBucket            = []byte("userresourcemappingsv1")
+	urmByUserIndexBucket = []byte("userresourcemappingsbyuserindexv1")
+)
 
 func (s *Store) CreateURM(ctx context.Context, tx kv.Tx, urm *influxdb.UserResourceMapping) error {
 	if err := s.uniqueUserResourceMapping(ctx, tx, urm); err != nil {
@@ -34,6 +37,15 @@ func (s *Store) CreateURM(ctx context.Context, tx kv.Tx, urm *influxdb.UserResou
 		return UnavailableURMServiceError(err)
 	}
 
+	// insert urm into by user index
+	userID, err := urm.UserID.Encode()
+	if err != nil {
+		return err
+	}
+	if err := s.urmByUserIndex.Insert(tx, userID, key); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -45,7 +57,34 @@ func (s *Store) ListURMs(ctx context.Context, tx kv.Tx, filter influxdb.UserReso
 		return nil, UnavailableURMServiceError(err)
 	}
 
-	// TODO(compute): Once we have an index we should be able to use it somewhere in here
+	filterFn := func(m *influxdb.UserResourceMapping) bool {
+		return (!filter.UserID.Valid() || (filter.UserID == m.UserID)) &&
+			(!filter.ResourceID.Valid() || (filter.ResourceID == m.ResourceID)) &&
+			(filter.UserType == "" || (filter.UserType == m.UserType)) &&
+			(filter.ResourceType == "" || (filter.ResourceType == m.ResourceType))
+	}
+
+	if filter.UserID.Valid() {
+		// urm by user index lookup
+		userID, _ := filter.UserID.Encode()
+		if err := s.urmByUserIndex.Walk(ctx, tx, userID, func(k, v []byte) error {
+			m := &influxdb.UserResourceMapping{}
+			if err := json.Unmarshal(v, m); err != nil {
+				return CorruptURMError(err)
+			}
+
+			if filterFn(m) {
+				ms = append(ms, m)
+			}
+
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+
+		return ms, nil
+	}
+
 	// for now the best we can do is use the resourceID if we have that as a forward cursor option
 	var prefix []byte
 	var cursorOptions []kv.CursorOption
@@ -71,10 +110,7 @@ func (s *Store) ListURMs(ctx context.Context, tx kv.Tx, filter influxdb.UserReso
 		}
 
 		// check to see if it matches the filter
-		if (!filter.UserID.Valid() || (filter.UserID == m.UserID)) &&
-			(!filter.ResourceID.Valid() || (filter.ResourceID == m.ResourceID)) &&
-			(filter.UserType == "" || (filter.UserType == m.UserType)) &&
-			(filter.ResourceType == "" || (filter.ResourceType == m.ResourceType)) {
+		if filterFn(m) {
 			ms = append(ms, m)
 		}
 
@@ -117,6 +153,16 @@ func (s *Store) DeleteURM(ctx context.Context, tx kv.Tx, resourceID, userID infl
 
 	b, err := tx.Bucket(urmBucket)
 	if err != nil {
+		return err
+	}
+
+	// remove user resource mapping from by user index
+	uid, err := userID.Encode()
+	if err != nil {
+		return err
+	}
+
+	if err := s.urmByUserIndex.Delete(tx, uid, key); err != nil {
 		return err
 	}
 

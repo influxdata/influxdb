@@ -62,8 +62,8 @@ describe('getWindowPeriodVariable', () => {
         id: 'windowPeriod',
         name: 'windowPeriod',
         arguments: {
-          type: 'map',
-          values: {'240000': 240000},
+          type: 'system',
+          values: [240000],
         },
         status: 'Done',
         labels: [],

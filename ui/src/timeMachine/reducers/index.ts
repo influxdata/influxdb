@@ -73,6 +73,7 @@ export interface TimeMachineState {
   activeQueryIndex: number | null
   queryBuilder: QueryBuilderState
   queryResults: QueryResultsState
+  contextID?: string | null
 }
 
 export interface TimeMachinesState {
