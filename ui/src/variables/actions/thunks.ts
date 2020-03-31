@@ -10,7 +10,7 @@ import {
   selectValue as selectValueInState,
   removeVariable,
 } from 'src/variables/actions/creators'
-import {updateQueryParams} from 'src/dashboards/actions/ranges'
+import {updateQueryVars} from 'src/dashboards/actions/ranges'
 
 // Schemas
 import {variableSchema, arrayOfVariables} from 'src/schemas/variables'
@@ -370,10 +370,9 @@ export const selectValue = (
 
   await dispatch(selectValueInState(contextID, variableID, selected))
 
-  const key = `vars[${variable.name}]`
   const params = {}
 
-  params[key] = selected
+  params[variable.name] = selected
 
-  dispatch(updateQueryParams(params))
+  dispatch(updateQueryVars(params))
 }

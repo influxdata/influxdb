@@ -4,8 +4,8 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {setDashboard} from 'src/shared/actions/currentDashboard'
 import {getVariables} from 'src/variables/selectors'
 import {selectValue} from 'src/variables/actions/creators'
-import {updateQueryParams} from 'src/dashboards/actions/ranges'
-import {AppState, Variable, RemoteDataState} from 'src/types'
+import {parseURLVariables} from 'src/shared/utils/queryParams'
+import {AppState, Variable} from 'src/types'
 
 interface StateProps {
   variables: Variable[]
@@ -15,109 +15,72 @@ interface StateProps {
 interface DispatchProps {
   updateDashboard: typeof setDashboard
   selectValue: typeof selectValue
-  updateQueryParams: typeof updateQueryParams
 }
 
 type Props = StateProps & DispatchProps & WithRouterProps
 
-// Util function that parses out a shallow object / array from
-// the url search params
-function parseURLVariables(searchString: string) {
-  if (!searchString) {
-    return {}
-  }
-
-  const urlSearch = new URLSearchParams(searchString)
-  const output = {}
-  let ni, breakup, varKey
-
-  for (ni of urlSearch.entries()) {
-    if (!/([^\[])+\[.*\]\s*$/.test(ni[0])) {
-      output[ni[0]] = ni[1]
-      continue
-    }
-
-    breakup = /(([^\[])+)\[(.*)\]\s*$/.exec(ni[0])
-    varKey = breakup[1]
-
-    if (!output.hasOwnProperty(varKey)) {
-      if (!breakup[3]) {
-        output[varKey] = []
-      } else {
-        output[varKey] = {}
-      }
-    }
-
-    if (breakup[3]) {
-      // had a case of empty object property being first
-      if (Array.isArray(output[varKey])) {
-        output[varKey] = {
-          '': output[varKey],
-        }
-      }
-
-      output[varKey][breakup[3]] = ni[1]
-      continue
-    }
-
-    // got a blank object property
-    if (!Array.isArray(output[varKey])) {
-      output[varKey][''] = ni[1]
-      continue
-    }
-
-    output[varKey].push(ni[1])
-  }
-
-  return output
-}
-
 class DashboardRoute extends PureComponent<Props> {
-  check(props) {
-    const {dashboard, updateDashboard, variables, selectValue} = props
+    pendingVars: [{[key: string]: any }]
+
+  syncVariables(props, urlVars) {
     const dashboardID = props.params.dashboardID
-    const urlVars = parseURLVariables(props.location.search)
+    const {variables, selectValue} = props
 
+    variables.forEach(v => {
+      let val
 
-        variables.forEach(v => {
-          let val
+      if (v.selected) {
+        val = v.selected[0]
+      }
 
-          if (v.selected) {
-            val = v.selected[0]
-          }
+      if (val !== urlVars[v.name]) {
+        val = urlVars[v.name]
+        selectValue(dashboardID, v.id, val)
+      }
+    })
+  }
 
-          console.log('search', props.location.search, urlVars)
-          if(!urlVars.vars || !urlVars.vars.hasOwnProperty(v.name)) {
-              if (!val) {
-                  return
-              }
-
-              const params = {
-                  vars: {}
-              }
-              params.vars[v.name] = val
-
-              console.log('update One!', params)
-
-              updateQueryParams(params)
-
-              return
-          }
-
-          if (val !== urlVars.vars[v.name]) {
-                console.log('updateTwo!', v.name, val, urlVars.vars[v.name])
-              val = urlVars.vars[v.name]
-              selectValue(dashboardID, v.id, val)
-          }
-        })
+  componentDidMount() {
+    const {dashboard, updateDashboard, variables} = this.props
+    const dashboardID = this.props.params.dashboardID
+    const urlVars = parseURLVariables(this.props.location.search)
 
     if (dashboard !== dashboardID) {
       updateDashboard(dashboardID)
     }
+
+    // nothing to sync
+    if (!urlVars.hasOwnProperty('vars')) {
+      return
+    }
+
+    // resource is still loading
+    // we have to wait for it so that we can filter out arbitrary user input
+    // from the redux state before commiting it back to localstorage
+    if (!variables.length) {
+      this.pendingVars = urlVars.vars
+      return
+    }
+
+    this.syncVariables(this.props, urlVars.vars)
   }
 
-  componentDidMount() {
-    this.check(this.props)
+  componentDidUpdate(props) {
+    if (props.variables === this.props.variables) {
+      return
+    }
+
+    if (!this.props.variables.length) {
+      return
+    }
+
+    if (!this.pendingVars) {
+      return
+    }
+
+    this.syncVariables(this.props, this.pendingVars)
+
+    delete this.pendingVars
   }
 
   componentWillUnmount() {
@@ -134,8 +97,7 @@ class DashboardRoute extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const variables = state.resources.variables.status === RemoteDataState.Done ? getVariables(state, state.currentDashboard.id)
-  .filter(v => v.status === RemoteDataState.Done): []
+  const variables = getVariables(state, state.currentDashboard.id)
 
   return {
     variables,
@@ -146,7 +108,6 @@ const mstp = (state: AppState): StateProps => {
 const mdtp: DispatchProps = {
   updateDashboard: setDashboard,
   selectValue: selectValue,
-  updateQueryParams: updateQueryParams
 }
 
 export default connect<StateProps, DispatchProps>(
