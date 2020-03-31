@@ -274,7 +274,7 @@ export const timeMachineReducer = (
         draftState.queryResults.status = status
         draftState.queryResults.errorMessage = errorMessage
 
-        if (files) {
+        if (files && files.length) {
           if (
             state.view &&
             state.view.properties &&
