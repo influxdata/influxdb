@@ -165,20 +165,20 @@ export const clientJSLibrary = {
   url: 'https://github.com/influxdata/influxdb-client-js',
   image: JSLogo,
   initializeNPMCodeSnippet: `npm i @influxdata/influxdb-client`,
-  initializeClientCodeSnippet: `const {InfluxDB, FluxTableMetaData} = require('@influxdata/influxdb-client')
+  initializeClientCodeSnippet: `const {InfluxDB} = require('@influxdata/influxdb-client')
 // You can generate a Token from the "Tokens Tab" in the UI
 const client = new InfluxDB({url: '<%= server %>', token: '<%= token %>'})`,
   executeQueryCodeSnippet: `const queryApi = client.getQueryApi('<%= org %>')
 
 const query = 'from(bucket: "my_bucket") |> range(start: -1h)'
 queryApi.queryRows(query, {
-  next(row: string[], tableMeta: FluxTableMetaData) {
+  next(row, tableMeta) {
     const o = tableMeta.toObject(row)
     console.log(
       \`\${o._time} \${o._measurement} in \'\${o.location}\' (\${o.example}): \${o._field}=\${o._value}\`
     )
   },
-  error(error: Error) {
+  error(error) {
     console.error(error)
     console.log('\\nFinished ERROR')
   },
@@ -189,7 +189,16 @@ queryApi.queryRows(query, {
   writingDataLineProtocolCodeSnippet: `const writeApi = client.getWriteApi('<%= org %>', '<%= bucket %>')
   
 const data = 'mem,host=host1 used_percent=23.43234543 1556896326' // Line protocol string
-writeApi.writeRecord(data)`,
+writeApi.writeRecord(data)
+
+writeApi.close()
+    .then(() => {
+        console.log('FINISHED')
+    })
+    .catch(e => {
+        console.error(e)
+        console.log('\\nFinished ERROR')
+    })`,
 }
 
 export const clientPythonLibrary = {
