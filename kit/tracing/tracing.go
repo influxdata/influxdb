@@ -79,30 +79,25 @@ func annotateSpan(span opentracing.Span, handlerName string, req *http.Request) 
 
 // span is a simple wrapper around opentracing.Span in order to
 // get access to the duration of the span for metrics reporting.
-type WrappedSpan struct {
-	s        opentracing.Span
+type Span struct {
+	opentracing.Span
 	start    time.Time
 	Duration time.Duration
 	hist     prometheus.Observer
 	gauge    prometheus.Gauge
 }
 
-func StartSpanFromContextWithPromMetircs(ctx context.Context, operationName string, hist prometheus.Observer, gauge prometheus.Gauge, opts ...opentracing.StartSpanOption) (*WrappedSpan, context.Context) {
+func StartSpanFromContextWithPromMetrics(ctx context.Context, operationName string, hist prometheus.Observer, gauge prometheus.Gauge, opts ...opentracing.StartSpanOption) (*Span, context.Context) {
 	start := time.Now()
 	s, sctx := StartSpanFromContextWithOperationName(ctx, operationName, opentracing.StartTime(start))
 	gauge.Inc()
-	return &WrappedSpan{
-		s:     s,
-		start: start,
-		hist:  hist,
-		gauge: gauge,
-	}, sctx
+	return &Span{s, start, 0, hist, gauge}, sctx
 }
 
-func (s *WrappedSpan) Finish() {
+func (s *Span) Finish() {
 	finish := time.Now()
 	s.Duration = finish.Sub(s.start)
-	s.s.FinishWithOptions(opentracing.FinishOptions{
+	s.Span.FinishWithOptions(opentracing.FinishOptions{
 		FinishTime: finish,
 	})
 	s.hist.Observe(s.Duration.Seconds())

@@ -261,7 +261,7 @@ func (c *Controller) createQuery(ctx context.Context, ct flux.CompilerType) (*Qu
 	compileLabelValues[len(compileLabelValues)-1] = string(ct)
 
 	cctx, cancel := context.WithCancel(ctx)
-	parentSpan, parentCtx := tracing.StartSpanFromContextWithPromMetircs(
+	parentSpan, parentCtx := tracing.StartSpanFromContextWithPromMetrics(
 		cctx,
 		"all",
 		c.metrics.allDur.WithLabelValues(labelValues...),
@@ -523,7 +523,7 @@ type Query struct {
 	cancel      func()
 
 	parentCtx               context.Context
-	parentSpan, currentSpan *tracing.WrappedSpan
+	parentSpan, currentSpan *tracing.Span
 	stats                   flux.Statistics
 
 	done   sync.Once
@@ -750,7 +750,7 @@ TRANSITION:
 		return q.parentCtx, true
 	}
 	var currentCtx context.Context
-	q.currentSpan, currentCtx = tracing.StartSpanFromContextWithPromMetircs(
+	q.currentSpan, currentCtx = tracing.StartSpanFromContextWithPromMetrics(
 		q.parentCtx,
 		newState.String(),
 		dur.WithLabelValues(labelValues...),
