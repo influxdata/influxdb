@@ -35,6 +35,7 @@ import {
 } from 'src/buckets/actions/creators'
 import {notify, Action as NotifyAction} from 'src/shared/actions/notifications'
 import {checkBucketLimits} from 'src/cloud/actions/limits'
+import {fetchDemoDataBuckets} from 'src/cloud/apis/demodata'
 
 // Constants
 import {
@@ -49,7 +50,6 @@ import {
   removeBucketLabelFailed,
 } from 'src/shared/copy/notifications'
 import {LIMIT} from 'src/resources/constants'
-import {getDemoDataBucketsFromAll} from 'src/cloud/apis/demodata'
 
 type Action = BucketAction | NotifyAction
 
@@ -72,7 +72,7 @@ export const getBuckets = () => async (
       throw new Error(resp.data.message)
     }
 
-    const demoDataBuckets = await getDemoDataBucketsFromAll()
+    const demoDataBuckets = await fetchDemoDataBuckets()
 
     const buckets = normalize<Bucket, BucketEntities, string[]>(
       [...resp.data.buckets, ...demoDataBuckets],
