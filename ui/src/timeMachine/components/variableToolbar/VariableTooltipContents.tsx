@@ -35,7 +35,10 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
     execute()
   }
   return (
-    <div>
+    <div
+      className="flux-toolbar--popover"
+      data-testid="flux-toolbar--variable-popover"
+    >
       <Form.Element label="Value">
         <VariableDropdown
           variableID={variableID}
