@@ -97,7 +97,7 @@ export function registerCompletion(monaco: MonacoType, server: LSPServer) {
         return null
       }
     },
-    signatureHelpTriggerCharacters: ['(', ','],
+    signatureHelpTriggerCharacters: ['('],
   })
 
   monaco.languages.registerCompletionItemProvider(FLUXLANGID, {
@@ -116,6 +116,6 @@ export function registerCompletion(monaco: MonacoType, server: LSPServer) {
       })
       return p2m.asCompletionResult(items, defaultRange)
     },
-    triggerCharacters: ['.', ':'],
+    triggerCharacters: ['.', ':', '(', ','],
   })
 }
