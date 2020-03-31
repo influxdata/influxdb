@@ -720,21 +720,32 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	}
 
 	if bkts := diff.Buckets; len(bkts) > 0 {
-		headers := []string{"New", "ID", "Name", "Retention Period", "Description"}
-		tablePrintFn("BUCKETS", headers, len(bkts), func(i int) []string {
-			b := bkts[i]
-			var old pkger.DiffBucketValues
+		bktPrinter := newDiffPrinter(b.w, !b.disableColor, !b.disableTableBorders)
+		bktPrinter.
+			Title("Buckets").
+			SetHeaders("ID", "Name", "Retention Period", "Description")
+
+		appendValues := func(id pkger.SafeID, v pkger.DiffBucketValues) []string {
+			return []string{id.String(), v.Name, v.RetentionRules.RP().String(), v.Description}
+		}
+
+		for _, b := range bkts {
+			var oldRow []string
 			if b.Old != nil {
-				old = *b.Old
+				oldRow = appendValues(b.ID, *b.Old)
 			}
-			return []string{
-				boolDiff(b.IsNew()),
-				b.ID.String(),
-				b.Name,
-				diffLn(b.IsNew(), old.RetentionRules.RP().String(), b.New.RetentionRules.RP().String()),
-				diffLn(b.IsNew(), old.Description, b.New.Description),
+
+			newRow := appendValues(b.ID, b.New)
+			switch {
+			case b.IsNew():
+				bktPrinter.AppendDiff(nil, newRow)
+			case b.Remove:
+				bktPrinter.AppendDiff(oldRow, nil)
+			default:
+				bktPrinter.AppendDiff(oldRow, newRow)
 			}
-		})
+		}
+		bktPrinter.Render()
 	}
 
 	if checks := diff.Checks; len(checks) > 0 {
@@ -1030,6 +1041,159 @@ func (b *cmdPkgBuilder) tablePrinterGen() func(table string, headers []string, c
 	}
 }
 
+type diffPrinter struct {
+	w      io.Writer
+	writer *tablewriter.Table
+
+	colorAdd    tablewriter.Colors
+	colorRemove tablewriter.Colors
+	title       string
+
+	appendCalls int
+	headerLen   int
+	hasColor    bool
+}
+
+func newDiffPrinter(w io.Writer, hasColor, hasBorder bool) *diffPrinter {
+	wr := tablewriter.NewWriter(w)
+	wr.SetBorder(hasBorder)
+	wr.SetRowLine(hasBorder)
+	return &diffPrinter{
+		w:           w,
+		writer:      wr,
+		colorRemove: tablewriter.Colors{tablewriter.FgRedColor, tablewriter.Bold},
+		colorAdd:    tablewriter.Colors{tablewriter.FgHiGreenColor, tablewriter.Bold},
+		hasColor:    hasColor,
+	}
+}
+
+func (d *diffPrinter) Render() {
+	if d.appendCalls == 0 {
+		return
+	}
+
+	// set the title and the add/remove legend
+	title := color.New(color.FgYellow, color.Bold).Sprint(strings.ToUpper(d.title))
+	add := color.New(color.FgHiGreen, color.Bold).Sprint("+add")
+	remove := color.New(color.FgRed, color.Bold).Sprint("-remove")
+	fmt.Fprintf(d.w, "%s    %s | %s | unchanged\n", title, add, remove)
+
+	d.setFooter()
+	d.writer.Render()
+}
+
+func (d *diffPrinter) Title(title string) *diffPrinter {
+	d.title = title
+	return d
+}
+
+func (d *diffPrinter) SetHeaders(headers ...string) *diffPrinter {
+	headers = d.prepend(headers, "+/-")
+	d.headerLen = len(headers)
+
+	d.writer.SetHeader(headers)
+
+	headerColors := make([]tablewriter.Colors, d.headerLen)
+	for i := range headerColors {
+		headerColors[i] = tablewriter.Colors{tablewriter.Bold, tablewriter.FgCyanColor}
+	}
+	d.writer.SetHeaderColor(headerColors...)
+
+	return d
+}
+
+func (d *diffPrinter) setFooter() *diffPrinter {
+	footers := make([]string, d.headerLen)
+	if d.headerLen > 1 {
+		footers[len(footers)-2] = "TOTAL"
+		footers[len(footers)-1] = strconv.Itoa(d.appendCalls)
+	} else {
+		footers[0] = "TOTAL: " + strconv.Itoa(d.appendCalls)
+	}
+
+	d.writer.SetFooter(footers)
+	if d.hasColor {
+		colors := make([]tablewriter.Colors, d.headerLen)
+		if d.headerLen > 1 {
+			colors[len(colors)-2] = tablewriter.Color(tablewriter.FgHiBlueColor)
+			colors[len(colors)-1] = tablewriter.Color(tablewriter.FgHiBlueColor)
+		} else {
+			colors[0] = tablewriter.Color(tablewriter.FgHiBlueColor)
+		}
+		d.writer.SetFooterColor(colors...)
+	}
+
+	return d
+}
+
+func (d *diffPrinter) Append(slc []string) {
+	d.writer.Append(d.prepend(slc, ""))
+}
+
+func (d *diffPrinter) AppendDiff(remove, add []string) {
+	defer func() { d.appendCalls++ }()
+
+	if d.appendCalls > 0 {
+		d.appendBufferLine()
+	}
+
+	lenAdd, lenRemove := len(add), len(remove)
+	preppedAdd, preppedRemove := d.prepend(add, "+"), d.prepend(remove, "-")
+	if lenRemove > 0 && lenAdd == 0 {
+		d.writer.Rich(preppedRemove, d.redRow(len(preppedRemove)))
+		return
+	}
+	if lenAdd > 0 && lenRemove == 0 {
+		d.writer.Rich(preppedAdd, d.greenRow(len(preppedAdd)))
+		return
+	}
+
+	var (
+		addColors    = make([]tablewriter.Colors, len(preppedAdd))
+		removeColors = make([]tablewriter.Colors, len(preppedRemove))
+		hasDiff      bool
+	)
+	for i := 0; i < lenRemove; i++ {
+		if add[i] != remove[i] {
+			hasDiff = true
+			// offset to skip prepended +/- column
+			addColors[i+1], removeColors[i+1] = d.colorAdd, d.colorRemove
+		}
+	}
+
+	if !hasDiff {
+		d.writer.Append(d.prepend(add, ""))
+		return
+	}
+
+	addColors[0], removeColors[0] = d.colorAdd, d.colorRemove
+	d.writer.Rich(d.prepend(remove, "-"), removeColors)
+	d.writer.Rich(d.prepend(add, "+"), addColors)
+}
+
+func (d *diffPrinter) appendBufferLine() {
+	d.writer.Append([]string{})
+}
+
+func (d *diffPrinter) redRow(i int) []tablewriter.Colors {
+	return colorRow(d.colorRemove, i)
+}
+
+func (d *diffPrinter) greenRow(i int) []tablewriter.Colors {
+	return colorRow(d.colorAdd, i)
+}
+
+func (d *diffPrinter) prepend(slc []string, val string) []string {
+	return append([]string{val}, slc...)
+}
+
+func colorRow(color tablewriter.Colors, i int) []tablewriter.Colors {
+	colors := make([]tablewriter.Colors, i)
+	for i := range colors {
+		colors[i] = color
+	}
+	return colors
+}
 func tablePrinter(wr io.Writer, table string, headers []string, count int, hasColor, hasTableBorders bool, rowFn func(i int) []string) {
 	color.New(color.FgYellow, color.Bold).Fprintln(wr, strings.ToUpper(table))
 

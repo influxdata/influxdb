@@ -157,7 +157,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							var diff pkger.Diff
 							for _, b := range sum.Buckets {
 								diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
-									Name: b.Name,
+									PkgName: b.Name,
 								})
 							}
 							return sum, diff, nil
@@ -211,7 +211,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							var diff pkger.Diff
 							for _, b := range sum.Buckets {
 								diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
-									Name: b.Name,
+									PkgName: b.Name,
 								})
 							}
 							return sum, diff, nil
@@ -313,7 +313,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 							var diff pkger.Diff
 							for _, b := range sum.Buckets {
 								diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
-									Name: b.Name,
+									PkgName: b.Name,
 								})
 							}
 							return sum, diff, nil
@@ -353,7 +353,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 				var diff pkger.Diff
 				for _, b := range sum.Buckets {
 					diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
-						Name: b.Name,
+						PkgName: b.Name,
 					})
 				}
 				return sum, diff, nil
