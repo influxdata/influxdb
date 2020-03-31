@@ -214,17 +214,19 @@ from influxdb_client import InfluxDBClient
 client = InfluxDBClient(url="<%= server %>", token="<%= token %>")`,
   executeQueryCodeSnippet: `query = 'from(bucket: "<%= bucket %>") |> range(start: -1h)'
 tables = client.query_api().query(query, org="<%= org %>")`,
-  writingDataLineProtocolCodeSnippet: `data = "mem,host=host1 used_percent=23.43234543 1556896326"
-write_client.write("<%= bucket %>", "<%= org %>", data)`,
-  writingDataPointCodeSnippet: `point = Point("mem")
-  .tag("host", "host1")
-  .field("used_percent", 23.43234543)
+  writingDataLineProtocolCodeSnippet: `write_api = client.write_api()
+
+data = "mem,host=host1 used_percent=23.43234543 1556896326"
+write_api.write("<%= bucket %>", "<%= org %>", data)`,
+  writingDataPointCodeSnippet: `point = Point("mem")\\
+  .tag("host", "host1")\\
+  .field("used_percent", 23.43234543)\\
   .time(1556896326, WritePrecision.NS)
 
-write_client.write("<%= bucket %>", "<%= org %>", point)`,
+write_api.write("<%= bucket %>", "<%= org %>", point)`,
   writingDataBatchCodeSnippet: `sequence = ["mem,host=host1 used_percent=23.43234543 1556896326",
             "mem,host=host1 available_percent=15.856523 1556896326"]
-write_client.write("<%= bucket %>", "<%= org %>", sequence)`,
+write_api.write("<%= bucket %>", "<%= org %>", sequence)`,
 }
 
 export const clientRubyLibrary = {
