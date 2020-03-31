@@ -967,6 +967,35 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/group/',
   },
   {
+    name: 'experimental.join',
+    args: [
+      {
+        name: 'left',
+        desc: 'First of two streams of tables to join.',
+        type: 'Stream of tables',
+      },
+      {
+        name: 'right',
+        desc: 'Second of two streams of tables to join.',
+        type: 'Stream of tables',
+      },
+      {
+        name: 'fn',
+        desc:
+          'A function that maps new output rows using left and right input rows.',
+        type: 'Function',
+      },
+    ],
+    package: 'experimental',
+    desc:
+      'Joins two streams of tables on the group key and _time column. Use the fn parameter to map output tables.',
+    example:
+      'experimental.join(left: left, right: right, fn: (left, right) => ({left with lv: left._value, rv: right._value }))',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/join/',
+  },
+  {
     name: 'experimental.objectKeys',
     args: [
       {
@@ -1348,6 +1377,40 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/s2cellidtoken/',
+  },
+  {
+    name: 'geo.shapeData',
+    args: [
+      {
+        name: 'latField',
+        desc: 'Name of existing latitude field.',
+        type: 'String',
+      },
+      {
+        name: 'lonField',
+        desc: 'Name of existing longitude field.',
+        type: 'String',
+      },
+      {
+        name: 'level',
+        desc: 'S2 cell level to use when generating the S2 cell ID token.',
+        type: 'Integer',
+      },
+      {
+        name: 'correlationKey',
+        desc:
+          'List of columns used to uniquely identify a row for output. Default is `["_time"]`.',
+        type: 'Array of Strings',
+      },
+    ],
+    package: 'experimental/geo',
+    desc:
+      'Renames existing latitude and longitude fields to `lat` and `lon` and adds an `s2_cell_id` tag.',
+    example:
+      'geo.shapeData(latField: "latitude", lonField: "longitude", level: 10)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/shapedata/',
   },
   {
     name: 'geo.strictFilter',
