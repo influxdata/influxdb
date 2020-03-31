@@ -31,6 +31,10 @@ import {
 } from 'src/types'
 
 export const getActiveTimeMachine = (state: AppState) => {
+  if (!state.timeMachines) {
+    return null
+  }
+
   const {activeTimeMachineID, timeMachines} = state.timeMachines
   const timeMachine = timeMachines[activeTimeMachineID]
 
@@ -42,7 +46,15 @@ export const getIsInCheckOverlay = (state: AppState): boolean => {
 }
 
 export const getActiveQuery = (state: AppState): DashboardDraftQuery => {
-  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(state)
+  const tm = getActiveTimeMachine(state)
+  if (!tm) {
+    return {
+      text: '',
+      hidden: true,
+    }
+  }
+
+  const {draftQueries, activeQueryIndex} = tm
 
   return draftQueries[activeQueryIndex]
 }

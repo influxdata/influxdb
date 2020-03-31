@@ -126,11 +126,16 @@ export const getVariable = (
 
   if (variableID === WINDOW_PERIOD) {
     const {text} = getActiveQuery(state)
-    const variables = getVariables(
-      state,
-      contextID || state.timeMachines.activeTimeMachineID
-    )
-    const range = getTimeRange(state, contextID)
+    let context = contextID
+    if (
+      !contextID &&
+      state.timeMachines &&
+      state.timeMachines.activeTimeMachineID
+    ) {
+      context = state.timeMachines.activeTimeMachineID
+    }
+    const variables = getVariables(state, context)
+    const range = getTimeRange(state, context)
     const timeVars = [
       getRangeVariable(TIME_RANGE_START, range),
       getRangeVariable(TIME_RANGE_STOP, range),
