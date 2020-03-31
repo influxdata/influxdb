@@ -176,22 +176,26 @@ func (d Diff) HasConflicts() bool {
 
 // DiffBucketValues are the varying values for a bucket.
 type DiffBucketValues struct {
+	Name           string         `json:"name"`
 	Description    string         `json:"description"`
 	RetentionRules retentionRules `json:"retentionRules"`
 }
 
 // DiffBucket is a diff of an individual bucket.
 type DiffBucket struct {
-	ID   SafeID            `json:"id"`
-	Name string            `json:"name"`
-	New  DiffBucketValues  `json:"new"`
-	Old  *DiffBucketValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+	Remove  bool              `json:"remove"`
+	ID      SafeID            `json:"id"`
+	PkgName string            `json:"pkgName"`
+	New     DiffBucketValues  `json:"new"`
+	Old     *DiffBucketValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
 }
 
 func newDiffBucket(b *bucket, i *influxdb.Bucket) DiffBucket {
 	diff := DiffBucket{
-		Name: b.Name(),
+		Remove:  b.shouldRemove,
+		PkgName: b.PkgName(),
 		New: DiffBucketValues{
+			Name:           b.Name(),
 			Description:    b.Description,
 			RetentionRules: b.RetentionRules,
 		},
@@ -199,6 +203,7 @@ func newDiffBucket(b *bucket, i *influxdb.Bucket) DiffBucket {
 	if i != nil {
 		diff.ID = SafeID(i.ID)
 		diff.Old = &DiffBucketValues{
+			Name:        i.Name,
 			Description: i.Description,
 		}
 		if i.RetentionPeriod > 0 {
@@ -750,8 +755,9 @@ type SummaryVariable struct {
 }
 
 type identity struct {
-	name        *references
-	displayName *references
+	name         *references
+	displayName  *references
+	shouldRemove bool
 }
 
 func (i *identity) Name() string {
@@ -856,7 +862,8 @@ func (b *bucket) valid() []validationErr {
 }
 
 func (b *bucket) shouldApply() bool {
-	return b.existing == nil ||
+	return b.shouldRemove ||
+		b.existing == nil ||
 		b.Description != b.existing.Description ||
 		b.Name() != b.existing.Name ||
 		b.RetentionRules.RP() != b.existing.RetentionPeriod

@@ -136,7 +136,7 @@ func TestPkg(t *testing.T) {
 				{
 					name: "new bucket",
 					resource: DiffBucket{
-						Name: "new bucket",
+						PkgName: "new bucket",
 						New: DiffBucketValues{
 							Description: "new desc",
 						},
@@ -146,8 +146,8 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with no changes",
 					resource: DiffBucket{
-						ID:   3,
-						Name: "new bucket",
+						ID:      3,
+						PkgName: "new bucket",
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
@@ -168,8 +168,8 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with desc changes",
 					resource: DiffBucket{
-						ID:   3,
-						Name: "existing bucket",
+						ID:      3,
+						PkgName: "existing bucket",
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
@@ -190,8 +190,8 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with retention changes",
 					resource: DiffBucket{
-						ID:   3,
-						Name: "existing bucket",
+						ID:      3,
+						PkgName: "existing bucket",
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
@@ -208,8 +208,8 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with retention changes",
 					resource: DiffBucket{
-						ID:   3,
-						Name: "existing bucket",
+						ID:      3,
+						PkgName: "existing bucket",
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
@@ -230,8 +230,8 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing bucket with retention changes",
 					resource: DiffBucket{
-						ID:   3,
-						Name: "existing bucket",
+						ID:      3,
+						PkgName: "existing bucket",
 						New: DiffBucketValues{
 							Description: "new desc",
 							RetentionRules: retentionRules{{
