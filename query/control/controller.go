@@ -23,7 +23,6 @@ import (
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
@@ -35,7 +34,6 @@ import (
 	"github.com/influxdata/influxdb/kit/tracing"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -263,7 +261,7 @@ func (c *Controller) createQuery(ctx context.Context, ct flux.CompilerType) (*Qu
 	compileLabelValues[len(compileLabelValues)-1] = string(ct)
 
 	cctx, cancel := context.WithCancel(ctx)
-	parentSpan, parentCtx := StartSpanFromContext(
+	parentSpan, parentCtx := tracing.StartSpanFromContextWithPromMetircs(
 		cctx,
 		"all",
 		c.metrics.allDur.WithLabelValues(labelValues...),
@@ -525,7 +523,7 @@ type Query struct {
 	cancel      func()
 
 	parentCtx               context.Context
-	parentSpan, currentSpan *span
+	parentSpan, currentSpan *tracing.WrappedSpan
 	stats                   flux.Statistics
 
 	done   sync.Once
@@ -752,7 +750,7 @@ TRANSITION:
 		return q.parentCtx, true
 	}
 	var currentCtx context.Context
-	q.currentSpan, currentCtx = StartSpanFromContext(
+	q.currentSpan, currentCtx = tracing.StartSpanFromContextWithPromMetircs(
 		q.parentCtx,
 		newState.String(),
 		dur.WithLabelValues(labelValues...),
@@ -965,38 +963,6 @@ func isFinishedState(state State) bool {
 	default:
 		return false
 	}
-}
-
-// span is a simple wrapper around opentracing.Span in order to
-// get access to the duration of the span for metrics reporting.
-type span struct {
-	s        opentracing.Span
-	start    time.Time
-	Duration time.Duration
-	hist     prometheus.Observer
-	gauge    prometheus.Gauge
-}
-
-func StartSpanFromContext(ctx context.Context, operationName string, hist prometheus.Observer, gauge prometheus.Gauge) (*span, context.Context) {
-	start := time.Now()
-	s, sctx := opentracing.StartSpanFromContext(ctx, operationName, opentracing.StartTime(start))
-	gauge.Inc()
-	return &span{
-		s:     s,
-		start: start,
-		hist:  hist,
-		gauge: gauge,
-	}, sctx
-}
-
-func (s *span) Finish() {
-	finish := time.Now()
-	s.Duration = finish.Sub(s.start)
-	s.s.FinishWithOptions(opentracing.FinishOptions{
-		FinishTime: finish,
-	})
-	s.hist.Observe(s.Duration.Seconds())
-	s.gauge.Dec()
 }
 
 // handleFluxError will take a flux.Error and convert it into an influxdb.Error.
