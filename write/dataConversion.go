@@ -75,6 +75,47 @@ func escapeString(val string) string {
 	return val
 }
 
+// normalizeNumberString normalizes the  supplied value with the help of the format supplied.
+// This normalization is intended to conver number strings of different locales to a strconv-parseable value.
+//
+// The format's first character is a fraction delimiter character.  Next characters in the format
+// are simply removed from val, they are typically used to visually separate groups in large numbers.
+// The removeFaction parameter controls whether the returned value contain also the fraction part.
+//
+// For example, to get a strconv-parseable float from a Spanish value '3.494.826.157,123', use format ",." .
+func normalizeNumberString(value string, format string, removeFraction bool) string {
+	if len(format) == 0 {
+		return value
+	}
+	if strings.ContainsAny(value, format) {
+		formatRunes := []rune(format)
+		fractionRune := formatRunes[0]
+		ignored := formatRunes[1:]
+		retVal := strings.Builder{}
+		retVal.Grow(len(value))
+	ForAllCharacters:
+		for _, c := range value {
+			// skip ignored characters
+			for i := 0; i < len(ignored); i++ {
+				if c == ignored[i] {
+					continue ForAllCharacters
+				}
+			}
+			if c == fractionRune {
+				if removeFraction {
+					break ForAllCharacters
+				}
+				retVal.WriteByte('.')
+			} else {
+				retVal.WriteRune(c)
+			}
+		}
+
+		return retVal.String()
+	}
+	return value
+}
+
 func toTypedValue(val string, dataType string, dataFormat string) (interface{}, error) {
 	switch dataType {
 	case stringDatatype:
@@ -103,7 +144,7 @@ func toTypedValue(val string, dataType string, dataFormat string) (interface{}, 
 	case durationDatatype:
 		return time.ParseDuration(val)
 	case doubleDatatype:
-		return strconv.ParseFloat(val, 64)
+		return strconv.ParseFloat(normalizeNumberString(val, dataFormat, false), 64)
 	case boolDatatype:
 		if val == "true" {
 			return true, nil
@@ -112,9 +153,9 @@ func toTypedValue(val string, dataType string, dataFormat string) (interface{}, 
 		}
 		return nil, errors.New("Unsupported boolean value '" + val + "' , expected 'true' or 'false'")
 	case longDatatype:
-		return strconv.ParseInt(val, 10, 64)
+		return strconv.ParseInt(normalizeNumberString(val, dataFormat, true), 10, 64)
 	case uLongDatatype:
-		return strconv.ParseUint(val, 10, 64)
+		return strconv.ParseUint(normalizeNumberString(val, dataFormat, true), 10, 64)
 	case base64BinaryDataType:
 		return base64.StdEncoding.DecodeString(val)
 	default:

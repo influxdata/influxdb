@@ -86,12 +86,12 @@ func Test_toTypedValue(t *testing.T) {
 		expect   interface{}
 	}{
 		{"string", "a", "a"},
-		{"double", "1.0", 1.0},
+		{"double", "1.0", float64(1.0)},
 		{"boolean", "true", true},
 		{"boolean", "false", false},
 		{"boolean", "", nil},
-		{"long", "1", (int64)(1)},
-		{"unsignedLong", "1", (uint64)(1)},
+		{"long", "1", int64(1)},
+		{"unsignedLong", "1", uint64(1)},
 		{"duration", "1ns", time.Duration(1)},
 		{"base64Binary", "YWFh", []byte("aaa")},
 		{"dateTime:RFC3339", "1970-01-01T00:00:00Z", epochTime},
@@ -103,11 +103,14 @@ func Test_toTypedValue(t *testing.T) {
 		{"dateTime:2006-01-02", "1970-01-01", epochTime},
 		{"dateTime", "1970-01-01T00:00:00Z", epochTime},
 		{"dateTime", "1970-01-01T00:00:00.000000001Z", epochTime.Add(time.Duration(1))},
+		{"double:, .", "200 100.299,0", float64(200100299.0)},
+		{"long:, .", "200 100.299,0", int64(200100299)},
+		{"unsignedLong:, .", "200 100.299,0", uint64(200100299)},
 		{"u.type", "", nil},
 	}
 
 	for i, test := range tests {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
+		t.Run(fmt.Sprint(i)+" "+test.value, func(t *testing.T) {
 			dataType, dataFormat := splitTypeAndFormat(test.dataType)
 			val, err := toTypedValue(test.value, dataType, dataFormat)
 			if err != nil && test.expect != nil {
@@ -196,4 +199,26 @@ func Test_IsTypeSupported(t *testing.T) {
 	require.Equal(t, IsTypeSupported(dateTimeDatatype+":"+dateTimeDataFormatRFC3339), false)
 	require.Equal(t, IsTypeSupported(dateTimeDatatype+":"+dateTimeDataFormatRFC3339Nano), false)
 	require.Equal(t, IsTypeSupported(dateTimeDatatype+":"+dateTimeDataFormatNumber), false)
+}
+
+// Test_escapeMeasurement
+func Test_normalizeNumberString(t *testing.T) {
+	var tests = []struct {
+		value          string
+		format         string
+		removeFraction bool
+		expect         string
+	}{
+		{"123", "", true, "123"},
+		{"123", ".", true, "123"},
+		{"123.456", ".", true, "123"},
+		{"123.456", ".", false, "123.456"},
+		{"1 2.3,456", ",. ", false, "123.456"},
+	}
+
+	for i, test := range tests {
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			require.Equal(t, test.expect, normalizeNumberString(test.value, test.format, test.removeFraction))
+		})
+	}
 }
