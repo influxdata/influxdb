@@ -2,6 +2,7 @@
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 import * as api from 'src/client'
 import {get} from 'lodash'
+import {fetchDemoDataBuckets} from 'src/cloud/apis/demodata'
 
 // Utils
 import {
@@ -31,7 +32,6 @@ import {getAll} from 'src/resources/selectors'
 
 // Constants
 import {LIMIT} from 'src/resources/constants'
-import {getDemoDataBucketsFromAll} from 'src/cloud/apis/demodata'
 
 export type Action =
   | ReturnType<typeof setBuilderAggregateFunctionType>
@@ -161,7 +161,7 @@ export const loadBuckets = () => async (
       throw new Error(resp.data.message)
     }
 
-    const demoDataBuckets = await getDemoDataBucketsFromAll()
+    const demoDataBuckets = await fetchDemoDataBuckets()
 
     const allBuckets = [...resp.data.buckets, ...demoDataBuckets].map(
       b => b.name
