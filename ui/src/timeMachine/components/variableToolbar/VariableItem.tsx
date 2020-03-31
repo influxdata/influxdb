@@ -108,11 +108,7 @@ const VariableItem: FC<Props> = ({
         distanceFromTrigger={8}
         testID="toolbar-popover"
         enableDefaultStyles={false}
-        contents={() => (
-          <VariableTooltipContents
-            variableID={variable.id}
-          />
-        )}
+        contents={() => <VariableTooltipContents variableID={variable.id} />}
       />
     </>
   )
