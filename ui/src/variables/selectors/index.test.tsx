@@ -149,7 +149,6 @@ from(bucket: "project")
         ''
       )
 
-      console.log('dope', vars)
       expect(vars.length).toEqual(5)
     })
   })
