@@ -2,7 +2,7 @@
 import React, {FC, useEffect} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 
 // Actions
 import * as actions from 'src/dashboards/actions/ranges'
@@ -48,7 +48,7 @@ const GetTimeRange: FC<Props> = ({
 }
 
 const mstp = (state: AppState, props: Props) => {
-  const timeRange = getTimeRangeByDashboardID(state, props.params.dashboardID)
+  const timeRange = getTimeRange(state, props.params.dashboardID)
   return {timeRange}
 }
 

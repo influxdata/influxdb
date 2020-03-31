@@ -15,7 +15,6 @@ import {
   SET_VARIABLE,
   REMOVE_VARIABLE,
   MOVE_VARIABLE,
-  SET_VARIABLE_VALUES,
   SELECT_VARIABLE_VALUE,
 } from 'src/variables/actions/creators'
 
@@ -47,9 +46,12 @@ export const variablesReducer = (
         const variable = get(schema, ['entities', 'variables', id])
         const variableExists = !!draftState.byID[id]
 
-        if (variable || !variableExists) {
+        if (variable) {
           draftState.byID[id] = {...variable, status}
-          draftState.allIDs.push(id)
+
+          if (!variableExists) {
+            draftState.allIDs.push(id)
+          }
         } else {
           draftState.byID[id].status = status
         }
@@ -63,63 +65,56 @@ export const variablesReducer = (
         return
       }
 
-      case SET_VARIABLE_VALUES: {
-        const {contextID, status, values} = action
-        const prevOrder = get(draftState, `values.${contextID}.order`, [])
-
-        if (values) {
-          const order = Object.keys(values).sort(
-            (a, b) => prevOrder.indexOf(a) - prevOrder.indexOf(b)
-          )
-
-          draftState.values[contextID] = {
-            status,
-            values,
-            order,
-          }
-        } else if (draftState.values[contextID]) {
-          draftState.values[contextID].status = status
-        } else {
-          draftState.values[contextID] = {status, values: null, order: []}
-        }
-
-        return
-      }
-
       case SELECT_VARIABLE_VALUE: {
         const {contextID, variableID, selectedValue} = action
 
-        const valuesExist = !!get(
-          draftState,
-          `values.${contextID}.values.${variableID}`
-        )
+        if (!draftState.values[contextID]) {
+          draftState.values[contextID] = {
+            status: RemoteDataState.Done,
+            order: draftState.allIDs,
+            values: {},
+          }
+        }
 
-        if (!valuesExist) {
+        if (!draftState.values[contextID].values[variableID]) {
+          draftState.values[contextID].values[variableID] = {
+            selected: [selectedValue],
+          }
+
           return
         }
 
-        draftState.values[contextID].values[
-          variableID
-        ].selectedValue = selectedValue
+        draftState.values[contextID].values[variableID].selected = [
+          selectedValue,
+        ]
 
         return
       }
 
       case MOVE_VARIABLE: {
         const {originalIndex, newIndex, contextID} = action
+        let newOrder = get(draftState, `values.${contextID}.order`)
 
-        const variableIDToMove = get(
-          draftState,
-          `values.${contextID}.order[${originalIndex}]`
-        )
+        // if no order, take it from allIDs
+        if (!newOrder) {
+          newOrder = get(draftState, `allIDs`)
+        }
 
-        const variableIDToSwap = get(
-          draftState,
-          `values.${contextID}.order[${newIndex}]`
-        )
+        newOrder = newOrder.slice(0)
 
-        draftState.values[contextID].order[originalIndex] = variableIDToSwap
-        draftState.values[contextID].order[newIndex] = variableIDToMove
+        const idToMove = newOrder[originalIndex]
+        const idToSwap = newOrder[newIndex]
+
+        newOrder[originalIndex] = idToSwap
+        newOrder[newIndex] = idToMove
+
+        draftState.values[contextID] = {
+          ...(draftState.values[contextID] || {
+            status: RemoteDataState.NotStarted,
+            values: {},
+          }),
+          order: newOrder,
+        }
 
         return
       }

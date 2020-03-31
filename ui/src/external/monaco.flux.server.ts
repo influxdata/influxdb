@@ -15,12 +15,12 @@ import {
   definition,
   symbols,
 } from 'src/external/monaco.flux.messages'
-import {registerCompletion} from './monaco.flux.lsp'
+import {registerCompletion} from 'src/external/monaco.flux.lsp'
 import {AppState, LocalStorage} from 'src/types'
-import {getVariableAssignments} from '../timeMachine/selectors'
-import {buildVarsOption} from '../variables/utils/buildVarsOption'
+import {getAllVariables, asAssignment} from 'src/variables/selectors'
+import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 
-import {store} from '../index'
+import {store} from 'src/index'
 
 import {Store} from 'redux'
 import {
@@ -195,8 +195,15 @@ export class LSPServer {
 
   private async sendPrelude(uri: string): Promise<void> {
     const state = this.store.getState()
-    const variableAssignments = getVariableAssignments(state)
-    const file = buildVarsOption(variableAssignments)
+    const contextID =
+      state.currentDashboard.id || state.timeMachines.activeTimeMachineID
+
+    // NOTE: we use the AST intermediate format as a means of reducing
+    // drift between the parser and the internal representation
+    const variables = getAllVariables(state, contextID).map(v =>
+      asAssignment(v)
+    )
+    const file = buildVarsOption(variables)
 
     const parts = uri.split('/')
     parts.pop()

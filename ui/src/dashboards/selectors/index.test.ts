@@ -1,5 +1,5 @@
 // Funcs
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
+import {getTimeRange} from 'src/dashboards/selectors/index'
 
 // Types
 import {RangeState} from 'src/dashboards/reducers/ranges'
@@ -12,7 +12,7 @@ import {
   pastHourTimeRange,
 } from 'src/shared/constants/timeRanges'
 
-const untypedGetTimeRangeByDashboardID = getTimeRangeByDashboardID as (
+const untypedGetTimeRangeByDashboardID = getTimeRange as (
   a: {ranges: RangeState},
   dashID: string
 ) => TimeRange
