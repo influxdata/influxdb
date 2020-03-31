@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	nethttp "net/http"
 	_ "net/http/pprof" // needed to add pprof to our binary.
@@ -279,6 +278,36 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Default: false,
 			Desc:    "disables the task scheduler",
 		},
+		{
+			DestP:   &l.concurrencyQuota,
+			Flag:    "query-concurrency",
+			Default: 10,
+			Desc:    "the number of queries that are allowed to execute concurrently",
+		},
+		{
+			DestP:   &l.initialMemoryBytesQuotaPerQuery,
+			Flag:    "query-initial-memory-bytes",
+			Default: 0,
+			Desc:    "the initial number of bytes allocated for a query when it is started. If this is unset, then query-memory-bytes will be used",
+		},
+		{
+			DestP:   &l.memoryBytesQuotaPerQuery,
+			Flag:    "query-memory-bytes",
+			Default: 10 * 1024 * 1024, // 10MB
+			Desc:    "maximum number of bytes a query is allowed to use at any given time. This must be greater or equal to query-initial-memory-bytes",
+		},
+		{
+			DestP:   &l.maxMemoryBytes,
+			Flag:    "query-max-memory-bytes",
+			Default: 0,
+			Desc:    "the maximum amount of memory used for queries. If this is unset, then this number is query-concurrency * query-memory-bytes",
+		},
+		{
+			DestP:   &l.queueSize,
+			Flag:    "query-queue-size",
+			Default: 10,
+			Desc:    "the number of queries that are allowed to be awaiting execution before new queries are rejected",
+		},
 	}
 
 	cli.BindOptions(cmd, opts)
@@ -308,6 +337,13 @@ type Launcher struct {
 
 	enableNewMetaStore   bool
 	newMetaStoreReadOnly bool
+
+	// Query options.
+	concurrencyQuota                int
+	initialMemoryBytesQuotaPerQuery int
+	memoryBytesQuotaPerQuery        int
+	maxMemoryBytes                  int
+	queueSize                       int
 
 	boltClient    *bolt.Client
 	kvStore       kv.Store
@@ -642,14 +678,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		backupService platform.BackupService = m.engine
 	)
 
-	// TODO(cwolff): Figure out a good default per-query memory limit:
-	//   https://github.com/influxdata/influxdb/issues/13642
-	const (
-		concurrencyQuota         = 10
-		memoryBytesQuotaPerQuery = math.MaxInt64
-		QueueSize                = 10
-	)
-
 	deps, err := influxdb.NewDependencies(
 		storageflux.NewReader(readservice.NewStore(m.engine)),
 		m.engine,
@@ -664,11 +692,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	m.queryController, err = control.New(control.Config{
-		ConcurrencyQuota:         concurrencyQuota,
-		MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
-		QueueSize:                QueueSize,
-		Logger:                   m.log.With(zap.String("service", "storage-reads")),
-		ExecutorDependencies:     []flux.Dependency{deps},
+		ConcurrencyQuota:                m.concurrencyQuota,
+		InitialMemoryBytesQuotaPerQuery: int64(m.initialMemoryBytesQuotaPerQuery),
+		MemoryBytesQuotaPerQuery:        int64(m.memoryBytesQuotaPerQuery),
+		MaxMemoryBytes:                  int64(m.maxMemoryBytes),
+		QueueSize:                       m.queueSize,
+		Logger:                          m.log.With(zap.String("service", "storage-reads")),
+		ExecutorDependencies:            []flux.Dependency{deps},
 	})
 	if err != nil {
 		m.log.Error("Failed to create query controller", zap.Error(err))

@@ -47,6 +47,7 @@ const orgLabel = "org"
 // Controller provides a central location to manage all incoming queries.
 // The controller is responsible for compiling, queueing, and executing queries.
 type Controller struct {
+	config     Config
 	lastID     uint64
 	queriesMu  sync.RWMutex
 	queries    map[QueryID]*Query
@@ -173,6 +174,7 @@ func New(config Config) (*Controller, error) {
 		mm.unlimited = true
 	}
 	ctrl := &Controller{
+		config:       c,
 		queries:      make(map[QueryID]*Query),
 		queryQueue:   make(chan *Query, c.QueueSize),
 		done:         make(chan struct{}),
@@ -508,6 +510,14 @@ func (c *Controller) PrometheusCollectors() []prometheus.Collector {
 	return collectors
 }
 
+func (c *Controller) GetUnusedMemoryBytes() int64 {
+	return c.memory.getUnusedMemoryBytes()
+}
+
+func (c *Controller) GetUsedMemoryBytes() int64 {
+	return c.config.MaxMemoryBytes - c.GetUnusedMemoryBytes()
+}
+
 // Query represents a single request.
 type Query struct {
 	id QueryID
@@ -564,7 +574,7 @@ func (q *Query) Results() <-chan flux.Result {
 }
 
 func (q *Query) recordUnusedMemory() {
-	unused := q.memoryManager.getUnusedMemoryBytes()
+	unused := q.c.GetUnusedMemoryBytes()
 	q.c.metrics.memoryUnused.WithLabelValues(q.labelValues...).Set(float64(unused))
 }
 

@@ -93,7 +93,7 @@ var (
 		},
 		Content: "content5",
 	}
-	doc6        = influxdb.Document{
+	doc6 = influxdb.Document{
 		ID: doc6ID,
 		Meta: influxdb.DocumentMeta{
 			Name: "doc6",
