@@ -229,7 +229,7 @@ func (f *IndexFile) SeriesIDSet() (*tsdb.SeriesIDSet, error) {
 
 func (f *IndexFile) TombstoneSeriesIDSet() (*tsdb.SeriesIDSet, error) {
 	ss := tsdb.NewSeriesIDSet()
-	if err := ss.UnmarshalBinary(f.tombstoneSeriesIDSetData); err != nil {
+	if err := ss.UnmarshalBinaryUnsafe(f.tombstoneSeriesIDSetData); err != nil {
 		return nil, err
 	}
 	return ss, nil

@@ -464,7 +464,7 @@ func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
 	} else {
 		// data = memalign(data)
 		e.seriesIDSet = tsdb.NewSeriesIDSet()
-		if err = e.seriesIDSet.UnmarshalBinary(data[:sz]); err != nil {
+		if err = e.seriesIDSet.UnmarshalBinaryUnsafe(data[:sz]); err != nil {
 			return err
 		}
 		data = data[sz:]
