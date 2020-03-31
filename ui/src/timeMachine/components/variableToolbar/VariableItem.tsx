@@ -1,5 +1,6 @@
 // Libraries
 import React, {FC, useRef} from 'react'
+import {get} from 'lodash'
 
 // Components
 import VariableTooltipContents from 'src/timeMachine/components/variableToolbar/VariableTooltipContents'
@@ -30,14 +31,14 @@ const VariableItem: FC<Props> = ({
   const trigger = useRef<HTMLDivElement>(null)
 
   const handleClick = (): void => {
-    onClickVariable(name)
+    const variableName = get(variable, 'name', 'variableName')
+    onClickVariable(variableName)
   }
 
   return (
     <>
       <div
         className="flux-toolbar--list-item flux-toolbar--variable"
-        onClick={handleClick}
         ref={trigger}
         data-testid={`variable--${testID}`}
       >

@@ -96,7 +96,7 @@ class Dropdown extends React.Component<
               )}
               <span>{name}</span>
             </div>
-            <VariableDropdown variableID={id} dashboardID={dashboardID} />
+            <VariableDropdown variableID={id} dashboardID={dashboardID} variableName={name} />
           </div>
         )}
         <div className="variable-dropdown--placeholder" />

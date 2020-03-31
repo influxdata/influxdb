@@ -72,7 +72,7 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
   }
 
   return (
-    <div onMouseEnter={handleMouseEnter} className="flux-toolbar--popover">
+    <div onMouseEnter={handleMouseEnter} className="flux-toolbar--popover" data-testid="flux-toolbar--variable-popover">
       <Form.Element label="Value">
         <Dropdown
           style={{width: '200px'}}

@@ -30,13 +30,14 @@ interface DispatchProps {
 interface OwnProps {
   variableID: string
   dashboardID: string
+  variableName: string
 }
 
 type Props = StateProps & DispatchProps & OwnProps
 
 class VariableDropdown extends PureComponent<Props> {
   render() {
-    const {selectedValue} = this.props
+    const {selectedValue, variableName} = this.props
     const dropdownValues = this.props.values || []
 
     const dropdownStatus =
@@ -50,12 +51,12 @@ class VariableDropdown extends PureComponent<Props> {
         <Dropdown
           style={{width: `${140}px`}}
           className="variable-dropdown--dropdown"
-          testID="variable-dropdown"
+          testID={`variable-dropdown ${variableName}`}
           button={(active, onClick) => (
             <Dropdown.Button
               active={active}
               onClick={onClick}
-              testID="variable-dropdown--button"
+              testID={`variable-dropdown--button ${variableName}`}
               status={dropdownStatus}
             >
               {selectedValue || 'No Values'}
@@ -66,7 +67,7 @@ class VariableDropdown extends PureComponent<Props> {
               onCollapse={onCollapse}
               theme={DropdownMenuTheme.Amethyst}
             >
-              {dropdownValues.map(({name}) => (
+            {dropdownValues.map(({name}) => (
                 /*
                 Use key as value since they are unique otherwise
                 multiple selection appear in the dropdown
