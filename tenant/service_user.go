@@ -192,3 +192,11 @@ func (s *Service) CompareAndSetPassword(ctx context.Context, userID influxdb.ID,
 
 	return s.SetPassword(ctx, userID, new)
 }
+
+func encryptPassword(password string) (string, error) {
+	passHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(passHash), nil
+}

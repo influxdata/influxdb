@@ -154,12 +154,7 @@ func (s *Service) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 			return err
 		}
 
-		err := s.store.CreateBucket(ctx, tx, b)
-		if err != nil {
-			return err
-		}
-
-		return s.addOrgRelationToResource(ctx, tx, b.OrgID, b.ID, influxdb.BucketsResourceType)
+		return s.store.CreateBucket(ctx, tx, b)
 	})
 }
 

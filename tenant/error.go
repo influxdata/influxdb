@@ -24,6 +24,17 @@ var (
 		Code: influxdb.EInternal,
 		Msg:  "unable to generate valid id",
 	}
+
+	// ErrOnboardingNotAllowed occurs when request to onboard comes in and we are not allowing this request
+	ErrOnboardingNotAllowed = &influxdb.Error{
+		Code: influxdb.EConflict,
+		Msg:  "onboarding has already been completed",
+	}
+
+	ErrOnboardInvalid = &influxdb.Error{
+		Code: influxdb.EEmptyValue,
+		Msg:  "onboard failed, missing value",
+	}
 )
 
 // ErrCorruptID the ID stored in the Store is corrupt.
