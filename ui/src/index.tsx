@@ -421,6 +421,12 @@ class Root extends PureComponent {
                                 component={RenameOrgOverlay}
                               />
                             </Route>
+                            <Route path="profile" component={OrgProfilePage}>
+                              <Route
+                                path="rename"
+                                component={RenameOrgOverlay}
+                              />
+                            </Route>
                           </Route>
                           <Route path="alerting" component={AlertingIndex}>
                             <Route
