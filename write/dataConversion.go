@@ -146,12 +146,16 @@ func toTypedValue(val string, dataType string, dataFormat string) (interface{}, 
 	case doubleDatatype:
 		return strconv.ParseFloat(normalizeNumberString(val, dataFormat, false), 64)
 	case boolDatatype:
-		if val == "true" {
+		switch {
+		case len(val) == 0:
+			return nil, errors.New("Unsupported boolean value '" + val + "' , first character is expected to be 't','f','0','1','y','n'")
+		case val[0] == 't' || val[0] == 'T' || val[0] == 'y' || val[0] == 'Y' || val[0] == '1':
 			return true, nil
-		} else if val == "false" {
+		case val[0] == 'f' || val[0] == 'F' || val[0] == 'n' || val[0] == 'N' || val[0] == '0':
 			return false, nil
+		default:
+			return nil, errors.New("Unsupported boolean value '" + val + "' , first character is expected to be 't','f','0','1','y','n'")
 		}
-		return nil, errors.New("Unsupported boolean value '" + val + "' , expected 'true' or 'false'")
 	case longDatatype:
 		return strconv.ParseInt(normalizeNumberString(val, dataFormat, true), 10, 64)
 	case uLongDatatype:
