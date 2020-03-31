@@ -133,17 +133,20 @@ describe('Dashboard', () => {
           cy.getByTestID('switch-to-script-editor').click()
           cy.getByTestID('toolbar-tab').click()
           // check to see if the default timeRange variables are available
-          cy.get('.variables-toolbar--label').contains('timeRangeStart')
-          cy.get('.variables-toolbar--label').contains('timeRangeStop')
-          cy.get('.variables-toolbar--label')
+          cy.get('.flux-toolbar--list-item').contains('timeRangeStart')
+          cy.get('.flux-toolbar--list-item').contains('timeRangeStop')
+          cy.get('.flux-toolbar--list-item')
             .first()
-            .click()
+            .within(() => {
+              cy.get('.cf-button').click()
+            })
+
           cy.getByTestID('flux-editor')
             .should('be.visible')
             .click()
             .focused()
             .type(' ')
-          cy.get('.variables-toolbar--label')
+          cy.get('.flux-toolbar--list-item')
             .eq(2)
             .click()
           cy.getByTestID('save-cell--button').click()
@@ -182,7 +185,7 @@ describe('Dashboard', () => {
             .should('equal', 'c2')
 
           cy.getByTestID('toolbar-tab').click()
-          cy.get('.variables-toolbar--label')
+          cy.get('.flux-toolbar--list-item')
             .first()
             .trigger('mouseover')
           // toggle the variable dropdown in the VEO cell dashboard
@@ -241,7 +244,7 @@ describe('Dashboard', () => {
             .should('equal', 'v2')
 
           cy.getByTestID('toolbar-tab').click()
-          cy.get('.variables-toolbar--label')
+          cy.get('.flux-toolbar--list-item')
             .eq(2)
             .trigger('mouseover')
           // toggle the variable dropdown in the VEO cell dashboard
