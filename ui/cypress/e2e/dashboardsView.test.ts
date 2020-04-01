@@ -213,24 +213,24 @@ describe('Dashboard', () => {
           // TESTING MAP VARIABLE
           // selected value in dashboard is 1st value
           cy.getByTestID('variable-dropdown')
-            .eq(2)
+            .eq(1)
             .should('contain', 'k1')
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 2))
+            .pipe(getSelectedVariable(dashboard.id, 1))
             .should('equal', 'v1')
 
           // select 2nd value in dashboard
           cy.getByTestID('variable-dropdown--button')
-            .eq(2)
+            .eq(1)
             .click()
           cy.get(`#k2`).click()
 
           // selected value in dashboard is 2nd value
           cy.getByTestID('variable-dropdown')
-            .eq(2)
+            .eq(1)
             .should('contain', 'k2')
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 2))
+            .pipe(getSelectedVariable(dashboard.id, 1))
             .should('equal', 'v2')
 
           // open CEO
@@ -240,12 +240,12 @@ describe('Dashboard', () => {
 
           // selected value in cell context is 2nd value
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 2))
+            .pipe(getSelectedVariable(dashboard.id, 1))
             .should('equal', 'v2')
 
           cy.getByTestID('toolbar-tab').click()
           cy.get('.flux-toolbar--list-item')
-            .eq(2)
+            .eq(1)
             .trigger('mouseover')
           // toggle the variable dropdown in the VEO cell dashboard
           cy.getByTestID('toolbar-popover--contents').within(() => {
@@ -260,13 +260,13 @@ describe('Dashboard', () => {
 
           // selected value in cell context is 1st value
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 2))
+            .pipe(getSelectedVariable(dashboard.id, 1))
             .should('equal', 'v1')
 
           // selected value in dashboard is 1st value
           cy.getByTestID('variable-dropdown').should('contain', 'k1')
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 2))
+            .pipe(getSelectedVariable(dashboard.id, 1))
             .should('equal', 'v1')
         })
       })
