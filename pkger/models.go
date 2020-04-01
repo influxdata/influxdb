@@ -292,16 +292,18 @@ type DiffChart SummaryChart
 
 // DiffLabelValues are the varying values for a label.
 type DiffLabelValues struct {
+	Name        string `json:"name"`
 	Color       string `json:"color"`
 	Description string `json:"description"`
 }
 
 // DiffLabel is a diff of an individual label.
 type DiffLabel struct {
-	ID   SafeID           `json:"id"`
-	Name string           `json:"name"`
-	New  DiffLabelValues  `json:"new"`
-	Old  *DiffLabelValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+	Remove  bool             `json:"remove"`
+	ID      SafeID           `json:"id"`
+	PkgName string           `json:"pkgName"`
+	New     DiffLabelValues  `json:"new"`
+	Old     *DiffLabelValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
 }
 
 // IsNew indicates whether a pkg label is going to be new to the platform.
@@ -315,8 +317,10 @@ func (d DiffLabel) hasConflict() bool {
 
 func newDiffLabel(l *label, i *influxdb.Label) DiffLabel {
 	diff := DiffLabel{
-		Name: l.Name(),
+		Remove:  l.shouldRemove,
+		PkgName: l.PkgName(),
 		New: DiffLabelValues{
+			Name:        l.Name(),
 			Color:       l.Color,
 			Description: l.Description,
 		},
@@ -324,6 +328,7 @@ func newDiffLabel(l *label, i *influxdb.Label) DiffLabel {
 	if i != nil {
 		diff.ID = SafeID(i.ID)
 		diff.Old = &DiffLabelValues{
+			Name:        i.Name,
 			Color:       i.Properties["color"],
 			Description: i.Properties["description"],
 		}
@@ -708,6 +713,7 @@ type (
 type SummaryLabel struct {
 	ID         SafeID `json:"id"`
 	OrgID      SafeID `json:"orgID"`
+	PkgName    string `json:"pkgName"`
 	Name       string `json:"name"`
 	Properties struct {
 		Color       string `json:"color"`
@@ -1284,9 +1290,10 @@ func (l *label) shouldApply() bool {
 
 func (l *label) summarize() SummaryLabel {
 	return SummaryLabel{
-		ID:    SafeID(l.ID()),
-		OrgID: SafeID(l.OrgID),
-		Name:  l.Name(),
+		ID:      SafeID(l.ID()),
+		OrgID:   SafeID(l.OrgID),
+		PkgName: l.PkgName(),
+		Name:    l.Name(),
 		Properties: struct {
 			Color       string `json:"color"`
 			Description string `json:"description"`

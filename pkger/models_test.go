@@ -258,8 +258,9 @@ func TestPkg(t *testing.T) {
 				{
 					name: "new label",
 					resource: DiffLabel{
-						Name: "new label",
+						PkgName: "new label",
 						New: DiffLabelValues{
+							Name:        "new label",
 							Color:       "new color",
 							Description: "new desc",
 						},
@@ -269,13 +270,15 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing label with no changes",
 					resource: DiffLabel{
-						ID:   1,
-						Name: "existing label",
+						ID:      1,
+						PkgName: "existing label",
 						New: DiffLabelValues{
+							Name:        "existing label",
 							Color:       "color",
 							Description: "desc",
 						},
 						Old: &DiffLabelValues{
+							Name:        "existing label",
 							Color:       "color",
 							Description: "desc",
 						},
@@ -285,13 +288,15 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing label with changes",
 					resource: DiffLabel{
-						ID:   1,
-						Name: "existing label",
+						ID:      1,
+						PkgName: "existing label",
 						New: DiffLabelValues{
+							Name:        "existing label",
 							Color:       "color",
 							Description: "desc",
 						},
 						Old: &DiffLabelValues{
+							Name:        "existing label",
 							Color:       "new color",
 							Description: "new desc",
 						},
