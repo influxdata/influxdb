@@ -100,6 +100,6 @@ export const fetchDemoDataBuckets = async (): Promise<Bucket[]> => {
     })) as Array<DemoBucket>
   } catch (error) {
     console.error(error)
-    // demodata bucket fetching errors should not effect regular bucket fetching
+    return [] // demodata bucket fetching errors should not effect regular bucket fetching
   }
 }
