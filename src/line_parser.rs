@@ -381,7 +381,7 @@ fn series(i: &str) -> IResult<&str, Series<'_>> {
 }
 
 fn measurement(i: &str) -> IResult<&str, EscapedStr<'_>> {
-    let normal_char = take_while1(|c| c != ' ' && c != ',' && c != '\\');
+    let normal_char = take_while1(|c| !is_whitespace_boundary_char(c) && c != ',' && c != '\\');
 
     let space = map(tag(" "), |_| " ");
     let comma = map(tag(","), |_| ",");
@@ -398,13 +398,13 @@ fn tag_set(i: &str) -> IResult<&str, TagSet<'_>> {
 }
 
 fn tag_key(i: &str) -> IResult<&str, EscapedStr<'_>> {
-    let normal_char = take_while1(|c| c != '=' && c != '\\');
+    let normal_char = take_while1(|c| !is_whitespace_boundary_char(c) && c != '=' && c != '\\');
 
     escaped_value(normal_char)(i)
 }
 
 fn tag_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
-    let normal_char = take_while1(|c| c != ',' && c != ' ' && c != '\\');
+    let normal_char = take_while1(|c| !is_whitespace_boundary_char(c) && c != ',' && c != '\\');
     escaped_value(normal_char)(i)
 }
 
@@ -414,7 +414,7 @@ fn field_set(i: &str) -> IResult<&str, FieldSet<'_>> {
 }
 
 fn field_key(i: &str) -> IResult<&str, EscapedStr<'_>> {
-    let normal_char = take_while1(|c| c != '=' && c != '\\');
+    let normal_char = take_while1(|c| !is_whitespace_boundary_char(c) && c != '=' && c != '\\');
     escaped_value(normal_char)(i)
 }
 
@@ -446,7 +446,7 @@ fn timestamp(i: &str) -> IResult<&str, i64> {
 fn line_whitespace(mut i: &str) -> IResult<&str, ()> {
     loop {
         let offset = i
-            .find(|c| c != ' ' && c != '\t' && c != '\n')
+            .find(|c| !is_whitespace_boundary_char(c))
             .unwrap_or_else(|| i.len());
         i = &i[offset..];
 
@@ -461,6 +461,10 @@ fn line_whitespace(mut i: &str) -> IResult<&str, ()> {
 
 fn whitespace(i: &str) -> IResult<&str, &str> {
     take_while1(|c| c == ' ')(i)
+}
+
+fn is_whitespace_boundary_char(c: char) -> bool {
+    c == ' ' || c == '\t' || c == '\n'
 }
 
 /// While not all of these escape characters are required to be
@@ -518,6 +522,16 @@ where
                             Err(nom::Err::Error(_)) => {
                                 result.push(escape_char);
                                 head = after;
+
+                                // The Go parser assumes that *any* unknown escaped character is valid.
+                                match head.chars().next() {
+                                    Some(c) => {
+                                        let (escaped, remaining) = head.split_at(c.len_utf8());
+                                        result.push(escaped);
+                                        head = remaining;
+                                    }
+                                    None => return Ok((head, EscapedStr(result))),
+                                }
                             }
                             Err(e) => return Err(e),
                         }
@@ -851,6 +865,18 @@ her"#
     }
 
     #[test]
+    fn measurement_disallows_literal_newline() -> Result {
+        let (remaining, parsed) = measurement(
+            r#"weat
+her"#,
+        )?;
+        assert_eq!(parsed, "weat");
+        assert_eq!(remaining, "\nher");
+
+        Ok(())
+    }
+
+    #[test]
     fn tag_key_allows_escaping_comma() -> Result {
         assert_fully_parsed!(tag_key(r#"wea\,ther"#), r#"wea,ther"#)
     }
@@ -884,6 +910,18 @@ her"#
             ),
             "weat\\\nher",
         )
+    }
+
+    #[test]
+    fn tag_key_disallows_literal_newline() -> Result {
+        let (remaining, parsed) = tag_key(
+            r#"weat
+her"#,
+        )?;
+        assert_eq!(parsed, "weat");
+        assert_eq!(remaining, "\nher");
+
+        Ok(())
     }
 
     #[test]
@@ -923,6 +961,18 @@ her"#
     }
 
     #[test]
+    fn tag_value_disallows_literal_newline() -> Result {
+        let (remaining, parsed) = tag_value(
+            r#"weat
+her"#,
+        )?;
+        assert_eq!(parsed, "weat");
+        assert_eq!(remaining, "\nher");
+
+        Ok(())
+    }
+
+    #[test]
     fn field_key_allows_escaping_comma() -> Result {
         assert_fully_parsed!(field_key(r#"wea\,ther"#), r#"wea,ther"#)
     }
@@ -956,6 +1006,18 @@ her"#
             ),
             "weat\\\nher",
         )
+    }
+
+    #[test]
+    fn field_key_disallows_literal_newline() -> Result {
+        let (remaining, parsed) = field_key(
+            r#"weat
+her"#,
+        )?;
+        assert_eq!(parsed, "weat");
+        assert_eq!(remaining, "\nher");
+
+        Ok(())
     }
 
     #[test]
