@@ -4,10 +4,13 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/text/encoding/ianaindex"
 )
 
 // see https://v2.docs.influxdata.com/v2.0/reference/syntax/annotated-csv/#valid-data-types
@@ -224,4 +227,23 @@ func appendConverted(buffer []byte, val string, column *CsvTableColumn) ([]byte,
 		return buffer, err
 	}
 	return appendProtocolValue(buffer, typedVal)
+}
+
+func decodeNop(reader io.Reader) io.Reader {
+	return reader
+}
+
+// CreateDecoder creates a decoding reading from the supplied encoding to UTF-8, or returns an error
+func CreateDecoder(encoding string) (func(io.Reader) io.Reader, error) {
+	if len(encoding) > 0 && encoding != "UTF-8" {
+		enc, err := ianaindex.IANA.Encoding(encoding)
+		if err != nil {
+			return nil, fmt.Errorf("%v, see https://www.iana.org/assignments/character-sets/character-sets.xhtml", err)
+		}
+		if enc == nil {
+			return nil, fmt.Errorf("unsupported encoding: %s", encoding)
+		}
+		return enc.NewDecoder().Reader, nil
+	}
+	return decodeNop, nil
 }

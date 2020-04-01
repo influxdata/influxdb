@@ -32,6 +32,7 @@ type writeFlagsType struct {
 	SkipRowOnError             bool
 	SkipHeader                 int
 	IgnoreDataTypeInColumnName bool
+	Encoding                   string
 }
 
 var writeFlags writeFlagsType
@@ -77,6 +78,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flag("skipHeader").NoOptDefVal = "1" // skipHeader flag value is optional, skip the first header when unspecified
 	cmd.PersistentFlags().BoolVar(&writeFlags.IgnoreDataTypeInColumnName, "xIgnoreDataTypeInColumnName", false, "Ignores dataType which could be specified after ':' in column name")
 	cmd.PersistentFlags().MarkHidden("xIgnoreDataTypeInColumnName") // should be used only upon explicit advice
+	cmd.PersistentFlags().StringVar(&writeFlags.Encoding, "encoding", "UTF-8", "Character encoding of input files or stdin")
 
 	cmdDryRun := opt.newCmd("dryrun", fluxWriteDryrunF, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
@@ -102,6 +104,12 @@ func (writeFlags *writeFlagsType) createLineReader(args []string) (io.Reader, io
 		return nil, write.MultiCloser(closers...), fmt.Errorf("unsupported input format: %s", writeFlags.Format)
 	}
 
+	// validate and setup decoding of files/stdin if encoding is supplied
+	decode, err := write.CreateDecoder(writeFlags.Encoding)
+	if err != nil {
+		return nil, write.MultiCloser(closers...), err
+	}
+
 	// prepend header lines
 	if len(writeFlags.Headers) > 0 {
 		for _, header := range writeFlags.Headers {
@@ -120,7 +128,7 @@ func (writeFlags *writeFlagsType) createLineReader(args []string) (io.Reader, io
 				return nil, write.MultiCloser(closers...), fmt.Errorf("failed to open %q: %v", file, err)
 			}
 			closers = append(closers, f)
-			readers = append(readers, f, strings.NewReader("\n"))
+			readers = append(readers, decode(f), strings.NewReader("\n"))
 			if len(writeFlags.Format) == 0 && strings.HasSuffix(file, ".csv") {
 				writeFlags.Format = inputFormatCsv
 			}
@@ -132,11 +140,11 @@ func (writeFlags *writeFlagsType) createLineReader(args []string) (io.Reader, io
 	case len(args) == 0:
 		// either --file or stdin when no arguments are supplied
 		if len(writeFlags.Files) == 0 {
-			readers = append(readers, os.Stdin)
+			readers = append(readers, decode(os.Stdin))
 		}
 	case args[0] == "-":
 		// "-" also means stdin
-		readers = append(readers, os.Stdin)
+		readers = append(readers, decode(os.Stdin))
 	default:
 		readers = append(readers, strings.NewReader(args[0]))
 	}
