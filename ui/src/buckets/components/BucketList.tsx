@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
 import memoizeOne from 'memoize-one'
 
 // Components
@@ -9,15 +8,11 @@ import BucketCard from 'src/buckets/components/BucketCard'
 import DemoDataBucketCard from 'src/buckets/components/DemoDataBucketCard'
 import {ResourceList} from '@influxdata/clockface'
 
-// Actions
-import {setBucketInfo} from 'src/dataLoaders/actions/steps'
-import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
-
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
 
 // Types
-import {Bucket, AppState, DataLoaderType, OwnBucket} from 'src/types'
+import {Bucket, OwnBucket} from 'src/types'
 import {Sort} from '@influxdata/clockface'
 
 // Utils
@@ -25,7 +20,7 @@ import {SortTypes} from 'src/shared/utils/sort'
 
 type SortKey = keyof Bucket | 'retentionRules[0].everySeconds'
 
-interface OwnProps {
+interface Props {
   buckets: Bucket[]
   emptyState: JSX.Element
   onUpdateBucket: (b: OwnBucket) => void
@@ -38,17 +33,6 @@ interface OwnProps {
     sortType: SortTypes
   ) => (nextSort: Sort, sortKey: SortKey) => void
 }
-
-interface DispatchProps {
-  onSetBucketInfo: typeof setBucketInfo
-  onSetDataLoadersType: typeof setDataLoadersType
-}
-
-interface StateProps {
-  dataLoaderType: DataLoaderType
-}
-
-type Props = OwnProps & StateProps & DispatchProps
 
 class BucketList extends PureComponent<Props & WithRouterProps> {
   private memGetSortedResources = memoizeOne<typeof getSortedResources>(
@@ -116,7 +100,6 @@ class BucketList extends PureComponent<Props & WithRouterProps> {
           onEditBucket={this.handleStartEdit}
           onDeleteBucket={onDeleteBucket}
           onDeleteData={this.handleStartDeleteData}
-          onAddData={this.handleStartAddData}
           onUpdateBucket={onUpdateBucket}
           onFilterChange={onFilterChange}
         />
@@ -137,32 +120,6 @@ class BucketList extends PureComponent<Props & WithRouterProps> {
       `/orgs/${orgID}/load-data/buckets/${bucket.id}/delete-data`
     )
   }
-
-  private handleStartAddData = (
-    bucket: OwnBucket,
-    dataLoaderType: DataLoaderType,
-    link: string
-  ) => {
-    const {onSetBucketInfo, onSetDataLoadersType, router} = this.props
-    onSetBucketInfo(bucket.orgID, bucket.name, bucket.id)
-
-    onSetDataLoadersType(dataLoaderType)
-    router.push(link)
-  }
 }
 
-const mstp = (state: AppState): StateProps => {
-  return {
-    dataLoaderType: state.dataLoading.dataLoaders.type,
-  }
-}
-
-const mdtp: DispatchProps = {
-  onSetBucketInfo: setBucketInfo,
-  onSetDataLoadersType: setDataLoadersType,
-}
-
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(withRouter<Props>(BucketList))
+export default withRouter<Props>(BucketList)
