@@ -22,6 +22,6 @@ describe('insertFunction', () => {
     expect(requiresNewLine).toEqual(`\n${fluxFunc}\n`)
     const to = 'to'
     const fluxNewLine = formatFunctionForInsert(to, fluxFunc, true)
-    expect(fluxNewLine).toEqual(`\n  |> ${fluxFunc}\n`)
+    expect(fluxNewLine).toEqual(`\n  |> ${fluxFunc}`)
   })
 })

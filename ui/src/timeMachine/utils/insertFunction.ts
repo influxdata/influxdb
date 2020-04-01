@@ -1,5 +1,6 @@
 // Constants
 import {FROM, UNION} from 'src/shared/constants/fluxFunctions'
+import {FluxToolbarFunction, Position} from 'src/types'
 
 const functionRequiresNewLine = (funcName: string): boolean => {
   switch (funcName) {
@@ -21,7 +22,11 @@ export const formatFunctionForInsert = (
     return `\n${fluxFunction}\n`
   }
 
-  return `${newLine ? '\n' : ''}  |> ${fluxFunction}\n`
+  if (newLine) {
+    return `\n  |> ${fluxFunction}`
+  }
+
+  return `  |> ${fluxFunction}\n`
 }
 
 export const generateImport = (
