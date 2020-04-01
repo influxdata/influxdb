@@ -1,4 +1,5 @@
 import {
+  getUserVariableNames,
   getVariables,
   getAllVariables,
   getVariable,
@@ -114,6 +115,29 @@ describe('VariableSelectors', () => {
       expect(vars.length).toEqual(4)
       expect(vars[0].name).toEqual('1234')
       expect(vars[1].name).toEqual('5678')
+    })
+
+    it('should respect chaos', () => {
+      const vars = getUserVariableNames(
+        ({
+          resources: {
+            variables: {
+              allIDs: ['5678', '1234', 'abc'],
+              values: {
+                qwerty: {
+                  order: ['ghi', '1234', '5678', 'def'],
+                },
+              },
+            },
+          },
+        } as any) as AppState,
+        'qwerty'
+      )
+
+      expect(vars.length).toEqual(3)
+      expect(vars[0]).toEqual('1234')
+      expect(vars[1]).toEqual('5678')
+      expect(vars[2]).toEqual('abc')
     })
 
     // skipping this one as it requires some weird mocking

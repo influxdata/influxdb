@@ -300,14 +300,9 @@ func writeConfigToPath(tok, org, path, dir string) error {
 	p := &config.DefaultConfig
 	p.Token = tok
 	p.Org = org
-	pp := map[string]config.Config{
-		"default": *p,
-	}
 
-	return config.LocalConfigsSVC{
-		Path: path,
-		Dir:  dir,
-	}.WriteConfigs(pp)
+	_, err := config.NewLocalConfigSVC(path, dir).CreateConfig(*p)
+	return err
 }
 
 func checkSetup(host string, skipVerify bool) error {

@@ -1,3 +1,9 @@
+## unreleased
+
+### Features
+
+1. [17490](https://github.com/influxdata/influxdb/pull/17490): `influx config -`, to switch back to previous activated configuration
+
 ## v2.0.0-beta.7 [2020-03-27]
 
 ### Features
@@ -21,6 +27,8 @@
 1. [17391](https://github.com/influxdata/influxdb/pull/17391): Fixed threshold check bug where checks could not be created when a field had a space in the name
 1. [17384](https://github.com/influxdata/influxdb/pull/17384): Reuse slices built by iterator to reduce allocations
 1. [17404](https://github.com/influxdata/influxdb/pull/17404): Updated duplicate check error message to be more explicit and actionable
+1. [17515](https://github.com/influxdata/influxdb/pull/17515): Editing a table cell shows the proper values and respects changes
+1. [17521](https://github.com/influxdata/influxdb/pull/17521): Table view scrolling should be slightly smoother
 
 ### UI Improvements
 
