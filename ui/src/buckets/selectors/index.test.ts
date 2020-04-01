@@ -25,6 +25,7 @@ describe('Bucket Selector', () => {
         type: 'user',
         name: 'alpha',
         retentionRules: [],
+        readableRetention: 'forever',
         createdAt: '2019-11-05T08:57:54.459819-08:00',
         updatedAt: '2019-11-05T08:58:09.593805-08:00',
         links: {
@@ -44,6 +45,7 @@ describe('Bucket Selector', () => {
         type: 'user',
         name: 'bucket1',
         retentionRules: [],
+        readableRetention: 'forever',
         createdAt: '2019-10-15T11:10:27.970567-07:00',
         updatedAt: '2019-10-15T11:10:27.970567-07:00',
         links: {
@@ -63,6 +65,7 @@ describe('Bucket Selector', () => {
         type: 'user',
         name: 'zebra',
         retentionRules: [],
+        readableRetention: 'forever',
         createdAt: '2019-11-05T08:57:59.280485-08:00',
         updatedAt: '2019-11-05T08:57:59.280486-08:00',
         links: {
@@ -82,6 +85,7 @@ describe('Bucket Selector', () => {
         type: 'user',
         name: 'buck2',
         retentionRules: [],
+        readableRetention: 'forever',
         createdAt: '2019-10-18T14:05:24.838291-07:00',
         updatedAt: '2019-10-18T14:05:24.838292-07:00',
         links: {
@@ -101,6 +105,7 @@ describe('Bucket Selector', () => {
         type: 'user',
         name: 'disco inferno',
         retentionRules: [],
+        readableRetention: 'forever',
         createdAt: '2019-11-05T08:58:16.873502-08:00',
         updatedAt: '2019-11-05T08:58:16.873502-08:00',
         links: {
@@ -125,6 +130,7 @@ describe('Bucket Selector', () => {
             everySeconds: 259200,
           },
         ],
+        readableRetention: '3 days',
         createdAt: '0001-01-01T00:00:00Z',
         updatedAt: '0001-01-01T00:00:00Z',
         links: {
@@ -149,6 +155,7 @@ describe('Bucket Selector', () => {
             everySeconds: 604800,
           },
         ],
+        readableRetention: '7 days',
         createdAt: '0001-01-01T00:00:00Z',
         updatedAt: '0001-01-01T00:00:00Z',
         links: {
