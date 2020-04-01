@@ -121,12 +121,7 @@ func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID
 }
 
 func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg, dryRun bool, opts ...ApplyOptFn) (Summary, Diff, error) {
-	var opt ApplyOpt
-	for _, o := range opts {
-		if err := o(&opt); err != nil {
-			return Summary{}, Diff{}, err
-		}
-	}
+	opt := applyOptFromOptFns(opts...)
 
 	b, err := pkg.Encode(EncodingJSON)
 	if err != nil {
@@ -139,6 +134,10 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, pkg *P
 		EnvRefs: opt.EnvRefs,
 		Secrets: opt.MissingSecrets,
 		RawPkg:  b,
+	}
+	if opt.StackID != 0 {
+		stackID := opt.StackID.String()
+		reqBody.StackID = &stackID
 	}
 
 	var resp RespApplyPkg

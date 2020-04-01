@@ -256,6 +256,7 @@ func (p PkgRemote) Encoding() Encoding {
 type ReqApplyPkg struct {
 	DryRun  bool              `json:"dryRun" yaml:"dryRun"`
 	OrgID   string            `json:"orgID" yaml:"orgID"`
+	StackID *string           `json:"stackID" yaml:"stackID"` // optional: non nil value signals stack should be used
 	Remotes []PkgRemote       `json:"remotes" yaml:"remotes"`
 	RawPkgs []json.RawMessage `json:"packages" yaml:"packages"`
 	RawPkg  json.RawMessage   `json:"package" yaml:"package"`
@@ -316,10 +317,21 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 	orgID, err := influxdb.IDFromString(reqBody.OrgID)
 	if err != nil {
 		s.api.Err(w, &influxdb.Error{
-			Code: influxdb.EConflict,
+			Code: influxdb.EInvalid,
 			Msg:  fmt.Sprintf("invalid organization ID provided: %q", reqBody.OrgID),
 		})
 		return
+	}
+
+	var stackID influxdb.ID
+	if reqBody.StackID != nil {
+		if err := stackID.DecodeFromString(*reqBody.StackID); err != nil {
+			s.api.Err(w, &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  fmt.Sprintf("invalid stack ID provided: %q", *reqBody.StackID),
+			})
+			return
+		}
 	}
 
 	auth, err := pctx.GetAuthorizer(r.Context())
@@ -338,7 +350,12 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sum, diff, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg, ApplyWithEnvRefs(reqBody.EnvRefs))
+	applyOpts := []ApplyOptFn{
+		ApplyWithEnvRefs(reqBody.EnvRefs),
+		ApplyWithStackID(stackID),
+	}
+
+	sum, diff, err := s.svc.DryRun(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
 	if IsParseErr(err) {
 		s.api.Respond(w, http.StatusUnprocessableEntity, RespApplyPkg{
 			Diff:    diff,
@@ -361,7 +378,9 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sum, err = s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, ApplyWithEnvRefs(reqBody.EnvRefs), ApplyWithSecrets(reqBody.Secrets))
+	applyOpts = append(applyOpts, ApplyWithSecrets(reqBody.Secrets))
+
+	sum, err = s.svc.Apply(r.Context(), *orgID, userID, parsedPkg, applyOpts...)
 	if err != nil && !IsParseErr(err) {
 		s.api.Err(w, err)
 		return

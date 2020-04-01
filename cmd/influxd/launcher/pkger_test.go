@@ -1,48 +1,203 @@
-package launcher_test
+package launcher
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/notification/check"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
+var ctx = context.Background()
+
 func TestLauncher_Pkger(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l := RunTestLauncherOrFail(t, ctx)
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	svc := l.PkgerService(t)
 
-	t.Run("creating a stack", func(t *testing.T) {
-		expectedURLs := []string{"http://example.com"}
+	deleteBucket := func(t *testing.T, id influxdb.ID) {
+		t.Helper()
 
-		fmt.Println("org init id: ", l.Org.ID)
+		require.NoError(t, l.BucketService(t).DeleteBucket(ctx, id))
+	}
 
-		newStack, err := svc.InitStack(timedCtx(5*time.Second), l.User.ID, pkger.Stack{
-			OrgID:       l.Org.ID,
-			Name:        "first stack",
-			Description: "desc",
-			URLs:        expectedURLs,
+	t.Run("managing pkg state with stacks", func(t *testing.T) {
+		type object struct {
+			raw string
+		}
+
+		newBucketObject := func(pkgName, name, desc string) object {
+			raw := fmt.Sprintf(`
+apiVersion: %[1]s
+kind: Bucket
+metadata:
+  name:  %s
+spec:
+  name: %s
+  description: %s
+`, pkger.APIVersion, pkgName, name, desc)
+
+			return object{raw: raw}
+		}
+
+		newBucketPkgFn := func(t *testing.T, objects ...object) *pkger.Pkg {
+			rawObjs := make([]string, 0, len(objects))
+			for _, o := range objects {
+				rawObjs = append(rawObjs, o.raw)
+			}
+			pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(strings.Join(rawObjs, "\n---\n")))
+			require.NoError(t, err)
+
+			return pkg
+		}
+
+		t.Run("creating a stack", func(t *testing.T) {
+			expectedURLs := []string{"http://example.com"}
+
+			newStack, err := svc.InitStack(timedCtx(5*time.Second), l.User.ID, pkger.Stack{
+				OrgID:       l.Org.ID,
+				Name:        "first stack",
+				Description: "desc",
+				URLs:        expectedURLs,
+			})
+			require.NoError(t, err)
+
+			assert.NotZero(t, newStack.ID)
+			assert.Equal(t, l.Org.ID, newStack.OrgID)
+			assert.Equal(t, "first stack", newStack.Name)
+			assert.Equal(t, "desc", newStack.Description)
+			assert.Equal(t, expectedURLs, newStack.URLs)
+			assert.NotNil(t, newStack.Resources)
+			assert.NotZero(t, newStack.CRUDLog)
 		})
-		require.NoError(t, err)
 
-		assert.NotZero(t, newStack.ID)
-		assert.Equal(t, l.Org.ID, newStack.OrgID)
-		assert.Equal(t, "first stack", newStack.Name)
-		assert.Equal(t, "desc", newStack.Description)
-		assert.Equal(t, expectedURLs, newStack.URLs)
-		assert.NotNil(t, newStack.Resources)
-		assert.NotZero(t, newStack.CRUDLog)
+		t.Run("apply a pkg with a stack", func(t *testing.T) {
+			// each test t.Log() represents a test case, but b/c we are dependent
+			// on the test before it succeeding, we are using t.Log instead of t.Run
+			// to run a sub test.
+
+			getBucket := func(t *testing.T, name string) (influxdb.Bucket, error) {
+				bkt, err := l.
+					BucketService(t).
+					FindBucketByName(timedCtx(time.Second), l.Org.ID, name)
+				if err != nil {
+					return influxdb.Bucket{}, err
+				}
+				return *bkt, nil
+			}
+
+			initBucketPkgName := "rucketeer_1"
+			newPkg := newBucketPkgFn(t, newBucketObject(initBucketPkgName, "display name", "init desc"))
+
+			stack, err := svc.InitStack(timedCtx(5*time.Second), l.User.ID, pkger.Stack{
+				OrgID: l.Org.ID,
+			})
+			require.NoError(t, err)
+
+			var initialSum pkger.Summary
+			t.Log("apply pkg with stack id")
+			{
+				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, newPkg, pkger.ApplyWithStackID(stack.ID))
+				require.NoError(t, err)
+				initialSum = sum
+
+				require.Len(t, sum.Buckets, 1)
+				assert.NotZero(t, sum.Buckets[0].ID)
+				assert.Equal(t, "display name", sum.Buckets[0].Name)
+				assert.Equal(t, "init desc", sum.Buckets[0].Description)
+
+				actualBkt, _ := getBucket(t, "display name")
+				assert.Equal(t, sum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
+			}
+
+			updateName := "new name"
+			t.Log("apply pkg with stack id where resources change")
+			{
+				updatedPkg := newBucketPkgFn(t, newBucketObject(initBucketPkgName, updateName, ""))
+				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, updatedPkg, pkger.ApplyWithStackID(stack.ID))
+				require.NoError(t, err)
+
+				require.Len(t, sum.Buckets, 1)
+				assert.Equal(t, initialSum.Buckets[0].ID, sum.Buckets[0].ID)
+				assert.Equal(t, updateName, sum.Buckets[0].Name)
+				assert.Empty(t, sum.Buckets[0].Description)
+
+				actualBkt, err := getBucket(t, updateName)
+				require.NoError(t, err)
+				require.Equal(t, initialSum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
+			}
+
+			t.Log("an error during application roles back resources to previous state")
+			{
+				logger := l.log.With(zap.String("service", "pkger"))
+				var svc pkger.SVC = pkger.NewService(
+					pkger.WithLogger(logger),
+					pkger.WithBucketSVC(&fakeBucketSVC{
+						BucketService:   l.BucketService(t),
+						createKillCount: 1, // kill it after first bucket is created
+					}),
+					pkger.WithDashboardSVC(l.DashboardService(t)),
+					pkger.WithCheckSVC(l.CheckService()),
+					pkger.WithLabelSVC(l.LabelService(t)),
+					pkger.WithNotificationEndpointSVC(l.NotificationEndpointService(t)),
+					pkger.WithNotificationRuleSVC(l.NotificationRuleService()),
+					pkger.WithStore(pkger.NewStoreKV(l.Launcher.kvStore)),
+					pkger.WithTaskSVC(l.TaskServiceKV()),
+					pkger.WithTelegrafSVC(l.TelegrafService(t)),
+					pkger.WithVariableSVC(l.VariableService(t)),
+				)
+				svc = pkger.MWLogging(logger)(svc)
+
+				pkgWithDelete := newBucketPkgFn(t,
+					newBucketObject("z_delete_rolls_back", "z_roll_me_back", ""),
+					newBucketObject("z_also_rolls_back", "z_rolls_back_too", ""),
+				)
+				_, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkgWithDelete, pkger.ApplyWithStackID(stack.ID))
+				require.Error(t, err)
+
+				for _, name := range []string{"z_roll_me_back", "z_rolls_back_too"} {
+					_, err := getBucket(t, name)
+					require.Error(t, err)
+				}
+
+				actualBkt, err := getBucket(t, updateName)
+				require.NoError(t, err)
+				assert.NotEmpty(t, actualBkt.ID)
+				assert.NotEqual(t, initialSum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
+			}
+
+			t.Log("apply pkg with stack id where resources have been removed since last run")
+			{
+				updatedPkg := newBucketPkgFn(t, newBucketObject("non_existent", "non_existent_name", ""))
+				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, updatedPkg, pkger.ApplyWithStackID(stack.ID))
+				require.NoError(t, err)
+
+				require.Len(t, sum.Buckets, 1)
+				assert.NotEqual(t, initialSum.Buckets[0].ID, sum.Buckets[0].ID)
+				assert.NotZero(t, sum.Buckets[0].ID)
+				defer deleteBucket(t, influxdb.ID(sum.Buckets[0].ID))
+				assert.Equal(t, "non_existent_name", sum.Buckets[0].Name)
+				assert.Empty(t, sum.Buckets[0].Description)
+
+				bkt, err := getBucket(t, "non_existent_name")
+				require.NoError(t, err)
+				assert.Equal(t, pkger.SafeID(bkt.ID), sum.Buckets[0].ID)
+
+				_, err = getBucket(t, updateName)
+				require.Error(t, err)
+			}
+		})
 	})
 
 	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {
@@ -710,8 +865,8 @@ spec:
 
 			svc := pkger.NewService(
 				pkger.WithBucketSVC(&fakeBucketSVC{
-					BucketService: l.BucketService(t),
-					killCount:     0, // kill on first update for bucket
+					BucketService:   l.BucketService(t),
+					updateKillCount: 0, // kill on first update for bucket
 				}),
 				pkger.WithCheckSVC(l.CheckService()),
 				pkger.WithDashboardSVC(l.DashboardService(t)),
@@ -1264,15 +1419,25 @@ spec:
 
 type fakeBucketSVC struct {
 	influxdb.BucketService
+	createCallCount mock.SafeCount
+	createKillCount int
 	updateCallCount mock.SafeCount
-	killCount       int
+	updateKillCount int
+}
+
+func (f *fakeBucketSVC) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
+	defer f.createCallCount.IncrFn()()
+	if f.createCallCount.Count() == f.createKillCount {
+		return errors.New("reached kill count")
+	}
+	return f.BucketService.CreateBucket(ctx, b)
 }
 
 func (f *fakeBucketSVC) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
-	if f.updateCallCount.Count() == f.killCount {
+	defer f.updateCallCount.IncrFn()()
+	if f.updateCallCount.Count() == f.updateKillCount {
 		return nil, errors.New("reached kill count")
 	}
-	defer f.updateCallCount.IncrFn()()
 	return f.BucketService.UpdateBucket(ctx, id, upd)
 }
 

@@ -305,7 +305,7 @@ func (p *Pkg) Summary() Summary {
 		sum.MissingSecrets = p.missingSecrets()
 	}
 
-	for _, b := range p.buckets() {
+	for _, b := range p.buckets(true) {
 		sum.Buckets = append(sum.Buckets, b.summarize())
 	}
 
@@ -365,6 +365,139 @@ func (p *Pkg) applyEnvRefs(envRefs map[string]string) error {
 func (p *Pkg) applySecrets(secrets map[string]string) {
 	for k := range secrets {
 		p.mSecrets[k] = true
+	}
+}
+
+// Contains identifies if a pkg contains a given object identified
+// by its kind and metadata.Name (PkgName) field.
+func (p *Pkg) Contains(k Kind, pkgName string) bool {
+	_, ok := p.getObjectIDSetter(k, pkgName)
+	return ok
+}
+
+// setObjectID sets the id for the resource graphed from the object the key identifies.
+func (p *Pkg) setObjectID(k Kind, pkgName string, id influxdb.ID) {
+	idSetFn, ok := p.getObjectIDSetter(k, pkgName)
+	if !ok {
+		return
+	}
+	idSetFn(id)
+}
+
+// setObjectID sets the id for the resource graphed from the object the key identifies.
+// The pkgName and kind are used as the unique identifier, when calling this it will
+// overwrite any existing value if one exists. If desired, check for the value by using
+// the Contains method.
+func (p *Pkg) addObjectForRemoval(k Kind, pkgName string, id influxdb.ID) {
+	newIdentity := identity{
+		name:         &references{val: pkgName},
+		shouldRemove: true,
+	}
+
+	switch k {
+	case KindBucket:
+		p.mBuckets[pkgName] = &bucket{
+			identity: newIdentity,
+			id:       id,
+		}
+	case KindCheck, KindCheckDeadman, KindCheckThreshold:
+		p.mChecks[pkgName] = &check{
+			identity: newIdentity,
+			id:       id,
+		}
+	case KindDashboard:
+		p.mDashboards[pkgName] = &dashboard{
+			identity: newIdentity,
+			id:       id,
+		}
+	case KindLabel:
+		p.mLabels[pkgName] = &label{
+			identity: newIdentity,
+			id:       id,
+		}
+	case KindNotificationEndpoint,
+		KindNotificationEndpointHTTP,
+		KindNotificationEndpointPagerDuty,
+		KindNotificationEndpointSlack:
+		p.mNotificationEndpoints[pkgName] = &notificationEndpoint{
+			identity: newIdentity,
+			id:       id,
+		}
+	case KindNotificationRule:
+		p.mNotificationRules[pkgName] = &notificationRule{
+			identity: newIdentity,
+			id:       id,
+		}
+	case KindTask:
+		p.mTasks[pkgName] = &task{
+			identity: newIdentity,
+			id:       id,
+		}
+	case KindTelegraf:
+		p.mTelegrafs[pkgName] = &telegraf{
+			identity: newIdentity,
+			config:   influxdb.TelegrafConfig{ID: id},
+		}
+	case KindVariable:
+		p.mVariables[pkgName] = &variable{
+			identity: newIdentity,
+			id:       id,
+		}
+	}
+}
+
+func (p *Pkg) getObjectIDSetter(k Kind, pkgName string) (func(influxdb.ID), bool) {
+	switch k {
+	case KindBucket:
+		b, ok := p.mBuckets[pkgName]
+		return func(id influxdb.ID) {
+			b.id = id
+		}, ok
+	case KindCheck, KindCheckDeadman, KindCheckThreshold:
+		ch, ok := p.mChecks[pkgName]
+		return func(id influxdb.ID) {
+			ch.id = id
+		}, ok
+	case KindDashboard:
+		d, ok := p.mDashboards[pkgName]
+		return func(id influxdb.ID) {
+			d.id = id
+		}, ok
+	case KindLabel:
+		l, ok := p.mLabels[pkgName]
+		return func(id influxdb.ID) {
+			l.id = id
+		}, ok
+	case KindNotificationEndpoint,
+		KindNotificationEndpointHTTP,
+		KindNotificationEndpointPagerDuty,
+		KindNotificationEndpointSlack:
+		e, ok := p.mNotificationEndpoints[pkgName]
+		return func(id influxdb.ID) {
+			e.id = id
+		}, ok
+	case KindNotificationRule:
+		r, ok := p.mNotificationRules[pkgName]
+		return func(id influxdb.ID) {
+			r.id = id
+		}, ok
+	case KindTask:
+		t, ok := p.mTasks[pkgName]
+		return func(id influxdb.ID) {
+			t.id = id
+		}, ok
+	case KindTelegraf:
+		t, ok := p.mTelegrafs[pkgName]
+		return func(id influxdb.ID) {
+			t.config.ID = id
+		}, ok
+	case KindVariable:
+		v, ok := p.mVariables[pkgName]
+		return func(id influxdb.ID) {
+			v.id = id
+		}, ok
+	default:
+		return nil, false
 	}
 }
 
@@ -439,9 +572,12 @@ func (p *Pkg) Validate(opts ...ValidateOptFn) error {
 	return nil
 }
 
-func (p *Pkg) buckets() []*bucket {
+func (p *Pkg) buckets(hideRemoved bool) []*bucket {
 	buckets := make([]*bucket, 0, len(p.mBuckets))
 	for _, b := range p.mBuckets {
+		if hideRemoved && b.shouldRemove {
+			continue
+		}
 		buckets = append(buckets, b)
 	}
 

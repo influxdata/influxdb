@@ -439,4 +439,71 @@ func TestPkg(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("Contains", func(t *testing.T) {
+		tests := []struct {
+			pkgFile   string
+			kind      Kind
+			validName string
+		}{
+			{
+				pkgFile:   "testdata/bucket.yml",
+				kind:      KindBucket,
+				validName: "rucket_11",
+			},
+			{
+				pkgFile:   "testdata/checks.yml",
+				kind:      KindCheck,
+				validName: "check_0",
+			},
+			{
+				pkgFile:   "testdata/dashboard.yml",
+				kind:      KindDashboard,
+				validName: "dash_1",
+			},
+			{
+				pkgFile:   "testdata/label.yml",
+				kind:      KindLabel,
+				validName: "label_1",
+			},
+			{
+				pkgFile:   "testdata/notification_endpoint.yml",
+				kind:      KindNotificationEndpoint,
+				validName: "slack_notification_endpoint",
+			},
+			{
+				pkgFile:   "testdata/notification_rule.yml",
+				kind:      KindNotificationRule,
+				validName: "rule_UUID",
+			},
+			{
+				pkgFile:   "testdata/tasks.yml",
+				kind:      KindTask,
+				validName: "task_UUID",
+			},
+			{
+				pkgFile:   "testdata/telegraf.yml",
+				kind:      KindTelegraf,
+				validName: "first_tele_config",
+			},
+			{
+				pkgFile:   "testdata/variables.yml",
+				kind:      KindVariable,
+				validName: "var_query_1",
+			},
+		}
+
+		for _, tt := range tests {
+			fn := func(t *testing.T) {
+				testfileRunner(t, tt.pkgFile, func(t *testing.T, pkg *Pkg) {
+					contained := pkg.Contains(tt.kind, tt.validName)
+					assert.True(t, contained)
+
+					contained = pkg.Contains(tt.kind, "RANdo Name_ not found anywhere")
+					assert.False(t, contained)
+				})
+			}
+			t.Run(tt.kind.String(), fn)
+		}
+	})
 }

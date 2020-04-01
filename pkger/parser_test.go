@@ -26,6 +26,7 @@ func TestParse(t *testing.T) {
 
 				actual := buckets[0]
 				expectedBucket := SummaryBucket{
+					PkgName:           "rucket_22",
 					Name:              "display name",
 					Description:       "bucket 2 description",
 					LabelAssociations: []SummaryLabel{},
@@ -34,6 +35,7 @@ func TestParse(t *testing.T) {
 
 				actual = buckets[1]
 				expectedBucket = SummaryBucket{
+					PkgName:           "rucket_11",
 					Name:              "rucket_11",
 					Description:       "bucket 1 description",
 					RetentionPeriod:   time.Hour,
@@ -3936,18 +3938,21 @@ spec:
 
 		bkts := []SummaryBucket{
 			{
+				PkgName:           "rucket_1",
 				Name:              "rucket_1",
 				Description:       "desc_1",
 				RetentionPeriod:   10000 * time.Second,
 				LabelAssociations: labels,
 			},
 			{
+				PkgName:           "rucket_2",
 				Name:              "rucket_2",
 				Description:       "desc_2",
 				RetentionPeriod:   20000 * time.Second,
 				LabelAssociations: labels,
 			},
 			{
+				PkgName:           "rucket_3",
 				Name:              "rucket_3",
 				Description:       "desc_3",
 				RetentionPeriod:   30000 * time.Second,

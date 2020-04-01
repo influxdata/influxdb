@@ -458,6 +458,7 @@ func TestService(t *testing.T) {
 					expected := SummaryBucket{
 						ID:                SafeID(time.Hour),
 						OrgID:             SafeID(orgID),
+						PkgName:           "rucket_11",
 						Name:              "rucket_11",
 						Description:       "bucket 1 description",
 						RetentionPeriod:   time.Hour,
@@ -484,7 +485,7 @@ func TestService(t *testing.T) {
 						}
 					}
 					stubExisting("rucket_11", 3)
-					stubExisting("rucket_222", 4)
+					stubExisting("rucket_22", 4)
 
 					fakeBktSVC := mock.NewBucketService()
 					fakeBktSVC.UpdateBucketFn = func(_ context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
@@ -501,6 +502,7 @@ func TestService(t *testing.T) {
 					expected := SummaryBucket{
 						ID:                SafeID(3),
 						OrgID:             SafeID(orgID),
+						PkgName:           "rucket_11",
 						Name:              "rucket_11",
 						Description:       "bucket 1 description",
 						RetentionPeriod:   time.Hour,
