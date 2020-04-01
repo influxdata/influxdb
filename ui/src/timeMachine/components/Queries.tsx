@@ -30,6 +30,7 @@ import {
   getIsInCheckOverlay,
   getActiveQuery,
 } from 'src/timeMachine/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 
 // Types
 import {
@@ -123,14 +124,18 @@ class TimeMachineQueries extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState) => {
-  const {timeRange, autoRefresh} = getActiveTimeMachine(state)
+  //TODO: replace with activeContext selector
+  const activeTimeMachine = getActiveTimeMachine(state)
+  const contextID =
+    activeTimeMachine.contextID || state.timeMachines.activeTimeMachineID
+  const timeRange = getTimeRange(state, contextID)
 
   const activeQuery = getActiveQuery(state)
 
   return {
     timeRange,
     activeQuery,
-    autoRefresh,
+    autoRefresh: activeTimeMachine.autoRefresh,
     isInCheckOverlay: getIsInCheckOverlay(state),
   }
 }

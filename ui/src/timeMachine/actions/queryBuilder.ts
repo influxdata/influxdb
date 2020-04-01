@@ -218,10 +218,11 @@ export const loadTagSelector = (index: number) => async (
   const orgID = get(foundBucket, 'orgID', getOrg(getState()).id)
 
   try {
-    const timeRange = getTimeRange(
-      state,
-      state.timeMachines.activeTimeMachineID
-    )
+    //TODO: replace with activeContext selector
+    const activeTimeMachine = getActiveTimeMachine(state)
+    const contextID =
+      activeTimeMachine.contextID || state.timeMachines.activeTimeMachineID
+    const timeRange = getTimeRange(state, contextID)
     const searchTerm = getActiveTimeMachine(state).queryBuilder.tags[index]
       .keysSearchTerm
 
@@ -286,7 +287,10 @@ const loadTagSelectorValues = (index: number) => async (
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 
   try {
-    const contextID = state.timeMachines.activeTimeMachineID
+    //TODO: replace with activeContext selector
+    const activeTimeMachine = getActiveTimeMachine(state)
+    const contextID =
+      activeTimeMachine.contextID || state.timeMachines.activeTimeMachineID
     const timeRange = getTimeRange(state, contextID)
     const key = getActiveQuery(getState()).builderConfig.tags[index].key
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]

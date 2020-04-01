@@ -234,14 +234,6 @@ export const timeMachineReducer = (
       return {...state, view}
     }
 
-    case 'SET_TIME_RANGE': {
-      return produce(state, draftState => {
-        draftState.timeRange = action.payload.timeRange
-
-        buildAllQueries(draftState)
-      })
-    }
-
     case 'SET_AUTO_REFRESH': {
       return produce(state, draftState => {
         draftState.autoRefresh = action.payload.autoRefresh

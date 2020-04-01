@@ -9,10 +9,11 @@ import {
   Action as QueryBuilderAction,
 } from 'src/timeMachine/actions/queryBuilder'
 import {convertCheckToCustom} from 'src/alerting/actions/alertBuilder'
+import {setDashboardTimeRange} from 'src/dashboards/actions/ranges'
 
 // Selectors
 import {getTimeRange} from 'src/dashboards/selectors'
-import {getActiveQuery} from 'src/timeMachine/selectors'
+import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Utils
 import {createView} from 'src/views/helpers'
@@ -45,7 +46,6 @@ export type Action =
   | SetActiveTimeMachineAction
   | SetActiveTabAction
   | SetNameAction
-  | SetTimeRangeAction
   | SetAutoRefreshAction
   | SetTypeAction
   | SetActiveQueryText
@@ -139,18 +139,14 @@ export const setName = (name: string): SetNameAction => ({
   payload: {name},
 })
 
-interface SetTimeRangeAction {
-  type: 'SET_TIME_RANGE'
-  payload: {timeRange: TimeRange}
-}
+export const setTimeRange = (timeRange: TimeRange) => (dispatch, getState) => {
+  //TODO: replace with activeContext selector
+  const state = getState()
+  const activeTimeMachine = getActiveTimeMachine(state)
+  const contextID =
+    activeTimeMachine.contextID || state.timeMachines.activeTimeMachineID
 
-const setTimeRangeSync = (timeRange: TimeRange): SetTimeRangeAction => ({
-  type: 'SET_TIME_RANGE',
-  payload: {timeRange},
-})
-
-export const setTimeRange = (timeRange: TimeRange) => dispatch => {
-  dispatch(setTimeRangeSync(timeRange))
+  dispatch(setDashboardTimeRange(contextID, timeRange))
   dispatch(saveAndExecuteQueries())
   dispatch(reloadTagSelectors())
 }

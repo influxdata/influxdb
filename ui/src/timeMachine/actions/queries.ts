@@ -100,8 +100,10 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
   const allBuckets = getAll<Bucket>(state, ResourceType.Buckets)
 
-  const {view} = getActiveTimeMachine(state)
-  const queries = view.properties.queries.filter(({text}) => !!text.trim())
+  const activeTimeMachine = getActiveTimeMachine(state)
+  const queries = activeTimeMachine.view.properties.queries.filter(
+    ({text}) => !!text.trim()
+  )
   const {
     alertBuilder: {id: checkID},
   } = state
@@ -113,10 +115,12 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
   try {
     dispatch(setQueryResults(RemoteDataState.Loading, [], null))
 
-    const variableAssignments = getAllVariables(
-      state,
-      state.timeMachines.activeTimeMachineID
-    ).map(v => asAssignment(v))
+    //TODO: replace with activeContext selector
+    const contextID =
+      activeTimeMachine.contextID || state.timeMachines.activeTimeMachineID
+    const variableAssignments = getAllVariables(state, contextID).map(v =>
+      asAssignment(v)
+    )
 
     // keeping getState() here ensures that the state we are working with
     // is the most current one. By having this set to state, we were creating a race
