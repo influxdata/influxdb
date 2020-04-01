@@ -118,7 +118,7 @@ describe('Dashboard', () => {
     return hydratedVarDawg.selected[0]
   }
 
-  it('can manage variable state with a lot of pointing and clicking', () => {
+  it.only('can manage variable state with a lot of pointing and clicking', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body: dashboard}) => {
         cy.createCSVVariable(orgID)
@@ -132,6 +132,7 @@ describe('Dashboard', () => {
           cy.getByTestID('switch-to-script-editor').should('be.visible')
           cy.getByTestID('switch-to-script-editor').click()
           cy.getByTestID('toolbar-tab').click()
+
           // check to see if the default timeRange variables are available
           cy.get('.flux-toolbar--list-item').contains('timeRangeStart')
           cy.get('.flux-toolbar--list-item').contains('timeRangeStop')
@@ -148,7 +149,9 @@ describe('Dashboard', () => {
             .type(' ')
           cy.get('.flux-toolbar--list-item')
             .eq(2)
-            .click()
+            .within(() => {
+              cy.get('.cf-button').click()
+            })
           cy.getByTestID('save-cell--button').click()
 
           // TESTING CSV VARIABLE
@@ -216,7 +219,7 @@ describe('Dashboard', () => {
             .eq(1)
             .should('contain', 'k1')
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 1))
+            .pipe(getSelectedVariable(dashboard.id, 2))
             .should('equal', 'v1')
 
           // select 2nd value in dashboard
@@ -230,7 +233,7 @@ describe('Dashboard', () => {
             .eq(1)
             .should('contain', 'k2')
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 1))
+            .pipe(getSelectedVariable(dashboard.id, 2))
             .should('equal', 'v2')
 
           // open CEO
@@ -240,12 +243,12 @@ describe('Dashboard', () => {
 
           // selected value in cell context is 2nd value
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 1))
+            .pipe(getSelectedVariable(dashboard.id, 2))
             .should('equal', 'v2')
 
           cy.getByTestID('toolbar-tab').click()
           cy.get('.flux-toolbar--list-item')
-            .eq(1)
+            .eq(2)
             .trigger('mouseover')
           // toggle the variable dropdown in the VEO cell dashboard
           cy.getByTestID('toolbar-popover--contents').within(() => {
@@ -260,13 +263,13 @@ describe('Dashboard', () => {
 
           // selected value in cell context is 1st value
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 1))
+            .pipe(getSelectedVariable(dashboard.id, 2))
             .should('equal', 'v1')
 
           // selected value in dashboard is 1st value
           cy.getByTestID('variable-dropdown').should('contain', 'k1')
           cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 1))
+            .pipe(getSelectedVariable(dashboard.id, 2))
             .should('equal', 'v1')
         })
       })
