@@ -100,7 +100,9 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 
 	if len(configs) > 0 {
 		s.Config = configs[0]
-	} else {
+	}
+
+	if s.Config.SessionLength == 0 {
 		s.Config.SessionLength = influxdb.DefaultSessionLength
 	}
 
