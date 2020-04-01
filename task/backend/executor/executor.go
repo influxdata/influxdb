@@ -208,6 +208,9 @@ func (e *Executor) createPromise(ctx context.Context, run *influxdb.Run) (*promi
 	if err != nil {
 		return nil, err
 	}
+	if !t.Authorization.GetUserID().Valid() {
+		t.Authorization.UserID = t.OwnerID
+	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	// create promise
