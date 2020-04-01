@@ -226,6 +226,14 @@ func (k Object) Name() string {
 	return k.Metadata.references(fieldName).String()
 }
 
+// SetMetadataName sets the metadata.name field.
+func (k Object) SetMetadataName(name string) {
+	if k.Metadata == nil {
+		k.Metadata = make(Resource)
+	}
+	k.Metadata[fieldName] = name
+}
+
 // Pkg is the model for a package. The resources are more generic that one might
 // expect at first glance. This was done on purpose. The way json/yaml/toml or
 // w/e scripting you want to use, can have very different ways of parsing. The
@@ -317,7 +325,7 @@ func (p *Pkg) Summary() Summary {
 		sum.Dashboards = append(sum.Dashboards, d.summarize())
 	}
 
-	for _, l := range p.labels() {
+	for _, l := range p.labels(true) {
 		sum.Labels = append(sum.Labels, l.summarize())
 	}
 
@@ -597,10 +605,13 @@ func (p *Pkg) checks() []*check {
 	return checks
 }
 
-func (p *Pkg) labels() []*label {
+func (p *Pkg) labels(hideRemoved bool) []*label {
 	labels := make(sortedLabels, 0, len(p.mLabels))
-	for _, b := range p.mLabels {
-		labels = append(labels, b)
+	for _, l := range p.mLabels {
+		if hideRemoved && l.shouldRemove {
+			continue
+		}
+		labels = append(labels, l)
 	}
 
 	sort.Sort(labels)

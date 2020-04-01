@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -28,38 +27,38 @@ func TestLauncher_Pkger(t *testing.T) {
 
 	deleteBucket := func(t *testing.T, id influxdb.ID) {
 		t.Helper()
-
 		require.NoError(t, l.BucketService(t).DeleteBucket(ctx, id))
 	}
 
+	deleteLabel := func(t *testing.T, id influxdb.ID) {
+		t.Helper()
+		require.NoError(t, l.LabelService(t).DeleteLabel(ctx, id))
+	}
+
 	t.Run("managing pkg state with stacks", func(t *testing.T) {
-		type object struct {
-			raw string
+		newPkg := func(objects ...pkger.Object) *pkger.Pkg {
+			return &pkger.Pkg{Objects: objects}
 		}
 
-		newBucketObject := func(pkgName, name, desc string) object {
-			raw := fmt.Sprintf(`
-apiVersion: %[1]s
-kind: Bucket
-metadata:
-  name:  %s
-spec:
-  name: %s
-  description: %s
-`, pkger.APIVersion, pkgName, name, desc)
-
-			return object{raw: raw}
+		newBucketObject := func(pkgName, name, desc string) pkger.Object {
+			obj := pkger.BucketToObject("", influxdb.Bucket{
+				Name:        name,
+				Description: desc,
+			})
+			obj.SetMetadataName(pkgName)
+			return obj
 		}
 
-		newBucketPkgFn := func(t *testing.T, objects ...object) *pkger.Pkg {
-			rawObjs := make([]string, 0, len(objects))
-			for _, o := range objects {
-				rawObjs = append(rawObjs, o.raw)
-			}
-			pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(strings.Join(rawObjs, "\n---\n")))
-			require.NoError(t, err)
-
-			return pkg
+		newLabelObject := func(pkgName, name, desc, color string) pkger.Object {
+			obj := pkger.LabelToObject("", influxdb.Label{
+				Name: name,
+				Properties: map[string]string{
+					"color":       color,
+					"description": desc,
+				},
+			})
+			obj.SetMetadataName(pkgName)
+			return obj
 		}
 
 		t.Run("creating a stack", func(t *testing.T) {
@@ -97,18 +96,41 @@ spec:
 				return *bkt, nil
 			}
 
-			initBucketPkgName := "rucketeer_1"
-			newPkg := newBucketPkgFn(t, newBucketObject(initBucketPkgName, "display name", "init desc"))
+			getLabel := func(t *testing.T, name string) (influxdb.Label, error) {
+				labels, err := l.
+					LabelService(t).
+					FindLabels(timedCtx(time.Second), influxdb.LabelFilter{
+						Name:  name,
+						OrgID: &l.Org.ID,
+					}, influxdb.FindOptions{Limit: 1})
+				if err != nil {
+					return influxdb.Label{}, err
+				}
+				if len(labels) == 0 {
+					return influxdb.Label{}, errors.New("did not find label: " + name)
+				}
+				return *labels[0], nil
+			}
+
+			var (
+				initialBucketPkgName = "rucketeer_1"
+				initialLabelPkgName  = "labelino"
+			)
+			initialPkg := newPkg(
+				newBucketObject(initialBucketPkgName, "display name", "init desc"),
+				newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee"),
+			)
 
 			stack, err := svc.InitStack(timedCtx(5*time.Second), l.User.ID, pkger.Stack{
 				OrgID: l.Org.ID,
 			})
 			require.NoError(t, err)
+			applyOpt := pkger.ApplyWithStackID(stack.ID)
 
 			var initialSum pkger.Summary
 			t.Log("apply pkg with stack id")
 			{
-				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, newPkg, pkger.ApplyWithStackID(stack.ID))
+				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, initialPkg, applyOpt)
 				require.NoError(t, err)
 				initialSum = sum
 
@@ -117,25 +139,50 @@ spec:
 				assert.Equal(t, "display name", sum.Buckets[0].Name)
 				assert.Equal(t, "init desc", sum.Buckets[0].Description)
 
+				require.Len(t, sum.Labels, 1)
+				assert.NotZero(t, sum.Labels[0].ID)
+				assert.Equal(t, "label 1", sum.Labels[0].Name)
+				assert.Equal(t, "init desc", sum.Labels[0].Properties.Description)
+				assert.Equal(t, "#222eee", sum.Labels[0].Properties.Color)
+
 				actualBkt, _ := getBucket(t, "display name")
 				assert.Equal(t, sum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
+
+				actualLabel, _ := getLabel(t, "label 1")
+				assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
 			}
 
-			updateName := "new name"
+			var (
+				updateBucketName = "new bucket"
+				updateLabelName  = "new label"
+			)
 			t.Log("apply pkg with stack id where resources change")
 			{
-				updatedPkg := newBucketPkgFn(t, newBucketObject(initBucketPkgName, updateName, ""))
-				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, updatedPkg, pkger.ApplyWithStackID(stack.ID))
+				updatedPkg := newPkg(
+					newBucketObject(initialBucketPkgName, updateBucketName, ""),
+					newLabelObject(initialLabelPkgName, updateLabelName, "", ""),
+				)
+				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, updatedPkg, applyOpt)
 				require.NoError(t, err)
 
 				require.Len(t, sum.Buckets, 1)
 				assert.Equal(t, initialSum.Buckets[0].ID, sum.Buckets[0].ID)
-				assert.Equal(t, updateName, sum.Buckets[0].Name)
+				assert.Equal(t, updateBucketName, sum.Buckets[0].Name)
 				assert.Empty(t, sum.Buckets[0].Description)
 
-				actualBkt, err := getBucket(t, updateName)
+				require.Len(t, sum.Labels, 1)
+				assert.Equal(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
+				assert.Equal(t, updateLabelName, sum.Labels[0].Name)
+				assert.Empty(t, sum.Labels[0].Properties.Color)
+				assert.Empty(t, sum.Labels[0].Properties.Description)
+
+				actualBkt, err := getBucket(t, updateBucketName)
 				require.NoError(t, err)
 				require.Equal(t, initialSum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
+
+				actualLabel, err := getLabel(t, updateLabelName)
+				require.NoError(t, err)
+				require.Equal(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
 			}
 
 			t.Log("an error during application roles back resources to previous state")
@@ -159,43 +206,82 @@ spec:
 				)
 				svc = pkger.MWLogging(logger)(svc)
 
-				pkgWithDelete := newBucketPkgFn(t,
+				pkgWithDelete := newPkg(
 					newBucketObject("z_delete_rolls_back", "z_roll_me_back", ""),
 					newBucketObject("z_also_rolls_back", "z_rolls_back_too", ""),
+					newLabelObject("z_label_rolls_back", "z_label_roller", "", ""),
 				)
-				_, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkgWithDelete, pkger.ApplyWithStackID(stack.ID))
+				_, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkgWithDelete, applyOpt)
 				require.Error(t, err)
 
-				for _, name := range []string{"z_roll_me_back", "z_rolls_back_too"} {
-					_, err := getBucket(t, name)
+				t.Log("validate all changes do not persist")
+				{
+					for _, name := range []string{"z_roll_me_back", "z_rolls_back_too"} {
+						_, err := getBucket(t, name)
+						require.Error(t, err)
+					}
+					_, err := getLabel(t, "z_label_roller")
 					require.Error(t, err)
 				}
 
-				actualBkt, err := getBucket(t, updateName)
-				require.NoError(t, err)
-				assert.NotEmpty(t, actualBkt.ID)
-				assert.NotEqual(t, initialSum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
+				t.Log("validate all resources are rolled back")
+				{
+					actualBkt, err := getBucket(t, updateBucketName)
+					require.NoError(t, err)
+					assert.NotEmpty(t, actualBkt.ID)
+					assert.NotEqual(t, initialSum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
+
+					actualLabel, err := getLabel(t, updateLabelName)
+					require.NoError(t, err)
+					assert.NotEmpty(t, actualLabel.ID)
+					assert.NotEqual(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+				}
 			}
 
 			t.Log("apply pkg with stack id where resources have been removed since last run")
 			{
-				updatedPkg := newBucketPkgFn(t, newBucketObject("non_existent", "non_existent_name", ""))
-				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, updatedPkg, pkger.ApplyWithStackID(stack.ID))
+				allNewResourcesPkg := newPkg(
+					newBucketObject("non_existent_bucket", "", ""),
+					newLabelObject("non_existent_label", "", "", ""),
+				)
+				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, allNewResourcesPkg, applyOpt)
 				require.NoError(t, err)
 
 				require.Len(t, sum.Buckets, 1)
 				assert.NotEqual(t, initialSum.Buckets[0].ID, sum.Buckets[0].ID)
 				assert.NotZero(t, sum.Buckets[0].ID)
 				defer deleteBucket(t, influxdb.ID(sum.Buckets[0].ID))
-				assert.Equal(t, "non_existent_name", sum.Buckets[0].Name)
+				assert.Equal(t, "non_existent_bucket", sum.Buckets[0].Name)
 				assert.Empty(t, sum.Buckets[0].Description)
 
-				bkt, err := getBucket(t, "non_existent_name")
-				require.NoError(t, err)
-				assert.Equal(t, pkger.SafeID(bkt.ID), sum.Buckets[0].ID)
+				require.Len(t, sum.Labels, 1)
+				assert.NotEqual(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
+				assert.NotZero(t, sum.Labels[0].ID)
+				defer deleteLabel(t, influxdb.ID(sum.Labels[0].ID))
+				assert.Equal(t, "non_existent_label", sum.Labels[0].Name)
+				assert.Empty(t, sum.Labels[0].Properties.Description)
 
-				_, err = getBucket(t, updateName)
-				require.Error(t, err)
+				t.Log("validate all resources are created")
+				{
+					bkt, err := getBucket(t, "non_existent_bucket")
+					require.NoError(t, err)
+					assert.NotEqual(t, initialSum.Buckets[0].ID, sum.Buckets[0].ID)
+					assert.Equal(t, pkger.SafeID(bkt.ID), sum.Buckets[0].ID)
+
+					label, err := getLabel(t, "non_existent_label")
+					require.NoError(t, err)
+					assert.NotEqual(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
+					assert.Equal(t, pkger.SafeID(label.ID), sum.Labels[0].ID)
+				}
+
+				t.Log("validate all previous resources are removed")
+				{
+					_, err = getBucket(t, updateBucketName)
+					require.Error(t, err)
+
+					_, err = getLabel(t, updateLabelName)
+					require.Error(t, err)
+				}
 			}
 		})
 	})
