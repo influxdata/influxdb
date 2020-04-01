@@ -200,9 +200,10 @@ export class LSPServer {
 
     // NOTE: we use the AST intermediate format as a means of reducing
     // drift between the parser and the internal representation
-    const variables = getAllVariables(state, contextID).map(v =>
-      asAssignment(v)
-    )
+    const variables = getAllVariables(state, contextID)
+      .map(v => asAssignment(v))
+      .filter(v => !(v.init.type === 'StringLiteral' && !v.init.value))
+
     const file = buildVarsOption(variables)
 
     const parts = uri.split('/')
