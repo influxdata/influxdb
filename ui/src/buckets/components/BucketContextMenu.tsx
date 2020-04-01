@@ -14,11 +14,11 @@ import {
 } from '@influxdata/clockface'
 
 // Types
-import {Bucket} from 'src/types'
+import {OwnBucket} from 'src/types'
 
 interface Props {
-  bucket: Bucket
-  onDeleteBucket: (bucket: Bucket) => void
+  bucket: OwnBucket
+  onDeleteBucket: (bucket: OwnBucket) => void
 }
 
 export default class BucketContextMenu extends PureComponent<Props> {

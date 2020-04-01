@@ -1,10 +1,16 @@
-import {Bucket as IBucket} from 'src/client'
+export {Bucket as GenBucket} from 'src/client'
 
-export type GenBucket = IBucket
+import {Bucket as GenBucket} from 'src/client'
 
-export interface Bucket extends Omit<IBucket, 'labels'> {
+export interface OwnBucket extends Omit<GenBucket, 'labels'> {
   labels?: string[]
   readableRetention: string
 }
 
-export type RetentionRule = IBucket['retentionRules'][0]
+export interface DemoBucket extends Omit<OwnBucket, 'type'> {
+  type: 'demodata'
+}
+
+export type Bucket = DemoBucket | OwnBucket
+
+export type RetentionRule = GenBucket['retentionRules'][0]

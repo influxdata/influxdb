@@ -7,6 +7,7 @@ import memoizeOne from 'memoize-one'
 
 // Components
 import BucketCard from 'src/buckets/components/BucketCard'
+import DemoDataBucketCard from 'src/buckets/components/DemoDataBucketCard'
 import {ResourceList} from '@influxdata/clockface'
 
 // Actions
@@ -16,7 +17,13 @@ import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 import {getSortedResources} from 'src/shared/utils/sort'
 
 // Types
-import {OverlayState, Bucket, AppState, DataLoaderType} from 'src/types'
+import {
+  OverlayState,
+  Bucket,
+  AppState,
+  DataLoaderType,
+  OwnBucket,
+} from 'src/types'
 import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
 import {Sort} from '@influxdata/clockface'
 
@@ -28,8 +35,8 @@ type SortKey = keyof Bucket | 'retentionRules[0].everySeconds'
 interface OwnProps {
   buckets: Bucket[]
   emptyState: JSX.Element
-  onUpdateBucket: (b: Bucket) => void
-  onDeleteBucket: (b: Bucket) => void
+  onUpdateBucket: (b: OwnBucket) => void
+  onDeleteBucket: (b: OwnBucket) => void
   onFilterChange: (searchTerm: string) => void
   sortKey: string
   sortDirection: Sort
@@ -120,6 +127,9 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     )
 
     return sortedBuckets.map(bucket => {
+      if (bucket.type === 'demodata') {
+        return <DemoDataBucketCard key={bucket.id} bucket={bucket} />
+      }
       return (
         <BucketCard
           key={bucket.id}
@@ -135,13 +145,13 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     })
   }
 
-  private handleStartEdit = (bucket: Bucket) => {
+  private handleStartEdit = (bucket: OwnBucket) => {
     const {orgID} = this.props.params
 
     this.props.router.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/edit`)
   }
 
-  private handleStartDeleteData = (bucket: Bucket) => {
+  private handleStartDeleteData = (bucket: OwnBucket) => {
     const {orgID} = this.props.params
 
     this.props.router.push(
@@ -150,7 +160,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
   }
 
   private handleStartAddData = (
-    bucket: Bucket,
+    bucket: OwnBucket,
     dataLoaderType: DataLoaderType,
     link: string
   ) => {
@@ -165,7 +175,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     router.push(link)
   }
 
-  private handleUpdateBucket = (updatedBucket: Bucket) => {
+  private handleUpdateBucket = (updatedBucket: OwnBucket) => {
     this.props.onUpdateBucket(updatedBucket)
     this.setState({bucketOverlayState: OverlayState.Closed})
   }

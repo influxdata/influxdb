@@ -21,7 +21,7 @@ import {FeatureFlag} from 'src/shared/utils/featureFlag'
 import {isSystemBucket} from 'src/buckets/constants/index'
 
 // Types
-import {Bucket, Label} from 'src/types'
+import {Label, OwnBucket} from 'src/types'
 import {DataLoaderType} from 'src/types/dataLoaders'
 
 // Actions
@@ -33,12 +33,12 @@ interface DispatchProps {
 }
 
 interface Props {
-  bucket: Bucket
-  onEditBucket: (b: Bucket) => void
-  onDeleteData: (b: Bucket) => void
-  onDeleteBucket: (b: Bucket) => void
-  onAddData: (b: Bucket, d: DataLoaderType, l: string) => void
-  onUpdateBucket: (b: Bucket) => void
+  bucket: OwnBucket
+  onEditBucket: (b: OwnBucket) => void
+  onDeleteData: (b: OwnBucket) => void
+  onDeleteBucket: (b: OwnBucket) => void
+  onAddData: (b: OwnBucket, d: DataLoaderType, l: string) => void
+  onUpdateBucket: (b: OwnBucket) => void
   onFilterChange: (searchTerm: string) => void
 }
 

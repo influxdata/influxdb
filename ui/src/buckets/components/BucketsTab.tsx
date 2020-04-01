@@ -55,6 +55,7 @@ import {
   Bucket,
   Organization,
   ResourceType,
+  OwnBucket,
 } from 'src/types'
 
 interface StateProps {
@@ -135,7 +136,7 @@ class BucketsTab extends PureComponent<Props, State> {
           <SearchWidget
             placeholderText="Filter buckets..."
             searchTerm={searchTerm}
-            onSearch={this.handleFilterChange}
+            onSearch={this.handleFilterUpdate}
           />
           <div className="buckets-buttons-wrap">
             {isFlagEnabled('demodata') && demoDataBuckets.length > 0 && (
@@ -171,7 +172,7 @@ class BucketsTab extends PureComponent<Props, State> {
                   <BucketList
                     buckets={bs}
                     emptyState={this.emptyState}
-                    onUpdateBucket={this.handleUpdateBucket}
+                    onUpdateBucket={this.props.updateBucket}
                     onDeleteBucket={this.handleDeleteBucket}
                     onFilterChange={this.handleFilterUpdate}
                     sortKey={sortKey}
@@ -209,15 +210,11 @@ class BucketsTab extends PureComponent<Props, State> {
     this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
-  private handleUpdateBucket = (updatedBucket: Bucket) => {
-    this.props.updateBucket(updatedBucket)
-  }
-
-  private handleDeleteBucket = ({id, name}: Bucket) => {
+  private handleDeleteBucket = ({id, name}: OwnBucket) => {
     this.props.deleteBucket(id, name)
   }
 
-  private handleCreateBucket = (bucket: Bucket) => {
+  private handleCreateBucket = (bucket: OwnBucket) => {
     this.props.createBucket(bucket)
     this.handleCloseModal()
   }
@@ -228,10 +225,6 @@ class BucketsTab extends PureComponent<Props, State> {
 
   private handleCloseModal = (): void => {
     this.setState({overlayState: OverlayState.Closed})
-  }
-
-  private handleFilterChange = (searchTerm: string): void => {
-    this.handleFilterUpdate(searchTerm)
   }
 
   private handleFilterUpdate = (searchTerm: string): void => {

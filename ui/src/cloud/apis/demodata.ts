@@ -7,7 +7,7 @@ import AJAX from 'src/utils/ajax'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 //Types
-import {Bucket, GenBucket} from 'src/types'
+import {Bucket, DemoBucket} from 'src/types'
 import {LIMIT} from 'src/resources/constants'
 
 const baseURL = '/api/v2/experimental/sampledata'
@@ -74,13 +74,13 @@ export const deleteDemoDataBucketMembership = async (
   }
 }
 
-export const fetchDemoDataBuckets = async (): Promise<GenBucket[]> => {
+export const fetchDemoDataBuckets = async (): Promise<Bucket[]> => {
   if (!isFlagEnabled('demodata')) return []
   try {
     // FindBuckets paginates before filtering for authed buckets until #6591 is resolved,
     // so UI needs to make getBuckets request with demodata orgID parameter
-    const buckets = await getDemoDataBuckets()
-    const demodataOrgID = get(buckets, '[0].orgID')
+    const demoBuckets = await getDemoDataBuckets()
+    const demodataOrgID = get(demoBuckets, '[0].orgID') as string
     if (!demodataOrgID) {
       throw new Error('Could not get demodata orgID')
     }
@@ -95,9 +95,9 @@ export const fetchDemoDataBuckets = async (): Promise<GenBucket[]> => {
 
     return resp.data.buckets.map(b => ({
       ...b,
-      type: 'system' as 'system',
+      type: 'demodata' as 'demodata',
       labels: [],
-    }))
+    })) as Array<DemoBucket>
   } catch (error) {
     console.error(error)
     // demodata bucket fetching errors should not effect regular bucket fetching
