@@ -1,4 +1,5 @@
 // Libraries
+import qs from 'qs'
 import {replace, RouterAction} from 'react-router-redux'
 import {Dispatch, Action} from 'redux'
 import {get, pickBy} from 'lodash'
@@ -9,10 +10,6 @@ import {notify} from 'src/shared/actions/notifications'
 // Utils
 import {stripPrefix} from 'src/utils/basepath'
 import {validateAndTypeRange} from 'src/dashboards/utils/time'
-import {
-  parseURLVariables,
-  stringifyURLVariables,
-} from 'src/shared/utils/queryParams'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -82,20 +79,20 @@ export const updateQueryParams = (updatedQueryParams: object): RouterAction => {
 
   const newQueryParams = pickBy(
     {
-      ...parseURLVariables(search),
+      ...qs.parse(search, {ignoreQueryPrefix: true}),
       ...updatedQueryParams,
     },
     v => !!v
   )
 
-  const newSearch = stringifyURLVariables(newQueryParams)
+  const newSearch = qs.stringify(newQueryParams)
   const newLocation = {pathname: strippedPathname, search: `?${newSearch}`}
 
   return replace(newLocation)
 }
 
 export const updateQueryVars = varsObj => {
-  const urlVars = parseURLVariables(window.location.search)
+  const urlVars = qs.parse(window.location.search, {ignoreQueryPrefix: true})
   const vars = {
     ...(urlVars.vars || {}),
     ...varsObj,
@@ -111,7 +108,9 @@ export const updateTimeRangeFromQueryParams = (dashboardID: string) => (
   getState
 ): void => {
   const {ranges} = getState()
-  const queryParams = parseURLVariables(window.location.search)
+  const queryParams = qs.parse(window.location.search, {
+    ignoreQueryPrefix: true,
+  })
 
   const validatedTimeRangeFromQuery = validateAndTypeRange({
     lower: get(queryParams, 'lower', null),

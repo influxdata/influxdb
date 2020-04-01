@@ -1,10 +1,10 @@
 import React, {PureComponent} from 'react'
+import qs from 'qs'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 import {setDashboard} from 'src/shared/actions/currentDashboard'
 import {getVariables} from 'src/variables/selectors'
 import {selectValue} from 'src/variables/actions/creators'
-import {parseURLVariables} from 'src/shared/utils/queryParams'
 import {AppState, Variable} from 'src/types'
 
 interface StateProps {
@@ -43,7 +43,9 @@ class DashboardRoute extends PureComponent<Props> {
   componentDidMount() {
     const {dashboard, updateDashboard, variables} = this.props
     const dashboardID = this.props.params.dashboardID
-    const urlVars = parseURLVariables(this.props.location.search)
+    const urlVars = qs.parse(this.props.location.search, {
+      ignoreQueryPrefix: true,
+    })
 
     if (dashboard !== dashboardID) {
       updateDashboard(dashboardID)
