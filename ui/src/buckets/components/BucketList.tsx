@@ -2,7 +2,6 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import {get} from 'lodash'
 import memoizeOne from 'memoize-one'
 
 // Components
@@ -12,19 +11,13 @@ import {ResourceList} from '@influxdata/clockface'
 
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
+import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
 
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
 
 // Types
-import {
-  OverlayState,
-  Bucket,
-  AppState,
-  DataLoaderType,
-  OwnBucket,
-} from 'src/types'
-import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
+import {Bucket, AppState, DataLoaderType, OwnBucket} from 'src/types'
 import {Sort} from '@influxdata/clockface'
 
 // Utils
@@ -57,28 +50,13 @@ interface StateProps {
 
 type Props = OwnProps & StateProps & DispatchProps
 
-interface State {
-  bucketID: string
-  bucketOverlayState: OverlayState
-}
-
-class BucketList extends PureComponent<Props & WithRouterProps, State> {
+class BucketList extends PureComponent<Props & WithRouterProps> {
   private memGetSortedResources = memoizeOne<typeof getSortedResources>(
     getSortedResources
   )
 
-  constructor(props) {
-    super(props)
-    const bucketID = get(this, 'props.buckets.0.id', null)
-
-    this.state = {
-      bucketID,
-      bucketOverlayState: OverlayState.Closed,
-    }
-  }
-
   public render() {
-    const {emptyState, sortKey, sortDirection, onClickColumn} = this.props
+    const {sortKey, sortDirection, onClickColumn} = this.props
     return (
       <>
         <ResourceList>
@@ -98,7 +76,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
               testID="retention-sorter"
             />
           </ResourceList.Header>
-          <ResourceList.Body emptyState={emptyState}>
+          <ResourceList.Body emptyState={this.props.emptyState}>
             {this.listBuckets}
           </ResourceList.Body>
         </ResourceList>
@@ -118,6 +96,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
       sortType,
       onDeleteBucket,
       onFilterChange,
+      onUpdateBucket,
     } = this.props
     const sortedBuckets = this.memGetSortedResources(
       buckets,
@@ -138,7 +117,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
           onDeleteBucket={onDeleteBucket}
           onDeleteData={this.handleStartDeleteData}
           onAddData={this.handleStartAddData}
-          onUpdateBucket={this.handleUpdateBucket}
+          onUpdateBucket={onUpdateBucket}
           onFilterChange={onFilterChange}
         />
       )
@@ -167,17 +146,8 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     const {onSetBucketInfo, onSetDataLoadersType, router} = this.props
     onSetBucketInfo(bucket.orgID, bucket.name, bucket.id)
 
-    this.setState({
-      bucketID: bucket.id,
-    })
-
     onSetDataLoadersType(dataLoaderType)
     router.push(link)
-  }
-
-  private handleUpdateBucket = (updatedBucket: OwnBucket) => {
-    this.props.onUpdateBucket(updatedBucket)
-    this.setState({bucketOverlayState: OverlayState.Closed})
   }
 }
 
