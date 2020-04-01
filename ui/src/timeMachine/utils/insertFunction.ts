@@ -14,13 +14,14 @@ const functionRequiresNewLine = (funcName: string): boolean => {
 
 export const formatFunctionForInsert = (
   funcName: string,
-  fluxFunction: string
-) => {
+  fluxFunction: string,
+  newLine: boolean
+): string => {
   if (functionRequiresNewLine(funcName)) {
-    return `\n${fluxFunction}`
+    return `\n${fluxFunction}\n`
   }
 
-  return `\n  |> ${fluxFunction}`
+  return `${newLine ? '\n' : ''}  |> ${fluxFunction}\n`
 }
 
 export const generateImport = (

@@ -56,20 +56,42 @@ const TimeMachineFluxEditor: FC<Props> = ({
     onSetActiveQueryText(editorInstance.getValue())
   }
 
+  const getInsertLineNumber = (
+    currentLineNumber: number,
+    scriptLines: string[]
+  ): number => {
+    const currentLine =
+      scriptLines[currentLineNumber] || scriptLines[scriptLines.length - 1]
+
+    // Insert on the current line if its an empty line
+    if (!currentLine.trim()) {
+      return currentLineNumber
+    }
+
+    return currentLineNumber + 1
+  }
+
   const handleInsertFluxFunction = (func: FluxToolbarFunction): void => {
     const p = editorInstance.getPosition()
+    const scriptLines = activeQueryText.split('\n')
+
+    let insertLineNumber = getInsertLineNumber(p.lineNumber, scriptLines)
+
     // sets the range based on the current position
     let range = new window.monaco.Range(
-      p.lineNumber,
-      p.column,
-      p.lineNumber,
-      p.column
+      insertLineNumber, // the row beneath the cursor
+      1, // beginning column of the row
+      insertLineNumber,
+      1
     )
     // edge case for when user toggles to the script editor
     // this defaults the cursor to the initial position (top-left, 1:1 position)
+    const [currentRange] = editorInstance.getVisibleRanges()
+    // Determines whether the new insert line is beyond the current range
+    let insertOnLastLine = insertLineNumber > currentRange.endLineNumber
     if (p.lineNumber === 1 && p.column === 1) {
-      const [currentRange] = editorInstance.getVisibleRanges()
       // adds the function to the end of the query
+      insertOnLastLine = true
       range = new window.monaco.Range(
         currentRange.endLineNumber + 1,
         p.column,
@@ -77,10 +99,15 @@ const TimeMachineFluxEditor: FC<Props> = ({
         p.column
       )
     }
+
     const edits = [
       {
         range,
-        text: formatFunctionForInsert(func.name, func.example),
+        text: formatFunctionForInsert(
+          func.name,
+          func.example,
+          insertOnLastLine
+        ),
       },
     ]
     const importStatement = generateImport(

@@ -18,10 +18,10 @@ describe('insertFunction', () => {
   test('formatFunctionForInsert', () => {
     const fluxFunc = 'funky'
     const union = 'union'
-    const requiresNewLine = formatFunctionForInsert(union, fluxFunc)
-    expect(requiresNewLine).toEqual(`\n${fluxFunc}`)
+    const requiresNewLine = formatFunctionForInsert(union, fluxFunc, false)
+    expect(requiresNewLine).toEqual(`\n${fluxFunc}\n`)
     const to = 'to'
-    const fluxNewLine = formatFunctionForInsert(to, fluxFunc)
-    expect(fluxNewLine).toEqual(`\n  |> ${fluxFunc}`)
+    const fluxNewLine = formatFunctionForInsert(to, fluxFunc, true)
+    expect(fluxNewLine).toEqual(`\n  |> ${fluxFunc}\n`)
   })
 })
