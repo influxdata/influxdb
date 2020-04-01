@@ -22,6 +22,13 @@ type Props = StateProps & DispatchProps & WithRouterProps
 class DashboardRoute extends PureComponent<Props> {
   pendingVars: [{[key: string]: any}]
 
+  // this function takes the hydrated variables from state
+  // and runs the `selectValue` action against them if the
+  // selected value in the search params doesn't match the
+  // selected value in the redux store
+  // urlVars represents the `vars` object variable in the
+  // query params here, and unwrapping / validation is
+  // handled elsewhere
   syncVariables(props, urlVars) {
     const dashboardID = props.params.dashboardID
     const {variables, selectValue} = props
@@ -47,11 +54,13 @@ class DashboardRoute extends PureComponent<Props> {
       ignoreQueryPrefix: true,
     })
 
+    // always keep the dashboard in sync
     if (dashboard !== dashboardID) {
       updateDashboard(dashboardID)
     }
 
-    // nothing to sync
+    // nothing to sync as the query params aren't defining
+    // any variables
     if (!urlVars.hasOwnProperty('vars')) {
       return
     }

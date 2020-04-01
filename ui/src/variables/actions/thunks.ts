@@ -370,9 +370,5 @@ export const selectValue = (
 
   await dispatch(selectValueInState(contextID, variableID, selected))
 
-  const params = {}
-
-  params[variable.name] = selected
-
-  dispatch(updateQueryVars(params))
+  dispatch(updateQueryVars({[variable.name]: selected}))
 }
