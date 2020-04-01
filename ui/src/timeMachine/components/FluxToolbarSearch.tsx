@@ -19,7 +19,7 @@ interface State {
 
 const DEBOUNCE_MS = 100
 
-class SearchBar extends PureComponent<Props, State> {
+class FluxToolbarSearch extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
@@ -32,7 +32,7 @@ class SearchBar extends PureComponent<Props, State> {
 
   public render() {
     return (
-      <div className="search-bar">
+      <div className="flux-toolbar--search">
         <Input
           type={InputType.Text}
           icon={IconFont.Search}
@@ -53,4 +53,4 @@ class SearchBar extends PureComponent<Props, State> {
   }
 }
 
-export default SearchBar
+export default FluxToolbarSearch

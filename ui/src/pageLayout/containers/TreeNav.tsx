@@ -75,6 +75,13 @@ class TreeSidebar extends PureComponent<Props> {
         bannerElement={<CloudUpgradeNavBanner />}
       >
         {navItems.map(item => {
+          const linkElement = (className: string): JSX.Element => {
+            if (item.link.type === 'href') {
+              return <a href={item.link.location} className={className} />
+            }
+
+            return <Link to={item.link.location} className={className} />
+          }
           let navItemElement = (
             <TreeNav.Item
               key={item.id}
@@ -87,13 +94,29 @@ class TreeSidebar extends PureComponent<Props> {
                 item.activeKeywords,
                 location.pathname
               )}
-              linkElement={className => (
-                <Link className={className} to={item.link} />
-              )}
+              linkElement={linkElement}
             >
               {Boolean(item.menu) && (
                 <TreeNav.SubMenu>
                   {item.menu.map(menuItem => {
+                    const linkElement = (className: string): JSX.Element => {
+                      if (menuItem.link.type === 'href') {
+                        return (
+                          <a
+                            href={menuItem.link.location}
+                            className={className}
+                          />
+                        )
+                      }
+
+                      return (
+                        <Link
+                          to={menuItem.link.location}
+                          className={className}
+                        />
+                      )
+                    }
+
                     let navSubItemElement = (
                       <TreeNav.SubItem
                         key={menuItem.id}
@@ -104,9 +127,7 @@ class TreeSidebar extends PureComponent<Props> {
                           location.pathname
                         )}
                         label={menuItem.label}
-                        linkElement={className => (
-                          <Link className={className} to={menuItem.link} />
-                        )}
+                        linkElement={linkElement}
                       />
                     )
 
@@ -131,6 +152,7 @@ class TreeSidebar extends PureComponent<Props> {
                         <FeatureFlag
                           key={menuItem.id}
                           name={menuItem.featureFlag}
+                          equals={menuItem.featureFlagValue}
                         >
                           {navSubItemElement}
                         </FeatureFlag>
@@ -158,7 +180,11 @@ class TreeSidebar extends PureComponent<Props> {
 
           if (item.featureFlag) {
             navItemElement = (
-              <FeatureFlag key={item.id} name={item.featureFlag}>
+              <FeatureFlag
+                key={item.id}
+                name={item.featureFlag}
+                equals={item.featureFlagValue}
+              >
                 {navItemElement}
               </FeatureFlag>
             )

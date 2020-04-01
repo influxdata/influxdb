@@ -1,86 +1,44 @@
 @import "src/style/modules";
 
-.flux-functions-toolbar {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background-color: $g3-castle;
-  font-size: 13px;
+.flux-function-docs {
+  width: 420px;
+  height: 330px;
 }
 
-.flux-functions-toolbar--list {
-  padding-bottom: $ix-marg-a;
-}
+.flux-function-docs--heading {
+  font-weight: $cf-font-weight--bold;
+  margin-top: $cf-marg-b;
+  margin-bottom: $cf-marg-b;
+  display: inline-block;
+  width: 100%;
 
-.flux-functions-toolbar--category {
-  dt, dd {
-    height: 30px;
-    display: flex;
-    align-items: center;
-    padding-left: 10px;
-  }
-
-  dt {
-    background-color: $g6-smoke;
-    font-weight: 600;
-    color: $g18-cloud;
-  }
-
-  dd {
-    font-family: "RobotoMono", monospace;
-    cursor: pointer;
-  }
-
-  dd:hover, dd:active {
-    background-color: $g4-onyx;
-    color: $c-laser;
+  article:first-child & {
+    margin-top: 0;
   }
 }
 
-.flux-functions-toolbar--helper {
-  color: $g10-wolf;
-  padding: 15px;
-  visibility: hidden;
+.flux-function-docs--snippet {
+  background-color: $g1-raven;
+  border-radius: $cf-radius;
+  margin: $cf-marg-a 0;
+  padding: $cf-marg-b;
+  font-family: $cf-code-font;
 }
 
-.flux-functions-toolbar--function {
-  position: relative;
-
-  &:hover {
-    .flux-functions-toolbar--helper {
-      visibility: visible;
-    }
-  }
-}
-
-
-.flux-functions-toolbar--heading {
-  font-weight: 600;
-  margin-bottom: $ix-marg-a;
-}
-
-.flux-functions-toolbar--snippet {
-  background-color: $g3-castle;
-  border-radius: $radius;
-  margin: $ix-marg-a 0;
-  padding: $ix-marg-b;
-  font-family: "RobotoMono", monospace;
-}
-
-.flux-functions-toolbar--arguments {
+.flux-function-docs--arguments {
   span:first-child {
-    font-weight: 600;
+    font-weight: $cf-font-weight--bold;
     color: $c-pool;
-    margin-right: $ix-marg-a;
+    margin-right: $cf-marg-a;
   }
 
   span:nth-child(2) {
     color: $c-rainforest;
     font-style: italic;
-    margin-right: 2px;
+    margin-right: $cf-border;
   }
 
   div {
-    margin: $ix-marg-a 0 $ix-marg-c 0;
+    margin: $cf-marg-a 0 $cf-marg-c 0;
   }
 }

@@ -73,6 +73,7 @@ export interface TimeMachineState {
   activeQueryIndex: number | null
   queryBuilder: QueryBuilderState
   queryResults: QueryResultsState
+  contextID?: string | null
 }
 
 export interface TimeMachinesState {
@@ -231,14 +232,6 @@ export const timeMachineReducer = (
       const view = {...state.view, name}
 
       return {...state, view}
-    }
-
-    case 'SET_TIME_RANGE': {
-      return produce(state, draftState => {
-        draftState.timeRange = action.payload.timeRange
-
-        buildAllQueries(draftState)
-      })
     }
 
     case 'SET_AUTO_REFRESH': {

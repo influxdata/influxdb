@@ -14,7 +14,6 @@
 @import 'src/shared/components/avatar/Avatar.scss';
 @import 'src/shared/components/tables/TableGraphs.scss';
 @import 'src/shared/components/notifications/Notifications.scss';
-@import 'src/shared/components/threesizer/Threesizer.scss';
 @import 'src/shared/components/graph_tips/GraphTips.scss';
 @import 'src/shared/components/cells/Dashboards.scss';
 @import 'src/shared/components/code_mirror/CodeMirror.scss';
@@ -55,6 +54,7 @@
 @import 'src/telegrafs/components/Collectors.scss';
 @import 'src/telegrafs/components/TelegrafConfigOverlay.scss';
 @import 'src/variables/components/CreateVariableOverlay.scss';
+@import 'src/variables/components/VariableDropdown.scss';
 @import 'src/authorizations/components/BucketsSelector.scss';
 @import 'src/tasks/components/TaskForm.scss';
 @import 'src/tasks/components/TasksPage.scss';
@@ -68,7 +68,6 @@
 @import 'src/dataExplorer/components/SaveAsButton.scss';
 @import 'src/dashboards/components/VEO.scss';
 @import 'src/dashboards/components/NoteEditor.scss';
-@import 'src/dashboards/components/variablesControlBar/VariableDropdown.scss';
 @import 'src/dashboards/components/variablesControlBar/VariablesControlBar.scss';
 @import 'src/me/components/GettingStarted.scss';
 @import 'src/me/containers/MePage.scss';
@@ -81,16 +80,14 @@
 @import 'src/timeMachine/components/SelectorList.scss';
 @import 'src/timeMachine/components/Queries.scss';
 @import 'src/timeMachine/components/EditorShortcutsTooltip.scss';
-@import 'src/timeMachine/components/SearchBar.scss';
 @import 'src/timeMachine/components/QueriesSwitcher.scss';
 @import 'src/timeMachine/components/TimeMachineFluxEditor.scss';
+@import 'src/timeMachine/components/FluxToolbar.scss';
 @import 'src/timeMachine/components/TagSelector.scss';
 @import 'src/timeMachine/components/QueryTab.scss';
 @import 'src/timeMachine/components/TimeMachine.scss';
 @import 'src/timeMachine/components/QueryBuilder.scss';
 @import 'src/timeMachine/components/RawFluxDataTable.scss';
-@import 'src/timeMachine/components/ToolbarTab.scss';
-@import 'src/timeMachine/components/variableToolbar/VariableToolbar.scss';
 @import 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar.scss';
 @import 'src/timeMachine/components/view_options/HistogramOptions.scss';
 @import 'src/timeMachine/components/view_options/ViewOptions.scss';

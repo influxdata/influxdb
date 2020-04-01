@@ -1,6 +1,9 @@
 // Libraries
-import {SFC, ReactElement} from 'react'
+import React, {SFC, ReactElement} from 'react'
 import {groupBy} from 'lodash'
+
+// Components
+import {EmptyState, ComponentSize} from '@influxdata/clockface'
 
 // Types
 import {FluxToolbarFunction} from 'src/types/shared'
@@ -21,6 +24,14 @@ const TransformToolbarFunctions: SFC<Props> = props => {
   )
 
   const groupedFunctions = groupBy(filteredFunctions, 'category')
+
+  if (filteredFunctions.length === 0) {
+    return (
+      <EmptyState size={ComponentSize.ExtraSmall}>
+        <EmptyState.Text>No functions match your search</EmptyState.Text>
+      </EmptyState>
+    )
+  }
 
   return children(groupedFunctions) as ReactElement<any>
 }

@@ -67,7 +67,7 @@ func (s *Store) ListURMs(ctx context.Context, tx kv.Tx, filter influxdb.UserReso
 	if filter.UserID.Valid() {
 		// urm by user index lookup
 		userID, _ := filter.UserID.Encode()
-		if err := s.urmByUserIndex.Walk(tx, userID, func(k, v []byte) error {
+		if err := s.urmByUserIndex.Walk(ctx, tx, userID, func(k, v []byte) error {
 			m := &influxdb.UserResourceMapping{}
 			if err := json.Unmarshal(v, m); err != nil {
 				return CorruptURMError(err)

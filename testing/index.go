@@ -45,7 +45,7 @@ func newSomeResourceStore(ctx context.Context, store kv.Store) *someResourceStor
 
 func (s *someResourceStore) FindByOwner(ctx context.Context, ownerID string) (resources []someResource, err error) {
 	err = s.store.View(ctx, func(tx kv.Tx) error {
-		return s.ownerIDIndex.Walk(tx, []byte(ownerID), func(k, v []byte) error {
+		return s.ownerIDIndex.Walk(ctx, tx, []byte(ownerID), func(k, v []byte) error {
 			var resource someResource
 			if err := json.Unmarshal(v, &resource); err != nil {
 				return err

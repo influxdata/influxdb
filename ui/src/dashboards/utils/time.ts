@@ -1,7 +1,6 @@
 import {CustomTimeRange, TimeRange, DurationTimeRange} from 'src/types/queries'
 
 import {SELECTABLE_TIME_RANGES} from 'src/shared/constants/timeRanges'
-import {isDateParseable} from 'src/variables/utils/getTimeRangeVars'
 import {isDurationWithNowParseable} from 'src/shared/utils/duration'
 
 interface InputTimeRange {
@@ -35,12 +34,22 @@ export const millisecondTimeRange = ({
   return {since, until}
 }
 
+function isDate(date: string): boolean {
+  const parsed = Date.parse(date)
+
+  if (isNaN(parsed)) {
+    return false
+  }
+
+  return true
+}
+
 export const validateAndTypeRange = (timeRange: {
   lower: string
   upper: string
 }): TimeRange => {
   const {lower, upper} = timeRange
-  if (isDateParseable(lower) && isDateParseable(upper)) {
+  if (isDate(lower) && isDate(upper)) {
     return {
       ...timeRange,
       type: 'custom',

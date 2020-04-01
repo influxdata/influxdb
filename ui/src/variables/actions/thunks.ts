@@ -5,7 +5,6 @@ import {normalize} from 'normalizr'
 import {notify} from 'src/shared/actions/notifications'
 import {setExportTemplate} from 'src/templates/actions/creators'
 import {
-  setValues,
   setVariables,
   setVariable,
   removeVariable,
@@ -20,8 +19,10 @@ import {hydrateVars} from 'src/variables/utils/hydrateVars'
 import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/templates/api'
 
 // Utils
-import {getValueSelections, extractVariablesList} from 'src/variables/selectors'
-import {CancelBox} from 'src/types/promises'
+import {
+  getVariables as getVariablesFromState,
+  getAllVariables as getAllVariablesFromState,
+} from 'src/variables/selectors'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {findDependentVariables} from 'src/variables/utils/exportVariables'
 import {getOrg} from 'src/organizations/selectors'
@@ -37,9 +38,9 @@ import {
   RemoteDataState,
   VariableTemplate,
   Label,
+  GenVariable,
   Variable,
   VariableEntities,
-  VariableValuesByID,
   ResourceType,
 } from 'src/types'
 import {Action as NotifyAction} from 'src/shared/actions/notifications'
@@ -56,6 +57,7 @@ export const getVariables = () => async (
 ) => {
   try {
     const state = getState()
+
     if (
       getStatus(state, ResourceType.Variables) === RemoteDataState.NotStarted
     ) {
@@ -73,7 +75,47 @@ export const getVariables = () => async (
       arrayOfVariables
     )
 
-    dispatch(setVariables(RemoteDataState.Done, variables))
+    variables.result
+      .map(k => {
+        return variables.entities.variables[k]
+      })
+      .filter(e => {
+        return e.arguments.type === 'query'
+      })
+      .forEach(v => {
+        variables.entities.variables[v.id].status = RemoteDataState.NotStarted
+      })
+
+    await dispatch(setVariables(RemoteDataState.Done, variables))
+
+    const _state = getState()
+    const vars = getVariablesFromState(_state)
+    const vals = await hydrateVars(vars, getAllVariablesFromState(_state), {
+      orgID: org.id,
+      url: _state.links.query.self,
+    }).promise
+
+    vars
+      .filter(v => {
+        return vals[v.id] && v.arguments.type === 'query'
+      })
+      .forEach(v => {
+        v.arguments.values.results = vals[v.id].values
+        v.selected = vals[v.id].selected
+      })
+
+    await dispatch(
+      setVariables(RemoteDataState.Done, {
+        result: vars.map(v => v.id),
+        entities: {
+          variables: vars.reduce((prev, curr) => {
+            prev[curr.id] = curr
+
+            return prev
+          }, {}),
+        },
+      })
+    )
   } catch (error) {
     console.error(error)
     dispatch(setVariables(RemoteDataState.Error))
@@ -106,7 +148,7 @@ export const getVariable = (id: string) => async (
 }
 
 export const createVariable = (
-  variable: Pick<Variable, 'name' | 'arguments'>
+  variable: Pick<GenVariable, 'name' | 'arguments'>
 ) => async (dispatch: Dispatch<Action>, getState: GetState) => {
   try {
     const org = getOrg(getState())
@@ -168,7 +210,7 @@ export const updateVariable = (id: string, props: Variable) => async (
     const resp = await api.patchVariable({
       variableID: id,
       data: {
-        ...props,
+        ...(props as GenVariable),
         labels,
       },
     })
@@ -206,48 +248,6 @@ export const deleteVariable = (id: string) => async (
     console.error(error)
     dispatch(setVariable(id, RemoteDataState.Done))
     dispatch(notify(copy.deleteVariableFailed(error.message)))
-  }
-}
-
-interface PendingValueRequests {
-  [contextID: string]: CancelBox<VariableValuesByID>
-}
-
-const pendingValueRequests: PendingValueRequests = {}
-
-export const refreshVariableValues = (
-  contextID: string,
-  variables: Variable[]
-) => async (dispatch: Dispatch<Action>, getState: GetState): Promise<void> => {
-  dispatch(setValues(contextID, RemoteDataState.Loading))
-
-  try {
-    const state = getState()
-    const org = getOrg(state)
-    const url = state.links.query.self
-    const selections = getValueSelections(state, contextID)
-    const allVariables = extractVariablesList(state)
-
-    if (pendingValueRequests[contextID]) {
-      pendingValueRequests[contextID].cancel()
-    }
-
-    pendingValueRequests[contextID] = hydrateVars(variables, allVariables, {
-      url,
-      orgID: org.id,
-      selections,
-    })
-
-    const values = await pendingValueRequests[contextID].promise
-
-    dispatch(setValues(contextID, RemoteDataState.Done, values))
-  } catch (error) {
-    if (error.name === 'CancellationError') {
-      return
-    }
-
-    console.error(error)
-    dispatch(setValues(contextID, RemoteDataState.Error))
   }
 }
 

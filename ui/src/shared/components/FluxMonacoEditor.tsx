@@ -88,7 +88,7 @@ const FluxEditorMonaco: FC<Props> = ({
   }
 
   return (
-    <div className="time-machine-editor" data-testid="flux-editor">
+    <div className="flux-editor--monaco" data-testid="flux-editor">
       <GetResources resources={[ResourceType.Buckets]}>
         <FluxBucketProvider />
       </GetResources>
