@@ -197,6 +197,21 @@ func (b *Bucket) Get(key []byte) ([]byte, error) {
 	return val, nil
 }
 
+// GetBatch retrieves the values for the provided keys.
+func (b *Bucket) GetBatch(keys ...[]byte) ([][]byte, error) {
+	values := make([][]byte, len(keys))
+	for idx, key := range keys {
+		val := b.bucket.Get(key)
+		if len(val) == 0 {
+			continue
+		}
+
+		values[idx] = val
+	}
+
+	return values, nil
+}
+
 // Put sets the value at the provided key.
 func (b *Bucket) Put(key []byte, value []byte) error {
 	err := b.bucket.Put(key, value)

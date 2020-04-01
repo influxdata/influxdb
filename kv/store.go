@@ -93,6 +93,10 @@ type Bucket interface {
 	// TODO context?
 	// Get returns a key within this bucket. Errors if key does not exist.
 	Get(key []byte) ([]byte, error)
+	// GetBatch returns a corresponding set of values for the provided
+	// set of keys. If a value cannot be found for any provided key its
+	// value will be nil at the same index for the provided key.
+	GetBatch(keys ...[]byte) ([][]byte, error)
 	// Cursor returns a cursor at the beginning of this bucket optionally
 	// using the provided hints to improve performance.
 	Cursor(hints ...CursorHint) (Cursor, error)
