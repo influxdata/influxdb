@@ -64,19 +64,29 @@ export const extractVariableEditorConstant = (
   )
 }
 
+export const getUserVariableNames = (
+  state: AppState,
+  contextID?: string | null
+): string[] => {
+  const allIDs = get(state, ['resources', 'variables', 'allIDs'], [])
+  const contextIDs = get(
+    state,
+    ['resources', 'variables', 'values', contextID, 'order'],
+    []
+  )
+
+  return contextIDs
+    .filter(v => allIDs.includes(v))
+    .concat(allIDs.filter(v => !contextIDs.includes(v)))
+}
+
 // this function grabs all user defined variables
 // and hydrates them based on their context
 export const getVariables = (
   state: AppState,
   contextID?: string | null
 ): Variable[] => {
-  const variableIDs = get(
-    state,
-    ['resources', 'variables', 'values', contextID, 'order'],
-    get(state, ['resources', 'variables', 'allIDs'], [])
-  )
-
-  return variableIDs
+  return getUserVariableNames(state, contextID)
     .reduce((prev, curr) => {
       prev.push(getVariable(state, contextID, curr))
 
@@ -91,13 +101,8 @@ export const getAllVariables = (
   state: AppState,
   contextID?: string | null
 ): Variable[] => {
-  const variableIDs = get(
-    state,
-    ['resources', 'variables', 'values', contextID, 'order'],
-    get(state, ['resources', 'variables', 'allIDs'], [])
-  ).concat([TIME_RANGE_START, TIME_RANGE_STOP, WINDOW_PERIOD])
-
-  return variableIDs
+  return getUserVariableNames(state, contextID)
+    .concat([TIME_RANGE_START, TIME_RANGE_STOP, WINDOW_PERIOD])
     .reduce((prev, curr) => {
       prev.push(getVariable(state, contextID, curr))
 
