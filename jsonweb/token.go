@@ -89,6 +89,8 @@ type Token struct {
 	KeyID string `json:"kid"`
 	// Permissions is the set of authorized permissions for the token
 	Permissions []influxdb.Permission `json:"permissions"`
+	// UserID for the token
+	UserID influxdb.ID `json:"uid,omitempty"`
 }
 
 // Allowed returns whether or not a permission is allowed based
@@ -118,10 +120,9 @@ func (t *Token) Identifier() influxdb.ID {
 	return *id
 }
 
-// GetUserID returns an invalid id as tokens are generated
-// with permissions rather than for or by a particular user
+// GetUserID returns the user ID for the token
 func (t *Token) GetUserID() influxdb.ID {
-	return influxdb.InvalidID()
+	return t.UserID
 }
 
 // Kind returns the string "jwt" which is used for auditing
