@@ -160,20 +160,40 @@ describe('Dashboard', () => {
             .pipe(getSelectedVariable(dashboard.id, 0))
             .should('equal', 'c1')
 
+          // sanity check on the url before beginning
+          cy.location('search').should('eq', '?lower=now%28%29%20-%201h')
+
+          // select 3rd value in dashboard
+          cy.getByTestID('variable-dropdown--button')
+            .eq(0)
+            .click()
+          cy.get(`#c3`).click()
+
+          // selected value in dashboard is 3rd value
+          cy.getByTestID('variable-dropdown')
+            .eq(0)
+            .should('contain', 'c3')
+          cy.window()
+            .pipe(getSelectedVariable(dashboard.id, 0))
+            .should('equal', 'c3')
+
+          // and that it updates the variable in the URL
+          cy.location('search').should(
+            'eq',
+            '?lower=now%28%29%20-%201h&vars%5BCSVVariable%5D=c3'
+          )
+
           // select 2nd value in dashboard
           cy.getByTestID('variable-dropdown--button')
             .eq(0)
             .click()
           cy.get(`#c2`).click()
-          // breaks here
 
-          // selected value in dashboard is 2nd value
-          cy.getByTestID('variable-dropdown')
-            .eq(0)
-            .should('contain', 'c2')
-          cy.window()
-            .pipe(getSelectedVariable(dashboard.id, 0))
-            .should('equal', 'c2')
+          // and that it updates the variable in the URL without breaking stuff
+          cy.location('search').should(
+            'eq',
+            '?lower=now%28%29%20-%201h&vars%5BCSVVariable%5D=c2'
+          )
 
           // open CEO
           cy.getByTestID('cell-context--toggle').click()
