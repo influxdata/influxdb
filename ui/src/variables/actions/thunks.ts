@@ -7,8 +7,10 @@ import {setExportTemplate} from 'src/templates/actions/creators'
 import {
   setVariables,
   setVariable,
+  selectValue as selectValueInState,
   removeVariable,
 } from 'src/variables/actions/creators'
+import {updateQueryVars} from 'src/dashboards/actions/ranges'
 
 // Schemas
 import {variableSchema, arrayOfVariables} from 'src/schemas/variables'
@@ -20,6 +22,7 @@ import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/
 
 // Utils
 import {
+  getVariable as getVariableFromState,
   getVariables as getVariablesFromState,
   getAllVariables as getAllVariablesFromState,
 } from 'src/variables/selectors'
@@ -356,4 +359,20 @@ export const removeVariableLabelAsync = (
     console.error(error)
     dispatch(notify(copy.removeVariableLabelFailed()))
   }
+}
+
+export const selectValue = (
+  contextID: string,
+  variableID: string,
+  selected: string
+) => async (dispatch: Dispatch<Action>, getState: GetState) => {
+  const variable = getVariableFromState(getState(), contextID, variableID)
+
+  await dispatch(selectValueInState(contextID, variableID, selected))
+
+  const params = {}
+
+  params[variable.name] = selected
+
+  dispatch(updateQueryVars(params))
 }
