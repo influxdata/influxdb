@@ -1261,7 +1261,7 @@ type tsmKeyIterator struct {
 	pos []int
 
 	// TSMError wraps any error we received while iterating values.
-	err TSMErrors
+	errs TSMErrors
 
 	// indicates whether the iterator should choose a faster merging strategy over a more
 	// optimally compressed one.  If fast is true, multiple blocks will just be added as is
@@ -1298,7 +1298,7 @@ type tsmKeyIterator struct {
 }
 
 func (t *tsmKeyIterator) AppendError(err error) {
-	t.err = append(t.err, err)
+	t.errs = append(t.errs, err)
 }
 
 type block struct {
@@ -1562,11 +1562,11 @@ func (k *tsmKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
 	}
 
 	if len(k.merged) == 0 {
-		return nil, 0, 0, nil, k.err
+		return nil, 0, 0, nil, k.Err()
 	}
 
 	block := k.merged[0]
-	return block.key, block.minTime, block.maxTime, block.b, k.err
+	return block.key, block.minTime, block.maxTime, block.b, k.Err()
 }
 
 func (k *tsmKeyIterator) Close() error {
@@ -1583,7 +1583,10 @@ func (k *tsmKeyIterator) Close() error {
 
 // Error returns any errors encountered during iteration.
 func (k *tsmKeyIterator) Err() error {
-	return k.err
+	if len(k.errs) == 0 {
+		return nil
+	}
+	return k.errs
 }
 
 // tsmBatchKeyIterator implements the KeyIterator for set of TSMReaders.  Iteration produces
@@ -1600,8 +1603,8 @@ type tsmBatchKeyIterator struct {
 	// pos[0] = 1, means the reader[0] is currently at key 1 in its ordered index.
 	pos []int
 
-	// err is any error we received while iterating values.
-	err TSMErrors
+	// errs is any error we received while iterating values.
+	errs TSMErrors
 
 	// indicates whether the iterator should choose a faster merging strategy over a more
 	// optimally compressed one.  If fast is true, multiple blocks will just be added as is
@@ -1644,7 +1647,7 @@ type tsmBatchKeyIterator struct {
 }
 
 func (t *tsmBatchKeyIterator) AppendError(err error) {
-	t.err = append(t.err, err)
+	t.errs = append(t.errs, err)
 }
 
 // NewTSMBatchKeyIterator returns a new TSM key iterator from readers.
@@ -1873,11 +1876,11 @@ func (k *tsmBatchKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
 	}
 
 	if len(k.merged) == 0 {
-		return nil, 0, 0, nil, k.err
+		return nil, 0, 0, nil, k.Err()
 	}
 
 	block := k.merged[0]
-	return block.key, block.minTime, block.maxTime, block.b, k.err
+	return block.key, block.minTime, block.maxTime, block.b, k.Err()
 }
 
 func (k *tsmBatchKeyIterator) Close() error {
@@ -1894,7 +1897,10 @@ func (k *tsmBatchKeyIterator) Close() error {
 
 // Error returns any errors encountered during iteration.
 func (k *tsmBatchKeyIterator) Err() error {
-	return k.err
+	if len(k.errs) == 0 {
+		return nil
+	}
+	return k.errs
 }
 
 type cacheKeyIterator struct {

@@ -121,7 +121,7 @@ func TestCompactor_CompactFullLastTimestamp(t *testing.T) {
 
 	files, err := compactor.CompactFull([]string{f1, f2})
 	if err != nil {
-		t.Fatalf("unexpected error writing snapshot: %v", err)
+		t.Fatalf("unexpected error writing snapshot: %#v", err)
 	}
 
 	r := MustOpenTSMReader(files[0])
