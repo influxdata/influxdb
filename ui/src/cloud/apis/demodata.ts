@@ -7,7 +7,7 @@ import AJAX from 'src/utils/ajax'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 //Types
-import {Bucket} from 'src/types'
+import {Bucket, GenBucket} from 'src/types'
 import {LIMIT} from 'src/resources/constants'
 
 const baseURL = '/api/v2/experimental/sampledata'
@@ -74,7 +74,7 @@ export const deleteDemoDataBucketMembership = async (
   }
 }
 
-export const fetchDemoDataBuckets = async (): Promise<Bucket[]> => {
+export const fetchDemoDataBuckets = async (): Promise<GenBucket[]> => {
   if (!isFlagEnabled('demodata')) return []
   try {
     // FindBuckets paginates before filtering for authed buckets until #6591 is resolved,

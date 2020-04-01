@@ -10,7 +10,10 @@ import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 import {extractBucketMaxRetentionSeconds} from 'src/cloud/utils/limits'
 
 // Constants
-import {DEFAULT_SECONDS} from 'src/buckets/components/Retention'
+import {
+  DEFAULT_SECONDS,
+  READABLE_DEFAULT_SECONDS,
+} from 'src/buckets/components/Retention'
 
 // Types
 import {Organization, Bucket, AppState} from 'src/types'
@@ -44,6 +47,9 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
       bucket: {
         name: '',
         retentionRules: props.isRetentionLimitEnforced ? DEFAULT_RULES : [],
+        readableRetention: props.isRetentionLimitEnforced
+          ? READABLE_DEFAULT_SECONDS
+          : 'forever',
       },
       ruleType: props.isRetentionLimitEnforced ? 'expire' : null,
     }

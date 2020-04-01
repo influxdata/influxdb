@@ -42,14 +42,13 @@ import {
 } from 'src/cloud/actions/demodata'
 
 // Utils
-import {prettyBuckets} from 'src/shared/utils/prettyBucket'
 import {extractBucketLimits} from 'src/cloud/utils/limits'
 import {getOrg} from 'src/organizations/selectors'
 import {getAll} from 'src/resources/selectors'
 import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+import {SortTypes} from 'src/shared/utils/sort'
 
 // Types
-import {PrettyBucket} from 'src/buckets/components/BucketCard'
 import {
   OverlayState,
   AppState,
@@ -57,7 +56,6 @@ import {
   Organization,
   ResourceType,
 } from 'src/types'
-import {SortTypes} from 'src/shared/utils/sort'
 
 interface StateProps {
   org: Organization
@@ -85,9 +83,9 @@ interface State {
 
 type Props = DispatchProps & StateProps
 
-type SortKey = keyof PrettyBucket
+type SortKey = keyof Bucket
 
-const FilterBuckets = FilterList<PrettyBucket>()
+const FilterBuckets = FilterList<Bucket>()
 
 @ErrorHandling
 class BucketsTab extends PureComponent<Props, State> {
@@ -166,8 +164,8 @@ class BucketsTab extends PureComponent<Props, State> {
             >
               <FilterBuckets
                 searchTerm={searchTerm}
-                searchKeys={['name', 'ruleString', 'labels[].name']}
-                list={prettyBuckets(buckets)}
+                searchKeys={['name', 'readableRetention', 'labels[].name']}
+                list={buckets}
               >
                 {bs => (
                   <BucketList
@@ -211,11 +209,11 @@ class BucketsTab extends PureComponent<Props, State> {
     this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
-  private handleUpdateBucket = (updatedBucket: PrettyBucket) => {
+  private handleUpdateBucket = (updatedBucket: Bucket) => {
     this.props.updateBucket(updatedBucket)
   }
 
-  private handleDeleteBucket = ({id, name}: PrettyBucket) => {
+  private handleDeleteBucket = ({id, name}: Bucket) => {
     this.props.deleteBucket(id, name)
   }
 

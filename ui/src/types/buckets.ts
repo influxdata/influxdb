@@ -4,21 +4,7 @@ export type GenBucket = IBucket
 
 export interface Bucket extends Omit<IBucket, 'labels'> {
   labels?: string[]
+  readableRetention: string
 }
 
-export type BucketRetentionRules = IBucket['retentionRules']
-
-export enum RetentionRuleTypes {
-  Expire = 'expire',
-  Forever = 'forever',
-}
-
-export interface RetentionRule {
-  type: RetentionRuleTypes
-  everySeconds: number
-}
-
-export interface BucketLinks {
-  org: string
-  self: string
-}
+export type RetentionRule = IBucket['retentionRules'][0]

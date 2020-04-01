@@ -27,26 +27,24 @@ import {DataLoaderType} from 'src/types/dataLoaders'
 // Actions
 import {addBucketLabel, deleteBucketLabel} from 'src/buckets/actions/thunks'
 
-export interface PrettyBucket extends Bucket {
-  ruleString: string
-}
-
 interface DispatchProps {
   onAddBucketLabel: typeof addBucketLabel
   onDeleteBucketLabel: typeof deleteBucketLabel
 }
 
 interface Props {
-  bucket: PrettyBucket
-  onEditBucket: (b: PrettyBucket) => void
-  onDeleteData: (b: PrettyBucket) => void
-  onDeleteBucket: (b: PrettyBucket) => void
-  onAddData: (b: PrettyBucket, d: DataLoaderType, l: string) => void
-  onUpdateBucket: (b: PrettyBucket) => void
+  bucket: Bucket
+  onEditBucket: (b: Bucket) => void
+  onDeleteData: (b: Bucket) => void
+  onDeleteBucket: (b: Bucket) => void
+  onAddData: (b: Bucket, d: DataLoaderType, l: string) => void
+  onUpdateBucket: (b: Bucket) => void
   onFilterChange: (searchTerm: string) => void
 }
 
-class BucketRow extends PureComponent<Props & WithRouterProps & DispatchProps> {
+class BucketCard extends PureComponent<
+  Props & WithRouterProps & DispatchProps
+> {
   public render() {
     const {bucket, onDeleteBucket} = this.props
     return (
@@ -81,6 +79,8 @@ class BucketRow extends PureComponent<Props & WithRouterProps & DispatchProps> {
 
   private get cardMetaItems(): JSX.Element[] {
     const {bucket} = this.props
+
+    const retention = <>Retention: {bucket.readableRetention}</>
     if (bucket.type === 'system') {
       return [
         <span
@@ -89,11 +89,11 @@ class BucketRow extends PureComponent<Props & WithRouterProps & DispatchProps> {
         >
           System Bucket
         </span>,
-        <>Retention: {bucket.ruleString}</>,
+        retention,
       ]
     }
 
-    return [<>Retention: {bucket.ruleString}</>]
+    return [retention]
   }
 
   private get actionButtons(): JSX.Element {
@@ -212,4 +212,4 @@ const mdtp: DispatchProps = {
 export default connect<{}, DispatchProps>(
   null,
   mdtp
-)(withRouter<Props>(BucketRow))
+)(withRouter<Props>(BucketCard))

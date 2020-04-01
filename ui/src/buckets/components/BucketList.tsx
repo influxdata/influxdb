@@ -6,7 +6,7 @@ import {get} from 'lodash'
 import memoizeOne from 'memoize-one'
 
 // Components
-import BucketCard, {PrettyBucket} from 'src/buckets/components/BucketCard'
+import BucketCard from 'src/buckets/components/BucketCard'
 import {ResourceList} from '@influxdata/clockface'
 
 // Actions
@@ -16,23 +16,20 @@ import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 import {getSortedResources} from 'src/shared/utils/sort'
 
 // Types
-import {OverlayState} from 'src/types'
-import {DataLoaderType} from 'src/types/dataLoaders'
+import {OverlayState, Bucket, AppState, DataLoaderType} from 'src/types'
 import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
-import {AppState} from 'src/types'
 import {Sort} from '@influxdata/clockface'
-import {SortTypes} from 'src/shared/utils/sort'
 
 // Utils
-import {prettyBuckets} from 'src/shared/utils/prettyBucket'
+import {SortTypes} from 'src/shared/utils/sort'
 
-type SortKey = keyof PrettyBucket | 'retentionRules[0].everySeconds'
+type SortKey = keyof Bucket | 'retentionRules[0].everySeconds'
 
 interface OwnProps {
-  buckets: PrettyBucket[]
+  buckets: Bucket[]
   emptyState: JSX.Element
-  onUpdateBucket: (b: PrettyBucket) => void
-  onDeleteBucket: (b: PrettyBucket) => void
+  onUpdateBucket: (b: Bucket) => void
+  onDeleteBucket: (b: Bucket) => void
   onFilterChange: (searchTerm: string) => void
   sortKey: string
   sortDirection: Sort
@@ -116,7 +113,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
       onFilterChange,
     } = this.props
     const sortedBuckets = this.memGetSortedResources(
-      prettyBuckets(buckets),
+      buckets,
       sortKey,
       sortDirection,
       sortType
@@ -138,13 +135,13 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     })
   }
 
-  private handleStartEdit = (bucket: PrettyBucket) => {
+  private handleStartEdit = (bucket: Bucket) => {
     const {orgID} = this.props.params
 
     this.props.router.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/edit`)
   }
 
-  private handleStartDeleteData = (bucket: PrettyBucket) => {
+  private handleStartDeleteData = (bucket: Bucket) => {
     const {orgID} = this.props.params
 
     this.props.router.push(
@@ -153,7 +150,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
   }
 
   private handleStartAddData = (
-    bucket: PrettyBucket,
+    bucket: Bucket,
     dataLoaderType: DataLoaderType,
     link: string
   ) => {
@@ -168,7 +165,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     router.push(link)
   }
 
-  private handleUpdateBucket = (updatedBucket: PrettyBucket) => {
+  private handleUpdateBucket = (updatedBucket: Bucket) => {
     this.props.onUpdateBucket(updatedBucket)
     this.setState({bucketOverlayState: OverlayState.Closed})
   }
