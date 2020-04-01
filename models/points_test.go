@@ -17,7 +17,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 var (
@@ -2805,23 +2807,43 @@ func TestParseMeasurement(t *testing.T) {
 		input string
 		exp   string
 	}{
-		{input: "m,\x00=value", exp: "value"},
-		{input: "m\\ q,\x00=value", exp: "value"},
-		{input: "m,\x00=v\\ alue", exp: "v alue"},
-		{input: "m,\x00=value,tag0=val0", exp: "value"},
-		{input: "m,\x00=v\\ alue,tag0=val0", exp: "v alue"},
-		{input: "m,tag0=val0", exp: ""}, // missing \x00
-		{input: "m", exp: ""},           // missing tags
+		{input: "%s,\x00=value", exp: "value"},
+		{input: "%s\\ q,\x00=value", exp: "value"},
+		{input: "%s,\x00=v\\ alue", exp: "v alue"},
+		{input: "%s,\x00=value,tag0=val0", exp: "value"},
+		{input: "%s,\x00=v\\ alue,tag0=val0", exp: "v alue"},
+		{input: "%s,tag0=val0", exp: ""}, // missing \x00
+		{input: "%s", exp: ""},           // missing tags
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.input, func(t *testing.T) {
-			name := models.ParseMeasurement([]byte(testCase.input))
-			if !bytes.Equal([]byte(testCase.exp), name) {
-				t.Errorf("%s produced measurement %s but expected %s", testCase.input, string(name), testCase.exp)
-			}
-		})
-	}
+	t.Run("measurement did not require escaping", func(t *testing.T) {
+		orgBucketEnc := tsdb.EncodeName(influxdb.ID(0xff00ff), influxdb.ID(0xff11ff))
+		orgBucket := string(models.EscapeMeasurement(orgBucketEnc[:]))
+		for _, testCase := range testCases {
+			t.Run(testCase.input[2:], func(t *testing.T) {
+				key := fmt.Sprintf(testCase.input, orgBucket)
+				name := models.ParseMeasurement([]byte(key))
+				if !bytes.Equal([]byte(testCase.exp), name) {
+					t.Errorf("%s produced measurement %s but expected %s", testCase.input, string(name), testCase.exp)
+				}
+			})
+		}
+	})
+
+	t.Run("measurement required escaping", func(t *testing.T) {
+		orgBucketEnc := tsdb.EncodeName(influxdb.ID(0xff2cff), influxdb.ID(0xff20ff))
+		orgBucket := string(models.EscapeMeasurement(orgBucketEnc[:]))
+		for _, testCase := range testCases {
+			t.Run(testCase.input[2:], func(t *testing.T) {
+				key := fmt.Sprintf(testCase.input, orgBucket)
+				name := models.ParseMeasurement([]byte(key))
+				if !bytes.Equal([]byte(testCase.exp), name) {
+					t.Errorf("%s produced measurement %s but expected %s", testCase.input, string(name), testCase.exp)
+				}
+			})
+		}
+	})
+
 }
 
 func TestValidTagTokens(t *testing.T) {
