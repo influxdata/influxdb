@@ -132,6 +132,7 @@ describe('Dashboard', () => {
           cy.getByTestID('switch-to-script-editor').should('be.visible')
           cy.getByTestID('switch-to-script-editor').click()
           cy.getByTestID('toolbar-tab').click()
+
           // check to see if the default timeRange variables are available
           cy.get('.flux-toolbar--list-item').contains('timeRangeStart')
           cy.get('.flux-toolbar--list-item').contains('timeRangeStop')
@@ -148,7 +149,9 @@ describe('Dashboard', () => {
             .type(' ')
           cy.get('.flux-toolbar--list-item')
             .eq(2)
-            .click()
+            .within(() => {
+              cy.get('.cf-button').click()
+            })
           cy.getByTestID('save-cell--button').click()
 
           // TESTING CSV VARIABLE
@@ -213,7 +216,7 @@ describe('Dashboard', () => {
           // TESTING MAP VARIABLE
           // selected value in dashboard is 1st value
           cy.getByTestID('variable-dropdown')
-            .eq(2)
+            .eq(1)
             .should('contain', 'k1')
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, 2))
@@ -221,13 +224,13 @@ describe('Dashboard', () => {
 
           // select 2nd value in dashboard
           cy.getByTestID('variable-dropdown--button')
-            .eq(2)
+            .eq(1)
             .click()
           cy.get(`#k2`).click()
 
           // selected value in dashboard is 2nd value
           cy.getByTestID('variable-dropdown')
-            .eq(2)
+            .eq(1)
             .should('contain', 'k2')
           cy.window()
             .pipe(getSelectedVariable(dashboard.id, 2))

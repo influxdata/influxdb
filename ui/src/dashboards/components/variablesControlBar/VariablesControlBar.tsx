@@ -17,6 +17,7 @@ import {
   getVariables,
   getDashboardVariablesStatus,
 } from 'src/variables/selectors'
+import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 
 // Actions
 import {moveVariable} from 'src/variables/actions/creators'
@@ -163,7 +164,12 @@ const mstp = (state: AppState): StateProps => {
   } = state
 
   return {
-    variables,
+    variables: filterUnusedVars(
+      variables,
+      Object.values(state.resources.views.byID).filter(
+        variable => variable.dashboardID === dashboardID
+      )
+    ),
     variablesStatus,
     inPresentationMode,
     dashboardID,
