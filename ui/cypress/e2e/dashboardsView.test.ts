@@ -118,7 +118,7 @@ describe('Dashboard', () => {
     return hydratedVarDawg.selected[0]
   }
 
-  it.only('can manage variable state with a lot of pointing and clicking', () => {
+  it('can manage variable state with a lot of pointing and clicking', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body: dashboard}) => {
         cy.createCSVVariable(orgID)
