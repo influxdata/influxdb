@@ -3,32 +3,13 @@
   ------------------------------------------------------------------------------
 */
 
-.markdown-cell {
-  position: absolute !important;
-  top: 0;
-  left: 0;
-  border-radius: $ix-radius;
+.markdown-cell .cf-dapper-scrollbars--track-y {
+  background-color: $g2-kevlar !important;
 }
 
 .markdown-cell--contents {
-  padding: $ix-marg-b + $ix-marg-a 26px;
-  font-size: 13px;
-}
-
-.markdown-cell > .fancy-scroll--track-v,
-.markdown-cell > .fancy-scroll--track-h {
-  z-index: 2;
-}
-
-.markdown-cell:after {
-  pointer-events: none;
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  @include gradient-v(rgba($g3-castle, 0), $g3-castle);
-  z-index: 1;
+  padding: $cf-marg-b + $cf-marg-a 26px;
+  font-size: 14px;
 }
 
 /*
@@ -44,17 +25,17 @@
   p {
     font-size: 1em;
     line-height: 1.25em;
-    font-weight: 500;
+    font-weight: $cf-font-weight--medium;
   }
 
   h3,
   h4 {
-    border-bottom: 2px solid $g4-onyx;
+    border-bottom: $cf-border solid $g4-onyx;
     padding-bottom: 0.25em;
   }
 
   strong {
-    font-weight: 900;
+    font-weight: $cf-font-weight--black;
     color: $g16-pearl;
   }
 
@@ -64,8 +45,8 @@
 
   td,
   th {
-    padding: 4px 8px;
-    border: $ix-border solid $g5-pepper;
+    padding: $cf-marg-a $cf-marg-b;
+    border: $cf-border solid $g5-pepper;
   }
 
   th {
@@ -73,17 +54,19 @@
   }
 
   code {
-    border-radius: 3px;
+    border-radius: $cf-radius-sm;
     margin: 0;
     padding: 2px 6px;
     color: $c-potassium;
     letter-spacing: 0;
-    font-weight: 500;
+    font-weight: $cf-font-weight--bold;
+    background-color: $g1-raven;
   }
 
   pre {
-    border-radius: 3px;
+    border-radius: $cf-radius-sm;
     padding: 6px;
+    background-color: $g1-raven;
 
     code {
       padding: 0;
@@ -91,7 +74,7 @@
   }
 
   img {
-    border-radius: $ix-radius;
+    border-radius: $cf-radius;
     max-width: 100%;
   }
 
