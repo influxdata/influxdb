@@ -77,6 +77,7 @@ func TestCors(t *testing.T) {
 			expectedHeaders: map[string]string{
 				"Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
 				"Access-Control-Allow-Origin":  "http://anotherapp.com",
+				"Access-Control-Allow-Headers": "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization, User-Agent",
 			},
 		},
 	}
