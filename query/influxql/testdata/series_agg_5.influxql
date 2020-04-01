@@ -1,1 +1,0 @@
-SELECT derivative(f, 4h) FROM m GROUP BY *

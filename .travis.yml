@@ -1,0 +1,18 @@
+sudo: required
+dist: xenial
+
+before_install:
+  - sudo apt-get install -y thrift-compiler
+
+language: java
+jdk:
+  - openjdk8
+
+install: true
+
+script:
+  - ./gradlew -Djava.security.egd=file:/dev/urandom warp10:pack
+
+
+notifications:
+  email: false

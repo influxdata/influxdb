@@ -1,0 +1,53 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+//
+// Macro Repository
+//
+
+// Secret to use for setting configuration accessible via MACROCONFIG
+#warpscript.macroconfig.secret =
+
+// Directory which contains subdirectories with macros
+warpscript.repository.directory = ${standalone.home}/macros
+
+// How often (in ms) should the above directory be rescanned
+warpscript.repository.refresh = 60000
+
+// Set to false to disable on demand loading of macros not yet loaded.
+#warpscript.repository.ondemand = false
+
+// Default TTL for macros loaded on demand
+#warpscript.repository.ttl = 600000
+
+// TTL to use for failed macros, a new on-demand loading will occur after this delay.
+// Defaults to the max of 10s or half of warpscript.repository.refresh
+#warpscript.repository.ttl.failed = 
+
+// Maximum TTL that can be set using MACROTTL (defaults to 2**62 ms)
+#warpscript.repository.ttl.hard = 
+
+// Number of macros loaded from 'warpscript.repository.directory' to keep in memory
+warpscript.repository.cache.size = 10000
+
+// Default TTL for macros loaded from the classpath or jars
+#warpscript.library.ttl = 600000
+
+// Maximum TTL that can be set using MACROTTL (defaults to 2**62 ms)
+#warpscript.library.ttl.hard =
+
+// Size of macro cache for the macros loaded from the classpath
+warpscript.library.cache.size = 10000

@@ -1,0 +1,148 @@
+//
+//   Copyright 2018  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+archivesBaseName = 'warpscript'
+group = 'io.warp10'
+version = updateRevision(getVersionName(warp10Version[archivesBaseName]))
+
+jar {
+    zip64 = true
+
+    manifest {
+        attributes(
+                "Implementation-Title": "WarpScript",
+                "Implementation-Vendor": "Warp 10",
+                "Implementation-Version": version)
+    }
+
+    from project(":warp10").sourceSets.main.output
+    include('REVISION')
+    include 'io/warp10/Py4JEntryPoint.class'
+    include 'io/warp10/SortedPathIterator.class'
+    include 'io/warp10/SortedPathIterator$*'
+    include 'io/warp10/WarpClassLoader.class'
+    include 'io/warp10/json/**'
+    include 'io/warp10/script/**'
+    exclude 'io/warp10/script/ScriptRunner*.class'
+    include 'io/warp10/CapacityExtractorOutputStream.class'
+    include 'io/warp10/udf/**'
+    include 'io/warp10/thrift/**'
+    include 'io/warp10/WarpConfig.class'
+    include 'io/warp10/WarpManager.class'
+    include 'io/warp10/WarpURLEncoder.class'
+    include 'io/warp10/WarpURLDecoder.class'
+    include 'io/warp10/DoubleUtils.class'
+    include 'io/warp10/FloatUtils.class'
+    include 'io/warp10/Revision.class'
+    include 'io/warp10/ThrowableUtils.class'
+    include 'io/warp10/continuum/AuthenticationPlugin.class'
+    include 'io/warp10/continuum/MetadataUtils.class'
+    include 'io/warp10/continuum/MetadataUtils$*'
+    include 'io/warp10/continuum/index/**'
+    include 'io/warp10/continuum/thrift/data/**'
+    include 'io/warp10/continuum/Configuration.class'
+    include 'io/warp10/continuum/TimeSource.class'
+    include 'io/warp10/continuum/TimeSource$*'
+    include 'io/warp10/continuum/TextFileShuffler.class'
+    include 'io/warp10/continuum/TextFileShuffler$*'
+    include 'io/warp10/continuum/SortUtil.class'
+    include 'io/warp10/continuum/SortUtil$*'
+    include 'io/warp10/continuum/Tokens.class'
+    include 'io/warp10/continuum/Tokens$*'
+    include 'io/warp10/continuum/gts/**'
+    include 'io/warp10/continuum/store/Constants.class'
+    include 'io/warp10/continuum/store/DirectoryClient.class'
+    include 'io/warp10/continuum/store/GTSDecoderIterator.class'
+    include 'io/warp10/continuum/store/thrift/data/**'
+    include 'io/warp10/warp/sdk/**'
+    include 'io/warp10/continuum/sensision/SensisionConstants.class'
+    include 'io/warp10/continuum/geo/GeoDirectoryClient.class'
+    include 'io/warp10/continuum/geo/GeoDirectoryThriftClient.class'
+    include 'io/warp10/continuum/geo/GeoDirectoryThriftClient$*'
+    include 'io/warp10/continuum/store/StoreClient.class'
+    include 'io/warp10/hadoop/**'
+
+    from project(":token").sourceSets.main.output
+    include 'io/warp10/quasar/token/thrift/data/**'
+    include 'io/warp10/quasar/filter/QuasarTokenFilter.class'
+    include 'io/warp10/quasar/filter/exception/QuasarTokenException.class'
+
+    from project(":crypto").sourceSets.main.output
+    include 'io/warp10/crypto/**'
+
+}
+
+model {
+    tasks.generatePomFileForWarpscriptPublication {
+        destination = file("$buildDir/generated-pom.xml")
+    }
+}
+
+publishing {
+    publications {
+        warpscript(MavenPublication) {
+            from components.java
+            groupId 'io.warp10'
+            artifactId archivesBaseName
+            version version
+            genPomForWarpscript(pom)
+        }
+    }
+}
+
+// DEPLOY ON MAVEN REPO WITH SCP
+uploadArchives {
+    repositories {
+        repositories.mavenDeployer {
+            configuration = configurations.deployerJars
+            uniqueVersion = false
+
+            repository(url: "scpexe://${warpScriptPublishURL}") {
+                authentication(userName: "${warpScriptPublishUser}")
+            }
+            genPomForWarpscript(pom)
+        }
+    }
+}
+
+bintray {
+    dryRun = false
+
+    user = project.hasProperty('bintrayUser') ? project.property('bintrayUser') : System.getenv('BINTRAY_USER')
+    key = project.hasProperty('bintrayApiKey') ? project.property('bintrayApiKey') : System.getenv('BINTRAY_API_KEY')
+
+    publications = ['warpscript']
+    publish = true
+
+    pkg {
+        repo = 'maven'
+        name = 'warpscript'
+        userOrg = 'senx'
+        licenses = ['Apache-2.0']
+        vcsUrl = 'https://github.com/senx/warp10-platform.git'
+        version {
+            name = getVersionName(warp10Version['warpscript'])
+            released = new Date()
+            vcsTag = getVersionName(warp10Version['warpscript'])
+        }
+    }
+}
+
+//
+// Tasks dependencies
+//
+uploadArchives.dependsOn jar
+bintrayUpload.dependsOn jar

@@ -1,0 +1,31 @@
+// Create a new GTS with ten values 
+NEWGTS 
+'test name'
+RENAME
+{ 'label0' '42' 'label1' 'foo' }
+RELABEL
+100  NaN NaN NaN "a" ADDVALUE
+200  NaN NaN NaN "a" ADDVALUE
+300  NaN NaN NaN "a" ADDVALUE
+400  NaN NaN NaN "a" ADDVALUE
+500  NaN NaN NaN "b" ADDVALUE
+700  NaN NaN NaN "b" ADDVALUE
+800  NaN NaN NaN "b" ADDVALUE
+900  NaN NaN NaN "b" ADDVALUE
+1000 NaN NaN NaN "c" ADDVALUE
+1100 NaN NaN NaN "c" ADDVALUE
+'split-by-value'
+VALUESPLIT
+
+// We should have 3 GTS as a result
+SIZE 3 == ASSERT
+
+NEWGTS
+'test'
+RENAME
+100 NaN NaN NaN 0 ADDVALUE
+200 NaN NaN NaN 1 ADDVALUE
+300 NaN NaN NaN 2 ADDVALUE
+'split' VALUESPLIT
+
+SIZE 3 == ASSERT

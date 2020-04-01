@@ -1,0 +1,86 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// W E B C A L L
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+webcall.user.agent = Warp10-WebCall
+
+//
+// List of patterns to include/exclude for hosts in WebCall calls
+//
+// Typical value is .*,!^127.0.0.1$,!^localhost$,!^192.168.*,!^10.*,!^172.(16|17|18|19|20|21|22|23|24|25|26|27|28|29|39|31)\..*
+// Defaults to .*
+//
+webcall.host.patterns = !.*
+
+//
+// ZK Quorum to use for reaching the Kafka cluster to consume WebCall requests
+//
+webcall.kafka.zkconnect =
+
+//
+// List of Kafka brokers to use for sending WebCall requests
+//
+webcall.kafka.brokerlist =
+
+//
+// Topic to use for WebCall requests
+//
+webcall.kafka.topic =
+
+//
+// AES key to use for encrypting WebCall requests
+//
+//webcall.kafka.aes = hex:......
+
+//
+// SipHash key to use for computing WebCall requests HMACs
+//
+//webcall.kafka.mac = hex:.....
+
+//
+// Kafka client id to use when consuming WebCall requests
+//
+//webcall.kafka.consumer.clientid =
+
+//
+// Kafka client id to use when producing WebCall requests
+//
+//webcall.kafka.producer.clientid =
+
+//
+// How many threads to spawn
+//
+webcall.nthreads = 4
+
+//
+// Groupid to use when consuming Kafka
+//
+//webcall.kafka.groupid =
+
+//
+// How often to commit the Kafka offsets
+//
+webcall.kafka.commitperiod = 60000
+
+//
+// Name of partition assignment strategy to use
+//
+//webcall.kafka.consumer.partition.assignment.strategy = 

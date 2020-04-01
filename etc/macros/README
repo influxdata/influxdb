@@ -1,0 +1,9 @@
+This directory contains subdirectories with macros.
+
+If you want to create one macro named 'test', you have to create one subdirectory before to store your macro.
+For example, ..../macros/myrepo
+
+Then, put your macro file into this directory. This file must be suffixed by '.mc2'
+At the end, you should have something like that: ..../macros/myrepo/test.mc2
+
+And to reference your macro in WarpScript, use @myrepo/test

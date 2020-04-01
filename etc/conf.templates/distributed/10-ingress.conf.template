@@ -1,0 +1,360 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// I N G R E S S
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// Set to true to parse attributes in the data passed to /update.
+//
+#ingress.parse.attributes = true
+
+//
+// Set to true to allow the delta update of attributes
+//
+#ingress.attributes.allowdelta = true
+
+//
+// Period between updates of last activity timestamps for Geo Time Series
+// The value of this parameter is in ms and determines how often the directory
+// will be updated when activity is being tracked.
+//
+#ingress.activity.window = 3600000
+
+//
+// Set to true to consider updates when tracking activity of GTS
+//
+#ingress.activity.update = true
+
+//
+// Set to true to consider attributes updates (calls to /meta) when tracking activity of GTS
+//
+#ingress.activity.meta = true
+
+//
+// Should we shuffle the Geo Time Series prior to sending the delete messages?
+// It is highly recommended to leave this to 'true', otherwise deletion of many series
+// may lead to regions being pounded.
+//
+ingress.delete.shuffle = true
+
+//
+// Set to 'true' to reject all /delete requests
+//
+ingress.delete.reject = false
+
+//
+// Path where the metadata cache should be dumped
+//
+ingress.cache.dump.path = /opt/warp10/data/cache.metadata
+
+//
+// Maximum value size of a measurement
+// Make sure this is less than 'max.encoder.size'
+//
+ingress.value.maxsize = 65536
+
+//
+// Host onto which the ingress server should listen
+//
+ingress.host = 127.0.0.1
+
+//
+// Port onto which the ingress server should listen
+//
+ingress.port = 8882
+
+//
+// TCP Backlog applied to the ingress server listener
+//
+#ingress.tcp.backlog =
+
+//
+// Size of metadata cache in number of entries
+//
+ingress.metadata.cache.size = 10000000
+
+//
+// Number of acceptors
+//
+ingress.acceptors = 2
+
+//
+// Number of selectors
+//
+ingress.selectors = 8
+
+//
+// Idle timeout
+//
+ingress.idle.timeout = 300000
+
+//
+// Number of threads in Jetty's Thread Pool
+//
+ingress.jetty.threadpool = 200
+
+//
+// Maximum size of Jetty ThreadPool queue size (unbounded by default)
+//
+ingress.jetty.maxqueuesize = 400
+
+//
+// Max message size for the stream update websockets
+//
+ingress.websocket.maxmessagesize = 1048576
+
+//
+// ZooKeeper server list
+//
+ingress.zk.quorum = 127.0.0.1:2181
+
+//
+// ZK Connect String for the metadata kafka cluster
+//
+ingress.kafka.metadata.zkconnect = 127.0.0.1:2181/zk/kafka/localhost
+
+//
+// Kafka broker list for the 'meta' topic
+//
+ingress.kafka.metadata.brokerlist = 127.0.0.1:9092
+
+//
+// Actual 'meta' topic
+//
+ingress.kafka.metadata.topic =  metadata   
+
+//
+// Key to use for computing MACs (128 bits in hex or OSS reference)
+//
+ingress.kafka.metadata.mac = hex:hhhhhh...
+
+//
+// Key to use for encrypting payloads (128/192/256 bits in hex or OSS reference)
+//
+ingress.kafka.metadata.aes = hex:hhhhhh...
+
+//
+// Groupid to use for consuming the 'metadata' topic
+// MUST be unique to each ingress instance
+//
+ingress.kafka.metadata.groupid = ingress.metadata-localhost
+
+//
+// Offset reset strategy when consuming the metadata topic
+// 'smallest' should be left as the default.
+//
+ingress.kafka.metadata.consumer.auto.offset.reset = smallest
+
+//
+// How often to commit the offsets for topic 'metadata' (in ms)
+//
+ingress.kafka.metadata.commitperiod = 1000
+
+//
+// Number of threads to use for consuming the 'metadata' topic
+//
+ingress.kafka.metadata.nthreads = 2
+
+//
+// Kafka broker list for the 'data' topic
+//
+ingress.kafka.data.brokerlist = 127.0.0.1:9092
+
+//
+// Actual 'data' topic
+//
+ingress.kafka.data.topic = data
+
+//
+// Size of Kafka Producer pool for the 'data' topic
+//
+ingress.kafka.data.poolsize = 2
+
+//
+// Size of Kafka Producer pool for the 'metadata' topic
+//
+ingress.kafka.metadata.poolsize = 2
+
+//
+// Key to use for computing MACs (128 bits in hex or OSS reference)
+//
+ingress.kafka.data.mac = hex:hhhhhh...
+
+//
+// Key to use for encrypting payloads (128/192/256 bits in hex or OSS reference) 
+//
+#ingress.kafka.data.aes = 
+
+//
+// Maximum message size for the 'data' topic
+//
+ingress.kafka.data.maxsize = 900000
+
+//
+// Maximum message size for the 'metadata' topic
+//
+ingress.kafka.metadata.maxsize = 900000
+
+//
+// Kafka broker list for the throttling topic
+//
+#ingress.kafka.throttling.brokerlist = 
+  
+//
+// Optional client id to use when producing messages in the throttling topic
+//
+#ingress.kafka.throttling.producer.clientid = 
+  
+//
+// Kafka producer timeout for the throttling topic
+//
+#ingress.kafka.throttling.request.timeout.ms = 
+  
+//
+// Name of the throttling topic
+//
+#ingress.kafka.throttling.topic = 
+  
+//
+// ZK connect string for the throttling kafka cluster
+//
+#ingress.kafka.throttling.zkconnect = 
+  
+//
+// Client id to use when consuming the throttling topic
+//
+#ingress.kafka.throttling.consumer.clientid = 
+  
+//
+// Group id to use when consuming the throttling topic
+//
+#ingress.kafka.throttling.groupid = 
+  
+//
+// Auto offset strategy to use when consuming the throttling topic. Set to 'largest' unless you want to do
+// a special experiment.
+//
+#ingress.kafka.throttling.consumer.auto.offset.reset = largest
+
+//
+// Kafka client id to use for the metadata producer
+//
+#ingress.kafka.metadata.producer.clientid =
+
+//
+// Kafka client id to use for the metadata consumer
+//
+#ingress.kafka.metadata.consumer.clientid =
+
+//
+// Kafka client id to use for the data producer
+//
+#ingress.kafka.data.producer.clientid =
+
+//
+// Do we send Metadata in the Kafka message for delete operations? (defaults to false)
+//
+#ingress.delete.metadata.include =
+
+//
+// Do we send Metadata in the Kafka message for store operations? (defaults to false)
+//
+#ingress.store.metadata.include =
+
+//
+// Request timeout when talking to Kafka
+//
+#ingress.kafka.data.request.timeout.ms = 
+
+//
+// Name of partition assignment strategy to use
+//
+#ingress.kafka.metadata.consumer.partition.assignment.strategy = 
+
+//
+// Identification of Ingress Metadata Update endpoint source
+//
+#ingress.metadata.update = 
+
+//
+// Default maximum age of datapoints pushed to Warp 10, in ms. Any timestamp older than
+// 'now' - this value will be rejected.
+// The maxpast value from the token will have precedence over this one
+//
+#ingress.maxpast.default =
+  
+//
+// Default maximum timestamp delta in the future for datapoints pushed to Warp 10, in ms.
+// Any timestamp more than this value past 'now' will be rejected
+// The maxfuture value from the token will have precedence over this one
+//
+#ingress.maxfuture.default = 
+  
+//
+// Absolute maximum age of datapoints pushed to Warp 10, in ms. Any timestamp older than
+// 'now' - this value will be rejected.
+// This value overrides both the default and token value for maxpast.   
+//
+#ingress.maxpast.override = 
+  
+//
+// Absolute maximum timestamp delta in the future for datapoints pushed to Warp 10, in ms.
+// Any timestamp more than this value past 'now' will be rejected
+// This value overrides both the default and token value for maxfuture
+//
+#ingress.maxfuture.override =
+
+//
+// Set to true to silently ignore datapoints whose timestamp is outside the permitted time range (as configured via maxpast/maxfuture)
+// If this is not set or set to anything but 'true', datapoints with timestamps outside the permitted range will trigger an error
+//
+#ingress.outofrange.ignore = true
+
+//
+// Default datapoint cell TTL (in ms) to enforce. If this is not set, then the TTL will be that
+// of the columns family. A value of -1 disables the use of cell TTLs.
+// This can be overridden by the '.ttl' WriteToken attribute.
+// The default value is -1
+//
+#ingress.hbase.cellttl = -1
+  
+//
+// Flag indicating whether to use the DataPoint TimeStamp instead of the write timestamp
+// for the data stored in HBase.
+// This can be overridden by the '.dpts' WriteToken attribute.
+// The default value if false.
+//
+#ingress.hbase.dpts = false
+
+//
+// Fully qualified class name of an optional IngressPlugin to load
+//
+#ingress.plugin.class = ...
+
+//
+// Set to true to allow the /delete endpoint to only delete metadata
+//   
+#ingress.delete.metaonly.support = true
+  
+//
+// Set to true to allow /delete queries to select GTS based on their last activity.
+// This must be explicitely configured to avoid deleting extraneous series when activity tracking is not enabled
+//
+#ingress.delete.activity.support = true

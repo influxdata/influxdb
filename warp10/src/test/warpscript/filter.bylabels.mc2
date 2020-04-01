@@ -1,0 +1,29 @@
+NEWGTS
+{ 'foo' 'bar' } RELABEL
+{ 'foo' 'glop' } SETATTRIBUTES
+'gts' STORE
+
+// Make sure attributes are not used when selecting by label
+[ [ $gts ] NULL { 'foo' '~.*g.*' } filter.bylabels ] FILTER
+SIZE 0 == ASSERT
+// Make sure attributes are indeed checked
+[ [ $gts ] NULL { 'foo' '~.*g.*' } filter.byattr ] FILTER
+SIZE 1 == ASSERT
+// Make sure labels are checked before attributes
+[ [ $gts ] NULL { 'foo' '~.*g.*' } filter.bylabelsattr ] FILTER
+SIZE 0 == ASSERT
+
+NEWGTS
+{ 'foo' 'glop' } SETATTRIBUTES
+'gts' STORE
+// Make sure attributes are not used when selecting by label
+[ [ $gts ] NULL { 'foo' '~.*g.*' } filter.bylabels ] FILTER
+SIZE 0 == ASSERT
+// Make sure attributes are indeed checked
+[ [ $gts ] NULL { 'foo' '~.*g.*' } filter.byattr ] FILTER
+SIZE 1 == ASSERT
+// Make sure labels are checked before attributes
+[ [ $gts ] NULL { 'foo' '~.*g.*' } filter.bylabelsattr ] FILTER
+SIZE 1 == ASSERT
+
+

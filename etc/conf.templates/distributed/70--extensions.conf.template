@@ -1,0 +1,67 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+//
+// Comma separated list of WarpScriptExtension classes to instantiate to modify the defined WarpScript functions.
+// Extension classes can be prefixed with SORTKEY# to force the order in which the extensions will be loaded.
+// The SORTKEY# prefix will be used only for sorting.
+//
+#warpscript.extensions = packageW.classX,packageY.classZ
+
+//
+// Specific extension loading
+// Extension classes can be prefixed with SORTKEY# to force the order in which the extensions will be loaded.
+// The SORTKEY# prefix will be used only for sorting.
+//
+#warpscript.extension.xxx = package.class
+// Integrated extensions:
+// CEVAL, SYNC
+#warpscript.extension.concurrent = io.warp10.script.ext.concurrent.ConcurrentWarpScriptExtension
+// LOGMSG, NOLOG, STDERR, STDOUT, TDESCRIBE
+#warpscript.extension.debug = io.warp10.script.ext.debug.DebugWarpScriptExtension
+// HLOCATE
+#warpscript.extension.hbase = io.warp10.script.ext.debug.HBaseWarpScriptExtension
+// FUNCTIONS
+#warpscript.extension.inventory = io.warp10.script.ext.inventory.InventoryWarpScriptExtension
+// LOGEVENTTO
+#warpscript.extension.logging = io.warp10.script.ext.logging.LoggingWarpScriptExtension
+// REXEC
+#warpscript.extension.rexec = io.warp10.script.ext.rexec.RexecWarpScriptExtension
+// Comma separated list of included and excluded (! prefixed) host patterns
+#warpscript.rexec.endpoint.patterns = .*
+// REXEC connect timeout in ms (default = 0, no timeout)
+#warpscript.rexec.timeout.connect = 0
+// REXEC read timeout in ms (default = 0, no timeout)
+#warpscript.rexec.timeout.read = 0
+// SENSISIONEVENT, SENSISIONGET, SENSISIONSET, SENSISIONUPDATE
+#warpscript.extension.sensision = io.warp10.script.ext.sensision.SensisionWarpScriptExtension
+// MUTEX, SHMLOAD, SHMSTORE
+#warpscript.extension.shm = io.warp10.script.ext.shm.SharedMemoryWarpScriptExtension
+// TOKENDUMP, TOKENGEN, TOKENSECRET
+#warpscript.extension.token = io.warp10.script.ext.token.TokenWarpScriptExtension
+// If you use OSS to handle this secret
+#warp.key.token.secret = wrapped:hex:......
+// If you use a plain string token. Used instead of the previous configuration key if set and not commented
+#token.secret = ....
+// URLFETCH, MAXURLFETCHCOUNT, MAXURLFETCHSIZE
+#warpscript.extension.urlfetch = io.warp10.script.ext.urlfetch.UrlFetchWarpScriptExtension
+// WSPS WSINFO WSKILL STACKPSSECRET
+#warpscript.extension.stackps = io.warp10.script.ext.stackps.StackPSWarpScriptExtension
+#stackps.secret = ....
+//
+// Specific namespace under which to load an extension. The specified namespace will be used as a prefix for all functions of the extension.
+//
+//warpscript.namespace.package.class = namespace.

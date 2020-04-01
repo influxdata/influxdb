@@ -1,0 +1,100 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+//
+// Header containing the request UUID when calling the endpoint
+//
+#http.header.webcall.uuid = 
+
+//
+// HTTP Header for elapsed time of warpscript scripts
+//  
+#http.header.elapsed = 
+
+//
+// Script line where an error was encountered
+//
+#http.header.error.line = 
+
+//
+// Message for the error that was encountered
+//
+#http.header.error.message = 
+
+//
+// HTTP Header for access tokens
+//
+#http.header.token = 
+
+//
+// HTTP Header to provide the token for outgoing META requests
+//
+#http.header.token.META = 
+
+//
+// HTTP Header to provide the token for outgoing UPDATE requests
+//
+#http.header.token.UPDATE = 
+
+//
+// HTTP Header to provide the token for outgoing DELETE requests
+//
+#http.header.token.DELETE = 
+
+//
+// HTTP Header for setting the base timestamp for relative timestamps
+//
+#http.header.now = 
+
+//
+// Name of header containing the signature of the token used for the fetch
+//
+#http.header.fetch.signature = 
+
+//
+// Name of header containing the signature of the token used for the update
+//
+#http.header.update.signature = 
+
+//
+// Name of header containing the signature of streaming directory requests
+//
+#http.header.directory.signature = 
+
+//
+// Name of header containing the name of the symbol in which to expose the request headers
+//
+#http.header.exposeheaders = 
+
+//
+// HTTP Header for number of datapoints fetched during a script invocation
+//
+#http.header.fetched = 
+
+//
+// HTTP Header for number of ops performed in a script invocation
+//
+#http.header.ops = 
+
+//
+// HTTP Header to specify if we should show errors in /sfetch responses
+//
+#http.header.showerrors = 
+
+//
+// HTTP Header for specifying the timespan in /sfetch requests
+//
+#http.header.timespan = 

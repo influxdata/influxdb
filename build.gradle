@@ -1,0 +1,342 @@
+//
+//   Copyright 2018  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+import java.text.SimpleDateFormat
+
+buildscript {
+    repositories {
+        jcenter()
+        maven {
+            url "https://plugins.gradle.org/m2"
+        }
+    }
+    dependencies {
+        classpath "gradle.plugin.com.selesse:gradle-git-changelog:0.3.0"
+    }
+}
+
+plugins {
+    id "com.jfrog.bintray" version "1.8.4"
+    id "com.selesse.git.changelog" version "0.2.0"
+}
+
+
+allprojects {
+    // List of dependencies for Warpscript
+    ext.mc2DepsList = []
+
+    // List of unique dependency names (index)
+    ext.mc2DepsIndex = [] as Set
+
+    // List of dependencies required by Warpscript
+    ext.requiredLibsMc2 = [ 'libthrift', 'bcprov-jdk16', 'boon', 'commons-io', 'commons-codec', 'commons-lang3', 'commons-math3',\
+                            'compiler', 'core', 'curator-x-discovery', 'geoxplib', 'guava', 'hadoop-common', 'hadoop-mapreduce-client-core',\
+                            'java-merge-sort','joda-time', 'jtransforms', 'jts', 'oss-client', 'sensision', 'slf4j-api', 'pyrolite',\
+                            'jts2geojson' ]
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'eclipse'
+    apply plugin: 'idea'
+    apply plugin: 'maven'
+    apply plugin: 'maven-publish'
+    apply plugin: 'com.jfrog.bintray'
+    apply plugin: 'com.selesse.git.changelog'
+
+
+    group = 'io.warp10'
+
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
+
+    //map key = archive base name : value a artifact version
+    ext {
+        warp10Version = [:]
+        commonVersion = getVersionName('')
+        warp10Version['warp10'] = commonVersion
+        warp10Version['warpscript'] = commonVersion
+        warp10Version['hbaseFilters'] = commonVersion
+        warp10Version['crypto'] = commonVersion
+        warp10Version['token'] = commonVersion
+
+        stagingUser = project.hasProperty('stagingUser') ? project.property('stagingUser') : System.getenv('STAGING_USER')
+        stagingURL = project.hasProperty('stagingURL') ? project.property('stagingURL') : System.getenv('STAGING_URL')
+
+        if (null == stagingUser || null == stagingURL) {
+            stagingUser = ''
+            stagingURL = ''
+        }
+
+        warpScriptPublishUser = project.hasProperty('warpScriptPublishUser') ? project.property('warpScriptPublishUser') : System.getenv('WARPSCRIPTPUBLISH_USER')
+        warpScriptPublishURL = project.hasProperty('warpScriptPublishURL') ? project.property('warpScriptPublishURL') : System.getenv('WARPSCRIPTPUBLISH_URL')
+
+        if (null == warpScriptPublishUser || null == warpScriptPublishURL) {
+            warpScriptPublishUser = stagingUser
+            warpScriptPublishURL = stagingURL
+        }
+
+        gradle.taskGraph.whenReady { graph ->
+            println "building warp10 version=$version"
+            if (graph.hasTask(uploadArchives) || graph.hasTask(bintrayUpload)) {
+                //if (!(version ==~ /\d+\.\d+\.\d+\-\d+\-\w+/)) {
+                //    throw new GradleException("Cannot upload archive: version ${version} is not correct (X.X.X-X-X)")
+                //}
+
+                if (!isGitRepoSynced()) {
+                    throw new GradleException("Cannot upload archive: local repo contains uncommited files (git status -u no --porcelain)")
+                }
+            }
+
+        }
+    }
+
+    //
+    // Configurations scp uploadArchives task
+    //
+    configurations {
+        deployerJars
+    }
+
+    //
+    // Repositories for dependency resolution For all subprojects
+    repositories {
+        jcenter()
+        maven {
+            url 'https://repository.apache.org/content/groups/public'
+        }
+        mavenCentral()
+        mavenLocal()
+        maven {
+            url "http://maven.twttr.com"
+        }
+        maven {
+            url 'https://dl.bintray.com/hbs/maven'
+        }
+
+        maven {
+            url 'https://dl.bintray.com/senx/maven'
+        }
+    }
+
+    //
+    // Force versions
+    //
+    configurations.all {
+        resolutionStrategy {
+            // fail eagerly on version conflict (includes transitive dependencies)
+            // e.g. multiple different versions of the same dependency (group and name are equal)
+            //failOnVersionConflict()
+
+            // force certain versions of dependencies (including transitive)
+            //  *append new forced modules:
+            // This is needed to force Guava to 15.0 and not 17.0 as Renjin pulls
+            // HBase does not work with > 15.0
+            force 'com.google.guava:guava:15.0'
+        }
+    }
+
+
+    // GLOBAL DEPENDENCIES
+    dependencies {
+        //UPLOAD ARTIFACTS THROUGH SSH
+        deployerJars 'org.apache.maven.wagon:wagon-ssh-external:3.0.0'
+    }
+
+    // COMPILE OPTIONS
+    compileJava {
+      if (null != System.getProperty("nojvmDebug")) {
+        options.compilerArgs << '-g:none'
+      } else {
+        options.compilerArgs << '-g'
+      }
+
+      //options.debug = false;
+      //options.optimize = false;
+      //options.debugOptions.debugLevel = ''
+    }
+
+    //
+    // IDE CONFIGURATIONS 
+    //
+    // IDEA DEFAULT CONFIGURATION
+    idea {
+        module {
+            inheritOutputDirs = true
+        }
+    }
+    // ECLIPSE
+    eclipse {
+      classpath {
+        //customizing the classes output directory:
+        defaultOutputDir = file('build-eclipse')
+
+        //default settings for downloading sources and Javadoc:
+        downloadSources = true
+        downloadJavadoc = false
+      }
+    }
+
+    // global tasks
+    //
+    // MUST appear before task dependencies can be defined
+    //
+    task('generateThrift').doLast({
+        // Delete the thrift dir if exists
+        if (thriftOutputDir.exists()) {
+            thriftOutputDir.deleteDir()
+        }
+        thriftOutputDir.mkdirs()
+
+        ext.thriftFiles = fileTree(dir: 'src/main/thrift').matching { include '**/*.thrift' }
+        thriftFiles.collect {
+            ext.file = relativePath(it)
+            exec {
+                executable = (null != System.getenv('THRIFT_HOME')) ? System.getenv('THRIFT_HOME') + '/bin/thrift' : 'thrift'
+                args = ['--gen', 'java:private-members', '-o', thriftOutputDir, ext.file]
+            }
+        }
+    })
+
+    // DEPLOY ON MAVEN REPO WITH SCP
+    uploadArchives {
+        repositories {
+            repositories.mavenDeployer {
+                configuration = configurations.deployerJars
+                uniqueVersion = false
+
+                repository(url: "scpexe://${stagingURL}") {
+                    authentication userName: stagingUser
+                }
+            }
+        }
+    }
+
+    // DEPLOY ON BINTRAY
+    bintray {
+        user = project.hasProperty('bintrayUser') ? project.property('bintrayUser') : System.getenv('BINTRAY_USER')
+        key = project.hasProperty('bintrayApiKey') ? project.property('bintrayApiKey') : System.getenv('BINTRAY_API_KEY')
+
+        dryRun = false
+        publish = true
+
+        publications = ['crypto', 'token']
+
+        pkg {
+            repo = 'maven'
+            name = 'warp10'
+            userOrg = 'senx'
+            licenses = ['Apache-2.0']
+            vcsUrl = 'https://github.com/senx/warp10-platform.git'
+            version {
+                name = getVersionName('')
+                released  = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ").format(new Date())
+                vcsTag = getVersionName('')
+            }
+        }
+    }
+}
+
+// ------------------------------------------------------------------
+//                    AUTO RELEASE MANAGEMENT
+// Gets the version name from the latest Git tag
+// if no commit occurs -> the name of the tag likes 0.0.1
+// if commit occurs -> 0.0.1-12-aabb1122 (number of commits + version number)
+// ------------------------------------------------------------------
+def getVersionName(String revision) {
+    String newRevision = revision
+
+    if (null == System.getProperty("nogit") && !revision.endsWith('SNAPSHOT')) {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'describe', '--tags', '--always'
+            standardOutput = stdout
+        }
+        newRevision = stdout.toString().trim()
+    }
+    return newRevision
+}
+
+def updateRevision(String revision) {
+    //
+    // update Revision File
+    //
+    File versionFile = new File(rootProject.projectDir, "warp10/src/main/resources/REVISION")
+    versionFile.write(revision)
+
+    return revision
+}
+
+//
+// Check local git repo is synced with the remote
+//
+def isGitRepoSynced() {
+    def stdout = new ByteArrayOutputStream()
+    exec {
+        commandLine 'git', 'status', '-u', 'no', '--porcelain'
+        standardOutput = stdout
+    }
+
+    //
+    // Exclude Revision.java & gradle.properties
+    //
+    String val = stdout.toString().replaceAll(/.*\/Revision.java\n/, '')
+    val = val.replaceAll(/.*\/gradle.properties\n/, '')
+
+    return (0 == val.trim().size())
+}
+
+//
+// Generate custom pom for WarpScript with the minimal dependencies
+//
+def genPomForWarpscript(Object pom) {
+    pom.withXml {
+        // compute the list of dependencies
+        project(":warp10").configurations.compile.resolvedConfiguration.firstLevelModuleDependencies.each {
+            directDep ->
+                addChildsToWarpscriptDeps(directDep)
+        }
+
+        def dependenciesNode = asNode().appendNode('dependencies')
+        mc2DepsList.each {
+            def dependencyNode = dependenciesNode.appendNode('dependency')
+            dependencyNode.appendNode('groupId', it.getModuleGroup())
+            dependencyNode.appendNode('artifactId', it.getModuleName())
+            dependencyNode.appendNode('version', it.getModuleVersion())
+        }
+    }
+}
+
+//
+// Add the root dependency and all its children (transitive dependencies) to the list
+//
+def addChildsToWarpscriptDeps (def pResolvedDependency) {
+
+    pResolvedDependency.children.each {
+        addChildsToWarpscriptDeps(it)
+    }
+
+    // Add the dependency and its children if it has not been seen before and if this dependency is required by Warpscript
+    String depName = pResolvedDependency.getModuleName()
+    if(!mc2DepsIndex.contains(depName) && isDepRequired(depName)) {
+        mc2DepsIndex << depName
+        mc2DepsList << pResolvedDependency
+    }
+}
+
+boolean isDepRequired(String currentDep ) {
+    return ext.requiredLibsMc2.any { currentDep.equalsIgnoreCase(it as String) }
+}

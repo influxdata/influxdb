@@ -1,0 +1,39 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// E G R E S S
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// Key to use for encrypting GTSSplit instances
+//
+#egress.fetcher.aes =
+
+//
+// Maximum age of a valid GTSSplit (in ms)
+//
+#egress.fetcher.maxsplitage =
+
+//
+// Should the egress exec handler expose its store/directory clients?
+//
+// When the Warp 10 Accelerator is used, the methods cache/nocache and persist/nopersist
+// of the class StandardAcceleratedStoreClient should be called prior to calling fetch
+//
+egress.clients.expose = false

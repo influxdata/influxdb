@@ -1,0 +1,288 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// D I R E C T O R Y
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// Activity period (in ms) to consider when flushing Metadata to HBase
+// Should match ingress.activity.window unless you know what you are doing...
+//
+#directory.activity.window = 3600000
+
+//
+// Comma separated list of Directory related HBase configuration keys. Each key will
+// be set in the HBase configuration by assigning the value defined in the Warp 10 config
+// under the key 'directory.<HBASE_CONFIGURATION_KEY>'. Each listed HBase configuration key
+// MUST have a value defined in the 'directory.' prefixed configuration parameter.
+//
+#directory.hbase.config =
+
+//
+// Maximum number of classes for which to report detailed stats in 'FINDSTATS'
+//
+directory.stats.class.maxcardinality = 100
+
+//
+// Maximum number of labels for which to report detailed stats in 'FINDSTATS'
+//
+directory.stats.labels.maxcardinality = 100
+
+//
+// Maximum size of Thrift frame for directory service
+//
+directory.frame.maxlen = 0
+
+//
+// Maximum number of Metadata to return in find responses
+//
+directory.find.maxresults = 100000
+
+//
+// Hard limit on number of find results. After this limit, the find request will fail.
+//
+directory.find.maxresults.hard = 100000
+
+//
+// Zookeeper ZK connect string for Kafka ('metadata' topic)
+//  
+directory.kafka.metadata.zkconnect = 127.0.0.1:2181/zk/kafka/localhost
+
+//
+// Actual 'metadata' topic
+//
+directory.kafka.metadata.topic = metadata
+
+//
+// Key to use for computing MACs (128 bits in hex or OSS reference)
+//
+directory.kafka.metadata.mac = hex:hhhhhh...
+
+//
+// Key to use for encrypting payloads (128/192/256 bits in hex or OSS reference) 
+//
+directory.kafka.metadata.aes = hex:hhhhhh...
+
+//
+// Key to use for encrypting metadata in HBase (128/192/256 bits in hex or OSS reference) 
+//
+directory.hbase.metadata.aes = hex:hhhhhh...
+
+//
+// Kafka group id with which to consume the metadata topic
+//
+directory.kafka.metadata.groupid = directory.metadata-localhost
+
+//
+// Delay between synchronization for offset commit
+//
+directory.kafka.metadata.commitperiod = 1000
+
+//
+// Maximum byte size we allow the pending Puts list to grow to
+//
+directory.hbase.metadata.pendingputs.size = 1000000
+
+//
+// ZooKeeper Quorum for locating HBase
+//
+directory.hbase.metadata.zkconnect = 127.0.0.1:2181
+
+//
+// HBase table where metadata should be stored
+//
+directory.hbase.metadata.table = continuum
+
+//
+// Columns family under which metadata should be stored
+//
+directory.hbase.metadata.colfam = m
+
+//
+// Parent znode under which HBase znodes will be created
+//
+directory.hbase.metadata.znode = /zk/hbase/localhost
+
+//
+// ZooKeeper server list for registering
+//
+directory.zk.quorum = 127.0.0.1:2181
+
+//
+// ZooKeeper znode under which to register
+//
+directory.zk.znode = /zk/warp/localhost/services
+
+//
+// Number of threads to run for ingesting metadata from Kafka
+//
+directory.kafka.nthreads = 1
+
+//
+// Number of threads to run for serving directory requests
+//
+directory.service.nthreads = 12
+
+//
+// Partition of metadatas we focus on, format is MODULUS:REMAINDER
+//
+directory.partition = 1:0
+
+//
+// Port on which the DirectoryService will listen
+//
+directory.port = 8883
+
+//
+// TCP Backlog applied to the DirectoryService listener
+//
+#directory.tcp.backlog =
+
+//
+// Port the streaming directory service listens to
+//
+directory.streaming.port = 8885
+
+//
+// TCP Backlog applied to the streaming directory service listener
+//
+#directory.streaming.tcp.backlog =
+
+//
+// Number of Jetty selectors for the streaming server
+//
+directory.streaming.selectors = 4
+
+//
+// Number of Jetty acceptors for the streaming server
+//
+directory.streaming.acceptors = 2
+
+//
+// Idle timeout for the streaming directory endpoint
+//
+directory.streaming.idle.timeout = 300000
+
+//
+// Number of threads in Jetty's Thread Pool
+//
+directory.streaming.threadpool = 200
+
+//
+// Maximum size of Jetty ThreadPool queue size (unbounded by default)
+//
+directory.streaming.maxqueuesize = 400
+
+//
+// Jetty attributes for the streaming directory
+//
+#directory.streaming.jetty.attribute.XXX = value
+// Example to modify the maximum size of acceptable form request, to support large selector regexps for example
+#directory.streaming.jetty.attribute.org.eclipse.jetty.server.Request.maxFormContentSize = 10000000
+
+//
+// Address on which the DirectoryService will listen
+//
+directory.host = 127.0.0.1
+
+//
+// Pre-Shared Key (128 bits) for request fingerprinting
+//
+directory.psk = hex:hhhhhh...
+
+//
+// Max age of Find requests
+//
+directory.maxage = 1800000
+
+//
+// Number of threads to use for the initial loading of Metadata
+//
+directory.init.nthreads = 1
+
+//
+// Boolean indicating whether or not we should initialized Directory by reading HBase
+//
+directory.init = true
+
+//
+// Boolean indicating whether or not we should store in HBase metadata we get from Kafka
+//
+directory.store = true
+
+//
+// Boolean indicating whether or not we should do deletions in HBase
+//
+directory.delete = true
+
+//
+// Boolean indicting whether or not we should register in ZK
+//
+directory.register = true
+
+//
+// Class name of directory plugin to use
+//
+#directory.plugin.class = 
+
+//
+// Name of attribute which will be set to the source of the metadata update
+// so the plugin can process it accordingly
+//
+#directory.plugin.sourceattr =
+
+//
+// Boolean indicating whether or not we should use the HBase filter when initializing
+//
+directory.hbase.filter = false
+
+//
+// Kafka client id to use for consuming the metadata topic
+//
+//directory.kafka.metadata.consumer.clientid =
+
+//
+// ZooKeeper port for HBase client
+//
+# directory.hbase.zookeeper.property.clientPort =
+
+//
+// Strategy to adopt if consuming for the first time or if the last committed offset is past Kafka history
+//
+#directory.kafka.metadata.consumer.auto.offset.reset =
+
+//
+// Kafka client.id to use for the metadata topic consumer
+//
+#directory.kafka.metadata.consumer.clientid =
+
+//
+// Name of partition assignment strategy to use
+//
+#directory.kafka.metadata.consumer.partition.assignment.strategy =
+
+//
+// Size of metadata cache in number of entries
+//
+#directory.metadata.cache.size =
+
+//
+// Should we ignore the proxy settings when doing a streaming request?
+//
+#directory.streaming.noproxy =

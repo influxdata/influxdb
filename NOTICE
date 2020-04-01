@@ -1,0 +1,16 @@
+   Warp 10 Platform
+
+   Copyright 2013-2018  SenX S.A.S.
+
+   This product includes software developed at SenX
+
+   This software contains code derived from the Fast Dynamic Time Warping
+   implementation developed by Stan Salvador and licensed under the
+   MIT License. The original software is available from
+
+     https://code.google.com/p/fastdtw/RSA Data Security
+
+   This software uses code developed at GeoXP and (C) Mathias Herberts. This
+   code is available at https://github.com/hbs/geoxplib.git and is licensed under
+   both the AGPLv3 and the GeoXP License Exception making it compatible with
+   the Apache License v2.0 used by this product.

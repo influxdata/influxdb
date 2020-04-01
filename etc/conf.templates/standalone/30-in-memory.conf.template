@@ -1,0 +1,127 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// I N - M E M O R Y
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// Set to true to enable the Warp 10 Accelerator. This is incompatible with in.memory set to true
+//
+accelerator = false
+
+//
+// Set to 'true' to preload the accelerator with the persisted data spanning the accelerator time range.
+// Preloading can be disabled for setups where the accelerator is used as a temporary side cache only.
+//
+accelerator.preload = true
+
+//
+// Number of threads to use for preloading the Warp 10 Accelerator
+//
+accelerator.preload.poolsize = 8
+
+//
+// Size of GTS batches to process when preloading the Warp 10 Accelerator
+//
+accelerator.preload.batchsize = 1000
+
+//
+// Set to true to take into account the last activity of Geo Time Series when preloading the Warp 10 Accelerator
+//
+accelerator.preload.activity = false
+
+//
+// Number of chunks to retain
+//
+//accelerator.chunk.count =
+
+//
+// Length in platform time units of each chunk
+//
+//accelerator.chunk.length =
+
+//
+// If set to true, then only the last recorded value of a GTS is kept, ignoring chunk count and length
+//
+accelerator.ephemeral = false
+
+//
+// How often (in ms) to perform a gc of the accelerator in-memory data.
+//
+#accelerator.gcperiod =
+
+//
+// Maximum size (in bytes) of re-allocations performed during a gc cycle of the accelerator data
+//
+#accelerator.gc.maxalloc =
+
+//
+// Set to 'true' to indicate the instance will use memory only for storage. This type of instance is non persistent.
+//
+in.memory = false
+
+//
+// Set to 'false' to use the deprecated non chunked in-memory store
+//
+// When this is true, the depth of data retained is
+// configured using in.memory.chunk.count and in.memory.chunk.length
+// This configuration MUST be set starting with 2.1.
+// Set it to false if you are using the deprecated non chunked memory store.
+//
+//in.memory.chunked = true
+
+//
+// Number of chunks to retain (defaults to 3)
+//
+//in.memory.chunk.count =
+
+//
+// Length in platform time units of each chunk (defaults to 2**63)
+//
+//in.memory.chunk.length =
+
+//
+// If set to true, then only the last recorded value of a GTS is kept, ignoring chunk count and length
+//
+in.memory.ephemeral = false
+
+//
+// Path to a dump file containing the state of an in-memory Warp 10 to restore.
+//
+#in.memory.load =
+
+//
+// Set to true to tolerate errors while loading a dumped state. Setting this to true can lead to partial data being loaded.
+//
+#in.memory.load.failsafe = true
+
+//
+// Path to a dump file in which the current state of an in-memory Warp 10 will be persisted.
+//
+#in.memory.dump =
+
+//
+// How often (in ms) to perform a gc of the in-memory store.
+//
+#in.memory.gcperiod =
+
+//
+// Maximum size (in bytes) of re-allocations performed during a gc cycle of the chunked in-memory store. 
+//
+#in.memory.gc.maxalloc =

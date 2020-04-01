@@ -1,0 +1,65 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+//
+// SSL Configuration
+//
+
+# Host/IP Address to bind to for the SSL endpoint
+#standalone.ssl.host =
+# Port the SSL endpoint should bind to
+#standalone.ssl.port =
+# TCP Backlog for the SSL endpoint
+#standalone.ssl.tcp.backlog =
+# Number of Jetty acceptors (defaults to 2)
+#standalone.ssl.acceptors =
+# Number of Jetty selectors (defaults to 4)
+#standalone.ssl.selectors =
+# Jetty idle timeout in ms
+#standalone.ssl.idletimeout =
+# Path to the JKS keystore file
+#standalone.ssl.keystore.path =
+# Password for accessing the keystore file
+#standalone.ssl.keystore.password =
+# Alias associated with the SSL X.509 certificate
+#standalone.ssl.cert.alias =
+# Password for accessing the X.509 certificate
+#standalone.ssl.keymanager.password =
+
+## HTTP Plugin
+
+# Host/IP Address to bind to for the SSL endpoint
+#http.ssl.host =
+# Port the SSL endpoint should bind to
+#http.ssl.port =
+# TCP Backlog for the SSL endpoint
+#http.ssl.tcp.backlog =
+# Number of Jetty acceptors (defaults to 2)
+# Adapt value of http.maxthreads accordingly
+#http.ssl.acceptors =
+# Number of Jetty selectors (defaults to 4)
+# Adapt value of http.maxthreads accordingly
+#http.ssl.selectors =
+# Jetty idle timeout in ms
+#http.ssl.idletimeout =
+# Path to the JKS keystore file
+#http.ssl.keystore.path =
+# Password for accessing the keystore file
+#http.ssl.keystore.password =
+# Alias associated with the SSL X.509 certificate
+#http.ssl.cert.alias =
+# Password for accessing the X.509 certificate
+#http.ssl.keymanager.password =

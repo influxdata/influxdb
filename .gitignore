@@ -1,145 +1,20 @@
-# Keep editor-specific, non-project specific ignore rules in global .gitignore:
-# https://help.github.com/articles/ignoring-files/#create-a-global-gitignore
-
-vendor
-.netrc
-.vscode
-.vs
-.tern-project
+.gradle/
+build
+build-eclipse
+classes
+bin/
+out/
+*.iml
+*.ipr
+*.iws
 .DS_Store
-.idea
-.cgo_ldflags
-
-# binary databases
-influxd.bolt
-*.db
-
-# Project distribution
-/dist
-
-# Project binaries.
-/influx
-/influxd
-/fluxd
-/transpilerd
-/bin
-
-# Project tools that you might install with go build.
-/editorconfig-checker
-/staticcheck
-
-ui/node_modules
-ui/coverage
-ui/npm-error.log
-ui/build
-ui/.cache
-ui/package-lock.json
-ui/junit.xml
-
-# e2e test artifacts
-ui/cypress/screenshots
-ui/cypress/videos
-
-ui/src/api/.gitignore
-ui/src/api/.openapi-generator-ignore
-ui/src/api/.openapi-generator/VERSION
-ui/src/api/git_push.sh
-
-# UI generated typescript types
-ui/src/client/generatedRoutes.ts
-
-http/swagger_gen.go
-
-# The below files are generated with make generate
-# These are used with the assests go build tag.
-chronograf/canned/bin_gen.go
-chronograf/dist/dist_gen.go
-chronograf/server/swagger_gen.go
-http/swagger_gen.go
-
-# The rest of the file is the .gitignore from the original influxdb repository,
-# copied here to prevent mistakenly checking in any binary files
-# that may be present but previously ignored if you cloned/developed before v2.
-
-*~
-
-config.json
-/bin/
-
-/query/a.out*
-
-# ignore generated files.
-cmd/influxd/version.go
-
-# executables
-
-*.test
-
-influx_tsm
-**/influx_tsm
-!**/influx_tsm/
-
-influx_stress
-**/influx_stress
-!**/influx_stress/
-
-influxd
-**/influxd
-!**/influxd/
-
-influx
-**/influx
-!**/influx/
-
-influxdb
-**/influxdb
-!**/influxdb/
-
-influx_inspect
-**/influx_inspect
-!**/influx_inspect/
-
-/benchmark-tool
-/main
-/benchmark-storage
-godef
-gosym
-gocode
-inspect-raft
-
-# dependencies
-out_rpm/
-packages/
-
-# autconf
-autom4te.cache/
-config.log
-config.status
-
-# log file
-influxdb.log
-benchmark.log
-
-# config file
-config.toml
-
-# test data files
-integration/migration_data/
-test-logs/
-
-# man outputs
-man/*.xml
-man/*.1
-man/*.1.gz
-
-# test outputs
-/test-results.xml
-junit-results
-cypress/screenshots
-cypress/videos
-
-# profile data
-/prof
-
-# vendored files
-/vendor
+.project
+.classpath
+.metadata
+.settings/
+.idea/
+generated/
+warp10/src/main/resources/REVISION
+gradle.properties
+archive
+/CHANGELOG.md

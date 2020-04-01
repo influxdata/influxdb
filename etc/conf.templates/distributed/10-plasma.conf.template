@@ -1,0 +1,204 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// P L A S M A
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// Maximum number of Geo Time Series a single Plasma session can subscribe to
+//
+#warp.plasma.maxsubs
+
+//
+// ZooKeeper connect string for Kafka consumer
+//
+plasma.frontend.kafka.zkconnect = 127.0.0.1:2181/zk/kafka/localhost
+
+//
+// Kafka topic to consume. This topic is dedicated to this Plasma frontend.
+// One topic per instance of plasma frontend.
+//
+plasma.frontend.kafka.topic = plasmafe1
+
+//
+// Kafka groupid under which to consume above topic
+//
+plasma.frontend.kafka.groupid = plasmafe-1
+
+//
+// How often (in ms) to commit Kafka offsets
+//
+plasma.frontend.kafka.commitperiod = 1000
+
+//
+// Number of threads used for consuming Kafka topic
+//
+plasma.frontend.kafka.nthreads = 2
+
+//
+// Optional AES key for messages in Kafka
+//
+#plasma.frontend.kafka.aes = 
+
+//
+// ZooKeeper connect String for subscription
+//
+plasma.frontend.zkconnect = 127.0.0.1:2181
+
+//
+// ZooKeeper root znode for subscriptions
+//
+plasma.frontend.znode = /zk/warp/localhost/plasma
+
+//
+// Maximum size of each znode (in bytes)
+//
+plasma.frontend.maxznodesize = 100000
+
+//
+// Host/IP on which to bind
+//
+plasma.frontend.host = 127.0.0.1
+
+//
+// Port on which to listen
+//
+plasma.frontend.port = 8884
+
+//
+// TCP Backlog applied to the ingress server listener
+//
+#plasma.frontend.tcp.backlog =
+
+//
+// Number of acceptors
+//
+plasma.frontend.acceptors = 2
+
+//
+// Number of selectors
+//
+plasma.frontend.selectors = 4
+
+//
+// Max message size for the Plasma Frontend Websocket
+//
+plasma.frontend.websocket.maxmessagesize = 1048576
+
+//
+// Idle timeout
+//
+plasma.frontend.idle.timout = 300000
+
+//
+// SipHash key for computing MACs of Kafka messages
+//
+plasma.frontend.kafka.mac = hex:hhhh...
+
+plasma.frontend.subscribe.delay = 5000
+
+//
+// Zookeeper ZK connect string for Kafka ('in' topic)
+//  
+plasma.backend.kafka.in.zkconnect = 127.0.0.1:2181/zk/kafka/localhost
+
+//
+// Actual 'in' topic
+//
+plasma.backend.kafka.in.topic = data
+
+//
+// Key to use for computing MACs (128 bits in hex or OSS reference)
+//
+plasma.backend.kafka.in.mac = hex:hhhhhh...
+
+//
+// Key to use for encrypting payloads (128/192/256 bits in hex or OSS reference) 
+//
+#plasma.backend.kafka.in.aes = 
+
+//
+// Kafka group id with which to consume the in topic
+//
+plasma.backend.kafka.in.groupid = plasmabeIn-1
+
+//
+// Delay between synchronization for offset commit
+//
+plasma.backend.kafka.in.commitperiod = 1000
+
+//
+// Number of threads to run for reading off of Kafka
+//
+plasma.backend.kafka.in.nthreads = 2
+
+//
+// Kafka broker list for the 'out' topic
+//
+plasma.backend.kafka.out.brokerlist = 127.0.0.1:9092
+
+//
+// Maximum size of Kafka outward messages
+//
+plasma.backend.kafka.out.maxsize = 500000
+
+//
+// Key to use for computing MACs (128 bits in hex or OSS reference)
+//
+plasma.backend.kafka.out.mac = hex:hhhhhh...
+
+//
+// Key to use for encrypting payloads (128/192/256 bits in hex or OSS reference) 
+//
+#plasma.backend.kafka.out.aes = 
+
+//
+// ZooKeeper Quorum for the ZK ensemble to use for retrieving subscriptions
+//
+plasma.backend.subscriptions.zkconnect = 127.0.0.1:2181
+
+//
+// Parent znode under which subscription znodes will be created
+//
+plasma.backend.subscriptions.znode = /zk/warp/localhost/plasma
+
+//
+// Kafka client id to use for the data consumer
+//
+//plasma.frontend.kafka.consumer.clientid =
+
+//
+// Kafka client id to use for the data consumer
+//
+//plasma.backend.kafka.in.consumer.clientid =
+
+//
+// Kafka client id to use for the data producer towards the frontends
+//
+//plasma.backend.kafka.out.producer.clientid =
+
+//
+// Name of partition assignment strategy to use
+//
+//plasma.backend.kafka.in.consumer.partition.assignment.strategy = 
+
+//
+// Name of partition assignment strategy to use
+//
+//plasma.frontend.kafka.consumer.partition.assignment.strategy = 

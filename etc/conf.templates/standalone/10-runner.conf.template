@@ -1,0 +1,72 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// R U N N E R
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// Set to true to run each script a first time at startup, to false to schedule the
+// first run at the next timestamp which is congruent to 0 modulo the period of the
+// script
+runner.runatstartup = true
+
+//
+// String uniquely identifying this instance of ScriptRunner
+//
+runner.id = runner-standalone-1
+
+//
+// Roles of the ScriptRunner instance. Can either be 'standalone' or any combination of 'scheduler' and 'worker'.
+//
+runner.roles = standalone
+
+//
+// warpscript endpoint to use for executing the scripts. If this is omitted then
+// execution will take place in the scheduling thread.
+//
+//runner.endpoint = http://127.0.0.1:8881/api/v0/exec/warpscript
+
+//
+// AES key for wrapping a runner nonce which can later be extracted using RUNNERNONCE
+//
+//runner.psk = @key:256:runner.psk@
+
+//
+// Root directory under which scripts to run reside.
+// This directory contains subdirectories, each one of them contains other
+// subdirectories whose name is the periodicity (in ms) at which the scripts under it
+// should be run. The scripts MUST end with the '.mc2' extension.
+//
+runner.root = ${standalone.home}/warpscripts
+
+//
+// Number of threads to use for running scripts.
+//
+runner.nthreads = 1
+
+//
+// How often (in ms) to scan RUNNER_ROOT for new scripts
+//
+runner.scanperiod = 60000
+
+//
+// Minimum period at which a script can be scheduled. Any script scheduled
+// more often than that won't be run
+//
+runner.minperiod = 1000

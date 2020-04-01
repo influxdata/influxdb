@@ -1,0 +1,154 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// D I S T R I B U T E D
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// FYI you can reference attributes to avoid duplication and make configuration easy to update
+//
+// kafka.data.topic = data
+// ingress.kafka.data.topic = ${kafka.data.topic}
+//
+
+//
+// Time units of the platform
+// ns means we store nanoseconds
+// us means we store microseconds
+// ms means we store milliseconds
+//
+warp.timeunits = us
+
+
+//
+// Comma separated list of headers to return in Access-Control-Allow-Headers on top of the token header.
+// This applies to all HTTP endpoints.
+//
+#cors.headers =
+
+//
+// Maximum size for encoders exchanged within Warp 10.
+// Make sure this value is less than the maximum size of
+// a Kafka message.
+//
+max.encoder.size = 100000
+
+//
+// Comma separated list of components to run in distributed mode
+// Valid values are 'ingress', 'directory', 'store', 'egress', 'fetch', 'plasmaFE', 'plasmaBE', 'runner'
+//
+warp.components =
+
+//
+// How often (in ms) should we refetch the region start/end keys
+//
+#warp.hbase.regionkeys.updateperiod = 
+
+//
+// String returned by the IDENT function
+//
+#warp.ident = 
+
+//
+// Set to true to disable plasma
+//
+#warp.plasma.disable =
+
+//
+// Set to true to disable mobius
+//
+#warp.mobius.disable =
+
+//
+// Set to true to disable streaming updates
+//
+#warp.streamupdate.disable =
+
+//
+// Set to a message indicating the reason why updates are disabled, they are enabled if this is not set
+//
+#warp.update.disabled = Updates are momentarily disabled
+ 
+//  
+// Set to a message indicating the reason why deletes are disabled, they are enabled if this is not set
+//
+#warp.delete.disabled = Deletes are momentarily disabled
+ 
+//
+// Set to a message indicating the reason why meta updates are disabled, they are enabled if this is not set
+//
+#warp.meta.disabled = Meta updates are momentarily disabled
+
+// Telemetry - set to false to disable
+#warp10.telemetry = 
+
+//
+// Comma separated list of banned token attributes. Token having one of those attributes will be rejected
+//
+#warp.token.banned.attributes =
+
+//
+// Token file
+//
+#warp.token.file =
+
+//
+// TRL (TOKEN REVOCATION LIST)
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// root directory where trl files are stored.
+//
+# warp.trl.dir = ${standalone.home}/etc/trl
+
+//
+// Period (in ms) between two scans of the trl directory
+//
+# warp.trl.scan.period = 60000
+
+//
+// Delay (in ms) Startup delay authorized without a TRL present
+// during this time tokens are decoded, even if TRL is missing.
+// After this delay, if the TRL is still missing, token decoding is locked.
+//
+// 0 the TRL is mandatory for the token filter startup.
+//
+//
+# warp.trl.startup.delay = 60000
+
+//
+// Maximum length of labels (names + values) - Defaults to 2048
+//
+#warp.labels.maxsize = 2048
+  
+//
+// Maximum length of attributes (names + values) - Defaults to 8192
+//
+#warp.attributes.maxsize = 8192
+
+//
+// Set to true to expose owner and producer labels in Geo Time Series retrieved from the Warp 10 Storage Engine
+//
+#warp10.expose.owner.producer = true
+
+//
+// Set to true to allow Directory queries with missing label selectors (using empty exact match)
+//
+warp10.absent.label.support = true

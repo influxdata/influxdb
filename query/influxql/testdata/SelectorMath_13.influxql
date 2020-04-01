@@ -1,1 +1,0 @@
-SELECT last(f3), f3 FROM m 

@@ -1,0 +1,157 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// D A T A L O G
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// Datalogging directory. If set, every data modification action (UPDATE, META, DELETE) will produce
+// a file in this directory with the timestamp, the token used and the action type. These files can then
+// be used to update another instance of Warp 10
+//
+#datalog.dir = ${standalone.home}/datalog
+
+//
+// Set datalog.sync to true to force a call to fsync upon closing each datalog file, thus ensuring
+// the file blocks are written to the underlying device. This defaults to false if the property is not set.
+//
+datalog.sync = true
+
+//
+// Unique id for this datalog instance.
+//
+#datalog.id = datalog-0
+
+//
+// List of shards which are retained by this instance. Other shards will still be forwarded.
+// If this configuration key is not present, all data will be stored
+//
+#datalog.shards = MODULUS:REMAINDER, MODULUS:REMAINDER, ...
+
+//
+// Number of bits to shift the shard key to the right
+//
+#datalog.shardkey.shift = 0
+
+//
+// Set to false to disable logging the key used for sharding. This defaults to true when datalog is enabled.
+//
+#datalog.logshardkey = false
+
+//
+// Datalog pre-shared key to protect the DatalogRequest instances. If this AES key is not set, the requests will not be
+// encrypted and could be altered.
+//
+#datalog.psk = hex:hhhhhhhh....
+
+//
+// Set this property to 'false' to skip logging forwarded requests or to 'true' if you want to log them to
+// forward them to an additional hop.
+//
+#datalog.logforwarded = false
+
+//
+// Comma separated list of datalog forwarders. Configuration of each forwarder is done via datalog configuration
+// keys suffixed with '.name' (eg .xxx, .yyy), except for datalog.psk which is common to all forwarders.
+//
+#datalog.forwarders = xxx,yyy
+
+//
+// Directory where datalog files to forward reside. If this property and 'datalog.forwarder.dstdir' are set, then
+// the DatalogForwarder daemon will run.
+// When running multiple datalog forwarders, all their srcdir MUST be on the same device as the 'datalog.dir' directory
+// as hard links are used to make the data available to the forwarders
+//
+#datalog.forwarder.srcdir = ${standalone.home}/datalog
+
+//
+// Directory where forwarded datalog files will be moved. MUST be on the same device as datalog.forwarder.srcdir
+//
+#datalog.forwarder.dstdir = ${standalone.home}/datalog_done
+
+//
+// Set to 'true' to delete the datalog files which were forwarded. If set to false or absent, such files will be moved
+// to 'datalog.forwarder.dstdir'.
+//
+#datalog.forwarder.deleteforwarded = true
+
+//
+// Set to 'true' to delete the datalog files which were ignored. If set to false or absent, such files will be moved
+// to 'datalog.forwarder.dstdir'.
+//
+#datalog.forwarder.deleteignored = true
+
+//
+// How often (in ms) to scan 'datalog.forwarder.srcdir' for datalog files to forward
+//
+#datalog.forwarder.period = 1000
+
+//
+// Comma separated list of datalog ids which should not be forwarded. This is used to avoid loops.
+//
+#datalog.forwarder.ignored =
+
+//
+// Set this property to 'true' to compress the forwarded requests
+//
+#datalog.forwarder.compress = true
+
+//
+// Set this property to 'true' to behave like a normal Warp 10 client. If not set to 'true' then
+// the original datalog requests will be forwarded. Set to 'true' when forwarding to a distributed Warp 10.
+//
+#datalog.forwarder.actasclient = true
+
+//
+// Number of threads which will process the datalog requests. Requests for a identical (producer,app,owner) tuple
+// will always be processed by the same thread to guarantee the sequence of actions.
+//
+#datalog.forwarder.nthreads = 4
+
+//
+// Endpoint to use when forwarding datalog UPDATE requests.
+//
+#datalog.forwarder.endpoint.update = http://host:port/api/v0/update
+
+//
+// Endpoint to use when forwarding datalog META requests.
+//
+#datalog.forwarder.endpoint.meta = http://host:port/api/v0/meta
+
+//
+// Endpoint to use when forwarding datalog DELETE requests.
+//
+#datalog.forwarder.endpoint.delete = http://host:port/api/v0/delete
+
+//
+// Comma separated list of shards to forward, each shard being specified as MODULUS:REMAINDER
+// If no shards are specified, then the shard key is not analyzed
+//
+#datalog.forwarder.shards =
+
+//
+// Number of bits to right shift the shard key. If this is >= 24, then only the class id will be
+// considered for sharding. Defaults to 0
+//
+#datalog.forwarder.shardkey.shift =
+
+//
+// Set to 'true' to ignore timestamp limits (maxpast/maxfuture) when receiving data via datalog.
+//
+#datalog.ignore.timestamplimits = true

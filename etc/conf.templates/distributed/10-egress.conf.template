@@ -1,0 +1,181 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// E G R E S S
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// Should the egress exec handler expose its store/directory clients?
+//
+egress.clients.expose = false
+
+//
+// Comma separated list of Egress related HBase configuration keys. Each key will
+// be set in the HBase configuration by assigning the value defined in the Warp 10 config
+// under the key 'egress.<HBASE_CONFIGURATION_KEY>'. Each listed HBase configuration key
+// MUST have a value defined in the 'egress.' prefixed configuration parameter.
+//
+#egress.hbase.config = 
+
+//
+// Port onto which the egress server should listen
+//
+egress.port = 8881
+
+//
+// TCP Backlog applied to the egress server listener
+//
+#egress.tcp.backlog =
+
+//
+// Host onto which the egress server should listen
+//
+egress.host = 127.0.0.1
+
+//
+// Number of acceptors
+//
+egress.acceptors = 2
+
+//
+// Number of selectors
+//
+egress.selectors = 8
+
+//
+// Idle timeout
+//
+egress.idle.timeout = 300000
+
+//
+// ZooKeeper server list
+//
+egress.zk.quorum = 127.0.0.1:2181
+
+//
+// Key to use for encrypting data in HBase (128/192/256 bits in hex or OSS reference) 
+//
+#egress.hbase.data.aes = 
+
+//
+// Columns family under which data should be stored
+//
+egress.hbase.data.colfam = v
+
+//
+// HBase table where data should be stored
+//
+egress.hbase.data.table = continuum
+
+//
+// ZooKeeper Quorum for locating HBase
+//
+egress.hbase.data.zkconnect = 127.0.0.1:2181
+
+//
+// Parent znode under which HBase znodes will be created
+//
+egress.hbase.data.znode = /zk/hbase/localhost
+
+//
+// Threshold in number of GTS above which block caching will be disabled
+//
+egress.hbase.data.blockcache.gts.threshold = 1024
+
+//
+// Number of GTS to batch when retrieving datapoints (to mitigate responseTooSlow errors)
+//
+egress.fetch.batchsize = 10000
+
+//
+// Boolean indicating whether or not to use the HBase filter when retrieving rows.
+//
+egress.hbase.filter = true
+
+//
+// Key to use for encrypting GTSSplit instances
+//
+#egress.fetcher.aes = 
+
+//
+// Maximum age of a valid GTSSplit (in ms)
+//
+#egress.fetcher.maxsplitage = 
+
+//
+// Custom value of 'hbase.client.ipc.pool.size' for the Egress HBase pool
+//
+#egress.hbase.client.ipc.pool.size = 
+
+//
+// Custom scanner lease period
+//
+#egress.hbase.client.scanner.timeout.period = 
+
+//
+// GTS count threshold above which the filter will be used
+//
+#egress.hbase.filter.threshold = 
+
+//
+// Custom value for RPC timeout
+//
+#egress.hbase.rpc.timeout = 
+
+//
+// ZooKeeper port for HBase client
+//
+#egress.hbase.zookeeper.property.clientPort = 
+
+//
+// Custom value of 'hbase.client.max.perserver.tasks', defaults to 2
+//
+#egress.hbase.client.max.perserver.tasks =
+
+//
+// Custom value of 'hbase.client.max.perregion.tasks', defaults to 1
+//
+#egress.hbase.client.max.perregion.tasks =
+  
+//
+// Custom value of 'hbase.client.max.total.tasks', defaults to 100
+//
+#egress.hbase.client.max.total.tasks =
+   
+//
+// Number of threads to use for scheduling parallel scanners. Use 0 to disable parallel scanners
+//
+#egress.hbase.parallelscanners.poolsize =
+
+//
+// Maximum number of parallel scanners per fetch request. Use 0 to disable parallel scanners.
+//
+#egress.hbase.parallelscanners.maxinflightperrequest =
+
+//
+// Minimum number of GTS to assign to a parallel scanner. If the number of GTS to fetch is below this limit, no
+// parallel scanners will be spawned. Defaults to 4.
+//
+#egress.hbase.parallelscanners.min.gts.perscanner =
+  
+//
+// Maximum number of parallel scanners to use when fetching datapoints for a batch of GTS (see EGRESS_FETCH_BATCHSIZE).
+// Defaults to 16. 
+//
+#egress.hbase.parallelscanners.max.parallel.scanners =

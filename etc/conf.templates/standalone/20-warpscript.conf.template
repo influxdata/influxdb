@@ -1,0 +1,222 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// W A R P S C R I P T
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// WarpScript code used to resolve font URLs, can be a macro call or any other valid WarpScript excerpt
+// The code is passed the URL to check and should return the updated URL. NOOP will accept all URLs.
+//
+#processing.font.resolver = NOOP
+
+// Maximum time that TIMEBOX can wait for an execution (in ms), defaults to 30s
+#warpscript.timebox.maxtime=30000
+
+// Path of the 'bootstrap' WarpScript code for the interactive mode
+#warpscript.interactive.bootstrap.path =
+// How often to reload the bootstrap code (in ms) for the interactive mode
+#warpscript.interactive.bootstrap.period = 
+// Maximum number of parallel interactive sessions (defaults to 1).
+#warpscript.interactive.capacity = 
+// Port on which the TCP endpoint of the interactive mode will listen. If undefined, no TCP endpoint will be available.
+#warpscript.interactive.tcp.port = 
+// Set to 'true' to disable the interactive mode completely
+#warp.interactive.disable = true
+
+//
+// Number of registers to allocate in the stack defaults to 256
+//
+#warpscript.registers = 256
+
+//
+// This configuration parameter determines if undefining a function (via NULL 'XXX' DEF)
+// will unshadow the original statement thus making it available again or if it will replace
+// it with a function that will fail with a message saying the function is undefined.
+// The safest behavior is to leave this undefined or set to 'false'.
+//
+warpscript.def.unshadow = false
+
+//
+// Jar Repository - for Warp10 UDF only
+//
+
+// The path to a directory containing jar files from which UDFs can be loaded
+warpscript.jars.directory = ${standalone.home}/jars
+
+// How often (in ms) should Warp 10 rescan the above directory
+warpscript.jars.refresh = 60000
+
+// Set to 'true' to allow loading the UDFs from the classpath when no directory is explicitely defined
+warpscript.jars.fromclasspath = true 
+
+//
+// Default maximum number of operations a single WarpScript execution can do
+//
+warpscript.maxops = 1000
+warpscript.maxops.hard = 20000
+
+//
+// Maximum number of buckets which can result of a call to BUCKETIZE
+// Can be modified by MAXBUCKETS up to the hard limit below
+//
+warpscript.maxbuckets = 1000000
+warpscript.maxbuckets.hard = 1000000
+
+//
+// Maximum number of cells in geographic shapes
+// Can be modified by MAXGEOCELLS up to the hard limit below
+//
+warpscript.maxgeocells = 10000
+warpscript.maxgeocells.hard = 100000
+
+//
+// Maximum depth of the stack
+// Can be modified by MAXDEPTH up to the hard limit below
+//
+warpscript.maxdepth = 1000
+warpscript.maxdepth.hard = 2000
+
+//
+// Maximum number of datapoint which can be fetched during a WarpScript execution
+// Can be modified by LIMIT up to the hard limit below
+//
+warpscript.maxfetch = 100000
+warpscript.maxfetch.hard = 1000000
+
+//
+// Maximum number of GTS which can be retrieved from Directory during a WarpScript execution
+// Can be modified by MAXGTS up to the hard limit below
+//
+warpscript.maxgts = 100000
+warpscript.maxgts.hard = 100000
+
+//
+// Maximum time (in ms) that can be spent in a loop
+// Can be modified by MAXLOOP up to the hard limit below
+//
+warpscript.maxloop = 5000
+warpscript.maxloop.hard = 10000
+
+//
+// Maximum levels of recursion in macro calls
+//
+warpscript.maxrecursion = 16
+warpscript.maxrecursion.hard = 32
+
+//
+// Maximum number of symbols which can be defined by a single WarpScript
+// Can be modified by MAXSYMBOLS up to the hard limit below
+warpscript.maxsymbols = 64
+warpscript.maxsymbols.hard = 256
+
+//
+// Maximum number of pixels per image
+//
+warpscript.maxpixels = 1000000
+warpscript.maxpixels.hard = 1000000
+
+//
+// Maximum size of a JSON pushed on the stack, in characters.
+//
+warpscript.maxjson = 20971520
+warpscript.maxjson.hard = 209715200
+
+//
+// WEBCALL limit per WarpScript
+//
+warpscript.maxwebcalls = 4
+
+//
+// CALL root directory property
+//
+warpscript.call.directory = ${standalone.home}/calls
+
+//
+// Path of the 'bootstrap' WarpScript code
+//
+warpscript.bootstrap.path = ${standalone.home}/etc/bootstrap/egress.mc2
+
+//
+// How often to reload the bootstrap code (in ms) for Egress
+//
+warpscript.bootstrap.period = 120000
+
+//
+// URL for the 'update' endpoint
+//
+warpscript.update.endpoint = http://${standalone.host}:${standalone.port}/api/v0/update
+
+//
+// URL for the 'meta' endpoint
+//
+warpscript.meta.endpoint = http://${standalone.host}:${standalone.port}/api/v0/meta
+
+//
+// URL for the 'delete' endpoint
+//
+warpscript.delete.endpoint = http://${standalone.host}:${standalone.port}/api/v0/delete
+
+//
+// Maximum number of subprogram instances which can be spawned by CALL
+//
+//warpscript.call.maxcapacity = 1
+
+//
+// Path of the 'bootstrap' WarpScript code for Mobius
+//
+warpscript.mobius.bootstrap.path = ${standalone.home}/etc/bootstrap/mobius.mc2
+
+//
+// Number of threads in the Mobius pool (those threads are used to execute the mobius macros)
+//
+warpscript.mobius.pool = 16
+
+//
+// How often to reload the bootstrap code (in ms) for Mobius
+//
+warpscript.mobius.bootstrap.period = 120000
+
+//
+// Path of the 'bootstrap' WarpScript code for Runner
+//
+warpscript.runner.bootstrap.path = ${standalone.home}/etc/bootstrap/runner.mc2
+
+//
+// How often to reload the bootstrap code (in ms) for Runner
+//
+warpscript.runner.bootstrap.period = 120000
+
+//
+// URLFETCH extension
+//
+
+// Maximum number of URLFETCH calls, 64 by default for soft and hard
+#warpscript.urlfetch.limit =
+#warpscript.urlfetch.limit.hard =
+// Maximum downloaded bytes by URLFETCH, 1000000 by default for soft and hard
+#warpscript.urlfetch.maxsize =
+#warpscript.urlfetch.maxsize.hard =
+// List of patterns to include/exclude for hosts, works the same way as webcall.host.patterns. Defaults to the value of webcall.host.patterns.
+#warpscript.urlfetch.host.patterns =
+
+//
+// allow C style block comments. /**** valid block comment ****/
+//
+warpscript.comments.loose = true

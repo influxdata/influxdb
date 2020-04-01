@@ -1,0 +1,47 @@
+//
+//   Copyright 2020  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+//
+// HTTP Plugin
+//
+
+// IP the HTTP plugin will listen on
+#http.host = 127.0.0.1
+// Port the HTTP plugin will listen on
+#http.port = 10080
+// TCP Backlog for the HTTP plugin listener
+#http.tcp.backlog =
+// Number of Jetty acceptors to use (defaults to 2)
+#http.acceptors = 2
+// Number of Jetty selectors to use (defaults to 4)
+#http.selectors = 4
+// Number of threads Jetty should use (defaults to 1 + acceptors + acceptors * selectors which is the strict minimum for 1 request)
+// All selectors/acceptors (with and without SSL support, see http.ssl.selectors/http.ssl.acceptors) must be considered.
+// Read this article to estimate number of thread depending on your server load : https://www.eclipse.org/lists/jetty-users/msg05196.html
+// 200 is Jetty default value for moderate load.
+#http.maxthreads = 200
+// Timeout (in ms) when expecting a HTTP request (defaults to 30000 ms)
+#http.idle.timeout = 30000
+// Directory where spec files are located
+#http.dir =
+// Period (in ms) at which to scan 'http.dir' (defaults to 60s)
+#http.period = 60000
+// Size of the queue to use for the Jetty thread pool. By default no queue is used
+#http.queuesize = 8
+// Set to false to disable support for gzipped responses
+#http.gzip = false
+// Set to true to convert header names to lower case in the request map
+#http.lcheaders = true

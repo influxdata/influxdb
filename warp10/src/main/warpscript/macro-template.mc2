@@ -1,0 +1,115 @@
+<%
+  //
+  // Metadata as comments
+  //
+  // @category XXX
+  //
+  <'
+    This is the docstring for the macro, it contains relevant information about
+    what the macro is actually doing and the parameters needed to call it.
+
+    This doc will be pushed on the stack when calling the macro after having called DOCMODE.
+
+    The '@param' section details all the parameters of the macro. Each parameter
+    description is either for a named parameter (a pre-existing symbol at the
+    time the macro is called) or a stack level (represented as [xx] with xx > 1 or [TOP] for
+    the top of the stack).
+
+    In general macros should not be callable with different stack level combos, instead
+    use named parameters in order to limit confusion.
+
+    @param 'foo' Parameter 'foo' contains ... This parameter is optional.
+    @param [2] Stack level 2 contains ....
+    @param [TOP] The top of the stack should contain ....
+
+    The '@return' section details what the macro leaves on the stack and what symbols
+    it alters.
+
+    The '@return' section is completed with the detailed signature section below.
+
+    @return [TOP] This macro leaves xxx on top of the stack
+    @return 'bar' This macro modifies the 'bar' symbol
+  '>
+  DOC
+
+  //
+  // Describe the various signatures of the macro. Those signatures describe both the input and output types.
+  // They are left on the stack when the macro if called after having called SIGMODE.
+  //
+
+  [
+    [ // This is the first signature
+      [ ] // List of type specifications of the various stack levels, the first type is that of the top of the stack
+          // Each type spec is either 'TYPE', 'name:TYPE' or 'name:TYPE:default'
+          // A type spec can be followed by '+' to indicate that it may appear one or more times, '*' to indicate it may appear zero or more times, or by '{x}' to indicate it appears x times,
+          // '{x,}' to indicate it appears at least x times, or '{x,y}' to indicate it appears between x and y times.
+          //
+          // If the macro does not consume stack levels, leave the list empty.
+          // Each TYPE can be one of:
+          //   'NUMBER'        any numerical type
+          //   'LONG'
+          //   'DOUBLE'
+          //   'BOOLEAN'
+          //   'STRING'
+          //   'GTS'           a Geo Time Series
+          //   'MACRO'
+          //   'MAPPER'
+          //   'REDUCER'
+          //   'BUCKETIZER'
+          //   'FILTER'
+          //   'FUNCTION'      a function used in APPLY
+          //   'PGRAPHICS'   a PGraphics object as manipulated by Processing functions
+          //   []            a List, content of the list is not specified, should be detailed in the DOC section
+          //   [ spec1 spec2 ... ] a List whose elements are of the given specs.
+          //   {}           a Map, content of the map is not specified, should be detailed in the DOC section
+          //   { 'x' xx 'y' yy ... } a Map specifying field names (strings) and associated specs
+          //   'ANY'           an unspecified type
+          //   'class'         a parameter of class 'class'
+          //   ( xx yy zz )    a set of typespecs, meaning one type spec among xx, yy or zz
+          //
+          //   If a list or set of typespecs needs a modifier ('+', '{x}', ...), the list or set MUST appear snapshotted (i.e. represented as a string).
+         
+      [ ] // List of type specifications of the various stack levels after the macro is called. The first is the type of the top of the stack.
+          // If the macro does not produce any output, leave the list empty. 
+          // If the return is not specified or unknown, use the single value 'ANY*' in the array.
+          // The various type specifications are only composed of the TYPE name or 'name:TYPE', but no default value.
+    ]
+    [ // This is the second signature
+      [ ]
+      [ ]
+    ]
+  ]
+  SIG
+
+  //
+  // Start by saving the context
+  //
+  // Note that any symbols which should be visibly altered by the macro should
+  // be altered either before the call to STORE or after the call to RESTOR
+  //
+
+  SAVE 'context' STORE
+
+    //
+    // Code of the actual macro
+    //
+
+  //
+  // Restore the context
+  //
+
+  $context RESTORE
+%>
+'macro' STORE
+
+//
+// Unit tests
+//
+
+// Add some code to make sure your macro is behaving as expected
+
+//
+// Leave the macro on the stack
+//
+
+$macro

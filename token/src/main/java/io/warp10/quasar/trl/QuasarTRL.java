@@ -1,0 +1,69 @@
+//
+//   Copyright 2018  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+package io.warp10.quasar.trl;
+
+public class QuasarTRL {
+
+  /**
+   * List of all the revoked token SIP HASH
+   */
+  private ChunkedArray revokedTokens = null;
+
+  private ChunkedArray revokedApplications = null;
+
+  public QuasarTRL() {
+    // TODO from configuration
+    revokedTokens = new ChunkedArray(5000000, 0.75f);
+    revokedApplications = new ChunkedArray(5000, 0.75f);
+  }
+
+  /**
+   *
+   */
+  public QuasarTRL(int size) {
+    revokedTokens = new ChunkedArray(size, 5000000, 0.75f);
+    revokedApplications = new ChunkedArray(5000, 0.75f);
+  }
+
+  public boolean isTokenRevoked(long sipHash) {
+    return revokedTokens.contains(sipHash);
+  }
+
+  public boolean isAppAuthorized(long appId) {
+    return revokedApplications.contains(appId);
+  }
+
+  public int getTrlSize() {
+    return revokedTokens.size();
+  }
+
+  public void revokeToken(long tokenRevoked) {
+    revokedTokens.addLong(tokenRevoked);
+  }
+
+  public void revokeApplication(long appRevoked) {
+    revokedApplications.addLong(appRevoked);
+  }
+
+  public void sortTokens() {
+    // sort the new arrays
+    revokedTokens.sort();
+    revokedApplications.sort();
+  }
+
+
+}

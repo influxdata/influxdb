@@ -1,0 +1,22 @@
+[Unit]
+Description=Warp 10 Standalone
+
+[Service]
+Type=forking
+User=warp10
+ExecStart=/opt/warp10-@VERSION@/bin/warp10-standalone.sh start
+ExecStop=/opt/warp10-@VERSION@/bin/warp10-standalone.sh stop
+SuccessExitStatus=143
+RestartSec=10s
+TimeoutStartSec=60s
+#If you do not want systemd to monitor and restart Warp 10 automatically, comment out this line:
+Restart=always
+
+#You can customize default system limits here: see https://www.freedesktop.org/software/systemd/man/systemd.exec.html#Process%20Properties
+#LimitNOFILE=1000000
+#LimitCORE=infinity
+#LimitNPROC=32000
+#LimitMEMLOCK=500000
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,69 @@
+//
+//   Copyright 2018  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+archivesBaseName = 'hbaseFilters'
+group = 'io.warp10'
+version = getVersionName(warp10Version[archivesBaseName])
+
+jar {
+    zip64 = true
+
+    manifest {
+        attributes(
+                "Implementation-Title": "HBase Filters",
+                "Implementation-Vendor": "Warp 10",
+                "Implementation-Version": version)
+    }
+
+    from project(':warp10').sourceSets.main.output
+    include 'org/apache/hadoop/hbase/filter/**'
+}
+
+publishing {
+    publications {
+        hbaseFilters(MavenPublication) {
+            artifact file("${buildDir}/libs/hbaseFilters-${getVersionName(warp10Version['warp10'])}.jar")
+            groupId 'io.warp10'
+            artifactId archivesBaseName
+            version version
+        }
+    }
+}
+
+bintray {
+    dryRun = false
+    user = project.hasProperty('bintrayUser') ? project.property('bintrayUser') : System.getenv('BINTRAY_USER')
+    key = project.hasProperty('bintrayApiKey') ? project.property('bintrayApiKey') : System.getenv('BINTRAY_API_KEY')
+    publications = ['hbaseFilters']
+    publish = true
+    pkg {
+        repo = 'generic'
+        name = 'hbaseFilters'
+        userOrg = 'senx'
+        licenses = ['Apache-2.0']
+        vcsUrl = 'https://github.com/senx/warp10-platform.git'
+        version {
+            name = getVersionName(warp10Version['hbaseFilters'])
+            released = new Date()
+            vcsTag = getVersionName(warp10Version['hbaseFilters'])
+        }
+    }
+}
+
+//
+// Tasks dependencies
+//
+bintrayUpload.dependsOn jar

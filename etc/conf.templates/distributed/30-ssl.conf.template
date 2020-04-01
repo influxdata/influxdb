@@ -1,0 +1,113 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+//
+// SSL Configuration
+//
+
+## Ingress
+
+# Host/IP Address to bind to for the SSL endpoint
+#ingress.ssl.host =
+# Port the SSL endpoint should bind to
+#ingress.ssl.port =
+# TCP Backlog for the SSL endpoint
+#ingress.ssl.tcp.backlog =
+# Number of Jetty acceptors (defaults to 2)
+#ingress.ssl.acceptors =
+# Number of Jetty selectors (defaults to 4)
+#ingress.ssl.selectors =
+# Jetty idle timeout in ms 
+#ingress.ssl.idletimeout =
+# Path to the JKS keystore file
+#ingress.ssl.keystore.path =
+# Password for accessing the keystore file
+#ingress.ssl.keystore.password =
+# Alias associated with the SSL X.509 certificate
+#ingress.ssl.cert.alias =
+# Password for accessing the X.509 certificate
+#ingress.ssl.keymanager.password =
+
+## Egress/Fetcher
+
+# Host/IP Address to bind to for the SSL endpoint
+#egress.ssl.host =
+# Port the SSL endpoint should bind to
+#egress.ssl.port =
+# TCP Backlog for the SSL endpoint
+#egress.ssl.tcp.backlog =
+# Number of Jetty acceptors (defaults to 2)
+#egress.ssl.acceptors =
+# Number of Jetty selectors (defaults to 4)
+#egress.ssl.selectors =
+# Jetty idle timeout in ms
+#egress.ssl.idletimeout =
+# Path to the JKS keystore file
+#egress.ssl.keystore.path =
+# Password for accessing the keystore file
+#egress.ssl.keystore.password =
+# Alias associated with the SSL X.509 certificate
+#egress.ssl.cert.alias =
+# Password for accessing the X.509 certificate
+#egress.ssl.keymanager.password =
+
+## Plasma Frontend
+
+# Host/IP Address to bind to for the SSL endpoint
+#plasma.frontend.ssl.host =
+# Port the SSL endpoint should bind to
+#plasma.frontend.ssl.port =
+# TCP Backlog for the SSL endpoint
+#plasma.frontend.ssl.tcp.backlog =
+# Number of Jetty acceptors (defaults to 2)
+#plasma.frontend.ssl.acceptors =
+# Number of Jetty selectors (defaults to 4)
+#plasma.frontend.ssl.selectors =
+# Jetty idle timeout in ms
+#plasma.frontend.ssl.idletimeout =
+# Path to the JKS keystore file
+#plasma.frontend.ssl.keystore.path =
+# Password for accessing the keystore file
+#plasma.frontend.ssl.keystore.password =
+# Alias associated with the SSL X.509 certificate
+#plasma.frontend.ssl.cert.alias =
+# Password for accessing the X.509 certificate
+#plasma.frontend.ssl.keymanager.password =
+
+## HTTP Plugin
+
+# Host/IP Address to bind to for the SSL endpoint
+#http.ssl.host =
+# Port the SSL endpoint should bind to
+#http.ssl.port =
+# TCP Backlog for the SSL endpoint
+#http.ssl.tcp.backlog =
+# Number of Jetty acceptors (defaults to 2)
+# Adapt value of http.maxthreads accordingly
+#http.ssl.acceptors =
+# Number of Jetty selectors (defaults to 4)
+# Adapt value of http.maxthreads accordingly
+#http.ssl.selectors =
+# Jetty idle timeout in ms
+#http.ssl.idletimeout =
+# Path to the JKS keystore file
+#http.ssl.keystore.path =
+# Password for accessing the keystore file
+#http.ssl.keystore.password =
+# Alias associated with the SSL X.509 certificate
+#http.ssl.cert.alias =
+# Password for accessing the X.509 certificate
+#http.ssl.keymanager.password =

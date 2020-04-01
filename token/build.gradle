@@ -1,0 +1,66 @@
+//
+//   Copyright 2018  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+archivesBaseName = 'token'
+version = getVersionName(warp10Version[archivesBaseName])
+
+// ---------------- Constants ----------------
+ext.thriftOutputDir = new File('token/src/generated/thrift')
+
+sourceSets {
+    main {
+        java {
+            srcDirs 'src/generated/thrift/gen-java'
+        }
+    }
+}
+
+dependencies {
+    testCompile 'junit:junit:4.6'
+    testCompile 'org.slf4j:slf4j-log4j12:1.7.21'
+
+    // WARP10 DEPENDENCIES
+    compile project(':crypto')
+    compile 'io.warp10:sensision:1.0.19'
+
+    compile 'org.apache.thrift:libthrift:0.11.0'
+}
+
+jar {
+    zip64 = true
+    manifest {
+        attributes(
+                "Implementation-Title": "Warp10-token",
+                "Implementation-Vendor": "Warp 10",
+                "Implementation-Version": version)
+    }
+}
+
+publishing {
+    publications {
+        token(MavenPublication) {
+            from components.java
+            groupId 'io.warp10'
+            artifactId archivesBaseName
+            version version
+        }
+    }
+}
+
+//
+// Compile task dependency
+//
+compileJava.dependsOn generateThrift

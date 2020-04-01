@@ -1,0 +1,37 @@
+#!/bin/bash
+
+#
+# Warp 10 - Standalone
+#
+# chkconfig: 2345 90 30
+# description: Manage Standalone instance of Warp 10
+#
+
+export WARP10_USER=warp10
+#WARP10_HOME=/opt/warp10-@VERSION@
+
+#
+# Make sure the caller is root
+#
+
+if [ "`whoami`" != "root" ]
+then
+  echo "You must be root to run '$0'"
+  exit 1
+fi
+
+# If WARP10_HOME is not defined, set it to the parent directory
+if [ -z "${WARP10_HOME}" ]; then
+  WARP10_HOME=`cd $(dirname $0); cd $(pwd -P)/..; pwd -P`
+fi
+
+export WARP10_HOME
+
+if [ "$1" = "bootstrap" ]; then
+  ${WARP10_HOME}/bin/warp10-standalone.sh bootstrap
+else
+  args="$@"
+  su ${WARP10_USER} -c "${WARP10_HOME}/bin/warp10-standalone.sh $args"
+fi
+
+exit $?

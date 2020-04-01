@@ -1,0 +1,285 @@
+//
+//   Copyright 2018  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+archivesBaseName = 'warp10'
+version = updateRevision(getVersionName(warp10Version[archivesBaseName]))
+
+//
+// Configurations
+//
+configurations {
+    provided
+}
+
+// ---------------- Constants ----------------
+ext.thriftOutputDir = new File('warp10/src/generated/thrift')
+
+sourceSets {
+    main {
+        compileClasspath += configurations.provided
+        java {
+            srcDirs 'src/generated/thrift/gen-java'
+        }
+        resources {
+            srcDirs 'src/main/resources'
+        }
+    }
+}
+
+dependencies {
+    //
+    // io.warp10 dependencies
+    //
+    compile project(':crypto')
+    compile project(':token')
+    compile 'io.warp10:sensision:1.0.20'
+
+    compile 'joda-time:joda-time:2.2'
+    compile 'org.apache.commons:commons-lang3:3.6'
+    compile 'org.apache.commons:commons-math3:3.6'
+    compile 'org.bouncycastle:bcprov-jdk16:1.46'
+
+    //
+    // Processing
+    //
+    compile 'org.processing:core:3.0'
+
+    //
+    // Commons CLI
+    //
+    compile 'commons-cli:commons-cli:1.3.1'
+
+    //
+    // HBase 1.0.0
+    //
+    compile 'org.apache.hbase:hbase-client:1.0.0'
+    compile 'org.apache.hbase:hbase-examples:1.0.0'
+    compile 'org.apache.hbase:hbase-common:1.0.0'
+    compile 'org.apache.hbase:hbase-protocol:1.0.0'
+
+    compile 'org.eclipse.jetty:jetty-server:9.4.2.v20170220'
+    compile 'org.eclipse.jetty.websocket:websocket-server:9.4.2.v20170220'
+    compile 'org.eclipse.jetty.websocket:websocket-client:9.4.2.v20170220'
+    compile 'com.netflix.curator:curator-x-discovery:1.3.3'
+    compile 'com.fasterxml.jackson.core:jackson-databind:2.10.2'
+    compile 'org.slf4j:slf4j-api:1.7.5'
+
+    //
+    // FFT
+    //
+    compile 'com.github.rwl:jtransforms:2.4.0'
+
+    //
+    // Pyrolite
+    //
+    compile 'net.razorvine:pyrolite:4.10'
+
+    //
+    // LevelDB
+    //
+    compile 'org.fusesource.leveldbjni:leveldbjni-all:1.8'
+    // https://mvnrepository.com/artifact/org.openlabtesting.leveldbjni/leveldbjni-linux64-aarch64
+    compile group: 'org.openlabtesting.leveldbjni', name: 'leveldbjni-linux64-aarch64', version: '1.8'
+
+    compile 'org.iq80.leveldb:leveldb:0.12:uber'
+
+    //
+    // Worf
+    //
+    compile 'jline:jline:2.13'
+
+    //
+    // Mustache
+    //
+    compile 'com.github.spullara.mustache.java:compiler:0.9.1'
+
+    //
+    // Geo
+    //
+    compile 'com.geoxp:geoxplib:1.0.0-rc23'
+    compile("org.wololo:jts2geojson:0.10.0")
+
+    //
+    // Java Merge Sort
+    //
+    compile 'com.fasterxml.util:java-merge-sort:1.0.0'
+
+    // @see http://www.mail-archive.com/dev@kafka.apache.org/msg03829.html
+    compile("org.apache.kafka:kafka_2.11:0.8.2.2") {
+        exclude module: 'jms'
+        exclude module: 'jmxtools'
+        exclude module: 'jmxri'
+    }
+    testCompile 'junit:junit:4.6'
+}
+
+jar {
+    zip64 = true
+
+    manifest {
+        attributes(
+                "Implementation-Title": "Warp 10",
+                "Implementation-Vendor": "SenX",
+                "Implementation-Version": version)
+    }
+}
+
+task pack(type: Jar) {
+    zip64 = true
+    ext.warpSuffixName = null != System.getProperty('warp') ? System.getProperty('warp') : ""
+    appendix = "${warpSuffixName}"
+
+    manifest {
+        attributes("Main-Class": "io.warp10.standalone.Warp")
+        attributes("Implementation-Title": "Warp 10")
+        attributes("Implementation-Version": version)
+    }
+
+    from files(sourceSets.main.output.classesDirs)
+    from files(sourceSets.main.resources.srcDirs)
+    from {
+        configurations.compile.collect {
+            it.isDirectory() ? it : zipTree(it).matching {
+                exclude { it.toString().contains('/servlet-api') }
+                exclude { it.toString().contains('jmh') }
+                exclude { it.toString().contains('junit') }
+                exclude { it.toString().contains('parquet') }
+            }
+        }
+    } {
+        exclude 'META-INF/*.DSA'
+        exclude 'META-INF/*.RSA'
+        exclude 'about.html'
+        exclude 'about_files/**'
+        exclude 'plugin.properties'
+        exclude 'jetty-dir.css'
+    }
+}
+
+task createTarArchive(type: Exec, dependsOn: pack) {
+    workingDir = '.'
+    commandLine = ["${workingDir}/src/main/sh/package.sh", getVersionName(warp10Version['warp10']), "${buildDir}/.."]
+}
+
+publishing {
+    publications {
+        warp10(MavenPublication) {
+            artifact("${buildDir}/libs/warp10-${getVersionName(warp10Version['warp10'])}.tar.gz") {
+                extension = 'tar.gz'
+            }
+            groupId 'io.warp10'
+            artifactId archivesBaseName
+            version version
+        }
+    }
+}
+
+bintray {
+    dryRun = false
+
+    user = project.hasProperty('bintrayUser') ? project.property('bintrayUser') : System.getenv('BINTRAY_USER')
+    key = project.hasProperty('bintrayApiKey') ? project.property('bintrayApiKey') : System.getenv('BINTRAY_API_KEY')
+
+    publications = ['warp10']
+    publish = true
+
+
+    pkg {
+        repo = 'generic'
+        name = 'warp10'
+        userOrg = 'senx'
+        licenses = ['Apache-2.0']
+        vcsUrl = 'https://github.com/senx/warp10-platform.git'
+        version {
+            name = getVersionName(warp10Version['warp10'])
+            released = new Date()
+            vcsTag = getVersionName(warp10Version['warp10'])
+        }
+    }
+}
+
+changelog {
+    // The title appears at the top of the changelog.
+    // Default value: the name of the project.
+    title = "${project.name} - Changelog"
+
+    // The output directory where the report is generated.
+    // Default value: main resource directory, or the "build" directory
+    outputDirectory = file("${project.buildDir}")
+
+    // The name of the report to generate.
+    // Default value: CHANGELOG.md
+    fileName = "changelog.txt"
+
+    // The range of commits the changelog should be composed of.
+    // Default value: 'beginning' (i.e. full changelog)
+    // Possible values: 'beginning', 'last_tag', 'xxx'
+    //
+    // 'last_tag' will use all the commits since the last tag,
+    // 'beginning' will use all commits since the initial commit (default)
+    // 'xxx' will use all the tags since the 'xxx' Git reference (i.e. `since = 1.2.0` will display the changelog
+    //       since the 1.2.0 tag, excluding 1.2.0)
+    since = 'beginning'
+
+    // The output formats that should be generated.
+    // Default value: ['markdown']
+    // Possible values: 'html', 'markdown'.
+    formats = ['html', 'markdown']
+
+    // The Git "pretty" changelog commit format.
+    // Default value: %ad%x09%s (%an), which produces:
+    // Thu May 7 20:10:33 2015 -0400    Initial commit (Alex Selesse)
+    commitFormat = '%ad%x09%s'
+
+    // Specifies a commit format for Markdown.
+    // Default value: '* %s (%an)', which produces:
+    // * Initial commit (Alex Selesse)
+    markdown {
+        commitFormat = '* %s'
+    }
+
+    // Specifies a commit format for the HTML template.
+    // Default value: see commitFormat
+    html {
+        commitFormat = '%s'
+    }
+
+    // A closure that returns 'true' if the line should be included in the changelog.
+    // Default value: accept everything, { true }
+    includeLines = {
+        !it.contains("Merge")
+    }
+
+    // A closure that transforms a changelog String.
+    // Default value: the identity closure, { it }
+    //
+    // For example, to remove '[ci skip]' from the changelog messages:
+    //processLines = {
+    //    String input = it as String
+    //    if (input.contains('[ci skip] ')) {
+    //        input = input.minus('[ci skip] ')
+    //    }
+    //    input
+    //}
+}
+
+//
+// Tasks dependencies
+//
+compileJava.dependsOn generateThrift
+pack.dependsOn generateChangelog
+uploadArchives.dependsOn pack
+bintrayUpload.dependsOn createTarArchive

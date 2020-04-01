@@ -1,0 +1,60 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// T H R O T T L I N G    M A N A G E R
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// Name of system property (configuration property) which contains the
+// root directory where throttle files are stored.
+//
+throttling.manager.dir = ${standalone.home}/etc/throttle
+
+//
+// Period (in ms) between two scans of the THROTTLING_MANAGER_DIR
+//
+throttling.manager.period = 1000
+
+//
+// Ramp up period (in ms) during which we do not push the estimators to Sensision.
+// This period (in ms) should be greater than the period at which the throttling files
+// are updated, so we get a chance to have a merged estimator pushed to us even when
+// we just restarted.
+//
+throttling.manager.rampup = 120000
+
+//
+// Maximum number of estimators we cache in memory
+//
+//throttling.manager.estimator.cache.size = 10000
+
+//
+// Default value for the rate when not configured through a file
+//
+throttling.manager.rate.default = 1000000.0
+
+//
+// Default value for the mads when not configured through a file
+//
+throttling.manager.mads.default = 100000
+
+//
+// Default value for the maxwait timeout
+//
+//throttling.manager.maxwait.default =

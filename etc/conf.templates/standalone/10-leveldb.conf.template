@@ -1,0 +1,96 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// L E V E L D B
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+
+//
+// Directory where the leveldb files should be created
+//
+leveldb.home = ${standalone.home}/leveldb
+
+//
+// Flag to disable the native LevelDB implementation
+// This flag is false by default if the configuration is missing 
+// When running WarpInit or WarpRepair, use a system property with the same name
+//
+leveldb.native.disable = false
+
+//
+// Flag to disable the use of the pure Java LevelDB implementation
+// This flag is false by default if the configuration is missing 
+// When running WarpInit or WarpRepair, use a system property with the same name
+//
+leveldb.java.disable = false
+
+//
+// Rate of synchronous writes for the datapoints (update/deletes).
+// This is a double between 0.0 (all writes asynchronous) and 1.0 (all writes synchronous).
+// The default value is 1.0 (all writes are synchronous)
+//
+leveldb.data.syncrate = 1.0
+
+//
+// Rate of synchronous writes for the directory writes.
+// This is a double between 0.0 (all writes asynchronous) and 1.0 (all writes synchronous)
+// The default value is 1.0 (all writes are synchronous)
+//
+leveldb.directory.syncrate = 1.0
+
+//
+// AES key to use for wrapping metadata prior to storage in leveldb
+//
+#leveldb.metadata.aes =
+
+//
+// AES key to use for wrapping datapoints prior to storage in leveldb
+//
+#leveldb.data.aes =
+
+//
+// @deprecated
+// AES key to use for storing index details in leveldb
+//
+#leveldb.index.aes =
+
+//
+// Cache size for leveldb (in bytes)
+//
+leveldb.cache.size = 100000000
+
+//
+// Compression type to use for leveldb (SNAPPY/NONE)
+//
+leveldb.compression.type = SNAPPY
+
+//
+// Maximum number of open files to use for LevelDB
+//
+//leveldb.maxopenfiles =
+
+//
+// Geo Time Series count above which block caching will be disabled for LevelDB.
+// The goal is to limit the cache pollution when scanning large chunks of data.
+// Note that this limit is per fetch call to the backend, which means that in the case of parallel scanners it is for each parallel fetch attempt.
+// Defaults to 0, meaning never disable the block cache
+//
+leveldb.blockcache.gts.threshold = 0
+

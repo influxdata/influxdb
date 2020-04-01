@@ -1,0 +1,235 @@
+//
+//   Copyright 2019  SenX S.A.S.
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// S T A N D A L O N E
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// Set to true to only run the Warp 10™ Analytics Engine
+//
+#analytics.engine.only = true
+
+//
+// Comma separated list of headers to return in Access-Control-Allow-Headers on top of the token header
+// This applies to all HTTP endpoints.
+//
+#cors.headers =
+
+//
+// Maximum number of Geo Time Series a single Plasma session can subscribe to
+//
+#warp.plasma.maxsubs
+
+//
+// Set to true to disable plasma
+//
+#warp.plasma.disable =
+
+//
+// Set to true to disable mobius
+//
+#warp.mobius.disable =
+
+//
+// Set to true to disable streaming updates
+//
+#warp.streamupdate.disable =
+
+//
+// Set to a message indicating the reason why updates are disabled, they are enabled if this is not set
+//
+#warp.update.disabled = Updates are momentarily disabled
+  
+//
+// Set to a message indicating the reason why deletes are disabled, they are enabled if this is not set
+//
+#warp.delete.disabled = Deletes are momentarily disabled
+  
+//
+// Set to a message indicating the reason why meta updates are disabled, they are enabled if this is not set
+//
+#warp.meta.disabled = Meta updates are momentarily disabled
+
+// Telemetry - set to false to disable
+#warp10.telemetry = 
+
+//
+// Directory of Warp10 standalone install
+//
+standalone.home = /opt/warp10-@VERSION@
+
+//
+// Time units of the platform
+// ns means we store nanoseconds
+// us means we store microseconds
+// ms means we store milliseconds
+//
+warp.timeunits = us
+
+//
+// IP to bind to for listening to incoming connections. Use 0.0.0.0 to listen to all interfaces
+//
+standalone.host = 127.0.0.1
+
+//
+// Port to bind to for listening to incoming connections.
+//
+standalone.port = 8080
+
+//
+// TCP Backlog applied to incoming connections listener.
+//
+#standalone.tcp.backlog =
+
+//
+// Number of Jetty acceptors
+//
+standalone.acceptors = 1
+
+//
+// Idle timeout (in ms)
+//
+standalone.idle.timeout = 30000
+
+//
+// Number of Jetty selectors
+//
+standalone.selectors = 4
+
+//
+// Maximum encoder size (in bytes) for internal data transfers. Typical values from 64k to 512k, but any value will do. Lower ones will increase the number of array re-allocations.
+//
+standalone.max.encoder.size = 100000
+
+//
+// Path to a file to use for triggering compaction suspension to take snapshots
+//
+standalone.snapshot.trigger = ${leveldb.home}/snapshot.trigger
+
+//
+// Path to a file to use for signaling that compactions are suspended
+//
+standalone.snapshot.signal = ${leveldb.home}/snapshot.signal
+
+//
+// Set to true to disable the delete endpoint.
+//
+standalone.delete.disable = false
+
+//
+// Set the size of delete batches in number of records (defaults to 100000)
+//
+#standalone.max.delete.batchsize =
+
+//
+// Configuration parameter to modify the datalog header. DO NOT MODIFY
+//
+#http.header.datalog =
+
+//
+// Max message size for the Plasma Frontend Websocket
+//
+plasma.frontend.websocket.maxmessagesize = 1048576
+
+//
+// Set to 'true' to only forward data to Plasma. Not data storage will take place.
+//
+//pureplasma = 
+
+//
+// Number of threads to use for scheduling parallel scanners. Use 0 to disable parallel scanners
+//
+#standalone.parallelscanners.poolsize =
+
+//
+// Maximum number of parallel scanners per fetch request. Use 0 to disable parallel scanners.
+//
+#standalone.parallelscanners.maxinflightperrequest =
+
+//
+// Minimum number of GTS to assign to a parallel scanner. If the number of GTS to fetch is below this limit, no
+// parallel scanners will be spawned. Defaults to 4.
+//
+#standalone.parallelscanners.min.gts.perscanner =
+
+//
+// Maximum number of parallel scanners to use when fetching datapoints for a batch of GTS (see EGRESS_FETCH_BATCHSIZE).
+// Defaults to 16.
+//
+#standalone.parallelscanners.max.parallel.scanners =
+
+//
+// Set to true to enable splits generation to allow access to the standalone instance using Warp10InputFormat
+//
+#standalone.splits.enable = true
+
+//
+// Comma separated list of banned token attributes. Token having one of those attributes will be rejected
+//
+#warp.token.banned.attributes =
+
+//
+// Token file
+//
+#warp.token.file =
+
+//
+// TRL (TOKEN REVOCATION LIST)
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//
+// root directory where trl files are stored.
+//
+# warp.trl.dir = ${standalone.home}/etc/trl
+
+//
+// Period (in ms) between two scans of the trl directory
+//
+# warp.trl.scan.period = 60000
+
+//
+// Delay (in ms) Startup delay authorized without a TRL present
+// during this time tokens are decoded, even if TRL is missing.
+// After this delay, if the TRL is still missing, token decoding is locked.
+//
+// 0 the TRL is mandatory for the token filter startup.
+//
+//
+# warp.trl.startup.delay = 60000
+
+//
+// Maximum length of labels (names + values) - Defaults to 2048
+//
+#warp.labels.maxsize = 2048
+ 
+//
+// Maximum length of attributes (names + values) - Defaults to 8192
+//
+#warp.attributes.maxsize = 8192
+
+//
+// Set to true to expose owner and producer labels in Geo Time Series retrieved from the Warp 10 Storage Engine 
+//
+#warp10.expose.owner.producer = true
+
+//
+// Set to true to allow Directory queries with missing label selectors (using empty exact match)
+//
+warp10.absent.label.support = true
