@@ -72,6 +72,8 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.PersistentFlags().StringArrayVar(&writeFlags.Headers, "header", []string{}, "One or more header lines to prepend to input data")
 	cmd.PersistentFlags().BoolVar(&writeFlags.Debug, "debug", false, "Log CSV columns to stderr before reading data rows")
 	cmd.PersistentFlags().BoolVar(&writeFlags.SkipRowOnError, "skipRowOnError", false, "Log CSV data errors to stderr and continue with CSV processing")
+	cmd.PersistentFlags().IntVar(&writeFlags.SkipHeader, "skipHeader", 0, "Skip the first <n> rows from input data")
+	cmd.Flag("skipHeader").NoOptDefVal = "1" // skipHeader flag value is optional, skip the first header when unspecified
 
 	cmdDryRun := opt.newCmd("dryrun", fluxWriteDryrunF, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
@@ -136,6 +138,18 @@ func (writeFlags *writeFlagsType) createLineReader(args []string) (io.Reader, io
 		readers = append(readers, strings.NewReader(args[0]))
 	}
 
+	// skipHeader lines when set
+	if writeFlags.SkipHeader != 0 {
+		// find the last non-string reader (stdin or file)
+		for i := len(readers) - 1; i >= 0; i-- {
+			_, stringReader := readers[i].(*strings.Reader)
+			if !stringReader { // ignore headers and new lines
+				readers[i] = write.SkipHeaderLinesReader(writeFlags.SkipHeader, readers[i])
+			}
+		}
+	}
+
+	// concatenate readers
 	r := io.MultiReader(readers...)
 	if writeFlags.Format == inputFormatCsv {
 		csvReader := write.CsvToProtocolLines(r)
