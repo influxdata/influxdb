@@ -70,13 +70,13 @@ func setupF(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
+	localSVC := config.NewLocalConfigSVC(
+		dPath,
+		dir,
+	)
 	existingConfigs := make(config.Configs)
 	if _, err := os.Stat(dPath); err == nil {
-		existingConfigs, _ = config.LocalConfigsSVC{
-			Path: dPath,
-			Dir:  dir,
-		}.ParseConfigs()
+		existingConfigs, _ = localSVC.ListConfigs()
 		// ignore the error if found nothing
 		if setupFlags.name == "" {
 			return errors.New("flag name is required if you already have existing configs")
@@ -99,29 +99,21 @@ func setupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to setup instance: %v", err)
 	}
 
-	var configName string
-	var p *config.Config
-	if len(existingConfigs) > 0 {
-		configName = setupFlags.name
-		p = &config.Config{
-			Host: flags.Host,
-		}
-	} else {
-		configName = "default"
-		p = &config.DefaultConfig
-	}
+	p := config.DefaultConfig
 	p.Token = result.Auth.Token
 	p.Org = result.Org.Name
-	existingConfigs[configName] = *p
-	localSVC := config.LocalConfigsSVC{
-		Path: dPath,
-		Dir:  dir,
+	if len(existingConfigs) > 0 {
+		p.Name = setupFlags.name
 	}
-	if err = localSVC.WriteConfigs(existingConfigs); err != nil {
+	if flags.Host != "" {
+		p.Host = flags.Host
+	}
+
+	if _, err = localSVC.CreateConfig(p); err != nil {
 		return fmt.Errorf("failed to write config to path %q: %v", dPath, err)
 	}
 
-	fmt.Println(string(promptWithColor(fmt.Sprintf("Config %s has been stored in %s.", configName, dPath), colorCyan)))
+	fmt.Println(string(promptWithColor(fmt.Sprintf("Config %s has been stored in %s.", p.Name, dPath), colorCyan)))
 
 	w := cmd.OutOrStdout()
 	if setupFlags.json {
