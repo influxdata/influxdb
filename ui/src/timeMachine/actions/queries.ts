@@ -100,8 +100,10 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
   const allBuckets = getAll<Bucket>(state, ResourceType.Buckets)
 
-  const {view} = getActiveTimeMachine(state)
-  const queries = view.properties.queries.filter(({text}) => !!text.trim())
+  const activeTimeMachine = getActiveTimeMachine(state)
+  const queries = activeTimeMachine.view.properties.queries.filter(
+    ({text}) => !!text.trim()
+  )
   const {
     alertBuilder: {id: checkID},
   } = state
@@ -113,17 +115,19 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
   try {
     dispatch(setQueryResults(RemoteDataState.Loading, [], null))
 
-    const variableAssignments = getAllVariables(
-      state,
-      state.timeMachines.activeTimeMachineID
-    ).map(v => asAssignment(v))
+    //TODO: replace with activeContext selector
+    const contextID =
+      activeTimeMachine.contextID || state.timeMachines.activeTimeMachineID
+    const variableAssignments = getAllVariables(state, contextID).map(v =>
+      asAssignment(v)
+    )
 
     // keeping getState() here ensures that the state we are working with
     // is the most current one. By having this set to state, we were creating a race
     // condition that was causing the following bug:
     // https://github.com/influxdata/idpe/issues/6240
 
-    const startTime = Date.now()
+    const startTime = window.performance.now()
 
     pendingResults.forEach(({cancel}) => cancel())
 
@@ -135,7 +139,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     })
 
     const results = await Promise.all(pendingResults.map(r => r.promise))
-    const duration = Date.now() - startTime
+    const duration = window.performance.now() - startTime
 
     let statuses = [[]] as StatusRow[][]
     if (checkID) {

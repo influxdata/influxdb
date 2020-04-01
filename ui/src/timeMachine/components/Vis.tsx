@@ -21,6 +21,7 @@ import {
   getFillColumnsSelection,
   getSymbolColumnsSelection,
 } from 'src/timeMachine/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 
 // Types
 import {
@@ -140,6 +141,7 @@ const TimeMachineVis: SFC<Props> = ({
 }
 
 const mstp = (state: AppState): StateProps => {
+  const activeTimeMachine = getActiveTimeMachine(state)
   const {
     isViewingRawData,
     view: {properties: viewProperties},
@@ -150,8 +152,11 @@ const mstp = (state: AppState): StateProps => {
       files,
       statuses,
     },
-    timeRange,
-  } = getActiveTimeMachine(state)
+  } = activeTimeMachine
+  //TODO: replace with activeContext selector
+  const contextID =
+    activeTimeMachine.contextID || state.timeMachines.activeTimeMachineID
+  const timeRange = getTimeRange(state, contextID)
   const {
     alertBuilder: {type: checkType, thresholds: checkThresholds},
   } = state

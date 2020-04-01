@@ -7,6 +7,8 @@ import {
   timeMachinesReducer,
 } from 'src/timeMachine/reducers'
 
+import {RemoteDataState, TableViewProperties} from 'src/types'
+
 describe('the Time Machine reducer', () => {
   describe('setting the default aggregateFunctionType', () => {
     const store = createStore(timeMachinesReducer, initialState())
@@ -187,6 +189,39 @@ describe('the Time Machine reducer', () => {
       const activeTimeMachine =
         actualState.timeMachines[actualState.activeTimeMachineID]
       expect(activeTimeMachine.activeQueryIndex).toBe(originalActiveQueryIndex)
+    })
+  })
+
+  // Fix for: https://github.com/influxdata/influxdb/issues/17364
+  describe('editing a table view', () => {
+    it('does not overwrite internal TableViewProperites when files is an empty array', () => {
+      const initial = initialState()
+
+      const store = createStore(timeMachinesReducer, initial)
+      store.dispatch({type: 'SET_VIEW_TYPE', payload: {type: 'table'}})
+
+      const midState = store.getState()
+      const tableViewProperties = midState.timeMachines[
+        midState.activeTimeMachineID
+      ].view.properties as TableViewProperties
+      tableViewProperties.fieldOptions = [
+        {internalName: '_foo', displayName: 'foo'},
+      ]
+
+      store.dispatch({
+        type: 'SET_QUERY_RESULTS',
+        payload: {
+          status: RemoteDataState.Done,
+          files: [],
+          fetchDuration: 234,
+        },
+      })
+
+      const endState = store.getState()
+      expect(
+        (endState.timeMachines[endState.activeTimeMachineID].view
+          .properties as TableViewProperties).fieldOptions[0].displayName
+      ).toBe(tableViewProperties.fieldOptions[0].displayName)
     })
   })
 })
