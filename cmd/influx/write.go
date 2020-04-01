@@ -21,15 +21,16 @@ const (
 )
 
 type writeFlagsType struct {
-	org          organization
-	BucketID     string
-	Bucket       string
-	Precision    string
-	Format       string
-	Files        []string
-	Headers      []string
-	Debug        bool
-	LogCsvErrors bool
+	org            organization
+	BucketID       string
+	Bucket         string
+	Precision      string
+	Format         string
+	Files          []string
+	Headers        []string
+	Debug          bool
+	SkipRowOnError bool
+	SkipHeader     int
 }
 
 var writeFlags writeFlagsType
@@ -70,7 +71,7 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.PersistentFlags().StringArrayVarP(&writeFlags.Files, "file", "f", []string{}, "The path to the file to import")
 	cmd.PersistentFlags().StringArrayVar(&writeFlags.Headers, "header", []string{}, "One or more header lines to prepend to input data")
 	cmd.PersistentFlags().BoolVar(&writeFlags.Debug, "debug", false, "Log CSV columns to stderr before reading data rows")
-	cmd.PersistentFlags().BoolVar(&writeFlags.LogCsvErrors, "logCsvErrors", false, "Log CSV data errors to sterr and continue with CSV processing")
+	cmd.PersistentFlags().BoolVar(&writeFlags.SkipRowOnError, "skipRowOnError", false, "Log CSV data errors to stderr and continue with CSV processing")
 
 	cmdDryRun := opt.newCmd("dryrun", fluxWriteDryrunF, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
@@ -139,7 +140,7 @@ func (writeFlags *writeFlagsType) createLineReader(args []string) (io.Reader, io
 	if writeFlags.Format == inputFormatCsv {
 		csvReader := write.CsvToProtocolLines(r)
 		csvReader.LogTableColumns(writeFlags.Debug)
-		csvReader.LogCsvErrors(writeFlags.LogCsvErrors)
+		csvReader.SkipRowOnError(writeFlags.SkipRowOnError)
 		csvReader.LineNumber = -len(writeFlags.Headers)
 		r = csvReader
 	}

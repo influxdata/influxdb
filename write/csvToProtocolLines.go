@@ -32,7 +32,7 @@ type CsvToLineReader struct {
 	// flag that indicates whether data row was read
 	dataRowAdded bool
 	// log CSV data errors to sterr and continue with CSV processing
-	logCsvErrors bool
+	skipRowOnError bool
 
 	// reader results
 	buffer     []byte
@@ -47,9 +47,9 @@ func (state *CsvToLineReader) LogTableColumns(val bool) *CsvToLineReader {
 	return state
 }
 
-// LogCsvErrors controls whether to fail on every CSV conversion error (false) or to log the error and continue (true)
-func (state *CsvToLineReader) LogCsvErrors(val bool) *CsvToLineReader {
-	state.logCsvErrors = val
+// SkipRowOnError controls whether to fail on every CSV conversion error (false) or to log the error and continue (true)
+func (state *CsvToLineReader) SkipRowOnError(val bool) *CsvToLineReader {
+	state.skipRowOnError = val
 	return state
 }
 
@@ -99,7 +99,7 @@ func (state *CsvToLineReader) Read(p []byte) (n int, err error) {
 			state.dataRowAdded = true
 			if err != nil {
 				lineError := CsvLineError{state.LineNumber, err}
-				if state.logCsvErrors {
+				if state.skipRowOnError {
 					log.Println(lineError)
 					continue
 				}
