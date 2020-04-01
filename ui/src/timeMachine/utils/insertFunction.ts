@@ -1,6 +1,5 @@
 // Constants
 import {FROM, UNION} from 'src/shared/constants/fluxFunctions'
-import {FluxToolbarFunction, Position} from 'src/types'
 
 const functionRequiresNewLine = (funcName: string): boolean => {
   switch (funcName) {
