@@ -6,7 +6,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import ResourceFetcher from 'src/shared/components/resource_fetcher'
 import CompletionAdvancedButton from 'src/onboarding/components/CompletionAdvancedButton'
 import CompletionQuickStartButton from 'src/onboarding/components/CompletionQuickStartButton'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Constants
 import {
@@ -30,6 +29,7 @@ import {
   ComponentSize,
   Columns,
   Grid,
+  DapperScrollbars,
 } from '@influxdata/clockface'
 import {Dashboard, Organization} from 'src/types'
 import {ScraperTargetRequest} from '@influxdata/influx'
@@ -66,7 +66,7 @@ class CompletionStep extends PureComponent<Props> {
     return (
       <div className="onboarding-step">
         <div className="wizard-step--scroll-area">
-          <FancyScrollbar autoHide={false}>
+          <DapperScrollbars autoHide={false}>
             <div className="wizard-step--scroll-content">
               <h3 className="wizard-step--title">You are ready to go!</h3>
               <h5 className="wizard-step--sub-title">
@@ -145,7 +145,7 @@ class CompletionStep extends PureComponent<Props> {
               </dl>
               <h5 className="wizard-step--sub-title" />
             </div>
-          </FancyScrollbar>
+          </DapperScrollbars>
         </div>
       </div>
     )
