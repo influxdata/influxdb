@@ -51,6 +51,7 @@ type cmdPkgBuilder struct {
 	org                 organization
 	quiet               bool
 	recurse             bool
+	stackID             string
 	urls                []string
 
 	applyOpts struct {
@@ -101,6 +102,7 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	b.registerPkgPrintOpts(cmd)
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true"`)
+	cmd.Flags().StringVar(&b.stackID, "stack-id", "", "Stack ID to associate pkg application")
 
 	b.applyOpts.secrets = []string{}
 	cmd.Flags().StringSliceVar(&b.applyOpts.secrets, "secret", nil, "Secrets to provide alongside the package; format should --secret=SECRET_KEY=SECRET_VALUE --secret=SECRET_KEY_2=SECRET_VALUE_2")
@@ -138,7 +140,19 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		}
 	}
 
-	drySum, diff, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg, pkger.ApplyWithEnvRefs(providedEnvRefs))
+	var stackID influxdb.ID
+	if b.stackID != "" {
+		if err := stackID.DecodeFromString(b.stackID); err != nil {
+			return err
+		}
+	}
+
+	opts := []pkger.ApplyOptFn{
+		pkger.ApplyWithEnvRefs(providedEnvRefs),
+		pkger.ApplyWithStackID(stackID),
+	}
+
+	drySum, diff, err := svc.DryRun(context.Background(), influxOrgID, 0, pkg, opts...)
 	if err != nil {
 		return err
 	}
@@ -172,7 +186,9 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn(cmd *cobra.Command, args []string) error 
 		return errors.New("package has conflicts with existing resources and cannot safely apply")
 	}
 
-	summary, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, pkger.ApplyWithEnvRefs(providedEnvRefs), pkger.ApplyWithSecrets(providedSecrets))
+	opts = append(opts, pkger.ApplyWithSecrets(providedSecrets))
+
+	summary, err := svc.Apply(context.Background(), influxOrgID, 0, pkg, opts...)
 	if err != nil {
 		return err
 	}
@@ -723,19 +739,19 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		bktPrinter := newDiffPrinter(b.w, !b.disableColor, !b.disableTableBorders)
 		bktPrinter.
 			Title("Buckets").
-			SetHeaders("ID", "Name", "Retention Period", "Description")
+			SetHeaders("Package Name", "ID", "Resource Name", "Retention Period", "Description")
 
-		appendValues := func(id pkger.SafeID, v pkger.DiffBucketValues) []string {
-			return []string{id.String(), v.Name, v.RetentionRules.RP().String(), v.Description}
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffBucketValues) []string {
+			return []string{pkgName, id.String(), v.Name, v.RetentionRules.RP().String(), v.Description}
 		}
 
 		for _, b := range bkts {
 			var oldRow []string
 			if b.Old != nil {
-				oldRow = appendValues(b.ID, *b.Old)
+				oldRow = appendValues(b.ID, b.PkgName, *b.Old)
 			}
 
-			newRow := appendValues(b.ID, b.New)
+			newRow := appendValues(b.ID, b.PkgName, b.New)
 			switch {
 			case b.IsNew():
 				bktPrinter.AppendDiff(nil, newRow)
@@ -905,10 +921,11 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 	}
 
 	if buckets := sum.Buckets; len(buckets) > 0 {
-		headers := []string{"ID", "Name", "Retention", "Description"}
+		headers := []string{"Package Name", "ID", "Resource Name", "Retention", "Description"}
 		tablePrintFn("BUCKETS", headers, len(buckets), func(i int) []string {
 			bucket := buckets[i]
 			return []string{
+				bucket.PkgName,
 				bucket.ID.String(),
 				bucket.Name,
 				formatDuration(bucket.RetentionPeriod),
@@ -1045,25 +1062,40 @@ type diffPrinter struct {
 	w      io.Writer
 	writer *tablewriter.Table
 
-	colorAdd    tablewriter.Colors
-	colorRemove tablewriter.Colors
-	title       string
+	colorAdd     tablewriter.Colors
+	colorFooter  tablewriter.Colors
+	colorHeaders tablewriter.Colors
+	colorRemove  tablewriter.Colors
+	title        string
 
 	appendCalls int
 	headerLen   int
-	hasColor    bool
 }
 
 func newDiffPrinter(w io.Writer, hasColor, hasBorder bool) *diffPrinter {
 	wr := tablewriter.NewWriter(w)
 	wr.SetBorder(hasBorder)
 	wr.SetRowLine(hasBorder)
+
+	var (
+		colorAdd    = tablewriter.Colors{}
+		colorFooter = tablewriter.Colors{}
+		colorHeader = tablewriter.Colors{}
+		colorRemove = tablewriter.Colors{}
+	)
+	if hasColor {
+		colorAdd = tablewriter.Colors{tablewriter.FgHiGreenColor, tablewriter.Bold}
+		colorFooter = tablewriter.Color(tablewriter.FgHiBlueColor, tablewriter.Bold)
+		colorHeader = tablewriter.Colors{tablewriter.FgCyanColor, tablewriter.Bold}
+		colorRemove = tablewriter.Colors{tablewriter.FgRedColor, tablewriter.Bold}
+	}
 	return &diffPrinter{
-		w:           w,
-		writer:      wr,
-		colorRemove: tablewriter.Colors{tablewriter.FgRedColor, tablewriter.Bold},
-		colorAdd:    tablewriter.Colors{tablewriter.FgHiGreenColor, tablewriter.Bold},
-		hasColor:    hasColor,
+		w:            w,
+		writer:       wr,
+		colorAdd:     colorAdd,
+		colorFooter:  colorFooter,
+		colorHeaders: colorHeader,
+		colorRemove:  colorRemove,
 	}
 }
 
@@ -1095,7 +1127,7 @@ func (d *diffPrinter) SetHeaders(headers ...string) *diffPrinter {
 
 	headerColors := make([]tablewriter.Colors, d.headerLen)
 	for i := range headerColors {
-		headerColors[i] = tablewriter.Colors{tablewriter.Bold, tablewriter.FgCyanColor}
+		headerColors[i] = d.colorHeaders
 	}
 	d.writer.SetHeaderColor(headerColors...)
 
@@ -1112,16 +1144,14 @@ func (d *diffPrinter) setFooter() *diffPrinter {
 	}
 
 	d.writer.SetFooter(footers)
-	if d.hasColor {
-		colors := make([]tablewriter.Colors, d.headerLen)
-		if d.headerLen > 1 {
-			colors[len(colors)-2] = tablewriter.Color(tablewriter.FgHiBlueColor)
-			colors[len(colors)-1] = tablewriter.Color(tablewriter.FgHiBlueColor)
-		} else {
-			colors[0] = tablewriter.Color(tablewriter.FgHiBlueColor)
-		}
-		d.writer.SetFooterColor(colors...)
+	colors := make([]tablewriter.Colors, d.headerLen)
+	if d.headerLen > 1 {
+		colors[len(colors)-2] = d.colorFooter
+		colors[len(colors)-1] = d.colorFooter
+	} else {
+		colors[0] = d.colorFooter
 	}
+	d.writer.SetFooterColor(colors...)
 
 	return d
 }
@@ -1194,6 +1224,7 @@ func colorRow(color tablewriter.Colors, i int) []tablewriter.Colors {
 	}
 	return colors
 }
+
 func tablePrinter(wr io.Writer, table string, headers []string, count int, hasColor, hasTableBorders bool, rowFn func(i int) []string) {
 	color.New(color.FgYellow, color.Bold).Fprintln(wr, strings.ToUpper(table))
 

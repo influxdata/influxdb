@@ -649,12 +649,7 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 		parseErr = err
 	}
 
-	var opt ApplyOpt
-	for _, o := range opts {
-		if err := o(&opt); err != nil {
-			return Summary{}, Diff{}, internalErr(err)
-		}
-	}
+	opt := applyOptFromOptFns(opts...)
 
 	if len(opt.EnvRefs) > 0 {
 		err := pkg.applyEnvRefs(opt.EnvRefs)
@@ -662,6 +657,12 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 			return Summary{}, Diff{}, internalErr(err)
 		}
 		parseErr = err
+	}
+
+	if opt.StackID > 0 {
+		if err := s.addStackPkgState(ctx, opt.StackID, pkg); err != nil {
+			return Summary{}, Diff{}, internalErr(err)
+		}
 	}
 
 	if err := s.dryRunSecrets(ctx, orgID, pkg); err != nil {
@@ -705,19 +706,12 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 
 func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffBucket {
 	mExistingBkts := make(map[string]DiffBucket)
-	bkts := pkg.buckets()
+	bkts := pkg.buckets(false)
 	for i := range bkts {
 		b := bkts[i]
-		existingBkt, err := s.bucketSVC.FindBucketByName(ctx, orgID, b.Name())
-		switch err {
-		// TODO: case for err not found here and another case handle where
-		//  err isn't a not found (some other error)
-		case nil:
-			b.existing = existingBkt
-			mExistingBkts[b.Name()] = newDiffBucket(b, existingBkt)
-		default:
-			mExistingBkts[b.Name()] = newDiffBucket(b, nil)
-		}
+		existingBkt, _ := s.findBucket(ctx, orgID, b) // ignoring error here
+		b.existing = existingBkt
+		mExistingBkts[b.Name()] = newDiffBucket(b, existingBkt)
 	}
 
 	diffs := make([]DiffBucket, 0, len(mExistingBkts))
@@ -973,7 +967,7 @@ type (
 
 func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabelMapping, error) {
 	mappers := []labelMappers{
-		mapperBuckets(pkg.buckets()),
+		mapperBuckets(pkg.buckets(false)),
 		mapperChecks(pkg.checks()),
 		mapperDashboards(pkg.dashboards()),
 		mapperNotificationEndpoints(pkg.notificationEndpoints()),
@@ -1064,29 +1058,65 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 	return nil
 }
 
+func (s *Service) addStackPkgState(ctx context.Context, stackID influxdb.ID, pkg *Pkg) error {
+	stack, err := s.store.ReadStackByID(ctx, stackID)
+	if err != nil {
+		return internalErr(err)
+	}
+
+	// check resource exists in pkg
+	// if exists
+	//	  set id on existing pkg resource
+	// else
+	//	  add stub pkg resource that indicates it should be deleted
+	for _, r := range stack.Resources {
+		updateFn := pkg.setObjectID
+		if !pkg.Contains(r.Kind, r.Name) {
+			updateFn = pkg.addObjectForRemoval
+		}
+		updateFn(r.Kind, r.Name, r.ID)
+	}
+
+	return nil
+}
+
 // ApplyOpt is an option for applying a package.
 type ApplyOpt struct {
 	EnvRefs        map[string]string
 	MissingSecrets map[string]string
+	StackID        influxdb.ID
 }
 
 // ApplyOptFn updates the ApplyOpt per the functional option.
-type ApplyOptFn func(opt *ApplyOpt) error
+type ApplyOptFn func(opt *ApplyOpt)
 
 // ApplyWithEnvRefs provides env refs to saturate the missing reference fields in the pkg.
 func ApplyWithEnvRefs(envRefs map[string]string) ApplyOptFn {
-	return func(o *ApplyOpt) error {
+	return func(o *ApplyOpt) {
 		o.EnvRefs = envRefs
-		return nil
 	}
 }
 
 // ApplyWithSecrets provides secrets to the platform that the pkg will need.
 func ApplyWithSecrets(secrets map[string]string) ApplyOptFn {
-	return func(o *ApplyOpt) error {
+	return func(o *ApplyOpt) {
 		o.MissingSecrets = secrets
-		return nil
 	}
+}
+
+// ApplyWithStackID associates the application of a pkg with a stack.
+func ApplyWithStackID(stackID influxdb.ID) ApplyOptFn {
+	return func(o *ApplyOpt) {
+		o.StackID = stackID
+	}
+}
+
+func applyOptFromOptFns(opts ...ApplyOptFn) ApplyOpt {
+	var opt ApplyOpt
+	for _, o := range opts {
+		o(&opt)
+	}
+	return opt
 }
 
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
@@ -1099,26 +1129,45 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		}
 	}
 
-	var opt ApplyOpt
-	for _, o := range opts {
-		if err := o(&opt); err != nil {
-			return Summary{}, internalErr(err)
-		}
-	}
+	opt := applyOptFromOptFns(opts...)
 
 	if err := pkg.applyEnvRefs(opt.EnvRefs); err != nil {
 		return Summary{}, failedValidationErr(err)
 	}
 
 	if !pkg.isVerified {
-		if _, _, err := s.DryRun(ctx, orgID, userID, pkg); err != nil {
+		if _, _, err := s.DryRun(ctx, orgID, userID, pkg, opts...); err != nil {
 			return Summary{}, err
 		}
 	}
 
+	defer func() {
+		stackID := opt.StackID
+		if stackID == 0 {
+			return
+		}
+
+		updateStackFn := s.updateStackAfterSuccess
+		if e != nil {
+			updateStackFn = s.updateStackAfterRollback
+		}
+		if err := updateStackFn(ctx, stackID, pkg); err != nil {
+			s.log.Error("failed to update stack", zap.Error(err))
+		}
+	}()
+
 	coordinator := &rollbackCoordinator{sem: make(chan struct{}, s.applyReqLimit)}
 	defer coordinator.rollback(s.log, &e, orgID)
 
+	sum, err := s.apply(ctx, coordinator, orgID, userID, pkg, opt.MissingSecrets)
+	if err != nil {
+		return Summary{}, err
+	}
+
+	return sum, nil
+}
+
+func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, orgID, userID influxdb.ID, pkg *Pkg, missingSecrets map[string]string) (sum Summary, e error) {
 	// each grouping here runs for its entirety, then returns an error that
 	// is indicative of running all appliers provided. For instance, the labels
 	// may have 1 variable fail and one of the buckets fails. The errors aggregate so
@@ -1132,7 +1181,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		{
 			// adds secrets that are referenced it the pkg, this allows user to
 			// provide data that does not rest in the pkg.
-			s.applySecrets(opt.MissingSecrets),
+			s.applySecrets(missingSecrets),
 		},
 		{
 			// deps for primary resources
@@ -1141,7 +1190,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		{
 			// primary resources, can have relationships to labels
 			s.applyVariables(pkg.variables()),
-			s.applyBuckets(pkg.buckets()),
+			s.applyBuckets(ctx, pkg.buckets(false)),
 			s.applyChecks(pkg.checks()),
 			s.applyDashboards(pkg.dashboards()),
 			s.applyNotificationEndpoints(pkg.notificationEndpoints()),
@@ -1173,12 +1222,12 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 		return Summary{}, internalErr(err)
 	}
 
-	pkg.applySecrets(opt.MissingSecrets)
+	pkg.applySecrets(missingSecrets)
 
 	return pkg.Summary(), nil
 }
 
-func (s *Service) applyBuckets(buckets []*bucket) applier {
+func (s *Service) applyBuckets(ctx context.Context, buckets []*bucket) applier {
 	const resource = "bucket"
 
 	mutex := new(doMutex)
@@ -1217,49 +1266,64 @@ func (s *Service) applyBuckets(buckets []*bucket) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackBuckets(rollbackBuckets) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackBuckets(ctx, rollbackBuckets) },
 		},
 	}
 }
 
-func (s *Service) rollbackBuckets(buckets []*bucket) error {
+func (s *Service) rollbackBuckets(ctx context.Context, buckets []*bucket) error {
+	rollbackFn := func(ctx context.Context, b *bucket) error {
+		var err error
+		switch {
+		case b.shouldRemove:
+			err = s.bucketSVC.CreateBucket(ctx, b.existing)
+			fmt.Println("in rollback pkgName:", b.PkgName(), "id: ", b.existing.ID)
+		case b.existing == nil:
+			err = s.bucketSVC.DeleteBucket(ctx, b.ID())
+		default:
+			rp := b.RetentionRules.RP()
+			_, err = s.bucketSVC.UpdateBucket(ctx, b.ID(), influxdb.BucketUpdate{
+				Description:     &b.Description,
+				RetentionPeriod: &rp,
+			})
+		}
+		return err
+	}
+
 	var errs []string
 	for _, b := range buckets {
-		if b.existing == nil {
-			err := s.bucketSVC.DeleteBucket(context.Background(), b.ID())
-			if err != nil {
-				errs = append(errs, b.ID().String())
-			}
-			continue
-		}
-
-		rp := b.RetentionRules.RP()
-		_, err := s.bucketSVC.UpdateBucket(context.Background(), b.ID(), influxdb.BucketUpdate{
-			Description:     &b.Description,
-			RetentionPeriod: &rp,
-		})
+		err := rollbackFn(ctx, b)
 		if err != nil {
-			errs = append(errs, b.ID().String())
+			errs = append(errs, fmt.Sprintf("error for bucket[%q]: %s", b.ID(), err))
 		}
 	}
 
 	if len(errs) > 0 {
 		// TODO: fixup error
-		return fmt.Errorf(`bucket_ids=[%s] err="unable to delete bucket"`, strings.Join(errs, ", "))
+		return errors.New(strings.Join(errs, ", "))
 	}
 
 	return nil
 }
 
 func (s *Service) applyBucket(ctx context.Context, b bucket) (influxdb.Bucket, error) {
+	if b.shouldRemove {
+		if err := s.bucketSVC.DeleteBucket(ctx, b.ID()); err != nil {
+			return influxdb.Bucket{}, fmt.Errorf("failed to delete bucket[%q]: %w", b.ID(), err)
+		}
+		return *b.existing, nil
+	}
+
 	rp := b.RetentionRules.RP()
 	if b.existing != nil {
+		newName := b.Name()
 		influxBucket, err := s.bucketSVC.UpdateBucket(ctx, b.ID(), influxdb.BucketUpdate{
 			Description:     &b.Description,
+			Name:            &newName,
 			RetentionPeriod: &rp,
 		})
 		if err != nil {
-			return influxdb.Bucket{}, err
+			return influxdb.Bucket{}, fmt.Errorf("failed to updated bucket[%q]: %w", b.ID(), err)
 		}
 		return *influxBucket, nil
 	}
@@ -1272,7 +1336,7 @@ func (s *Service) applyBucket(ctx context.Context, b bucket) (influxdb.Bucket, e
 	}
 	err := s.bucketSVC.CreateBucket(ctx, &influxBucket)
 	if err != nil {
-		return influxdb.Bucket{}, err
+		return influxdb.Bucket{}, fmt.Errorf("failed to create bucket[%q]: %w", b.ID(), err)
 	}
 
 	return influxBucket, nil
@@ -2081,6 +2145,77 @@ func (s *Service) deleteByIDs(resource string, numIDs int, deleteFn func(context
 	return nil
 }
 
+func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.ID, pkg *Pkg) error {
+	stack, err := s.store.ReadStackByID(ctx, stackID)
+	if err != nil {
+		return err
+	}
+
+	var stackResources []StackResource
+	for _, b := range pkg.buckets(true) {
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         b.ID(),
+			Kind:       KindBucket,
+			Name:       b.PkgName(),
+		})
+	}
+	stack.Resources = stackResources
+
+	stack.UpdatedAt = time.Now()
+	return s.store.UpdateStack(ctx, stack)
+}
+
+func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb.ID, pkg *Pkg) error {
+	stack, err := s.store.ReadStackByID(ctx, stackID)
+	if err != nil {
+		return err
+	}
+
+	type key struct {
+		k       Kind
+		pkgName string
+	}
+	newKey := func(k Kind, pkgName string) key {
+		return key{k: k, pkgName: pkgName}
+	}
+
+	existingResources := make(map[key]*StackResource)
+	for i := range stack.Resources {
+		res := stack.Resources[i]
+		existingResources[newKey(res.Kind, res.Name)] = &stack.Resources[i]
+	}
+
+	hasChanges := false
+	for _, b := range pkg.buckets(false) {
+		if b.shouldRemove {
+			res := existingResources[newKey(KindBucket, b.PkgName())]
+
+			// this is the case where a deletion happens and is rolled back creating a new resource.
+			// when resource is not to be removed this is a nothing burger, as it should be
+			// rolled back to previous state.
+			if res.ID != b.ID() {
+				hasChanges = true
+				res.ID = b.existing.ID
+			}
+		}
+	}
+	if !hasChanges {
+		return nil
+	}
+
+	stack.UpdatedAt = time.Now()
+	return s.store.UpdateStack(ctx, stack)
+}
+
+func (s *Service) findBucket(ctx context.Context, orgID influxdb.ID, b *bucket) (*influxdb.Bucket, error) {
+	if b.id != 0 {
+		return s.bucketSVC.FindBucketByID(ctx, b.id)
+	}
+
+	return s.bucketSVC.FindBucketByName(ctx, orgID, b.Name())
+}
+
 func getLabelIDMap(ctx context.Context, labelSVC influxdb.LabelService, labelNames []string) (map[influxdb.ID]bool, error) {
 	mLabelIDs := make(map[influxdb.ID]bool)
 	for _, labelName := range labelNames {
@@ -2220,7 +2355,7 @@ func (e *errStream) do() {
 
 		var errs []string
 		for resource, err := range mErrs {
-			errs = append(errs, err.toError(resource, "failed to create").Error())
+			errs = append(errs, err.toError(resource, "failed to apply resource").Error())
 		}
 		e.err <- errors.New(strings.Join(errs, "\n"))
 	}()
@@ -2252,7 +2387,7 @@ func (a applyErrs) toError(resType, msg string) error {
 	}
 	errMsg := fmt.Sprintf(`resource_type=%q err=%q`, resType, msg)
 	for _, e := range a {
-		errMsg += fmt.Sprintf("\n\tname=%q err_msg=%q", e.name, e.msg)
+		errMsg += fmt.Sprintf("\n\tpkg_name=%q err_msg=%q", e.name, e.msg)
 	}
 	return errors.New(errMsg)
 }

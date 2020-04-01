@@ -50,6 +50,10 @@ func TestPkgerHTTPServer(t *testing.T) {
 		return u.String()
 	}
 
+	strPtr := func(s string) *string {
+		return &s
+	}
+
 	t.Run("create pkg", func(t *testing.T) {
 		t.Run("should successfully return with valid req body", func(t *testing.T) {
 			fakeLabelSVC := mock.NewLabelService()
@@ -341,6 +345,58 @@ func TestPkgerHTTPServer(t *testing.T) {
 				t.Run(tt.name, fn)
 			}
 		})
+
+		t.Run("validation failures", func(t *testing.T) {
+			tests := []struct {
+				name               string
+				contentType        string
+				reqBody            pkger.ReqApplyPkg
+				expectedStatusCode int
+			}{
+				{
+					name:        "invalid org id",
+					contentType: "application/json",
+					reqBody: pkger.ReqApplyPkg{
+						DryRun: true,
+						OrgID:  "bad org id",
+						RawPkg: bucketPkgKinds(t, pkger.EncodingJSON),
+					},
+					expectedStatusCode: http.StatusBadRequest,
+				},
+				{
+					name:        "invalid stack id",
+					contentType: "application/json",
+					reqBody: pkger.ReqApplyPkg{
+						DryRun:  true,
+						OrgID:   influxdb.ID(9000).String(),
+						StackID: strPtr("invalid stack id"),
+						RawPkg:  bucketPkgKinds(t, pkger.EncodingJSON),
+					},
+					expectedStatusCode: http.StatusBadRequest,
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					svc := &fakeSVC{
+						dryRunFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, pkger.Diff, error) {
+							return pkg.Summary(), pkger.Diff{}, nil
+						},
+					}
+
+					pkgHandler := pkger.NewHTTPServer(zap.NewNop(), svc)
+					svr := newMountedHandler(pkgHandler, 1)
+
+					testttp.
+						PostJSON(t, "/api/v2/packages/apply", tt.reqBody).
+						Headers("Content-Type", tt.contentType).
+						Do(svr).
+						ExpectStatus(tt.expectedStatusCode)
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
 	})
 
 	t.Run("apply a pkg", func(t *testing.T) {
@@ -361,7 +417,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 			applyFn: func(ctx context.Context, orgID, userID influxdb.ID, pkg *pkger.Pkg, opts ...pkger.ApplyOptFn) (pkger.Summary, error) {
 				var opt pkger.ApplyOpt
 				for _, o := range opts {
-					require.NoError(t, o(&opt))
+					o(&opt)
 				}
 				sum := pkg.Summary()
 				for key := range opt.MissingSecrets {

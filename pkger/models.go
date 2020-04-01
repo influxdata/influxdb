@@ -522,6 +522,7 @@ type SummaryBucket struct {
 	ID          SafeID `json:"id,omitempty"`
 	OrgID       SafeID `json:"orgID,omitempty"`
 	Name        string `json:"name"`
+	PkgName     string `json:"pkgName"`
 	Description string `json:"description"`
 	// TODO: return retention rules?
 	RetentionPeriod   time.Duration  `json:"retentionPeriod"`
@@ -841,6 +842,7 @@ func (b *bucket) summarize() SummaryBucket {
 		ID:                SafeID(b.ID()),
 		OrgID:             SafeID(b.OrgID),
 		Name:              b.Name(),
+		PkgName:           b.PkgName(),
 		Description:       b.Description,
 		RetentionPeriod:   b.RetentionRules.RP(),
 		LabelAssociations: toSummaryLabels(b.labels...),

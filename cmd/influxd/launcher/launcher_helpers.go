@@ -20,7 +20,6 @@ import (
 	"github.com/influxdata/influxdb/bolt"
 	influxdbcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/pkg/httpc"
 	"github.com/influxdata/influxdb/pkger"
@@ -333,7 +332,7 @@ func (tl *TestLauncher) FluxQueryService() *http.FluxQueryService {
 
 func (tl *TestLauncher) BucketService(tb testing.TB) *http.BucketService {
 	tb.Helper()
-	return &http.BucketService{Client: tl.HTTPClient(tb), OpPrefix: kv.OpPrefix}
+	return &http.BucketService{Client: tl.HTTPClient(tb)}
 }
 
 func (tl *TestLauncher) CheckService() platform.CheckService {
@@ -356,6 +355,10 @@ func (tl *TestLauncher) NotificationEndpointService(tb testing.TB) *http.Notific
 }
 
 func (tl *TestLauncher) NotificationRuleService() platform.NotificationRuleStore {
+	return tl.kvService
+}
+
+func (tl *TestLauncher) OrgService(tb testing.TB) platform.OrganizationService {
 	return tl.kvService
 }
 

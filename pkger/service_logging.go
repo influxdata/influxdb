@@ -67,7 +67,18 @@ func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *
 			)
 			return
 		}
-		s.logger.Info("pkg dry run successful", append(s.summaryLogFields(sum), dur)...)
+
+		var opt ApplyOpt
+		for _, o := range opts {
+			o(&opt)
+		}
+
+		fields := s.summaryLogFields(sum)
+		if opt.StackID != 0 {
+			fields = append(fields, zap.Stringer("stackID", opt.StackID))
+		}
+		fields = append(fields, dur)
+		s.logger.Info("pkg dry run successful", fields...)
 	}(time.Now())
 	return s.next.DryRun(ctx, orgID, userID, pkg, opts...)
 }
@@ -84,7 +95,15 @@ func (s *loggingMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *P
 			)
 			return
 		}
-		s.logger.Info("pkg apply successful", append(s.summaryLogFields(sum), dur)...)
+
+		fields := s.summaryLogFields(sum)
+
+		opt := applyOptFromOptFns(opts...)
+		if opt.StackID != 0 {
+			fields = append(fields, zap.Stringer("stackID", opt.StackID))
+		}
+		fields = append(fields, dur)
+		s.logger.Info("pkg apply successful", fields...)
 	}(time.Now())
 	return s.next.Apply(ctx, orgID, userID, pkg, opts...)
 }
