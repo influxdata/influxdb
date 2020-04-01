@@ -166,7 +166,9 @@ const mstp = (state: AppState): StateProps => {
   return {
     variables: filterUnusedVars(
       variables,
-      Object.values(state.resources.views.byID)
+      Object.values(state.resources.views.byID).filter(
+        v => v.dashboardID === dashboardID
+      )
     ),
     variablesStatus,
     inPresentationMode,
