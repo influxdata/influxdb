@@ -1,6 +1,6 @@
 module github.com/influxdata/promqltests
 
-go 1.12
+go 1.13
 
 require (
 	github.com/glycerine/go-unsnap-stream v0.0.0-20190901134440-81cf024a9e0a // indirect
@@ -13,7 +13,7 @@ require (
 	github.com/influxdata/promql/v2 v2.12.0
 	github.com/mattn/go-isatty v0.0.9 // indirect
 	github.com/prometheus/common v0.7.0
-	github.com/prometheus/prometheus v2.9.2+incompatible
+	github.com/prometheus/prometheus v1.8.2-0.20190424153033-d3245f150225
 	github.com/prometheus/tsdb v0.10.0
 	github.com/willf/bitset v1.1.10 // indirect
 	go.uber.org/zap v1.10.0 // indirect
