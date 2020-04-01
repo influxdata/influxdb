@@ -202,7 +202,7 @@ export class LSPServer {
     // drift between the parser and the internal representation
     const variables = getAllVariables(state, contextID)
       .map(v => asAssignment(v))
-      .filter(v => !!v.init.value)
+      .filter(v => !(v.init.type === 'StringLiteral' && !v.init.value))
 
     const file = buildVarsOption(variables)
 

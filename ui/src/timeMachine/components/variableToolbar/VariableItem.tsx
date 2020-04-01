@@ -47,6 +47,14 @@ function shouldShowTooltip(variable: Variable): boolean {
     return false
   }
 
+  if (
+    variable.arguments.type === 'query' &&
+    (!(variable.arguments.values as any).results ||
+      (variable.arguments.values as any).results.length <= 1)
+  ) {
+    return false
+  }
+
   return true
 }
 
