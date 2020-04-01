@@ -7561,11 +7561,13 @@ components:
                 properties:
                   id:
                     type: string
-                  name:
+                  pkgName:
                     type: string
                   new:
                     type: object
                     properties:
+                      name:
+                        type: string
                       color:
                         type: string
                       description:
@@ -7573,6 +7575,8 @@ components:
                   old:
                     type: object
                     properties:
+                      name:
+                        type: string
                       color:
                         type: string
                       description:
@@ -7719,6 +7723,8 @@ components:
         id:
           type: string
         orgID:
+          type: string
+        pkgName:
           type: string
         name:
           type: string

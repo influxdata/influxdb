@@ -189,22 +189,26 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Labels, 3)
 
 					expected := DiffLabel{
-						ID:   SafeID(1),
-						Name: "label_1",
+						ID:      SafeID(1),
+						PkgName: "label_1",
 						Old: &DiffLabelValues{
+							Name:        "label_1",
 							Color:       "old color",
 							Description: "old description",
 						},
 						New: DiffLabelValues{
+							Name:        "label_1",
 							Color:       "#FFFFFF",
 							Description: "label 1 description",
 						},
 					}
 					assert.Contains(t, diff.Labels, expected)
 
-					expected.Name = "label_2"
+					expected.PkgName = "label_2"
+					expected.New.Name = "label_2"
 					expected.New.Color = "#000000"
 					expected.New.Description = "label 2 description"
+					expected.Old.Name = "label_2"
 					assert.Contains(t, diff.Labels, expected)
 				})
 			})
@@ -223,15 +227,17 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Labels, 3)
 
 					expected := DiffLabel{
-						Name: "label_1",
+						PkgName: "label_1",
 						New: DiffLabelValues{
+							Name:        "label_1",
 							Color:       "#FFFFFF",
 							Description: "label 1 description",
 						},
 					}
 					assert.Contains(t, diff.Labels, expected)
 
-					expected.Name = "label_2"
+					expected.PkgName = "label_2"
+					expected.New.Name = "label_2"
 					expected.New.Color = "#000000"
 					expected.New.Description = "label 2 description"
 					assert.Contains(t, diff.Labels, expected)
@@ -633,9 +639,10 @@ func TestService(t *testing.T) {
 					require.Len(t, sum.Labels, 3)
 
 					assert.Contains(t, sum.Labels, SummaryLabel{
-						ID:    1,
-						OrgID: SafeID(orgID),
-						Name:  "label_1",
+						ID:      1,
+						OrgID:   SafeID(orgID),
+						PkgName: "label_1",
+						Name:    "label_1",
 						Properties: struct {
 							Color       string `json:"color"`
 							Description string `json:"description"`
@@ -646,9 +653,10 @@ func TestService(t *testing.T) {
 					})
 
 					assert.Contains(t, sum.Labels, SummaryLabel{
-						ID:    2,
-						OrgID: SafeID(orgID),
-						Name:  "label_2",
+						ID:      2,
+						OrgID:   SafeID(orgID),
+						PkgName: "label_2",
+						Name:    "label_2",
 						Properties: struct {
 							Color       string `json:"color"`
 							Description string `json:"description"`
@@ -728,9 +736,10 @@ func TestService(t *testing.T) {
 					require.Len(t, sum.Labels, 3)
 
 					assert.Contains(t, sum.Labels, SummaryLabel{
-						ID:    1,
-						OrgID: SafeID(orgID),
-						Name:  "label_1",
+						ID:      1,
+						OrgID:   SafeID(orgID),
+						PkgName: "label_1",
+						Name:    "label_1",
 						Properties: struct {
 							Color       string `json:"color"`
 							Description string `json:"description"`
@@ -741,9 +750,10 @@ func TestService(t *testing.T) {
 					})
 
 					assert.Contains(t, sum.Labels, SummaryLabel{
-						ID:    2,
-						OrgID: SafeID(orgID),
-						Name:  "label_2",
+						ID:      2,
+						OrgID:   SafeID(orgID),
+						PkgName: "label_2",
+						Name:    "label_2",
 						Properties: struct {
 							Color       string `json:"color"`
 							Description string `json:"description"`

@@ -715,29 +715,38 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		return bb
 	}
 
-	tablePrintFn := b.tablePrinterGen()
 	if labels := diff.Labels; len(labels) > 0 {
-		headers := []string{"New", "ID", "Name", "Color", "Description"}
-		tablePrintFn("LABELS", headers, len(labels), func(i int) []string {
-			l := labels[i]
-			var old pkger.DiffLabelValues
+		printer := newDiffPrinter(b.w, !b.disableColor, !b.disableTableBorders)
+		printer.
+			Title("Labels").
+			SetHeaders("Package Name", "ID", "Resource Name", "Color", "Description")
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffLabelValues) []string {
+			return []string{pkgName, id.String(), v.Name, v.Color, v.Description}
+		}
+
+		for _, l := range labels {
+			var oldRow []string
 			if l.Old != nil {
-				old = *l.Old
+				oldRow = appendValues(l.ID, l.PkgName, *l.Old)
 			}
 
-			return []string{
-				boolDiff(l.IsNew()),
-				l.ID.String(),
-				l.Name,
-				diffLn(l.IsNew(), old.Color, l.New.Color),
-				diffLn(l.IsNew(), old.Description, l.New.Description),
+			newRow := appendValues(l.ID, l.PkgName, l.New)
+			switch {
+			case l.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case l.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
 			}
-		})
+		}
+		printer.Render()
 	}
 
 	if bkts := diff.Buckets; len(bkts) > 0 {
-		bktPrinter := newDiffPrinter(b.w, !b.disableColor, !b.disableTableBorders)
-		bktPrinter.
+		printer := newDiffPrinter(b.w, !b.disableColor, !b.disableTableBorders)
+		printer.
 			Title("Buckets").
 			SetHeaders("Package Name", "ID", "Resource Name", "Retention Period", "Description")
 
@@ -754,16 +763,17 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 			newRow := appendValues(b.ID, b.PkgName, b.New)
 			switch {
 			case b.IsNew():
-				bktPrinter.AppendDiff(nil, newRow)
+				printer.AppendDiff(nil, newRow)
 			case b.Remove:
-				bktPrinter.AppendDiff(oldRow, nil)
+				printer.AppendDiff(oldRow, nil)
 			default:
-				bktPrinter.AppendDiff(oldRow, newRow)
+				printer.AppendDiff(oldRow, newRow)
 			}
 		}
-		bktPrinter.Render()
+		printer.Render()
 	}
 
+	tablePrintFn := b.tablePrinterGen()
 	if checks := diff.Checks; len(checks) > 0 {
 		headers := []string{"New", "ID", "Name", "Description"}
 		tablePrintFn("CHECKS", headers, len(checks), func(i int) []string {
@@ -908,10 +918,11 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 
 	tablePrintFn := b.tablePrinterGen()
 	if labels := sum.Labels; len(labels) > 0 {
-		headers := []string{"ID", "Name", "Description", "Color"}
+		headers := []string{"Package Name", "ID", "Resource Name", "Description", "Color"}
 		tablePrintFn("LABELS", headers, len(labels), func(i int) []string {
 			l := labels[i]
 			return []string{
+				l.PkgName,
 				l.ID.String(),
 				l.Name,
 				l.Properties.Description,
@@ -1112,6 +1123,7 @@ func (d *diffPrinter) Render() {
 
 	d.setFooter()
 	d.writer.Render()
+	fmt.Fprintln(d.w)
 }
 
 func (d *diffPrinter) Title(title string) *diffPrinter {
@@ -1259,16 +1271,19 @@ func tablePrinter(wr io.Writer, table string, headers []string, count int, hasCo
 	}
 	w.SetFooter(footers)
 	if hasColor {
+		headerColor := tablewriter.Color(tablewriter.FgHiCyanColor, tablewriter.Bold)
+		footerColor := tablewriter.Color(tablewriter.FgHiBlueColor, tablewriter.Bold)
+
 		var colors []tablewriter.Colors
 		for i := 0; i < len(headers); i++ {
-			colors = append(colors, tablewriter.Color(tablewriter.FgHiCyanColor))
+			colors = append(colors, headerColor)
 		}
 		w.SetHeaderColor(colors...)
 		if len(headers) > 1 {
-			colors[len(colors)-2] = tablewriter.Color(tablewriter.FgHiBlueColor)
-			colors[len(colors)-1] = tablewriter.Color(tablewriter.FgHiBlueColor)
+			colors[len(colors)-2] = footerColor
+			colors[len(colors)-1] = footerColor
 		} else {
-			colors[0] = tablewriter.Color(tablewriter.FgHiBlueColor)
+			colors[0] = footerColor
 		}
 		w.SetFooterColor(colors...)
 	}

@@ -160,7 +160,8 @@ spec:
 				require.Len(t, labels, 3)
 
 				expectedLabel0 := SummaryLabel{
-					Name: "display name",
+					PkgName: "label_3",
+					Name:    "display name",
 					Properties: struct {
 						Color       string `json:"color"`
 						Description string `json:"description"`
@@ -171,7 +172,8 @@ spec:
 				assert.Equal(t, expectedLabel0, labels[0])
 
 				expectedLabel1 := SummaryLabel{
-					Name: "label_1",
+					PkgName: "label_1",
+					Name:    "label_1",
 					Properties: struct {
 						Color       string `json:"color"`
 						Description string `json:"description"`
@@ -183,7 +185,8 @@ spec:
 				assert.Equal(t, expectedLabel1, labels[1])
 
 				expectedLabel2 := SummaryLabel{
-					Name: "label_2",
+					PkgName: "label_2",
+					Name:    "label_2",
 					Properties: struct {
 						Color       string `json:"color"`
 						Description string `json:"description"`
@@ -3927,7 +3930,8 @@ spec:
 
 		labels := []SummaryLabel{
 			{
-				Name: "label_1",
+				PkgName: "label_1",
+				Name:    "label_1",
 				Properties: struct {
 					Color       string `json:"color"`
 					Description string `json:"description"`
