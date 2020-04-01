@@ -1,110 +1,359 @@
 use crate::delorean::{Bucket, Predicate, TimestampRange};
 use crate::line_parser::PointType;
-use crate::storage::config_store::ConfigStore;
-use crate::storage::inverted_index::{InvertedIndex, SeriesFilter};
-use crate::storage::rocksdb::RocksDB;
-use crate::storage::series_store::{ReadPoint, SeriesStore};
+use crate::storage::memdb::MemDB;
+use crate::storage::partitioned_store::{Partition, ReadBatch};
 use crate::storage::StorageError;
 
+use futures::StreamExt;
+use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub struct Database {
-    local_index: Arc<dyn InvertedIndex>,
-    local_series_store: Arc<dyn SeriesStore>,
-    local_config_store: Arc<dyn ConfigStore>,
+    organizations: RwLock<HashMap<u32, RwLock<Organization>>>,
 }
 
-impl Database {
-    pub fn new(dir: &str) -> Database {
-        let db = Arc::new(RocksDB::new(dir));
+#[derive(Default)]
+struct Organization {
+    bucket_data: HashMap<u32, Arc<BucketData>>,
+    bucket_name_to_id: HashMap<String, u32>,
+}
 
-        Database {
-            local_index: db.clone(),
-            local_config_store: db.clone(),
-            local_series_store: db,
+impl Organization {
+    // create_bucket_if_not_exists inserts the bucket into the map and returns its id
+    fn create_bucket_if_not_exists(&mut self, mut bucket: Bucket) -> u32 {
+        match self.bucket_name_to_id.get(&bucket.name) {
+            Some(id) => *id,
+            None => {
+                let id = (self.bucket_data.len() + 1) as u32;
+                bucket.id = id;
+                self.bucket_name_to_id.insert(bucket.name.clone(), id);
+                self.bucket_data
+                    .insert(id, Arc::new(BucketData::new(bucket)));
+                id
+            }
+        }
+    }
+}
+
+struct BucketData {
+    _config: Bucket,
+    // TODO: wire up rules for partitioning data and storing and reading from multiple partitions
+    partition: RwLock<Partition>,
+}
+
+impl BucketData {
+    const BATCH_SIZE: usize = 100_000;
+
+    fn new(bucket: Bucket) -> BucketData {
+        let partition_id = bucket.name.clone();
+        let partition = Partition::MemDB(Box::new(MemDB::new(partition_id)));
+
+        BucketData {
+            _config: bucket,
+            partition: RwLock::new(partition),
         }
     }
 
-    pub fn write_points(
-        &self,
-        _org_id: u32,
-        bucket: &Bucket,
-        points: &mut [PointType],
-    ) -> Result<(), StorageError> {
-        self.local_index
-            .get_or_create_series_ids_for_points(bucket.id, points)?;
-        self.local_series_store
-            .write_points_with_series_ids(bucket.id, points)
+    async fn write_points(&self, points: &mut [PointType]) -> Result<(), StorageError> {
+        self.partition.write().await.write_points(points).await
     }
 
-    pub fn get_bucket_by_name(
+    async fn read_points(
+        &self,
+        predicate: &Predicate,
+        range: &TimestampRange,
+    ) -> Result<Vec<ReadBatch>, StorageError> {
+        let p = self.partition.read().await;
+        let stream = p
+            .read_points(BucketData::BATCH_SIZE, predicate, range)
+            .await?;
+        Ok(stream.collect().await)
+    }
+
+    async fn get_tag_keys(
+        &self,
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<String>, StorageError> {
+        let p = self.partition.read().await;
+        let stream = p.get_tag_keys(predicate, range).await?;
+        Ok(stream.collect().await)
+    }
+
+    async fn get_tag_values(
+        &self,
+        tag_key: &str,
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<String>, StorageError> {
+        let p = self.partition.read().await;
+        let stream = p.get_tag_values(tag_key, predicate, range).await?;
+        Ok(stream.collect().await)
+    }
+}
+
+impl Database {
+    pub fn new(_dir: &str) -> Database {
+        Database {
+            organizations: RwLock::new(HashMap::new()),
+        }
+    }
+
+    pub async fn write_points(
+        &self,
+        org_id: u32,
+        bucket_id: u32,
+        points: &mut [PointType],
+    ) -> Result<(), StorageError> {
+        let bucket_data = self.bucket_data(org_id, bucket_id).await?;
+
+        bucket_data.write_points(points).await
+    }
+
+    pub async fn get_bucket_id_by_name(
         &self,
         org_id: u32,
         bucket_name: &str,
-    ) -> Result<Option<Arc<Bucket>>, StorageError> {
-        self.local_config_store
-            .get_bucket_by_name(org_id, bucket_name)
+    ) -> Result<Option<u32>, StorageError> {
+        let orgs = self.organizations.read().await;
+        let org = orgs.get(&org_id).ok_or_else(|| StorageError {
+            description: format!("org {} not found", org_id),
+        })?;
+
+        let id = match org.read().await.bucket_name_to_id.get(bucket_name) {
+            Some(id) => Some(*id),
+            None => None,
+        };
+
+        Ok(id)
     }
 
-    pub fn get_bucket_by_id(&self, bucket_id: u32) -> Result<Option<Arc<Bucket>>, StorageError> {
-        self.local_config_store.get_bucket_by_id(bucket_id)
-    }
-
-    pub fn create_bucket_if_not_exists(
+    pub async fn create_bucket_if_not_exists(
         &self,
         org_id: u32,
-        bucket: &Bucket,
+        bucket: Bucket,
     ) -> Result<u32, StorageError> {
-        self.local_config_store
-            .create_bucket_if_not_exists(org_id, bucket)
+        let mut orgs = self.organizations.write().await;
+        let org = orgs
+            .entry(org_id)
+            .or_insert_with(|| RwLock::new(Organization::default()));
+        let mut org = org.write().await;
+
+        Ok(org.create_bucket_if_not_exists(bucket))
     }
 
-    pub fn read_series_matching_predicate_and_range(
+    pub async fn read_points(
         &self,
-        bucket: &Bucket,
-        predicate: Option<&Predicate>,
-        _range: Option<&TimestampRange>,
-    ) -> Result<Box<dyn Iterator<Item = SeriesFilter> + Send>, StorageError> {
-        self.local_index.read_series_matching(bucket.id, predicate)
-    }
-
-    pub fn read_i64_range(
-        &self,
-        bucket: &Bucket,
-        series_filter: &SeriesFilter,
+        org_id: u32,
+        bucket_id: u32,
+        predicate: &Predicate,
         range: &TimestampRange,
-        batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<i64>>> + Send>, StorageError> {
-        self.local_series_store
-            .read_i64_range(bucket.id, series_filter.id, range, batch_size)
+    ) -> Result<Vec<ReadBatch>, StorageError> {
+        let bucket_data = self.bucket_data(org_id, bucket_id).await?;
+
+        bucket_data.read_points(predicate, range).await
     }
 
-    pub fn read_f64_range(
+    pub async fn get_tag_keys(
         &self,
-        bucket: &Bucket,
-        series_filter: &SeriesFilter,
-        range: &TimestampRange,
-        batch_size: usize,
-    ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>> + Send>, StorageError> {
-        self.local_series_store
-            .read_f64_range(bucket.id, series_filter.id, range, batch_size)
-    }
-
-    pub fn get_tag_keys(
-        &self,
-        bucket: &Bucket,
+        org_id: u32,
+        bucket_id: u32,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
-        self.local_index.get_tag_keys(bucket.id, predicate)
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<String>, StorageError> {
+        let bucket_data = self.bucket_data(org_id, bucket_id).await?;
+
+        bucket_data.get_tag_keys(predicate, range).await
     }
 
-    pub fn get_tag_values(
+    pub async fn get_tag_values(
         &self,
-        bucket: &Bucket,
+        org_id: u32,
+        bucket_id: u32,
         tag_key: &str,
         predicate: Option<&Predicate>,
-    ) -> Result<Box<dyn Iterator<Item = String> + Send>, StorageError> {
-        self.local_index
-            .get_tag_values(bucket.id, tag_key, predicate)
+        range: Option<&TimestampRange>,
+    ) -> Result<Vec<String>, StorageError> {
+        let bucket_data = self.bucket_data(org_id, bucket_id).await?;
+
+        bucket_data.get_tag_values(tag_key, predicate, range).await
+    }
+
+    async fn bucket_data(
+        &self,
+        org_id: u32,
+        bucket_id: u32,
+    ) -> Result<Arc<BucketData>, StorageError> {
+        let orgs = self.organizations.read().await;
+        let org = orgs.get(&org_id).ok_or_else(|| StorageError {
+            description: format!("org {} not found", org_id),
+        })?;
+
+        let org = org.read().await;
+
+        match org.bucket_data.get(&bucket_id) {
+            Some(b) => Ok(Arc::clone(b)),
+            None => Err(StorageError {
+                description: format!("bucket {} not found", bucket_id),
+            }),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::line_parser::PointType;
+    use crate::storage::database::Database;
+    use crate::storage::partitioned_store::ReadValues;
+    use crate::storage::predicate::parse_predicate;
+    use crate::storage::series_store::ReadPoint;
+
+    #[tokio::test]
+    async fn create_bucket() {
+        let database = Database::new("");
+        let org_id = 2;
+        let bucket = Bucket {
+            org_id,
+            id: 0,
+            name: "first".to_string(),
+            retention: "0".to_string(),
+            posting_list_rollover: 10_000,
+            index_levels: vec![],
+        };
+        let bucket_id = database
+            .create_bucket_if_not_exists(org_id, bucket.clone())
+            .await
+            .unwrap();
+        assert_eq!(bucket_id, 1);
+
+        let bucket_two = Bucket {
+            org_id,
+            id: 0,
+            name: "second".to_string(),
+            retention: "0".to_string(),
+            posting_list_rollover: 10_000,
+            index_levels: vec![],
+        };
+
+        let bucket_id = database
+            .create_bucket_if_not_exists(org_id, bucket_two)
+            .await
+            .unwrap();
+        assert_eq!(bucket_id, 2);
+
+        let bucket_id = database
+            .create_bucket_if_not_exists(org_id, bucket)
+            .await
+            .unwrap();
+        assert_eq!(bucket_id, 1);
+    }
+
+    #[tokio::test]
+    async fn get_tag_keys() {
+        let (db, org, bucket) = setup_db_and_bucket().await;
+        db.write_points(
+            org,
+            bucket,
+            &mut [
+                PointType::new_i64("cpu,host=a,region=west\tfoo".to_string(), 1, 0),
+                PointType::new_i64("mem,foo=bar\tasdf".to_string(), 1, 0),
+            ],
+        )
+        .await
+        .unwrap();
+
+        let keys = db.get_tag_keys(org, bucket, None, None).await.unwrap();
+
+        assert_eq!(keys, vec!["_f", "_m", "foo", "host", "region"]);
+    }
+
+    #[tokio::test]
+    async fn get_tag_values() {
+        let (db, org, bucket) = setup_db_and_bucket().await;
+        db.write_points(
+            org,
+            bucket,
+            &mut [
+                PointType::new_i64("cpu,host=a,region=west\tfoo".to_string(), 1, 0),
+                PointType::new_i64("mem,host=b\tasdf".to_string(), 1, 0),
+            ],
+        )
+        .await
+        .unwrap();
+
+        let values = db
+            .get_tag_values(org, bucket, "host", None, None)
+            .await
+            .unwrap();
+
+        assert_eq!(values, vec!["a", "b"]);
+
+        let values = db
+            .get_tag_values(org, bucket, "region", None, None)
+            .await
+            .unwrap();
+
+        assert_eq!(values, vec!["west"]);
+
+        let values = db
+            .get_tag_values(org, bucket, "_m", None, None)
+            .await
+            .unwrap();
+
+        assert_eq!(values, vec!["cpu", "mem"]);
+    }
+
+    #[tokio::test]
+    async fn read_points() {
+        let (db, org, bucket) = setup_db_and_bucket().await;
+        db.write_points(
+            org,
+            bucket,
+            &mut [
+                PointType::new_i64("cpu,host=a,region=west\tval".to_string(), 3, 1),
+                PointType::new_i64("cpu,host=a,region=west\tval".to_string(), 2, 5),
+                PointType::new_i64("cpu,host=a,region=west\tval".to_string(), 1, 10),
+                PointType::new_i64("cpu,host=b,region=west\tval".to_string(), 5, 9),
+            ],
+        )
+        .await
+        .unwrap();
+
+        let pred = parse_predicate(r#"host = "a""#).unwrap();
+        let range = TimestampRange { start: 0, end: 11 };
+        let batches = db.read_points(org, bucket, &pred, &range).await.unwrap();
+
+        assert_eq!(
+            batches,
+            vec![ReadBatch {
+                key: "cpu,host=a,region=west\tval".to_string(),
+                values: ReadValues::I64(vec![
+                    ReadPoint { value: 3, time: 1 },
+                    ReadPoint { value: 2, time: 5 },
+                    ReadPoint { value: 1, time: 10 },
+                ])
+            }]
+        );
+    }
+
+    async fn setup_db_and_bucket() -> (Database, u32, u32) {
+        let database = Database::new("");
+        let org_id = 1;
+        let bucket = Bucket {
+            org_id,
+            id: 0,
+            name: "foo".to_string(),
+            retention: "0".to_string(),
+            posting_list_rollover: 10_000,
+            index_levels: vec![],
+        };
+        let bucket_id = database
+            .create_bucket_if_not_exists(org_id, bucket)
+            .await
+            .unwrap();
+
+        (database, org_id, bucket_id)
     }
 }

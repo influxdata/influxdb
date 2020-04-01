@@ -21,6 +21,7 @@ use std::collections::{BTreeMap, HashMap};
 
 #[derive(Default)]
 pub struct MemDB {
+    pub id: String,
     series_data: SeriesData,
     series_map: SeriesMap,
 }
@@ -38,16 +39,12 @@ struct SeriesBuffer<T: Clone> {
 
 impl<T: Clone> SeriesBuffer<T> {
     fn read(&self, range: &TimestampRange) -> Vec<ReadPoint<T>> {
-        let start = match self.values
-            .iter()
-            .position(|val| val.time >= range.start) {
+        let start = match self.values.iter().position(|val| val.time >= range.start) {
             Some(pos) => pos,
             None => return vec![],
         };
 
-        let stop = self.values
-            .iter()
-            .position(|val| val.time >= range.end);
+        let stop = self.values.iter().position(|val| val.time >= range.end);
         let stop = stop.unwrap_or_else(|| self.values.len());
 
         self.values[start..stop].to_vec()
@@ -186,15 +183,17 @@ fn list_key(key: &str, value: &str) -> Vec<u8> {
 }
 
 impl MemDB {
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(id: String) -> Self {
+        let mut memdb: MemDB = Default::default();
+        memdb.id = id;
+        memdb
     }
 
     pub fn size(&self) -> usize {
         self.series_data.current_size + self.series_map.current_size
     }
 
-    fn write(&mut self, points: &mut [PointType]) -> Result<(), StorageError> {
+    pub fn write_points(&mut self, points: &mut [PointType]) -> Result<(), StorageError> {
         for p in points {
             self.series_map.insert_series(p).map_err(|e| StorageError {
                 description: format!("error parsing line protocol metadata {}", e),
@@ -205,20 +204,20 @@ impl MemDB {
         Ok(())
     }
 
-    fn get_tag_keys(
+    pub fn get_tag_keys(
         &self,
-        _range: &TimestampRange,
-        _predicate: &Predicate,
+        _predicate: Option<&Predicate>,
+        _range: Option<&TimestampRange>,
     ) -> Result<BoxStream<'_, String>, StorageError> {
         let keys = self.series_map.tag_keys.keys().cloned();
         Ok(stream::iter(keys).boxed())
     }
 
-    fn get_tag_values(
+    pub fn get_tag_values(
         &self,
         tag_key: &str,
-        _range: &TimestampRange,
-        _predicate: &Predicate,
+        _predicate: Option<&Predicate>,
+        _range: Option<&TimestampRange>,
     ) -> Result<BoxStream<'_, String>, StorageError> {
         match self.series_map.tag_keys.get(tag_key) {
             Some(values) => {
@@ -229,7 +228,7 @@ impl MemDB {
         }
     }
 
-    fn read(
+    pub fn read_points(
         &self,
         _batch_size: usize,
         predicate: &Predicate,
@@ -297,45 +296,34 @@ mod tests {
     use crate::storage::predicate::parse_predicate;
 
     #[test]
-    fn write_and_read_tag_keys() {
+    fn get_tag_keys() {
         let memdb = setup_db();
-        let tag_keys = memdb
-            .get_tag_keys(
-                &TimestampRange { start: 0, end: 0 },
-                &Predicate { root: None },
-            )
-            .unwrap();
+        let tag_keys = memdb.get_tag_keys(None, None).unwrap();
         let tag_keys: Vec<_> = futures::executor::block_on_stream(tag_keys).collect();
 
         assert_eq!(tag_keys, vec!["_f", "_m", "host", "region"]);
     }
 
     #[test]
-    fn write_and_read_tag_values() {
+    fn get_tag_values() {
         let memdb = setup_db();
-        let tag_values = memdb
-            .get_tag_values(
-                "host",
-                &TimestampRange { start: 0, end: 0 },
-                &Predicate { root: None },
-            )
-            .unwrap();
+        let tag_values = memdb.get_tag_values("host", None, None).unwrap();
         let tag_values: Vec<_> = futures::executor::block_on_stream(tag_values).collect();
         assert_eq!(tag_values, vec!["a", "b"]);
     }
 
     #[test]
-    fn write_and_check_size() {
+    fn check_size() {
         let memdb = setup_db();
         assert_eq!(memdb.size(), 704);
     }
 
     #[test]
-    fn write_and_get_measurement_series() {
+    fn get_measurement_series() {
         let memdb = setup_db();
         let pred = parse_predicate(r#"_m = "cpu""#).unwrap();
         let batches = memdb
-            .read(10, &pred, &TimestampRange { start: 0, end: 5 })
+            .read_points(10, &pred, &TimestampRange { start: 0, end: 5 })
             .unwrap();
         let batches: Vec<_> = futures::executor::block_on_stream(batches).collect();
 
@@ -362,11 +350,11 @@ mod tests {
     }
 
     #[test]
-    fn write_and_get_tag_match_series() {
+    fn get_tag_match_series() {
         let memdb = setup_db();
         let pred = parse_predicate(r#"host = "a""#).unwrap();
         let batches = memdb
-            .read(10, &pred, &TimestampRange { start: 0, end: 5 })
+            .read_points(10, &pred, &TimestampRange { start: 0, end: 5 })
             .unwrap();
         let batches: Vec<_> = futures::executor::block_on_stream(batches).collect();
         assert_eq!(
@@ -385,11 +373,11 @@ mod tests {
     }
 
     #[test]
-    fn write_and_measurement_and_tag_match_series() {
+    fn measurement_and_tag_match_series() {
         let memdb = setup_db();
         let pred = parse_predicate(r#"_m = "cpu" and host = "b""#).unwrap();
         let batches = memdb
-            .read(10, &pred, &TimestampRange { start: 0, end: 5 })
+            .read_points(10, &pred, &TimestampRange { start: 0, end: 5 })
             .unwrap();
         let batches: Vec<_> = futures::executor::block_on_stream(batches).collect();
         assert_eq!(
@@ -405,11 +393,11 @@ mod tests {
     }
 
     #[test]
-    fn write_and_measurement_or_tag_match() {
+    fn measurement_or_tag_match() {
         let memdb = setup_db();
         let pred = parse_predicate(r#"host = "a" OR _m = "mem""#).unwrap();
         let batches = memdb
-            .read(10, &pred, &TimestampRange { start: 0, end: 5 })
+            .read_points(10, &pred, &TimestampRange { start: 0, end: 5 })
             .unwrap();
         let batches: Vec<_> = futures::executor::block_on_stream(batches).collect();
         assert_eq!(
@@ -440,8 +428,8 @@ mod tests {
 
         let mut points = vec![p1, p2, p3, p4, p5];
 
-        let mut memdb = MemDB::new();
-        memdb.write(&mut points).unwrap();
+        let mut memdb = MemDB::new("foo".to_string());
+        memdb.write_points(&mut points).unwrap();
         memdb
     }
 }

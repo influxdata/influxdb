@@ -8,7 +8,9 @@ pub mod inverted_index;
 pub mod memdb;
 pub mod partitioned_store;
 pub mod predicate;
+pub mod remote_partition;
 pub mod rocksdb;
+pub mod s3_partition;
 pub mod series_store;
 
 // The values for these enum variants have no real meaning, but they

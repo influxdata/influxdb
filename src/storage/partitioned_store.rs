@@ -1,7 +1,10 @@
-//! partitioned_store is a trait and set of helper functions and structs to define Partitions
+//! partitioned_store is an enum and set of helper functions and structs to define Partitions
 //! that store data. The helper funcs and structs merge results from multiple partitions together.
 use crate::delorean::{Predicate, TimestampRange};
 use crate::line_parser::PointType;
+use crate::storage::memdb::MemDB;
+use crate::storage::remote_partition::RemotePartition;
+use crate::storage::s3_partition::S3Partition;
 use crate::storage::series_store::ReadPoint;
 use crate::storage::StorageError;
 
@@ -15,34 +18,76 @@ use std::task::{Context, Poll};
 /// tags, tag values, and fields exist. Along with the raw time series data. It is designed to work
 /// as a stream so that it can be used in safely an asynchronous context. A partition is the
 /// lowest level organization scheme. Above it you will have a database which keeps track of
-/// what organizations and buckets exist. A bucket will have 1-many partitions and a partition
+/// what organizations and buckets exist. A bucket will have 1 to many partitions and a partition
 /// will only ever contain data for a single bucket.
-pub trait Partition {
-    fn id(&self) -> String;
+pub enum Partition {
+    MemDB(Box<MemDB>),
+    S3(Box<S3Partition>),
+    Remote(Box<RemotePartition>),
+}
 
-    fn size(&self) -> u64;
+impl Partition {
+    pub fn id(&self) -> &str {
+        match self {
+            Partition::MemDB(db) => &db.id,
+            Partition::S3(_) => panic!("s3 partition not implemented!"),
+            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        }
+    }
 
-    fn write(&self, points: &[PointType]) -> Result<(), StorageError>;
+    pub fn size(&self) -> usize {
+        match self {
+            Partition::MemDB(db) => db.size(),
+            Partition::S3(_) => panic!("s3 partition not implemented!"),
+            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        }
+    }
 
-    fn get_tag_keys(
+    pub async fn write_points(&mut self, points: &mut [PointType]) -> Result<(), StorageError> {
+        match self {
+            Partition::MemDB(db) => db.write_points(points),
+            Partition::S3(_) => panic!("s3 partition not implemented!"),
+            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        }
+    }
+
+    pub async fn get_tag_keys(
         &self,
-        range: &TimestampRange,
-        predicate: &Predicate,
-    ) -> Result<BoxStream<'_, String>, StorageError>;
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<BoxStream<'_, String>, StorageError> {
+        match self {
+            Partition::MemDB(db) => db.get_tag_keys(predicate, range),
+            Partition::S3(_) => panic!("s3 partition not implemented!"),
+            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        }
+    }
 
-    fn get_tag_values(
+    pub async fn get_tag_values(
         &self,
         tag_key: &str,
-        range: &TimestampRange,
-        predicate: &Predicate,
-    ) -> Result<BoxStream<'_, String>, StorageError>;
+        predicate: Option<&Predicate>,
+        range: Option<&TimestampRange>,
+    ) -> Result<BoxStream<'_, String>, StorageError> {
+        match self {
+            Partition::MemDB(db) => db.get_tag_values(tag_key, predicate, range),
+            Partition::S3(_) => panic!("s3 partition not implemented!"),
+            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        }
+    }
 
-    fn read(
+    pub async fn read_points(
         &self,
         batch_size: usize,
         predicate: &Predicate,
         range: &TimestampRange,
-    ) -> Result<BoxStream<'_, ReadBatch>, StorageError>;
+    ) -> Result<BoxStream<'_, ReadBatch>, StorageError> {
+        match self {
+            Partition::MemDB(db) => db.read_points(batch_size, predicate, range),
+            Partition::S3(_) => panic!("s3 partition not implemented!"),
+            Partition::Remote(_) => panic!("remote partition not implemented!"),
+        }
+    }
 }
 
 /// StringMergeStream will do a merge sort with deduplication of multiple streams of Strings. This
