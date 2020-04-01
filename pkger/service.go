@@ -767,23 +767,12 @@ func (s *Service) dryRunDashboards(pkg *Pkg) []DiffDashboard {
 
 func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffLabel {
 	mExistingLabels := make(map[string]DiffLabel)
-	labels := pkg.labels()
+	labels := pkg.labels(false)
 	for i := range labels {
 		pkgLabel := labels[i]
-		existingLabels, err := s.labelSVC.FindLabels(ctx, influxdb.LabelFilter{
-			Name:  pkgLabel.Name(),
-			OrgID: &orgID,
-		}, influxdb.FindOptions{Limit: 1})
-		switch {
-		// TODO: case for err not found here and another case handle where
-		//  err isn't a not found (some other error)
-		case err == nil && len(existingLabels) > 0:
-			existingLabel := existingLabels[0]
-			pkgLabel.existing = existingLabel
-			mExistingLabels[pkgLabel.Name()] = newDiffLabel(pkgLabel, existingLabel)
-		default:
-			mExistingLabels[pkgLabel.Name()] = newDiffLabel(pkgLabel, nil)
-		}
+		existingLabel, _ := s.findLabel(ctx, orgID, pkgLabel)
+		pkgLabel.existing = existingLabel
+		mExistingLabels[pkgLabel.Name()] = newDiffLabel(pkgLabel, existingLabel)
 	}
 
 	diffs := make([]DiffLabel, 0, len(mExistingLabels))
@@ -1185,7 +1174,7 @@ func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, o
 		},
 		{
 			// deps for primary resources
-			s.applyLabels(pkg.labels()),
+			s.applyLabels(ctx, pkg.labels(false)),
 		},
 		{
 			// primary resources, can have relationships to labels
@@ -1277,7 +1266,6 @@ func (s *Service) rollbackBuckets(ctx context.Context, buckets []*bucket) error 
 		switch {
 		case b.shouldRemove:
 			err = s.bucketSVC.CreateBucket(ctx, b.existing)
-			fmt.Println("in rollback pkgName:", b.PkgName(), "id: ", b.existing.ID)
 		case b.existing == nil:
 			err = s.bucketSVC.DeleteBucket(ctx, b.ID())
 		default:
@@ -1514,7 +1502,7 @@ func convertChartsToCells(ch []chart) []*influxdb.Cell {
 	return icells
 }
 
-func (s *Service) applyLabels(labels []*label) applier {
+func (s *Service) applyLabels(ctx context.Context, labels []*label) applier {
 	const resource = "label"
 
 	mutex := new(doMutex)
@@ -1553,40 +1541,53 @@ func (s *Service) applyLabels(labels []*label) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackLabels(rollBackLabels) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackLabels(ctx, rollBackLabels) },
 		},
 	}
 }
 
-func (s *Service) rollbackLabels(labels []*label) error {
+func (s *Service) rollbackLabels(ctx context.Context, labels []*label) error {
+	rollbackFn := func(l *label) error {
+		var err error
+		switch {
+		case l.shouldRemove:
+			err = s.labelSVC.CreateLabel(ctx, l.existing)
+		case l.existing == nil:
+			err = s.labelSVC.DeleteLabel(ctx, l.ID())
+		default:
+			_, err = s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
+				Name:       l.Name(),
+				Properties: l.existing.Properties,
+			})
+		}
+		return err
+	}
+
 	var errs []string
 	for _, l := range labels {
-		if l.existing == nil {
-			err := s.labelSVC.DeleteLabel(context.Background(), l.ID())
-			if err != nil {
-				errs = append(errs, l.ID().String())
-			}
-			continue
-		}
-
-		_, err := s.labelSVC.UpdateLabel(context.Background(), l.ID(), influxdb.LabelUpdate{
-			Properties: l.existing.Properties,
-		})
-		if err != nil {
-			errs = append(errs, l.ID().String())
+		if err := rollbackFn(l); err != nil {
+			errs = append(errs, fmt.Sprintf("error for label[%q]: %s", l.ID(), err))
 		}
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf(`label_ids=[%s] err="unable to delete label"`, strings.Join(errs, ", "))
+		return errors.New(strings.Join(errs, ", "))
 	}
 
 	return nil
 }
 
 func (s *Service) applyLabel(ctx context.Context, l label) (influxdb.Label, error) {
+	if l.shouldRemove {
+		if err := s.labelSVC.DeleteLabel(ctx, l.ID()); err != nil {
+			return influxdb.Label{}, fmt.Errorf("failed to delete label[%q]: %w", l.ID(), err)
+		}
+		return *l.existing, nil
+	}
+
 	if l.existing != nil {
 		updatedlabel, err := s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
+			Name:       l.Name(),
 			Properties: l.properties(),
 		})
 		if err != nil {
@@ -2160,6 +2161,14 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			Name:       b.PkgName(),
 		})
 	}
+	for _, l := range pkg.labels(true) {
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         l.ID(),
+			Kind:       KindLabel,
+			Name:       l.PkgName(),
+		})
+	}
 	stack.Resources = stackResources
 
 	stack.UpdatedAt = time.Now()
@@ -2187,16 +2196,26 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 	}
 
 	hasChanges := false
-	for _, b := range pkg.buckets(false) {
-		if b.shouldRemove {
-			res := existingResources[newKey(KindBucket, b.PkgName())]
-
-			// this is the case where a deletion happens and is rolled back creating a new resource.
-			// when resource is not to be removed this is a nothing burger, as it should be
-			// rolled back to previous state.
-			if res.ID != b.ID() {
-				hasChanges = true
-				res.ID = b.existing.ID
+	{
+		// these are the case where a deletion happens and is rolled back creating a new resource.
+		// when resource is not to be removed this is a nothing burger, as it should be
+		// rolled back to previous state.
+		for _, b := range pkg.buckets(false) {
+			if b.shouldRemove {
+				res := existingResources[newKey(KindBucket, b.PkgName())]
+				if res.ID != b.ID() {
+					hasChanges = true
+					res.ID = b.existing.ID
+				}
+			}
+		}
+		for _, l := range pkg.labels(false) {
+			if l.shouldRemove {
+				res := existingResources[newKey(KindLabel, l.PkgName())]
+				if res.ID != l.ID() {
+					hasChanges = true
+					res.ID = l.existing.ID
+				}
 			}
 		}
 	}
@@ -2214,6 +2233,24 @@ func (s *Service) findBucket(ctx context.Context, orgID influxdb.ID, b *bucket) 
 	}
 
 	return s.bucketSVC.FindBucketByName(ctx, orgID, b.Name())
+}
+
+func (s *Service) findLabel(ctx context.Context, orgID influxdb.ID, l *label) (*influxdb.Label, error) {
+	if l.id != 0 {
+		return s.labelSVC.FindLabelByID(ctx, l.id)
+	}
+
+	existingLabels, err := s.labelSVC.FindLabels(ctx, influxdb.LabelFilter{
+		Name:  l.Name(),
+		OrgID: &orgID,
+	}, influxdb.FindOptions{Limit: 1})
+	if err != nil {
+		return nil, err
+	}
+	if len(existingLabels) == 0 {
+		return nil, errors.New("no labels found for name: " + l.Name())
+	}
+	return existingLabels[0], nil
 }
 
 func getLabelIDMap(ctx context.Context, labelSVC influxdb.LabelService, labelNames []string) (map[influxdb.ID]bool, error) {

@@ -203,7 +203,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(bkt.OrgID, uniqByNameResID, KindBucket, bucketToObject(*bkt, r.Name))
+		mapResource(bkt.OrgID, uniqByNameResID, KindBucket, BucketToObject(r.Name, *bkt))
 	case r.Kind.is(KindCheck),
 		r.Kind.is(KindCheckDeadman),
 		r.Kind.is(KindCheckThreshold):
@@ -223,7 +223,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(l.OrgID, uniqByNameResID, KindLabel, labelToObject(*l, r.Name))
+		mapResource(l.OrgID, uniqByNameResID, KindLabel, LabelToObject(r.Name, *l))
 	case r.Kind.is(KindNotificationEndpoint),
 		r.Kind.is(KindNotificationEndpointHTTP),
 		r.Kind.is(KindNotificationEndpointPagerDuty),
@@ -323,7 +323,7 @@ func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, la
 				}
 			}
 
-			labelObject := labelToObject(*l, "")
+			labelObject := LabelToObject("", *l)
 			labelObject.Metadata[fieldName] = ex.uniqName()
 
 			k := newExportKey(l.OrgID, ex.uniqByNameResID(), KindLabel, l.Name)
@@ -414,7 +414,8 @@ func uniqResourcesToClone(resources []ResourceToClone) []ResourceToClone {
 	return out
 }
 
-func bucketToObject(bkt influxdb.Bucket, name string) Object {
+// BucketToObject converts a influxdb.Bucket into an Object.
+func BucketToObject(name string, bkt influxdb.Bucket) Object {
 	if name == "" {
 		name = bkt.Name
 	}
@@ -759,7 +760,7 @@ func convertQueries(iQueries []influxdb.DashboardQuery) queries {
 	return out
 }
 
-// DashboardToObject converts an influxdb.Dashboard to a pkger.Resource.
+// DashboardToObject converts an influxdb.Dashboard to an Object.
 func DashboardToObject(dash influxdb.Dashboard, name string) Object {
 	if name == "" {
 		name = dash.Name
@@ -791,7 +792,8 @@ func DashboardToObject(dash influxdb.Dashboard, name string) Object {
 	return o
 }
 
-func labelToObject(l influxdb.Label, name string) Object {
+// LabelToObject converts an influxdb.Label to an Object.
+func LabelToObject(name string, l influxdb.Label) Object {
 	if name == "" {
 		name = l.Name
 	}
