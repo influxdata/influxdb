@@ -75,7 +75,7 @@ const TimeMachineFluxEditor: FC<Props> = ({
     const p = editorInstance.getPosition()
     const scriptLines = activeQueryText.split('\n')
 
-    let insertLineNumber = getInsertLineNumber(p.lineNumber, scriptLines)
+    const insertLineNumber = getInsertLineNumber(p.lineNumber, scriptLines)
 
     // sets the range based on the current position
     let range = new window.monaco.Range(
