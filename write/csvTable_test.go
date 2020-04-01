@@ -321,6 +321,61 @@ func TestConstantAnnotations(t *testing.T) {
 	}
 }
 
+func TestDataTypeInColumnName(t *testing.T) {
+	var tests = []struct {
+		name                       string
+		csv                        string
+		line                       string
+		ignoreDataTypeInColumnName bool
+	}{
+		{
+			"measurement_1",
+			"#constant measurement,cpu\n" +
+				"a|long,b|string\n" +
+				"1,1",
+			`cpu a=1i,b="1"`,
+			false,
+		},
+		{
+			"measurement_1",
+			"#constant measurement,cpu\n" +
+				"a|long,b|string\n" +
+				"1,1",
+			`cpu a|long=1,b|string=1`,
+			true,
+		},
+		{
+			"measurement_1",
+			"#constant measurement,cpu\n" +
+				"#datatype long,string\n" +
+				"a|long,b|string\n" +
+				"1,1",
+			`cpu a|long=1i,b|string="1"`,
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rows := readCsv(t, test.csv)
+			table := CsvTable{}
+			table.IgnoreDataTypeInColumnName(test.ignoreDataTypeInColumnName)
+			var lines []string
+			for _, row := range rows {
+				rowProcessed := table.AddRow(row)
+				if rowProcessed {
+					line, err := table.CreateLine(row)
+					if err != nil && test.line != "" {
+						require.Nil(t, err.Error())
+					}
+					lines = append(lines, line)
+				}
+			}
+			require.Equal(t, []string{test.line}, lines)
+		})
+	}
+}
+
 // TestCsvData_dataErrors validates table data errors
 func TestCsvData_dataErrors(t *testing.T) {
 	var tests = []struct {

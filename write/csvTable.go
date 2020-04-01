@@ -86,6 +86,8 @@ type CsvTable struct {
 	indexed bool
 	// extra columns are added by annotations
 	extraColumns []CsvTableColumn
+	// parse data type in column name
+	ignoreDataTypeInColumnName bool
 
 	/* cached columns are initialized before reading the data rows */
 	cachedMeasurement *CsvTableColumn
@@ -94,6 +96,12 @@ type CsvTable struct {
 	cachedFieldValue  *CsvTableColumn
 	cachedFields      []CsvTableColumn
 	cachedTags        []CsvTableColumn
+}
+
+// IgnoreDataTypeInColumnName sets a flag that controls whether to ignore dataType in column name.
+// Column name can contain data type after ':'
+func (t *CsvTable) IgnoreDataTypeInColumnName(val bool) {
+	t.ignoreDataTypeInColumnName = val
 }
 
 // DataColumnsInfo returns string representation of columns that are used to process CSV data
@@ -140,6 +148,12 @@ func (t *CsvTable) AddRow(row []string) bool {
 				col := &t.columns[i]
 				if len(col.Label) == 0 && col.Index < len(row) {
 					col.Label = row[col.Index]
+					if len(col.DataType) == 0 && !t.ignoreDataTypeInColumnName {
+						if idx := strings.IndexByte(col.Label, '|'); idx != -1 {
+							setupDataType(col, col.Label[idx+1:])
+							col.Label = col.Label[:idx]
+						}
+					}
 				}
 			}
 			t.readTableData = true

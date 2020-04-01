@@ -21,16 +21,17 @@ const (
 )
 
 type writeFlagsType struct {
-	org            organization
-	BucketID       string
-	Bucket         string
-	Precision      string
-	Format         string
-	Files          []string
-	Headers        []string
-	Debug          bool
-	SkipRowOnError bool
-	SkipHeader     int
+	org                        organization
+	BucketID                   string
+	Bucket                     string
+	Precision                  string
+	Format                     string
+	Files                      []string
+	Headers                    []string
+	Debug                      bool
+	SkipRowOnError             bool
+	SkipHeader                 int
+	IgnoreDataTypeInColumnName bool
 }
 
 var writeFlags writeFlagsType
@@ -74,6 +75,8 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&writeFlags.SkipRowOnError, "skipRowOnError", false, "Log CSV data errors to stderr and continue with CSV processing")
 	cmd.PersistentFlags().IntVar(&writeFlags.SkipHeader, "skipHeader", 0, "Skip the first <n> rows from input data")
 	cmd.Flag("skipHeader").NoOptDefVal = "1" // skipHeader flag value is optional, skip the first header when unspecified
+	cmd.PersistentFlags().BoolVar(&writeFlags.IgnoreDataTypeInColumnName, "xIgnoreDataTypeInColumnName", false, "Ignores dataType which could be specified after ':' in column name")
+	cmd.PersistentFlags().MarkHidden("xIgnoreDataTypeInColumnName") // should be used only upon explicit advice
 
 	cmdDryRun := opt.newCmd("dryrun", fluxWriteDryrunF, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
@@ -155,6 +158,7 @@ func (writeFlags *writeFlagsType) createLineReader(args []string) (io.Reader, io
 		csvReader := write.CsvToProtocolLines(r)
 		csvReader.LogTableColumns(writeFlags.Debug)
 		csvReader.SkipRowOnError(writeFlags.SkipRowOnError)
+		csvReader.Table.IgnoreDataTypeInColumnName(writeFlags.IgnoreDataTypeInColumnName)
 		csvReader.LineNumber = -len(writeFlags.Headers)
 		r = csvReader
 	}
