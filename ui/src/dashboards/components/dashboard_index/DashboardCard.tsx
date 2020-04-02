@@ -144,7 +144,7 @@ class DashboardCard extends PureComponent<Props> {
     onDeleteDashboard(id, name)
   }
 
-  private handleClickDashboard = () => {
+  private handleClickDashboard = e => {
     const {
       onResetViews,
       router,
@@ -152,7 +152,11 @@ class DashboardCard extends PureComponent<Props> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/dashboards/${id}`)
+    if (e.metaKey) {
+      window.open(`/orgs/${orgID}/dashboards/${id}`, '_blank')
+    } else {
+      router.push(`/orgs/${orgID}/dashboards/${id}`)
+    }
 
     onResetViews()
   }
