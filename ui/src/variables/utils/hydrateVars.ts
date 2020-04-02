@@ -30,6 +30,7 @@ interface HydrateVarsOptions {
   orgID: string
   selections?: ValueSelections
   fetcher?: ValueFetcher
+  skipCache?: boolean
 }
 
 export const createVariableGraph = (

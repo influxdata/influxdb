@@ -66,7 +66,8 @@ export interface ValueFetcher {
     query: string,
     variables: VariableAssignment[],
     prevSelection: string,
-    defaultSelection: string
+    defaultSelection: string,
+    skipCache: boolean
   ) => CancelBox<VariableValues>
 }
 
