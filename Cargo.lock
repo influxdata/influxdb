@@ -426,6 +426,7 @@ dependencies = [
  "serde_json 1.0.48 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_urlencoded 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "snafu 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tempfile 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "tonic 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tonic-build 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",

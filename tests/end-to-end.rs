@@ -20,11 +20,11 @@ use futures::prelude::*;
 use prost::Message;
 use std::convert::TryInto;
 use std::env;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::str;
-use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 use std::u32;
+use tempfile::TempDir;
 
 const URL_BASE: &str = "http://localhost:8080/api/v2";
 const GRPC_URL_BASE: &str = "http://localhost:8081/";
@@ -42,6 +42,9 @@ use grpc::{
     read_response::{frame::Data, DataType},
     Node, Predicate, ReadFilterRequest, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
+
+type Error = Box<dyn std::error::Error>;
+type Result<T, E = Error> = std::result::Result<T, E>;
 
 macro_rules! assert_unwrap {
     ($e:expr, $p:path) => {
@@ -68,7 +71,7 @@ async fn read_data(
     bucket_name: &str,
     predicate: &str,
     seconds_ago: u64,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<String> {
     let url = format!("{}{}", URL_BASE, path);
     Ok(client
         .get(&url)
@@ -91,7 +94,7 @@ async fn write_data(
     org_id: u32,
     bucket_name: &str,
     body: String,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let url = format!("{}{}", URL_BASE, path);
     client
         .post(&url)
@@ -106,27 +109,10 @@ async fn write_data(
     Ok(())
 }
 
-// TODO: if TEST_DELOREAN_DB_DIR is set, create a temporary directory in that directory or
-// otherwise isolate the database used in this test with the database used in other tests, rather
-// than always ignoring TEST_DELOREAN_DB_DIR
-fn get_test_storage_path() -> String {
-    let mut path = env::temp_dir();
-    path.push("delorean/");
-    std::fs::remove_dir_all(&path).unwrap();
-    path.into_os_string()
-        .into_string()
-        .expect("Should have been able to turn temp dir into String")
-}
-
 #[tokio::test]
-async fn read_and_write_data() -> Result<(), Box<dyn std::error::Error>> {
-    let mut server_thread = Command::cargo_bin("delorean")?
-        .stdout(Stdio::null())
-        .env("DELOREAN_DB_DIR", get_test_storage_path())
-        .spawn()?;
-
-    // TODO: poll the server to see if it's ready instead of sleeping
-    sleep(Duration::from_secs(3));
+async fn read_and_write_data() -> Result<()> {
+    let server = TestServer::new()?;
+    server.wait_until_ready().await;
 
     let org_id = 7878;
     let bucket_name = "all";
@@ -334,10 +320,6 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
 
     assert_eq!(values, vec!["server01", "server02"]);
 
-    server_thread
-        .kill()
-        .expect("Should have been able to kill the test server");
-
     Ok(())
 }
 
@@ -350,4 +332,48 @@ fn tags_as_strings(tags: &[Tag]) -> Vec<(&str, &str)> {
             )
         })
         .collect()
+}
+
+struct TestServer {
+    server_process: Child,
+
+    // The temporary directory **must** be last so that it is
+    // dropped after the database closes.
+    #[allow(dead_code)]
+    dir: TempDir,
+}
+
+impl TestServer {
+    fn new() -> Result<Self> {
+        let _ = dotenv::dotenv(); // load .env file if present
+
+        let root = env::var_os("TEST_DELOREAN_DB_DIR").unwrap_or_else(|| env::temp_dir().into());
+
+        let dir = tempfile::Builder::new()
+            .prefix("delorean")
+            .tempdir_in(root)?;
+
+        let server_process = Command::cargo_bin("delorean")?
+            .stdout(Stdio::null())
+            .env("DELOREAN_DB_DIR", dir.path())
+            .spawn()?;
+
+        Ok(Self {
+            dir,
+            server_process,
+        })
+    }
+
+    async fn wait_until_ready(&self) {
+        // TODO: poll the server to see if it's ready instead of sleeping
+        tokio::time::delay_for(Duration::from_secs(3)).await;
+    }
+}
+
+impl Drop for TestServer {
+    fn drop(&mut self) {
+        self.server_process
+            .kill()
+            .expect("Should have been able to kill the test server");
+    }
 }
