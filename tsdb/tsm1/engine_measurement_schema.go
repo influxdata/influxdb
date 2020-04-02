@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxql"
+	"go.uber.org/zap"
 )
 
 // MeasurementNames returns an iterator which enumerates the measurements for the given
@@ -50,9 +51,9 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 				}
 
 				key, _ := SeriesAndFieldFromCompositeKey(sfkey)
-				name := models.ParseMeasurement(key)
-				if len(name) == 0 {
-					// INVARIANT: If key \x00 is missing the invariant is violated; skip key
+				name, err := models.ParseMeasurement(key)
+				if err != nil {
+					e.logger.Error("Invalid series key in TSM index", zap.Error(err), zap.Binary("key", key))
 					continue
 				}
 
@@ -83,8 +84,9 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 
 		// TODO(edd): consider the []byte() conversion here.
 		key, _ := SeriesAndFieldFromCompositeKey([]byte(sfkey))
-		name := models.ParseMeasurement(key)
-		if len(name) == 0 {
+		name, err := models.ParseMeasurement(key)
+		if err != nil {
+			e.logger.Error("Invalid series key in cache", zap.Error(err), zap.Binary("key", key))
 			return nil
 		}
 

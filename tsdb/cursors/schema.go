@@ -4,16 +4,11 @@ package cursors
 type FieldType int
 
 const (
-	// Float means the data type is a float.
-	Float FieldType = 0
-	// Integer means the data type is an integer.
-	Integer FieldType = 1
-	// Unsigned means the data type is an unsigned integer.
-	Unsigned FieldType = 2
-	// Boolean means the data type is a boolean.
-	Boolean FieldType = 3
-	// String means the data type is a string of text.
-	String FieldType = 4
+	Float    FieldType = iota // means the data type is a float
+	Integer                   // means the data type is an integer
+	Unsigned                  // means the data type is an unsigned integer
+	Boolean                   // means the data type is a boolean
+	String                    // means the data type is a string of text
 )
 
 type MeasurementField struct {
