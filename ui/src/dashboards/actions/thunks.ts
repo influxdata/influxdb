@@ -28,7 +28,7 @@ import {
   updateTimeRangeFromQueryParams,
 } from 'src/dashboards/actions/ranges'
 import {setViews} from 'src/views/actions/creators'
-import {getVariables} from 'src/variables/actions/thunks'
+import {getVariables, hydrateVariables} from 'src/variables/actions/thunks'
 import {setExportTemplate} from 'src/templates/actions/creators'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
 import {updateViewAndVariables} from 'src/views/actions/thunks'
@@ -285,6 +285,8 @@ export const getDashboard = (dashboardID: string) => async (
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
+
+    dispatch(hydrateVariables())
 
     const normDash = normalize<Dashboard, DashboardEntities, string>(
       resp.data,
