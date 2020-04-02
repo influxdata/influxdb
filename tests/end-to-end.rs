@@ -226,7 +226,7 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
 
     let range = TimestampRange {
         start: ns_since_epoch,
-        end: ns_since_epoch + 3,
+        end: ns_since_epoch + 4,
     };
     let range = Some(range);
 
@@ -268,7 +268,7 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
 
     assert_eq!(
         frames.len(),
-        5,
+        4,
         "expected exactly 5 frames, but there were {}",
         frames.len()
     );
@@ -277,26 +277,22 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     assert_eq!(f.data_type, DataType::Float as i32, "in frame 0");
     assert_eq!(
         tags_as_strings(&f.tags),
-        vec![("host", "server01"), ("region", "us-west")]
+        vec![("_m", "cpu_load_short"), ("host", "server01"), ("region", "us-west"), ("_f", "value")]
     );
 
     let f = assert_unwrap!(&frames[1], Data::FloatPoints, "in frame 1");
-    assert_eq!(f.timestamps, [ns_since_epoch], "in frame 1");
-    assert_eq!(f.values, [0.64], "in frame 1");
+    assert_eq!(f.timestamps, [ns_since_epoch, ns_since_epoch + 3], "in frame 1");
+    assert_eq!(f.values, [0.64, 0.000_003], "in frame 1");
 
-    let f = assert_unwrap!(&frames[2], Data::FloatPoints, "in frame 2");
-    assert_eq!(f.timestamps, [ns_since_epoch + 3], "in frame 2");
-    assert_eq!(f.values, [0.000_003], "in frame 2");
-
-    let f = assert_unwrap!(&frames[3], Data::Series, "in frame 3");
+    let f = assert_unwrap!(&frames[2], Data::Series, "in frame 3");
     assert_eq!(f.data_type, DataType::Float as i32, "in frame 3");
 
     assert_eq!(
         tags_as_strings(&f.tags),
-        vec![("host", "server01"), ("region", "us-east")]
+        vec![("_m", "cpu_load_short"), ("host", "server01"), ("region", "us-east"), ("_f", "value")]
     );
 
-    let f = assert_unwrap!(&frames[4], Data::FloatPoints, "in frame 4");
+    let f = assert_unwrap!(&frames[3], Data::FloatPoints, "in frame 4");
     assert_eq!(f.timestamps, [ns_since_epoch + 2], "in frame 4");
     assert_eq!(f.values, [1_234_567.891_011], "in frame 4");
 
