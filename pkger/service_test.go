@@ -153,13 +153,14 @@ func TestService(t *testing.T) {
 				require.Len(t, checks, 2)
 				check0 := checks[0]
 				assert.True(t, check0.IsNew())
-				assert.Equal(t, "check_0", check0.Name)
+				assert.Equal(t, "check_0", check0.PkgName)
 				assert.Zero(t, check0.ID)
 				assert.Nil(t, check0.Old)
 
 				check1 := checks[1]
 				assert.False(t, check1.IsNew())
-				assert.Equal(t, "display name", check1.Name)
+				assert.Equal(t, "check_1", check1.PkgName)
+				assert.Equal(t, "display name", check1.New.GetName())
 				assert.NotZero(t, check1.ID)
 				assert.Equal(t, existing, check1.Old.Check)
 			})
@@ -286,8 +287,8 @@ func TestService(t *testing.T) {
 				require.Len(t, existingEndpoints, 1)
 
 				expected := DiffNotificationEndpoint{
-					ID:   SafeID(1),
-					Name: "http_none_auth_notification_endpoint",
+					ID:      SafeID(1),
+					PkgName: "http_none_auth_notification_endpoint",
 					Old: &DiffNotificationEndpointValues{
 						NotificationEndpoint: existing,
 					},
@@ -404,12 +405,14 @@ func TestService(t *testing.T) {
 				require.Len(t, diff.Variables, 4)
 
 				expected := DiffVariable{
-					ID:   SafeID(1),
-					Name: "var_const_3",
+					ID:      SafeID(1),
+					PkgName: "var_const_3",
 					Old: &DiffVariableValues{
+						Name:        "var_const_3",
 						Description: "old desc",
 					},
 					New: DiffVariableValues{
+						Name:        "var_const_3",
 						Description: "var_const_3 desc",
 						Args: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -417,12 +420,13 @@ func TestService(t *testing.T) {
 						},
 					},
 				}
-				assert.Equal(t, expected, diff.Variables[1])
+				assert.Equal(t, expected, diff.Variables[0])
 
 				expected = DiffVariable{
 					// no ID here since this one would be new
-					Name: "var_map_4",
+					PkgName: "var_map_4",
 					New: DiffVariableValues{
+						Name:        "var_map_4",
 						Description: "var_map_4 desc",
 						Args: &influxdb.VariableArguments{
 							Type:   "map",
@@ -430,7 +434,7 @@ func TestService(t *testing.T) {
 						},
 					},
 				}
-				assert.Equal(t, expected, diff.Variables[2])
+				assert.Equal(t, expected, diff.Variables[1])
 			})
 		})
 	})
