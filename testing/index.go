@@ -85,10 +85,14 @@ func newResource(id, owner string) someResource {
 }
 
 func newNResources(n int) (resources []someResource) {
+	return newNResourcesWithUserCount(n, 5)
+}
+
+func newNResourcesWithUserCount(n, userCount int) (resources []someResource) {
 	for i := 0; i < n; i++ {
 		var (
 			id    = fmt.Sprintf("resource %d", i)
-			owner = fmt.Sprintf("owner %d", i%5)
+			owner = fmt.Sprintf("owner %d", i%userCount)
 		)
 		resources = append(resources, newResource(id, owner))
 	}
@@ -375,4 +379,33 @@ func allKVs(tx kv.Tx, bucket []byte) (kvs [][2][]byte, err error) {
 	}
 
 	return kvs, cursor.Err()
+}
+
+func BenchmarkIndexWalk(b *testing.B, store kv.Store, resourceCount, fetchCount int) {
+	var (
+		ctx           = context.TODO()
+		resourceStore = newSomeResourceStore(ctx, store)
+		userCount     = resourceCount / fetchCount
+		resources     = newNResourcesWithUserCount(resourceCount, userCount)
+	)
+
+	kv.WithIndexReadPathEnabled(resourceStore.ownerIDIndex)
+
+	for _, resource := range resources {
+		resourceStore.Create(ctx, resource, true)
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		store.View(ctx, func(tx kv.Tx) error {
+			return resourceStore.ownerIDIndex.Walk(ctx, tx, []byte(fmt.Sprintf("owner %d", i%userCount)), func(k, v []byte) error {
+				if k == nil || v == nil {
+					b.Fatal("entries must not be nil")
+				}
+
+				return nil
+			})
+		})
+	}
 }
