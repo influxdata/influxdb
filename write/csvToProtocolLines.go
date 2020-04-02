@@ -79,11 +79,15 @@ func (state *CsvToLineReader) Read(p []byte) (n int, err error) {
 		// Read each record from csv
 		state.LineNumber++
 		row, err := state.csv.Read()
+		if parseError, ok := err.(*csv.ParseError); ok && parseError.Err == csv.ErrFieldCount {
+			// every row can have different number of columns
+			err = nil
+		}
+
 		if err != nil {
 			state.finished = err
 			return state.Read(p)
 		}
-		state.csv.FieldsPerRecord = 0 // reset fields because every row can have different count of columns
 		if state.LineNumber == 1 && len(row) == 1 && strings.HasPrefix(row[0], "sep=") && len(row[0]) > 4 {
 			// separator specified in the first line
 			state.csv.Comma = rune(row[0][4])
@@ -119,7 +123,9 @@ func (state *CsvToLineReader) Read(p []byte) (n int, err error) {
 
 // CsvToProtocolLines transforms csv data into line protocol data
 func CsvToProtocolLines(reader io.Reader) *CsvToLineReader {
+	csv := csv.NewReader(reader)
+	csv.ReuseRecord = true
 	return &CsvToLineReader{
-		csv: csv.NewReader(reader),
+		csv: csv,
 	}
 }
