@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::delorean::{Node, Predicate, TimestampRange};
-use crate::line_parser::{ParseError, Point, PointType};
+use crate::line_parser::{self, Point, PointType};
 use crate::storage::partitioned_store::{ReadBatch, ReadValues};
 use crate::storage::predicate::{Evaluate, EvaluateVisitor};
 use crate::storage::series_store::ReadPoint;
@@ -122,7 +122,7 @@ impl SeriesMap {
     /// of the memory size.
     const SERIES_ID_BYTES: usize = 24;
 
-    fn insert_series(&mut self, point: &mut PointType) -> Result<(), ParseError> {
+    fn insert_series(&mut self, point: &mut PointType) -> line_parser::Result<()> {
         if let Some(id) = self.series_key_to_id.get(point.series()) {
             point.set_series_id(*id);
             return Ok(());
