@@ -52,7 +52,10 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applica
         .db
         .get_bucket_id_by_name(write_info.org_id, &write_info.bucket_name)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            debug!("Error getting bucket id: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let bucket_id = match bucket_id {
         Some(id) => id,
@@ -70,7 +73,10 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applica
             app.db
                 .create_bucket_if_not_exists(write_info.org_id, b)
                 .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+                .map_err(|e| {
+                    debug!("Error creating bucket: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?
         }
     };
 
@@ -96,7 +102,10 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applica
     app.db
         .write_points(write_info.org_id, bucket_id, &mut points)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            debug!("Error writing points: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     Ok(serde_json::json!(()).to_string().into())
 }
