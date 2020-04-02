@@ -123,6 +123,9 @@ func normalizeNumberString(value string, format string, removeFraction bool) str
 func toTypedValue(val string, column *CsvTableColumn) (interface{}, error) {
 	dataType := column.DataType
 	dataFormat := column.DataFormat
+	if column.ParseF != nil {
+		return column.ParseF(val)
+	}
 	switch dataType {
 	case stringDatatype:
 		return val, nil
@@ -270,5 +273,48 @@ func parseTimeZone(val string) (*time.Location, error) {
 		return time.FixedZone(val, offset), nil
 	default:
 		return time.LoadLocation(val)
+	}
+}
+
+// createBoolParseFn returns a function that parses a boolean value according to format "true,yes,1:false,no,0"
+func createBoolParseFn(format string) func(string) (interface{}, error) {
+	var err error = nil
+	truethy := []string{}
+	falsy := []string{}
+	if !strings.Contains(format, ":") {
+		err = fmt.Errorf("unsupported boolean format: %s should be in 'true,yes,1:false,no,0' format, but no ':' is present", format)
+	} else {
+		colon := strings.Index(format, ":")
+		t := format[:colon]
+		f := format[colon+1:]
+		if t != "" {
+			truethy = strings.Split(t, ",")
+		}
+		if f != "" {
+			falsy = strings.Split(f, ",")
+		}
+	}
+	return func(val string) (interface{}, error) {
+		if err != nil {
+			return nil, err
+		}
+		for _, s := range falsy {
+			if s == val {
+				return false, nil
+			}
+		}
+		for _, s := range truethy {
+			if s == val {
+				return true, nil
+			}
+		}
+		if len(falsy) == 0 {
+			return false, nil
+		}
+		if len(truethy) == 0 {
+			return true, nil
+		}
+
+		return nil, fmt.Errorf("unsupported boolean value: %s must one of %v or one of %v", val, truethy, falsy)
 	}
 }

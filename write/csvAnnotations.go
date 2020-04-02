@@ -43,6 +43,10 @@ func setupDataType(column *CsvTableColumn, val string) {
 		column.DataType = val
 		column.DataFormat = ""
 	}
+	// custom parsing of bool data type
+	if column.DataType == boolDatatype && column.DataFormat != "" {
+		column.ParseF = createBoolParseFn(column.DataFormat)
+	}
 }
 
 func ignoreLeadingComment(value string) string {

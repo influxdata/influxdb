@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -322,5 +323,52 @@ func Test_parseTimeZone(t *testing.T) {
 			_, offset := result.Zone()
 			require.Equal(t, test.offset, offset)
 		})
+	}
+}
+
+func Test_createBoolParseFn(t *testing.T) {
+	type pairT struct {
+		value  string
+		expect string
+	}
+	var tests = []struct {
+		format string
+		pair   []pairT
+	}{
+		{"t,y,1:f,n,0", []pairT{
+			{"y", "true"},
+			{"0", "false"},
+			{"T", "unsupported"},
+		}},
+		{"true", []pairT{
+			{"true", "unsupported"},
+			{"false", "unsupported"},
+		}},
+		{"true:", []pairT{
+			{"true", "true"},
+			{"other", "false"},
+		}},
+		{":false", []pairT{
+			{"false", "false"},
+			{"other", "true"},
+		}},
+	}
+
+	for i, test := range tests {
+		fn := createBoolParseFn(test.format)
+		for j, pair := range test.pair {
+			t.Run(fmt.Sprint(i)+"_"+fmt.Sprint(j), func(t *testing.T) {
+				result, err := fn(pair.value)
+				switch pair.expect {
+				case "true":
+					require.Equal(t, result, true)
+				case "false":
+					require.Equal(t, result, false)
+				default:
+					require.NotNil(t, err)
+					require.True(t, strings.Contains(fmt.Sprintf("%v", err), pair.expect))
+				}
+			})
+		}
 	}
 }

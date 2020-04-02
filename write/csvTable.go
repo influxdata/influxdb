@@ -43,6 +43,8 @@ type CsvTableColumn struct {
 	Index int
 	// TimeZone of dateTime column, applied when parsing dateTime without timeZone in the format
 	TimeZone *time.Location
+	// parse function, if set, converts column's string value to interface{}
+	ParseF func(string) (interface{}, error)
 
 	escapedLabel string
 }
@@ -233,7 +235,6 @@ func (t *CsvTable) recomputeIndexes() {
 	for i := 0; i < len(columns); i++ {
 		col := columns[i]
 		switch {
-		case len(strings.TrimSpace(col.Label)) == 0 || col.LinePart == linePartIgnored:
 		case col.Label == labelMeasurement || col.LinePart == linePartMeasurement:
 			t.cachedMeasurement = &col
 		case col.Label == labelTime || col.LinePart == linePartTime:
@@ -241,6 +242,7 @@ func (t *CsvTable) recomputeIndexes() {
 				log.Printf("WARNING: at most one dateTime column is expected, '%s' column is ignored\n", t.cachedTime.Label)
 			}
 			t.cachedTime = &col
+		case len(strings.TrimSpace(col.Label)) == 0 || col.LinePart == linePartIgnored:
 		case col.Label == labelFieldName:
 			t.cachedFieldName = &col
 		case col.Label == labelFieldValue:

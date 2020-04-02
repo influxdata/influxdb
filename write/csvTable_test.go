@@ -3,6 +3,7 @@ package write
 import (
 	"encoding/csv"
 	"io"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -323,13 +324,17 @@ func TestConstantAnnotations(t *testing.T) {
 
 func TestDataTypeInColumnName(t *testing.T) {
 	var tests = []struct {
-		name                       string
 		csv                        string
 		line                       string
 		ignoreDataTypeInColumnName bool
 	}{
 		{
-			"measurement_1",
+			"m|measurement,a|boolean,b|boolean:0:1,c|boolean:x:,d|boolean:x:\n" +
+				"cpu,1,1,x,y",
+			`cpu a=true,b=false,c=true,d=false`,
+			false,
+		},
+		{
 			"#constant measurement,cpu\n" +
 				"a|long,b|string\n" +
 				"1,1",
@@ -337,7 +342,6 @@ func TestDataTypeInColumnName(t *testing.T) {
 			false,
 		},
 		{
-			"measurement_1",
 			"#constant measurement,cpu\n" +
 				"a|long,b|string\n" +
 				"1,1",
@@ -345,7 +349,6 @@ func TestDataTypeInColumnName(t *testing.T) {
 			true,
 		},
 		{
-			"measurement_1",
 			"#constant measurement,cpu\n" +
 				"#datatype long,string\n" +
 				"a|long,b|string\n" +
@@ -355,8 +358,8 @@ func TestDataTypeInColumnName(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+	for i, test := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			rows := readCsv(t, test.csv)
 			table := CsvTable{}
 			table.IgnoreDataTypeInColumnName(test.ignoreDataTypeInColumnName)
@@ -454,13 +457,13 @@ func TestCsvTable_ColumnInfo(t *testing.T) {
 	}
 	table.computeIndexes()
 	columnInfo := "CsvTable{ dataColumns: 2 constantColumns: 5\n" +
-		" measurement: &{Label:#constant measurement DataType:measurement DataFormat: LinePart:2 DefaultValue:cpu Index:-1 TimeZone:UTC escapedLabel:}\n" +
-		" tag:         {Label:cpu DataType:tag DataFormat: LinePart:3 DefaultValue:cpu1 Index:-1 TimeZone:UTC escapedLabel:cpu}\n" +
-		" tag:         {Label:xpu DataType:tag DataFormat: LinePart:3 DefaultValue:xpu1 Index:-1 TimeZone:UTC escapedLabel:xpu}\n" +
-		" field:       {Label:x DataType: DataFormat: LinePart:0 DefaultValue: Index:0 TimeZone:UTC escapedLabel:x}\n" +
-		" field:       {Label:y DataType: DataFormat: LinePart:0 DefaultValue: Index:1 TimeZone:UTC escapedLabel:y}\n" +
-		" field:       {Label:of DataType:long DataFormat: LinePart:0 DefaultValue:100 Index:-1 TimeZone:UTC escapedLabel:of}\n" +
-		" time:        &{Label:#constant dateTime DataType:dateTime DataFormat: LinePart:5 DefaultValue:2 Index:-1 TimeZone:UTC escapedLabel:}" +
+		" measurement: &{Label:#constant measurement DataType:measurement DataFormat: LinePart:2 DefaultValue:cpu Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:}\n" +
+		" tag:         {Label:cpu DataType:tag DataFormat: LinePart:3 DefaultValue:cpu1 Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:cpu}\n" +
+		" tag:         {Label:xpu DataType:tag DataFormat: LinePart:3 DefaultValue:xpu1 Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:xpu}\n" +
+		" field:       {Label:x DataType: DataFormat: LinePart:0 DefaultValue: Index:0 TimeZone:UTC ParseF:<nil> escapedLabel:x}\n" +
+		" field:       {Label:y DataType: DataFormat: LinePart:0 DefaultValue: Index:1 TimeZone:UTC ParseF:<nil> escapedLabel:y}\n" +
+		" field:       {Label:of DataType:long DataFormat: LinePart:0 DefaultValue:100 Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:of}\n" +
+		" time:        &{Label:#constant dateTime DataType:dateTime DataFormat: LinePart:5 DefaultValue:2 Index:-1 TimeZone:UTC ParseF:<nil> escapedLabel:}" +
 		"\n}"
 	require.Equal(t, columnInfo, table.DataColumnsInfo())
 	var table2 *CsvTable
