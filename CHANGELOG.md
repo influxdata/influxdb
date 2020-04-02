@@ -3,6 +3,7 @@
 ### Features
 
 1. [17490](https://github.com/influxdata/influxdb/pull/17490): `influx config -`, to switch back to previous activated configuration
+1. [17581](https://github.com/influxdata/influxdb/pull/17581): Introduce new navigation menu
 
 ## v2.0.0-beta.7 [2020-03-27]
 
