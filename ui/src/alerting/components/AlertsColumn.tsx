@@ -39,10 +39,14 @@ const AlertsColumnHeader: FC<Props> = ({
   questionMarkTooltipContents,
 }) => {
   const [searchTerm, onChangeSearchTerm] = useState('')
+
+  const formattedTitle = title.toLowerCase().replace(' ', '-')
+  const panelClassName = `alerting-index--column alerting-index--${formattedTitle}`
+
   return (
     <Panel
       backgroundColor={InfluxColors.Kevlar}
-      className="alerting-index--column"
+      className={panelClassName}
       testID={`${type}--column`}
     >
       <Panel.Header>

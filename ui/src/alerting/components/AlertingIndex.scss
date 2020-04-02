@@ -1,30 +1,68 @@
-.alerting-index,
-.alerting-index > .cf-grid--row,
-.alerting-index > .cf-grid--row > .cf-grid--column {
-  height: 100%;
+/*
+  Small Screen Layout
+  ------------------------------------------------------------------------------
+*/
+
+.alerting-index .cf-page-contents__fluid {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.alerting-index--selector {
+  width: 100%;
+  margin-bottom: $cf-marg-b;
+}
+
+.alerting-index--columns {
+  display: flex;
+  align-items: stretch;
+  flex: 1 0 0;
 }
 
 .alerting-index--column {
-  height: calc(100% - #{$ix-marg-d});
+  display: none;
+  flex-direction: column;
+  flex: 1 0 0;
   overflow: hidden;
+  margin-bottom: $cf-marg-c;
 }
 
-.alert-column--empty {
-  min-height: 160px;
-  justify-content: center;
+.alerting-index__checks .alerting-index--checks,
+.alerting-index__endpoints .alerting-index--notification-endpoints,
+.alerting-index__rules .alerting-index--notification-rules {
+  display: flex;
 }
 
 .alerting-index--column-body {
   flex: 1 0 0;
-  position: relative;
-  height: 90%;
-  padding-bottom: $ix-marg-d;
 }
 
 .alerting-index--list,
 .alerting-index--search {
-  padding: 18px;
+  padding: 20px;
   padding-top: 0;
+}
+
+/*
+  Large Screen Layout
+  ------------------------------------------------------------------------------
+*/
+
+@media screen and (min-width: $cf-grid--breakpoint-lg) {
+  .alerting-index--selector {
+    display: none;
+  }
+
+  .alerting-index--column {
+    display: flex;
+    margin-bottom: $cf-marg-d;
+    margin-right: $cf-marg-b;
+
+    &:last-child {
+      margin-right: 0;
+    }
+  }
 }
 
 /*
