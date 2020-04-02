@@ -1455,14 +1455,14 @@ func AppendSeriesFieldKeyBytes(dst, seriesKey, field []byte) []byte {
 
 var (
 	blockToFieldType = [8]influxql.DataType{
-		BlockFloat64:  influxql.Float,
-		BlockInteger:  influxql.Integer,
-		BlockBoolean:  influxql.Boolean,
-		BlockString:   influxql.String,
-		BlockUnsigned: influxql.Unsigned,
-		5:             influxql.Unknown,
-		6:             influxql.Unknown,
-		7:             influxql.Unknown,
+		BlockFloat64:   influxql.Float,
+		BlockInteger:   influxql.Integer,
+		BlockBoolean:   influxql.Boolean,
+		BlockString:    influxql.String,
+		BlockUnsigned:  influxql.Unsigned,
+		blockUndefined: influxql.Unknown,
+		6:              influxql.Unknown,
+		7:              influxql.Unknown,
 	}
 )
 

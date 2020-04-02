@@ -25,6 +25,9 @@ const (
 	// BlockUnsigned designates a block encodes uint64 values.
 	BlockUnsigned = byte(4)
 
+	// blockUndefined represents an undefined block type value.
+	blockUndefined = BlockUnsigned + 1
+
 	// encodedBlockHeaderSize is the size of the header for an encoded block.  There is one
 	// byte encoding the type of the block.
 	encodedBlockHeaderSize = 1

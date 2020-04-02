@@ -123,3 +123,10 @@ func (e *entry) InfluxQLType() (influxql.DataType, error) {
 	defer e.mu.RUnlock()
 	return e.values.InfluxQLType()
 }
+
+// BlockType returns the data type for the entry as a block type.
+func (e *entry) BlockType() byte {
+	// This value is mutated on create and does not need to be
+	// protected by a mutex.
+	return valueTypeToBlockType(e.vtype)
+}
