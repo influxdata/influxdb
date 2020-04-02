@@ -322,12 +322,18 @@ func TestConstantAnnotations(t *testing.T) {
 	}
 }
 
-func TestDataTypeInColumnName(t *testing.T) {
+func TestDataTypeDefaultInColumnName(t *testing.T) {
 	var tests = []struct {
 		csv                        string
 		line                       string
 		ignoreDataTypeInColumnName bool
 	}{
+		{
+			"m|measurement,b|boolean:x:,c|boolean:x:|x\n" +
+				"cpu,,",
+			`cpu c=true`,
+			false,
+		},
 		{
 			"m|measurement,a|boolean,b|boolean:0:1,c|boolean:x:,d|boolean:x:\n" +
 				"cpu,1,1,x,y",
