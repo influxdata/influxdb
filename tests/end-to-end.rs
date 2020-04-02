@@ -277,11 +277,20 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     assert_eq!(f.data_type, DataType::Float as i32, "in frame 0");
     assert_eq!(
         tags_as_strings(&f.tags),
-        vec![("_m", "cpu_load_short"), ("host", "server01"), ("region", "us-west"), ("_f", "value")]
+        vec![
+            ("_m", "cpu_load_short"),
+            ("host", "server01"),
+            ("region", "us-west"),
+            ("_f", "value")
+        ]
     );
 
     let f = assert_unwrap!(&frames[1], Data::FloatPoints, "in frame 1");
-    assert_eq!(f.timestamps, [ns_since_epoch, ns_since_epoch + 3], "in frame 1");
+    assert_eq!(
+        f.timestamps,
+        [ns_since_epoch, ns_since_epoch + 3],
+        "in frame 1"
+    );
     assert_eq!(f.values, [0.64, 0.000_003], "in frame 1");
 
     let f = assert_unwrap!(&frames[2], Data::Series, "in frame 3");
@@ -289,7 +298,12 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
 
     assert_eq!(
         tags_as_strings(&f.tags),
-        vec![("_m", "cpu_load_short"), ("host", "server01"), ("region", "us-east"), ("_f", "value")]
+        vec![
+            ("_m", "cpu_load_short"),
+            ("host", "server01"),
+            ("region", "us-east"),
+            ("_f", "value")
+        ]
     );
 
     let f = assert_unwrap!(&frames[3], Data::FloatPoints, "in frame 4");
