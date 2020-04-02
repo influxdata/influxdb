@@ -208,7 +208,7 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applicat
             ReadValues::I64(values) => {
                 for val in values {
                     let t = val.time.to_string();
-                    let v = val.time.to_string();
+                    let v = val.value.to_string();
                     vals[vcol] = v;
                     vals[tcol] = t;
                     wtr.write_record(&vals).unwrap();
@@ -217,7 +217,7 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applicat
             ReadValues::F64(values) => {
                 for val in values {
                     let t = val.time.to_string();
-                    let v = val.time.to_string();
+                    let v = val.value.to_string();
                     vals[vcol] = v;
                     vals[tcol] = t;
                     wtr.write_record(&vals).unwrap();
