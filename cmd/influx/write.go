@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strings"
 
@@ -33,6 +34,7 @@ type writeFlagsType struct {
 	SkipHeader                 int
 	IgnoreDataTypeInColumnName bool
 	Encoding                   string
+	args                       []string
 }
 
 var writeFlags writeFlagsType
@@ -86,6 +88,13 @@ func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmdDryRun.Long = `Write protocol lines to stdout instead of InfluxDB. Troubleshoot conversion from CSV to line protocol.`
 	cmd.AddCommand(cmdDryRun)
 	return cmd
+}
+
+func (writeFlags *writeFlagsType) dump(args []string) {
+	if writeFlags.Debug {
+		writeFlags.args = args
+		log.Printf("WriteFlags%+v", *writeFlags)
+	}
 }
 
 // createLineReader uses writeFlags and cli arguments to create a reader that produces line protocol
@@ -174,6 +183,7 @@ func (writeFlags *writeFlagsType) createLineReader(args []string) (io.Reader, io
 }
 
 func fluxWriteF(cmd *cobra.Command, args []string) error {
+	writeFlags.dump(args) // print flags when in Debug mode
 	// validate InfluxDB flags
 	if err := writeFlags.org.validOrgFlags(&flags); err != nil {
 		return err
@@ -257,6 +267,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 }
 
 func fluxWriteDryrunF(cmd *cobra.Command, args []string) error {
+	writeFlags.dump(args) // print flags when in Debug mode
 	// create line reader
 	r, closer, err := writeFlags.createLineReader(args)
 	if closer != nil {
