@@ -234,28 +234,29 @@ func BlockType(block []byte) (byte, error) {
 }
 
 // BlockCount returns the number of timestamps encoded in block.
-func BlockCount(block []byte) int {
+func BlockCount(block []byte) (int, error) {
+
 	if len(block) <= encodedBlockHeaderSize {
-		panic(fmt.Sprintf("count of short block: got %v, exp %v", len(block), encodedBlockHeaderSize))
+		return 0, fmt.Errorf("count of short block: got %v, exp %v", len(block), encodedBlockHeaderSize)
 	}
 	// first byte is the block type
 	tb, _, err := unpackBlock(block[1:])
 	if err != nil {
-		panic(fmt.Sprintf("BlockCount: error unpacking block: %s", err.Error()))
+		return 0, fmt.Errorf("BlockCount: error unpacking block: %v", err)
 	}
-	return CountTimestamps(tb)
+	return CountTimestamps(tb), nil
 }
 
 // DecodeBlock takes a byte slice and decodes it into values of the appropriate type
 // based on the block.
 func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 	if len(block) <= encodedBlockHeaderSize {
-		panic(fmt.Sprintf("decode of short block: got %v, exp %v", len(block), encodedBlockHeaderSize))
+		return nil, fmt.Errorf("decode of short block: got %v, exp %v", len(block), encodedBlockHeaderSize)
 	}
 
 	blockType, err := BlockType(block)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error decoding block type: %v", err)
 	}
 
 	switch blockType {
@@ -314,7 +315,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 		return vals[:len(decoded)], err
 
 	default:
-		panic(fmt.Sprintf("unknown block type: %d", blockType))
+		return nil, fmt.Errorf("unknown block type: %d", blockType)
 	}
 }
 
