@@ -123,7 +123,9 @@ impl Database {
 
         let orgs = self.organizations.read().await;
 
-        let org = orgs.get(&org_id).expect("Should have found or just inserted org");
+        let org = orgs
+            .get(&org_id)
+            .expect("Should have found or just inserted org");
 
         let id = match org.read().await.bucket_name_to_id.get(bucket_name) {
             Some(id) => Some(*id),
