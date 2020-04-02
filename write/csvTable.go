@@ -6,6 +6,7 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"time"
 	"unsafe"
 )
 
@@ -40,6 +41,8 @@ type CsvTableColumn struct {
 	DefaultValue string
 	// index of this column in the table row
 	Index int
+	// TimeZone of dateTime column, applied when parsing dateTime without timeZone in the format
+	TimeZone *time.Location
 
 	escapedLabel string
 }
@@ -88,6 +91,8 @@ type CsvTable struct {
 	extraColumns []CsvTableColumn
 	// parse data type in column name
 	ignoreDataTypeInColumnName bool
+	// timeZone of dateTime column, applied when parsing dateTime without time zone in the parsing format
+	timeZone *time.Location
 
 	/* cached columns are initialized before reading the data rows */
 	cachedMeasurement *CsvTableColumn
@@ -137,6 +142,7 @@ func (t *CsvTable) AddRow(row []string) bool {
 	// detect data row or table header row
 	if len(row[0]) == 0 || row[0][0] != '#' {
 		if !t.readTableData {
+			// table header row
 			if t.partBits == 0 {
 				// create table if it does not exist yet
 				t.columns = make([]CsvTableColumn, len(row))
@@ -170,7 +176,9 @@ func (t *CsvTable) AddRow(row []string) bool {
 			}
 			if supportedAnnotation.isTableAnnotation() {
 				// process table-level annotation
-				supportedAnnotation.setupTable(t, row)
+				if err := supportedAnnotation.setupTable(t, row); err != nil {
+					log.Println("WARNING: ", err)
+				}
 				return false
 			}
 			if t.readTableData {
@@ -254,6 +262,9 @@ func (t *CsvTable) recomputeIndexes() {
 		sort.Slice(t.cachedTags, func(i, j int) bool {
 			return t.cachedTags[i].Label < t.cachedTags[j].Label
 		})
+	}
+	if t.cachedTime != nil && t.cachedTime.TimeZone == nil {
+		t.cachedTime.TimeZone = t.timeZone
 	}
 
 	t.indexed = true

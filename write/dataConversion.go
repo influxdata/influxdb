@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -119,7 +120,9 @@ func normalizeNumberString(value string, format string, removeFraction bool) str
 	return value
 }
 
-func toTypedValue(val string, dataType string, dataFormat string) (interface{}, error) {
+func toTypedValue(val string, column *CsvTableColumn) (interface{}, error) {
+	dataType := column.DataType
+	dataFormat := column.DataFormat
 	switch dataType {
 	case stringDatatype:
 		return val, nil
@@ -142,6 +145,9 @@ func toTypedValue(val string, dataType string, dataFormat string) (interface{}, 
 			}
 			return time.Unix(0, t).UTC(), nil
 		default:
+			if column.TimeZone != nil {
+				return time.ParseInLocation(dataFormat, val, column.TimeZone)
+			}
 			return time.Parse(dataFormat, val)
 		}
 	case durationDatatype:
@@ -222,7 +228,7 @@ func appendConverted(buffer []byte, val string, column *CsvTableColumn) ([]byte,
 	if len(column.DataType) == 0 { // keep the value as it is
 		return append(buffer, val...), nil
 	}
-	typedVal, err := toTypedValue(val, column.DataType, column.DataFormat)
+	typedVal, err := toTypedValue(val, column)
 	if err != nil {
 		return buffer, err
 	}
@@ -246,4 +252,23 @@ func CreateDecoder(encoding string) (func(io.Reader) io.Reader, error) {
 		return enc.NewDecoder().Reader, nil
 	}
 	return decodeNop, nil
+}
+
+// parseTimeZone tries to parse the supplied timezone indicator as a Location or returns an error
+func parseTimeZone(val string) (*time.Location, error) {
+	switch {
+	case val == "":
+		return time.UTC, nil
+	case strings.ToLower(val) == "local":
+		return time.Local, nil
+	case val[0] == '-' || val[0] == '+':
+		if matched, _ := regexp.MatchString("[+-][0-9][0-9][0-9][0-9]", val); !matched {
+			return nil, fmt.Errorf("timezone '%s' is not  +hhmm or -hhmm", val)
+		}
+		intVal, _ := strconv.Atoi(val)
+		offset := (intVal/100)*3600 + (intVal%100)*60
+		return time.FixedZone(val, offset), nil
+	default:
+		return time.LoadLocation(val)
+	}
 }

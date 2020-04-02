@@ -1,7 +1,9 @@
 package write
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -123,6 +125,34 @@ func TestConstantAnnotation(t *testing.T) {
 				require.NotEqual(t, "", col.Label)
 			}
 			require.Equal(t, test.expectDefault, col.DefaultValue)
+		})
+	}
+}
+
+func TestTimeZoneAnnotation(t *testing.T) {
+	subject := annotation("#timezone")
+	require.True(t, subject.isTableAnnotation())
+	var tests = []struct {
+		value string
+		err   string
+	}{
+		{"#timezone ", ""},
+		{"#timezone EST", ""},
+		{"#timezone,EST", ""},
+		{"#timezone,+0100", ""},
+		{"#timezone,whatever", "#timezone annotation"},
+	}
+	for i, test := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			table := &CsvTable{}
+			err := subject.setupTable(table, strings.Split(test.value, ","))
+			if test.err == "" {
+				require.Nil(t, err)
+				require.True(t, table.timeZone != nil)
+			} else {
+				require.NotNil(t, err)
+				require.True(t, strings.Contains(fmt.Sprintf("%v", err), test.err))
+			}
 		})
 	}
 }

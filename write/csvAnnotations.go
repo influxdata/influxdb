@@ -1,12 +1,15 @@
 package write
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type annotationComment struct {
 	label       string
 	flag        uint8                                      // bit to mark the presence of a column-based annotation
 	setupColumn func(column *CsvTableColumn, value string) // mandatory when flag > 0
-	setupTable  func(table *CsvTable, row []string)        // mandatory when flag == 0
+	setupTable  func(table *CsvTable, row []string) error  // mandatory when flag == 0
 }
 
 func (a *annotationComment) isTableAnnotation() bool {
@@ -66,7 +69,7 @@ var supportedAnnotations = []annotationComment{
 	{"#default", 4, func(column *CsvTableColumn, value string) {
 		column.DefaultValue = ignoreLeadingComment(value)
 	}, nil},
-	{"#constant", 0, nil, func(table *CsvTable, row []string) {
+	{"#constant", 0, nil, func(table *CsvTable, row []string) error {
 		// row format is: "#constant,datatype,label,defaultValue"
 		col := CsvTableColumn{}
 		col.Index = -1 // the will never extract data from row
@@ -97,5 +100,18 @@ var supportedAnnotations = []annotationComment{
 			}
 		}
 		table.extraColumns = append(table.extraColumns, col)
+		return nil
+	}},
+	{"#timezone", 0, nil, func(table *CsvTable, row []string) error {
+		val := ignoreLeadingComment(row[0])
+		if val == "" && len(row) > 1 {
+			val = row[1] // #timezone,Local
+		}
+		tz, err := parseTimeZone(val)
+		if err != nil {
+			return fmt.Errorf("#timezone annotation: %v", err)
+		}
+		table.timeZone = tz
+		return nil
 	}},
 }

@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
-	"strings"
 	"testing"
 	"time"
 
@@ -69,17 +68,6 @@ func Test_escapeString(t *testing.T) {
 	}
 }
 
-func splitTypeAndFormat(val string) (dataType string, dataFormat string) {
-	colonIndex := strings.Index(val, ":")
-	if colonIndex > 1 {
-		dataType = val[:colonIndex]
-		dataFormat = val[colonIndex+1:]
-	} else {
-		dataType = val
-	}
-	return dataType, dataFormat
-}
-
 // Test_toTypedValue
 func Test_toTypedValue(t *testing.T) {
 	epochTime, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:00Z")
@@ -123,12 +111,48 @@ func Test_toTypedValue(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i)+" "+test.value, func(t *testing.T) {
-			dataType, dataFormat := splitTypeAndFormat(test.dataType)
-			val, err := toTypedValue(test.value, dataType, dataFormat)
+			column := &CsvTableColumn{}
+			setupDataType(column, test.dataType)
+			val, err := toTypedValue(test.value, column)
 			if err != nil && test.expect != nil {
 				require.Nil(t, err.Error())
 			}
 			require.Equal(t, test.expect, val)
+		})
+	}
+}
+
+// Test_toTypedValue_dateTime
+func Test_toTypedValue_dateTimeCustomTimeZone(t *testing.T) {
+	epochTime, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:00Z")
+	tz, _ := parseTimeZone("-0100")
+	var tests = []struct {
+		dataType string
+		value    string
+		expect   interface{}
+	}{
+		{"dateTime:RFC3339", "1970-01-01T00:00:00Z", epochTime},
+		{"dateTime:RFC3339Nano", "1970-01-01T00:00:00.0Z", epochTime},
+		{"dateTime:number", "3", epochTime.Add(time.Duration(3))},
+		{"dateTime:2006-01-02", "1970-01-01", epochTime.Add(time.Hour)},
+	}
+
+	for i, test := range tests {
+		t.Run(fmt.Sprint(i)+" "+test.value, func(t *testing.T) {
+			column := &CsvTableColumn{}
+			column.TimeZone = tz
+			setupDataType(column, test.dataType)
+			val, err := toTypedValue(test.value, column)
+			if err != nil && test.expect != nil {
+				require.Nil(t, err.Error())
+			}
+			if test.expect == nil {
+				require.Equal(t, test.expect, val)
+			} else {
+				expectTime := test.expect.(time.Time)
+				time := val.(time.Time)
+				require.True(t, expectTime.Equal(time))
+			}
 		})
 	}
 }
@@ -185,8 +209,9 @@ func Test_appendConverted(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			dataType, dataFormat := splitTypeAndFormat(test.dataType)
-			val, err := appendConverted(nil, test.value, &CsvTableColumn{DataType: dataType, DataFormat: dataFormat})
+			column := &CsvTableColumn{}
+			setupDataType(column, test.dataType)
+			val, err := appendConverted(nil, test.value, column)
 			if err != nil && test.expect != "" {
 				require.Nil(t, err.Error())
 			}
@@ -255,4 +280,47 @@ func TestCreateDecoder(t *testing.T) {
 	// we have valid IANA names that are not supported by the golang/x/text
 	decoder, err = CreateDecoder("US-ASCII")
 	log.Printf("US-ASCII encoding support: %v,%v", decoder != nil, err)
+}
+
+func Test_parseTimeZone(t *testing.T) {
+	now := time.Now()
+	_, localOffset := now.Zone()
+	var tests = []struct {
+		value  string
+		offset int
+	}{
+		{"local", localOffset},
+		{"Local", localOffset},
+		{"-0000", 0},
+		{"+0000", 0},
+		{"-0100", -3600},
+		{"+0100", 3600},
+		{"+0130", 3600 + 3600/2},
+		{"", 0},
+		{"-01", -1},
+		{"0000", -1},
+		{"UTC", 0},
+		{"EST", -5 * 3600},
+	}
+
+	for i, test := range tests {
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			tz, err := parseTimeZone(test.value)
+			require.NotEqual(t, tz, err) // both cannot be nil
+			if err != nil {
+				require.Nil(t, tz)
+				// fmt.Println(err)
+				if test.offset >= 0 {
+					require.Fail(t, "offset expected")
+				}
+				return
+			}
+			require.NotNil(t, tz)
+			testDate := fmt.Sprintf("%d-%02d-%02d", now.Year(), now.Month(), now.Day())
+			result, err := time.ParseInLocation("2006-01-02", testDate, tz)
+			require.Nil(t, err)
+			_, offset := result.Zone()
+			require.Equal(t, test.offset, offset)
+		})
+	}
 }
