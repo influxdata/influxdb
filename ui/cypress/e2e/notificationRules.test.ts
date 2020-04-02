@@ -26,6 +26,9 @@ describe('NotificationRules', () => {
       // visit the alerting index
       cy.fixture('routes').then(({orgs, alerting}) => {
         cy.visit(`${orgs}/${id}${alerting}`)
+
+        // User can only see all panels at once on large screens
+        cy.getByTestID('alerting-tab--rules').click()
       })
     })
   })

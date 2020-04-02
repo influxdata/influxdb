@@ -72,6 +72,7 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
                   onClick={handleTabClick}
                   name="alerting-active-tab"
                   active={activeColumn === 'checks'}
+                  testID="alerting-tab--checks"
                 >
                   Checks
                 </SelectGroup.Option>
@@ -81,6 +82,7 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
                   onClick={handleTabClick}
                   name="alerting-active-tab"
                   active={activeColumn === 'endpoints'}
+                  testID="alerting-tab--endpoints"
                 >
                   Notification Endpoints
                 </SelectGroup.Option>
@@ -90,6 +92,7 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
                   onClick={handleTabClick}
                   name="alerting-active-tab"
                   active={activeColumn === 'rules'}
+                  testID="alerting-tab--rules"
                 >
                   Notification Rules
                 </SelectGroup.Option>
