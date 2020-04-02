@@ -550,51 +550,33 @@ func (i *Index) verify(ctx context.Context, store Store, includeMissingSource bo
 // associated primaryKey's value in the provided source bucket.
 // When an item is located in the source, the provided visit function is called with primary key and associated value.
 func indexWalk(ctx context.Context, indexCursor ForwardCursor, sourceBucket Bucket, visit VisitFunc) (err error) {
-	defer func() {
-		if cerr := indexCursor.Close(); cerr != nil && err == nil {
-			err = cerr
-		}
-	}()
-
+	var keys [][]byte
 	for ik, pk := indexCursor.Next(); ik != nil; ik, pk = indexCursor.Next() {
-		// TODO(george): this is a work-around as lots of calls to Get()
-		// on a transaction causes issues with a particular implementation
-		// of kv.Store.
-		// The use of a cursor on this store bypasses the transaction
-		// and gives us the access pattern we desire.
-		// Please do not change back to a bucket.Get().
-		v, err := getKeyUsingRange(ctx, sourceBucket, pk)
-		if err != nil {
-			return err
-		}
-
-		if err := visit(pk, v); err != nil {
-			return fmt.Errorf("for index entry %q: %w", string(ik), err)
-		}
+		keys = append(keys, pk)
 	}
 
-	return indexCursor.Err()
-}
+	if err := indexCursor.Err(); err != nil {
+		return err
+	}
 
-// getKeyUsingRange is a work around to for a particular implementation of kv.Store
-// which needs to lookup using cursors instead of individual get operations.
-func getKeyUsingRange(ctx context.Context, bucket Bucket, key []byte) ([]byte, error) {
-	cursor, err := bucket.ForwardCursor(key,
-		WithCursorPrefix(key))
+	if err := indexCursor.Close(); err != nil {
+		return err
+	}
+
+	values, err := sourceBucket.GetBatch(keys...)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	_, value := cursor.Next()
-	if value == nil {
-		return nil, ErrKeyNotFound
+	for i, value := range values {
+		if value != nil {
+			if err := visit(keys[i], value); err != nil {
+				return err
+			}
+		}
 	}
 
-	if err := cursor.Err(); err != nil {
-		return nil, err
-	}
-
-	return value, cursor.Close()
+	return nil
 }
 
 // readEntireIndex returns the entire current state of the index
