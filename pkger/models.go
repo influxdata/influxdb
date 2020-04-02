@@ -235,15 +235,17 @@ func (d *DiffCheckValues) UnmarshalJSON(b []byte) (err error) {
 
 // DiffCheck is a diff of an individual check.
 type DiffCheck struct {
-	ID   SafeID           `json:"id"`
-	Name string           `json:"name"`
-	New  DiffCheckValues  `json:"new"`
-	Old  *DiffCheckValues `json:"old"`
+	Remove  bool             `json:"remove"`
+	ID      SafeID           `json:"id"`
+	PkgName string           `json:"pkgName"`
+	New     DiffCheckValues  `json:"new"`
+	Old     *DiffCheckValues `json:"old"`
 }
 
 func newDiffCheck(c *check, iCheck influxdb.Check) DiffCheck {
 	diff := DiffCheck{
-		Name: c.Name(),
+		Remove:  c.shouldRemove,
+		PkgName: c.PkgName(),
 		New: DiffCheckValues{
 			Check: c.summarize().Check,
 		},
@@ -363,15 +365,17 @@ func (d *DiffNotificationEndpointValues) UnmarshalJSON(b []byte) (err error) {
 
 // DiffNotificationEndpoint is a diff of an individual notification endpoint.
 type DiffNotificationEndpoint struct {
-	ID   SafeID                          `json:"id"`
-	Name string                          `json:"name"`
-	New  DiffNotificationEndpointValues  `json:"new"`
-	Old  *DiffNotificationEndpointValues `json:"old"`
+	ID      SafeID                          `json:"id"`
+	Remove  bool                            `json:"remove"`
+	PkgName string                          `json:"pkgName"`
+	New     DiffNotificationEndpointValues  `json:"new"`
+	Old     *DiffNotificationEndpointValues `json:"old"`
 }
 
 func newDiffNotificationEndpoint(ne *notificationEndpoint, i influxdb.NotificationEndpoint) DiffNotificationEndpoint {
 	diff := DiffNotificationEndpoint{
-		Name: ne.Name(),
+		Remove:  ne.shouldRemove,
+		PkgName: ne.PkgName(),
 		New: DiffNotificationEndpointValues{
 			NotificationEndpoint: ne.summarize().NotificationEndpoint,
 		},
@@ -465,22 +469,26 @@ func newDiffTelegraf(t *telegraf) DiffTelegraf {
 
 // DiffVariableValues are the varying values for a variable.
 type DiffVariableValues struct {
+	Name        string                      `json:"name"`
 	Description string                      `json:"description"`
 	Args        *influxdb.VariableArguments `json:"args"`
 }
 
 // DiffVariable is a diff of an individual variable.
 type DiffVariable struct {
-	ID   SafeID              `json:"id"`
-	Name string              `json:"name"`
-	New  DiffVariableValues  `json:"new"`
-	Old  *DiffVariableValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+	ID      SafeID              `json:"id"`
+	Remove  bool                `json:"remove"`
+	PkgName string              `json:"pkgName"`
+	New     DiffVariableValues  `json:"new"`
+	Old     *DiffVariableValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
 }
 
 func newDiffVariable(v *variable, iv *influxdb.Variable) DiffVariable {
 	diff := DiffVariable{
-		Name: v.Name(),
+		Remove:  v.shouldRemove,
+		PkgName: v.PkgName(),
 		New: DiffVariableValues{
+			Name:        v.Name(),
 			Description: v.Description,
 			Args:        v.influxVarArgs(),
 		},
@@ -488,6 +496,7 @@ func newDiffVariable(v *variable, iv *influxdb.Variable) DiffVariable {
 	if iv != nil {
 		diff.ID = SafeID(iv.ID)
 		diff.Old = &DiffVariableValues{
+			Name:        iv.Name,
 			Description: iv.Description,
 			Args:        iv.Arguments,
 		}
@@ -536,6 +545,7 @@ type SummaryBucket struct {
 
 // SummaryCheck provides a summary of a pkg check.
 type SummaryCheck struct {
+	PkgName           string          `json:"pkgName"`
 	Check             influxdb.Check  `json:"check"`
 	Status            influxdb.Status `json:"status"`
 	LabelAssociations []SummaryLabel  `json:"labelAssociations"`
@@ -543,6 +553,7 @@ type SummaryCheck struct {
 
 func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
 	var out struct {
+		PkgName           string          `json:"pkgName"`
 		Status            string          `json:"status"`
 		LabelAssociations []SummaryLabel  `json:"labelAssociations"`
 		Check             json.RawMessage `json:"check"`
@@ -550,6 +561,7 @@ func (s *SummaryCheck) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &out); err != nil {
 		return err
 	}
+	s.PkgName = out.PkgName
 	s.Status = influxdb.Status(out.Status)
 	s.LabelAssociations = out.LabelAssociations
 
@@ -655,6 +667,7 @@ func (s *SummaryChart) UnmarshalJSON(b []byte) error {
 
 // SummaryNotificationEndpoint provides a summary of a pkg notification endpoint.
 type SummaryNotificationEndpoint struct {
+	PkgName              string                        `json:"pkgName"`
 	NotificationEndpoint influxdb.NotificationEndpoint `json:"notificationEndpoint"`
 	LabelAssociations    []SummaryLabel                `json:"labelAssociations"`
 }
@@ -663,12 +676,14 @@ type SummaryNotificationEndpoint struct {
 // the notification endpoint does not have a means ot unmarshal itself.
 func (s *SummaryNotificationEndpoint) UnmarshalJSON(b []byte) error {
 	var a struct {
+		PkgName              string          `json:"pkgName"`
 		NotificationEndpoint json.RawMessage `json:"notificationEndpoint"`
 		LabelAssociations    []SummaryLabel  `json:"labelAssociations"`
 	}
 	if err := json.Unmarshal(b, &a); err != nil {
 		return err
 	}
+	s.PkgName = a.PkgName
 	s.LabelAssociations = a.LabelAssociations
 
 	e, err := endpoint.UnmarshalJSON(a.NotificationEndpoint)
@@ -754,6 +769,7 @@ type SummaryTelegraf struct {
 // SummaryVariable provides a summary of a pkg variable.
 type SummaryVariable struct {
 	ID                SafeID                      `json:"id,omitempty"`
+	PkgName           string                      `json:"pkgName"`
 	OrgID             SafeID                      `json:"orgID,omitempty"`
 	Name              string                      `json:"name"`
 	Description       string                      `json:"description"`
@@ -1036,6 +1052,7 @@ func (c *check) summarize() SummaryCheck {
 	}
 
 	sum := SummaryCheck{
+		PkgName:           c.PkgName(),
 		Status:            c.Status(),
 		LabelAssociations: toSummaryLabels(c.labels...),
 	}
@@ -1457,6 +1474,7 @@ func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 		base.Status = influxdb.Status(n.status)
 	}
 	sum := SummaryNotificationEndpoint{
+		PkgName:           n.PkgName(),
 		LabelAssociations: toSummaryLabels(n.labels...),
 	}
 
@@ -2097,6 +2115,7 @@ func (v *variable) shouldApply() bool {
 
 func (v *variable) summarize() SummaryVariable {
 	return SummaryVariable{
+		PkgName:           v.PkgName(),
 		ID:                SafeID(v.ID()),
 		OrgID:             SafeID(v.OrgID),
 		Name:              v.Name(),
