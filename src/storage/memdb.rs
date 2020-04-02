@@ -184,9 +184,10 @@ fn list_key(key: &str, value: &str) -> Vec<u8> {
 
 impl MemDB {
     pub fn new(id: String) -> Self {
-        let mut memdb: MemDB = Default::default();
-        memdb.id = id;
-        memdb
+        MemDB {
+            id,
+            ..Default::default()
+        }
     }
 
     pub fn size(&self) -> usize {
