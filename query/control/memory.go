@@ -28,6 +28,18 @@ type memoryManager struct {
 	unlimited bool
 }
 
+func (m *memoryManager) getUnusedMemoryBytes() int64 {
+	return atomic.LoadInt64(&m.unusedMemoryBytes)
+}
+
+func (m *memoryManager) trySetUnusedMemoryBytes(old, new int64) bool {
+	return atomic.CompareAndSwapInt64(&m.unusedMemoryBytes, old, new)
+}
+
+func (m *memoryManager) addUnusedMemoryBytes(amount int64) int64 {
+	return atomic.AddInt64(&m.unusedMemoryBytes, amount)
+}
+
 // createAllocator will construct an allocator and memory manager
 // for the given query.
 func (c *Controller) createAllocator(q *Query) {
@@ -49,10 +61,6 @@ type queryMemoryManager struct {
 	given int64
 }
 
-func (q *queryMemoryManager) getUnusedMemoryBytes() int64 {
-	return atomic.LoadInt64(&q.m.unusedMemoryBytes)
-}
-
 // RequestMemory will determine if the query can be given more memory
 // when it is requested.
 //
@@ -72,7 +80,7 @@ func (q *queryMemoryManager) RequestMemory(want int64) (got int64, err error) {
 	for {
 		unused := int64(math.MaxInt64)
 		if !q.m.unlimited {
-			unused = atomic.LoadInt64(&q.m.unusedMemoryBytes)
+			unused = q.m.getUnusedMemoryBytes()
 			if unused < want {
 				// We do not have the capacity for this query to
 				// be given more memory.
@@ -88,7 +96,7 @@ func (q *queryMemoryManager) RequestMemory(want int64) (got int64, err error) {
 
 		// Reserve this memory for our own use.
 		if !q.m.unlimited {
-			if !atomic.CompareAndSwapInt64(&q.m.unusedMemoryBytes, unused, unused-given) {
+			if !q.m.trySetUnusedMemoryBytes(unused, unused-given) {
 				// The unused value has changed so someone may have taken
 				// the memory that we wanted. Retry.
 				continue
@@ -142,7 +150,7 @@ func (q *queryMemoryManager) FreeMemory(bytes int64) {
 // memory manager.
 func (q *queryMemoryManager) Release() {
 	if !q.m.unlimited {
-		atomic.AddInt64(&q.m.unusedMemoryBytes, q.given)
+		q.m.addUnusedMemoryBytes(q.given)
 	}
 	q.limit = q.m.initialBytesQuotaPerQuery
 	q.given = 0
