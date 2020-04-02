@@ -18,6 +18,7 @@ import {
   BucketEntities,
   Label,
   ResourceType,
+  OwnBucket,
 } from 'src/types'
 
 // Utils
@@ -87,7 +88,7 @@ export const getBuckets = () => async (
   }
 }
 
-export const createBucket = (bucket: Bucket) => async (
+export const createBucket = (bucket: OwnBucket) => async (
   dispatch: Dispatch<Action | ReturnType<typeof checkBucketLimits>>,
   getState: GetState
 ) => {
@@ -114,7 +115,7 @@ export const createBucket = (bucket: Bucket) => async (
   }
 }
 
-export const updateBucket = (bucket: Bucket) => async (
+export const updateBucket = (bucket: OwnBucket) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -145,7 +146,7 @@ export const updateBucket = (bucket: Bucket) => async (
   }
 }
 
-export const renameBucket = (originalName: string, bucket: Bucket) => async (
+export const renameBucket = (originalName: string, bucket: OwnBucket) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -253,7 +254,7 @@ export const deleteBucketLabel = (bucketID: string, label: Label) => async (
   }
 }
 
-const denormalizeBucket = (state: AppState, bucket: Bucket): GenBucket => {
+const denormalizeBucket = (state: AppState, bucket: OwnBucket): GenBucket => {
   const labels = getLabels(state, bucket.labels)
   return {
     ...bucket,

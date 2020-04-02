@@ -21,17 +21,17 @@ import {
 import {renameBucket} from 'src/buckets/actions/thunks'
 
 // Types
-import {AppState, Bucket, ResourceType} from 'src/types'
+import {AppState, Bucket, ResourceType, OwnBucket} from 'src/types'
 
 // Selectors
 import {getAll, getByID} from 'src/resources/selectors'
 
 interface State {
-  bucket: Bucket
+  bucket: OwnBucket
 }
 
 interface StateProps {
-  startBucket: Bucket
+  startBucket: OwnBucket
   buckets: Bucket[]
 }
 
@@ -39,9 +39,7 @@ interface DispatchProps {
   onRenameBucket: typeof renameBucket
 }
 
-type OwnProps = {}
-
-type Props = StateProps & DispatchProps & WithRouterProps & OwnProps
+type Props = StateProps & DispatchProps & WithRouterProps
 
 class RenameBucketForm extends PureComponent<Props, State> {
   public state = {bucket: this.props.startBucket}
@@ -149,7 +147,7 @@ const mstp = (state: AppState, props: Props): StateProps => {
     params: {bucketID},
   } = props
 
-  const startBucket = getByID<Bucket>(state, ResourceType.Buckets, bucketID)
+  const startBucket = getByID<OwnBucket>(state, ResourceType.Buckets, bucketID)
   const buckets = getAll<Bucket>(state, ResourceType.Buckets).filter(
     b => b.id !== bucketID
   )
@@ -165,8 +163,8 @@ const mdtp: DispatchProps = {
 }
 
 // state mapping requires router
-export default withRouter<OwnProps>(
-  connect<StateProps, DispatchProps, OwnProps>(
+export default withRouter(
+  connect<StateProps, DispatchProps>(
     mstp,
     mdtp
   )(RenameBucketForm)
