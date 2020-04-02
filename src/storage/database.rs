@@ -184,6 +184,19 @@ impl Database {
         bucket_data.get_tag_values(tag_key, predicate, range).await
     }
 
+    pub async fn buckets(&self, org_id: u32) -> Result<Vec<Bucket>, StorageError> {
+        Ok(match self.organizations.read().await.get(&org_id) {
+            None => vec![],
+            Some(org) => org
+                .read()
+                .await
+                .bucket_data
+                .values()
+                .map(|bd| bd.config.clone())
+                .collect(),
+        })
+    }
+
     async fn bucket_data(
         &self,
         org_id: u32,

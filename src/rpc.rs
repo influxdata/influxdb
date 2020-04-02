@@ -42,9 +42,20 @@ impl Delorean for GrpcServer {
 
     async fn get_buckets(
         &self,
-        _req: tonic::Request<Organization>,
+        req: tonic::Request<Organization>,
     ) -> Result<tonic::Response<GetBucketsResponse>, Status> {
-        Ok(tonic::Response::new(GetBucketsResponse { buckets: vec![] }))
+        let org = req.into_inner();
+
+        let org_id = org.id;
+
+        let buckets = self
+            .app
+            .db
+            .buckets(org_id)
+            .await
+            .map_err(|err| Status::internal(format!("error reading db: {}", err)))?;
+
+        Ok(tonic::Response::new(GetBucketsResponse { buckets }))
     }
 }
 

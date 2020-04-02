@@ -199,12 +199,21 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
 
     let mut storage_client = StorageClient::connect(GRPC_URL_BASE).await?;
 
-    let org_id = u64::from(u32::MAX);
-    let bucket_id = 1; // TODO: how do we know this?
+    // Get the ID of the bucket that was created with the auto-incrementing in MemDB
+    let get_buckets_request = tonic::Request::new(Organization {
+        id: org_id,
+        name: "test".into(),
+        buckets: vec![],
+    });
+    let get_buckets_response = grpc_client.get_buckets(get_buckets_request).await?;
+    let get_buckets_response = get_buckets_response.into_inner();
+    let org_buckets = get_buckets_response.buckets;
+    let bucket_id = org_buckets.first().unwrap().id;
+
     let partition_id = u64::from(u32::MAX);
     let read_source = ReadSource {
-        org_id,
-        bucket_id,
+        org_id: org_id.into(),
+        bucket_id: bucket_id.into(),
         partition_id,
     };
     let mut d = Vec::new();
