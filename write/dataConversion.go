@@ -276,10 +276,10 @@ func parseTimeZone(val string) (*time.Location, error) {
 	}
 }
 
-// createBoolParseFn returns a function that parses a boolean value according to format "true,yes,1:false,no,0"
+// createBoolParseFn returns a function that converts a string value to boolean according to format "true,yes,1:false,no,0"
 func createBoolParseFn(format string) func(string) (interface{}, error) {
 	var err error = nil
-	truethy := []string{}
+	truthy := []string{}
 	falsy := []string{}
 	if !strings.Contains(format, ":") {
 		err = fmt.Errorf("unsupported boolean format: %s should be in 'true,yes,1:false,no,0' format, but no ':' is present", format)
@@ -288,7 +288,7 @@ func createBoolParseFn(format string) func(string) (interface{}, error) {
 		t := format[:colon]
 		f := format[colon+1:]
 		if t != "" {
-			truethy = strings.Split(t, ",")
+			truthy = strings.Split(t, ",")
 		}
 		if f != "" {
 			falsy = strings.Split(f, ",")
@@ -303,7 +303,7 @@ func createBoolParseFn(format string) func(string) (interface{}, error) {
 				return false, nil
 			}
 		}
-		for _, s := range truethy {
+		for _, s := range truthy {
 			if s == val {
 				return true, nil
 			}
@@ -311,10 +311,10 @@ func createBoolParseFn(format string) func(string) (interface{}, error) {
 		if len(falsy) == 0 {
 			return false, nil
 		}
-		if len(truethy) == 0 {
+		if len(truthy) == 0 {
 			return true, nil
 		}
 
-		return nil, fmt.Errorf("unsupported boolean value: %s must one of %v or one of %v", val, truethy, falsy)
+		return nil, fmt.Errorf("unsupported boolean value: %s must one of %v or one of %v", val, truthy, falsy)
 	}
 }
