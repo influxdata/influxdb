@@ -264,7 +264,7 @@ async fn send_series_filters(
         .db
         .read_points(org_id, bucket_id, predicate, range)
         .await
-        .map_err(|err| Status::internal(format!("error reading db: {}", err.description)))?;
+        .map_err(|err| Status::internal(format!("error reading db: {}", err)))?;
 
     let mut last_frame_key = String::new();
 
@@ -275,7 +275,7 @@ async fn send_series_filters(
         if last_frame_key != batch.key {
             last_frame_key = batch.key.clone();
             let tags = index_pairs(&batch.key)
-                .map_err(|err| Status::invalid_argument(err.description))?
+                .map_err(|err| Status::invalid_argument(err.to_string()))?
                 .into_iter()
                 .map(|p| Tag {
                     key: p.key.bytes().collect(),

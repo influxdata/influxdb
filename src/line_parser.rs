@@ -155,7 +155,7 @@ pub struct Pair {
 
 #[derive(Debug, Clone)]
 pub struct ParseError {
-    pub description: String,
+    description: String,
 }
 
 impl fmt::Display for ParseError {
