@@ -198,11 +198,23 @@ pub fn parse(input: &str) -> Vec<PointType> {
                     timestamp,
                 } = parsed_line;
 
-                assert!(tag_set.is_none(), "TODO: tag set not supported");
+                let mut tag_set = tag_set.unwrap_or_default();
+                // TODO: handle duplicates?
+                tag_set.sort_by(|a, b| a.0.cmp(&b.0));
+                let tag_set = tag_set;
+
                 let timestamp = timestamp.expect("TODO: default timestamp not supported");
 
+                let mut series_base = String::from(measurement);
+                for (tag_key, tag_value) in tag_set {
+                    use std::fmt::Write;
+                    write!(&mut series_base, ",{}={}", tag_key, tag_value)
+                        .expect("Could not append string");
+                }
+                let series_base = series_base;
+
                 field_set.into_iter().map(move |(field_key, field_value)| {
-                    let series = format!("{}\t{}", measurement, field_key);
+                    let series = format!("{}\t{}", series_base, field_key);
 
                     match field_value {
                         FieldValue::I64(value) => PointType::new_i64(series, value, timestamp),
@@ -235,14 +247,12 @@ fn parse_line(i: &str) -> IResult<&str, ParsedLine<'_>> {
 }
 
 fn measurement(i: &str) -> IResult<&str, &str> {
-    // TODO: This needs to account for `,` to separate tag sets
-    take_while1(|c| c != ' ')(i)
+    take_while1(|c| c != ' ' && c != ',')(i)
 }
 
-// TODO: ensure that the tags are sorted
 fn tag_set(i: &str) -> IResult<&str, Vec<(&str, &str)>> {
     let tag_key = take_while1(|c| c != '=');
-    let tag_value = take_while1(|c| c != ' ');
+    let tag_value = take_while1(|c| c != ',' && c != ' ');
     let one_tag = separated_pair(tag_key, tag("="), tag_value);
     separated_list(tag(","), one_tag)(i)
 }
@@ -356,6 +366,14 @@ mod test {
     #[test]
     fn parse_tag_set_included_in_series() {
         let input = "foo,tag1=1,tag2=2 value=1 123";
+        let vals = parse(input);
+
+        assert_eq!(vals[0].series(), "foo,tag1=1,tag2=2\tvalue");
+    }
+
+    #[test]
+    fn parse_tag_set_unsorted() {
+        let input = "foo,tag2=2,tag1=1 value=1 123";
         let vals = parse(input);
 
         assert_eq!(vals[0].series(), "foo,tag1=1,tag2=2\tvalue");
