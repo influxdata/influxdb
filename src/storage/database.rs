@@ -117,9 +117,11 @@ impl Database {
         bucket_name: &str,
     ) -> Result<Option<u32>, StorageError> {
         let orgs = self.organizations.read().await;
-        let org = orgs.get(&org_id).ok_or_else(|| StorageError {
-            description: format!("org {} not found", org_id),
-        })?;
+
+        let org = match orgs.get(&org_id) {
+            Some(org) => org,
+            None => return Ok(None),
+        };
 
         let id = match org.read().await.bucket_name_to_id.get(bucket_name) {
             Some(id) => Some(*id),
