@@ -37,7 +37,7 @@ impl Organization {
 }
 
 struct BucketData {
-    _config: Bucket,
+    config: Bucket,
     // TODO: wire up rules for partitioning data and storing and reading from multiple partitions
     partition: RwLock<Partition>,
 }
@@ -50,7 +50,7 @@ impl BucketData {
         let partition = Partition::MemDB(Box::new(MemDB::new(partition_id)));
 
         BucketData {
-            _config: bucket,
+            config: bucket,
             partition: RwLock::new(partition),
         }
     }
