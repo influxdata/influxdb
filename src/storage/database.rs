@@ -204,11 +204,16 @@ impl Database {
         org_id: u32,
         bucket_id: u32,
     ) -> Result<Arc<BucketData>, StorageError> {
-        let orgs = self.organizations.read().await;
-        let org = orgs.get(&org_id).ok_or_else(|| StorageError {
-            description: format!("org {} not found", org_id),
-        })?;
+        if !self.organizations.read().await.contains_key(&org_id) {
+            let mut orgs = self.organizations.write().await;
+            orgs.insert(org_id, RwLock::new(Organization::default()));
+        }
 
+        let orgs = self.organizations.read().await;
+
+        let org = orgs
+            .get(&org_id)
+            .expect("Should have found or just inserted org");
         let org = org.read().await;
 
         match org.bucket_data.get(&bucket_id) {
