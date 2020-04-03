@@ -359,8 +359,6 @@ class LoginPageContents extends PureComponent<DispatchProps> {
     this.setState({buttonStatus: ComponentStatus.Loading})
 
     if (activeTab === ActiveTab.Login) {
-      console.log('this: ', this)
-      console.log('this.auth0: ', this.auth0)
       this.auth0.login(
         {
           realm: Auth0Connection.Authentication,
