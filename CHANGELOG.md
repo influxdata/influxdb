@@ -4,6 +4,10 @@
 
 1. [17490](https://github.com/influxdata/influxdb/pull/17490): `influx config -`, to switch back to previous activated configuration
 
+### UI Improvements
+
+1. [17583](https://github.com/influxdata/influxdb/pull/17583): Update layout of Alerts page to work on all screen sizes
+
 ## v2.0.0-beta.7 [2020-03-27]
 
 ### Features
