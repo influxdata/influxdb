@@ -2,7 +2,6 @@ use std::convert::TryFrom;
 use std::error;
 use std::fmt;
 
-pub mod config_store;
 pub mod database;
 pub mod memdb;
 pub mod partitioned_store;
