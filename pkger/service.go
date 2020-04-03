@@ -706,7 +706,7 @@ func (s *Service) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *Pk
 
 func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffBucket {
 	mExistingBkts := make(map[string]DiffBucket)
-	bkts := pkg.buckets(false)
+	bkts := pkg.buckets()
 	for i := range bkts {
 		b := bkts[i]
 		existingBkt, _ := s.findBucket(ctx, orgID, b) // ignoring error here
@@ -730,18 +730,9 @@ func (s *Service) dryRunChecks(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 	checks := pkg.checks()
 	for i := range checks {
 		c := checks[i]
-		name := c.Name()
-		existingCheck, err := s.checkSVC.FindCheck(ctx, influxdb.CheckFilter{
-			Name:  &name,
-			OrgID: &orgID,
-		})
-		switch err {
-		case nil:
-			c.existing = existingCheck
-			mExistingChecks[c.Name()] = newDiffCheck(c, existingCheck)
-		default:
-			mExistingChecks[c.Name()] = newDiffCheck(c, nil)
-		}
+		existingCheck, _ := s.findCheck(ctx, orgID, c)
+		c.existing = existingCheck
+		mExistingChecks[c.Name()] = newDiffCheck(c, existingCheck)
 	}
 
 	diffs := make([]DiffCheck, 0, len(mExistingChecks))
@@ -767,7 +758,7 @@ func (s *Service) dryRunDashboards(pkg *Pkg) []DiffDashboard {
 
 func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffLabel {
 	mExistingLabels := make(map[string]DiffLabel)
-	labels := pkg.labels(false)
+	labels := pkg.labels()
 	for i := range labels {
 		pkgLabel := labels[i]
 		existingLabel, _ := s.findLabel(ctx, orgID, pkgLabel)
@@ -956,7 +947,7 @@ type (
 
 func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabelMapping, error) {
 	mappers := []labelMappers{
-		mapperBuckets(pkg.buckets(false)),
+		mapperBuckets(pkg.buckets()),
 		mapperChecks(pkg.checks()),
 		mapperDashboards(pkg.dashboards()),
 		mapperNotificationEndpoints(pkg.notificationEndpoints()),
@@ -1174,13 +1165,13 @@ func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, o
 		},
 		{
 			// deps for primary resources
-			s.applyLabels(ctx, pkg.labels(false)),
+			s.applyLabels(ctx, pkg.labels()),
 		},
 		{
 			// primary resources, can have relationships to labels
 			s.applyVariables(pkg.variables()),
-			s.applyBuckets(ctx, pkg.buckets(false)),
-			s.applyChecks(pkg.checks()),
+			s.applyBuckets(ctx, pkg.buckets()),
+			s.applyChecks(ctx, pkg.checks()),
 			s.applyDashboards(pkg.dashboards()),
 			s.applyNotificationEndpoints(pkg.notificationEndpoints()),
 			s.applyTasks(pkg.tasks()),
@@ -1261,7 +1252,7 @@ func (s *Service) applyBuckets(ctx context.Context, buckets []*bucket) applier {
 }
 
 func (s *Service) rollbackBuckets(ctx context.Context, buckets []*bucket) error {
-	rollbackFn := func(ctx context.Context, b *bucket) error {
+	rollbackFn := func(b *bucket) error {
 		var err error
 		switch {
 		case b.shouldRemove:
@@ -1280,8 +1271,7 @@ func (s *Service) rollbackBuckets(ctx context.Context, buckets []*bucket) error 
 
 	var errs []string
 	for _, b := range buckets {
-		err := rollbackFn(ctx, b)
-		if err != nil {
+		if err := rollbackFn(b); err != nil {
 			errs = append(errs, fmt.Sprintf("error for bucket[%q]: %s", b.ID(), err))
 		}
 	}
@@ -1330,7 +1320,7 @@ func (s *Service) applyBucket(ctx context.Context, b bucket) (influxdb.Bucket, e
 	return influxBucket, nil
 }
 
-func (s *Service) applyChecks(checks []*check) applier {
+func (s *Service) applyChecks(ctx context.Context, checks []*check) applier {
 	const resource = "check"
 
 	mutex := new(doMutex)
@@ -1366,40 +1356,57 @@ func (s *Service) applyChecks(checks []*check) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackChecks(rollbackChecks) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackChecks(ctx, rollbackChecks) },
 		},
 	}
 }
 
-func (s *Service) rollbackChecks(checks []*check) error {
+func (s *Service) rollbackChecks(ctx context.Context, checks []*check) error {
+	rollbackFn := func(c *check) error {
+		var err error
+		switch {
+		case c.shouldRemove:
+			err = s.checkSVC.CreateCheck(
+				ctx,
+				influxdb.CheckCreate{
+					Check:  c.existing,
+					Status: c.Status(),
+				},
+				c.existing.GetOwnerID(),
+			)
+		case c.existing == nil:
+			err = s.checkSVC.DeleteCheck(ctx, c.ID())
+		default:
+			_, err = s.checkSVC.UpdateCheck(ctx, c.ID(), influxdb.CheckCreate{
+				Check:  c.summarize().Check,
+				Status: influxdb.Status(c.status),
+			})
+		}
+		return err
+	}
+
 	var errs []string
 	for _, c := range checks {
-		if c.existing == nil {
-			err := s.checkSVC.DeleteCheck(context.Background(), c.ID())
-			if err != nil {
-				errs = append(errs, c.ID().String())
-			}
-			continue
-		}
-
-		_, err := s.checkSVC.UpdateCheck(context.Background(), c.ID(), influxdb.CheckCreate{
-			Check:  c.summarize().Check,
-			Status: influxdb.Status(c.status),
-		})
-		if err != nil {
-			errs = append(errs, c.ID().String())
+		if err := rollbackFn(c); err != nil {
+			errs = append(errs, fmt.Sprintf("error for check[%q]: %s", c.ID(), err))
 		}
 	}
 
 	if len(errs) > 0 {
-		// TODO: fixup error
-		return fmt.Errorf(`check_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
+		return errors.New(strings.Join(errs, "; "))
 	}
 
 	return nil
 }
 
 func (s *Service) applyCheck(ctx context.Context, c check, userID influxdb.ID) (influxdb.Check, error) {
+	if c.shouldRemove {
+		if err := s.checkSVC.DeleteCheck(ctx, c.ID()); err != nil {
+			return nil, fmt.Errorf("failed to delete check[%q]: %w", c.ID(), err)
+		}
+		return c.existing, nil
+	}
+
 	if c.existing != nil {
 		influxCheck, err := s.checkSVC.UpdateCheck(ctx, c.ID(), influxdb.CheckCreate{
 			Check:  c.summarize().Check,
@@ -2153,7 +2160,10 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 	}
 
 	var stackResources []StackResource
-	for _, b := range pkg.buckets(true) {
+	for _, b := range pkg.buckets() {
+		if b.shouldRemove {
+			continue
+		}
 		stackResources = append(stackResources, StackResource{
 			APIVersion: APIVersion,
 			ID:         b.ID(),
@@ -2161,7 +2171,21 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			Name:       b.PkgName(),
 		})
 	}
-	for _, l := range pkg.labels(true) {
+	for _, c := range pkg.checks() {
+		if c.shouldRemove {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         c.ID(),
+			Kind:       KindCheck,
+			Name:       c.PkgName(),
+		})
+	}
+	for _, l := range pkg.labels() {
+		if l.shouldRemove {
+			continue
+		}
 		stackResources = append(stackResources, StackResource{
 			APIVersion: APIVersion,
 			ID:         l.ID(),
@@ -2200,7 +2224,7 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 		// these are the case where a deletion happens and is rolled back creating a new resource.
 		// when resource is not to be removed this is a nothing burger, as it should be
 		// rolled back to previous state.
-		for _, b := range pkg.buckets(false) {
+		for _, b := range pkg.buckets() {
 			if b.shouldRemove {
 				res := existingResources[newKey(KindBucket, b.PkgName())]
 				if res.ID != b.ID() {
@@ -2209,7 +2233,16 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 				}
 			}
 		}
-		for _, l := range pkg.labels(false) {
+		for _, c := range pkg.checks() {
+			if c.shouldRemove {
+				res := existingResources[newKey(KindCheck, c.PkgName())]
+				if res.ID != c.ID() {
+					hasChanges = true
+					res.ID = c.existing.GetID()
+				}
+			}
+		}
+		for _, l := range pkg.labels() {
 			if l.shouldRemove {
 				res := existingResources[newKey(KindLabel, l.PkgName())]
 				if res.ID != l.ID() {
@@ -2228,16 +2261,28 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 }
 
 func (s *Service) findBucket(ctx context.Context, orgID influxdb.ID, b *bucket) (*influxdb.Bucket, error) {
-	if b.id != 0 {
-		return s.bucketSVC.FindBucketByID(ctx, b.id)
+	if b.ID() != 0 {
+		return s.bucketSVC.FindBucketByID(ctx, b.ID())
 	}
 
 	return s.bucketSVC.FindBucketByName(ctx, orgID, b.Name())
 }
 
+func (s *Service) findCheck(ctx context.Context, orgID influxdb.ID, c *check) (influxdb.Check, error) {
+	if c.ID() != 0 {
+		return s.checkSVC.FindCheckByID(ctx, c.ID())
+	}
+
+	name := c.Name()
+	return s.checkSVC.FindCheck(ctx, influxdb.CheckFilter{
+		Name:  &name,
+		OrgID: &orgID,
+	})
+}
+
 func (s *Service) findLabel(ctx context.Context, orgID influxdb.ID, l *label) (*influxdb.Label, error) {
-	if l.id != 0 {
-		return s.labelSVC.FindLabelByID(ctx, l.id)
+	if l.ID() != 0 {
+		return s.labelSVC.FindLabelByID(ctx, l.ID())
 	}
 
 	existingLabels, err := s.labelSVC.FindLabels(ctx, influxdb.LabelFilter{

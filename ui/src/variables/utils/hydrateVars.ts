@@ -30,6 +30,7 @@ interface HydrateVarsOptions {
   orgID: string
   selections?: ValueSelections
   fetcher?: ValueFetcher
+  skipCache?: boolean
 }
 
 export const createVariableGraph = (
@@ -211,7 +212,15 @@ const hydrateVarsHelper = async (
   const {query} = node.variable.arguments.values
   const fetcher = options.fetcher || valueFetcher
 
-  const request = fetcher.fetch(url, orgID, query, assignments, null, '')
+  const request = fetcher.fetch(
+    url,
+    orgID,
+    query,
+    assignments,
+    null,
+    '',
+    options.skipCache
+  )
 
   node.cancel = request.cancel
 

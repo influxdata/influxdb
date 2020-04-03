@@ -211,7 +211,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, checkToObject(ch, r.Name))
+		mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, CheckToObject(r.Name, ch))
 	case r.Kind.is(KindDashboard):
 		dash, err := ex.findDashboardByIDFull(ctx, r.ID)
 		if err != nil {
@@ -428,11 +428,11 @@ func BucketToObject(name string, bkt influxdb.Bucket) Object {
 	return o
 }
 
-func checkToObject(ch influxdb.Check, name string) Object {
+func CheckToObject(name string, ch influxdb.Check) Object {
 	if name == "" {
 		name = ch.GetName()
 	}
-	o := newObject(KindUnknown, name)
+	o := newObject(KindCheck, name)
 	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldDescription: ch.GetDescription(),
 		fieldStatus:      influxdb.TaskStatusActive,

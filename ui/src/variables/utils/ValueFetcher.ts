@@ -66,19 +66,34 @@ export interface ValueFetcher {
     query: string,
     variables: VariableAssignment[],
     prevSelection: string,
-    defaultSelection: string
+    defaultSelection: string,
+    skipCache: boolean
   ) => CancelBox<VariableValues>
 }
 
 export class DefaultValueFetcher implements ValueFetcher {
   private cache: {[cacheKey: string]: VariableValues} = {}
 
-  public fetch(url, orgID, query, variables, prevSelection, defaultSelection) {
+  public fetch(
+    url,
+    orgID,
+    query,
+    variables,
+    prevSelection,
+    defaultSelection,
+    skipCache
+  ) {
     const key = cacheKey(url, orgID, query, variables)
-    const cachedValues = this.cachedValues(key, prevSelection, defaultSelection)
+    if (!skipCache) {
+      const cachedValues = this.cachedValues(
+        key,
+        prevSelection,
+        defaultSelection
+      )
 
-    if (cachedValues) {
-      return {promise: Promise.resolve(cachedValues), cancel: () => {}}
+      if (cachedValues) {
+        return {promise: Promise.resolve(cachedValues), cancel: () => {}}
+      }
     }
 
     const extern = buildVarsOption(variables)

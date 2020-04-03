@@ -227,10 +227,21 @@ type DiffCheckValues struct {
 	influxdb.Check
 }
 
+// MarshalJSON implementation here is forced by the embedded check value here.
+func (d DiffCheckValues) MarshalJSON() ([]byte, error) {
+	if d.Check == nil {
+		return json.Marshal(nil)
+	}
+	return json.Marshal(d.Check)
+}
+
 // UnmarshalJSON decodes the check values.
 func (d *DiffCheckValues) UnmarshalJSON(b []byte) (err error) {
 	d.Check, err = icheck.UnmarshalJSON(b)
-	return
+	if influxdb.EInternal == influxdb.ErrorCode(err) {
+		return nil
+	}
+	return err
 }
 
 // DiffCheck is a diff of an individual check.
