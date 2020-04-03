@@ -54,8 +54,6 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 
 	if c.tmp.Len() > 0 {
 		a = c.tmp
-		c.tmp.Timestamps = nil
-		c.tmp.Values = nil
 	} else {
 		a = c.{{.Name}}ArrayCursor.Next()
 	}
@@ -75,6 +73,12 @@ LOOP:
 				}
 			}
 		}
+		
+		// Clear bufferred timestamps & values if we make it through a cursor.
+		// The break above will skip this if a cursor is partially read.
+		c.tmp.Timestamps = nil
+		c.tmp.Values = nil
+		
 		a = c.{{.Name}}ArrayCursor.Next()
 	}
 
