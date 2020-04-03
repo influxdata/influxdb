@@ -321,30 +321,41 @@ async fn send_series_filters(
             tx.send(series_frame_response_header).await.unwrap();
         }
 
-        match batch.values {
-            ReadValues::F64(values) => {
-                let (timestamps, values) = values.into_iter().map(|p| (p.time, p.value)).unzip();
-                let data_frame_response = Ok(ReadResponse {
-                    frames: vec![Frame {
-                        data: Some(Data::FloatPoints(FloatPointsFrame { timestamps, values })),
-                    }],
-                });
+        if let Err(e) = send_points(tx.clone(), batch.values).await {
+            tx.send(Err(e)).await.unwrap();
+        }
+    }
 
-                tx.send(data_frame_response).await.unwrap();
-            }
-            ReadValues::I64(values) => {
-                let (timestamps, values) = values.into_iter().map(|p| (p.time, p.value)).unzip();
-                let data_frame_response = Ok(ReadResponse {
-                    frames: vec![Frame {
-                        data: Some(Data::IntegerPoints(IntegerPointsFrame {
-                            timestamps,
-                            values,
-                        })),
-                    }],
-                });
+    Ok(())
+}
 
-                tx.send(data_frame_response).await.unwrap();
-            }
+async fn send_points(
+    mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
+    read_values: ReadValues,
+) -> Result<(), Status> {
+    match read_values {
+        ReadValues::F64(values) => {
+            let (timestamps, values) = values.into_iter().map(|p| (p.time, p.value)).unzip();
+            let data_frame_response = Ok(ReadResponse {
+                frames: vec![Frame {
+                    data: Some(Data::FloatPoints(FloatPointsFrame { timestamps, values })),
+                }],
+            });
+
+            tx.send(data_frame_response).await.unwrap();
+        }
+        ReadValues::I64(values) => {
+            let (timestamps, values) = values.into_iter().map(|p| (p.time, p.value)).unzip();
+            let data_frame_response = Ok(ReadResponse {
+                frames: vec![Frame {
+                    data: Some(Data::IntegerPoints(IntegerPointsFrame {
+                        timestamps,
+                        values,
+                    })),
+                }],
+            });
+
+            tx.send(data_frame_response).await.unwrap();
         }
     }
 
