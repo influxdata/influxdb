@@ -242,26 +242,21 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     };
     let range = Some(range);
 
-    let l = Value::TagRefValue("host".into());
-    let l = Node {
-        children: vec![],
-        value: Some(l),
+    let predicate = Predicate {
+        root: Some(Node {
+            children: vec![
+                Node {
+                    children: vec![],
+                    value: Some(Value::TagRefValue("host".into())),
+                },
+                Node {
+                    children: vec![],
+                    value: Some(Value::StringValue("server01".into())),
+                },
+            ],
+            value: Some(Value::Comparison(Comparison::Equal as _)),
+        }),
     };
-
-    let r = Value::StringValue("server01".into());
-    let r = Node {
-        children: vec![],
-        value: Some(r),
-    };
-
-    let comp = Value::Comparison(Comparison::Equal as _);
-    let comp = Some(comp);
-    let root = Node {
-        children: vec![l, r],
-        value: comp,
-    };
-    let root = Some(root);
-    let predicate = Predicate { root };
     let predicate = Some(predicate);
 
     let read_filter_request = tonic::Request::new(ReadFilterRequest {
