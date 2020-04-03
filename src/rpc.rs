@@ -1,4 +1,3 @@
-use delorean::delorean::Bucket;
 use delorean::delorean::{
     delorean_server::Delorean,
     read_response::{
@@ -7,11 +6,11 @@ use delorean::delorean::{
     storage_server::Storage,
     CapabilitiesResponse, CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest,
     DeleteBucketResponse, GetBucketsResponse, Organization, Predicate, ReadFilterRequest,
-    ReadGroupRequest, ReadResponse, ReadSource, StringValuesResponse, TagKeysRequest,
+    ReadGroupRequest, ReadResponse, ReadSource, StringValuesResponse, Tag, TagKeysRequest,
     TagValuesRequest, TimestampRange,
 };
-use delorean::storage::database::Database;
-use delorean::storage::SeriesDataType;
+use delorean::line_parser::index_pairs;
+use delorean::storage::partitioned_store::ReadValues;
 
 use std::convert::TryInto;
 use std::sync::Arc;
@@ -29,8 +28,21 @@ pub struct GrpcServer {
 impl Delorean for GrpcServer {
     async fn create_bucket(
         &self,
-        _req: tonic::Request<CreateBucketRequest>,
+        req: tonic::Request<CreateBucketRequest>,
     ) -> Result<tonic::Response<CreateBucketResponse>, Status> {
+        let create_bucket_request = req.into_inner();
+
+        let org_id = create_bucket_request.org_id;
+        let bucket = create_bucket_request
+            .bucket
+            .ok_or_else(|| Status::invalid_argument("missing bucket argument"))?;
+
+        self.app
+            .db
+            .create_bucket_if_not_exists(org_id, bucket)
+            .await
+            .map_err(|err| Status::internal(format!("error creating bucket: {}", err)))?;
+
         Ok(tonic::Response::new(CreateBucketResponse {}))
     }
 
@@ -43,9 +55,20 @@ impl Delorean for GrpcServer {
 
     async fn get_buckets(
         &self,
-        _req: tonic::Request<Organization>,
+        req: tonic::Request<Organization>,
     ) -> Result<tonic::Response<GetBucketsResponse>, Status> {
-        Ok(tonic::Response::new(GetBucketsResponse { buckets: vec![] }))
+        let org = req.into_inner();
+
+        let org_id = org.id;
+
+        let buckets = self
+            .app
+            .db
+            .buckets(org_id)
+            .await
+            .map_err(|err| Status::internal(format!("error reading db: {}", err)))?;
+
+        Ok(tonic::Response::new(GetBucketsResponse { buckets }))
     }
 }
 
@@ -77,19 +100,12 @@ trait GrpcInputs {
             .map_err(|_| Status::invalid_argument("org_id did not fit in a u32"))?)
     }
 
-    fn bucket(&self, db: &Database) -> Result<Arc<Bucket>, Status> {
-        let bucket_id = self
+    fn bucket_id(&self) -> Result<u32, Status> {
+        Ok(self
             .read_source()?
             .bucket_id
             .try_into()
-            .map_err(|_| Status::invalid_argument("bucket_id did not fit in a u32"))?;
-
-        let maybe_bucket = db
-            .get_bucket_by_id(bucket_id)
-            .map_err(|_| Status::internal("could not query for bucket"))?;
-
-        Ok(maybe_bucket
-            .ok_or_else(|| Status::not_found(&format!("bucket {} not found", bucket_id)))?)
+            .map_err(|_| Status::invalid_argument("bucket_id did not fit in a u32"))?)
     }
 }
 
@@ -129,8 +145,8 @@ impl Storage for GrpcServer {
 
         let read_filter_request = req.into_inner();
 
-        let _org_id = read_filter_request.org_id()?;
-        let bucket = read_filter_request.bucket(&self.app.db)?;
+        let org_id = read_filter_request.org_id()?;
+        let bucket_id = read_filter_request.bucket_id()?;
         let predicate = read_filter_request.predicate;
         let range = read_filter_request.range;
 
@@ -138,13 +154,15 @@ impl Storage for GrpcServer {
 
         // TODO: is this blocking because of the blocking calls to the database...?
         tokio::spawn(async move {
-            let predicate = predicate.as_ref();
+            let predicate = predicate.as_ref().expect("TODO: must have a predicate");
             // TODO: The call to read_series_matching_predicate_and_range takes an optional range,
             // but read_f64_range requires a range-- should this route require a range or use a
             // default or something else?
             let range = range.as_ref().expect("TODO: Must have a range?");
 
-            if let Err(e) = send_series_filters(tx.clone(), app, &bucket, predicate, &range).await {
+            if let Err(e) =
+                send_series_filters(tx.clone(), app, org_id, bucket_id, predicate, &range).await
+            {
                 tx.send(Err(e)).await.unwrap();
             }
         });
@@ -169,24 +187,28 @@ impl Storage for GrpcServer {
     ) -> Result<tonic::Response<Self::TagKeysStream>, Status> {
         let (mut tx, rx) = mpsc::channel(4);
 
-        let tag_keys_request = req.get_ref();
+        let tag_keys_request = req.into_inner();
 
-        let _org_id = tag_keys_request.org_id()?;
-        let bucket = tag_keys_request.bucket(&self.app.db)?;
-        let predicate = tag_keys_request.predicate.clone();
-        let _range = tag_keys_request.range.as_ref();
+        let org_id = tag_keys_request.org_id()?;
+        let bucket_id = tag_keys_request.bucket_id()?;
+        let predicate = tag_keys_request.predicate;
+        let range = tag_keys_request.range;
 
         let app = self.app.clone();
 
         tokio::spawn(async move {
-            match app.db.get_tag_keys(&bucket, predicate.as_ref()) {
+            match app
+                .db
+                .get_tag_keys(org_id, bucket_id, predicate.as_ref(), range.as_ref())
+                .await
+            {
                 Err(_) => tx
                     .send(Err(Status::internal("could not query for tag keys")))
                     .await
                     .unwrap(),
-                Ok(tag_keys_iter) => {
+                Ok(tag_keys) => {
                     // TODO: Should these be batched? If so, how?
-                    let tag_keys: Vec<_> = tag_keys_iter.map(|s| s.into_bytes()).collect();
+                    let tag_keys: Vec<_> = tag_keys.into_iter().map(|s| s.into_bytes()).collect();
                     tx.send(Ok(StringValuesResponse { values: tag_keys }))
                         .await
                         .unwrap();
@@ -205,26 +227,37 @@ impl Storage for GrpcServer {
     ) -> Result<tonic::Response<Self::TagValuesStream>, Status> {
         let (mut tx, rx) = mpsc::channel(4);
 
-        let tag_values_request = req.get_ref();
+        let tag_values_request = req.into_inner();
 
-        let _org_id = tag_values_request.org_id()?;
-        let bucket = tag_values_request.bucket(&self.app.db)?;
-        let predicate = tag_values_request.predicate.clone();
-        let _range = tag_values_request.range.as_ref();
+        let org_id = tag_values_request.org_id()?;
+        let bucket_id = tag_values_request.bucket_id()?;
+        let predicate = tag_values_request.predicate;
+        let range = tag_values_request.range;
 
         let tag_key = tag_values_request.tag_key.clone();
 
         let app = self.app.clone();
 
         tokio::spawn(async move {
-            match app.db.get_tag_values(&bucket, &tag_key, predicate.as_ref()) {
+            match app
+                .db
+                .get_tag_values(
+                    org_id,
+                    bucket_id,
+                    &tag_key,
+                    predicate.as_ref(),
+                    range.as_ref(),
+                )
+                .await
+            {
                 Err(_) => tx
                     .send(Err(Status::internal("could not query for tag values")))
                     .await
                     .unwrap(),
-                Ok(tag_values_iter) => {
+                Ok(tag_values) => {
                     // TODO: Should these be batched? If so, how?
-                    let tag_values: Vec<_> = tag_values_iter.map(|s| s.into_bytes()).collect();
+                    let tag_values: Vec<_> =
+                        tag_values.into_iter().map(|s| s.into_bytes()).collect();
                     tx.send(Ok(StringValuesResponse { values: tag_values }))
                         .await
                         .unwrap();
@@ -246,76 +279,65 @@ impl Storage for GrpcServer {
 async fn send_series_filters(
     mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
     app: Arc<App>,
-    bucket: &Bucket,
-    predicate: Option<&Predicate>,
+    org_id: u32,
+    bucket_id: u32,
+    predicate: &Predicate,
     range: &TimestampRange,
 ) -> Result<(), Status> {
-    let filter_iter = app
+    let batches = app
         .db
-        .read_series_matching_predicate_and_range(&bucket, predicate, Some(range))
-        .map_err(|e| Status::internal(format!("could not query for filters: {}", e)))?;
+        .read_points(org_id, bucket_id, predicate, range)
+        .await
+        .map_err(|err| Status::internal(format!("error reading db: {}", err)))?;
 
-    for series_filter in filter_iter {
-        let tags = series_filter.tags();
-        let data_type = match series_filter.series_type {
-            SeriesDataType::F64 => DataType::Float,
-            SeriesDataType::I64 => DataType::Integer,
-        } as _;
-        let series = SeriesFrame { data_type, tags };
-        let data = Data::Series(series);
-        let data = Some(data);
-        let frame = Frame { data };
-        let frames = vec![frame];
-        let series_frame_response_header = Ok(ReadResponse { frames });
+    let mut last_frame_key = String::new();
 
-        tx.send(series_frame_response_header).await.unwrap();
+    for batch in batches {
+        // only send the series frame header if we haven't sent it for this key. We have to do
+        // this because a single series key can be spread out over multiple ReadBatches, which
+        // should each be sent as their own data frames
+        if last_frame_key != batch.key {
+            last_frame_key = batch.key.clone();
+            let tags = index_pairs(&batch.key)
+                .map_err(|err| Status::invalid_argument(err.to_string()))?
+                .into_iter()
+                .map(|p| Tag {
+                    key: p.key.bytes().collect(),
+                    value: p.value.bytes().collect(),
+                })
+                .collect();
 
-        // TODO: Should this match https://github.com/influxdata/influxdb/blob/d96f3dc5abb6bb187374caa9e7c7a876b4799bd2/storage/reads/response_writer.go#L21 ?
-        const BATCH_SIZE: usize = 1;
+            let data_type = match batch.values {
+                ReadValues::F64(_) => DataType::Float,
+                ReadValues::I64(_) => DataType::Integer,
+            } as _;
+            let series = SeriesFrame { data_type, tags };
+            let data = Data::Series(series);
+            let data = Some(data);
+            let frame = Frame { data };
+            let frames = vec![frame];
+            let series_frame_response_header = Ok(ReadResponse { frames });
 
-        match series_filter.series_type {
-            SeriesDataType::F64 => {
-                let iter = app
-                    .db
-                    .read_f64_range(&bucket, &series_filter, &range, BATCH_SIZE)
-                    .map_err(|e| {
-                        Status::internal(format!("could not query for SeriesFilter data: {}", e))
-                    })?;
+            tx.send(series_frame_response_header).await.unwrap();
+        }
 
-                let frames = iter
-                    .map(|batch| {
-                        // TODO: Performance hazard; splitting this vector is non-ideal
-                        let (timestamps, values) =
-                            batch.into_iter().map(|p| (p.time, p.value)).unzip();
-                        let frame = FloatPointsFrame { timestamps, values };
-                        let data = Data::FloatPoints(frame);
-                        let data = Some(data);
-                        Frame { data }
-                    })
-                    .collect();
+        match batch.values {
+            ReadValues::F64(values) => {
+                let (timestamps, values) = values.into_iter().map(|p| (p.time, p.value)).unzip();
+                let frame = FloatPointsFrame { timestamps, values };
+                let data = Data::FloatPoints(frame);
+                let data = Some(data);
+                let frames = vec![Frame { data }];
                 let data_frame_response = Ok(ReadResponse { frames });
 
                 tx.send(data_frame_response).await.unwrap();
             }
-            SeriesDataType::I64 => {
-                let iter = app
-                    .db
-                    .read_i64_range(&bucket, &series_filter, &range, BATCH_SIZE)
-                    .map_err(|e| {
-                        Status::internal(format!("could not query for SeriesFilter data: {}", e))
-                    })?;
-
-                let frames = iter
-                    .map(|batch| {
-                        // TODO: Performance hazard; splitting this vector is non-ideal
-                        let (timestamps, values) =
-                            batch.into_iter().map(|p| (p.time, p.value)).unzip();
-                        let frame = IntegerPointsFrame { timestamps, values };
-                        let data = Data::IntegerPoints(frame);
-                        let data = Some(data);
-                        Frame { data }
-                    })
-                    .collect();
+            ReadValues::I64(values) => {
+                let (timestamps, values) = values.into_iter().map(|p| (p.time, p.value)).unzip();
+                let frame = IntegerPointsFrame { timestamps, values };
+                let data = Data::IntegerPoints(frame);
+                let data = Some(data);
+                let frames = vec![Frame { data }];
                 let data_frame_response = Ok(ReadResponse { frames });
 
                 tx.send(data_frame_response).await.unwrap();

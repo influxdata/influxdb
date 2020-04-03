@@ -3,15 +3,14 @@
 #[macro_use]
 extern crate log;
 
-use delorean::delorean::Bucket;
 use delorean::delorean::{
     delorean_server::DeloreanServer, storage_server::StorageServer, TimestampRange,
 };
 use delorean::line_parser;
 use delorean::line_parser::index_pairs;
 use delorean::storage::database::Database;
+use delorean::storage::partitioned_store::ReadValues;
 use delorean::storage::predicate::parse_predicate;
-use delorean::storage::SeriesDataType;
 use delorean::time::{parse_duration, time_as_i64_nanos};
 
 use std::env::VarError;
@@ -48,33 +47,20 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applica
     let write_info: WriteInfo =
         serde_urlencoded::from_str(query).map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    let maybe_bucket = app
+    let bucket_id = app
         .db
-        .get_bucket_by_name(write_info.org_id, &write_info.bucket_name)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let bucket = match maybe_bucket {
-        Some(b) => b,
-        None => {
-            // create this as the default bucket
-            let b = Bucket {
-                org_id: write_info.org_id,
-                id: 0,
-                name: write_info.bucket_name.clone(),
-                retention: "0".to_string(),
-                posting_list_rollover: 10_000,
-                index_levels: vec![],
-            };
-
-            app.db
-                .create_bucket_if_not_exists(write_info.org_id, &b)
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            app.db
-                .get_bucket_by_name(write_info.org_id, &write_info.bucket_name)
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-                .expect("Bucket should have just been created")
-        }
-    };
+        .get_bucket_id_by_name(write_info.org_id, &write_info.bucket_name)
+        .await
+        .map_err(|e| {
+            debug!("Error getting bucket id: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or_else(|| {
+            ApplicationError::new(
+                StatusCode::NOT_FOUND,
+                &format!("bucket {} not found", write_info.bucket_name),
+            )
+        })?;
 
     let mut payload = req.into_body();
 
@@ -96,8 +82,12 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applica
     let mut points = line_parser::parse(body).expect("TODO: Unable to parse lines");
 
     app.db
-        .write_points(write_info.org_id, &bucket, &mut points)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .write_points(write_info.org_id, bucket_id, &mut points)
+        .await
+        .map_err(|e| {
+            debug!("Error writing points: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     Ok(serde_json::json!(()).to_string().into())
 }
@@ -152,34 +142,30 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applicat
 
     let range = TimestampRange { start, end };
 
-    let maybe_bucket = app
+    let bucket_id = app
         .db
-        .get_bucket_by_name(read_info.org_id, &read_info.bucket_name)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let bucket = match maybe_bucket {
-        Some(b) => b,
-        None => {
-            return Err(ApplicationError::new(
+        .get_bucket_id_by_name(read_info.org_id, &read_info.bucket_name)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or_else(|| {
+            ApplicationError::new(
                 StatusCode::NOT_FOUND,
                 &format!("bucket {} not found", read_info.bucket_name),
-            ));
-        }
-    };
+            )
+        })?;
 
-    let series = app
+    let batches = app
         .db
-        .read_series_matching_predicate_and_range(&bucket, Some(&predicate), Some(&range))
+        .read_points(read_info.org_id, bucket_id, &predicate, &range)
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let db = &app.db;
 
     let mut response_body = vec![];
 
-    for s in series {
+    for batch in batches {
         let mut wtr = Writer::from_writer(vec![]);
 
-        let pairs = index_pairs(&s.key).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let pairs = index_pairs(&batch.key).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
         let mut cols = Vec::with_capacity(pairs.len() + 2);
         let mut vals = Vec::with_capacity(pairs.len() + 2);
@@ -200,40 +186,26 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applicat
 
         wtr.write_record(&cols).unwrap();
 
-        match s.series_type {
-            SeriesDataType::I64 => {
-                let points = db
-                    .read_i64_range(&bucket, &s, &range, 10)
-                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-                for batch in points {
-                    for p in batch {
-                        let t = p.time.to_string();
-                        let v = p.value.to_string();
-                        vals[vcol] = v;
-                        vals[tcol] = t;
-
-                        wtr.write_record(&vals).unwrap();
-                    }
+        match batch.values {
+            ReadValues::I64(values) => {
+                for val in values {
+                    let t = val.time.to_string();
+                    let v = val.value.to_string();
+                    vals[vcol] = v;
+                    vals[tcol] = t;
+                    wtr.write_record(&vals).unwrap();
                 }
             }
-            SeriesDataType::F64 => {
-                let points = db
-                    .read_f64_range(&bucket, &s, &range, 10)
-                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-                for batch in points {
-                    for p in batch {
-                        let t = p.time.to_string();
-                        let v = p.value.to_string();
-                        vals[vcol] = v;
-                        vals[tcol] = t;
-
-                        wtr.write_record(&vals).unwrap();
-                    }
+            ReadValues::F64(values) => {
+                for val in values {
+                    let t = val.time.to_string();
+                    let v = val.value.to_string();
+                    vals[vcol] = v;
+                    vals[tcol] = t;
+                    wtr.write_record(&vals).unwrap();
                 }
             }
-        };
+        }
 
         let mut data = wtr
             .into_inner()

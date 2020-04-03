@@ -26,10 +26,20 @@ pub trait SeriesStore: Sync + Send {
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>> + Send>, StorageError>;
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ReadPoint<T: Clone> {
     pub time: i64,
     pub value: T,
+}
+
+impl<T: Copy + Clone> From<&'_ crate::line_parser::Point<T>> for ReadPoint<T> {
+    fn from(other: &'_ crate::line_parser::Point<T>) -> Self {
+        let crate::line_parser::Point { time, value, .. } = other;
+        Self {
+            time: *time,
+            value: *value,
+        }
+    }
 }
 
 // Test helpers for other implementations to run
