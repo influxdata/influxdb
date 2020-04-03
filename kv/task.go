@@ -131,9 +131,11 @@ func (s *Service) findTaskByIDWithAuth(ctx context.Context, tx Tx, id influxdb.I
 		Status: influxdb.Active,
 		ID:     influxdb.ID(1),
 		OrgID:  t.OrganizationID,
+		UserID: t.OwnerID,
 	}
 
 	if t.OwnerID.Valid() {
+		ctx = icontext.SetAuthorizer(ctx, t.Authorization)
 		// populate task Auth
 		ps, err := s.maxPermissions(ctx, tx, t.OwnerID)
 		if err != nil {

@@ -280,10 +280,15 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		Flux:            fmt.Sprintf(scriptFmt, 0),
 		Type:            influxdb.TaskSystemType,
 	}
+
+	// tasks sets user id on authorization to that
+	// of the tasks owner
+	want.Authorization.UserID = tsk.OwnerID
+
 	for fn, f := range found {
 		if diff := cmp.Diff(f, want); diff != "" {
 			t.Logf("got: %+#v", f)
-			t.Fatalf("expected %s task to be consistant: -got/+want: %s", fn, diff)
+			t.Errorf("expected %s task to be consistant: -got/+want: %s", fn, diff)
 		}
 	}
 
