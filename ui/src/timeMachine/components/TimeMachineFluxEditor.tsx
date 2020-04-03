@@ -4,10 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import FluxEditor from 'src/shared/components/FluxMonacoEditor'
-import Threesizer from 'src/shared/components/threesizer/Threesizer'
-import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
-import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
-import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
+import FluxToolbar from 'src/timeMachine/components/FluxToolbar'
 
 // Actions
 import {setActiveQueryText} from 'src/timeMachine/actions'
@@ -19,9 +16,6 @@ import {
   formatFunctionForInsert,
   generateImport,
 } from 'src/timeMachine/utils/insertFunction'
-
-// Constants
-import {HANDLE_VERTICAL, HANDLE_NONE} from 'src/shared/constants'
 
 // Types
 import {AppState, FluxToolbarFunction, EditorType} from 'src/types'
@@ -44,16 +38,7 @@ const TimeMachineFluxEditor: FC<Props> = ({
   onSetActiveQueryText,
   activeTab,
 }) => {
-  const [displayFluxFunctions, setDisplayFluxFunctions] = useState(true)
   const [editorInstance, setEditorInstance] = useState<EditorType>(null)
-
-  const showFluxFunctions = () => {
-    setDisplayFluxFunctions(true)
-  }
-
-  const hideFluxFunctions = () => {
-    setDisplayFluxFunctions(false)
-  }
 
   const handleInsertVariable = (variableName: string): void => {
     const p = editorInstance.getPosition()
@@ -112,58 +97,23 @@ const TimeMachineFluxEditor: FC<Props> = ({
     onSetActiveQueryText(editorInstance.getValue())
   }
 
-  const divisions = [
-    {
-      size: 0.75,
-      handleDisplay: HANDLE_NONE,
-      render: () => {
-        return (
-          <FluxEditor
-            script={activeQueryText}
-            onChangeScript={onSetActiveQueryText}
-            onSubmitScript={onSubmitQueries}
-            setEditorInstance={setEditorInstance}
-          />
-        )
-      },
-    },
-    {
-      render: () => {
-        return (
-          <>
-            <div className="toolbar-tab-container">
-              {activeTab !== 'customCheckQuery' && (
-                <ToolbarTab
-                  onSetActive={hideFluxFunctions}
-                  name="Variables"
-                  active={!displayFluxFunctions}
-                />
-              )}
-              <ToolbarTab
-                onSetActive={showFluxFunctions}
-                name="Functions"
-                active={displayFluxFunctions}
-                testID="functions-toolbar-tab"
-              />
-            </div>
-            {displayFluxFunctions ? (
-              <FluxFunctionsToolbar
-                onInsertFluxFunction={handleInsertFluxFunction}
-              />
-            ) : (
-              <VariableToolbar onClickVariable={handleInsertVariable} />
-            )}
-          </>
-        )
-      },
-      handlePixels: 6,
-      size: 0.25,
-    },
-  ]
-
   return (
-    <div className="time-machine-flux-editor">
-      <Threesizer orientation={HANDLE_VERTICAL} divisions={divisions} />
+    <div className="flux-editor">
+      <div className="flux-editor--left-panel">
+        <FluxEditor
+          script={activeQueryText}
+          onChangeScript={onSetActiveQueryText}
+          onSubmitScript={onSubmitQueries}
+          setEditorInstance={setEditorInstance}
+        />
+      </div>
+      <div className="flux-editor--right-panel">
+        <FluxToolbar
+          activeQueryBuilderTab={activeTab}
+          onInsertFluxFunction={handleInsertFluxFunction}
+          onInsertVariable={handleInsertVariable}
+        />
+      </div>
     </div>
   )
 }

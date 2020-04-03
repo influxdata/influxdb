@@ -22,7 +22,7 @@ var replFlags struct {
 }
 
 func cmdREPL(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("repl", replF)
+	cmd := opt.newCmd("repl", replF, true)
 	cmd.Short = "Interactive Flux REPL (read-eval-print-loop)"
 	cmd.Args = cobra.NoArgs
 
@@ -36,7 +36,7 @@ func replF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("local flag not supported for repl command")
 	}
 
-	if err := replFlags.org.validOrgFlags(); err != nil {
+	if err := replFlags.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 
@@ -46,8 +46,8 @@ func replF(cmd *cobra.Command, args []string) error {
 				ID:   replFlags.org.id,
 				Name: replFlags.org.name,
 			},
-			Host:  &flags.host,
-			Token: &flags.token,
+			Host:  &flags.Host,
+			Token: &flags.Token,
 		},
 	)
 	runtime.FinalizeBuiltIns()

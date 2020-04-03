@@ -364,6 +364,7 @@ describe('resourceToTemplate', () => {
                           {
                             key: '_measurement',
                             values: [],
+                            aggregateFunctionType: 'filter',
                           },
                         ],
                         functions: [],

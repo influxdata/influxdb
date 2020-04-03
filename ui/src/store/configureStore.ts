@@ -12,6 +12,7 @@ import persistStateEnhancer from './persistStateEnhancer'
 // v2 reducers
 import meReducer from 'src/shared/reducers/me'
 import currentDashboardReducer from 'src/shared/reducers/currentDashboard'
+import currentPageReducer from 'src/shared/reducers/currentPage'
 import tasksReducer from 'src/tasks/reducers'
 import rangesReducer from 'src/dashboards/reducers/ranges'
 import {dashboardsReducer} from 'src/dashboards/reducers/dashboards'
@@ -34,6 +35,7 @@ import {userSettingsReducer} from 'src/userSettings/reducers'
 import {membersReducer} from 'src/members/reducers'
 import {autoRefreshReducer} from 'src/shared/reducers/autoRefresh'
 import {limitsReducer, LimitsState} from 'src/cloud/reducers/limits'
+import {demoDataReducer, DemoDataState} from 'src/cloud/reducers/demodata'
 import checksReducer from 'src/checks/reducers'
 import rulesReducer from 'src/notifications/rules/reducers'
 import endpointsReducer from 'src/notifications/endpoints/reducers'
@@ -55,7 +57,11 @@ export const rootReducer = combineReducers<ReducerState>({
   ...sharedReducers,
   autoRefresh: autoRefreshReducer,
   alertBuilder: alertBuilderReducer,
-  cloud: combineReducers<{limits: LimitsState}>({limits: limitsReducer}),
+  cloud: combineReducers<{limits: LimitsState; demoData: DemoDataState}>({
+    limits: limitsReducer,
+    demoData: demoDataReducer,
+  }),
+  currentPage: currentPageReducer,
   currentDashboard: currentDashboardReducer,
   dataLoading: dataLoadingReducer,
   me: meReducer,

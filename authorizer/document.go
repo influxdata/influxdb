@@ -41,14 +41,17 @@ type documentStore struct {
 	s influxdb.DocumentStore
 }
 
-func newDocumentOrgPermission(a influxdb.Action, orgID influxdb.ID) (*influxdb.Permission, error) {
+func newDocumentPermission(a influxdb.Action, orgID influxdb.ID, did *influxdb.ID) (*influxdb.Permission, error) {
+	if did != nil {
+		return influxdb.NewPermissionAtID(*did, a, influxdb.DocumentsResourceType, orgID)
+	}
 	return influxdb.NewPermission(a, influxdb.DocumentsResourceType, orgID)
 }
 
-func toPerms(orgs map[influxdb.ID]influxdb.UserType, action influxdb.Action) ([]influxdb.Permission, error) {
+func toPerms(action influxdb.Action, orgs map[influxdb.ID]influxdb.UserType, did *influxdb.ID) ([]influxdb.Permission, error) {
 	ps := make([]influxdb.Permission, 0, len(orgs))
 	for orgID := range orgs {
-		p, err := newDocumentOrgPermission(action, orgID)
+		p, err := newDocumentPermission(action, orgID, did)
 		if err != nil {
 			return nil, err
 		}
@@ -61,7 +64,7 @@ func (s *documentStore) CreateDocument(ctx context.Context, d *influxdb.Document
 	if len(d.Organizations) == 0 {
 		return fmt.Errorf("cannot authorize document creation without any orgID")
 	}
-	ps, err := toPerms(d.Organizations, influxdb.WriteAction)
+	ps, err := toPerms(influxdb.WriteAction, d.Organizations, nil)
 	if err != nil {
 		return err
 	}
@@ -76,7 +79,7 @@ func (s *documentStore) FindDocument(ctx context.Context, id influxdb.ID) (*infl
 	if err != nil {
 		return nil, err
 	}
-	ps, err := toPerms(d.Organizations, influxdb.ReadAction)
+	ps, err := toPerms(influxdb.ReadAction, d.Organizations, &id)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +98,7 @@ func (s *documentStore) UpdateDocument(ctx context.Context, d *influxdb.Document
 		}
 		d.Organizations = ds.Organizations
 	}
-	ps, err := toPerms(d.Organizations, influxdb.WriteAction)
+	ps, err := toPerms(influxdb.WriteAction, d.Organizations, &d.ID)
 	if err != nil {
 		return err
 	}
@@ -110,7 +113,7 @@ func (s *documentStore) DeleteDocument(ctx context.Context, id influxdb.ID) erro
 	if err != nil {
 		return err
 	}
-	ps, err := toPerms(d.Organizations, influxdb.WriteAction)
+	ps, err := toPerms(influxdb.WriteAction, d.Organizations, &id)
 	if err != nil {
 		return err
 	}
@@ -133,7 +136,7 @@ func (s *documentStore) findDocs(ctx context.Context, action influxdb.Action, op
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	fds := ds[:0]
 	for _, d := range ds {
-		ps, err := toPerms(d.Organizations, action)
+		ps, err := toPerms(action, d.Organizations, &d.ID)
 		if err != nil {
 			return nil, err
 		}

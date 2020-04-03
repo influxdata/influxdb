@@ -10,6 +10,7 @@ import {
   Page,
 } from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 
 // Types
 import {LimitStatus} from 'src/cloud/actions/limits'
@@ -37,6 +38,7 @@ export default class TasksHeader extends PureComponent<Props> {
       <>
         <Page.Header fullWidth={false}>
           <Page.Title title="Tasks" />
+          <CloudUpgradeButton />
         </Page.Header>
         <Page.ControlBar fullWidth={false}>
           <Page.ControlBarLeft>

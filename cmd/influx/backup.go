@@ -10,12 +10,11 @@ import (
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"go.uber.org/multierr"
 )
 
 func cmdBackup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("backup", backupF)
+	cmd := opt.newCmd("backup", backupF, false)
 	cmd.Short = "Backup the data in InfluxDB"
 	cmd.Long = fmt.Sprintf(
 		`Backs up data and meta data for the running InfluxDB instance.
@@ -43,20 +42,10 @@ var backupFlags struct {
 	Path string
 }
 
-func init() {
-	err := viper.BindEnv("PATH")
-	if err != nil {
-		panic(err)
-	}
-	if h := viper.GetString("PATH"); h != "" {
-		backupFlags.Path = h
-	}
-}
-
 func newBackupService() (influxdb.BackupService, error) {
 	return &http.BackupService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:  flags.Host,
+		Token: flags.Token,
 	}, nil
 }
 

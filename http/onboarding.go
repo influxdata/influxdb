@@ -83,7 +83,7 @@ func (h *SetupHandler) handlePostSetup(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	results, err := h.OnboardingService.Generate(ctx, req)
+	results, err := h.OnboardingService.OnboardInitialUser(ctx, req)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -166,8 +166,8 @@ func (s *SetupService) IsOnboarding(ctx context.Context) (bool, error) {
 	return ir.Allowed, nil
 }
 
-// Generate OnboardingResults.
-func (s *SetupService) Generate(ctx context.Context, or *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
+// OnboardInitialUser OnboardingResults.
+func (s *SetupService) OnboardInitialUser(ctx context.Context, or *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
 	u, err := NewURL(s.Addr, prefixSetup)
 	if err != nil {
 		return nil, err

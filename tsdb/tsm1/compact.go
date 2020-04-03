@@ -28,7 +28,7 @@ import (
 
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/pkg/limiter"
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 const maxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
@@ -1612,11 +1612,11 @@ type tsmBatchKeyIterator struct {
 	buf []blocks
 
 	// mergeValues are decoded blocks that have been combined
-	mergedFloatValues    *tsdb.FloatArray
-	mergedIntegerValues  *tsdb.IntegerArray
-	mergedUnsignedValues *tsdb.UnsignedArray
-	mergedBooleanValues  *tsdb.BooleanArray
-	mergedStringValues   *tsdb.StringArray
+	mergedFloatValues    *cursors.FloatArray
+	mergedIntegerValues  *cursors.IntegerArray
+	mergedUnsignedValues *cursors.UnsignedArray
+	mergedBooleanValues  *cursors.BooleanArray
+	mergedStringValues   *cursors.StringArray
 
 	// merged are encoded blocks that have been combined or used as is
 	// without decode
@@ -1640,11 +1640,11 @@ func NewTSMBatchKeyIterator(size int, fast bool, interrupt chan struct{}, reader
 		iterators:            iter,
 		fast:                 fast,
 		buf:                  make([]blocks, len(iter)),
-		mergedFloatValues:    &tsdb.FloatArray{},
-		mergedIntegerValues:  &tsdb.IntegerArray{},
-		mergedUnsignedValues: &tsdb.UnsignedArray{},
-		mergedBooleanValues:  &tsdb.BooleanArray{},
-		mergedStringValues:   &tsdb.StringArray{},
+		mergedFloatValues:    &cursors.FloatArray{},
+		mergedIntegerValues:  &cursors.IntegerArray{},
+		mergedUnsignedValues: &cursors.UnsignedArray{},
+		mergedBooleanValues:  &cursors.BooleanArray{},
+		mergedStringValues:   &cursors.StringArray{},
 		interrupt:            interrupt,
 	}, nil
 }

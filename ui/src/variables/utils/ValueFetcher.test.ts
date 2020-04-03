@@ -17,7 +17,7 @@ describe('extractValues', () => {
     const expected = {
       values: ['_field', '_measurement', 'arch', 'build_date', 'commit'],
       valueType: 'string',
-      selectedValue: '_field',
+      selected: ['_field'],
     }
 
     expect(actual).toEqual(expected)
@@ -29,7 +29,7 @@ describe('extractValues', () => {
     const expected = {
       values: ['_field', '_measurement', 'arch', 'build_date', 'commit'],
       valueType: 'string',
-      selectedValue: 'arch',
+      selected: ['arch'],
     }
 
     expect(actual).toEqual(expected)
@@ -41,7 +41,7 @@ describe('extractValues', () => {
     const expected = {
       values: ['_field', '_measurement', 'arch', 'build_date', 'commit'],
       valueType: 'string',
-      selectedValue: 'build_date',
+      selected: ['build_date'],
     }
 
     expect(actual).toEqual(expected)

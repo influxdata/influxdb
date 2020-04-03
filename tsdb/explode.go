@@ -3,24 +3,24 @@ package tsdb
 import (
 	"encoding/binary"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 )
 
 // DecodeName converts tsdb internal serialization back to organization and bucket IDs.
-func DecodeName(name [16]byte) (org, bucket platform.ID) {
-	org = platform.ID(binary.BigEndian.Uint64(name[0:8]))
-	bucket = platform.ID(binary.BigEndian.Uint64(name[8:16]))
+func DecodeName(name [16]byte) (org, bucket influxdb.ID) {
+	org = influxdb.ID(binary.BigEndian.Uint64(name[0:8]))
+	bucket = influxdb.ID(binary.BigEndian.Uint64(name[8:16]))
 	return
 }
 
 // DecodeNameSlice converts tsdb internal serialization back to organization and bucket IDs.
-func DecodeNameSlice(name []byte) (org, bucket platform.ID) {
-	return platform.ID(binary.BigEndian.Uint64(name[0:8])), platform.ID(binary.BigEndian.Uint64(name[8:16]))
+func DecodeNameSlice(name []byte) (org, bucket influxdb.ID) {
+	return influxdb.ID(binary.BigEndian.Uint64(name[0:8])), influxdb.ID(binary.BigEndian.Uint64(name[8:16]))
 }
 
 // EncodeName converts org/bucket pairs to the tsdb internal serialization
-func EncodeName(org, bucket platform.ID) [16]byte {
+func EncodeName(org, bucket influxdb.ID) [16]byte {
 	var nameBytes [16]byte
 	binary.BigEndian.PutUint64(nameBytes[0:8], uint64(org))
 	binary.BigEndian.PutUint64(nameBytes[8:16], uint64(bucket))
@@ -28,31 +28,31 @@ func EncodeName(org, bucket platform.ID) [16]byte {
 }
 
 // EncodeNameSlice converts org/bucket pairs to the tsdb internal serialization but returns a byte slice.
-func EncodeNameSlice(org, bucket platform.ID) []byte {
+func EncodeNameSlice(org, bucket influxdb.ID) []byte {
 	buf := EncodeName(org, bucket)
 	return buf[:]
 }
 
 // EncodeOrgName converts org to the tsdb internal serialization that may be used
 // as a prefix when searching for keys matching a specific organization.
-func EncodeOrgName(org platform.ID) [8]byte {
+func EncodeOrgName(org influxdb.ID) [8]byte {
 	var orgBytes [8]byte
 	binary.BigEndian.PutUint64(orgBytes[0:8], uint64(org))
 	return orgBytes
 }
 
 // EncodeNameString converts org/bucket pairs to the tsdb internal serialization
-func EncodeNameString(org, bucket platform.ID) string {
+func EncodeNameString(org, bucket influxdb.ID) string {
 	name := EncodeName(org, bucket)
 	return string(name[:])
 }
 
 // ExplodePoints creates a list of points that only contains one field per point. It also
 // moves the measurement to a tag, and changes the measurement to be the provided argument.
-func ExplodePoints(org, bucket platform.ID, points []models.Point) ([]models.Point, error) {
+func ExplodePoints(org, bucket influxdb.ID, points []models.Point) ([]models.Point, error) {
 	out := make([]models.Point, 0, len(points))
 
-	// TODO(jeff): We should add a RawEncode() method or something to the platform.ID type
+	// TODO(jeff): We should add a RawEncode() method or something to the influxdb.ID type
 	// or we should use hex encoded measurement names. Either way, we shouldn't be doing a
 	// decode of the encode here, and we don't want to depend on details of how the ID type
 	// is represented.

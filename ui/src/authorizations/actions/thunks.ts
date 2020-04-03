@@ -36,10 +36,12 @@ import {
   NotificationAction,
   Authorization,
   AuthEntities,
+  ResourceType,
 } from 'src/types'
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
+import {getStatus} from 'src/resources/selectors'
 
 type GetAuthorizations = (
   dispatch: Dispatch<Action | NotificationAction>,
@@ -50,8 +52,15 @@ export const getAuthorizations = () => async (
   getState: GetState
 ) => {
   try {
-    dispatch(setAuthorizations(RemoteDataState.Loading))
-    const org = getOrg(getState())
+    const state = getState()
+    if (
+      getStatus(state, ResourceType.Authorizations) ===
+      RemoteDataState.NotStarted
+    ) {
+      dispatch(setAuthorizations(RemoteDataState.Loading))
+    }
+
+    const org = getOrg(state)
     const resp = await api.getAuthorizations({query: {orgID: org.id}})
 
     if (resp.status !== 200) {

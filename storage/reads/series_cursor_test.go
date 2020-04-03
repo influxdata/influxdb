@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxql"
 )
 
@@ -31,7 +32,7 @@ func TestPlannerCondition(t *testing.T) {
 		},
 	}
 
-	expr := fmt.Sprintf(`(%[1]s = 'cpu' AND (%[2]s = 'user' OR %[2]s = 'system')) OR (%[1]s = 'mem' AND "_value" = 0)`, measurementKey, fieldKey)
+	expr := fmt.Sprintf(`(%[1]s = 'cpu' AND (%[2]s = 'user' OR %[2]s = 'system')) OR (%[1]s = 'mem' AND "_value" = 0)`, datatypes.MeasurementKey, datatypes.FieldKey)
 	cond, err := parseExpr(expr)
 	if err != nil {
 		t.Fatal("ParseExpr", err)
@@ -61,7 +62,7 @@ func TestPlannerCondition(t *testing.T) {
 	expr = `org_bucket,%[2]s=system,%[1]s=cpu,host=host1
 org_bucket,%[2]s=user,%[1]s=mem,host=host1`
 
-	expr = fmt.Sprintf(expr, measurementKey, fieldKey)
+	expr = fmt.Sprintf(expr, datatypes.MeasurementKey, datatypes.FieldKey)
 
 	exp := strings.Split(expr, "\n")
 	if !cmp.Equal(exp, keys) {
@@ -80,9 +81,9 @@ func parseExpr(expr string) (influxql.Expr, error) {
 	e = influxql.RewriteExpr(e, func(expr influxql.Expr) influxql.Expr {
 		if vr, ok := expr.(*influxql.VarRef); ok {
 			switch vr.Val {
-			case measurementKey:
+			case datatypes.MeasurementKey:
 				vr.Val = models.MeasurementTagKey
-			case fieldKey:
+			case datatypes.FieldKey:
 				vr.Val = models.FieldKeyTagKey
 			}
 		}

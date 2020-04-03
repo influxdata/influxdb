@@ -16,7 +16,8 @@
           "tags": [
             {
               "key": "",
-              "values": []
+              "values": [],
+              "aggregateFunctionType": ""
             }
           ],
           "functions": [],

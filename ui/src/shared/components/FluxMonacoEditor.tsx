@@ -1,5 +1,6 @@
 // Libraries
 import React, {FC, useRef, useState} from 'react'
+import {ProtocolToMonacoConverter} from 'monaco-languageclient/lib/monaco-converter'
 
 // Components
 import MonacoEditor from 'react-monaco-editor'
@@ -17,7 +18,10 @@ import {OnChangeScript} from 'src/types/flux'
 import {EditorType, ResourceType} from 'src/types'
 
 import './FluxMonacoEditor.scss'
+import {editor as monacoEditor} from 'monaco-editor'
+import {Diagnostic} from 'monaco-languageclient/lib/services'
 
+const p2m = new ProtocolToMonacoConverter()
 interface Props {
   script: string
   onChangeScript: OnChangeScript
@@ -32,13 +36,23 @@ const FluxEditorMonaco: FC<Props> = ({
   setEditorInstance,
 }) => {
   const lspServer = useRef<LSPServer>(null)
+  const [editorInst, seteditorInst] = useState<EditorType | null>(null)
   const [docVersion, setdocVersion] = useState(2)
   const [docURI, setDocURI] = useState('')
+
+  const updateDiagnostics = (diagnostics: Diagnostic[]) => {
+    if (editorInst) {
+      const results = p2m.asDiagnostics(diagnostics)
+      monacoEditor.setModelMarkers(editorInst.getModel(), 'default', results)
+    }
+  }
 
   const editorDidMount = async (editor: EditorType) => {
     if (setEditorInstance) {
       setEditorInstance(editor)
     }
+
+    seteditorInst(editor)
 
     const uri = editor.getModel().uri.toString()
 
@@ -55,16 +69,18 @@ const FluxEditorMonaco: FC<Props> = ({
 
     try {
       lspServer.current = await loadServer()
-      lspServer.current.didOpen(uri, script)
+      const diagnostics = await lspServer.current.didOpen(uri, script)
+      updateDiagnostics(diagnostics)
     } catch (e) {
       // TODO: notify user that lsp failed
     }
   }
 
-  const onChange = (text: string) => {
+  const onChange = async (text: string) => {
     onChangeScript(text)
     try {
-      lspServer.current.didChange(docURI, text)
+      const diagnostics = await lspServer.current.didChange(docURI, text)
+      updateDiagnostics(diagnostics)
       setdocVersion(docVersion + 1)
     } catch (e) {
       // TODO: notify user that lsp failed
@@ -72,7 +88,7 @@ const FluxEditorMonaco: FC<Props> = ({
   }
 
   return (
-    <div className="time-machine-editor" data-testid="flux-editor">
+    <div className="flux-editor--monaco" data-testid="flux-editor">
       <GetResources resources={[ResourceType.Buckets]}>
         <FluxBucketProvider />
       </GetResources>

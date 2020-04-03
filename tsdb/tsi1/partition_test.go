@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 )
 
@@ -113,12 +113,12 @@ type Partition struct {
 }
 
 // NewPartition returns a new instance of Partition at a temporary path.
-func NewPartition(sfile *tsdb.SeriesFile) *Partition {
+func NewPartition(sfile *seriesfile.SeriesFile) *Partition {
 	return &Partition{Partition: tsi1.NewPartition(sfile, MustTempPartitionDir())}
 }
 
 // MustOpenPartition returns a new, open index. Panic on error.
-func MustOpenPartition(sfile *tsdb.SeriesFile) *Partition {
+func MustOpenPartition(sfile *seriesfile.SeriesFile) *Partition {
 	p := NewPartition(sfile)
 	if err := p.Open(); err != nil {
 		panic(err)

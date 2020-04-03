@@ -8,7 +8,13 @@ import {client} from 'src/utils/api'
 import {arrayOfScrapers, scraperSchema} from 'src/schemas'
 
 // Types
-import {RemoteDataState, GetState, Scraper, ScraperEntities} from 'src/types'
+import {
+  RemoteDataState,
+  GetState,
+  Scraper,
+  ScraperEntities,
+  ResourceType,
+} from 'src/types'
 import {Dispatch} from 'react'
 
 // Actions
@@ -32,6 +38,7 @@ import {
 
 // Selectors
 import {getOrg} from 'src/organizations/selectors'
+import {getStatus} from 'src/resources/selectors'
 
 type Action = ScraperAction | NotifyAction
 
@@ -40,7 +47,13 @@ export const getScrapers = () => async (
   getState: GetState
 ) => {
   try {
-    const org = getOrg(getState())
+    const state = getState()
+    if (
+      getStatus(state, ResourceType.Scrapers) === RemoteDataState.NotStarted
+    ) {
+      dispatch(setScrapers(RemoteDataState.Loading))
+    }
+    const org = getOrg(state)
 
     dispatch(setScrapers(RemoteDataState.Loading))
 

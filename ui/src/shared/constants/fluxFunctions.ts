@@ -482,9 +482,25 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'csv',
     desc: 'Retrieves data from a comma-separated value (CSV) data source.',
-    example: 'csv.from(file: "/path/to/data-file.csv")',
+    example: 'csv.from(csv: csvData)',
     category: 'Inputs',
     link: 'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/csv/from/',
+  },
+  {
+    name: 'csv.from',
+    args: [
+      {
+        name: 'url',
+        desc: 'The URL to retrieve annotated CSV from.',
+        type: 'String',
+      },
+    ],
+    package: 'experimental/csv',
+    desc: 'Retrieves annotated CSV data from a URL.',
+    example: 'csv.from(url: "http://example.com/data.csv")',
+    category: 'Inputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/csv/from/',
   },
   {
     name: 'cumulativeSum',
@@ -951,6 +967,35 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/group/',
   },
   {
+    name: 'experimental.join',
+    args: [
+      {
+        name: 'left',
+        desc: 'First of two streams of tables to join.',
+        type: 'Stream of tables',
+      },
+      {
+        name: 'right',
+        desc: 'Second of two streams of tables to join.',
+        type: 'Stream of tables',
+      },
+      {
+        name: 'fn',
+        desc:
+          'A function that maps new output rows using left and right input rows.',
+        type: 'Function',
+      },
+    ],
+    package: 'experimental',
+    desc:
+      'Joins two streams of tables on the group key and _time column. Use the fn parameter to map output tables.',
+    example:
+      'experimental.join(left: left, right: right, fn: (left, right) => ({left with lv: left._value, rv: right._value }))',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/join/',
+  },
+  {
     name: 'experimental.objectKeys',
     args: [
       {
@@ -1164,6 +1209,244 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/type-conversions/float/',
   },
   FROM,
+  {
+    name: 'geo.asTracks',
+    args: [
+      {
+        name: 'groupBy',
+        desc: 'Columns to group by. They should uniquely identify each track.',
+        type: 'Array of Strings',
+      },
+      {
+        name: 'orderBy',
+        desc: 'Columns to order results by.',
+        type: 'Array of Strings',
+      },
+    ],
+    package: 'experimental/geo',
+    desc:
+      'Groups geo-temporal data into tracks (sequential, related data points).',
+    example: 'geo.asTracks(groupBy: ["id","tid"], orderBy: ["_time"])',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/astracks/',
+  },
+  {
+    name: 'geo.filterRows',
+    args: [
+      {
+        name: 'region',
+        desc: 'Region containing the desired data points.',
+        type: 'Object',
+      },
+      {
+        name: 'minSize',
+        desc:
+          'Minimum number of cells that cover the specified region. Default is `24`',
+        type: 'Integer',
+      },
+      {
+        name: 'maxSize',
+        desc:
+          'Maximum number of cells that cover the specified region. Default is `-1`.',
+        type: 'Object',
+      },
+      {
+        name: 'level',
+        desc: 'S2 cell level of grid cells. Default is `-1`',
+        type: 'Integer',
+      },
+      {
+        name: 's2CellIDLevel',
+        desc: 'S2 Cell level used in `s2_cell_id` tag. Default is `-1`.',
+        type: 'Integer',
+      },
+      {
+        name: 'correlationKey',
+        desc:
+          'List of columns used to uniquely identify a row for output. Default is `["_time"]`.',
+        type: 'Array of Strings',
+      },
+      {
+        name: 'strict',
+        desc: 'Enable strict geographic data filtering. Default is `true`',
+        type: 'Boolean',
+      },
+    ],
+    package: 'experimental/geo',
+    desc:
+      'Filters data by a specified geographic region with the option of strict filtering.',
+    example:
+      'geo.filterRows(region: {lat: 37.7858229, lon: -122.4058124, radius: 20.0}, strict: true)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/filterrows/',
+  },
+  {
+    name: 'geo.gridFilter',
+    args: [
+      {
+        name: 'region',
+        desc: 'Region containing the desired data points.',
+        type: 'Object',
+      },
+      {
+        name: 'minSize',
+        desc:
+          'Minimum number of cells that cover the specified region. Default is `24`',
+        type: 'Integer',
+      },
+      {
+        name: 'maxSize',
+        desc:
+          'Maximum number of cells that cover the specified region. Default is `-1`.',
+        type: 'Object',
+      },
+      {
+        name: 'level',
+        desc: 'S2 cell level of grid cells. Default is `-1`',
+        type: 'Integer',
+      },
+      {
+        name: 's2CellIDLevel',
+        desc: 'S2 Cell level used in `s2_cell_id` tag. Default is `-1`.',
+        type: 'Integer',
+      },
+    ],
+    package: 'experimental/geo',
+    desc:
+      'Filters data by a specified geographic region using S2 geometry grid cells.',
+    example:
+      'geo.gridFilter(region: {lat: 37.7858229, lon: -122.4058124, radius: 20.0})',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/gridfilter/',
+  },
+  {
+    name: 'geo.groupByArea',
+    args: [
+      {
+        name: 'newColumn',
+        desc:
+          'Name of the new column that stores the unique identifier for a geographic area.',
+        type: 'String',
+      },
+      {
+        name: 'level',
+        desc:
+          'S2 Cell level used to determine the size of each geographic area.',
+        type: 'Integer',
+      },
+      {
+        name: 's2cellIDLevel',
+        desc: 'S2 Cell level used in `s2_cell_id` tag. Default is `-1`.',
+        type: 'Integer',
+      },
+    ],
+    package: 'experimental/geo',
+    desc: 'Groups rows by geographic area using S2 geometry grid cells.',
+    example: 'geo.groupByArea(newColumn: "geoArea", level: 10)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/groupbyarea/',
+  },
+  {
+    name: 'geo.s2CellIDToken',
+    args: [
+      {
+        name: 'point',
+        desc:
+          'Longitude and latitude in decimal degrees (WGS 84) to use when generating the S2 cell ID token. Object must contain `lat` and `lon` properties.',
+        type: 'Object',
+      },
+      {
+        name: 'token',
+        desc: 'S2 cell ID token to update.',
+        type: 'String',
+      },
+      {
+        name: 'level',
+        desc: 'S2 cell level to use when generating the S2 cell ID token.',
+        type: 'Integer',
+      },
+    ],
+    package: 'experimental/geo',
+    desc: 'Returns an S2 cell ID token.',
+    example:
+      'geo.s2CellIDToken(point: {lat: 37.7858229, lon: -122.4058124}, level: 10)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/s2cellidtoken/',
+  },
+  {
+    name: 'geo.shapeData',
+    args: [
+      {
+        name: 'latField',
+        desc: 'Name of existing latitude field.',
+        type: 'String',
+      },
+      {
+        name: 'lonField',
+        desc: 'Name of existing longitude field.',
+        type: 'String',
+      },
+      {
+        name: 'level',
+        desc: 'S2 cell level to use when generating the S2 cell ID token.',
+        type: 'Integer',
+      },
+      {
+        name: 'correlationKey',
+        desc:
+          'List of columns used to uniquely identify a row for output. Default is `["_time"]`.',
+        type: 'Array of Strings',
+      },
+    ],
+    package: 'experimental/geo',
+    desc:
+      'Renames existing latitude and longitude fields to `lat` and `lon` and adds an `s2_cell_id` tag.',
+    example:
+      'geo.shapeData(latField: "latitude", lonField: "longitude", level: 10)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/shapedata/',
+  },
+  {
+    name: 'geo.strictFilter',
+    args: [
+      {
+        name: 'region',
+        desc: 'Region containing the desired data points.',
+        type: 'Object',
+      },
+    ],
+    package: 'experimental/geo',
+    desc: 'Filters data by latitude and longitude in a specified region.',
+    example:
+      'geo.strictFilter(region: {lat: 37.7858229, lon: -122.4058124, radius: 20.0})',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/strictfilter/',
+  },
+  {
+    name: 'geo.toRows',
+    args: [
+      {
+        name: 'correlationKey',
+        desc:
+          'List of columns used to uniquely identify a row for output. Default is `["_time"]`.',
+        type: 'Array of Strings',
+      },
+    ],
+    package: 'experimental/geo',
+    desc:
+      'Pivots geo-temporal data into row-wise sets based on time and other correlation columns.',
+    example: 'geo.toRows(correlationKey: ["_time"])',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/geo/torows/',
+  },
   {
     name: 'getColumn',
     args: [

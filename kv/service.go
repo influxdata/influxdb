@@ -2,6 +2,7 @@ package kv
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/influxdata/influxdb/resource/noop"
@@ -17,11 +18,6 @@ import (
 var (
 	_ influxdb.UserService = (*Service)(nil)
 )
-
-type indexer interface {
-	AddToIndex([]byte, [][]byte)
-	Stop()
-}
 
 // OpPrefix is the prefix for kv errors.
 const OpPrefix = "kv/"
@@ -50,11 +46,13 @@ type Service struct {
 	influxdb.TimeGenerator
 	Hash Crypt
 
-	indexer indexer
-
 	checkStore    *IndexStore
 	endpointStore *IndexStore
 	variableStore *IndexStore
+
+	Migrator *Migrator
+
+	urmByUserIndex *Index
 }
 
 // NewService returns an instance of a Service.
@@ -72,8 +70,38 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		checkStore:     newCheckStore(),
 		endpointStore:  newEndpointStore(),
 		variableStore:  newVariableStore(),
-		indexer:        NewIndexer(log, kv),
+		Migrator:       NewMigrator(log),
+		urmByUserIndex: NewIndex(NewIndexMapping(
+			urmBucket,
+			urmByUserIndexBucket,
+			func(v []byte) ([]byte, error) {
+				var urm influxdb.UserResourceMapping
+				if err := json.Unmarshal(v, &urm); err != nil {
+					return nil, err
+				}
+
+				id, _ := urm.UserID.Encode()
+				return id, nil
+			},
+		)),
 	}
+
+	// kv service migrations
+	s.Migrator.AddMigrations(
+		// initial migration is the state of the world when
+		// the migrator was introduced.
+		NewAnonymousMigration(
+			"initial migration",
+			s.initializeAll,
+			// down is a noop
+			func(context.Context, Store) error {
+				return nil
+			},
+		),
+		// add index user resource mappings by user id
+		s.urmByUserIndex.Migration(),
+		// and new migrations below here (and move this comment down):
+	)
 
 	if len(configs) > 0 {
 		s.Config = configs[0]
@@ -89,19 +117,53 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 	}
 	s.FluxLanguageService = s.Config.FluxLanguageService
 
+	if s.Config.URMByUserIndexReadPathEnabled {
+		WithIndexReadPathEnabled(s.urmByUserIndex)
+	}
+
 	return s
 }
 
 // ServiceConfig allows us to configure Services
 type ServiceConfig struct {
-	SessionLength       time.Duration
-	Clock               clock.Clock
-	FluxLanguageService influxdb.FluxLanguageService
+	SessionLength                 time.Duration
+	Clock                         clock.Clock
+	URMByUserIndexReadPathEnabled bool
+	FluxLanguageService           influxdb.FluxLanguageService
+}
+
+// AutoMigrationStore is a Store which also describes whether or not
+// migrations can be applied automatically.
+// Given the AutoMigrate method is defined and it returns a non-nil kv.Store
+// implementation, then it will automatically invoke migrator.Up(store)
+// on the returned kv.Store during Service.Initialize(...).
+type AutoMigrationStore interface {
+	Store
+	AutoMigrate() Store
 }
 
 // Initialize creates Buckets needed.
 func (s *Service) Initialize(ctx context.Context) error {
-	return s.kv.Update(ctx, func(tx Tx) error {
+	if err := s.Migrator.Initialize(ctx, s.kv); err != nil {
+		return err
+	}
+
+	// if store implements auto migrate and the resulting Store from
+	// AutoMigrate() is non-nil, apply migrator.Up() to the resulting store.
+	if store, ok := s.kv.(AutoMigrationStore); ok {
+		if migrateStore := store.AutoMigrate(); migrateStore != nil {
+			return s.Migrator.Up(ctx, migrateStore)
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) initializeAll(ctx context.Context, store Store) error {
+	// please do not initialize anymore buckets here
+	// add them as a new migration to the list of migrations
+	// defined in NewService.
+	if err := store.Update(ctx, func(tx Tx) error {
 		if err := s.initializeAuths(ctx, tx); err != nil {
 			return err
 		}
@@ -188,12 +250,11 @@ func (s *Service) Initialize(ctx context.Context) error {
 		}
 
 		return s.initializeUsers(ctx, tx)
-	})
+	}); err != nil {
+		return err
+	}
 
-}
-
-func (s *Service) Stop() {
-	s.indexer.Stop()
+	return nil
 }
 
 // WithResourceLogger sets the resource audit logger for the service.

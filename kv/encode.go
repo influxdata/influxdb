@@ -47,3 +47,10 @@ func EncID(id influxdb.ID) EncodeFn {
 		return id.Encode()
 	}
 }
+
+// EncBytes is a basic pass through for providing raw bytes.
+func EncBytes(b []byte) EncodeFn {
+	return func() ([]byte, error) {
+		return b, nil
+	}
+}

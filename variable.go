@@ -123,7 +123,7 @@ func (m *Variable) Valid() error {
 		"query":    true,
 	}
 
-	if !validTypes[m.Arguments.Type] {
+	if m.Arguments == nil || !validTypes[m.Arguments.Type] {
 		return fmt.Errorf("invalid arguments type")
 	}
 

@@ -24,10 +24,19 @@ var organizationCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
+	cmp.Comparer(func(x, y *influxdb.Organization) bool {
+		if x == nil && y == nil {
+			return true
+		}
+		if x != nil && y == nil || y != nil && x == nil {
+			return false
+		}
+		return x.Name == y.Name && x.Description == y.Description
+	}),
 	cmp.Transformer("Sort", func(in []*influxdb.Organization) []*influxdb.Organization {
 		out := append([]*influxdb.Organization(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
-			return out[i].ID.String() > out[j].ID.String()
+			return out[i].Name > out[j].Name
 		})
 		return out
 	}),
@@ -629,6 +638,7 @@ func DeleteOrganization(
 		{
 			name: "delete organizations using id that does not exist",
 			fields: OrganizationFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "orgA",

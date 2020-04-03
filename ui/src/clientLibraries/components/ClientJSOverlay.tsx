@@ -25,6 +25,7 @@ const ClientJSOverlay: FunctionComponent<Props> = props => {
   const {
     name,
     url,
+    initializeNPMCodeSnippet,
     initializeClientCodeSnippet,
     executeQueryCodeSnippet,
     writingDataLineProtocolCodeSnippet,
@@ -40,7 +41,8 @@ const ClientJSOverlay: FunctionComponent<Props> = props => {
           GitHub Repository
         </a>
       </p>
-      <br />
+      <h5>Install via NPM</h5>
+      <TemplatedCodeSnippet template={initializeNPMCodeSnippet} label="Code" />
       <h5>Initialize the Client</h5>
       <TemplatedCodeSnippet
         template={initializeClientCodeSnippet}

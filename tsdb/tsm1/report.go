@@ -17,7 +17,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/estimator/hll"
+	"github.com/influxdata/influxdb/pkg/hll"
 	"github.com/influxdata/influxdb/tsdb"
 )
 

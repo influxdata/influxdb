@@ -3,6 +3,7 @@ import CSharpLogo from '../graphics/CSharpLogo'
 import GoLogo from '../graphics/GoLogo'
 import JavaLogo from '../graphics/JavaLogo'
 import JSLogo from '../graphics/JSLogo'
+import PHPLogo from '../graphics/PHPLogo'
 import PythonLogo from '../graphics/PythonLogo'
 import RubyLogo from '../graphics/RubyLogo'
 
@@ -163,14 +164,41 @@ export const clientJSLibrary = {
   name: 'JavaScript/Node.js',
   url: 'https://github.com/influxdata/influxdb-client-js',
   image: JSLogo,
-  initializeClientCodeSnippet: `import Client from '@influxdata/influx'
+  initializeNPMCodeSnippet: `npm i @influxdata/influxdb-client`,
+  initializeClientCodeSnippet: `const {InfluxDB} = require('@influxdata/influxdb-client')
 // You can generate a Token from the "Tokens Tab" in the UI
-const client = new Client('<%= server %>', '<%= token %>')`,
-  executeQueryCodeSnippet: `const query = 'from(bucket: "my_bucket") |> range(start: -1h)'
-const {promise} = client.queries.execute('<%= org %>', query)
-const csv = await promise`,
-  writingDataLineProtocolCodeSnippet: `const data = 'mem,host=host1 used_percent=23.43234543 1556896326' // Line protocol string
-const response = await client.write.create('<%= org %>', '<%= bucket %>', data)`,
+const client = new InfluxDB({url: '<%= server %>', token: '<%= token %>'})`,
+  executeQueryCodeSnippet: `const queryApi = client.getQueryApi('<%= org %>')
+
+const query = 'from(bucket: "my_bucket") |> range(start: -1h)'
+queryApi.queryRows(query, {
+  next(row, tableMeta) {
+    const o = tableMeta.toObject(row)
+    console.log(
+      \`\${o._time} \${o._measurement} in \'\${o.location}\' (\${o.example}): \${o._field}=\${o._value}\`
+    )
+  },
+  error(error) {
+    console.error(error)
+    console.log('\\nFinished ERROR')
+  },
+  complete() {
+    console.log('\\nFinished SUCCESS')
+  },
+})`,
+  writingDataLineProtocolCodeSnippet: `const writeApi = client.getWriteApi('<%= org %>', '<%= bucket %>')
+  
+const data = 'mem,host=host1 used_percent=23.43234543 1556896326' // Line protocol string
+writeApi.writeRecord(data)
+
+writeApi.close()
+    .then(() => {
+        console.log('FINISHED')
+    })
+    .catch(e => {
+        console.error(e)
+        console.log('\\nFinished ERROR')
+    })`,
 }
 
 export const clientPythonLibrary = {
@@ -186,17 +214,19 @@ from influxdb_client import InfluxDBClient
 client = InfluxDBClient(url="<%= server %>", token="<%= token %>")`,
   executeQueryCodeSnippet: `query = 'from(bucket: "<%= bucket %>") |> range(start: -1h)'
 tables = client.query_api().query(query, org="<%= org %>")`,
-  writingDataLineProtocolCodeSnippet: `data = "mem,host=host1 used_percent=23.43234543 1556896326"
-write_client.write("<%= bucket %>", "<%= org %>", data)`,
-  writingDataPointCodeSnippet: `point = Point("mem")
-  .tag("host", "host1")
-  .field("used_percent", 23.43234543)
+  writingDataLineProtocolCodeSnippet: `write_api = client.write_api()
+
+data = "mem,host=host1 used_percent=23.43234543 1556896326"
+write_api.write("<%= bucket %>", "<%= org %>", data)`,
+  writingDataPointCodeSnippet: `point = Point("mem")\\
+  .tag("host", "host1")\\
+  .field("used_percent", 23.43234543)\\
   .time(1556896326, WritePrecision.NS)
 
-write_client.write("<%= bucket %>", "<%= org %>", point)`,
+write_api.write("<%= bucket %>", "<%= org %>", point)`,
   writingDataBatchCodeSnippet: `sequence = ["mem,host=host1 used_percent=23.43234543 1556896326",
             "mem,host=host1 available_percent=15.856523 1556896326"]
-write_client.write("<%= bucket %>", "<%= org %>", sequence)`,
+write_api.write("<%= bucket %>", "<%= org %>", sequence)`,
 }
 
 export const clientRubyLibrary = {
@@ -204,25 +234,27 @@ export const clientRubyLibrary = {
   name: 'Ruby',
   url: 'https://github.com/influxdata/influxdb-client-ruby',
   image: RubyLogo,
-  initializeGemCodeSnippet: `gem install influxdb-client -v 1.0.0.beta`,
+  initializeGemCodeSnippet: `gem install influxdb-client`,
   initializeClientCodeSnippet: `## You can generate a Token from the "Tokens Tab" in the UI
 client = InfluxDB2::Client.new('<%= server %>', '<%= token %>')`,
   executeQueryCodeSnippet: `query = 'from(bucket: "<%= bucket %>") |> range(start: -1h)'
 tables = client.create_query_api.query(query: query, org: '<%= org %>')`,
-  writingDataLineProtocolCodeSnippet: `data = 'mem,host=host1 used_percent=23.43234543 1556896326'
-write_client.write(data: data, bucket: '<%= bucket %>', org: '<%= org %>')`,
+  writingDataLineProtocolCodeSnippet: `write_api = client.create_write_api
+
+data = 'mem,host=host1 used_percent=23.43234543 1556896326'
+write_api.write(data: data, bucket: '<%= bucket %>', org: '<%= org %>')`,
   writingDataPointCodeSnippet: `point = InfluxDB2::Point.new(name: 'mem')
   .add_tag('host', 'host1')
   .add_field('used_percent', 23.43234543)
   .time(1_556_896_326, WritePrecision.NS)
 
-write_client.write(data: point, bucket: '<%= bucket %>', org: '<%= org %>')`,
+write_api.write(data: point, bucket: '<%= bucket %>', org: '<%= org %>')`,
   writingDataHashCodeSnippet: `hash = { name: 'h2o',
   tags: { host: 'aws', region: 'us' },
   fields: { level: 5, saturation: '99%' },
   time: 123 }
 
-write_client.write(data: hash, bucket: '<%= bucket %>', org: '<%= org %>')`,
+write_api.write(data: hash, bucket: '<%= bucket %>', org: '<%= org %>')`,
   writingDataBatchCodeSnippet: `point = InfluxDB2::Point.new(name: 'mem')
   .add_tag('host', 'host1')
   .add_field('used_percent', 23.43234543)
@@ -235,7 +267,39 @@ hash = { name: 'h2o',
   
 data = 'mem,host=host1 used_percent=23.43234543 1556896326'   
             
-write_client.write(data: [point, hash, data], bucket: '<%= bucket %>', org: '<%= org %>')`,
+write_api.write(data: [point, hash, data], bucket: '<%= bucket %>', org: '<%= org %>')`,
+}
+
+export const clientPHPLibrary = {
+  id: 'php',
+  name: 'PHP',
+  url: 'https://github.com/influxdata/influxdb-client-php',
+  image: PHPLogo,
+  initializeComposerCodeSnippet: `composer require influxdata/influxdb-client-php`,
+  initializeClientCodeSnippet: `## You can generate a Token from the "Tokens Tab" in the UI
+$client = new InfluxDB2\\Client([
+  "url" => "<%= server %>",
+  "token" => "<%= token %>",
+]);`,
+  executeQueryCodeSnippet: `$query = 'from(bucket: "<%= bucket %>") |> range(start: -1h)';
+$tables = $client->createQueryApi()->query($query, '<%= org %>');`,
+  writingDataLineProtocolCodeSnippet: `$writeApi = $client->createWriteApi();
+  
+$data = "mem,host=host1 used_percent=23.43234543 1556896326";
+
+$writeApi->write($data, \\InfluxDB2\\Model\\WritePrecision::S, '<%= bucket %>', '<%= org %>');`,
+  writingDataPointCodeSnippet: `$point = \\InfluxDB2\\Point::measurement('mem')
+  ->addTag('host', 'host1')
+  ->addField('used_percent', 23.43234543)
+  ->time(1556896326);
+
+$writeApi->write($point, \\InfluxDB2\\Model\\WritePrecision::S, '<%= bucket %>', '<%= org %>');`,
+  writingDataArrayCodeSnippet: `$dataArray = ['name' => 'cpu',
+  'tags' => ['host' => 'server_nl', 'region' => 'us'],
+  'fields' => ['internal' => 5, 'external' => 6],
+  'time' => microtime(true)];
+
+$writeApi->write($dataArray, \\InfluxDB2\\Model\\WritePrecision::S, '<%= bucket %>', '<%= org %>');`,
 }
 
 export const clientLibraries: ClientLibrary[] = [
@@ -243,6 +307,7 @@ export const clientLibraries: ClientLibrary[] = [
   clientGoLibrary,
   clientJavaLibrary,
   clientJSLibrary,
+  clientPHPLibrary,
   clientPythonLibrary,
   clientRubyLibrary,
 ]

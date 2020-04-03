@@ -11,7 +11,7 @@ import (
 )
 
 func TestBoltOnboardingService(t *testing.T) {
-	influxdbtesting.Generate(initBoltOnboardingService, t)
+	influxdbtesting.OnboardInitialUser(initBoltOnboardingService, t)
 }
 
 func initBoltOnboardingService(f influxdbtesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, func()) {

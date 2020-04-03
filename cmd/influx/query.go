@@ -17,7 +17,7 @@ var queryFlags struct {
 }
 
 func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	cmd := opts.newCmd("query [query literal or @/path/to/query.flux]", fluxQueryF)
+	cmd := opts.newCmd("query [query literal or @/path/to/query.flux]", fluxQueryF, true)
 	cmd.Short = "Execute a Flux query"
 	cmd.Long = `Execute a literal Flux query provided as a string,
 or execute a literal Flux query contained in a file by specifying the file prefixed with an @ sign.`
@@ -33,7 +33,7 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("local flag not supported for query command")
 	}
 
-	if err := queryFlags.org.validOrgFlags(); err != nil {
+	if err := queryFlags.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
 
@@ -48,8 +48,8 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 				ID:   queryFlags.org.id,
 				Name: queryFlags.org.name,
 			},
-			Host:  &flags.host,
-			Token: &flags.token,
+			Host:  &flags.Host,
+			Token: &flags.Token,
 		},
 	)
 	runtime.FinalizeBuiltIns()

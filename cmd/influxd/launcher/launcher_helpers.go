@@ -20,7 +20,6 @@ import (
 	"github.com/influxdata/influxdb/bolt"
 	influxdbcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/pkg/httpc"
 	"github.com/influxdata/influxdb/pkger"
@@ -67,7 +66,7 @@ func NewTestLauncher() *TestLauncher {
 	return l
 }
 
-// RunLauncherOrFail initializes and starts the server.
+// RunTestLauncherOrFail initializes and starts the server.
 func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, args ...string) *TestLauncher {
 	tb.Helper()
 	l := NewTestLauncher()
@@ -79,12 +78,15 @@ func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, args ...string) *
 }
 
 // Run executes the program with additional arguments to set paths and ports.
+// Passed arguments will overwrite/add to the default ones.
 func (tl *TestLauncher) Run(ctx context.Context, args ...string) error {
-	args = append(args, "--bolt-path", filepath.Join(tl.Path, bolt.DefaultFilename))
-	args = append(args, "--engine-path", filepath.Join(tl.Path, "engine"))
-	args = append(args, "--http-bind-address", "127.0.0.1:0")
-	args = append(args, "--log-level", "debug")
-	return tl.Launcher.Run(ctx, args...)
+	largs := make([]string, 0, len(args)+8)
+	largs = append(largs, "--bolt-path", filepath.Join(tl.Path, bolt.DefaultFilename))
+	largs = append(largs, "--engine-path", filepath.Join(tl.Path, "engine"))
+	largs = append(largs, "--http-bind-address", "127.0.0.1:0")
+	largs = append(largs, "--log-level", "debug")
+	largs = append(largs, args...)
+	return tl.Launcher.Run(ctx, largs...)
 }
 
 // Shutdown stops the program and cleans up temporary paths.
@@ -131,7 +133,7 @@ func (tl *TestLauncher) SetupOrFail(tb testing.TB) {
 // OnBoard attempts an on-boarding request.
 // The on-boarding status is also reset to allow multiple user/org/buckets to be created.
 func (tl *TestLauncher) OnBoard(req *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
-	res, err := tl.KeyValueService().Generate(context.Background(), req)
+	res, err := tl.KeyValueService().OnboardInitialUser(context.Background(), req)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +335,7 @@ func (tl *TestLauncher) FluxQueryService() *http.FluxQueryService {
 
 func (tl *TestLauncher) BucketService(tb testing.TB) *http.BucketService {
 	tb.Helper()
-	return &http.BucketService{Client: tl.HTTPClient(tb), OpPrefix: kv.OpPrefix}
+	return &http.BucketService{Client: tl.HTTPClient(tb)}
 }
 
 func (tl *TestLauncher) CheckService() platform.CheckService {
@@ -356,6 +358,10 @@ func (tl *TestLauncher) NotificationEndpointService(tb testing.TB) *http.Notific
 }
 
 func (tl *TestLauncher) NotificationRuleService() platform.NotificationRuleStore {
+	return tl.kvService
+}
+
+func (tl *TestLauncher) OrgService(tb testing.TB) platform.OrganizationService {
 	return tl.kvService
 }
 

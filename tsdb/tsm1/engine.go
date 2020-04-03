@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
@@ -125,7 +126,7 @@ type Engine struct {
 	snapWG   *sync.WaitGroup // waitgroup for running snapshot compactions
 
 	path     string
-	sfile    *tsdb.SeriesFile
+	sfile    *seriesfile.SeriesFile
 	sfileref *lifecycle.Reference
 	logger   *zap.Logger // Logger to be used for important messages
 
@@ -1454,14 +1455,14 @@ func AppendSeriesFieldKeyBytes(dst, seriesKey, field []byte) []byte {
 
 var (
 	blockToFieldType = [8]influxql.DataType{
-		BlockFloat64:  influxql.Float,
-		BlockInteger:  influxql.Integer,
-		BlockBoolean:  influxql.Boolean,
-		BlockString:   influxql.String,
-		BlockUnsigned: influxql.Unsigned,
-		5:             influxql.Unknown,
-		6:             influxql.Unknown,
-		7:             influxql.Unknown,
+		BlockFloat64:   influxql.Float,
+		BlockInteger:   influxql.Integer,
+		BlockBoolean:   influxql.Boolean,
+		BlockString:    influxql.String,
+		BlockUnsigned:  influxql.Unsigned,
+		blockUndefined: influxql.Unknown,
+		6:              influxql.Unknown,
+		7:              influxql.Unknown,
 	}
 )
 

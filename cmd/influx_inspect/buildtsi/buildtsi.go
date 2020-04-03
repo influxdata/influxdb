@@ -13,12 +13,13 @@ import (
 	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"go.uber.org/zap"
 )
 
-func IndexShard(sfile *tsdb.SeriesFile, indexPath, dataDir, walDir string, maxLogFileSize int64, maxCacheSize uint64, batchSize int, log *zap.Logger, verboseLogging bool) error {
+func IndexShard(sfile *seriesfile.SeriesFile, indexPath, dataDir, walDir string, maxLogFileSize int64, maxCacheSize uint64, batchSize int, log *zap.Logger, verboseLogging bool) error {
 	log.Info("Rebuilding shard")
 
 	// Check if shard already has a TSI index.

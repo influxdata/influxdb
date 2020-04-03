@@ -3,6 +3,7 @@ import React, {SFC} from 'react'
 import {connect} from 'react-redux'
 import {FromFluxResult} from '@influxdata/giraffe'
 import {AutoSizer} from 'react-virtualized'
+import classnames from 'classnames'
 
 // Components
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
@@ -20,6 +21,7 @@ import {
   getFillColumnsSelection,
   getSymbolColumnsSelection,
 } from 'src/timeMachine/selectors'
+import {getTimeRange} from 'src/dashboards/selectors'
 
 // Types
 import {
@@ -88,8 +90,14 @@ const TimeMachineVis: SFC<Props> = ({
     symbolColumns,
   }
 
+  const noQueries =
+    loading === RemoteDataState.NotStarted || !viewProperties.queries.length
+  const timeMachineViewClassName = classnames('time-machine--view', {
+    'time-machine--view__empty': noQueries,
+  })
+
   return (
-    <div className="time-machine--view">
+    <div className={timeMachineViewClassName}>
       <ErrorBoundary>
         <EmptyQueryView
           loading={loading}
@@ -123,6 +131,7 @@ const TimeMachineVis: SFC<Props> = ({
               checkThresholds={checkThresholds}
               timeZone={timeZone}
               statuses={statuses}
+              theme="dark"
             />
           )}
         </EmptyQueryView>
@@ -132,6 +141,7 @@ const TimeMachineVis: SFC<Props> = ({
 }
 
 const mstp = (state: AppState): StateProps => {
+  const activeTimeMachine = getActiveTimeMachine(state)
   const {
     isViewingRawData,
     view: {properties: viewProperties},
@@ -142,8 +152,11 @@ const mstp = (state: AppState): StateProps => {
       files,
       statuses,
     },
-    timeRange,
-  } = getActiveTimeMachine(state)
+  } = activeTimeMachine
+  //TODO: replace with activeContext selector
+  const contextID =
+    activeTimeMachine.contextID || state.timeMachines.activeTimeMachineID
+  const timeRange = getTimeRange(state, contextID)
   const {
     alertBuilder: {type: checkType, thresholds: checkThresholds},
   } = state

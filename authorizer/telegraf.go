@@ -23,47 +23,15 @@ func NewTelegrafConfigService(s influxdb.TelegrafConfigStore, urm influxdb.UserR
 	}
 }
 
-func newTelegrafPermission(a influxdb.Action, orgID, id influxdb.ID) (*influxdb.Permission, error) {
-	return influxdb.NewPermissionAtID(id, a, influxdb.TelegrafsResourceType, orgID)
-}
-
-func authorizeReadTelegraf(ctx context.Context, orgID, id influxdb.ID) error {
-	p, err := newTelegrafPermission(influxdb.ReadAction, orgID, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func authorizeWriteTelegraf(ctx context.Context, orgID, id influxdb.ID) error {
-	p, err := newTelegrafPermission(influxdb.WriteAction, orgID, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // FindTelegrafConfigByID checks to see if the authorizer on context has read access to the id provided.
 func (s *TelegrafConfigService) FindTelegrafConfigByID(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
 	tc, err := s.s.FindTelegrafConfigByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeReadTelegraf(ctx, tc.OrgID, id); err != nil {
+	if _, _, err := AuthorizeRead(ctx, influxdb.TelegrafsResourceType, tc.ID, tc.OrgID); err != nil {
 		return nil, err
 	}
-
 	return tc, nil
 }
 
@@ -75,37 +43,14 @@ func (s *TelegrafConfigService) FindTelegrafConfigs(ctx context.Context, filter 
 	if err != nil {
 		return nil, 0, err
 	}
-
-	// This filters without allocating
-	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
-	telegrafs := ts[:0]
-	for _, tc := range ts {
-		err := authorizeReadTelegraf(ctx, tc.OrgID, tc.ID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
-			return nil, 0, err
-		}
-
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
-			continue
-		}
-
-		telegrafs = append(telegrafs, tc)
-	}
-
-	return telegrafs, len(telegrafs), nil
+	return AuthorizeFindTelegrafs(ctx, ts)
 }
 
 // CreateTelegrafConfig checks to see if the authorizer on context has write access to the global telegraf config resource.
 func (s *TelegrafConfigService) CreateTelegrafConfig(ctx context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
-	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.TelegrafsResourceType, tc.OrgID)
-	if err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.TelegrafsResourceType, tc.OrgID); err != nil {
 		return err
 	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
 	return s.s.CreateTelegrafConfig(ctx, tc, userID)
 }
 
@@ -115,11 +60,9 @@ func (s *TelegrafConfigService) UpdateTelegrafConfig(ctx context.Context, id inf
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeWriteTelegraf(ctx, tc.OrgID, id); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.TelegrafsResourceType, tc.ID, tc.OrgID); err != nil {
 		return nil, err
 	}
-
 	return s.s.UpdateTelegrafConfig(ctx, id, upd, userID)
 }
 
@@ -129,10 +72,8 @@ func (s *TelegrafConfigService) DeleteTelegrafConfig(ctx context.Context, id inf
 	if err != nil {
 		return err
 	}
-
-	if err := authorizeWriteTelegraf(ctx, tc.OrgID, id); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.TelegrafsResourceType, tc.ID, tc.OrgID); err != nil {
 		return err
 	}
-
 	return s.s.DeleteTelegrafConfig(ctx, id)
 }

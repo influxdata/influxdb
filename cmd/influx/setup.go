@@ -2,13 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/cmd/influx/config"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
@@ -16,17 +18,21 @@ import (
 )
 
 var setupFlags struct {
-	username  string
-	password  string
-	token     string
-	org       string
-	bucket    string
-	retention time.Duration
-	force     bool
+	bucket      string
+	force       bool
+	hideHeaders bool
+	json        bool
+	name        string
+	org         string
+	password    string
+	retention   time.Duration
+	token       string
+	username    string
 }
 
 func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("setup", setupF)
+	cmd := opt.newCmd("setup", nil, true)
+	cmd.RunE = setupF
 	cmd.Short = "Setup instance with initial user, org, bucket"
 
 	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
@@ -34,8 +40,10 @@ func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().StringVarP(&setupFlags.token, "token", "t", "", "token for username, else auto-generated")
 	cmd.Flags().StringVarP(&setupFlags.org, "org", "o", "", "primary organization name")
 	cmd.Flags().StringVarP(&setupFlags.bucket, "bucket", "b", "", "primary bucket name")
+	cmd.Flags().StringVarP(&setupFlags.name, "name", "n", "", "config name, only required if you already have existing configs")
 	cmd.Flags().DurationVarP(&setupFlags.retention, "retention", "r", -1, "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
+	registerPrintOptions(cmd, &setupFlags.hideHeaders, &setupFlags.json)
 
 	return cmd
 }
@@ -47,27 +55,37 @@ func setupF(cmd *cobra.Command, args []string) error {
 
 	// check if setup is allowed
 	s := &http.SetupService{
-		Addr:               flags.host,
+		Addr:               flags.Host,
 		InsecureSkipVerify: flags.skipVerify,
 	}
-
 	allowed, err := s.IsOnboarding(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to determine if instance has been configured: %v", err)
 	}
 	if !allowed {
-		return fmt.Errorf("instance at %q has already been setup", flags.host)
+		return fmt.Errorf("instance at %q has already been setup", flags.Host)
 	}
 
-	dPath, dir, err := defaultTokenPath()
+	dPath, dir, err := defaultConfigPath()
 	if err != nil {
 		return err
 	}
-
+	localSVC := config.NewLocalConfigSVC(
+		dPath,
+		dir,
+	)
+	existingConfigs := make(config.Configs)
 	if _, err := os.Stat(dPath); err == nil {
-		return &platform.Error{
-			Code: platform.EConflict,
-			Msg:  fmt.Sprintf("token already exists at %s", dPath),
+		existingConfigs, _ = localSVC.ListConfigs()
+		// ignore the error if found nothing
+		if setupFlags.name == "" {
+			return errors.New("flag name is required if you already have existing configs")
+		}
+		if _, ok := existingConfigs[setupFlags.name]; ok {
+			return &influxdb.Error{
+				Code: influxdb.EConflict,
+				Msg:  fmt.Sprintf("config name %q already existed", setupFlags.name),
+			}
 		}
 	}
 
@@ -76,31 +94,47 @@ func setupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to retrieve data to setup instance: %v", err)
 	}
 
-	result, err := s.Generate(context.Background(), req)
+	result, err := s.OnboardInitialUser(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("failed to setup instance: %v", err)
 	}
 
-	err = writeTokenToPath(result.Auth.Token, dPath, dir)
-	if err != nil {
-		return fmt.Errorf("failed to write token to path %q: %v", dPath, err)
+	p := config.DefaultConfig
+	p.Token = result.Auth.Token
+	p.Org = result.Org.Name
+	if len(existingConfigs) > 0 {
+		p.Name = setupFlags.name
+	}
+	if flags.Host != "" {
+		p.Host = flags.Host
 	}
 
-	fmt.Println(string(promptWithColor("Your token has been stored in "+dPath+".", colorCyan)))
+	if _, err = localSVC.CreateConfig(p); err != nil {
+		return fmt.Errorf("failed to write config to path %q: %v", dPath, err)
+	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"User",
-		"Organization",
-		"Bucket",
-	)
-	w.Write(map[string]interface{}{
+	fmt.Println(string(promptWithColor(fmt.Sprintf("Config %s has been stored in %s.", p.Name, dPath), colorCyan)))
+
+	w := cmd.OutOrStdout()
+	if setupFlags.json {
+		return writeJSON(w, map[string]interface{}{
+			"user":         result.User.Name,
+			"organization": result.Org.Name,
+			"bucket":       result.Bucket.Name,
+		})
+	}
+
+	tabW := internal.NewTabWriter(w)
+	defer tabW.Flush()
+
+	tabW.HideHeaders(setupFlags.hideHeaders)
+
+	tabW.WriteHeaders("User", "Organization", "Bucket")
+	tabW.Write(map[string]interface{}{
 		"User":         result.User.Name,
 		"Organization": result.Org.Name,
 		"Bucket":       result.Bucket.Name,
 	})
-
-	w.Flush()
 
 	return nil
 }
@@ -113,15 +147,15 @@ func isInteractive() bool {
 		setupFlags.bucket == ""
 }
 
-func onboardingRequest() (*platform.OnboardingRequest, error) {
+func onboardingRequest() (*influxdb.OnboardingRequest, error) {
 	if isInteractive() {
 		return interactive()
 	}
 	return nonInteractive()
 }
 
-func nonInteractive() (*platform.OnboardingRequest, error) {
-	req := &platform.OnboardingRequest{
+func nonInteractive() (*influxdb.OnboardingRequest, error) {
+	req := &influxdb.OnboardingRequest{
 		User:     setupFlags.username,
 		Password: setupFlags.password,
 		Token:    setupFlags.token,
@@ -133,17 +167,17 @@ func nonInteractive() (*platform.OnboardingRequest, error) {
 	}
 
 	if setupFlags.retention < 0 {
-		req.RetentionPeriod = platform.InfiniteRetention
+		req.RetentionPeriod = influxdb.InfiniteRetention
 	}
 	return req, nil
 }
 
-func interactive() (req *platform.OnboardingRequest, err error) {
+func interactive() (req *influxdb.OnboardingRequest, err error) {
 	ui := &input.UI{
 		Writer: os.Stdout,
 		Reader: os.Stdin,
 	}
-	req = new(platform.OnboardingRequest)
+	req = new(influxdb.OnboardingRequest)
 	fmt.Println(string(promptWithColor(`Welcome to InfluxDB 2.0!`, colorYellow)))
 	if setupFlags.username != "" {
 		req.User = setupFlags.username
@@ -173,7 +207,7 @@ func interactive() (req *platform.OnboardingRequest, err error) {
 		req.RetentionPeriod = uint(setupFlags.retention)
 	} else {
 		for {
-			rpStr := getInput(ui, "Please type your retention period in hours.\r\nOr press ENTER for infinite.", strconv.Itoa(platform.InfiniteRetention))
+			rpStr := getInput(ui, "Please type your retention period in hours.\r\nOr press ENTER for infinite.", strconv.Itoa(influxdb.InfiniteRetention))
 			rp, err := strconv.Atoi(rpStr)
 			if rp >= 0 && err == nil {
 				req.RetentionPeriod = uint(rp)
@@ -205,7 +239,7 @@ func promptWithColor(s string, color []byte) []byte {
 	return append(bb, keyReset...)
 }
 
-func getConfirm(ui *input.UI, or *platform.OnboardingRequest) bool {
+func getConfirm(ui *input.UI, or *influxdb.OnboardingRequest) bool {
 	prompt := promptWithColor("Confirm? (y/n)", colorRed)
 	for {
 		rp := "infinite"

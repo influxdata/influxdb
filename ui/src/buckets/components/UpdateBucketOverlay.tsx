@@ -31,7 +31,7 @@ import {DEFAULT_SECONDS} from 'src/buckets/components/Retention'
 import {getBucketFailed} from 'src/shared/copy/notifications'
 
 //Types
-import {Bucket} from 'src/types'
+import {OwnBucket} from 'src/types'
 
 interface DispatchProps {
   onUpdateBucket: typeof updateBucket
@@ -46,7 +46,7 @@ const UpdateBucketOverlay: FunctionComponent<Props> = ({
   params: {bucketID, orgID},
   router,
 }) => {
-  const [bucketDraft, setBucketDraft] = useState<Bucket>(null)
+  const [bucketDraft, setBucketDraft] = useState<OwnBucket>(null)
 
   const [loadingStatus, setLoadingStatus] = useState(RemoteDataState.Loading)
 
@@ -61,7 +61,7 @@ const UpdateBucketOverlay: FunctionComponent<Props> = ({
         handleClose()
         return
       }
-      setBucketDraft(resp.data as Bucket)
+      setBucketDraft(resp.data as OwnBucket)
 
       const rules = get(resp.data, 'retentionRules', [])
       const rule = rules.find(r => r.type === 'expire')

@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/seriesfile"
 )
 
 // Log errors.
@@ -58,7 +59,7 @@ type LogFile struct {
 	buf        []byte        // marshaling buffer
 	keyBuf     []byte
 
-	sfile    *tsdb.SeriesFile // series lookup
+	sfile    *seriesfile.SeriesFile // series lookup
 	sfileref *lifecycle.Reference
 	size     int64     // tracks current file size
 	modTime  time.Time // tracks last time write occurred
@@ -77,7 +78,7 @@ type LogFile struct {
 }
 
 // NewLogFile returns a new instance of LogFile.
-func NewLogFile(sfile *tsdb.SeriesFile, path string) *LogFile {
+func NewLogFile(sfile *seriesfile.SeriesFile, path string) *LogFile {
 	return &LogFile{
 		sfile: sfile,
 		path:  path,
@@ -455,19 +456,31 @@ func (f *LogFile) TagValueIterator(name, key []byte) TagValueIterator {
 	return tk.TagValueIterator()
 }
 
-// DeleteTagKey adds a tombstone for a tag key to the log file.
-func (f *LogFile) DeleteTagKey(name, key []byte) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
+// deleteTagKey adds a tombstone for a tag key to the log file without a lock.
+func (f *LogFile) deleteTagKey(name, key []byte) error {
 	e := LogEntry{Flag: LogEntryTagKeyTombstoneFlag, Name: name, Key: key}
 	if err := f.appendEntry(&e); err != nil {
 		return err
 	}
 	f.execEntry(&e)
+	return nil
+}
 
-	// Flush buffer and sync to disk.
+// DeleteTagKey adds a tombstone for a tag key to the log file.
+func (f *LogFile) DeleteTagKey(name, key []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.deleteTagKey(name, key); err != nil {
+		return err
+	}
 	return f.FlushAndSync()
+}
+
+// DeleteTagKeyNoSync adds a tombstone for a tag key to the log file without a sync.
+func (f *LogFile) DeleteTagKeyNoSync(name, key []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.deleteTagKey(name, key)
 }
 
 // TagValueSeriesIDSet returns a series iterator for a tag value.
@@ -524,19 +537,32 @@ func (f *LogFile) TagValueN() (n uint64) {
 	return n
 }
 
-// DeleteTagValue adds a tombstone for a tag value to the log file.
-func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
+// deleteTagValue adds a tombstone for a tag value to the log file without a lock.
+func (f *LogFile) deleteTagValue(name, key, value []byte) error {
 	e := LogEntry{Flag: LogEntryTagValueTombstoneFlag, Name: name, Key: key, Value: value}
 	if err := f.appendEntry(&e); err != nil {
 		return err
 	}
 	f.execEntry(&e)
+	return nil
+}
 
-	// Flush buffer and sync to disk.
+// DeleteTagValue adds a tombstone for a tag value to the log file.
+func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.deleteTagValue(name, key, value); err != nil {
+		return err
+	}
 	return f.FlushAndSync()
+}
+
+// DeleteTagValueNoSync adds a tombstone for a tag value to the log file.
+// Caller must call FlushAndSync().
+func (f *LogFile) DeleteTagValueNoSync(name, key, value []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.deleteTagValue(name, key, value)
 }
 
 // AddSeriesList adds a list of series to the log file in bulk.
@@ -607,16 +633,18 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, collection *tsdb.Se
 	return seriesIDs, nil
 }
 
-// DeleteSeriesID adds a tombstone for a series id.
-func (f *LogFile) DeleteSeriesID(id tsdb.SeriesID) error {
+// DeleteSeriesIDs adds a tombstone for a list of series ids.
+func (f *LogFile) DeleteSeriesIDs(ids []tsdb.SeriesID) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	e := LogEntry{Flag: LogEntrySeriesTombstoneFlag, SeriesID: id}
-	if err := f.appendEntry(&e); err != nil {
-		return err
+	for _, id := range ids {
+		e := LogEntry{Flag: LogEntrySeriesTombstoneFlag, SeriesID: id}
+		if err := f.appendEntry(&e); err != nil {
+			return err
+		}
+		f.execEntry(&e)
 	}
-	f.execEntry(&e)
 
 	// Flush buffer and sync to disk.
 	return f.FlushAndSync()
@@ -726,11 +754,11 @@ func (f *LogFile) execDeleteTagValueEntry(e *LogEntry) {
 func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	var seriesKey []byte
 	if e.cached {
-		sz := tsdb.SeriesKeySize(e.name, e.tags)
+		sz := seriesfile.SeriesKeySize(e.name, e.tags)
 		if len(f.keyBuf) < sz {
 			f.keyBuf = make([]byte, 0, sz)
 		}
-		seriesKey = tsdb.AppendSeriesKey(f.keyBuf[:0], e.name, e.tags)
+		seriesKey = seriesfile.AppendSeriesKey(f.keyBuf[:0], e.name, e.tags)
 	} else {
 		seriesKey = f.sfile.SeriesKey(e.SeriesID)
 	}
@@ -748,10 +776,10 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	deleted := e.Flag == LogEntrySeriesTombstoneFlag
 
 	// Read key size.
-	_, remainder := tsdb.ReadSeriesKeyLen(seriesKey)
+	_, remainder := seriesfile.ReadSeriesKeyLen(seriesKey)
 
 	// Read measurement name.
-	name, remainder := tsdb.ReadSeriesKeyMeasurement(remainder)
+	name, remainder := seriesfile.ReadSeriesKeyMeasurement(remainder)
 	mm := f.createMeasurementIfNotExists(name)
 	mm.deleted = false
 	if !deleted {
@@ -761,12 +789,12 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	}
 
 	// Read tag count.
-	tagN, remainder := tsdb.ReadSeriesKeyTagN(remainder)
+	tagN, remainder := seriesfile.ReadSeriesKeyTagN(remainder)
 
 	// Save tags.
 	var k, v []byte
 	for i := 0; i < tagN; i++ {
-		k, v, remainder = tsdb.ReadSeriesKeyTag(remainder)
+		k, v, remainder = seriesfile.ReadSeriesKeyTag(remainder)
 		ts := mm.createTagSetIfNotExists(k)
 		tv := ts.createTagValueIfNotExists(v)
 

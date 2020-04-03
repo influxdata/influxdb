@@ -25,6 +25,24 @@ func MWLogging(log *zap.Logger) SVCMiddleware {
 
 var _ SVC = (*loggingMW)(nil)
 
+func (s *loggingMW) InitStack(ctx context.Context, userID influxdb.ID, newStack Stack) (stack Stack, err error) {
+	defer func(start time.Time) {
+		if err == nil {
+			return
+		}
+
+		s.logger.Error(
+			"failed to init stack",
+			zap.Error(err),
+			zap.Duration("took", time.Since(start)),
+			zap.Stringer("orgID", newStack.OrgID),
+			zap.Stringer("userID", userID),
+			zap.Strings("urls", newStack.URLs),
+		)
+	}(time.Now())
+	return s.next.InitStack(ctx, userID, newStack)
+}
+
 func (s *loggingMW) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (pkg *Pkg, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
@@ -49,7 +67,18 @@ func (s *loggingMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, pkg *
 			)
 			return
 		}
-		s.logger.Info("pkg dry run successful", append(s.summaryLogFields(sum), dur)...)
+
+		var opt ApplyOpt
+		for _, o := range opts {
+			o(&opt)
+		}
+
+		fields := s.summaryLogFields(sum)
+		if opt.StackID != 0 {
+			fields = append(fields, zap.Stringer("stackID", opt.StackID))
+		}
+		fields = append(fields, dur)
+		s.logger.Info("pkg dry run successful", fields...)
 	}(time.Now())
 	return s.next.DryRun(ctx, orgID, userID, pkg, opts...)
 }
@@ -66,7 +95,15 @@ func (s *loggingMW) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *P
 			)
 			return
 		}
-		s.logger.Info("pkg apply successful", append(s.summaryLogFields(sum), dur)...)
+
+		fields := s.summaryLogFields(sum)
+
+		opt := applyOptFromOptFns(opts...)
+		if opt.StackID != 0 {
+			fields = append(fields, zap.Stringer("stackID", opt.StackID))
+		}
+		fields = append(fields, dur)
+		s.logger.Info("pkg apply successful", fields...)
 	}(time.Now())
 	return s.next.Apply(ctx, orgID, userID, pkg, opts...)
 }

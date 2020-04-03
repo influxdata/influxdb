@@ -17,14 +17,14 @@ const FunctionCategory: SFC<Props> = props => {
   const {category, funcs, onClickFunction} = props
 
   return (
-    <dl className="flux-functions-toolbar--category">
-      <dt>{category}</dt>
+    <dl className="flux-toolbar--category">
+      <dt className="flux-toolbar--heading">{category}</dt>
       {funcs.map(func => (
         <ToolbarFunction
           onClickFunction={onClickFunction}
-          key={func.name}
+          key={`${func.name}_${func.desc}`}
           func={func}
-          testID="toolbar-function"
+          testID={func.name}
         />
       ))}
     </dl>

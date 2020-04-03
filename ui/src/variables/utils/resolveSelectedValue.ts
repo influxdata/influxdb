@@ -1,5 +1,3 @@
-import {VariableMapObject} from 'src/types'
-
 export const resolveSelectedKey = (
   values: string[],
   prevSelection?: string,
@@ -17,10 +15,21 @@ export const resolveSelectedKey = (
 }
 
 export const resolveSelectedValue = (
-  values: VariableMapObject,
+  values: string[],
   selectedKey: string,
   defaultSelection?: string
 ): string => {
+  if (values && Array.isArray(values)) {
+    if (values.includes(selectedKey)) {
+      return selectedKey
+    }
+
+    if (values.includes(defaultSelection)) {
+      return defaultSelection
+    }
+
+    return values[0]
+  }
   if (selectedKey in values) {
     return values[selectedKey]
   }

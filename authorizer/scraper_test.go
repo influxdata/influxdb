@@ -59,7 +59,7 @@ func TestScraperTargetStoreService_GetTargetByID(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.ScraperResourceType,
 						ID:   influxdbtesting.IDPtr(1),
@@ -85,7 +85,7 @@ func TestScraperTargetStoreService_GetTargetByID(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.ScraperResourceType,
 						ID:   influxdbtesting.IDPtr(2),
@@ -157,7 +157,7 @@ func TestScraperTargetStoreService_ListTargets(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type: influxdb.ScraperResourceType,
 					},
@@ -204,7 +204,7 @@ func TestScraperTargetStoreService_ListTargets(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "read",
+					Action: influxdb.ReadAction,
 					Resource: influxdb.Resource{
 						Type:  influxdb.ScraperResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
@@ -288,21 +288,21 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 				bucketID: 100,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.ScraperResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.ScraperResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(100),
@@ -339,7 +339,7 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 				bucketID: 100,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.ScraperResourceType,
 							ID:   influxdbtesting.IDPtr(1),
@@ -379,7 +379,7 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 				bucketID: 100,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.ScraperResourceType,
 							ID:   influxdbtesting.IDPtr(1),
@@ -447,14 +447,14 @@ func TestScraperTargetStoreService_RemoveTarget(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.ScraperResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.ScraperResourceType,
 							ID:   influxdbtesting.IDPtr(1),
@@ -485,7 +485,7 @@ func TestScraperTargetStoreService_RemoveTarget(t *testing.T) {
 				id: 1,
 				permissions: []influxdb.Permission{
 					{
-						Action: "read",
+						Action: influxdb.ReadAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.ScraperResourceType,
 							ID:   influxdbtesting.IDPtr(1),
@@ -549,14 +549,14 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 				bucketID: 100,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.ScraperResourceType,
 							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(100),
@@ -582,14 +582,14 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 				bucketID: 100,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.ScraperResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(100),
@@ -618,14 +618,14 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 				bucketID: 100,
 				permissions: []influxdb.Permission{
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type:  influxdb.ScraperResourceType,
 							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
-						Action: "write",
+						Action: influxdb.WriteAction,
 						Resource: influxdb.Resource{
 							Type: influxdb.BucketsResourceType,
 							ID:   influxdbtesting.IDPtr(1),

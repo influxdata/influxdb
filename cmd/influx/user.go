@@ -36,10 +36,12 @@ type cmdUserBuilder struct {
 
 	svcFn userSVCsFn
 
-	id       string
-	name     string
-	password string
-	org      organization
+	hideHeaders bool
+	id          string
+	json        bool
+	name        string
+	password    string
+	org         organization
 }
 
 func newCmdUserBuilder(svcsFn userSVCsFn, opt genericCLIOpts) *cmdUserBuilder {
@@ -50,7 +52,7 @@ func newCmdUserBuilder(svcsFn userSVCsFn, opt genericCLIOpts) *cmdUserBuilder {
 }
 
 func (b *cmdUserBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("user", nil)
+	cmd := b.newCmd("user", nil, false)
 	cmd.Short = "User management commands"
 	cmd.Run = seeHelp
 	cmd.AddCommand(
@@ -65,60 +67,13 @@ func (b *cmdUserBuilder) cmd() *cobra.Command {
 }
 
 func (b *cmdUserBuilder) cmdPassword() *cobra.Command {
-	cmd := b.newCmd("password", b.cmdPasswordRunEFn)
+	cmd := b.newCmd("password", b.cmdPasswordRunEFn, true)
 	cmd.Short = "Update user password"
 
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID")
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The user name")
 
 	return cmd
-}
-
-func (b *cmdUserBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
-	cmd.Short = "Update user"
-
-	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID (required)")
-	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The user name")
-	cmd.MarkFlagRequired("id")
-
-	return cmd
-}
-
-func newUserService() (influxdb.UserService, error) {
-	if flags.local {
-		return newLocalKVService()
-	}
-
-	client, err := newHTTPClient()
-	if err != nil {
-		return nil, err
-	}
-	return &http.UserService{
-		Client: client,
-	}, nil
-}
-
-func newUserSVC() (
-	cmdUserDeps,
-	error) {
-	httpClient, err := newHTTPClient()
-	if err != nil {
-		return cmdUserDeps{}, err
-	}
-	userSvc := &http.UserService{Client: httpClient}
-	orgSvc := &http.OrganizationService{Client: httpClient}
-	passSvc := &http.PasswordService{Client: httpClient}
-	urmSvc := &http.UserResourceMappingService{Client: httpClient}
-	getPassFn := getPassword
-
-	return cmdUserDeps{
-		userSVC:   userSvc,
-		orgSvc:    orgSvc,
-		passSVC:   passSvc,
-		urmSVC:    urmSvc,
-		getPassFn: getPassFn,
-	}, nil
 }
 
 func (b *cmdUserBuilder) cmdPasswordRunEFn(cmd *cobra.Command, args []string) error {
@@ -156,6 +111,18 @@ func (b *cmdUserBuilder) cmdPasswordRunEFn(cmd *cobra.Command, args []string) er
 	return nil
 }
 
+func (b *cmdUserBuilder) cmdUpdate() *cobra.Command {
+	cmd := b.newCmd("update", b.cmdUpdateRunEFn, true)
+	cmd.Short = "Update user"
+
+	b.registerPrintFlags(cmd)
+	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID (required)")
+	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The user name")
+	cmd.MarkFlagRequired("id")
+
+	return cmd
+}
+
 func (b *cmdUserBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) error {
 	dep, err := b.svcFn()
 	if err != nil {
@@ -177,22 +144,11 @@ func (b *cmdUserBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) erro
 		return err
 	}
 
-	w := b.newTabWriter()
-	w.WriteHeaders(
-		"ID",
-		"Name",
-	)
-	w.Write(map[string]interface{}{
-		"ID":   user.ID.String(),
-		"Name": user.Name,
-	})
-	w.Flush()
-
-	return nil
+	return b.printUser(userPrintOpts{user: user})
 }
 
 func (b *cmdUserBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", b.cmdCreateRunEFn)
+	cmd := b.newCmd("create", b.cmdCreateRunEFn, true)
 	cmd.Short = "Create user"
 
 	opts := flagOpts{
@@ -208,13 +164,14 @@ func (b *cmdUserBuilder) cmdCreate() *cobra.Command {
 
 	cmd.Flags().StringVarP(&b.password, "password", "p", "", "The user password")
 	b.org.register(cmd, false)
+	b.registerPrintFlags(cmd)
 
 	return cmd
 }
 
 func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 	ctx := context.Background()
-	if err := b.org.validOrgFlags(); err != nil {
+	if err := b.org.validOrgFlags(b.globalFlags); err != nil {
 		return err
 	}
 
@@ -231,23 +188,6 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
-	writeOutput := func(headers []string, vals ...string) error {
-		if len(headers) != len(vals) {
-			return errors.New("invalid headers and val setup for writer")
-		}
-
-		m := make(map[string]interface{})
-		for i, h := range headers {
-			m[h] = vals[i]
-		}
-		w := b.newTabWriter()
-		w.WriteHeaders(headers...)
-		w.Write(m)
-		w.Flush()
-
-		return nil
-	}
-
 	orgID, err := b.org.getID(dep.orgSvc)
 	if err != nil {
 		return err
@@ -255,7 +195,7 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 
 	pass := b.password
 	if orgID == 0 && pass == "" {
-		return writeOutput([]string{"ID", "Name"}, user.ID.String(), user.Name)
+		return b.printUser(userPrintOpts{user: user})
 	}
 
 	if pass != "" && orgID == 0 {
@@ -276,14 +216,15 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
-	return writeOutput([]string{"ID", "Name", "Organization ID"}, user.ID.String(), user.Name, orgID.String())
+	return b.printUser(userPrintOpts{user: user})
 }
 
 func (b *cmdUserBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("list", b.cmdFindRunEFn)
+	cmd := b.newCmd("list", b.cmdFindRunEFn, true)
 	cmd.Short = "List users"
 	cmd.Aliases = []string{"find", "ls"}
 
+	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID")
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The user name")
 
@@ -313,26 +254,14 @@ func (b *cmdUserBuilder) cmdFindRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
-	w := b.newTabWriter()
-	w.WriteHeaders(
-		"ID",
-		"Name",
-	)
-	for _, u := range users {
-		w.Write(map[string]interface{}{
-			"ID":   u.ID.String(),
-			"Name": u.Name,
-		})
-	}
-	w.Flush()
-
-	return nil
+	return b.printUser(userPrintOpts{users: users})
 }
 
 func (b *cmdUserBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.cmdDeleteRunEFn)
+	cmd := b.newCmd("delete", b.cmdDeleteRunEFn, true)
 	cmd.Short = "Delete user"
 
+	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID (required)")
 	cmd.MarkFlagRequired("id")
 
@@ -360,18 +289,90 @@ func (b *cmdUserBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) erro
 		return err
 	}
 
-	w := b.newTabWriter()
-	w.WriteHeaders(
-		"ID",
-		"Name",
-		"Deleted",
-	)
-	w.Write(map[string]interface{}{
-		"ID":      u.ID.String(),
-		"Name":    u.Name,
-		"Deleted": true,
+	return b.printUser(userPrintOpts{
+		deleted: true,
+		user:    u,
 	})
-	w.Flush()
+}
+
+func (b *cmdUserBuilder) registerPrintFlags(cmd *cobra.Command) {
+	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+}
+
+func (b *cmdUserBuilder) printUser(opt userPrintOpts) error {
+	if b.json {
+		var v interface{} = opt.users
+		if opt.user != nil {
+			v = opt.user
+		}
+		return b.writeJSON(v)
+	}
+
+	w := b.newTabWriter()
+	defer w.Flush()
+
+	w.HideHeaders(b.hideHeaders)
+
+	headers := []string{"ID", "Name"}
+	if opt.deleted {
+		headers = append(headers, "Deleted")
+	}
+	w.WriteHeaders(headers...)
+
+	if opt.user != nil {
+		opt.users = append(opt.users, opt.user)
+	}
+
+	for _, u := range opt.users {
+		m := map[string]interface{}{
+			"ID":   u.ID.String(),
+			"Name": u.Name,
+		}
+		if opt.deleted {
+			m["Deleted"] = true
+		}
+		w.Write(m)
+	}
 
 	return nil
+}
+
+type userPrintOpts struct {
+	deleted bool
+	user    *influxdb.User
+	users   []*influxdb.User
+}
+
+func newUserService() (influxdb.UserService, error) {
+	if flags.local {
+		return newLocalKVService()
+	}
+
+	client, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+	return &http.UserService{
+		Client: client,
+	}, nil
+}
+
+func newUserSVC() (cmdUserDeps, error) {
+	httpClient, err := newHTTPClient()
+	if err != nil {
+		return cmdUserDeps{}, err
+	}
+	userSvc := &http.UserService{Client: httpClient}
+	orgSvc := &http.OrganizationService{Client: httpClient}
+	passSvc := &http.PasswordService{Client: httpClient}
+	urmSvc := &http.UserResourceMappingService{Client: httpClient}
+	getPassFn := getPassword
+
+	return cmdUserDeps{
+		userSVC:   userSvc,
+		orgSvc:    orgSvc,
+		passSVC:   passSvc,
+		urmSVC:    urmSvc,
+		getPassFn: getPassFn,
+	}, nil
 }

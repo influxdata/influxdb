@@ -20,6 +20,7 @@ import {
   GetState,
   Label,
   LabelEntities,
+  ResourceType,
 } from 'src/types'
 
 // Actions
@@ -40,14 +41,19 @@ import {
 // Utils
 import {getOrg} from 'src/organizations/selectors'
 import {viewableLabels} from 'src/labels/selectors'
+import {getStatus} from 'src/resources/selectors'
 
 export const getLabels = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
   try {
-    const org = getOrg(getState())
-    dispatch(setLabels(RemoteDataState.Loading))
+    const state = getState()
+    if (getStatus(state, ResourceType.Labels) === RemoteDataState.NotStarted) {
+      dispatch(setLabels(RemoteDataState.Loading))
+    }
+
+    const org = getOrg(state)
 
     const resp = await apiGetLabels({query: {orgID: org.id}})
 

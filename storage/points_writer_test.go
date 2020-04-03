@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb"
@@ -110,7 +110,7 @@ e day="Saturday",humidity=6,ratio=0.1,temperature=99 51
 	})
 }
 
-func mockPoints(org, bucket platform.ID, pointdata string) []models.Point {
+func mockPoints(org, bucket influxdb.ID, pointdata string) []models.Point {
 	name := tsdb.EncodeName(org, bucket)
 	points, err := models.ParsePoints([]byte(pointdata), name[:])
 	if err != nil {

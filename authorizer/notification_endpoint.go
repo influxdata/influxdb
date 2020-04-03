@@ -35,11 +35,9 @@ func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.C
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeReadOrg(ctx, edp.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeRead(ctx, influxdb.NotificationEndpointResourceType, edp.GetID(), edp.GetOrgID()); err != nil {
 		return nil, err
 	}
-
 	return edp, nil
 }
 
@@ -59,45 +57,14 @@ func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Cont
 	if err != nil {
 		return nil, 0, err
 	}
-
-	// This filters without allocating
-	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
-	endpoints := edps[:0]
-	for _, edp := range edps {
-		err := authorizeReadOrg(ctx, edp.GetOrgID())
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
-			return nil, 0, err
-		}
-
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
-			continue
-		}
-
-		endpoints = append(endpoints, edp)
-	}
-
-	return endpoints, len(endpoints), nil
+	return AuthorizeFindNotificationEndpoints(ctx, edps)
 }
 
 // CreateNotificationEndpoint checks to see if the authorizer on context has write access to the global notification endpoint resource.
 func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Context, edp influxdb.NotificationEndpoint, userID influxdb.ID) error {
-	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.NotificationEndpointResourceType, edp.GetOrgID())
-	if err != nil {
+	if _, _, err := AuthorizeCreate(ctx, influxdb.NotificationEndpointResourceType, edp.GetOrgID()); err != nil {
 		return err
 	}
-
-	pOrg, err := newOrgPermission(influxdb.WriteAction, edp.GetOrgID())
-	if err != nil {
-		return err
-	}
-
-	err0 := IsAllowed(ctx, *p)
-	err1 := IsAllowed(ctx, *pOrg)
-
-	if err0 != nil && err1 != nil {
-		return err0
-	}
-
 	return s.s.CreateNotificationEndpoint(ctx, edp, userID)
 }
 
@@ -107,11 +74,9 @@ func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Con
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeWriteOrg(ctx, edp.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.NotificationEndpointResourceType, edp.GetID(), edp.GetOrgID()); err != nil {
 		return nil, err
 	}
-
 	return s.s.UpdateNotificationEndpoint(ctx, id, upd, userID)
 }
 
@@ -121,11 +86,9 @@ func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Cont
 	if err != nil {
 		return nil, err
 	}
-
-	if err := authorizeWriteOrg(ctx, edp.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.NotificationEndpointResourceType, edp.GetID(), edp.GetOrgID()); err != nil {
 		return nil, err
 	}
-
 	return s.s.PatchNotificationEndpoint(ctx, id, upd)
 }
 
@@ -135,10 +98,8 @@ func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Con
 	if err != nil {
 		return nil, 0, err
 	}
-
-	if err := authorizeWriteOrg(ctx, edp.GetOrgID()); err != nil {
+	if _, _, err := AuthorizeWrite(ctx, influxdb.NotificationEndpointResourceType, edp.GetID(), edp.GetOrgID()); err != nil {
 		return nil, 0, err
 	}
-
 	return s.s.DeleteNotificationEndpoint(ctx, id)
 }

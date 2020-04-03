@@ -8,6 +8,9 @@ import {
   PopoverPosition,
   PopoverInteraction,
   Appearance,
+  Button,
+  ComponentSize,
+  ComponentColor,
 } from '@influxdata/clockface'
 
 // Types
@@ -20,22 +23,19 @@ interface Props {
 }
 
 const defaultProps = {
-  testID: 'toolbar-function',
+  testID: 'flux-function',
 }
 
 const ToolbarFunction: FC<Props> = ({func, onClickFunction, testID}) => {
-  const functionRef = createRef<HTMLDivElement>()
+  const functionRef = createRef<HTMLDListElement>()
   const handleClickFunction = () => {
     onClickFunction(func)
   }
   return (
-    <div
-      className="flux-functions-toolbar--function"
-      ref={functionRef}
-      data-testid={testID}
-    >
+    <>
       <Popover
         appearance={Appearance.Outline}
+        enableDefaultStyles={false}
         position={PopoverPosition.ToTheLeft}
         triggerRef={functionRef}
         showEvent={PopoverInteraction.Hover}
@@ -45,14 +45,21 @@ const ToolbarFunction: FC<Props> = ({func, onClickFunction, testID}) => {
         contents={() => <FunctionTooltipContents func={func} />}
       />
       <dd
-        onClick={handleClickFunction}
-        data-testid={`flux-function ${func.name}`}
+        ref={functionRef}
+        data-testid={`flux--${testID}`}
+        className="flux-toolbar--list-item flux-toolbar--function"
       >
-        {func.name}
-        &nbsp;
-        <span className="flux-functions-toolbar--helper">Click to Add</span>
+        <code>{func.name}</code>
+        <Button
+          testID={`flux--${testID}--inject`}
+          text="Inject"
+          onClick={handleClickFunction}
+          size={ComponentSize.ExtraSmall}
+          className="flux-toolbar--injector"
+          color={ComponentColor.Primary}
+        />
       </dd>
-    </div>
+    </>
   )
 }
 

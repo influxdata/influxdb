@@ -34,17 +34,19 @@ func TestDeadman_GenerateFlux(t *testing.T) {
 							{Key: "bbb", Value: "vbbb"},
 						},
 						Every:                 mustDuration("1h"),
-						StatusMessageTemplate: "whoa! {r.dead}",
+						StatusMessageTemplate: "whoa! {r[\"dead\"]}",
 						Query: influxdb.DashboardQuery{
 							Text: `from(bucket: "foo") |> range(start: -1d, stop: now()) |> aggregateWindow(fn: mean, every: 1m) |> yield()`,
 							BuilderConfig: influxdb.BuilderConfig{
 								Tags: []struct {
-									Key    string   `json:"key"`
-									Values []string `json:"values"`
+									Key                   string   `json:"key"`
+									Values                []string `json:"values"`
+									AggregateFunctionType string   `json:"aggregateFunctionType"`
 								}{
 									{
-										Key:    "_field",
-										Values: []string{"usage_user"},
+										Key:                   "_field",
+										Values:                []string{"usage_user"},
+										AggregateFunctionType: "filter",
 									},
 								},
 							},
@@ -73,14 +75,14 @@ check = {
 	tags: {aaa: "vaaa", bbb: "vbbb"},
 }
 info = (r) =>
-	(r.dead)
+	(r["dead"])
 messageFn = (r) =>
-	("whoa! {r.dead}")
+	("whoa! {r[\"dead\"]}")
 
 data
-	|> v1.fieldsAsCols()
-	|> monitor.deadman(t: experimental.subDuration(from: now(), d: 60s))
-	|> monitor.check(data: check, messageFn: messageFn, info: info)`,
+	|> v1["fieldsAsCols"]()
+	|> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
+	|> monitor["check"](data: check, messageFn: messageFn, info: info)`,
 			},
 		},
 		{
@@ -95,17 +97,19 @@ data
 							{Key: "bbb", Value: "vbbb"},
 						},
 						Every:                 mustDuration("1h"),
-						StatusMessageTemplate: "whoa! {r.dead}",
+						StatusMessageTemplate: "whoa! {r[\"dead\"]}",
 						Query: influxdb.DashboardQuery{
 							Text: `from(bucket: "foo") |> range(start: -1d, stop: now()) |> yield()`,
 							BuilderConfig: influxdb.BuilderConfig{
 								Tags: []struct {
-									Key    string   `json:"key"`
-									Values []string `json:"values"`
+									Key                   string   `json:"key"`
+									Values                []string `json:"values"`
+									AggregateFunctionType string   `json:"aggregateFunctionType"`
 								}{
 									{
-										Key:    "_field",
-										Values: []string{"usage_user"},
+										Key:                   "_field",
+										Values:                []string{"usage_user"},
+										AggregateFunctionType: "filter",
 									},
 								},
 							},
@@ -134,14 +138,79 @@ check = {
 	tags: {aaa: "vaaa", bbb: "vbbb"},
 }
 info = (r) =>
-	(r.dead)
+	(r["dead"])
 messageFn = (r) =>
-	("whoa! {r.dead}")
+	("whoa! {r[\"dead\"]}")
 
 data
-	|> v1.fieldsAsCols()
-	|> monitor.deadman(t: experimental.subDuration(from: now(), d: 60s))
-	|> monitor.check(data: check, messageFn: messageFn, info: info)`,
+	|> v1["fieldsAsCols"]()
+	|> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
+	|> monitor["check"](data: check, messageFn: messageFn, info: info)`,
+			},
+		},
+		{
+			name: "basic with space in field name",
+			args: args{
+				deadman: check.Deadman{
+					Base: check.Base{
+						ID:   10,
+						Name: "moo",
+						Tags: []influxdb.Tag{
+							{Key: "aaa", Value: "vaaa"},
+							{Key: "bbb", Value: "vbbb"},
+						},
+						Every:                 mustDuration("1h"),
+						StatusMessageTemplate: "whoa! {r[\"dead\"]}",
+						Query: influxdb.DashboardQuery{
+							Text: `from(bucket: "foo") |> range(start: -1d, stop: now()) |> filter(fn: (r) => r._field == "usage user") |> yield()`,
+							BuilderConfig: influxdb.BuilderConfig{
+								Tags: []struct {
+									Key                   string   `json:"key"`
+									Values                []string `json:"values"`
+									AggregateFunctionType string   `json:"aggregateFunctionType"`
+								}{
+									{
+										Key:                   "_field",
+										Values:                []string{"usage_user"},
+										AggregateFunctionType: "filter",
+									},
+								},
+							},
+						},
+					},
+					TimeSince: mustDuration("60s"),
+					StaleTime: mustDuration("10m"),
+					Level:     notification.Info,
+				},
+			},
+			wants: wants{
+				script: `package main
+import "influxdata/influxdb/monitor"
+import "experimental"
+import "influxdata/influxdb/v1"
+
+data = from(bucket: "foo")
+	|> range(start: -10m)
+	|> filter(fn: (r) =>
+		(r._field == "usage user"))
+
+option task = {name: "moo", every: 1h}
+
+check = {
+	_check_id: "000000000000000a",
+	_check_name: "moo",
+	_type: "deadman",
+	tags: {aaa: "vaaa", bbb: "vbbb"},
+}
+info = (r) =>
+	(r["dead"])
+messageFn = (r) =>
+	("whoa! {r[\"dead\"]}")
+
+data
+	|> v1["fieldsAsCols"]()
+	|> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
+	|> monitor["check"](data: check, messageFn: messageFn, info: info)`,
 			},
 		},
 	}

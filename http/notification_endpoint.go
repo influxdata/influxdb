@@ -119,7 +119,7 @@ func NewNotificationEndpointHandler(log *zap.Logger, b *NotificationEndpointBack
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
-		ResourceType:     influxdb.TelegrafsResourceType,
+		ResourceType:     influxdb.NotificationEndpointResourceType,
 	}
 	h.HandlerFunc("GET", notificationEndpointsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", notificationEndpointsIDLabelsPath, newPostLabelHandler(labelBackend))
@@ -196,7 +196,7 @@ func newNotificationEndpointsResponse(ctx context.Context, edps []influxdb.Notif
 		Links:                 newPagingLinks(prefixNotificationEndpoints, opts, f, len(edps)),
 	}
 	for i, edp := range edps {
-		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
+		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID(), ResourceType: influxdb.NotificationEndpointResourceType})
 		resp.NotificationEndpoints[i] = newNotificationEndpointResponse(edp, labels)
 	}
 	return resp
@@ -253,7 +253,7 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoint(w http.Respo
 	}
 	h.log.Debug("NotificationEndpoint retrieved", zap.String("notificationEndpoint", fmt.Sprint(edp)))
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID(), ResourceType: influxdb.NotificationEndpointResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -478,7 +478,7 @@ func (h *NotificationEndpointHandler) handlePutNotificationEndpoint(w http.Respo
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID(), ResourceType: influxdb.NotificationEndpointResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -507,7 +507,7 @@ func (h *NotificationEndpointHandler) handlePatchNotificationEndpoint(w http.Res
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID(), ResourceType: influxdb.NotificationEndpointResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -573,6 +573,9 @@ var _ influxdb.NotificationEndpointService = (*NotificationEndpointService)(nil)
 
 // FindNotificationEndpointByID returns a single notification endpoint by ID.
 func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+	if !id.Valid() {
+		return nil, fmt.Errorf("invalid ID: please provide a valid ID")
+	}
 	var resp notificationEndpointDecoder
 	err := s.Client.
 		Get(prefixNotificationEndpoints, id.String()).
@@ -621,8 +624,6 @@ func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Cont
 // TODO(@jsteenb2): this is unsatisfactory, we have no way of grabbing the new notification endpoint without
 //  serious hacky hackertoning. Put it on the list...
 func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Context, ne influxdb.NotificationEndpoint, userID influxdb.ID) error {
-	// userID is ignored here since server reads it off
-	// the token/auth. its a nothing burger here
 	var resp notificationEndpointDecoder
 	err := s.Client.
 		PostJSON(&notificationEndpointEncoder{ne: ne}, prefixNotificationEndpoints).
@@ -640,7 +641,9 @@ func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Con
 // UpdateNotificationEndpoint updates a single notification endpoint.
 // Returns the new notification endpoint after update.
 func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID, ne influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
-	// userID is ignored since userID is grabbed off the http auth set on the client
+	if !id.Valid() {
+		return nil, fmt.Errorf("invalid ID: please provide a valid ID")
+	}
 	var resp notificationEndpointDecoder
 	err := s.Client.
 		PutJSON(&notificationEndpointEncoder{ne: ne}, prefixNotificationEndpoints, id.String()).
@@ -655,6 +658,9 @@ func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Con
 // PatchNotificationEndpoint updates a single  notification endpoint with changeset.
 // Returns the new notification endpoint state after update.
 func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
+	if !id.Valid() {
+		return nil, fmt.Errorf("invalid ID: please provide a valid ID")
+	}
 	if err := upd.Valid(); err != nil {
 		return nil, err
 	}
@@ -676,6 +682,9 @@ func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Cont
 //  then see what falls out :flushed... for now returning nothing for secrets, orgID, and only returning an error. This makes
 //  the code/design smell super obvious imo
 func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+	if !id.Valid() {
+		return nil, 0, fmt.Errorf("invalid ID: please provide a valid ID")
+	}
 	err := s.Client.
 		Delete(prefixNotificationEndpoints, id.String()).
 		Do(ctx)

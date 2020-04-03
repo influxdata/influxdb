@@ -16,20 +16,47 @@ import (
 const (
 	bucketOneID   = "020f755c3c082000"
 	bucketTwoID   = "020f755c3c082001"
-	bucketThreeID = "020f755c3c082002"
+	bucketThreeID = "9565493717473001"
 )
 
 var bucketCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
+	cmp.Comparer(func(x, y *influxdb.Bucket) bool {
+		if x == nil && y == nil {
+			return true
+		}
+		if x != nil && y == nil || y != nil && x == nil {
+			return false
+		}
+
+		return x.OrgID == y.OrgID &&
+			x.Type == y.Type &&
+			x.Description == y.Description &&
+			x.RetentionPolicyName == y.RetentionPolicyName &&
+			x.RetentionPeriod == y.RetentionPeriod &&
+			x.Name == y.Name
+	}),
 	cmp.Transformer("Sort", func(in []*influxdb.Bucket) []*influxdb.Bucket {
 		out := append([]*influxdb.Bucket(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
-			return out[i].ID.String() > out[j].ID.String()
+			return out[i].Name > out[j].Name
 		})
 		return out
 	}),
+}
+
+type BucketSvcOpts struct {
+	NoHooks bool
+}
+
+// WithoutHooks allows the test suite to be run without being able to hook into the underlieing implementation of theservice
+// in most cases that is to remove specific id generation controls.
+func WithoutHooks() BucketSvcOpts {
+	return BucketSvcOpts{
+		NoHooks: true,
+	}
 }
 
 // BucketFields will include the IDGenerator, and buckets
@@ -50,7 +77,7 @@ type bucketServiceF func(
 func BucketService(
 	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
 	t *testing.T,
-) {
+	opts ...BucketSvcOpts) {
 	tests := []struct {
 		name string
 		fn   bucketServiceF
@@ -58,6 +85,10 @@ func BucketService(
 		{
 			name: "CreateBucket",
 			fn:   CreateBucket,
+		},
+		{
+			name: "IDUnique",
+			fn:   IDUnique,
 		},
 		{
 			name: "FindBucketByID",
@@ -81,6 +112,9 @@ func BucketService(
 		},
 	}
 	for _, tt := range tests {
+		if tt.name == "IDUnique" && len(opts) > 0 && opts[0].NoHooks {
+			continue
+		}
 		t.Run(tt.name, func(t *testing.T) {
 			tt.fn(init, t)
 		})
@@ -237,86 +271,6 @@ func CreateBucket(
 			},
 		},
 		{
-			name: "ids should be unique",
-			fields: BucketFields{
-				IDGenerator:   mock.NewIDGenerator(bucketOneID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(bucketOneID, t),
-				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Buckets: []*influxdb.Bucket{
-					{
-						ID:    MustIDBase16(bucketOneID),
-						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
-					},
-				},
-				Organizations: []*influxdb.Organization{
-					{
-						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
-					},
-				},
-			},
-			args: args{
-				bucket: &influxdb.Bucket{
-					Name:  "bucket2",
-					OrgID: MustIDBase16(orgOneID),
-				},
-			},
-			wants: wants{
-				buckets: []*influxdb.Bucket{
-					{
-						ID:    MustIDBase16(bucketOneID),
-						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
-					},
-				},
-				err: &influxdb.Error{
-					Code: influxdb.EInternal,
-					Msg:  fmt.Sprintf("unable to generate valid id"),
-				},
-			},
-		},
-		{
-			name: "reserved ids should not be created",
-			fields: BucketFields{
-				IDGenerator:   mock.NewIDGenerator("000000000000000a", t),
-				OrgBucketIDs:  mock.NewIDGenerator("000000000000000a", t),
-				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Buckets: []*influxdb.Bucket{
-					{
-						ID:    MustIDBase16(bucketOneID),
-						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
-					},
-				},
-				Organizations: []*influxdb.Organization{
-					{
-						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
-					},
-				},
-			},
-			args: args{
-				bucket: &influxdb.Bucket{
-					Name:  "bucket2",
-					OrgID: MustIDBase16(orgOneID),
-				},
-			},
-			wants: wants{
-				buckets: []*influxdb.Bucket{
-					{
-						ID:    MustIDBase16(bucketOneID),
-						Name:  "bucket1",
-						OrgID: MustIDBase16(orgOneID),
-					},
-				},
-				err: &influxdb.Error{
-					Code: influxdb.EInternal,
-					Msg:  fmt.Sprintf("unable to generate valid id"),
-				},
-			},
-		},
-		{
 			name: "names should not be unique across organizations",
 			fields: BucketFields{
 				IDGenerator:   mock.NewIDGenerator(bucketTwoID, t),
@@ -412,7 +366,142 @@ func CreateBucket(
 			// remove system buckets
 			filteredBuckets := []*influxdb.Bucket{}
 			for _, b := range buckets {
-				if b.ID > 15 {
+				if b.Type != influxdb.BucketTypeSystem {
+					filteredBuckets = append(filteredBuckets, b)
+				}
+			}
+
+			if diff := cmp.Diff(filteredBuckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
+				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+// CreateBucket testing
+func IDUnique(
+	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
+	t *testing.T,
+) {
+	type args struct {
+		bucket *influxdb.Bucket
+	}
+	type wants struct {
+		err     error
+		buckets []*influxdb.Bucket
+	}
+
+	tests := []struct {
+		name   string
+		fields BucketFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "ids should be unique",
+			fields: BucketFields{
+				IDGenerator:   mock.NewIDGenerator(bucketOneID, t),
+				OrgBucketIDs:  mock.NewIDGenerator(bucketOneID, t),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Buckets: []*influxdb.Bucket{
+					{
+						ID:    MustIDBase16(bucketOneID),
+						Name:  "bucket1",
+						OrgID: MustIDBase16(orgOneID),
+					},
+				},
+				Organizations: []*influxdb.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+			},
+			args: args{
+				bucket: &influxdb.Bucket{
+					ID:    MustIDBase16(bucketOneID),
+					Name:  "bucket2",
+					OrgID: MustIDBase16(orgOneID),
+				},
+			},
+			wants: wants{
+				buckets: []*influxdb.Bucket{
+					{
+						ID:    MustIDBase16(bucketOneID),
+						Name:  "bucket1",
+						OrgID: MustIDBase16(orgOneID),
+					},
+				},
+				err: &influxdb.Error{
+					Code: influxdb.EInternal,
+					Msg:  fmt.Sprintf("unable to generate valid id"),
+				},
+			},
+		},
+		{
+			name: "reserved ids should not be created",
+			fields: BucketFields{
+				IDGenerator:   mock.NewIDGenerator("000000000000000a", t),
+				OrgBucketIDs:  mock.NewIDGenerator("000000000000000a", t),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Buckets: []*influxdb.Bucket{
+					{
+						ID:    MustIDBase16(bucketOneID),
+						Name:  "bucket1",
+						OrgID: MustIDBase16(orgOneID),
+					},
+				},
+				Organizations: []*influxdb.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+			},
+			args: args{
+				bucket: &influxdb.Bucket{
+					Name:  "bucket2",
+					OrgID: MustIDBase16(orgOneID),
+				},
+			},
+			wants: wants{
+				buckets: []*influxdb.Bucket{
+					{
+						ID:    MustIDBase16(bucketOneID),
+						Name:  "bucket1",
+						OrgID: MustIDBase16(orgOneID),
+					},
+				},
+				err: &influxdb.Error{
+					Code: influxdb.EInternal,
+					Msg:  fmt.Sprintf("unable to generate valid id"),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, opPrefix, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+			err := s.CreateBucket(ctx, tt.args.bucket)
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+
+			// Delete only newly created buckets - ie., with a not nil ID
+			// if tt.args.bucket.ID.Valid() {
+			defer s.DeleteBucket(ctx, tt.args.bucket.ID)
+			// }
+
+			buckets, _, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
+			if err != nil {
+				t.Fatalf("failed to retrieve buckets: %v", err)
+			}
+
+			// remove system buckets
+			filteredBuckets := []*influxdb.Bucket{}
+			for _, b := range buckets {
+				if b.Type != influxdb.BucketTypeSystem {
 					filteredBuckets = append(filteredBuckets, b)
 				}
 			}
@@ -860,7 +949,7 @@ func FindBuckets(
 			// remove system buckets
 			filteredBuckets := []*influxdb.Bucket{}
 			for _, b := range buckets {
-				if b.ID > 15 {
+				if b.Type != influxdb.BucketTypeSystem {
 					filteredBuckets = append(filteredBuckets, b)
 				}
 			}
@@ -1024,10 +1113,10 @@ func DeleteBucket(
 				t.Fatalf("failed to retrieve buckets: %v", err)
 			}
 
-			// remove system buckets
+			// remove built in system buckets
 			filteredBuckets := []*influxdb.Bucket{}
 			for _, b := range buckets {
-				if b.ID > 15 {
+				if b.Name != influxdb.TasksSystemBucketName && b.Name != influxdb.MonitoringSystemBucketName {
 					filteredBuckets = append(filteredBuckets, b)
 				}
 			}
