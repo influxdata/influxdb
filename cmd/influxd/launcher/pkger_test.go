@@ -75,6 +75,19 @@ func TestLauncher_Pkger(t *testing.T) {
 			return obj
 		}
 
+		newVariableObject := func(pkgName, name, description string) pkger.Object {
+			obj := pkger.VariableToObject("", influxdb.Variable{
+				Name:        name,
+				Description: description,
+				Arguments: &influxdb.VariableArguments{
+					Type:   "constant",
+					Values: influxdb.VariableConstantValues{"a", "b"},
+				},
+			})
+			obj.SetMetadataName(pkgName)
+			return obj
+		}
+
 		t.Run("creating a stack", func(t *testing.T) {
 			expectedURLs := []string{"http://example.com"}
 
@@ -107,14 +120,16 @@ func TestLauncher_Pkger(t *testing.T) {
 			applyOpt := pkger.ApplyWithStackID(stack.ID)
 
 			var (
-				initialBucketPkgName = "rucketeer_1"
-				initialLabelPkgName  = "labelino"
-				initialCheckPkgName  = "checkers"
+				initialBucketPkgName   = "rucketeer_1"
+				initialCheckPkgName    = "checkers"
+				initialLabelPkgName    = "labelino"
+				initialVariablePkgName = "laces out dan"
 			)
 			initialPkg := newPkg(
 				newBucketObject(initialBucketPkgName, "display name", "init desc"),
-				newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee"),
 				newCheckDeadmanObject(t, initialCheckPkgName, "check_0", time.Minute),
+				newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee"),
+				newVariableObject(initialVariablePkgName, "var char", "init desc"),
 			)
 
 			var initialSum pkger.Summary
@@ -139,20 +154,32 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.Equal(t, "init desc", sum.Labels[0].Properties.Description)
 				assert.Equal(t, "#222eee", sum.Labels[0].Properties.Color)
 
-				actualBkt := resourceCheck.mustGetBucket(t, byName("display name"))
-				assert.Equal(t, sum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
+				require.Len(t, sum.Variables, 1)
+				assert.NotZero(t, sum.Variables[0].ID)
+				assert.Equal(t, "var char", sum.Variables[0].Name)
+				assert.Equal(t, "init desc", sum.Variables[0].Description)
 
-				actualCheck := resourceCheck.mustGetCheck(t, byName("check_0"))
-				assert.Equal(t, sum.Checks[0].Check.GetID(), actualCheck.GetID())
+				t.Log("\tverify changes reflected in platform")
+				{
+					actualBkt := resourceCheck.mustGetBucket(t, byName("display name"))
+					assert.Equal(t, sum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
 
-				actualLabel := resourceCheck.mustGetLabel(t, byName("label 1"))
-				assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+					actualCheck := resourceCheck.mustGetCheck(t, byName("check_0"))
+					assert.Equal(t, sum.Checks[0].Check.GetID(), actualCheck.GetID())
+
+					actualLabel := resourceCheck.mustGetLabel(t, byName("label 1"))
+					assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+
+					actualVar := resourceCheck.mustGetVariable(t, byName("var char"))
+					assert.Equal(t, sum.Variables[0].ID, pkger.SafeID(actualVar.ID))
+				}
 			}
 
 			var (
-				updateBucketName = "new bucket"
-				updateCheckName  = "new check"
-				updateLabelName  = "new label"
+				updateBucketName   = "new bucket"
+				updateCheckName    = "new check"
+				updateLabelName    = "new label"
+				updateVariableName = "new variable"
 			)
 			t.Log("apply pkg with stack id where resources change")
 			{
@@ -160,6 +187,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					newBucketObject(initialBucketPkgName, updateBucketName, ""),
 					newLabelObject(initialLabelPkgName, updateLabelName, "", ""),
 					newCheckDeadmanObject(t, initialCheckPkgName, updateCheckName, time.Hour),
+					newVariableObject(initialVariablePkgName, updateVariableName, ""),
 				)
 				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, updatedPkg, applyOpt)
 				require.NoError(t, err)
@@ -176,6 +204,10 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.Equal(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
 				assert.Equal(t, updateLabelName, sum.Labels[0].Name)
 
+				require.Len(t, sum.Variables, 1)
+				assert.Equal(t, initialSum.Variables[0].ID, sum.Variables[0].ID)
+				assert.Equal(t, updateVariableName, sum.Variables[0].Name)
+
 				t.Log("\tverify changes reflected in platform")
 				{
 					actualBkt := resourceCheck.mustGetBucket(t, byName(updateBucketName))
@@ -186,6 +218,9 @@ func TestLauncher_Pkger(t *testing.T) {
 
 					actualLabel := resourceCheck.mustGetLabel(t, byName(updateLabelName))
 					require.Equal(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+
+					actualVar := resourceCheck.mustGetVariable(t, byName(updateVariableName))
+					assert.Equal(t, sum.Variables[0].ID, pkger.SafeID(actualVar.ID))
 				}
 			}
 
@@ -211,10 +246,11 @@ func TestLauncher_Pkger(t *testing.T) {
 				svc = pkger.MWLogging(logger)(svc)
 
 				pkgWithDelete := newPkg(
-					newBucketObject("z_delete_rolls_back", "z_roll_me_back", ""),
-					newBucketObject("z_also_rolls_back", "z_rolls_back_too", ""),
-					newLabelObject("z_label_rolls_back", "z_label_roller", "", ""),
-					newCheckDeadmanObject(t, "z_check_rolls_back", "z_check", time.Hour),
+					newBucketObject("z_roll_me_back", "", ""),
+					newBucketObject("z_rolls_back_too", "", ""),
+					newLabelObject("z_label_roller", "", "", ""),
+					newCheckDeadmanObject(t, "z_check", "", time.Hour),
+					newVariableObject("z_var_rolls_back", "", ""),
 				)
 				_, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkgWithDelete, applyOpt)
 				require.Error(t, err)
@@ -231,6 +267,9 @@ func TestLauncher_Pkger(t *testing.T) {
 
 					_, err = resourceCheck.getLabel(t, byName("z_label_roller"))
 					require.Error(t, err)
+
+					_, err = resourceCheck.getVariable(t, byName("z_var_rolls_back"))
+					require.Error(t, err)
 				}
 
 				t.Log("\tvalidate all resources are rolled back")
@@ -242,8 +281,10 @@ func TestLauncher_Pkger(t *testing.T) {
 					assert.NotEqual(t, initialSum.Checks[0].Check.GetID(), actualCheck.GetID())
 
 					actualLabel := resourceCheck.mustGetLabel(t, byName(updateLabelName))
-					assert.NotEmpty(t, actualLabel.ID)
 					assert.NotEqual(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+
+					actualVariable := resourceCheck.mustGetVariable(t, byName(updateVariableName))
+					assert.NotEqual(t, initialSum.Variables[0].ID, pkger.SafeID(actualVariable.ID))
 				}
 			}
 
@@ -253,6 +294,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					newBucketObject("non_existent_bucket", "", ""),
 					newLabelObject("non_existent_label", "", "", ""),
 					newCheckDeadmanObject(t, "non_existent_check", "", time.Minute),
+					newVariableObject("non_existent_var", "", ""),
 				)
 				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, allNewResourcesPkg, applyOpt)
 				require.NoError(t, err)
@@ -275,15 +317,29 @@ func TestLauncher_Pkger(t *testing.T) {
 				defer resourceCheck.mustDeleteLabel(t, influxdb.ID(sum.Labels[0].ID))
 				assert.Equal(t, "non_existent_label", sum.Labels[0].Name)
 
+				require.Len(t, sum.Variables, 1)
+				assert.NotEqual(t, initialSum.Variables[0].ID, sum.Variables[0].ID)
+				assert.NotZero(t, sum.Variables[0].ID)
+				defer resourceCheck.mustDeleteVariable(t, influxdb.ID(sum.Variables[0].ID))
+				assert.Equal(t, "non_existent_var", sum.Variables[0].Name)
+
 				t.Log("\tvalidate all resources are created")
 				{
 					bkt := resourceCheck.mustGetBucket(t, byName("non_existent_bucket"))
 					assert.NotEqual(t, initialSum.Buckets[0].ID, sum.Buckets[0].ID)
 					assert.Equal(t, pkger.SafeID(bkt.ID), sum.Buckets[0].ID)
 
+					chk := resourceCheck.mustGetCheck(t, byName("non_existent_check"))
+					assert.NotEqual(t, initialSum.Checks[0].Check.GetID(), sum.Checks[0].Check.GetID())
+					assert.Equal(t, chk.GetID(), sum.Checks[0].Check.GetID())
+
 					label := resourceCheck.mustGetLabel(t, byName("non_existent_label"))
 					assert.NotEqual(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
 					assert.Equal(t, pkger.SafeID(label.ID), sum.Labels[0].ID)
+
+					variable := resourceCheck.mustGetVariable(t, byName("non_existent_var"))
+					assert.NotEqual(t, initialSum.Variables[0].ID, sum.Variables[0].ID)
+					assert.Equal(t, pkger.SafeID(variable.ID), sum.Variables[0].ID)
 				}
 
 				t.Log("\tvalidate all previous resources are removed")
@@ -291,7 +347,13 @@ func TestLauncher_Pkger(t *testing.T) {
 					_, err = resourceCheck.getBucket(t, byName(updateBucketName))
 					require.Error(t, err)
 
+					_, err = resourceCheck.getCheck(t, byName(updateCheckName))
+					require.Error(t, err)
+
 					_, err = resourceCheck.getLabel(t, byName(updateLabelName))
+					require.Error(t, err)
+
+					_, err = resourceCheck.getVariable(t, byName(updateVariableName))
 					require.Error(t, err)
 				}
 			}
@@ -1696,4 +1758,54 @@ func (r resourceChecker) mustGetLabel(t *testing.T, getOpt getResourceOptFn) inf
 func (r resourceChecker) mustDeleteLabel(t *testing.T, id influxdb.ID) {
 	t.Helper()
 	require.NoError(t, r.tl.LabelService(t).DeleteLabel(ctx, id))
+}
+
+func (r resourceChecker) getVariable(t *testing.T, getOpt getResourceOptFn) (influxdb.Variable, error) {
+	t.Helper()
+
+	varSVC := r.tl.VariableService(t)
+
+	var (
+		variable *influxdb.Variable
+		err      error
+	)
+	switch opt := getOpt(); {
+	case opt.name != "":
+		vars, err := varSVC.FindVariables(timedCtx(time.Second), influxdb.VariableFilter{
+			OrganizationID: &r.tl.Org.ID,
+		})
+		if err != nil {
+			return influxdb.Variable{}, err
+		}
+		for i := range vars {
+			v := vars[i]
+			t.Logf("got var: %+v", *v)
+			if v.Name == opt.name {
+				variable = v
+				break
+			}
+		}
+		if variable == nil {
+			return influxdb.Variable{}, errors.New("did not find variable: " + opt.name)
+		}
+	case opt.id != 0:
+		variable, err = varSVC.FindVariableByID(timedCtx(time.Second), opt.id)
+	default:
+		require.Fail(t, "did not provide any get option")
+	}
+
+	return *variable, err
+}
+
+func (r resourceChecker) mustGetVariable(t *testing.T, getOpt getResourceOptFn) influxdb.Variable {
+	t.Helper()
+
+	l, err := r.getVariable(t, getOpt)
+	require.NoError(t, err)
+	return l
+}
+
+func (r resourceChecker) mustDeleteVariable(t *testing.T, id influxdb.ID) {
+	t.Helper()
+	require.NoError(t, r.tl.VariableService(t).DeleteVariable(ctx, id))
 }

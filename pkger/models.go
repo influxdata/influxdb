@@ -2137,6 +2137,13 @@ func (v *variable) summarize() SummaryVariable {
 }
 
 func (v *variable) influxVarArgs() *influxdb.VariableArguments {
+	// this zero value check is for situations where we want to marshal/unmarshal
+	// a variable and not have the invalid args blow up during unmarshaling. When
+	// that validation is decoupled from the unmarshaling, we can clean this up.
+	if v.Type == "" {
+		return nil
+	}
+
 	args := &influxdb.VariableArguments{
 		Type: v.Type,
 	}
