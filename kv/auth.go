@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	authBucket = []byte("authorizationsv1")
-	authIndex  = []byte("authorizationindexv1")
+	authBucket            = []byte("authorizationsv1")
+	authIndex             = []byte("authorizationindexv1")
+	authByUserIndexBucket = []byte("authorizationsbyuserindexv1")
 )
 
 var _ influxdb.AuthorizationService = (*Service)(nil)
@@ -347,7 +348,17 @@ func (s *Service) createAuthorization(ctx context.Context, tx Tx, a *influxdb.Au
 		return err
 	}
 
-	return nil
+	userID, err := a.UserID.Encode()
+	if err != nil {
+		return err
+	}
+
+	encodedID, err := a.ID.Encode()
+	if err != nil {
+		return err
+	}
+
+	return s.authByUserIndex.Insert(tx, userID, encodedID)
 }
 
 // PutAuthorization will put a authorization without setting an ID.
@@ -412,7 +423,12 @@ func (s *Service) putAuthorization(ctx context.Context, tx Tx, a *influxdb.Autho
 		}
 	}
 
-	return nil
+	userID, err := a.UserID.Encode()
+	if err != nil {
+		return err
+	}
+
+	return s.authByUserIndex.Insert(tx, userID, encodedID)
 }
 
 func authIndexKey(n string) []byte {
@@ -503,7 +519,13 @@ func (s *Service) deleteAuthorization(ctx context.Context, tx Tx, id influxdb.ID
 			Err: err,
 		}
 	}
-	return nil
+
+	userID, err := a.UserID.Encode()
+	if err != nil {
+		return err
+	}
+
+	return s.authByUserIndex.Delete(tx, userID, encodedID)
 }
 
 // UpdateAuthorization updates the status and description if available.

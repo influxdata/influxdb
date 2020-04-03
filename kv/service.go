@@ -47,7 +47,8 @@ type Service struct {
 
 	Migrator *Migrator
 
-	urmByUserIndex *Index
+	urmByUserIndex  *Index
+	authByUserIndex *Index
 }
 
 // NewService returns an instance of a Service.
@@ -79,6 +80,19 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 				return id, nil
 			},
 		)),
+		authByUserIndex: NewIndex(NewIndexMapping(
+			authBucket,
+			authByUserIndexBucket,
+			func(v []byte) ([]byte, error) {
+				var auth influxdb.Authorization
+				if err := json.Unmarshal(v, &auth); err != nil {
+					return nil, err
+				}
+
+				id, _ := auth.UserID.Encode()
+				return id, nil
+			},
+		)),
 	}
 
 	// kv service migrations
@@ -95,6 +109,8 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		),
 		// add index user resource mappings by user id
 		s.urmByUserIndex.Migration(),
+		// add index authorizations by user id
+		s.authByUserIndex.Migration(),
 		// and new migrations below here (and move this comment down):
 	)
 
