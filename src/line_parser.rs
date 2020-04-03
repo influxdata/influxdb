@@ -24,6 +24,12 @@ pub enum Error {
     #[snafu(display(r#"No fields were provided"#))]
     FieldSetMissing,
 
+    // This error is for compatibility with the Go parser
+    #[snafu(display(
+        r#"Measurements, tag keys and values, and field keys may not end with a backslash"#
+    ))]
+    EndsWithBackslash,
+
     // TODO: Replace this with specific failures.
     #[snafu(display(r#"A generic parsing error occurred: {:?}"#, kind))]
     GenericParsingError {
@@ -213,6 +219,10 @@ impl fmt::Display for EscapedStr<'_> {
 impl<'a> EscapedStr<'a> {
     fn is_escaped(&self) -> bool {
         self.0.len() > 1
+    }
+
+    fn ends_with(&self, needle: &str) -> bool {
+        self.0.last().map_or(false, |s| s.ends_with(needle))
     }
 }
 
@@ -515,12 +525,9 @@ fn is_whitespace_boundary_char(c: char) -> bool {
 /// While not all of these escape characters are required to be
 /// escaped, we support the client escaping them proactively to
 /// provide a common experience.
-fn escaped_value<'a, Error>(
-    normal: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
-) -> impl FnOnce(&'a str) -> IResult<&'a str, EscapedStr<'a>, Error>
-where
-    Error: nom::error::ParseError<&'a str>,
-{
+fn escaped_value<'a>(
+    normal: impl Fn(&'a str) -> IResult<&'a str, &'a str>,
+) -> impl FnOnce(&'a str) -> IResult<&'a str, EscapedStr<'a>> {
     move |i| {
         let backslash = map(tag("\\"), |_| "\\");
         let comma = map(tag(","), |_| ",");
@@ -536,7 +543,23 @@ where
 /// Parse an unescaped piece of text, interspersed with
 /// potentially-escaped characters. If the character *isn't* escaped,
 /// treat it as a literal character.
-fn escape_or_fallback<'a, Error>(
+fn escape_or_fallback<'a>(
+    normal: impl Fn(&'a str) -> IResult<&'a str, &'a str>,
+    escape_char: &'static str,
+    escaped: impl Fn(&'a str) -> IResult<&'a str, &'a str>,
+) -> impl FnOnce(&'a str) -> IResult<&'a str, EscapedStr<'a>> {
+    move |i| {
+        let (remaining, s) = escape_or_fallback_inner(normal, escape_char, escaped)(i)?;
+
+        if s.ends_with("\\") {
+            EndsWithBackslash.fail().map_err(nom::Err::Failure)
+        } else {
+            Ok((remaining, s))
+        }
+    }
+}
+
+fn escape_or_fallback_inner<'a, Error>(
     normal: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
     escape_char: &'static str,
     escaped: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
@@ -938,12 +961,12 @@ foo value2=2i 123"#;
 
     #[test]
     fn measurement_allows_escaping_backslash() -> Result {
-        assert_fully_parsed!(measurement(r#"\\wea\\ther\\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(measurement(r#"\\wea\\ther"#), r#"\wea\ther"#)
     }
 
     #[test]
     fn measurement_allows_backslash_with_unknown_escape() -> Result {
-        assert_fully_parsed!(measurement(r#"\wea\ther\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(measurement(r#"\wea\ther"#), r#"\wea\ther"#)
     }
 
     #[test]
@@ -970,6 +993,17 @@ her"#,
     }
 
     #[test]
+    fn measurement_disallows_ending_in_backslash() -> Result {
+        let parsed = measurement(r#"weather\"#);
+        assert!(matches!(
+            parsed,
+            Err(nom::Err::Failure(super::Error::EndsWithBackslash))
+        ));
+
+        Ok(())
+    }
+
+    #[test]
     fn tag_key_allows_escaping_comma() -> Result {
         assert_fully_parsed!(tag_key(r#"wea\,ther"#), r#"wea,ther"#)
     }
@@ -986,12 +1020,12 @@ her"#,
 
     #[test]
     fn tag_key_allows_escaping_backslash() -> Result {
-        assert_fully_parsed!(tag_key(r#"\\wea\\ther\\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(tag_key(r#"\\wea\\ther"#), r#"\wea\ther"#)
     }
 
     #[test]
     fn tag_key_allows_backslash_with_unknown_escape() -> Result {
-        assert_fully_parsed!(tag_key(r#"\wea\ther\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(tag_key(r#"\wea\ther"#), r#"\wea\ther"#)
     }
 
     #[test]
@@ -1018,6 +1052,17 @@ her"#,
     }
 
     #[test]
+    fn tag_key_disallows_ending_in_backslash() -> Result {
+        let parsed = tag_key(r#"weather\"#);
+        assert!(matches!(
+            parsed,
+            Err(nom::Err::Failure(super::Error::EndsWithBackslash))
+        ));
+
+        Ok(())
+    }
+
+    #[test]
     fn tag_value_allows_escaping_comma() -> Result {
         assert_fully_parsed!(tag_value(r#"wea\,ther"#), r#"wea,ther"#)
     }
@@ -1034,12 +1079,12 @@ her"#,
 
     #[test]
     fn tag_value_allows_escaping_backslash() -> Result {
-        assert_fully_parsed!(tag_value(r#"\\wea\\ther\\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(tag_value(r#"\\wea\\ther"#), r#"\wea\ther"#)
     }
 
     #[test]
     fn tag_value_allows_backslash_with_unknown_escape() -> Result {
-        assert_fully_parsed!(tag_value(r#"\wea\ther\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(tag_value(r#"\wea\ther"#), r#"\wea\ther"#)
     }
 
     #[test]
@@ -1066,6 +1111,17 @@ her"#,
     }
 
     #[test]
+    fn tag_value_disallows_ending_in_backslash() -> Result {
+        let parsed = tag_value(r#"weather\"#);
+        assert!(matches!(
+            parsed,
+            Err(nom::Err::Failure(super::Error::EndsWithBackslash))
+        ));
+
+        Ok(())
+    }
+
+    #[test]
     fn field_key_allows_escaping_comma() -> Result {
         assert_fully_parsed!(field_key(r#"wea\,ther"#), r#"wea,ther"#)
     }
@@ -1082,12 +1138,12 @@ her"#,
 
     #[test]
     fn field_key_allows_escaping_backslash() -> Result {
-        assert_fully_parsed!(field_key(r#"\\wea\\ther\\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(field_key(r#"\\wea\\ther"#), r#"\wea\ther"#)
     }
 
     #[test]
     fn field_key_allows_backslash_with_unknown_escape() -> Result {
-        assert_fully_parsed!(field_key(r#"\wea\ther\"#), r#"\wea\ther\"#)
+        assert_fully_parsed!(field_key(r#"\wea\ther"#), r#"\wea\ther"#)
     }
 
     #[test]
@@ -1109,6 +1165,17 @@ her"#,
         )?;
         assert_eq!(parsed, "weat");
         assert_eq!(remaining, "\nher");
+
+        Ok(())
+    }
+
+    #[test]
+    fn field_key_disallows_ending_in_backslash() -> Result {
+        let parsed = field_key(r#"weather\"#);
+        assert!(matches!(
+            parsed,
+            Err(nom::Err::Failure(super::Error::EndsWithBackslash))
+        ));
 
         Ok(())
     }
