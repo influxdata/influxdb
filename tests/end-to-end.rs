@@ -33,14 +33,13 @@ mod grpc {
     tonic::include_proto!("delorean");
 }
 
-use grpc::delorean_client::DeloreanClient;
-use grpc::storage_client::StorageClient;
-use grpc::Organization;
-use grpc::ReadSource;
 use grpc::{
+    delorean_client::DeloreanClient,
     node::{Comparison, Value},
     read_response::{frame::Data, DataType},
-    Node, Predicate, ReadFilterRequest, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
+    storage_client::StorageClient,
+    Bucket, CreateBucketRequest, Node, Organization, Predicate, ReadFilterRequest, ReadSource, Tag,
+    TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 
 type Error = Box<dyn std::error::Error>;
@@ -131,6 +130,19 @@ async fn read_and_write_data() -> Result<()> {
 
     // This checks that gRPC is functioning and that we're starting from an org without buckets.
     assert!(org_buckets.is_empty());
+
+    let create_bucket_request = tonic::Request::new(CreateBucketRequest {
+        org_id,
+        bucket: Some(Bucket {
+            org_id,
+            id: 0,
+            name: bucket_name.to_string(),
+            retention: "0".to_string(),
+            posting_list_rollover: 10_000,
+            index_levels: vec![],
+        }),
+    });
+    grpc_client.create_bucket(create_bucket_request).await?;
 
     let start_time = SystemTime::now();
     let ns_since_epoch: i64 = start_time
