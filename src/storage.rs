@@ -10,6 +10,22 @@ pub mod remote_partition;
 pub mod s3_partition;
 pub mod series_store;
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct ReadPoint<T: Clone> {
+    pub time: i64,
+    pub value: T,
+}
+
+impl<T: Copy + Clone> From<&'_ crate::line_parser::Point<T>> for ReadPoint<T> {
+    fn from(other: &'_ crate::line_parser::Point<T>) -> Self {
+        let crate::line_parser::Point { time, value, .. } = other;
+        Self {
+            time: *time,
+            value: *value,
+        }
+    }
+}
+
 // The values for these enum variants have no real meaning, but they
 // are serialized to disk. Revisit these whenever it's time to decide
 // on an on-disk format.

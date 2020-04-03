@@ -1,6 +1,6 @@
 use crate::delorean::TimestampRange;
 use crate::line_parser::PointType;
-use crate::storage::StorageError;
+use crate::storage::{ReadPoint, StorageError};
 
 pub trait SeriesStore: Sync + Send {
     fn write_points_with_series_ids(
@@ -24,22 +24,6 @@ pub trait SeriesStore: Sync + Send {
         range: &TimestampRange,
         batch_size: usize,
     ) -> Result<Box<dyn Iterator<Item = Vec<ReadPoint<f64>>> + Send>, StorageError>;
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct ReadPoint<T: Clone> {
-    pub time: i64,
-    pub value: T,
-}
-
-impl<T: Copy + Clone> From<&'_ crate::line_parser::Point<T>> for ReadPoint<T> {
-    fn from(other: &'_ crate::line_parser::Point<T>) -> Self {
-        let crate::line_parser::Point { time, value, .. } = other;
-        Self {
-            time: *time,
-            value: *value,
-        }
-    }
 }
 
 // Test helpers for other implementations to run

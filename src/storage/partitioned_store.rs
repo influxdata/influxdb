@@ -5,8 +5,7 @@ use crate::line_parser::PointType;
 use crate::storage::memdb::MemDB;
 use crate::storage::remote_partition::RemotePartition;
 use crate::storage::s3_partition::S3Partition;
-use crate::storage::series_store::ReadPoint;
-use crate::storage::StorageError;
+use crate::storage::{ReadPoint, StorageError};
 
 use futures::stream::{BoxStream, Stream};
 use std::cmp::Ordering;
