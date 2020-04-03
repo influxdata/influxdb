@@ -4,12 +4,12 @@ use nom::{
     bytes::complete::{tag, take_while1},
     character::complete::digit1,
     combinator::{map, opt, recognize},
-    multi::separated_list,
     sequence::{preceded, separated_pair, terminated, tuple},
     IResult,
 };
+use smallvec::SmallVec;
 use snafu::Snafu;
-use std::{borrow::Cow, collections::btree_map::Entry, collections::BTreeMap};
+use std::{collections::btree_map::Entry, collections::BTreeMap, fmt};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -164,13 +164,46 @@ pub struct Pair {
     pub value: String,
 }
 
-type ParsedTagPair<'a> = (Cow<'a, str>, Cow<'a, str>);
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct EscapedStr<'a>(SmallVec<[&'a str; 1]>);
+
+impl fmt::Display for EscapedStr<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for p in &self.0 {
+            p.fmt(f)?;
+        }
+        Ok(())
+    }
+}
+
+impl From<EscapedStr<'_>> for String {
+    fn from(other: EscapedStr<'_>) -> Self {
+        other.to_string()
+    }
+}
+
+impl PartialEq<&str> for EscapedStr<'_> {
+    fn eq(&self, other: &&str) -> bool {
+        let mut head = *other;
+        for p in &self.0 {
+            if head.starts_with(p) {
+                head = &head[p.len()..];
+            } else {
+                return false;
+            }
+        }
+        head.is_empty()
+    }
+}
+
+type TagSet<'a> = SmallVec<[(EscapedStr<'a>, EscapedStr<'a>); 4]>;
+type FieldSet<'a> = SmallVec<[(EscapedStr<'a>, FieldValue); 4]>;
 
 #[derive(Debug)]
 struct ParsedLine<'a> {
-    measurement: Cow<'a, str>,
-    tag_set: Option<Vec<ParsedTagPair<'a>>>,
-    field_set: Vec<(Cow<'a, str>, FieldValue)>,
+    measurement: EscapedStr<'a>,
+    tag_set: Option<TagSet<'a>>,
+    field_set: FieldSet<'a>,
     timestamp: Option<i64>,
 }
 
@@ -215,10 +248,7 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = Po
     }))
 }
 
-fn generate_series_base(
-    measurement: Cow<'_, str>,
-    tag_set: Vec<ParsedTagPair<'_>>,
-) -> Result<String> {
+fn generate_series_base(measurement: EscapedStr<'_>, tag_set: TagSet<'_>) -> Result<String> {
     let mut unique_sorted_tag_set = BTreeMap::new();
     for (tag_key, tag_value) in tag_set {
         match unique_sorted_tag_set.entry(tag_key) {
@@ -232,7 +262,7 @@ fn generate_series_base(
         }
     }
 
-    let mut series_base = measurement.into_owned();
+    let mut series_base = measurement.to_string();
     for (tag_key, tag_value) in unique_sorted_tag_set {
         use std::fmt::Write;
         write!(&mut series_base, ",{}={}", tag_key, tag_value).expect("Could not append string");
@@ -258,7 +288,7 @@ fn parse_line(i: &str) -> IResult<&str, ParsedLine<'_>> {
     })(i)
 }
 
-fn measurement(i: &str) -> IResult<&str, Cow<'_, str>> {
+fn measurement(i: &str) -> IResult<&str, EscapedStr<'_>> {
     let normal_char = take_while1(|c| c != ' ' && c != ',' && c != '\\');
 
     let space = map(tag(" "), |_| " ");
@@ -267,31 +297,31 @@ fn measurement(i: &str) -> IResult<&str, Cow<'_, str>> {
 
     let escaped = alt((space, comma, backslash));
 
-    escape_or_fallback(normal_char, '\\', escaped)(i)
+    escape_or_fallback(normal_char, "\\", escaped)(i)
 }
 
-fn tag_set(i: &str) -> IResult<&str, Vec<ParsedTagPair<'_>>> {
+fn tag_set(i: &str) -> IResult<&str, TagSet<'_>> {
     let one_tag = separated_pair(tag_key, tag("="), tag_value);
-    separated_list(tag(","), one_tag)(i)
+    parameterized_separated_list(tag(","), one_tag, SmallVec::new, |v, i| v.push(i))(i)
 }
 
-fn tag_key(i: &str) -> IResult<&str, Cow<'_, str>> {
+fn tag_key(i: &str) -> IResult<&str, EscapedStr<'_>> {
     let normal_char = take_while1(|c| c != '=' && c != '\\');
 
     escaped_value(normal_char)(i)
 }
 
-fn tag_value(i: &str) -> IResult<&str, Cow<'_, str>> {
+fn tag_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
     let normal_char = take_while1(|c| c != ',' && c != ' ' && c != '\\');
     escaped_value(normal_char)(i)
 }
 
-fn field_set(i: &str) -> IResult<&str, Vec<(Cow<'_, str>, FieldValue)>> {
+fn field_set(i: &str) -> IResult<&str, FieldSet<'_>> {
     let one_field = separated_pair(field_key, tag("="), field_value);
-    separated_list(tag(","), one_field)(i)
+    parameterized_separated_list(tag(","), one_field, SmallVec::new, |v, i| v.push(i))(i)
 }
 
-fn field_key(i: &str) -> IResult<&str, Cow<'_, str>> {
+fn field_key(i: &str) -> IResult<&str, EscapedStr<'_>> {
     let normal_char = take_while1(|c| c != '=' && c != '\\');
     escaped_value(normal_char)(i)
 }
@@ -324,7 +354,7 @@ fn timestamp(i: &str) -> IResult<&str, i64> {
 /// provide a common experience.
 fn escaped_value<'a, Error>(
     normal: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
-) -> impl FnOnce(&'a str) -> IResult<&'a str, Cow<'a, str>, Error>
+) -> impl FnOnce(&'a str) -> IResult<&'a str, EscapedStr<'a>, Error>
 where
     Error: nom::error::ParseError<&'a str>,
 {
@@ -336,7 +366,7 @@ where
 
         let escaped = alt((backslash, comma, equal, space));
 
-        escape_or_fallback(normal, '\\', escaped)(i)
+        escape_or_fallback(normal, "\\", escaped)(i)
     }
 }
 
@@ -345,39 +375,34 @@ where
 /// treat it as a literal character.
 fn escape_or_fallback<'a, Error>(
     normal: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
-    escape_char: char,
+    escape_char: &'static str,
     escaped: impl Fn(&'a str) -> IResult<&'a str, &'a str, Error>,
-) -> impl Fn(&'a str) -> IResult<&'a str, Cow<'a, str>, Error>
+) -> impl Fn(&'a str) -> IResult<&'a str, EscapedStr<'a>, Error>
 where
     Error: nom::error::ParseError<&'a str>,
 {
     move |i| {
-        let mut result = Cow::from("");
+        let mut result = SmallVec::new();
         let mut head = i;
-
-        if let Ok((remaining, parsed)) = normal(head) {
-            result = Cow::from(parsed);
-            head = remaining;
-        }
 
         loop {
             match normal(head) {
                 Ok((remaining, parsed)) => {
-                    result.to_mut().push_str(parsed);
+                    result.push(parsed);
                     head = remaining;
                 }
                 Err(nom::Err::Error(_)) => {
                     // FUTURE: https://doc.rust-lang.org/std/primitive.str.html#method.strip_prefix
                     if head.starts_with(escape_char) {
-                        let after = &head[escape_char.len_utf8()..];
+                        let after = &head[escape_char.len()..];
 
                         match escaped(after) {
                             Ok((remaining, parsed)) => {
-                                result.to_mut().push_str(parsed);
+                                result.push(parsed);
                                 head = remaining;
                             }
                             Err(nom::Err::Error(_)) => {
-                                result.to_mut().push(escape_char);
+                                result.push(escape_char);
                                 head = after;
                             }
                             Err(e) => return Err(e),
@@ -390,11 +415,77 @@ where
                                 nom::error::ErrorKind::EscapedTransform,
                             )));
                         } else {
-                            return Ok((head, result));
+                            return Ok((head, EscapedStr(result)));
                         }
                     }
                 }
                 Err(e) => return Err(e),
+            }
+        }
+    }
+}
+
+/// This is a copied version of nom's `separated_list` that allows
+/// parameterizing the created collection via closures.
+pub fn parameterized_separated_list<I, O, O2, E, F, G, Ret>(
+    sep: G,
+    f: F,
+    cre: impl FnOnce() -> Ret,
+    mut add: impl FnMut(&mut Ret, O),
+) -> impl FnOnce(I) -> IResult<I, Ret, E>
+where
+    I: Clone + PartialEq,
+    F: Fn(I) -> IResult<I, O, E>,
+    G: Fn(I) -> IResult<I, O2, E>,
+    E: nom::error::ParseError<I>,
+{
+    move |mut i: I| {
+        let mut res = cre();
+
+        match f(i.clone()) {
+            Err(nom::Err::Error(_)) => return Ok((i, res)),
+            Err(e) => return Err(e),
+            Ok((i1, o)) => {
+                if i1 == i {
+                    return Err(nom::Err::Error(E::from_error_kind(
+                        i1,
+                        nom::error::ErrorKind::SeparatedList,
+                    )));
+                }
+
+                add(&mut res, o);
+                i = i1;
+            }
+        }
+
+        loop {
+            match sep(i.clone()) {
+                Err(nom::Err::Error(_)) => return Ok((i, res)),
+                Err(e) => return Err(e),
+                Ok((i1, _)) => {
+                    if i1 == i {
+                        return Err(nom::Err::Error(E::from_error_kind(
+                            i1,
+                            nom::error::ErrorKind::SeparatedList,
+                        )));
+                    }
+
+                    match f(i1.clone()) {
+                        Err(nom::Err::Error(_)) => return Ok((i, res)),
+                        Err(e) => return Err(e),
+                        Ok((i2, o)) => {
+                            if i2 == i {
+                                return Err(nom::Err::Error(E::from_error_kind(
+                                    i2,
+                                    nom::error::ErrorKind::SeparatedList,
+                                )));
+                            }
+
+                            add(&mut res, o);
+                            i = i2;
+                        }
+                    }
+                }
             }
         }
     }
