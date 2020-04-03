@@ -1,7 +1,7 @@
 //! partitioned_store is an enum and set of helper functions and structs to define Partitions
 //! that store data. The helper funcs and structs merge results from multiple partitions together.
 use crate::delorean::{Predicate, TimestampRange};
-use crate::line_parser::PointType;
+use crate::line_parser::{self, Pair, PointType};
 use crate::storage::memdb::MemDB;
 use crate::storage::remote_partition::RemotePartition;
 use crate::storage::s3_partition::S3Partition;
@@ -376,6 +376,16 @@ impl ReadBatch {
             (_, _) => true, // do nothing here
         }
     }
+
+    /// Returns the tag keys and values for this batch, sorted by key.
+    pub fn tags(&self) -> Vec<(String, String)> {
+        let mut index_pairs = line_parser::index_pairs(&self.key);
+        index_pairs.sort_by(|a, b| a.key.cmp(&b.key));
+        index_pairs
+            .into_iter()
+            .map(|Pair { key, value }| (key, value))
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -548,5 +558,27 @@ mod tests {
                 },
             ],
         )
+    }
+
+    #[test]
+    fn read_batch_tag_parsing() {
+        let batch = ReadBatch {
+            key: "cpu,host=b,region=west\tusage_system".to_string(),
+            values: ReadValues::I64(vec![]),
+        };
+
+        assert_eq!(
+            batch
+                .tags()
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("_f", "usage_system"),
+                ("_m", "cpu"),
+                ("host", "b"),
+                ("region", "west"),
+            ]
+        );
     }
 }

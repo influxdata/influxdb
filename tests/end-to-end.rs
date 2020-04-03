@@ -285,11 +285,12 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     assert_eq!(
         tags_as_strings(&f.tags),
         vec![
+            ("_f", "value"),
             ("_m", "cpu_load_short"),
             ("host", "server01"),
             ("region", "us-west"),
-            ("_f", "value")
-        ]
+        ],
+        "in frame 0",
     );
 
     let f = assert_unwrap!(&frames[1], Data::FloatPoints, "in frame 1");
@@ -306,11 +307,12 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     assert_eq!(
         tags_as_strings(&f.tags),
         vec![
+            ("_f", "value"),
             ("_m", "cpu_load_short"),
             ("host", "server01"),
             ("region", "us-east"),
-            ("_f", "value")
-        ]
+        ],
+        "in frame 3",
     );
 
     let f = assert_unwrap!(&frames[3], Data::FloatPoints, "in frame 4");

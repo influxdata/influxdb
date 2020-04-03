@@ -9,7 +9,6 @@ use delorean::delorean::{
     ReadGroupRequest, ReadResponse, ReadSource, StringValuesResponse, Tag, TagKeysRequest,
     TagValuesRequest, TimestampRange,
 };
-use delorean::line_parser::index_pairs;
 use delorean::storage::partitioned_store::ReadValues;
 
 use std::convert::TryInto;
@@ -298,11 +297,13 @@ async fn send_series_filters(
         // should each be sent as their own data frames
         if last_frame_key != batch.key {
             last_frame_key = batch.key.clone();
-            let tags = index_pairs(&batch.key)
+
+            let tags = batch
+                .tags()
                 .into_iter()
-                .map(|p| Tag {
-                    key: p.key.bytes().collect(),
-                    value: p.value.bytes().collect(),
+                .map(|(key, value)| Tag {
+                    key: key.bytes().collect(),
+                    value: value.bytes().collect(),
                 })
                 .collect();
 
