@@ -48,6 +48,8 @@ type Service struct {
 	Migrator *Migrator
 
 	urmByUserIndex *Index
+
+	disableAuthorizationsForMaxPermissions func(context.Context) bool
 }
 
 // NewService returns an instance of a Service.
@@ -79,6 +81,9 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 				return id, nil
 			},
 		)),
+		disableAuthorizationsForMaxPermissions: func(context.Context) bool {
+			return false
+		},
 	}
 
 	// kv service migrations
@@ -267,4 +272,11 @@ func (s *Service) WithStore(store Store) {
 // Should only be used in tests for mocking.
 func (s *Service) WithSpecialOrgBucketIDs(gen influxdb.IDGenerator) {
 	s.OrgBucketIDs = gen
+}
+
+// WithMaxPermissionFunc sets the useAuthorizationsForMaxPermissions function
+// which can trigger whether or not max permissions uses the users authorizations
+// to derive maximum permissions.
+func (s *Service) WithMaxPermissionFunc(fn func(context.Context) bool) {
+	s.disableAuthorizationsForMaxPermissions = fn
 }
