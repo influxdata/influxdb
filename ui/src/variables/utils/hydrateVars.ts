@@ -372,7 +372,10 @@ export const hydrateVars = (
     node.status === RemoteDataState.Loading
 
     try {
+      // TODO: remove the concept of node.values, just use node.variable
       node.values = await hydrateVarsHelper(node, options)
+      node.variable.arguments.values.results = node.values.values
+      node.variable.selected = node.values.selected
       node.status = RemoteDataState.Done
 
       return Promise.all(node.parents.filter(readyToResolve).map(resolve))

@@ -175,6 +175,11 @@ export const getVariable = (
   if (!vari.selected) {
     if (vari.arguments.type === 'map') {
       vari.selected = [Object.keys(vari.arguments.values)[0]]
+    } else if (
+      vari.arguments.type === 'query' &&
+      vari.arguments.values.results
+    ) {
+      vari.selected = [vari.arguments.values.results[0]]
     } else {
       vari.selected = [vari.arguments.values[0]]
     }
@@ -252,6 +257,9 @@ export const asAssignment = (variable: Variable): VariableAssignment => {
   }
 
   if (variable.arguments.type === 'query') {
+    if (!variable.selected[0]) {
+      return null
+    }
     out.init = {
       type: 'StringLiteral',
       value: variable.selected[0],
