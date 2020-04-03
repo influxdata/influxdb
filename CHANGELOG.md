@@ -34,6 +34,7 @@
 1. [17515](https://github.com/influxdata/influxdb/pull/17515): Editing a table cell shows the proper values and respects changes
 1. [17521](https://github.com/influxdata/influxdb/pull/17521): Table view scrolling should be slightly smoother
 1. [17601](https://github.com/influxdata/influxdb/pull/17601): URL table values on single columns are being correctly parsed
+1. [17552](https://github.com/influxdata/influxdb/pull/17552): Fixed a regression bug that insert aggregate functions where the cursor is rather than a new line
 
 ### UI Improvements
 
