@@ -4,7 +4,6 @@ use std::fmt;
 
 pub mod config_store;
 pub mod database;
-pub mod inverted_index;
 pub mod memdb;
 pub mod partitioned_store;
 pub mod predicate;
