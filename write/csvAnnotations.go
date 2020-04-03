@@ -18,6 +18,14 @@ func (a *annotationComment) isTableAnnotation() bool {
 
 func setupDataType(column *CsvTableColumn, val string) {
 	val = ignoreLeadingComment(val)
+	// extra pipe separates data type from a default value
+	pipeIndex := strings.Index(val, "|")
+	if pipeIndex > 1 {
+		if column.DefaultValue == "" {
+			column.DefaultValue = val[pipeIndex+1:]
+			val = val[:pipeIndex]
+		}
+	}
 	switch {
 	case val == "tag":
 		column.LinePart = linePartTag
@@ -36,13 +44,6 @@ func setupDataType(column *CsvTableColumn, val string) {
 		val = dateTimeDatatype
 	}
 	colonIndex := strings.Index(val, ":")
-	pipeIndex := strings.Index(val, "|")
-	if pipeIndex > 1 {
-		if column.DefaultValue == "" {
-			column.DefaultValue = val[pipeIndex+1:]
-			val = val[:pipeIndex]
-		}
-	}
 	if colonIndex > 1 {
 		column.DataType = val[:colonIndex]
 		column.DataFormat = val[colonIndex+1:]
