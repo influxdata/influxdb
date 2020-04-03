@@ -9,7 +9,7 @@ use nom::{
 };
 use smallvec::SmallVec;
 use snafu::Snafu;
-use std::{collections::btree_map::Entry, collections::BTreeMap, fmt};
+use std::{borrow::Cow, collections::btree_map::Entry, collections::BTreeMap, fmt};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -176,6 +176,12 @@ impl fmt::Display for EscapedStr<'_> {
     }
 }
 
+impl<'a> EscapedStr<'a> {
+    fn is_escaped(&self) -> bool {
+        self.0.len() > 1
+    }
+}
+
 impl From<EscapedStr<'_>> for String {
     fn from(other: EscapedStr<'_>) -> Self {
         other.to_string()
@@ -196,15 +202,88 @@ impl PartialEq<&str> for EscapedStr<'_> {
     }
 }
 
-type TagSet<'a> = SmallVec<[(EscapedStr<'a>, EscapedStr<'a>); 4]>;
+type TagSet<'a> = SmallVec<[(EscapedStr<'a>, EscapedStr<'a>); 8]>;
 type FieldSet<'a> = SmallVec<[(EscapedStr<'a>, FieldValue); 4]>;
 
 #[derive(Debug)]
 struct ParsedLine<'a> {
-    measurement: EscapedStr<'a>,
-    tag_set: Option<TagSet<'a>>,
+    series: Series<'a>,
     field_set: FieldSet<'a>,
     timestamp: Option<i64>,
+}
+
+#[derive(Debug)]
+struct Series<'a> {
+    raw_input: &'a str,
+    measurement: EscapedStr<'a>,
+    tag_set: Option<TagSet<'a>>,
+}
+
+impl<'a> Series<'a> {
+    pub fn generate_base(self) -> Result<Cow<'a, str>> {
+        match (!self.is_escaped(), self.is_sorted_and_unique()) {
+            (true, true) => Ok(self.raw_input.into()),
+            (_, true) => self.generate_base_with_escaping().map(Into::into),
+            (_, _) => self
+                .generate_base_with_escaping_sorting_deduplicating()
+                .map(Into::into),
+        }
+    }
+
+    fn generate_base_with_escaping(self) -> Result<String> {
+        let mut series_base = self.measurement.to_string();
+        for (tag_key, tag_value) in self.tag_set.unwrap_or_default() {
+            use std::fmt::Write;
+            write!(&mut series_base, ",{}={}", tag_key, tag_value)
+                .expect("Could not append string");
+        }
+        Ok(series_base)
+    }
+
+    fn generate_base_with_escaping_sorting_deduplicating(self) -> Result<String> {
+        let mut unique_sorted_tag_set = BTreeMap::new();
+        for (tag_key, tag_value) in self.tag_set.unwrap_or_default() {
+            match unique_sorted_tag_set.entry(tag_key) {
+                Entry::Vacant(e) => {
+                    e.insert(tag_value);
+                }
+                Entry::Occupied(e) => {
+                    let (tag_key, _) = e.remove_entry();
+                    return DuplicateTag { tag_key }.fail();
+                }
+            }
+        }
+
+        let mut series_base = self.measurement.to_string();
+        for (tag_key, tag_value) in unique_sorted_tag_set {
+            use std::fmt::Write;
+            write!(&mut series_base, ",{}={}", tag_key, tag_value)
+                .expect("Could not append string");
+        }
+
+        Ok(series_base)
+    }
+
+    fn is_escaped(&self) -> bool {
+        self.measurement.is_escaped() || {
+            match &self.tag_set {
+                None => false,
+                Some(tag_set) => tag_set
+                    .iter()
+                    .any(|(tag_key, tag_value)| tag_key.is_escaped() || tag_value.is_escaped()),
+            }
+        }
+    }
+
+    fn is_sorted_and_unique(&self) -> bool {
+        match &self.tag_set {
+            None => true,
+            Some(tag_set) => {
+                let mut i = tag_set.iter().zip(tag_set.iter().skip(1));
+                i.all(|((last_tag_key, _), (this_tag_key, _))| last_tag_key < this_tag_key)
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -229,13 +308,12 @@ pub fn parse(input: &str) -> Result<Vec<PointType>> {
 
 fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = PointType> + '_> {
     let ParsedLine {
-        measurement,
-        tag_set,
+        series,
         field_set,
         timestamp,
     } = parsed_line;
 
-    let series_base = generate_series_base(measurement, tag_set.unwrap_or_default())?;
+    let series_base = series.generate_base()?;
     let timestamp = timestamp.expect("TODO: default timestamp not supported");
 
     Ok(field_set.into_iter().map(move |(field_key, field_value)| {
@@ -248,44 +326,33 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = Po
     }))
 }
 
-fn generate_series_base(measurement: EscapedStr<'_>, tag_set: TagSet<'_>) -> Result<String> {
-    let mut unique_sorted_tag_set = BTreeMap::new();
-    for (tag_key, tag_value) in tag_set {
-        match unique_sorted_tag_set.entry(tag_key) {
-            Entry::Vacant(e) => {
-                e.insert(tag_value);
-            }
-            Entry::Occupied(e) => {
-                let (tag_key, _) = e.remove_entry();
-                return DuplicateTag { tag_key }.fail();
-            }
-        }
-    }
-
-    let mut series_base = measurement.to_string();
-    for (tag_key, tag_value) in unique_sorted_tag_set {
-        use std::fmt::Write;
-        write!(&mut series_base, ",{}={}", tag_key, tag_value).expect("Could not append string");
-    }
-
-    Ok(series_base)
-}
-
 fn parse_line(i: &str) -> IResult<&str, ParsedLine<'_>> {
-    let tag_set = preceded(tag(","), tag_set);
     let field_set = preceded(tag(" "), field_set);
     let timestamp = preceded(tag(" "), timestamp);
 
-    let line = tuple((measurement, opt(tag_set), field_set, opt(timestamp)));
+    let line = tuple((series, field_set, opt(timestamp)));
 
-    map(line, |(measurement, tag_set, field_set, timestamp)| {
-        ParsedLine {
+    map(line, |(series, field_set, timestamp)| ParsedLine {
+        series,
+        field_set,
+        timestamp,
+    })(i)
+}
+
+fn series(i: &str) -> IResult<&str, Series<'_>> {
+    let tag_set = preceded(tag(","), tag_set);
+    let series = tuple((measurement, opt(tag_set)));
+
+    let series_and_raw_input = parse_and_recognize(series);
+
+    map(
+        series_and_raw_input,
+        |(raw_input, (measurement, tag_set))| Series {
+            raw_input,
             measurement,
             tag_set,
-            field_set,
-            timestamp,
-        }
-    })(i)
+        },
+    )(i)
 }
 
 fn measurement(i: &str) -> IResult<&str, EscapedStr<'_>> {
@@ -487,6 +554,31 @@ where
                     }
                 }
             }
+        }
+    }
+}
+
+/// This is a copied version of nom's `recognize` that runs the parser
+/// **and** returns the entire matched input.
+pub fn parse_and_recognize<
+    I: Clone + nom::Offset + nom::Slice<std::ops::RangeTo<usize>>,
+    O,
+    E: nom::error::ParseError<I>,
+    F,
+>(
+    parser: F,
+) -> impl Fn(I) -> IResult<I, (I, O), E>
+where
+    F: Fn(I) -> IResult<I, O, E>,
+{
+    move |input: I| {
+        let i = input.clone();
+        match parser(i) {
+            Ok((i, o)) => {
+                let index = input.offset(&i);
+                Ok((i, (input.slice(..index), o)))
+            }
+            Err(e) => Err(e),
         }
     }
 }
