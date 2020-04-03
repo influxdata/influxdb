@@ -5,7 +5,6 @@ use nom::{
     character::complete::digit1,
     combinator::{map, opt, recognize},
     sequence::{preceded, separated_pair, terminated, tuple},
-    IResult,
 };
 use smallvec::SmallVec;
 use snafu::Snafu;
@@ -16,12 +15,37 @@ pub enum Error {
     #[snafu(display(r#"Must not contain duplicate tags, but "{}" was repeated"#, tag_key))]
     DuplicateTag { tag_key: String },
 
+    #[snafu(display(r#"No fields were provided"#))]
+    FieldSetMissing,
+
     // TODO: Replace this with specific failures.
     #[snafu(display(r#"A generic parsing error occurred: {:?}"#, kind))]
-    GenericParsingError { kind: nom::error::ErrorKind },
+    GenericParsingError {
+        kind: nom::error::ErrorKind,
+        trace: Vec<Error>,
+    },
+}
+
+impl nom::error::ParseError<&str> for Error {
+    fn from_error_kind(_input: &str, kind: nom::error::ErrorKind) -> Self {
+        GenericParsingError {
+            kind,
+            trace: vec![],
+        }
+        .build()
+    }
+
+    fn append(_input: &str, kind: nom::error::ErrorKind, other: Self) -> Self {
+        GenericParsingError {
+            kind,
+            trace: vec![other],
+        }
+        .build()
+    }
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+type IResult<I, T, E = Error> = nom::IResult<I, T, E>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Point<T> {
@@ -343,9 +367,7 @@ fn parse_lines(mut i: &str) -> impl Iterator<Item = Result<ParsedLine<'_>>> {
                 i = remaining;
                 Some(Ok(line))
             }
-            Err(nom::Err::Error((_, kind))) | Err(nom::Err::Failure((_, kind))) => {
-                Some(GenericParsingError { kind }.fail())
-            }
+            Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => Some(Err(e)),
             Err(nom::Err::Incomplete(_)) => unreachable!("Cannot have incomplete data"), // Only streaming parsers have this
         }
     })
@@ -410,7 +432,12 @@ fn tag_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
 
 fn field_set(i: &str) -> IResult<&str, FieldSet<'_>> {
     let one_field = separated_pair(field_key, tag("="), field_value);
-    parameterized_separated_list(tag(","), one_field, SmallVec::new, |v, i| v.push(i))(i)
+    let sep = tag(",");
+
+    match parameterized_separated_list1(sep, one_field, SmallVec::new, |v, i| v.push(i))(i) {
+        Err(nom::Err::Error(_)) => FieldSetMissing.fail().map_err(nom::Err::Error),
+        other => other,
+    }
 }
 
 fn field_key(i: &str) -> IResult<&str, EscapedStr<'_>> {
@@ -619,6 +646,32 @@ where
     }
 }
 
+pub fn parameterized_separated_list1<I, O, O2, E, F, G, Ret>(
+    sep: G,
+    f: F,
+    cre: impl FnOnce() -> Ret,
+    mut add: impl FnMut(&mut Ret, O),
+) -> impl FnOnce(I) -> IResult<I, Ret, E>
+where
+    I: Clone + PartialEq,
+    F: Fn(I) -> IResult<I, O, E>,
+    G: Fn(I) -> IResult<I, O2, E>,
+    E: nom::error::ParseError<I>,
+{
+    move |i| {
+        let (rem, first) = f(i)?;
+
+        let mut res = cre();
+        add(&mut res, first);
+
+        match sep(rem.clone()) {
+            Ok((rem, _)) => parameterized_separated_list(sep, f, move || res, add)(rem),
+            Err(nom::Err::Error(_)) => Ok((rem, res)),
+            Err(e) => Err(e),
+        }
+    }
+}
+
 /// This is a copied version of nom's `recognize` that runs the parser
 /// **and** returns the entire matched input.
 pub fn parse_and_recognize<
@@ -651,6 +704,16 @@ mod test {
 
     type Error = Box<dyn std::error::Error>;
     type Result<T = (), E = Error> = std::result::Result<T, E>;
+
+    #[test]
+    fn parse_no_fields() -> Result {
+        let input = "foo 1234";
+        let vals = parse(input);
+
+        assert!(matches!(vals, Err(super::Error::FieldSetMissing)));
+
+        Ok(())
+    }
 
     #[test]
     fn parse_single_field_integer() -> Result {
