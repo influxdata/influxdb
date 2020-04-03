@@ -2,28 +2,65 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"strings"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/repl"
 	_ "github.com/influxdata/flux/stdlib"
 	_ "github.com/influxdata/influxdb/query/stdlib"
 	"github.com/spf13/cobra"
 )
 
 var queryFlags struct {
-	org organization
+	org  organization
+	file string
 }
 
 func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
-	cmd := opts.newCmd("query [query literal or @/path/to/query.flux]", fluxQueryF, true)
+	cmd := opts.newCmd("query [query literal or -f /path/to/query.flux]", fluxQueryF, true)
 	cmd.Short = "Execute a Flux query"
-	cmd.Long = `Execute a literal Flux query provided as a string,
-or execute a literal Flux query contained in a file by specifying the file prefixed with an @ sign.`
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Long = `Execute a literal Flux query provided as a string argument or 
+in a file using the -f flag or via stdin`
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	queryFlags.org.register(cmd, true)
+	cmd.Flags().StringVarP(&queryFlags.file, "file", "f", "", "The path to the Flux query file")
 
 	return cmd
+}
+
+// readFluxQuery returns first argument, file contents or stdin
+func readFluxQuery(args []string, file string) (string, error) {
+	// backward compatibility
+	if len(args) > 0 {
+		if strings.HasPrefix(args[0], "@") {
+			file = args[0][1:]
+			args = args[:0]
+		} else if args[0] == "-" {
+			file = ""
+			args = args[:0]
+		}
+	}
+
+	var query string
+	switch {
+	case len(args) > 0:
+		query = args[0]
+	case len(file) > 0:
+		content, err := ioutil.ReadFile(file)
+		if err != nil {
+			return "", err
+		}
+		query = string(content)
+	default:
+		content, err := ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			return "", err
+		}
+		query = string(content)
+	}
+	return query, nil
 }
 
 func fluxQueryF(cmd *cobra.Command, args []string) error {
@@ -35,7 +72,7 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	q, err := repl.LoadQuery(args[0])
+	q, err := readFluxQuery(args, queryFlags.file)
 	if err != nil {
 		return fmt.Errorf("failed to load query: %v", err)
 	}
