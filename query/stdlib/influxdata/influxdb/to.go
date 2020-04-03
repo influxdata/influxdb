@@ -563,6 +563,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 		var tags models.Tags
 		kv := make([][]byte, 2, er.Len()*2+2) // +2 for field key, value
 		var fieldValues values.Object
+	outer:
 		for i := 0; i < er.Len(); i++ {
 			measurementName = ""
 			fields := make(models.Fields)
@@ -577,7 +578,12 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 					kv[0] = models.MeasurementTagKeyBytes
 					kv[1] = er.Strings(j).Value(i)
 				case col.Label == timeColLabel:
-					pointTime = execute.ValueForRow(er, i, j).Time().Time()
+					valueTime := execute.ValueForRow(er, i, j)
+					if valueTime.IsNull() {
+						// skip rows with null timestamp
+						continue outer
+					}
+					pointTime = valueTime.Time().Time()
 				case isTag[j]:
 					if col.Type != flux.TString {
 						return errors.New("invalid type for tag column")
