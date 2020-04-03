@@ -71,10 +71,12 @@ export const limitsReducer = (
           draftState.buckets.maxAllowed = maxBuckets
           draftState.buckets.maxRetentionSeconds = maxRetentionDuration / 1e9
         }
+
         if (limits.dashboard) {
           const {maxDashboards} = limits.dashboard
           draftState.dashboards.maxAllowed = maxDashboards
         }
+
         if (limits.task) {
           const {maxTasks} = limits.task
           draftState.tasks.maxAllowed = maxTasks
@@ -113,38 +115,47 @@ export const limitsReducer = (
 
         return
       }
+
       case ActionTypes.SetDashboardLimitStatus: {
         draftState.dashboards.limitStatus = action.payload.limitStatus
         return
       }
+
       case ActionTypes.SetBucketLimitStatus: {
         draftState.buckets.limitStatus = action.payload.limitStatus
         return
       }
+
       case ActionTypes.SetTaskLimitStatus: {
         draftState.tasks.limitStatus = action.payload.limitStatus
         return
       }
+
       case ActionTypes.SetChecksLimitStatus: {
         draftState.checks.limitStatus = action.payload.limitStatus
         return
       }
+
       case ActionTypes.SetRulesLimitStatus: {
         draftState.rules.limitStatus = action.payload.limitStatus
         return
       }
+
       case ActionTypes.SetEndpointsLimitStatus: {
         draftState.endpoints.limitStatus = action.payload.limitStatus
         return
       }
+
       case ActionTypes.SetReadRateLimitStatus: {
         draftState.rate.readKBs.limitStatus = action.payload.limitStatus
         return
       }
+
       case ActionTypes.SetWriteRateLimitStatus: {
         draftState.rate.writeKBs.limitStatus = action.payload.limitStatus
         return
       }
+
       case ActionTypes.SetCardinalityLimitStatus: {
         draftState.rate.cardinality.limitStatus = action.payload.limitStatus
         return
