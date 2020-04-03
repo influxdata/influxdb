@@ -13,12 +13,13 @@ import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {
-  formatFunctionForInsert,
+  functionRequiresNewLine,
   generateImport,
 } from 'src/timeMachine/utils/insertFunction'
 
 // Types
 import {AppState, FluxToolbarFunction, EditorType} from 'src/types'
+import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api'
 
 interface StateProps {
   activeQueryText: string
@@ -56,10 +57,9 @@ const TimeMachineFluxEditor: FC<Props> = ({
     onSetActiveQueryText(editorInstance.getValue())
   }
 
-  const getInsertLineNumber = (
-    currentLineNumber: number,
-    scriptLines: string[]
-  ): number => {
+  const getInsertLineNumber = (currentLineNumber: number): number => {
+    const scriptLines = activeQueryText.split('\n')
+
     const currentLine =
       scriptLines[currentLineNumber] || scriptLines[scriptLines.length - 1]
 
@@ -71,45 +71,55 @@ const TimeMachineFluxEditor: FC<Props> = ({
     return currentLineNumber + 1
   }
 
-  const handleInsertFluxFunction = (func: FluxToolbarFunction): void => {
+  const defaultColumnPosition = 1 // beginning column of the row
+
+  const getFluxTextAndRange = (
+    func: FluxToolbarFunction
+  ): {text: string; range: monacoEditor.Range} => {
     const p = editorInstance.getPosition()
-    const scriptLines = activeQueryText.split('\n')
+    const insertLineNumber = getInsertLineNumber(p.lineNumber)
 
-    const insertLineNumber = getInsertLineNumber(p.lineNumber, scriptLines)
+    let row = insertLineNumber
 
-    const defaultColumnPosition = 1 // beginning column of the row
-
-    // sets the range based on the current position
-    let range = new window.monaco.Range(
-      insertLineNumber, // the row beneath the cursor
-      defaultColumnPosition,
-      insertLineNumber,
-      defaultColumnPosition
-    )
-    // edge case for when user toggles to the script editor
-    // this defaults the cursor to the initial position (top-left, 1:1 position)
     const [currentRange] = editorInstance.getVisibleRanges()
     // Determines whether the new insert line is beyond the current range
     let shouldInsertOnLastLine = insertLineNumber > currentRange.endLineNumber
+    // edge case for when user toggles to the script editor
+    // this defaults the cursor to the initial position (top-left, 1:1 position)
     if (p.lineNumber === 1 && p.column === defaultColumnPosition) {
       // adds the function to the end of the query
       shouldInsertOnLastLine = true
-      range = new window.monaco.Range(
-        currentRange.endLineNumber + 1,
-        p.column,
-        currentRange.endLineNumber + 1,
-        p.column
-      )
+      row = currentRange.endLineNumber + 1
     }
+
+    let text = ''
+    if (shouldInsertOnLastLine) {
+      text = `\n  |> ${func.example}`
+    } else {
+      text = `  |> ${func.example}\n`
+    }
+
+    if (functionRequiresNewLine(func.name)) {
+      text = `\n${func.example}\n`
+    }
+
+    const range = new window.monaco.Range(
+      row,
+      defaultColumnPosition,
+      row,
+      defaultColumnPosition
+    )
+
+    return {text, range}
+  }
+
+  const handleInsertFluxFunction = (func: FluxToolbarFunction): void => {
+    const {text, range} = getFluxTextAndRange(func)
 
     const edits = [
       {
         range,
-        text: formatFunctionForInsert(
-          func.name,
-          func.example,
-          shouldInsertOnLastLine
-        ),
+        text,
       },
     ]
     const importStatement = generateImport(

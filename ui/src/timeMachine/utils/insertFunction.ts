@@ -1,7 +1,7 @@
 // Constants
 import {FROM, UNION} from 'src/shared/constants/fluxFunctions'
 
-const functionRequiresNewLine = (funcName: string): boolean => {
+export const functionRequiresNewLine = (funcName: string): boolean => {
   switch (funcName) {
     case FROM.name:
     case UNION.name: {
@@ -10,22 +10,6 @@ const functionRequiresNewLine = (funcName: string): boolean => {
     default:
       return false
   }
-}
-
-export const formatFunctionForInsert = (
-  funcName: string,
-  fluxFunction: string,
-  newLine: boolean
-): string => {
-  if (functionRequiresNewLine(funcName)) {
-    return `\n${fluxFunction}\n`
-  }
-
-  if (newLine) {
-    return `\n  |> ${fluxFunction}`
-  }
-
-  return `  |> ${fluxFunction}\n`
 }
 
 export const generateImport = (
