@@ -28,8 +28,21 @@ pub struct GrpcServer {
 impl Delorean for GrpcServer {
     async fn create_bucket(
         &self,
-        _req: tonic::Request<CreateBucketRequest>,
+        req: tonic::Request<CreateBucketRequest>,
     ) -> Result<tonic::Response<CreateBucketResponse>, Status> {
+        let create_bucket_request = req.into_inner();
+
+        let org_id = create_bucket_request.org_id;
+        let bucket = create_bucket_request
+            .bucket
+            .ok_or_else(|| Status::invalid_argument("missing bucket argument"))?;
+
+        self.app
+            .db
+            .create_bucket_if_not_exists(org_id, bucket)
+            .await
+            .map_err(|err| Status::internal(format!("error creating bucket: {}", err)))?;
+
         Ok(tonic::Response::new(CreateBucketResponse {}))
     }
 
