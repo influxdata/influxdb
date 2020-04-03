@@ -257,7 +257,7 @@ export const asAssignment = (variable: Variable): VariableAssignment => {
   }
 
   if (variable.arguments.type === 'query') {
-    if (!variable.selected[0]) {
+    if (!variable.selected || !variable.selected[0]) {
       return null
     }
     out.init = {
