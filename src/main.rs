@@ -3,7 +3,6 @@
 #[macro_use]
 extern crate log;
 
-use delorean::delorean::Bucket;
 use delorean::delorean::{
     delorean_server::DeloreanServer, storage_server::StorageServer, TimestampRange,
 };
@@ -55,30 +54,13 @@ async fn write(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applica
         .map_err(|e| {
             debug!("Error getting bucket id: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or_else(|| {
+            ApplicationError::new(
+                StatusCode::NOT_FOUND,
+                &format!("bucket {} not found", write_info.bucket_name),
+            )
         })?;
-
-    let bucket_id = match bucket_id {
-        Some(id) => id,
-        None => {
-            // create this as the default bucket
-            let b = Bucket {
-                org_id: write_info.org_id,
-                id: 0,
-                name: write_info.bucket_name.clone(),
-                retention: "0".to_string(),
-                posting_list_rollover: 10_000,
-                index_levels: vec![],
-            };
-
-            app.db
-                .create_bucket_if_not_exists(write_info.org_id, b)
-                .await
-                .map_err(|e| {
-                    debug!("Error creating bucket: {}", e);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?
-        }
-    };
 
     let mut payload = req.into_body();
 
