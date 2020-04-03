@@ -7,7 +7,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
@@ -45,14 +44,18 @@ var taskPrintFlags struct {
 }
 
 var taskCreateFlags struct {
-	org organization
+	org  organization
+	file string
 }
 
 func taskCreateCmd(opt genericCLIOpts) *cobra.Command {
-	cmd := opt.newCmd("create [query literal or @/path/to/query.flux]", taskCreateF, true)
-	cmd.Args = cobra.ExactArgs(1)
+	cmd := opt.newCmd("create [script literal or -f /path/to/script.flux]", taskCreateF, true)
+	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Short = "Create task"
+	cmd.Long = `Create task with a Flux script provided as an argument or 
+in a file using the -f flag or via stdin`
 
+	cmd.Flags().StringVarP(&taskCreateFlags.file, "file", "f", "", "The path to the Flux script file")
 	taskCreateFlags.org.register(cmd, false)
 	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 
@@ -74,7 +77,7 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 		InsecureSkipVerify: flags.skipVerify,
 	}
 
-	flux, err := repl.LoadQuery(args[0])
+	flux, err := readFluxQuery(args, taskCreateFlags.file)
 	if err != nil {
 		return fmt.Errorf("error parsing flux script: %s", err)
 	}
@@ -207,15 +210,20 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 var taskUpdateFlags struct {
 	id     string
 	status string
+	file   string
 }
 
 func taskUpdateCmd(opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("update", taskUpdateF, true)
 	cmd.Short = "Update task"
+	cmd.Long = `Update task
+An optional Flux script can be provided as an argument or 
+in a file using the -f flag, '-' argument reads the Flux script from stdin.`
 
 	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskUpdateFlags.id, "id", "i", "", "task ID (required)")
 	cmd.Flags().StringVarP(&taskUpdateFlags.status, "status", "", "", "update task status")
+	cmd.Flags().StringVarP(&taskUpdateFlags.file, "file", "f", "", "The path to the Flux script file")
 	cmd.MarkFlagRequired("id")
 
 	return cmd
@@ -242,8 +250,9 @@ func taskUpdateF(cmd *cobra.Command, args []string) error {
 		update.Status = &taskUpdateFlags.status
 	}
 
-	if len(args) > 0 {
-		flux, err := repl.LoadQuery(args[0])
+	// update flux script only if first arg or file is supplied
+	if (len(args) > 0 && len(args[0]) > 0) || len(taskUpdateFlags.file) > 0 {
+		flux, err := readFluxQuery(args, taskUpdateFlags.file)
 		if err != nil {
 			return fmt.Errorf("error parsing flux script: %s", err)
 		}
