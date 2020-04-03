@@ -299,7 +299,6 @@ async fn send_series_filters(
         if last_frame_key != batch.key {
             last_frame_key = batch.key.clone();
             let tags = index_pairs(&batch.key)
-                .map_err(|err| Status::invalid_argument(err.to_string()))?
                 .into_iter()
                 .map(|p| Tag {
                     key: p.key.bytes().collect(),

@@ -28,7 +28,7 @@ pub struct Point<T> {
 }
 
 impl<T> Point<T> {
-    pub fn index_pairs(&self) -> Result<Vec<Pair>> {
+    pub fn index_pairs(&self) -> Vec<Pair> {
         index_pairs(&self.series)
     }
 }
@@ -107,7 +107,7 @@ impl PointType {
         }
     }
 
-    pub fn index_pairs(&self) -> Result<Vec<Pair>> {
+    pub fn index_pairs(&self) -> Vec<Pair> {
         match self {
             PointType::I64(p) => p.index_pairs(),
             PointType::F64(p) => p.index_pairs(),
@@ -119,7 +119,7 @@ impl PointType {
 /// index_pairs parses the series key into key value pairs for insertion into the index. In
 /// cases where this series is already in the database, this parse step can be skipped entirely.
 /// The measurement is represented as a _m key and field as _f.
-pub fn index_pairs(key: &str) -> Result<Vec<Pair>> {
+pub fn index_pairs(key: &str) -> Vec<Pair> {
     let chars = key.chars();
     let mut pairs = vec![];
     let mut key = "_m".to_string();
@@ -154,7 +154,7 @@ pub fn index_pairs(key: &str) -> Result<Vec<Pair>> {
     }
     pairs.push(Pair { key, value });
 
-    Ok(pairs)
+    pairs
 }
 
 #[derive(Debug, PartialEq)]
@@ -416,7 +416,7 @@ mod test {
             value: 0,
             time: 0,
         };
-        let pairs = p.index_pairs().unwrap();
+        let pairs = p.index_pairs();
         assert_eq!(
             pairs,
             vec![
