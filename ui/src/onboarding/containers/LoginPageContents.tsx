@@ -95,7 +95,7 @@ class LoginPageContents extends PureComponent<DispatchProps> {
       // TODO: uncomment after demo day
       // redirect to universal login page if there's an error
       // window.location.href =
-      // 'https://auth.a.influxcloud.net/login?state=g6Fo2SBrRzVfVk9TRkNYX1lJZUN1SGtJemZaUk9sVW8zYmNMOaN0aWTZIGlYN3dyQUlfODNfUnpYQUpUMUxZcUhLd2pQaWJsbXZCo2NpZNkgYm5xWGJ2NTFJU3BtOVo4dmwwd1ZaRUZZRUpUVnpqb0U&client=bnqXbv51ISpm9Z8vl0wVZEFYEJTVzjoE&protocol=oauth2&redirect_uri=https%3A%2F%2Ftwodotoh.a.influxcloud.net%2Foauth2%2Fauth0%2Fcallback&response_type=code&scope=openid%20profile%20email'
+      // 'https://auth.a.influxcloud.net/'
       throw error
     }
   }
