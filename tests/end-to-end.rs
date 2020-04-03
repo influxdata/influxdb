@@ -285,8 +285,8 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     assert_eq!(
         tags_as_strings(&f.tags),
         vec![
-            ("_f", "value"),
-            ("_m", "cpu_load_short"),
+            ("_field", "value"),
+            ("_measurement", "cpu_load_short"),
             ("host", "server01"),
             ("region", "us-west"),
         ],
@@ -301,23 +301,23 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     );
     assert_eq!(f.values, [0.64, 0.000_003], "in frame 1");
 
-    let f = assert_unwrap!(&frames[2], Data::Series, "in frame 3");
-    assert_eq!(f.data_type, DataType::Float as i32, "in frame 3");
+    let f = assert_unwrap!(&frames[2], Data::Series, "in frame 2");
+    assert_eq!(f.data_type, DataType::Float as i32, "in frame 2");
 
     assert_eq!(
         tags_as_strings(&f.tags),
         vec![
-            ("_f", "value"),
-            ("_m", "cpu_load_short"),
+            ("_field", "value"),
+            ("_measurement", "cpu_load_short"),
             ("host", "server01"),
             ("region", "us-east"),
         ],
-        "in frame 3",
+        "in frame 2",
     );
 
-    let f = assert_unwrap!(&frames[3], Data::FloatPoints, "in frame 4");
-    assert_eq!(f.timestamps, [ns_since_epoch + 2], "in frame 4");
-    assert_eq!(f.values, [1_234_567.891_011], "in frame 4");
+    let f = assert_unwrap!(&frames[3], Data::FloatPoints, "in frame 3");
+    assert_eq!(f.timestamps, [ns_since_epoch + 2], "in frame 3");
+    assert_eq!(f.values, [1_234_567.891_011], "in frame 3");
 
     let tag_keys_request = tonic::Request::new(TagKeysRequest {
         tags_source: read_source.clone(),
@@ -331,7 +331,7 @@ cpu_load_short,server01,us-east,value,{},1234567.891011
     let keys = &responses[0].values;
     let keys: Vec<_> = keys.iter().map(|s| str::from_utf8(s).unwrap()).collect();
 
-    assert_eq!(keys, vec!["_f", "_m", "host", "region"]);
+    assert_eq!(keys, vec!["_field", "_measurement", "host", "region"]);
 
     let tag_values_request = tonic::Request::new(TagValuesRequest {
         tags_source: read_source,

@@ -207,7 +207,10 @@ impl Storage for GrpcServer {
                     .unwrap(),
                 Ok(tag_keys) => {
                     // TODO: Should these be batched? If so, how?
-                    let tag_keys: Vec<_> = tag_keys.into_iter().map(|s| s.into_bytes()).collect();
+                    let tag_keys: Vec<_> = tag_keys
+                        .into_iter()
+                        .map(|s| transform_key_to_long_form_bytes(&s))
+                        .collect();
                     tx.send(Ok(StringValuesResponse { values: tag_keys }))
                         .await
                         .unwrap();
@@ -301,9 +304,12 @@ async fn send_series_filters(
             let tags = batch
                 .tags()
                 .into_iter()
-                .map(|(key, value)| Tag {
-                    key: key.bytes().collect(),
-                    value: value.bytes().collect(),
+                .map(|(key, value)| {
+                    let key = transform_key_to_long_form_bytes(&key);
+                    Tag {
+                        key,
+                        value: value.bytes().collect(),
+                    }
                 })
                 .collect();
 
@@ -360,4 +366,12 @@ async fn send_points(
     }
 
     Ok(())
+}
+
+fn transform_key_to_long_form_bytes(key: &str) -> Vec<u8> {
+    match key {
+        "_f" => b"_field".to_vec(),
+        "_m" => b"_measurement".to_vec(),
+        other => other.bytes().collect(),
+    }
 }
