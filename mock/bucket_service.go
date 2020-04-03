@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 // BucketService is a mock implementation of a retention.BucketService, which

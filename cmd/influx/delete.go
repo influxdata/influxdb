@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/kit/signals"
+	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/signals"
 	"github.com/spf13/cobra"
 )
 

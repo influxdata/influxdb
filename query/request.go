@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/influxdata/flux"
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 const (

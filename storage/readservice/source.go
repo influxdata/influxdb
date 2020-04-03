@@ -2,7 +2,7 @@ package readservice
 
 import (
 	"github.com/gogo/protobuf/types"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // this is easier than fooling around with .proto files.

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	influxdb "github.com/influxdata/influxdb"
+	influxdb "github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 

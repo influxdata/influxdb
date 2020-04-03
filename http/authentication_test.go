@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	influxdb "github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
-	platformhttp "github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/jsonweb"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/mock"
+	influxdb "github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
+	platformhttp "github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/jsonweb"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/mock"
 	"go.uber.org/zap/zaptest"
 )
 

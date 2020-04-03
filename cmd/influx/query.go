@@ -6,7 +6,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/repl"
 	_ "github.com/influxdata/flux/stdlib"
-	_ "github.com/influxdata/influxdb/query/stdlib"
+	_ "github.com/influxdata/influxdb/v2/query/stdlib"
 	"github.com/spf13/cobra"
 )
 

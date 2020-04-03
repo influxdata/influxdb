@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/notification/check"
-	"github.com/influxdata/influxdb/notification/rule"
-	"github.com/influxdata/influxdb/task/backend/middleware"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/task/backend/middleware"
 )
 
 type pipingCoordinator struct {

@@ -4,8 +4,8 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/zapcore"
 )

@@ -6,8 +6,8 @@ package builtin
 import (
 	"github.com/influxdata/flux"
 
-	_ "github.com/influxdata/flux/stdlib"           // Import the stdlib
-	_ "github.com/influxdata/influxdb/query/stdlib" // Import the stdlib
+	_ "github.com/influxdata/flux/stdlib"              // Import the stdlib
+	_ "github.com/influxdata/influxdb/v2/query/stdlib" // Import the stdlib
 )
 
 func init() {

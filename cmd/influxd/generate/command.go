@@ -6,11 +6,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/influxdata/influxdb/bolt"
-	"github.com/influxdata/influxdb/cmd/influxd/internal/profile"
-	"github.com/influxdata/influxdb/internal/fs"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/pkg/data/gen"
+	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/internal/profile"
+	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/pkg/data/gen"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )

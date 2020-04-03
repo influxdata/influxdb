@@ -8,7 +8,7 @@ import (
 	"io"
 	"sort"
 
-	"github.com/influxdata/influxdb/pkg/binaryutil"
+	"github.com/influxdata/influxdb/v2/pkg/binaryutil"
 )
 
 const (

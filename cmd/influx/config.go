@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/influxdata/influxdb/cmd/influx/config"
+	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/spf13/cobra"
 )
 

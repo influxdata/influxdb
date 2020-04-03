@@ -2,9 +2,9 @@ package tenant
 
 import (
 	"context"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/metric"
-	"github.com/influxdata/influxdb/kit/prom"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/metric"
+	"github.com/influxdata/influxdb/v2/kit/prom"
 )
 
 type BucketMetrics struct {

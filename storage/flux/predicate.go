@@ -5,8 +5,8 @@ import (
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/pkg/errors"
 )
 

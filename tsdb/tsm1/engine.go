@@ -15,17 +15,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/lifecycle"
-	"github.com/influxdata/influxdb/pkg/limiter"
-	"github.com/influxdata/influxdb/pkg/metrics"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/lifecycle"
+	"github.com/influxdata/influxdb/v2/pkg/limiter"
+	"github.com/influxdata/influxdb/v2/pkg/metrics"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -93,8 +93,12 @@ type Snapshotter interface {
 
 type noSnapshotter struct{}
 
-func (noSnapshotter) AcquireSegments(_ context.Context, fn func([]string) error) error    { return fn(nil) }
-func (noSnapshotter) CommitSegments(_ context.Context, _ []string, fn func() error) error { return fn() }
+func (noSnapshotter) AcquireSegments(_ context.Context, fn func([]string) error) error {
+	return fn(nil)
+}
+func (noSnapshotter) CommitSegments(_ context.Context, _ []string, fn func() error) error {
+	return fn()
+}
 
 // WithSnapshotter sets the callbacks for the engine to use when creating snapshots.
 func WithSnapshotter(snapshotter Snapshotter) EngineOption {

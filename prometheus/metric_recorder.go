@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb/http/metric"
+	"github.com/influxdata/influxdb/v2/http/metric"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

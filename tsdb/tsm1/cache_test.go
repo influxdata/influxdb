@@ -15,10 +15,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/storage/wal"
-
 	"github.com/golang/snappy"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/storage/wal"
 )
 
 func TestCache_NewCache(t *testing.T) {

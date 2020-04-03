@@ -20,10 +20,10 @@ import (
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/repl"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/jsonweb"
-	"github.com/influxdata/influxdb/query"
-	transpiler "github.com/influxdata/influxdb/query/influxql"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/jsonweb"
+	"github.com/influxdata/influxdb/v2/query"
+	transpiler "github.com/influxdata/influxdb/v2/query/influxql"
 	"github.com/influxdata/influxql"
 )
 

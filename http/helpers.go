@@ -5,7 +5,7 @@ import (
 	"net/url"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // TODO remove this file once bucket and org service are moved to the tenant service

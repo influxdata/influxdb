@@ -9,12 +9,12 @@ import (
 	"github.com/influxdata/flux/dependencies/dependenciestest"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/prom/promtest"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
-	"github.com/influxdata/influxdb/tsdb/cursors"
-	"github.com/influxdata/influxdb/uuid"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

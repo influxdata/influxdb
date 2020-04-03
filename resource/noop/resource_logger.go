@@ -1,6 +1,6 @@
 package noop
 
-import "github.com/influxdata/influxdb/resource"
+import "github.com/influxdata/influxdb/v2/resource"
 
 type ResourceLogger struct{}
 

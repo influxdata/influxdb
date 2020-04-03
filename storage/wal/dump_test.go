@@ -9,12 +9,11 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/influxdata/influxdb/tsdb"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/tsdb/value"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/value"
 )
 
 func TestWalDump_RunWriteEntries(t *testing.T) {

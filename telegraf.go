@@ -7,9 +7,9 @@ import (
 	"regexp"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdata/influxdb/telegraf/plugins"
-	"github.com/influxdata/influxdb/telegraf/plugins/inputs"
-	"github.com/influxdata/influxdb/telegraf/plugins/outputs"
+	"github.com/influxdata/influxdb/v2/telegraf/plugins"
+	"github.com/influxdata/influxdb/v2/telegraf/plugins/inputs"
+	"github.com/influxdata/influxdb/v2/telegraf/plugins/outputs"
 )
 
 const (

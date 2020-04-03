@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi"
-	platform "github.com/influxdata/influxdb"
-	ihttp "github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/tenant"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	platform "github.com/influxdata/influxdb/v2"
+	ihttp "github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/tenant"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 

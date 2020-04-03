@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/prom"
-	"github.com/influxdata/influxdb/kit/prom/promtest"
-	"github.com/influxdata/influxdb/prometheus"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
+	"github.com/influxdata/influxdb/v2/prometheus"
 	"go.uber.org/zap"
 )
 
