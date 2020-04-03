@@ -69,7 +69,7 @@ const CloudNav: FC<StateProps> = ({org, me}) => {
       <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Medium}>
         <Button
           color={ComponentColor.Success}
-          text="Upgrade"
+          text="Upgrade Now"
           onClick={handleUpgradeClick}
           className="upgrade-payg--button"
         />
