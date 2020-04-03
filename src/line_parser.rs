@@ -8,7 +8,13 @@ use nom::{
 };
 use smallvec::SmallVec;
 use snafu::Snafu;
-use std::{borrow::Cow, collections::btree_map::Entry, collections::BTreeMap, fmt};
+use std::{
+    borrow::Cow,
+    collections::{btree_map::Entry, BTreeMap},
+    convert::TryFrom,
+    fmt,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -322,9 +328,18 @@ enum FieldValue {
 
 // TODO: Return an error for invalid inputs
 pub fn parse(input: &str) -> Result<Vec<PointType>> {
+    let since_the_epoch = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+    let now_ns = i64::try_from(since_the_epoch.as_nanos()).expect("Time does not fit");
+
+    parse_full(input, now_ns)
+}
+
+fn parse_full(input: &str, now_ns: i64) -> Result<Vec<PointType>> {
     parse_lines(input)
         .flat_map(|parsed_line| match parsed_line {
-            Ok(parsed_line) => match line_to_points(parsed_line) {
+            Ok(parsed_line) => match line_to_points(parsed_line, now_ns) {
                 Ok(i) => Either::Left(i.map(Ok)),
                 Err(e) => Either::Right(std::iter::once(Err(e))),
             },
@@ -333,7 +348,10 @@ pub fn parse(input: &str) -> Result<Vec<PointType>> {
         .collect()
 }
 
-fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = PointType> + '_> {
+fn line_to_points(
+    parsed_line: ParsedLine<'_>,
+    now: i64,
+) -> Result<impl Iterator<Item = PointType> + '_> {
     let ParsedLine {
         series,
         field_set,
@@ -341,7 +359,7 @@ fn line_to_points(parsed_line: ParsedLine<'_>) -> Result<impl Iterator<Item = Po
     } = parsed_line;
 
     let series_base = series.generate_base()?;
-    let timestamp = timestamp.expect("TODO: default timestamp not supported");
+    let timestamp = timestamp.unwrap_or(now);
 
     Ok(field_set.into_iter().map(move |(field_key, field_value)| {
         let series = format!("{}\t{}", series_base, field_key);
@@ -845,6 +863,18 @@ foo value2=2i 123"#;
         assert_eq!(vals[1].series(), "foo\tvalue2");
         assert_eq!(vals[1].time(), 123);
         assert_eq!(vals[1].i64_value().unwrap(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_without_a_timestamp_uses_the_default() -> Result {
+        let input = r#"foo value1=1i"#;
+        let vals = parse_full(input, 555)?;
+
+        assert_eq!(vals[0].series(), "foo\tvalue1");
+        assert_eq!(vals[0].time(), 555);
+        assert_eq!(vals[0].i64_value().unwrap(), 1);
 
         Ok(())
     }
