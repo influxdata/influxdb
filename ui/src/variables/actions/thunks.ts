@@ -97,7 +97,7 @@ export const getVariables = () => async (
   }
 }
 
-export const hydrateVariables = (skipCache: boolean) => async (
+export const hydrateVariables = (skipCache?: boolean) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
