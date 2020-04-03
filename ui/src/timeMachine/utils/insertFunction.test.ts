@@ -4,7 +4,7 @@ import {
 } from 'src/timeMachine/utils/insertFunction'
 
 describe('insertFunction', () => {
-  test('generateImport', () => {
+  test('generateImport should generate an import statement', () => {
     const emptyImport = generateImport('', '')
     expect(emptyImport).toEqual(false)
     const func = 'aggregateWindow'
@@ -15,7 +15,7 @@ describe('insertFunction', () => {
     expect(actual).toEqual(`import "${func}"`)
   })
 
-  test('formatFunctionForInsert', () => {
+  test('formatFunctionForInsert should insert a function formatted based on the type of function', () => {
     const fluxFunc = 'funky'
     const union = 'union'
     const requiresNewLine = formatFunctionForInsert(union, fluxFunc, false)

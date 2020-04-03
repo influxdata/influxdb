@@ -77,21 +77,23 @@ const TimeMachineFluxEditor: FC<Props> = ({
 
     const insertLineNumber = getInsertLineNumber(p.lineNumber, scriptLines)
 
+    const defaultColumnPosition = 1 // beginning column of the row
+
     // sets the range based on the current position
     let range = new window.monaco.Range(
       insertLineNumber, // the row beneath the cursor
-      1, // beginning column of the row
+      defaultColumnPosition,
       insertLineNumber,
-      1
+      defaultColumnPosition
     )
     // edge case for when user toggles to the script editor
     // this defaults the cursor to the initial position (top-left, 1:1 position)
     const [currentRange] = editorInstance.getVisibleRanges()
     // Determines whether the new insert line is beyond the current range
-    let insertOnLastLine = insertLineNumber > currentRange.endLineNumber
-    if (p.lineNumber === 1 && p.column === 1) {
+    let shouldInsertOnLastLine = insertLineNumber > currentRange.endLineNumber
+    if (p.lineNumber === 1 && p.column === defaultColumnPosition) {
       // adds the function to the end of the query
-      insertOnLastLine = true
+      shouldInsertOnLastLine = true
       range = new window.monaco.Range(
         currentRange.endLineNumber + 1,
         p.column,
@@ -106,7 +108,7 @@ const TimeMachineFluxEditor: FC<Props> = ({
         text: formatFunctionForInsert(
           func.name,
           func.example,
-          insertOnLastLine
+          shouldInsertOnLastLine
         ),
       },
     ]
