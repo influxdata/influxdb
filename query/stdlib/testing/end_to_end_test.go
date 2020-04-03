@@ -14,14 +14,13 @@ import (
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/stdlib"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influxd/launcher"
-	influxdbcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/query"
-	itesting "github.com/influxdata/influxdb/query/stdlib/testing"
-
-	_ "github.com/influxdata/influxdb/query/stdlib" // Import the stdlib
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
+	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/query"
+	_ "github.com/influxdata/influxdb/v2/query/stdlib"
+	itesting "github.com/influxdata/influxdb/v2/query/stdlib/testing" // Import the stdlib
 )
 
 // Default context.

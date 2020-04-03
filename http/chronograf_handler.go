@@ -2,8 +2,8 @@ package http
 
 import (
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/chronograf/server"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/chronograf/server"
 )
 
 const prefixChronograf = "/chronograf"

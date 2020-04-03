@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/btree"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 // ensure *KVStore implement kv.Store interface

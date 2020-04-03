@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/chronograf"
-	"github.com/influxdata/influxdb/query/influxql"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/chronograf"
+	"github.com/influxdata/influxdb/v2/query/influxql"
 )
 
 func convert1To2Cell(cell chronograf.DashboardCell) *influxdb.Cell {

@@ -3,7 +3,7 @@ package authorizer
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // AuthAgent provides a means to authenticate users with resource and their associate actions. It

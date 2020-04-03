@@ -3,7 +3,7 @@ package metric
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // EventRecorder records meta-data associated with http requests.

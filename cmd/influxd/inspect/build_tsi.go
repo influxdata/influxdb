@@ -10,12 +10,12 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/influxdata/influxdb/cmd/influx_inspect/buildtsi"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/cmd/influx_inspect/buildtsi"
+	"github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 	"github.com/spf13/cobra"
 )
 

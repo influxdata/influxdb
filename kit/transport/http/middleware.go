@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 	ua "github.com/mileusna/useragent"
 	"github.com/prometheus/client_golang/prometheus"
 )

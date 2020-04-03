@@ -3,8 +3,8 @@ package tenant
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 // FindUserResourceMappings returns a list of UserResourceMappings that match filter and the total count of matching mappings.

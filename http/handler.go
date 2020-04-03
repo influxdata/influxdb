@@ -7,8 +7,8 @@ import (
 	_ "net/http/pprof" // used for debug pprof at the default path.
 
 	"github.com/go-chi/chi"
-	"github.com/influxdata/influxdb/kit/prom"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )

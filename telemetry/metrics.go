@@ -1,7 +1,7 @@
 package telemetry
 
 import (
-	pr "github.com/influxdata/influxdb/prometheus"
+	pr "github.com/influxdata/influxdb/v2/prometheus"
 )
 
 var telemetryMatcher = pr.NewMatcher().

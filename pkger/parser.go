@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/pkg/jsonnet"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"gopkg.in/yaml.v3"
 )
 

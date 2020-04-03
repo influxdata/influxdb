@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/influxdata/influxdb/resource/noop"
-
 	"github.com/benbjohnson/clock"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/rand"
-	"github.com/influxdata/influxdb/resource"
-	"github.com/influxdata/influxdb/snowflake"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/rand"
+	"github.com/influxdata/influxdb/v2/resource"
+	"github.com/influxdata/influxdb/v2/resource/noop"
+	"github.com/influxdata/influxdb/v2/snowflake"
 	"go.uber.org/zap"
 )
 

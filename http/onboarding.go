@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 

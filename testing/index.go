@@ -8,7 +8,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 const (

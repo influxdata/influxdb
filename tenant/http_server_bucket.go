@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/influxdata/influxdb"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
+	"github.com/influxdata/influxdb/v2"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"go.uber.org/zap"
 )
 

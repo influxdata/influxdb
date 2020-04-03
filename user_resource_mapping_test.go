@@ -3,9 +3,9 @@ package influxdb_test
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/require"
 )
 

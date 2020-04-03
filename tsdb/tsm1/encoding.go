@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/influxdata/influxdb/pkg/pool"
+	"github.com/influxdata/influxdb/v2/pkg/pool"
 	"github.com/influxdata/influxql"
 )
 

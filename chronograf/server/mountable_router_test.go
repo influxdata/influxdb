@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/influxdb/chronograf/server"
+	"github.com/influxdata/influxdb/v2/chronograf/server"
 )
 
 func Test_MountableRouter_MountsRoutesUnderPrefix(t *testing.T) {

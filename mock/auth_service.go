@@ -3,7 +3,7 @@ package mock
 import (
 	"context"
 
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 // AuthorizationService is a mock implementation of a retention.AuthorizationService, which

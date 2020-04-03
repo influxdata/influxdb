@@ -3,7 +3,7 @@ package authorizer
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // AuthorizeFindAuthorizations takes the given items and returns only the ones that the user is authorized to read.

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/influxdata/influxdb/cmd/influx/internal"
+	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 )
 
 func TestErrorFmt(t *testing.T) {

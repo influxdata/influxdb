@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf"
 )
 
 var testTime = time.Date(1985, time.October, 25, 18, 0, 0, 0, time.UTC)

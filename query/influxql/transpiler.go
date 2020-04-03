@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxql"
 )
 

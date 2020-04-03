@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/rand"
-	"github.com/influxdata/influxdb/snowflake"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/rand"
+	"github.com/influxdata/influxdb/v2/snowflake"
 )
 
 // OpPrefix is the op prefix.
