@@ -147,6 +147,25 @@ cpu,
 cpu usage_user=2.7
 `,
 	},
+	{
+		"columnSeparator",
+		`
+sep=;
+m|measurement;available|boolean:y,Y:|n;dt|dateTime:number
+test;nil;1
+test;N;2
+test;";";3
+test;;4
+test;Y;5
+`,
+		`
+test available=false 1
+test available=false 2
+test available=false 3
+test available=false 4
+test available=true 5
+`,
+	},
 }
 
 func (example *csvExample) normalize() {
