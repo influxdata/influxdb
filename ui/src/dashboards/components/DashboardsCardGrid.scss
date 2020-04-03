@@ -18,7 +18,7 @@
 .dashboards-card-grid {
   padding-bottom: $cf-marg-d;
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(100%, 1fr);
   grid-auto-rows: 152px;
   grid-column-gap: $cf-marg-a;
   grid-row-gap: $cf-marg-a;
@@ -28,26 +28,41 @@
     margin-bottom: 0;
   }
 
+  .cf-resource-card--contents {
+    position: relative;
+  }
+
+  .cf-resource-editable-name {
+    position: absolute;
+    width: 100%;
+
+    .cf-resource-name--text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
   .cf-resource-description {
     height: 60px;
+    margin-top: 22px;
     overflow: hidden;
   }
 }
 
 @media screen and (min-width: $cf-grid--breakpoint-sm) {
   .dashboards-card-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(50%, 1fr) minmax(50%, 1fr);
   }
 }
 
 @media screen and (min-width: $cf-grid--breakpoint-md) {
   .dashboards-card-grid {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: minmax(33.3333%, 1fr) minmax(33.3333%, 1fr) minmax(33.3333%, 1fr);
   }
 }
 
 @media screen and (min-width: $cf-grid--breakpoint-lg) {
   .dashboards-card-grid {
-    grid-template-columns: 1fr 1fr 1fr 1fr;
+    grid-template-columns: minmax(25%, 1fr) minmax(25%, 1fr) minmax(25%, 1fr) minmax(25%, 1fr);
   }
 }
