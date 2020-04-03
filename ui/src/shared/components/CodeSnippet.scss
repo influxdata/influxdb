@@ -13,13 +13,13 @@
 
 .code-snippet--scroll {
   min-height: 26px !important;
-  max-height: 200px;
+  max-height: 350px;
   border-radius: $cf-radius-sm;
   overflow: hidden;
 }
 
 .code-snippet--text {
-  font-size: 13px;
+  font-size: $cf-form-md-font;
   color: $c-potassium;
   font-weight: $cf-font-weight--bold;
   font-family: $cf-code-font;
