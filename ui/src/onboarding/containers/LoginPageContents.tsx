@@ -8,11 +8,15 @@ import {
   ComponentStatus,
   FlexBox,
   FlexDirection,
+  FontWeight,
   Grid,
+  Heading,
+  HeadingElement,
   JustifyContent,
   Method,
   Panel,
   SelectGroup,
+  Typeface,
 } from '@influxdata/clockface'
 import auth0js, {WebAuth} from 'auth0-js'
 
@@ -88,6 +92,10 @@ class LoginPageContents extends PureComponent<DispatchProps> {
       })
     } catch (error) {
       console.error(error)
+      // TODO: uncomment after demo day
+      // redirect to universal login page if there's an error
+      // window.location.href =
+      // 'https://auth.a.influxcloud.net/login?state=g6Fo2SBrRzVfVk9TRkNYX1lJZUN1SGtJemZaUk9sVW8zYmNMOaN0aWTZIGlYN3dyQUlfODNfUnpYQUpUMUxZcUhLd2pQaWJsbXZCo2NpZNkgYm5xWGJ2NTFJU3BtOVo4dmwwd1ZaRUZZRUpUVnpqb0U&client=bnqXbv51ISpm9Z8vl0wVZEFYEJTVzjoE&protocol=oauth2&redirect_uri=https%3A%2F%2Ftwodotoh.a.influxcloud.net%2Foauth2%2Fauth0%2Fcallback&response_type=code&scope=openid%20profile%20email'
       throw error
     }
   }
@@ -122,7 +130,14 @@ class LoginPageContents extends PureComponent<DispatchProps> {
             size={ComponentSize.Large}
             justifyContent={JustifyContent.Center}
           >
-            <h3 className="cf-funnel-page--panel-title">Continue with</h3>
+            <Heading
+              element={HeadingElement.H5}
+              type={Typeface.Rubik}
+              weight={FontWeight.Regular}
+              className="heading--margins"
+            >
+              Continue with
+            </Heading>
           </Panel.Header>
           <Panel.Body size={ComponentSize.Large}>
             <Grid>
@@ -153,7 +168,14 @@ class LoginPageContents extends PureComponent<DispatchProps> {
                 </FlexBox>
               </Grid.Row>
             </Grid>
-            <h5 className="cf-funnel-page--panel-title">OR</h5>
+            <Heading
+              element={HeadingElement.H5}
+              type={Typeface.Rubik}
+              weight={FontWeight.Regular}
+              className="heading--margins"
+            >
+              OR
+            </Heading>
             <FlexBox
               stretchToFitWidth={true}
               direction={FlexDirection.Row}
@@ -337,6 +359,8 @@ class LoginPageContents extends PureComponent<DispatchProps> {
     this.setState({buttonStatus: ComponentStatus.Loading})
 
     if (activeTab === ActiveTab.Login) {
+      console.log('this: ', this)
+      console.log('this.auth0: ', this.auth0)
       this.auth0.login(
         {
           realm: Auth0Connection.Authentication,
@@ -393,7 +417,10 @@ class LoginPageContents extends PureComponent<DispatchProps> {
         ...errors,
         emailError: 'Please enter a valid email address',
       })
-    } else if (auth0Err.code === 'user_exists') {
+    } else if (
+      auth0Err.code === 'access_denied' ||
+      auth0Err.code === 'user_exists'
+    ) {
       const emailError = `An account with that email address already exists. Try logging in instead.`
       this.setState({...errors, emailError})
     } else {
@@ -407,7 +434,19 @@ class LoginPageContents extends PureComponent<DispatchProps> {
   }
 
   private handleTabChange = (value: ActiveTab) => {
-    this.setState({activeTab: value})
+    this.setState({
+      activeTab: value,
+      confirmPassword: '',
+      confirmPasswordError: '',
+      email: '',
+      emailError: '',
+      firstName: '',
+      firstNameError: '',
+      lastName: '',
+      lastNameError: '',
+      password: '',
+      passwordError: '',
+    })
   }
 
   private handleSocialClick = (connection: Auth0Connection) => {
