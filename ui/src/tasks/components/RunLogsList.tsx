@@ -3,9 +3,8 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 //Components
-import {Overlay, IndexList} from '@influxdata/clockface'
+import {Overlay, IndexList, DapperScrollbars} from '@influxdata/clockface'
 import RunLogRow from 'src/tasks/components/RunLogRow'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Types
 import {LogEvent} from 'src/types'
@@ -27,7 +26,7 @@ class RunLogsOverlay extends PureComponent<Props> {
       <Overlay.Container className="run-logs--list">
         <Overlay.Header title="Run Logs" onDismiss={onDismissOverlay} />
         <Overlay.Body>
-          <FancyScrollbar autoHeight={true} maxHeight={700}>
+          <DapperScrollbars autoSizeHeight={true} style={{maxHeight: '700px'}}>
             <IndexList>
               <IndexList.Header>
                 <IndexList.HeaderCell columnName="Time" width="10%" />
@@ -37,7 +36,7 @@ class RunLogsOverlay extends PureComponent<Props> {
                 {this.listLogs}
               </IndexList.Body>
             </IndexList>
-          </FancyScrollbar>
+          </DapperScrollbars>
         </Overlay.Body>
       </Overlay.Container>
     )

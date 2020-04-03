@@ -4,17 +4,17 @@
 */
 
 .alert-builder {
-  padding: 0 $ix-marg-c;
-  background-color: $g2-kevlar;
-}
-
-.alert-builder--controls {
-  border-bottom: 0;
-  padding-right: $ix-marg-c;
+  height: 100%;
+  padding-top: $cf-marg-b;
+  display: flex;
 }
 
 .alert-builder--card {
-  margin-bottom: $ix-marg-c;
+  margin-right: $ix-marg-b;
+
+  &:last-child {
+    margin-right: 0;
+  }
 
   .builder-card--contents {
     min-height: 100%;

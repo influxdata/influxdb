@@ -5,11 +5,11 @@ import {range} from 'lodash'
 
 // Components
 import TagSelector from 'src/timeMachine/components/TagSelector'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import FunctionSelector from 'src/timeMachine/components/FunctionSelector'
 import AddCardButton from 'src/timeMachine/components/AddCardButton'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 import BucketsSelector from 'src/timeMachine/components/queryBuilder/BucketsSelector'
+import {DapperScrollbars} from '@influxdata/clockface'
 
 // Actions
 import {loadBuckets, addTagSelector} from 'src/timeMachine/actions/queryBuilder'
@@ -47,7 +47,7 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
     return (
       <div className="query-builder" data-testid="query-builder">
         <div className="query-builder--cards">
-          <FancyScrollbar>
+          <DapperScrollbars noScrollY={true}>
             <div className="builder-card--list">
               <BuilderCard testID="bucket-selector">
                 <BuilderCard.Header title="From" />
@@ -58,7 +58,7 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
               ))}
               {this.addButton}
             </div>
-          </FancyScrollbar>
+          </DapperScrollbars>
           {this.functionSelector}
         </div>
       </div>
