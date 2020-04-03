@@ -265,7 +265,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(*v, r.Name))
+		mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(r.Name, *v))
 	default:
 		return errors.New("unsupported kind provided: " + string(r.Kind))
 	}
@@ -939,7 +939,7 @@ func telegrafToObject(t influxdb.TelegrafConfig, name string) Object {
 }
 
 // VariableToObject converts an influxdb.Variable to a pkger.Object.
-func VariableToObject(v influxdb.Variable, name string) Object {
+func VariableToObject(name string, v influxdb.Variable) Object {
 	if name == "" {
 		name = v.Name
 	}

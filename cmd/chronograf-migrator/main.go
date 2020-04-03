@@ -59,7 +59,7 @@ func exec(dbPath, out string) error {
 			}
 			hasVar[name] = true
 
-			pkg.Objects = append(pkg.Objects, pkger.VariableToObject(v, name))
+			pkg.Objects = append(pkg.Objects, pkger.VariableToObject(name, v))
 		}
 	}
 

@@ -357,6 +357,9 @@ func (p *Pkg) Summary() Summary {
 	}
 
 	for _, v := range p.variables() {
+		if v.shouldRemove {
+			continue
+		}
 		sum.Variables = append(sum.Variables, v.summarize())
 	}
 
