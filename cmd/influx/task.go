@@ -52,10 +52,9 @@ func taskCreateCmd(opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("create [script literal or -f /path/to/script.flux]", taskCreateF, true)
 	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Short = "Create task"
-	cmd.Long = `Create task with a Flux script provided as an argument or 
-in a file using the -f flag or via stdin`
+	cmd.Long = `Create a task with a Flux script provided via the first argument or a file or stdin`
 
-	cmd.Flags().StringVarP(&taskCreateFlags.file, "file", "f", "", "The path to the Flux script file")
+	cmd.Flags().StringVarP(&taskCreateFlags.file, "file", "f", "", "Path to Flux script file")
 	taskCreateFlags.org.register(cmd, false)
 	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 
@@ -216,14 +215,12 @@ var taskUpdateFlags struct {
 func taskUpdateCmd(opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("update", taskUpdateF, true)
 	cmd.Short = "Update task"
-	cmd.Long = `Update task
-An optional Flux script can be provided as an argument or 
-in a file using the -f flag, '-' argument reads the Flux script from stdin.`
+	cmd.Long = `Update task status or script. Provide a Flux script via the first argument or a file. Use '-' argument to read from stdin.`
 
 	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskUpdateFlags.id, "id", "i", "", "task ID (required)")
 	cmd.Flags().StringVarP(&taskUpdateFlags.status, "status", "", "", "update task status")
-	cmd.Flags().StringVarP(&taskUpdateFlags.file, "file", "f", "", "The path to the Flux script file")
+	cmd.Flags().StringVarP(&taskUpdateFlags.file, "file", "f", "", "Path to Flux script file")
 	cmd.MarkFlagRequired("id")
 
 	return cmd

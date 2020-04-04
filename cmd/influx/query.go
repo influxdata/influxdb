@@ -20,12 +20,11 @@ var queryFlags struct {
 func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 	cmd := opts.newCmd("query [query literal or -f /path/to/query.flux]", fluxQueryF, true)
 	cmd.Short = "Execute a Flux query"
-	cmd.Long = `Execute a literal Flux query provided as an argument or 
-in a file using the -f flag or via stdin`
+	cmd.Long = `Execute a Flux query provided via the first argument or a file or stdin`
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	queryFlags.org.register(cmd, true)
-	cmd.Flags().StringVarP(&queryFlags.file, "file", "f", "", "The path to the Flux query file")
+	cmd.Flags().StringVarP(&queryFlags.file, "file", "f", "", "Path to Flux query file")
 
 	return cmd
 }
