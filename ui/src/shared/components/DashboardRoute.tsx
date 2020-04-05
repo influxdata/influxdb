@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 import {setDashboard} from 'src/shared/actions/currentDashboard'
 import {getVariables} from 'src/variables/selectors'
-import {selectValue} from 'src/variables/actions/creators'
+import {selectValue} from 'src/variables/actions/thunks'
 import {AppState, Variable} from 'src/types'
 
 interface StateProps {
@@ -40,9 +40,9 @@ class DashboardRoute extends PureComponent<Props> {
         val = v.selected[0]
       }
 
-      if (val !== urlVars[v.name]) {
+      if (urlVars[v.name] && val !== urlVars[v.name]) {
         val = urlVars[v.name]
-        selectValue(dashboardID, v.id, val)
+        selectValue(v.id, val)
       }
     })
   }
@@ -108,7 +108,7 @@ class DashboardRoute extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const variables = getVariables(state, state.currentDashboard.id)
+  const variables = getVariables(state)
 
   return {
     variables,

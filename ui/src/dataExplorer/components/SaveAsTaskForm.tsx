@@ -147,10 +147,9 @@ const mstp = (state: AppState): StateProps => {
   const {newScript, taskOptions} = state.resources.tasks
   const activeQuery = getActiveQuery(state)
   const org = getOrg(state)
-  const userDefinedVars = getAllVariables(
-    state,
-    state.timeMachines.activeTimeMachineID
-  ).map(v => asAssignment(v))
+  const userDefinedVars = getAllVariables(state)
+    .map(v => asAssignment(v))
+    .filter(v => !!v)
 
   return {
     newScript,

@@ -37,7 +37,11 @@ export const extractValues = (
   const [table] = parseResponse(csv)
 
   if (!table || !table.data.length) {
-    throw new Error('empty variable response')
+    return {
+      values: [],
+      valueType: 'string',
+      selected: [],
+    }
   }
 
   const [headerRow] = table.data

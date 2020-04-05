@@ -1,11 +1,13 @@
 import {get} from 'lodash'
 
 import {AppState, View, Check, ViewType, TimeRange} from 'src/types'
+import {currentContext} from 'src/shared/selectors/currentContext'
 
 // Constants
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
-export const getTimeRange = (state: AppState, contextID: string): TimeRange => {
+export const getTimeRange = (state: AppState): TimeRange => {
+  const contextID = currentContext(state)
   if (!state.ranges || !state.ranges.hasOwnProperty(contextID)) {
     return DEFAULT_TIME_RANGE
   }

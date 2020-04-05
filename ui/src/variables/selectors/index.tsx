@@ -11,6 +11,7 @@ import {
   TIME_RANGE_STOP,
   WINDOW_PERIOD,
 } from 'src/variables/constants'
+import {currentContext} from 'src/shared/selectors/currentContext'
 
 // Types
 import {
@@ -66,7 +67,7 @@ export const extractVariableEditorConstant = (
 
 export const getUserVariableNames = (
   state: AppState,
-  contextID?: string | null
+  contextID: string
 ): string[] => {
   const allIDs = get(state, ['resources', 'variables', 'allIDs'], [])
   const contextIDs = get(
@@ -75,47 +76,50 @@ export const getUserVariableNames = (
     []
   )
 
-  return contextIDs
+  const out = contextIDs
     .filter(v => allIDs.includes(v))
     .concat(allIDs.filter(v => !contextIDs.includes(v)))
+
+  return out
 }
 
 // this function grabs all user defined variables
 // and hydrates them based on their context
 export const getVariables = (
   state: AppState,
-  contextID?: string | null
+  contextID?: string
 ): Variable[] => {
-  return getUserVariableNames(state, contextID)
+  const vars = getUserVariableNames(state, contextID || currentContext(state))
     .reduce((prev, curr) => {
-      prev.push(getVariable(state, contextID, curr))
+      prev.push(getVariable(state, curr))
 
       return prev
     }, [])
     .filter(v => !!v)
+
+  return vars
 }
 
 // the same as the above method, but includes system
 // variables
 export const getAllVariables = (
   state: AppState,
-  contextID?: string | null
+  contextID?: string
 ): Variable[] => {
-  return getUserVariableNames(state, contextID)
+  const vars = getUserVariableNames(state, contextID || currentContext(state))
     .concat([TIME_RANGE_START, TIME_RANGE_STOP, WINDOW_PERIOD])
     .reduce((prev, curr) => {
-      prev.push(getVariable(state, contextID, curr))
+      prev.push(getVariable(state, curr))
 
       return prev
     }, [])
     .filter(v => !!v)
+
+  return vars
 }
 
-export const getVariable = (
-  state: AppState,
-  contextID: string | null,
-  variableID: string
-): Variable => {
+export const getVariable = (state: AppState, variableID: string): Variable => {
+  const contextID = currentContext(state)
   const ctx = get(state, ['resources', 'variables', 'values', contextID])
   let vari = get(state, ['resources', 'variables', 'byID', variableID])
 
@@ -124,23 +128,15 @@ export const getVariable = (
   }
 
   if (variableID === TIME_RANGE_START || variableID === TIME_RANGE_STOP) {
-    const timeRange = getTimeRange(state, contextID)
+    const timeRange = getTimeRange(state)
 
     vari = getRangeVariable(variableID, timeRange)
   }
 
   if (variableID === WINDOW_PERIOD) {
     const {text} = getActiveQuery(state)
-    let context = contextID
-    if (
-      !contextID &&
-      state.timeMachines &&
-      state.timeMachines.activeTimeMachineID
-    ) {
-      context = state.timeMachines.activeTimeMachineID
-    }
-    const variables = getVariables(state, context)
-    const range = getTimeRange(state, context)
+    const variables = getVariables(state)
+    const range = getTimeRange(state)
     const timeVars = [
       getRangeVariable(TIME_RANGE_START, range),
       getRangeVariable(TIME_RANGE_STOP, range),
@@ -172,16 +168,38 @@ export const getVariable = (
     vari.asAssignment = () => asAssignment(vari)
   }
 
+  if (vari.selected) {
+    if (
+      vari.selected[0] === null ||
+      (vari.arguments.type === 'map' &&
+        !Object.keys(vari.arguments.values).includes(vari.selected[0])) ||
+      (vari.arguments.type === 'query' &&
+        vari.status === RemoteDataState.Done &&
+        !(vari.arguments.values.results || []).includes(vari.selected[0])) ||
+      (vari.arguments.type === 'constant' &&
+        !vari.arguments.values.includes(vari.selected[0]))
+    ) {
+      vari.selected = null
+    }
+  }
+
   if (!vari.selected) {
+    let defVal
     if (vari.arguments.type === 'map') {
-      vari.selected = [Object.keys(vari.arguments.values)[0]]
+      defVal = Object.keys(vari.arguments.values)[0]
     } else if (
       vari.arguments.type === 'query' &&
       vari.arguments.values.results
     ) {
-      vari.selected = [vari.arguments.values.results[0]]
+      defVal = vari.arguments.values.results[0]
     } else {
-      vari.selected = [vari.arguments.values[0]]
+      defVal = vari.arguments.values[0]
+    }
+
+    if (defVal) {
+      vari.selected = [defVal]
+    } else {
+      vari.selected = []
     }
   }
 

@@ -9,13 +9,6 @@ import {executeQueries} from 'src/timeMachine/actions/queries'
 import {Form} from '@influxdata/clockface'
 import VariableDropdown from 'src/variables/components/VariableDropdown'
 
-// Types
-import {AppState} from 'src/types'
-
-interface StateProps {
-  timeMachineID: string
-}
-
 interface DispatchProps {
   execute: typeof executeQueries
 }
@@ -24,11 +17,10 @@ interface OwnProps {
   variableID: string
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type Props = DispatchProps & OwnProps
 
 const VariableTooltipContents: FunctionComponent<Props> = ({
   variableID,
-  timeMachineID,
   execute,
 }) => {
   const refresh = () => {
@@ -42,7 +34,6 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
       <Form.Element label="Value">
         <VariableDropdown
           variableID={variableID}
-          contextID={timeMachineID}
           onSelect={refresh}
           testID="variable--tooltip-dropdown"
         />
@@ -51,20 +42,11 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState) => {
-  const contextID =
-    state.currentDashboard.id || state.timeMachines.activeTimeMachineID
-
-  return {
-    timeMachineID: contextID,
-  }
-}
-
 const mdtp = {
   execute: executeQueries,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
   mdtp
 )(VariableTooltipContents)

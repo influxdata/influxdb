@@ -29,7 +29,6 @@ interface DispatchProps {
 
 interface OwnProps {
   variableID: string
-  contextID: string
   testID?: string
   onSelect?: () => void
 }
@@ -87,9 +86,9 @@ class VariableDropdown extends PureComponent<Props> {
   }
 
   private handleSelect = (selectedValue: string) => {
-    const {contextID, variableID, onSelectValue, onSelect} = this.props
+    const {variableID, onSelectValue, onSelect} = this.props
 
-    onSelectValue(contextID, variableID, selectedValue)
+    onSelectValue(variableID, selectedValue)
 
     if (onSelect) {
       onSelect()
@@ -98,9 +97,9 @@ class VariableDropdown extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState, props: OwnProps): StateProps => {
-  const {contextID, variableID} = props
+  const {variableID} = props
 
-  const variable = getVariable(state, contextID, variableID)
+  const variable = getVariable(state, variableID)
   const type = variable.arguments.type
 
   if (type === 'constant') {
