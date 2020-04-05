@@ -26,7 +26,7 @@ byteorder = "1.3.4"
 
 num_cpus = "1.11.1"
 
-tonic = "0.1.1"
+tonic = "0.2.0"
 prost = "0.6.1"
 prost-types = "0.6.1"
 
@@ -52,5 +52,5 @@ name = "encoders"
 harness = false
 
 [build-dependencies]
-tonic-build = "0.1.1"
+tonic-build = "0.2.0"
 rand = "0.7.2"
