@@ -358,7 +358,6 @@ export const hydrateVars = (
   options: HydrateVarsOptions
 ): CancelBox<Variable[]> => {
   const graph = findSubgraph(createVariableGraph(allVariables), variables)
-
   invalidateCycles(graph)
 
   let isCancelled = false
@@ -371,7 +370,7 @@ export const hydrateVars = (
     node.status === RemoteDataState.Loading
 
     try {
-      // TODO: remove the concept of node.values, just use node.variable
+      // TODO: terminate the concept of node.values at the fetcher and just use variables
       node.values = await hydrateVarsHelper(node, options)
 
       if (node.variable.arguments.type === 'query') {
@@ -379,6 +378,8 @@ export const hydrateVars = (
       } else {
         node.variable.arguments.values = node.values.values
       }
+
+      node.variable.selected = node.variable.selected || []
 
       // ensure that the selected value defaults propegate for
       // nested queryies.

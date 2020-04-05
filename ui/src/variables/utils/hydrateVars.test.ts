@@ -11,10 +11,21 @@ import {Variable, CancellationError, RemoteDataState} from 'src/types'
 class FakeFetcher implements ValueFetcher {
   responses = {}
 
-  fetch(_, __, query, ___, ____, _____) {
+  fetch(_, __, query, ___, ____, _____, ______) {
+    if (this.responses.hasOwnProperty(query)) {
+      return {
+        cancel: () => {},
+        promise: this.responses[query],
+      }
+    }
+
     return {
       cancel: () => {},
-      promise: this.responses[query],
+      promise: Promise.resolve({
+        values: [],
+        valueType: 'string',
+        selected: [],
+      }),
     }
   }
 
@@ -52,7 +63,7 @@ describe('hydrate vars', () => {
       Promise.resolve({
         values: ['eVal'],
         valueType: 'string',
-        selectedValue: 'eVal',
+        selected: ['eVal'],
       })
     )
 
@@ -61,7 +72,7 @@ describe('hydrate vars', () => {
       Promise.resolve({
         values: ['gVal'],
         valueType: 'string',
-        selectedValue: 'gVal',
+        selected: ['gVal'],
       })
     )
 
@@ -70,7 +81,7 @@ describe('hydrate vars', () => {
       Promise.resolve({
         values: ['fVal'],
         valueType: 'string',
-        selectedValue: 'fVal',
+        selected: ['fVal'],
       })
     )
 
@@ -99,32 +110,33 @@ describe('hydrate vars', () => {
     //       g [fontcolor = "green"]
     //     }
     //
-    expect(actual.a.error).toBeTruthy()
-    expect(actual.b.error).toBeTruthy()
-    expect(actual.c.error).toBeTruthy()
-    expect(actual.d.error).toBeTruthy()
+    expect(
+      actual.filter(v => v.id === 'a')[0].arguments.values.results
+    ).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'b')[0].arguments.values.results
+    ).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'c')[0].arguments.values.results
+    ).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'd')[0].arguments.values.results
+    ).toBeFalsy()
 
-    expect(actual.e.error).toBeFalsy()
-    expect(actual.f.error).toBeFalsy()
-    expect(actual.g.error).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'e')[0].arguments.values.results
+    ).toEqual(['eVal'])
+    expect(actual.filter(v => v.id === 'e')[0].selected).toEqual(['eVal'])
 
-    expect(actual.e).toEqual({
-      values: ['eVal'],
-      valueType: 'string',
-      selectedValue: 'eVal',
-    })
+    expect(
+      actual.filter(v => v.id === 'g')[0].arguments.values.results
+    ).toEqual(['gVal'])
+    expect(actual.filter(v => v.id === 'g')[0].selected).toEqual(['gVal'])
 
-    expect(actual.g).toEqual({
-      values: ['gVal'],
-      valueType: 'string',
-      selectedValue: 'gVal',
-    })
-
-    expect(actual.f).toEqual({
-      values: ['fVal'],
-      valueType: 'string',
-      selectedValue: 'fVal',
-    })
+    expect(
+      actual.filter(v => v.id === 'f')[0].arguments.values.results
+    ).toEqual(['fVal'])
+    expect(actual.filter(v => v.id === 'f')[0].selected).toEqual(['fVal'])
   })
 
   test('should invalidate all ancestors of a node when it fails', async () => {
@@ -148,7 +160,7 @@ describe('hydrate vars', () => {
       Promise.resolve({
         values: ['cVal'],
         valueType: 'string',
-        selectedValue: 'cVal',
+        selected: ['cVal'],
       })
     )
 
@@ -171,9 +183,17 @@ describe('hydrate vars', () => {
     //       c [fontcolor = "green"]
     //     }
     //
-    expect(actual.a.error).toBeTruthy()
-    expect(actual.b.error).toBeTruthy()
-    expect(actual.c.error).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'a')[0].arguments.values.results
+    ).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'b')[0].arguments.values.results
+    ).toBeFalsy()
+
+    expect(
+      actual.filter(v => v.id === 'c')[0].arguments.values.results
+    ).toEqual(['cVal'])
+    expect(actual.filter(v => v.id === 'c')[0].selected).toEqual(['cVal'])
   })
 
   test('works with map template variables', async () => {
@@ -202,7 +222,7 @@ describe('hydrate vars', () => {
       Promise.resolve({
         values: ['aVal'],
         valueType: 'string',
-        selectedValue: 'aVal',
+        selected: ['aVal'],
       })
     )
 
@@ -215,10 +235,20 @@ describe('hydrate vars', () => {
 
     // Basic test for now, we would need an icky mock to assert that the
     // appropriate substitution is actually taking place
-    expect(actual.a.error).toBeFalsy()
-    expect(actual.b.error).toBeFalsy()
+
+    expect(
+      actual.filter(v => v.id === 'a')[0].arguments.values.results
+    ).toEqual(['aVal'])
+    expect(actual.filter(v => v.id === 'a')[0].selected).toEqual(['aVal'])
+
+    expect(actual.filter(v => v.id === 'b')[0].arguments.values).toEqual({
+      k: 'v',
+    })
+    expect(actual.filter(v => v.id === 'b')[0].selected).toEqual(['k'])
   })
 
+  // This ensures that the update of a dependant variable updates the
+  // parent variable
   test('works with constant template variables', async () => {
     const a = createVariable('a', 'f(x: v.b)')
 
@@ -243,7 +273,7 @@ describe('hydrate vars', () => {
       Promise.resolve({
         values: ['aVal'],
         valueType: 'string',
-        selectedValue: 'aVal',
+        selected: ['aVal'],
       })
     )
 
@@ -254,8 +284,15 @@ describe('hydrate vars', () => {
       fetcher,
     }).promise
 
-    expect(actual.a.error).toBeFalsy()
-    expect(actual.b.error).toBeFalsy()
+    expect(
+      actual.filter(v => v.id === 'a')[0].arguments.values.results
+    ).toEqual(['aVal'])
+    expect(actual.filter(v => v.id === 'a')[0].selected).toEqual(['aVal'])
+
+    expect(actual.filter(v => v.id === 'b')[0].arguments.values).toEqual([
+      'v1',
+      'v2',
+    ])
   })
 
   test('should be cancellable', done => {
