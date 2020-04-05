@@ -11,7 +11,6 @@ import {
   RemoteDataState,
   Variable,
   VariableValues,
-  VariableValuesByID,
   ValueSelections,
 } from 'src/types'
 import {CancelBox, CancellationError} from 'src/types/promises'
@@ -66,7 +65,6 @@ export const createVariableGraph = (
   return Object.values(nodesByID)
 }
 
-const isQueryVar = (v: Variable) => v.arguments.type === 'query'
 export const isInQuery = (query: string, v: Variable) => {
   const regexp = new RegExp(
     `${BOUNDARY_GROUP}${OPTION_NAME}.${v.name}${BOUNDARY_GROUP}`
@@ -358,7 +356,7 @@ export const hydrateVars = (
   variables: Variable[],
   allVariables: Variable[],
   options: HydrateVarsOptions
-): CancelBox<VariableValuesByID> => {
+): CancelBox<Variable[]> => {
   const graph = findSubgraph(createVariableGraph(allVariables), variables)
 
   invalidateCycles(graph)
@@ -377,15 +375,28 @@ export const hydrateVars = (
       node.values = await hydrateVarsHelper(node, options)
 
       if (node.variable.arguments.type === 'query') {
-        node.variable.arguments.values.results = node.values.values
+        node.variable.arguments.values.results = node.values.values as string[]
       } else {
         node.variable.arguments.values = node.values.values
       }
 
       // ensure that the selected value defaults propegate for
-      // nested queryies
-      if (!node.values.values.includes(node.variable.selected[0])) {
-        node.variable.selected = []
+      // nested queryies.
+      if (
+        node.variable.arguments.type === 'query' ||
+        node.variable.arguments.type === 'constant'
+      ) {
+        if (
+          !(node.values.values as string[]).includes(node.variable.selected[0])
+        ) {
+          node.variable.selected = []
+        }
+      } else if (node.variable.arguments.type === 'map') {
+        if (
+          !Object.keys(node.values.values).includes(node.variable.selected[0])
+        ) {
+          node.variable.selected = []
+        }
       }
 
       if (!node.variable.selected || !node.variable.selected[0]) {

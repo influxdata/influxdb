@@ -30,7 +30,6 @@ class DashboardRoute extends PureComponent<Props> {
   // query params here, and unwrapping / validation is
   // handled elsewhere
   syncVariables(props, urlVars) {
-    const dashboardID = props.params.dashboardID
     const {variables, selectValue} = props
 
     variables.forEach(v => {

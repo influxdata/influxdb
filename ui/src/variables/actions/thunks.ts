@@ -401,7 +401,7 @@ export const removeVariableLabelAsync = (
 }
 
 export const selectValue = (variableID: string, selected: string) => async (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | ReturnType<typeof hydrateVariables>>,
   getState: GetState
 ) => {
   const state = getState()
