@@ -20,6 +20,9 @@ const values = {
 const setInitialState = (state: AppState): AppState => {
   return {
     ...state,
+    currentDashboard: {
+      id: '03c8070355fbd000',
+    },
     resources: {
       ...state.resources,
       variables: {
@@ -61,10 +64,7 @@ describe('Dashboards.Components.VariablesControlBar.VariableDropdown', () => {
   describe('if map type', () => {
     it('renders dropdown with keys as dropdown items', () => {
       const {getByTestId, getAllByTestId} = renderWithRedux(
-        <VariableDropdown
-          variableID="03cbdc8a53a63000"
-          contextID="03c8070355fbd000"
-        />,
+        <VariableDropdown variableID="03cbdc8a53a63000" />,
         setInitialState
       )
 

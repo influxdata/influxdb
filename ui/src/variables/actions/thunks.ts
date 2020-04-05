@@ -290,7 +290,7 @@ export const moveVariable = (originalIndex: number, newIndex: number) => async (
   getState: GetState
 ) => {
   const contextID = currentContext(getState())
-  return dispatch(moveVariableInState(originalIndex, newIndex, contextID))
+  await dispatch(moveVariableInState(originalIndex, newIndex, contextID))
 }
 
 export const convertToTemplate = (variableID: string) => async (
