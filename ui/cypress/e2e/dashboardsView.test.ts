@@ -301,7 +301,13 @@ describe('Dashboard', () => {
       cy.createDashWithViewAndVar(orgID).then(() => {
         cy.fixture('routes').then(({orgs}) => {
           cy.visit(`${orgs}/${orgID}/dashboards`)
-          cy.getByTestID('dashboard-card--name').click()
+          cy.getByTestID('dashboard-card--name').within(() => {
+            // Ideally we don't need to select the clickable element within the card name.
+            // The testID here should be on the clickable element
+            // Issue created in Clockface: https://github.com/influxdata/clockface/issues/478
+            cy.get('.cf-resource-name--text').click()
+          })
+
           cy.get('.cell--view').should('have.length', 1)
         })
       })
