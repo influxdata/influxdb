@@ -30,6 +30,9 @@ tonic = "0.2.0"
 prost = "0.6.1"
 prost-types = "0.6.1"
 
+crc32fast = "1.2.0"
+num = "0.2.1"
+
 # using croaring here because we needed Treemap support for u64
 # for series ids and we needed serialization, which the pure Rust
 # crate didn't offer.
