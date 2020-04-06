@@ -8,16 +8,4 @@ export const currentContext = (state: AppState): string => {
   }
 
   return ''
-
-  const tmID = state.timeMachines.activeTimeMachineID
-
-  if (tmID) {
-    if (state.timeMachines.timeMachines[tmID].contextID) {
-      return state.timeMachines.timeMachines[tmID].contextID
-    }
-
-    return tmID
-  }
-
-  return ''
 }
