@@ -218,6 +218,10 @@ func NewHandler(c Config) *Handler {
 			"status-head",
 			"HEAD", "/status", false, true, authWrapper(h.serveStatus),
 		},
+		Route{ // Ping
+			"ping",
+			"GET", "/health", false, true, authWrapper(h.serveHealth),
+		},
 		Route{
 			"prometheus-metrics",
 			"GET", "/metrics", false, true, authWrapper(promhttp.Handler().ServeHTTP),
@@ -997,6 +1001,24 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 		w.Write(b)
 	} else {
 		h.writeHeader(w, http.StatusNoContent)
+	}
+}
+
+// serveHealth maps v2 health endpoint to ping endpoint
+func (h *Handler) serveHealth(w http.ResponseWriter, r *http.Request) {
+	resp := map[string]interface{}{
+		"name":    "influxdb",
+		"message": "ready for queries and writes",
+		"status":  "pass",
+		"checks":  []string{},
+		"version": h.Version,
+	}
+	b, _ := json.Marshal(resp)
+	h.writeHeader(w, http.StatusOK)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if _, err := w.Write(b); err != nil {
+		h.httpError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 

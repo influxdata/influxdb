@@ -35,6 +35,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/pkg/testing/assert"
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/httpd"
@@ -1473,6 +1474,29 @@ func TestHandler_Ping(t *testing.T) {
 	h.ServeHTTP(w, MustNewRequest("HEAD", "/ping", nil))
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+// Ensure the handler handles health requests correctly.
+func TestHandler_Health(t *testing.T) {
+	h := NewHandler(false)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("GET", "/health", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+
+	var got map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, got["name"], "influxdb", "invalid name")
+	assert.Equal(t, got["message"], "ready for queries and writes", "invalid message")
+	assert.Equal(t, got["status"], "pass", "invalid status")
+	assert.Equal(t, got["version"], "0.0.0", "invalid version")
+	if _, present := got["checks"]; !present {
+		t.Fatal("missing checks")
 	}
 }
 
