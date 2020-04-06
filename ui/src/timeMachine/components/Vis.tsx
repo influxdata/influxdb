@@ -153,10 +153,7 @@ const mstp = (state: AppState): StateProps => {
       statuses,
     },
   } = activeTimeMachine
-  //TODO: replace with activeContext selector
-  const contextID =
-    activeTimeMachine.contextID || state.timeMachines.activeTimeMachineID
-  const timeRange = getTimeRange(state, contextID)
+  const timeRange = getTimeRange(state)
   const {
     alertBuilder: {type: checkType, thresholds: checkThresholds},
   } = state

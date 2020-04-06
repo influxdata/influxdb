@@ -65,11 +65,7 @@ export const getActiveQuery = (state: AppState): DashboardDraftQuery => {
 // TODO kill this function
 export const getActiveWindowPeriod = (state: AppState) => {
   const {text} = getActiveQuery(state)
-  //TODO: replace with activeContext selector
-  const activeTimeMachine = getActiveTimeMachine(state)
-  const contextID =
-    activeTimeMachine.contextID || state.timeMachines.activeTimeMachineID
-  const variables = getAllVariables(state, contextID).map(v => asAssignment(v))
+  const variables = getAllVariables(state).map(v => asAssignment(v))
 
   return getWindowPeriod(text, variables)
 }

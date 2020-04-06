@@ -36,6 +36,7 @@ const GetTimeRange: FC<Props> = ({
       return
     }
 
+    // TODO: map this to current contextID
     setDashboardTimeRange(params.dashboardID, timeRange)
     const {lower, upper} = timeRange
     updateQueryParams({
@@ -47,8 +48,8 @@ const GetTimeRange: FC<Props> = ({
   return <div />
 }
 
-const mstp = (state: AppState, props: Props) => {
-  const timeRange = getTimeRange(state, props.params.dashboardID)
+const mstp = (state: AppState) => {
+  const timeRange = getTimeRange(state)
   return {timeRange}
 }
 
