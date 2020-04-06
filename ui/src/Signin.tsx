@@ -20,7 +20,7 @@ import {CLOUD, CLOUD_SIGNIN_PATHNAME} from 'src/shared/constants'
 import {RemoteDataState} from 'src/types'
 
 // Utils
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+import {getAuth0Config} from 'src/authorizations/apis'
 
 interface State {
   loading: RemoteDataState
@@ -83,8 +83,8 @@ export class Signin extends PureComponent<Props, State> {
       } = this.props
 
       clearInterval(this.intervalID)
-
-      if (CLOUD && isFlagEnabled('regionBasedLoginPage')) {
+      const config = await getAuth0Config()
+      if (CLOUD && config.socialSignUpOn) {
         this.props.router.replace('/login')
         return
       }
