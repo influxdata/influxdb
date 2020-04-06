@@ -6,14 +6,13 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/influxdata/influxdb/notification/check"
-
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	influxdbcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/mock"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/notification/check"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 var checkCmpOptions = cmp.Options{

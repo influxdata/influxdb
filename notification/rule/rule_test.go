@@ -5,15 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/pkg/testing/assert"
-
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/notification"
-
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification/rule"
-	influxTesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/notification"
+	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
+	influxTesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func lvlPtr(l notification.CheckLevel) *notification.CheckLevel {

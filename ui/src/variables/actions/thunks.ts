@@ -97,7 +97,7 @@ export const getVariables = () => async (
   }
 }
 
-export const hydrateVariables = () => async (
+export const hydrateVariables = (skipCache?: boolean) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -107,7 +107,7 @@ export const hydrateVariables = () => async (
   const vals = await hydrateVars(vars, getAllVariablesFromState(state), {
     orgID: org.id,
     url: state.links.query.self,
-    skipCache: true,
+    skipCache,
   }).promise
 
   vars

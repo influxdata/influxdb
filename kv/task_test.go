@@ -9,11 +9,11 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
-	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kv"
-	_ "github.com/influxdata/influxdb/query/builtin"
-	"github.com/influxdata/influxdb/task/servicetest"
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kv"
+	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	"github.com/influxdata/influxdb/v2/task/servicetest"
 	"go.uber.org/zap/zaptest"
 )
 

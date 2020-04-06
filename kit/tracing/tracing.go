@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/uber/jaeger-client-go"
 
 	"github.com/influxdata/httprouter"
@@ -75,6 +77,33 @@ func annotateSpan(span opentracing.Span, handlerName string, req *http.Request) 
 	span.LogKV("path", req.URL.Path)
 }
 
+// span is a simple wrapper around opentracing.Span in order to
+// get access to the duration of the span for metrics reporting.
+type Span struct {
+	opentracing.Span
+	start    time.Time
+	Duration time.Duration
+	hist     prometheus.Observer
+	gauge    prometheus.Gauge
+}
+
+func StartSpanFromContextWithPromMetrics(ctx context.Context, operationName string, hist prometheus.Observer, gauge prometheus.Gauge, opts ...opentracing.StartSpanOption) (*Span, context.Context) {
+	start := time.Now()
+	s, sctx := StartSpanFromContextWithOperationName(ctx, operationName, opentracing.StartTime(start))
+	gauge.Inc()
+	return &Span{s, start, 0, hist, gauge}, sctx
+}
+
+func (s *Span) Finish() {
+	finish := time.Now()
+	s.Duration = finish.Sub(s.start)
+	s.Span.FinishWithOptions(opentracing.FinishOptions{
+		FinishTime: finish,
+	})
+	s.hist.Observe(s.Duration.Seconds())
+	s.gauge.Dec()
+}
+
 // StartSpanFromContext is an improved opentracing.StartSpanFromContext.
 // Uses the calling function as the operation name, and logs the filename and line number.
 //
@@ -100,7 +129,7 @@ func annotateSpan(span opentracing.Span, handlerName string, req *http.Request) 
 //
 //  // Sugar to create a child span
 //  span, ctx := opentracing.StartSpanFromContext(ctx, "operation name")
-func StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Context) {
+func StartSpanFromContext(ctx context.Context, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
 	if ctx == nil {
 		panic("StartSpanFromContext called with nil context")
 	}
@@ -109,7 +138,7 @@ func StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Contex
 	var pcs [1]uintptr
 	n := runtime.Callers(2, pcs[:])
 	if n < 1 {
-		span, ctx := opentracing.StartSpanFromContext(ctx, "unknown")
+		span, ctx := opentracing.StartSpanFromContext(ctx, "unknown", opts...)
 		span.LogFields(log.Error(errors.New("runtime.Callers failed")))
 		return span, ctx
 	}
@@ -122,7 +151,8 @@ func StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Contex
 	var span opentracing.Span
 	if parentSpan := opentracing.SpanFromContext(ctx); parentSpan != nil {
 		// Create a child span.
-		span = opentracing.StartSpan(name, opentracing.ChildOf(parentSpan.Context()))
+		opts = append(opts, opentracing.ChildOf(parentSpan.Context()))
+		span = opentracing.StartSpan(name, opts...)
 	} else {
 		// Create a root span.
 		span = opentracing.StartSpan(name)
@@ -137,7 +167,7 @@ func StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Contex
 }
 
 // StartSpanFromContextWithOperationName is like StartSpanFromContext, but the caller determines the operation name.
-func StartSpanFromContextWithOperationName(ctx context.Context, operationName string) (opentracing.Span, context.Context) {
+func StartSpanFromContextWithOperationName(ctx context.Context, operationName string, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
 	if ctx == nil {
 		panic("StartSpanFromContextWithOperationName called with nil context")
 	}
@@ -146,7 +176,7 @@ func StartSpanFromContextWithOperationName(ctx context.Context, operationName st
 	var pcs [1]uintptr
 	n := runtime.Callers(2, pcs[:])
 	if n < 1 {
-		span, ctx := opentracing.StartSpanFromContext(ctx, operationName)
+		span, ctx := opentracing.StartSpanFromContext(ctx, operationName, opts...)
 		span.LogFields(log.Error(errors.New("runtime.Callers failed")))
 		return span, ctx
 	}
@@ -154,11 +184,12 @@ func StartSpanFromContextWithOperationName(ctx context.Context, operationName st
 
 	var span opentracing.Span
 	if parentSpan := opentracing.SpanFromContext(ctx); parentSpan != nil {
+		opts = append(opts, opentracing.ChildOf(parentSpan.Context()))
 		// Create a child span.
-		span = opentracing.StartSpan(operationName, opentracing.ChildOf(parentSpan.Context()))
+		span = opentracing.StartSpan(operationName, opts...)
 	} else {
 		// Create a root span.
-		span = opentracing.StartSpan(operationName)
+		span = opentracing.StartSpan(operationName, opts...)
 	}
 	// New context references this span, not the parent (if there was one).
 	ctx = opentracing.ContextWithSpan(ctx, span)

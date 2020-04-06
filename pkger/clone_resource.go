@@ -8,14 +8,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/influxdata/influxdb"
-	ierrors "github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/notification"
-	icheck "github.com/influxdata/influxdb/notification/check"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	"github.com/influxdata/influxdb/notification/rule"
-	"github.com/influxdata/influxdb/pkger/internal/wordplay"
-	"github.com/influxdata/influxdb/snowflake"
+	"github.com/influxdata/influxdb/v2"
+	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/notification"
+	icheck "github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/pkger/internal/wordplay"
+	"github.com/influxdata/influxdb/v2/snowflake"
 )
 
 var idGenerator = snowflake.NewDefaultIDGenerator()
@@ -265,7 +265,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(*v, r.Name))
+		mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(r.Name, *v))
 	default:
 		return errors.New("unsupported kind provided: " + string(r.Kind))
 	}
@@ -939,7 +939,7 @@ func telegrafToObject(t influxdb.TelegrafConfig, name string) Object {
 }
 
 // VariableToObject converts an influxdb.Variable to a pkger.Object.
-func VariableToObject(v influxdb.Variable, name string) Object {
+func VariableToObject(name string, v influxdb.Variable) Object {
 	if name == "" {
 		name = v.Name
 	}

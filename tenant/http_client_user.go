@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/influxdata/influxdb"
-	ihttp "github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/pkg/httpc"
+	"github.com/influxdata/influxdb/v2"
+	ihttp "github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
 
 // UserService connects to Influx via HTTP using tokens to manage users

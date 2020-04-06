@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 var _ influxdb.LabelService = (*LabelService)(nil)

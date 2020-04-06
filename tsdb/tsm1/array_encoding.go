@@ -3,7 +3,7 @@ package tsm1
 import (
 	"fmt"
 
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
 // DecodeBooleanArrayBlock decodes the boolean block from the byte slice

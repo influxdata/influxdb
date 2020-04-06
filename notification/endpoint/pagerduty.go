@@ -3,7 +3,7 @@ package endpoint
 import (
 	"encoding/json"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 var _ influxdb.NotificationEndpoint = &PagerDuty{}

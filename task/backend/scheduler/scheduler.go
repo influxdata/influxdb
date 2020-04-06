@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdata/cron"
-	"github.com/influxdata/influxdb/task/options"
+	"github.com/influxdata/influxdb/v2/task/options"
 )
 
 // ID duplicates the influxdb ID so users of the scheduler don't have to

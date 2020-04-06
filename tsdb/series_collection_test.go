@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/v2/models"
 )
 
 func TestSeriesCollection(t *testing.T) {

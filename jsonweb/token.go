@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 const kind = "jwt"

@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/pkg/jsonnet"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"gopkg.in/yaml.v3"
 )
 
@@ -357,6 +357,9 @@ func (p *Pkg) Summary() Summary {
 	}
 
 	for _, v := range p.variables() {
+		if v.shouldRemove {
+			continue
+		}
 		sum.Variables = append(sum.Variables, v.summarize())
 	}
 

@@ -6,7 +6,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Notification} from 'src/types'
 
 // Components
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+import {DapperScrollbars} from '@influxdata/clockface'
 import CopyButton from 'src/shared/components/CopyButton'
 
 export interface Props {
@@ -28,10 +28,9 @@ class CodeSnippet extends PureComponent<Props> {
 
     return (
       <div className="code-snippet" data-testid={testID}>
-        <FancyScrollbar
+        <DapperScrollbars
           autoHide={false}
-          autoHeight={true}
-          maxHeight={400}
+          autoSizeHeight={true}
           className="code-snippet--scroll"
         >
           <div className="code-snippet--text">
@@ -39,7 +38,7 @@ class CodeSnippet extends PureComponent<Props> {
               <code>{copyText}</code>
             </pre>
           </div>
-        </FancyScrollbar>
+        </DapperScrollbars>
         <div className="code-snippet--footer">
           <CopyButton
             textToCopy={copyText}

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influxd/launcher"
-	icontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
+	icontext "github.com/influxdata/influxdb/v2/context"
 )
 
 func testTenant(t *testing.T, args ...string) {

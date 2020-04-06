@@ -8,7 +8,7 @@ import (
 
 	"github.com/influxdata/flux"
 	_ "github.com/influxdata/flux/stdlib"
-	_ "github.com/influxdata/influxdb/query/stdlib"
+	_ "github.com/influxdata/influxdb/v2/query/stdlib"
 	"github.com/spf13/cobra"
 )
 

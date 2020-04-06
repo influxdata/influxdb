@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"text/tabwriter"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
 	"go.uber.org/zap"
 )
 

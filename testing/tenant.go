@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 type TenantFields struct {
@@ -158,6 +158,13 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		defer done()
 		ctx := context.Background()
 
+		// Number of buckets prior to user creation.
+		// This is because, for now, system buckets always get returned for compatibility with the old system.
+		_, nbs, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		u := &influxdb.User{
 			ID:   1,
 			Name: "user1",
@@ -188,25 +195,76 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		if nurms > 0 {
 			t.Errorf("expected no urm, got: %v", urms)
 		}
-		bs, nbs, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
+		bs, nnbs, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if nbs != 0 {
-			t.Errorf("expected no buckets, got: %+v", bs)
+		// Compare new number of buckets with the one prior to user creation.
+		if nnbs != nbs {
+			t.Errorf("expected no bucket created, got: %+v", bs)
 		}
 	})
 
 	// NOTE(affo)(*kv.Service): nope, it does create a useless URM, no existence check.
 	//  Apparently, system buckets are created too :thinking.
-	t.Run("creating urm pointing to non existing user/org fails", func(t *testing.T) {
+	t.Run("creating urm pointing to non existing user fails", func(t *testing.T) {
 		data := fields()
 		s, done := init(t, data)
 		defer done()
 		ctx := context.Background()
 
+		// First create an org and a user.
+		u := &influxdb.User{
+			ID:   1,
+			Name: "user1",
+		}
+		if err := s.CreateUser(ctx, u); err != nil {
+			t.Fatal(err)
+		}
+		o := &influxdb.Organization{
+			ID:   1,
+			Name: "org1",
+		}
+		if err := s.CreateOrganization(ctx, o); err != nil {
+			t.Fatal(err)
+		}
+
+		checkInvariance := func(nurms int) {
+			orgs, norgs, err := s.FindOrganizations(ctx, influxdb.OrganizationFilter{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if norgs != 1 {
+				t.Errorf("expected 1 org, got: %v", orgs)
+			}
+			usrs, nusrs, err := s.FindUsers(ctx, influxdb.UserFilter{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if nusrs != 1 {
+				t.Errorf("expected 1 user, got: %v", usrs)
+			}
+			urms, nnurms, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if nnurms != nurms {
+				t.Errorf("expected %d urms got %d: %+v", nurms, nnurms, urms)
+			}
+			bs, nbs, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if nbs != 2 {
+				t.Errorf("expected 2 buckets, got: %v", bs)
+			}
+		}
+
+		checkInvariance(0)
+
+		// Wrong userID.
 		urm := &influxdb.UserResourceMapping{
-			UserID:       1,
+			UserID:       2,
 			UserType:     influxdb.Owner,
 			MappingType:  influxdb.UserMappingType,
 			ResourceType: influxdb.OrgsResourceType,
@@ -216,35 +274,21 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 			t.Errorf("expected error got none")
 		}
 
-		// Check existence
-		orgs, norgs, err := s.FindOrganizations(ctx, influxdb.OrganizationFilter{})
-		if err != nil {
-			t.Fatal(err)
+		checkInvariance(0)
+
+		// Wrong orgID. The URM gets created successfully.
+		urm = &influxdb.UserResourceMapping{
+			UserID:       1,
+			UserType:     influxdb.Owner,
+			MappingType:  influxdb.UserMappingType,
+			ResourceType: influxdb.OrgsResourceType,
+			ResourceID:   2,
 		}
-		if norgs != 0 {
-			t.Errorf("expected no org, got: %v", orgs)
+		if err := s.CreateUserResourceMapping(ctx, urm); err != nil {
+			t.Errorf("unexpected error: %v", err)
 		}
-		usrs, nusrs, err := s.FindUsers(ctx, influxdb.UserFilter{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if nusrs != 0 {
-			t.Errorf("expected no user, got: %v", usrs)
-		}
-		urms, nurms, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if nurms > 0 {
-			t.Errorf("expected no urm, got: %v", urms)
-		}
-		bs, nbs, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if nbs != 0 {
-			t.Errorf("expected no buckets, got: %v", bs)
-		}
+
+		checkInvariance(1)
 	})
 
 	// NOTE(affo)(*kv.Service): errors on bucket creation.
@@ -254,6 +298,13 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		s, done := init(t, data)
 		defer done()
 		ctx := context.Background()
+
+		// Number of buckets prior to bucket creation.
+		// This is because, for now, system buckets always get returned for compatibility with the old system.
+		_, nbs, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		b := &influxdb.Bucket{
 			ID:    1,
@@ -286,16 +337,17 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		if nurms > 0 {
 			t.Errorf("expected no urm, got: %v", urms)
 		}
-		bs, nbs, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
+		bs, nnbs, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if nbs != 0 {
-			t.Errorf("expected no buckets, got: %v", bs)
+		// Compare new number of buckets with the one prior to bucket creation.
+		if nnbs != nbs {
+			t.Errorf("expected bucket created, got: %+v", bs)
 		}
 	})
 
-	t.Run("making user part of org creates mappings to buckets", func(t *testing.T) {
+	t.Run("making user part of org creates mapping to org only", func(t *testing.T) {
 		for _, userType := range []influxdb.UserType{influxdb.Owner, influxdb.Member} {
 			t.Run(string(userType), func(t *testing.T) {
 				data := fields()
@@ -371,20 +423,6 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 						ResourceType: influxdb.OrgsResourceType,
 						ResourceID:   o.ID,
 					},
-					{
-						UserID:       u.ID,
-						UserType:     userType,
-						MappingType:  influxdb.UserMappingType,
-						ResourceType: influxdb.BucketsResourceType,
-						ResourceID:   bs[0].ID,
-					},
-					{
-						UserID:       u.ID,
-						UserType:     userType,
-						MappingType:  influxdb.UserMappingType,
-						ResourceType: influxdb.BucketsResourceType,
-						ResourceID:   bs[1].ID,
-					},
 				}
 				sort.Sort(urmByResourceID(want))
 				sort.Sort(urmByResourceID(urms))
@@ -394,7 +432,7 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 
 				// Now add a new bucket and check the URMs.
 				b := &influxdb.Bucket{
-					ID:    1,
+					ID:    1000,
 					OrgID: o.ID,
 					Name:  "bucket1",
 				}
@@ -405,6 +443,8 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 				if err != nil {
 					t.Fatal(err)
 				}
+				// TODO(affo): this shouldn't be needed.
+				//  This URM should not be created.
 				want = append(want, &influxdb.UserResourceMapping{
 					UserID:       u.ID,
 					UserType:     userType,
@@ -461,6 +501,7 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 				},
 			},
 			UserResourceMappings: []*influxdb.UserResourceMapping{
+				// NOTE(affo): bucket URMs should not be here, create them only for deletion purposes.
 				// user 1 owns org1 (and so bucket1)
 				{
 					UserID:       1,
@@ -468,6 +509,13 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 					MappingType:  influxdb.UserMappingType,
 					ResourceType: influxdb.OrgsResourceType,
 					ResourceID:   10,
+				},
+				{
+					UserID:       1,
+					UserType:     influxdb.Owner,
+					MappingType:  influxdb.UserMappingType,
+					ResourceType: influxdb.BucketsResourceType,
+					ResourceID:   100,
 				},
 				// user 1 is member of org2 (and so bucket2)
 				{
@@ -477,6 +525,13 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 					ResourceType: influxdb.OrgsResourceType,
 					ResourceID:   20,
 				},
+				{
+					UserID:       1,
+					UserType:     influxdb.Member,
+					MappingType:  influxdb.UserMappingType,
+					ResourceType: influxdb.BucketsResourceType,
+					ResourceID:   200,
+				},
 				// user 2 owns org2 (and so bucket2)
 				{
 					UserID:       2,
@@ -485,7 +540,13 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 					ResourceType: influxdb.OrgsResourceType,
 					ResourceID:   20,
 				},
-				// NOTE(affo): URMs to buckets are automatically created as for the tests for creation.
+				{
+					UserID:       2,
+					UserType:     influxdb.Owner,
+					MappingType:  influxdb.UserMappingType,
+					ResourceType: influxdb.BucketsResourceType,
+					ResourceID:   200,
+				},
 			},
 		}
 	}
@@ -523,8 +584,9 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		}
 	})
 
-	// NOTE(affo)(*kv.Service): it does create dangling resources.
-	t.Run("deleting bucket urm does not create dangling resources", func(t *testing.T) {
+	// NOTE(affo): those resources could not be dangling (URM could be inferred from an user being in the owner org).
+	// We do not want to automatically propagate this kind of delete because an resource will always have an owner org.
+	t.Run("deleting bucket urm does create dangling bucket", func(t *testing.T) {
 		data := fields()
 		s, done := init(t, data)
 		defer done()
@@ -599,7 +661,7 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 			t.Errorf("expected 1 buckets, got: %v", bs)
 		}
 		// Now delete user1 -> bucket2.
-		// bucket2 should be deleted (nobody points to it).
+		// Still expect bucket2 to exist (nobody points to it).
 		if err := s.DeleteUserResourceMapping(ctx, data.Buckets[1].ID, data.Users[0].ID); err != nil {
 			t.Fatal(err)
 		}
@@ -607,19 +669,21 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		if err != nil {
 			t.Fatal(err)
 		}
-		if nbs > 0 {
-			t.Errorf("expected no buckets, got: %v", bs)
-			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
-				ResourceType: influxdb.BucketsResourceType,
-				ResourceID:   data.Buckets[1].ID,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Logf("bucket2 should be dangling at this point. These are its urms: %+v", urms)
+		if nbs != 1 {
+			t.Errorf("expected 1 buckets, got: %v", bs)
+		}
+		urms, nurms, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
+			ResourceType: influxdb.BucketsResourceType,
+			ResourceID:   data.Buckets[1].ID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if nurms != 0 {
+			t.Errorf("expected bucket2, to be dangling, got: %+v", urms)
 		}
 		// Now delete user1 -> bucket1.
-		// bucket1 should be deleted (nobody points to it).
+		// Still expect bucket1 to exist (nobody points to it).
 		if err := s.DeleteUserResourceMapping(ctx, data.Buckets[0].ID, data.Users[0].ID); err != nil {
 			t.Fatal(err)
 		}
@@ -627,21 +691,22 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		if err != nil {
 			t.Fatal(err)
 		}
-		if nbs > 0 {
-			t.Errorf("expected no buckets, got: %v", bs)
-			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
-				ResourceType: influxdb.BucketsResourceType,
-				ResourceID:   data.Buckets[1].ID,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Logf("bucket1 should be dangling at this point. These are its urms: %+v", urms)
+		if nbs != 1 {
+			t.Errorf("expected 1 buckets, got: %v", bs)
+		}
+		urms, nurms, err = s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
+			ResourceType: influxdb.BucketsResourceType,
+			ResourceID:   data.Buckets[0].ID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if nurms != 0 {
+			t.Errorf("expected bucket1, to be dangling, got: %+v", urms)
 		}
 	})
 
-	// NOTE(affo)(*kv.Service): it deletes urms, but not dangling resources.
-	t.Run("deleting a user deletes every urm and so for dangling resources", func(t *testing.T) {
+	t.Run("deleting a user deletes every related urm and nothing else", func(t *testing.T) {
 		data := fields()
 		s, done := init(t, data)
 		defer done()
@@ -672,7 +737,7 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		}
 
 		// Delete user1.
-		// We expect his urms deleted and bucket1 deleted (he was the only one pointing at it).
+		// We expect his urms deleted but not bucket1.
 		if err := s.DeleteUser(ctx, data.Users[0].ID); err != nil {
 			t.Fatal(err)
 		}
@@ -689,16 +754,31 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		if err != nil {
 			t.Fatal(err)
 		}
-		if nbs > 0 {
-			t.Errorf("expected no buckets, got: %v", bs)
-			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
-				ResourceType: influxdb.BucketsResourceType,
-				ResourceID:   data.Buckets[1].ID,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Logf("bucket1 should be dangling at this point. These are its urms: %+v", urms)
+		if nbs != 1 {
+			t.Errorf("expected 1 buckets, got: %v", bs)
+		}
+	})
+
+	t.Run("deleting a bucket deletes every related urm", func(t *testing.T) {
+		data := fields()
+		s, done := init(t, data)
+		defer done()
+		ctx := context.Background()
+
+		// Delete bucket2.
+		// We expect its urms deleted.
+		if err := s.DeleteBucket(ctx, data.Buckets[1].ID); err != nil {
+			t.Fatal(err)
+		}
+		urms, nurms, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
+			ResourceType: influxdb.BucketsResourceType,
+			ResourceID:   data.Buckets[1].ID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if nurms > 0 {
+			t.Errorf("expected that bucket deletion would remove dangling urms, got: %+v", urms)
 		}
 	})
 
@@ -709,10 +789,14 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		defer done()
 		ctx := context.Background()
 
+		// Number of base buckets return by a find operation.
+		// This is because, for now, system buckets always get returned for compatibility with the old system.
+		const baseNBuckets = 2
+
 		// Delete org1.
 		// We expect its buckets to be deleted.
-		// We expect urms to those buckets to be deleted too
-		// user1 should not be deleted because he is member of org2.
+		// We expect urms to those buckets to be deleted too.
+		// No user should be deleted.
 		preDeletionBuckets, _, err := s.FindBuckets(ctx, influxdb.BucketFilter{OrganizationID: &data.Organizations[0].ID})
 		if err != nil {
 			t.Fatal(err)
@@ -724,8 +808,8 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		if err != nil {
 			t.Fatal(err)
 		}
-		if nbs > 0 {
-			t.Errorf("expected no buckets, got: %v", bs)
+		if nbs != baseNBuckets {
+			t.Errorf("expected org buckets to be deleted, got: %+v", bs)
 		}
 
 		urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
@@ -762,8 +846,8 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		if err != nil {
 			t.Fatal(err)
 		}
-		if nusrs != 0 {
-			t.Errorf("expected no user, got: %v", usrs)
+		if nusrs != 2 {
+			t.Errorf("expected 2 users, got: %v", usrs)
 		}
 		urms, nurms, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{})
 		if err != nil {
@@ -776,8 +860,8 @@ func Delete(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 		if err != nil {
 			t.Fatal(err)
 		}
-		if nbs != 0 {
-			t.Errorf("expected no buckets, got: %v", bs)
+		if nbs != baseNBuckets {
+			t.Errorf("expected buckets to be deleted, got: %+v", bs)
 		}
 	})
 }

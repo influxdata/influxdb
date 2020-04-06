@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // Config store the crendentials of influxdb host and token.

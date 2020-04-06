@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/query/influxql"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/query/influxql"
 	"github.com/spf13/cobra"
 )
 

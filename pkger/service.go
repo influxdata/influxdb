@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	ierrors "github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/snowflake"
+	"github.com/influxdata/influxdb/v2"
+	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/snowflake"
 	"go.uber.org/zap"
 )
 
@@ -889,32 +889,27 @@ func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, pkg *P
 	mExistingLabels := make(map[string]DiffVariable)
 	variables := pkg.variables()
 
-VarLoop:
+	existingVars, _ := s.getAllPlatformVariables(ctx, orgID)
+
+	mIDs := make(map[influxdb.ID]*influxdb.Variable)
+	mNames := make(map[string]*influxdb.Variable)
+	for _, v := range existingVars {
+		mIDs[v.ID] = v
+		mNames[v.Name] = v
+	}
+
 	for i := range variables {
 		pkgVar := variables[i]
-		existingLabels, err := s.varSVC.FindVariables(ctx, influxdb.VariableFilter{
-			OrganizationID: &orgID,
-			// TODO: would be ideal to extend find variables to allow for a name matcher
-			//  since names are unique for vars within an org, meanwhile, make large limit
-			// 	returned vars, should be more than enough for the time being.
-		}, influxdb.FindOptions{Limit: 100})
-		switch {
-		case err == nil && len(existingLabels) > 0:
-			for i := range existingLabels {
-				existingVar := existingLabels[i]
-				if existingVar.Name != pkgVar.Name() {
-					continue
-				}
-				pkgVar.existing = existingVar
-				mExistingLabels[pkgVar.Name()] = newDiffVariable(pkgVar, existingVar)
-				continue VarLoop
-			}
-			// fallthrough here for when the variable is not found, it'll fall to the
-			// default case and add it as new.
-			fallthrough
-		default:
-			mExistingLabels[pkgVar.Name()] = newDiffVariable(pkgVar, nil)
+
+		var existing *influxdb.Variable
+		if pkgVar.ID() != 0 {
+			existing = mIDs[pkgVar.ID()]
+		} else {
+			existing = mNames[pkgVar.Name()]
 		}
+		pkgVar.existing = existing
+
+		mExistingLabels[pkgVar.Name()] = newDiffVariable(pkgVar, existing)
 	}
 
 	diffs := make([]DiffVariable, 0, len(mExistingLabels))
@@ -1169,7 +1164,7 @@ func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, o
 		},
 		{
 			// primary resources, can have relationships to labels
-			s.applyVariables(pkg.variables()),
+			s.applyVariables(ctx, pkg.variables()),
 			s.applyBuckets(ctx, pkg.buckets()),
 			s.applyChecks(ctx, pkg.checks()),
 			s.applyDashboards(pkg.dashboards()),
@@ -1971,7 +1966,7 @@ func (s *Service) applyTelegrafs(teles []*telegraf) applier {
 	}
 }
 
-func (s *Service) applyVariables(vars []*variable) applier {
+func (s *Service) applyVariables(ctx context.Context, vars []*variable) applier {
 	const resource = "variable"
 
 	mutex := new(doMutex)
@@ -2008,41 +2003,54 @@ func (s *Service) applyVariables(vars []*variable) applier {
 		},
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func(_ influxdb.ID) error { return s.rollbackVariables(rollBackVars) },
+			fn:       func(_ influxdb.ID) error { return s.rollbackVariables(ctx, rollBackVars) },
 		},
 	}
 }
 
-func (s *Service) rollbackVariables(variables []*variable) error {
+func (s *Service) rollbackVariables(ctx context.Context, variables []*variable) error {
+	rollbackFn := func(v *variable) error {
+		var err error
+		switch {
+		case v.shouldRemove:
+			err = s.varSVC.CreateVariable(ctx, v.existing)
+		case v.existing == nil:
+			err = s.varSVC.DeleteVariable(ctx, v.ID())
+		default:
+			_, err = s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
+				Name:        v.Name(),
+				Description: v.Description,
+				Arguments:   v.influxVarArgs(),
+			})
+		}
+		return err
+	}
+
 	var errs []string
 	for _, v := range variables {
-		if v.existing == nil {
-			err := s.varSVC.DeleteVariable(context.Background(), v.ID())
-			if err != nil {
-				errs = append(errs, v.ID().String())
-			}
-			continue
-		}
-
-		_, err := s.varSVC.UpdateVariable(context.Background(), v.ID(), &influxdb.VariableUpdate{
-			Description: v.existing.Description,
-			Arguments:   v.existing.Arguments,
-		})
-		if err != nil {
-			errs = append(errs, v.ID().String())
+		if err := rollbackFn(v); err != nil {
+			errs = append(errs, fmt.Sprintf("error for variable[%q]: %s", v.ID(), err))
 		}
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf(`variable_ids=[%s] err="unable to delete variable"`, strings.Join(errs, ", "))
+		return errors.New(strings.Join(errs, "; "))
 	}
 
 	return nil
 }
 
 func (s *Service) applyVariable(ctx context.Context, v variable) (influxdb.Variable, error) {
+	if v.shouldRemove {
+		if err := s.varSVC.DeleteVariable(ctx, v.id); err != nil {
+			return influxdb.Variable{}, err
+		}
+		return *v.existing, nil
+	}
+
 	if v.existing != nil {
 		updatedVar, err := s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
+			Name:        v.Name(),
 			Description: v.Description,
 			Arguments:   v.influxVarArgs(),
 		})
@@ -2193,6 +2201,17 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			Name:       l.PkgName(),
 		})
 	}
+	for _, v := range pkg.variables() {
+		if v.shouldRemove {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         v.ID(),
+			Kind:       KindVariable,
+			Name:       v.PkgName(),
+		})
+	}
 	stack.Resources = stackResources
 
 	stack.UpdatedAt = time.Now()
@@ -2251,6 +2270,15 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 				}
 			}
 		}
+		for _, v := range pkg.variables() {
+			if v.shouldRemove {
+				res := existingResources[newKey(KindVariable, v.PkgName())]
+				if res.ID != v.ID() {
+					hasChanges = true
+					res.ID = v.existing.ID
+				}
+			}
+		}
 	}
 	if !hasChanges {
 		return nil
@@ -2296,6 +2324,33 @@ func (s *Service) findLabel(ctx context.Context, orgID influxdb.ID, l *label) (*
 		return nil, errors.New("no labels found for name: " + l.Name())
 	}
 	return existingLabels[0], nil
+}
+
+func (s *Service) getAllPlatformVariables(ctx context.Context, orgID influxdb.ID) ([]*influxdb.Variable, error) {
+	const limit = 100
+
+	var (
+		existingVars []*influxdb.Variable
+		offset       int
+	)
+	for {
+		vars, err := s.varSVC.FindVariables(ctx, influxdb.VariableFilter{
+			OrganizationID: &orgID,
+			// TODO: would be ideal to extend find variables to allow for a name matcher
+			//  since names are unique for vars within an org. In the meanwhile, make large
+			//  limit returned vars, should be more than enough for the time being.
+		}, influxdb.FindOptions{Limit: limit, Offset: offset})
+		if err != nil {
+			return nil, err
+		}
+		existingVars = append(existingVars, vars...)
+
+		if len(vars) < limit {
+			break
+		}
+		offset += len(vars)
+	}
+	return existingVars, nil
 }
 
 func getLabelIDMap(ctx context.Context, labelSVC influxdb.LabelService, labelNames []string) (map[influxdb.ID]bool, error) {

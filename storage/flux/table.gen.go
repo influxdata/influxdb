@@ -13,9 +13,9 @@ import (
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
-	"github.com/influxdata/influxdb/models"
-	storage "github.com/influxdata/influxdb/storage/reads"
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/v2/models"
+	storage "github.com/influxdata/influxdb/v2/storage/reads"
+	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/pkg/errors"
 )
 

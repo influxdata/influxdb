@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 )
 
 // Predicate is something that can match on a series key.

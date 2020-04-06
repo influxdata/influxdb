@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // DocumentIndex implements influxdb.DocumentIndex. It is used to access labels/owners of documents.

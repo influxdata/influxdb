@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification"
-	icheck "github.com/influxdata/influxdb/notification/check"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	"github.com/influxdata/influxdb/notification/rule"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification"
+	icheck "github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/rule"
 )
 
 // Package kind types.
@@ -2137,6 +2137,13 @@ func (v *variable) summarize() SummaryVariable {
 }
 
 func (v *variable) influxVarArgs() *influxdb.VariableArguments {
+	// this zero value check is for situations where we want to marshal/unmarshal
+	// a variable and not have the invalid args blow up during unmarshaling. When
+	// that validation is decoupled from the unmarshaling, we can clean this up.
+	if v.Type == "" {
+		return nil
+	}
+
 	args := &influxdb.VariableArguments{
 		Type: v.Type,
 	}

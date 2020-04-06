@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"go.uber.org/zap/zaptest"
 )
 

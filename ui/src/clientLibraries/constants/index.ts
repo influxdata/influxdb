@@ -72,32 +72,65 @@ export const clientGoLibrary = {
   name: 'GO',
   url: 'https://github.com/influxdata/influxdb-client-go',
   image: GoLogo,
-  initializeClientCodeSnippet: `// You can generate a Token from the "Tokens Tab" in the UI
-influx, err := influxdb.New(<%= server %>, <%= token %>, influxdb.WithHTTPClient(myHTTPClient))
-if err != nil {
-  panic(err) // error handling here; normally we wouldn't use fmt but it works for the example
-}
-// Add your app code here
-influx.Close() // closes the client.  After this the client is useless.`,
-  writeDataCodeSnippet: `// we use client.NewRowMetric for the example because it's easy, but if you need extra performance
-// it is fine to manually build the []client.Metric{}.
-myMetrics := []influxdb.Metric{
-  influxdb.NewRowMetric(
-    map[string]interface{}{"memory": 1000, "cpu": 0.93},
-    "system-metrics",
-    map[string]string{"hostname": "hal9000"},
-    time.Date(2018, 3, 4, 5, 6, 7, 8, time.UTC)),
-  influxdb.NewRowMetric(
-    map[string]interface{}{"memory": 1000, "cpu": 0.93},
-    "system-metrics",
-    map[string]string{"hostname": "hal9000"},
-    time.Date(2018, 3, 4, 5, 6, 7, 9, time.UTC)),
-}
+  initializeClientCodeSnippet: `package main
 
-// The actual write..., this method can be called concurrently.
-if _, err := influx.Write(context.Background(), "<%= bucket %>", "<%= org %>", myMetrics...)
-if err != nil {
-  log.Fatal(err) // as above use your own error handling here.
+import (
+  "github.com/influxdata/influxdb-client-go"
+)
+
+func main() {
+    // You can generate a Token from the "Tokens Tab" in the UI
+    client := influxdb2.NewClient("<%= server %>", "<%= token %>")
+    // always close client at the end
+    defer client.Close()
+ }`,
+  writingDataPointCodeSnippet: `// get non-blocking write client
+writeApi := client.WriteApi("<%= org %>", "<%= bucket %>")
+// create point using full params constructor
+p := influxdb2.NewPoint("stat",
+    map[string]string{"unit": "temperature"},
+    map[string]interface{}{"avg": 24.5, "max": 45},
+    time.Now())
+// write point asynchronously
+writeApi.WritePoint(p)
+// create point using fluent style
+p = influxdb2.NewPointWithMeasurement("stat").
+    AddTag("unit", "temperature").
+    AddField("avg", 23.2).
+    AddField("max", 45).
+    SetTime(time.Now())
+// write point asynchronously
+writeApi.WritePoint(p)
+// Flush writes
+write.Flush()`,
+  writingDataLineProtocolCodeSnippet: `// get non-blocking write client
+writeApi := client.WriteApi("<%= org %>", "<%= bucket %>")
+// write  line protocol
+writeApi.WriteRecord(fmt.Sprintf("stat,unit=temperature avg=%f,max=%f", 23.5, 45.0))
+writeApi.WriteRecord(fmt.Sprintf("stat,unit=temperature avg=%f,max=%f", 22.5, 45.0))
+// Flush writes
+write.Flush()`,
+  executeQueryCodeSnippet: `query := \`from(bucket:"<%= bucket %>")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "stat")\`
+// Get query client
+queryApi := client.QueryApi("<%= org %>")
+// get QueryTableResult
+result, err := queryApi.Query(context.Background(), query)
+if err == nil {
+  // Iterate over query response
+  for result.Next() {
+    // Notice when group key has changed
+    if result.TableChanged() {
+      fmt.Printf("table: %s\\n", result.TableMetadata().String())
+    }
+    // Access data
+    fmt.Printf("value: %v\\n", result.Record().Value())
+  }
+  // check for an error
+  if result.Err() != nil {
+    fmt.Printf("query parsing error: %\\n", result.Err().Error())
+  }
+} else {
+  panic(err)
 }`,
 }
 

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 // IDGenerator is mock implementation of platform.IDGenerator.

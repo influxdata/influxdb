@@ -16,14 +16,15 @@ import LoginPageContents from 'src/onboarding/containers/LoginPageContents'
 
 export const LoginPage: FC = () => (
   <ErrorBoundary>
-    <AppWrapper className="sign-up--page">
+    <AppWrapper>
       <FunnelPage
+        enableGraphic={true}
         logo={<InfluxDBCloudLogo cloud={true} className="login-page--logo" />}
       >
         <Heading
-          element={HeadingElement.H2}
+          element={HeadingElement.H1}
           type={Typeface.Rubik}
-          weight={FontWeight.Regular}
+          weight={FontWeight.Light}
           className="heading--margins"
         >
           Create your Free InfluxDB Cloud Account

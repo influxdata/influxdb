@@ -12,6 +12,7 @@ import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
+import {hydrateVariables} from 'src/variables/actions/thunks'
 
 // Constants
 import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
@@ -114,6 +115,8 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
   try {
     dispatch(setQueryResults(RemoteDataState.Loading, [], null))
+
+    await dispatch(hydrateVariables())
 
     //TODO: replace with activeContext selector
     const contextID =

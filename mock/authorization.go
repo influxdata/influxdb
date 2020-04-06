@@ -1,7 +1,7 @@
 package mock
 
 import (
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 // Authorization is an Authorizer that always allows everything

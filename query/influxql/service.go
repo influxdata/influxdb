@@ -10,8 +10,8 @@ import (
 
 	"github.com/influxdata/flux"
 
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/query"
 )
 
 // Endpoint contains the necessary information to connect to a specific cluster.

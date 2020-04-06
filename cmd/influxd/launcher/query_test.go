@@ -19,11 +19,11 @@ import (
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influxd/launcher"
-	phttp "github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/kit/prom"
-	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
+	phttp "github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/query"
 )
 
 func TestLauncher_Write_Query_FieldKey(t *testing.T) {

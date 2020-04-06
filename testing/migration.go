@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	influxdb "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
+	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 	"go.uber.org/zap"
 )
 

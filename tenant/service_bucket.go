@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 // FindBucketByID returns a single bucket by ID.
@@ -108,6 +108,8 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 		return nil, 0, err
 	}
 
+	// NOTE: this is a remnant of the old system.
+	// There are org that do not have system buckets stored, but still need to be displayed.
 	needsSystemBuckets := true
 	for _, b := range buckets {
 		if b.Type == influxdb.BucketTypeSystem {
