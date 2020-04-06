@@ -265,7 +265,7 @@ export const deleteDashboard = (dashboardID: string, name: string) => async (
     dispatch(notify(copy.dashboardDeleted(name)))
     dispatch(checkDashboardLimits())
   } catch (error) {
-    dispatch(notify(copy.dashboardDeleteFailed(name, error.data.message)))
+    dispatch(notify(copy.dashboardDeleteFailed(name, error.message)))
   }
 }
 
