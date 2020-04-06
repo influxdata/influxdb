@@ -1,7 +1,7 @@
 //! partitioned_store is an enum and set of helper functions and structs to define Partitions
 //! that store data. The helper funcs and structs merge results from multiple partitions together.
 use crate::delorean::{Predicate, TimestampRange};
-use crate::line_parser::PointType;
+use crate::line_parser::{self, PointType};
 use crate::storage::memdb::MemDB;
 use crate::storage::remote_partition::RemotePartition;
 use crate::storage::s3_partition::S3Partition;
@@ -10,6 +10,7 @@ use crate::storage::StorageError;
 
 use futures::stream::{BoxStream, Stream};
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
 use std::mem;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -376,6 +377,69 @@ impl ReadBatch {
             (_, _) => true, // do nothing here
         }
     }
+
+    /// Returns the tag keys and values for this batch, sorted by key.
+    pub fn tags(&self) -> Vec<(String, String)> {
+        self.tag_string_slices().into_iter().collect()
+    }
+
+    /// Returns all tag keys.
+    pub fn tag_keys(&self) -> Vec<String> {
+        self.tag_string_slices().keys().cloned().collect()
+    }
+
+    fn tag_string_slices(&self) -> BTreeMap<String, String> {
+        let mut tags = BTreeMap::new();
+
+        for pair in line_parser::index_pairs(&self.key) {
+            tags.insert(pair.key, pair.value);
+        }
+
+        tags
+    }
+
+    /// Returns the `Tag` value associated with the provided key.
+    pub fn tag_with_key(&self, key: &str) -> Option<String> {
+        self.tag_string_slices().get(key).cloned()
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct PartitionKeyValues {
+    pub values: Vec<Option<String>>,
+}
+
+impl PartitionKeyValues {
+    pub fn new(group_keys: &[String], batch: &ReadBatch) -> Self {
+        PartitionKeyValues {
+            values: group_keys
+                .iter()
+                .map(|group_key| batch.tag_with_key(group_key).map(String::from))
+                .collect(),
+        }
+    }
+}
+
+impl Ord for PartitionKeyValues {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.values
+            .iter()
+            .zip(other.values.iter())
+            .fold(Ordering::Equal, |acc, (a, b)| {
+                acc.then_with(|| match (a, b) {
+                    (Some(a), Some(b)) => a.partial_cmp(b).unwrap(),
+                    (Some(_), None) => Ordering::Less,
+                    (None, Some(_)) => Ordering::Greater,
+                    (None, None) => Ordering::Equal,
+                })
+            })
+    }
+}
+
+impl PartialOrd for PartitionKeyValues {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[cfg(test)]
@@ -548,5 +612,48 @@ mod tests {
                 },
             ],
         )
+    }
+
+    #[test]
+    fn read_batch_tag_parsing() {
+        let batch = ReadBatch {
+            key: "cpu,host=b,region=west\tusage_system".to_string(),
+            values: ReadValues::I64(vec![]),
+        };
+
+        assert_eq!(
+            batch
+                .tags()
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("_f", "usage_system"),
+                ("_m", "cpu"),
+                ("host", "b"),
+                ("region", "west"),
+            ]
+        );
+    }
+
+    #[test]
+    fn partition_key_values_creation() {
+        let batch = ReadBatch {
+            key: "cpu,host=b,region=west\tusage_system".to_string(),
+            values: ReadValues::I64(vec![]),
+        };
+
+        let group_keys = vec![
+            String::from("region"),
+            String::from("not_present"),
+            String::from("host"),
+        ];
+
+        let partition_key_values = PartitionKeyValues::new(&group_keys, &batch);
+
+        assert_eq!(
+            partition_key_values.values,
+            vec![Some(String::from("west")), None, Some(String::from("b"))]
+        );
     }
 }

@@ -145,7 +145,7 @@ impl SeriesMap {
         self.current_size +=
             point.series().len() * SeriesMap::SERIES_KEY_COPIES + SeriesMap::SERIES_ID_BYTES;
 
-        for pair in point.index_pairs()? {
+        for pair in point.index_pairs() {
             // insert this id into the posting list
             let list_key = list_key(&pair.key, &pair.value);
 

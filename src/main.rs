@@ -165,7 +165,7 @@ async fn read(req: hyper::Request<Body>, app: Arc<App>) -> Result<Body, Applicat
     for batch in batches {
         let mut wtr = Writer::from_writer(vec![]);
 
-        let pairs = index_pairs(&batch.key).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let pairs = index_pairs(&batch.key);
 
         let mut cols = Vec::with_capacity(pairs.len() + 2);
         let mut vals = Vec::with_capacity(pairs.len() + 2);
