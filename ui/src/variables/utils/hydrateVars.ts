@@ -296,6 +296,9 @@ const invalidateAncestors = (node: VariableNode): void => {
 
   for (const ancestor of ancestors) {
     ancestor.status = RemoteDataState.Error
+    if (ancestor.variable.arguments.type === 'query') {
+      ancestor.variable.arguments.values.results = []
+    }
   }
 }
 

@@ -110,6 +110,8 @@ describe('hydrate vars', () => {
     //       g [fontcolor = "green"]
     //     }
     //
+    // NOTE: these return falsy and not an empty array, because they are skipped
+    // within hydrateVars as not belonging to the graph
     expect(
       actual.filter(v => v.id === 'a')[0].arguments.values.results
     ).toBeFalsy()
@@ -164,7 +166,7 @@ describe('hydrate vars', () => {
       })
     )
 
-    fetcher.setResponse(b, Promise.reject(new Error('oopsy whoopsies')))
+    fetcher.setResponse(b, Promise.reject('oopsy whoopsies'))
 
     const actual = await hydrateVars(vars, vars, {
       url: '',
@@ -185,10 +187,10 @@ describe('hydrate vars', () => {
     //
     expect(
       actual.filter(v => v.id === 'a')[0].arguments.values.results
-    ).toBeFalsy()
+    ).toEqual([])
     expect(
       actual.filter(v => v.id === 'b')[0].arguments.values.results
-    ).toBeFalsy()
+    ).toEqual([])
 
     expect(
       actual.filter(v => v.id === 'c')[0].arguments.values.results
