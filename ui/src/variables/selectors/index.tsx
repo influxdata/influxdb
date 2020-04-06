@@ -76,11 +76,9 @@ export const getUserVariableNames = (
     []
   )
 
-  const out = contextIDs
+  return contextIDs
     .filter(v => allIDs.includes(v))
     .concat(allIDs.filter(v => !contextIDs.includes(v)))
-
-  return out
 }
 
 // this function grabs all user defined variables
