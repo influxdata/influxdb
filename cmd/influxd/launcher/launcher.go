@@ -595,7 +595,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		userLogSvc                platform.UserOperationLogService         = m.kvService
 		bucketLogSvc              platform.BucketOperationLogService       = m.kvService
 		orgLogSvc                 platform.OrganizationOperationLogService = m.kvService
-		onboardingSvc             platform.OnboardingService               = m.kvService
 		scraperTargetSvc          platform.ScraperTargetStoreService       = m.kvService
 		telegrafSvc               platform.TelegrafConfigStore             = m.kvService
 		userResourceSvc           platform.UserResourceMappingService      = m.kvService
@@ -604,6 +603,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		lookupSvc                 platform.LookupService                   = m.kvService
 		notificationEndpointStore platform.NotificationEndpointService     = m.kvService
 	)
+
+	store, err := tenant.NewStore(m.kvStore)
+	if err != nil {
+		m.log.Error("Failed creating new meta store", zap.Error(err))
+		return err
+	}
 
 	if m.enableNewMetaStore {
 		var ts platform.TenantService
@@ -617,11 +622,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			newSvc := tenant.NewService(store)
 			ts = tenant.NewDuplicateReadTenantService(m.log, oldSvc, newSvc)
 		} else {
-			store, err := tenant.NewStore(m.kvStore)
-			if err != nil {
-				m.log.Error("Failed creating new meta store", zap.Error(err))
-				return err
-			}
 			ts = tenant.NewService(store)
 		}
 
@@ -888,7 +888,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		SourceService:                   sourceSvc,
 		VariableService:                 variableSvc,
 		PasswordsService:                passwdsSvc,
-		OnboardingService:               onboardingSvc,
 		InfluxQLService:                 storageQueryService,
 		FluxService:                     storageQueryService,
 		TaskService:                     taskSvc,
@@ -943,8 +942,18 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgHTTPServer = pkger.NewHTTPServer(pkgServerLogger, pkgSVC)
 	}
 
+	var onboardHTTPServer *tenant.OnboardHandler
 	{
-		platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer))
+		onboardSvc := tenant.NewOnboardService(store, authSvc)                                            // basic service
+		onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                               // with auth
+		onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, tenant.WithSuffix("new"))             // with metrics
+		onboardSvc = tenant.NewOnboardingLogger(m.log.With(zap.String("handler", "onboard")), onboardSvc) // with logging
+
+		onboardHTTPServer = tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
+	}
+
+	{
+		platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer), http.WithResourceHandler(onboardHTTPServer))
 
 		httpLogger := m.log.With(zap.String("service", "http"))
 		m.httpServer.Handler = http.NewHandlerFromRegistry(
