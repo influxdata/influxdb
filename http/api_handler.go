@@ -4,14 +4,14 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
-	"github.com/influxdata/influxdb/chronograf/server"
-	"github.com/influxdata/influxdb/http/metric"
-	"github.com/influxdata/influxdb/kit/prom"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	"github.com/influxdata/influxdb/v2/chronograf/server"
+	"github.com/influxdata/influxdb/v2/http/metric"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -69,7 +69,6 @@ type APIBackend struct {
 	SourceService                   influxdb.SourceService
 	VariableService                 influxdb.VariableService
 	PasswordsService                influxdb.PasswordsService
-	OnboardingService               influxdb.OnboardingService
 	InfluxQLService                 query.ProxyQueryService
 	FluxService                     query.ProxyQueryService
 	TaskService                     influxdb.TaskService
@@ -179,9 +178,6 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	sessionHandler := NewSessionHandler(b.Logger, sessionBackend)
 	h.Mount(prefixSignIn, sessionHandler)
 	h.Mount(prefixSignOut, sessionHandler)
-
-	setupBackend := NewSetupBackend(b.Logger.With(zap.String("handler", "setup")), b)
-	h.Mount(prefixSetup, NewSetupHandler(b.Logger, setupBackend))
 
 	sourceBackend := NewSourceBackend(b.Logger.With(zap.String("handler", "source")), b)
 	sourceBackend.SourceService = authorizer.NewSourceService(b.SourceService)

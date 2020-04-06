@@ -1,5 +1,5 @@
 // Libraries
-import React, {useState, FunctionComponent} from 'react'
+import React, {useState, useEffect, FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
@@ -10,6 +10,9 @@ import {
   ComponentSize,
 } from '@influxdata/clockface'
 import VariableItem from 'src/timeMachine/components/variableToolbar/VariableItem'
+
+// Actions
+import {hydrateVariables} from 'src/variables/actions/thunks'
 
 // Utils
 import {getAllVariables} from 'src/variables/selectors'
@@ -25,12 +28,23 @@ interface StateProps {
   variables: Variable[]
 }
 
-const VariableToolbar: FunctionComponent<OwnProps & StateProps> = ({
+interface DispatchProps {
+  hydrateVariables: typeof hydrateVariables
+}
+
+type Props = OwnProps & StateProps & DispatchProps
+
+const VariableToolbar: FunctionComponent<Props> = ({
   variables,
   onClickVariable,
+  hydrateVariables,
 }) => {
   const [searchTerm, setSearchTerm] = useState('')
   const filteredVariables = variables.filter(v => v.name.includes(searchTerm))
+
+  useEffect(() => {
+    hydrateVariables()
+  }, [])
 
   let content: JSX.Element | JSX.Element[] = (
     <EmptyState size={ComponentSize.ExtraSmall}>
@@ -65,4 +79,11 @@ const mstp = (state: AppState): StateProps => {
   return {variables}
 }
 
-export default connect<StateProps>(mstp)(VariableToolbar)
+const mdtp = {
+  hydrateVariables: hydrateVariables,
+}
+
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(VariableToolbar)

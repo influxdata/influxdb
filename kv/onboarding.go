@@ -2,10 +2,11 @@ package kv
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 var (
@@ -170,4 +171,8 @@ func (s *Service) OnboardInitialUser(ctx context.Context, req *influxdb.Onboardi
 		Bucket: bucket,
 		Auth:   auth,
 	}, nil
+}
+
+func (s *Service) OnboardUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
+	return nil, errors.New("not yet implemented")
 }

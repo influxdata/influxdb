@@ -11,17 +11,16 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/influxdata/influxdb"
-	ihttp "github.com/influxdata/influxdb/http"
-	ierror "github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/pkger"
+	"github.com/influxdata/influxdb/v2"
+	ihttp "github.com/influxdata/influxdb/v2/http"
+	ierror "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
@@ -694,18 +693,7 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		return b.writeJSON(diff)
 	}
 
-	red := color.New(color.FgRed).SprintFunc()
 	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
-
-	diffLn := func(isNew bool, old, new interface{}) string {
-		if isNew {
-			return green(new)
-		}
-		if reflect.DeepEqual(old, new) {
-			return fmt.Sprint(new)
-		}
-		return fmt.Sprintf("%s\n%s", red(old), green(new))
-	}
 
 	boolDiff := func(b bool) string {
 		bb := strconv.FormatBool(b)
@@ -715,11 +703,18 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		return bb
 	}
 
-	if labels := diff.Labels; len(labels) > 0 {
+	diffPrinterGen := func(title string, headers []string) *diffPrinter {
+		commonHeaders := []string{"Package Name", "ID", "Resource Name"}
+
 		printer := newDiffPrinter(b.w, !b.disableColor, !b.disableTableBorders)
 		printer.
-			Title("Labels").
-			SetHeaders("Package Name", "ID", "Resource Name", "Color", "Description")
+			Title(title).
+			SetHeaders(append(commonHeaders, headers...)...)
+		return printer
+	}
+
+	if labels := diff.Labels; len(labels) > 0 {
+		printer := diffPrinterGen("Labels", []string{"Color", "Description"})
 
 		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffLabelValues) []string {
 			return []string{pkgName, id.String(), v.Name, v.Color, v.Description}
@@ -745,10 +740,7 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	}
 
 	if bkts := diff.Buckets; len(bkts) > 0 {
-		printer := newDiffPrinter(b.w, !b.disableColor, !b.disableTableBorders)
-		printer.
-			Title("Buckets").
-			SetHeaders("Package Name", "ID", "Resource Name", "Retention Period", "Description")
+		printer := diffPrinterGen("Buckets", []string{"Retention Period", "Description"})
 
 		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffBucketValues) []string {
 			return []string{pkgName, id.String(), v.Name, v.RetentionRules.RP().String(), v.Description}
@@ -773,24 +765,33 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 		printer.Render()
 	}
 
-	tablePrintFn := b.tablePrinterGen()
 	if checks := diff.Checks; len(checks) > 0 {
-		headers := []string{"New", "ID", "Name", "Description"}
-		tablePrintFn("CHECKS", headers, len(checks), func(i int) []string {
-			c := checks[i]
-			var oldDesc string
+		printer := diffPrinterGen("Checks", []string{"Description"})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffCheckValues) []string {
+			return []string{pkgName, id.String(), v.Check.GetName(), v.Check.GetDescription()}
+		}
+
+		for _, c := range checks {
+			var oldRow []string
 			if c.Old != nil {
-				oldDesc = c.Old.GetDescription()
+				oldRow = appendValues(c.ID, c.PkgName, *c.Old)
 			}
-			return []string{
-				boolDiff(c.IsNew()),
-				c.ID.String(),
-				c.Name,
-				diffLn(c.IsNew(), oldDesc, c.New.GetDescription()),
+
+			newRow := appendValues(c.ID, c.PkgName, c.New)
+			switch {
+			case c.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case c.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
 			}
-		})
+		}
+		printer.Render()
 	}
 
+	tablePrintFn := b.tablePrinterGen()
 	if dashes := diff.Dashboards; len(dashes) > 0 {
 		headers := []string{"New", "Name", "Description", "Num Charts"}
 		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {
@@ -805,15 +806,29 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	}
 
 	if endpoints := diff.NotificationEndpoints; len(endpoints) > 0 {
-		headers := []string{"New", "ID", "Name"}
-		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
-			v := endpoints[i]
-			return []string{
-				boolDiff(v.IsNew()),
-				v.ID.String(),
-				v.Name,
+		printer := diffPrinterGen("Notification Endpoints", nil)
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffNotificationEndpointValues) []string {
+			return []string{pkgName, id.String(), v.NotificationEndpoint.GetName()}
+		}
+
+		for _, e := range endpoints {
+			var oldRow []string
+			if e.Old != nil {
+				oldRow = appendValues(e.ID, e.PkgName, *e.Old)
 			}
-		})
+
+			newRow := appendValues(e.ID, e.PkgName, e.New)
+			switch {
+			case e.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case e.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
+			}
+		}
+		printer.Render()
 	}
 
 	if rules := diff.NotificationRules; len(rules) > 0 {
@@ -863,30 +878,33 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) error {
 	}
 
 	if vars := diff.Variables; len(vars) > 0 {
-		headers := []string{"New", "ID", "Name", "Description", "Arg Type", "Arg Values"}
-		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
-			v := vars[i]
-			var old pkger.DiffVariableValues
+		printer := diffPrinterGen("Variables", []string{"Description", "Arg Type", "Arg Values"})
+
+		appendValues := func(id pkger.SafeID, pkgName string, v pkger.DiffVariableValues) []string {
+			var argType string
+			if v.Args != nil {
+				argType = v.Args.Type
+			}
+			return []string{pkgName, id.String(), v.Name, v.Description, argType, printVarArgs(v.Args)}
+		}
+
+		for _, v := range vars {
+			var oldRow []string
 			if v.Old != nil {
-				old = *v.Old
+				oldRow = appendValues(v.ID, v.PkgName, *v.Old)
 			}
-			var oldArgType string
-			if old.Args != nil {
-				oldArgType = old.Args.Type
+
+			newRow := appendValues(v.ID, v.PkgName, v.New)
+			switch {
+			case v.IsNew():
+				printer.AppendDiff(nil, newRow)
+			case v.Remove:
+				printer.AppendDiff(oldRow, nil)
+			default:
+				printer.AppendDiff(oldRow, newRow)
 			}
-			var newArgType string
-			if v.New.Args != nil {
-				newArgType = v.New.Args.Type
-			}
-			return []string{
-				boolDiff(v.IsNew()),
-				v.ID.String(),
-				v.Name,
-				diffLn(v.IsNew(), old.Description, v.New.Description),
-				diffLn(v.IsNew(), oldArgType, newArgType),
-				diffLn(v.IsNew(), printVarArgs(old.Args), printVarArgs(v.New.Args)),
-			}
-		})
+		}
+		printer.Render()
 	}
 
 	if len(diff.LabelMappings) > 0 {
@@ -916,9 +934,11 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 		return b.writeJSON(sum)
 	}
 
+	commonHeaders := []string{"Package Name", "ID", "Resource Name"}
+
 	tablePrintFn := b.tablePrinterGen()
 	if labels := sum.Labels; len(labels) > 0 {
-		headers := []string{"Package Name", "ID", "Resource Name", "Description", "Color"}
+		headers := append(commonHeaders, "Description", "Color")
 		tablePrintFn("LABELS", headers, len(labels), func(i int) []string {
 			l := labels[i]
 			return []string{
@@ -932,7 +952,7 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 	}
 
 	if buckets := sum.Buckets; len(buckets) > 0 {
-		headers := []string{"Package Name", "ID", "Resource Name", "Retention", "Description"}
+		headers := append(commonHeaders, "Retention", "Description")
 		tablePrintFn("BUCKETS", headers, len(buckets), func(i int) []string {
 			bucket := buckets[i]
 			return []string{
@@ -946,10 +966,11 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 	}
 
 	if checks := sum.Checks; len(checks) > 0 {
-		headers := []string{"ID", "Name", "Description"}
+		headers := append(commonHeaders, "Description")
 		tablePrintFn("CHECKS", headers, len(checks), func(i int) []string {
 			c := checks[i].Check
 			return []string{
+				checks[i].PkgName,
 				c.GetID().String(),
 				c.GetName(),
 				c.GetDescription(),
@@ -966,10 +987,11 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 	}
 
 	if endpoints := sum.NotificationEndpoints; len(endpoints) > 0 {
-		headers := []string{"ID", "Name", "Description", "Status"}
+		headers := append(commonHeaders, "Description", "Status")
 		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
 			v := endpoints[i]
 			return []string{
+				v.PkgName,
 				v.NotificationEndpoint.GetID().String(),
 				v.NotificationEndpoint.GetName(),
 				v.NotificationEndpoint.GetDescription(),
@@ -1025,11 +1047,12 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) error {
 	}
 
 	if vars := sum.Variables; len(vars) > 0 {
-		headers := []string{"ID", "Name", "Description", "Arg Type", "Arg Values"}
+		headers := append(commonHeaders, "Description", "Arg Type", "Arg Values")
 		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
 			v := vars[i]
 			args := v.Arguments
 			return []string{
+				v.PkgName,
 				v.ID.String(),
 				v.Name,
 				v.Description,

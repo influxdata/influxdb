@@ -11,6 +11,7 @@ import {
   TIME_RANGE_STOP,
   WINDOW_PERIOD,
 } from 'src/variables/constants'
+import {currentContext} from 'src/shared/selectors/currentContext'
 
 // Types
 import {
@@ -66,7 +67,7 @@ export const extractVariableEditorConstant = (
 
 export const getUserVariableNames = (
   state: AppState,
-  contextID?: string | null
+  contextID: string
 ): string[] => {
   const allIDs = get(state, ['resources', 'variables', 'allIDs'], [])
   const contextIDs = get(
@@ -84,38 +85,39 @@ export const getUserVariableNames = (
 // and hydrates them based on their context
 export const getVariables = (
   state: AppState,
-  contextID?: string | null
+  contextID?: string
 ): Variable[] => {
-  return getUserVariableNames(state, contextID)
+  const vars = getUserVariableNames(state, contextID || currentContext(state))
     .reduce((prev, curr) => {
-      prev.push(getVariable(state, contextID, curr))
+      prev.push(getVariable(state, curr))
 
       return prev
     }, [])
     .filter(v => !!v)
+
+  return vars
 }
 
 // the same as the above method, but includes system
 // variables
 export const getAllVariables = (
   state: AppState,
-  contextID?: string | null
+  contextID?: string
 ): Variable[] => {
-  return getUserVariableNames(state, contextID)
+  const vars = getUserVariableNames(state, contextID || currentContext(state))
     .concat([TIME_RANGE_START, TIME_RANGE_STOP, WINDOW_PERIOD])
     .reduce((prev, curr) => {
-      prev.push(getVariable(state, contextID, curr))
+      prev.push(getVariable(state, curr))
 
       return prev
     }, [])
     .filter(v => !!v)
+
+  return vars
 }
 
-export const getVariable = (
-  state: AppState,
-  contextID: string | null,
-  variableID: string
-): Variable => {
+export const getVariable = (state: AppState, variableID: string): Variable => {
+  const contextID = currentContext(state)
   const ctx = get(state, ['resources', 'variables', 'values', contextID])
   let vari = get(state, ['resources', 'variables', 'byID', variableID])
 
@@ -124,23 +126,15 @@ export const getVariable = (
   }
 
   if (variableID === TIME_RANGE_START || variableID === TIME_RANGE_STOP) {
-    const timeRange = getTimeRange(state, contextID)
+    const timeRange = getTimeRange(state)
 
     vari = getRangeVariable(variableID, timeRange)
   }
 
   if (variableID === WINDOW_PERIOD) {
     const {text} = getActiveQuery(state)
-    let context = contextID
-    if (
-      !contextID &&
-      state.timeMachines &&
-      state.timeMachines.activeTimeMachineID
-    ) {
-      context = state.timeMachines.activeTimeMachineID
-    }
-    const variables = getVariables(state, context)
-    const range = getTimeRange(state, context)
+    const variables = getVariables(state)
+    const range = getTimeRange(state)
     const timeVars = [
       getRangeVariable(TIME_RANGE_START, range),
       getRangeVariable(TIME_RANGE_STOP, range),
@@ -168,19 +162,31 @@ export const getVariable = (
     }
   }
 
-  if (!vari.asAssignment) {
-    vari.asAssignment = () => asAssignment(vari)
+  // Now validate that the selected value makes sense for
+  // the current situation
+  const vals = normalizeValues(vari)
+  if (vari.selected && !vals.includes(vari.selected[0])) {
+    vari.selected = []
   }
 
-  if (!vari.selected) {
-    if (vari.arguments.type === 'map') {
-      vari.selected = [Object.keys(vari.arguments.values)[0]]
-    } else {
-      vari.selected = [vari.arguments.values[0]]
-    }
+  if ((!vari.selected || !vari.selected.length) && vals.length) {
+    vari.selected = [vals[0]]
   }
 
   return vari
+}
+
+export const normalizeValues = (variable: Variable): string[] => {
+  switch (variable.arguments.type) {
+    case 'query':
+      return variable.arguments.values.results || []
+    case 'map':
+      return Object.keys(variable.arguments.values) || []
+    case 'constant':
+      return variable.arguments.values || []
+    default:
+      return []
+  }
 }
 
 export const asAssignment = (variable: Variable): VariableAssignment => {
@@ -252,6 +258,9 @@ export const asAssignment = (variable: Variable): VariableAssignment => {
   }
 
   if (variable.arguments.type === 'query') {
+    if (!variable.selected || !variable.selected[0]) {
+      return null
+    }
     out.init = {
       type: 'StringLiteral',
       value: variable.selected[0],

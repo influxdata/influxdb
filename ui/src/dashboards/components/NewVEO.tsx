@@ -43,7 +43,7 @@ const NewViewVEO: FunctionComponent<Props> = ({
   view,
 }) => {
   useEffect(() => {
-    onLoadNewVEO(dashboardID)
+    onLoadNewVEO()
   }, [dashboardID])
 
   const handleClose = () => {

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -306,8 +306,9 @@ func TestPkg(t *testing.T) {
 				{
 					name: "new variable",
 					resource: DiffVariable{
-						Name: "new var",
+						PkgName: "new var",
 						New: DiffVariableValues{
+							Name:        "new var",
 							Description: "new desc",
 							Args: &influxdb.VariableArguments{
 								Type:   "constant",
@@ -320,9 +321,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing variable no changes",
 					resource: DiffVariable{
-						ID:   2,
-						Name: "new var",
+						ID:      2,
+						PkgName: "new var",
 						New: DiffVariableValues{
+							Name:        "new var",
 							Description: "new desc",
 							Args: &influxdb.VariableArguments{
 								Type:   "constant",
@@ -330,6 +332,7 @@ func TestPkg(t *testing.T) {
 							},
 						},
 						Old: &DiffVariableValues{
+							Name:        "new var",
 							Description: "new desc",
 							Args: &influxdb.VariableArguments{
 								Type:   "constant",
@@ -342,9 +345,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing variable with desc changes",
 					resource: DiffVariable{
-						ID:   3,
-						Name: "new var",
+						ID:      3,
+						PkgName: "new var",
 						New: DiffVariableValues{
+							Name:        "new var",
 							Description: "new desc",
 							Args: &influxdb.VariableArguments{
 								Type:   "constant",
@@ -364,9 +368,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing variable with constant arg changes",
 					resource: DiffVariable{
-						ID:   3,
-						Name: "new var",
+						ID:      3,
+						PkgName: "new var",
 						New: DiffVariableValues{
+							Name:        "new var",
 							Description: "new desc",
 							Args: &influxdb.VariableArguments{
 								Type:   "constant",
@@ -386,9 +391,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing variable with map arg changes",
 					resource: DiffVariable{
-						ID:   3,
-						Name: "new var",
+						ID:      3,
+						PkgName: "new var",
 						New: DiffVariableValues{
+							Name:        "new var",
 							Description: "new desc",
 							Args: &influxdb.VariableArguments{
 								Type:   "map",
@@ -408,9 +414,10 @@ func TestPkg(t *testing.T) {
 				{
 					name: "existing variable with query arg changes",
 					resource: DiffVariable{
-						ID:   3,
-						Name: "new var",
+						ID:      3,
+						PkgName: "new var",
 						New: DiffVariableValues{
+							Name:        "new var",
 							Description: "new desc",
 							Args: &influxdb.VariableArguments{
 								Type: "query",
@@ -421,6 +428,7 @@ func TestPkg(t *testing.T) {
 							},
 						},
 						Old: &DiffVariableValues{
+							Name:        "new var",
 							Description: "new desc",
 							Args: &influxdb.VariableArguments{
 								Type: "query",

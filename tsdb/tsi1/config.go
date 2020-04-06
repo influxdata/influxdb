@@ -3,7 +3,7 @@ package tsi1
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/influxdb/v2/toml"
 )
 
 // DefaultMaxIndexLogFileSize is the default threshold, in bytes, when an index

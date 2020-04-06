@@ -63,9 +63,17 @@
     color: $g7-graphite;
 
     code {
-      font-weight: 700;
+      background-color: $g19-ghost;
       color: $c-star;
     }
+
+    pre {
+      background-color: $g19-ghost;
+    }
+  }
+
+  .markdown-cell .cf-dapper-scrollbars--track-y {
+    background-color: $g17-whisper !important;
   }
 
   .cell--view-empty {

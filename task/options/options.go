@@ -13,7 +13,7 @@ import (
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/pkg/pointer"
+	"github.com/influxdata/influxdb/v2/pkg/pointer"
 )
 
 const maxConcurrency = 100

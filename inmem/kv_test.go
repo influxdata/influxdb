@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kv"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func initKVStore(f platformtesting.KVStoreFields, t *testing.T) (kv.Store, func()) {

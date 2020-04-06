@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import ReactMarkdown from 'react-markdown'
 
 // Components
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+import {DapperScrollbars} from '@influxdata/clockface'
 
 // Utils
 import {humanizeNote} from 'src/dashboards/utils/notes'
@@ -21,14 +21,14 @@ class Markdown extends PureComponent<Props> {
     const {text} = this.props
 
     return (
-      <FancyScrollbar className="markdown-cell" autoHide={true}>
+      <DapperScrollbars className="markdown-cell" autoHide={true}>
         <div className="markdown-cell--contents">
           <ReactMarkdown
             source={humanizeNote(text)}
             className="markdown-format"
           />
         </div>
-      </FancyScrollbar>
+      </DapperScrollbars>
     )
   }
 }

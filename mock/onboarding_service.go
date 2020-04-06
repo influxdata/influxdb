@@ -3,7 +3,7 @@ package mock
 import (
 	"context"
 
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 var _ platform.OnboardingService = (*OnboardingService)(nil)
@@ -16,15 +16,19 @@ type OnboardingService struct {
 	UserService
 	AuthorizationService
 
-	IsOnboardingFn func(context.Context) (bool, error)
-	GenerateFn     func(context.Context, *platform.OnboardingRequest) (*platform.OnboardingResults, error)
+	IsOnboardingFn       func(context.Context) (bool, error)
+	OnboardInitialUserFn func(context.Context, *platform.OnboardingRequest) (*platform.OnboardingResults, error)
+	OnboardUserFn        func(context.Context, *platform.OnboardingRequest) (*platform.OnboardingResults, error)
 }
 
 // NewOnboardingService returns a mock of OnboardingService where its methods will return zero values.
 func NewOnboardingService() *OnboardingService {
 	return &OnboardingService{
 		IsOnboardingFn: func(context.Context) (bool, error) { return false, nil },
-		GenerateFn: func(context.Context, *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
+		OnboardInitialUserFn: func(context.Context, *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
+			return nil, nil
+		},
+		OnboardUserFn: func(context.Context, *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
 			return nil, nil
 		},
 	}
@@ -37,5 +41,10 @@ func (s *OnboardingService) IsOnboarding(ctx context.Context) (bool, error) {
 
 // OnboardInitialUser OnboardingResults.
 func (s *OnboardingService) OnboardInitialUser(ctx context.Context, req *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
-	return s.GenerateFn(ctx, req)
+	return s.OnboardInitialUserFn(ctx, req)
+}
+
+// OnboardUser OnboardingResults.
+func (s *OnboardingService) OnboardUser(ctx context.Context, req *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
+	return s.OnboardUserFn(ctx, req)
 }

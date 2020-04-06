@@ -10,8 +10,8 @@ import (
 	"time"
 
 	bolt "github.com/coreos/bbolt"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/kv"
 	"go.uber.org/zap"
 )
 

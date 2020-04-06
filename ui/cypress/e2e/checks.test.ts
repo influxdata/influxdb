@@ -22,6 +22,9 @@ describe('Checks', () => {
       })
     })
     cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
+
+    // User can only see all panels at once on large screens
+    cy.getByTestID('alerting-tab--checks').click({force: true})
   })
 
   it('can validate a threshold check', () => {

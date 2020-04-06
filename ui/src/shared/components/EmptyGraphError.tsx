@@ -8,8 +8,8 @@ import {
   ComponentSize,
   ComponentColor,
   IconFont,
+  DapperScrollbars,
 } from '@influxdata/clockface'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 interface Props {
   message: string
@@ -40,7 +40,7 @@ const EmptyGraphError: FunctionComponent<Props> = ({message, testID}) => {
             className="empty-graph-error--copy"
           />
         </CopyToClipboard>
-        <FancyScrollbar
+        <DapperScrollbars
           className="empty-graph-error--scroll"
           autoHide={false}
           thumbStartColor="#FF8564"
@@ -54,7 +54,7 @@ const EmptyGraphError: FunctionComponent<Props> = ({message, testID}) => {
             />
             <code className="cell--error-message">{message}</code>
           </pre>
-        </FancyScrollbar>
+        </DapperScrollbars>
       </div>
     </div>
   )

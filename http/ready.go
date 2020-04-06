@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/influxdb/v2/toml"
 )
 
 // ReadyHandler is a default readiness handler. The default behaviour is always ready.

@@ -151,17 +151,18 @@ class RefreshingView extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
-  const dashboard = state.currentDashboard.id
-  const timeRange = getTimeRange(state, dashboard)
+  const timeRange = getTimeRange(state)
 
   // NOTE: cannot use getAllVariables here because the TimeSeries
   // component appends it automatically. That should be fixed
-  const vars = getVariables(state, dashboard)
+  const vars = getVariables(state)
   const variableAssignments = [
     ...vars,
     getRangeVariable(TIME_RANGE_START, timeRange),
     getRangeVariable(TIME_RANGE_STOP, timeRange),
-  ].map(v => asAssignment(v))
+  ]
+    .map(v => asAssignment(v))
+    .filter(v => !!v)
 
   const ranges = getActiveTimeRange(timeRange, ownProps.properties.queries)
   const {timeZone, theme} = state.app.persisted

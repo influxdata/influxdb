@@ -9,11 +9,11 @@ import (
 
 	"github.com/golang/gddo/httputil"
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
-	pctx "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/pkg/httpc"
-	"github.com/influxdata/influxdb/telegraf/plugins"
+	"github.com/influxdata/influxdb/v2"
+	platform "github.com/influxdata/influxdb/v2"
+	pctx "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
+	"github.com/influxdata/influxdb/v2/telegraf/plugins"
 	"go.uber.org/zap"
 )
 

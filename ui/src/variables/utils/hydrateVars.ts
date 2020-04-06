@@ -11,7 +11,6 @@ import {
   RemoteDataState,
   Variable,
   VariableValues,
-  VariableValuesByID,
   ValueSelections,
 } from 'src/types'
 import {CancelBox, CancellationError} from 'src/types/promises'
@@ -30,45 +29,42 @@ interface HydrateVarsOptions {
   orgID: string
   selections?: ValueSelections
   fetcher?: ValueFetcher
+  skipCache?: boolean
 }
 
 export const createVariableGraph = (
   allVariables: Variable[]
 ): VariableNode[] => {
-  const nodesByID: {[variableID: string]: VariableNode} = {}
-
-  // First initialize all the nodes
-  for (const variable of allVariables) {
-    nodesByID[variable.id] = {
-      variable,
-      values: null,
-      parents: [],
-      children: [],
-      status: RemoteDataState.NotStarted,
-      cancel: () => {},
-    }
-  }
+  const nodesByID: {[variableID: string]: VariableNode} = allVariables.reduce(
+    (prev, curr) => {
+      prev[curr.id] = {
+        variable: curr,
+        values: null,
+        parents: [],
+        children: [],
+        status: RemoteDataState.NotStarted,
+        cancel: () => {},
+      }
+      return prev
+    },
+    {}
+  )
 
   // Then initialize all the edges (the `parents` and `children` references)
-  for (const variable of allVariables) {
-    if (!isQueryVar(variable)) {
-      continue
-    }
-
-    const childIDs = getVarChildren(variable, allVariables).map(
-      child => child.id
-    )
-
-    for (const childID of childIDs) {
-      nodesByID[variable.id].children.push(nodesByID[childID])
-      nodesByID[childID].parents.push(nodesByID[variable.id])
-    }
-  }
+  Object.keys(nodesByID)
+    .filter(k => nodesByID[k].variable.arguments.type === 'query')
+    .forEach(k => {
+      getVarChildren(nodesByID[k].variable, allVariables)
+        .map(child => child.id)
+        .forEach(c => {
+          nodesByID[k].children.push(nodesByID[c])
+          nodesByID[c].parents.push(nodesByID[k])
+        })
+    })
 
   return Object.values(nodesByID)
 }
 
-const isQueryVar = (v: Variable) => v.arguments.type === 'query'
 export const isInQuery = (query: string, v: Variable) => {
   const regexp = new RegExp(
     `${BOUNDARY_GROUP}${OPTION_NAME}.${v.name}${BOUNDARY_GROUP}`
@@ -123,11 +119,13 @@ const findSubgraph = (
 ): VariableNode[] => {
   const subgraph: Set<VariableNode> = new Set()
 
+  // use an ID array to reduce the chance of reference errors
+  const varIDs = variables.map(v => v.id)
   for (const node of graph) {
     const shouldKeep =
-      variables.includes(node.variable) ||
+      varIDs.includes(node.variable.id) ||
       collectAncestors(node).some(ancestor =>
-        variables.includes(ancestor.variable)
+        varIDs.includes(ancestor.variable.id)
       )
 
     if (shouldKeep) {
@@ -205,13 +203,23 @@ const hydrateVarsHelper = async (
   }
 
   const descendants = collectDescendants(node)
-  const assignments = descendants.map(node => asAssignment(node.variable))
+  const assignments = descendants
+    .map(node => asAssignment(node.variable))
+    .filter(v => !!v)
 
   const {url, orgID} = options
   const {query} = node.variable.arguments.values
   const fetcher = options.fetcher || valueFetcher
 
-  const request = fetcher.fetch(url, orgID, query, assignments, null, '')
+  const request = fetcher.fetch(
+    url,
+    orgID,
+    query,
+    assignments,
+    null,
+    '',
+    options.skipCache
+  )
 
   node.cancel = request.cancel
 
@@ -288,10 +296,13 @@ const invalidateAncestors = (node: VariableNode): void => {
 
   for (const ancestor of ancestors) {
     ancestor.status = RemoteDataState.Error
+    if (ancestor.variable.arguments.type === 'query') {
+      ancestor.variable.arguments.values.results = []
+    }
   }
 }
 
-const extractResult = (graph: VariableNode[]): VariableValuesByID => {
+const extractResult = (graph: VariableNode[]): Variable[] => {
   const result = {}
 
   for (const node of graph) {
@@ -299,10 +310,10 @@ const extractResult = (graph: VariableNode[]): VariableValuesByID => {
       node.values = errorVariableValues()
     }
 
-    result[node.variable.id] = node.values
+    result[node.variable.id] = node.variable
   }
 
-  return result
+  return Object.values(result)
 }
 
 /*
@@ -348,9 +359,8 @@ export const hydrateVars = (
   variables: Variable[],
   allVariables: Variable[],
   options: HydrateVarsOptions
-): CancelBox<VariableValuesByID> => {
+): CancelBox<Variable[]> => {
   const graph = findSubgraph(createVariableGraph(allVariables), variables)
-
   invalidateCycles(graph)
 
   let isCancelled = false
@@ -363,7 +373,40 @@ export const hydrateVars = (
     node.status === RemoteDataState.Loading
 
     try {
+      // TODO: terminate the concept of node.values at the fetcher and just use variables
       node.values = await hydrateVarsHelper(node, options)
+
+      if (node.variable.arguments.type === 'query') {
+        node.variable.arguments.values.results = node.values.values as string[]
+      } else {
+        node.variable.arguments.values = node.values.values
+      }
+
+      node.variable.selected = node.variable.selected || []
+
+      // ensure that the selected value defaults propegate for
+      // nested queryies.
+      if (
+        node.variable.arguments.type === 'query' ||
+        node.variable.arguments.type === 'constant'
+      ) {
+        if (
+          !(node.values.values as string[]).includes(node.variable.selected[0])
+        ) {
+          node.variable.selected = []
+        }
+      } else if (node.variable.arguments.type === 'map') {
+        if (
+          !Object.keys(node.values.values).includes(node.variable.selected[0])
+        ) {
+          node.variable.selected = []
+        }
+      }
+
+      if (!node.variable.selected || !node.variable.selected[0]) {
+        node.variable.selected = node.values.selected
+      }
+
       node.status = RemoteDataState.Done
 
       return Promise.all(node.parents.filter(readyToResolve).map(resolve))
@@ -373,6 +416,7 @@ export const hydrateVars = (
       }
 
       node.status = RemoteDataState.Error
+      node.variable.arguments.values.results = []
 
       invalidateAncestors(node)
     }

@@ -3,7 +3,7 @@ package endpoints
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // Service provides all the notification endpoint service behavior.

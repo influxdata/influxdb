@@ -8,14 +8,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/fs"
-	"github.com/influxdata/influxdb/storage/wal"
-	"github.com/influxdata/influxdb/toml"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
+	"github.com/influxdata/influxdb/v2/storage/wal"
+	"github.com/influxdata/influxdb/v2/toml"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 	"go.uber.org/zap"
 )
 

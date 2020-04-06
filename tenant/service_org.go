@@ -3,9 +3,9 @@ package tenant
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
-	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2"
+	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 // Returns a single organization by ID.
@@ -129,28 +129,6 @@ func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organizati
 			if err != nil {
 				return err
 			}
-			err = s.store.CreateURM(ctx, tx, &influxdb.UserResourceMapping{
-				UserID:       userID,
-				UserType:     influxdb.Owner,
-				MappingType:  influxdb.UserMappingType,
-				ResourceType: influxdb.BucketsResourceType,
-				ResourceID:   tb.ID,
-			})
-			if err != nil {
-				return err
-			}
-			err = s.store.CreateURM(ctx, tx, &influxdb.UserResourceMapping{
-				UserID:       userID,
-				UserType:     influxdb.Owner,
-				MappingType:  influxdb.UserMappingType,
-				ResourceType: influxdb.BucketsResourceType,
-				ResourceID:   mb.ID,
-			})
-
-			if err != nil {
-				return err
-			}
-
 		}
 		return nil
 	})

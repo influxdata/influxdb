@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // EncodeFn returns an encoding when called. Closures are your friend here.

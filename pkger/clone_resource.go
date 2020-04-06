@@ -8,14 +8,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/influxdata/influxdb"
-	ierrors "github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/notification"
-	icheck "github.com/influxdata/influxdb/notification/check"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	"github.com/influxdata/influxdb/notification/rule"
-	"github.com/influxdata/influxdb/pkger/internal/wordplay"
-	"github.com/influxdata/influxdb/snowflake"
+	"github.com/influxdata/influxdb/v2"
+	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/notification"
+	icheck "github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/pkger/internal/wordplay"
+	"github.com/influxdata/influxdb/v2/snowflake"
 )
 
 var idGenerator = snowflake.NewDefaultIDGenerator()
@@ -211,7 +211,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, checkToObject(ch, r.Name))
+		mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, CheckToObject(r.Name, ch))
 	case r.Kind.is(KindDashboard):
 		dash, err := ex.findDashboardByIDFull(ctx, r.ID)
 		if err != nil {
@@ -232,7 +232,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(e.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, endpointKind(e, r.Name))
+		mapResource(e.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject(r.Name, e))
 	case r.Kind.is(KindNotificationRule):
 		rule, ruleEndpoint, err := ex.getEndpointRule(ctx, r.ID)
 		if err != nil {
@@ -242,7 +242,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		endpointKey := newExportKey(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, ruleEndpoint.GetName())
 		object, ok := ex.mObjects[endpointKey]
 		if !ok {
-			mapResource(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, endpointKind(ruleEndpoint, ""))
+			mapResource(ruleEndpoint.GetOrgID(), uniqByNameResID, KindNotificationEndpoint, NotificationEndpointToObject("", ruleEndpoint))
 			object = ex.mObjects[endpointKey]
 		}
 		endpointObjectName := object.Name()
@@ -265,7 +265,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(*v, r.Name))
+		mapResource(v.OrganizationID, uniqByNameResID, KindVariable, VariableToObject(r.Name, *v))
 	default:
 		return errors.New("unsupported kind provided: " + string(r.Kind))
 	}
@@ -428,11 +428,11 @@ func BucketToObject(name string, bkt influxdb.Bucket) Object {
 	return o
 }
 
-func checkToObject(ch influxdb.Check, name string) Object {
+func CheckToObject(name string, ch influxdb.Check) Object {
 	if name == "" {
 		name = ch.GetName()
 	}
-	o := newObject(KindUnknown, name)
+	o := newObject(KindCheck, name)
 	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldDescription: ch.GetDescription(),
 		fieldStatus:      influxdb.TaskStatusActive,
@@ -806,7 +806,7 @@ func LabelToObject(name string, l influxdb.Label) Object {
 	return o
 }
 
-func endpointKind(e influxdb.NotificationEndpoint, name string) Object {
+func NotificationEndpointToObject(name string, e influxdb.NotificationEndpoint) Object {
 	if name == "" {
 		name = e.GetName()
 	}
@@ -939,7 +939,7 @@ func telegrafToObject(t influxdb.TelegrafConfig, name string) Object {
 }
 
 // VariableToObject converts an influxdb.Variable to a pkger.Object.
-func VariableToObject(v influxdb.Variable, name string) Object {
+func VariableToObject(name string, v influxdb.Variable) Object {
 	if name == "" {
 		name = v.Name
 	}

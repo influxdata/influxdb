@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 
 // IndexStore provides a entity store that uses an index lookup.

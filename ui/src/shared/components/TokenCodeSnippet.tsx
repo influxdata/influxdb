@@ -7,13 +7,13 @@ import {
   ComponentSize,
   ComponentStatus,
   IconFont,
+  DapperScrollbars,
 } from '@influxdata/clockface'
 
 // Decorator
 import {Notification} from 'src/types'
 
 // Components
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import CopyButton from 'src/shared/components/CopyButton'
 
 // Actions
@@ -46,16 +46,15 @@ const TokenCodeSnippet: FC<Props & DispatchProps> = ({
 
   return (
     <div className="code-snippet" data-testid={testID}>
-      <FancyScrollbar
+      <DapperScrollbars
         autoHide={false}
-        autoHeight={true}
-        maxHeight={400}
+        autoSizeHeight={true}
         className="code-snippet--scroll"
       >
         <div className="code-snippet--text">
           <pre>{token}</pre>
         </div>
-      </FancyScrollbar>
+      </DapperScrollbars>
       <div className="code-snippet--footer">
         <div>
           <CopyButton

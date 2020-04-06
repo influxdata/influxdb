@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 
@@ -23,9 +24,9 @@ type SetupBackend struct {
 // NewSetupBackend returns a new instance of SetupBackend.
 func NewSetupBackend(log *zap.Logger, b *APIBackend) *SetupBackend {
 	return &SetupBackend{
-		HTTPErrorHandler:  b.HTTPErrorHandler,
-		log:               log,
-		OnboardingService: b.OnboardingService,
+		HTTPErrorHandler: b.HTTPErrorHandler,
+		log:              log,
+		// OnboardingService: b.OnboardingService,
 	}
 }
 
@@ -209,4 +210,8 @@ func (s *SetupService) OnboardInitialUser(ctx context.Context, or *platform.Onbo
 		Auth:   oResp.Auth.toPlatform(),
 		Bucket: bkt,
 	}, nil
+}
+
+func (s *SetupService) OnboardUser(ctx context.Context, or *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
+	return nil, errors.New("not yet implemented")
 }

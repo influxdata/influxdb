@@ -4,10 +4,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
-	"github.com/influxdata/influxdb/tsdb/seriesfile"
-	"github.com/influxdata/influxdb/tsdb/tsi1"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/toml"
+	"github.com/influxdata/influxdb/v2/tsdb/seriesfile"
+	"github.com/influxdata/influxdb/v2/tsdb/tsi1"
+	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
 )
 
 // Default configuration values.

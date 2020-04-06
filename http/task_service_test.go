@@ -14,13 +14,12 @@ import (
 	"time"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	pcontext "github.com/influxdata/influxdb/context"
-
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/mock"
-	_ "github.com/influxdata/influxdb/query/builtin"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2"
+	pcontext "github.com/influxdata/influxdb/v2/context"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/mock"
+	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )

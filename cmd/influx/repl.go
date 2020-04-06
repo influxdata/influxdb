@@ -7,10 +7,10 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/repl"
 	_ "github.com/influxdata/flux/stdlib"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/query"
-	_ "github.com/influxdata/influxdb/query/stdlib"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/query"
+	_ "github.com/influxdata/influxdb/v2/query/stdlib"
 	"github.com/spf13/cobra"
 )
 

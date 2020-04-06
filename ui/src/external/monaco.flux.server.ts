@@ -195,14 +195,12 @@ export class LSPServer {
 
   private async sendPrelude(uri: string): Promise<void> {
     const state = this.store.getState()
-    const contextID =
-      state.currentDashboard.id || state.timeMachines.activeTimeMachineID
 
     // NOTE: we use the AST intermediate format as a means of reducing
     // drift between the parser and the internal representation
-    const variables = getAllVariables(state, contextID)
+    const variables = getAllVariables(state)
       .map(v => asAssignment(v))
-      .filter(v => !(v.init.type === 'StringLiteral' && !v.init.value))
+      .filter(v => !!v)
 
     const file = buildVarsOption(variables)
 

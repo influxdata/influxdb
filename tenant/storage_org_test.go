@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/tenant"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/tenant"
 )
 
 // type Organization struct {

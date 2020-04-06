@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strconv"
 
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 // decodeFindOptions returns a FindOptions decoded from http request.

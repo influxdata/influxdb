@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
 )
 
 var (
@@ -13,7 +13,15 @@ var (
 	urmByUserIndexBucket = []byte("userresourcemappingsbyuserindexv1")
 )
 
+// NOTE(affo): On URM creation, we check that the user exists.
+// We do not check that the resource it is pointing to exists.
+// This decision takes into account that different resources could not be in the same store.
+// To perform that kind of check, we must rely on the service layer.
+// However, we do not want having the storage layer depend on the service layer above.
 func (s *Store) CreateURM(ctx context.Context, tx kv.Tx, urm *influxdb.UserResourceMapping) error {
+	if _, err := s.GetUser(ctx, tx, urm.UserID); err != nil {
+		return err
+	}
 	if err := s.uniqueUserResourceMapping(ctx, tx, urm); err != nil {
 		return err
 	}

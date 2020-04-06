@@ -9,6 +9,7 @@ import {
   setVariable,
   selectValue as selectValueInState,
   removeVariable,
+  moveVariable as moveVariableInState,
 } from 'src/variables/actions/creators'
 import {updateQueryVars} from 'src/dashboards/actions/ranges'
 
@@ -25,11 +26,13 @@ import {
   getVariable as getVariableFromState,
   getVariables as getVariablesFromState,
   getAllVariables as getAllVariablesFromState,
+  normalizeValues,
 } from 'src/variables/selectors'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {findDependentVariables} from 'src/variables/utils/exportVariables'
 import {getOrg} from 'src/organizations/selectors'
 import {getLabels, getStatus} from 'src/resources/selectors'
+import {currentContext} from 'src/shared/selectors/currentContext'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -78,6 +81,24 @@ export const getVariables = () => async (
       arrayOfVariables
     )
 
+    const varsByID = getVariablesFromState(state).reduce((prev, curr) => {
+      prev[curr.id] = curr
+      return prev
+    }, {})
+
+    // migrate the selected values from the existing variables into the new ones
+    variables.result
+      .map(k => {
+        return variables.entities.variables[k]
+      })
+      .filter(e => {
+        return varsByID.hasOwnProperty(e.id)
+      })
+      .forEach(v => {
+        variables.entities.variables[v.id].selected = varsByID[v.id].selected
+      })
+
+    // Make sure all the queries are marked for update
     variables.result
       .map(k => {
         return variables.entities.variables[k]
@@ -90,40 +111,51 @@ export const getVariables = () => async (
       })
 
     await dispatch(setVariables(RemoteDataState.Done, variables))
-
-    const _state = getState()
-    const vars = getVariablesFromState(_state)
-    const vals = await hydrateVars(vars, getAllVariablesFromState(_state), {
-      orgID: org.id,
-      url: _state.links.query.self,
-    }).promise
-
-    vars
-      .filter(v => {
-        return vals[v.id] && v.arguments.type === 'query'
-      })
-      .forEach(v => {
-        v.arguments.values.results = vals[v.id].values
-        v.selected = vals[v.id].selected
-      })
-
-    await dispatch(
-      setVariables(RemoteDataState.Done, {
-        result: vars.map(v => v.id),
-        entities: {
-          variables: vars.reduce((prev, curr) => {
-            prev[curr.id] = curr
-
-            return prev
-          }, {}),
-        },
-      })
-    )
   } catch (error) {
     console.error(error)
     dispatch(setVariables(RemoteDataState.Error))
     dispatch(notify(copy.getVariablesFailed()))
   }
+}
+
+export const hydrateVariables = (skipCache?: boolean) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const state = getState()
+  const org = getOrg(state)
+  const vars = getVariablesFromState(state)
+  const vals = await hydrateVars(vars, getAllVariablesFromState(state), {
+    orgID: org.id,
+    url: state.links.query.self,
+    skipCache,
+  }).promise
+
+  const lookup = vals.reduce((prev, curr) => {
+    prev[curr.id] = curr
+    return prev
+  }, {})
+
+  const updated = vars.map(vari => {
+    if (!lookup.hasOwnProperty(vari.id)) {
+      return vari
+    }
+
+    return lookup[vari.id]
+  })
+
+  await dispatch(
+    setVariables(RemoteDataState.Done, {
+      result: updated.map(v => v.id),
+      entities: {
+        variables: updated.reduce((prev, curr) => {
+          prev[curr.id] = curr
+
+          return prev
+        }, {}),
+      },
+    })
+  )
 }
 
 export const getVariable = (id: string) => async (
@@ -254,6 +286,14 @@ export const deleteVariable = (id: string) => async (
   }
 }
 
+export const moveVariable = (originalIndex: number, newIndex: number) => async (
+  dispatch,
+  getState: GetState
+) => {
+  const contextID = currentContext(getState())
+  await dispatch(moveVariableInState(originalIndex, newIndex, contextID))
+}
+
 export const convertToTemplate = (variableID: string) => async (
   dispatch,
   getState: GetState
@@ -361,14 +401,22 @@ export const removeVariableLabelAsync = (
   }
 }
 
-export const selectValue = (
-  contextID: string,
-  variableID: string,
-  selected: string
-) => async (dispatch: Dispatch<Action>, getState: GetState) => {
-  const variable = getVariableFromState(getState(), contextID, variableID)
+export const selectValue = (variableID: string, selected: string) => async (
+  dispatch: Dispatch<Action | ReturnType<typeof hydrateVariables>>,
+  getState: GetState
+) => {
+  const state = getState()
+  const contextID = currentContext(state)
+  const variable = getVariableFromState(state, variableID)
+
+  // Validate that we can make this selection
+  const vals = normalizeValues(variable)
+  if (!vals.includes(selected)) {
+    return
+  }
 
   await dispatch(selectValueInState(contextID, variableID, selected))
 
+  dispatch(hydrateVariables(true))
   dispatch(updateQueryVars({[variable.name]: selected}))
 }

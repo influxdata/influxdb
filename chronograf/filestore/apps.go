@@ -8,8 +8,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/influxdata/influxdb/chronograf"
-	"github.com/influxdata/influxdb/pkg/fs"
+	"github.com/influxdata/influxdb/v2/chronograf"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
 )
 
 // AppExt is the the file extension searched for in the directory for layout files
