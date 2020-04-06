@@ -157,6 +157,7 @@ pub fn index_pairs(key: &str) -> Vec<Pair> {
     pairs
 }
 
+// TODO: Could `Pair` hold `Cow` strings?
 #[derive(Debug, PartialEq)]
 pub struct Pair {
     pub key: String,

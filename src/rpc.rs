@@ -1,7 +1,7 @@
 use delorean::delorean::{
     delorean_server::Delorean,
     read_response::{
-        frame::Data, DataType, FloatPointsFrame, Frame, IntegerPointsFrame, SeriesFrame,
+        frame::Data, DataType, FloatPointsFrame, Frame, GroupFrame, IntegerPointsFrame, SeriesFrame,
     },
     storage_server::Storage,
     CapabilitiesResponse, CreateBucketRequest, CreateBucketResponse, DeleteBucketRequest,
@@ -9,8 +9,9 @@ use delorean::delorean::{
     ReadGroupRequest, ReadResponse, ReadSource, StringValuesResponse, Tag, TagKeysRequest,
     TagValuesRequest, TimestampRange,
 };
-use delorean::storage::partitioned_store::ReadValues;
+use delorean::storage::partitioned_store::{PartitionKeyValues, ReadValues};
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use std::sync::Arc;
 
@@ -173,9 +174,46 @@ impl Storage for GrpcServer {
 
     async fn read_group(
         &self,
-        _req: tonic::Request<ReadGroupRequest>,
+        req: tonic::Request<ReadGroupRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
-        Err(Status::unimplemented("Not yet implemented"))
+        let (mut tx, rx) = mpsc::channel(4);
+
+        let read_group_request = req.into_inner();
+
+        let org_id = read_group_request.org_id()?;
+        let bucket_id = read_group_request.bucket_id()?;
+        let predicate = read_group_request.predicate;
+        let range = read_group_request.range;
+        let group_keys = read_group_request.group_keys;
+        // TODO: handle Group::None
+        let _group = read_group_request.group;
+        // TODO: handle aggregate values, especially whether None is the same as
+        // Some(AggregateType::None) or not
+        let _aggregate = read_group_request.aggregate;
+
+        let app = Arc::clone(&self.app);
+
+        // TODO: is this blocking because of the blocking calls to the database...?
+        tokio::spawn(async move {
+            let predicate = predicate.as_ref().expect("TODO: must have a predicate");
+            let range = range.as_ref().expect("TODO: Must have a range?");
+
+            if let Err(e) = send_groups(
+                tx.clone(),
+                app,
+                org_id,
+                bucket_id,
+                predicate,
+                range,
+                group_keys,
+            )
+            .await
+            {
+                tx.send(Err(e)).await.unwrap();
+            }
+        });
+
+        Ok(tonic::Response::new(rx))
     }
 
     type TagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
@@ -329,6 +367,73 @@ async fn send_series_filters(
 
         if let Err(e) = send_points(tx.clone(), batch.values).await {
             tx.send(Err(e)).await.unwrap();
+        }
+    }
+
+    Ok(())
+}
+
+async fn send_groups(
+    mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
+    app: Arc<App>,
+    org_id: u32,
+    bucket_id: u32,
+    predicate: &Predicate,
+    range: &TimestampRange,
+    group_keys: Vec<String>,
+) -> Result<(), Status> {
+    // Query for all the batches that should be returned.
+    let batches = app
+        .db
+        .read_points(org_id, bucket_id, predicate, range)
+        .await
+        .map_err(|err| Status::internal(format!("error reading db: {}", err)))?;
+
+    // Group the batches by the values they have for the group_keys.
+    let mut batches_by_group = BTreeMap::new();
+    for batch in batches {
+        let partition_key_values = PartitionKeyValues::new(&group_keys, &batch);
+
+        let entry = batches_by_group
+            .entry(partition_key_values)
+            .or_insert_with(|| vec![]);
+        entry.push(batch);
+    }
+
+    for (partition_key_values, batches) in batches_by_group {
+        // Unify all the tag keys present in all of the batches in this group.
+        let tag_keys: BTreeSet<_> = batches
+            .iter()
+            .map(|batch| batch.tag_keys())
+            .flatten()
+            .collect();
+
+        let group_frame = ReadResponse {
+            frames: vec![Frame {
+                data: Some(Data::Group(GroupFrame {
+                    tag_keys: tag_keys
+                        .iter()
+                        .map(|tk| transform_key_to_long_form_bytes(tk))
+                        .collect(),
+                    partition_key_vals: partition_key_values
+                        .values
+                        .iter()
+                        .map(|tv| {
+                            tv.as_ref()
+                                .map(|opt| opt.as_bytes().to_vec())
+                                .unwrap_or_else(|| vec![])
+                        })
+                        .collect(),
+                })),
+            }],
+        };
+
+        tx.send(Ok(group_frame)).await.unwrap();
+
+        for batch in batches {
+            if let Err(e) = send_points(tx.clone(), batch.values).await {
+                tx.send(Err(e)).await.unwrap();
+            }
         }
     }
 
