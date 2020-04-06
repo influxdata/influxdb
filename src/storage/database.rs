@@ -223,7 +223,7 @@ mod tests {
     use crate::storage::database::Database;
     use crate::storage::partitioned_store::ReadValues;
     use crate::storage::predicate::parse_predicate;
-    use crate::storage::series_store::ReadPoint;
+    use crate::storage::ReadPoint;
 
     #[tokio::test]
     async fn create_bucket() {

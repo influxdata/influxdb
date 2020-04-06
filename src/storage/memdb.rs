@@ -1,11 +1,8 @@
-#![allow(dead_code)]
-
 use crate::delorean::{Node, Predicate, TimestampRange};
 use crate::line_parser::{self, Point, PointType};
 use crate::storage::partitioned_store::{ReadBatch, ReadValues};
 use crate::storage::predicate::{Evaluate, EvaluateVisitor};
-use crate::storage::series_store::ReadPoint;
-use crate::storage::{SeriesDataType, StorageError};
+use crate::storage::{ReadPoint, SeriesDataType, StorageError};
 
 use croaring::Treemap;
 use futures::stream::{self, BoxStream};
