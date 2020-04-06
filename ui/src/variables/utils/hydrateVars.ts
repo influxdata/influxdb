@@ -30,6 +30,7 @@ interface HydrateVarsOptions {
   orgID: string
   selections?: ValueSelections
   fetcher?: ValueFetcher
+  skipCache?: boolean
 }
 
 export const createVariableGraph = (
@@ -211,7 +212,15 @@ const hydrateVarsHelper = async (
   const {query} = node.variable.arguments.values
   const fetcher = options.fetcher || valueFetcher
 
-  const request = fetcher.fetch(url, orgID, query, assignments, null, '')
+  const request = fetcher.fetch(
+    url,
+    orgID,
+    query,
+    assignments,
+    null,
+    '',
+    options.skipCache
+  )
 
   node.cancel = request.cancel
 
@@ -363,7 +372,14 @@ export const hydrateVars = (
     node.status === RemoteDataState.Loading
 
     try {
+      // TODO: remove the concept of node.values, just use node.variable
       node.values = await hydrateVarsHelper(node, options)
+      if (node.variable.arguments.type === 'query') {
+        node.variable.arguments.values.results = node.values.values
+      } else {
+        node.variable.arguments.values = node.values.values
+      }
+      node.variable.selected = node.values.selected
       node.status = RemoteDataState.Done
 
       return Promise.all(node.parents.filter(readyToResolve).map(resolve))

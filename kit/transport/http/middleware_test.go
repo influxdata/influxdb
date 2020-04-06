@@ -5,8 +5,8 @@ import (
 	"path"
 	"testing"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/pkg/testttp"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/pkg/testttp"
 	"github.com/stretchr/testify/assert"
 )
 

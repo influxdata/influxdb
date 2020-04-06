@@ -18,12 +18,12 @@ import (
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/kafka"
 	"github.com/influxdata/flux/values"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/tsdb"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 // ToKind is the kind for the `to` flux function
@@ -542,6 +542,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 		var points models.Points
 		var tags models.Tags
 		kv := make([][]byte, 2, er.Len()*2+2) // +2 for field key, value
+	outer:
 		for i := 0; i < er.Len(); i++ {
 			measurementName = ""
 			fields := make(models.Fields)
@@ -556,7 +557,12 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 					kv[0] = models.MeasurementTagKeyBytes
 					kv[1] = er.Strings(j).Value(i)
 				case col.Label == timeColLabel:
-					pointTime = execute.ValueForRow(er, i, j).Time().Time()
+					valueTime := execute.ValueForRow(er, i, j)
+					if valueTime.IsNull() {
+						// skip rows with null timestamp
+						continue outer
+					}
+					pointTime = valueTime.Time().Time()
 				case isTag[j]:
 					if col.Type != flux.TString {
 						return errors.New("invalid type for tag column")

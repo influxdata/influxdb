@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/influxdata/influxdb/resource/noop"
-
 	"github.com/benbjohnson/clock"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/rand"
-	"github.com/influxdata/influxdb/resource"
-	"github.com/influxdata/influxdb/snowflake"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/rand"
+	"github.com/influxdata/influxdb/v2/resource"
+	"github.com/influxdata/influxdb/v2/resource/noop"
+	"github.com/influxdata/influxdb/v2/snowflake"
 	"go.uber.org/zap"
 )
 
@@ -53,6 +52,8 @@ type Service struct {
 	Migrator *Migrator
 
 	urmByUserIndex *Index
+
+	disableAuthorizationsForMaxPermissions func(context.Context) bool
 }
 
 // NewService returns an instance of a Service.
@@ -84,6 +85,9 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 				return id, nil
 			},
 		)),
+		disableAuthorizationsForMaxPermissions: func(context.Context) bool {
+			return false
+		},
 	}
 
 	// kv service migrations
@@ -274,4 +278,11 @@ func (s *Service) WithStore(store Store) {
 // Should only be used in tests for mocking.
 func (s *Service) WithSpecialOrgBucketIDs(gen influxdb.IDGenerator) {
 	s.OrgBucketIDs = gen
+}
+
+// WithMaxPermissionFunc sets the useAuthorizationsForMaxPermissions function
+// which can trigger whether or not max permissions uses the users authorizations
+// to derive maximum permissions.
+func (s *Service) WithMaxPermissionFunc(fn func(context.Context) bool) {
+	s.disableAuthorizationsForMaxPermissions = fn
 }

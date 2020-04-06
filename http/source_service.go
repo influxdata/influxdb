@@ -10,10 +10,10 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/pkg/httpc"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/query/influxql"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/pkg/httpc"
+	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/influxql"
 	"go.uber.org/zap"
 )
 

@@ -7337,6 +7337,8 @@ components:
                   - $ref: "#/components/schemas/CheckDiscriminator"
                   - type: object
                     properties:
+                      pkgName:
+                        type: string
                       labelAssociations:
                         type: array
                         items:
@@ -7396,6 +7398,8 @@ components:
                   - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
                   - type: object
                     properties:
+                      pkgName:
+                        type: string
                       labelAssociations:
                         type: array
                         items:
@@ -7484,6 +7488,8 @@ components:
               items:
                 type: object
                 properties:
+                  pkgName:
+                    type: string
                   id:
                     type: string
                   orgID:
@@ -7506,6 +7512,8 @@ components:
               items:
                 type: object
                 properties:
+                  remove:
+                    type: boolean
                   id:
                     type: string
                   pkgName:
@@ -7533,9 +7541,11 @@ components:
               items:
                 type: object
                 properties:
+                  remove:
+                    type: boolean
                   id:
                     type: string
-                  name:
+                  pkgName:
                     type: string
                   new:
                     $ref: "#/components/schemas/CheckDiscriminator"
@@ -7559,6 +7569,8 @@ components:
               items:
                 type: object
                 properties:
+                  remove:
+                    type: boolean
                   id:
                     type: string
                   pkgName:
@@ -7603,9 +7615,11 @@ components:
               items:
                 type: object
                 properties:
+                  remove:
+                    type: boolean
                   id:
                     type: string
-                  name:
+                  pkgName:
                     type: string
                   new:
                     $ref: "#/components/schemas/NotificationEndpointDiscrimator"
@@ -7682,13 +7696,17 @@ components:
               items:
                 type: object
                 properties:
+                  remove:
+                    type: boolean
                   id:
                     type: string
-                  name:
+                  pkgName:
                     type: string
                   new:
                     type: object
                     properties:
+                      name:
+                        type: string
                       description:
                         type: string
                       args:
@@ -7696,6 +7714,8 @@ components:
                   old:
                     type: object
                     properties:
+                      name:
+                        type: string
                       description:
                         type: string
                       args:

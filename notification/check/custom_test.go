@@ -8,9 +8,9 @@ import (
 	"github.com/andreyvit/diff"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification/check"
-	"github.com/influxdata/influxdb/query/fluxlang"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 func TestCheck_Valid(t *testing.T) {

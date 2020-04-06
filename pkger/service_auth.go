@@ -3,7 +3,7 @@ package pkger
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 type AuthAgent interface {

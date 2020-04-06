@@ -10,7 +10,7 @@ import (
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // DefaultService is the default language service.

@@ -152,6 +152,9 @@ describe('NotificationRules', () => {
   })
 
   it('can create a notification rule', () => {
+    // User can only see all panels at once on large screens
+    cy.getByTestID('alerting-tab--rules').click({force: true})
+
     const ruleName = 'my-new-rule'
     cy.getByTestID('create-rule').click()
 

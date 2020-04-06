@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/notification/flux"
-	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/notification/flux"
+	"github.com/influxdata/influxdb/v2/query"
 )
 
 var _ influxdb.Check = &Custom{}

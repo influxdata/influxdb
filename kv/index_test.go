@@ -7,9 +7,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/influxdata/influxdb/bolt"
-	"github.com/influxdata/influxdb/inmem"
-	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/inmem"
+	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 

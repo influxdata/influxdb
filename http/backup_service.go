@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
-	"github.com/influxdata/influxdb/internal/fs"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )

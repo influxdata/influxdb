@@ -8,8 +8,8 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/check"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/check"
 )
 
 // QueryService represents a type capable of performing queries.

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/vault/api"
-	platform "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb/v2"
 )
 
 var _ platform.SecretService = (*SecretService)(nil)

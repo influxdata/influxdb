@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf"
 )
 
 const (

@@ -12,10 +12,10 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/influxdata/influxdb"
-	pctx "github.com/influxdata/influxdb/context"
-	kithttp "github.com/influxdata/influxdb/kit/transport/http"
-	"github.com/influxdata/influxdb/pkg/jsonnet"
+	"github.com/influxdata/influxdb/v2"
+	pctx "github.com/influxdata/influxdb/v2/context"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )

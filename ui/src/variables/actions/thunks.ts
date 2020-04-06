@@ -90,40 +90,47 @@ export const getVariables = () => async (
       })
 
     await dispatch(setVariables(RemoteDataState.Done, variables))
-
-    const _state = getState()
-    const vars = getVariablesFromState(_state)
-    const vals = await hydrateVars(vars, getAllVariablesFromState(_state), {
-      orgID: org.id,
-      url: _state.links.query.self,
-    }).promise
-
-    vars
-      .filter(v => {
-        return vals[v.id] && v.arguments.type === 'query'
-      })
-      .forEach(v => {
-        v.arguments.values.results = vals[v.id].values
-        v.selected = vals[v.id].selected
-      })
-
-    await dispatch(
-      setVariables(RemoteDataState.Done, {
-        result: vars.map(v => v.id),
-        entities: {
-          variables: vars.reduce((prev, curr) => {
-            prev[curr.id] = curr
-
-            return prev
-          }, {}),
-        },
-      })
-    )
   } catch (error) {
     console.error(error)
     dispatch(setVariables(RemoteDataState.Error))
     dispatch(notify(copy.getVariablesFailed()))
   }
+}
+
+export const hydrateVariables = (skipCache?: boolean) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const state = getState()
+  const org = getOrg(state)
+  const vars = getVariablesFromState(state)
+  const vals = await hydrateVars(vars, getAllVariablesFromState(state), {
+    orgID: org.id,
+    url: state.links.query.self,
+    skipCache,
+  }).promise
+
+  vars
+    .filter(v => {
+      return vals[v.id] && v.arguments.type === 'query'
+    })
+    .forEach(v => {
+      v.arguments.values.results = vals[v.id].values
+      v.selected = vals[v.id].selected
+    })
+
+  await dispatch(
+    setVariables(RemoteDataState.Done, {
+      result: vars.map(v => v.id),
+      entities: {
+        variables: vars.reduce((prev, curr) => {
+          prev[curr.id] = curr
+
+          return prev
+        }, {}),
+      },
+    })
+  )
 }
 
 export const getVariable = (id: string) => async (

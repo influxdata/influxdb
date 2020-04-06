@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2"
 )
 
 var (
@@ -124,15 +124,17 @@ func (s *Service) maxPermissions(ctx context.Context, tx Tx, userID influxdb.ID)
 	}
 	ps = append(ps, influxdb.MePermissions(userID)...)
 
-	// TODO(desa): this is super expensive, we should keep a list of a users maximal privileges somewhere
-	// we did this so that the oper token would be used in a users permissions.
-	af := influxdb.AuthorizationFilter{UserID: &userID}
-	as, err := s.findAuthorizations(ctx, tx, af)
-	if err != nil {
-		return nil, err
-	}
-	for _, a := range as {
-		ps = append(ps, a.Permissions...)
+	if !s.disableAuthorizationsForMaxPermissions(ctx) {
+		// TODO(desa): this is super expensive, we should keep a list of a users maximal privileges somewhere
+		// we did this so that the oper token would be used in a users permissions.
+		af := influxdb.AuthorizationFilter{UserID: &userID}
+		as, err := s.findAuthorizations(ctx, tx, af)
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range as {
+			ps = append(ps, a.Permissions...)
+		}
 	}
 
 	return ps, nil

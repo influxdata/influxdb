@@ -3,9 +3,9 @@ package influxdb
 import (
 	"context"
 
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/prom"
-	"github.com/influxdata/influxdb/query"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/query"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )

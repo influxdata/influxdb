@@ -8,8 +8,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux"
-	"github.com/influxdata/influxdb/query"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb/v2/query"
+	platformtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 var CmpOpts = []cmp.Option{

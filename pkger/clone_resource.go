@@ -8,14 +8,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/influxdata/influxdb"
-	ierrors "github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/notification"
-	icheck "github.com/influxdata/influxdb/notification/check"
-	"github.com/influxdata/influxdb/notification/endpoint"
-	"github.com/influxdata/influxdb/notification/rule"
-	"github.com/influxdata/influxdb/pkger/internal/wordplay"
-	"github.com/influxdata/influxdb/snowflake"
+	"github.com/influxdata/influxdb/v2"
+	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/notification"
+	icheck "github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/pkger/internal/wordplay"
+	"github.com/influxdata/influxdb/v2/snowflake"
 )
 
 var idGenerator = snowflake.NewDefaultIDGenerator()
@@ -211,7 +211,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		if err != nil {
 			return err
 		}
-		mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, checkToObject(ch, r.Name))
+		mapResource(ch.GetOrgID(), uniqByNameResID, KindCheck, CheckToObject(r.Name, ch))
 	case r.Kind.is(KindDashboard):
 		dash, err := ex.findDashboardByIDFull(ctx, r.ID)
 		if err != nil {
@@ -428,11 +428,11 @@ func BucketToObject(name string, bkt influxdb.Bucket) Object {
 	return o
 }
 
-func checkToObject(ch influxdb.Check, name string) Object {
+func CheckToObject(name string, ch influxdb.Check) Object {
 	if name == "" {
 		name = ch.GetName()
 	}
-	o := newObject(KindUnknown, name)
+	o := newObject(KindCheck, name)
 	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldDescription: ch.GetDescription(),
 		fieldStatus:      influxdb.TaskStatusActive,

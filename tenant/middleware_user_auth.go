@@ -3,8 +3,8 @@ package tenant
 import (
 	"context"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
 )
 
 var _ influxdb.UserService = (*AuthedUserService)(nil)

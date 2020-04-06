@@ -8,7 +8,7 @@ import (
 	"github.com/influxdata/flux/plan/plantest"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
-	qinfluxdb "github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
+	qinfluxdb "github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 )
 
 func TestFromValidation(t *testing.T) {

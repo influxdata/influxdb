@@ -1,6 +1,6 @@
 package mock
 
-import "github.com/influxdata/influxdb/query"
+import "github.com/influxdata/influxdb/v2/query"
 
 var _ query.Logger = (*QueryLogger)(nil)
 

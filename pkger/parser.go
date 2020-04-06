@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/pkg/jsonnet"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"gopkg.in/yaml.v3"
 )
 
@@ -313,11 +313,17 @@ func (p *Pkg) Summary() Summary {
 		sum.MissingSecrets = p.missingSecrets()
 	}
 
-	for _, b := range p.buckets(true) {
+	for _, b := range p.buckets() {
+		if b.shouldRemove {
+			continue
+		}
 		sum.Buckets = append(sum.Buckets, b.summarize())
 	}
 
 	for _, c := range p.checks() {
+		if c.shouldRemove {
+			continue
+		}
 		sum.Checks = append(sum.Checks, c.summarize())
 	}
 
@@ -325,7 +331,10 @@ func (p *Pkg) Summary() Summary {
 		sum.Dashboards = append(sum.Dashboards, d.summarize())
 	}
 
-	for _, l := range p.labels(true) {
+	for _, l := range p.labels() {
+		if l.shouldRemove {
+			continue
+		}
 		sum.Labels = append(sum.Labels, l.summarize())
 	}
 
@@ -580,12 +589,9 @@ func (p *Pkg) Validate(opts ...ValidateOptFn) error {
 	return nil
 }
 
-func (p *Pkg) buckets(hideRemoved bool) []*bucket {
+func (p *Pkg) buckets() []*bucket {
 	buckets := make([]*bucket, 0, len(p.mBuckets))
 	for _, b := range p.mBuckets {
-		if hideRemoved && b.shouldRemove {
-			continue
-		}
 		buckets = append(buckets, b)
 	}
 
@@ -605,12 +611,9 @@ func (p *Pkg) checks() []*check {
 	return checks
 }
 
-func (p *Pkg) labels(hideRemoved bool) []*label {
+func (p *Pkg) labels() []*label {
 	labels := make(sortedLabels, 0, len(p.mLabels))
 	for _, l := range p.mLabels {
-		if hideRemoved && l.shouldRemove {
-			continue
-		}
 		labels = append(labels, l)
 	}
 

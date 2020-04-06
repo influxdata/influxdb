@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/query/fluxlang"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 var (

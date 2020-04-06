@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb"
-	platcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/jsonweb"
+	platform "github.com/influxdata/influxdb/v2"
+	platcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/jsonweb"
 	"go.uber.org/zap"
 )
 

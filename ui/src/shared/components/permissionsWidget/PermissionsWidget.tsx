@@ -2,9 +2,9 @@
 import React, {Component, CSSProperties} from 'react'
 
 // Components
+import {DapperScrollbars} from '@influxdata/clockface'
 import PermissionsWidgetSection from 'src/shared/components/permissionsWidget/PermissionsWidgetSection'
 import PermissionsWidgetItem from 'src/shared/components/permissionsWidget/PermissionsWidgetItem'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 export enum PermissionsWidgetMode {
   Read = 'read',
@@ -36,7 +36,7 @@ class PermissionsWidget extends Component<Props> {
       <div className={this.className} style={this.style}>
         <div className="permissions-widget--header">{this.headerText}</div>
         <div className="permissions-widget--body">
-          <FancyScrollbar autoHide={false}>{this.sections}</FancyScrollbar>
+          <DapperScrollbars autoHide={false}>{this.sections}</DapperScrollbars>
         </div>
       </div>
     )

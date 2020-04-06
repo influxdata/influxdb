@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/notification/check"
-	"github.com/influxdata/influxdb/pkger"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/notification"
+	"github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -25,15 +26,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 	svc := l.PkgerService(t)
 
-	deleteBucket := func(t *testing.T, id influxdb.ID) {
-		t.Helper()
-		require.NoError(t, l.BucketService(t).DeleteBucket(ctx, id))
-	}
-
-	deleteLabel := func(t *testing.T, id influxdb.ID) {
-		t.Helper()
-		require.NoError(t, l.LabelService(t).DeleteLabel(ctx, id))
-	}
+	resourceCheck := newResourceChecker(l)
 
 	t.Run("managing pkg state with stacks", func(t *testing.T) {
 		newPkg := func(objects ...pkger.Object) *pkger.Pkg {
@@ -56,6 +49,27 @@ func TestLauncher_Pkger(t *testing.T) {
 					"color":       color,
 					"description": desc,
 				},
+			})
+			obj.SetMetadataName(pkgName)
+			return obj
+		}
+
+		newCheckDeadmanObject := func(t *testing.T, pkgName, name string, every time.Duration) pkger.Object {
+			t.Helper()
+
+			d, err := notification.FromTimeDuration(every)
+			require.NoError(t, err)
+
+			obj := pkger.CheckToObject("", &check.Deadman{
+				Base: check.Base{
+					Name:  name,
+					Every: &d,
+					Query: influxdb.DashboardQuery{
+						Text: `from(bucket: "rucket_1") |> range(start: -1d)`,
+					},
+					StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
+				},
+				Level: notification.Critical,
 			})
 			obj.SetMetadataName(pkgName)
 			return obj
@@ -86,46 +100,22 @@ func TestLauncher_Pkger(t *testing.T) {
 			// on the test before it succeeding, we are using t.Log instead of t.Run
 			// to run a sub test.
 
-			getBucket := func(t *testing.T, name string) (influxdb.Bucket, error) {
-				bkt, err := l.
-					BucketService(t).
-					FindBucketByName(timedCtx(time.Second), l.Org.ID, name)
-				if err != nil {
-					return influxdb.Bucket{}, err
-				}
-				return *bkt, nil
-			}
-
-			getLabel := func(t *testing.T, name string) (influxdb.Label, error) {
-				labels, err := l.
-					LabelService(t).
-					FindLabels(timedCtx(time.Second), influxdb.LabelFilter{
-						Name:  name,
-						OrgID: &l.Org.ID,
-					}, influxdb.FindOptions{Limit: 1})
-				if err != nil {
-					return influxdb.Label{}, err
-				}
-				if len(labels) == 0 {
-					return influxdb.Label{}, errors.New("did not find label: " + name)
-				}
-				return *labels[0], nil
-			}
-
-			var (
-				initialBucketPkgName = "rucketeer_1"
-				initialLabelPkgName  = "labelino"
-			)
-			initialPkg := newPkg(
-				newBucketObject(initialBucketPkgName, "display name", "init desc"),
-				newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee"),
-			)
-
 			stack, err := svc.InitStack(timedCtx(5*time.Second), l.User.ID, pkger.Stack{
 				OrgID: l.Org.ID,
 			})
 			require.NoError(t, err)
 			applyOpt := pkger.ApplyWithStackID(stack.ID)
+
+			var (
+				initialBucketPkgName = "rucketeer_1"
+				initialLabelPkgName  = "labelino"
+				initialCheckPkgName  = "checkers"
+			)
+			initialPkg := newPkg(
+				newBucketObject(initialBucketPkgName, "display name", "init desc"),
+				newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee"),
+				newCheckDeadmanObject(t, initialCheckPkgName, "check_0", time.Minute),
+			)
 
 			var initialSum pkger.Summary
 			t.Log("apply pkg with stack id")
@@ -139,21 +129,29 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.Equal(t, "display name", sum.Buckets[0].Name)
 				assert.Equal(t, "init desc", sum.Buckets[0].Description)
 
+				require.Len(t, sum.Checks, 1)
+				assert.NotZero(t, sum.Checks[0].Check.GetID())
+				assert.Equal(t, "check_0", sum.Checks[0].Check.GetName())
+
 				require.Len(t, sum.Labels, 1)
 				assert.NotZero(t, sum.Labels[0].ID)
 				assert.Equal(t, "label 1", sum.Labels[0].Name)
 				assert.Equal(t, "init desc", sum.Labels[0].Properties.Description)
 				assert.Equal(t, "#222eee", sum.Labels[0].Properties.Color)
 
-				actualBkt, _ := getBucket(t, "display name")
+				actualBkt := resourceCheck.mustGetBucket(t, byName("display name"))
 				assert.Equal(t, sum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
 
-				actualLabel, _ := getLabel(t, "label 1")
+				actualCheck := resourceCheck.mustGetCheck(t, byName("check_0"))
+				assert.Equal(t, sum.Checks[0].Check.GetID(), actualCheck.GetID())
+
+				actualLabel := resourceCheck.mustGetLabel(t, byName("label 1"))
 				assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
 			}
 
 			var (
 				updateBucketName = "new bucket"
+				updateCheckName  = "new check"
 				updateLabelName  = "new label"
 			)
 			t.Log("apply pkg with stack id where resources change")
@@ -161,6 +159,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				updatedPkg := newPkg(
 					newBucketObject(initialBucketPkgName, updateBucketName, ""),
 					newLabelObject(initialLabelPkgName, updateLabelName, "", ""),
+					newCheckDeadmanObject(t, initialCheckPkgName, updateCheckName, time.Hour),
 				)
 				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, updatedPkg, applyOpt)
 				require.NoError(t, err)
@@ -168,21 +167,26 @@ func TestLauncher_Pkger(t *testing.T) {
 				require.Len(t, sum.Buckets, 1)
 				assert.Equal(t, initialSum.Buckets[0].ID, sum.Buckets[0].ID)
 				assert.Equal(t, updateBucketName, sum.Buckets[0].Name)
-				assert.Empty(t, sum.Buckets[0].Description)
+
+				require.Len(t, sum.Checks, 1)
+				assert.Equal(t, initialSum.Checks[0].Check.GetID(), sum.Checks[0].Check.GetID())
+				assert.Equal(t, updateCheckName, sum.Checks[0].Check.GetName())
 
 				require.Len(t, sum.Labels, 1)
 				assert.Equal(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
 				assert.Equal(t, updateLabelName, sum.Labels[0].Name)
-				assert.Empty(t, sum.Labels[0].Properties.Color)
-				assert.Empty(t, sum.Labels[0].Properties.Description)
 
-				actualBkt, err := getBucket(t, updateBucketName)
-				require.NoError(t, err)
-				require.Equal(t, initialSum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
+				t.Log("\tverify changes reflected in platform")
+				{
+					actualBkt := resourceCheck.mustGetBucket(t, byName(updateBucketName))
+					require.Equal(t, initialSum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
 
-				actualLabel, err := getLabel(t, updateLabelName)
-				require.NoError(t, err)
-				require.Equal(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+					actualCheck := resourceCheck.mustGetCheck(t, byName(updateCheckName))
+					require.Equal(t, initialSum.Checks[0].Check.GetID(), actualCheck.GetID())
+
+					actualLabel := resourceCheck.mustGetLabel(t, byName(updateLabelName))
+					require.Equal(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
+				}
 			}
 
 			t.Log("an error during application roles back resources to previous state")
@@ -210,29 +214,34 @@ func TestLauncher_Pkger(t *testing.T) {
 					newBucketObject("z_delete_rolls_back", "z_roll_me_back", ""),
 					newBucketObject("z_also_rolls_back", "z_rolls_back_too", ""),
 					newLabelObject("z_label_rolls_back", "z_label_roller", "", ""),
+					newCheckDeadmanObject(t, "z_check_rolls_back", "z_check", time.Hour),
 				)
 				_, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkgWithDelete, applyOpt)
 				require.Error(t, err)
 
-				t.Log("validate all changes do not persist")
+				t.Log("\tvalidate all changes do not persist")
 				{
 					for _, name := range []string{"z_roll_me_back", "z_rolls_back_too"} {
-						_, err := getBucket(t, name)
+						_, err := resourceCheck.getBucket(t, byName(name))
 						require.Error(t, err)
 					}
-					_, err := getLabel(t, "z_label_roller")
+
+					_, err := resourceCheck.getCheck(t, byName("z_check"))
+					require.Error(t, err)
+
+					_, err = resourceCheck.getLabel(t, byName("z_label_roller"))
 					require.Error(t, err)
 				}
 
-				t.Log("validate all resources are rolled back")
+				t.Log("\tvalidate all resources are rolled back")
 				{
-					actualBkt, err := getBucket(t, updateBucketName)
-					require.NoError(t, err)
-					assert.NotEmpty(t, actualBkt.ID)
+					actualBkt := resourceCheck.mustGetBucket(t, byName(updateBucketName))
 					assert.NotEqual(t, initialSum.Buckets[0].ID, pkger.SafeID(actualBkt.ID))
 
-					actualLabel, err := getLabel(t, updateLabelName)
-					require.NoError(t, err)
+					actualCheck := resourceCheck.mustGetCheck(t, byName(updateCheckName))
+					assert.NotEqual(t, initialSum.Checks[0].Check.GetID(), actualCheck.GetID())
+
+					actualLabel := resourceCheck.mustGetLabel(t, byName(updateLabelName))
 					assert.NotEmpty(t, actualLabel.ID)
 					assert.NotEqual(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
 				}
@@ -243,6 +252,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				allNewResourcesPkg := newPkg(
 					newBucketObject("non_existent_bucket", "", ""),
 					newLabelObject("non_existent_label", "", "", ""),
+					newCheckDeadmanObject(t, "non_existent_check", "", time.Minute),
 				)
 				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, allNewResourcesPkg, applyOpt)
 				require.NoError(t, err)
@@ -250,36 +260,38 @@ func TestLauncher_Pkger(t *testing.T) {
 				require.Len(t, sum.Buckets, 1)
 				assert.NotEqual(t, initialSum.Buckets[0].ID, sum.Buckets[0].ID)
 				assert.NotZero(t, sum.Buckets[0].ID)
-				defer deleteBucket(t, influxdb.ID(sum.Buckets[0].ID))
+				defer resourceCheck.mustDeleteBucket(t, influxdb.ID(sum.Buckets[0].ID))
 				assert.Equal(t, "non_existent_bucket", sum.Buckets[0].Name)
-				assert.Empty(t, sum.Buckets[0].Description)
+
+				require.Len(t, sum.Checks, 1)
+				assert.NotEqual(t, initialSum.Checks[0].Check.GetID(), sum.Checks[0].Check.GetID())
+				assert.NotZero(t, sum.Checks[0].Check.GetID())
+				defer resourceCheck.mustDeleteCheck(t, sum.Checks[0].Check.GetID())
+				assert.Equal(t, "non_existent_check", sum.Checks[0].Check.GetName())
 
 				require.Len(t, sum.Labels, 1)
 				assert.NotEqual(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
 				assert.NotZero(t, sum.Labels[0].ID)
-				defer deleteLabel(t, influxdb.ID(sum.Labels[0].ID))
+				defer resourceCheck.mustDeleteLabel(t, influxdb.ID(sum.Labels[0].ID))
 				assert.Equal(t, "non_existent_label", sum.Labels[0].Name)
-				assert.Empty(t, sum.Labels[0].Properties.Description)
 
-				t.Log("validate all resources are created")
+				t.Log("\tvalidate all resources are created")
 				{
-					bkt, err := getBucket(t, "non_existent_bucket")
-					require.NoError(t, err)
+					bkt := resourceCheck.mustGetBucket(t, byName("non_existent_bucket"))
 					assert.NotEqual(t, initialSum.Buckets[0].ID, sum.Buckets[0].ID)
 					assert.Equal(t, pkger.SafeID(bkt.ID), sum.Buckets[0].ID)
 
-					label, err := getLabel(t, "non_existent_label")
-					require.NoError(t, err)
+					label := resourceCheck.mustGetLabel(t, byName("non_existent_label"))
 					assert.NotEqual(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
 					assert.Equal(t, pkger.SafeID(label.ID), sum.Labels[0].ID)
 				}
 
-				t.Log("validate all previous resources are removed")
+				t.Log("\tvalidate all previous resources are removed")
 				{
-					_, err = getBucket(t, updateBucketName)
+					_, err = resourceCheck.getBucket(t, byName(updateBucketName))
 					require.Error(t, err)
 
-					_, err = getLabel(t, updateLabelName)
+					_, err = resourceCheck.getLabel(t, byName(updateLabelName))
 					require.Error(t, err)
 				}
 			}
@@ -1539,4 +1551,149 @@ func (f *fakeLabelSVC) CreateLabelMapping(ctx context.Context, m *influxdb.Label
 		return errors.New("reached kill count")
 	}
 	return f.LabelService.CreateLabelMapping(ctx, m)
+}
+
+type resourceChecker struct {
+	tl *TestLauncher
+}
+
+func newResourceChecker(tl *TestLauncher) resourceChecker {
+	return resourceChecker{tl: tl}
+}
+
+type (
+	getResourceOpt struct {
+		id   influxdb.ID
+		name string
+	}
+
+	getResourceOptFn func() getResourceOpt
+)
+
+func byName(name string) getResourceOptFn {
+	return func() getResourceOpt {
+		return getResourceOpt{name: name}
+	}
+}
+
+func (r resourceChecker) getBucket(t *testing.T, getOpt getResourceOptFn) (influxdb.Bucket, error) {
+	t.Helper()
+
+	bktSVC := r.tl.BucketService(t)
+
+	var (
+		bkt *influxdb.Bucket
+		err error
+	)
+	switch opt := getOpt(); {
+	case opt.name != "":
+		bkt, err = bktSVC.FindBucketByName(timedCtx(time.Second), r.tl.Org.ID, opt.name)
+	case opt.id != 0:
+		bkt, err = bktSVC.FindBucketByID(timedCtx(time.Second), opt.id)
+	default:
+		require.Fail(t, "did not provide any get option")
+	}
+	if err != nil {
+		return influxdb.Bucket{}, err
+	}
+
+	return *bkt, nil
+}
+
+func (r resourceChecker) mustGetBucket(t *testing.T, getOpt getResourceOptFn) influxdb.Bucket {
+	t.Helper()
+
+	bkt, err := r.getBucket(t, getOpt)
+	require.NoError(t, err)
+	return bkt
+}
+
+func (r resourceChecker) mustDeleteBucket(t *testing.T, id influxdb.ID) {
+	t.Helper()
+	require.NoError(t, r.tl.BucketService(t).DeleteBucket(ctx, id))
+}
+
+func (r resourceChecker) getCheck(t *testing.T, getOpt getResourceOptFn) (influxdb.Check, error) {
+	t.Helper()
+
+	checkSVC := r.tl.CheckService()
+
+	var (
+		ch  influxdb.Check
+		err error
+	)
+	switch opt := getOpt(); {
+	case opt.name != "":
+		ch, err = checkSVC.FindCheck(timedCtx(time.Second), influxdb.CheckFilter{
+			Name:  &opt.name,
+			OrgID: &r.tl.Org.ID,
+		})
+	case opt.id != 0:
+		ch, err = checkSVC.FindCheckByID(timedCtx(time.Second), opt.id)
+	default:
+		require.Fail(t, "did not provide any get option")
+	}
+
+	return ch, err
+}
+
+func (r resourceChecker) mustGetCheck(t *testing.T, getOpt getResourceOptFn) influxdb.Check {
+	t.Helper()
+
+	c, err := r.getCheck(t, getOpt)
+	require.NoError(t, err)
+	return c
+}
+
+func (r resourceChecker) mustDeleteCheck(t *testing.T, id influxdb.ID) {
+	t.Helper()
+	require.NoError(t, r.tl.CheckService().DeleteCheck(ctx, id))
+}
+
+func (r resourceChecker) getLabel(t *testing.T, getOpt getResourceOptFn) (influxdb.Label, error) {
+	t.Helper()
+
+	labelSVC := r.tl.LabelService(t)
+
+	var (
+		label *influxdb.Label
+		err   error
+	)
+	switch opt := getOpt(); {
+	case opt.name != "":
+		labels, err := labelSVC.FindLabels(
+			timedCtx(time.Second),
+			influxdb.LabelFilter{
+				Name:  opt.name,
+				OrgID: &r.tl.Org.ID,
+			},
+			influxdb.FindOptions{Limit: 1},
+		)
+		if err != nil {
+			return influxdb.Label{}, err
+		}
+		if len(labels) == 0 {
+			return influxdb.Label{}, errors.New("did not find label: " + opt.name)
+		}
+		label = labels[0]
+	case opt.id != 0:
+		label, err = labelSVC.FindLabelByID(timedCtx(time.Second), opt.id)
+	default:
+		require.Fail(t, "did not provide any get option")
+	}
+
+	return *label, err
+}
+
+func (r resourceChecker) mustGetLabel(t *testing.T, getOpt getResourceOptFn) influxdb.Label {
+	t.Helper()
+
+	l, err := r.getLabel(t, getOpt)
+	require.NoError(t, err)
+	return l
+}
+
+func (r resourceChecker) mustDeleteLabel(t *testing.T, id influxdb.ID) {
+	t.Helper()
+	require.NoError(t, r.tl.LabelService(t).DeleteLabel(ctx, id))
 }

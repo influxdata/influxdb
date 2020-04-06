@@ -12,12 +12,12 @@ import (
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/querytest"
 	"github.com/influxdata/flux/values/valuestest"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/models"
-	_ "github.com/influxdata/influxdb/query/builtin"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
-	"github.com/influxdata/influxdb/tsdb"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/models"
+	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 func TestTo_Query(t *testing.T) {
@@ -617,6 +617,114 @@ m,tag1=c,tag2=ee _value=4 41`),
 						{execute.Time(21), "m", "_value", 1.0, "cc", "b"},
 						{execute.Time(31), "m", "_value", 3.0, "dd", "a"},
 						{execute.Time(41), "m", "_value", 4.0, "ee", "c"},
+					},
+				}},
+			},
+		},
+		{
+			name: "nil timestamp",
+			spec: &influxdb.ToProcedureSpec{
+				Spec: &influxdb.ToOpSpec{
+					Org:               "my-org",
+					Bucket:            "my-bucket",
+					TimeColumn:        "_time",
+					TagColumns:        []string{"tag1", "tag2"},
+					MeasurementColumn: "_measurement",
+				},
+			},
+			data: []flux.Table{executetest.MustCopyTable(&executetest.Table{
+				ColMeta: []flux.ColMeta{
+					{Label: "_time", Type: flux.TTime},
+					{Label: "_measurement", Type: flux.TString},
+					{Label: "_field", Type: flux.TString},
+					{Label: "_value", Type: flux.TFloat},
+					{Label: "tag2", Type: flux.TString},
+					{Label: "tag1", Type: flux.TString},
+				},
+				Data: [][]interface{}{
+					{execute.Time(11), "m", "_value", 2.0, "aa", "a"},
+					{execute.Time(21), "m", "_value", 2.0, "bb", "a"},
+					{execute.Time(21), "m", "_value", 1.0, "cc", "b"},
+					{execute.Time(31), "m", "_value", 3.0, "dd", "a"},
+					{nil, "m", "_value", 4.0, "ee", "c"},
+				},
+			})},
+			want: wanted{
+				result: &mock.PointsWriter{
+					Points: mockPoints(oid, bid, `m,tag1=a,tag2=aa _value=2 11
+m,tag1=a,tag2=bb _value=2 21
+m,tag1=b,tag2=cc _value=1 21
+m,tag1=a,tag2=dd _value=3 31`),
+				},
+				tables: []*executetest.Table{{
+					ColMeta: []flux.ColMeta{
+						{Label: "_time", Type: flux.TTime},
+						{Label: "_measurement", Type: flux.TString},
+						{Label: "_field", Type: flux.TString},
+						{Label: "_value", Type: flux.TFloat},
+						{Label: "tag2", Type: flux.TString},
+						{Label: "tag1", Type: flux.TString},
+					},
+					Data: [][]interface{}{
+						{execute.Time(11), "m", "_value", 2.0, "aa", "a"},
+						{execute.Time(21), "m", "_value", 2.0, "bb", "a"},
+						{execute.Time(21), "m", "_value", 1.0, "cc", "b"},
+						{execute.Time(31), "m", "_value", 3.0, "dd", "a"},
+					},
+				}},
+			},
+		},
+		{
+			name: "nil tag",
+			spec: &influxdb.ToProcedureSpec{
+				Spec: &influxdb.ToOpSpec{
+					Org:               "my-org",
+					Bucket:            "my-bucket",
+					TimeColumn:        "_time",
+					TagColumns:        []string{"tag1", "tag2"},
+					MeasurementColumn: "_measurement",
+				},
+			},
+			data: []flux.Table{executetest.MustCopyTable(&executetest.Table{
+				ColMeta: []flux.ColMeta{
+					{Label: "_time", Type: flux.TTime},
+					{Label: "_measurement", Type: flux.TString},
+					{Label: "_field", Type: flux.TString},
+					{Label: "_value", Type: flux.TFloat},
+					{Label: "tag2", Type: flux.TString},
+					{Label: "tag1", Type: flux.TString},
+				},
+				Data: [][]interface{}{
+					{execute.Time(11), "m", "_value", 2.0, "aa", "a"},
+					{execute.Time(21), "m", "_value", 2.0, "bb", "a"},
+					{execute.Time(21), "m", "_value", 1.0, "cc", "b"},
+					{execute.Time(31), "m", "_value", 3.0, "dd", "a"},
+					{execute.Time(41), "m", "_value", 4.0, nil, "c"},
+				},
+			})},
+			want: wanted{
+				result: &mock.PointsWriter{
+					Points: mockPoints(oid, bid, `m,tag1=a,tag2=aa _value=2 11
+m,tag1=a,tag2=bb _value=2 21
+m,tag1=b,tag2=cc _value=1 21
+m,tag1=a,tag2=dd _value=3 31
+m,tag1=c _value=4 41`),
+				},
+				tables: []*executetest.Table{{
+					ColMeta: []flux.ColMeta{
+						{Label: "_time", Type: flux.TTime},
+						{Label: "_measurement", Type: flux.TString},
+						{Label: "_field", Type: flux.TString},
+						{Label: "_value", Type: flux.TFloat},
+						{Label: "tag2", Type: flux.TString},
+						{Label: "tag1", Type: flux.TString},
+					},
+					Data: [][]interface{}{
+						{execute.Time(11), "m", "_value", 2.0, "aa", "a"},
+						{execute.Time(21), "m", "_value", 2.0, "bb", "a"},
+						{execute.Time(21), "m", "_value", 1.0, "cc", "b"},
+						{execute.Time(31), "m", "_value", 3.0, "dd", "a"},
+						{execute.Time(41), "m", "_value", 4.0, nil, "c"},
 					},
 				}},
 			},

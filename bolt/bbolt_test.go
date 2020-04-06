@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/influxdata/influxdb/bolt"
+	"github.com/influxdata/influxdb/v2/bolt"
 	"go.uber.org/zap/zaptest"
 )
 

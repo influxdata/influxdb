@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/influxdata/influxdb/bolt"
-	"github.com/influxdata/influxdb/cmd/influxd/inspect"
-	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/internal/fs"
-	"github.com/influxdata/influxdb/kit/cli"
-	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
+	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/internal/fs"
+	"github.com/influxdata/influxdb/v2/kit/cli"
+	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/spf13/cobra"
 )
 

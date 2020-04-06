@@ -10,9 +10,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/influxdata/influxdb/chronograf"
-	"github.com/influxdata/influxdb/chronograf/bolt"
-	"github.com/influxdata/influxdb/pkger"
+	"github.com/influxdata/influxdb/v2/chronograf"
+	"github.com/influxdata/influxdb/v2/chronograf/bolt"
+	"github.com/influxdata/influxdb/v2/pkger"
 )
 
 var chronografDBPath string

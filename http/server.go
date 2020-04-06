@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/v2/logger"
 	"go.uber.org/zap"
 )
 

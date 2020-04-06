@@ -11,8 +11,8 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/values"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/query"
+	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/query"
 )
 
 const BucketsKind = "influxdata/influxdb.localBuckets"
