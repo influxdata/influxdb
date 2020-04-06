@@ -86,6 +86,49 @@ group:
 `,
 		},
 		{
+			name: "group by tags key sort collision",
+			cur: &sliceSeriesCursor{
+				rows: newSeriesRows(
+					"cpu,tag0=a,tag1=b",
+					"cpu,tag0=a*,tag1=b",
+					"cpu,tag0=a*",
+				)},
+			group: datatypes.GroupBy,
+			keys:  []string{"tag0", "tag1"},
+			exp: `group:
+  tag key      : _m,tag0,tag1
+  partition key: a,b
+    series: _m=cpu,tag0=a,tag1=b
+group:
+  tag key      : _m,tag0,tag1
+  partition key: a*,b
+    series: _m=cpu,tag0=a*,tag1=b
+group:
+  tag key      : _m,tag0
+  partition key: a*,<nil>
+    series: _m=cpu,tag0=a*
+`,
+		},
+		{
+			name: "group by tags missing tag",
+			cur: &sliceSeriesCursor{
+				rows: newSeriesRows(
+					"cpu,tag0=a,tag1=b",
+					"cpu,tag1=b",
+				)},
+			group: datatypes.GroupBy,
+			keys:  []string{"tag0", "tag1"},
+			exp: `group:
+  tag key      : _m,tag0,tag1
+  partition key: a,b
+    series: _m=cpu,tag0=a,tag1=b
+group:
+  tag key      : _m,tag1
+  partition key: <nil>,b
+    series: _m=cpu,tag1=b
+`,
+		},
+		{
 			name: "group by tag1 in partial series",
 			cur: &sliceSeriesCursor{
 				rows: newSeriesRows(
