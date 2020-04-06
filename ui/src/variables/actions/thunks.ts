@@ -408,18 +408,10 @@ export const selectValue = (variableID: string, selected: string) => async (
   const contextID = currentContext(state)
   const variable = getVariableFromState(state, variableID)
 
-  if (variable.arguments.type === 'query') {
-    if (!variable.arguments.values.results.includes(selected)) {
-      return
-    }
-  } else if (variable.arguments.type === 'map') {
-    if (!Object.keys(variable.arguments.values).includes(selected)) {
-      return
-    }
-  } else if (variable.arguments.type === 'constant') {
-    if (!variable.arguments.values.includes(selected)) {
-      return
-    }
+  // Validate that we can make this selection
+  const vals = variable.getValues()
+  if (!vals.includes(selected)) {
+    return
   }
 
   await dispatch(selectValueInState(contextID, variableID, selected))

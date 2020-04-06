@@ -286,7 +286,7 @@ export const getDashboard = (dashboardID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    const skipCache = false
+    const skipCache = true
     dispatch(hydrateVariables(skipCache))
 
     const normDash = normalize<Dashboard, DashboardEntities, string>(

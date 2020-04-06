@@ -413,6 +413,7 @@ export const hydrateVars = (
       }
 
       node.status = RemoteDataState.Error
+      node.variable.arguments.values.results = []
 
       invalidateAncestors(node)
     }

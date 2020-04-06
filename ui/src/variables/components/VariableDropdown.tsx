@@ -100,32 +100,9 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
   const {variableID} = props
 
   const variable = getVariable(state, variableID)
-  const type = variable.arguments.type
-
-  if (type === 'constant') {
-    return {
-      values: variable.arguments.values,
-      selectedValue: variable.selected[0],
-    }
-  }
-
-  if (type === 'map') {
-    return {
-      values: Object.keys(variable.arguments.values),
-      selectedValue: variable.selected[0],
-    }
-  }
-
-  if (type === 'query') {
-    return {
-      values: variable.arguments.values.results || [],
-      selectedValue: variable.selected[0],
-    }
-  }
-
   return {
-    values: [],
-    selectedValue: '',
+    values: variable.getValues(),
+    selectedValue: variable.selected[0],
   }
 }
 

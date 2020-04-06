@@ -168,39 +168,31 @@ export const getVariable = (state: AppState, variableID: string): Variable => {
     vari.asAssignment = () => asAssignment(vari)
   }
 
-  if (vari.selected) {
-    if (
-      vari.selected[0] === null ||
-      (vari.arguments.type === 'map' &&
-        !Object.keys(vari.arguments.values).includes(vari.selected[0])) ||
-      (vari.arguments.type === 'query' &&
-        vari.status === RemoteDataState.Done &&
-        !(vari.arguments.values.results || []).includes(vari.selected[0])) ||
-      (vari.arguments.type === 'constant' &&
-        !vari.arguments.values.includes(vari.selected[0]))
-    ) {
-      vari.selected = null
+  // NOTE: going a little OOP here to dedupe a couple places in the code
+  if (!vari.getValues) {
+    vari.getValues = (): string[] => {
+      switch (vari.arguments.type) {
+        case 'query':
+          return vari.arguments.values.results || []
+        case 'map':
+          return Object.keys(vari.arguments.values) || []
+        case 'constant':
+          return vari.arguments.values || []
+        default:
+          return []
+      }
     }
   }
 
-  if (!vari.selected) {
-    let defVal
-    if (vari.arguments.type === 'map') {
-      defVal = Object.keys(vari.arguments.values)[0]
-    } else if (
-      vari.arguments.type === 'query' &&
-      vari.arguments.values.results
-    ) {
-      defVal = vari.arguments.values.results[0]
-    } else {
-      defVal = vari.arguments.values[0]
-    }
+  // Now validate that the selected value makes sense for
+  // the current situation
+  const vals = vari.getValues()
+  if (vari.selected && !vals.includes(vari.selected[0])) {
+    vari.selected = []
+  }
 
-    if (defVal) {
-      vari.selected = [defVal]
-    } else {
-      vari.selected = []
-    }
+  if ((!vari.selected || !vari.selected.length) && vals.length) {
+    vari.selected = [vals[0]]
   }
 
   return vari
