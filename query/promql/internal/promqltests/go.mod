@@ -8,7 +8,7 @@ require (
 	github.com/gogo/protobuf v1.3.0 // indirect
 	github.com/google/go-cmp v0.3.1
 	github.com/influxdata/flux v0.65.0
-	github.com/influxdata/influxdb v0.0.0-20190925213338-8af36d5aaedd
+	github.com/influxdata/influxdb/v2 v2.0.0-00010101000000-000000000000
 	github.com/influxdata/influxql v1.0.1 // indirect
 	github.com/influxdata/promql/v2 v2.12.0
 	github.com/mattn/go-isatty v0.0.9 // indirect
@@ -21,4 +21,4 @@ require (
 	google.golang.org/grpc v1.24.0 // indirect
 )
 
-replace github.com/influxdata/influxdb => ../../../../
+replace github.com/influxdata/influxdb/v2 => ../../../../
