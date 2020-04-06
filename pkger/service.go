@@ -785,10 +785,22 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 		return nil, internalErr(err)
 	}
 
-	mExisting := make(map[string]influxdb.NotificationEndpoint)
+	mExistingByName := make(map[string]influxdb.NotificationEndpoint)
+	mExistingByID := make(map[influxdb.ID]influxdb.NotificationEndpoint)
 	for i := range existingEndpoints {
 		e := existingEndpoints[i]
-		mExisting[e.GetName()] = e
+		mExistingByName[e.GetName()] = e
+		mExistingByID[e.GetID()] = e
+	}
+
+	findEndpoint := func(e *notificationEndpoint) influxdb.NotificationEndpoint {
+		if iExisting, ok := mExistingByID[e.ID()]; ok {
+			return iExisting
+		}
+		if iExisting, ok := mExistingByName[e.Name()]; ok {
+			return iExisting
+		}
+		return nil
 	}
 
 	mExistingToNew := make(map[string]DiffNotificationEndpoint)
@@ -796,11 +808,8 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 	for i := range endpoints {
 		newEndpoint := endpoints[i]
 
-		var existing influxdb.NotificationEndpoint
-		if iExisting, ok := mExisting[newEndpoint.Name()]; ok {
-			newEndpoint.existing = iExisting
-			existing = iExisting
-		}
+		existing := findEndpoint(newEndpoint)
+		newEndpoint.existing = existing
 		mExistingToNew[newEndpoint.Name()] = newDiffNotificationEndpoint(newEndpoint, existing)
 	}
 
@@ -1168,7 +1177,7 @@ func (s *Service) apply(ctx context.Context, coordinator *rollbackCoordinator, o
 			s.applyBuckets(ctx, pkg.buckets()),
 			s.applyChecks(ctx, pkg.checks()),
 			s.applyDashboards(pkg.dashboards()),
-			s.applyNotificationEndpoints(pkg.notificationEndpoints()),
+			s.applyNotificationEndpoints(ctx, userID, pkg.notificationEndpoints()),
 			s.applyTasks(pkg.tasks()),
 			s.applyTelegrafs(pkg.telegrafs()),
 		},
@@ -1607,7 +1616,7 @@ func (s *Service) applyLabel(ctx context.Context, l label) (influxdb.Label, erro
 	return influxLabel, nil
 }
 
-func (s *Service) applyNotificationEndpoints(endpoints []*notificationEndpoint) applier {
+func (s *Service) applyNotificationEndpoints(ctx context.Context, userID influxdb.ID, endpoints []*notificationEndpoint) applier {
 	const resource = "notification_endpoints"
 
 	mutex := new(doMutex)
@@ -1656,18 +1665,31 @@ func (s *Service) applyNotificationEndpoints(endpoints []*notificationEndpoint) 
 		rollbacker: rollbacker{
 			resource: resource,
 			fn: func(_ influxdb.ID) error {
-				return s.rollbackNotificationEndpoints(rollbackEndpoints)
+				return s.rollbackNotificationEndpoints(ctx, userID, rollbackEndpoints)
 			},
 		},
 	}
 }
 
 func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
+	if e.shouldRemove {
+		_, _, err := s.endpointSVC.DeleteNotificationEndpoint(ctx, e.ID())
+		if err != nil {
+			return nil, err
+		}
+		return e.existing, nil
+	}
+
 	if e.existing != nil {
 		// stub out userID since we're always using hte http client which will fill it in for us with the token
 		// feels a bit broken that is required.
 		// TODO: look into this userID requirement
-		updatedEndpoint, err := s.endpointSVC.UpdateNotificationEndpoint(ctx, e.ID(), e.existing, userID)
+		updatedEndpoint, err := s.endpointSVC.UpdateNotificationEndpoint(
+			ctx,
+			e.ID(),
+			e.summarize().NotificationEndpoint,
+			userID,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -1683,25 +1705,29 @@ func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationE
 	return actual, nil
 }
 
-func (s *Service) rollbackNotificationEndpoints(endpoints []*notificationEndpoint) error {
+func (s *Service) rollbackNotificationEndpoints(ctx context.Context, userID influxdb.ID, endpoints []*notificationEndpoint) error {
+	rollbackFn := func(e *notificationEndpoint) error {
+		var err error
+		switch {
+		case e.shouldRemove:
+			err = s.endpointSVC.CreateNotificationEndpoint(ctx, e.existing, userID)
+		case e.existing == nil:
+			_, _, err = s.endpointSVC.DeleteNotificationEndpoint(ctx, e.ID())
+		default:
+			_, err = s.endpointSVC.UpdateNotificationEndpoint(ctx, e.ID(), e.existing, userID)
+		}
+		return err
+	}
+
 	var errs []string
 	for _, e := range endpoints {
-		if e.existing == nil {
-			_, _, err := s.endpointSVC.DeleteNotificationEndpoint(context.Background(), e.ID())
-			if err != nil {
-				errs = append(errs, e.ID().String())
-			}
-			continue
-		}
-
-		_, err := s.endpointSVC.UpdateNotificationEndpoint(context.Background(), e.ID(), e.existing, 0)
-		if err != nil {
-			errs = append(errs, e.ID().String())
+		if err := rollbackFn(e); err != nil {
+			errs = append(errs, fmt.Sprintf("error for notification endpoint[%q]: %s", e.ID(), err))
 		}
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf(`notication_endpoint_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
+		return errors.New(strings.Join(errs, "; "))
 	}
 
 	return nil
@@ -1727,6 +1753,10 @@ func (s *Service) applyNotificationRulesGenerator(ctx context.Context, orgID inf
 		}
 	}
 	for _, e := range pkg.notificationEndpoints() {
+		if e.shouldRemove {
+			continue
+		}
+
 		if _, ok := mEndpoints[e.PkgName()]; ok {
 			continue
 		}
@@ -2190,6 +2220,17 @@ func (s *Service) updateStackAfterSuccess(ctx context.Context, stackID influxdb.
 			Name:       c.PkgName(),
 		})
 	}
+	for _, n := range pkg.notificationEndpoints() {
+		if n.shouldRemove {
+			continue
+		}
+		stackResources = append(stackResources, StackResource{
+			APIVersion: APIVersion,
+			ID:         n.ID(),
+			Kind:       KindNotificationEndpoint,
+			Name:       n.PkgName(),
+		})
+	}
 	for _, l := range pkg.labels() {
 		if l.shouldRemove {
 			continue
@@ -2258,6 +2299,15 @@ func (s *Service) updateStackAfterRollback(ctx context.Context, stackID influxdb
 				if res.ID != c.ID() {
 					hasChanges = true
 					res.ID = c.existing.GetID()
+				}
+			}
+		}
+		for _, e := range pkg.notificationEndpoints() {
+			if e.shouldRemove {
+				res := existingResources[newKey(KindNotificationEndpoint, e.PkgName())]
+				if res.ID != e.ID() {
+					hasChanges = true
+					res.ID = e.existing.GetID()
 				}
 			}
 		}

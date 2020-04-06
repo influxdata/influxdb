@@ -368,9 +368,20 @@ type DiffNotificationEndpointValues struct {
 	influxdb.NotificationEndpoint
 }
 
+// MarshalJSON implementation here is forced by the embedded check value here.
+func (d DiffNotificationEndpointValues) MarshalJSON() ([]byte, error) {
+	if d.NotificationEndpoint == nil {
+		return json.Marshal(nil)
+	}
+	return json.Marshal(d.NotificationEndpoint)
+}
+
 // UnmarshalJSON decodes the notification endpoint. This is necessary unfortunately.
 func (d *DiffNotificationEndpointValues) UnmarshalJSON(b []byte) (err error) {
 	d.NotificationEndpoint, err = endpoint.UnmarshalJSON(b)
+	if influxdb.EInvalid == influxdb.ErrorCode(err) {
+		return nil
+	}
 	return
 }
 
@@ -1468,7 +1479,7 @@ func (n *notificationEndpoint) base() endpoint.Base {
 	e := endpoint.Base{
 		Name:        n.Name(),
 		Description: n.description,
-		Status:      influxdb.Active,
+		Status:      n.influxStatus(),
 	}
 	if id := n.ID(); id > 0 {
 		e.ID = &id
@@ -1481,9 +1492,6 @@ func (n *notificationEndpoint) base() endpoint.Base {
 
 func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 	base := n.base()
-	if n.status != "" {
-		base.Status = influxdb.Status(n.status)
-	}
 	sum := SummaryNotificationEndpoint{
 		PkgName:           n.PkgName(),
 		LabelAssociations: toSummaryLabels(n.labels...),
@@ -1522,6 +1530,14 @@ func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 		}
 	}
 	return sum
+}
+
+func (n *notificationEndpoint) influxStatus() influxdb.Status {
+	status := influxdb.Active
+	if n.status != "" {
+		status = influxdb.Status(n.status)
+	}
+	return status
 }
 
 var validEndpointHTTPMethods = map[string]bool{
