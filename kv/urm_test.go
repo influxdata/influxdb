@@ -28,20 +28,8 @@ func TestBoltUserResourceMappingService(t *testing.T) {
 	influxdbtesting.UserResourceMappingService(initURMServiceFunc(NewTestBoltStore), t)
 }
 
-func TestBoltUserResourceMappingService_WithUserIndex(t *testing.T) {
-	influxdbtesting.UserResourceMappingService(initURMServiceFunc(NewTestBoltStore, kv.ServiceConfig{
-		URMByUserIndexReadPathEnabled: true,
-	}), t)
-}
-
 func TestInmemUserResourceMappingService(t *testing.T) {
 	influxdbtesting.UserResourceMappingService(initURMServiceFunc(NewTestBoltStore), t)
-}
-
-func TestInmemUserResourceMappingService_WithUserIndex(t *testing.T) {
-	influxdbtesting.UserResourceMappingService(initURMServiceFunc(NewTestBoltStore, kv.ServiceConfig{
-		URMByUserIndexReadPathEnabled: true,
-	}), t)
 }
 
 type userResourceMappingTestFunc func(influxdbtesting.UserResourceFields, *testing.T) (influxdb.UserResourceMappingService, func())

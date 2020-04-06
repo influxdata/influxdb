@@ -79,7 +79,7 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 				id, _ := urm.UserID.Encode()
 				return id, nil
 			},
-		)),
+		), WithIndexReadPathEnabled),
 		disableAuthorizationsForMaxPermissions: func(context.Context) bool {
 			return false
 		},
@@ -115,18 +115,13 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		s.clock = clock.New()
 	}
 
-	if s.Config.URMByUserIndexReadPathEnabled {
-		WithIndexReadPathEnabled(s.urmByUserIndex)
-	}
-
 	return s
 }
 
 // ServiceConfig allows us to configure Services
 type ServiceConfig struct {
-	SessionLength                 time.Duration
-	Clock                         clock.Clock
-	URMByUserIndexReadPathEnabled bool
+	SessionLength time.Duration
+	Clock         clock.Clock
 }
 
 // AutoMigrationStore is a Store which also describes whether or not
