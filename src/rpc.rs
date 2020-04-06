@@ -234,7 +234,7 @@ impl Storage for GrpcServer {
         let predicate = tag_values_request.predicate;
         let range = tag_values_request.range;
 
-        let tag_key = tag_values_request.tag_key.clone();
+        let tag_key = tag_values_request.tag_key;
 
         let app = self.app.clone();
 
