@@ -13,7 +13,7 @@ import {
 import {selectValue} from 'src/variables/actions/thunks'
 
 // Utils
-import {getVariable} from 'src/variables/selectors'
+import {getVariable, normalizeValues} from 'src/variables/selectors'
 
 // Types
 import {AppState} from 'src/types'
@@ -101,7 +101,7 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
 
   const variable = getVariable(state, variableID)
   return {
-    values: variable.getValues(),
+    values: normalizeValues(variable),
     selectedValue: variable.selected[0],
   }
 }

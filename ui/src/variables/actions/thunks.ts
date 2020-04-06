@@ -26,6 +26,7 @@ import {
   getVariable as getVariableFromState,
   getVariables as getVariablesFromState,
   getAllVariables as getAllVariablesFromState,
+  normalizeValues,
 } from 'src/variables/selectors'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {findDependentVariables} from 'src/variables/utils/exportVariables'
@@ -409,7 +410,7 @@ export const selectValue = (variableID: string, selected: string) => async (
   const variable = getVariableFromState(state, variableID)
 
   // Validate that we can make this selection
-  const vals = variable.getValues()
+  const vals = normalizeValues(variable)
   if (!vals.includes(selected)) {
     return
   }

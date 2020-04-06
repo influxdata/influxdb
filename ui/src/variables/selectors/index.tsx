@@ -164,29 +164,9 @@ export const getVariable = (state: AppState, variableID: string): Variable => {
     }
   }
 
-  if (!vari.asAssignment) {
-    vari.asAssignment = () => asAssignment(vari)
-  }
-
-  // NOTE: going a little OOP here to dedupe a couple places in the code
-  if (!vari.getValues) {
-    vari.getValues = (): string[] => {
-      switch (vari.arguments.type) {
-        case 'query':
-          return vari.arguments.values.results || []
-        case 'map':
-          return Object.keys(vari.arguments.values) || []
-        case 'constant':
-          return vari.arguments.values || []
-        default:
-          return []
-      }
-    }
-  }
-
   // Now validate that the selected value makes sense for
   // the current situation
-  const vals = vari.getValues()
+  const vals = normalizeValues(vari)
   if (vari.selected && !vals.includes(vari.selected[0])) {
     vari.selected = []
   }
@@ -196,6 +176,19 @@ export const getVariable = (state: AppState, variableID: string): Variable => {
   }
 
   return vari
+}
+
+export const normalizeValues = (variable: Variable): string[] => {
+  switch (variable.arguments.type) {
+    case 'query':
+      return variable.arguments.values.results || []
+    case 'map':
+      return Object.keys(variable.arguments.values) || []
+    case 'constant':
+      return variable.arguments.values || []
+    default:
+      return []
+  }
 }
 
 export const asAssignment = (variable: Variable): VariableAssignment => {
