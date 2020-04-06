@@ -341,6 +341,9 @@ func (p *Pkg) Summary() Summary {
 	sum.LabelMappings = p.labelMappings()
 
 	for _, n := range p.notificationEndpoints() {
+		if n.shouldRemove {
+			continue
+		}
 		sum.NotificationEndpoints = append(sum.NotificationEndpoints, n.summarize())
 	}
 

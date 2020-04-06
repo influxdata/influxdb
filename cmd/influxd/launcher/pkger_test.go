@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,18 +43,6 @@ func TestLauncher_Pkger(t *testing.T) {
 			return obj
 		}
 
-		newLabelObject := func(pkgName, name, desc, color string) pkger.Object {
-			obj := pkger.LabelToObject("", influxdb.Label{
-				Name: name,
-				Properties: map[string]string{
-					"color":       color,
-					"description": desc,
-				},
-			})
-			obj.SetMetadataName(pkgName)
-			return obj
-		}
-
 		newCheckDeadmanObject := func(t *testing.T, pkgName, name string, every time.Duration) pkger.Object {
 			t.Helper()
 
@@ -70,6 +59,33 @@ func TestLauncher_Pkger(t *testing.T) {
 					StatusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }",
 				},
 				Level: notification.Critical,
+			})
+			obj.SetMetadataName(pkgName)
+			return obj
+		}
+
+		newEndpointHTTP := func(pkgName, name, description string) pkger.Object {
+			obj := pkger.NotificationEndpointToObject("", &endpoint.HTTP{
+				Base: endpoint.Base{
+					Name:        name,
+					Description: description,
+					Status:      influxdb.Inactive,
+				},
+				AuthMethod: "none",
+				URL:        "http://example.com",
+				Method:     "GET",
+			})
+			obj.SetMetadataName(pkgName)
+			return obj
+		}
+
+		newLabelObject := func(pkgName, name, desc, color string) pkger.Object {
+			obj := pkger.LabelToObject("", influxdb.Label{
+				Name: name,
+				Properties: map[string]string{
+					"color":       color,
+					"description": desc,
+				},
 			})
 			obj.SetMetadataName(pkgName)
 			return obj
@@ -122,12 +138,14 @@ func TestLauncher_Pkger(t *testing.T) {
 			var (
 				initialBucketPkgName   = "rucketeer_1"
 				initialCheckPkgName    = "checkers"
+				initialEndpointPkgName = "endzo"
 				initialLabelPkgName    = "labelino"
 				initialVariablePkgName = "laces out dan"
 			)
 			initialPkg := newPkg(
 				newBucketObject(initialBucketPkgName, "display name", "init desc"),
 				newCheckDeadmanObject(t, initialCheckPkgName, "check_0", time.Minute),
+				newEndpointHTTP(initialEndpointPkgName, "endpoint_0", "init desc"),
 				newLabelObject(initialLabelPkgName, "label 1", "init desc", "#222eee"),
 				newVariableObject(initialVariablePkgName, "var char", "init desc"),
 			)
@@ -148,6 +166,10 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.NotZero(t, sum.Checks[0].Check.GetID())
 				assert.Equal(t, "check_0", sum.Checks[0].Check.GetName())
 
+				require.Len(t, sum.NotificationEndpoints, 1)
+				assert.NotZero(t, sum.NotificationEndpoints[0].NotificationEndpoint.GetID())
+				assert.Equal(t, "endpoint_0", sum.NotificationEndpoints[0].NotificationEndpoint.GetName())
+
 				require.Len(t, sum.Labels, 1)
 				assert.NotZero(t, sum.Labels[0].ID)
 				assert.Equal(t, "label 1", sum.Labels[0].Name)
@@ -167,6 +189,9 @@ func TestLauncher_Pkger(t *testing.T) {
 					actualCheck := resourceCheck.mustGetCheck(t, byName("check_0"))
 					assert.Equal(t, sum.Checks[0].Check.GetID(), actualCheck.GetID())
 
+					actualEndpint := resourceCheck.mustGetEndpoint(t, byName("endpoint_0"))
+					assert.Equal(t, sum.NotificationEndpoints[0].NotificationEndpoint.GetID(), actualEndpint.GetID())
+
 					actualLabel := resourceCheck.mustGetLabel(t, byName("label 1"))
 					assert.Equal(t, sum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
 
@@ -178,6 +203,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			var (
 				updateBucketName   = "new bucket"
 				updateCheckName    = "new check"
+				updateEndpointName = "new endpoint"
 				updateLabelName    = "new label"
 				updateVariableName = "new variable"
 			)
@@ -185,8 +211,9 @@ func TestLauncher_Pkger(t *testing.T) {
 			{
 				updatedPkg := newPkg(
 					newBucketObject(initialBucketPkgName, updateBucketName, ""),
-					newLabelObject(initialLabelPkgName, updateLabelName, "", ""),
 					newCheckDeadmanObject(t, initialCheckPkgName, updateCheckName, time.Hour),
+					newEndpointHTTP(initialEndpointPkgName, updateEndpointName, ""),
+					newLabelObject(initialLabelPkgName, updateLabelName, "", ""),
 					newVariableObject(initialVariablePkgName, updateVariableName, ""),
 				)
 				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, updatedPkg, applyOpt)
@@ -199,6 +226,11 @@ func TestLauncher_Pkger(t *testing.T) {
 				require.Len(t, sum.Checks, 1)
 				assert.Equal(t, initialSum.Checks[0].Check.GetID(), sum.Checks[0].Check.GetID())
 				assert.Equal(t, updateCheckName, sum.Checks[0].Check.GetName())
+
+				require.Len(t, sum.NotificationEndpoints, 1)
+				endpoint := sum.NotificationEndpoints[0].NotificationEndpoint
+				assert.Equal(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID(), endpoint.GetID())
+				assert.Equal(t, updateEndpointName, endpoint.GetName())
 
 				require.Len(t, sum.Labels, 1)
 				assert.Equal(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
@@ -215,6 +247,9 @@ func TestLauncher_Pkger(t *testing.T) {
 
 					actualCheck := resourceCheck.mustGetCheck(t, byName(updateCheckName))
 					require.Equal(t, initialSum.Checks[0].Check.GetID(), actualCheck.GetID())
+
+					actualEndpoint := resourceCheck.mustGetEndpoint(t, byName(updateEndpointName))
+					assert.Equal(t, endpoint.GetID(), actualEndpoint.GetID())
 
 					actualLabel := resourceCheck.mustGetLabel(t, byName(updateLabelName))
 					require.Equal(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
@@ -250,6 +285,7 @@ func TestLauncher_Pkger(t *testing.T) {
 					newBucketObject("z_rolls_back_too", "", ""),
 					newLabelObject("z_label_roller", "", "", ""),
 					newCheckDeadmanObject(t, "z_check", "", time.Hour),
+					newEndpointHTTP("z_endpoint_rolls_back", "", ""),
 					newVariableObject("z_var_rolls_back", "", ""),
 				)
 				_, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, pkgWithDelete, applyOpt)
@@ -263,6 +299,9 @@ func TestLauncher_Pkger(t *testing.T) {
 					}
 
 					_, err := resourceCheck.getCheck(t, byName("z_check"))
+					require.Error(t, err)
+
+					_, err = resourceCheck.getEndpoint(t, byName("z_endpoint_rolls_back"))
 					require.Error(t, err)
 
 					_, err = resourceCheck.getLabel(t, byName("z_label_roller"))
@@ -280,6 +319,9 @@ func TestLauncher_Pkger(t *testing.T) {
 					actualCheck := resourceCheck.mustGetCheck(t, byName(updateCheckName))
 					assert.NotEqual(t, initialSum.Checks[0].Check.GetID(), actualCheck.GetID())
 
+					actualEndpoint := resourceCheck.mustGetEndpoint(t, byName(updateEndpointName))
+					assert.NotEqual(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID(), actualEndpoint.GetID())
+
 					actualLabel := resourceCheck.mustGetLabel(t, byName(updateLabelName))
 					assert.NotEqual(t, initialSum.Labels[0].ID, pkger.SafeID(actualLabel.ID))
 
@@ -292,8 +334,9 @@ func TestLauncher_Pkger(t *testing.T) {
 			{
 				allNewResourcesPkg := newPkg(
 					newBucketObject("non_existent_bucket", "", ""),
-					newLabelObject("non_existent_label", "", "", ""),
 					newCheckDeadmanObject(t, "non_existent_check", "", time.Minute),
+					newEndpointHTTP("non_existent_endpoint", "", ""),
+					newLabelObject("non_existent_label", "", "", ""),
 					newVariableObject("non_existent_var", "", ""),
 				)
 				sum, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, l.User.ID, allNewResourcesPkg, applyOpt)
@@ -310,6 +353,13 @@ func TestLauncher_Pkger(t *testing.T) {
 				assert.NotZero(t, sum.Checks[0].Check.GetID())
 				defer resourceCheck.mustDeleteCheck(t, sum.Checks[0].Check.GetID())
 				assert.Equal(t, "non_existent_check", sum.Checks[0].Check.GetName())
+
+				require.Len(t, sum.NotificationEndpoints, 1)
+				endpoint := sum.NotificationEndpoints[0].NotificationEndpoint
+				assert.NotEqual(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID(), endpoint.GetID())
+				assert.NotZero(t, endpoint.GetID())
+				defer resourceCheck.mustDeleteEndpoint(t, endpoint.GetID())
+				assert.Equal(t, "non_existent_endpoint", endpoint.GetName())
 
 				require.Len(t, sum.Labels, 1)
 				assert.NotEqual(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
@@ -333,6 +383,10 @@ func TestLauncher_Pkger(t *testing.T) {
 					assert.NotEqual(t, initialSum.Checks[0].Check.GetID(), sum.Checks[0].Check.GetID())
 					assert.Equal(t, chk.GetID(), sum.Checks[0].Check.GetID())
 
+					endpoint := resourceCheck.mustGetEndpoint(t, byName("non_existent_endpoint"))
+					assert.NotEqual(t, initialSum.NotificationEndpoints[0].NotificationEndpoint.GetID(), endpoint.GetID())
+					assert.Equal(t, endpoint.GetID(), sum.NotificationEndpoints[0].NotificationEndpoint.GetID())
+
 					label := resourceCheck.mustGetLabel(t, byName("non_existent_label"))
 					assert.NotEqual(t, initialSum.Labels[0].ID, sum.Labels[0].ID)
 					assert.Equal(t, pkger.SafeID(label.ID), sum.Labels[0].ID)
@@ -348,6 +402,9 @@ func TestLauncher_Pkger(t *testing.T) {
 					require.Error(t, err)
 
 					_, err = resourceCheck.getCheck(t, byName(updateCheckName))
+					require.Error(t, err)
+
+					_, err = resourceCheck.getEndpoint(t, byName(updateEndpointName))
 					require.Error(t, err)
 
 					_, err = resourceCheck.getLabel(t, byName(updateLabelName))
@@ -1712,6 +1769,56 @@ func (r resourceChecker) mustDeleteCheck(t *testing.T, id influxdb.ID) {
 	require.NoError(t, r.tl.CheckService().DeleteCheck(ctx, id))
 }
 
+func (r resourceChecker) getEndpoint(t *testing.T, getOpt getResourceOptFn) (influxdb.NotificationEndpoint, error) {
+	t.Helper()
+
+	endpointSVC := r.tl.NotificationEndpointService(t)
+
+	var (
+		e   influxdb.NotificationEndpoint
+		err error
+	)
+	switch opt := getOpt(); {
+	case opt.name != "":
+		var endpoints []influxdb.NotificationEndpoint
+		endpoints, _, err = endpointSVC.FindNotificationEndpoints(timedCtx(time.Second), influxdb.NotificationEndpointFilter{
+			OrgID: &r.tl.Org.ID,
+		})
+		for _, existing := range endpoints {
+			if existing.GetName() == opt.name {
+				e = existing
+				break
+			}
+		}
+	case opt.id != 0:
+		e, err = endpointSVC.FindNotificationEndpointByID(timedCtx(time.Second), opt.id)
+	default:
+		require.Fail(t, "did not provide any get option")
+	}
+
+	if e == nil {
+		return nil, errors.New("did not find endpoint")
+	}
+
+	return e, err
+}
+
+func (r resourceChecker) mustGetEndpoint(t *testing.T, getOpt getResourceOptFn) influxdb.NotificationEndpoint {
+	t.Helper()
+
+	e, err := r.getEndpoint(t, getOpt)
+	require.NoError(t, err)
+	return e
+}
+
+func (r resourceChecker) mustDeleteEndpoint(t *testing.T, id influxdb.ID) {
+	t.Helper()
+	_, _, err := r.tl.
+		NotificationEndpointService(t).
+		DeleteNotificationEndpoint(ctx, id)
+	require.NoError(t, err)
+}
+
 func (r resourceChecker) getLabel(t *testing.T, getOpt getResourceOptFn) (influxdb.Label, error) {
 	t.Helper()
 
@@ -1779,7 +1886,6 @@ func (r resourceChecker) getVariable(t *testing.T, getOpt getResourceOptFn) (inf
 		}
 		for i := range vars {
 			v := vars[i]
-			t.Logf("got var: %+v", *v)
 			if v.Name == opt.name {
 				variable = v
 				break
