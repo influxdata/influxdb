@@ -7,8 +7,8 @@ require (
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 // indirect
 	github.com/gogo/protobuf v1.3.0 // indirect
 	github.com/google/go-cmp v0.3.1
-	github.com/influxdata/flux v0.64.1-0.20200326190056-63d3afa00dd4
-	github.com/influxdata/influxdb v0.0.0-20190925213338-8af36d5aaedd
+	github.com/influxdata/flux v0.64.1-0.20200406183908-833eea1d2481
+	github.com/influxdata/influxdb/v2 v2.0.1-alpha.10.0.20200406212829-84386b884ac5
 	github.com/influxdata/influxql v1.0.1 // indirect
 	github.com/influxdata/promql/v2 v2.12.0
 	github.com/mattn/go-isatty v0.0.9 // indirect
@@ -21,4 +21,4 @@ require (
 	google.golang.org/grpc v1.24.0 // indirect
 )
 
-replace github.com/influxdata/influxdb => ../../../../
+replace github.com/influxdata/influxdb/v2 => ../../../../
