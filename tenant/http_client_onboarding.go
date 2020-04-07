@@ -17,7 +17,7 @@ type OnboardClientService struct {
 func (s *OnboardClientService) IsOnboarding(ctx context.Context) (bool, error) {
 	var resp isOnboardingResponse
 	err := s.Client.
-		Get(prefixOrganizations).
+		Get(prefixOnboard).
 		DecodeJSON(&resp).
 		Do(ctx)
 
