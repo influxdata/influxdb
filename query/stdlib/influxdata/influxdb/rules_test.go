@@ -689,24 +689,28 @@ func TestReadTagKeysRule(t *testing.T) {
 		Fn: interpreter.ResolvedFunction{
 			Scope: nil,
 			Fn: &semantic.FunctionExpression{
-				Block: &semantic.FunctionBlock{
-					Parameters: &semantic.FunctionParameters{
-						List: []*semantic.FunctionParameter{{
-							Key: &semantic.Identifier{
-								Name: "r",
-							},
-						}},
-					},
-					Body: &semantic.BinaryExpression{
-						Operator: ast.EqualOperator,
-						Left: &semantic.MemberExpression{
-							Object: &semantic.IdentifierExpression{
-								Name: "r",
-							},
-							Property: "_measurement",
+				Parameters: &semantic.FunctionParameters{
+					List: []*semantic.FunctionParameter{{
+						Key: &semantic.Identifier{
+							Name: "r",
 						},
-						Right: &semantic.StringLiteral{
-							Value: "cpu",
+					}},
+				},
+				Block: &semantic.Block{
+					Body: []semantic.Statement{
+						&semantic.ReturnStatement{
+							Argument: &semantic.BinaryExpression{
+								Operator: ast.EqualOperator,
+								Left: &semantic.MemberExpression{
+									Object: &semantic.IdentifierExpression{
+										Name: "r",
+									},
+									Property: "_measurement",
+								},
+								Right: &semantic.StringLiteral{
+									Value: "cpu",
+								},
+							},
 						},
 					},
 				},
@@ -904,24 +908,28 @@ func TestReadTagValuesRule(t *testing.T) {
 		Fn: interpreter.ResolvedFunction{
 			Scope: nil,
 			Fn: &semantic.FunctionExpression{
-				Block: &semantic.FunctionBlock{
-					Parameters: &semantic.FunctionParameters{
-						List: []*semantic.FunctionParameter{{
-							Key: &semantic.Identifier{
-								Name: "r",
-							},
-						}},
-					},
-					Body: &semantic.BinaryExpression{
-						Operator: ast.EqualOperator,
-						Left: &semantic.MemberExpression{
-							Object: &semantic.IdentifierExpression{
-								Name: "r",
-							},
-							Property: "_measurement",
+				Parameters: &semantic.FunctionParameters{
+					List: []*semantic.FunctionParameter{{
+						Key: &semantic.Identifier{
+							Name: "r",
 						},
-						Right: &semantic.StringLiteral{
-							Value: "cpu",
+					}},
+				},
+				Block: &semantic.Block{
+					Body: []semantic.Statement{
+						&semantic.ReturnStatement{
+							Argument: &semantic.BinaryExpression{
+								Operator: ast.EqualOperator,
+								Left: &semantic.MemberExpression{
+									Object: &semantic.IdentifierExpression{
+										Name: "r",
+									},
+									Property: "_measurement",
+								},
+								Right: &semantic.StringLiteral{
+									Value: "cpu",
+								},
+							},
 						},
 					},
 				},
