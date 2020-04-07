@@ -33,9 +33,9 @@ class InlineLabelsList extends Component<Props> {
     return (
       <div className="inline-labels--list-container">
         <DapperScrollbars
-          autoSize={true}
+          autoSizeHeight={true}
           autoHide={false}
-          style={{maxWidth: '100%', maxHeight: '300px'}}
+          style={{width: '100%', maxHeight: '300px'}}
           noScrollX={true}
         >
           <div
