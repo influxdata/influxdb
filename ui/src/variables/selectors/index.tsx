@@ -259,11 +259,15 @@ export const asAssignment = (variable: Variable): VariableAssignment => {
 
   if (variable.arguments.type === 'query') {
     if (!variable.selected || !variable.selected[0]) {
-      return null
-    }
-    out.init = {
-      type: 'StringLiteral',
-      value: variable.selected[0],
+      out.init = {
+        type: 'StringLiteral',
+        value: '',
+      }
+    } else {
+      out.init = {
+        type: 'StringLiteral',
+        value: variable.selected[0],
+      }
     }
   }
 
