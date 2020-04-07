@@ -1,3 +1,12 @@
+v1.8.1 [unreleased]
+-------------------
+
+### Features
+
+### Bugfixes
+
+-	[#17638](https://github.com/influxdata/influxdb/pull/17638): Verify precision in write requests.
+
 v1.8.0 [unreleased]
 -------------------
 
