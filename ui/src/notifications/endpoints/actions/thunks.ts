@@ -107,6 +107,7 @@ export const createEndpoint = (endpoint: NotificationEndpoint) => async (
     dispatch(checkEndpointsLimits())
   } catch (error) {
     console.error(error)
+    dispatch(notify(copy.createEndpointFailed(error.message)))
   }
 }
 
