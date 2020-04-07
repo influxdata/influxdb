@@ -24,6 +24,7 @@ v1.8.0 [unreleased]
 -	[#16762](https://github.com/influxdata/influxdb/pull/16762): Fix bugs in -compact-series-file.
 -	[#16944](https://github.com/influxdata/influxdb/pull/16944): Update to Go 1.13.8 and Go modules.
 -	[#17032](https://github.com/influxdata/influxdb/pull/17032): Fix a SIGSEGV when accessing tsi active log.
+-	[#17656](https://github.com/influxdata/influxdb/pull/17656): Verify precision in write requests.
 
 v1.7.0 [unreleased]
 -------------------
