@@ -8,6 +8,7 @@
 ### Bug Fixes
 
 1. [17612](https://github.com/influxdata/influxdb/pull/17612): Fix card size and layout jank in dashboards index view
+1. [17651](https://github.com/influxdata/influxdb/pull/17651): Fix check graph font and lines defaulting to black causing graph to be unreadable
 
 ### UI Improvements
 
