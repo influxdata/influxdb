@@ -23,21 +23,21 @@
   margin-bottom: $cf-marg-b;
 }
 
-.link-list {
+.tutorials-list,
+.useful-links {
   padding: 0;
   list-style: none;
-
-  > li {
-    padding: 0;
-  }
 }
 
-.link-list.tutorials > li {
-  display: flex;
-  align-items: center;
-  height: 50px;
+.tutorials-list > li {
+  font-size: 1.25em;
   background-color: $g2-kevlar;
   border-radius: $radius;
-  padding: 0 $ix-marg-c;
+  padding: $ix-marg-c;
   margin-bottom: $ix-marg-a;
+}
+
+.useful-links > li {
+  margin-bottom: $cf-marg-b;
+  padding: 0;
 }
