@@ -54,41 +54,23 @@ func (r *storeReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, a
 }
 
 func (r *storeReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error) {
-	var predicate *datatypes.Predicate
-	if spec.Predicate != nil {
-		p, err := toStoragePredicate(spec.Predicate)
-		if err != nil {
-			return nil, err
-		}
-		predicate = p
-	}
-
 	return &tagKeysIterator{
 		ctx:       ctx,
 		bounds:    spec.Bounds,
 		s:         r.s,
 		readSpec:  spec,
-		predicate: predicate,
+		predicate: spec.Predicate,
 		alloc:     alloc,
 	}, nil
 }
 
 func (r *storeReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error) {
-	var predicate *datatypes.Predicate
-	if spec.Predicate != nil {
-		p, err := toStoragePredicate(spec.Predicate)
-		if err != nil {
-			return nil, err
-		}
-		predicate = p
-	}
-
 	return &tagValuesIterator{
 		ctx:       ctx,
 		bounds:    spec.Bounds,
 		s:         r.s,
 		readSpec:  spec,
-		predicate: predicate,
+		predicate: spec.Predicate,
 		alloc:     alloc,
 	}, nil
 }
@@ -118,18 +100,9 @@ func (fi *filterIterator) Do(f func(flux.Table) error) error {
 		return err
 	}
 
-	var predicate *datatypes.Predicate
-	if fi.spec.Predicate != nil {
-		p, err := toStoragePredicate(fi.spec.Predicate)
-		if err != nil {
-			return err
-		}
-		predicate = p
-	}
-
 	var req datatypes.ReadFilterRequest
 	req.ReadSource = any
-	req.Predicate = predicate
+	req.Predicate = fi.spec.Predicate
 	req.Range.Start = int64(fi.spec.Bounds.Start)
 	req.Range.End = int64(fi.spec.Bounds.Stop)
 
@@ -242,18 +215,9 @@ func (gi *groupIterator) Do(f func(flux.Table) error) error {
 		return err
 	}
 
-	var predicate *datatypes.Predicate
-	if gi.spec.Predicate != nil {
-		p, err := toStoragePredicate(gi.spec.Predicate)
-		if err != nil {
-			return err
-		}
-		predicate = p
-	}
-
 	var req datatypes.ReadGroupRequest
 	req.ReadSource = any
-	req.Predicate = predicate
+	req.Predicate = gi.spec.Predicate
 	req.Range.Start = int64(gi.spec.Bounds.Start)
 	req.Range.End = int64(gi.spec.Bounds.Stop)
 

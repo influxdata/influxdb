@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 )
 
 func fluxTime(t int64) flux.Time {
@@ -155,24 +156,17 @@ func TestPushDownFilterRule(t *testing.T) {
 		}
 	}
 
-	makeExprBody := func(expr *semantic.FunctionExpression) *semantic.FunctionExpression {
-		switch e := expr.Block.Body.(type) {
-		case *semantic.Block:
-			if len(e.Body) != 1 {
-				panic("more than one statement in function body")
-			}
-			returnExpr, ok := e.Body[0].(*semantic.ReturnStatement)
-			if !ok {
-				panic("non-return statement in function body")
-			}
-			newExpr := expr.Copy().(*semantic.FunctionExpression)
-			newExpr.Block.Body = returnExpr.Argument.Copy()
-			return newExpr
-		case semantic.Expression:
-			return expr
-		default:
-			panic("unexpected function body type")
+	toStoragePredicate := func(fn *semantic.FunctionExpression) *datatypes.Predicate {
+		body, ok := fn.GetFunctionBodyExpression()
+		if !ok {
+			panic("more than one statement in function body")
 		}
+
+		predicate, err := influxdb.ToStoragePredicate(body, "r")
+		if err != nil {
+			panic(err)
+		}
+		return predicate
 	}
 
 	tests := []plantest.RuleTestCase{
@@ -196,9 +190,8 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter:    makeExprBody(pushableFn1),
+						Bounds: bounds,
+						Filter: toStoragePredicate(pushableFn1),
 					}),
 				},
 			},
@@ -227,9 +220,8 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter1_filter2", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter:    makeExprBody(pushableFn1and2),
+						Bounds: bounds,
+						Filter: toStoragePredicate(pushableFn1and2),
 					}),
 				},
 			},
@@ -254,12 +246,11 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("ReadRange", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter:    makeExprBody(pushableFn1),
+						Bounds: bounds,
+						Filter: toStoragePredicate(pushableFn1),
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
-						Fn: makeResolvedFilterFn(makeExprBody(unpushableFn)),
+						Fn: makeResolvedFilterFn(unpushableFn),
 					}),
 				},
 				Edges: [][2]int{
@@ -293,9 +284,8 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter:    makeExprBody(pushableFn1),
+						Bounds: bounds,
+						Filter: toStoragePredicate(pushableFn1),
 					}),
 				},
 			},
@@ -338,9 +328,8 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter:    makeExprBody(executetest.FunctionExpression(t, `(r) => r.host != ""`)),
+						Bounds: bounds,
+						Filter: toStoragePredicate(executetest.FunctionExpression(t, `(r) => r.host != ""`)),
 					}),
 				},
 			},
@@ -364,9 +353,8 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter:    makeExprBody(executetest.FunctionExpression(t, `(r) => r.host == ""`)),
+						Bounds: bounds,
+						Filter: toStoragePredicate(executetest.FunctionExpression(t, `(r) => r.host == ""`)),
 					}),
 				},
 			},
@@ -408,9 +396,8 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter:    makeExprBody(executetest.FunctionExpression(t, `(r) => r.host != ""`)),
+						Bounds: bounds,
+						Filter: toStoragePredicate(executetest.FunctionExpression(t, `(r) => r.host != ""`)),
 					}),
 				},
 			},
@@ -434,9 +421,8 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter:    makeExprBody(executetest.FunctionExpression(t, `(r) => r._value == ""`)),
+						Bounds: bounds,
+						Filter: toStoragePredicate(executetest.FunctionExpression(t, `(r) => r._value == ""`)),
 					}),
 				},
 			},
@@ -479,9 +465,8 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter:    makeExprBody(executetest.FunctionExpression(t, `(r) => r.host == "cpu" and r.host != ""`)),
+						Bounds: bounds,
+						Filter: toStoragePredicate(executetest.FunctionExpression(t, `(r) => r.host == "cpu" and r.host != ""`)),
 					}),
 				},
 			},
@@ -754,8 +739,8 @@ func TestReadTagKeysRule(t *testing.T) {
 			},
 		}
 		if filter {
-			s.FilterSet = true
-			s.Filter = filterSpec.Fn.Fn
+			bodyExpr, _ := filterSpec.Fn.Fn.GetFunctionBodyExpression()
+			s.Filter, _ = influxdb.ToStoragePredicate(bodyExpr, "r")
 		}
 		return &s
 	}
@@ -971,8 +956,8 @@ func TestReadTagValuesRule(t *testing.T) {
 			TagKey: "host",
 		}
 		if filter {
-			s.FilterSet = true
-			s.Filter = filterSpec.Fn.Fn
+			bodyExpr, _ := filterSpec.Fn.Fn.GetFunctionBodyExpression()
+			s.Filter, _ = influxdb.ToStoragePredicate(bodyExpr, "r")
 		}
 		return &s
 	}

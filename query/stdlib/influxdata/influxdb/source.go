@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
-	"github.com/influxdata/flux/semantic"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/query"
@@ -181,10 +180,6 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 		return nil, err
 	}
 
-	var filter *semantic.FunctionExpression
-	if spec.FilterSet {
-		filter = spec.Filter
-	}
 	return ReadFilterSource(
 		id,
 		deps.Reader,
@@ -192,7 +187,7 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 			OrganizationID: orgID,
 			BucketID:       bucketID,
 			Bounds:         *bounds,
-			Predicate:      filter,
+			Predicate:      spec.Filter,
 		},
 		a,
 	), nil
@@ -258,10 +253,6 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
 		return nil, err
 	}
 
-	var filter *semantic.FunctionExpression
-	if spec.FilterSet {
-		filter = spec.Filter
-	}
 	return ReadGroupSource(
 		id,
 		deps.Reader,
@@ -270,7 +261,7 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
 				OrganizationID: orgID,
 				BucketID:       bucketID,
 				Bounds:         *bounds,
-				Predicate:      filter,
+				Predicate:      spec.Filter,
 			},
 			GroupMode:       query.ToGroupMode(spec.GroupMode),
 			GroupKeys:       spec.GroupKeys,
@@ -297,11 +288,6 @@ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, 
 		return nil, err
 	}
 
-	var filter *semantic.FunctionExpression
-	if spec.FilterSet {
-		filter = spec.Filter
-	}
-
 	bounds := a.StreamContext().Bounds()
 	return ReadTagKeysSource(
 		dsid,
@@ -311,7 +297,7 @@ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, 
 				OrganizationID: orgID,
 				BucketID:       bucketID,
 				Bounds:         *bounds,
-				Predicate:      filter,
+				Predicate:      spec.Filter,
 			},
 		},
 		a,
@@ -366,11 +352,6 @@ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID
 		return nil, err
 	}
 
-	var filter *semantic.FunctionExpression
-	if spec.FilterSet {
-		filter = spec.Filter
-	}
-
 	bounds := a.StreamContext().Bounds()
 	return ReadTagValuesSource(
 		dsid,
@@ -380,7 +361,7 @@ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID
 				OrganizationID: orgID,
 				BucketID:       bucketID,
 				Bounds:         *bounds,
-				Predicate:      filter,
+				Predicate:      spec.Filter,
 			},
 			TagKey: spec.TagKey,
 		},
