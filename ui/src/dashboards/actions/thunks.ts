@@ -478,7 +478,7 @@ export const saveVEOView = (dashboardID: string) => async (
     }
   } catch (error) {
     console.error(error)
-    dispatch(notify(copy.cellAddFailed()))
+    dispatch(notify(copy.cellAddFailed(error.message)))
     throw error
   }
 }

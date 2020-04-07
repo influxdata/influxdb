@@ -13,8 +13,6 @@ import {Form, Input, Button, Grid} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardsDropdown from 'src/dataExplorer/components/DashboardsDropdown'
 
-// Constants
-import {cellAddFailed, cellAdded} from 'src/shared/copy/notifications'
 import {
   DashboardTemplate,
   DEFAULT_DASHBOARD_NAME,
@@ -173,7 +171,6 @@ class SaveAsCellForm extends PureComponent<Props, State> {
       dashboards,
       view,
       dismiss,
-      notify,
       orgID,
     } = this.props
     const {targetDashboardIDs} = this.state
@@ -186,21 +183,16 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 
     try {
       targetDashboardIDs.forEach(dashID => {
-        let targetDashboardName = ''
-        try {
-          if (dashID === DashboardTemplate.id) {
-            targetDashboardName = newDashboardName || DEFAULT_DASHBOARD_NAME
-            onCreateDashboardWithView(orgID, newDashboardName, viewWithProps)
-          } else {
-            const selectedDashboard = dashboards.find(d => d.id === dashID)
-            targetDashboardName = selectedDashboard.name
-            onCreateCellWithView(selectedDashboard.id, viewWithProps)
-          }
-          notify(cellAdded(cellName, targetDashboardName))
-        } catch {
-          notify(cellAddFailed(cellName, targetDashboardName))
+        if (dashID === DashboardTemplate.id) {
+          onCreateDashboardWithView(orgID, newDashboardName, viewWithProps)
+          return
         }
+
+        const selectedDashboard = dashboards.find(d => d.id === dashID)
+        onCreateCellWithView(selectedDashboard.id, viewWithProps)
       })
+    } catch (error) {
+      console.error(error)
     } finally {
       this.resetForm()
       dismiss()
