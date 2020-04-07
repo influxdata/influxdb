@@ -107,7 +107,7 @@ func TestVariableService_FindVariableByID(t *testing.T) {
 			s := authorizer.NewVariableService(tt.fields.VariableService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindVariableByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -231,7 +231,7 @@ func TestVariableService_FindVariables(t *testing.T) {
 			s := authorizer.NewVariableService(tt.fields.VariableService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			variables, err := s.FindVariables(ctx, influxdb.VariableFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -346,7 +346,7 @@ func TestVariableService_UpdateVariable(t *testing.T) {
 			s := authorizer.NewVariableService(tt.fields.VariableService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.UpdateVariable(ctx, tt.args.id, &influxdb.VariableUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -458,7 +458,7 @@ func TestVariableService_ReplaceVariable(t *testing.T) {
 			s := authorizer.NewVariableService(tt.fields.VariableService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.ReplaceVariable(ctx, &tt.args.variable)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -563,7 +563,7 @@ func TestVariableService_DeleteVariable(t *testing.T) {
 			s := authorizer.NewVariableService(tt.fields.VariableService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteVariable(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -645,7 +645,7 @@ func TestVariableService_CreateVariable(t *testing.T) {
 			s := authorizer.NewVariableService(tt.fields.VariableService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.CreateVariable(ctx, &influxdb.Variable{OrganizationID: tt.args.orgID})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)

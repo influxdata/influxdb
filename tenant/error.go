@@ -38,6 +38,11 @@ var (
 		Code: influxdb.EEmptyValue,
 		Msg:  "onboard failed, missing value",
 	}
+
+	ErrNotFound = &influxdb.Error{
+		Code: influxdb.ENotFound,
+		Msg:  "not found",
+	}
 )
 
 // ErrCorruptID the ID stored in the Store is corrupt.

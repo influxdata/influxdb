@@ -120,7 +120,7 @@ func TestLabelService_FindLabelByID(t *testing.T) {
 			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			_, err := s.FindLabelByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -275,7 +275,7 @@ func TestLabelService_FindLabels(t *testing.T) {
 			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			labels, err := s.FindLabels(ctx, influxdb.LabelFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -383,7 +383,7 @@ func TestLabelService_UpdateLabel(t *testing.T) {
 			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			_, err := s.UpdateLabel(ctx, tt.args.id, influxdb.LabelUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -483,7 +483,7 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteLabel(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -587,7 +587,7 @@ func TestLabelService_CreateLabel(t *testing.T) {
 			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			err := s.CreateLabel(ctx, &influxdb.Label{Name: "name", OrgID: orgOneInfluxID})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -819,7 +819,7 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			labels, err := s.FindResourceLabels(ctx, tt.args.filter)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -971,7 +971,7 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.CreateLabelMapping(ctx, &tt.args.mapping)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -1119,7 +1119,7 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 			s := authorizer.NewLabelServiceWithOrg(tt.fields.LabelService, orgSvc)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
 			err := s.DeleteLabelMapping(ctx, &tt.args.mapping)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)

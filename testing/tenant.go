@@ -443,6 +443,7 @@ func Create(t *testing.T, init func(*testing.T, TenantFields) (influxdb.TenantSe
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				sort.Sort(urmByResourceID(urms))
 				if diff := cmp.Diff(want, urms); diff != "" {
 					t.Errorf("unexpected urms -want/+got:\n\t%s", diff)

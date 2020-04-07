@@ -30,9 +30,7 @@ func TestPasswordService(t *testing.T) {
 			}
 			s := authorizer.NewPasswordService(fakeSVC)
 
-			ctx := icontext.SetAuthorizer(context.Background(), &Authorizer{
-				Permissions: []influxdb.Permission{permission},
-			})
+			ctx := icontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(false, []influxdb.Permission{permission}))
 
 			err := s.SetPassword(ctx, 1, "password")
 			require.NoError(t, err)
@@ -90,9 +88,7 @@ func TestPasswordService(t *testing.T) {
 					}
 					s := authorizer.NewPasswordService(fakeSVC)
 
-					ctx := icontext.SetAuthorizer(context.Background(), &Authorizer{
-						Permissions: []influxdb.Permission{tt.badPermission},
-					})
+					ctx := icontext.SetAuthorizer(context.Background(), mock.NewMockAuthorizer(false, []influxdb.Permission{tt.badPermission}))
 
 					err := s.SetPassword(ctx, goodUserID, "password")
 					require.Error(t, err)

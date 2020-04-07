@@ -1,4 +1,4 @@
-package authorizer_test
+package tenant_test
 
 import (
 	"bytes"
@@ -8,18 +8,18 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/authorizer"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
-var userCmpOptions = cmp.Options{
+var orgCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
-	cmp.Transformer("Sort", func(in []*influxdb.User) []*influxdb.User {
-		out := append([]*influxdb.User(nil), in...) // Copy input to avoid mutating it
+	cmp.Transformer("Sort", func(in []*influxdb.Organization) []*influxdb.Organization {
+		out := append([]*influxdb.Organization(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
 			return out[i].ID.String() > out[j].ID.String()
 		})
@@ -27,9 +27,9 @@ var userCmpOptions = cmp.Options{
 	}),
 }
 
-func TestUserService_FindUserByID(t *testing.T) {
+func TestOrgService_FindOrganizationByID(t *testing.T) {
 	type fields struct {
-		UserService influxdb.UserService
+		OrgService influxdb.OrganizationService
 	}
 	type args struct {
 		permission influxdb.Permission
@@ -48,9 +48,9 @@ func TestUserService_FindUserByID(t *testing.T) {
 		{
 			name: "authorized to access id",
 			fields: fields{
-				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
-						return &influxdb.User{
+				OrgService: &mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+						return &influxdb.Organization{
 							ID: id,
 						}, nil
 					},
@@ -60,7 +60,7 @@ func TestUserService_FindUserByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
+						Type: influxdb.OrgsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
@@ -73,9 +73,9 @@ func TestUserService_FindUserByID(t *testing.T) {
 		{
 			name: "unauthorized to access id",
 			fields: fields{
-				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
-						return &influxdb.User{
+				OrgService: &mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+						return &influxdb.Organization{
 							ID: id,
 						}, nil
 					},
@@ -85,7 +85,7 @@ func TestUserService_FindUserByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
+						Type: influxdb.OrgsResourceType,
 						ID:   influxdbtesting.IDPtr(2),
 					},
 				},
@@ -93,7 +93,7 @@ func TestUserService_FindUserByID(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:users/0000000000000001 is unauthorized",
+					Msg:  "read:orgs/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -102,20 +102,20 @@ func TestUserService_FindUserByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewUserService(tt.fields.UserService)
+			s := tenant.NewAuthedOrgService(tt.fields.OrgService)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
-			_, err := s.FindUserByID(ctx, tt.args.id)
+			_, err := s.FindOrganizationByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestUserService_FindUser(t *testing.T) {
+func TestOrgService_FindOrganization(t *testing.T) {
 	type fields struct {
-		UserService influxdb.UserService
+		OrgService influxdb.OrganizationService
 	}
 	type args struct {
 		permission influxdb.Permission
@@ -131,11 +131,11 @@ func TestUserService_FindUser(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to access user",
+			name: "authorized to access org",
 			fields: fields{
-				UserService: &mock.UserService{
-					FindUserFn: func(ctx context.Context, filter influxdb.UserFilter) (*influxdb.User, error) {
-						return &influxdb.User{
+				OrgService: &mock.OrganizationService{
+					FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+						return &influxdb.Organization{
 							ID: 1,
 						}, nil
 					},
@@ -145,7 +145,7 @@ func TestUserService_FindUser(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
+						Type: influxdb.OrgsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
@@ -155,11 +155,11 @@ func TestUserService_FindUser(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to access user",
+			name: "unauthorized to access org",
 			fields: fields{
-				UserService: &mock.UserService{
-					FindUserFn: func(ctx context.Context, filter influxdb.UserFilter) (*influxdb.User, error) {
-						return &influxdb.User{
+				OrgService: &mock.OrganizationService{
+					FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+						return &influxdb.Organization{
 							ID: 1,
 						}, nil
 					},
@@ -169,14 +169,14 @@ func TestUserService_FindUser(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
+						Type: influxdb.OrgsResourceType,
 						ID:   influxdbtesting.IDPtr(2),
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:users/0000000000000001 is unauthorized",
+					Msg:  "read:orgs/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -185,27 +185,27 @@ func TestUserService_FindUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewUserService(tt.fields.UserService)
+			s := tenant.NewAuthedOrgService(tt.fields.OrgService)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
-			_, err := s.FindUser(ctx, influxdb.UserFilter{})
+			_, err := s.FindOrganization(ctx, influxdb.OrganizationFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestUserService_FindUsers(t *testing.T) {
+func TestOrgService_FindOrganizations(t *testing.T) {
 	type fields struct {
-		UserService influxdb.UserService
+		OrgService influxdb.OrganizationService
 	}
 	type args struct {
 		permission influxdb.Permission
 	}
 	type wants struct {
-		err   error
-		users []*influxdb.User
+		err  error
+		orgs []*influxdb.Organization
 	}
 
 	tests := []struct {
@@ -215,11 +215,11 @@ func TestUserService_FindUsers(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to see all users",
+			name: "authorized to see all orgs",
 			fields: fields{
-				UserService: &mock.UserService{
-					FindUsersFn: func(ctx context.Context, filter influxdb.UserFilter, opt ...influxdb.FindOptions) ([]*influxdb.User, int, error) {
-						return []*influxdb.User{
+				OrgService: &mock.OrganizationService{
+					FindOrganizationsF: func(ctx context.Context, filter influxdb.OrganizationFilter, opt ...influxdb.FindOptions) ([]*influxdb.Organization, int, error) {
+						return []*influxdb.Organization{
 							{
 								ID: 1,
 							},
@@ -237,12 +237,12 @@ func TestUserService_FindUsers(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
+						Type: influxdb.OrgsResourceType,
 					},
 				},
 			},
 			wants: wants{
-				users: []*influxdb.User{
+				orgs: []*influxdb.Organization{
 					{
 						ID: 1,
 					},
@@ -256,11 +256,11 @@ func TestUserService_FindUsers(t *testing.T) {
 			},
 		},
 		{
-			name: "authorized to access a single user",
+			name: "authorized to access a single org",
 			fields: fields{
-				UserService: &mock.UserService{
-					FindUsersFn: func(ctx context.Context, filter influxdb.UserFilter, opt ...influxdb.FindOptions) ([]*influxdb.User, int, error) {
-						return []*influxdb.User{
+				OrgService: &mock.OrganizationService{
+					FindOrganizationsF: func(ctx context.Context, filter influxdb.OrganizationFilter, opt ...influxdb.FindOptions) ([]*influxdb.Organization, int, error) {
+						return []*influxdb.Organization{
 							{
 								ID: 1,
 							},
@@ -278,13 +278,13 @@ func TestUserService_FindUsers(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
+						Type: influxdb.OrgsResourceType,
 						ID:   influxdbtesting.IDPtr(2),
 					},
 				},
 			},
 			wants: wants{
-				users: []*influxdb.User{
+				orgs: []*influxdb.Organization{
 					{
 						ID: 2,
 					},
@@ -295,24 +295,24 @@ func TestUserService_FindUsers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewUserService(tt.fields.UserService)
+			s := tenant.NewAuthedOrgService(tt.fields.OrgService)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
-			users, _, err := s.FindUsers(ctx, influxdb.UserFilter{})
+			orgs, _, err := s.FindOrganizations(ctx, influxdb.OrganizationFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
-			if diff := cmp.Diff(users, tt.wants.users, userCmpOptions...); diff != "" {
-				t.Errorf("users are different -got/+want\ndiff %s", diff)
+			if diff := cmp.Diff(orgs, tt.wants.orgs, orgCmpOptions...); diff != "" {
+				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
 			}
 		})
 	}
 }
 
-func TestUserService_UpdateUser(t *testing.T) {
+func TestOrgService_UpdateOrganization(t *testing.T) {
 	type fields struct {
-		UserService influxdb.UserService
+		OrgService influxdb.OrganizationService
 	}
 	type args struct {
 		id         influxdb.ID
@@ -329,11 +329,11 @@ func TestUserService_UpdateUser(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to update user",
+			name: "authorized to update org",
 			fields: fields{
-				UserService: &mock.UserService{
-					UpdateUserFn: func(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
-						return &influxdb.User{
+				OrgService: &mock.OrganizationService{
+					UpdateOrganizationF: func(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
+						return &influxdb.Organization{
 							ID: 1,
 						}, nil
 					},
@@ -344,7 +344,7 @@ func TestUserService_UpdateUser(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
+						Type: influxdb.OrgsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
@@ -354,11 +354,11 @@ func TestUserService_UpdateUser(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to update user",
+			name: "unauthorized to update org",
 			fields: fields{
-				UserService: &mock.UserService{
-					UpdateUserFn: func(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
-						return &influxdb.User{
+				OrgService: &mock.OrganizationService{
+					UpdateOrganizationF: func(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
+						return &influxdb.Organization{
 							ID: 1,
 						}, nil
 					},
@@ -369,14 +369,14 @@ func TestUserService_UpdateUser(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
+						Type: influxdb.OrgsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:users/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -385,20 +385,20 @@ func TestUserService_UpdateUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewUserService(tt.fields.UserService)
+			s := tenant.NewAuthedOrgService(tt.fields.OrgService)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
-			_, err := s.UpdateUser(ctx, tt.args.id, influxdb.UserUpdate{})
+			_, err := s.UpdateOrganization(ctx, tt.args.id, influxdb.OrganizationUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestUserService_DeleteUser(t *testing.T) {
+func TestOrgService_DeleteOrganization(t *testing.T) {
 	type fields struct {
-		UserService influxdb.UserService
+		OrgService influxdb.OrganizationService
 	}
 	type args struct {
 		id         influxdb.ID
@@ -415,10 +415,10 @@ func TestUserService_DeleteUser(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to delete user",
+			name: "authorized to delete org",
 			fields: fields{
-				UserService: &mock.UserService{
-					DeleteUserFn: func(ctx context.Context, id influxdb.ID) error {
+				OrgService: &mock.OrganizationService{
+					DeleteOrganizationF: func(ctx context.Context, id influxdb.ID) error {
 						return nil
 					},
 				},
@@ -428,7 +428,7 @@ func TestUserService_DeleteUser(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
+						Type: influxdb.OrgsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
@@ -438,10 +438,10 @@ func TestUserService_DeleteUser(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to delete user",
+			name: "unauthorized to delete org",
 			fields: fields{
-				UserService: &mock.UserService{
-					DeleteUserFn: func(ctx context.Context, id influxdb.ID) error {
+				OrgService: &mock.OrganizationService{
+					DeleteOrganizationF: func(ctx context.Context, id influxdb.ID) error {
 						return nil
 					},
 				},
@@ -451,14 +451,14 @@ func TestUserService_DeleteUser(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
+						Type: influxdb.OrgsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:users/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -467,20 +467,20 @@ func TestUserService_DeleteUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewUserService(tt.fields.UserService)
+			s := tenant.NewAuthedOrgService(tt.fields.OrgService)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
-			err := s.DeleteUser(ctx, tt.args.id)
+			err := s.DeleteOrganization(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestUserService_CreateUser(t *testing.T) {
+func TestOrgService_CreateOrganization(t *testing.T) {
 	type fields struct {
-		UserService influxdb.UserService
+		OrgService influxdb.OrganizationService
 	}
 	type args struct {
 		permission influxdb.Permission
@@ -496,10 +496,10 @@ func TestUserService_CreateUser(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to create user",
+			name: "authorized to create org",
 			fields: fields{
-				UserService: &mock.UserService{
-					CreateUserFn: func(ctx context.Context, o *influxdb.User) error {
+				OrgService: &mock.OrganizationService{
+					CreateOrganizationF: func(ctx context.Context, o *influxdb.Organization) error {
 						return nil
 					},
 				},
@@ -508,7 +508,7 @@ func TestUserService_CreateUser(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
+						Type: influxdb.OrgsResourceType,
 					},
 				},
 			},
@@ -517,10 +517,10 @@ func TestUserService_CreateUser(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to create user",
+			name: "unauthorized to create org",
 			fields: fields{
-				UserService: &mock.UserService{
-					CreateUserFn: func(ctx context.Context, o *influxdb.User) error {
+				OrgService: &mock.OrganizationService{
+					CreateOrganizationF: func(ctx context.Context, o *influxdb.Organization) error {
 						return nil
 					},
 				},
@@ -529,14 +529,14 @@ func TestUserService_CreateUser(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type: influxdb.UsersResourceType,
+						Type: influxdb.OrgsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:users is unauthorized",
+					Msg:  "write:orgs is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -545,12 +545,12 @@ func TestUserService_CreateUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewUserService(tt.fields.UserService)
+			s := tenant.NewAuthedOrgService(tt.fields.OrgService)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
-			err := s.CreateUser(ctx, &influxdb.User{})
+			err := s.CreateOrganization(ctx, &influxdb.Organization{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
