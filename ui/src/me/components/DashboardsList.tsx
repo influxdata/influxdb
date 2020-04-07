@@ -1,11 +1,17 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useState, ChangeEvent} from 'react'
 import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import {sortBy} from 'lodash'
 
 // Components
-import {EmptyState, DapperScrollbars} from '@influxdata/clockface'
+import {
+  EmptyState,
+  DapperScrollbars,
+  Input,
+  IconFont,
+  InputRef,
+} from '@influxdata/clockface'
 
 // Types
 import {Dashboard, Organization, AppState, ResourceType} from 'src/types'
@@ -24,13 +30,33 @@ interface StateProps {
 type Props = StateProps
 
 const DashboardList: FC<Props> = ({dashboards, org}) => {
-  if (dashboards && dashboards.length) {
-    const sortedDashboards = sortBy(dashboards, ['meta.updatedAt']).reverse()
+  const [searchTerm, setSearchTerm] = useState<string>('')
 
-    return (
+  const handleInputChange = (e: ChangeEvent<InputRef>): void => {
+    setSearchTerm(e.target.value)
+  }
+
+  let dashboardsList = (
+    <EmptyState size={ComponentSize.ExtraSmall}>
+      <EmptyState.Text>You don't have any Dashboards</EmptyState.Text>
+    </EmptyState>
+  )
+
+  if (dashboards && dashboards.length) {
+    let recentlyModifiedDashboards = sortBy(dashboards, [
+      'meta.updatedAt',
+    ]).reverse()
+
+    if (searchTerm.length) {
+      recentlyModifiedDashboards = recentlyModifiedDashboards.filter(
+        dashboard => dashboard.name.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    }
+
+    dashboardsList = (
       <DapperScrollbars autoSizeHeight={true} style={{maxHeight: '400px'}}>
         <div className="recent-dashboards">
-          {sortedDashboards.map(({id, name}) => (
+          {recentlyModifiedDashboards.map(({id, name}) => (
             <Link
               key={id}
               to={`/orgs/${org.id}/dashboards/${id}`}
@@ -42,12 +68,29 @@ const DashboardList: FC<Props> = ({dashboards, org}) => {
         </div>
       </DapperScrollbars>
     )
+
+    if (searchTerm && !recentlyModifiedDashboards.length) {
+      dashboardsList = (
+        <EmptyState size={ComponentSize.ExtraSmall}>
+          <EmptyState.Text>
+            No dashboards match <b>{searchTerm}</b>
+          </EmptyState.Text>
+        </EmptyState>
+      )
+    }
   }
 
   return (
-    <EmptyState size={ComponentSize.ExtraSmall}>
-      <EmptyState.Text>You don't have any Dashboards</EmptyState.Text>
-    </EmptyState>
+    <>
+      <Input
+        className="recent-dashboards--filter"
+        value={searchTerm}
+        icon={IconFont.Search}
+        placeholder="Filter dashboards..."
+        onChange={handleInputChange}
+      />
+      {dashboardsList}
+    </>
   )
 }
 
