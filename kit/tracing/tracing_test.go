@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/go-chi/chi"
 	"github.com/influxdata/httprouter"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
@@ -73,6 +74,21 @@ func TestExtractHTTPRequest(t *testing.T) {
 			path:        "/api/v2/buckets/12345",
 			tags: map[string]interface{}{
 				"route":   "/api/v2/buckets/:bucket_id",
+				"handler": "BucketHandler",
+			},
+		},
+		{
+			name:        "happy path bucket handler (chi)",
+			handlerName: "BucketHandler",
+			ctx: context.WithValue(
+				ctx,
+				chi.RouteCtxKey,
+				&chi.Context{RoutePath: "/api/v2/buckets/:bucket_id", RouteMethod: "GET"},
+			),
+			path: "/api/v2/buckets/12345",
+			tags: map[string]interface{}{
+				"route":   "/api/v2/buckets/:bucket_id",
+				"method":  "GET",
 				"handler": "BucketHandler",
 			},
 		},
