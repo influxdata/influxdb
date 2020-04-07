@@ -51,7 +51,6 @@ type Props = DispatchProps & StateProps & OwnProps
 
 interface State {
   searchTerm: string
-  isPopoverVisible: boolean
   selectedItemID: string
   isCreatingLabel: OverlayState
 }
@@ -66,7 +65,6 @@ class InlineLabelsEditor extends Component<Props, State> {
     this.state = {
       selectedItemID: null,
       searchTerm: '',
-      isPopoverVisible: false,
       isCreatingLabel: OverlayState.Closed,
     }
   }
@@ -170,26 +168,6 @@ class InlineLabelsEditor extends Component<Props, State> {
 
   private handleUpdateSelectedItemID = (selectedItemID: string): void => {
     this.setState({selectedItemID})
-  }
-
-  private handleShowPopover = () => {
-    const {availableLabels} = this
-    const {isPopoverVisible} = this.state
-
-    if (_.isEmpty(availableLabels)) {
-      if (isPopoverVisible) {
-        return
-      }
-
-      return this.setState({
-        isPopoverVisible: true,
-        selectedItemID: null,
-        searchTerm: '',
-      })
-    }
-
-    const selectedItemID = this.availableLabels[0].id
-    this.setState({isPopoverVisible: true, selectedItemID, searchTerm: ''})
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
