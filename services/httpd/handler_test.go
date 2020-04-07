@@ -1665,6 +1665,87 @@ func TestHandler_Write_NegativeMaxBodySize(t *testing.T) {
 	}
 }
 
+// TestHandler_Write_V1_Precision verifies v1 writes validate precision.
+func TestHandler_Write_V1_Precision(t *testing.T) {
+	h := NewHandler(false)
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+	h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, _ []models.Point) error {
+		return nil
+	}
+
+	tests := []struct {
+		url    string
+		status int
+	}{
+		// Successful requests.
+		{"/write?db=foo", http.StatusNoContent},
+		{"/write?db=foo&precision=n", http.StatusNoContent},
+		{"/write?db=foo&precision=u", http.StatusNoContent},
+		{"/write?db=foo&precision=ms", http.StatusNoContent},
+		{"/write?db=foo&precision=s", http.StatusNoContent},
+		{"/write?db=foo&precision=m", http.StatusNoContent},
+		{"/write?db=foo&precision=h", http.StatusNoContent},
+		// Invalid requests.
+		{"/write?db=foo&precision=us", http.StatusBadRequest},
+	}
+
+	runTest := func(url string, status int) {
+		b := bytes.NewReader([]byte(`foo n=1`))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewRequest("POST", url, b))
+		if w.Code != status {
+			t.Fatalf("unexpected result for: \"%s\"\n\texp: %d, got: %d\n\t%s", url, status, w.Code, w.Body)
+		}
+	}
+
+	for _, t := range tests {
+		runTest(t.url, t.status)
+	}
+}
+
+// TestHandler_Write_V2_Precision verifies v2 writes validate precision.
+func TestHandler_Write_V2_Precision(t *testing.T) {
+	h := NewHandler(false)
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+	h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, _ []models.Point) error {
+		return nil
+	}
+
+	tests := []struct {
+		url    string
+		status int
+	}{
+		// Successful requests.
+		{"/api/v2/write?org=bar&bucket=foo", http.StatusNoContent},
+		{"/api/v2/write?org=bar&bucket=foo&precision=ns", http.StatusNoContent},
+		{"/api/v2/write?org=bar&bucket=foo&precision=us", http.StatusNoContent},
+		{"/api/v2/write?org=bar&bucket=foo&precision=ms", http.StatusNoContent},
+		{"/api/v2/write?org=bar&bucket=foo&precision=s", http.StatusNoContent},
+		// Invalid requests.
+		{"/api/v2/write?org=bar&bucket=foo&precision=n", http.StatusBadRequest},
+		{"/api/v2/write?org=bar&bucket=foo&precision=u", http.StatusBadRequest},
+		{"/api/v2/write?org=bar&bucket=foo&precision=m", http.StatusBadRequest},
+		{"/api/v2/write?org=bar&bucket=foo&precision=h", http.StatusBadRequest},
+	}
+
+	runTest := func(url string, status int) {
+		b := bytes.NewReader([]byte(`foo n=1`))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, MustNewRequest("POST", url, b))
+		if w.Code != status {
+			t.Fatalf("unexpected result for: \"%s\"\n\texp: %d, got: %d\n\t%s", url, status, w.Code, w.Body)
+		}
+	}
+
+	for _, t := range tests {
+		runTest(t.url, t.status)
+	}
+}
+
 // Ensure X-Forwarded-For header writes the correct log message.
 func TestHandler_XForwardedFor(t *testing.T) {
 	var buf bytes.Buffer
