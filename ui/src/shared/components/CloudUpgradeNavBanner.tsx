@@ -38,6 +38,7 @@ const CloudUpgradeNavBanner: FC = () => {
             <Link
               className="cf-button cf-button-md cf-button-primary cf-button-stretch cloud-upgrade-banner--button"
               to={`${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`}
+              target="_self"
             >
               Upgrade Now
             </Link>
@@ -46,6 +47,7 @@ const CloudUpgradeNavBanner: FC = () => {
         <Link
           className="cloud-upgrade-banner__collapsed"
           to={`${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`}
+          target="_self"
         >
           <Icon glyph={IconFont.Star} />
           <Heading element={HeadingElement.H5}>Upgrade Now</Heading>
