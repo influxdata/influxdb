@@ -14,6 +14,7 @@ const CloudUpgradeButton: FC = () => {
       <Link
         className="cf-button cf-button-sm cf-button-success upgrade-payg--button"
         to={`${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`}
+        target="_self"
       >
         Upgrade Now
       </Link>
